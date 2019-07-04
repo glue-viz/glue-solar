@@ -24,6 +24,7 @@ jobs:
     displayName: Setting up Xvfb
 
   - script: |
+      python$(python.version) -m pip install numpy
       python$(python.version) -m pip install .[test]
       python$(python.version) -m pytest glue_solar
     displayName: Running tests
