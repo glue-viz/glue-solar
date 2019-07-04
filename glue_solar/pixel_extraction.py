@@ -4,8 +4,7 @@ from glue.config import viewer_tool
 
 from glue.core.data_derived import IndexedData
 
-from glue.viewers.common.qt.toolbar_mode import ToolbarModeBase
-from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
+from glue.viewers.matplotlib.toolbar_mode import ToolbarModeBase
 
 __all__ = ['PixelExtractionTool']
 
@@ -17,7 +16,7 @@ class PixelExtractionTool(ToolbarModeBase):
     """
 
     icon = "glue_crosshair"
-    tool_id = 'image:solar_pixel_extraction'
+    tool_id = 'solar:pixel_extraction'
     action_text = 'Pixel'
     tool_tip = 'Extract data for a single pixel based on mouse location'
     status_tip = 'CLICK to select a point, CLICK and DRAG to update the extracted dataset in real time'
@@ -26,7 +25,7 @@ class PixelExtractionTool(ToolbarModeBase):
 
     def __init__(self, *args, **kwargs):
         super(PixelExtractionTool, self).__init__(*args, **kwargs)
-        self._move_callback = self._select_pixel
+        self._move_callback = self._extract_pixel
         self._press_callback = self._on_press
         self._release_callback = self._on_release
         self._derived = None
@@ -39,12 +38,12 @@ class PixelExtractionTool(ToolbarModeBase):
 
     def _on_press(self, mode):
         self._pressed = True
-        self._select_pixel(mode)
+        self._extract_pixel(mode)
 
     def _on_release(self, mode):
         self._pressed = False
 
-    def _select_pixel(self, mode):
+    def _extract_pixel(self, mode):
 
         if not self._pressed:
             return
@@ -71,4 +70,9 @@ class PixelExtractionTool(ToolbarModeBase):
             self._derived = IndexedData(self.viewer.state.reference_data, indices)
             self.viewer.session.data_collection.append(self._derived)
         else:
-            self._derived.indices = indices
+            try:
+                self._derived.indices = indices
+            except TypeError:
+                self.viewer.session.data_collection.remove(self._derived)
+                self._derived = IndexedData(self.viewer.state.reference_data, indices)
+                self.viewer.session.data_collection.append(self._derived)
