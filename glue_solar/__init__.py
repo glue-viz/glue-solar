@@ -7,4 +7,6 @@ except DistributionNotFound:
 
 
 def setup():
-    pass
+    from glue.viewers.image.qt import ImageViewer
+    from glue_solar.pixel_extraction import PixelExtractionTool  # noqa
+    ImageViewer.tools.append('solar:pixel_extraction')
