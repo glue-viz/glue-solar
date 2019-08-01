@@ -12,5 +12,5 @@ def setup():
     from glue_solar.pixel_extraction import PixelExtractionTool  # noqa
     ImageViewer.tools.append('solar:pixel_extraction')
     from glue.config import colormaps
-#    for i in range(len(cmlist)):
-    colormaps.add(['hmimag',cmlist['hmimag']])
+#    for i in range(len(cmlist)): 15 native colormaps
+    colormaps.add('hmimag',cmlist['hmimag'])
