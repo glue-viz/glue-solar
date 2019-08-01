@@ -5,6 +5,8 @@ try:
 except DistributionNotFound:
     pass
 
+from glue_solar.instruments import *
+
 
 def setup():
     from glue.viewers.image.qt import ImageViewer
