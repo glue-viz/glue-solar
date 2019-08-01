@@ -17,5 +17,6 @@ def _parse_iris_raster(data, label):
             w_data.coords = WCSCoordinates(wcs=scan_data.wcs)
             w_data.add_component(Component(scan_data.data),
                                  f"{window}-scan-{i}")
+            w_data.meta = scan_data.meta
             result.append(w_data)
     return result
