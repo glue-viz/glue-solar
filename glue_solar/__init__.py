@@ -11,5 +11,5 @@ except DistributionNotFound:
 
 def setup():
     ImageViewer.tools.append('solar:pixel_extraction')
-    for name, ctable in cmlist.items():
-        colormaps.add(name, ctable)
+    for name, ctable in sorted(cmlist.items()):
+        colormaps.add(ctable.name, ctable)
