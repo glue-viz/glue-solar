@@ -13,7 +13,8 @@ from glue.core.data_factories import load_data
 from glue.core.coordinates import WCSCoordinates
 from irispy.spectrograph import (IRISSpectrograph,
                                  read_iris_spectrograph_level2_fits)
-from irispy.reproject_raster import stack_spectrogram_sequence
+
+from .stack_spectrograms import stack_spectrogram_sequence
 
 
 @qglue_parser(IRISSpectrograph)
