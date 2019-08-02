@@ -20,3 +20,11 @@ def _parse_iris_raster(data, label):
             w_data.meta = scan_data.meta
             result.append(w_data)
     return result
+                          
+def is_fits(filename, **kwargs):
+    return filename.endswith('.fits')
+
+@data_factory('IRIS Spectrograph', is_fits)
+def read_iris_raster(raster_file):
+    raster_data = _parse_iris_raster(read_iris_spectrograph_level2_fits(raster_file), 'iris')
+    return raster_data
