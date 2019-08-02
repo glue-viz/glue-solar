@@ -18,7 +18,6 @@ def _parse_iris_raster(data, label):
             w_data.add_component(Component(scan_data.data),
                                  f"{window}-scan-{i}")
             w_data.meta = scan_data.meta
-            print(scan_data.data)
             result.append(w_data)
     return result
                           
