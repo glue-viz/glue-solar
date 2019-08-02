@@ -10,8 +10,6 @@ try:
 except DistributionNotFound:
     pass
 
-from glue_solar.instruments import *
-
 
 def setup():
     ImageViewer.tools.append('solar:pixel_extraction')
