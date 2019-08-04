@@ -15,6 +15,11 @@ from irispy.spectrograph import (IRISSpectrograph,
                                  read_iris_spectrograph_level2_fits)
 
 from .stack_spectrograms import stack_spectrogram_sequence
+from .iris_loader import QtIRISImporter
+
+
+__all__ = ['import_iris_obs', 'import_iris', 'read_iris_raster',
+           '_parse_iris_raster']
 
 
 @qglue_parser(IRISSpectrograph)
@@ -29,19 +34,6 @@ def _parse_iris_raster(data, label):
             w_data.meta = scan_data.meta
             result.append(w_data)
     return result
-
-
-def load_sji_fits(filename):
-    with fits.open(filename) as hdul:
-        hdul.verify("fix")
-        sji = hdul[0]
-        label = sji.header['TDESC1']
-        data = Data(label=label)
-        data.coords = WCSCoordinates(sji.header)
-        data.meta = sji.header
-        data.add_component(Component(sji.data), label)
-
-    return data
 
 
 def is_fits(filename, **kwargs):
@@ -68,54 +60,10 @@ def pick_directory(caption):
 
 
 @importer("Import IRIS OBS Directory")
-def import_iris_obs():
-
+def import_iris():
     caption = "Select a directory containing files from one IRIS OBS."
+    directory = pick_directory(caption)
 
-    data_path = Path(pick_directory(caption))
-    rasters = list(data_path.glob("*raster*"))
-    sji = list(data_path.glob("*SJI*"))
-
-    sji_data = []
-
-    for s in sji:
-        sji_data.append(load_sji_fits(s))
-
-    raster_data = _parse_iris_raster(
-        read_iris_spectrograph_level2_fits(rasters,
-                                           uncertainty=False,
-                                           memmap=True), 'iris')
-
-    return raster_data + sji_data
-
-
-@importer("Import IRIS OBS Directory (Stacked)")
-def import_iris_obs():
-
-    caption = "Select a directory containing files from one IRIS OBS, and stack all raster scans."
-
-    data_path = Path(pick_directory(caption))
-    rasters = list(data_path.glob("*raster*"))
-    sji = list(data_path.glob("*SJI*"))
-
-    sji_data = []
-
-    for s in sji:
-        sji_data.append(load_sji_fits(s))
-
-    raster_data = read_iris_spectrograph_level2_fits(rasters,
-                                                     spectral_windows=['Mg II k 2796'],
-                                                     memmap=False, uncertainty=False)
-
-    raster_data = {window: stack_spectrogram_sequence(seq)
-                   for window, seq in raster_data.data.items()}
-
-    result = []
-    for window, window_data in raster_data.items():
-        w_data = Data(label=f"{window.replace(' ', '_')}")
-        w_data.coords = WCSCoordinates(wcs=window_data.wcs)
-        w_data.add_component(Component(window_data.data),
-                             f"{window}")
-        result.append(w_data)
-
-    return result + sji_data
+    wi = QtIRISImporter(directory)
+    wi.exec_()
+    return wi.datasets
