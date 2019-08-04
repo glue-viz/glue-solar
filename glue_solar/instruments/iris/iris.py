@@ -18,8 +18,7 @@ from .stack_spectrograms import stack_spectrogram_sequence
 from .iris_loader import QtIRISImporter
 
 
-__all__ = ['import_iris_obs', 'import_iris', 'read_iris_raster',
-           '_parse_iris_raster']
+__all__ = ['import_iris', 'read_iris_raster', '_parse_iris_raster']
 
 
 @qglue_parser(IRISSpectrograph)
