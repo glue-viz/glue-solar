@@ -41,7 +41,7 @@ def is_fits(filename, **kwargs):
 
 @data_factory('IRIS Spectrograph', is_fits)
 def read_iris_raster(raster_file):
-    raster_data = _parse_iris_raster(read_iris_spectrograph_level2_fits(raster_file, uncertainty=False), 'iris')
+    raster_data = _parse_iris_raster(read_iris_spectrograph_level2_fits(raster_file, uncertainty=False, memmap=True), 'iris')
     return raster_data
 
 
