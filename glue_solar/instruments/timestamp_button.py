@@ -24,19 +24,25 @@ class TimestampButton(CheckableTool):
 
     def update_label(self, slices):
         data = self.viewer.state.reference_data
+        meta = data.meta
+        base_time = meta.get("DATE-OBS", meta.get("DATE_OBS", None))
+
         world = data.coords.pixel2world(*slices[::-1])
 
+        if isinstance(base_time, str):
+            timestamp = datetime.datetime.strptime(base_time, '%Y-%m-%dT%H:%M:%S.%f')
+        elif isinstance(base_time, datetime.datetime):
+            timestamp = base_time
+        else:
+            return
 
-        if isinstance(data.meta['DATE_OBS'], str):
-            date_obs = datetime.datetime.strptime(data.meta['DATE_OBS'], '%Y-%m-%dT%H:%M:%S.%f')
-        else:
-            date_obs = data.meta['DATE_OBS']
-        if 'CUNIT3' in data.meta.keys():
+        if 'CUNIT3' in meta.keys():
             if data.meta['CUNIT3'] == 'seconds':
-                timestamp = datetime.timedelta(0, float(world[2]))+date_obs
-        else:
-            print(data.__dict__)
-            date_obs = data.meta['STARTOBS']
-            obs_delt = data.meta['ENDOBS'] - date_obs
-            timestamp = date_obs + obs_delt*float(world[2])
+                timestamp = datetime.timedelta(0, float(world[2])) + timestamp
+
+        elif ('STARTOBS' in meta and 'ENDOBS' in meta):
+            date_obs = meta['STARTOBS']
+            obs_delt = meta['ENDOBS'] - date_obs
+            timestamp = timestamp + obs_delt*float(world[2])
+
         self.viewer.set_status(timestamp.strftime('%Y-%m-%dT%H:%M:%S.%f'))
