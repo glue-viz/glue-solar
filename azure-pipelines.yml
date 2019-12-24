@@ -1,81 +1,36 @@
+name: $(BuildDefinitionName)_$(Date:yyyyMMdd)$(Rev:.rr)
+variables:
+  CI_NAME: Azure Pipelines
+  CI_BUILD_ID: $(Build.BuildId)
+  CI_BUILD_URL: "https://dev.azure.com/sunpy/sunpy/_build/results?buildId=$(Build.BuildId)"
+  CIBW_BUILD: cp36-* cp37-* cp38-*
+  CIBW_SKIP: "*-manylinux1_i686"
+
+resources:
+  repositories:
+  - repository: OpenAstronomy
+    type: github
+    endpoint: glue-viz
+    name: OpenAstronomy/azure-pipelines-templates
+    ref: master
+
+trigger:
+  branches:
+    include:
+    - '*'
+  tags:
+    include:
+    - 'v*'
+    exclude:
+    - '*dev*'
+    - '*pre*'
+    - '*post*'
+
 jobs:
-
-- job: Linux
-  pool:
-    vmImage: Ubuntu 16.04
-
-  strategy:
-    matrix:
-      py27:
-        containerImage: glueviz/py27-pyqt510:1.2
-        python.version: '2.7'
-      py35:
-        containerImage: glueviz/py35-pyqt510:1.2
-        python.version: '3.5'
-      py36:
-        containerImage: glueviz/py36-pyqt512:1.2
-        python.version: '3.6'
-
-  container: $[ variables['containerImage'] ]
-
-  steps:
-
-  - script: start-xvfb
-    displayName: Setting up Xvfb
-
-  - script: |
-      python$(python.version) -m pip install numpy
-      python$(python.version) -m pip install .[test]
-      python$(python.version) -m pytest glue_solar
-    displayName: Running tests
-    condition: eq(variables['python.version'], '2.7')
-
-  - script: |
-      python$(python.version) -m pip install tox
-      python$(python.version) -m tox -e test
-    displayName: Running tests
-    condition: ne(variables['python.version'], '2.7')
-
-- job: MacOSX
-  pool:
-    vmImage: macOS 10.13
-
-  steps:
-
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: '3.6'
-      architecture: 'x64'
-
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: '3.7'
-      architecture: 'x64'
-
-  - script: |
-      pip install tox
-      tox -e py36-test
-      tox -e py37-test
-    displayName: Running tests
-
-- job: Windows
-  pool:
-    vmImage: vs2017-win2016
-
-  steps:
-
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: '3.6'
-      architecture: 'x64'
-
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: '3.7'
-      architecture: 'x64'
-
-  - script: |
-      pip install tox
-      tox -e py36-test
-      tox -e py37-test
-    displayName: Running tests
+- template: run-tox-env.yml@OpenAstronomy
+  parameters:
+    coverage: codecov
+    envs:
+      - macos: py36
+      - windows: py37
+      - linux: py38
