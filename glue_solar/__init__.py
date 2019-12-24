@@ -10,6 +10,7 @@ try:
 except DistributionNotFound:
     pass
 
+
 def setup():
     ImageViewer.tools.append('solar:pixel_extraction')
     ImageViewer.tools.append('timestamp_button')
