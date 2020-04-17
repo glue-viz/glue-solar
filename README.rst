@@ -39,7 +39,7 @@ Testing
 -------
 To run the tests, do::
 
-    py.test glue_solar
+    pytest glue_solar
 
 at the root of the repository. This requires the
 `pytest <http://pytest.org>`__ module to be installed.
