@@ -7,11 +7,13 @@ from glue.core import Component, Data
 from glue.core.coordinates import WCSCoordinates
 from glue.utils.qt import get_qapp
 from glue.utils.qt.helpers import load_ui
-from irispy.spectrograph import read_iris_spectrograph_level2_fits
+from sunraster.io.iris import read_iris_spectrograph_level2_fits
+from sunraster import SpectrogramCube
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 
 from .stack_spectrograms import stack_spectrogram_sequence
+
 
 __all__ = ["QtIRISImporter"]
 
