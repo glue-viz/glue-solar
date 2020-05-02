@@ -101,7 +101,7 @@
        <item>
         <widget class="QCheckBox" name="stack">
          <property name="toolTip">
-          <string extracomment="When loading multiple raster files, stack the arrays into a 4D array."/>
+          <string extracomment="When loading multiple SunPy Map files, stack the arrays."/>
          </property>
          <property name="text">
           <string>Stack Sunpy Maps</string>

@@ -65,7 +65,7 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
     def load_sunpy_maps(self, sunpy_maps):
         for sunpy_map in sunpy_maps:
             sunpy_map_loaded = sunpy.map.Map(sunpy_map)
-            label = "sunpy-map-loaded"
+            label = sunpy_map_loaded.name
             data = Data(label=label)
             data.coords = WCSCoordinates(sunpy_map_loaded.fits_header)
             data.meta = sunpy_map_loaded.fits_header
