@@ -5,6 +5,7 @@ from astropy.io import fits
 
 from glue.core import Component, Data
 from glue.core.coordinates import WCSCoordinates
+from glue.core.visual import VisualAttributes
 from glue.utils.qt import get_qapp
 from glue.utils.qt.helpers import load_ui
 
@@ -70,6 +71,8 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
             data.coords = WCSCoordinates(sunpy_map_loaded.fits_header)
             data.meta = sunpy_map_loaded.fits_header
             data.add_component(Component(sunpy_map_loaded.data), label)
+            # data.style = VisualAttributes(color=sunpy_map.cmap)
+            data.style = VisualAttributes(color='#FDB813')
 
             self.datasets.append(data)
 

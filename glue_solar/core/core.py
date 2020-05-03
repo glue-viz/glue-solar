@@ -15,6 +15,7 @@ from glue.config import data_factory, importer, qglue_parser
 from glue.core import Component, Data
 from glue.core.data_factories import load_data
 from glue.core.coordinates import WCSCoordinates
+from glue.core.visual import VisualAttributes
 from glue.core.data_factories import is_fits
 
 from .sunpy_maps.sunpy_maps_loader import QtSunpyMapImporter
@@ -41,6 +42,8 @@ def _parse_sunpy_map(data, label):
     result.add_component(Component(scan_map.data),
                          scan_map.name)
     result.meta = scan_map.meta
+    # result.style = VisualAttributes(color=scan_map.cmap)
+    result.style = VisualAttributes(color='#FDB813')
 
     return result
 
