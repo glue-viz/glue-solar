@@ -42,7 +42,6 @@ def _parse_sunpy_map(data, label):
     result.add_component(Component(scan_map.data),
                          scan_map.name)
     result.meta = scan_map.meta
-    # result.style = VisualAttributes(color=scan_map.cmap)
     result.style = VisualAttributes(color='#FDB813')
 
     return result
