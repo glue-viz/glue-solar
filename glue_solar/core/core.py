@@ -38,11 +38,12 @@ def _parse_sunpy_map(data, label):
 
     scan_map = data
     result = Data(label=label)
-    result.coords = WCSCoordinates(wcs=scan_map.wcs)
+    result.coords = scan_map.wcs
     result.add_component(Component(scan_map.data),
                          scan_map.name)
     result.meta = scan_map.meta
-    result.style = VisualAttributes(color='#FDB813')
+    result.style = VisualAttributes(color='#FDB813', preferred_cmap=scan_map.cmap)
+    print(scan_map.cmap.name)
 
     return result
 
