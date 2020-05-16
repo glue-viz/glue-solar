@@ -9,7 +9,6 @@ from glue.core.visual import VisualAttributes
 from glue.utils.qt import get_qapp
 from glue.utils.qt.helpers import load_ui
 
-# import sunpy
 import sunpy.map
 import sunpy.data.sample
 
@@ -66,13 +65,12 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
     def load_sunpy_maps(self, sunpy_maps):
         for sunpy_map in sunpy_maps:
             sunpy_map_loaded = sunpy.map.Map(sunpy_map)
-            label = sunpy_map_loaded.name
+            label = 'sunpy-map-' + sunpy_map_loaded.name
             data = Data(label=label)
-            data.coords = WCSCoordinates(sunpy_map_loaded.fits_header)
-            data.meta = sunpy_map_loaded.fits_header
-            data.add_component(Component(sunpy_map_loaded.data), label)
-            # data.style = VisualAttributes(color=sunpy_map.cmap)
-            data.style = VisualAttributes(color='#FDB813')
+            data.coords = sunpy_map_loaded.wcs
+            data.meta = sunpy_map_loaded.meta
+            data.add_component(Component(sunpy_map_loaded.data), sunpy_map_loaded.name)
+            data.style = VisualAttributes(color='#FDB813', preferred_cmap=sunpy_map.cmap)
 
             self.datasets.append(data)
 

@@ -28,16 +28,6 @@ __all__ = ['import_sunpy_map', 'read_sunpy_map', '_parse_sunpy_map']
 
 @qglue_parser(GenericMap)
 def _parse_sunpy_map(data, label):
-    # result = []
-    # for window, window_data in data.data.items():
-    #     for i, scan_data in enumerate(window_data):
-    #         w_data = Data(label=f"{window.replace(' ', '_')}-scan-{i}")
-    #         w_data.coords = WCSCoordinates(wcs=scan_data.wcs)
-    #         w_data.add_component(Component(scan_data.data),
-    #                              f"{window}-scan-{i}")
-    #         w_data.meta = scan_data.meta
-    #         result.append(w_data)
-
     scan_map = data
     label = label + '-' + scan_map.name
     result = Data(label=label)
@@ -48,10 +38,6 @@ def _parse_sunpy_map(data, label):
     result.style = VisualAttributes(color='#FDB813', preferred_cmap=scan_map.cmap)
 
     return result
-
-
-# def is_fits(filename, **kwargs):
-#     return filename.endswith('.fits')
 
 
 @data_factory('SunPy Map', is_fits)
