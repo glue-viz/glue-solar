@@ -1,6 +1,8 @@
 """
 A reader for sunpy map data.
 """
+import os
+
 from pathlib import Path
 
 from qtpy import QtWidgets
@@ -37,13 +39,13 @@ def _parse_sunpy_map(data, label):
     #         result.append(w_data)
 
     scan_map = data
+    label = label + '-' + scan_map.name
     result = Data(label=label)
     result.coords = scan_map.wcs
     result.add_component(Component(scan_map.data),
                          scan_map.name)
     result.meta = scan_map.meta
     result.style = VisualAttributes(color='#FDB813', preferred_cmap=scan_map.cmap)
-    print(scan_map.cmap.name)
 
     return result
 
@@ -54,7 +56,8 @@ def _parse_sunpy_map(data, label):
 
 @data_factory('SunPy Map', is_fits)
 def read_sunpy_map(sunpy_map_file):
-    sunpy_map_data = _parse_sunpy_map(sunpy.map.Map(sunpy_map_file), 'sunpy_map')
+    # label_ext = os.path.split(sunpy_map_file)[1]
+    sunpy_map_data = _parse_sunpy_map(sunpy.map.Map(sunpy_map_file), 'sunpy-map')
     return sunpy_map_data
 
 
