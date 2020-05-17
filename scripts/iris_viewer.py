@@ -5,7 +5,7 @@ from glue.core import Data, DataCollection
 from glue.core.data_factories import load_data
 from glue.plugins.wcs_autolinking.wcs_autolinking import wcs_autolink
 from glue_solar.instruments.iris import _parse_iris_raster
-from irispy.spectrograph import read_iris_spectrograph_level2_fits
+from sunraster.io.iris import read_iris_spectrograph_level2_fits
 
 from glue.viewers.image.qt import ImageViewer
 

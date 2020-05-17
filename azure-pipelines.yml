@@ -3,7 +3,7 @@ variables:
   CI_NAME: Azure Pipelines
   CI_BUILD_ID: $(Build.BuildId)
   CI_BUILD_URL: "https://dev.azure.com/sunpy/sunpy/_build/results?buildId=$(Build.BuildId)"
-  CIBW_BUILD: cp36-* cp37-* cp38-*
+  CIBW_BUILD: cp37-* cp38-*
   CIBW_SKIP: "*-manylinux1_i686"
 
 resources:
@@ -35,6 +35,6 @@ jobs:
       apt:
         - libxkbcommon-x11-0
     envs:
-      - macos: py36
+      - macos: py37
       - windows: py37
       - linux: py38

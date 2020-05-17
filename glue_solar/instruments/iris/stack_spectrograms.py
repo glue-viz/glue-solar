@@ -1,5 +1,6 @@
 """
 Reproject a series of IRIS raster scans in to one NDCube.
+
 """
 import numpy as np
 import tempfile
@@ -12,7 +13,7 @@ from astropy.time import Time
 from astropy.wcs import WCS
 from reproject.interpolation import reproject_interp
 
-from irispy.spectrograph import read_iris_spectrograph_level2_fits
+from sunraster.io.iris import read_iris_spectrograph_level2_fits
 from ndcube import NDCube
 
 

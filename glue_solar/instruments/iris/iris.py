@@ -11,8 +11,8 @@ from glue.config import data_factory, importer, qglue_parser
 from glue.core import Component, Data
 from glue.core.data_factories import load_data
 from glue.core.coordinates import WCSCoordinates
-from irispy.spectrograph import (IRISSpectrograph,
-                                 read_iris_spectrograph_level2_fits)
+from sunraster.io.iris import read_iris_spectrograph_level2_fits
+from sunraster import SpectrogramCube
 
 from .stack_spectrograms import stack_spectrogram_sequence
 from .iris_loader import QtIRISImporter
@@ -21,7 +21,7 @@ from .iris_loader import QtIRISImporter
 __all__ = ['import_iris', 'read_iris_raster', '_parse_iris_raster']
 
 
-@qglue_parser(IRISSpectrograph)
+@qglue_parser(SpectrogramCube)
 def _parse_iris_raster(data, label):
     result = []
     for window, window_data in data.data.items():
