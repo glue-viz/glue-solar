@@ -19,7 +19,7 @@ from ndcube import NDCube
 
 def stack_spectrogram_sequence(cube_sequence, memmap=True, reproject=False):
     """
-    Given a sequence of IRIS rasters stack them into a single `ndcube.NDCube`.s
+    Given a sequence of IRIS rasters stack them into a single `ndcube.NDCube`.
 
     .. warning::
 
