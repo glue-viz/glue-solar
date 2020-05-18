@@ -1,22 +1,14 @@
 """
 A reader for sunpy map data.
+
 """
-import os
-
-from pathlib import Path
-
 from qtpy import QtWidgets
-
-from astropy.io import fits
-from astropy.wcs import WCS
 
 import sunpy.map
 from sunpy.map.mapbase import GenericMap
 
 from glue.config import data_factory, importer, qglue_parser
 from glue.core import Component, Data
-from glue.core.data_factories import load_data
-from glue.core.coordinates import WCSCoordinates
 from glue.core.visual import VisualAttributes
 from glue.core.data_factories import is_fits
 
@@ -28,6 +20,10 @@ __all__ = ['import_sunpy_map', 'read_sunpy_map', '_parse_sunpy_map']
 
 @qglue_parser(GenericMap)
 def _parse_sunpy_map(data, label):
+    """
+    Parse SunPy map so that it can be loaded by ``glue``.
+
+    """
     scan_map = data
     label = label + '-' + scan_map.name
     result = Data(label=label)
@@ -42,12 +38,19 @@ def _parse_sunpy_map(data, label):
 
 @data_factory('SunPy Map', is_fits)
 def read_sunpy_map(sunpy_map_file):
-    # label_ext = os.path.split(sunpy_map_file)[1]
+    """
+    For ``glue`` to read in parsed SunPy map.
+
+    """
     sunpy_map_data = _parse_sunpy_map(sunpy.map.Map(sunpy_map_file), 'sunpy-map')
     return sunpy_map_data
 
 
 def pick_directory(caption):
+    """
+    Pick the directory to load SunPy map files from.
+
+    """
     dialog = QtWidgets.QFileDialog(caption=caption)
     dialog.setFileMode(QtWidgets.QFileDialog.Directory)
 
@@ -62,6 +65,10 @@ def pick_directory(caption):
 
 @importer("Import SunPy Map Directory")
 def import_sunpy_map():
+    """
+    Import SunPy maps with directory importer.
+
+    """
     caption = "Select a directory containing SunPy Map files."
     directory = pick_directory(caption)
 

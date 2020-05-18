@@ -40,9 +40,17 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
         self.populate_table_sunpy_maps()
 
     def get_sunpy_map_filenames(self):
+        """
+        Get the names of the SunPy map files.
+
+        """
         return list(self.directory.glob("./*.fits"))
 
     def populate_table_sunpy_maps(self):
+        """
+        Populate the table with SunPy maps available in the selected directory.
+
+        """
         windows = self.get_sunpy_map_windows()
         for window in windows:
             sub = QtWidgets.QTreeWidgetItem(self.sunpy_maps.invisibleRootItem())
@@ -55,6 +63,10 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
         self.sunpy_maps.resizeColumnToContents(1)
 
     def get_sunpy_map_windows(self):
+        """
+        Get all the available SunPy map windows corresponding to the table entries.
+
+        """
         windows = {}
         for sunpy_map_file in self.sunpy_map_files:
             windows[sunpy.map.Map(sunpy_map_file).name] = sunpy.map.Map(sunpy_map_file)
