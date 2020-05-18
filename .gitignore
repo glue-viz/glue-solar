@@ -1,8 +1,7 @@
 # Sphinx & coverage
 build
-doc/_build
-doc/api
-glue/tests/htmlcov
+docs/_build
+docs/api
 *.coverage
 *htmlcov*
 
@@ -20,7 +19,6 @@ glue/_githash.py
 # Other
 .pylintrc
 *.ropeproject
-glue/qt/glue_qt_resources.py
 *.__junk*
 *.orig
 *~
