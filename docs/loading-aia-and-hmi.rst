@@ -30,27 +30,27 @@ with the "2D Image" data viewer chosen to display the AIA image. The result woul
 a view like the following:
 
 .. image:: images/loading-aia-and-hmi-1.png
-   :width: 400
+   :width: 800
    :alt: Viewing AIA SunPy map individually
 
 Autolinking is automatically detected. If this is say your first time, you would be prompted
 with a dialog box to autolink as below:
 
 .. image:: images/loading-aia-and-hmi-2.png
-   :width: 400
+   :width: 800
    :alt: Autolinking AIA and corresponding HMI SunPy map
 
 If dragging the HMI dataset to a space outside of the AIA SunPy map now, you would see:
 
 .. image:: images/loading-aia-and-hmi-3.png
-   :width: 400
+   :width: 800
    :alt: Viewing HMI SunPy map individually along AIA one
 
 On the other hand, if dragging and dropping the HMI data set on top of the AIA image
 to overplot as different colormaps, we would expect to see the following:
 
 .. image:: images/loading-aia-and-hmi-4.png
-   :width: 400
+   :width: 800
    :alt: Overplotting AMI and HMI SunPy maps as colormaps
 
 The final result should be an overplot of both the AIA and HMI SunPy maps as

@@ -10,7 +10,6 @@ project = 'Glue Solar'
 copyright = '2020, The SunPy Developers and The Glue Developers'
 author = 'The SunPy Developers and The Glue Developers'
 
-
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be
