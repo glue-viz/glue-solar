@@ -11,7 +11,7 @@ from astropy.io import fits
 from astropy.wcs import WCS
 
 import sunpy.map
-from sunpy.map.mapbase import GenericMap  # isort:skip
+from sunpy.map.mapbase import GenericMap
 
 from glue.config import data_factory, importer, qglue_parser
 from glue.core import Component, Data
