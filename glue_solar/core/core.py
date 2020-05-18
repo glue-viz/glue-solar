@@ -60,7 +60,7 @@ def pick_directory(caption):
     return directory[0]
 
 
-@importer("Import SunPy Maps Directory")
+@importer("Import SunPy Map Directory")
 def import_sunpy_map():
     caption = "Select a directory containing SunPy Map files."
     directory = pick_directory(caption)

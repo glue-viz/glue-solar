@@ -42,7 +42,7 @@
         <layout class="QHBoxLayout" name="horizontalLayout_2"/>
        </item>
        <item row="3" column="0">
-        <widget class="QTreeWidget" name="rasters">
+        <widget class="QTreeWidget" name="sunpy_maps">
          <property name="font">
           <font>
            <pointsize>14</pointsize>
@@ -98,16 +98,6 @@
      </item>
      <item>
       <layout class="QHBoxLayout" name="horizontalLayout_4">
-       <item>
-        <widget class="QCheckBox" name="stack">
-         <property name="toolTip">
-          <string extracomment="When loading multiple SunPy Map files, stack the arrays."/>
-         </property>
-         <property name="text">
-          <string>Stack Sunpy Maps</string>
-         </property>
-        </widget>
-       </item>
        <item>
         <spacer name="horizontalSpacer">
          <property name="orientation">

@@ -40,7 +40,7 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
         self.populate_table_sunpy_maps()
 
     def get_sunpy_map_filenames(self):
-        return list(self.directory.glob("*sunpy_map*"))
+        return list(self.directory.glob("./*.fits"))
 
     def populate_table_sunpy_maps(self):
         windows = self.get_sunpy_map_windows()
@@ -57,13 +57,11 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
     def get_sunpy_map_windows(self):
         windows = {}
         for sunpy_map_file in self.sunpy_map_files:
-            with sunpy.map.Map(sunpy_map_file) as sunpy_map:
-                windows[sunpy_map.name] = sunpy_map_file
+            windows[sunpy.map.Map(sunpy_map_file).name] = sunpy.map.Map(sunpy_map_file)
 
         return windows
 
-    def load_sunpy_maps(self, sunpy_maps):
-        for sunpy_map in sunpy_maps:
+    def load_sunpy_map(self, sunpy_map):
             sunpy_map_loaded = sunpy.map.Map(sunpy_map)
             label = 'sunpy-map-' + sunpy_map_loaded.name
             data = Data(label=label)
@@ -91,7 +89,7 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
             app = get_qapp()
             app.processEvents()
 
-            self.load_sunpy_maps(filename)
+            self.load_sunpy_map(filename)
 
         self.progress.setValue(100)
         self.accept()
