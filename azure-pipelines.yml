@@ -38,3 +38,4 @@ jobs:
       - macos: py37
       - windows: py37
       - linux: py38
+      - linux: build_docs
