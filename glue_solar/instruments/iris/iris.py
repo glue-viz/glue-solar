@@ -24,10 +24,10 @@ __all__ = ['import_iris', 'read_iris_raster', '_parse_iris_raster']
 @qglue_parser(SpectrogramCube)
 def _parse_iris_raster(data, label):
     result = []
-    for window, window_data in data.data.items():
+    for window, window_data in data.items():
         for i, scan_data in enumerate(window_data):
             w_data = Data(label=f"{window.replace(' ', '_')}-scan-{i}")
-            w_data.coords = WCSCoordinates(wcs=scan_data.wcs)
+            w_data.coords = scan_data.wcs
             w_data.add_component(Component(scan_data.data),
                                  f"{window}-scan-{i}")
             w_data.meta = scan_data.meta
