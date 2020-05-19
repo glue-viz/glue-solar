@@ -2,9 +2,11 @@ import os
 from pathlib import Path
 
 from astropy.io import fits
+from astropy.wcs import WCS
 
 from glue.core import Component, Data
 from glue.core.coordinates import WCSCoordinates
+from glue.core.visual import VisualAttributes
 from glue.utils.qt import get_qapp
 from glue.utils.qt.helpers import load_ui
 from sunraster.io.iris import read_iris_spectrograph_level2_fits
@@ -89,8 +91,11 @@ class QtIRISImporter(QtWidgets.QDialog):
             hdul.verify("fix")
             label = hdul[0].header['TDESC1']
             data = Data(label=label)
-            data.coords = WCSCoordinates(hdul[0].header)
+            data.coords = WCS(hdul[0].header)
             data.meta = hdul[0].header
+            preferred_cmap_name = 'IRIS ' + hdul[0].header['TDESC1'].replace('_', ' ')
+            print('preferred_cmap_name: ', preferred_cmap_name)
+            data.style = VisualAttributes(preferred_cmap=preferred_cmap_name)
             data.add_component(Component(hdul[0].data), label)
 
             self.datasets.append(data)
@@ -116,12 +121,13 @@ class QtIRISImporter(QtWidgets.QDialog):
                 w_data.add_component(Component(scan_data.data),
                                      f"{window}-scan-{i}")
                 w_data.meta = scan_data.meta
+                w_data.style = VisualAttributes(color='#5A4FCF')
                 self.datasets.append(w_data)
 
     def load_stacked_sequence(self, raster_data):
         for window, window_data in raster_data.items():
             w_data = Data(label=f"{window.replace(' ', '_')}")
-            w_data.coords = WCSCoordinates(wcs=window_data.wcs)
+            w_data.coords = window_data.wcs
             w_data.add_component(Component(window_data.data),
                                  f"{window}")
             self.datasets.append(w_data)

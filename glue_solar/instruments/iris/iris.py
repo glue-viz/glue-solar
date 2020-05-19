@@ -11,6 +11,8 @@ from glue.config import data_factory, importer, qglue_parser
 from glue.core import Component, Data
 from glue.core.data_factories import load_data
 from glue.core.coordinates import WCSCoordinates
+from glue.core.visual import VisualAttributes
+
 from sunraster.io.iris import read_iris_spectrograph_level2_fits
 from sunraster import SpectrogramCube
 
@@ -31,6 +33,7 @@ def _parse_iris_raster(data, label):
             w_data.add_component(Component(scan_data.data),
                                  f"{window}-scan-{i}")
             w_data.meta = scan_data.meta
+            w_data.style = VisualAttributes(color='#5A4FCF')
             result.append(w_data)
     return result
 
