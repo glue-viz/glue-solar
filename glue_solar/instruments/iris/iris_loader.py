@@ -101,8 +101,6 @@ class QtIRISImporter(QtWidgets.QDialog):
                                                          memmap=False,
                                                          uncertainty=False)
 
-        raster_data = raster_data.data
-
         if self.stack.checkState() > 0:
             raster_data = {window: stack_spectrogram_sequence(seq)
                            for window, seq in raster_data.items()}
@@ -114,7 +112,7 @@ class QtIRISImporter(QtWidgets.QDialog):
         for window, window_data in raster_data.items():
             for i, scan_data in enumerate(window_data):
                 w_data = Data(label=f"{window.replace(' ', '_')}-scan-{i}")
-                w_data.coords = WCSCoordinates(wcs=scan_data.wcs)
+                w_data.coords = scan_data.wcs
                 w_data.add_component(Component(scan_data.data),
                                      f"{window}-scan-{i}")
                 w_data.meta = scan_data.meta
