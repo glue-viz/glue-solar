@@ -10,3 +10,4 @@ Glue Solar is a project to provide solar physics specific functionality to
    :maxdepth: 2
 
    loading-aia-and-hmi
+   loading-iris-level-2-raster-and-sji-data
