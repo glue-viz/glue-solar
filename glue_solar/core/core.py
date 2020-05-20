@@ -12,7 +12,7 @@ from glue.core import Component, Data
 from glue.core.visual import VisualAttributes
 from glue.core.data_factories import is_fits
 
-from .sunpy_maps.sunpy_maps_loader import QtSunpyMapImporter
+from .sunpy_maps.loader import QtSunpyMapImporter
 
 
 __all__ = ['import_sunpy_map', 'read_sunpy_map', '_parse_sunpy_map']

@@ -18,7 +18,7 @@ from qtpy.QtCore import Qt
 
 __all__ = ["QtSunpyMapImporter"]
 
-UI_MAIN = os.path.join(os.path.dirname(__file__), 'sunpy_map_loader.ui')
+UI_MAIN = os.path.join(os.path.dirname(__file__), 'loader.ui')
 
 
 class QtSunpyMapImporter(QtWidgets.QDialog):

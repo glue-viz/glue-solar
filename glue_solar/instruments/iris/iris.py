@@ -17,7 +17,7 @@ from sunraster.io.iris import read_iris_spectrograph_level2_fits
 from sunraster import SpectrogramCube
 
 from .stack_spectrograms import stack_spectrogram_sequence
-from .iris_loader import QtIRISImporter
+from .loader import QtIRISImporter
 
 
 __all__ = ['import_iris', 'read_iris_raster', '_parse_iris_raster']

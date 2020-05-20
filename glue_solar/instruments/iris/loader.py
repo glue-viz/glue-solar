@@ -19,7 +19,7 @@ from .stack_spectrograms import stack_spectrogram_sequence
 
 __all__ = ["QtIRISImporter"]
 
-UI_MAIN = os.path.join(os.path.dirname(__file__), 'iris_loader.ui')
+UI_MAIN = os.path.join(os.path.dirname(__file__), 'loader.ui')
 
 
 class QtIRISImporter(QtWidgets.QDialog):

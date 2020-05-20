@@ -1,1 +1,1 @@
-from .sunpy_maps_loader import *
+from .loader import *
