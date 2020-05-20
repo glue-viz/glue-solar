@@ -28,7 +28,7 @@ def stack_spectrogram_sequence(cube_sequence, memmap=True, reproject=False):
 
     Parameters
     ----------
-    cube_sequence : `irispy.spectrogram.IRISSpectrogramCubeSequence`
+    cube_sequence : `sunraster.spectrogram_sequence.RasterSequence`
         The input arrays to regrid.
 
     memmap : `bool`
