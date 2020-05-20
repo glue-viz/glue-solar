@@ -59,20 +59,12 @@ def stack_spectrogram_sequence(cube_sequence, memmap=True, reproject=False):
         if not reproject:
             memmap[i+1] = cube_sequence[i+1].data
         else:
-            try:
-                reproject_interp((cube.data, cube.wcs),
-                                 target_wcs, shape_out=target_shape,
-                                 hdu_in=0,
-                                 order=0,
-                                 return_footprint=False,
-                                 output_array=memmap[i+1])
-            except Exception:
-                reproject_interp((cube.data, cube.wcs),
-                                 target_wcs, shape_out=target_shape,
-                                 independent_celestial_slices=False,
-                                 order=0,
-                                 return_footprint=False,
-                                 output_array=memmap[i + 1])
+            reproject_interp((cube.data, cube.wcs),
+                             target_wcs, shape_out=target_shape,
+                             hdu_in=0,
+                             order=0,
+                             return_footprint=False,
+                             output_array=memmap[i+1])
         times.append(cube.extra_coords['time']['value'][0])
 
     times = Time(times)
