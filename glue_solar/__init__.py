@@ -4,6 +4,7 @@ from glue.viewers.image.qt import ImageViewer
 from glue_solar.pixel_extraction import PixelExtractionTool  # noqa
 from glue.config import colormaps
 from glue_solar.instruments import *
+from glue_solar.core import *
 
 try:
     __version__ = get_distribution(__name__).version

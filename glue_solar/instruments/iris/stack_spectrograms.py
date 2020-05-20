@@ -61,7 +61,7 @@ def stack_spectrogram_sequence(cube_sequence, memmap=True, reproject=False):
         else:
             reproject_interp((cube.data, cube.wcs),
                              target_wcs, shape_out=target_shape,
-                             independent_celestial_slices=False,
+                             hdu_in=0,
                              order=0,
                              return_footprint=False,
                              output_array=memmap[i+1])
