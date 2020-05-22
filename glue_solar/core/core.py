@@ -11,6 +11,7 @@ from glue.config import data_factory, importer, qglue_parser
 from glue.core import Component, Data
 from glue.core.visual import VisualAttributes
 from glue.core.data_factories import is_fits
+from glue.core.coordinates import WCSCoordinates
 
 from .sunpy_maps.loader import QtSunpyMapImporter
 
@@ -27,7 +28,8 @@ def _parse_sunpy_map(data, label):
     scan_map = data
     label = label + '-' + scan_map.name
     result = Data(label=label)
-    result.coords = scan_map.wcs
+    result.coords = scan_map.wcs  # preferred way, preserves more info in some cases
+    # result.coords = WCSCoordinates(scan_map.fits_header)
     result.add_component(Component(scan_map.data),
                          scan_map.name)
     result.meta = scan_map.meta
