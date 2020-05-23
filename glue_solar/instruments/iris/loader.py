@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 from astropy.io import fits
-from astropy.wcs import WCS
 
 from glue.core import Component, Data
 from glue.core.coordinates import WCSCoordinates
@@ -10,7 +9,6 @@ from glue.core.visual import VisualAttributes
 from glue.utils.qt import get_qapp
 from glue.utils.qt.helpers import load_ui
 from sunraster.io.iris import read_iris_spectrograph_level2_fits
-from sunraster import SpectrogramCube
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 

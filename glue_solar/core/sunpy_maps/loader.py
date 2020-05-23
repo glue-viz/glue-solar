@@ -1,10 +1,7 @@
 import os
 from pathlib import Path
 
-from astropy.io import fits
-
 from glue.core import Component, Data
-from glue.core.coordinates import WCSCoordinates
 from glue.core.visual import VisualAttributes
 from glue.utils.qt import get_qapp
 from glue.utils.qt.helpers import load_ui
