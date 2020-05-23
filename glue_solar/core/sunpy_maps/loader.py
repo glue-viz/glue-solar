@@ -78,7 +78,6 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
             label = 'sunpy-map-' + sunpy_map_loaded.name
             data = Data(label=label)
             data.coords = sunpy_map_loaded.wcs  # preferred way, preserves more info in some cases
-            # data.coords = WCSCoordinates(sunpy_map_loaded.fits_header)
             data.meta = sunpy_map_loaded.meta
             data.add_component(Component(sunpy_map_loaded.data), sunpy_map_loaded.name)
             data.style = VisualAttributes(color='#FDB813', preferred_cmap=sunpy_map.cmap)
