@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 from astropy.io import fits
-from astropy.wcs import WCS
 
 from glue.core import Component, Data
 from glue.core.coordinates import WCSCoordinates
@@ -10,7 +9,6 @@ from glue.core.visual import VisualAttributes
 from glue.utils.qt import get_qapp
 from glue.utils.qt.helpers import load_ui
 from sunraster.io.iris import read_iris_spectrograph_level2_fits
-from sunraster import SpectrogramCube
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 
@@ -91,7 +89,7 @@ class QtIRISImporter(QtWidgets.QDialog):
             hdul.verify("fix")
             label = hdul[0].header['TDESC1']
             data = Data(label=label)
-            data.coords = WCS(hdul[0].header)
+            data.coords = WCSCoordinates(hdul[0].header)
             data.meta = hdul[0].header
             preferred_cmap_name = 'IRIS ' + hdul[0].header['TDESC1'].replace('_', ' ')
             data.style = VisualAttributes(preferred_cmap=preferred_cmap_name)

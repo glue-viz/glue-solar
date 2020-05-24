@@ -29,7 +29,7 @@ def _parse_iris_raster(data, label):
     for window, window_data in data.items():
         for i, scan_data in enumerate(window_data):
             w_data = Data(label=f"{window.replace(' ', '_')}-scan-{i}")
-            w_data.coords = scan_data.wcs
+            w_data.coords = WCSCoordinates(scan_data.header)
             w_data.add_component(Component(scan_data.data),
                                  f"{window}-scan-{i}")
             w_data.meta = scan_data.meta

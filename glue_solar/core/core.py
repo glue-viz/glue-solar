@@ -27,7 +27,7 @@ def _parse_sunpy_map(data, label):
     scan_map = data
     label = label + '-' + scan_map.name
     result = Data(label=label)
-    result.coords = scan_map.wcs
+    result.coords = scan_map.wcs  # preferred way, preserves more info in some cases
     result.add_component(Component(scan_map.data),
                          scan_map.name)
     result.meta = scan_map.meta

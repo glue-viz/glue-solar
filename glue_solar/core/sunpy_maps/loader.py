@@ -1,10 +1,7 @@
 import os
 from pathlib import Path
 
-from astropy.io import fits
-
 from glue.core import Component, Data
-from glue.core.coordinates import WCSCoordinates
 from glue.core.visual import VisualAttributes
 from glue.utils.qt import get_qapp
 from glue.utils.qt.helpers import load_ui
@@ -77,7 +74,7 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
             sunpy_map_loaded = sunpy.map.Map(sunpy_map)
             label = 'sunpy-map-' + sunpy_map_loaded.name
             data = Data(label=label)
-            data.coords = sunpy_map_loaded.wcs
+            data.coords = sunpy_map_loaded.wcs  # preferred way, preserves more info in some cases
             data.meta = sunpy_map_loaded.meta
             data.add_component(Component(sunpy_map_loaded.data), sunpy_map_loaded.name)
             data.style = VisualAttributes(color='#FDB813', preferred_cmap=sunpy_map.cmap)
