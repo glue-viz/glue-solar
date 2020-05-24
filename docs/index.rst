@@ -8,3 +8,5 @@ Glue Solar is a project to provide solar physics specific functionality to
 
 .. toctree::
    :maxdepth: 2
+
+   loading-aia-and-hmi
