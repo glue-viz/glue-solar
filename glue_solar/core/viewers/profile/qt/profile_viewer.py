@@ -1,17 +1,8 @@
 # Experimenting with implementing a basic glue viewer for SunPy maps
 
-# from glue.core.subset import roi_to_subset_state
-# from glue.core.coordinates import Coordinates, LegacyCoordinates
-# from glue.core.coordinate_helpers import dependent_axes
-#
-# from glue.viewers.profile.layer_artist import ProfileLayerArtist
-# from glue.viewers.image.layer_artist import ImageLayerArtist, ImageSubsetLayerArtist
-# from glue.viewers.image.compat import update_image_viewer_state
-#
-# from glue.viewers.image.frb_artist import imshow
-# from glue.viewers.image.composite_array import CompositeArray
-
 import os
+
+from glue.utils import defer_draw, decorate_all_methods
 
 from astropy.wcs import WCS
 
@@ -28,15 +19,19 @@ from glue.external.echo import (CallbackProperty, SelectionCallbackProperty,
 from glue.external.echo.qt import (connect_checkable_button,
                                    autoconnect_callbacks_to_qt)
 
-from glue.viewers.common.layer_artist import LayerArtist
-from glue.viewers.common.state import ViewerState, LayerState
-from glue.viewers.common.qt.data_viewer import DataViewer
+from glue.viewers.matplotlib.layer_artist import MatplotlibLayerArtist
+from glue.viewers.matplotlib.state import MatplotlibDataViewerState, MatplotlibLayerState
+from glue.viewers.matplotlib.qt.data_viewer import MatplotlibDataViewer
+
+from glue.core.subset import roi_to_subset_state
 
 from glue.utils.qt import load_ui
 
 from glue.config import qt_client
 
-__all__ = ['SunPyViewerState', '']
+# __all__ = ['SunPyProfileViewerState', 'SunPyProfileLayerState', 'SunPyProfileLayerArtist',
+#            'SunPyProfileViewerStateWidget', 'SunPyProfileLayerStateWidget',
+#            'SunPyProfileDataViewer', 'SunPyMatplotlibProfileMixin']
 
 
 def get_identity_wcs(naxis):
@@ -50,7 +45,7 @@ def get_identity_wcs(naxis):
     return wcs
 
 
-class SunPyViewerState(ViewerState):
+class SunPyProfileViewerState(MatplotlibDataViewerState):
     x_att_pixel = SelectionCallbackProperty(docstring='The component ID giving the pixel component '
                                                       'shown on the x axis')
     y_att_pixel = SelectionCallbackProperty(docstring='The component ID giving the pixel component '
@@ -59,38 +54,35 @@ class SunPyViewerState(ViewerState):
     y_att = SelectionCallbackProperty(docstring='The attribute to use on the y-axis')
 
     def __init__(self, *args, **kwargs):
-        super(SunPyViewerState, self).__init__(*args, **kwargs)
+        super(SunPyProfileViewerState, self).__init__(*args, **kwargs)
         self._x_att_helper = ComponentIDComboHelper(self, 'x_att', numeric=False, datetime=False,
                                                     categorical=False, pixel_coord=True)
         self._y_att_helper = ComponentIDComboHelper(self, 'y_att', numeric=False, datetime=False,
                                                     categorical=False, pixel_coord=True)
         self.add_callback('layers', self._on_layers_change)
-
-        self.layers_data = [layer_state.layer for layer_state in self.layers]
+        self.add_callback('x_att', self._on_attribute_change)
+        self.add_callback('y_att', self._on_attribute_change)
 
     def _on_layers_change(self, value):
         # self.layers_data is a shortcut for
         # [layer_state.layer for layer_state in self.layers]
-
         self._x_att_helper.set_multiple_data(self.layers_data)
         self._y_att_helper.set_multiple_data(self.layers_data)
 
-    @property
-    def layers_data(self):
-        return self._layers_data
-
-    @layers_data.setter
-    def layers_data(self, value):
-        self._layers_data = value
+    def _on_attribute_change(self, value):
+        if self.x_att is not None:
+            self.x_axislabel = self.x_att.label
+        if self.y_att is not None:
+            self.y_axislabel = self.y_att.label
 
 
-class SunPyLayerState(LayerState):
+class SunPyProfileLayerState(MatplotlibLayerState):
     fill = CallbackProperty(False, docstring='Whether to show the markers as filled or not')
     color = CallbackProperty(docstring='The color used to display the data')
     alpha = CallbackProperty(docstring='The transparency used to display the data')
 
     def __init__(self, viewer_state=None, **kwargs):
-        super(SunPyLayerState, self).__init__(viewer_state=viewer_state, **kwargs)
+        super(SunPyProfileLayerState, self).__init__(viewer_state=viewer_state, **kwargs)
 
         self.color = self.layer.style.color
         self.alpha = self.layer.style.alpha
@@ -99,48 +91,37 @@ class SunPyLayerState(LayerState):
         self._sync_alpha = keep_in_sync(self, 'alpha', self.layer.style, 'alpha')
 
 
-class SunPyLayerArtist(LayerArtist):
-
-    _layer_state_cls = SunPyLayerState
+class SunPyProfileLayerArtist(MatplotlibLayerArtist):
+    _layer_state_cls = SunPyProfileLayerState
 
     def __init__(self, axes, *args, **kwargs):
 
-        super(SunPyLayerArtist, self).__init__(*args, **kwargs)
+        super(SunPyProfileLayerArtist, self).__init__(axes, *args, **kwargs)
 
         self.axes = axes
 
-        self.artist = self.axes.plot([], [], 'o', color=self.state.layer.style.color)[0]
+        self.artist = self.axes.plot([], [], 'o', mec='none', color=self.state.layer.style.color)[0]
 
-        self.state.add_callback('fill', self._on_fill_change)
-        self.state.add_callback('visible', self._on_visible_change)
-        self.state.add_callback('zorder', self._on_zorder_change)
-        self.state.add_callback('color', self._on_color_change)
-        self.state.add_callback('alpha', self._on_alpha_change)
+        self.state.add_callback('fill', self._on_visual_change)
+        self.state.add_callback('visible', self._on_visual_change)
+        self.state.add_callback('zorder', self._on_visual_change)
+        self.state.add_callback('color', self._on_visual_change)
+        self.state.add_callback('alpha', self._on_visual_change)
 
         self._viewer_state.add_callback('x_att', self._on_attribute_change)
         self._viewer_state.add_callback('y_att', self._on_attribute_change)
 
-    def _on_fill_change(self, value=None):
-        if self.state.fill:
-            self.artist.set_markerfacecolor(self.state.layer.style.color)
-        else:
-            self.artist.set_markerfacecolor('none')
-        self.redraw()
+    def _on_visual_change(self, value=None):
 
-    def _on_visible_change(self, value=None):
         self.artist.set_visible(self.state.visible)
-        self.redraw()
-
-    def _on_zorder_change(self, value=None):
         self.artist.set_zorder(self.state.zorder)
-        self.redraw()
-
-    def _on_color_change(self, value=None):
-        self.artist.set_color(self.state.color)
-        self.redraw()
-
-    def _on_alpha_change(self, value=None):
+        self.artist.set_markeredgecolor(self.state.color)
+        if self.state.fill:
+            self.artist.set_markerfacecolor(self.state.color)
+        else:
+            self.artist.set_markerfacecolor('white')
         self.artist.set_alpha(self.state.alpha)
+
         self.redraw()
 
     def _on_attribute_change(self, value=None):
@@ -168,15 +149,15 @@ class SunPyLayerArtist(LayerArtist):
         self.axes.figure.canvas.draw_idle()
 
     def update(self):
-        self._on_fill_change()
         self._on_attribute_change()
+        self._on_visual_change()
 
 
-class SunPyViewerStateWidget(QWidget):
+class SunPyProfileViewerStateWidget(QWidget):
 
     def __init__(self, viewer_state=None, session=None):
 
-        super(SunPyViewerStateWidget, self).__init__()
+        super(SunPyProfileViewerStateWidget, self).__init__()
 
         self.ui = load_ui('viewer_state.ui', self,
                           directory=os.path.dirname(__file__))
@@ -185,11 +166,11 @@ class SunPyViewerStateWidget(QWidget):
         self._connections = autoconnect_callbacks_to_qt(self.viewer_state, self.ui)
 
 
-class SunPyLayerStateWidget(QWidget):
+class SunPyProfileLayerStateWidget(QWidget):
 
     def __init__(self, layer_artist):
 
-        super(SunPyLayerStateWidget, self).__init__()
+        super(SunPyProfileLayerStateWidget, self).__init__()
 
         self.checkbox = QCheckBox('Fill markers')
         layout = QVBoxLayout()
@@ -200,22 +181,57 @@ class SunPyLayerStateWidget(QWidget):
         connect_checkable_button(self.layer_state, 'fill', self.checkbox)
 
 
-class SunPyDataViewer(DataViewer):
+class SunPyMatplotlibProfileMixin(object):
 
-    LABEL = 'SunPy 1D Viewer'
-    _state_cls = SunPyViewerState
-    _options_cls = SunPyViewerStateWidget
-    _layer_style_widget_cls = SunPyLayerStateWidget
-    _data_artist_cls = SunPyLayerArtist
-    _subset_artist_cls = SunPyLayerArtist
+    def setup_callbacks(self):
+        self.state.add_callback('x_att', self._update_axes)
+        self.state.add_callback('y_att', self._update_axes)
 
-    def __init__(self, *args, **kwargs):
-        super(SunPyDataViewer, self).__init__(*args, **kwargs)
-        self.axes = plt.subplot(1, 1, 1)
-        # self.setCentralWidget(self.axes.figure.canvas)
+    def _update_axes(self, *args):
 
-    def get_layer_artist(self, cls, layer=None, layer_state=None):
-        return cls(self.axes, self.state, layer=layer, layer_state=layer_state)
+        if self.state.x_att is not None:
+            self.state.x_axislabel = self.state.x_att.label
+
+        self.state.y_axislabel = 'Data values'
+
+        self.axes.figure.canvas.draw_idle()
+
+    # def apply_roi(self, roi, override_mode=None):
+
+        # Force redraw to get rid of ROI. We do this because applying the
+        # subset state below might end up not having an effect on the viewer,
+        # for example there may not be any layers, or the active subset may not
+        # be one of the layers. So we just explicitly redraw here to make sure
+        # a redraw will happen after this method is called.
+
+        # self.redraw()
+        #
+        # if len(self.layers) == 0:
+        #     return
+        #
+        # subset_state = roi_to_subset_state(roi, x_att=self.state.x_att)
+        # self.apply_subset_state(subset_state, override_mode=override_mode)
 
 
-qt_client.add(SunPyDataViewer)
+@decorate_all_methods(defer_draw)
+class SunPyProfileDataViewer(SunPyMatplotlibProfileMixin, MatplotlibDataViewer):
+
+    LABEL = 'SunPy 1D Profile'
+    _state_cls = SunPyProfileViewerState
+    _options_cls = SunPyProfileViewerStateWidget
+    _layer_style_widget_cls = SunPyProfileLayerStateWidget
+    _data_artist_cls = SunPyProfileLayerArtist
+    _subset_artist_cls = SunPyProfileLayerArtist
+
+    large_data_size = 1e8
+
+    allow_duplicate_data = True
+
+    tools = ['select:xrange', 'profile-analysis']
+
+    def __init__(self, session, parent=None, wcs=None, state=None):
+        MatplotlibDataViewer.__init__(self, session, parent=parent, wcs=wcs, state=state)
+        SunPyMatplotlibProfileMixin.setup_callbacks(self)
+
+
+qt_client.add(SunPyProfileDataViewer)
