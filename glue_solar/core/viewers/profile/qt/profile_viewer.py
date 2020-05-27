@@ -49,9 +49,12 @@ class SunPyProfileViewerState(MatplotlibDataViewerState):
     x_att_pixel = SelectionCallbackProperty(docstring='The component ID giving the pixel component '
                                                       'shown on the x axis')
     y_att_pixel = SelectionCallbackProperty(docstring='The component ID giving the pixel component '
-                                                      'shown on the y axis')
+                                                       'shown on the y axis')
+    z_att_pixel = SelectionCallbackProperty(docstring='The component ID giving the pixel component '
+                                                      'shown on the z axis')
     x_att = SelectionCallbackProperty(docstring='The attribute to use on the x-axis')
     y_att = SelectionCallbackProperty(docstring='The attribute to use on the y-axis')
+    z_att = SelectionCallbackProperty(docstring='The attribute to use on the z-axis')
 
     def __init__(self, *args, **kwargs):
         super(SunPyProfileViewerState, self).__init__(*args, **kwargs)
@@ -59,21 +62,25 @@ class SunPyProfileViewerState(MatplotlibDataViewerState):
                                                     categorical=False, pixel_coord=True)
         self._y_att_helper = ComponentIDComboHelper(self, 'y_att', numeric=False, datetime=False,
                                                     categorical=False, pixel_coord=True)
+        self._z_att_helper = ComponentIDComboHelper(self, 'z_att', numeric=True, datetime=False,
+                                                    categorical=False, pixel_coord=False)
         self.add_callback('layers', self._on_layers_change)
         self.add_callback('x_att', self._on_attribute_change)
         self.add_callback('y_att', self._on_attribute_change)
+        self.add_callback('z_att', self._on_attribute_change)
 
     def _on_layers_change(self, value):
         # self.layers_data is a shortcut for
         # [layer_state.layer for layer_state in self.layers]
         self._x_att_helper.set_multiple_data(self.layers_data)
         self._y_att_helper.set_multiple_data(self.layers_data)
+        self._z_att_helper.set_multiple_data(self.layers_data)
 
     def _on_attribute_change(self, value):
         if self.x_att is not None:
             self.x_axislabel = self.x_att.label
-        if self.y_att is not None:
-            self.y_axislabel = self.y_att.label
+
+        self.y_axislabel = 'Data values'
 
 
 class SunPyProfileLayerState(MatplotlibLayerState):
@@ -119,14 +126,15 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         if self.state.fill:
             self.artist.set_markerfacecolor(self.state.color)
         else:
-            self.artist.set_markerfacecolor('white')
+            self.artist.set_markerfacecolor('blue')
         self.artist.set_alpha(self.state.alpha)
 
         self.redraw()
 
     def _on_attribute_change(self, value=None):
 
-        if self._viewer_state.x_att is None or self._viewer_state.y_att is None:
+        if self._viewer_state.x_att is None \
+                or self._viewer_state.y_att is None:
             return
 
         x = self.state.layer[self._viewer_state.x_att]
@@ -185,6 +193,7 @@ class SunPyMatplotlibProfileMixin(object):
 
     def setup_callbacks(self):
         self.state.add_callback('x_att', self._update_axes)
+        # self.state.add_callback('z_att', self._update_axes)
         self.state.add_callback('y_att', self._update_axes)
 
     def _update_axes(self, *args):
