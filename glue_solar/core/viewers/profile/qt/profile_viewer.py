@@ -107,7 +107,7 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
 
         self.axes = axes
 
-        self.artist = self.axes.plot([], [], 'o', mec='none', color=self.state.layer.style.color)[0]
+        self.artist = self.axes.plot([], [], '-', mec='none', color=self.state.layer.style.color)[0]
 
         self.state.add_callback('fill', self._on_visual_change)
         self.state.add_callback('visible', self._on_visual_change)
