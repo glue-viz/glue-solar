@@ -7,9 +7,6 @@ from glue.utils import defer_draw, decorate_all_methods
 from astropy.wcs import WCS
 
 import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
-matplotlib.use('Qt5Agg')
 from echo import delay_callback
 from qtpy.QtWidgets import QWidget, QVBoxLayout, QCheckBox
 
