@@ -6,7 +6,7 @@ from glue.utils import defer_draw, decorate_all_methods
 
 from astropy.wcs import WCS
 from spectral_cube import SpectralCube
-from spectral_cube.wcs_utils import drop_axis, slice_wcs
+# from spectral_cube.wcs_utils import drop_axis, slice_wcs
 
 import numpy as np
 import matplotlib
@@ -174,8 +174,8 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         x = x[0]
         print('x', x)
 
-        wcs_axis_dropped = drop_axis(wcs=wcs,dropax=0)
-        print('wcs_axis_dropped', wcs_axis_dropped)
+        # wcs_axis_dropped = drop_axis(wcs=wcs,dropax=0)
+        # print('wcs_axis_dropped', wcs_axis_dropped)
 
         print('x_labels', x_labels)
 
