@@ -168,24 +168,21 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
 
         xid = x_labels[-1]
 
-        x = np.array(data_raw[xid])
+        x = np.array(data_raw[xid], dtype=float)
         print('x.shape', x.shape)
 
         x = x[0]
-
         print('x', x)
 
-        wcs_axis_dropped = drop_axis(wcs=wcs,dropax=2)
+        wcs_axis_dropped = drop_axis(wcs=wcs,dropax=0)
         print('wcs_axis_dropped', wcs_axis_dropped)
 
-        print('sliced wcs', wcs_axis_dropped)
         print('x_labels', x_labels)
 
-        # y = self.state.layer[self._viewer_state.y_att]
         y_labels = self.layer.data.main_components
 
         yid = self.layer.data.main_components[0]
-        y = np.array(data_raw[yid])
+        y = np.array(data_raw[yid], dtype=float)
         print('y.shape', y.shape)
 
         y = y[0]
@@ -194,12 +191,9 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         print('len(y)', len(y))
         print('y_labels', y_labels)
 
-        # z = self.state.layer[self._viewer_state.y_att]
+        # y = self.state.layer[self._viewer_state.y_att]
 
         self.artist.set_data(x, y)
-
-        # x = np.array(x, dtype=float)
-        # y = np.array(y, dtype=float)
 
         self.axes.set_xlim(np.nanmin(x), np.nanmax(x))
         self.axes.set_ylim(np.nanmin(y), np.nanmax(y))
@@ -239,21 +233,20 @@ class SunPyProfileLayerStateWidget(QWidget):
 
         super(SunPyProfileLayerStateWidget, self).__init__()
 
-        self.checkbox = QCheckBox('Fill markers')
+        # self.checkbox = QCheckBox('Fill markers')
         layout = QVBoxLayout()
-        layout.addWidget(self.checkbox)
+        # layout.addWidget(self.checkbox)
         self.setLayout(layout)
 
         self.layer_state = layer_artist.state
-        connect_checkable_button(self.layer_state, 'fill', self.checkbox)
+        # connect_checkable_button(self.layer_state, 'fill', self.checkbox)
 
 
 class SunPyMatplotlibProfileMixin(object):
 
     def setup_callbacks(self):
         self.state.add_callback('x_att', self._update_axes)
-        # self.state.add_callback('z_att', self._update_axes)
-        # self.state.add_callback('y_att', self._update_axes)
+        self.state.add_callback('y_att', self._update_axes)
 
     def _update_axes(self, *args):
 
