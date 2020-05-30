@@ -5,28 +5,30 @@ import os
 from glue.utils import defer_draw, decorate_all_methods
 
 from astropy.wcs import WCS
+from spectral_cube import SpectralCube
+from spectral_cube.wcs_utils import drop_axis, slice_wcs
 
 import numpy as np
 import matplotlib
+import matplotlib.pyplot as plt
 matplotlib.use('Qt5Agg')
-from matplotlib import pyplot as plt
+from echo import delay_callback
 from qtpy.QtWidgets import QWidget, QVBoxLayout, QCheckBox
 
-from glue.core.data_combo_helper import ComponentIDComboHelper
-
+from glue.core import Component, Data
+from glue.core.data_combo_helper import ComponentIDComboHelper, ManualDataComboHelper
 from glue.external.echo import (CallbackProperty, SelectionCallbackProperty,
                                 keep_in_sync)
 from glue.external.echo.qt import (connect_checkable_button,
                                    autoconnect_callbacks_to_qt)
-
 from glue.viewers.matplotlib.layer_artist import MatplotlibLayerArtist
-from glue.viewers.matplotlib.state import MatplotlibDataViewerState, MatplotlibLayerState
+from glue.viewers.matplotlib.state import (MatplotlibDataViewerState,
+                                           MatplotlibLayerState,
+                                           DeferredDrawCallbackProperty as DDCProperty,
+                                           DeferredDrawSelectionCallbackProperty as DDSCProperty)
 from glue.viewers.matplotlib.qt.data_viewer import MatplotlibDataViewer
-
 from glue.core.subset import roi_to_subset_state
-
 from glue.utils.qt import load_ui
-
 from glue.config import qt_client
 
 # __all__ = ['SunPyProfileViewerState', 'SunPyProfileLayerState', 'SunPyProfileLayerArtist',
@@ -46,39 +48,41 @@ def get_identity_wcs(naxis):
 
 
 class SunPyProfileViewerState(MatplotlibDataViewerState):
-    x_att_pixel = SelectionCallbackProperty(docstring='The component ID giving the pixel component '
-                                                      'shown on the x axis')
+    x_att_pixel = DDSCProperty(docstring='The component ID giving the pixel component '
+                                         'shown on the x axis')
     y_att_pixel = SelectionCallbackProperty(docstring='The component ID giving the pixel component '
                                                        'shown on the y axis')
-    z_att_pixel = SelectionCallbackProperty(docstring='The component ID giving the pixel component '
-                                                      'shown on the z axis')
-    x_att = SelectionCallbackProperty(docstring='The attribute to use on the x-axis')
+    x_att = DDSCProperty(docstring='The attribute to use on the x-axis')
     y_att = SelectionCallbackProperty(docstring='The attribute to use on the y-axis')
-    z_att = SelectionCallbackProperty(docstring='The attribute to use on the z-axis')
+
+    # reference_data = DDSCProperty(docstring='The dataset that is used to define the '
+    #                                         'available pixel/world components, and '
+    #                                         'which defines the coordinate frame in '
+    #                                         'which the images are shown')
 
     def __init__(self, *args, **kwargs):
         super(SunPyProfileViewerState, self).__init__(*args, **kwargs)
-        self._x_att_helper = ComponentIDComboHelper(self, 'x_att', numeric=False, datetime=False,
-                                                    categorical=False, pixel_coord=True)
-        self._y_att_helper = ComponentIDComboHelper(self, 'y_att', numeric=False, datetime=False,
-                                                    categorical=False, pixel_coord=True)
-        self._z_att_helper = ComponentIDComboHelper(self, 'z_att', numeric=True, datetime=False,
-                                                    categorical=False, pixel_coord=False)
+
+        self._x_att_helper = ComponentIDComboHelper(self, 'x_att')
+        # self._y_att_helper = ComponentIDComboHelper(self, 'y_att')
+
         self.add_callback('layers', self._on_layers_change)
         self.add_callback('x_att', self._on_attribute_change)
-        self.add_callback('y_att', self._on_attribute_change)
-        self.add_callback('z_att', self._on_attribute_change)
+        # self.add_callback('y_att', self._on_attribute_change)
+
+        # self.add_callback('y_att', self._on_attribute_change)
+        # self.add_callback('z_att', self._on_attribute_change)
 
     def _on_layers_change(self, value):
         # self.layers_data is a shortcut for
         # [layer_state.layer for layer_state in self.layers]
         self._x_att_helper.set_multiple_data(self.layers_data)
-        self._y_att_helper.set_multiple_data(self.layers_data)
-        self._z_att_helper.set_multiple_data(self.layers_data)
+
+        # self._y_att_helper.set_multiple_data(self.layers_data)
+        # self._z_att_helper.set_multiple_data(self.layers_data)
 
     def _on_attribute_change(self, value):
-        if self.x_att is not None:
-            self.x_axislabel = self.x_att.label
+        self.x_axislabel = 'Wavelength'
 
         self.y_axislabel = 'Data values'
 
@@ -107,6 +111,17 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
 
         self.axes = axes
 
+        # self.reference_data
+
+        print('1', self.layer)
+        print('2', type(self.layer))
+
+        print('3', self.layer.data)
+        print('4', type(self.layer.data))
+
+        print('5', self.layer.meta)
+        print('6', type(self.layer.meta))
+
         self.artist = self.axes.plot([], [], '-', mec='none', color=self.state.layer.style.color)[0]
 
         self.state.add_callback('fill', self._on_visual_change)
@@ -116,31 +131,75 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         self.state.add_callback('alpha', self._on_visual_change)
 
         self._viewer_state.add_callback('x_att', self._on_attribute_change)
-        self._viewer_state.add_callback('y_att', self._on_attribute_change)
+        # self._viewer_state.add_callback('y_att', self._on_attribute_change)
+        # self._viewer_state.add_callback('z_att', self._on_attribute_change)
 
     def _on_visual_change(self, value=None):
 
         self.artist.set_visible(self.state.visible)
         self.artist.set_zorder(self.state.zorder)
-        self.artist.set_markeredgecolor(self.state.color)
-        if self.state.fill:
-            self.artist.set_markerfacecolor(self.state.color)
-        else:
-            self.artist.set_markerfacecolor('blue')
+        # self.artist.set_markeredgecolor(self.state.color)
+        # if self.state.fill:
+        #     self.artist.set_markerfacecolor(self.state.color)
+        # else:
+        #     self.artist.set_markerfacecolor('blue')
         self.artist.set_alpha(self.state.alpha)
 
         self.redraw()
 
     def _on_attribute_change(self, value=None):
 
-        if self._viewer_state.x_att is None \
-                or self._viewer_state.y_att is None:
-            return
+        # if self._viewer_state.x_att is None:
+        #     return
 
-        x = self.state.layer[self._viewer_state.x_att]
-        y = self.state.layer[self._viewer_state.y_att]
+        # x = self.state.layer[self._viewer_state.x_att]
+        # print('self._viewer_state.x_att', self._viewer_state.x_att)
+
+        print('self.layer', self.layer)
+
+        x_labels = self.layer.coordinate_components
+        # x = self._viewer_state.x_att
+
+        wcs = self.layer.coords
+        print('wcs', wcs)
+
+        data_raw = self.layer.data
+        print('data_raw', data_raw)
+
+        xid = x_labels[-1]
+
+        x = np.array(data_raw[xid])
+        print('x.shape', x.shape)
+
+        x = x[0]
+
+        print('x', x)
+
+        wcs_axis_dropped = drop_axis(wcs=wcs,dropax=2)
+        print('wcs_axis_dropped', wcs_axis_dropped)
+
+        print('sliced wcs', wcs_axis_dropped)
+        print('x_labels', x_labels)
+
+        # y = self.state.layer[self._viewer_state.y_att]
+        y_labels = self.layer.data.main_components
+
+        yid = self.layer.data.main_components[0]
+        y = np.array(data_raw[yid])
+        print('y.shape', y.shape)
+
+        y = y[0]
+        print('y', y)
+
+        print('len(y)', len(y))
+        print('y_labels', y_labels)
+
+        # z = self.state.layer[self._viewer_state.y_att]
 
         self.artist.set_data(x, y)
+
+        # x = np.array(x, dtype=float)
+        # y = np.array(y, dtype=float)
 
         self.axes.set_xlim(np.nanmin(x), np.nanmax(x))
         self.axes.set_ylim(np.nanmin(y), np.nanmax(y))
@@ -194,12 +253,12 @@ class SunPyMatplotlibProfileMixin(object):
     def setup_callbacks(self):
         self.state.add_callback('x_att', self._update_axes)
         # self.state.add_callback('z_att', self._update_axes)
-        self.state.add_callback('y_att', self._update_axes)
+        # self.state.add_callback('y_att', self._update_axes)
 
     def _update_axes(self, *args):
 
         if self.state.x_att is not None:
-            self.state.x_axislabel = self.state.x_att.label
+            self.state.x_axislabel = 'Wavelength'
 
         self.state.y_axislabel = 'Data values'
 
