@@ -31,15 +31,15 @@ from glue.config import qt_client
 #            'SunPyProfileDataViewer', 'SunPyMatplotlibProfileMixin']
 
 
-def get_identity_wcs(naxis):
-
-    wcs = WCS(naxis=naxis)
-    wcs.wcs.ctype = ['X'] * naxis
-    wcs.wcs.crval = [0.] * naxis
-    wcs.wcs.crpix = [1.] * naxis
-    wcs.wcs.cdelt = [1.] * naxis
-
-    return wcs
+# def get_identity_wcs(naxis):
+#
+#     wcs = WCS(naxis=naxis)
+#     wcs.wcs.ctype = ['X'] * naxis
+#     wcs.wcs.crval = [0.] * naxis
+#     wcs.wcs.crpix = [1.] * naxis
+#     wcs.wcs.cdelt = [1.] * naxis
+#
+#     return wcs
 
 
 class SunPyProfileViewerState(MatplotlibDataViewerState):
@@ -129,6 +129,9 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         self.redraw()
 
     def _on_attribute_change(self, value=None):
+
+        if self._viewer_state is not None:
+            print('self._viewer_state', self._viewer_state)
 
         # if self._viewer_state.x_att is None:
         #     return
@@ -221,6 +224,9 @@ class SunPyMatplotlibProfileMixin(object):
     def setup_callbacks(self):
         self.state.add_callback('x_att', self._update_axes)
         self.state.add_callback('y_att', self._update_axes)
+
+        # if self.state is not None:
+        #     print('self.state', self.state)
 
     def _update_axes(self, *args):
 
