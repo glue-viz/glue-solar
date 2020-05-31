@@ -108,15 +108,6 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
 
         # self.reference_data
 
-        print('1', self.layer)
-        print('2', type(self.layer))
-
-        print('3', self.layer.data)
-        print('4', type(self.layer.data))
-
-        print('5', self.layer.meta)
-        print('6', type(self.layer.meta))
-
         self.artist = self.axes.plot([], [], '-', mec='none', color=self.state.layer.style.color)[0]
 
         self.state.add_callback('fill', self._on_visual_change)
@@ -127,17 +118,12 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
 
         self._viewer_state.add_callback('x_att', self._on_attribute_change)
         # self._viewer_state.add_callback('y_att', self._on_attribute_change)
-        # self._viewer_state.add_callback('z_att', self._on_attribute_change)
 
     def _on_visual_change(self, value=None):
 
         self.artist.set_visible(self.state.visible)
         self.artist.set_zorder(self.state.zorder)
-        # self.artist.set_markeredgecolor(self.state.color)
-        # if self.state.fill:
-        #     self.artist.set_markerfacecolor(self.state.color)
-        # else:
-        #     self.artist.set_markerfacecolor('blue')
+
         self.artist.set_alpha(self.state.alpha)
 
         self.redraw()
@@ -146,9 +132,6 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
 
         # if self._viewer_state.x_att is None:
         #     return
-
-        # x = self.state.layer[self._viewer_state.x_att]
-        # print('self._viewer_state.x_att', self._viewer_state.x_att)
 
         print('self.layer', self.layer)
 
@@ -162,7 +145,6 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         print('data_raw', data_raw)
 
         xid = x_labels[-1]
-
         x = np.array(data_raw[xid], dtype=float)
         print('x.shape', x.shape)
 

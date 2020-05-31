@@ -129,7 +129,7 @@ class QtIRISImporter(QtWidgets.QDialog):
     def load_stacked_sequence(self, raster_data):
         for window, window_data in raster_data.items():
             w_data = Data(label=f"{window.replace(' ', '_')}")
-            w_data.coords = window_data.wcs
+            w_data.coords = WCSCoordinates(window_data.wcs.to_header())
             w_data.add_component(Component(window_data.data),
                                  f"{window.replace(' ', '_')}")
             w_data.style = VisualAttributes(color='#7A617C')

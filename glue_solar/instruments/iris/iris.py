@@ -31,7 +31,6 @@ def _parse_iris_raster(data, label):
     Parse IRIS Level 2 raster files so that it can be loaded by glue.
     """
     w_dataset = []
-
     for window, window_data in data.items():
         for i, scan_data in enumerate(window_data):
             w_data = Data(label=f"{window.replace(' ', '_')}-{scan_data.meta['OBSID']}-scan-{i}")
