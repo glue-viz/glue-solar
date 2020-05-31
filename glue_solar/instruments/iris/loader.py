@@ -97,7 +97,7 @@ class QtIRISImporter(QtWidgets.QDialog):
             data.coords = WCSCoordinates(hdul[0].header)
             data.meta = hdul[0].header
             preferred_cmap_name = 'IRIS ' + hdul[0].header['TDESC1'].replace('_', ' ')
-            data.style = VisualAttributes(preferred_cmap=preferred_cmap_name)
+            data.style = VisualAttributes(color='#FE6F5E', preferred_cmap=preferred_cmap_name)
             data.add_component(Component(hdul[0].data), label)
 
             self.datasets.append(data)
