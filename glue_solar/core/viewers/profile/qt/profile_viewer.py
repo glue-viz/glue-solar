@@ -8,8 +8,11 @@ from astropy.wcs import WCS
 
 import numpy as np
 from echo import delay_callback
-from qtpy.QtWidgets import QWidget, QVBoxLayout, QCheckBox
 
+from glue.viewers.image.qt import ImageViewer
+from glue.app.qt import GlueApplication
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QCheckBox
+from glue.core.data_derived import DerivedData, IndexedData
 from glue.core import Component, Data
 from glue.core.data_combo_helper import ComponentIDComboHelper, ManualDataComboHelper
 from glue.external.echo import (CallbackProperty, SelectionCallbackProperty,
@@ -29,17 +32,6 @@ from glue.config import qt_client
 # __all__ = ['SunPyProfileViewerState', 'SunPyProfileLayerState', 'SunPyProfileLayerArtist',
 #            'SunPyProfileViewerStateWidget', 'SunPyProfileLayerStateWidget',
 #            'SunPyProfileDataViewer', 'SunPyMatplotlibProfileMixin']
-
-
-# def get_identity_wcs(naxis):
-#
-#     wcs = WCS(naxis=naxis)
-#     wcs.wcs.ctype = ['X'] * naxis
-#     wcs.wcs.crval = [0.] * naxis
-#     wcs.wcs.crpix = [1.] * naxis
-#     wcs.wcs.cdelt = [1.] * naxis
-#
-#     return wcs
 
 
 class SunPyProfileViewerState(MatplotlibDataViewerState):
@@ -83,7 +75,6 @@ class SunPyProfileViewerState(MatplotlibDataViewerState):
 
 
 class SunPyProfileLayerState(MatplotlibLayerState):
-    fill = CallbackProperty(False, docstring='Whether to show the markers as filled or not')
     color = CallbackProperty(docstring='The color used to display the data')
     alpha = CallbackProperty(docstring='The transparency used to display the data')
 
@@ -106,11 +97,8 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
 
         self.axes = axes
 
-        # self.reference_data
-
         self.artist = self.axes.plot([], [], '-', mec='none', color=self.state.layer.style.color)[0]
 
-        self.state.add_callback('fill', self._on_visual_change)
         self.state.add_callback('visible', self._on_visual_change)
         self.state.add_callback('zorder', self._on_visual_change)
         self.state.add_callback('color', self._on_visual_change)
@@ -135,6 +123,26 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
 
         # if self._viewer_state.x_att is None:
         #     return
+
+        # self.app = GlueApplication()
+
+        # print('Has no viewers and no data', self.app.is_empty)
+
+        # self.session = self.app.session
+        # if self.session is not None:
+        #     print('self.session', self.session)
+
+        # self.hub = self.session.hub
+        # if self.hub is not None:
+        #     print('self.hub', self.hub)
+
+        # self.viewer = self.app.new_data_viewer(ImageViewer)
+        # if self.viewer is not None:
+        #     print('self.viewer.session.data_collection', self.viewer.session.data_collection)
+
+        # self.data_collection = self.session.data_collection
+        # if self.data_collection is not None:
+        #     print('self.data_collection', self.data_collection)
 
         print('self.layer', self.layer)
 
@@ -202,7 +210,22 @@ class SunPyProfileViewerStateWidget(QWidget):
 
         self.viewer_state = viewer_state
         self._connections = autoconnect_callbacks_to_qt(self.viewer_state, self.ui)
+        self.session = session
 
+        print('self.session', self.session)
+        print('self.session.data_collection', self.session.data_collection)
+
+        for dataset in self.session.data_collection:
+            if isinstance(dataset, IndexedData):
+                print(dataset.indices)
+                self.indices = dataset.indices
+
+        if self.indices is not None:
+            self.xi = self.indices[0]
+            self.yi = self.indices[1]
+
+    def get_indices(self):
+        return self.xi, self.yi
 
 class SunPyProfileLayerStateWidget(QWidget):
 
@@ -221,6 +244,8 @@ class SunPyProfileLayerStateWidget(QWidget):
 
 class SunPyMatplotlibProfileMixin(object):
 
+    print('At SunPyMatplotlibProfileMixin')
+
     def setup_callbacks(self):
         self.state.add_callback('x_att', self._update_axes)
         self.state.add_callback('y_att', self._update_axes)
@@ -236,22 +261,6 @@ class SunPyMatplotlibProfileMixin(object):
         self.state.y_axislabel = 'Data values'
 
         self.axes.figure.canvas.draw_idle()
-
-    # def apply_roi(self, roi, override_mode=None):
-
-        # Force redraw to get rid of ROI. We do this because applying the
-        # subset state below might end up not having an effect on the viewer,
-        # for example there may not be any layers, or the active subset may not
-        # be one of the layers. So we just explicitly redraw here to make sure
-        # a redraw will happen after this method is called.
-
-        # self.redraw()
-        #
-        # if len(self.layers) == 0:
-        #     return
-        #
-        # subset_state = roi_to_subset_state(roi, x_att=self.state.x_att)
-        # self.apply_subset_state(subset_state, override_mode=override_mode)
 
 
 @decorate_all_methods(defer_draw)
