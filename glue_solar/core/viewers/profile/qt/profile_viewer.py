@@ -1,6 +1,7 @@
 # Experimenting with implementing a basic glue viewer for SunPy maps
 
 import os
+import copy
 
 from glue.utils import defer_draw, decorate_all_methods
 
@@ -118,31 +119,14 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
 
     def _on_attribute_change(self, value=None):
 
+        if extracted_indices is not None:
+            print('extracted_indices 2', extracted_indices)
+
+        xi = extracted_indices[0]
+        yi = extracted_indices[1]
+
         if self._viewer_state is not None:
             print('self._viewer_state', self._viewer_state)
-
-        # if self._viewer_state.x_att is None:
-        #     return
-
-        # self.app = GlueApplication()
-
-        # print('Has no viewers and no data', self.app.is_empty)
-
-        # self.session = self.app.session
-        # if self.session is not None:
-        #     print('self.session', self.session)
-
-        # self.hub = self.session.hub
-        # if self.hub is not None:
-        #     print('self.hub', self.hub)
-
-        # self.viewer = self.app.new_data_viewer(ImageViewer)
-        # if self.viewer is not None:
-        #     print('self.viewer.session.data_collection', self.viewer.session.data_collection)
-
-        # self.data_collection = self.session.data_collection
-        # if self.data_collection is not None:
-        #     print('self.data_collection', self.data_collection)
 
         print('self.layer', self.layer)
 
@@ -159,7 +143,7 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         x = np.array(data_raw[xid], dtype=float)
         print('x.shape', x.shape)
 
-        x = x[0]
+        x = x[xi, yi, :]
         print('x', x)
 
         print('x_labels', x_labels)
@@ -170,10 +154,9 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         y = np.array(data_raw[yid], dtype=float)
         print('y.shape', y.shape)
 
-        y = y[0]
+        y = y[xi, yi, :]
         print('y', y)
 
-        print('len(y)', len(y))
         print('y_labels', y_labels)
 
         # y = self.state.layer[self._viewer_state.y_att]
@@ -224,8 +207,9 @@ class SunPyProfileViewerStateWidget(QWidget):
             self.xi = self.indices[0]
             self.yi = self.indices[1]
 
-    def get_indices(self):
-        return self.xi, self.yi
+        global extracted_indices
+        extracted_indices = copy.deepcopy(self.indices)
+
 
 class SunPyProfileLayerStateWidget(QWidget):
 
@@ -250,8 +234,8 @@ class SunPyMatplotlibProfileMixin(object):
         self.state.add_callback('x_att', self._update_axes)
         self.state.add_callback('y_att', self._update_axes)
 
-        # if self.state is not None:
-        #     print('self.state', self.state)
+        if extracted_indices is not None:
+            print('extracted_indices', extracted_indices)
 
     def _update_axes(self, *args):
 
