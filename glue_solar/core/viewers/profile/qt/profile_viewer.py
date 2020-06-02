@@ -8,18 +8,18 @@ from glue.utils import defer_draw, decorate_all_methods
 from astropy.wcs import WCS
 
 import numpy as np
-from echo import delay_callback
 
-from glue.viewers.image.qt import ImageViewer
-from glue.app.qt import GlueApplication
+from echo import delay_callback
+from echo import (CallbackProperty, SelectionCallbackProperty,
+                  keep_in_sync)
+from echo.qt import (connect_checkable_button,
+                     autoconnect_callbacks_to_qt)
+
+
 from qtpy.QtWidgets import QWidget, QVBoxLayout, QCheckBox
 from glue.core.data_derived import DerivedData, IndexedData
-from glue.core import Component, Data
 from glue.core.data_combo_helper import ComponentIDComboHelper, ManualDataComboHelper
-from glue.external.echo import (CallbackProperty, SelectionCallbackProperty,
-                                keep_in_sync)
-from glue.external.echo.qt import (connect_checkable_button,
-                                   autoconnect_callbacks_to_qt)
+
 from glue.viewers.matplotlib.layer_artist import MatplotlibLayerArtist
 from glue.viewers.matplotlib.state import (MatplotlibDataViewerState,
                                            MatplotlibLayerState,
@@ -120,7 +120,7 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
     def _on_attribute_change(self, value=None):
 
         if extracted_indices is not None:
-            print('extracted_indices 2', extracted_indices)
+            print('extracted_indices', extracted_indices)
 
         xi = extracted_indices[0]
         yi = extracted_indices[1]
@@ -140,6 +140,7 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         print('data_raw', data_raw)
 
         xid = x_labels[-1]
+        # x = data_raw[xid]
         x = np.array(data_raw[xid], dtype=float)
         print('x.shape', x.shape)
 
@@ -151,6 +152,7 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         y_labels = self.layer.data.main_components
 
         yid = self.layer.data.main_components[0]
+        # y = data_raw[yid]
         y = np.array(data_raw[yid], dtype=float)
         print('y.shape', y.shape)
 
@@ -228,14 +230,9 @@ class SunPyProfileLayerStateWidget(QWidget):
 
 class SunPyMatplotlibProfileMixin(object):
 
-    print('At SunPyMatplotlibProfileMixin')
-
     def setup_callbacks(self):
         self.state.add_callback('x_att', self._update_axes)
         self.state.add_callback('y_att', self._update_axes)
-
-        if extracted_indices is not None:
-            print('extracted_indices', extracted_indices)
 
     def _update_axes(self, *args):
 
