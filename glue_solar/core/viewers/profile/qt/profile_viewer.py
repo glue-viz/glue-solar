@@ -186,16 +186,16 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
 
 class SunPyProfileViewerStateWidget(QWidget):
 
-    def __init__(self, viewer_state=None, session=None):
+    def __init__(self, viewer_state, session=None):
 
         super(SunPyProfileViewerStateWidget, self).__init__()
 
         self.ui = load_ui('viewer_state.ui', self,
                           directory=os.path.dirname(__file__))
 
-        self._connections = autoconnect_callbacks_to_qt(self.viewer_state, self.ui)
-
+        self._connections = autoconnect_callbacks_to_qt(viewer_state, self.ui)
         self.viewer_state = viewer_state
+
         self.session = session
 
         print('self.session', self.session)
