@@ -38,6 +38,7 @@ glue/_githash.py
 .eggs
 .hypothesis
 .pytest_cache
+pip-wheel-metadata
 
 .tox
 .html
