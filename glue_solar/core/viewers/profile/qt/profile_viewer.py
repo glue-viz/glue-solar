@@ -100,17 +100,31 @@ class SunPyProfileViewerState(MatplotlibDataViewerState):
 
 
 class SunPyProfileLayerState(MatplotlibLayerState):
-    color = CallbackProperty(docstring='The color used to display the data')
-    alpha = CallbackProperty(docstring='The transparency used to display the data')
+    color = DDCProperty(docstring='The color used to display the data')
+    alpha = DDCProperty(docstring='The transparency used to display the data')
 
-    def __init__(self, viewer_state=None, **kwargs):
-        super(SunPyProfileLayerState, self).__init__(viewer_state=viewer_state, **kwargs)
+    attribute = DDSCProperty(docstring='The attribute shown in the layer')
+
+    def __init__(self, layer=None, viewer_state=None, **kwargs):
+        super(SunPyProfileLayerState, self).__init__(layer=layer, viewer_state=viewer_state, **kwargs)
+
+        self.attribute_att_helper = ComponentIDComboHelper(self, 'attribute',
+                                                           numeric=True, categorical=False)
 
         self.color = self.layer.style.color
         self.alpha = self.layer.style.alpha
 
         self._sync_color = keep_in_sync(self, 'color', self.layer.style, 'color')
         self._sync_alpha = keep_in_sync(self, 'alpha', self.layer.style, 'alpha')
+
+        self.add_callback('layer', self._update_attribute)
+
+        if layer is not None:
+            self._update_attribute()
+
+    def _update_attribute(self, *args):
+        if self.layer is not None:
+            self.attribute_att_helper.set_multiple_data([self.layer])
 
 
 class SunPyProfileLayerArtist(MatplotlibLayerArtist):
