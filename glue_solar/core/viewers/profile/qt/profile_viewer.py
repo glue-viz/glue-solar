@@ -29,6 +29,7 @@ from glue.viewers.matplotlib.qt.data_viewer import MatplotlibDataViewer
 from glue.core.subset import roi_to_subset_state
 from glue.utils.qt import load_ui
 from glue.config import qt_client
+from astropy.wcs.wcsapi import SlicedLowLevelWCS
 
 # __all__ = ['SunPyProfileViewerState', 'SunPyProfileLayerState', 'SunPyProfileLayerArtist',
 #            'SunPyProfileViewerStateWidget', 'SunPyProfileLayerStateWidget',
@@ -38,41 +39,64 @@ from glue.config import qt_client
 class SunPyProfileViewerState(MatplotlibDataViewerState):
     x_att_pixel = DDSCProperty(docstring='The component ID giving the pixel component '
                                          'shown on the x axis')
-    y_att_pixel = SelectionCallbackProperty(docstring='The component ID giving the pixel component '
-                                                       'shown on the y axis')
-    x_att = DDSCProperty(docstring='The attribute to use on the x-axis')
-    y_att = SelectionCallbackProperty(docstring='The attribute to use on the y-axis')
 
-    # reference_data = DDSCProperty(docstring='The dataset that is used to define the '
-    #                                         'available pixel/world components, and '
-    #                                         'which defines the coordinate frame in '
-    #                                         'which the images are shown')
+    x_att = DDSCProperty(docstring='The attribute to use on the x-axis')
+
+    reference_data = DDSCProperty(docstring='The dataset that is used to define the '
+                                            'available pixel/world components, and '
+                                            'which defines the coordinate frame in '
+                                            'which the images are shown')
 
     def __init__(self, *args, **kwargs):
         super(SunPyProfileViewerState, self).__init__(*args, **kwargs)
 
-        self._x_att_helper = ComponentIDComboHelper(self, 'x_att')
-        # self._y_att_helper = ComponentIDComboHelper(self, 'y_att')
+        self.ref_data_helper = ManualDataComboHelper(self, 'reference_data')
 
-        self.add_callback('layers', self._on_layers_change)
+        self.add_callback('layers', self._layers_changed)
+        self.add_callback('reference_data', self._reference_data_changed)
         self.add_callback('x_att', self._on_attribute_change)
-        # self.add_callback('y_att', self._on_attribute_change)
 
-        # self.add_callback('y_att', self._on_attribute_change)
-        # self.add_callback('z_att', self._on_attribute_change)
+        self.x_att_helper = ComponentIDComboHelper(self, 'x_att',
+                                                   numeric=False, datetime=False, categorical=False,
+                                                   pixel_coord=True)
 
-    def _on_layers_change(self, value):
-        # self.layers_data is a shortcut for
-        # [layer_state.layer for layer_state in self.layers]
-        self._x_att_helper.set_multiple_data(self.layers_data)
+    def _update_combo_ref_data(self):
+        self.ref_data_helper.set_multiple_data(self.layers_data)
 
-        # self._y_att_helper.set_multiple_data(self.layers_data)
-        # self._z_att_helper.set_multiple_data(self.layers_data)
+    @property
+    def _display_world(self):
+        return getattr(self.reference_data, 'coords', None) is not None
 
     def _on_attribute_change(self, value):
         self.x_axislabel = 'Wavelength'
 
         self.y_axislabel = 'Data values'
+
+    @defer_draw
+    def _layers_changed(self, *args):
+        self._update_combo_ref_data()
+
+    @defer_draw
+    def _reference_data_changed(self, *args):
+        # This signal can get emitted if just the choices but not the actual
+        # reference data change, so we check here that the reference data has
+        # actually changed
+
+        if self.reference_data is not getattr(self, '_last_reference_data', None):
+            self._last_reference_data = self.reference_data
+
+            with delay_callback(self, 'x_att'):
+
+                if self.reference_data is None:
+                    self.x_att_helper.set_multiple_data([])
+                else:
+                    self.x_att_helper.set_multiple_data([self.reference_data])
+                    if self._display_world:
+                        self.x_att_helper.world_coord = True
+                        self.x_att = self.reference_data.world_component_ids[0]
+                    else:
+                        self.x_att_helper.world_coord = False
+                        self.x_att = self.reference_data.pixel_component_ids[0]
 
 
 class SunPyProfileLayerState(MatplotlibLayerState):
@@ -106,7 +130,6 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         self.state.add_callback('alpha', self._on_visual_change)
 
         self._viewer_state.add_callback('x_att', self._on_attribute_change)
-        # self._viewer_state.add_callback('y_att', self._on_attribute_change)
 
     def _on_visual_change(self, value=None):
 
@@ -124,6 +147,7 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
 
         xi = extracted_indices[0]
         yi = extracted_indices[1]
+        zi = extracted_indices[2]
 
         if self._viewer_state is not None:
             print('self._viewer_state', self._viewer_state)
@@ -131,7 +155,6 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         print('self.layer', self.layer)
 
         x_labels = self.layer.coordinate_components
-        # x = self._viewer_state.x_att
 
         wcs = self.layer.coords
         print('wcs', wcs)
@@ -140,7 +163,6 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         print('data_raw', data_raw)
 
         xid = x_labels[-1]
-        # x = data_raw[xid]
         x = np.array(data_raw[xid], dtype=float)
         print('x.shape', x.shape)
 
@@ -152,7 +174,6 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         y_labels = self.layer.data.main_components
 
         yid = self.layer.data.main_components[0]
-        # y = data_raw[yid]
         y = np.array(data_raw[yid], dtype=float)
         print('y.shape', y.shape)
 
@@ -160,8 +181,6 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         print('y', y)
 
         print('y_labels', y_labels)
-
-        # y = self.state.layer[self._viewer_state.y_att]
 
         self.artist.set_data(x, y)
 
@@ -206,10 +225,6 @@ class SunPyProfileViewerStateWidget(QWidget):
                 print(dataset.indices)
                 self.indices = dataset.indices
 
-        if self.indices is not None:
-            self.xi = self.indices[0]
-            self.yi = self.indices[1]
-
         global extracted_indices
         extracted_indices = copy.deepcopy(self.indices)
 
@@ -220,20 +235,17 @@ class SunPyProfileLayerStateWidget(QWidget):
 
         super(SunPyProfileLayerStateWidget, self).__init__()
 
-        # self.checkbox = QCheckBox('Fill markers')
         layout = QVBoxLayout()
         # layout.addWidget(self.checkbox)
         self.setLayout(layout)
 
         self.layer_state = layer_artist.state
-        # connect_checkable_button(self.layer_state, 'fill', self.checkbox)
 
 
 class SunPyMatplotlibProfileMixin(object):
 
     def setup_callbacks(self):
         self.state.add_callback('x_att', self._update_axes)
-        self.state.add_callback('y_att', self._update_axes)
 
     def _update_axes(self, *args):
 
@@ -261,8 +273,8 @@ class SunPyProfileDataViewer(SunPyMatplotlibProfileMixin, MatplotlibDataViewer):
 
     tools = ['select:xrange', 'profile-analysis']
 
-    def __init__(self, session, parent=None, wcs=None, state=None):
-        MatplotlibDataViewer.__init__(self, session, parent=parent, wcs=wcs, state=state)
+    def __init__(self, session, parent=None, state=None):
+        MatplotlibDataViewer.__init__(self, session, parent=parent, wcs=True, state=state)
         SunPyMatplotlibProfileMixin.setup_callbacks(self)
 
 
