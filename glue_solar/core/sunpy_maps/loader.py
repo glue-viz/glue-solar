@@ -31,7 +31,6 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
         self.cancel.clicked.connect(self.reject)
         self.ok.clicked.connect(self.finalize)
 
-        print(directory)
 
         self.directory = Path(directory)
         self.sunpy_map_files = self.get_sunpy_map_filenames()
