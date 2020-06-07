@@ -185,7 +185,7 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
             if x_label.lower().startswith('wave'):
                 xid = x_labels[x_idx]
 
-        x = data_raw[xid]
+        # x = data_raw[xid]
         x = np.array(data_raw[xid], dtype=float)
         print('x.shape', x.shape)
 
@@ -197,8 +197,8 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         y_labels = self.layer.data.main_components
 
         yid = self.layer.data.main_components[0]
-        y = data_raw[yid]
-        # y = np.array(data_raw[yid], dtype=float)
+        # y = data_raw[yid]
+        y = np.array(data_raw[yid], dtype=float)
         print('y.shape', y.shape)
 
         y = y[xi, yi, :]
