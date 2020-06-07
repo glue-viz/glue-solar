@@ -6,6 +6,7 @@ import copy
 from glue.utils import defer_draw, decorate_all_methods
 
 from astropy.wcs import WCS
+from astropy.wcs.wcsapi import SlicedLowLevelWCS
 
 import numpy as np
 
@@ -29,7 +30,8 @@ from glue.viewers.matplotlib.qt.data_viewer import MatplotlibDataViewer
 from glue.core.subset import roi_to_subset_state
 from glue.utils.qt import load_ui
 from glue.config import qt_client
-from astropy.wcs.wcsapi import SlicedLowLevelWCS
+from glue.viewers.profile.python_export import python_export_profile_layer
+
 
 # __all__ = ['SunPyProfileViewerState', 'SunPyProfileLayerState', 'SunPyProfileLayerArtist',
 #            'SunPyProfileViewerStateWidget', 'SunPyProfileLayerStateWidget',
@@ -67,10 +69,12 @@ class SunPyProfileViewerState(MatplotlibDataViewerState):
     def _display_world(self):
         return getattr(self.reference_data, 'coords', None) is not None
 
+    @defer_draw
     def _on_attribute_change(self, value):
-        self.x_axislabel = 'Wavelength'
-
-        self.y_axislabel = 'Data values'
+        # self.x_axislabel = 'Wave'
+        #
+        # self.y_axislabel = 'Data values'
+        pass
 
     @defer_draw
     def _layers_changed(self, *args):
@@ -129,6 +133,7 @@ class SunPyProfileLayerState(MatplotlibLayerState):
 
 class SunPyProfileLayerArtist(MatplotlibLayerArtist):
     _layer_state_cls = SunPyProfileLayerState
+    _python_exporter = python_export_profile_layer
 
     def __init__(self, axes, *args, **kwargs):
 
@@ -136,7 +141,7 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
 
         self.axes = axes
 
-        self.artist = self.axes.plot([], [], '-', mec='none', color=self.state.layer.style.color)[0]
+        self.artist = self.axes.plot([], [], 'k-', drawstyle='steps-mid', color=self.state.layer.style.color)[0]
 
         self.state.add_callback('visible', self._on_visual_change)
         self.state.add_callback('zorder', self._on_visual_change)
@@ -149,7 +154,6 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
 
         self.artist.set_visible(self.state.visible)
         self.artist.set_zorder(self.state.zorder)
-
         self.artist.set_alpha(self.state.alpha)
 
         self.redraw()
@@ -169,6 +173,7 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         print('self.layer', self.layer)
 
         x_labels = self.layer.coordinate_components
+        print('x_labels', x_labels)
 
         wcs = self.layer.coords
         print('wcs', wcs)
@@ -176,19 +181,26 @@ class SunPyProfileLayerArtist(MatplotlibLayerArtist):
         data_raw = self.layer.data
         print('data_raw', data_raw)
 
-        xid = x_labels[-1]
+        for x_idx, x_label in enumerate(x_labels):
+            x_label = str(x_label)
+            print('x_label type', x_label, type(x_label))
+            if x_label.lower().startswith('wave'):
+                xid = x_labels[x_idx]
+
+        x = data_raw[xid]
         x = np.array(data_raw[xid], dtype=float)
         print('x.shape', x.shape)
+
+        # x = self.state.layer[self._viewer_state.x_att]
 
         x = x[xi, yi, :]
         print('x', x)
 
-        print('x_labels', x_labels)
-
         y_labels = self.layer.data.main_components
 
         yid = self.layer.data.main_components[0]
-        y = np.array(data_raw[yid], dtype=float)
+        y = data_raw[yid]
+        # y = np.array(data_raw[yid], dtype=float)
         print('y.shape', y.shape)
 
         y = y[xi, yi, :]
@@ -223,10 +235,11 @@ class SunPyProfileViewerStateWidget(QWidget):
 
         super(SunPyProfileViewerStateWidget, self).__init__()
 
-        self.ui = load_ui('viewer_state.ui', self,
-                          directory=os.path.dirname(__file__))
+        # self.ui = load_ui('viewer_state.ui', self,
+        #                   directory=os.path.dirname(__file__))
 
-        self._connections = autoconnect_callbacks_to_qt(viewer_state, self.ui)
+        # self._connections = autoconnect_callbacks_to_qt(viewer_state, self.ui)
+
         self.viewer_state = viewer_state
 
         self.session = session
@@ -264,7 +277,8 @@ class SunPyMatplotlibProfileMixin(object):
     def _update_axes(self, *args):
 
         if self.state.x_att is not None:
-            self.state.x_axislabel = 'Wavelength'
+            # self.state.x_axislabel = self.state.x_att.label
+            self.state.x_axislabel = 'Wave'
 
         self.state.y_axislabel = 'Data values'
 
@@ -288,7 +302,7 @@ class SunPyProfileDataViewer(SunPyMatplotlibProfileMixin, MatplotlibDataViewer):
     tools = ['select:xrange', 'profile-analysis']
 
     def __init__(self, session, parent=None, state=None):
-        MatplotlibDataViewer.__init__(self, session, parent=parent, wcs=True, state=state)
+        MatplotlibDataViewer.__init__(self, session, parent=parent, state=state)
         SunPyMatplotlibProfileMixin.setup_callbacks(self)
 
 
