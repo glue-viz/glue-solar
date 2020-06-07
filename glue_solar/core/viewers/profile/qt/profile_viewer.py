@@ -30,7 +30,6 @@ from glue.viewers.matplotlib.qt.data_viewer import MatplotlibDataViewer
 from glue.core.subset import roi_to_subset_state
 from glue.utils.qt import load_ui
 from glue.config import qt_client
-from glue.viewers.profile.python_export import python_export_profile_layer
 
 
 # __all__ = ['SunPyProfileViewerState', 'SunPyProfileLayerState', 'SunPyProfileLayerArtist',
@@ -133,7 +132,6 @@ class SunPyProfileLayerState(MatplotlibLayerState):
 
 class SunPyProfileLayerArtist(MatplotlibLayerArtist):
     _layer_state_cls = SunPyProfileLayerState
-    _python_exporter = python_export_profile_layer
 
     def __init__(self, axes, *args, **kwargs):
 
