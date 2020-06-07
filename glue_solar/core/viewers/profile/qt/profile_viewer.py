@@ -299,7 +299,7 @@ class SunPyProfileDataViewer(SunPyMatplotlibProfileMixin, MatplotlibDataViewer):
 
     allow_duplicate_data = True
 
-    tools = ['select:xrange', 'profile-analysis']
+    tools = ['select:xrange']
 
     def __init__(self, session, parent=None, state=None):
         MatplotlibDataViewer.__init__(self, session, parent=parent, state=state)
