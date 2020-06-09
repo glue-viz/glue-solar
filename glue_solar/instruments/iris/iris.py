@@ -12,6 +12,7 @@ from glue.core import Component, Data
 from glue.core.data_factories import load_data
 from glue.core.coordinates import WCSCoordinates
 from glue.core.visual import VisualAttributes
+from glue.core.data_factories import is_fits
 
 from sunraster.io.iris import read_iris_spectrograph_level2_fits
 from sunraster import SpectrogramCube
@@ -25,26 +26,25 @@ __all__ = ['import_iris', 'read_iris_raster', '_parse_iris_raster']
 
 @qglue_parser(SpectrogramCube)
 def _parse_iris_raster(data, label):
-    result = []
+    w_dataset = []
     for window, window_data in data.items():
         for i, scan_data in enumerate(window_data):
             w_data = Data(label=f"{window.replace(' ', '_')}-scan-{i}")
-            w_data.coords = WCSCoordinates(scan_data.header)
-            w_data.add_component(Component(scan_data.data),
-                                 f"{window}-scan-{i}")
+            w_data.coords = WCSCoordinates(scan_data.wcs.to_header())
+            w_data.add_component(Component(scan_data.data), f"{window.replace(' ', '_')}-scan-{i}")
             w_data.meta = scan_data.meta
             w_data.style = VisualAttributes(color='#5A4FCF')
-            result.append(w_data)
-    return result
+            w_dataset.append(w_data)
 
-
-def is_fits(filename, **kwargs):
-    return filename.endswith('.fits')
+    return w_dataset
 
 
 @data_factory('IRIS Spectrograph', is_fits)
 def read_iris_raster(raster_file):
-    raster_data = _parse_iris_raster(read_iris_spectrograph_level2_fits(raster_file, uncertainty=False, memmap=True), 'iris')
+    raster_data = _parse_iris_raster(read_iris_spectrograph_level2_fits(raster_file,
+                                                                        uncertainty=False,
+                                                                        memmap=False),
+                                     label='iris')
     return raster_data
 
 
