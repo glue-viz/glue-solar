@@ -36,7 +36,7 @@ class CubeSliderTool(ToolbarModeBase):
 
     def _on_press(self, mode):
         self._pressed = True
-        self._extract_pixel(mode)
+        self._slice_cube(mode)
 
     def _on_release(self, mode):
         self._pressed = False
