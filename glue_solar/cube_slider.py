@@ -3,7 +3,6 @@ from __future__ import absolute_import, division, print_function
 from glue.config import viewer_tool
 from glue.core.data_derived import IndexedData
 from glue.viewers.matplotlib.toolbar_mode import ToolbarModeBase
-from glue.viewers.image.qt import ImageViewer
 
 __all__ = ['CubeSliderTool']
 
@@ -34,6 +33,9 @@ class CubeSliderTool(ToolbarModeBase):
         self._line_x = self.viewer.axes.axvline(0, color='#00BFFF')
         self._line_x.set_visible(False)
 
+    # def menu_actions(self):
+    #     return []
+
     def _on_press(self, mode):
         self._pressed = True
         self._slice_cube(mode)
@@ -52,6 +54,8 @@ class CubeSliderTool(ToolbarModeBase):
             return None
 
         xi = int(round(x))
+        print('xi', xi)
+        print('self.viewer.state.x_att.axis', self.viewer.state.x_att.axis)
 
         indices = [None] * self.viewer.state.reference_data.ndim
         indices[self.viewer.state.x_att.axis] = xi
