@@ -57,8 +57,8 @@ class CubeSliderTool(ToolbarModeBase):
         print('xi', xi)
         print('self.viewer.state.x_att.axis', self.viewer.state.x_att.axis)
 
-        indices = [None] * self.viewer.state.reference_data.ndim
-        indices[self.viewer.state.x_att.axis] = xi
+        slider_indices = [None] * self.viewer.state.reference_data.ndim
+        slider_indices[self.viewer.state.x_att.axis] = xi
 
         self._line_x.set_data([x, x], [0, 1])
         self._line_x.set_visible(True)
@@ -66,12 +66,12 @@ class CubeSliderTool(ToolbarModeBase):
         self.viewer.axes.figure.canvas.draw()
 
         if self._sliced is None:
-            self._sliced = IndexedData(self.viewer.state.reference_data, indices)
+            self._sliced = IndexedData(self.viewer.state.reference_data, slider_indices)
             self.viewer.session.data_collection.append(self._sliced)
         else:
             try:
-                self._sliced.indices = indices
+                self._sliced.indices = slider_indices
             except TypeError:
                 self.viewer.session.data_collection.remove(self._sliced)
-                self._sliced = IndexedData(self.viewer.state.reference_data, indices)
+                self._sliced = IndexedData(self.viewer.state.reference_data, slider_indices)
                 self.viewer.session.data_collection.append(self._sliced)
