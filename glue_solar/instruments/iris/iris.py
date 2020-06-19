@@ -29,9 +29,9 @@ def _parse_iris_raster(data, label):
     w_dataset = []
     for window, window_data in data.items():
         for i, scan_data in enumerate(window_data):
-            w_data = Data(label=f"{window.replace(' ', '_')}-scan-{i}")
+            w_data = Data(label=f"{window.replace(' ', '_')}-{scan_data.meta['OBSID']}-scan-{i}")
             w_data.coords = WCSCoordinates(scan_data.wcs.to_header())
-            w_data.add_component(Component(scan_data.data), f"{window.replace(' ', '_')}-scan-{i}")
+            w_data.add_component(Component(scan_data.data), f"{window.replace(' ', '_')}-{scan_data.meta['OBSID']}-scan-{i}")
             w_data.meta = scan_data.meta
             w_data.style = VisualAttributes(color='#5A4FCF')
             w_dataset.append(w_data)
