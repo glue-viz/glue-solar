@@ -87,7 +87,7 @@ class QtIRISImporter(QtWidgets.QDialog):
     def load_sji(self, sji):
         with fits.open(sji) as hdul:
             hdul.verify("fix")
-            label = hdul[0].header['TDESC1']
+            label = hdul[0].header['TDESC1'] + hdul[0].header['OBSID']
             data = Data(label=label)
             data.coords = WCSCoordinates(hdul[0].header)
             data.meta = hdul[0].header
@@ -113,10 +113,10 @@ class QtIRISImporter(QtWidgets.QDialog):
     def load_sequence(self, raster_data):
         for window, window_data in raster_data.items():
             for i, scan_data in enumerate(window_data):
-                w_data = Data(label=f"{window.replace(' ', '_')}-scan-{i}")
+                w_data = Data(label=f"{window.replace(' ', '_')}-{scan_data.meta['OBSID']}-scan-{i}")
                 w_data.coords = scan_data.wcs
                 w_data.add_component(Component(scan_data.data),
-                                     f"{window}-scan-{i}")
+                                     f"{window.replace(' ', '_')}-scan-{i}")
                 w_data.meta = scan_data.meta
                 w_data.style = VisualAttributes(color='#5A4FCF')
                 self.datasets.append(w_data)
@@ -126,7 +126,7 @@ class QtIRISImporter(QtWidgets.QDialog):
             w_data = Data(label=f"{window.replace(' ', '_')}")
             w_data.coords = window_data.wcs
             w_data.add_component(Component(window_data.data),
-                                 f"{window}")
+                                 f"{window.replace(' ', '_')}")
             self.datasets.append(w_data)
 
     def finalize(self):
