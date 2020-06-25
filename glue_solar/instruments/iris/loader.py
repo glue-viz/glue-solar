@@ -127,6 +127,7 @@ class QtIRISImporter(QtWidgets.QDialog):
             w_data.coords = window_data.wcs
             w_data.add_component(Component(window_data.data),
                                  f"{window.replace(' ', '_')}")
+            w_data.style = VisualAttributes(color='#7A617C')
             self.datasets.append(w_data)
 
     def finalize(self):
