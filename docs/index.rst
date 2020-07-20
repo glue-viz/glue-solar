@@ -22,4 +22,4 @@ for their solar data.
    code-reference
    loading-aia-and-hmi
    loading-iris-level-2-raster-and-sji-data
-
+   guide-to-glue-1dprofile-viewer-for-iris-data
