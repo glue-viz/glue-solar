@@ -4,7 +4,7 @@
 A Guide to using Glue's 1D Profile viewer to probe IRIS Level 2 data sets
 =========================================================================
 
-Loading multi-scan IRIS Level 2 date sets and stacking the sequential raster cubes
+Loading multi-scan IRIS Level 2 data sets and stacking the sequential raster cubes
 ----------------------------------------------------------------------------------
 It is important to note that it would be preferable to use the directory loader as opposed
 to the file loader for this task. To do this, we will first need to load some multi-scan
@@ -40,8 +40,8 @@ Now we are ready to visualize the 2D slices of the imported data cubes.
 
 Using Glue's 2D Image viewer to get the indices and slices needed for the 1D spectrum plot
 ------------------------------------------------------------------------------------------
-To plot 2D slices of the N-D data cubes, we will need to drag the data ("C_II_1336" in this
-example) concerned from the Data Collection area and drop it at the large plotting window
+To plot 2D slices of the ND data cubes, we will need to drag the data ("C_II_1336" in this
+example) concerned from the "Data Collection" area and drop it at the large plotting window
 to the right, as shown in the following image:
 
 .. image:: images/dragging-and-dropping-data-to-viewing-window.png
@@ -120,7 +120,7 @@ a very similar representation, otherwise an error would be thrown:
 
 Once the 1D Profile viewer shows up, you will be shown a collapsible version of the ``Maximum``
 function of the 1D spectrum. However, this may not be very telling and is not a genuine 1D
-spectrum, but is some statistical representation of the maximum of the quantity concerned.
+spectrum, but is a statistical representation of the maximum of the quantity concerned.
 By default the x-axis for the setup is ``TIME``, so we will need to first tweak the time slider
 in order to trigger the generation of a ``SlicedData`` object with a non-trivial slice value
 for the time dimension, as time in this context is effectively the variable. So one would expect to
