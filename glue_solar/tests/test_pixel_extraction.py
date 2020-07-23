@@ -1,6 +1,6 @@
 import numpy as np
 from glue.app.qt import GlueApplication
-from glue.core import Data
+from glue.core.data import Data
 from glue.utils.qt import process_events
 from glue.viewers.image.qt import ImageViewer
 from numpy.testing import assert_allclose

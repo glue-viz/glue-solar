@@ -8,7 +8,8 @@ import sunpy.map
 from sunpy.map.mapbase import GenericMap
 
 from glue.config import data_factory, importer, qglue_parser
-from glue.core import Component, Data
+from glue.core.data import Data
+from glue.core.component import Component
 from glue.core.visual import VisualAttributes
 from glue.core.data_factories import is_fits
 
