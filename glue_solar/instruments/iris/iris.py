@@ -8,7 +8,8 @@ from qtpy import QtWidgets
 from astropy.io import fits
 
 from glue.config import data_factory, importer, qglue_parser
-from glue.core import Component, Data
+from glue.core.component import Component
+from glue.core.data import Data
 from glue.core.data_factories import load_data
 from glue.core.coordinates import WCSCoordinates
 from glue.core.visual import VisualAttributes

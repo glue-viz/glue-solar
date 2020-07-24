@@ -3,12 +3,15 @@ from pathlib import Path
 
 from astropy.io import fits
 
-from glue.core import Component, Data
+from glue.core.component import Component
 from glue.core.coordinates import WCSCoordinates
+from glue.core.data import Data
 from glue.core.visual import VisualAttributes
 from glue.utils.qt import get_qapp
 from glue.utils.qt.helpers import load_ui
+
 from sunraster.io.iris import read_iris_spectrograph_level2_fits
+
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 
