@@ -1,13 +1,21 @@
 .. _glue-solar:
 
-Welcome to Glue Solar's documentation!
-======================================
+Glue Solar's Documentation
+==========================
 
-Glue Solar is a project to provide solar physics specific functionality to
-`Glue <https://glueviz.org>`__
+Welcome to Glue Solar's Documentation!
+
+``Glue Solar`` is a project to provide solar physics specific functionality to
+`Glue <https://glueviz.org>`__, to facilitate multi-instrument
+interactive visualisation as a plugin of Glue, a Python-based project linking
+visualisations across many scientific data sets. Here, we detail each part of ``Glue``
+and ``Glue Solar`` and provide information for the potential adoption of ``Glue`` used with
+the ``Glue Solar`` plugin by various instrument teams to build custom solutions
+for their solar data.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
+   users-guide
    loading-aia-and-hmi
    loading-iris-level-2-raster-and-sji-data
