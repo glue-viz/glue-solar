@@ -17,5 +17,7 @@ for their solar data.
    :maxdepth: 3
 
    users-guide
+   developers-guide
    loading-aia-and-hmi
    loading-iris-level-2-raster-and-sji-data
+
