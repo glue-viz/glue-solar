@@ -7,7 +7,7 @@ User's Guide
 Requirements
 ------------
 For the requirements of ``Glue``, please refer to their official documentation on
-`installing and running glue <http://docs.glueviz.org/en/stable/installation/installation.html>`_.
+`installing and running glue <http://docs.glueviz.org/en/stable/installation/installation.html>`__.
 
 For ``Glue-solar``, the basic requirements for installation are:
 
@@ -18,7 +18,6 @@ For ``Glue-solar``, the basic requirements for installation are:
 * ``sunraster``
 * ``reproject``
 * ``dask[array]``
-
 
 Installing and Running Glue with Glue-solar
 -------------------------------------------
@@ -40,7 +39,6 @@ Finally, do the following while at the root (highest level) of the ``glue-solar`
     pip install -e .
 
 This is assuming that you already have ``pip``, the Python standard package-management system installed.
-
 
 Started up Glue
 ---------------
@@ -68,5 +66,5 @@ At this point you should be able to use the functionality offered by both ``Glue
 User Interface Guide
 --------------------
 For a walk through of the user interface of ``Glue``, please refer to the
-`Getting Started <http://docs.glueviz.org/en/stable/getting_started/index.html>`_ section of the official ``Glue``
+`Getting Started <http://docs.glueviz.org/en/stable/getting_started/index.html>`__ section of the official ``Glue``
 documentation. There, you will be provided with a sample file to visualize and get acquainted with the GUI.

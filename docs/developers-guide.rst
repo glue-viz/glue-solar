@@ -7,7 +7,7 @@ Developer's Guide
 How to Contribute to Glue-viz
 -----------------------------
 There are three ways by which anyone can contribute to the ``Glue-viz`` package and the ``Glue-solar``
-plugin in particular is not only code (especially in Python), but also to report any issues you have
+plugin in particular is not only code, but also to report any issues you have
 encountered while using the software, helping to add or improve documentation, and to review a
 pull request (PR). All these will benefit other users of solar physics as they use ``Glue-viz`` for
 data visualization tasks, and help with the development of the community by offering them a valuable,
@@ -17,9 +17,9 @@ are described below:
 Reporting Issues
 ^^^^^^^^^^^^^^^^
 If you use ``Glue`` with the ``Glue-viz`` plugin and encounter any problems, the best way to report it is
-by opening an issue on our GitHub issue tracker. That way we can help you work around the problem
-and hopefully resolve it as soon as it arises. To use GitHub, you will better to have opened a GitHub account
-and signed into it to report an issue. Having joined GitHub will make it easier to report and track
+by opening an issue on our GitHub issue tracker. This way, we can help you work around the problem
+and hopefully resolve it as soon as it arises. To use GitHub, you will will need to have a GitHub account
+and be signed into it to report an issue. Having joined GitHub will make it easier to report and track
 the issues you are a part of in the near future.
 
 When reporting an issue, do try to provide a short description of what is at issue. For example, where possible
@@ -32,9 +32,9 @@ a feature request. Please provide as much information as possible regarding the 
 
 Documentation
 ^^^^^^^^^^^^^
-``Glue-solar`` has some `online documentation <http://glue-solar.rtfd.io/>`_ and we strive to make it as comprehensive
+``Glue-solar`` has some `online documentation <https://glue-solar.readthedocs.io/en/latest/>`__ and we strive to make it as comprehensive
 as possible. This documentation contains the API of ``Glue-solar`` but also a user's guide
-and developer's documentation.
+and developer documentation.
 
 However, it is important to bear in mind that any documentation for any project is a living document.
 It is never fully complete and there are always areas that could be expanded upon or would need further proofreading
@@ -60,7 +60,6 @@ This will ensure that it is less likely similar effort is duplicated by multiple
 In addition, you can also explore the repository of the ``Glue-solar`` plugin where you are encouraged to find
 open issues there, and you might find these more interesting than those in the main ``Glue-viz`` repository.
 
-
 Coding Standards
 ----------------
 The purpose of this statement is to set forth the standards that are expected of all code contributions to
@@ -75,7 +74,7 @@ is not acceptable.
 instead of ``"%s" % "spam"``.
 3. The ``Glue`` package and the ``Glue-solar`` plugin should be importable with no dependencies other than those
 already in ``Glue`` and ``Glue-solar``, the
-`Python Standard Library <https://docs.python.org/3/library/index.html>`_, and packages that are already
+`Python Standard Library <https://docs.python.org/3/library/index.html>`__, and packages that are already
 requirements of both ``Glue`` and ``Glue-solar``. Adding extra dependencies to the mix could work under
 special circumstances, but its practice is highly discouraged. Such optional dependencies should be recorded
 in the ``setup.cfg`` file under ``extras_require``.
@@ -93,9 +92,9 @@ for import statements should be used wherever and whenever relevant. However, ``
 never be used, expect in ``__init__.py``.
 5. Classes should either use direct variable access, or Python’s property mechanism for setting
 object instance variables.
-6. Classes should use the builtin `super() <https://docs.python.org/3/library/functions.html#super>`_ function
+6. Classes should use the builtin `super() <https://docs.python.org/3/library/functions.html#super>`__ function
 when making calls to methods in their super-class(es), unless there are specific reasons not to. Also,
-`super() <https://docs.python.org/3/library/functions.html#super>`_ should be used consistently in all subclasses,
+`super() <https://docs.python.org/3/library/functions.html#super>`__ should be used consistently in all subclasses,
 since it does not work otherwise.
 7. Multiple inheritance should be avoided in general without good justification.
 8. The ``__init__.py`` files for each module should not contain any significant implementation code.
@@ -110,14 +109,14 @@ examples or tutorials in the package documentation is strongly recommended and e
 3. Write usage examples in the docstrings of all classes and functions whenever possible.
 These examples should be short and simple to reproduce, so that users would be able to copy them verbatim
 and run them. These examples should also, whenever possible, be in the
-`doctest <https://docs.astropy.org/en/stable/development/testguide.html#doctests>`_
+`doctest <https://docs.astropy.org/en/stable/development/testguide.html#doctests>`__
 format and will be executed as part of the test suite.
 4. Unit tests should be provided for as many public methods and functions as possible.
 
 Glue-solar Documentation Rules
 ------------------------------
 We recommend following for example the
-`SunPy Documentation Rules <https://docs.sunpy.org/en/latest/dev_guide/documentation.html>`_, though it is not
+`SunPy Documentation Rules <https://docs.sunpy.org/en/latest/dev_guide/documentation.html>`__, though it is not
 required to follow the rules strictly as we prefer to use these as guidelines rather than rules.
 
 Overview
@@ -127,12 +126,12 @@ For the RST files, we recommend a one-sentence-per-line rule and ignore the line
 Sphinx
 ^^^^^^
 All of the ``Glue-solar`` documentation (like this page) is built with
-`Sphinx <https://www.sphinx-doc.org/en/stable/>`_, which is a tool very suitable for documenting Python projects.
+`Sphinx <https://www.sphinx-doc.org/en/stable/>`__, which is a tool very suitable for documenting Python projects.
 Sphinx works by parsing files written in a
-`Media-wiki-like syntax <http://docutils.sourceforge.net/docs/user/rst/quickstart.html>`_ called
-`reStructuredText <http://docutils.sourceforge.net/rst.html>`_. In addition to parsing static files
+`Media-wiki-like syntax <http://docutils.sourceforge.net/docs/user/rst/quickstart.html>`__ called
+`reStructuredText <http://docutils.sourceforge.net/rst.html>`__. In addition to parsing static files
 of reStructuredText, Sphinx can be instructed to parse code comments as well. In fact, in addition
-to what you are reading right now, the `Python documentation <https://www.python.org/doc/>`_
+to what you are reading right now, the `Python documentation <https://www.python.org/doc/>`__
 has also created using Sphinx.
 
 All of the ``Glue-solar`` documentation is contained in the “docs” folder and code documentation strings.
@@ -144,10 +143,8 @@ To build the docs with tox, in the root directory run::
 This command will generate HTML documentation for ``Glue-solar`` in your local "docs/_build/html" directory.
 You can then open the "index.html" file to browse the final docs build.
 
-
 Testing Guidelines
 ------------------
-
 
 Testing Frameworks
 ^^^^^^^^^^^^^^^^^^
@@ -192,15 +189,14 @@ This will create a test environment in “.tox” and build, install ``Glue-Sola
 This is the method that our continuous integration (CI) uses. Please note that individual unit tests can only be run
 on its own with ``pytest``, with ``tox`` the entire test suite is run per invocation of the command.
 
-
 Basic Glue Concepts
 -------------------
 For a thorough treatment of the concepts used in ``Glue``, we recommend going through the official
 documentation specifically for writing custom viewers, which is a three-part series, to be found at
-`Writing a custom viewer for glue <http://docs.glueviz.org/en/latest/customizing_guide/viewer.html>`_,
-`Writing a custom viewer for glue with Qt <http://docs.glueviz.org/en/latest/customizing_guide/qt_viewer.html>`_
+`Writing a custom viewer for glue <http://docs.glueviz.org/en/latest/customizing_guide/viewer.html>`__,
+`Writing a custom viewer for glue with Qt <http://docs.glueviz.org/en/latest/customizing_guide/qt_viewer.html>`__
 as well as `Writing a custom viewer for glue with Qt and
-Matplotlib <http://docs.glueviz.org/en/latest/customizing_guide/matplotlib_qt_viewer.html>`_,
+Matplotlib <http://docs.glueviz.org/en/latest/customizing_guide/matplotlib_qt_viewer.html>`__,
 in detail in the order stated, as the series progresses in difficulty accordingly. Broadly speaking, to be
 a proficient ``Glue`` developer, you will need to familiarize themselves with the notions of state classes,
 the layer artist, and the data viewer. These are indispensable parts for a custom viewer, which is important
