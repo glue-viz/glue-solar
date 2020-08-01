@@ -25,7 +25,8 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.doctest',
     'sphinx.ext.mathjax',
-    'sphinx_automodapi.automodapi'
+    # 'sphinx_automodapi.automodapi',
+    # 'sphinx_automodapi.smart_resolver'
 ]
 
 # For sphinx_automodapi setup
