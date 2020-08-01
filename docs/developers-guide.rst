@@ -4,19 +4,19 @@
 Developer's Guide
 =================
 
-How to Contribute to Glue-viz
------------------------------
-There are three ways by which anyone can contribute to the ``Glue-viz`` package and the ``Glue-solar``
+How to Contribute to glue-solar
+-------------------------------
+There are three ways by which anyone can contribute to the glue package and the glue-solar
 plugin in particular is not only code, but also to report any issues you have
 encountered while using the software, helping to add or improve documentation, and to review a
-pull request (PR). All these will benefit other users of solar physics as they use ``Glue-viz`` for
+pull request (PR). All these will benefit other users of solar physics as they use glue with glue-solar for
 data visualization tasks, and help with the development of the community by offering them a valuable,
 powerful, and open-source tool to facilitate their research. Details about these routes of contributing
 are described below:
 
 Reporting Issues
 ^^^^^^^^^^^^^^^^
-If you use ``Glue`` with the ``Glue-viz`` plugin and encounter any problems, the best way to report it is
+If you use glue with the glue-solar plugin and encounter any problems, the best way to report it is
 by opening an issue on our GitHub issue tracker. This way, we can help you work around the problem
 and hopefully resolve it as soon as it arises. To use GitHub, you will will need to have a GitHub account
 and be signed into it to report an issue. Having joined GitHub will make it easier to report and track
@@ -26,14 +26,14 @@ When reporting an issue, do try to provide a short description of what is at iss
 provide a small code sample for us to attempt to reproduce the error. Also, record any error output generated
 when you stumbled upon the issue, so we can use this information to patch the codebase.
 
-If there is functionality that is not currently available in ``Glue-viz`` or ``Glue-solar`` you can make
+If there is functionality that is not currently available in glue or glue-solar you can make
 a feature request. Please provide as much information as possible regarding the feature you would like to see in
-``Glue-solar``.
+glue-solar.
 
 Documentation
 ^^^^^^^^^^^^^
-``Glue-solar`` has some `online documentation <https://glue-solar.readthedocs.io/en/latest/>`__ and we strive to make it as comprehensive
-as possible. This documentation contains the API of ``Glue-solar`` but also a user's guide
+glue-solar has some `online documentation <https://glue-solar.readthedocs.io/en/latest/>`__ and we strive to make it as comprehensive
+as possible. This documentation contains the API of glue-solar but also a user's guide
 and developer documentation.
 
 However, it is important to bear in mind that any documentation for any project is a living document.
@@ -51,31 +51,31 @@ Therefore, we encourage everyone and anyone with varying levels of open-source d
 Code Contributions
 ^^^^^^^^^^^^^^^^^^
 If code contributions are preferred instead, the best way to start is to work on an existing or known issues.
-Either the ``Glue-viz`` or ``Glue`` repositories are good staring points to investigate. The primary one is the
-``Glue-viz`` repository with where all the known issues for the core package are detailed. Each issue
+Either the glue or glue-solar repositories are good staring points to investigate. The primary one is the
+glue repository with where all the known issues for the core package are detailed. Each issue
 should have a series of labels that provide some information regarding its nature. If you find an issue
 that you would like to work on, please make sure to add a comment to let people know that you are working on it.
 This will ensure that it is less likely similar effort is duplicated by multiple parties.
 
-In addition, you can also explore the repository of the ``Glue-solar`` plugin where you are encouraged to find
-open issues there, and you might find these more interesting than those in the main ``Glue-viz`` repository.
+In addition, you can also explore the repository of the glue-solar plugin where you are encouraged to find
+open issues there, and you might find these more interesting than those in the main glue repository.
 
 Coding Standards
 ----------------
 The purpose of this statement is to set forth the standards that are expected of all code contributions to
-``Glue-solar``. All potential developers should read and abide by the following standards as much as possible.
+glue-solar. All potential developers should read and abide by the following standards as much as possible.
 Code which does not follow these standards closely will not be accepted.
 
 Language Standard
 ^^^^^^^^^^^^^^^^^
 1. All code must be compatible with Python 3.7 and later. Usage of ``six``, ``__future__``, and ``2to3``
 is not acceptable.
-2. The new Python 3 formatting style should be used throughout; i.e., use ``"{0:s}".format("spam")``
-instead of ``"%s" % "spam"``.
-3. The ``Glue`` package and the ``Glue-solar`` plugin should be importable with no dependencies other than those
-already in ``Glue`` and ``Glue-solar``, the
+2. The new Python 3 formatting style should be used throughout; i.e., use ``f"{value}"``
+where we have for the variable``value="spam"``, instead of ``"%s" % "spam"``.
+3. The glue package and the glue-solar plugin should be importable with no dependencies other than those
+already in glue and glue-solar, the
 `Python Standard Library <https://docs.python.org/3/library/index.html>`__, and packages that are already
-requirements of both ``Glue`` and ``Glue-solar``. Adding extra dependencies to the mix could work under
+requirements of both glue and glue-solar. Adding extra dependencies to the mix could work under
 special circumstances, but its practice is highly discouraged. Such optional dependencies should be recorded
 in the ``setup.cfg`` file under ``extras_require``.
 
@@ -125,7 +125,7 @@ For the RST files, we recommend a one-sentence-per-line rule and ignore the line
 
 Sphinx
 ^^^^^^
-All of the ``Glue-solar`` documentation (like this page) is built with
+All of the glue-solar documentation (like this page) is built with
 `Sphinx <https://www.sphinx-doc.org/en/stable/>`__, which is a tool very suitable for documenting Python projects.
 Sphinx works by parsing files written in a
 `Media-wiki-like syntax <http://docutils.sourceforge.net/docs/user/rst/quickstart.html>`__ called
@@ -134,13 +134,13 @@ of reStructuredText, Sphinx can be instructed to parse code comments as well. In
 to what you are reading right now, the `Python documentation <https://www.python.org/doc/>`__
 has also created using Sphinx.
 
-All of the ``Glue-solar`` documentation is contained in the “docs” folder and code documentation strings.
+All of the glue-solar documentation is contained in the “docs” folder and code documentation strings.
 
 To build the docs with tox, in the root directory run::
 
     tox -e build_docs
 
-This command will generate HTML documentation for ``Glue-solar`` in your local "docs/_build/html" directory.
+This command will generate HTML documentation for glue-solar in your local "docs/_build/html" directory.
 You can then open the "index.html" file to browse the final docs build.
 
 Testing Guidelines
@@ -148,7 +148,7 @@ Testing Guidelines
 
 Testing Frameworks
 ^^^^^^^^^^^^^^^^^^
-The testing framework used in ``Glue-solar`` are the ``pytest`` and ``tox`` frameworks.
+The testing framework used in glue-solar are the ``pytest`` and ``tox`` frameworks.
 
 Using pytest to run tests
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -185,21 +185,21 @@ Then you can run the tests in any of these doing::
 
     tox -e <name_of_env>
 
-This will create a test environment in “.tox” and build, install ``Glue-Solar`` and runs the entire test suite.
+This will create a test environment in “.tox” and build, install glue-solar and runs the entire test suite.
 This is the method that our continuous integration (CI) uses. Please note that individual unit tests can only be run
 on its own with ``pytest``, with ``tox`` the entire test suite is run per invocation of the command.
 
 Basic Glue Concepts
 -------------------
-For a thorough treatment of the concepts used in ``Glue``, we recommend going through the official
+For a thorough treatment of the concepts used in glue, we recommend going through the official
 documentation specifically for writing custom viewers, which is a three-part series, to be found at
 `Writing a custom viewer for glue <http://docs.glueviz.org/en/latest/customizing_guide/viewer.html>`__,
 `Writing a custom viewer for glue with Qt <http://docs.glueviz.org/en/latest/customizing_guide/qt_viewer.html>`__
 as well as `Writing a custom viewer for glue with Qt and
 Matplotlib <http://docs.glueviz.org/en/latest/customizing_guide/matplotlib_qt_viewer.html>`__,
 in detail in the order stated, as the series progresses in difficulty accordingly. Broadly speaking, to be
-a proficient ``Glue`` developer, you will need to familiarize themselves with the notions of state classes,
+a proficient glue developer, you will need to familiarize themselves with the notions of state classes,
 the layer artist, and the data viewer. These are indispensable parts for a custom viewer, which is important
 for developing your own tailored solar physics visualization solutions apart from the tools we provide with the
-``Glue-solar`` plugin. Also, to add support for alternate data formats, you will need to have the concept of a
-data factory, which is based on the native data structures of ``Glue``.
+glue-solar plugin. Also, to add support for alternate data formats, you will need to have the concept of a
+data factory, which is based on the native data structures of glue.
