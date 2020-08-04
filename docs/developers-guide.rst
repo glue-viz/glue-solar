@@ -71,7 +71,7 @@ Language Standard
 1. All code must be compatible with Python 3.7 and later. Usage of ``six``, ``__future__``, and ``2to3``
 is not acceptable.
 2. The new Python 3 formatting style should be used throughout; i.e., use ``f"{value}"``
-where we have for the variable``value="spam"``, instead of ``"%s" % "spam"``.
+where we have for the variable ``value="spam"``, instead of ``"%s" % "spam"``.
 3. The glue package and the glue-solar plugin should be importable with no dependencies other than those
 already in glue and glue-solar, the
 `Python Standard Library <https://docs.python.org/3/library/index.html>`__, and packages that are already
