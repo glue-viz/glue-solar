@@ -18,7 +18,6 @@ author = 'The SunPy Developers and The Glue Developers'
 extensions = [
     'sphinx_automodapi.automodapi',
     'sphinx_automodapi.smart_resolver',
-    # 'sphinx_gallery.gen_gallery',
     'sphinx.ext.autodoc',
     'sphinx.ext.coverage',
     'sphinx.ext.doctest',
