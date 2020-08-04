@@ -25,8 +25,8 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.doctest',
     'sphinx.ext.mathjax',
-    # 'sphinx_automodapi.automodapi',
-    # 'sphinx_automodapi.smart_resolver'
+    'sphinx_automodapi.automodapi',
+    'sphinx_automodapi.smart_resolver'
 ]
 
 # For sphinx_automodapi setup
@@ -56,7 +56,7 @@ intersphinx_mapping = {
               (None, 'http://data.astropy.org/intersphinx/scipy.inv')),
     'matplotlib': ('https://matplotlib.org/',
                    (None, 'http://data.astropy.org/intersphinx/matplotlib.inv')),
-    'astropy': ('http://docs.astropy.org/en/stable/', None),
+    'astropy': ('https://docs.astropy.org/en/stable/', None),
     'sunpy': ('https://docs.sunpy.org/en/stable/', None),
     'glueviz': ('http://docs.glueviz.org/en/stable/', None)}
 

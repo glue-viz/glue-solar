@@ -58,7 +58,7 @@ as all the options you can use::
     glue -h
 
 On Windows operating systems, installation creates an executable ``glue.exe`` file within the python script directory
-(e.g., C:\Python37\Scripts). Windows users can create a desktop shortcut for this file upon installation,
+(e.g., ``C:\Python37\Scripts``). Windows users can create a desktop shortcut for this file upon installation,
 and run Glue by double clicking on the icon instead.
 
 At this point you should be able to use the functionality offered by both glue and glue-solar.

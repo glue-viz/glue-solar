@@ -18,6 +18,8 @@ for their solar data.
 
    users-guide
    developers-guide
+   contributing
+   code-reference
    loading-aia-and-hmi
    loading-iris-level-2-raster-and-sji-data
 
