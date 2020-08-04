@@ -50,7 +50,7 @@ source_suffix = '.rst'
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3/',
                (None, 'http://data.astropy.org/intersphinx/python3.inv')),
-    'numpy': ('https://docs.scipy.org/doc/numpy/',
+    'numpy': ('https://numpy.org/doc/stable/',
               (None, 'http://data.astropy.org/intersphinx/numpy.inv')),
     'scipy': ('https://docs.scipy.org/doc/scipy/reference/',
               (None, 'http://data.astropy.org/intersphinx/scipy.inv')),
