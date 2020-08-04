@@ -4,10 +4,10 @@
 Code Reference
 ==============
 
-.. automodapi:: glue_solar.core.core
+.. automodapi:: glue_solar.core
    :no-inheritance-diagram:
 
-.. automodapi:: glue_solar.core.sunpy_maps.loader
+.. automodapi:: glue_solar.core.sunpy_maps
    :no-inheritance-diagram:
 
 .. automodapi:: glue_solar.instruments.iris.iris
