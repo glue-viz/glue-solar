@@ -7,5 +7,3 @@ Contributing
 Code of Conduct
 ---------------
 
-
-

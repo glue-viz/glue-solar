@@ -10,7 +10,10 @@ Code Reference
 .. automodapi:: glue_solar.core.sunpy_maps.loader
    :no-inheritance-diagram:
 
-.. automodapi:: glue_solar.instruments.iris
+.. automodapi:: glue_solar.instruments.iris.iris
+   :no-inheritance-diagram:
+
+.. automodapi:: glue_solar.instruments.iris.loader
    :no-inheritance-diagram:
 
 .. automodapi:: glue_solar.pixel_extraction

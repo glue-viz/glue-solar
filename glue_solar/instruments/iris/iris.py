@@ -27,6 +27,9 @@ __all__ = ['import_iris', 'read_iris_raster', '_parse_iris_raster']
 
 @qglue_parser(SpectrogramCube)
 def _parse_iris_raster(data, label):
+    """
+    Parse IRIS Level 2 raster files so that it can be loaded by glue.
+    """
     w_dataset = []
     for window, window_data in data.items():
         for i, scan_data in enumerate(window_data):
@@ -42,6 +45,9 @@ def _parse_iris_raster(data, label):
 
 @data_factory('IRIS Spectrograph', is_fits)
 def read_iris_raster(raster_file):
+    """
+    To read Raster data as contained in IRIS level 2 raster fits files.
+    """
     raster_data = _parse_iris_raster(read_iris_spectrograph_level2_fits(raster_file,
                                                                         uncertainty=False,
                                                                         memmap=False),
@@ -64,6 +70,9 @@ def pick_directory(caption):
 
 @importer("Import IRIS OBS Directory")
 def import_iris():
+    """
+    To import IRIS raster and SJI fits files for the same observation from directory.
+    """
     caption = "Select a directory containing files from one IRIS OBS."
     directory = pick_directory(caption)
 

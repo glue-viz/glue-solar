@@ -24,7 +24,9 @@ UI_MAIN = os.path.join(os.path.dirname(__file__), 'loader.ui')
 
 
 class QtIRISImporter(QtWidgets.QDialog):
-
+    """
+    Qt importer to load IRIS Level 2 data objects from fits files.
+    """
     def __init__(self, directory):
         super().__init__()
 
