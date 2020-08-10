@@ -10,7 +10,7 @@ We recommend going through our documentation / tutorials before starting to cont
 ``glue`` and ``glue-solar``. For more information for developers, please refer to our :ref:`developers_guide`.
 In case you have very specific questions regarding contributing you would like to discuss with the larger community,
 you are welcome to raise your question(s) at
-the `glue-solar IRC channel <https://app.element.io/#/room/#glue-solar:openastronomy.org>`_ hosted by Element.
+the `glue-solar channel <https://app.element.io/#/room/#glue-solar:openastronomy.org>`_ hosted by Element.
 
 Code of Conduct
 ---------------
