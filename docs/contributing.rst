@@ -64,9 +64,9 @@ when we see violations of the code of conduct. We will take action when members 
 such as contacting `confidential@sunpy.org <confidential@sunpy.org>`_ (all emails sent to this address will be treated
 with the strictest confidence), or talking privately with the person.
 
-Parts of this code of conduct have been adapted from the `astropy <https://www.astropy.org/code_of_conduct.html>`_,
-the `sunpy <https://docs.sunpy.org/en/stable/code_of_conduct.html>`_ and the
-`Python Software Fundation <https://www.python.org/psf/conduct/>`_ codes of conduct.
+Parts of this code of conduct have been adapted from the `astropy <https://www.astropy.org/code_of_conduct.html>`__,
+the `sunpy <https://docs.sunpy.org/en/stable/code_of_conduct.html>`__ and the
+`Python Software Foundation <https://www.python.org/psf/conduct/>`__ codes of conduct.
 
 License
 -------
