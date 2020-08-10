@@ -20,7 +20,9 @@ UI_MAIN = os.path.join(os.path.dirname(__file__), 'loader.ui')
 
 
 class QtSunpyMapImporter(QtWidgets.QDialog):
-
+    """
+    Qt importer to load SunPy Map objects from fits files.
+    """
     def __init__(self, directory):
         super().__init__()
 

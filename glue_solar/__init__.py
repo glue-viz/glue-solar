@@ -1,5 +1,5 @@
 from pkg_resources import get_distribution, DistributionNotFound
-from sunpy.cm import cmlist
+from sunpy.visualization.colormaps import cmlist
 from glue.viewers.image.qt import ImageViewer
 from glue_solar.pixel_extraction import PixelExtractionTool  # noqa
 from glue.config import colormaps
