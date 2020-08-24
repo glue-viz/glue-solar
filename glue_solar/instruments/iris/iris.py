@@ -30,7 +30,8 @@ def _parse_iris_raster(data, label):
     """
     Parse IRIS Level 2 raster files so that it can be loaded by glue.
     """
-    w_dataset = []
+    w_data = None
+
     for window, window_data in data.items():
         for i, scan_data in enumerate(window_data):
             w_data = Data(label=f"{window.replace(' ', '_')}-{scan_data.meta['OBSID']}-scan-{i}")
@@ -38,10 +39,8 @@ def _parse_iris_raster(data, label):
             w_data.add_component(Component(scan_data.data), f"{window.replace(' ', '_')}-{scan_data.meta['OBSID']}-scan-{i}")
             w_data.meta = scan_data.meta
             w_data.style = VisualAttributes(color='#5A4FCF')
-            w_dataset.append(w_data)
 
-    return w_dataset
-
+    return w_data
 
 @data_factory('IRIS Spectrograph', is_fits)
 def read_iris_raster(raster_file):
