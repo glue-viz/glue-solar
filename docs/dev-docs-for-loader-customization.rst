@@ -14,7 +14,7 @@ satellite-borne) instrument.
 an alternative of the existing 2D image viewer that presents your data in a manner you like; e.g. color-coding the
 lines or data points.
 
-While these two options serve different needs, the former is often needed to load your pre-processed data, as `glue`
+While these two options serve different needs, the former is often needed to load your post-processed data, as `glue`
 already has the functionality to display the typical FITS file (with extensions ``.fits``, ``.fit``, or ``.ft``), such
 as the existing basic 2D image viewer and 1D profile viewer (useful for viewing 1D spectra). Hence in this guide, we
 walk through how to construct such a custom data loader for your solar physics use cases.
@@ -25,7 +25,8 @@ The Case of the IRIS subpackage
 If we look at the ``glue_solar/instruments/iris`` directory, we can find (at least at the time of writing of this
 guide) the files within follows:
 
-1. __init__.py: This is the typical ``init`` file that is required for running unit tests with ``pytest``.
+1. __init__.py: This is the typical ``init`` file that is used for containing the code snippets that are
+used for initializing the subpackage, and is required for running unit tests with ``pytest``.
 
 2. ``iris.py``: This serves as the "main" file for running the basic loader code in this ``iris`` subpackage. The
 module contains three methods needed to load the typical IRIS Level 2 Raster Scan into ``glue``. They are the
@@ -63,7 +64,10 @@ the same instrument subpackage.
 Basically the most important thing to keep in mind is to make sure your main instrument module (``iris.py`` in the
 case of the ``IRIS`` satellite) contains three essential ingredients; they are namely the parser (note the use of the
 ``@qglue_parser`` decorator for this), the data factory (note the use of the ``@data_factory`` decorator), and the
-importer (note the use of the ``@importer`` decorator).
+importer (note the use of the ``@importer`` decorator). Please note also that the way to convert instrument-specific
+data to the ``glue.core.data.Data`` object is highly dependent on the pipeline used for such observations. But in
+general the ``astropy.io.fits` methods should be able to handle most but not all as an instrument-agnostic option.
+
 
 For more details about the ``glue`` loader customization, please see
 `the official glue customization guide <http://docs.glueviz.org/en/stable/customizing_guide/customization.html>`_.
