@@ -67,7 +67,7 @@ case of the ``IRIS`` satellite) contains three essential ingredients; they are n
 ``@qglue_parser`` decorator for this), the data factory (note the use of the ``@data_factory`` decorator), and the
 importer (note the use of the ``@importer`` decorator). Please note also that the way to convert instrument-specific
 data to the ``glue.core.data.Data`` object is highly dependent on the pipeline used for such observations. But in
-general the ``astropy.io.fits` methods should be able to handle most but not all as an instrument-agnostic option.
+general the ``astropy.io.fits`` methods should be able to handle most but not all as an instrument-agnostic option.
 
 For more details about the ``glue`` loader customization, please see
 `the official glue customization guide <http://docs.glueviz.org/en/stable/customizing_guide/customization.html>`_.
