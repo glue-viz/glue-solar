@@ -69,6 +69,5 @@ importer (note the use of the ``@importer`` decorator). Please note also that th
 data to the ``glue.core.data.Data`` object is highly dependent on the pipeline used for such observations. But in
 general the ``astropy.io.fits` methods should be able to handle most but not all as an instrument-agnostic option.
 
-
 For more details about the ``glue`` loader customization, please see
 `the official glue customization guide <http://docs.glueviz.org/en/stable/customizing_guide/customization.html>`_.
