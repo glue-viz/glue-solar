@@ -14,5 +14,6 @@ except DistributionNotFound:
 
 def setup():
     ImageViewer.tools.append('solar:pixel_extraction')
+    ImageViewer.tools.append('timestamp_button')
     for name, ctable in sorted(cmlist.items()):
         colormaps.add(ctable.name, ctable)
