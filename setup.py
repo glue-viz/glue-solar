@@ -1,15 +1,25 @@
 #!/usr/bin/env python
+from setuptools import setup  # isort:skip
+import os
+from itertools import chain
 
-from __future__ import print_function
+from setuptools.config import read_configuration
 
-import sys
-from distutils.version import LooseVersion
+################################################################################
+# Programmatically generate some extras combos.
+################################################################################
+extras = read_configuration("setup.cfg")['options']['extras_require']
 
-try:
-    from setuptools import setup, __version__
-    assert LooseVersion(__version__) >= LooseVersion('30.3')
-except (ImportError, AssertionError):
-    sys.stderr.write("ERROR: setuptools 30.3 or later is required by glue-solar\n")
-    sys.exit(1)
+# Dev is everything
+extras['dev'] = list(chain(*extras.values()))
 
-setup(use_scm_version=True, setup_requires=['setuptools_scm'])
+# All is everything but tests and docs
+exclude_keys = ("tests", "docs", "dev")
+ex_extras = dict(filter(lambda i: i[0] not in exclude_keys, extras.items()))
+# Concatenate all the values together for 'all'
+extras['all'] = list(chain.from_iterable(ex_extras.values()))
+
+setup(
+    extras_require=extras,
+    use_scm_version={'write_to': os.path.join('glue_solar', '_version.py')},
+)

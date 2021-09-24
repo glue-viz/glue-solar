@@ -1,10 +1,4 @@
 name: $(BuildDefinitionName)_$(Date:yyyyMMdd)$(Rev:.rr)
-variables:
-  CI_NAME: Azure Pipelines
-  CI_BUILD_ID: $(Build.BuildId)
-  CI_BUILD_URL: "https://dev.azure.com/sunpy/sunpy/_build/results?buildId=$(Build.BuildId)"
-  CIBW_BUILD: cp37-* cp38-*
-  CIBW_SKIP: "*-manylinux1_i686"
 
 resources:
   repositories:
@@ -43,6 +37,6 @@ jobs:
         - libxcb-xinerama0
     envs:
       - macos: py37
-      - windows: py37
-      - linux: py38
-      - linux: build_docs
+      - windows: py38
+      - linux: py39
+      # - linux: build_docs
