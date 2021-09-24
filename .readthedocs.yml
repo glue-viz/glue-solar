@@ -1,10 +1,10 @@
 version: 2
 
 python:
-   version: 3.8
-   install:
-      - method: pip
-        path: .
-        extra_requirements:
-          - docs
-          - qt
+  version: 3.8
+  install:
+    - method: pip
+      path: .
+      extra_requirements:
+        - all
+        - docs

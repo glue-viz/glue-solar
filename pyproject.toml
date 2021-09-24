@@ -1,16 +1,61 @@
 [build-system]
-requires = ["setuptools>=30.3.0", "setuptools_scm", "wheel"]
+requires = [
+  "setuptools",
+  "setuptools_scm",
+]
 build-backend = 'setuptools.build_meta'
 
-[tool.isort]
-line_length = 99
-not_skip = "__init__.py"
-sections = "FUTURE,STDLIB,THIRDPARTY,ASTRO,FIRSTPARTY,LOCALFOLDER"
-default_section = "THIRDPARTY"
-known_first_party = "glue"
-known_astro = "astropy,sunpy,gwcs,asdf,ndcube"
-multi_line_output = 0
-balanced_wrapping = true
-include_trailing_comma = false
-length_sort = false
-length_sort_stdlib = true
+[ tool.gilesbot ]
+  [ tool.gilesbot.pull_requests ]
+    enabled = true
+
+  [ tool.gilesbot.towncrier_changelog ]
+    enabled = true
+    verify_pr_number = true
+    changelog_skip_label = "No Changelog Entry Needed"
+    help_url = "https://github.com/glueviz/glue-solar/blob/main/changelog/README.rst"
+    changelog_missing_long = "There isn't a changelog file in this pull request. Please add a changelog file to the `changelog/` directory following the instructions in the changelog [README](https://github.com/glueviz/glue-solar/blob/main/changelog/README.rst)."
+    type_incorrect_long = "The changelog file you added is not one of the allowed types. Please use one of the types described in the changelog [README](https://github.com/glueviz/glue-solar/blob/main/changelog/README.rst)"
+    number_incorrect_long = "The number in the changelog file you added does not match the number of this pull request. Please rename the file."
+
+[tool.towncrier]
+    package = "glue-solar"
+    filename = "CHANGELOG.rst"
+    directory = "changelog/"
+    issue_format = "`#{issue} <https://github.com/glueviz/glue-solar/pull/{issue}>`__"
+    title_format = "{version} ({project_date})"
+
+    [[tool.towncrier.type]]
+        directory = "breaking"
+        name = "Breaking Changes"
+        showcontent = true
+
+    [[tool.towncrier.type]]
+      directory = "deprecation"
+      name = "Deprecations"
+      showcontent = true
+
+    [[tool.towncrier.type]]
+      directory = "removal"
+      name = "Removals"
+      showcontent = true
+
+    [[tool.towncrier.type]]
+      directory = "feature"
+      name = "New Features"
+      showcontent = true
+
+    [[tool.towncrier.type]]
+      directory = "bugfix"
+      name = "Bug Fixes"
+      showcontent = true
+
+    [[tool.towncrier.type]]
+      directory = "doc"
+      name = "Documentation"
+      showcontent = true
+
+    [[tool.towncrier.type]]
+      directory = "trivial"
+      name = "Internal Changes"
+      showcontent = true

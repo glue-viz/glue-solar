@@ -44,3 +44,5 @@ pip-wheel-metadata
 .html
 .history
 .vscode
+glue_solar/_version.py
+.tmp
