@@ -4,10 +4,25 @@ from glue.core.data_derived import IndexedData
 from glue.viewers.matplotlib.toolbar_mode import ToolbarModeBase
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.core.command import ApplySubsetState
+from glue.viewers.profile.qt import ProfileViewer
+from glue.config import viewer_tool
+from glue.viewers.common.tool import Tool
+from glue.core.qt.dialogs import info, warn
+from glue.core.component_id import PixelComponentID
+from glue_solar.pixel_viewer import PixelInfoViewer
+from glue.config import viewer_tool
+
+from glue.core.command import ApplySubsetState
+from glue.core.edit_subset_mode import ReplaceMode
+
+from glue.viewers.matplotlib.toolbar_mode import ToolbarModeBase
+from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
+
+from glue.viewers.image.qt.profile_viewer_tool import ProfileViewerTool
 
 
 @viewer_tool
-class PixelInfoTool(ToolbarModeBase):
+class PixelInfoTool(ProfileViewerTool):
     """
     Create a "dervied dataset" corresponding to the selected pixel.
 
@@ -28,49 +43,61 @@ class PixelInfoTool(ToolbarModeBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._move_callback = self._extract_pixel
-        self._press_callback = self._on_press
-        self._release_callback = self._on_release
-        self._derived = None
 
-    def _on_press(self, mode):
-        self._pressed = True
-        self._extract_pixel(mode)
+    @property
+    def pixelinfo_viewers_exist(self):
+        for tab in self.viewer.session.application.viewers:
+            for viewer in tab:
+                if isinstance(viewer, PixelInfoViewer):
+                    return True
+        return False
 
-    def _on_release(self, mode):
-        self._pressed = False
-
-    def _extract_pixel(self, mode):
-        if not self._pressed:
-            return
-        x, y = self._event_xdata, self._event_ydata
-        if x is None or y is None:
-            return None
-
-        xi = int(round(x))
-        yi = int(round(y))
-        indices = [None] * self.viewer.state.reference_data.ndim
-        indices[self.viewer.state.x_att.axis] = xi
-        indices[self.viewer.state.y_att.axis] = yi
-
-        slices = [slice(None)] * self.viewer.state.reference_data.ndim
-        slices[self.viewer.state.x_att.axis] = slice(x, x + 1)
-        slices[self.viewer.state.y_att.axis] = slice(y, y + 1)
-
-        if self._derived is None:
-            self._derived = IndexedData(self.viewer.state.reference_data, indices)
-            self.viewer.session.data_collection.append(self._derived)
+    def activate(self):
+        if self.profile_viewers_exist:
+            proceed = warn(
+                'A profile viewer was already created',
+                'Do you really want to create a new one?',
+                default='Cancel', setting='show_warn_profile_duplicate'
+            )
+            if not proceed:
+                return
         else:
-            try:
-                self._derived.indices = indices
-            except TypeError:
-                self.viewer.session.data_collection.remove(self._derived)
-                self._derived = IndexedData(self.viewer.state.reference_data, indices)
-                self.viewer.session.data_collection.append(self._derived)
-
-        subset_state = PixelSubsetState(self.viewer.state.reference_data, slices)
-
-        cmd = ApplySubsetState(data_collection=self.viewer._data,
-                               subset_state=subset_state,
-                               override_mode=None)
-        self.viewer._session.command_stack.do(cmd)
+            proceed = info(
+                'Creating a profile viewer',
+                'Note: profiles are '
+                'computed from datasets and subsets collapsed along all but one '
+                'dimension. To view the profile of part of the data, once you '
+                'click OK you can draw and update a subset in the current '
+                'image viewer and the profile will update accordingly.', setting='show_info_profile_open'
+            )
+            if not proceed:
+                return
+        profile_viewer = self.viewer.session.application.new_data_viewer(PixelInfoViewer)
+        profile_viewer.state.function = 'median'
+        any_added = False
+        for data in self.viewer.session.data_collection:
+            if data in self.viewer._layer_artist_container:
+                result = profile_viewer.add_data(data)
+                any_added = any_added or result
+        if not any_added:
+            profile_viewer.close()
+            return
+        # If the reference data for the current image viewer is in the profile
+        # viewer, we make sure that it is used as the reference data there too
+        if self.viewer.state.reference_data in profile_viewer._layer_artist_container:
+            profile_viewer.state.reference_data = self.viewer.state.reference_data
+            # We now pick an attribute in the profile viewer that is one of the ones
+            # with a slider in the image viewer. Note that the attribute viewer may
+            # be a pixel attribute or world attribute depending on what information
+            # is available in the coordinates, so we need to be careful about that.
+            reference_data = self.viewer.state.reference_data
+            if isinstance(profile_viewer.state.x_att, PixelComponentID):
+                for att in reference_data.pixel_component_ids:
+                    if att is not self.viewer.state.x_att and att is not self.viewer.state.y_att:
+                        if att is not profile_viewer.state.x_att:
+                            profile_viewer.state.x_att = att
+            else:
+                for att in reference_data.world_component_ids:
+                    if att is not self.viewer.state.x_att_world and att is not self.viewer.state.y_att_world:
+                        if att is not profile_viewer.state.x_att:
+                            profile_viewer.state.x_att = att
