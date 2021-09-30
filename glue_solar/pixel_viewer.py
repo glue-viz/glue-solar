@@ -11,7 +11,8 @@ class PixelInfoViewer(ProfileViewer):
     """
     A subclass of `glue.viewers.profile.qt.data_viewer.qt.ProfileViewer`.
     """
-    LABEL = 'Pixel Profile'
+
+    LABEL = "Pixel Profile"
     _options_cls = PixelToolOptionsWidget
     allow_duplicate_data = False
 
@@ -20,8 +21,8 @@ class PixelInfoViewer(ProfileViewer):
 
     def setup_callbacks(self):
         super().setup_callbacks()
-        self.state.add_callback('subtract profile', self._update_axes)
-        self.state.add_callback('smooth profile', self._update_axes)
+        self.state.add_callback("subtract profile", self._update_axes)
+        self.state.add_callback("smooth profile", self._update_axes)
 
     def _update_axes(self, *args):
         super()._update_axes(*args)
