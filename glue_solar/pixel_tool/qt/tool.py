@@ -4,7 +4,7 @@ from glue.core.component_id import PixelComponentID
 from glue.core.qt.dialogs import info, warn
 from glue.viewers.image.qt.profile_viewer_tool import ProfileViewerTool
 
-from glue_solar.pixel_viewer import PixelInfoViewer
+from glue_solar.pixel_tool.viewer import PixelInfoViewer
 
 
 @viewer_tool
@@ -15,7 +15,7 @@ class PixelInfoTool(ProfileViewerTool):
     The goal of this plugin is to:
     1. Show the pixel value at mouse location.
     2. Pick multiple pixels to allow a comparision at several locations.
-        a. Allow numerical comparison of pixels, substract for example
+        a. Allow numerical comparison of pixels, subtract for example
     3. Open this automatically with an image viewer.
 
     Future goals would be allow this to interact with the slit tool in some mananer.

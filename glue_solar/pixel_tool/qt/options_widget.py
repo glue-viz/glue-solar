@@ -7,14 +7,6 @@ from qtpy import QtWidgets
 
 __all__ = ["PixelToolOptionsWidget"]
 
-
-import os
-
-from echo.qt import autoconnect_callbacks_to_qt
-from glue.core.coordinate_helpers import dependent_axes
-from glue.utils.qt import fix_tab_widget_fontsize, load_ui
-from qtpy import QtWidgets
-
 WARNING_TEXT = (
     "Warning: the coordinate '{label}' is not aligned with pixel "
     "grid, so the values shown on the x-axis are approximate."

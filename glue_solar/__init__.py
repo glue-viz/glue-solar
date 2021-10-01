@@ -3,8 +3,8 @@ from glue.viewers.image.qt import ImageViewer
 
 from sunpy.visualization.colormaps import cmlist
 
-from .pixel_tool import PixelInfoTool  # NOQA
-from .version import version as __version__
+from glue_solar.pixel_tool.qt.tool import PixelInfoTool  # NOQA
+from glue_solar.version import version as __version__
 
 
 def setup():

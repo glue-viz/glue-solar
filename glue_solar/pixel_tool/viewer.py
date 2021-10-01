@@ -1,7 +1,9 @@
 from glue.utils import decorate_all_methods, defer_draw
 from glue.viewers.profile.qt.data_viewer import ProfileViewer
 
-from glue_solar.options_widget import PixelToolOptionsWidget
+from glue_solar.pixel_tool.qt.layer_artist import QThreadedPixelLayerArtist
+from glue_solar.pixel_tool.qt.options_widget import PixelToolOptionsWidget
+from glue_solar.pixel_tool.state import PixelToolViewerState
 
 __all__ = ["PixelInfoViewer"]
 
@@ -13,16 +15,11 @@ class PixelInfoViewer(ProfileViewer):
     """
 
     LABEL = "Pixel Profile"
+    _state_cls = PixelToolViewerState
     _options_cls = PixelToolOptionsWidget
+    _data_artist_cls = QThreadedPixelLayerArtist
+    _subset_artist_cls = QThreadedPixelLayerArtist
     allow_duplicate_data = False
 
     def __init__(self, session, parent=None, state=None):
         super().__init__(session=session, parent=parent, state=state)
-
-    def setup_callbacks(self):
-        super().setup_callbacks()
-        self.state.add_callback("subtract profile", self._update_axes)
-        self.state.add_callback("smooth profile", self._update_axes)
-
-    def _update_axes(self, *args):
-        super()._update_axes(*args)
