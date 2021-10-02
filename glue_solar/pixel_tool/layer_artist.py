@@ -25,7 +25,7 @@ class PixelLayerArtist(ProfileLayerArtist):
             return
         self.enable()
         # The following can happen if self.state.visible is None - in this case
-        # we just terminate early. If the visible property is changed, it will
+        # we just terminate early. If the visible propertx`y is changed, it will
         # trigger the _calculate_profile code to re-run.
         if visible_data is None:
             return
@@ -36,11 +36,16 @@ class PixelLayerArtist(ProfileLayerArtist):
             # Normalize profile values to the [0:1] range based on limits
             if self._viewer_state.normalize:
                 y = self.state.normalize_values(y)
+            # TODO: Work out how to avoid the profile from subtracting it self
             if self._viewer_state.subtract:
-                y = self.state.subtract_values(y)
+                if not 1:
+                    pass
+                else:
+                    y = self.state.subtract_reference(y, y)
             if self._viewer_state.smooth:
                 y = self.state.smooth_values(y)
             self.plot_artist.set_data(x, y)
+
         else:
             # We need to do this otherwise we get issues on Windows when
             # passing an empty list to plot_artist
