@@ -33,6 +33,3 @@ class PixelInfoLayerState(ProfileLayerState):
 
     def subtract_reference(self, values, reference):
         return np.asarray(values) - np.asarray(reference)
-
-    def smooth_values(self, values):
-        return (np.asarray(values) - self.v_min) / (self.v_max - self.v_min)

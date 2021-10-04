@@ -14,12 +14,12 @@ class PixelInfoViewer(ProfileViewer):
     A subclass of `glue.viewers.profile.qt.data_viewer.qt.ProfileViewer`.
     """
 
-    LABEL = "Pixel Profile"
-    _state_cls = PixelToolViewerState
-    _options_cls = PixelToolOptionsWidget
     _data_artist_cls = QThreadedPixelLayerArtist
+    _options_cls = PixelToolOptionsWidget
+    _state_cls = PixelToolViewerState
     _subset_artist_cls = QThreadedPixelLayerArtist
     allow_duplicate_data = False
+    LABEL = "Pixel Profile"
 
     def __init__(self, session, parent=None, state=None):
         super().__init__(session=session, parent=parent, state=state)

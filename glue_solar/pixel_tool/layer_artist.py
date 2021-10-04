@@ -1,11 +1,12 @@
+from glue.utils import defer_draw
 from glue.viewers.profile.layer_artist import ProfileLayerArtist
 
 from glue_solar.pixel_tool.state import PixelInfoLayerState
 
 __all__ = ["PixelLayerArtist"]
-
-
 # TODO; Work out how to subclass this properly.
+
+
 class PixelLayerArtist(ProfileLayerArtist):
     _layer_state_cls = PixelInfoLayerState
 
@@ -38,18 +39,25 @@ class PixelLayerArtist(ProfileLayerArtist):
                 y = self.state.normalize_values(y)
             # TODO: Work out how to avoid the profile from subtracting it self
             if self._viewer_state.subtract:
-                if not 1:
-                    pass
-                else:
+                # TODO: WORK OUT HOW TO AVOID REFERENCE CUT
+                if 1:
                     y = self.state.subtract_reference(y, y)
-            if self._viewer_state.smooth:
-                y = self.state.smooth_values(y)
             self.plot_artist.set_data(x, y)
 
         else:
             # We need to do this otherwise we get issues on Windows when
             # passing an empty list to plot_artist
             self.plot_artist.set_data([0.0], [0.0])
+        self.redraw()
+
+    @defer_draw
+    def _update_visual_attributes(self):
+        super()._update_visual_attributes()
+        for mpl_artist in self.mpl_artists:
+            if self._viewer_state.smooth:
+                mpl_artist.set_drawstyle("default")
+            else:
+                mpl_artist.set_drawstyle("steps-mid")
         self.redraw()
 
     def _update_profile(self, force=False, **kwargs):
@@ -71,7 +79,6 @@ class PixelLayerArtist(ProfileLayerArtist):
                 "function",
                 "normalize",
                 "subtract",
-                "smooth",
                 "v_min",
                 "v_max",
                 "visible",
@@ -80,6 +87,7 @@ class PixelLayerArtist(ProfileLayerArtist):
             self._calculate_profile(reset=force)
             force = True
         if force or any(
-            prop in changed for prop in ("alpha", "color", "zorder", "linewidth")
+            prop in changed
+            for prop in ("smooth", "alpha", "color", "zorder", "linewidth")
         ):
             self._update_visual_attributes()
