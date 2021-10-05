@@ -1,13 +1,14 @@
+import numpy as np
 from glue.utils import defer_draw
 from glue.viewers.profile.layer_artist import ProfileLayerArtist
 
 from glue_solar.pixel_tool.state import PixelInfoLayerState
 
 __all__ = ["PixelLayerArtist"]
-# TODO; Work out how to subclass this properly.
 
 
 class PixelLayerArtist(ProfileLayerArtist):
+    # TODO; Work out how to subclass this properly.
     _layer_state_cls = PixelInfoLayerState
 
     def __init__(self, axes, viewer_state, layer_state=None, layer=None):
@@ -35,15 +36,13 @@ class PixelLayerArtist(ProfileLayerArtist):
         if len(x) > 0:
             self.state.update_limits()
             # Normalize profile values to the [0:1] range based on limits
+            if self._viewer_state.subtract:
+                profile_y = self._viewer_state.layers[0].profile[1]
+                if not np.allclose(y, profile_y):
+                    y = self.state.subtract_reference(y, profile_y)
             if self._viewer_state.normalize:
                 y = self.state.normalize_values(y)
-            # TODO: Work out how to avoid the profile from subtracting it self
-            if self._viewer_state.subtract:
-                # TODO: WORK OUT HOW TO AVOID REFERENCE CUT
-                if 1:
-                    y = self.state.subtract_reference(y, y)
             self.plot_artist.set_data(x, y)
-
         else:
             # We need to do this otherwise we get issues on Windows when
             # passing an empty list to plot_artist
