@@ -45,3 +45,4 @@ pip-wheel-metadata
 .history
 .vscode
 glue_solar/_version.py
+.tmp
