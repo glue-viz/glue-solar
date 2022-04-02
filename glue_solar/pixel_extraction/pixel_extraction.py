@@ -8,10 +8,9 @@ __all__ = ["PixelExtractionTool"]
 @viewer_tool
 class PixelExtractionTool(ToolbarModeBase):
     """
-    Create a derived dataset corresponding to the selected pixel.
+    Create a "dervied dataset" corresponding to the selected pixel.
     """
-
-    icon = "glue_crosshair"
+    icon = "pencil"
     tool_id = "solar:pixel_extraction"
     action_text = "Pixel"
     tool_tip = "Extract data for a single pixel based on mouse location"

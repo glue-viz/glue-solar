@@ -18,7 +18,7 @@ class PixelInfoTool(ProfileViewerTool):
         a. Allow numerical comparison of pixels, subtract for example
     3. Open this automatically with an image viewer.
 
-    Future goals would be allow this to interact with the slit tool in some mananer.
+    Future goals would be allow this to interact with the slit tool in some manner.
     """
 
     icon = "pencil"
