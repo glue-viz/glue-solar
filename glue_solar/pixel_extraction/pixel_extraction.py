@@ -10,6 +10,7 @@ class PixelExtractionTool(ToolbarModeBase):
     """
     Create a "dervied dataset" corresponding to the selected pixel.
     """
+
     icon = "pencil"
     tool_id = "solar:pixel_extraction"
     action_text = "Pixel"

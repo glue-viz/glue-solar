@@ -4,21 +4,17 @@
 Data Loader Customization Guide
 ===============================
 
-The `glue` data visualization tool is highly customizable for different data types, such as FITS files
-that are often used in solar physics research.
-There are two ways to customize `glue` using the `glue-solar` plugin:
+The ``glue`` data visualization tool is highly customizable for different data types, such as FITS files that are often used in solar physics research.
+There are two ways to customize ``glue`` using the ``glue-solar`` plugin:
 
-1. The first option is to develop a custom loader for the solar data taken from practically any (ground-based or
-satellite-borne) instrument.
+1. The first option is to develop a custom loader for the solar data taken from practically any (ground-based or satellite-borne) instrument.
 
-2. The second option is to develop a custom viewer to enable a specific way to view your data, such as
-an alternative of the existing 2D image viewer that presents your data in a manner you like; e.g. color-coding the
-lines or data points.
+2. The second option is to develop a custom viewer to enable a specific way to view your data.
+   Such as an alternative of the existing 2D image viewer that presents your data in a manner you like; e.g. color-coding the lines or data points.
 
-While these two options serve different needs, the former is often needed to load your post-processed data, as `glue`
-already has the functionality to display the typical FITS file (with extensions ``.fits``, ``.fit``, or ``.ft``), such
-as the existing basic 2D image viewer and 1D profile viewer (useful for viewing 1D spectra). Hence in this guide, we
-walk through how to construct such a custom data loader for your solar physics use case.
+While these two options serve different needs, the former is often needed to load your post-processed data, if they are not FITS.
+``glue`` already has the functionality to open and display FITS files.
+Hence in this guide, we walk through how to construct a custom data loader for your solar physics use case.
 
 The Case of the IRIS subpackage
 -------------------------------

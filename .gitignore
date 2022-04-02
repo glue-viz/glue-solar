@@ -46,3 +46,4 @@ pip-wheel-metadata
 .vscode
 glue_solar/_version.py
 .tmp
+.qt_for_python
