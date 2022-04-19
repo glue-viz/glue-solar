@@ -1,16 +1,16 @@
-.. _users_guide:
+Intro
+=====
 
-==========
-User Guide
-==========
+Installing and running
+----------------------
 
 Requirements
-------------
+^^^^^^^^^^^^
 
 For the requirements of ``glue``, please refer to their official documentation on `installing and running glue <http://docs.glueviz.org/en/stable/installation/installation.html>`__.
 
 Installing glue-solar
----------------------
+^^^^^^^^^^^^^^^^^^^^^
 
 In order to use ``glue`` with the ``glue-solar`` plugin, you will need to have both packages installed on your computer.
 For the time being before an official release, the only way to install ``glue-solar`` is to download with GitHub, where the repository for the package is hosted.
@@ -30,7 +30,7 @@ Finally, do the following while at the root (highest level) of the glue-solar di
     $ pip install -e ".[all]"
 
 Started up Glue
----------------
+^^^^^^^^^^^^^^^
 
 Once both ``glue`` and ``glue-solar`` have been properly installed, to start the application via the command line::
 
@@ -42,6 +42,6 @@ On Windows operating systems, installation creates an executable ``glue.exe`` fi
 Windows users can create a desktop shortcut for this file upon installation
 
 User Interface Guide
---------------------
+^^^^^^^^^^^^^^^^^^^^
 
 For a walk through of the user interface of ``glue``, please refer to the `getting started section of the glue documentation. <http://docs.glueviz.org/en/stable/getting_started/index.html>`__

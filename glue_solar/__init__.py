@@ -4,6 +4,7 @@ from glue.viewers.image.qt import ImageViewer
 from sunpy.visualization.colormaps import cmlist
 
 from glue_solar.pixel_extraction.pixel_extraction import PixelExtractionTool  # NOQA
+from glue_solar.sources import iris, maps, sst  # NOQA
 from glue_solar.version import version as __version__
 
 

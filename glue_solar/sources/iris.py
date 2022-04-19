@@ -9,16 +9,19 @@ from glue.core.data import Data
 from glue.core.data_factories import is_fits
 from glue.core.visual import VisualAttributes
 from irispy.io import read_files
+from irispy.sji import IRISMapCube, IRISMapCubeSequence
 from irispy.spectrograph import IRISSpectrogramCube
 from qtpy import QtWidgets
 
-from .loaders.iris import QtIRISImporter
+from astropy.io import fits
 
-__all__ = ["import_iris", "read_iris_raster", "_parse_iris_raster"]
+from glue_solar.sources.loaders.iris import QtIRISImporter
+
+__all__ = ["import_iris", "read_iris_files"]
 
 
 @qglue_parser(IRISSpectrogramCube)
-def _parse_iris_raster(data, label):
+def _parse_iris_raster(data):
     """
     Parse IRIS Level 2 raster files so that it can be loaded by glue.
     """
@@ -38,16 +41,39 @@ def _parse_iris_raster(data, label):
     return w_data
 
 
-@data_factory("IRIS Spectrograph", is_fits)
-def read_iris_raster(raster_file):
+@qglue_parser(IRISMapCube)
+def _parse_iris_sji(data, file_header):
     """
-    To read Raster data as contained in IRIS level 2 raster fits files.
+    Parse IRIS Level 2 SJI files so that it can be loaded by glue.
     """
-    raster_data = _parse_iris_raster(
-        read_files(raster_file, uncertainty=False, memmap=False),
-        label="iris",
+    w_data = None
+    w_data = Data(label=f"IRIS-SJI-{data.meta['TWAVE1']}-{data.meta['OBSID']}")
+    # TODO: Construct correct 3D WCS
+    w_data.coords = WCSCoordinates(file_header)
+    w_data.add_component(
+        Component(data.data_as_array),
+        f"{data.meta['TWAVE1']}-{data.meta['OBSID']}",
     )
-    return raster_data
+    w_data.meta = data.meta
+    w_data.style = VisualAttributes(
+        color="#5A4FCF", preferred_cmap=f"IRIS SJI {data.meta['TWAVE1']:0.0f}"
+    )
+    return w_data
+
+
+@data_factory("IRIS FITS", is_fits)
+def read_iris_files(file_path):
+    """
+    To read any IRIS Level 2 files.
+    """
+    # TODO: Memmap in future.
+    data = read_files(file_path, uncertainty=False, memmap=False)
+    if isinstance(data, IRISMapCubeSequence):
+        return _parse_iris_sji(data, fits.getheader(file_path))
+    elif isinstance(data, IRISSpectrogramCube):
+        return _parse_iris_raster(data)
+    else:
+        raise ValueError(f"Unrecognised IRIS file type for {file_path}")
 
 
 def pick_directory(caption):

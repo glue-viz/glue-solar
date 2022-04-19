@@ -8,9 +8,6 @@ glue-solar documentation
 .. toctree::
    :maxdepth: 1
 
-   user-guide
-   code-reference
-   loading-aia-and-hmi
-   loading-iris-level-2-raster-and-sji-data
-   guide-to-glue-1dprofile-viewer-for-iris-data
-   dev-docs-for-loader-customization
+   user_guide/index
+   dev_guide/index
+   api_reference
