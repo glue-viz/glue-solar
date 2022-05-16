@@ -1,0 +1,43 @@
+name: CI Workflows
+
+on:
+  push:
+    branches:
+    - main
+    tags:
+    - '*'
+  pull_request:
+
+jobs:
+  tests:
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@v1
+    with:
+      coverage: codecov
+      display: true
+      # The Linux PyQt 5.15 installation requires apt-getting its xcb deps and headless X11 display
+      libraries: |
+        apt:
+          - libxkbcommon-x11-dev
+          - libxcb-icccm4-dev
+          - libxcb-image0-dev
+          - libxcb-keysyms1-dev
+          - libxcb-randr0-dev
+          - libxcb-render-util0-dev
+          - libxcb-xinerama0-dev
+        brew:
+          - enchant
+      envs: |
+        - linux: codestyle
+          libraries:
+          coverage: false
+        - linux: py39
+        - linux: py310-devdeps
+        - linux: py39-docs
+          coverage: false
+        - macos: py38
+        - windows: py39
+
+  publish:
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/publish_pure_python.yml@v1
+    secrets:
+      pypi_token: ${{ secrets.pypi_token }}
