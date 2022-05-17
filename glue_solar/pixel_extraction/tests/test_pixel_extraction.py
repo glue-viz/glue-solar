@@ -8,7 +8,6 @@ from numpy.testing import assert_allclose
 
 class TestPixelExtraction:
     def setup_method(self, method):
-
         self.data = Data(label="d1")
         self.data["x"] = np.arange(24).reshape((3, 4, 2)).astype(float)
 
@@ -28,7 +27,6 @@ class TestPixelExtraction:
         self.app = None
 
     def test_navigate_sync_image(self):
-
         self.viewer.add_data(self.data)
         self.viewer.toolbar.active_tool = "solar:pixel_extraction"
 
