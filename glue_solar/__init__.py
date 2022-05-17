@@ -1,18 +1,16 @@
-from pkg_resources import get_distribution, DistributionNotFound
-from sunpy.visualization.colormaps import cmlist
-from glue.viewers.image.qt import ImageViewer
-from glue_solar.pixel_extraction import PixelExtractionTool  # noqa
 from glue.config import colormaps
-from glue_solar.instruments import *
-from glue_solar.core import *
+from glue.viewers.image.qt import ImageViewer
 
-try:
-    __version__ = get_distribution(__name__).version
-except DistributionNotFound:
-    pass
+from sunpy.visualization.colormaps import cmlist
+
+from glue_solar.pixel_extraction.pixel_extraction import PixelExtractionTool  # NOQA
+from glue_solar.sources import iris, maps, sst  # NOQA
+from glue_solar.version import version as __version__
 
 
 def setup():
-    ImageViewer.tools.append('solar:pixel_extraction')
-    for name, ctable in sorted(cmlist.items()):
+    # List of all plugins to enable to the default ImageViewer
+    ImageViewer.tools.append("solar:pixel_extraction")
+    # Enables sunpy colormaps to be used in glueviz
+    for _, ctable in sorted(cmlist.items()):
         colormaps.add(ctable.name, ctable)

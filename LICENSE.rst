@@ -1,4 +1,4 @@
-Copyright (c) 2019, Glue developers
+Copyright (c) 2019-2022, Glue developers
 
 All rights reserved.
 

@@ -43,3 +43,7 @@ pip-wheel-metadata
 .tox
 .html
 .history
+.vscode
+glue_solar/_version.py
+.tmp
+.qt_for_python

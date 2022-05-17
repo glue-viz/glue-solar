@@ -1,28 +1,27 @@
 import os
 from pathlib import Path
 
-from glue.core.data import Data
 from glue.core.component import Component
+from glue.core.data import Data
 from glue.core.visual import VisualAttributes
 from glue.utils.qt import get_qapp
 from glue.utils.qt.helpers import load_ui
-
-import sunpy.map
-import sunpy.data.sample
-
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 
+import sunpy.data.sample
+import sunpy.map
 
 __all__ = ["QtSunpyMapImporter"]
 
-UI_MAIN = os.path.join(os.path.dirname(__file__), 'loader.ui')
+UI_MAIN = os.path.join(os.path.dirname(__file__), "maps_loader.ui")
 
 
 class QtSunpyMapImporter(QtWidgets.QDialog):
     """
     Qt importer to load SunPy Map objects from fits files.
     """
+
     def __init__(self, directory):
         super().__init__()
 
@@ -42,14 +41,12 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
     def get_sunpy_map_filenames(self):
         """
         Get the names of the SunPy map files.
-
         """
         return list(self.directory.glob("./*.fits"))
 
     def populate_table_sunpy_maps(self):
         """
         Populate the table with SunPy maps available in the selected directory.
-
         """
         windows = self.get_sunpy_map_windows()
         for window in windows:
@@ -65,7 +62,6 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
     def get_sunpy_map_windows(self):
         """
         Get all the available SunPy map windows corresponding to the table entries.
-
         """
         windows = {}
         for sunpy_map_file in self.sunpy_map_files:
@@ -74,15 +70,17 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
         return windows
 
     def load_sunpy_map(self, sunpy_map):
-            sunpy_map_loaded = sunpy.map.Map(sunpy_map)
-            label = 'sunpy-map-' + sunpy_map_loaded.name
-            data = Data(label=label)
-            data.coords = sunpy_map_loaded.wcs  # preferred way, preserves more info in some cases
-            data.meta = sunpy_map_loaded.meta
-            data.add_component(Component(sunpy_map_loaded.data), sunpy_map_loaded.name)
-            data.style = VisualAttributes(color='#FDB813', preferred_cmap=sunpy_map.cmap)
+        sunpy_map_loaded = sunpy.map.Map(sunpy_map)
+        label = "sunpy-map-" + sunpy_map_loaded.name
+        data = Data(label=label)
+        data.coords = (
+            sunpy_map_loaded.wcs
+        )  # preferred way, preserves more info in some cases
+        data.meta = sunpy_map_loaded.meta
+        data.add_component(Component(sunpy_map_loaded.data), sunpy_map_loaded.name)
+        data.style = VisualAttributes(color="#FDB813", preferred_cmap=sunpy_map.cmap)
 
-            self.datasets.append(data)
+        self.datasets.append(data)
 
     def finalize(self):
         sunpy_map_windows = []
@@ -95,7 +93,7 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
         n_windows = float(len(sunpy_map_windows))
 
         for iname, filename in enumerate(sunpy_map_windows):
-            self.progress.setValue(iname / n_windows * 100.)
+            self.progress.setValue(iname / n_windows * 100.0)
 
             # update progress bar
             app = get_qapp()

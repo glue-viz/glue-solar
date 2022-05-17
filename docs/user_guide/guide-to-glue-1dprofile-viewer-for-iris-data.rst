@@ -1,16 +1,14 @@
 .. _guide_to_1dprofile_viewer_for_iris_data:
 
-=========================================================================
-A Guide to using Glue's 1D Profile viewer to probe IRIS Level 2 data sets
-=========================================================================
+=============================================================================
+A guide to using ``glue``'s 1D profile viewer to probe IRIS Level 2 data sets
+=============================================================================
 
 Loading multi-scan IRIS Level 2 data sets and stacking the sequential raster cubes
 ----------------------------------------------------------------------------------
-It is important to note that it would be preferable to use the directory loader as opposed
-to the file loader for this task. To do this, we will first need to load some multi-scan
-IRIS Level 2 data sets collected from the same observation (i.e. having identical ``OBSID``)
-with the "Import IRIS OBS Directory" option under "File"'s "Import data" as shown in
-the two images that follows:
+
+It is important to note that it would be preferable to use the directory loader as opposed to the file loader for this task.
+To do this, we will first need to load some multi-scan IRIS Level 2 data sets collected from the same observation (i.e. having identical ``OBSID``) with the "Import IRIS OBS Directory" option under "File"'s "Import data":
 
 .. image:: images/loading-multiscan-iris-data-1.png
    :width: 800
@@ -20,17 +18,15 @@ the two images that follows:
    :width: 800
    :alt: Choosing the directory containing both raster and SJI data sets of the same observation
 
-Then, choose the relevant raster and SJI data cubes of different scans and remember to stack
-the sequential raster cubes in order to obtain 4D data cubes from 3D ones. An example view of this
-step is provided below:
+Then, choose the relevant raster and SJI data cubes of different scans and remember to stack the sequential raster cubes in order to obtain 4D data cubes from 3D ones.
+An example view of this step:
 
 .. image:: images/choosing-iris-level-2-data-cubes-and-stacking-raster-cubes.png
    :width: 800
    :alt: Importing Multi-scan IRIS Level 2 data sets with the directory loader
 
 We have chosen 3 raster and 2 SJI data sets to import as an example to illustrate this functionality.
-Once the IRIS data sets have been successfully loaded, we will see the data sets showing up in the
-Data Collection window in the upper left of the GUI, as follows:
+Once the IRIS data sets have been successfully loaded, we will see the data sets showing up in the "Data Collection" window in the upper left of the GUI:
 
 .. image:: images/raster-and-sji-data-loaded-to-data-collection.png
    :width: 800
@@ -38,8 +34,9 @@ Data Collection window in the upper left of the GUI, as follows:
 
 Now we are ready to visualize the 2D slices of the imported data cubes.
 
-Using Glue's 2D Image viewer to get the indices and slices needed for the 1D spectrum plot
-------------------------------------------------------------------------------------------
+Using ``glue``'s 2D image viewer to get the indices and slices needed for the 1D spectrum plot
+----------------------------------------------------------------------------------------------
+
 To plot 2D slices of the ND data cubes, we will need to drag the data ("C_II_1336" in this
 example) concerned from the "Data Collection" area and drop it at the large plotting window
 to the right, as shown in the following image:
