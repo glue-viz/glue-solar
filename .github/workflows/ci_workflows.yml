@@ -22,6 +22,7 @@ jobs:
           - libxcb-keysyms1-dev
           - libxcb-randr0-dev
           - libxcb-render-util0-dev
+          - libxcb-xinerama0
           - libxcb-xinerama0-dev
           - libxkbcommon-x11-dev
       envs: |
