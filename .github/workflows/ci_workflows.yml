@@ -16,15 +16,15 @@ jobs:
       display: true
       libraries: |
         apt:
+          - '^libxcb.*-dev'
           - libegl-dev
-          - libxcb-icccm4-dev
-          - libxcb-image0-dev
-          - libxcb-keysyms1-dev
-          - libxcb-randr0-dev
-          - libxcb-render-util0-dev
+          - libglu1-mesa-dev
+          - libx11-xcb-dev
           - libxcb-xinerama0
-          - libxcb-xinerama0-dev
+          - libxi-dev
+          - libxkbcommon-dev
           - libxkbcommon-x11-dev
+          - libxrender-dev
       envs: |
         - linux: codestyle
           libraries:
