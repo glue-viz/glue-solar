@@ -1,4 +1,4 @@
-Solar physics plugin for glue
+Solar Physics Plugin for glue
 =============================
 
 .. image:: https://dev.azure.com/glue-viz/glue-solar/_apis/build/status/glue-viz.glue-solar?branchName=main
