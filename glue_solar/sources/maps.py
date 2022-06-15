@@ -19,7 +19,7 @@ __all__ = ["import_sunpy_map", "read_sunpy_map", "_parse_sunpy_map"]
 @qglue_parser(GenericMap)
 def _parse_sunpy_map(data, label):
     """
-    Parse SunPy map so that it can be loaded by ``glue``.
+    Parse sunpy map so that it can be loaded by ``glue``.
     """
     scan_map = data
     label = label + "-" + scan_map.name
@@ -32,10 +32,10 @@ def _parse_sunpy_map(data, label):
     return result
 
 
-@data_factory("SunPy Map", is_fits)
+@data_factory("sunpy Map", is_fits)
 def read_sunpy_map(sunpy_map_file):
     """
-    For ``glue`` to read in parsed SunPy map.
+    For ``glue`` to read in parsed sunpy map.
     """
     sunpy_map_data = _parse_sunpy_map(sunpy.map.Map(sunpy_map_file), "sunpy-map")
     return sunpy_map_data
@@ -43,7 +43,7 @@ def read_sunpy_map(sunpy_map_file):
 
 def pick_directory(caption):
     """
-    Pick the directory to load SunPy map files from.
+    Pick the directory to load sunpy map files from.
     """
     dialog = QtWidgets.QFileDialog(caption=caption)
     dialog.setFileMode(QtWidgets.QFileDialog.Directory)
@@ -57,12 +57,12 @@ def pick_directory(caption):
     return directory[0]
 
 
-@importer("Import SunPy Map Directory")
+@importer("Import sunpy Map Directory")
 def import_sunpy_map():
     """
-    Import SunPy maps with directory importer.
+    Import sunpy maps with directory importer.
     """
-    caption = "Select a directory containing SunPy Map files."
+    caption = "Select a directory containing sunpy Map files."
     directory = pick_directory(caption)
 
     wi = QtSunpyMapImporter(directory)
