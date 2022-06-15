@@ -19,12 +19,12 @@ Take care to make sure all the IRIS data files for the same
 observations you would like to investigate with ``glue`` are all located in the same directory.
 Then, a popup dialog box would allow you to choose the desired observation directory containing
 the "raster" and "SJI" files of interest. Upon clicking "Open" on the lower right of the dialog
-box, a VizieR importer would pop up with the heading "Load IRIS Observation", with the available
+box, an importer would pop up with the heading "Load IRIS Observation", with the available
 data sets listed in the respective "raster" and "SJI" fields, as shown in the image that follows:
 
 .. image:: images/loading-iris-data-2.png
    :width: 800
-   :alt: Loading Raster and SJI data together with the VizieR importer
+   :alt: Loading Raster and SJI data together with the importer
 
 After successfully loading the chosen data files, if autolinking if available, you will be prompted
 to link up the files concerned. A dialog box like what follows would pop up:

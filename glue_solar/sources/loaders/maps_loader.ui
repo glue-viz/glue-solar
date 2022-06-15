@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>VizieR Importer</string>
+   <string>SunPy Map Importer</string>
   </property>
   <property name="sizeGripEnabled">
    <bool>false</bool>
