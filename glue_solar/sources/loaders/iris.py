@@ -27,20 +27,15 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     def __init__(self, directory):
         super().__init__()
-
         self.ui = load_ui(UI_MAIN, self)
-
         self.cancel.clicked.connect(self.reject)
         self.ok.clicked.connect(self.finalize)
-
         self.directory = Path(directory)
         self.raster_files = self.get_raster_filenames()
         self.sji_files = self.get_sji_filenames()
-
         self._raster_checkboxes = {}
         self._sji_checkboxes = {}
         self.datasets = []
-
         self.populate_table_raster()
         self.populate_table_sji()
 
@@ -58,7 +53,6 @@ class QtIRISImporter(QtWidgets.QDialog):
             sub.setCheckState(0, Qt.Unchecked)
             sub.setText(1, window)
             self._raster_checkboxes[window] = sub
-
         self.rasters.resizeColumnToContents(0)
         self.rasters.resizeColumnToContents(1)
 
@@ -144,36 +138,23 @@ class QtIRISImporter(QtWidgets.QDialog):
         raster_windows = []
         sji_windows = []
         sji_filenames = self.get_sji_windows()
-
         for name in self._raster_checkboxes:
             if self._raster_checkboxes[name].checkState(0) > 0:
                 raster_windows.append(name)
-
         for name in self._sji_checkboxes:
             if self._sji_checkboxes[name].checkState(0) > 0:
                 sji_windows.append(sji_filenames[name])
-
         n_windows = float(len(raster_windows) + len(sji_windows))
-
         for iname, filename in enumerate(sji_windows):
-            self.progress.setValue(iname / n_windows * 100.0)
-
-            # update progress bar
+            self.progress.setValue(int(iname / n_windows * 100))
             app = get_qapp()
             app.processEvents()
-
             self.load_sji(filename)
-
         for iname, name in enumerate(raster_windows):
-
-            self.progress.setValue((iname + len(sji_windows)) / n_windows * 100.0)
-
-            # update progress bar
+            self.progress.setValue(int((iname + len(sji_windows)) / n_windows * 100))
             app = get_qapp()
             app.processEvents()
-
             self.load_rasters([name])
-
         self.progress.setValue(100)
         self.accept()
 

@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>VizieR Importer</string>
+   <string>sunpy Map Importer</string>
   </property>
   <property name="sizeGripEnabled">
    <bool>false</bool>
@@ -29,7 +29,7 @@
         </font>
        </property>
        <property name="text">
-        <string>Load SunPy Maps</string>
+        <string>Load sunpy Maps</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignCenter</set>

@@ -19,34 +19,29 @@ UI_MAIN = os.path.join(os.path.dirname(__file__), "maps_loader.ui")
 
 class QtSunpyMapImporter(QtWidgets.QDialog):
     """
-    Qt importer to load SunPy Map objects from fits files.
+    Qt importer to load sunpy Map objects from fits files.
     """
 
     def __init__(self, directory):
         super().__init__()
-
         self.ui = load_ui(UI_MAIN, self)
-
         self.cancel.clicked.connect(self.reject)
         self.ok.clicked.connect(self.finalize)
-
         self.directory = Path(directory)
         self.sunpy_map_files = self.get_sunpy_map_filenames()
-
         self._sunpy_map_checkboxes = {}
         self.datasets = []
-
         self.populate_table_sunpy_maps()
 
     def get_sunpy_map_filenames(self):
         """
-        Get the names of the SunPy map files.
+        Get the names of the FITS files.
         """
         return list(self.directory.glob("./*.fits"))
 
     def populate_table_sunpy_maps(self):
         """
-        Populate the table with SunPy maps available in the selected directory.
+        Populate the table with sunpy maps available in the selected directory.
         """
         windows = self.get_sunpy_map_windows()
         for window in windows:
@@ -55,18 +50,16 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
             sub.setCheckState(0, Qt.Unchecked)
             sub.setText(1, window)
             self._sunpy_map_checkboxes[window] = sub
-
         self.sunpy_maps.resizeColumnToContents(0)
         self.sunpy_maps.resizeColumnToContents(1)
 
     def get_sunpy_map_windows(self):
         """
-        Get all the available SunPy map windows corresponding to the table entries.
+        Get all the available sunpy map windows corresponding to the table entries.
         """
         windows = {}
         for sunpy_map_file in self.sunpy_map_files:
             windows[sunpy.map.Map(sunpy_map_file).name] = sunpy.map.Map(sunpy_map_file)
-
         return windows
 
     def load_sunpy_map(self, sunpy_map):
@@ -85,22 +78,15 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
     def finalize(self):
         sunpy_map_windows = []
         sunpy_map_filenames = self.get_sunpy_map_windows()
-
         for name in self._sunpy_map_checkboxes:
             if self._sunpy_map_checkboxes[name].checkState(0) > 0:
                 sunpy_map_windows.append(sunpy_map_filenames[name])
-
         n_windows = float(len(sunpy_map_windows))
-
         for iname, filename in enumerate(sunpy_map_windows):
-            self.progress.setValue(iname / n_windows * 100.0)
-
-            # update progress bar
+            self.progress.setValue(int(iname / n_windows * 100))
             app = get_qapp()
             app.processEvents()
-
             self.load_sunpy_map(filename)
-
         self.progress.setValue(100)
         self.accept()
 
