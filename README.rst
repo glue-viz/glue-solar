@@ -1,13 +1,10 @@
 Solar Physics Plugin for glue
 =============================
 
-.. image:: https://dev.azure.com/glue-viz/glue-solar/_apis/build/status/glue-viz.glue-solar?branchName=main
-   :target: https://dev.azure.com/glue-viz/glue-solar/_build/
-
 Installation
 ------------
 
-As this plugin is still in heavy development, you can only install it from this repository.
+As this plugin is still in development, you can only install it from this repository.
 You will want to do the following steps::
 
     $ git clone https://github.com/glue-viz/glue-solar.git
