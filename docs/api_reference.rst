@@ -1,4 +1,4 @@
-.. _api_reference:
+.. _glue_solar_api_reference:
 
 =============
 API Reference
@@ -11,7 +11,4 @@ API Reference
    :no-inheritance-diagram:
 
 .. automodapi:: glue_solar.sources.maps
-   :no-inheritance-diagram:
-
-.. automodapi:: glue_solar.pixel_extraction
    :no-inheritance-diagram:

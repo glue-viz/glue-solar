@@ -1,3 +1,6 @@
+.. _glue_solar_dev_docs_index:
+
+=======================
 Developer Documentation
 =======================
 

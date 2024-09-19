@@ -5,8 +5,7 @@ from glue.core.component import Component
 from glue.core.coordinates import WCSCoordinates
 from glue.core.data import Data
 from glue.core.visual import VisualAttributes
-from glue.utils.qt import get_qapp
-from glue.utils.qt.helpers import load_ui
+from glue_qt.utils import get_qapp, load_ui
 from irispy.io import read_files
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
@@ -69,28 +68,31 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.sjis.resizeColumnToContents(1)
 
     def get_raster_windows(self):
+        if  not self.raster_files:
+            return []
         with fits.open(self.raster_files[0]) as hdulist:
             return list(
-                hdulist[0].header["TDESC{0}".format(i)]
+                hdulist[0].header[f"TDESC{i}"]
                 for i in range(1, hdulist[0].header["NWIN"] + 1)
             )
 
     def get_sji_windows(self):
         windows = {}
+        if not self.sji_files:
+            return windows
         for sji in self.sji_files:
             with fits.open(sji) as hdul:
                 windows[hdul[0].header["TDESC1"]] = sji
-
         return windows
 
     def load_sji(self, sji):
         with fits.open(sji) as hdul:
-            hdul.verify("fix")
+            hdul.verify("silentfix+ignore")
             label = hdul[0].header["TDESC1"] + hdul[0].header["OBSID"]
             data = Data(label=label)
             data.coords = WCSCoordinates(hdul[0].header)
             data.meta = hdul[0].header
-            preferred_cmap_name = "IRIS " + hdul[0].header["TDESC1"].replace("_", " ")
+            preferred_cmap_name = f"iris{hdul[0].header["TDESC1"].replace("_","").lower()}"
             data.style = VisualAttributes(preferred_cmap=preferred_cmap_name)
             data.add_component(Component(hdul[0].data), label)
 

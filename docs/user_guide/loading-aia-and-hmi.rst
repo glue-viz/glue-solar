@@ -1,4 +1,4 @@
-.. _loading_aia_and_hmi_files:
+.. _glue_solar_users_guide_loading_aia_and_hmi_files:
 
 =========================================================
 Loading and over-plotting AIA and HMI files as sunpy Maps
