@@ -1,4 +1,4 @@
-.. _loader_customization_guide:
+.. _glue_solar_dev_docs_loader_customization:
 
 ===============================
 Data Loader Customization Guide

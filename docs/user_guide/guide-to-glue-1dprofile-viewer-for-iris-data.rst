@@ -1,4 +1,4 @@
-.. _guide_to_1dprofile_viewer_for_iris_data:
+.. _glue_solar_user_guide_1dprofile_viewer_for_iris_data:
 
 =============================================================================
 A guide to using ``glue``'s 1D profile viewer to probe IRIS Level 2 data sets
@@ -37,7 +37,7 @@ Now we are ready to visualize the 2D slices of the imported data cubes.
 Using ``glue``'s 2D image viewer to get the indices and slices needed for the 1D spectrum plot
 ----------------------------------------------------------------------------------------------
 
-To plot 2D slices of the ND data cubes, we will need to drag the data ("C_II_1336" in this
+To plot 2D slices of the AND data cubes, we will need to drag the data ("C_II_1336" in this
 example) concerned from the "Data Collection" area and drop it at the large plotting window
 to the right, as shown in the following image:
 

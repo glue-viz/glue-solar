@@ -29,7 +29,7 @@ jobs:
         - linux: codestyle
           libraries:
           coverage: false
-        - linux: py39
+        - linux: py312
 
   test:
     needs: [core]
@@ -51,8 +51,7 @@ jobs:
         brew:
           - enchant
       envs: |
-        - linux: py310-devdeps
-        - linux: py39-docs
+        - linux: py312-docs
           coverage: false
-        - macos: py38
-        - windows: py39
+        - macos: py312
+        - windows: py312

@@ -9,8 +9,8 @@ from glue.core.data import Data
 from glue.core.data_factories import is_fits
 from glue.core.visual import VisualAttributes
 from irispy.io import read_files
-from irispy.sji import IRISMapCube, IRISMapCubeSequence
-from irispy.spectrograph import IRISCollection
+from irispy.sji import SJICube
+from irispy.spectrograph import SpectrogramCube
 from qtpy import QtWidgets
 
 from astropy.io import fits
@@ -20,7 +20,7 @@ from glue_solar.sources.loaders.iris import QtIRISImporter
 __all__ = ["import_iris", "read_iris_files"]
 
 
-@qglue_parser(IRISCollection)
+@qglue_parser(SpectrogramCube)
 def _parse_iris_raster(data):
     """
     Parse IRIS Level 2 raster files so that it can be loaded by glue.
@@ -41,7 +41,7 @@ def _parse_iris_raster(data):
     return w_data
 
 
-@qglue_parser(IRISMapCube)
+@qglue_parser(SJICube)
 def _parse_iris_sji(data, file_header):
     """
     Parse IRIS Level 2 SJI files so that it can be loaded by glue.
@@ -68,9 +68,9 @@ def read_iris_files(file_path):
     """
     # TODO: Memmap in future.
     data = read_files(file_path, uncertainty=False, memmap=False)
-    if isinstance(data, IRISMapCubeSequence):
+    if isinstance(data, SJICube):
         return _parse_iris_sji(data, fits.getheader(file_path))
-    elif isinstance(data, IRISCollection):
+    elif isinstance(data, SpectrogramCube):
         return _parse_iris_raster(data)
     else:
         raise ValueError(f"Unrecognised IRIS file type for {file_path}")

@@ -1,4 +1,4 @@
-.. _loading_iris_level_2_raster_and_sji_files:
+.. _glue_solar_users_guide_loading_iris_level_2_raster_and_sji_files:
 
 =======================================================
 Loading IRIS Level 2 Raster and SJI Data Files Together

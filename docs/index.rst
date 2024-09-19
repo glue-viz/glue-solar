@@ -1,5 +1,6 @@
-.. _glue-solar:
+.. _glue-solar-index:
 
+========================
 glue-solar documentation
 ========================
 

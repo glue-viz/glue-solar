@@ -4,8 +4,7 @@ from pathlib import Path
 from glue.core.component import Component
 from glue.core.data import Data
 from glue.core.visual import VisualAttributes
-from glue.utils.qt import get_qapp
-from glue.utils.qt.helpers import load_ui
+from glue_qt.utils import get_qapp, load_ui
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 

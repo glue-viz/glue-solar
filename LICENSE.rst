@@ -1,4 +1,4 @@
-Copyright (c) 2019-2022, Glue developers
+Copyright (c) 2019-2024, SunPy and Glue developers
 
 All rights reserved.
 

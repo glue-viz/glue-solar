@@ -1,8 +1,9 @@
 version: 2
+
 build:
-  os: ubuntu-20.04
+  os: ubuntu-lts-latest
   tools:
-    python: "3.9"
+    python: "mambaforge-latest"
   apt_packages:
     - libxkbcommon-x11-0
     - libxcb-icccm4
@@ -12,6 +13,14 @@ build:
     - libxcb-render-util0
     - libxcb-xfixes0
     - libxcb-xinerama0
+  jobs:
+    post_checkout:
+      - git fetch --unshallow || true
+    pre_install:
+      - git update-index --assume-unchanged .rtd-environment.yml docs/conf.py
+
+conda:
+  environment: .rtd-environment.yml
 
 sphinx:
   builder: html
@@ -19,9 +28,9 @@ sphinx:
   fail_on_warning: false
 
 python:
-   install:
-     - method: pip
-       extra_requirements:
+  install:
+    - method: pip
+      extra_requirements:
         - all
         - docs
-       path: .
+      path: .

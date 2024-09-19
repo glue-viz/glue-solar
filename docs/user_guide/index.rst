@@ -1,5 +1,6 @@
-.. _users_guide:
+.. _glue_solar_users_guide_index:
 
+==========
 User Guide
 ==========
 
