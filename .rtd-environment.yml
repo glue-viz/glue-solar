@@ -1,4 +1,4 @@
-name: rtd_glue_solar
+name: glue-solar
 channels:
   - conda-forge
 dependencies:
