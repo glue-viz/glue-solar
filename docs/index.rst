@@ -57,3 +57,4 @@ For a walk through of the user interface of ``glue``, please refer to the `getti
    user_guide/index
    dev_guide/index
    api_reference
+   whatsnew/index

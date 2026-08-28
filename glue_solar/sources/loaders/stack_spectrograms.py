@@ -6,11 +6,11 @@ from pathlib import Path
 
 import numpy as np
 from ndcube import NDCube
-from reproject.interpolation import reproject_interp
 
 import astropy.units as u
 from astropy.time import Time
 from astropy.wcs import WCS
+from reproject.interpolation import reproject_interp
 
 
 def stack_spectrogram_sequence(cube_sequence, memmap=True, reproject=False):
