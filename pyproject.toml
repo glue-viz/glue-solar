@@ -9,17 +9,17 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "glue-solar"
 description = "Solar Physics plugin for GlueViz"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 readme = { file = "README.rst", content-type = "text/x-rst" }
 license-files = ["licenses/LICENSE.rst"]
 authors = [
   { name = "The SunPy Community", email = "sunpy@googlegroups.com" },
 ]
 dependencies = [
-  "glue-core[all]>=1.2.0",
-  "glue-qt[qt]>=0.3.0",
-  "sunpy[map,net,coordinates]>=6.0.0",
-  "irispy-lmsal[all]>=0.2.0rc1",
+  "glue-core>=1.23.0",  # what glue-qt 0.4 needs
+  "glue-qt[qt]>=0.4.0",  # its qt extra provides the Qt binding
+  "sunpy[map,net]>=6.0.0",
+  "irispy-lmsal>=0.2.0rc1,<0.7",  # 0.7 changed read_files' return type
 ]
 dynamic = ["version"]
 keywords = ["solar physics", "solar", "science", "sun", "visualization", "coordinates", "glueviz"]
@@ -31,8 +31,6 @@ classifiers = [
   "Operating System :: OS Independent",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",

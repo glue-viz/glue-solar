@@ -1,0 +1,1 @@
+Requires Python >= 3.12 (the code already used 3.12-only syntax) and glue-core >= 1.23 with glue-qt >= 0.4. The unused ``glue-core[all]``, ``irispy-lmsal[all]`` and non-existent ``sunpy[coordinates]`` extras are dropped, and ``irispy-lmsal`` is capped below 0.7 until the raster loader supports its new ``read_files`` return type.
