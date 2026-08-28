@@ -19,7 +19,7 @@ dependencies = [
   "glue-core>=1.23.0",  # what glue-qt 0.4 needs
   "glue-qt[qt]>=0.4.0",  # its qt extra provides the Qt binding
   "sunpy[map,net]>=6.0.0",
-  "irispy-lmsal>=0.2.0rc1,<0.7",  # 0.7 changed read_files' return type
+  "irispy-lmsal>=0.8.1",
 ]
 dynamic = ["version"]
 keywords = ["solar physics", "solar", "science", "sun", "visualization", "coordinates", "glueviz"]

@@ -1,0 +1,1 @@
+The ``IRIS FITS`` reader works with irispy-lmsal >= 0.7 again: ``read_files`` now returns one sequence of scans per spectral window for raster files, and ``SJICube`` no longer has ``data_as_array``. Raster files load one dataset per window and scan, and the SJI header units are normalised so astropy no longer warns.
