@@ -70,7 +70,7 @@ class QtSunpyMapImporter(QtWidgets.QDialog):
         )  # preferred way, preserves more info in some cases
         data.meta = sunpy_map_loaded.meta
         data.add_component(Component(sunpy_map_loaded.data), sunpy_map_loaded.name)
-        data.style = VisualAttributes(color="#FDB813", preferred_cmap=sunpy_map.cmap)
+        data.style = VisualAttributes(color="#FDB813", preferred_cmap=sunpy_map_loaded.cmap)
 
         self.datasets.append(data)
 
