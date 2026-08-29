@@ -1,0 +1,1 @@
+The IRIS FITS data factory only claims files with ``TELESCOP = 'IRIS'`` instead of competing with the sunpy Map factory for every FITS file.

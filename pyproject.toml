@@ -16,10 +16,11 @@ authors = [
   { name = "The SunPy Community", email = "sunpy@googlegroups.com" },
 ]
 dependencies = [
-  "glue-core>=1.23.0",  # what glue-qt 0.4 needs
-  "glue-qt[qt]>=0.4.0",  # its qt extra provides the Qt binding
+  "glue-core>=1.23.0",
+  "glue-qt[qt]>=0.4.0",
   "sunpy[map,net]>=6.0.0",
   "irispy-lmsal>=0.8.1",
+  "ndcube>=2.0",
 ]
 dynamic = ["version"]
 keywords = ["solar physics", "solar", "science", "sun", "visualization", "coordinates", "glueviz"]
