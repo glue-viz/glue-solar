@@ -50,7 +50,7 @@ def test_ticking_the_observation_ticks_its_files(dialog):
 
 
 def test_load_selected_real_sji(qtbot, tmp_path, irispy_test_files):
-    source = _real(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
+    source = _real(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000_test.fits")
     shutil.copy2(source, tmp_path / source.name)
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
@@ -100,7 +100,7 @@ def test_extract_archive_then_lists_its_windows(qtbot, iris_tree, tmp_path):
 
 
 def test_real_sji_adapter_preserves_mask_units_and_coordinates(irispy_test_files):
-    path = _real(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
+    path = _real(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000_test.fits")
     cube = read_files(path, memmap=False, uncertainty=False)
     data = image_data(path)
 
@@ -119,7 +119,7 @@ def test_real_sji_adapter_preserves_mask_units_and_coordinates(irispy_test_files
 
 
 def test_aia_cube_uses_the_same_irispy_adapter(tmp_path, irispy_test_files):
-    source = _real(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
+    source = _real(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000_test.fits")
     path = tmp_path / "aia_l2_20210905_001833_3620258102_171.fits"
     shutil.copy2(source, path)
     with fits.open(path, mode="update") as hdul:
@@ -135,7 +135,7 @@ def test_aia_cube_uses_the_same_irispy_adapter(tmp_path, irispy_test_files):
 
 
 def test_real_raster_preserves_exact_exposure_times(irispy_test_files):
-    path = _real(irispy_test_files, "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits")
+    path = _real(irispy_test_files, "iris_l2_20140329_140938_3860258481_raster_t000_r00000_test.fits")
     data = raster_data([path], ["C II 1336"], stack=True)
     cube = read_files(path, spectral_windows=["C II 1336"], memmap=False, uncertainty=False)["C II 1336"][0]
     expected_times = cube.axis_world_coords("time", wcs=cube.extra_coords)[0].utc.to_value("datetime64")
@@ -206,7 +206,7 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
 
 
 def test_duplicate_real_raster_is_listed_and_loaded_once(qtbot, tmp_path, irispy_test_files):
-    source = _real(irispy_test_files, "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits")
+    source = _real(irispy_test_files, "iris_l2_20140329_140938_3860258481_raster_t000_r00000_test.fits")
     for directory in (tmp_path / "download", tmp_path / "extracted"):
         directory.mkdir()
         shutil.copy2(source, directory / source.name)

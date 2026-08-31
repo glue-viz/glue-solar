@@ -26,7 +26,7 @@ def test_data_factory_claims_only_iris_files(iris_tree):
 
 def test_open_real_sji_through_load_data(irispy_test_files):
     path = next(
-        path for path in irispy_test_files if path.name == "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
+        path for path in irispy_test_files if path.name == "iris_l2_20210905_001833_3620258102_SJI_1400_t000_test.fits"
     )
     data = load_data(str(path))
     assert data.label == "SJI_1400-3620258102-2021-09-05T00:18:33"
@@ -36,7 +36,7 @@ def test_open_real_sji_through_load_data(irispy_test_files):
 
 def test_open_real_raster_through_load_data(irispy_test_files):
     path = next(
-        path for path in irispy_test_files if path.name == "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"
+        path for path in irispy_test_files if path.name == "iris_l2_20140329_140938_3860258481_raster_t000_r00000_test.fits"
     )
     datasets = load_data(str(path))
     assert len(datasets) == 9
