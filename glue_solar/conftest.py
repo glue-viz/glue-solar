@@ -67,6 +67,9 @@ def _source_filename_hdu(start, column):
 
 
 def _write_image(path, header):
+    # A small real rotation avoids irispy 0.8.1 treating zero off-diagonal
+    # PC entries as missing pointing samples.
+    angle = np.deg2rad(1.0)
     # real SJI files spell the units this way; astropy's WCS warns unless they are normalised
     header["CUNIT1"], header["CUNIT2"], header["CUNIT3"] = "arcsecs", "arcsecs", "seconds"
     header.update({
@@ -74,6 +77,8 @@ def _write_image(path, header):
         "CRPIX1": 3.0, "CRPIX2": 2.5, "CRPIX3": 2.0,
         "CRVAL1": header["XCEN"], "CRVAL2": header["YCEN"], "CRVAL3": 3600.0,
         "CDELT1": 0.5, "CDELT2": 0.5, "CDELT3": 3600.0,
+        "PC1_1": np.cos(angle), "PC1_2": -np.sin(angle),
+        "PC2_1": np.sin(angle), "PC2_2": np.cos(angle),
     })
     primary = fits.PrimaryHDU(np.zeros((N_EXPOSURES, 4, 5), dtype=np.int16), header=header)
     # XCENIX:YCENIX and PC1_1IX:PC2_2IX must be contiguous - the SJI reader
@@ -87,10 +92,10 @@ def _write_image(path, header):
             "EXPTIMES": 2.0,
             "XCENIX": header["XCEN"],
             "YCENIX": header["YCEN"],
-            # an unrotated observation: identity PC matrix (needs irispy with
-            # row-wise dropped-pointing handling to load)
-            "PC1_1IX": 1.0,
-            "PC2_2IX": 1.0,
+            "PC1_1IX": header["PC1_1"],
+            "PC1_2IX": header["PC1_2"],
+            "PC2_1IX": header["PC2_1"],
+            "PC2_2IX": header["PC2_2"],
         },
     )
     source = _source_filename_hdu(header["STARTOBS"], "SJIfilename")
@@ -171,6 +176,11 @@ def iris_tree(tmp_path_factory):
     (root / "tmpabc").write_bytes(b"\x1f\x8b\x08junk")
     (root / "notes.txt").write_text("not a fits file")
     return root
+
+
+def find_irispy_test_file(files, name):
+    """Match both 0.8.1 filenames and irispy's later explicit _test suffix."""
+    return next(path for path in files if path.name.replace("_test.fits", ".fits") == name)
 
 
 @pytest.fixture(scope="session")
