@@ -179,3 +179,22 @@ def test_cursor_readout_shows_position_and_value(qtbot, irispy_test_files):
     app.data_collection.append(still)
     other = app.new_data_viewer(ImageViewer, data=still)
     assert other.toolbar.tools["solar:cursor_readout"].describe(1, 1).endswith(" | flux = 3.5")
+
+
+def test_iris_image_layers_render_nan_transparent(qtbot, irispy_test_files):
+    sji = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
+    sji = load_data(str(sji))
+    still = Data(label="still", flux=np.array([[np.nan, 1.0], [2.0, 3.0]]))
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.extend([sji, still])
+
+    viewer = app.new_data_viewer(ImageViewer, data=sji)
+    assert viewer.layers[0].state.cmap_bad == (0, 0, 0, 0)
+    frame = sji[viewer.layers[0].state.attribute][0]
+    iy, ix = np.argwhere(np.isnan(frame))[0]
+    image = viewer.axes._composite(bounds=[(-0.5, frame.shape[0] - 0.5, frame.shape[0]), (-0.5, frame.shape[1] - 0.5, frame.shape[1])])
+    np.testing.assert_array_equal(image[iy, ix], [1, 1, 1, 1])  # the white background shows through
+
+    other = app.new_data_viewer(ImageViewer, data=still)  # not IRIS: glue's default stays
+    assert other.layers[0].state.cmap_bad is None
