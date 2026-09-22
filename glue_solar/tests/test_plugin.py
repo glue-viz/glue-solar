@@ -1,5 +1,7 @@
+import numpy as np
 from glue.config import data_factory, menubar_plugin
 from glue.core.data_factories import load_data
+from irispy.io import read_files
 
 import glue_solar
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
@@ -30,6 +32,10 @@ def test_open_real_sji_through_load_data(irispy_test_files):
     assert data.label == "SJI_1400-3620258102-2021-09-05T00:18:33"
     assert data.shape == (62, 40, 37)
     assert data.style.preferred_cmap.name == "irissji1400"
+    # SJI keeps time in its gWCS rather than an extra coordinate; every frame gets its UTC time
+    expected_times = read_files(str(path), memmap=False, uncertainty=False).axis_world_coords("time")[0]
+    np.testing.assert_array_equal(data["Time"][:, 0, 0], expected_times.utc.to_value("datetime64"))
+    np.testing.assert_array_equal(data["Time"][:, -1, -1], expected_times.utc.to_value("datetime64"))
 
 
 def test_open_real_raster_through_load_data(irispy_test_files):
@@ -93,3 +99,4 @@ def test_autolink_synthetic_sji_raster(iris_tree):
     # raster wavelength axis are sliced away
     assert {cid.axis for cid in link.cids1} == {1, 2}
     assert {cid.axis for cid in link.cids2} == {0, 1}
+

@@ -106,7 +106,7 @@ def test_real_sji_adapter_preserves_mask_units_and_coordinates(irispy_test_files
     cube = read_files(path, memmap=False, uncertainty=False)
     data = image_data(path)
 
-    science, mask = data.main_components
+    science, mask, _time = data.main_components
     assert data.shape == cube.shape
     assert data.get_component(science).units == str(cube.unit)
     np.testing.assert_array_equal(data.get_component(mask).data, cube.mask)
@@ -133,7 +133,7 @@ def test_aia_cube_uses_the_same_irispy_adapter(tmp_path, irispy_test_files):
     data = image_data(path)
     assert data.label == "171_THIN-3620258102-2021-09-05T00:18:33"
     assert data.style.preferred_cmap.name == "sdoaia171"
-    assert len(data.main_components) == 2
+    assert len(data.main_components) == 3  # science, mask and the per-frame Time
 
 
 def test_real_raster_preserves_exact_exposure_times(irispy_test_files):
