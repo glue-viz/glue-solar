@@ -78,11 +78,22 @@ def _cube_data(cube, label, *, color=None, cmap=None):
     data.add_component(Component(cube.data, units=str(cube.unit)), label)
     if cube.mask is not None:
         data.add_component(Component(np.asarray(cube.mask, dtype=bool)), f"{label} mask")
-    if cube.extra_coords and "time" in cube.extra_coords.keys():
-        times = cube.axis_world_coords("time", wcs=cube.extra_coords)[0].utc.to_value("datetime64")
+    times = _frame_times(cube)
+    if times is not None:
         times = np.broadcast_to(times.reshape((len(times),) + (1,) * (cube.data.ndim - 1)), cube.shape)
         data.add_component(times, "Time")
     return data
+
+
+def _frame_times(cube):
+    """UTC time of every step along the leading axis: raster exposures (extra coordinate) or SJI frames (gWCS axis)."""
+    if cube.extra_coords and "time" in cube.extra_coords.keys():
+        times = cube.axis_world_coords("time", wcs=cube.extra_coords)[0]
+    elif "time" in cube.wcs.low_level_wcs.world_axis_physical_types:
+        times = cube.axis_world_coords("time")[0]
+    else:
+        return None
+    return times.utc.to_value("datetime64")
 
 
 def _observation_label(meta):
