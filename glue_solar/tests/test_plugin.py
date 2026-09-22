@@ -1,5 +1,6 @@
 import numpy as np
 from glue.config import data_factory, menubar_plugin
+from glue.core import Data
 from glue.core.data_factories import load_data
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
@@ -126,3 +127,9 @@ def test_frame_time_tool_follows_the_sliders(qtbot, irispy_test_files):
     assert tool.label.isHidden()
     tool.activate()
     assert not tool.label.isHidden()
+
+    # Any loader's datetime component will do, whatever it is called
+    still = Data(label="still", flux=np.zeros((4, 5)), obs_date=np.full((4, 5), np.datetime64("2020-01-01T12:00:00")))
+    app.data_collection.append(still)
+    other = app.new_data_viewer(ImageViewer, data=still)
+    assert other.toolbar.tools["solar:frame_time"].label.text() == "2020-01-01T12:00:00.000 UTC"

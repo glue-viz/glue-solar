@@ -4,6 +4,7 @@ Toolbar tools for glue's viewers.
 
 import numpy as np
 from glue.config import viewer_tool
+from glue.core.component import DateTimeComponent
 from glue.viewers.common.tool import Tool
 from qtpy import QtWidgets
 
@@ -12,14 +13,20 @@ __all__ = ["FrameTimeTool"]
 _WATCHED = ("reference_data", "x_att", "y_att", "slices")
 
 
+def _time_component(data):
+    """The first datetime component of ``data``, or None."""
+    return next((cid for cid in data.main_components if isinstance(data.get_component(cid), DateTimeComponent)), None)
+
+
 @viewer_tool
 class FrameTimeTool(Tool):
     """
     Show the acquisition time of the displayed frame in the Image Viewer's status bar.
 
-    The readout follows the sliders and reads the ``Time`` component the IRIS loaders attach
-    (one time per SJI exposure or raster step); the toolbar button hides and shows it. A frame
-    spanning several exposures, such as a raster shown as step against slit, shows the range.
+    The readout follows the sliders and reads the first datetime component of the reference
+    data, whichever loader attached it (the IRIS loaders add ``Time``, one per SJI exposure or
+    raster step); the toolbar button hides and shows it. A frame spanning several exposures,
+    such as a raster shown as step against slit, shows the range.
     """
 
     icon = "glue_slice"
@@ -47,7 +54,7 @@ class FrameTimeTool(Tool):
     def _refresh(self, *_):
         state = self.viewer.state
         data = state.reference_data
-        cid = data.find_component_id("Time") if data is not None else None
+        cid = _time_component(data) if data is not None else None
         if cid is None or state.x_att is None or state.y_att is None or len(state.slices) != data.ndim:
             self.label.setText("")
             return
