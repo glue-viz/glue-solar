@@ -1,6 +1,8 @@
 import numpy as np
 from glue.config import data_factory, menubar_plugin
 from glue.core.data_factories import load_data
+from glue_qt.app.application import GlueApplication
+from glue_qt.viewers.image import ImageViewer
 from irispy.io import read_files
 
 import glue_solar
@@ -10,7 +12,9 @@ from glue_solar.sources.iris import is_iris_fits
 
 def test_setup_registers_hooks():
     glue_solar.setup()
+    glue_solar.setup()  # glue calls it once; tests and reloads must not duplicate the tool
     assert "IRIS: browse observations…" in [label for label, _ in menubar_plugin]
+    assert ImageViewer.tools.count("solar:frame_time") == 1
     iris = next(f for f in data_factory if f.label == "IRIS Level 2 FITS")
     for label in ("FITS file", "sunpy Map"):  # both also match IRIS files; ours must win
         other = next(f for f in data_factory if f.label == label)
@@ -100,3 +104,25 @@ def test_autolink_synthetic_sji_raster(iris_tree):
     assert {cid.axis for cid in link.cids1} == {1, 2}
     assert {cid.axis for cid in link.cids2} == {0, 1}
 
+
+def test_frame_time_tool_follows_the_sliders(qtbot, irispy_test_files):
+    glue_solar.setup()
+    sji = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
+    sji = load_data(str(sji))
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(sji)
+    viewer = app.new_data_viewer(ImageViewer, data=sji)
+    tool = viewer.toolbar.tools["solar:frame_time"]
+    stamp = [np.datetime_as_string(t, unit="ms") for t in sji["Time"][:, 0, 0]]
+
+    viewer.state.slices = (5, 0, 0)
+    assert tool.label.text() == f"{stamp[5]} UTC"
+
+    viewer.state.x_att = sji.pixel_component_ids[0]  # exposure against slit spans the whole sequence
+    assert tool.label.text() == f"{stamp[0]} – {stamp[-1]} UTC"
+
+    tool.activate()
+    assert tool.label.isHidden()
+    tool.activate()
+    assert not tool.label.isHidden()
