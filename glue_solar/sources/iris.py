@@ -1,95 +1,48 @@
 """
-A reader for IRIS data.
+IRIS Level 2 support: a file reader for File -> Open, and the observation browser.
 """
 
-from collections.abc import Mapping
-
-from glue.config import data_factory, importer, qglue_parser
-from glue.core.component import Component
-from glue.core.coordinates import WCSCoordinates
-from glue.core.data import Data
-from glue.core.data_factories import is_fits
-from glue.core.visual import VisualAttributes
-from irispy.io import read_files
-from irispy.sji import SJICube
-from irispy.spectrograph import SpectrogramCube
+from glue.config import data_factory, menubar_plugin
 from qtpy import QtWidgets
 
 from astropy.io import fits
 
-from glue_solar.sources.loaders.iris import QtIRISImporter
+from glue_solar.sources.loaders.iris import QtIRISImporter, iris_data, last_directory
 
-__all__ = ["import_iris", "read_iris_files"]
+__all__ = ["browse_iris", "read_iris_file"]
 
 
-@qglue_parser(SpectrogramCube)
-def _parse_iris_raster(data):
+def is_iris_fits(filename, **_kwargs):
+    try:
+        return fits.getheader(filename).get("TELESCOP") == "IRIS"
+    except OSError:
+        return False
+
+
+@data_factory("IRIS Level 2 FITS", is_iris_fits, priority=200)  # glue's own "FITS file" is 100
+def read_iris_file(file_path):
     """
-    Parse IRIS Level 2 raster files so that it can be loaded by glue.
+    Read one IRIS Level 2 file: an SJI cube, or every spectral window of a raster file.
     """
-    datasets = []
-    for window, window_data in data.items():
-        for i, scan_data in enumerate(window_data):
-            label = f"{str(window).replace(' ', '_')}-{scan_data.meta['OBSID']}-scan-{i}"
-            w_data = Data(label=label)
-            w_data.coords = scan_data.wcs
-            w_data.add_component(Component(scan_data.data), label)
-            w_data.meta = scan_data.meta
-            w_data.style = VisualAttributes(color="#5A4FCF")
-            datasets.append(w_data)
-    return datasets
+    return iris_data(file_path)
 
 
-@qglue_parser(SJICube)
-def _parse_iris_sji(data, file_header):
+@menubar_plugin("IRIS: browse observations…")
+def browse_iris(session, data_collection):
     """
-    Parse IRIS Level 2 SJI files so that it can be loaded by glue.
+    Browse a folder by observation, load the selection and open the first image in an Image Viewer.
     """
-    wave = int(data.meta["TWAVE1"])
-    w_data = Data(label=f"IRIS-SJI-{wave}-{data.meta['OBSID']}")
-    # TODO: Construct correct 3D WCS
-    header = file_header.copy()
-    for key in [k for k in header if k.startswith("CUNIT")]:  # astropy only accepts these spellings with a warning
-        header[key] = {"seconds": "s", "arcsecs": "arcsec"}.get(header[key], header[key])
-    w_data.coords = WCSCoordinates(header)
-    w_data.add_component(Component(data.data), f"{wave}-{data.meta['OBSID']}")
-    w_data.meta = data.meta
-    w_data.style = VisualAttributes(color="#5A4FCF", preferred_cmap=f"irissji{wave}")
-    return w_data
+    app = session.application
+    directory = QtWidgets.QFileDialog.getExistingDirectory(
+        app, "Select a folder containing IRIS Level 2 files", last_directory()
+    )
+    if not directory:
+        return
+    dialog = QtIRISImporter(directory, parent=app)
+    if dialog.exec() != QtWidgets.QDialog.Accepted or not dialog.datasets:
+        return
+    app.add_datasets(dialog.datasets)
+    if dialog.first_image is not None:
+        from glue_qt.viewers.image import ImageViewer
 
-
-@data_factory("IRIS FITS", is_fits)
-def read_iris_files(file_path):
-    """
-    To read any IRIS Level 2 files.
-    """
-    # TODO: Memmap in future.
-    data = read_files(file_path, uncertainty=False, memmap=False)
-    if isinstance(data, SJICube):
-        return _parse_iris_sji(data, fits.getheader(file_path))
-    elif isinstance(data, Mapping):  # one sequence of scans per spectral window
-        return _parse_iris_raster(data)
-    else:
-        raise ValueError(f"Unrecognised IRIS file type for {file_path}")
-
-
-def pick_directory(caption):
-    dialog = QtWidgets.QFileDialog(caption=caption)
-    dialog.setFileMode(QtWidgets.QFileDialog.Directory)
-    directory = dialog.exec_()
-    if directory == QtWidgets.QDialog.Rejected:
-        return []
-    directory = dialog.selectedFiles()
-    return directory[0]
-
-
-@importer("Import IRIS OBS Directory")
-def import_iris():
-    """
-    To import IRIS raster and SJI fits files for the same observation from directory.
-    """
-    caption = "Select a directory containing files from one IRIS OBS."
-    directory = pick_directory(caption)
-    wi = QtIRISImporter(directory)
-    wi.exec_()
-    return wi.datasets
+        app.new_data_viewer(ImageViewer, data=dialog.first_image)

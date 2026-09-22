@@ -4,66 +4,39 @@
 Data Loader Customization Guide
 ===============================
 
-The ``glue`` data visualization tool is highly customizable for different data types, such as FITS files that are often used in solar physics research.
-There are two ways to customize ``glue`` using the ``glue-solar`` plugin:
+``glue`` can discover file readers through data factories and interactive tools through
+menu plugins. The IRIS support provides a compact example of both.
 
-1. The first option is to develop a custom loader for the solar data taken from practically any (ground-based or satellite-borne) instrument.
+Current IRIS loader structure
+-----------------------------
 
-2. The second option is to develop a custom viewer to enable a specific way to view your data.
-   Such as an alternative of the existing 2D image viewer that presents your data in a manner you like; e.g. color-coding the lines or data points.
+``glue_solar/sources/iris.py`` registers the IRIS Level 2 data factory used by
+"File -> Open Data Set" and the "IRIS: browse observations..." menu action.
+The implementation under ``glue_solar/sources/loaders`` has four responsibilities:
 
-While these two options serve different needs, the former is often needed to load your post-processed data, if they are not FITS.
-``glue`` already has the functionality to open and display FITS files.
-Hence in this guide, we walk through how to construct a custom data loader for your solar physics use case.
+1. ``scan.py`` reads primary headers to group standard IRIS filenames by observation.
+   It does not load science arrays while browsing.
+2. ``iris.py`` asks ``irispy.io.read_files`` to decode SJI, aligned AIA, and raster
+   files, then converts the returned cubes into :class:`glue.core.data.Data` objects.
+3. ``stack_spectrograms.py`` optionally stacks two or more raster scans without
+   resampling. The 4D result has a leading scan-number axis, a separate exact
+   acquisition-time component, and scan 0's WCS as its nominal spatial frame.
+4. ``iris_loader.ui`` and ``QtIRISImporter`` present the observation and spectral-window
+   selection dialog.
 
-The Case of the IRIS subpackage
--------------------------------
+``irispy`` remains responsible for instrument detection, FITS interpretation, bad-pixel
+masks, metadata normalization, units, and each input cube's WCS and exposure times. The
+Glue adapter preserves those values and exposes masks and raster times as separate Glue
+components.
 
-If we look at the ``glue_solar/instruments/iris`` directory, we can find (at least at the time of writing of this
-guide) the files within follows:
+Extending a loader
+------------------
 
-1. __init__.py: This is the typical ``init`` file that is used for containing the code snippets that are
-used for initializing the subpackage, and is required for running unit tests with ``pytest``.
+Register a focused data factory for a new file type and convert the authoritative
+reader's output into one or more :class:`glue.core.data.Data` objects. Add a Qt menu
+plugin only when users need selection beyond "File -> Open Data Set". Keep inexpensive
+file discovery separate from full data decoding, and test the registered production
+path with a representative file.
 
-2. ``iris.py``: This serves as the "main" file for running the basic loader code in this ``iris`` subpackage. The
-module contains three methods needed to load the typical IRIS Level 2 Raster Scan into ``glue``. They are the
-``import_iris``, ``read_iris_raster``, and the (hidden) ``_parse_iris_raster`` methods. As an aside, to load
-IRIS Level 2 SJI Cubes, one will need to use the FITS loader instead.
-
-3. ``loader.py``: This serves as the file containing the ``QtIRISImporter`` class which is used in conjunction
-with ``loader.ui``. This ``loader`` module is the primary means we communicate with the UI component called "loader".
-
-4. ``loader.ui``: This is the Designer UI file used in this Qt application. Simply put this is a fancy way of saying
-that this file gives the look and feel of the dialog box we will use for loading the FITS files taken with
-the instrument concerned.
-
-5. ``stack_spectrograms.py``: This file can alternately be named ``utils.py`` instead. As this suggestion would
-indicate, it provides a utility called ``stack_spectrogram_sequence``
-
-Basic subpackage structure
---------------------------
-
-So using the above example and thinking deductively, we can tell the following basic directory structure for any new
-instrument submodule:
-
-1. The ``__init__.py`` file
-
-2. The "main" instrument module as in the C-family parlance, this is where the main action takes place.
-
-3. The ``loader.py`` file for controlling or interacting with the ``loader.ui`` Qt Designer file.
-
-4. The corresponding ``loader.ui`` file providing the UI of the pop-up dialog box. One suggestion is to use the
-IRIS version as a template, and then use Qt's Designer application to edit it to suit once needs.
-
-5. Some module akin to the ``utils.py`` for storing all the helper functions one will need in the other modules within
-the same instrument subpackage.
-
-Basically the most important thing to keep in mind is to make sure your main instrument module (``iris.py`` in the
-case of the ``IRIS`` satellite) contains three essential ingredients; they are namely the parser (note the use of the
-``@qglue_parser`` decorator for this), the data factory (note the use of the ``@data_factory`` decorator), and the
-importer (note the use of the ``@importer`` decorator). Please note also that the way to convert instrument-specific
-data to the ``glue.core.data.Data`` object is highly dependent on the pipeline used for such observations. But in
-general the ``astropy.io.fits`` methods should be able to handle most but not all as an instrument-agnostic option.
-
-For more details about the ``glue`` loader customization, please see
-`the official glue customization guide <http://docs.glueviz.org/en/stable/customizing_guide/customization.html>`_.
+For the available registration hooks, see
+`Glue's customization guide <https://docs.glueviz.org/en/stable/customizing_guide/customization.html>`__.

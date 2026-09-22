@@ -32,10 +32,10 @@ After that, change directory (cd) to glue-solar::
 
 Finally, do the following while at the root (highest level) of the glue-solar directory::
 
-    $ pip install -e ".[all]"
+    $ pip install -e .
 
-Started up Glue
-^^^^^^^^^^^^^^^
+Starting up Glue
+^^^^^^^^^^^^^^^^
 
 Once both ``glue`` and ``glue-solar`` have been properly installed, to start the application via the command line::
 
@@ -43,7 +43,7 @@ Once both ``glue`` and ``glue-solar`` have been properly installed, to start the
 
 This will launch the ``glue`` graphical user interface (GUI) from your terminal.
 
-On Windows operating systems, installation creates an executable ``glue.exe`` file within the Python script directory (e.g., ``C:\Python310\Scripts``).
+On Windows operating systems, installation creates an executable ``glue.exe`` file within the Python script directory (e.g., ``C:\Python312\Scripts``).
 Windows users can create a desktop shortcut for this file upon installation
 
 User Interface Guide

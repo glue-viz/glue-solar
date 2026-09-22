@@ -1,1 +1,1 @@
-Requires Python >= 3.12 (the code already used 3.12-only syntax), glue-core >= 1.23 with glue-qt >= 0.4, and irispy-lmsal >= 0.8.1. The unused ``glue-core[all]`` and ``irispy-lmsal[all]`` extras and the non-existent ``sunpy[coordinates]`` extra are dropped.
+Requires Python >= 3.12 (the code already used 3.12-only syntax), glue-core >= 1.23 with glue-qt[qt] >= 0.4, and irispy-lmsal >= 0.8.1. The unused ``glue-core[all]`` and ``irispy-lmsal[all]`` extras and the non-existent ``sunpy[coordinates]`` extra are dropped.

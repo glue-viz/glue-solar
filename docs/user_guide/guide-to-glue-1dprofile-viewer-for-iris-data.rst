@@ -4,126 +4,72 @@
 A guide to using ``glue``'s 1D profile viewer to probe IRIS Level 2 data sets
 =============================================================================
 
-Loading multi-scan IRIS Level 2 data sets and stacking the sequential raster cubes
-----------------------------------------------------------------------------------
+Loading and stacking multi-scan IRIS Level 2 raster cubes
+---------------------------------------------------------
 
-It is important to note that it would be preferable to use the directory loader as opposed to the file loader for this task.
-To do this, we will first need to load some multi-scan IRIS Level 2 data sets collected from the same observation (i.e. having identical ``OBSID``) with the "Import IRIS OBS Directory" option under "File"'s "Import data":
-
-.. image:: images/loading-multiscan-iris-data-1.png
-   :width: 800
-   :alt: Importing Multi-scan IRIS Level 2 data sets with the directory loader
-
-.. image:: images/loading-multiscan-iris-data-2.png
-   :width: 800
-   :alt: Choosing the directory containing both raster and SJI data sets of the same observation
-
-Then, choose the relevant raster and SJI data cubes of different scans and remember to stack the sequential raster cubes in order to obtain 4D data cubes from 3D ones.
-An example view of this step:
+Use the observation browser for this task because it groups raster scans by observing-program
+execution and lets you select spectral windows before loading their arrays. Open
+"Plugins -> IRIS: browse observations..." and point it at a directory containing the IRIS
+Level 2 files or their downloaded archives. If an archive is still packed, tick its
+"Extract ..." entry and press "Load selected" first; the browser refreshes and shows its contents.
+Then tick the raster spectral windows to load (``C II 1336`` and ``Mg II k 2796`` here) and tick
+"Stack sequential raster scans" to place two or more scans of each selected window into one 4D
+cube without resampling their detector values. A window with only one scan loads as its normal 3D
+dataset.
 
 .. image:: images/choosing-iris-level-2-data-cubes-and-stacking-raster-cubes.png
    :width: 800
-   :alt: Importing Multi-scan IRIS Level 2 data sets with the directory loader
+   :alt: Selecting two raster spectral windows of a multi-scan observation and ticking the stacking option
 
-We have chosen 3 raster and 2 SJI data sets to import as an example to illustrate this functionality.
-Once the IRIS data sets have been successfully loaded, we will see the data sets showing up in the "Data Collection" window in the upper left of the GUI:
+The browser uses ``irispy`` to read the selected files and returns the datasets to Glue.
+Once loaded, the data sets show up in the "Data Collection" window in the upper left of the GUI.
+A stacked window is labelled ``<window>-<OBSID>-<STARTOBS>-stack``, while unstacked scans are
+labelled ``<window>-<OBSID>-<STARTOBS>-scan-<n>``. Including ``STARTOBS`` keeps repeated executions
+of the same observing program distinct.
 
-.. image:: images/raster-and-sji-data-loaded-to-data-collection.png
+The stacked cube has a leading ``Scan`` coordinate rather than pretending that a complete raster
+was acquired at one instant. Its separate ``Time`` component records the exact acquisition time
+of every pixel. Scan 0 supplies the nominal helioprojective WCS for the whole stack; subsequent
+scans keep their original raster and detector indices, not their distinct absolute pointings.
+Load the original per-scan datasets when those per-scan absolute coordinates are required.
+
+Using ``glue``'s 2D image viewer to pick a pixel
+------------------------------------------------
+
+Drag the stacked ``Mg_II_k_2796`` dataset from the "Data Collection" area onto the large plotting
+window to the right and choose "2D Image". The viewer shows one slice of the 4D
+(scan, raster position, slit position, wavelength) cube. By default the x-axis is ``Wavelength``
+and the y-axis is ``Helioprojective Latitude``, so you are looking at the spectrum along the slit,
+with sliders for ``Scan`` and ``Helioprojective Longitude``.
+
+The raw min/max limits can make the slice look flat. Change the limits to "99%" and pick a more
+nuanced colormap so the emission lines stand out.
+
+To turn the slice into a map with celestial axes, change the x-axis to
+``Helioprojective Longitude`` while keeping the y-axis as ``Helioprojective Latitude``.
+The sliders are then ``Scan`` and ``Wavelength``. Set the aspect to "Automatic" so the narrow
+raster field fills the plot, then move the ``Wavelength`` slider onto the line core until
+structure appears in the map.
+
+Now activate the pixel selection tool (the crosshair icon in the viewer toolbar) and click a
+point of interest. This creates a subset, ``Subset 1``, containing that pixel in every scan and
+wavelength; it appears under "Subsets" in the Data Collection and is drawn on top of the image.
+Click and drag to move it interactively.
+
+Using Glue's 1D Profile viewer to plot the spectrum and scan evolution
+----------------------------------------------------------------------
+
+Drag ``Mg_II_k_2796`` onto the plotting window again and choose "1D Profile". The profile viewer
+collapses the cube over every axis except the one chosen as the x-axis; pick ``Wavelength`` as
+the x-axis and "Mean" as the function. The ``Mg_II_k_2796`` layer is then the mean spectrum of the
+whole cube and the ``Subset 1`` layer is the spectrum at the selected pixel, averaged over the
+stacked scans.
+
+.. image:: images/spectrum-at-the-selected-pixel.png
    :width: 800
-   :alt: Loaded raster and SJI data sets in the Data section of the Data Collection window
+   :alt: The 1D Profile viewer showing the spectrum at the selected pixel
 
-Now we are ready to visualize the 2D slices of the imported data cubes.
-
-Using ``glue``'s 2D image viewer to get the indices and slices needed for the 1D spectrum plot
-----------------------------------------------------------------------------------------------
-
-To plot 2D slices of the AND data cubes, we will need to drag the data ("C_II_1336" in this
-example) concerned from the "Data Collection" area and drop it at the large plotting window
-to the right, as shown in the following image:
-
-.. image:: images/dragging-and-dropping-data-to-viewing-window.png
-   :width: 800
-   :alt: Dragging and dropping an IRIS raster data cube to Glue's viewing window to get the 2D Image viewer
-
-Once the data is dropped, a dialog box will pop up and prompt the user to select which viewer
-to use for the data visualization.
-In this case, we will need to choose the 2D Image viewer, as follows:
-
-.. image:: images/choosing-the-2D-image-viewer.png
-   :width: 800
-   :alt: Choosing the 2D Image viewer for visualizing 2d slices of data cubes
-
-Afterwards, we will be presented with a 2D slice of the chosen 4D (sequentially stacked) data cube in the plotting window.
-It might not be a bad practice to switch to a more nuanced color scheme and to change the limits to for example "99%" as demonstrated in this example.
-This way the cube is easier to see and is more colorful:
-
-.. image:: images/default-view-of-a-2d-slice-of-the-raster-cube.png
-   :width: 800
-   :alt: Default view of a 2D slice of the chosen raster cube
-
-.. image:: images/changing-color-scheme-and-limits-of-2d-slices.png
-   :width: 800
-   :alt: Changing the color scheme and limits of the 2D slices of the chosen data cube
-
-For now the default x-axis has been set to be that of the wavelength.
-To turn the 2D slice into a map with celestial axes, we change the x-axis into ``HPLN`` (i.e., the longitude), while keeping the y-axis as ``HPLT`` (i.e., the latitude).
-This way the sliders are now ``TIME`` and ``WAVE``, respectively.
-For the data cube we have used once this change is effected the 2D cube should be blank.
-In order to get a glimpse of the data cube, we will need to tweak the wavelength slider until we can see a slice with a different shade of color.
-Once this is achieved, we can then select any pixel in this area with the pixel extraction tool.
-To use the pixel extraction tool, firstly activate its icon on top of the 2D image viewer.
-Then, as the instruction provided, click to select a point of interest.
-In this case in principle any point in the rectangular area of a darker shade of color would be a suitable choice, as the images below shows:
-
-.. image:: images/tweaking-wave-slider-to-get-data-cube-effective-area.png
-   :width: 800
-   :alt: Tweaking the wavelength slider to get the effective area of the data cube
-
-.. image:: images/choosing-the-pixel-extraction-tool-in-2d-image-viewer.png
-   :width: 800
-   :alt: Choosing the pixel extraction tool in the 2D Image viewer
-
-.. image:: images/selecting-a-point-with-pixel-extraction-tool.png
-   :width: 800
-   :alt: Selecting a point with the pixel extraction tool
-
-Now it is probably time to check that we have both an ``IndexedData`` object and a ``SlicedData`` object in the Data Collection section.
-The former is represented by a Python list, whereas the latter is represented by a Python tuple.
-Once this is checked we are all set to move on to the next stage, see below:
-
-.. image:: images/checking-for-indices-and-slices.png
-   :width: 800
-   :alt: Checking for both an ``IndexedData`` object and a ``SlicedData`` object in Data Collection
-
-Using Glue's 1D Profile viewer to generate 1D spectra at different spatial and temporal positions
--------------------------------------------------------------------------------------------------
-
-Like for the 2D slices case, we will need to drag and drop the same data set onto the plotting window in order to start the 1D Profile viewer, with the ultimate goal to generate non-collapsed 1D spectra that change with changes in the slider values.
-Please keep in mind to select the exact same data and not either of the ``IndexedData`` object or the ``SlicedData`` object that shares a very similar representation, otherwise an error would be thrown:
-
-.. image:: images/dragging-and-dropping-the-same-data-to-viewing-window.png
-   :width: 800
-   :alt: Dragging and dropping the same data to the viewing window to get the 1D Profile viewer
-
-.. image:: images/choosing-the-1d-profile-viewer.png
-   :width: 800
-   :alt: Choosing the 1D Profile viewer to generate 1D spectra of the sun
-
-Once the 1D Profile viewer shows up, you will be shown a collapsible version of the ``Maximum`` function of the 1D spectrum.
-However, this may not be very telling and is not a genuine 1D spectrum, but is a statistical representation of the maximum of the quantity concerned.
-By default the x-axis for the setup is ``TIME``, so we will need to first tweak the time slider in order to trigger the generation of a ``SlicedData`` object with a non-trivial slice value for the time dimension, as time in this context is effectively the variable. So one would expect to see up to two ``SlicedData`` objects appearing simultaneously in the Date Collection window:
-
-.. image:: images/tweaking-the-time-slider-to-trigger-2nd-slicedata-obj.png
-   :width: 800
-   :alt: Tweaking the time slider to trigger a second ``SlicedData`` object
-
-.. image:: images/getting-a-sliceddata-obj-with-non-trivial-time-slice.png
-   :width: 400
-   :alt: Confirming that a second ``SlicedData`` object with non-trivial time slice is attained
-
-Then, switch from the default "Maximum" function to the "Slice" function in order to obtain an un-collapsed version of the 1D spectrum, which can be controlled by the sliders for the 1D Profile viewer in the Options Widgets window in the lower left corner.
-The final result would be one such as the following:
-
-.. image:: images/controlling-dynamic-1d-spectrum-with-profile-sliders.png
-   :width: 800
-   :alt: Controlling the dynamically changed 1D spectrum with the Profile sliders
+Switching the x-axis to ``Scan`` gives the intensity evolution by raster number, averaged over the
+spectral window. The ``Time`` component supplies the exact acquisition timestamp for individual
+pixels, but it depends on both scan number and raster position and is therefore not a single Glue
+profile axis. Both profiles update as you move the pixel selection in the image viewer.

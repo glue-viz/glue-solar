@@ -1,32 +1,66 @@
 .. _glue_solar_users_guide_loading_iris_level_2_raster_and_sji_files:
 
-=======================================================
-Loading IRIS Level 2 Raster and SJI Data Files Together
-=======================================================
+======================================
+Browsing and Loading IRIS Level 2 Data
+======================================
 
-Using the custom IRIS importer
-------------------------------
+Browsing a folder by observation
+--------------------------------
 
-Using the custom IRIS ``glue`` data importer, one can handle the loading of different raster and SJI files of IRIS Level 2 data for the same observation with ease.
-To begin, point the cursor to the "File" dropdown menu and the choose "Import Data", and after which choose the Import IRIS OBS Directory" option. Like in the image below:
-
-.. image:: images/loading-iris-data-1.png
-   :width: 800
-   :alt: The "Import IRIS OBS Directory" option in ``glue``
-
-Take care to make sure all the IRIS data files for the same observations you would like to investigate with ``glue`` are all located in the same directory.
-Then, a popup dialog box would allow you to choose the desired observation directory containing the "raster" and "SJI" files of interest.
-Upon clicking "Open" on the lower right of the dialog box, an importer would pop up with the heading "Load IRIS Observation", with the available data sets listed in the respective "raster" and "SJI" fields, as shown in the image that follows:
+``glue-solar`` adds an observation browser inspired by a subset of the IDL ``iris_xfiles`` tool;
+it does not reproduce the IDL quicklook features.
+Point it at any folder holding IRIS Level 2 files - the usual ``level2/yyyy/mm/dd/<obs>/`` tree,
+a flat download folder, or a pooch cache - and it lists every observation it finds, grouped by
+OBSID and start time, with the description, pointing and number of files:
 
 .. image:: images/loading-iris-data-2.png
    :width: 800
-   :alt: Loading Raster and SJI data together with the importer
+   :alt: The IRIS observation browser listing the observations found in a folder
 
-After successfully loading the chosen data files, if autolinking if available, you will be prompted to link up the files concerned.
-A dialog box like what follows would pop up:
+Open it from the "Plugins" menu with "IRIS: browse observations...". Subfolders are searched by
+default; un-tick "Search subfolders" to look at one folder only. The last folder used is remembered.
 
-.. image:: images/loading-iris-data-3.png
-   :width: 800
-   :alt: Autolinking option for the IRIS OBS importer
+Expand an observation to see what can be loaded:
 
-Finally, you are all set to examine the IRIS Level 2 data.
+- one entry per slit-jaw band (``SJI_1330``, ``SJI_1400``, ``SJI_2796``, ``SJI_2832``),
+- one entry per raster spectral window (for example ``Mg II k 2796 - 8 raster file(s)``): every
+  raster scan of the observation is loaded for that window,
+- one entry per co-aligned SDO/AIA cutout when an ``_SDO`` folder is present.
+
+Tick the entries you want (ticking the observation row ticks everything under it) and press
+"Load selected". The data are added to the data collection and the first slit-jaw (or AIA) cube is
+opened in an Image Viewer; use its slider to step through time.
+Tick "Stack sequential raster scans" to place two or more raster scans of a window into a single
+4D cube without resampling their detector values. Its leading ``Scan`` coordinate selects the
+original raster scan, and its ``Time`` component contains the exact acquisition time of every
+pixel. Scan 0 supplies the stack's nominal helioprojective WCS; later scans remain aligned by
+raster and detector index rather than carrying their distinct absolute pointings. Load scans
+separately when those per-scan absolute coordinates are required. A selected window containing one
+scan loads normally as a 3D dataset and also exposes its exact per-step ``Time`` values.
+
+Downloads that are still packed (``*_raster.tar.gz``, ``*_SDO.tar.gz``) show up under their observation
+as an "Extract ..." entry. Tick it and press "Load selected": the archive is unpacked into a folder of
+the same name next to it (the layout irispy and pooch use), the list refreshes, and you can then tick
+the spectral windows or cutouts it contained. Extraction is completed in a temporary sibling
+directory, so a failure leaves the archive visible for retry. Nothing is loaded in that step, and
+the archive is left in place.
+
+Opening a single file
+---------------------
+
+"File -> Open Data Set" also understands IRIS Level 2 files directly: a slit-jaw file loads as one
+cube, and a raster file loads one dataset per spectral window.
+
+Linking
+-------
+
+Glue does not currently autolink irispy's time-varying SJI gWCS and raster ``-TAB`` WCS. To
+propagate spatial selections, open the Data Manager's link editor and manually pair
+``Helioprojective Longitude`` and ``Helioprojective Latitude`` between datasets.
+
+Saving sessions
+---------------
+
+Glue sessions containing these IRIS datasets cannot currently be restored reliably. The irispy
+metadata and WCS objects, including SJI gWCS and raster lookup tables, need dedicated serializers;
+save derived products separately rather than relying on a Glue session as their only copy.
