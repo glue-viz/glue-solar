@@ -1,0 +1,221 @@
+doc-accuracy.json:
+  audit:
+    items: [5]
+      [0]:
+        id: doc-1-audit-plugin-bullets
+        title: Audit 'What the current Glue plugin does' bullets + comparison-table cells vs branch code
+        status: implemented_glue_solar
+        where: glue-solar@d3a2bd3 (== PR #44 head): glue_solar/sources/iris.py:15-48, loaders/iris.py:27-115, loaders/scan.py:110-179, loaders/stack_spectrograms.py:42-79
+        evidence: Bullet-by-bullet: recursive scan default (scan.py:118, ui 'recursive' checked) OK; last dir via QSettings (iris.py:117-119,209) OK; grouping by OBSID+STARTOBS (scan.py:85-98) OK; description/xcen/ycen/sat_rot/nfiles
+            columns (iris.py:216-228) OK; SJI/windows/AIA entries + tar.gz 'Extract' entries with temp-dir+rename (scan.py:29-51, 139-143) OK; checkboxes with tristate parent (iris.py:236-247) OK; read_files for all three kinds
+            (iris.py:130,136,163) OK; one Data per SJI/AIA cube or per scan+window (iris.py:93-107) OK; mask/units/meta/WCS preserved (iris.py:72-85), raster 'Time' component from extra_coords['time'] verified on irispy test raster;
+            arcsec + signed lon (iris.py:45-62) verified (units ('m','arcsec','arcsec')); data factory priority=200 TELESCOP gate (iris.py:15-22) OK; first SJI/AIA opened in ImageViewer (iris.py:45-48) OK. Autolink: glue-core 1.27.0
+            wcs_autolink on DataCollection([sji, raster]) -> 0 links; WCSLink(sji, raster) -> AttributeError '_GlueWCS' object has no attribute 'has_celestial'. Cause: wcs_autolinking.py:321 keeps only BaseHighLevelWCS and _GlueWCS
+            is a BaseWCSWrapper (low-level only); with the raw irispy objects (gwcs.WCS for SJI, astropy -TAB WCS for raster) wcs_autolink RAISES AttributeError uncaught (only IncompatibleWCS is caught, lines 340-343). Sessions:
+            GlueSerializer(sji) -> GlueSerializeError on _GlueWCS; GlueSerializer(raster) -> TypeError numpy.save on Quantity, coming from meta values 'exposure time'/'observer radial velocity' before the WCS is even reached. Stack
+            (13-scan 3860258481 test set): dtype >f4 -> float32 np.memmap (stack_spectrograms.py:42-47, default memmap=True from loaders/iris.py:98), masked pixels -200 -> NaN (lines 54-56), mask recomputed as ~isfinite (line 79);
+            world names [...,'Scan'] and 4D datetime64 'Time' component verified. SJI dataset world component labels are 'Longitude','Latitude','Time (Utc)' (irispy gWCS names win in _GlueWCS.world_axis_names, iris.py:39-43); raster
+            labels are 'Helioprojective Longitude/Latitude','Wavelength'.
+        feasibility: trivial
+        blockers: 
+        recommendation: Bullets and table cells are accurate in effect; fix the three overstatements quoted below. Optionally make _GlueWCS prefer _AXIS_NAMES over irispy's names so SJI and raster expose identical HPC component names (one-line
+            change at loaders/iris.py:41), which also fixes the user-guide Linking instruction.
+        doc_corrections: (a) Audit L122-124 'Gives physical names to wavelength and helioprojective world axes' -> only when irispy leaves the name empty (raster); SJI keeps irispy's 'Longitude'/'Latitude'/'Time (UTC)'. (b) Audit L137-138 'It
+            preserves each scan's detector values, mask' and table L174 'The stack retains original values' -> masked pixels are replaced by NaN and the mask is rebuilt from isfinite; dtype is promoted to float32 and the array lives
+            in a temp-file memmap. (c) Audit L141-144 session paragraph is correct, but for rasters the first failure is the Quantity-valued irispy metadata, not the -TAB WCS; keep 'metadata' first in the list. (d) Audit L129-131 /
+            plan L142-144 mechanism: glue skips the datasets because glue-solar's _GlueWCS is low-level (BaseWCSWrapper), and would crash (uncaught AttributeError) on the raw gWCS/-TAB objects; current wording ('does not autolink
+            irispy's SJI gWCS and raster -TAB WCS') is right in effect but implies the WCS types are the gate.
+      [1]:
+        id: doc-2-plan-status-paragraph
+        title: Plan 'Current status (2026-08-29)' paragraph vs reality on 2026-09-02
+        status: implemented_on_fork_branch
+        where: IRIS_GLUE_GAP_PLAN.md:10-17; ~/Git/glue branches ape14-wcs-autolink (b16a3703, 016d9cf2), profile-wcs (175e7129..c3bcd75b); ~/Git/glue-qt profile-wcs (1133c0e9), macos-integration (= glue-viz/glue-qt#68)
+        evidence: gh pr view 44: state OPEN, mergeable, reviews [], reviewRequests [], reviewDecision '', all checks SUCCESS/SKIPPED (run 2026-08-29T12:13Z on head d3a2bd31 == local HEAD; base main; head repo glue-viz). TODO files exist
+            but are untracked in both forks (git status '??'). ape14-wcs-autolink: 2 commits, +574/-61 in wcs_autolinking.py + tests; pytest glue/plugins/wcs_autolinking with PYTHONPATH=branch -> 31 passed, 1 xfailed, 1 xpassed;
+            wcs_autolink on glue-solar SJI_1400 + Mg II k raster datasets -> 1 WCSLink matching ['custom:pos.helioprojective.lon','custom:pos.helioprojective.lat'] both sides (0 links with released glue-core 1.27.0).
+            APE14_AUTOLINK_TODO.md checklist: every box still '[ ]'. profile-wcs (glue): 'slice' collapse fn (=Piece C), opt-in WCSAxes (=Piece A), translate slice views across linked datasets, pixel x-limits sessions; glue-qt
+            profile-wcs 1133c0e9 = Piece B (sliders + WCSAxes gated on core capabilities); PROFILE_WCS_RESTART_TODO.md: every box '[ ]'. gh pr list glue-viz/glue --author nabobalis: only #2248 (DRAFT, opened 2021-11-09,
+            1dprofile_wcs) and #2293 (merged); no PR for either new branch. glue-qt #68 'Improve macOS integration' OPEN, no reviews. Plan L142-147 and APE14 TODO L8-10 cite 'audit §4a' — the audit has no numbered sections and no
+            measurement section.
+        feasibility: trivial
+        blockers: Upstream PRs for ape14-wcs-autolink and profile-wcs not opened; TODO checklists not updated.
+        recommendation: Rewrite the status paragraph for 2026-09-02: #44 open/awaiting review (no reviewer requested), Phase 3.1 implemented on fork branch ape14-wcs-autolink (tests green, IRIS autolink verified) and awaiting an upstream PR;
+            Pieces A/B/C of the profile-viewer TODO implemented on profile-wcs branches; macOS work is PR glue-qt#68. Tick the completed boxes in both TODO files (or note they are stale) and replace 'audit §4a' with a pointer to the
+            audit's 'Data loading and representation' paragraph. Mention that the TODO files are untracked local files.
+        doc_corrections: L10-11 'is in review with CI green' -> 'open and mergeable, CI green on d3a2bd3, no reviews or review requests yet'. L11-13 'active work is the glue-core items — starting with Phase 3.1 (APE-14 autolink)' -> Phase 3.1 is
+            already implemented on ~/Git/glue branch ape14-wcs-autolink (2 commits, tests pass, IRIS SJI+raster autolink yields one HPC WCSLink) but has no upstream PR. L14-17 'Detailed working TODOs ... live in the glue fork' ->
+            they are untracked files (not on any branch); both checklists are all-unchecked despite the branches existing; the profile-viewer work (PROFILE_WCS_RESTART_TODO.md, profile-wcs branches in glue and glue-qt) is referenced
+            as active work but maps to no plan phase (closest: Phase 3.2). L142-144 'audit §4a' -> no such section exists.
+      [2]:
+        id: doc-3-cross-document-consistency
+        title: Consistency between the plan and the audit (coverage labels, homes vs phases, order of attack, upstream-library claims)
+        status: partial
+        where: IRIS_GLUE_GAP_PLAN.md:30-53, 57-91, 93-135, 190-199; IRIS_IDL_GLUE_CAPABILITY_AUDIT.md:165-186
+        evidence: Coverage column diffs: Level-3 'Missing' (plan L51) vs 'Will not implement' (audit L185); EIS 'Out of scope' (plan L53) vs 'Will not implement' (audit L186); 'Session round trips (audit §"unsupported")' (plan L52) has no
+            audit table row and no section by that name (it is the paragraph at audit L141-144). Homes vs phases: 'Detector view (mosaic) | glue-solar | Optional full-detector loader variant' (plan L38) has no Phase item, while non-
+            goals L184 list 'detector mosaic chrome'; 'Sit-and-stare ... Defer' (L41) appears in no phase or non-goal; SDO pointing context sits in Phase 2 ('the math already exists upstream', L132-135) although it is a fetch
+            wrapper like GOES in Phase 1.5. Order of attack: Step 1 = Phase 1.1-1.4 then Step 2 = 3.1 'deletes Phase 1.4' (L194-195) — builds then deletes 1.4; the status paragraph (L11-14) says 3.1 comes first and 2.1 is the first
+            glue-solar PR after #44, contradicting Steps 1 and 3 (1.5-1.7 before 2.1). Phase 2.2 'Requires dask — add as an optional fitting extra' (L124): pip show dask -> Required-by irispy-lmsal (hard dep), dask 2026.8.0 already
+            installed. Phase 2.1 claims verified: v0.8.1 signature calculate_moments(cube, *, rest_wavelength=None, wings=None, integrated=False, min_intensity=None, saturation_limit=None); on the Mg II k test raster
+            meta.rest_wavelength = 279.62 nm from TWAVE; returns RasterCollection with keys intensity/centroid/width/velocity/velocity_width, each a 2D SpectrogramCube with astropy WCS; _cube_data ingests each unchanged (2D Data,
+            HPC world axes, units DN_IRIS_NUV/nm/km s-1, also a 'Time' component). astropy 8.0.1 has astropy.modeling.fitting.parallel_fit_dask; irispy examples/analysis/01_spectral_fitting.py and 07_mg_ii_two_gaussian_fitting.py
+            exist. Plan L142-146 description of glue-core 1.27.0 code confirmed (wcs_autolinking.py:321 BaseHighLevelWCS gate; :146-158 has_celestial/.celestial/.wcs.lng; :177/180 world_n_dim - i - 1). Phase 3.5 'Playback ...
+            already exist' confirmed (glue-qt main data_slice_widget.py:50-58 playback buttons).
+        feasibility: trivial
+        blockers: 
+        recommendation: Align the coverage labels with the audit ('Will not implement' for Level-3 and EIS), give the detector-view row either a phase item or move it to non-goals, drop Phase 1.4 outright (3.1 exists on a branch) and rewrite
+            'Suggested order of attack' to match the decided order (3.1 upstream PR -> 2.1 moments -> Phase 1 items -> 2.2 -> 3.2 -> remainder). Delete the 'add dask as optional extra' sentence. Rename the plan's moment outputs to
+            the real keys (intensity/centroid/width/velocity/velocity_width).
+        doc_corrections: Plan L51 'Level-3 FITS generation | Missing' -> 'Will not implement' (audit L185). Plan L53 'EIS ... | Out of scope' -> 'Will not implement' (audit L186). Plan L52 'audit §"unsupported"' -> 'audit, Data loading and
+            representation, last paragraph'. Plan L4 'For every Partial/Missing row' -> also lists Will-not-implement rows and a non-table item. Plan L38 detector row has no matching phase; non-goal L184 says the opposite. Plan
+            L194-195 Step 1 includes 1.4 which Step 2 deletes; and the status paragraph's order (3.1 first, then 2.1) contradicts Steps 1-3. Plan L124 'Requires dask — add as an optional fitting extra' -> dask is already a hard
+            dependency via irispy-lmsal; no extra needed. Plan L102-103 '0th/1st/2nd moments' -> returned keys are intensity, centroid, width (+ velocity, velocity_width).
+      [3]:
+        id: doc-4-user-guide-rst
+        title: docs/user_guide/*.rst statements vs code and vs the two documents
+        status: partial
+        where: docs/user_guide/loading-iris-level-2-raster-and-sji-data.rst:25-46, 54-66; guide-to-glue-1dprofile-viewer-for-iris-data.rst:24-34; loading-aia-and-hmi.rst; docs/dev_guide/loader-customization.rst
+        evidence: Linking section L57-59 tells users to pair 'Helioprojective Longitude'/'Helioprojective Latitude'; probe shows the SJI dataset's world components are named 'Longitude','Latitude','Time (Utc)' (irispy gWCS axes_names
+            retained by _GlueWCS.world_axis_names, loaders/iris.py:39-43), only the raster has 'Helioprojective ...'. 'time-varying SJI gWCS' L57 confirmed: irispy v0.8.1 io/sji.py _create_gwcs builds crval table from per-exposure
+            XCENIX/YCENIX and a Tabular1D time axis. Saving-sessions L64-66 confirmed (both serializations fail, see doc-1). L28 'one entry per co-aligned SDO/AIA cutout when an _SDO folder is present': scan.py:20,110-115 keys on
+            filename aia_l2_* + INSTRUME AIA anywhere under the root; no folder requirement. L33-39 stack wording matches code (Scan coordinate, per-pixel Time, scan-0 WCS) but repeats 'without resampling their detector values' —
+            true, though masked values become NaN. L39 single-scan window 'exposes its exact per-step Time values' confirmed (raster Data has 'Time'). L41-46 extraction semantics match scan.py:29-51 and loaders/iris.py:272-287.
+            1D-profile guide labels '<window>-<OBSID>-<STARTOBS>-stack' / '-scan-<n>' match loaders/iris.py:99,105. loading-aia-and-hmi.rst autolink claims apply to sunpy-Map astropy WCS and do not contradict the IRIS Linking
+            section; 'Overplotting AMI and HMI' L43 is a typo. dev_guide/loader-customization.rst L13-30 matches the code layout. Tests on branch: 27 passed locally (pytest glue_solar -o addopts='').
+        feasibility: trivial
+        blockers: 
+        recommendation: Fix the Linking sentence to name the SJI components ('Longitude'/'Latitude') as well, or better normalise the names in _GlueWCS so both datasets say 'Helioprojective Longitude/Latitude' and the doc stays as is. Drop
+            'when an _SDO folder is present'. Plan to replace the Linking paragraph with a version-gated note once the ape14 change is released upstream.
+        doc_corrections: loading-iris...rst L58-59 'manually pair ``Helioprojective Longitude`` and ``Helioprojective Latitude`` between datasets' -> SJI datasets expose ``Longitude``/``Latitude``; only raster datasets expose ``Helioprojective
+            Longitude``/``Helioprojective Latitude``. L28 'when an ``_SDO`` folder is present' -> any ``aia_l2_*.fits`` cutout found under the folder. loading-aia-and-hmi.rst L43 'AMI' -> 'AIA' (cosmetic).
+      [4]:
+        id: doc-5-changelog-whatsnew
+        title: changelog/ fragments and docs/whatsnew vs the branch
+        status: implemented_glue_solar
+        where: changelog/44.feature.rst, changelog/44.bugfix.rst, changelog/42.breaking.rst, pyproject.toml:18-23, docs/whatsnew/changelog.rst
+        evidence: 44.feature.rst claims verified against code: menu label 'IRIS: browse observations…' (iris.py:30), recursive + pooch (scan.py:18-26,134), tar.gz extraction in place (scan.py:29-51), first image opened (iris.py:45-48),
+            arcsec HPC (loaders/iris.py:45-62), per-exposure times and -TAB WCS (ctype ['WAVE','HPLT-TAB','HPLN-TAB'] on test raster), 'replaces the previous one-directory importer and the qglue parsers'
+            (main:glue_solar/sources/iris.py:25,43 @qglue_parser, :86 @importer('Import IRIS OBS Directory') all gone). 44.bugfix.rst matches iris.py:15-22 (TELESCOP=='IRIS', priority 200 vs glue FITS 100; sunpy Map factory keeps
+            default priority). 42.breaking.rst is edited on the branch (adds 'glue-qt[qt]') although #42 merged 2026-08-28 — fragment is unreleased so acceptable. pyproject diff adds 'ndcube>=2.0' as a new direct dependency; no
+            fragment mentions it. Commit d3a2bd3 deletes three '+*.trivial.rst' fragments that described main-branch changes (maps preferred cmap, sst module removal, tox QT_API); the branch does not touch maps.py.
+            docs/whatsnew/changelog.rst just renders CHANGELOG.rst via towncrier ([tool.towncrier] in pyproject) — nothing to contradict.
+        feasibility: trivial
+        blockers: 
+        recommendation: Add the new ndcube>=2.0 direct dependency to 42.breaking.rst (or 44.feature.rst). Everything else in the fragments is accurate; leaving the deleted trivial fragments out is a judgment call (the sst-module removal is the
+            only one a user could notice).
+        doc_corrections: No fragment states the new ``ndcube>=2.0`` dependency added in pyproject.toml on this branch; 42.breaking.rst lists glue-core/glue-qt/irispy floors only.
+    checks_run: [12]
+      [0]:
+        command: gh pr view 44 -R glue-viz/glue-solar --json state,reviews,statusCheckRollup,reviewRequests,headRefOid
+        result: OPEN, mergeable, reviews=[], reviewRequests=[], all checks SUCCESS/SKIPPED on 2026-08-29, head d3a2bd31 == local HEAD
+      [1]:
+        command: gh pr view 68 -R glue-viz/glue-qt; gh pr list -R glue-viz/glue --author nabobalis --state all; gh pr view 42 -R glue-viz/glue-solar
+        result: glue-qt#68 OPEN no reviews; glue: only #2248 DRAFT (2021-11-09) and #2293 merged, no PR for ape14/profile-wcs; glue-solar#42 MERGED 2026-08-28
+      [2]:
+        command: git branch -a / git status --short / git log main..<branch> in ~/Git/glue and ~/Git/glue-qt
+        result: ape14-wcs-autolink (2 commits), profile-wcs (4 commits) in glue; profile-wcs (1 commit), macos-integration in glue-qt; TODO .md files untracked in both
+      [3]:
+        command: probe.py: iris_data() on irispy test SJI + raster; wcs_autolink; WCSLink; GlueSerializer (glue-core 1.27.0)
+        result: SJI wcs=gwcs.WCS, raster wcs=astropy WCS (-TAB); SJI world names Longitude/Latitude/Time (UTC), raster Helioprojective Longitude/Latitude/Wavelength + Time comp; autolink 0 links; WCSLink AttributeError has_celestial;
+            serialize SJI GlueSerializeError(_GlueWCS), raster TypeError numpy.save Quantity (meta)
+      [4]:
+        command: probe2.py: Data with raw irispy WCS objects -> wcs_autolink
+        result: raises AttributeError 'WCS' object has no attribute 'has_celestial' (uncaught) -> the _GlueWCS wrapper is what makes glue skip instead of crash
+      [5]:
+        command: probe3.py: raster_data(13 scans, stack=True)
+        result: float32 memmap, masked -200 values -> NaN (2344 px), mask rebuilt, world names [...,'Scan'], Time datetime64[ns] 4D
+      [6]:
+        command: probe5.py: calculate_moments(Mg II k) -> _cube_data on each output
+        result: RasterCollection keys intensity/centroid/width/velocity/velocity_width; each 2D SpectrogramCube ingests to a 2D Data with HPC axes, units nm / km s-1; rest_wavelength 279.62 nm from TWAVE
+      [7]:
+        command: PYTHONPATH=<wt-ape14-ver> pytest glue/plugins/wcs_autolinking -o addopts=''; probe4.py autolink on IRIS data with that branch
+        result: 31 passed, 1 xfailed, 1 xpassed; wcs_autolink -> 1 WCSLink on custom:pos.helioprojective.lon/lat
+      [8]:
+        command: pytest glue_solar -q -o addopts='' (branch iris-observation-browser)
+        result: 27 passed
+      [9]:
+        command: grep -n BaseHighLevelWCS|has_celestial|world_n_dim - i - 1 site-packages/glue/plugins/wcs_autolinking/wcs_autolinking.py
+        result: line 321 gate, lines 146-158 celestial attrs, lines 177/180 reversed-axis mapping — plan 3.1 description of glue 1.27.0 is accurate
+      [10]:
+        command: pip show dask; pip show irispy-lmsal; git -C ~/Git/irispy show v0.8.1:irispy/io/sji.py | grep gwcs; ls examples/analysis
+        result: dask Required-by irispy-lmsal (hard dep); SJI gWCS at v0.8.1 uses per-exposure XCENIX/YCENIX table + Tabular1D time; 01_spectral_fitting.py and 07_mg_ii_two_gaussian_fitting.py exist
+      [11]:
+        command: git diff main...HEAD -- changelog pyproject.toml README.rst docs; git show main:glue_solar/sources/iris.py | grep qglue|importer
+        result: 44.* fragments accurate; 42.breaking edited (adds [qt]); ndcube>=2.0 dep added without fragment; main had 2 qglue_parsers + 'Import IRIS OBS Directory' importer, now removed
+    notes: No repos were modified; no worktree created by me (attempted wt-glue-ape14-doc failed because another agent's worktree wt-ape14-ver already holds ape14-wcs-autolink; I used it read-only via PYTHONPATH). Scratch scripts:
+        <scratchpad>/probe.py, probe2.py, probe3.py, probe4.py, probe5.py. Biggest doc-accuracy issues, in order: (1) the plan's status paragraph is stale — Phase 3.1 already exists on the ape14-wcs-autolink branch and works on
+        IRIS data, both TODO checklists are untouched, and 'audit §4a' points nowhere; (2) user-guide Linking instruction names components the SJI dataset does not have ('Helioprojective Longitude' vs actual 'Longitude') — a
+        one-line loader fix (prefer _AXIS_NAMES in _GlueWCS.world_axis_names) removes the discrepancy; (3) 'stack retains original values' is overstated (masked pixels -> NaN, float32 memmap); (4) plan's 'Suggested order of
+        attack' contradicts its own status paragraph and builds Phase 1.4 only to delete it; (5) Phase 2.2's 'add dask as optional extra' is unnecessary (already a hard dep via irispy-lmsal). IDL/SolarSoft side not re-verified
+        per instructions.
+  verify:
+    verdicts: [5]
+      [0]:
+        id: doc-1-audit-plugin-bullets
+        agree: True
+        correction: 
+        evidence: Re-ran independently (sv2_probe.py, sv2_probe_b.py; glue-core 1.27.0 site-packages, irispy 0.8.1). Confirmed: _GlueWCS MRO = [_GlueWCS, BaseWCSWrapper, BaseLowLevelWCS] (not BaseHighLevelWCS) -> wcs_autolink 0 links;
+            WCSLink(sji, raster) -> AttributeError '_GlueWCS' has no attribute 'has_celestial'; raw irispy objects in either order -> uncaught AttributeError "'WCS' object has no attribute 'has_celestial'" (from gwcs.WCS; astropy
+            -TAB WCS itself has has_celestial=True); only IncompatibleWCS caught at wcs_autolinking.py:342. SJI Data world components 'Time (Utc)','Latitude','Longitude' (gwcs axes_names win at loaders/iris.py:41); raster
+            'Helioprojective Longitude/Latitude','Wavelength' + 'Time' component. Sessions: SJI -> GlueSerializeError(_GlueWCS); raster -> TypeError numpy.save on Quantity (meta keys 'exposure time','observer radial velocity'); with
+            Quantity meta stripped the raster then fails on _GlueWCS; raw astropy -TAB WCS + clean meta serializes without error (round-trip fidelity of the -TAB table not tested). Stack (13 scans): masked -200 -> NaN (2344 px),
+            mask rebuilt (same count), np.memmap float32, world names [...,'Scan'], Time datetime64[ns] (13,8,109,17). Refinement to correction (b): input dtype is >f4 (big-endian float32) so np.result_type gives float32 unchanged
+            -- 'promoted to float32' only applies to integer inputs and is lossless; the rebuilt mask equals the original, so 'preserves mask' holds in content; only 'retains original values' is overstated. glue_solar tests: 27
+            passed.
+      [1]:
+        id: doc-2-plan-status-paragraph
+        agree: True
+        correction: 
+        evidence: gh pr view 44: OPEN, MERGEABLE, reviews=[], reviewRequests=[], reviewDecision='', head d3a2bd31 == local HEAD, all checks SUCCESS/SKIPPED dated 2026-08-29T12:13-12:39Z. gh pr list glue-viz/glue --author nabobalis --state
+            all: only #2248 (OPEN draft 2021-11-09, 1dprofile_wcs) and #2293 (MERGED); no PR for ape14-wcs-autolink or profile-wcs. glue-qt: #68 'Improve macOS integration' OPEN created 2026-08-29T13:40Z (after the plan's status
+            date), reviews=[]. git branch/log: glue ape14-wcs-autolink = b16a3703+016d9cf2 (+574/-61 in wcs_autolinking.py + tests), profile-wcs = 175e7129..c3bcd75b (7 files, +636/-27); glue-qt profile-wcs = 1133c0e9. All three
+            TODO files are '??' untracked; APE14 and PROFILE checklists have zero '[x]' (MACOS TODO is partly ticked). 'audit §4a' (plan L144, APE14 TODO L9-10) points nowhere: the audit has no numbered sections. Own worktree of
+            ape14 (016d9cf2): pytest glue/plugins/wcs_autolinking -> 31 passed, 1 xfailed, 1 xpassed; wcs_autolink on SJI_1400 + Mg II k raster -> exactly 1 WCSLink pairing SJI [x,y] with raster [y=slit, z=raster step], HPC lon/lat
+            both sides; numerical round-trip SJI px(29,20) -> raster (step 5.79, slit 19.29) -> world agrees to 3e-7 arcsec; reverse direction 100% finite. Additional (auditor did not run): profile-wcs worktree pytest
+            glue/viewers/profile -> 57 passed, 1 skipped. Nuance: 'live in the glue fork' is not wrong (files are in the fork's working directory); 'untracked' is a precision, not an error.
+      [2]:
+        id: doc-3-cross-document-consistency
+        agree: False
+        correction: Three of the sub-claims are not defects in the plan. (1) 'Plan L38 detector row has no matching phase; non-goal L184 says the opposite' -- L38 is an 'optional full-detector loader variant' (data loading) while L184 rules
+            out 'detector mosaic chrome' (widget layout); these are not opposites. Only 'no phase item for the L38 row' holds. (2) 'Step 1 includes 1.4 which Step 2 deletes' is not a contradiction: plan L80-81 explicitly designs 1.4
+            as a stopgap 'deleted once Phase 3's autolink work lands upstream'. Dropping 1.4 now is a reasonable judgement given the ape14 branch exists, but a glue-core release is not scheduled, so it is a choice, not an error. The
+            genuine inconsistency is the status paragraph (3.1 first, then 2.1) versus Steps 1-4. (3) 'Plan L102-103 0th/1st/2nd moments -> rename to intensity/centroid/width' -- those keys ARE the 0th/1st/2nd moments; the wording
+            is physically correct, renaming is optional. Everything else in the item stands (see evidence).
+        evidence: Confirmed: plan L51 'Missing' vs audit L185 'Will not implement'; plan L53 'Out of scope' vs audit L186 'Will not implement'; plan L52 'audit §"unsupported"' has no such audit section/row (it is the paragraph at audit
+            L141-144). Status paragraph L11-14 orders 3.1 then 2.1, while 'Suggested order of attack' L194-197 puts Phase 1.1-1.4 first and 2.1 at step 4. dask: irispy-lmsal v0.8.1 pyproject requires 'dask[array]>=2024.7.0'; pip
+            show dask -> Required-by includes irispy-lmsal (2026.8.0 installed) -> plan L124 'add as an optional fitting extra' is unnecessary. calculate_moments exists at tag v0.8.1 (also v0.7.0/v0.8.0); signature (cube, *,
+            rest_wavelength=None, wings=None, integrated=False, min_intensity=None, saturation_limit=None); rest_wavelength 279.62 nm from meta; returns RasterCollection keys intensity/centroid/width/velocity/velocity_width, each
+            ingests via _cube_data to 2D Data with HPC axes, units DN_IRIS_NUV/nm/km s-1. astropy 8.0.1 has modeling.fitting.parallel_fit_dask; irispy examples/analysis/01 and 07 exist. glue-qt main data_slice_widget.py:50-62 has
+            playback_first/prev/back/stop/forw/next/last buttons and a QTimer (plan 3.5 'playback already exist' correct). wcs_autolinking.py (1.27.0): BaseHighLevelWCS gate at :321, has_celestial/.celestial/.wcs.lng at :146-158,
+            world_n_dim - i - 1 at :177 -- plan 3.1 description accurate.
+      [3]:
+        id: doc-4-user-guide-rst
+        agree: True
+        correction: 
+        evidence: loading-iris...rst L57-59: SJI Data exposes 'Longitude'/'Latitude'/'Time (Utc)' (verified component list); only raster datasets expose 'Helioprojective Longitude/Latitude' -- the manual-pairing instruction as written
+            cannot be followed for SJI. L28 '_SDO folder': scan.py:110-115 accepts any aia_l2_* file with INSTRUME starting 'AIA' anywhere under root; no folder test (the conftest fixture happens to put it in an _SDO dir, which is
+            why tests pass either way). L57 'time-varying SJI gWCS' confirmed: irispy v0.8.1 io/sji.py:52-89 builds crval table from per-exposure XCENIX/YCENIX and a Tabular1D time axis. L64-66 sessions confirmed failing. L20
+            'Plugins menu' verified: glue.config re-imports glue_qt.config.menubar_plugin (glue/config.py:950-957), same registry object, label present after glue_solar.setup(). 1D-profile guide labels
+            '<window>-<OBSID>-<STARTOBS>-stack'/'-scan-<n>' match loaders/iris.py:99,105. loading-aia-and-hmi.rst L43 alt text 'AMI' typo confirmed. dev_guide/loader-customization.rst L13-25 matches file layout. Note: the suggested
+            one-line fix (prefer _AXIS_NAMES in _GlueWCS.world_axis_names) would also rename the SJI time axis to 'Time'; SJI cubes have no 'time' extra_coord (keys: exposure time, obs_vrix, ophaseix, pztx, pzty, slit x/y position,
+            xcenix, ycenix) so no component-name collision on SJI.
+      [4]:
+        id: doc-5-changelog-whatsnew
+        agree: True
+        correction: 
+        evidence: git diff main...HEAD: 44.feature.rst / 44.bugfix.rst added, 42.breaking.rst edited ('glue-qt' -> 'glue-qt[qt]'; #42 merged 2026-08-28T12:09Z), three '+*.trivial.rst' fragments deleted in d3a2bd3, pyproject adds
+            'ndcube>=2.0'. maps.py untouched on branch (empty diffstat). main:glue_solar/sources/iris.py had @qglue_parser x2 (:25,:43) and @importer('Import IRIS OBS Directory') (:86); all gone -> 'replaces the previous one-
+            directory importer and the qglue parsers' accurate. 44.bugfix matches iris.py:15-22 (TELESCOP=='IRIS', priority 200). towncrier config in pyproject [tool.towncrier]; docs/whatsnew/changelog.rst only renders
+            CHANGELOG.rst. Refinement to the recommendation: main's stack_spectrograms.py already did 'from ndcube import NDCube' (undeclared), and irispy-lmsal 0.8.1 pins ndcube>=2.4.0, so declaring ndcube>=2.0 changes nothing for
+            any installable environment -- a changelog fragment is not warranted (consistent with the branch's own deletion of no-user-effect fragments). Optional: raise the floor to >=2.4 to match reality.
+    summary: All five findings hold; one (doc-3) overstates three sub-points. Independently re-executed every decisive check with my own scripts (sv2_probe*.py, sv2_ape14*.py in the scratchpad) and my own throwaway worktrees (removed
+        afterwards; no repo modified). Confirmed: PR #44 OPEN/MERGEABLE, zero reviews or review requests, CI green on d3a2bd3; no upstream PR for ape14-wcs-autolink or profile-wcs; all three TODO files untracked, APE14/PROFILE
+        checklists all-unchecked; 'audit §4a' points to nothing. Code facts confirmed: _GlueWCS is BaseLowLevelWCS-only so glue 1.27.0 skips it (0 links) and WCSLink crashes on has_celestial; raw irispy WCS objects crash
+        wcs_autolink uncaught in either order (gwcs lacks has_celestial); SJI datasets expose 'Longitude'/'Latitude'/'Time (Utc)' not 'Helioprojective ...' (user-guide Linking instruction is unfollowable for SJI); sessions fail
+        (SJI: _GlueWCS; raster: Quantity meta first, then _GlueWCS); stack replaces masked pixels with NaN in a float32 memmap. Things the auditor missed or under-verified: (1) the ape14 branch link is functionally correct, not
+        just present -- SJI[x,y] <-> raster[slit, step] with wavelength/time correctly unlinked, world round-trip agrees to 3e-7 arcsec, reverse direction 100% finite; (2) glue profile-wcs tests pass (57 passed, 1 skipped) -- so
+        Pieces A/B/C are green, not just present; (3) glue.config.menubar_plugin IS glue_qt.config's registry, so the docs' 'Plugins menu' claim is right; (4) ndcube>=2.0 is a no-op declaration (main already imported ndcube;
+        irispy pins >=2.4) so no changelog fragment is needed, contrary to the auditor's recommendation; (5) doc-3's 'detector row contradicts non-goal L184' conflates a loader variant with widget chrome, and 'builds then
+        deletes 1.4' is the plan's explicit stopgap design, not an inconsistency -- the real order-of-attack defect is the status paragraph vs Steps 1-4; (6) the 'promoted to float32' correction in doc-1 is wrong for the actual
+        >f4 data (no promotion; only integer inputs would be, losslessly), and the rebuilt mask equals the original, so only 'retains original values' is overstated. Net: the plan's status paragraph is the stalest text (Phase
+        3.1 already exists on a branch and works on IRIS data; glue-qt macOS work is now PR #68); the user guide Linking section is the one statement users would actually trip over.

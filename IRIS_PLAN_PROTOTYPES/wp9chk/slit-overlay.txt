@@ -1,0 +1,136 @@
+slit-overlay.json:
+  audit:
+    items: [2]
+      [0]:
+        id: P1.6
+        title: Slit overlay on SJI
+        status: not_implemented
+        where: glue-solar iris-observation-browser: glue_solar/sources/loaders/iris.py:72-86 (_cube_data keeps only the 'time' extra coord), :110-114 (_image_cube_data); nothing draws a slit. Plan IRIS_GLUE_GAP_PLAN.md:86-89; audit
+            IRIS_IDL_GLUE_CAPABILITY_AUDIT.md:78,171
+        evidence: grep -n -i 'slit|SLTPX' over glue_solar/ -> no hits in code; only docs mention 'slit-jaw'. Raster source: irispy 0.8.1 (site-packages, the one imported) builds a FITS -TAB WCS (irispy/io/spectrograph.py
+            `_create_tabular_wcs`, CTYPE ['WAVE','HPLT-TAB','HPLN-TAB'] confirmed on both test rasters); `cube.axis_world_coords_values('custom:pos.helioprojective.lon')` gives (nstep, nslit) arrays, e.g. 2014 raster 8 steps at
+            483.93/485.93/487.93... arcsec (~2" steps), SNS raster 187 exposures drifting -52.87 -> -10.62" (rotation tracking). SJI source: irispy/io/sji.py:210-218 (0.8.1) already stores aux columns SLTPX1IX/SLTPX2IX as
+            `extra_coords['slit x position'|'slit y position']` (labelled u.arcsec but they are SJI pixel indices; irispy examples/coalign/03_offset_sji_sg.py:63-106 feeds them straight to wcs.pixel_to_world and reports ~1 px
+            agreement with the raster -TAB slit). Test-data caveat: irispy test SJIs are crops, SLTPX1IX=187 for NAXIS1=37 (SNS) and 549/1269 for NAXIS1=178 (2023), so aux values are out of range there; only the SNS set is a matched
+            raster+SJI pair (the 'raster/' SJIs are obs 20230408_3880012095, the raster is 20140329_3860258481). Projecting the SNS raster -TAB slit through the SJI gWCS lands at x=21.05/20.62/21.24 px (frames 0/30/61), y 0.9..39.9
+            -> inside the crop. Offscreen glue check (scratchpad/slit_check.py, glue-core SimpleImageViewer = same MatplotlibImageMixin as glue-qt ImageViewer; glue-qt already maps ScatterLayerArtist to a style editor at
+            glue_qt/viewers/image/data_viewer.py:31): (A) 1D scatter Data LinkSame'd to SJI pixel cids: enabled, 2480 pts at x 20.17..21.95, but glue/viewers/scatter/layer_artist.py:198-224 never consults viewer slices -> all 62
+            frames' slits drawn at once regardless of the time slider. (B) scatter Data LinkSame'd on lon/lat world cids only: layer DISABLED (SJI gWCS axis_correlation_matrix [[1,1,1],[1,1,1],[0,0,1]]: pixel x/y need time); with a
+            time link it enables but derives x=21.05/144.96/275.06 (wrong; see P1.6-dep). (C) subset on the SJI Data itself, `(px > slit_x-0.5) & (px <= slit_x+0.5)` with a broadcast per-frame 'Slit x' component: flags column 21
+            with 40 px per frame, ImageSubsetLayerArtist renders it per slice (glue/viewers/image/layer_artist.py:253-278 uses get_sliced_data) -> slider-aware, no links, no raster needed.
+        feasibility: small
+        blockers: None for the subset approach. For the plan's scatter+HPC-link approach: (1) scatter layers on the image viewer ignore `slices` (glue-core), so an overlay per SJI frame needs a subset, not a scatter dataset; (2) glue-core
+            world2pixel bug for time-dependent gWCS (P1.6-dep) makes HPC-linked positions wrong beyond frame 0; (3) irispy test SJIs are crops with out-of-range SLTPX, so the unit test must use synthetic in-range values or the SNS
+            raster -TAB projection.
+        recommendation: Implement as a glue subset on the SJI dataset, not a linked scatter dataset: in `_image_cube_data`, when `'slit x position' in cube.extra_coords.keys()`, add a broadcast 'Slit x' component (pixel units; ignore irispy's
+            arcsec label) and `dc.new_subset_group('Slit', (px > slitx-0.5) & (px <= slitx+0.5))` from the menubar/browser action (~15 lines + one test). Keep the raster -TAB projection (`sji.coords.world_to_pixel_values(lon, lat,
+            t_world)` per nearest-time frame, needs P1.6-dep fix) only as the fallback when there is no aux table. Reword the plan/table accordingly.
+        doc_corrections: IRIS_GLUE_GAP_PLAN.md:86-89 'Build a small scatter dataset of the raster slit positions (already available from the -TAB WCS) and add it as a layer on the SJI viewer, linked through the HPC components. No glue-qt change
+            needed.' -> -TAB claim is correct (irispy 0.8.1), but: HPC-linked scatter is disabled by glue unless time is also linked and then mispositioned (glue-core coordinate_helpers bug); a scatter layer is never sliced by the
+            SJI time slider so it draws every frame's slit at once; the simpler source is the SJI aux SLTPX1IX/SLTPX2IX already exposed as irispy extra_coords. IRIS_GLUE_GAP_PLAN.md:37 'Slit-overlay dataset in glue-solar' -> should
+            be a subset on the SJI dataset. docs/user_guide/loading-iris-level-2-raster-and-sji-data.rst:57-59 'manually pair Helioprojective Longitude and Helioprojective Latitude between datasets' -> SJI world components are
+            labelled 'Longitude'/'Latitude' (gWCS axis names bypass _AXIS_NAMES), and lon/lat pairing propagates only SJI->raster; raster->SJI viewer raises IncompatibleAttribute (SJI pixel axes need time). Audit rows :78 and :171
+            are accurate.
+      [1]:
+        id: P1.6-dep
+        title: World (HPC) links into the SJI gWCS derive pixels with time frozen at frame 0 (glue-core bug; 3-line workaround in glue-solar)
+        status: not_implemented
+        where: glue-core 1.27.0 glue/core/coordinate_helpers.py:104 (`world_dep = wcs.axis_correlation_matrix[:, pixel_axis]` collapses any world input whose row is 0 to `.flat[0]`), vs :163 dependent_axes (correct closure). Workaround
+            location: glue_solar/sources/loaders/iris.py `_GlueWCS` (:34-69). Fork branches: `git log v1.27.0..{main,ape14-wcs-autolink,profile-wcs} -- glue/core/coordinate_helpers.py glue/core/component_link.py` -> 0 commits on all
+            three.
+        evidence: scratchpad/slit_workaround.py: unpatched, slit Data linked on lon/lat/time derives SJI pixel x = 21.05/144.96/275.06 for frames 0/30/61 while direct gWCS gives 21.05/20.62/21.24; `sji.coords.world_to_pixel_values(lon,
+            lat, 0.0)` reproduces 275.06 exactly, proving time is frozen at frame 0. Overriding `_GlueWCS.axis_correlation_matrix` with the transitive closure (all True for the SJI) yields 21.05/20.62/21.24 = correct. Same run shows
+            a P1.4-style lon/lat-only LinkSame raster<->SJI: SJI->raster pixel derivation OK (step 0.2..185.9, slit 0..39), raster->SJI pixel x/y IncompatibleAttribute. gh issue search glue-viz/glue for 'axis_correlation_matrix' /
+            'gwcs time dependent' -> [] (no upstream issue).
+        feasibility: trivial
+        blockers: None for the glue-solar workaround. Proper fix belongs upstream (make world2pixel_single_axis use the dependent_axes closure); no PR exists.
+        recommendation: Add an `axis_correlation_matrix` property on `_GlueWCS` returning the transitive closure of the wrapped matrix (verified 3 lines), with a test on the SNS SJI. File a glue-core issue/PR for coordinate_helpers.py:104. This
+            is a prerequisite for any world-linked overlay onto the SJI (P1.3 quicklook, P1.4 link helper, P1.6 fallback); a raster->SJI link additionally needs a time component in the SJI gWCS 'seconds since epoch' convention,
+            which the link helper must synthesise.
+        doc_corrections: IRIS_GLUE_GAP_PLAN.md:80-83 (P1.4 'creates the HPC longitude/latitude links programmatically ... Removes the most error-prone manual step') and :74-77 (P1.3 'creates the manual HPC links') assume lon/lat links suffice;
+            for the SJI viewer direction they do not (time dependency + glue-core bug). Audit :180 'SJI and raster temporal coordination ... Datasets can be linked manually by available coordinates' is overstated for the raster->SJI
+            direction.
+    checks_run: [7]
+      [0]:
+        command: grep -rn -i 'slit|SLTPX' glue_solar/ ; grep -rn -i 'slit|SLTPX' --include='*.py' irispy/ examples/
+        result: glue-solar: no slit code. irispy: io/sji.py stores SLTPX1IX/SLTPX2IX as extra_coords 'slit x/y position' (unit u.arcsec, values are pixels); examples/coalign/03_offset_sji_sg.py compares aux slit vs raster -TAB slit.
+      [1]:
+        command: .venv/bin/python -c 'import irispy, irispy.io.spectrograph as sp; print(irispy.__version__, irispy.__file__, hasattr(sp, "_create_tabular_wcs"))'
+        result: 0.8.1 from site-packages (not the local repo); _create_tabular_wcs present; `git show v0.8.1:irispy/io/spectrograph.py | grep -c TAB` = 5
+      [2]:
+        command: python: read_files on irispy test rasters/SJIs; print WCS ctype, axis_correlation_matrix, axis_world_coords_values lon/lat, SJI extra_coords, aux SLTPX, project raster slit through SJI gWCS
+        result: Raster CTYPE ['WAVE','HPLT-TAB','HPLN-TAB'], corr [[1,0,0],[0,1,1],[0,1,1]]; SJI gWCS corr [[1,1,1],[1,1,1],[0,0,1]], world units ('arcsec','arcsec','s'). SNS SLTPX1IX=187 (NAXIS1=37, crop). Raster -TAB slit -> SNS SJI
+            px x=21.05/20.62/21.24 at frames 0/30/61, y 0.9..39.9. gWCS inverse vectorised == per-scalar.
+      [3]:
+        command: QT_QPA_PLATFORM=offscreen MPLBACKEND=agg python scratchpad/slit_check.py
+        result: A pixel-linked scatter: enabled, 2480 pts x 20.17..21.95, unchanged after slices=(30,0,0). B lon/lat-only LinkSame: disabled; +time link: enabled but x 21.05..275.06 (wrong). C subset on SJI: column 21 flagged, 40
+            px/frame, rendered at slices 0/30/61.
+      [4]:
+        command: QT_QPA_PLATFORM=offscreen MPLBACKEND=agg python scratchpad/slit_workaround.py
+        result: Unpatched derived x 21.05/144.96/275.06 (t frozen at 0); with transitive-closure axis_correlation_matrix on _GlueWCS: 21.05/20.62/21.24 (correct). raster->SJI pixel via lon/lat LinkSame: IncompatibleAttribute in both
+            cases; SJI->raster OK.
+      [5]:
+        command: QT_QPA_PLATFORM=offscreen MPLBACKEND=agg .venv/bin/python -m pytest glue_solar -q -o addopts="" -p no:cacheprovider
+        result: 27 passed, 2 warnings in 1.65s (repo addopts --doctest-rst needs pytest-doctestplus, not installed in this venv)
+      [6]:
+        command: git -C ~/Git/glue log --oneline v1.27.0..{main,ape14-wcs-autolink,profile-wcs} -- glue/core/coordinate_helpers.py glue/core/component_link.py; gh issue list -R glue-viz/glue -S 'axis_correlation_matrix' --state all
+        result: 0 commits on every branch; no upstream issue found
+    notes: Scratch scripts (kept, read-only otherwise; no worktrees created): /private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/slit_check.py and slit_workaround.py. Environment
+        note: the task brief says irispy 0.8.1 is installed; confirmed (site-packages), the local /Users/nabil/Git/irispy checkout is 0.8.2.dev and differs in io/sji.py (adds _fill_dropped_pointing_rows) but not in the slit-
+        relevant parts. Upstream nit worth an irispy PR: io/sji.py labels SLTPX1IX/SLTPX2IX pixel indices as u.arcsec (0.8.1 lines 212/217; local main 229/234). Could not verify from SolarSoft source what IDL xsji_image draws
+        from (no SSW locally); the irispy coalign example treats the SJI aux SLTPX as the pipeline's slit position and finds ~1 px agreement with the raster -TAB WCS, so either source is acceptable and the aux table is the
+        simpler one (single file, no time matching, no gWCS inverse). Bottom line for the plan: P1.6 stays small but should be a per-frame subset on the SJI dataset built from SLTPX1IX, not a scatter dataset linked through HPC;
+        the glue-core time-freezing bug (P1.6-dep) is a cheap glue-solar-side fix that P1.3/P1.4 also need.
+  verify:
+    verdicts: [2]
+      [0]:
+        id: P1.6
+        agree: False
+        correction: Status (not implemented), size (small) and the core recommendation (per-frame subset on the SJI built from SLTPX1IX, not an HPC-linked scatter) HOLD. Corrections to evidence/doc text: (1) irispy test SJIs are not 'crops'
+            — they are stride-10 DECIMATIONS (irispy/data/test/compress.py STRIDE=10, CRPIX rescaled); aux SLTPX values are original-resolution indices and SLTPX1IX/10 lands in range (18.7 for SNS NAXIS1=37; 54.9/126.9 for the 2023
+            NAXIS1=178 files). A unit test on the real file can assert the component/subset state without synthetic values. (2) The auditor's projected slit x=21.05/20.62/21.24 are artefacts of a self-inconsistent 0.8.1 test header
+            (CDELT1=0.16635 left unscaled while CRPIX1=18.45 was rescaled); irispy main repaired it (commit bc5e39e: CDELT1=1.6635, CRPIX1=19.35). On the repaired file the raster -TAB projection is x=19.52..19.70 vs aux 18.7 → the
+            two sources agree to ~1 decimated px (~1.7"), which is the actual justification for 'either source is acceptable'. (3) The auditor's accessor sketch would fail: cube.axis_world_coords('slit x position',
+            wcs=cube.extra_coords) raises ValueError in ndcube 2.4.1 (physical type 'custom:CUSTOM'); use cube.extra_coords['slit x position'].wcs.pixel_to_world_values(np.arange(n)) (returns 187.0 ...) or positional
+            axis_world_coords(wcs=cube.extra_coords). (4) Missed and important: in raster observations the slit SWEEPS across the level-2 SJI — 2023 SJI_1400 aux SLTPX1IX = 548.99 then 1268.71 (PZTX -57.45 → +62.28) — so the overlay
+            MUST be per frame; this is the real reason scatter approach A (all frames drawn at once, ignores slices) is unusable, not merely the SNS sub-pixel drift. A constant-column overlay is only valid for sit-and-stare. (5)
+            doc_corrections wording 'lon/lat pairing propagates only SJI->raster; raster->SJI viewer raises IncompatibleAttribute' is misleading in user terms: verified in glue-qt ImageViewer with lon/lat-only LinkSame that a subset
+            DRAWN ON THE RASTER viewer does show on the SJI (SJI mask n=12200 OK) while a subset DRAWN ON THE SJI cannot be evaluated on the raster (IncompatibleAttribute). State it as selection direction: raster→SJI works today,
+            SJI→raster does not. 'Longitude'/'Latitude' label mismatch is confirmed (SJI world cids: 'Time (Utc)', 'Latitude', 'Longitude'). (6) Recommendation nuance: dc.new_subset_group makes a global subset that appears on every
+            dataset (empty/IncompatibleAttribute on the raster, and becomes the edit-subset target); Data.new_subset(state, label='Slit') renders per-slice in glue-qt ImageViewer (verified, frame 30 → column 19) without a group, but
+            glue-qt's data tree indexes only subset_groups (glue_qt/core/data_collection_model.py:_on_add_subset) so it would be invisible there. Pick the group for GUI friendliness; note the wart.
+        evidence: Re-ran scratchpad/slit_check.py: A enabled 2480 pts, unchanged after slices=(30,0,0); B lon/lat-only disabled, +time enabled with x 21.05..275.06; C column 21 per slice — matches. grep 'slices' in
+            glue/viewers/scatter/{layer_artist,state}.py → none. glue/viewers/image/viewer.py:186 (ndim==1 → scatter artist) and glue-qt ImageViewer accepts the 1D Data offscreen (layers [ImageLayerArtist, ScatterLayerArtist]
+            enabled). irispy/data/test/compress.py lines 28,35-41,106-108: STRIDE=10, CRPIX rescaled. fits headers: SNS SJI_1400 0.8.1 CDELT1=0.16635 CRPIX1=18.45 NAXIS1=37; local repo repaired file CDELT1=1.6635 CRPIX1=19.35; git
+            log v0.8.1..HEAD -- irispy/data/test → bc5e39e 'Repair the legacy WCS headers'. v_repaired.py: -TAB projection x min/mean/max 19.52/19.60/19.70 vs SLTPX1IX/10=18.70. v_facts3.py: 2023 SJI_1400 SLTPX1IX [548.99, 1268.71],
+            PZTX [-57.45, 62.28], OBS_DESC 'Very large coarse 64-step raster'; SNS SLTPX1IX uniq [187.] across all 62 frames. ndcube ValueError reproduced; ec.wcs.pixel_to_world_values → [187. 187. ...]. v_qt.py: ROI on raster
+            viewer → sji mask OK n=12200; ROI on SJI viewer → raster IncompatibleAttribute. v_qt2.py: Data.new_subset renders as ImageSubsetLayerArtist, dc.subset_groups==0. glue_qt/viewers/image/data_viewer.py:31
+            ScatterLayerArtist→ScatterLayerStyleEditor confirmed. glue_solar tests: 27 passed (re-run).
+      [1]:
+        id: P1.6-dep
+        agree: False
+        correction: The BUG is real and reproduced (coordinate_helpers.py:104 collapses uncorrelated world inputs to .flat[0]; derived SJI x 21.05/144.96/275.06 vs direct 21.05/20.62/21.24). But the recommended fix is NOT safe and the size
+            is not 'trivial': overriding _GlueWCS.axis_correlation_matrix with the all-True closure breaks the glue-qt ImageViewer coordinate readout — axes.format_coord(18,20) raises OverflowError ('cannot convert float infinity to
+            integer') in astropy/visualization/wcsaxes/formatter_locator.py:642 because WCSAxes now treats the time axis as correlated with the image plane where it has zero range (spacing=inf); format_coord runs on every mouse
+            move. Unpatched it returns '−53" −400" (world)'. Working narrower fix (verified, ~10 lines): wrap glue.core.coordinate_helpers.world2pixel_single_axis (and rebind the name in glue.core.component_link, which imports it by
+            name) so world_dep is the transitive closure of the matrix column — derived x becomes 21.05/20.62/21.24 with the matrix untouched and format_coord intact. That is a glue-core monkeypatch, so the honest home is an
+            upstream PR to world2pixel_single_axis; in glue-solar it is 'small' and hacky, not 'trivial'. Also overstated: it is NOT a prerequisite for P1.3/P1.4 as scoped (lon/lat-only links). With lon/lat-only LinkSame, subsets
+            drawn on the raster already display on the SJI viewer today (verified, patched or not) because that direction inverts the raster -TAB WCS (no time needed); the failing direction (SJI-drawn subsets → raster) fails with
+            IncompatibleAttribute because the raster has no time component in the SJI gWCS 'seconds since epoch' convention — the bug only matters once such a time component is synthesised and linked (P1.6 fallback, or a future
+            raster→SJI time link). Doc correction for P1.3/P1.4 should therefore say: lon/lat links make raster→SJI selection propagation work; SJI→raster needs a synthesised time link plus this fix.
+        evidence: Re-ran scratchpad/slit_workaround.py: unpatched [21.05, 144.96, 275.06], patched [21.05, 20.62, 21.24]; raster→SJI IncompatibleAttribute in both. grep -n axis_correlation_matrix coordinate_helpers.py → lines 47, 104, 173
+            (line ref correct). v_qt.py/v_qt2.py (glue-qt ImageViewer offscreen): PATCH=0 format_coord OK; PATCH=1 traceback ends at astropy wcsaxes formatter_locator.py:642 OverflowError; both cases: raster-drawn ROI → SJI mask
+            n=12200 OK, SJI-drawn ROI → raster IncompatibleAttribute. v_mp.py (monkeypatched world2pixel_single_axis): derived [21.05, 20.62, 21.24], matrix [[1,1,1],[1,1,1],[0,0,1]], format_coord '−53" −400" (world)', layers
+            enabled. git log v1.27.0..{main,ape14-wcs-autolink,profile-wcs} -- coordinate_helpers.py component_link.py → 0/0/0 (re-run). gh issue search 'axis_correlation_matrix', 'world2pixel_single_axis', 'world_to_pixel' → [];
+            'gwcs' → #2224 (closed, grism gWCS crash — a different failure) and #2474 (unrelated). Consumers of the matrix that an all-True override also touches: component.py:304, component_link.py:368, link_manager.py:371,
+            fixed_resolution_buffer.py:92, image/viewer.py:138-139, plus astropy WCSAxes via reset_wcs (image/viewer.py:114-117).
+    summary: Both items' core conclusions survive (P1.6 not implemented, small, do it as a per-frame subset on the SJI from SLTPX1IX; P1.6-dep is a genuine glue-core bug at coordinate_helpers.py:104 with no upstream issue/PR and no
+        fork commits). Refuted/corrected with evidence: (a) the 'crop' story is wrong — irispy test SJIs are stride-10 decimations and the 0.8.1 SNS SJI header is self-inconsistent (CDELT unscaled; repaired in irispy main
+        bc5e39e), so the auditor's projected slit x≈21 numbers are artefacts; on repaired files aux SLTPX1IX/10 (18.7) and the raster -TAB projection (19.5-19.7) agree to ~1 px, which is the real basis for 'either source works';
+        (b) the 3-line axis_correlation_matrix override is unsafe — it makes glue-qt ImageViewer.format_coord raise OverflowError in astropy WCSAxes on every mouse move; a verified narrower fix is a ~10-line wrap of
+        world2pixel_single_axis (and its imported name in component_link), i.e. a glue-core monkeypatch, so P1.6-dep is 'small/hacky, belongs upstream', not 'trivial'; (c) P1.6-dep is not a prerequisite for P1.3/P1.4 as scoped:
+        with lon/lat-only links, raster-drawn subsets already display on the SJI viewer today; only SJI-drawn subsets fail on the raster, and that needs a synthesised time link before the bug even matters — the auditor's
+        'propagates only SJI->raster' wording inverts the user-visible direction; (d) missed: in raster observations the slit sweeps across the level-2 SJI (2023 file SLTPX1IX 549→1269 between frames), which is the decisive
+        reason a scatter overlay (unsliced) is wrong and a per-frame component is required; (e) the auditor's accessor pattern for the aux extra coord raises in ndcube 2.4.1; use extra_coords['slit x
+        position'].wcs.pixel_to_world_values. Also noted: Data.new_subset avoids the global 'Slit' subset group wart but is invisible in glue-qt's data tree; irispy 0.8.1's bundled raster/ copy of the SNS raster fails read_files
+        (fixed post-0.8.1), harmless to current glue-solar tests (27 pass). Scratch scripts left (read-only otherwise, no worktrees created): scratchpad/v_facts3.py, v_repaired.py, v_qt.py, v_qt2.py, v_mp.py.

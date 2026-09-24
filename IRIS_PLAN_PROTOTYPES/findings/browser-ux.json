@@ -1,0 +1,96 @@
+{
+ "audit": {
+  "items": [
+   {
+    "id": "P1.1",
+    "title": "Browser search filters (date/text filter, scan in QThread with cancel)",
+    "status": "not_implemented",
+    "where": "glue-solar iris-observation-browser: glue_solar/sources/loaders/iris.py:205-211 (set_directory -> scan_directory synchronous), iris_loader.ui (only Folder/Change\u2026/'Search subfolders'), glue_solar/sources/loaders/scan.py:118-179; reusable upstream: /Users/nabil/Git/glue-qt/glue_qt/utils/threading.py:8 (Worker(QThread) with result/error signals)",
+    "evidence": "iris_loader.ui has no QLineEdit filter, no QDateEdit, no cancel-scan button (the 'cancel' button at loaders/iris.py:183 is dialog reject). set_directory() calls scan_directory() inline and populate() rebuilds the whole tree; no setHidden/filter anywhere (grep for filter/date/thread in loaders/iris.py: only a builtin filter() at line 90). scan_directory has no progress/stop hook (single for-loop at scan.py:137). glue-core site-packages has no threading helpers (grep empty); glue_qt has Worker (utils/threading.py), ComputeWorker (viewers/matplotlib/compute_worker.py) \u2014 no cancel API of their own, but QThread natively has requestInterruption()/isInterruptionRequested() (verified via dir(Worker)). Ran scan_directory through glue_qt Worker offscreen: result signal delivered 14 observations, no error. Timing on the user's real tree /Users/nabil/DATA/IRIS (140 files, 14 obs, 130 grouped files): 0.51 s, i.e. ~4 ms/file \u2014 blocking is only noticeable on mirror-scale trees (10k files ~ 40 s). Baseline tests: 23 passed (test_scan.py + test_importer.py). STARTOBS column is ISO text ('2014-03-29T14:09:38'), so a plain text filter already filters by date substring.",
+    "feasibility": "small",
+    "blockers": "None. Cancellation needs a cooperative stop hook in scan_directory (e.g. `stop=lambda: False` kwarg checked in the file loop) \u2014 there is none today. Tree must be repopulated in the GUI thread from the Worker.result signal (Worker lives in the main thread, so queued connection is automatic). Recursive toggle (loaders/iris.py:186) and archive extraction (finalize -> set_directory at 281/284) both re-enter set_directory and must wait for / cancel a running worker.",
+    "recommendation": "Ship the lazy version: one QLineEdit 'Filter' above the tree that setHidden()s top-level items whose STARTOBS/OBSID/Description text does not contain the string (covers '2014-03' style date filtering with zero extra widgets); add QDateEdit start/end only if someone asks. For the scan: wrap scan_directory in glue_qt.utils.Worker, add a `stop` callable kwarg to scan_directory wired to worker.isInterruptionRequested, and turn the progress bar busy + a 'Stop scan' button while running. ~40-60 lines plus two tests (filter hides rows; interrupted scan returns partial/empty list). Do not build a filename-pattern preset system.",
+    "doc_corrections": "Plan \u00a7Phase 1 item 1 (line 62-66) says the QThread is needed 'so large trees do not block the dialog' \u2014 measured 0.51 s for a 140-file real tree; only mirror-scale trees (thousands of files) block noticeably. Plan does not name the existing glue_qt.utils.Worker it should reuse. Plan claims this 'closes the no time-range search half' of the audit row: iris_xfiles' tstartval/tstopval search walks a level2/yyyy/mm/dd mirror by date; a start/end filter applied after a full scan is post-filtering, not search \u2014 fine for glue, but the row stays Partial unless the wording is adjusted. Audit line 167 ('No time-range search, filename-pattern presets, recent search windows, search cancellation') is accurate for the branch."
+   },
+   {
+    "id": "P1.7",
+    "title": "Log files (list *.log per observation, read-only text dialog)",
+    "status": "not_implemented",
+    "where": "glue-solar iris-observation-browser: glue_solar/sources/loaders/scan.py:145 (`if not name.endswith(_FITS): continue`), Observation dataclass scan.py:54-73 (no logs field), loaders/iris.py:229-235 (tree entries: sji/raster/sdo/archive only)",
+    "evidence": "scan.py:139 handles *.tar.gz, scan.py:145 drops every other non-FITS name, so *.log is skipped; conftest.py:90 writes 'notes.txt' only to prove non-FITS files are ignored; no .log in any fixture or test (grep '.log' in tests/conftest: none). Do Level 2 downloads ship .log? No: the LMSAL HCR download page for 20140329_140938_3860258481 (WebFetch) offers raster.tar.gz, SJI *.fits.gz (+deconvolved), movies.tar, SDO/SOTSP tar.gz, mp4s, science-timeline txt/gif and a VOEvent XML \u2014 no log. irispy test data (irispy.data.test.get_test_data_filenames: 29 files, only .fits/.sav/.geny/.pro/overview.txt) and the irispy pooch registry (/Users/nabil/Git/irispy/irispy/data/_sample.py:15-21) contain no .log. The user's own downloads /Users/nabil/DATA/IRIS and ~/Downloads/IRIS (140 files each) contain only FITS/tar.gz + .DS_Store. The .log is written by the SolarSoft level1to2 pipeline: irisl12_writelogfile.pro `file = filename + method + '.log'` with filename = `{level2dir}/iris_l2_{YYYYMMDD_HHMMSS}_{OBSID}` (iris_level1to2.pro), i.e. it exists only on mirrors that ran the pipeline locally (LMSAL/UiO). iris_xfiles (hesperia ssw/iris/idl/uio/ql/iris_xfiles.pro) has no log search at all: files matching the default filter 'iris_l2*' are listed, and a selected non-.fits file matching regex '.*log' is dumped by iris_xfiles_logdisplay into a widget_text(xs=160, ysize=50, /scroll) with a Close button. The existing _L2_STEM regex already keys such names: _key_from_name('iris_l2_20140329_140938_3860258481_raster.log') -> ('3860258481', '2014-03-29T14:09:38'). glue-qt has no reusable read-only text dialog (GlueLogger in glue_qt/app/application.py:90 is the stderr window; profile_tools.ui uses an inline QTextBrowser); native QPlainTextEdit(readOnly=True) in a QDialog is enough.",
+    "feasibility": "trivial",
+    "blockers": "No real test data has a .log \u2014 the iris_tree fixture must synthesize one. Log entries must not flow through finalize()'s loader branch (loaders/iris.py:289-302); open them on double-click/context action instead of via 'Load selected'.",
+    "recommendation": "Value is near zero for anyone using public downloads, irispy sample data, or pooch caches (none ship .log); only pipeline mirrors have them. Either drop it (YAGNI) or do it in the same PR as P1.1 since both touch the tree-entry code: add `logs: list[Path]` to Observation, accept `name.endswith('.log')` keyed by _key_from_name in scan_directory (~5 lines), list them as non-checkable children, and on double-click show the text in a QPlainTextEdit(readOnly) QDialog (~15 lines) plus one test with a synthetic .log. ~25-30 lines total.",
+    "doc_corrections": "Plan line 36/90 and audit line 170 are correct that nothing is implemented, but neither says that IRIS Level 2 public downloads, irispy test/sample data and pooch caches contain no *.log files \u2014 they are level1to2 pipeline by-products (`iris_l2_<ts>_<obsid>[_raster|_sji].log`) present only on local mirrors, so 'trivial' is right on size but the feature has almost no users. Audit line 57 ('Internal iris_xfiles log window: shows the text contents of a selected log file') is accurate; note iris_xfiles has no dedicated log search or file-type entry \u2014 it only displays a picked file that matches '.*log'."
+   }
+  ],
+  "checks_run": [
+   {
+    "command": "grep -n -i -E 'QThread|thread|filter|date|\\.log|cancel|scan_directory' glue_solar/sources/loaders/iris.py; cat glue_solar/sources/loaders/iris_loader.ui; cat -n glue_solar/sources/loaders/scan.py",
+    "result": "No filter/date widgets, no thread; set_directory calls scan_directory synchronously (iris.py:210); scan.py:145 skips all non-FITS names; Observation has no logs field"
+   },
+   {
+    "command": "QT_QPA_PLATFORM=offscreen MPLBACKEND=agg .venv/bin/python -m pytest glue_solar/tests/test_scan.py glue_solar/tests/test_importer.py -q -o addopts=''",
+    "result": "23 passed, 2 warnings in 1.44s (pytest.ini addopts --doctest-rst is unrecognized without the doctestplus plugin loaded, hence the override)"
+   },
+   {
+    "command": "HOME=<scratch> QT_QPA_PLATFORM=offscreen python -c 'scan_directory(\"/Users/nabil/DATA/IRIS\")' with timing",
+    "result": "14 observations, 130 files, 0 archives, 0.51 s"
+   },
+   {
+    "command": "python: glue_qt.utils.Worker(scan_directory, '/Users/nabil/DATA/IRIS').start(); wait on finished; dir(worker)",
+    "result": "result signal delivered 14 observations, error None; QThread exposes requestInterruption/isInterruptionRequested; Worker itself has no cancel API"
+   },
+   {
+    "command": "python: _key_from_name('iris_l2_20140329_140938_3860258481_raster.log')",
+    "result": "('3860258481', '2014-03-29T14:09:38') \u2014 existing stem regex keys pipeline log names"
+   },
+   {
+    "command": "find /Users/nabil/DATA/IRIS /Users/nabil/Downloads/IRIS -type f -not -name '*.fits' -not -name '*.fits.gz' -not -name '*.tar.gz'",
+    "result": "140 files each; only .DS_Store is non-FITS \u2014 no .log"
+   },
+   {
+    "command": "python -c 'from irispy.data.test import get_test_data_filenames' ; grep registry names in /Users/nabil/Git/irispy/irispy/data/_sample.py",
+    "result": "29 test files (.fits/.sav/.geny/.pro/overview.txt); sample registry = raster.tar.gz, raster_t000_r00000.fits, four SJI fits.gz, one AIA fits \u2014 no .log"
+   },
+   {
+    "command": "grep -rn -E 'QThread|QRunnable|QThreadPool|Worker|QPlainTextEdit|QTextEdit|QTextBrowser' /Users/nabil/Git/glue-qt/glue_qt (non-test); same for site-packages glue",
+    "result": "glue_qt: utils/threading.py Worker(QThread), viewers/matplotlib/compute_worker.py ComputeWorker, app/application.py GlueLogger (QTextEdit stderr window), profile_tools.ui QTextBrowser; glue-core: nothing"
+   },
+   {
+    "command": "WebFetch https://www.lmsal.com/hek/hcr?cmd=view-event&event-id=...IRIS_20140329_140938_3860258481...",
+    "result": "Download list: raster.tar.gz, SJI fits.gz (+deconvolved), movies.tar, SDO.tar.gz, SOTSP.tar.gz, mp4s, timeline txt/gif, VOEvent XML \u2014 'No log file is offered'"
+   },
+   {
+    "command": "WebFetch https://hesperia.gsfc.nasa.gov/ssw/iris/idl/uio/ql/iris_xfiles.pro (two prompts)",
+    "result": "Default sfilters=['iris_l2*','*','*','*']; tstartval/tstopval time fields; non-.fits selection matching regex '.*log' -> iris_xfiles_logdisplay (widget_text xs=160 ysize=50 + Close); no log-specific search dir or file-type entry"
+   },
+   {
+    "command": "WebFetch hesperia .../level1to2/irisl12_writelogfile.pro and iris_level1to2.pro",
+    "result": "file = filename + method + '.log'; filename = level2dir + 'iris_l2_' + time2file(OBSstart) + '_' + OBSid \u2014 logs are pipeline output next to L2 FITS on mirrors only"
+   },
+   {
+    "command": "curl/WebFetch https://www.lmsal.com/solarsoft/irisa/data/level2_compressed/2014/03/29/20140329_140938_3860258481/",
+    "result": "HTTP 403 (directory listing blocked); HCR page used instead"
+   }
+  ],
+  "notes": "Both items are honestly 'not implemented' on the iris-observation-browser branch; nothing on the glue/glue-qt fork branches touches them. Combined size if both are done the lazy way: roughly 70-90 lines of code + 3 tests + a paragraph in docs/user_guide/loading-iris-level-2-raster-and-sji-data.rst. Recommended ordering: text filter first (biggest UX win, ~15 lines), Worker-threaded scan with cooperative stop second (only pays off on mirror-scale trees), .log listing last or dropped (no public data has them). Aside noticed while running code: importing glue_solar outside pytest fails with the user's ~/.glue settings ('Unit converter iris-velocity is not defined', glue/config.py:938) because glue_solar/__init__.py imports glue.config before the plugin registers the converter \u2014 I worked around it with HOME=<scratch>; not in my area but worth a look. All web probes to www.lmsal.com directory listings return 403; hesperia SSW mirror serves the IDL sources."
+ },
+ "verify": {
+  "verdicts": [
+   {
+    "id": "P1.1",
+    "agree": true,
+    "correction": "",
+    "evidence": "Re-verified on iris-observation-browser (HEAD d3a2bd3): loaders/iris.py:205-211 set_directory() calls scan_directory() inline; iris_loader.ui widgets are only directory/change/recursive/obs_tree/progress/stack/cancel/ok (no QLineEdit filter, no QDateEdit, no stop button; 'cancel' at iris.py:183 is reject). scan.py:137 single for-loop, no stop hook. glue-core site-packages: no QThread/QRunnable anywhere. glue_qt (main, branch macos-integration has no diff there): glue_qt/utils/threading.py:8 Worker(QThread) exported from glue_qt.utils, viewers/matplotlib/compute_worker.py:15 ComputeWorker (start/end/error signals, no cancel); ran a Worker offscreen with QThread.currentThread().isInterruptionRequested() in the loop -> ('interrupted', 933707), so cooperative stop works with the existing Worker. Tests: 23 passed (test_scan.py + test_importer.py; needs -o addopts='' because pytest.ini's --doctest-rst is unrecognized without doctestplus loaded \u2014 reproduced). Timing re-run: /Users/nabil/DATA/IRIS 14 obs / 130 files / 0.50 s. Caveat the auditor understated: test_importer.py builds QtIRISImporter(tree) and reads the tree synchronously in 6 tests (lines 17-18, 52-56, 75, 82-86, 208-215, 225-241), and test_recursive_toggle_rescans / test_extract_archive_then_lists_its_windows re-enter set_directory, so an async scan means qtbot.waitUntil/waitSignal edits in ~6 existing tests or a synchronous fallback path \u2014 'plus two tests' is optimistic; still small. Plan lines 62-66 wording and absence of any 'Worker' mention (grep count 0) confirmed; audit line 167 confirmed."
+   },
+   {
+    "id": "P1.7",
+    "agree": true,
+    "correction": "",
+    "evidence": "scan.py:139 handles *.tar.gz, scan.py:145 `if not name.endswith(_FITS): continue` drops .log; Observation (scan.py:54-73) has no logs field; conftest.py:90 writes only notes.txt; grep '.log' in conftest/tests: none. Public data has no .log \u2014 stronger evidence than the auditor's HCR page: the UiO public L2 archive listing is fetchable (HTTP 200) and http://sdc.uio.no/vol/fits/iris/level2/2014/03/29/20140329_140938_3860258481/ has 368 entries (183 .fits + 185 .gz), 20211001_060925_3683602040 18 entries, 20210905_001833_3620258102 12 entries \u2014 zero names containing 'log', no .txt/.xml either. irispy.data.test.get_test_data_filenames(): 31 names (.fits/.sav/.geny/.pro/overview.txt), no .log; pooch registry (_sample.py:15-21) no .log; three cached raster.tar.gz in ~/Library/Caches/pooch contain only .fits; /Users/nabil/DATA/IRIS and ~/Downloads/IRIS: 140 files each, only .DS_Store non-FITS. Pipeline origin confirmed at the correct path hesperia .../ssw/iris/idl/uio/level1to2/irisl12_writelogfile.pro line 29 `file = filename + method + '.log'` (method '' / '_sji' / '_raster'; also a `.errorlog` variant at line 9) and iris_level1to2.pro:600 `filename = level2dir+'iris_l2_'+time2file(OBSstart)+'_'+OBSid`; _key_from_name keys both 'iris_l2_..._raster.log' and '..._SJI_1400_t000.log' -> ('3860258481','2014-03-29T14:09:38'). iris_xfiles.pro (WebFetch): sfilters=['iris_l2*','*','*','*'], dsource=['IRIS','EIS/CCSDS','EIS/FITS','EIS/HK'] (no log mode); a selected non-.fits file matching stregex '.*log' goes to iris_xfiles_logdisplay (widget_text /scroll xs=160 ysize=50), otherwise 'FITS file must have .fits extension' \u2014 matches auditor. glue-qt: GlueLogger at app/application.py:90 (QTextEdit stderr window), profile_tools.ui QTextBrowser, report_*.ui QPlainTextEdit \u2014 no standalone read-only text dialog. 'Trivial' sizing holds; if implemented, match '.errorlog' too (iris_xfiles' '.*log' regex does)."
+   }
+  ],
+  "summary": "Both verdicts stand: P1.1 and P1.7 are not implemented on iris-observation-browser, nothing on the glue/glue-qt fork branches touches them, and the cited file:line references, upstream helpers (glue_qt.utils.Worker, no cancel API but QThread interruption works cooperatively \u2014 reproduced), test results (23 passed) and timing (0.50 s for 130 files) all reproduce. Additions/corrections to the auditor's report: (1) P1.1 size understated on the test side \u2014 six existing test_importer.py tests construct the dialog and read the tree synchronously, and the recursive-toggle and extract-archive tests re-enter set_directory, so a QThread scan means ~6 test edits (qtbot.waitUntil) or a synchronous path kept for tests; code size (~40-60 lines) is fair. (2) P1.7 'no public .log' claim is now backed by a public archive listing, not just the HCR page: sdc.uio.no level2 directories for three observations (368/18/12 files) contain zero log files; pooch tarballs contain only .fits. The pipeline source is at ssw/iris/idl/uio/level1to2/ (auditor's path was vague/404 elsewhere) and also emits '.errorlog', which an implementation should accept alongside '.log'. (3) The auditor's aside that 'importing glue_solar outside pytest fails with Unit converter iris-velocity' is NOT reproducible: `import glue_solar`, the importer module and glue_solar.sources.iris all import fine with the real HOME; ~/.glue/settings.cfg has unit_converter = \"default\" and no 'iris-velocity' string exists in glue_solar or ~/.glue \u2014 treat that aside as stale. Doc corrections in the report (plan 62-66 blocking claim, missing Worker mention, 'Partial' row wording; audit 57/167/170 accurate) are correct."
+ }
+}

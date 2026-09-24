@@ -1,0 +1,1 @@
+Superseded by #<C> and #<A>: restarted off current main (the viewer code this branch touched moved to glue-qt in 2023 and the branch tip was internally broken). The salvageable parts (_set_wcs, wcsaxes_slice, update_x_ticklabel) are in #<A> with the defects fixed.

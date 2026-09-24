@@ -1,0 +1,220 @@
+science-moments.json:
+  audit:
+    items: [6]
+      [0]:
+        id: P2.1
+        title: Moment maps dialog wrapping irispy.utils.moments.calculate_moments
+        status: not_implemented
+        where: glue-solar: nothing (grep -rn moment glue_solar docs -> 0 hits). Upstream: /Users/nabil/Git/glue-solar/.venv/lib/python3.14/site-packages/irispy/utils/moments.py:33-209 (irispy-lmsal 0.8.1); rest wavelength in
+            irispy/meta.py:194-198
+        evidence: Installed signature: calculate_moments(cube, *, rest_wavelength=None, wings=None, integrated=False, min_intensity=None, saturation_limit=None). rest_wavelength auto-resolves via SGMeta.rest_wavelength =
+            float(self.get(f'TWAVE{self._iwin}')) * u.AA -> nm (meta.py:198; _iwin set in SGMeta.__init__ by matching TDESC, meta.py:459-479). Ran on real test raster iris_l2_20140329_140938_3860258481 window 'Mg II k 2796'
+            (8,109,63, DN_IRIS_NUV, ctype WAVE/HPLT-TAB/HPLN-TAB): returns RasterCollection with 5 2D SpectrogramCubes: intensity [DN_IRIS_NUV], centroid [nm], width [nm], velocity [km/s], velocity_width [km/s]; each (8,109) with 2D
+            WCS (helioprojective lat/lon), extra_coords ['time'] retained (make_spatial_template drops only wavelength-dependent coords), mask (source mask AND non-finite), meta=SGMeta. All 5 fed through
+            glue_solar.sources.loaders.iris._cube_data unchanged -> 2D Data, world axes 'Helioprojective Longitude/Latitude' in arcsec, components [map, 'map mask', 'Time'], pixel_to_world OK. So the plan's 'ingests outputs
+            unchanged' claim holds for single-scan datasets. Runtime 13 ms for 7480 px (no thread needed). CAVEAT for tests: NO window of either irispy test raster contains its TWAVE (all cropped; e.g. Mg II k 2790.51-2792.09 A vs
+            TWAVE 2796.20 A) so any wings= call with the auto rest wavelength raises ValueError 'No wavelength points found within the specified wings'; calculate_moments(cube, rest_wavelength=2791.3*u.AA, wings=0.5*u.AA,
+            min_intensity=50) works. Auto velocity maps on test data are therefore ~-520 km/s nonsense but run fine. wcs_autolink(DataCollection([raster3D, map2D])) -> [] (also [] for map<->SJI and map<->identical map) so the plan's
+            'linked to the source' requires explicit links (see P2.1-link).
+        feasibility: small
+        blockers: Needs P2.1-prereq (cube handle). None upstream: irispy 0.8.1 already the declared minimum; no new deps.
+        recommendation: Build as one module glue_solar/sources/moments.py (~100-150 lines + ~40-line test): register with glue_qt.config.layer_action('IRIS: line moments…', single=True, data=True) (right-click on the dataset; callback(layer,
+            data_collection)) instead of a menubar entry plus dataset picker; QFormLayout with rest wavelength (A, prefilled from cube.meta.rest_wavelength, editable), wings low/high (A, blank = whole window), min intensity,
+            saturation limit, integrated checkbox. Produce ONE Data per run: d = _cube_data(first_map, f'{label}-moments') then d.add_component(Component(np.asarray(c.data), units=str(c.unit)), name) for all 5 (verified: 8
+            components incl. mask and Time), append to the data collection, add two pixel LinkSame links to the source, open an ImageViewer on 'velocity'. Test with an explicit in-window rest wavelength.
+        doc_corrections: PLAN 2.1 / AUDIT: 'released in irispy-lmsal 0.8.1' — calculate_moments (and red_blue, density) were added in irispy 0.7.0 (2026-05-07, PRs #124/#125/#126; git tag --contains 3b9a506 -> v0.7.0); RBA API was simplified in
+            0.8.0 (#144). Harmless because glue-solar pins >=0.8.1, but say 'since 0.7.0'. PLAN 2.1 'add the maps as datasets linked to the source' — glue-core 1.27 wcs_autolink returns [] for every pairing involving these datasets;
+            links must be created explicitly (pixel LinkSame), and 'maps as datasets' should be 'one dataset with five components'. PLAN 2.1 omits that the 4D stack datasets are plain ndcube.NDCube with dict meta and cannot be
+            passed to calculate_moments as-is (see P2.1-stack).
+      [1]:
+        id: P2.1-prereq
+        title: Loader keeps a handle to the source SpectrogramCube on the Data
+        status: not_implemented
+        where: /Users/nabil/Git/glue-solar/glue_solar/sources/loaders/iris.py:72-85 (_cube_data) and :93-107 (_raster_collection_data)
+        evidence: _cube_data sets data.coords = _GlueWCS(cube.wcs.low_level_wcs), data.meta = cube.meta (same SGMeta object), components from cube.data/cube.mask; no reference to cube survives (grep for irispy_cube/weakref/source_cube ->
+            none). Costs of keeping it: none — glue Component stores the array by reference (glue/core/component.py:35 self._data = data; verified np.shares_memory(Component(cube.data).data, cube.data) is True), mask array likewise,
+            read_files is called with uncertainty=False. Data has no __slots__ and Data.__setattr__ (glue/core/data.py:1395-1400) only guards 'hub', so data.irispy_cube = cube works (verified). data.meta['irispy_cube'] = cube also
+            works with SGMeta and meta.fits_header still builds, but session save iterates meta values through context.do (glue/core/state.py:1028-1037) — a plain attribute is invisible to serialization and safer. For stacks,
+            _raster_collection_data passes the stacked ndcube.NDCube to _cube_data; the original SpectrogramCubeSequence (which carries SGMeta/rest_wavelength) is dropped.
+        feasibility: trivial
+        blockers: 
+        recommendation: One line in _cube_data: data.irispy_cube = cube. In the stack branch of _raster_collection_data add data.irispy_sequence = sequence (or store the sequence instead) so a stack can be re-wrapped with the scan-0 SGMeta.
+            Skip WeakKeyDictionary/registry: the Data already owns the arrays, the cube adds only WCS+meta, both already referenced by the Data.
+        doc_corrections: None; the plan correctly states the handle is missing.
+      [2]:
+        id: P2.1-link
+        title: Maps as components on the same Data vs separate Data, and how to link
+        status: non_goal
+        where: glue-core 1.27 glue/core/data.py:1040-1110 (add_component shape check), glue/core/link_helpers.py LinkSame, glue/plugins/wcs_autolinking
+        evidence: Same-Data option: src.add_component(2D map) -> ValueError 'The dimensions of component intensity are incompatible ... (8, 109) vs (8, 109, 63)'. Broadcast workaround np.broadcast_to(map[..., None], src.shape) (strides
+            (872, 8, 0), zero memory) DOES work: add_component, ROI subsets, compute_statistic, compute_histogram all fine — but it fakes a wavelength dependence (every slice identical, profile viewer shows a flat line) and pollutes
+            the raster's component list. Separate-Data option: 2 x dc.add_link(LinkSame(src.pixel_component_ids[i], maps.pixel_component_ids[i])) for i in (0,1) — the map shares the raster's spatial pixel grid exactly
+            (make_spatial_template slices at wavelength index 0). Verified: RoiSubsetState drawn on the map (38 px) propagates to the source as 38*63 = 2394 px, and a spatial ROI on the source propagates back to 38 px; a wavelength-
+            axis ROI on the source is IncompatibleAttribute on the map (expected). wcs_autolink gives [] in all pairings, so nothing automatic exists.
+        feasibility: trivial
+        blockers: 
+        recommendation: Separate 2D Data (one per moments run, five components) plus two pixel LinkSame links — three lines, exact, and the link chain will carry over to the SJI once raster<->SJI world links exist (Phase 1.4/3.1). Do not use
+            the broadcast-component trick.
+        doc_corrections: PLAN 2.1 should say 'one dataset per run, maps as components, pixel-linked to the source' rather than 'maps as datasets linked to the source' and should not imply autolinking.
+      [3]:
+        id: P2.1-stack
+        title: Moments on the optional 4D stacked dataset
+        status: partial
+        where: /Users/nabil/Git/glue-solar/glue_solar/sources/loaders/stack_spectrograms.py:74-84 (returns ndcube.NDCube with meta=dict(...)); irispy/spectrograph.py:188-196 (wavelength_axis from array_axis_physical_types)
+        evidence: calculate_moments(stack) -> AttributeError "'NDCube' object has no attribute 'wavelength_axis'" and the dict meta has no rest_wavelength. Wrapping works: SpectrogramCube(stack.data, stack.wcs, None, stack.unit,
+            stack.meta, mask=stack.mask) gives wavelength_axis=3; calculate_moments(sc, rest_wavelength=seq[0].meta.rest_wavelength) returns 5 maps of shape (13, 8, 109) with a sliced compound WCS (lat, lon, None); _cube_data
+            ingests them as 3D Data with world axes ['Scan', 'Helioprojective Longitude', 'Helioprojective Latitude'] (arcsec, arcsec, ''); scan 0 of the stack result equals the single-scan result (np.allclose True). Time extra
+            coord is absent on the stack (the loader stores Time as a component instead), so the moments Data for a stack gets no Time component unless copied from the source.
+        feasibility: small
+        blockers: Needs the sequence handle from P2.1-prereq for rest_wavelength (or a TWAVE lookup in the dict meta).
+        recommendation: In the moments action: if the handle is an NDCube, wrap it in SpectrogramCube as above and take rest_wavelength from the kept sequence[0].meta; link with three pixel LinkSame links (scan, y, x). Or explicitly scope v1 to
+            single-scan datasets and document it — either is a few lines.
+        doc_corrections: PLAN 2.1 does not mention that stacked datasets are NDCube, not SpectrogramCube; state that v1 covers per-scan datasets or add the wrap.
+      [4]:
+        id: P2.3a
+        title: calculate_red_blue_asymmetry wrapper
+        status: not_implemented
+        where: Upstream only: irispy/utils/red_blue.py:122-412 (installed 0.8.1 == git checkout, diff -q same)
+        evidence: Signature: calculate_red_blue_asymmetry(cube, *, rest_wavelength=None, velocity_range=(50,150) km/s, dv=10 km/s, continuum_windows=None, degree=3, min_intensity=None, saturation_limit=None, return_profiles=True).
+            rest_wavelength via getattr(cube.meta, 'rest_wavelength', None) (red_blue.py:181) — in installed 0.8.1 a window without TWAVE raises TypeError from float(None) here (moments catches it; RBA does not; the checkout returns
+            None instead). Cube in -> RasterCollection out: 'red_blue_asymmetry' (float, dimensionless, 2D), 'quality' (uint8 flags, 2D), plus with return_profiles=True two 3D cubes 'observed_profile' (8,109,63) and
+            'interpolated_profile' (8,109,33) with a synthetic VELO FITS WCS (physical types ['spect.dopplerVeloc', None, None]) and plain-dict meta. All four ingest via _cube_data (2D maps get named helioprojective axes; the
+            profile cubes get 'World 1'/'World 2' spatial axes and a velocity axis in m/s). Runtime 41 us/px (0.31 s for 187x40) -> ~18 s for a full 1096x400 raster (pure-Python per-pixel spline loop). On the cropped test data all
+            pixels are flagged 1/6 and no finite RBA values result (rest wavelength outside window), which is fine for a smoke test.
+        feasibility: small
+        blockers: Depends on the P2.1 dialog skeleton and the cube handle. Different form fields from moments (velocity range lo/hi, dv, degree, optional continuum windows), so it is not literally 'one entry in the same action list' but a
+            sibling dialog.
+        recommendation: After P2.1 lands: second layer_action reusing the same form scaffolding; call with return_profiles=False (the profile cubes are the source re-labelled in velocity and a spline resample — no value inside glue) and put
+            asymmetry + quality as two components on one 2D Data with the same two pixel LinkSame links; run in a QThread or accept a busy cursor for large rasters.
+        doc_corrections: PLAN 2.3 'both cube-in/cube-out like calculate_moments' is true for RBA only; note that the default return_profiles=True also yields 3D profile cubes, and that the per-pixel loop is slow (~40 us/px), unlike moments.
+      [5]:
+        id: P2.3b
+        title: density_diagnostic wrapper
+        status: not_implemented
+        where: Upstream only: irispy/utils/density.py:99-320 (installed 0.8.1 differs from checkout only in the fiasco import helper); recipe /Users/nabil/Git/irispy/examples/analysis/06_oiv_density_diagnostics.py
+        evidence: Signature: density_diagnostic(intensity_numerator, intensity_denominator, density_grid, *, ion, numerator, denominator, intensity_numerator_uncertainty=None, intensity_denominator_uncertainty=None, temperature=None,
+            bounds_error=False, fill_value=nan, line_ratio_kwargs=None). Inputs are two integrated-intensity ARRAYS/Quantities (not a cube), a density grid, a fiasco.Ion and the two transition wavelengths; it calls fiasco.line_ratio
+            and returns a dict {'ratio', 'ratio_uncertainty', 'density', 'density_lower', 'density_upper', 'density_grid', 'theoretical_ratio', ...} — no WCS, no SpectrogramCube. density.py:148-152 raises ImportError without
+            'fiasco'; `.venv/bin/python -c 'import fiasco'` -> ModuleNotFoundError; fiasco is not in glue-solar pyproject dependencies (only glue-qt[qt], sunpy[map,net], irispy-lmsal>=0.8.1) and needs the CHIANTI database download
+            on first use. A real use also needs two line intensity maps (O IV 1399.8/1401.2 or 1401.2/1404.8, both inside the 'Si IV 1403' window) i.e. two wings-restricted moments runs first.
+        feasibility: medium
+        blockers: New optional dependency (fiasco + CHIANTI data); multi-step workflow (two moments runs on two lines, then ion/grid/temperature choices); output must be re-attached to the source's spatial WCS by glue-solar itself.
+        recommendation: Remove density from the 'near-zero cost, one entry each' framing. Either drop it from the plan or list it under 'on demonstrated demand' with an explicit 'density' extra (fiasco) and a dialog that takes two already-
+            computed intensity components as inputs.
+        doc_corrections: PLAN 2.3: 'density_diagnostic (O IV), both cube-in/cube-out like calculate_moments' is wrong — it is arrays-in/dict-out, requires fiasco (uninstalled, undeclared) and two line-intensity maps; 'one entry each ... at near-
+            zero cost' does not apply to it.
+    checks_run: [13]
+      [0]:
+        command: .venv/bin/python -c 'import irispy; print(irispy.__version__, irispy.__file__)'
+        result: 0.8.1 from site-packages (git checkout at v0.8.1-23-g02b3c60 is ahead: moments.py/density.py/meta.py differ only in error handling of missing TWAVE and the fiasco import helper; red_blue.py identical)
+      [1]:
+        command: inspect.signature on calculate_moments / calculate_red_blue_asymmetry / density_diagnostic (installed)
+        result: see items; density_diagnostic takes arrays + fiasco.Ion, not a cube
+      [2]:
+        command: read_files(13 x iris_l2_20140329_140938_3860258481_raster_t000_r*.fits) and the 2021 sit-and-stare raster; print TWAVE/rest_wavelength/wavelength range per window
+        result: rest_wavelength resolves for all 17 windows (TWAVE -> nm); NO window contains its own TWAVE (all cropped test data)
+      [3]:
+        command: calculate_moments(Mg II k scan 0) -> each cube through _cube_data
+        result: 5 maps (intensity DN, centroid nm, width nm, velocity km/s, velocity_width km/s), all ingest as 2D Data with named arcsec axes, mask and Time components
+      [4]:
+        command: calculate_moments(cube, wings=0.05 nm | (0.5,0.8) AA | 2 AA ...) with auto rest wavelength
+        result: ValueError: No wavelength points found within the specified wings (rest wavelength outside cropped window); with rest_wavelength=2791.3 AA, wings=0.5 AA, min_intensity=50 -> OK
+      [5]:
+        command: calculate_moments(stack NDCube) / SpectrogramCube(stack.data, stack.wcs, None, unit, meta, mask=mask)
+        result: NDCube fails ('no attribute wavelength_axis'); wrapped cube works, 5 maps (13,8,109), _cube_data gives Scan/lon/lat axes, scan 0 == single-scan result
+      [6]:
+        command: calculate_red_blue_asymmetry(cube) and (cube, return_profiles=False) -> _cube_data; timing on 187x40
+        result: 4 outputs (2 x 2D maps, 2 x 3D VELO-WCS profile cubes) all ingest; 0.31 s / 7480 px = 41 us/px; moments 0.013 s
+      [7]:
+        command: wcs_autolink(DataCollection([raster3D, map2D])) / ([map2D, SJI]) / ([map2D, map2D])
+        result: [] in all three cases
+      [8]:
+        command: LinkSame on pixel_component_ids[0:2] + RoiSubsetState both directions
+        result: map ROI 38 px -> source 2394 px (=38*63); source spatial ROI 2394 -> map 38; wavelength ROI on map -> IncompatibleAttribute
+      [9]:
+        command: src.add_component(2D map) ; np.broadcast_to(map[...,None], src.shape) as component
+        result: 2D add -> ValueError dims incompatible; broadcast view works (subsets/statistics/histogram OK) but semantically wrong
+      [10]:
+        command: Component(cube.data) shares memory; Data.__setattr__ / __slots__; data.irispy_cube = cube; data.meta['irispy_cube'] = cube
+        result: shares_memory True; no __slots__, __setattr__ only guards hub; both handle styles work, fits_header still OK
+      [11]:
+        command: HOME=<scratch> QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest glue_solar -q -o addopts=''
+        result: 27 passed in 1.61 s (needs -o addopts='' because pytest.ini's --doctest-rst requires pytest-doctestplus, which is not installed in the venv)
+      [12]:
+        command: git -C irispy tag --contains <first commit of moments.py/red_blue.py/density.py>; gh release list -R LM-SAL/irispy-lmsal
+        result: all three first shipped in v0.7.0 (2026-05-07); releases: 0.7.0, 0.8.0 (RBA API simplified #144), 0.8.1 (latest, 2026-08-14)
+    notes: Environment issue found (not fixed, per read-only mandate): ~/.glue/settings.cfg (mtime 2026-09-02 08:10:35, i.e. today) contains unit_converter = "iris-velocity", which no installed package defines, so `import glue` in
+        this venv dies with KeyError 'Unit converter iris-velocity is not defined' (glue/config.py:936-942 validator at glue import time). Looks like another session/agent registered an experimental velocity unit converter
+        (Phase 3.3 territory) and glue persisted the setting on exit; the string appears in no branch of glue, glue-qt or glue-solar. Every python process using glue in this venv will fail until that line is removed or reset to
+        "default"; I worked around it with HOME=<scratchpad>. Also pytest.ini's --doctest-rst needs pytest-doctestplus, missing from the venv (tests extra lists it) — run with -o addopts="" or install it. Sizing summary for the
+        moments PR (plan step 4): handle = 1-2 lines; dialog + one Data with five components + two pixel links + test + docs ≈ 150-200 lines, no new dependencies, no upstream work; RBA is a second small dialog on the same
+        skeleton; density is not the same shape at all (fiasco + CHIANTI + two-line workflow) and should be de-scoped from 'free extensions'. Scratch scripts: /private/tmp/claude-501/-Users-nabil-Git-glue-
+        solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/smoke_{moments,link,link2,stack,stack2}.py. No worktrees were created; nothing to clean up.
+  verify:
+    summary: Re-ran every decisive check independently (scripts: scratchpad/verify_moments.py, verify_moments2.py, verify_fork_link.py, verify_fork_link2.py). All six items' status/evidence/feasibility/doc_corrections hold; no
+        refutations. Findings the auditor missed or under-stated: (1) glue-core 1.27 wcs_autolink returns [] for glue-solar datasets because the loader's `_GlueWCS` is a BaseLowLevelWCS and wcs_autolinking.py:320-321 keeps only
+        `isinstance(data.coords, BaseHighLevelWCS)` — glue-solar datasets are filtered out before any WCSLink is attempted; wrapping them in HighLevelWCSWrapper breaks glue (`'HighLevelWCSWrapper' object has no attribute
+        'world_axis_names'`), so this cannot be fixed in glue-solar alone. On the fork ape14-wcs-autolink (accepts BaseLowLevelWCS at :430) the 2D moment map DOES autolink to the SJI (WCSLink returned), but src3D<->map2D and
+        map2D<->map2D still raise IncompatibleWCS — so the recommended two pixel LinkSame links stay necessary even after Phase 3.1; the plan's 'linked to the source' must be explicit. (2) The auditor's recipe
+        `_cube_data(first_map, ...)` + add_component for all 5 stores the intensity array twice (components 'maps' and 'intensity'); build the Data directly or let `_cube_data` take extra components. (3) The maps' SGMeta is a
+        sliced copy (not the source object) but keeps all keys and `.rest_wavelength`, so a moments Data has its own rest wavelength available. (4) Environment note is stale: ~/.glue/settings.cfg (mtime 08:19) now has
+        `unit_converter = "default"` (the scratchpad settings.cfg.bak shows the earlier "iris-velocity"), and `import glue` works without a HOME override; parent should not act on that warning. Confirmed: signatures;
+        meta.py:194-198 TWAVE->nm and _iwin at :426/:479; all 17 test windows cropped so auto-rest+wings raises ValueError, explicit rest_wavelength=2791.3 A works; 5 maps ingest as 2D Data with arcsec axes + mask + Time
+        (datetime64[ns]); integrated=True gives unit 'DN_IRIS_NUV nm' and still ingests; ROI 38 px <-> 2394 px via LinkSame; 2D add_component on 3D -> ValueError; stack NDCube fails, wrapped SpectrogramCube gives (13,8,109) maps
+        with Scan/lon/lat axes, scan0 == single, no Time extra coord; RBA 4 outputs (2 x 2D, 2 x 3D VELO with dict meta) all ingest, 0.28-0.31 s / 7480 px = 38 us/px (~17 s full raster), no-TWAVE SGMeta -> TypeError in RBA but
+        not moments (installed 0.8.1); density_diagnostic is arrays-in/dict-out and raises ImportError (fiasco absent, undeclared); irispy tags: moments/red_blue/density first in v0.7.0 (CHANGELOG #124/#125/#126), RBA refactor
+        #144 in 0.8.0; pytest 27 passed (needs -o addopts='' because --doctest-rst needs missing pytest-doctestplus). Minor line-ref slip: component.py:35 is docstring, `self._data = data` is at :56. No worktrees created by me
+        (wt-ape14-ver belongs to another agent and was used read-only via PYTHONPATH); nothing to clean up.
+    verdicts: [6]
+      [0]:
+        id: P2.1
+        agree: True
+        correction: 
+        evidence: Re-ran: calculate_moments(cube, *, rest_wavelength=None, wings=None, integrated=False, min_intensity=None, saturation_limit=None); installed irispy/meta.py:194-198 rest_wavelength = float(TWAVE{_iwin}) AA -> nm, _iwin
+            set at :426/:479. 2014 Mg II k scan0 (8,109,63) -> RasterCollection keys [intensity DN_IRIS_NUV, centroid nm, width nm, velocity km/s, velocity_width km/s], each (8,109), physical types [hp.lat, hp.lon], extra_coords
+            ['time'], mask 32-40 px, SGMeta (sliced copy, same keys, rest_wavelength works). All 5 through _cube_data -> Data (8,109) comps [map, 'map mask', 'Time' datetime64[ns]], world ['Helioprojective
+            Longitude','Helioprojective Latitude'] arcsec, pixel_to_world OK. 29 ms. All 17 windows in both test rasters exclude their TWAVE; wings=0.5 A auto-rest -> ValueError 'No wavelength points found within the specified
+            wings'; rest_wavelength=2791.3 A wings=0.5 A min_intensity=50 OK; integrated=True gives 'DN_IRIS_NUV nm' and ingests. velocity nanmedian -525 km/s. git tag --contains first commits of moments/red_blue/density -> v0.7.0;
+            CHANGELOG #124/#125/#126 (0.7.0), #144 RBA refactor (commit 961d175 2026-05-15, in 0.8.0). glue_qt.config.layer_action(label, single=True, data=True) confirmed; UserAction._do_action calls callback(layer,
+            data_collection). Nit on the recommendation: `_cube_data(first_map,label)` then adding all 5 stores intensity twice ('maps' + 'intensity'); build the Data directly.
+      [1]:
+        id: P2.1-prereq
+        agree: True
+        correction: 
+        evidence: raster_data(...)[0]: hasattr(irispy_cube) False, meta is SGMeta, Data.__slots__ None; glue/core/data.py:1395-1400 __setattr__ guards only 'hub'; `src.irispy_cube = cube` works; np.shares_memory(Component(cube.data).data,
+            cube.data) True; state.py:1027-1036 _save_data_5 serialises only data.meta items (plain attribute ignored). Stack path: stack_spectrogram_sequence returns ndcube.NDCube with dict meta, sequence dropped. Minor:
+            'component.py:35 self._data = data' is a docstring line; the assignment is component.py:56.
+      [2]:
+        id: P2.1-link
+        agree: True
+        correction: 
+        evidence: src.add_component(2D velocity) -> ValueError 'The dimensions of component ... incompatible'. Two LinkSame(pixel_component_ids[i]) links: ROI on map 38 px -> source 2394 px (=38*63); source spatial ROI 2394 -> map 38; map
+            can derive src world lon (8,109). wcs_autolink [] on glue-core 1.27 for (src,map) and (map,SJI) — root cause the auditor did not state: wcs_autolinking.py:320-321 keeps only isinstance(data.coords, BaseHighLevelWCS) and
+            _GlueWCS is a BaseLowLevelWCS (HighLevel? False, LowLevel? True), so glue-solar datasets never reach WCSLink; wrapping in HighLevelWCSWrapper breaks glue ('no attribute world_axis_names'). On fork ape14-wcs-autolink
+            (PYTHONPATH=wt-ape14-ver, filter at :430 accepts BaseLowLevelWCS): (map2D, SJI) -> WCSLink returned; (src3D, map2D) and (map2D, map2D) -> IncompatibleWCS. So pixel LinkSame remains required for source<->map even after
+            Phase 3.1; map<->SJI becomes automatic then. glue.core.data_derived.IndexedData is a fixed-index view, not usable for a reduction — separate Data + LinkSame is the smallest option.
+      [3]:
+        id: P2.1-stack
+        agree: True
+        correction: 
+        evidence: stack_spectrogram_sequence(seq) -> NDCube (13,8,109,63), dict meta; calculate_moments(stack) -> AttributeError "'NDCube' object has no attribute 'wavelength_axis'". SpectrogramCube(stack.data, stack.wcs, None,
+            stack.unit, stack.meta, mask=stack.mask): wavelength_axis 3; with rest_wavelength=seq[0].meta.rest_wavelength -> 5 maps (13,8,109), physical types [hp.lat, hp.lon, None], extra_coords []; _cube_data -> Data (13,8,109)
+            world ['Scan','Helioprojective Longitude','Helioprojective Latitude'] units ('arcsec','arcsec','') comps ['stack-v','stack-v mask'] (no Time); scan0 == single-scan velocity allclose True; auto rest on the dict-meta
+            wrapper yields only intensity/centroid/width (no velocity maps).
+      [4]:
+        id: P2.3a
+        agree: True
+        correction: 
+        evidence: Signature confirmed (cube, *, rest_wavelength=None, velocity_range=[50,150] km/s, dv=10 km/s, continuum_windows=None, degree=3, min_intensity=None, saturation_limit=None, return_profiles=True); installed red_blue.py
+            identical to checkout; :181 getattr(cube.meta,'rest_wavelength',None). SGMeta with TWAVE keys deleted: calculate_moments OK (3 maps), calculate_red_blue_asymmetry -> TypeError float(None) (installed meta.py:198 has no
+            try/except; checkout returns None). 2021 sns Mg II k (187,40,52): 0.31 s -> keys [red_blue_asymmetry float64 dimensionless 2D SGMeta, quality uint8 2D SGMeta, observed_profile (187,40,52) DN 'spect.dopplerVeloc' dict
+            meta, interpolated_profile (187,40,33)]; all 4 ingest via _cube_data (2D maps get arcsec hp axes + Time; 3D profiles get ['', 'World 1','World 2'] units ('m.s**-1','','')). quality hist {1:935, 6:6545}, finite RBA 0.
+            return_profiles=False 0.28 s / 7480 px = 38 us/px -> ~17 s for 1096x400. RBA on dict-meta cube -> ValueError asking for explicit rest_wavelength.
+      [5]:
+        id: P2.3b
+        agree: True
+        correction: 
+        evidence: Signature confirmed: density_diagnostic(intensity_numerator, intensity_denominator, density_grid, *, ion, numerator, denominator, ...uncertainties, temperature, bounds_error, fill_value, line_ratio_kwargs) — arrays +
+            fiasco.Ion in, dict out via fiasco.line_ratio (density.py:148-152 import_module('fiasco'), :203). Call with dummy arrays -> ImportError 'IRIS density diagnostics require the optional dependency fiasco'. `.venv/bin/python
+            -c 'import fiasco'` -> ModuleNotFoundError; pyproject dependencies = glue-core, glue-qt[qt], sunpy[map,net], irispy-lmsal>=0.8.1, ndcube — no fiasco. Installed density.py differs from checkout only in the import helper.
+            Plan 2.3 'cube-in/cube-out like calculate_moments' is wrong for density; 'near-zero cost' does not apply.

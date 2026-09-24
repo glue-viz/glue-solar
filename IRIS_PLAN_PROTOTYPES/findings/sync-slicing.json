@@ -1,0 +1,110 @@
+{
+ "audit": {
+  "items": [
+   {
+    "id": "P3.2-a",
+    "title": "Translate a pixel slice index between linked datasets (primitive for slice sync)",
+    "status": "available_upstream",
+    "where": "glue-core 1.27 site-packages: glue/core/fixed_resolution_buffer.py:48 translate_pixel; glue/core/link_manager.py:347 is_convertible_to_single_pixel_cid, :420 pixel_cid_to_pixel_cid_matrix; idiom ref[other.pixel_component_ids[axis], point] (same as fork profile-wcs glue/viewers/profile/state.py:527)",
+    "evidence": "Ran on real irispy sns pair (SJI_1400 (62,40,37) with gWCS world axis 'Time (Utc)' in s; raster C_II scan-0 (187,40,18) with datetime64 'Time' component). Added ComponentLink([sji pixel z], ras pixel z, using=nearest-lookup, inverse=...). pixel_cid_to_pixel_cid_matrix(sji, ras)[0,0]==True; is_convertible_to_single_pixel_cid(sji, ras_pix0) -> 'Pixel Axis 0 [z]'; translate_pixel(sji, frame 5) -> raster exposure 15.0; sji[ras_pix0, point] -> [15.], ras[sji_pix0, exposure 2] -> [1.]. No glue-core change needed: links between pixel axes with a Python `using` function already translate slice indices both ways.",
+    "feasibility": "trivial",
+    "blockers": "ComponentLink closures (need the two time arrays) are not session-serializable; irrelevant today since IRIS sessions are documented unsupported. Overlaying raster in an SJI viewer still fails on the wavelength axis (IncompatibleAttribute on 'Pixel Axis 2 [x]') - expected, not a sync problem.",
+    "recommendation": "Use it as-is. Do not plan upstream work for the translation primitive; the plan's 'largest upstream effort' framing for P3.2 is wrong on this half.",
+    "doc_corrections": "IRIS_GLUE_GAP_PLAN.md:148-153 implies slice joining 'through the data links' needs new glue-core machinery; the link-side translation already exists (translate_pixel / Data.__getitem__ with a pixel cid). IRIS_GLUE_GAP_PLAN.md:198 'largest upstream effort' is overstated."
+   },
+   {
+    "id": "P3.2-b",
+    "title": "Synchronized slicing across viewers (viewer-state level)",
+    "status": "not_implemented",
+    "where": "glue-core glue/viewers/image/state.py:90 (slices DDCProperty), :202 _update_syncing (colour/alpha 'global_sync' only, not slices); glue-qt glue_qt/viewers/common/slice_widget.py:26 (state->slider callback), glue_qt/viewers/common/data_slice_widget.py:81 (play QTimer inside SliceWidget; there is no 'PlayTool' class)",
+    "evidence": "grep 'sync|slices|translate' in glue/viewers/common and image: only layer colour sync and per-viewer slices; no cross-viewer slice mechanism in glue-core, glue-qt, or upstream issues (gh search 'sync slices', 'link slices', 'synchronize slider' on glue-viz/glue and glue-jupyter: 0 hits). Prototype (scratchpad/exp_sync.py) with two glue-core ImageViewerState objects + one 'slices' callback per direction, shared re-entrancy guard, translating via ref[cid, point]: SJI frame 5 -> raster slices (15,0,0); raster exposure 1 -> SJI (0,0,0); sweeping all 62 SJI frames produced zero echo-back drift. Same-reference-data viewers: echo.keep_in_sync(vs_a,'slices',vs_b,'slices') (echo 0.15.0) is a working one-liner. Because MultiSliceWidgetHelper listens to viewer_state 'slices' (slice_widget.py:26), a programmatic state change already moves the glue-qt sliders, so no glue-qt change is needed for a stopgap.",
+    "feasibility": "small",
+    "blockers": "Stopgap: SJI datasets currently have no datetime64 'Time' component (loaders/iris.py:81-84 adds it only when cube.extra_coords has 'time', i.e. rasters); SJI time is the world axis 'Time (Utc)' in seconds since the gWCS TemporalFrame reference (2021-09-05T00:18:47.390 for the test file). Either add a 'Time' component for SJI in _cube_data (3-4 lines via cube.axis_world_coords('time')) or convert via that epoch. Upstream route blocked only by glue-core review latency (cf. PR #2248 open since 2022).",
+    "recommendation": "Ship the glue-solar-only stopgap now (no upstream dependency): (1) in _cube_data add a datetime64 'Time' component to SJI cubes; (2) an action 'IRIS: link SJI and raster in time' that computes nearest indices from the two Time components and adds ComponentLink(pixel t <-> pixel exposure, using/inverse) plus the JoinLink from P3.2-c; (3) a ~25-line sync function that attaches a 'slices' callback to each ImageViewer state in app.viewers (glue_qt/app/application.py:1330) translating the source slice point into every other viewer's non-displayed axes via ref[cid, point], with one shared guard, keeping callback refs on the viewer. ~100-120 lines incl. a test on the irispy sns pair. Upstream design if ever wanted: glue-core `ViewerState.translate_slices(other_state)` + a small SliceSyncGroup in glue/viewers/common (mirrors fork slice_view), glue-qt 'Sync slices with other viewers' checkbox in glue_qt/viewers/image/options_widget.ui; medium (~200-300 lines + tests across two PRs).",
+    "doc_corrections": "IRIS_GLUE_GAP_PLAN.md:148 labels this 'glue-core state + glue-qt UI'; a complete SJI<->raster stopgap needs neither. IRIS_IDL_GLUE_CAPABILITY_AUDIT.md:182 'nearest-exposure selection' missing is still true for the shipped branch. Plan text 'stepping the raster scan updates the SJI frame' - for the 4D stack the SJI time axis maps to two stack axes (scan, step); two ComponentLinks from the same SJI pixel cid are needed, which the prototype loop handles per axis."
+   },
+   {
+    "id": "P3.2-c",
+    "title": "Time-nearest join primitive (extension of Data.join_on_key)",
+    "status": "available_upstream",
+    "where": "glue/core/data.py:871 join_on_key (stores _key_joins :1036-1037); glue/core/joins.py:35 get_mask_with_key_joins (np.isin exact match only); glue/core/link_helpers.py:502 JoinLink (Link Editor 'Join on ID', glue-qt dialogs/link_editor/state.py:223); link_manager.py:187 calls join_on_key on add_link and undoes it on remove_link",
+    "evidence": "Ran on the real pair: derived components sji['nearest_raster_exposure'] (searchsorted nearest of raster Time per SJI frame, broadcast to (62,40,37)) and ras['exposure_index']. sji.join_on_key(ras, ...): subset 'exposure_index in 2..3' on raster -> SJI frame [1] selected (correct: frame 1's nearest exposure is 3). JoinLink(cids1=[nearest_raster_exposure], cids2=[exposure_index], data1=sji, data2=ras) via dc.add_link: subset 'SJI frames 10..11' -> raster exposures [31 34] == expected; dc.remove_link cleared _key_joins. get_mask_with_key_joins honours `view`, so it works for viewer reslicing too.",
+    "feasibility": "trivial",
+    "blockers": "None for the exact-join-on-precomputed-index form. A true 'nearest' mode upstream would need get_mask_with_key_joins to sort right keys + searchsorted, a join_on_key(nearest=True) flag, JoinLink flag and link-editor UI (~60 lines + tests) and gives nothing the derived index does not.",
+    "recommendation": "Drop the upstream join_on_key extension (YAGNI). Precompute the nearest raster exposure index as an SJI component (and exposure_index on rasters) in the glue-solar link action and register a JoinLink so it shows and can be removed in the Link Editor. Fold this into the Phase 1.4 'Link IRIS datasets' helper.",
+    "doc_corrections": "IRIS_GLUE_GAP_PLAN.md:151-152 'time-nearest join primitive (extension of Data.join_on_key to nearest-value matching on a Time component)' - not needed; exact join on a nearest-index component does it with zero upstream work, and the SJI has no 'Time' component to match on today (its time is the 'Time (Utc)' world axis in seconds)."
+   },
+   {
+    "id": "P3.2-d",
+    "title": "Fork branch glue:profile-wcs 98d7bb7c 'translate slice views across linked datasets' - reusable for viewer-to-viewer sync?",
+    "status": "implemented_on_fork_branch",
+    "where": "/Users/nabil/Git/glue profile-wcs c3bcd75b; commit 98d7bb7c: glue/viewers/profile/state.py:505 ProfileLayerState.slice_view (translation at :527 `ref[data.pixel_component_ids[axis], point]`, IncompatibleDataException at :529/:531), glue/viewers/profile/python_export.py; tests test_state.py:199 test_slice_function_linked, :233 test_slice_function_out_of_bounds",
+    "evidence": "git show 98d7bb7c: translates the reference-data slice point into a layer's own pixel indices through pixel links, bounds-checked, layer disabled if unlinked. Ran `pytest glue/viewers/profile` with PYTHONPATH=<worktree wt-glue-pw> and an isolated HOME: 57 passed, 1 skipped in 76s. (With the user's real ~/.glue it fails at import - see notes.) The idiom is exactly what the cross-viewer prototype uses; it is intra-viewer (reference -> layer) and method-local, so reuse for viewer-to-viewer means lifting the loop into a shared helper (viewer-state level, no layer/pix_cid special-casing), not importing slice_view.",
+    "feasibility": "small",
+    "blockers": "Branch has no upstream PR; glue-core `slices` on ProfileViewerState only exists on this branch (glue-qt profile-wcs 1133c0e9 gates on it). Not a dependency for the SJI<->raster image-viewer stopgap.",
+    "recommendation": "Reuse the idiom, not the method: if/when the glue-core upstream sync helper is written, factor slice_view's translation loop into glue/viewers/common (e.g. translate_slice_point(ref, slices, target_data)) and call it from both ProfileLayerState.slice_view and the sync helper. For glue-solar's stopgap just copy the 6-line loop.",
+    "doc_corrections": "/Users/nabil/Git/glue/PROFILE_WCS_RESTART_TODO.md is stale: 0 of 14 checkboxes ticked although Piece C (175e7129 + 98d7bb7c), Piece A (f767d320, c3bcd75b) and glue-qt Piece B (1133c0e9) are implemented with green tests; it never mentions the cross-dataset slice translation / IncompatibleDataException behaviour added in 98d7bb7c (Piece C bullets at :129-141 describe only the raw slice view)."
+   }
+  ],
+  "checks_run": [
+   {
+    "command": "python -c 'import glue, glue_qt; print(glue.__file__, glue.__version__)'",
+    "result": "glue-core 1.27.0 from .venv site-packages; glue_qt editable from /Users/nabil/Git/glue-qt. diff of fork main vs site-packages for core/data.py and viewers/image/state.py: identical."
+   },
+   {
+    "command": "grep join_on_key/JoinLink/slices/sync/translate_pixel in glue site-packages and glue_qt",
+    "result": "join_on_key data.py:871 (exact np.isin semantics in joins.py:35); JoinLink link_helpers.py:502 wired in link_manager.py:187/202 and glue-qt link editor; image state slices state.py:90, no cross-viewer sync anywhere; slider listens to state 'slices' slice_widget.py:26; play timer data_slice_widget.py:81; no PlayTool class."
+   },
+   {
+    "command": "git -C /Users/nabil/Git/glue show 98d7bb7c",
+    "result": "ProfileLayerState.slice_view translating ref-frame slice point through pixel links (ref[data.pixel_component_ids[axis], point]), bounds-checked; +65 lines tests."
+   },
+   {
+    "command": "PYTHONPATH=<wt-glue-pw> HOME=<scratch> pytest glue/viewers/profile -q (profile-wcs c3bcd75b)",
+    "result": "57 passed, 1 skipped, 76s. First attempt with the real ~/.glue failed: 'KeyError: Unit converter iris-velocity is not defined' at glue import."
+   },
+   {
+    "command": "HOME=<scratch> python scratchpad/exp_sync.py (real irispy sns SJI_1400 + raster r00000 via glue_solar image_data/raster_data)",
+    "result": "SJI (62,40,37) world axes Time (Utc)[s]/Latitude/Longitude, no Time component; raster (187,40,18) with datetime64 Time. Key join on nearest index: raster exposures 2..3 -> SJI frame [1]. ComponentLink nearest on pixel t: matrix[0,0]=True, translate_pixel frame 5 -> 15.0, reverse exposure 2 -> 1.0. Two ImageViewerStates + slices callbacks: (5,0,0)->(15,0,0), (1,0,0)->(0,0,0), zero drift over 62 frames; keep_in_sync same-ref viewer works."
+   },
+   {
+    "command": "HOME=<scratch> python scratchpad/exp_join.py",
+    "result": "JoinLink via dc.add_link: SJI frames 10..11 subset -> raster exposures [31 34] == expected; dc.remove_link clears _key_joins."
+   },
+   {
+    "command": "gh search issues --repo glue-viz/glue 'sync slices viewers' / 'link slices' / 'synchronize slider' / 'join_on_key nearest'; glue-jupyter 'slice sync'",
+    "result": "No upstream issue or PR on cross-viewer slice sync or nearest joins (join_on_key hits are unrelated: #1067, #1041, #2215 closed 'Expose join_on_key in the UI')."
+   }
+  ],
+  "notes": "Environment problem to relay: /Users/nabil/.glue/settings.cfg (mtime today 08:10) now contains `unit_converter = \"iris-velocity\"`; glue.config.check_unit_converter rejects it at `import glue` (KeyError) because settings load before any plugin can register the converter. glue_solar does not define 'iris-velocity' (grep), so another process/agent wrote it. Until that line is removed, `import glue` fails in the venv (pytest on the fork branch failed for that reason on first try). I did not touch the file; I ran everything with HOME pointed at a scratch dir. No repos were modified; worktrees wt-glue-pw/wt-ape14/wt-ape14-vc in the scratchpad pre-existed (created by other agents) and were used read-only and left in place. Bottom line for P3.2: reclassify from 'largest upstream effort' to a small glue-solar-only feature; the only upstream-worthy piece is an optional glue-core helper that factors the slice-translation loop, and the join_on_key nearest extension should be dropped."
+ },
+ "verify": {
+  "verdicts": [
+   {
+    "id": "P3.2-a",
+    "agree": true,
+    "correction": "",
+    "evidence": "All file:line refs verified in .venv site-packages (fixed_resolution_buffer.py:48 translate_pixel; link_manager.py:347/420; fork main files byte-identical to site-packages for data.py, image/state.py, link_manager.py, joins.py, fixed_resolution_buffer.py, link_helpers.py). Re-ran scratchpad/exp_sync.py with the real HOME: matrix[0,0]=True, is_convertible_to_single_pixel_cid -> 'Pixel Axis 0 [z]', translate_pixel frame 5 -> [15.], sji[ras_pix0, point] -> [15.], ras[sji_pix0, exposure 2] -> [1.]. Serialization blocker confirmed by execution: GlueSerializer(dc).dumps() on a lambda-`using` ComponentLink -> ValueError \"Object '__main__.<lambda>' not found\". Sessions documented unsupported at docs/user_guide/loading-iris-level-2-raster-and-sji-data.rst:61-66. Raster overlay in SJI viewer: layer disabled (enabled=False), no crash (vf_qt_sync.py). Extra: for the 4-D stack the reverse direction needs a 2-input ComponentLink([scan, step] -> sji_t); verified on the 20140329 stack (13,8,109,17): sji[scan,pt]=[5.], sji[step,pt]=[2.], st[sji_t, (5,2,0,0)]=[20.] round-trips."
+   },
+   {
+    "id": "P3.2-b",
+    "agree": false,
+    "correction": "Status 'not_implemented', feasibility 'small' and 'no glue-qt change needed' all hold (verified end-to-end in a real offscreen GlueApplication with two ImageViewers: dragging viewer A's Qt slider to 5 moves viewer B's state and slider to 15; B slider 100 -> A slider 33; both figures draw). Two gaps in the recommended stopgap design: (1) there is no viewer-creation hook - glue/core/message.py defines no viewer-added message and GlueApplication.new_data_viewer (glue_qt/app/application.py:1014) broadcasts nothing - so a 'sync function that attaches to app.viewers' only covers viewers open at action time; a viewer opened afterwards stayed at (0,0,0) while the hooked one moved to (31,0,0). The design must hook lazily (rescan app.viewers inside the callback), wrap new_data_viewer, or ship a glue-solar ImageViewer subclass - or document 're-run the action'. (2) 'two ComponentLinks from the same SJI pixel cid' covers only SJI->stack; per-axis `inverse` cannot exist (scan alone does not determine the frame), so stack->SJI needs a third, 2-input ComponentLink([scan, step], sji_t) - verified working through ref[cid, point].",
+    "evidence": "scratchpad/vf_qt_sync.py (GlueApplication offscreen, real irispy sns SJI_1400 + C_II raster, nearest ComponentLink, options_widget().slice_helper._sliders): 'A slider 5 -> B state (15,0,0) B slider 15 expect 15'; 'B slider 100 -> A state (33,0,0) A slider 33 expect 33'; 'new viewer C slices after A->10: (0,0,0) (B: (31,0,0))'. grep '^class ' glue/core/message.py: only ApplicationClosed/LayerArtist* messages. state.py:90 slices, :202 _update_syncing = global_sync only (read source). slice_widget.py:26 add_callback('slices', sync_sliders_from_state) and sync_state_from_sliders sets viewer_state.slices; data_slice_widget.py:81 QTimer; no PlayTool in glue_qt. gh search (sync slices / link slider viewers / slice viewers synchron / slider linked cube on glue-viz/glue; slice sync on glue-jupyter): 0 hits. loaders/iris.py:81-84 adds 'Time' only when extra_coords has 'time'; SJICube.extra_coords keys are exposure time/obs_vrix/... (no 'time'), but cube.axis_world_coords('time') returns astropy Time (62,) so the 3-4 line fix is real. echo 0.15.0 has keep_in_sync."
+   },
+   {
+    "id": "P3.2-c",
+    "agree": true,
+    "correction": "",
+    "evidence": "Re-ran scratchpad/exp_join.py with the real HOME: JoinLink via dc.add_link -> raster exposures [31 34] == expected; dc.remove_link -> _key_joins {}. link_manager.py:187 `link.data1.join_on_key(link.data2, link.cids1[0], link.cids2[0])`, remove_link undoes it (lines 202-210); joins.py get_mask_with_key_joins(data, key_joins, subset_state, view=None) uses np.isin exact matching and honours view (data.get_data(cid, view=view)). Link Editor exposes it as 'Join on ID' (glue_qt/dialogs/link_editor/tests/test_link_editor.py:690, state.py:223). Minor addition, not a refutation: the key component is stored as a zero-stride broadcast view (strides (8,0,0)) but get_mask_with_key_joins calls .ravel(), which copies (owndata=True) - int64 keys cost 8 B/px of the full SJI cube per mask evaluation; store the index as int32/uint16 on real-size data."
+   },
+   {
+    "id": "P3.2-d",
+    "agree": true,
+    "correction": "",
+    "evidence": "git show 98d7bb7c: ProfileLayerState.slice_view at profile-wcs state.py:505, translation at :527 `int(np.round(ref[data.pixel_component_ids[axis], point][0]))`, IncompatibleDataException at :529/:531; tests test_state.py:199 test_slice_function_linked, :233 test_slice_function_out_of_bounds. Ran `pytest glue/viewers/profile` in scratchpad/wt-glue-pw (c3bcd75b) with PYTHONPATH=worktree and the REAL HOME: 57 passed, 1 skipped in 75s. Also ran glue-qt profile-wcs (1133c0e9, wt-glueqt-pw) profile tests against fork glue: 58 collected incl. test_slice_function_sliders/test_wcsaxes_profile, 57 passed, 1 skipped. /Users/nabil/Git/glue/PROFILE_WCS_RESTART_TODO.md: 14 '- [ ]' lines (65..152), none ticked; Piece C bullets at :129-141 describe only the raw slice view - stale as claimed. Upstream PR 2248 still OPEN (created 2021-11-09, last updated 2022-06-28)."
+   }
+  ],
+  "summary": "All four items re-executed; auditor's file:line references, script outputs and test results reproduce exactly. One design-level correction (P3.2-b): the stopgap as recommended has no way to hook viewers opened after the action (no viewer-added hub message in glue-core; GlueApplication.new_data_viewer broadcasts nothing - verified by a later-created viewer staying unsynced), and the 4-D stack needs three links (two forward + one 2-input reverse), not two. Status/size judgements stand: P3.2 is a small glue-solar-only feature (Qt end-to-end verified with real sliders in scratchpad/vf_qt_sync.py), the join_on_key 'nearest' extension is unnecessary, and the plan's 'largest upstream effort' at IRIS_GLUE_GAP_PLAN.md:198 and 'glue-core state + glue-qt UI' at :148 are wrong. Auditor's environment note is now stale: ~/.glue/settings.cfg has unit_converter = \\\"default\\\" (mtime 08:19, a settings.cfg.bak sits in the scratchpad); `import glue` and the fork test suites pass with the real HOME. Missed by the auditor: closure ComponentLinks fail GlueSerializer with \\\"Object '__main__.<lambda>' not found\\\" (confirmed by run, consistent with its blocker note); join-key components broadcast to the full cube copy on .ravel() in get_mask_with_key_joins (use a small int dtype on real SJI sizes); SJICube.extra_coords has no 'time' key but cube.axis_world_coords('time') works, so the SJI Time component is the stated 3-4 lines. No repos modified; worktrees wt-glue-pw/wt-glueqt-pw pre-existed and were left in place."
+ }
+}

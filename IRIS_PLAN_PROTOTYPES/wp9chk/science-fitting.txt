@@ -1,0 +1,176 @@
+science-fitting.json:
+  audit:
+    items: [4]
+      [0]:
+        id: P2.2
+        title: Gaussian fit maps (single, then double) via astropy parallel_fit_dask
+        status: not_implemented
+        where: glue-solar: nothing (grep 'parallel_fit|gaussian|modeling|dask' over glue_solar/ and docs/ is empty; no fit branch among local/remote branches). Upstream: astropy.modeling._fitting_parallel.parallel_fit_dask (installed
+            8.0.1, /Users/nabil/Git/glue-solar/.venv/lib/python3.14/site-packages/astropy/modeling/_fitting_parallel.py), added in astropy 7.1.0 (gh PRs #17538/#18065 milestone v7.1.0). Recipes:
+            /Users/nabil/Git/irispy/examples/analysis/01_spectral_fitting.py and 07_mg_ii_two_gaussian_fitting.py (both present at tag v0.8.1 and main).
+        evidence: Signature (astropy 8.0.1): parallel_fit_dask(*, model, fitter, data, data_unit=None, weights=None, mask=None, fitting_axes=None, world=None, chunk_n_max=None(->500), diagnostics=None, diagnostics_path=None,
+            diagnostics_callable=None, scheduler=None(->'processes'), fitter_kwargs=None, preserve_native_chunks=False, equivalencies=None, fit_info=False). fitting_axes = array axis index of the spectral axis (irispy scans are
+            (step, slit, wl) so fitting_axes=2); world=(wavelength_1d,) tuple per fitting axis (or an APE-14 WCS); returns the model with array-valued params of the iterating shape (verified param_shape=(187,40)); failed pixels ->
+            NaN. dask import is hard-required inside the function (line 456-459). Exact recipe from both examples: crop cube, spatial_mean = cube.rebin((*shape[:-1],1))[0,0,:], wavelength = axis_world_coords('em.wl').to(nm); single:
+            Const1D(amplitude=nanpercentile(mean[~core_window],10)) + Gaussian1D(amplitude=nanmax(mean[core_window]), mean=rest_wl, stddev=0.005 nm) with core_window=|wl-rest|<0.15 nm; double (Mg II k):
+            Const1D(nanpercentile(mean,10)) + Gaussian1D(0.65*peak, 279.621 nm, 0.008 nm) + Gaussian1D(0.50*peak, 279.650 nm, 0.008 nm); prefit that seed on the spatial mean with TRFLSQFitter, then
+            parallel_fit_dask(data=nan_to_num(clip(min=0)), data_unit=cube.unit, fitting_axes=2, world=(wl,), model=average_fit, fitter=LMLSQFitter(), scheduler='single-threaded'). Outputs derived: net flux =
+            sqrt(2pi)*amp*stddev/dlambda, velocity = (mean-rest)/rest*c, width = stddev/rest*c. RAN it on irispy 0.8.1 bundled rasters (see checks_run): single Gaussian 872 spectra 0.51 s; 7480 spectra 3.8 s (good seed) / 13.4 s
+            (bad seed) single-threaded, 'threads' 13.6 s (no gain, GIL), 'processes' 5.7 s; double Gaussian 7480 spectra 23 s single-threaded. Units cost nothing (12.87 s DN_IRIS_FUV vs 12.90 s plain floats); the seed dominates
+            (3.4x). Extrapolation for a full IRIS raster (~400 steps x 1096 px ~ 440k spectra): ~8-13 min single, ~20+ min double single-threaded, ~2.3x faster with 'processes' on this machine. Fitting straight from the glue Data
+            produced by raster_data() works without a cube handle: array = data[cid], wavelength = data.coords.pixel_to_world_values(...)[0] (world_axis_units[0]='m'), data.meta is the irispy SGMeta (data.meta.rest_wavelength =
+            140.277 nm), and a 2D spatial WCS for the output maps comes from SlicedLowLevelWCS(data.coords._wcs, (slice(None), slice(None), 0)) -> _GlueWCS wraps it (pixel_n_dim 2, Helioprojective lat/lon). Residual cube = data -
+            fit(wl[:,None,None]).transpose(1,2,0), ~0 s. Unit string stored by _cube_data (glue_solar/sources/loaders/iris.py:78, str(cube.unit)='DN_IRIS_FUV') does NOT round-trip through u.Unit() unless irispy's unit is enabled;
+            fit in plain floats and label units afterwards. irispy ships no parallel_fit_dask helper on v0.8.1 or main (git grep parallel_fit_dask only hits examples/); it does ship an unused @custom_model
+            irispy.utils.utils.gaussian1d_on_linear_bg (utils.py:90, exp(-((x-mean)/sd)**2) i.e. sd = sqrt(2)*sigma, no callers) - not a drop-in for astropy's Gaussian1D width semantics.
+        feasibility: medium
+        blockers: None hard. Soft: the plan wants the same dialog as moments (P2.1), which does not exist yet (grep 'moments' in glue_solar/ is empty), so either land P2.1 first or build the dialog here. macOS gotcha:
+            scheduler='processes' spawns children that re-import __main__; an unguarded script gives BrokenProcessPool (reproduced) - fine inside the glue entry point, but tests must use 'single-threaded' or guard main.
+            parallel_fit_dask has no progress/cancel hook.
+        recommendation: Wrap it: one pure function fit_gaussians(data, wavelength_nm, n_gaussians=1|2, rest_nm) -> dict of 2D arrays + residual cube (~60 lines, plain floats, seed from spatial mean like the examples but fall back to argmax when
+            rest is outside the window), run in glue_qt.utils.threading.Worker (existing QThread helper, glue-qt main since 2023, /Users/nabil/Git/glue-qt/glue_qt/utils/threading.py) with scheduler='processes', build 2D Data objects
+            with the sliced spatial WCS and link them to the source. Do single first; double is the same path with a different seed list. Roughly 150-250 lines including tests; add a synthetic Gaussian cube fixture since the real
+            test rasters cannot produce a physical fit.
+        doc_corrections: PLAN line 124 'Requires `dask` - add as an optional `fitting` extra.' is wrong: irispy-lmsal 0.8.1 (glue-solar hard dep, pyproject line 22) itself requires dask[array]>=2024.7.0 (irispy v0.8.1 pyproject.toml line 36; pip
+            shows irispy-lmsal Requires: dask), so dask is always installed; no extra. Also no astropy pin needed: parallel_fit_dask is astropy>=7.1.0 and irispy 0.8.1 already pins astropy>=7.2.0. PLAN lines 119-120 'with percentile
+            background seeding' describes irispy main, not v0.8.1: the 20-line percentile-seeding block in 01_spectral_fitting.py is only on main (git diff v0.8.1 main); harmless since it is documentation. PLAN line 122 'run in a
+            background thread' is right but under-specified: dask's default 'threads' does NOT speed this up (13.4 s vs 13.6 s, GIL) and compute() is a single blocking call so a processEvents loop cannot work; a QThread
+            (glue_qt.utils.threading.Worker) around parallel_fit_dask(scheduler='processes') is the only workable form, and there is no cancel. PLAN line 113-115 'Prerequisite: the loader must keep a handle back to the source
+            SpectrogramCube' is not needed for fitting: array, wavelength (via data.coords), unit string, meta.rest_wavelength and a sliceable WCS are all already on the Data (verified). AUDIT line 180 is accurate. Both docs imply
+            the irispy test data can drive these recipes: it cannot - the bundled rasters are spectrally cropped (Si IV 1403 window 139.86-139.94 nm vs line 140.277 nm; Mg II k 279.05-279.21 / 279.34-279.47 vs 279.62 nm), so the
+            rest-wavelength core-window seeding raises 'zero-size array to reduction operation'; the synthetic conftest rasters are all-zero int16 (3,4,5) (glue_solar/conftest.py:48-51).
+      [1]:
+        id: P2.2-threading
+        title: Background execution for long fits
+        status: available_upstream
+        where: /Users/nabil/Git/glue-qt/glue_qt/utils/threading.py (Worker(QThread): result/error signals; in glue-qt main, last changed d65c3fe9 2023-08-11); glue_qt/viewers/matplotlib/compute_worker.py is the queue-based variant used
+            by profile/histogram viewers.
+        evidence: Measured 1.8 ms/spectrum single Gaussian single-threaded (0.76 ms/spectrum with 'processes'), ~3 ms/spectrum double; a full raster is minutes, so the GUI would freeze without a thread. glue-solar currently uses
+            get_qapp().processEvents() loops for progress (glue_solar/sources/loaders/iris.py:277,291), which cannot interleave with one blocking dask compute().
+        feasibility: small
+        blockers: parallel_fit_dask offers no progress callback or cancellation; a busy indicator only.
+        recommendation: Use glue_qt.utils.threading.Worker(fit_fn, ...) and connect result/error to slots that add the Data on the main thread; pass scheduler='processes' for real rasters, 'single-threaded' in tests.
+        doc_corrections: PLAN line 122-123 says 'run in a background thread' without naming a mechanism; state Worker + scheduler='processes' explicitly and drop any implicit expectation of a cancel button or progress bar for the fit.
+      [2]:
+        id: P2.2-dask-extra
+        title: 'fitting' extra with dask
+        status: non_goal
+        where: irispy v0.8.1 pyproject.toml line 36 'dask[array]>=2024.7.0' (hard dependency); glue-solar pyproject.toml line 22 'irispy-lmsal>=0.8.1'
+        evidence: importlib.metadata scan of the venv: irispy-lmsal 0.8.1 requires dask[array]>=2024.7.0 unconditionally (also reproject, dkist, spectral-cube, casa-formats-io); dask 2026.8.0 installed. astropy only lists dask under its
+            'all'/'docs' extras.
+        feasibility: n/a
+        blockers: 
+        recommendation: Drop the extra from the plan; dask arrives with irispy.
+        doc_corrections: PLAN line 124 'Requires `dask` - add as an optional `fitting` extra' - remove.
+      [3]:
+        id: P2.2-irispy-helper
+        title: Does irispy ship a fitting helper?
+        status: not_implemented
+        where: /Users/nabil/Git/irispy: git grep parallel_fit_dask v0.8.1 / main -> only examples/analysis/01 and 07; irispy/utils/utils.py:90 gaussian1d_on_linear_bg (@custom_model, no callers at v0.8.1 or main)
+        evidence: See where; moments.py:61 mentions Gaussian fitting only in a docstring. irispy main is 23 commits past v0.8.1 (e80c51f 2026-08-31) with no fitting API added.
+        feasibility: n/a
+        blockers: 
+        recommendation: Keep the recipe in glue-solar (or contribute a cube-in/maps-out fit_gaussian to irispy later, mirroring calculate_moments). Do not reuse gaussian1d_on_linear_bg: its 'standard_deviation' is sqrt(2)*sigma, which would
+            silently change the width maps.
+        doc_corrections: PLAN line 116-118 'wraps astropy' is accurate; audit line 180 accurate.
+    checks_run: [13]
+      [0]:
+        command: .venv/bin/python -c 'inspect.signature(astropy.modeling.fitting.parallel_fit_dask)' (astropy 8.0.1)
+        result: (*, model, fitter, data, data_unit=None, weights=None, mask=None, fitting_axes=None, world=None, chunk_n_max=None, diagnostics=None, diagnostics_path=None, diagnostics_callable=None, scheduler=None, fitter_kwargs=None,
+            preserve_native_chunks=False, equivalencies=None, fit_info=False); source astropy/modeling/_fitting_parallel.py; scheduler default 'processes' (line 461-462), chunk_n_max default 500, dask hard-imported at call (line
+            456-459)
+      [1]:
+        command: gh api search/issues q='parallel_fit_dask repo:astropy/astropy is:pr is:merged'
+        result: PR #17538 'Store fit_info in parallel fitting' and #18065 what's-new entry, milestone v7.1.0 -> function available since astropy 7.1.0
+      [2]:
+        command: git -C /Users/nabil/Git/irispy grep parallel_fit_dask v0.8.1 / main; git diff v0.8.1 main -- examples/analysis/01,07
+        result: No hits outside examples/; 07 exists at both refs; 01 gained the 20-line percentile-seeding block only on main
+      [3]:
+        command: importlib.metadata scan for distributions requiring dask; pip show irispy-lmsal
+        result: irispy-lmsal 0.8.1 Requires dask (dask[array]>=2024.7.0 unconditional); dask 2026.8.0 installed; astropy lists dask only in all/docs extras
+      [4]:
+        command: scratchpad/fit_bench.py small_single (Si IV 1403, 20140329 r00000, (8,109,29), Const1D+Gaussian1D, LMLSQFitter)
+        result: single-threaded 0.51 s, threads 0.51 s, processes 2.13 s; 0 NaN; params shape (8,109)
+      [5]:
+        command: scratchpad/fit_bench.py sns_single (Si IV 1403, sns 20210905 r00000, (187,40,29), irispy-style prefit seed) - run twice
+        result: single-threaded 13.40 s / 13.40 s, threads 13.83 s / 13.57 s, processes 5.98 s / 5.72 s (1.8 ms/spec vs 0.76 ms/spec)
+      [6]:
+        command: scratchpad/fit_bench.py sns_double (Mg II k, (187,40,52), Const1D+2xGaussian1D)
+        result: single-threaded 23.08 s, threads 23.01 s (3.1 ms/spec); 2 NaN pixels
+      [7]:
+        command: scratchpad/unit_cost.py (same seed, data_unit=DN_IRIS_FUV vs def_unit('DN') vs plain floats)
+        result: 12.87 s / 12.95 s / 12.90 s -> units are free; runtime is seed-dominated (same cube 3.77 s with a sane seed in units_vs_plain.py)
+      [8]:
+        command: scratchpad/fit_from_data2.py (fit fed from glue_solar raster_data() Data, no cube handle; SlicedLowLevelWCS on data.coords._wcs)
+        result: Data (187,40,29) units='DN_IRIS_FUV' (u.Unit fails to parse it), world_axis_units ('m','arcsec','arcsec'), data.meta.rest_wavelength 140.277 nm; unitless processes fit 1.77 s; residual cube computed; sliced 2D WCS
+            pixel_n_dim=2 wraps in _GlueWCS
+      [9]:
+        command: scratchpad/fit_from_data.py without __main__ guard, scheduler='processes'
+        result: concurrent.futures.process.BrokenProcessPool (macOS spawn re-imports the script) - reproducible gotcha
+      [10]:
+        command: irispy 0.8.1 read_files on bundled rasters; print wavelength coverage
+        result: raster/iris_l2_20210905_..._raster_t000_r00000.fits fails: 'Expected 187 NUV source filename rows, found 1872'; sns/ copy and 20140329 set load. Si IV 1403 window 139.86-139.94 nm (line 140.277 nm outside), Mg II k
+            279.05-279.21 / 279.34-279.47 nm (core 279.62 outside) -> gallery rest-wavelength seeding raises 'zero-size array to reduction operation fmax'
+      [11]:
+        command: grep -rn -E 'dask|parallel_fit|gaussian|QThread|processEvents|modeling' glue_solar docs; grep moments glue_solar; git branch -a
+        result: Only processEvents at loaders/iris.py:277,291 and loaders/maps.py:87; no fitting or moments code; no fitting branch
+      [12]:
+        command: cat /Users/nabil/Git/glue-qt/glue_qt/utils/threading.py; git -C glue-qt show main:glue_qt/utils/threading.py
+        result: Worker(QThread) with result/error signals present on main (d65c3fe9 2023-08-11) and on the installed editable macos-integration branch
+    notes: Env gotcha: running python with cwd=/Users/nabil/Git/irispy imports the local dev checkout (irispy 0.8.2.dev17, branch false-color-rgb with a deleted test FITS) instead of site-packages 0.8.1; all measurements above were
+        taken from cwd=/Users/nabil/Git/glue-solar against the installed 0.8.1. Timings are on this Mac, Python 3.14, LMLSQFitter, chunk_n_max=500. The recipe is unit-agnostic; do the fit in plain floats (nm) because the
+        loader's unit string 'DN_IRIS_FUV' cannot be parsed back without enabling irispy's custom unit. Net size for P2.2 single Gaussian: medium (fit function + Worker + Data construction + synthetic-cube tests); double
+        Gaussian afterwards: small. No worktrees were created; scratch scripts live under the scratchpad (fit_bench.py, unit_cost.py, units_vs_plain.py, fit_from_data2.py).
+  verify:
+    verdicts: [4]
+      [0]:
+        id: P2.2
+        agree: False
+        correction: Conclusions (not_implemented, medium, no cube handle needed, dask/extra corrections, test-data caveat) all hold; three facts in the evidence are wrong or overstated. (1) parallel_fit_dask was added in astropy v7.0.0
+            (astropy PR #16696 'Add function to carry out parallel fitting on N-dimensional datasets', milestone v7.0.0, merged 2024-09-03; v7.0.0 CHANGES.rst line 64), not 7.1.0 - PR #17538/#18065 only added fit_info. Immaterial
+            for the plan since irispy pins astropy>=7.2.0. (2) 'processes ~2.3x faster' and 'double Gaussian 23 s' are seed artefacts, not properties of the recipe: re-run on the same sns Si IV 1403 (187,40,29) cube with an in-
+            window argmax seed gives 6.38 s single-threaded / 6.44 s threads / 4.62 s processes (1.4x), and the Mg II k double Gaussian (187,40,52) with an in-window seed takes 8.28 s single-threaded / 4.94 s processes (1.1
+            ms/spec), not 23 s; the auditor's 13.4 s / 23 s came from seeding at 140.277 / 279.62 nm which lie outside the bundled windows (its own TRF prefit degenerates to amplitude -6.6e5 + 6.6e5, stddev 2.3 nm). Extrapolation
+            for a full raster should be quoted as ~0.9-1.5 ms/spectrum single Gaussian, ~1.1 ms double, i.e. ~7-11 min per 440k-spectrum window single-threaded. (3) 'wavelength = data.coords.pixel_to_world_values(...)[0]' is right
+            only with pixel arguments in Cartesian (reversed-numpy) order: for Data shape (187,40,29) call pixel_to_world_values(arange(29), 0, 0) - the wavelength is pixel axis 0; passing it as the third argument silently returns a
+            constant wavelength (reproduced).
+        evidence: Signature re-run: (*, model, fitter, data, data_unit=None, weights=None, mask=None, fitting_axes=None, world=None, chunk_n_max=None, ...scheduler=None, ...fit_info=False); .venv/.../astropy/modeling/_fitting_parallel.py
+            lines 456-457 import dask inside the function, 461-462 scheduler None->'processes', 542 chunk_n_max None->500. grep -rn 'dask|parallel_fit|gaussian|QThread|modeling|moments' glue_solar docs -> only processEvents at
+            loaders/iris.py:277,291 and loaders/maps.py:87; git branch -a shows no fitting branch. git -C irispy grep parallel_fit_dask v0.8.1/main -> only examples/analysis/01 and 07 (code extracted and matches the reported recipe;
+            at v0.8.1 example 01 seeds Const1D(2)+Gaussian1D(8, 140.277 nm, 0.005 nm), the percentile block is the 20-line main-only diff). Bundled data: 20140329 Si IV 1403 (8,109,29) 139.865-139.937 nm, Mg II k (8,109,63)
+            279.051-279.209 nm; sns Si IV 1403 (187,40,29) 139.863-139.934 nm, Mg II k (187,40,52) 279.344-279.474 nm; raster/iris_l2_20210905..._r00000.fits fails 'Expected 187 NUV source filename rows, found 1872' (irispy main
+            e80c51f #171 repairs these headers). Core-window seeding on sns Si IV raises 'zero-size array to reduction operation fmax which has no identity' (reproduced). Fit from raster_data() Data: units 'DN_IRIS_FUV' (u.Unit
+            fails; only parses inside u.add_enabled_units([irispy.utils.constants.DN_UNIT['FUV']])), meta type SGMeta rest_wavelength 140.277 nm, coords _GlueWCS over astropy WCS, world_axis_units ('m','arcsec','arcsec'), no
+            cube/path attribute on Data, processes fit 4.7 s, SlicedLowLevelWCS(_wcs,(slice,slice,0)) -> _GlueWCS pixel_n_dim 2 lat/lon arcsec. Unguarded script with scheduler='processes' -> BrokenProcessPool (reproduced).
+            conftest.py:48-51 rasters are np.zeros((3,4,5), int16). Scripts: scratchpad/verify/bench.py, from_data.py, noguard.py.
+      [1]:
+        id: P2.2-threading
+        agree: True
+        correction: 
+        evidence: glue-qt main:glue_qt/utils/threading.py Worker(QThread) with result/error signals, identical on the checked-out macos-integration branch (git diff main macos-integration -- that file is empty; last change d65c3fe9 is
+            dated 2023-08-15, not 08-11). Ran Worker(fit) with parallel_fit_dask(scheduler='processes') under QT_QPA_PLATFORM=offscreen: result signal fired, (60,50) params, a 50 ms QTimer kept ticking (30 ticks in 1.6 s) so the
+            event loop stays live. threads scheduler gives no gain (6.38 vs 6.44 s). Missed precedent worth copying verbatim: glue_qt/viewers/profile/profile_tools.py:205-231 already does exactly this pattern for the Profile viewer
+            fit - button 'Running...' + disabled, Worker(self._fit, ...), result/error/finished slots, keeps self._fit_worker reference, wait_for_fit() for tests.
+      [2]:
+        id: P2.2-dask-extra
+        agree: True
+        correction: 
+        evidence: irispy v0.8.1 pyproject.toml line 35-36: astropy>=7.2.0, dask[array]>=2024.7.0 in [project] dependencies (unconditional); glue-solar pyproject.toml line 22 irispy-lmsal>=0.8.1. importlib.metadata scan: dask required
+            unconditionally by irispy-lmsal, spectral-cube, reproject, dkist, casa-formats-io; astropy lists it only under all/docs extras; dask 2026.8.0 installed.
+      [3]:
+        id: P2.2-irispy-helper
+        agree: True
+        correction: 
+        evidence: git -C irispy grep gaussian1d_on_linear_bg main -> only irispy/utils/utils.py:18 (__all__) and :89-97 (@custom_model, returns amplitude*exp(-((x-mean)/standard_deviation)**2)+constant_term+linear_term*x, so width =
+            sqrt(2)*sigma), no callers at v0.8.1 or main. rev-list v0.8.1..main is 19 commits (auditor said 23), head e80c51f 2026-08-31 '#171 repair legacy WCS headers in bundled test FITS'; no fitting API added. Recommendation not
+            to reuse it stands.
+    summary: Auditor's verdicts hold: P2.2 is not implemented anywhere (glue-solar, fork branches, irispy), parallel_fit_dask in astropy 8.0.1 does the job, dask is a hard irispy dependency so the 'fitting' extra in PLAN line 124 is
+        wrong, the cube-handle prerequisite (PLAN 113-115) is unnecessary for fitting, threads do not help and a Worker QThread around scheduler='processes' is the workable form. Corrections: parallel_fit_dask dates from astropy
+        7.0.0 (#16696), not 7.1.0; the 2.3x process speedup and 23 s double-Gaussian numbers are bad-seed artefacts (in-window seeds: single 6.4 s -> 4.6 s with processes, double 8.3 s single-threaded for 7480 spectra), so the
+        plan should budget ~1 ms/spectrum and say seeding (argmax of spatial mean, not the gallery's fixed rest wavelength) is the correctness- and speed-critical part; data.coords.pixel_to_world_values needs the wavelength
+        pixel index as the FIRST argument (Cartesian order) - the auditor's snippet omitted this and the wrong order silently yields a constant wavelength. Missed by the auditor: glue-core 1.27.0 already ships glue.core.fitters
+        (SimpleAstropyGaussianFitter, GaussianFitter, PolynomialFitter) and the glue-qt Profile viewer's fit tool (profile_tools.py:205-260) already runs an interactive single-spectrum Gaussian fit in a Worker - so single-
+        profile fitting exists today and P2.2 is strictly the per-pixel map version; that code is also the exact Worker/button/finished template to copy. Also note fitting_axes=2 applies only to the per-scan 3D Data; the
+        optional 4D stack from stack_spectrograms.py needs fitting_axes=3 (or should be excluded), and the AUDIT/PLAN should state that neither the bundled irispy rasters (line cores outside every window) nor the all-zero
+        conftest rasters can drive a physical fit, so tests need a synthetic Gaussian cube and scheduler='single-threaded' (spawn re-imports __main__ on macOS; BrokenProcessPool reproduced). Size estimate of 150-250 lines is
+        realistic. No worktrees created; scratch scripts under scratchpad/verify/.

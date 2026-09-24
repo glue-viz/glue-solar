@@ -1,0 +1,184 @@
+ape14-autolink.json:
+  audit:
+    items: [5]
+      [0]:
+        id: P3.1
+        title: APE-14 WCSLink / wcs_autolink support in glue-core (branch ape14-wcs-autolink)
+        status: implemented_on_fork_branch
+        where: /Users/nabil/Git/glue branch ape14-wcs-autolink (b16a3703, 016d9cf2): glue/plugins/wcs_autolinking/wcs_autolinking.py (+231/-61), tests/test_wcs_autolinking.py (+404)
+        evidence: Branch tests: `PYTHONPATH=<wt> pytest glue/plugins/wcs_autolinking -q` -> 31 passed, 1 xfailed, 1 xpassed (the xpass, test_2d_and_1d_data_cubes_with_no_celestial_axes, also xpasses on installed glue 1.27.0/main: pre-
+            existing non-strict xfail 'only fails under py310', not a regression). glue/core/tests/test_links.py + test_link_helpers.py + test_link_manager.py: 38 passed. Decisive run (irispy sns test set, SJI_1400 (62,40,37) gwcs +
+            raster Si_IV_1403 (187,40,29) FITS -TAB, both wrapped in glue_solar _GlueWCS): installed glue 1.27.0 -> wcs_autolink = 0 links, direct WCSLink raises AttributeError "'_GlueWCS' object has no attribute 'has_celestial'"
+            (exactly as the audit/TODO §1a/1b say). Fork branch -> wcs_autolink = 1 WCSLink, cids SJI [Pixel Axis 2 [x], Pixel Axis 1 [y]] <-> raster [Pixel Axis 1 [y], Pixel Axis 0 [z]], phys types hpc.lon/hpc.lat both sides. Pixel
+            checks: raster(y=20,z=50) -> SJI(x=88.612,y=20.662); HPC via raster coords (-41.635,-399.683)" vs via SJI coords at that pixel (-41.635,-399.683)", diff 1e-10"; round trip back to raster (19.999999, 49.999999).
+            raster(y=39,z=0) -> SJI(21.05,39.87), diff 1e-10", exact round trip. (SJI x>37 for large z is just the cropped test SJI field: SJI lon -56..-50" vs raster steps -52.9..-10.6".) SJI time axis is sliced away by
+            kept_numpy_axes (link exact at first exposure). Also SJI1400<->SJI2796: 1 link, 3 cids incl. time, px (10,10,10)->(9.96,10.00,9.97). SJI<->4D stack (3,8,109,17): 1 link, stack cids [Pixel Axis 2, Pixel Axis 1], scan axis
+            (type None) dropped. Upstream: main head still dae530c3 (no drift), no upstream PR touching wcs_autolinking open, #2152 still OPEN (last updated 2020).
+        feasibility: small
+        blockers: None for the glue-core PR. glue-solar side: _GlueWCS incoherence (see P3.1-sec4) means raster<->raster pairs still get 0 links even with the branch.
+        recommendation: Open the upstream PR now from the two commits (reference #2152 and #2152's 'wrapper that preserves units' use case, describe IRIS SJI gwcs + raster -TAB). No CHANGES.md edit needed: CHANGES.md is generated from GitHub
+            release notes (.github/release.yml) - just label the PR. No doc change needed (doc/ only lists the API). Codestyle is ruff via pre-commit (neither installed locally; file compiles, no line >120) - rely on CI.
+        doc_corrections: IRIS_GLUE_GAP_PLAN.md line 12 'active work is ... starting with Phase 3.1' is stale: the branch implements it fully with tests passing; remaining work is the PR and the glue-solar _GlueWCS fix. APE14_AUTOLINK_TODO.md
+            sections 2/3 are all unchecked although every item is done (see sec2/sec3 rows). TODO cites 'audit §4a of IRIS_IDL_GLUE_CAPABILITY_AUDIT.md' - the audit has no §4a; the claim lives in the 'What the current Glue plugin
+            does' bullet (line 129-131) and the comparison row 'SJI and raster temporal coordination' (line 182).
+      [1]:
+        id: P3.1-sec2
+        title: TODO section 2 'Fix plan' checkboxes vs branch diff
+        status: implemented_on_fork_branch
+        where: glue/plugins/wcs_autolinking/wcs_autolinking.py on ape14-wcs-autolink
+        evidence: [x] wcs_autolink accepts BaseLowLevelWCS: filter now `isinstance(data.coords, (BaseHighLevelWCS, BaseLowLevelWCS))`; WCSLink.__init__ wraps bare low-level coords in HighLevelWCSWrapper and works on `.low_level_wcs`. [x]
+            Celestial special case guarded by `isinstance(wcs1_ll, WCS) and isinstance(wcs2_ll, WCS) and has_celestial` for both. [x] `world_n_dim - i - 1` replaced by new `kept_numpy_axes()` reading axis_correlation_matrix (also
+            drops pixel axes that drive unmatched world axes, e.g. SJI time, when matched axes stay supported). [x] Failure hygiene: get_cids_and_functions still `except Exception` -> catches sunpy ConvertError (Exception subclass);
+            raster<->raster incompatible pair returned IncompatibleWCS cleanly, wcs_autolink skipped it (0 links, no traceback). [x] as_affine_link/__gluestate__/OffsetLink/AffineLink untouched (not in diff). Beyond the TODO:
+            `both_high_level` gate keeps the probe fast path for native high-level pairs only; `data.ndim != pixel_n_dim` -> IncompatibleWCS; new `permuted_values_functions()` transforms through
+            pixel_to_world_values/world_to_pixel_values with physical-type matching + unit conversion when the matched types are in different order (this is the path the IRIS SJI(lon,lat)<->raster(lat,lon) pair takes).
+        feasibility: n/a
+        blockers: 
+        recommendation: Tick all five boxes. Consider (optional, glue-core) using the values path for every non-high-level pair, not only reordered ones: it removes the dependence on wrapper world_axis_object_classes coherence (the real #2152
+            problem) and would make raster<->raster work without the glue-solar fix.
+        doc_corrections: All section-2 checkboxes are stale (unchecked but done).
+      [2]:
+        id: P3.1-sec3
+        title: TODO section 3 tests checkboxes
+        status: implemented_on_fork_branch
+        where: glue/plugins/wcs_autolinking/tests/test_wcs_autolinking.py lines 512-912 on ape14-wcs-autolink
+        evidence: [x] SimpleLowLevelWCS(BaseLowLevelWCS) fixture with settable types/units/correlation matrix/object classes+components (line 512). [x] low-level<->low-level (test_wcs_autolink_low_level) and low-level<->astropy WCS
+            (test_wcs_autolink_low_level_and_fits_wcs). [x] disjoint types -> [] and IncompatibleWCS (test_wcs_autolink_low_level_disjoint, _disjoint_same_ndim). [x] coupled axis_correlation_matrix
+            (CoupledLowLevelWCS/test_wcs_autolink_correlated_axes, FullyCoupled/test_wcs_autolink_all_axes_coupled, SJILike+RasterLike/test_wcs_autolink_iris_like). [~] 'Round-trip vs direct pixel_to_pixel': no test calls
+            pixel_to_pixel; instead every test asserts forwards/backwards against analytic expected values (stronger). [x] Existing astropy-WCS tests unchanged and passing (20 pre-existing + 11 new = 31 passed). Extras: transform-
+            failure (BrokenLowLevelWCS), ndim mismatch, 11-D lexical-sort regression, world-order permutation with arcsec->arcmin conversion.
+        feasibility: n/a
+        blockers: 
+        recommendation: Tick all boxes; reword the round-trip box to 'analytic forwards/backwards checks' rather than adding a redundant pixel_to_pixel comparison.
+        doc_corrections: Section-3 checkboxes stale (unchecked but done).
+      [3]:
+        id: P3.1-sec4
+        title: TODO section 4 downstream (glue-solar): regression test, _GlueWCS coherence, delete Phase 1.4
+        status: partial
+        where: /Users/nabil/Git/glue-solar glue_solar/sources/loaders/iris.py:35-70 (_GlueWCS); glue_solar/tests (no autolink test); IRIS_GLUE_GAP_PLAN.md Phase 1.4
+        evidence: Regression test: `grep -rn autolink|WCSLink glue_solar/` -> nothing; NOT implemented. _GlueWCS coherence: CONFIRMED BROKEN for FITS-WCS-backed rasters. _GlueWCS overrides world_axis_units (deg->arcsec) and
+            pixel_to_world_values/world_to_pixel_values only; it inherits world_axis_object_classes (celestial unit = (deg, deg)) and components (getters return degrees) from the -TAB astropy WCS. Result:
+            HighLevelWCSWrapper(_GlueWCS(raster)).pixel_to_world raises `ValueError: Latitude angle(s) must be within -90 deg <= angle <= 90 deg, got [-401.2] deg`. The SJI gwcs is coherent (its frame already reports arcsec).
+            Consequence on the branch: SJI<->raster links only because the matched types are in different order (values path bypasses SkyCoord); two raster scans of the same window (20140329 C II 1336, same axis order) ->
+            wcs_autolink 0 links / WCSLink -> IncompatibleWCS, while the same pair with the unwrapped astropy WCS gives 1 link. Verified fix (scratch subclass, ~15 lines): override world_axis_object_classes (replace 'unit' kwarg
+            with arcsec for helioprojective keys; note astropy 8 returns 4-tuples, unpack `cls, args, kwargs, *rest`) and world_axis_object_components (wrap getter: `(np.asarray(g(obj)) * orig_unit).to_value(u.arcsec)`); with it
+            raster scan0<->scan1 links and scan0 px(x=0,y=50,z=3) -> scan1 (0, 49.80, 2.914) == the raw astropy pixel_to_pixel result. Phase 1.4 'explicit link helper': no such code exists in glue-solar (nothing to delete, only the
+            plan entry).
+        feasibility: small
+        blockers: Regression test in glue-solar CI needs a released glue (or a git-dep test env) containing the fix; the _GlueWCS fix itself has no dependency.
+        recommendation: (1) Fix _GlueWCS now in glue-solar (override world_axis_object_classes + world_axis_object_components as above, plus a unit test that HighLevelWCSWrapper(_GlueWCS(raster_wcs)).pixel_to_world round-trips). (2) Add the
+            glue-solar regression test (DataCollection([sji, raster]) -> exactly one WCSLink on HPC axes) marked skipif on glue version once the PR is released. (3) Drop Phase 1.4 from the gap plan now - it was never implemented and
+            the branch makes it unnecessary.
+        doc_corrections: Gap plan Phase 3.1 says the change makes discovery 'transform through pixel_to_world_values/world_to_pixel_values only' - the branch only does that for reordered types; same-order pairs still transform through high-level
+            objects, which is why _GlueWCS coherence matters. 'This single change makes IRIS autolinking work' is true for SJI<->raster but raster<->raster additionally needs the glue-solar _GlueWCS fix.
+      [4]:
+        id: P3.1-sec5
+        title: TODO section 5 acceptance criteria
+        status: partial
+        where: ape14-wcs-autolink; no upstream PR yet
+        evidence: [x] IRIS SJI+raster autolink with no manual step against dev glue: verified (1 WCSLink, 1e-10" agreement). [x] No behavior change for astropy-WCS-only collections: all 20 pre-existing tests unchanged and green; unwrapped
+            -TAB raster pair still links. [x] Incompatible pairs: wcs_autolink skips silently, direct WCSLink raises IncompatibleWCS (verified on real raster pair and by tests). [ ] PR referencing #2152: no PR opened (gh: #2152
+            OPEN, no open glue PRs mention wcs_autolinking/APE-14). [ ] Remove TODO on merge: n/a.
+        feasibility: trivial
+        blockers: 
+        recommendation: Open the PR; link #2152 and glue-solar #44; mention that a units-changing BaseWCSWrapper must keep world_axis_object_classes/components coherent (or adopt the values-path-for-all-low-level option).
+        doc_corrections: Section-5 boxes 1-3 can be ticked.
+    checks_run: [10]
+      [0]:
+        command: git -C ~/Git/glue diff --stat main...ape14-wcs-autolink; git diff main...ape14-wcs-autolink
+        result: 2 files: wcs_autolinking.py +231/-61, tests +404; two commits b16a3703, 016d9cf2
+      [1]:
+        command: git -C ~/Git/glue worktree add <scratch>/wt-ape14 ape14-wcs-autolink (removed at end; glue repo left on main, clean)
+        result: ok
+      [2]:
+        command: PYTHONPATH=<wt> .venv/bin/python -m pytest <wt>/glue/plugins/wcs_autolinking -q -rxX
+        result: 31 passed, 1 xfailed, 1 xpassed (xpass pre-exists on main/1.27.0)
+      [3]:
+        command: .venv/bin/python -m pytest site-packages/glue/plugins/wcs_autolinking/tests -o addopts='' -rxX (installed glue 1.27.0 baseline)
+        result: 20 passed, 1 xfailed, 1 xpassed (same xfail/xpass pattern)
+      [4]:
+        command: PYTHONPATH=<wt> pytest glue/core/tests/test_links.py test_link_helpers.py test_link_manager.py
+        result: 38 passed
+      [5]:
+        command: scratch autolink_check.py: image_data(SJI_1400) + raster_data(raster r00000) -> DataCollection -> wcs_autolink, installed glue
+        result: 0 links; direct WCSLink -> AttributeError '_GlueWCS' has no attribute 'has_celestial'
+      [6]:
+        command: same script with PYTHONPATH=<wt> (fork branch)
+        result: 1 WCSLink on HPC lon/lat; raster(y=20,z=50)->SJI(88.612,20.662); HPC agreement 1e-10 arcsec; round trip exact
+      [7]:
+        command: scratch autolink_check3/5/6.py: SJI<->SJI, raster scan0<->scan1 (wrapped, unwrapped, and with coherent _GlueWCS subclass), SJI<->4D stack
+        result: SJI<->SJI 1 link (3 cids); wrapped raster pair 0 links (ValueError latitude -401 deg swallowed -> IncompatibleWCS); unwrapped astropy pair 1 link; coherent-subclass pair 1 link matching raw result (49.80, 2.914);
+            SJI<->4D stack 1 link
+      [8]:
+        command: gh issue view 2152; gh pr view 2248; gh pr list --search wcs_autolinking; gh api commits?path=wcs_autolinking.py; gh api commits/main
+        result: #2152 OPEN (2020); #2248 OPEN draft (unrelated); no competing PR; last upstream touch fe03d80e 2025-07-23; upstream main head dae530c3 == fork main
+      [9]:
+        command: awk length>120 on both changed files; py_compile; grep pre-commit hooks
+        result: no long lines; compiles; ruff via pre-commit (neither installed locally, not run)
+    notes: Environment gotcha hit while running: ~/.glue/settings.cfg contains unit_converter = \"iris-velocity\", which no installed package defines, so plain `import glue` raises KeyError('Unit converter iris-velocity is not
+        defined') outside pytest; worked around with HOME=<scratch>/home. Nothing in the user's repos was modified; the throwaway worktree wt-ape14 was removed (another worktree wt-glue-pw/profile-wcs belonging to a sibling task
+        was left alone). Script paths: /private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/autolink_check{,2,3,4,5,6}.py.
+  verify:
+    verdicts: [5]
+      [0]:
+        id: P3.1
+        agree: True
+        correction: 
+        evidence: Re-ran everything in a fresh worktree (wt-ape14-ver, removed afterwards). Branch = 2 commits on top of merge-base dae530c3 == upstream main head (gh api commits/main) -> no rebase needed. `PYTHONPATH=<wt> pytest
+            glue/plugins/wcs_autolinking -q -rxX`: 31 passed, 1 xfailed, 1 xpassed; the XPASS (test_2d_and_1d_data_cubes_with_no_celestial_axes, marker at test file line 374 '# Seems only to fail under py310' non-strict) also
+            XPASSes on installed 1.27.0 (20 passed, 1 xfailed, 1 xpassed with -o addopts='' -o filterwarnings=ignore; note: without filterwarnings=ignore the baseline errors at collection on a spectral_cube deprecation warning, so
+            the auditor's 20-passed number required that override). test_links/test_link_helpers/test_link_manager on branch: 38 passed. Decisive script (irispy 0.8.1 site-packages data/test/sns: SJI_1400 (62,40,37) gwcs-backed
+            _GlueWCS, corr matrix rows lon/lat=[1,1,1], time=[0,0,1]; raster Si_IV_1394 (187,40,20) -TAB, types [em.wl, lat, lon]): installed glue -> wcs_autolink 0 links, WCSLink -> AttributeError "'_GlueWCS' object has no
+            attribute 'has_celestial'"; branch -> 1 WCSLink, cids SJI [Pixel Axis 2 [x], Pixel Axis 1 [y]] <-> raster [Pixel Axis 1 [y], Pixel Axis 0 [z]]. raster(20,50)->SJI(88.612,20.662)->back(19.999999,49.999999);
+            raster(39,0)->SJI(21.052,39.874)->back(39.0,0.0); (0,0)->(21.054,0.874); (10,100)->(157.038,10.074); HPC lon/lat via raster coords == via SJI coords to 4 decimals at every pixel (e.g. -41.6348,-399.6827). Numbers match
+            the auditor's exactly. gh: #2152 OPEN (2020-05-28), #2248 OPEN draft (unrelated), no open glue PR mentions wcs_autolink/APE-14/WCSLink. CHANGES.md is release-note generated (.github/release.yml categories by label) -> no
+            manual entry, confirmed. doc/api.rst:195 automodapi of the module; module has __all__ (line 14) and the new helpers kept_numpy_axes/permuted_values_functions are not in it -> API docs unchanged, confirmed. Codestyle:
+            auditor did not run ruff; I installed the CI-pinned ruff 0.15.20 (pre-commit rev v0.15.20) into the scratchpad: branch files 'All checks passed!'. With current ruff 0.16.5 the branch adds 2 PLR0917 hits
+            (get_cids_and_functions 6 positional args at line 82, transform 7 at line 148) that main does not have -> latent failure when pre-commit.ci autoupdates monthly; trivial fix: make forwards/backwards keyword-only. The
+            '~/.glue/settings.cfg unit_converter=iris-velocity' gotcha does not reproduce: the file currently has unit_converter = "default" and plain `import glue` works without HOME override.
+      [1]:
+        id: P3.1-sec2
+        agree: True
+        correction: 
+        evidence: Diff (git diff main...ape14-wcs-autolink, +231/-61) checked line by line: gatekeeper `isinstance(data.coords, (BaseHighLevelWCS, BaseLowLevelWCS))`; HighLevelWCSWrapper wrapping of bare low-level coords and use of
+            `.low_level_wcs`; celestial special case behind `isinstance(wcs1_ll, WCS) and isinstance(wcs2_ll, WCS) and has_celestial`; `kept_numpy_axes()` reads axis_correlation_matrix and replaces `world_n_dim - i - 1`;
+            get_cids_and_functions try/except unchanged (broad `except Exception`, catches sunpy ConvertError); as_affine_link/__gluestate__/OffsetLink/AffineLink not in the diff. Verified the failure-hygiene box on real data:
+            wrapped raster<->raster pair -> wcs_autolink 0 links, direct WCSLink -> IncompatibleWCS, no traceback. Verified the values path is taken for SJI(lon,lat)<->raster(lat,lon) (reordered types) and that the SJI time pixel
+            axis is dropped by kept_numpy_axes (link cids are x,y only). All five boxes are done.
+      [2]:
+        id: P3.1-sec3
+        agree: True
+        correction: 
+        evidence: Branch test file: SimpleLowLevelWCS(BaseLowLevelWCS) at line 512, CoupledLowLevelWCS 561, BrokenLowLevelWCS 592, FullyCoupledLowLevelWCS 706, SJILikeWCS 839, RasterLikeWCS 862; 11 new test functions at lines 609-885
+            (low_level, low_level_and_fits_wcs, low_level_disjoint, low_level_transform_failure, correlated_axes, low_level_disjoint_same_ndim, low_level_world_order_permutation, ndim_mismatch, low_level_11d, all_axes_coupled,
+            iris_like) = 20 pre-existing + 11 = 31 passed. `grep pixel_to_pixel` in the test file: no hits -> the round-trip box is indeed not literally implemented; tests assert analytic forwards/backwards instead, as the auditor
+            says. One gap the auditor did not flag: `grep clone` in lines >=500 -> none; the pre-existing astropy tests clone links but none of the new low-level tests do. Running clone() on the synthetic SJILike<->RasterLike link
+            fails with GlueSerializeError "Don't know how to serialize ...SJILikeWCS" because glue/core/state.py only has @saver(WCS) (line 655) — a pre-existing glue-core gap for any low-level coords, not a link bug
+            (WCSLink.__gluestate__ stores only data ids, lines 331-341), but a reviewer may ask about it.
+      [3]:
+        id: P3.1-sec4
+        agree: True
+        correction: 
+        evidence: Reproduced on the 20140329 C II 1336 raster pair (8,109,17): _GlueWCS.world_axis_units ('m','arcsec','arcsec') vs inner ['m','deg','deg']; world_axis_object_classes celestial = (SkyCoord, (Unit('deg'), Unit('deg')), ...)
+            i.e. inherited deg units; HighLevelWCSWrapper(_GlueWCS).pixel_to_world(0,0,0) -> ValueError 'Latitude angle(s) must be within -90 deg <= angle <= 90 deg, got 271.24 deg'. Wrapped pair: wcs_autolink 0 links, WCSLink ->
+            IncompatibleWCS. Unwrapped astropy WCS pair: 1 link, 3 cids, forwards (x=0,y=50,z=3) -> (-1e-12, 49.8024, 2.9084) (auditor's 2.914 was presumably another window; immaterial). Nit: 'astropy 8 returns 4-tuples' is only
+            half right — on this raster the celestial entry is a 3-tuple and the spectral entry a 4-tuple, so `cls, args, kwargs, *rest` unpacking is the right form for both. `grep -rn
+            autolink|WCSLink|LinkSame|link_helper|ComponentLink glue_solar/` -> nothing: no regression test and no Phase 1.4 link helper code exist. Additional doc fix the auditor missed: glue-solar docs/user_guide/loading-iris-
+            level-2-raster-and-sji-data.rst:57-59 states 'Glue does not currently autolink irispy's ... SJI gWCS and raster -TAB WCS. To propagate spatial selections ... manually pair' — must be reworded once a glue release contains
+            the branch (and it stays true for raster<->raster until _GlueWCS is fixed).
+      [4]:
+        id: P3.1-sec5
+        agree: True
+        correction: 
+        evidence: Box 1 verified (1 WCSLink on HPC axes, round trip exact, HPC agreement to 4 decimals). Box 2: 20 pre-existing tests unchanged and green; unwrapped -TAB raster pair still links; pinned ruff 0.15.20 clean. Box 3: verified
+            on the wrapped raster pair (silent skip / IncompatibleWCS). Box 4: gh pr list --search on glue-viz/glue shows no PR from this work; #2152 still OPEN. Extra runs: SJI1330<->SJI1400 (sns) 1 link, 3 cids incl. time,
+            (10,10,10)->(10.031,9.958,11.969); SJI1400<->4D stack (3,8,109,17, types [em.wl,lat,lon,None]) 1 link, stack cids [Pixel Axis 2, Pixel Axis 1]. Physical caveat worth stating in the PR: the sns raster is sit-and-stare, so
+            its 'z' axis (187) is exposure index; the link pairs it to SJI x through the lon drift at SJI exposure 0 — correct WCS-wise, but not a temporal join (that is Phase 3.2).
+    summary: All five items stand; every decisive number the auditor reported reproduces (0 links + has_celestial AttributeError on glue 1.27.0; 1 WCSLink on the branch with raster(20,50)->SJI(88.612,20.662), exact round trip, HPC
+        agreement; 31/1/1 and 38 passed; wrapped raster pair 0 links vs unwrapped 1 link; _GlueWCS object classes still in deg -> ValueError). Repos untouched; my worktree removed. Things the auditor missed or got slightly off:
+        (1) Codestyle was not actually run — I ran the CI-pinned ruff 0.15.20 (clean) and current ruff 0.16.5 (2 new PLR0917 hits at wcs_autolinking.py:82 and :148 that main lacks; make `forwards`/`backwards` keyword-only before
+        opening the PR to survive pre-commit.ci's monthly autoupdate). (2) No gluestate/clone test on the new low-level path; clone(link) with low-level coords fails with GlueSerializeError because glue-core only has
+        @saver(astropy WCS) — pre-existing, not caused by the branch, but expect the question in review; glue-solar docs already say IRIS sessions cannot be restored. (3) glue-solar docs/user_guide/loading-iris-level-2-raster-
+        and-sji-data.rst:57 hard-codes 'Glue does not currently autolink' and must change with the glue release. (4) The auditor's baseline '20 passed' needs `-o filterwarnings=ignore` on this env (spectral_cube deprecation
+        warning errors collection otherwise). (5) The settings.cfg 'iris-velocity' gotcha does not reproduce now (file says unit_converter = "default"). (6) Object-class tuples are mixed 3-/4-length, not uniformly 4-tuples. (7)
+        Size/feasibility judgments (small glue-core PR; ~15-line _GlueWCS fix) are realistic; branch is rebased on current upstream main and ready to open once the keyword-only tweak is applied.

@@ -1,0 +1,66 @@
+diff --git a/glue/utils/matplotlib.py b/glue/utils/matplotlib.py
+index d3b58b11..087b9e78 100644
+--- a/glue/utils/matplotlib.py
++++ b/glue/utils/matplotlib.py
+@@ -446,7 +446,11 @@ SEC_PER_MIN = 60.
+ SEC_PER_HOUR = SEC_PER_MIN * MIN_PER_HOUR
+ SEC_PER_DAY = SEC_PER_HOUR * HOURS_PER_DAY
+ 
+-T0 = np.datetime64('0001-01-01T00:00:00').astype('datetime64[s]')
++def _t0():
++    # matplotlib >= 3.3 counts days from a configurable epoch (1970-01-01 by
++    # default) rather than from 0001-01-01 (+1 day); follow it so that the
++    # date locators/formatters label glue's datetime64 axes correctly
++    return np.datetime64(dates.get_epoch()).astype('datetime64[s]')
+ 
+ 
+ def datetime64_to_mpl(d):
+@@ -462,9 +466,9 @@ def datetime64_to_mpl(d):
+     # seconds.  That should get out to +/-2e11 years.
+     extra = d - d.astype('datetime64[s]')
+     extra = extra.astype('timedelta64[ns]')
+-    dt = (d.astype('datetime64[s]') - T0).astype(np.float64)
++    dt = (d.astype('datetime64[s]') - _t0()).astype(np.float64)
+     dt += extra.astype(np.float64) / 1.0e9
+-    dt = dt / SEC_PER_DAY + 1.0
++    dt = dt / SEC_PER_DAY
+ 
+     return dt
+ 
+@@ -473,8 +477,8 @@ def mpl_to_datetime64(dt):
+ 
+     dt = np.asarray(dt, np.float64)
+ 
+-    dt = (dt - 1.0) * SEC_PER_DAY
+-    dt_s = dt.astype(np.int64) + T0.astype(np.int64)
++    dt = dt * SEC_PER_DAY
++    dt_s = dt.astype(np.int64) + _t0().astype(np.int64)
+     dt_ns = ((dt % 1) * 1e9).astype(np.int64)
+ 
+     dt_s = np.array(dt_s, dtype='datetime64[s]')
+diff --git a/glue/utils/tests/test_matplotlib.py b/glue/utils/tests/test_matplotlib.py
+index c2e1d2ef..4729bb1e 100644
+--- a/glue/utils/tests/test_matplotlib.py
++++ b/glue/utils/tests/test_matplotlib.py
+@@ -2,6 +2,7 @@
+ 
+ import pytest
+ import numpy as np
++import matplotlib.dates as mdates
+ import matplotlib.pyplot as plt
+ from matplotlib.patches import Circle
+ from matplotlib.artist import Artist
+@@ -184,7 +185,11 @@ def test_freeze_margins():
+ 
+ 
+ def test_mpl_datetime64():
+-    # Make sure the mpl <-> datetime64 conversion round-trips
+-    mpl1 = 719313
++    # Make sure the mpl <-> datetime64 conversion round-trips and agrees with
++    # matplotlib's own epoch (1970-01-01 since matplotlib 3.3, configurable)
++    mpl1 = 18875.5
+     mpl2 = datetime64_to_mpl(mpl_to_datetime64(mpl1))
+     assert mpl1 == mpl2
++    dt = np.array(['2021-09-05T12:00:00'], dtype='datetime64[s]')
++    assert_allclose(datetime64_to_mpl(dt), mdates.date2num(dt))
++    assert mpl_to_datetime64(mdates.date2num(dt)) == dt

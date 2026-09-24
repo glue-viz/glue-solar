@@ -1,0 +1,223 @@
+session-serialization.json:
+  audit:
+    items: [8]
+      [0]:
+        id: P3.6
+        title: Session serialization for IRIS datasets (overall) — 'done completely or not at all'
+        status: not_implemented
+        where: glue-solar glue_solar/sources/loaders/iris.py:35 (_GlueWCS, no __gluestate__); glue-core site-packages glue/core/state.py:655 (@saver(WCS) only), :744 (_save_style), :1023 (_save_data_5 meta filter)
+        evidence: Saving today fails three independent ways (probe_session.py, real irispy test files): SJI -> GlueSerializeError "Don't know how to serialize <_GlueWCS>" (no saver in _GlueWCS MRO: BaseWCSWrapper/BaseLowLevelWCS); raster
+            & stack -> TypeError "no implementation found for 'numpy.save' ... Quantity" from meta (hits before coords); with coords=None the SJI still fails: TypeError "Object of type LinearSegmentedColormap is not JSON
+            serializable" (preferred_cmap). With coords=None, cmap=None, scalar-only meta all three save+reload fine (Time datetime64 component intact). Prototype sess_proto_savers.py (55 lines, glue-solar only: @saver/@loader on
+            _GlueWCS covering gwcs via asdf, -TAB via Tabprm rebuild, Sliced/Compound recursively) + 1-line meta filter + cmap=None gives SJI/raster/stack save+reload with pixel_to_world_values equal on 50 random pixels (atol 1e-9)
+            and world_to_pixel round trip; File>Open path with include_data=False yields 23 KB (SJI) / 255 KB (9 raster datasets) sessions.
+        feasibility: small
+        blockers: None hard. preferred_cmap crash is glue-core only (or a version-2 saver override in glue-solar). -TAB rebuild relies on irispy's table layout (index vectors not exposed by astropy). glue-astronomy has no WCS/session
+            savers (layout: io/spectral_cube, translators/{nddata,spectrum1d,spectral_cube,regions,trace,astropy_table}; code search for saver/gluestate empty).
+        recommendation: Refute 'complete unit spanning glue-core': ~60 lines in glue-solar (_GlueWCS.__gluestate__/__setgluestate__ + meta sanitizer in _cube_data) make sessions work today; only the preferred_cmap JSON crash wants a 1-line
+            glue-core fix (`getattr(cmap,'name',cmap)` in _save_style). Ship as Phase 1 glue-solar work with the three coordinate round-trip tests the plan asks for; drop the 'keep documenting as unsupported' clause once merged.
+        doc_corrections: PLAN L52/L165-171: 'glue-core + glue-solar ... gWCS and APE-14 low-level WCS savers in glue-core (or glue-astronomy)' — no glue-core/glue-astronomy saver is needed; a __gluestate__ on glue-solar's _GlueWCS suffices (glue
+            dispatches on __gluestate__ before MRO, state.py:380). 'Only as a complete unit' — the pieces are independent; SJI works with gwcs saver + cmap fix alone. AUDIT L141-144 / docs rst L64 'cannot currently be restored
+            reliably' — understates: saving itself raises (three distinct exceptions), nothing is written. AUDIT: 'irispy metadata ... require serialization support' — SJIMeta round-trips today (148 keys, none dropped); only
+            SGMeta's Quantity values crash, and Time/SkyCoord are already filtered silently by glue-core.
+      [1]:
+        id: P3.6-gwcs
+        title: gWCS (SJI) saver
+        status: available_upstream
+        where: asdf 5.3.1 + asdf-astropy 0.11 + gwcs 1.0.3 (already installed as irispy deps); prototype scratchpad/sess_proto_savers.py to_rec kind='asdf'
+        evidence: probe2: asdf.AsdfFile({'wcs': gwcs}).write_to(BytesIO) -> 11,809 bytes; reload gives gwcs.WCS with identical pixel_to_world_values and physical types ('custom:pos.helioprojective.lon/lat','time'). Session with real
+            SJI_1330 test file saved (1225 KB embedded / 23 KB via LoadLog) and reloaded with p2w match=True.
+        feasibility: trivial
+        blockers: None; base64 asdf blob inside the .glu JSON (~12 KB per SJI).
+        recommendation: Serialize gwcs as a base64 asdf blob inside _GlueWCS.__gluestate__; no glue-core change.
+        doc_corrections: PLAN L166 'gWCS ... savers in glue-core (or glue-astronomy)' — not needed; asdf is already a transitive dependency and round-trips irispy's SJI gwcs unchanged.
+      [2]:
+        id: P3.6-tab
+        title: -TAB (raster) saver persisting the lookup table
+        status: not_implemented
+        where: astropy 8.0.1 astropy/wcs/wcs.py:2874 to_fits (writes only det2im/distortion), :254 _load_tab_bintable (read-only callback); irispy/io/spectrograph.py:60-111 builds the WCS-TABLE synthetically; prototype
+            sess_proto_savers.py tab_to_bytes
+        evidence: w.to_header_string() -> ValueError 'HDUList is required to retrieve -TAB coordinates and/or indices'; w.to_fits() -> [PRIMARY] only, reload KeyError "Extension ('WCS-TABLE', 1) not found"; asdf-astropy WCS converter
+            fails the same way. astropy exposes Tabprm.coord (shape (8,2,2)), K, M, map, crval but no index vectors (no Tabprm.index; Wtbarr has ttype/extnam/row/ndim but no .data). Rebuilding WCS-TABLE from Tabprm.coord plus index
+            vectors = linspace(psi(1), psi(NAXIS), K) from CRVAL/CDELT/CRPIX (irispy's own construction) reproduces p2w on 50 random pixels exactly; round-trip session 415 KB embedded.
+        feasibility: small
+        blockers: Generic -TAB export is an astropy gap (no to_fits support for -TAB tables, index vectors not exposed; no open astropy issue found). The rebuild is IRIS-specific (assumes irispy's linear index vectors, PS2_*/PS3_*
+            layout). Alternative: LoadLog path re-runs irispy from the file and needs no table at all — but Data.coords is still loaded from the saved record (state.py:925), so a coords saver is required either way.
+        recommendation: Implement the ~20-line IRIS-specific rebuild in glue-solar (mark ponytail: relies on irispy table layout); optionally open an astropy issue for -TAB in WCS.to_fits / Tabprm index exposure as the generic upgrade path.
+        doc_corrections: PLAN L167 '-TAB saver that persists the lookup table (not just the header)' — correct in spirit, but astropy cannot export it; the table must be rebuilt from Tabprm.coord, and glue's existing @saver(WCS) header-string
+            path raises rather than silently dropping the table.
+      [3]:
+        id: P3.6-compound
+        title: Compound-WCS (stack) saver
+        status: not_implemented
+        where: glue_solar/sources/loaders/stack_spectrograms.py:64-72 CompoundLowLevelWCS(target_wcs(-TAB), SlicedLowLevelWCS(2D LINEAR, [slice(None),0])); ndcube 2.4.1 compound_wcs.py:72 (_wcs tuple, .mapping.mapping)
+        evidence: asdf on the compound fails: ndcube's compound schema only allows astropy WCS or gwcs items ('anyOf tag astropy/wcs-* | gwcs/wcs-*'), so the SlicedLowLevelWCS part is rejected (asdf-astropy can serialize SlicedLowLevelWCS
+            standalone: OK) and the -TAB part would fail anyway. A 6-line recursive record ({kind:'compound', parts, mapping}, {kind:'sliced', wcs, slices}) round-trips: stack session 1190 KB, p2w match=True on 4-D pixels, world
+            names preserved.
+        feasibility: trivial
+        blockers: None; touches only glue-solar private attrs (_wcs, _slices_pixel, mapping.mapping).
+        recommendation: Recursive to_rec/from_rec inside the same _GlueWCS saver; no ndcube change.
+        doc_corrections: PLAN L168 'a compound-WCS saver' as glue-core work — it is 6 lines of glue-solar code once the -TAB and gwcs leaves exist.
+      [4]:
+        id: P3.6-meta
+        title: Metadata sanitizer
+        status: partial
+        where: glue-core state.py:1023-1038 _save_data_5 (filters meta by catching GlueSerializeError only); glue_solar/sources/loaders/iris.py:76 data.meta = cube.meta
+        evidence: SJI SJIMeta: 148 scalar keys, all round-trip, none dropped. Raster SGMeta non-scalar values: {'auxiliary times': Time, 'exposure time': Quantity, 'exposure FOV center': SkyCoord, 'observer radial velocity': Quantity,
+            'orbital phase': ndarray}. Time/SkyCoord -> GlueSerializeError -> silently filtered (OK); Quantity matches @saver(np.ndarray) via MRO -> np.save raises TypeError -> not caught -> save crashes. Stack meta is
+            dict(scan0.meta) with the same values. Reloaded meta is an OrderedDict (irispy Meta class not preserved; benign).
+        feasibility: trivial
+        blockers: None.
+        recommendation: One line in glue-solar `_cube_data` (keep scalar values, or move Quantity/Time/SkyCoord to components as needed) — or, better upstream, change `except GlueSerializeError` to `except Exception` in _save_data_5 (1 line in
+            glue-core; no open issue found).
+        doc_corrections: AUDIT L142 'irispy metadata ... require serialization support' — only the raster SGMeta's two Quantity values break saving; everything else is already handled by glue-core's filter.
+      [5]:
+        id: P3.6-cmap
+        title: Preferred-colormap sanitizer
+        status: not_implemented
+        where: glue-core state.py:744-756 (_save_style returns raw Colormap; _load_style removes 'preferred_cmap' so it is never restored); glue_solar/sources/loaders/iris.py:77 VisualAttributes(preferred_cmap='irissji1330' ->
+            LinearSegmentedColormap)
+        evidence: With coords=None the SJI save still fails: TypeError 'Object of type LinearSegmentedColormap is not JSON serializable' (json_default -> JSON_ENCODER.default). Fork main == upstream/main has the identical _save_style. No
+            upstream issue mentions preferred_cmap. glue's @saver(Colormap) exists (state.py:1274) but _save_style does not route through context.do. VersionedDict forbids re-registering (VisualAttributes,1) (state.py:222), so a
+            glue-solar override must be version=2 saver+loader.
+        feasibility: trivial
+        blockers: Requires a glue-core PR for a clean fix (1 line); glue-solar-only workaround is a version-2 VisualAttributes saver/loader pair (~8 lines) or not using preferred_cmap.
+        recommendation: Open a 1-line glue-core PR: `preferred_cmap: getattr(style.preferred_cmap, 'name', style.preferred_cmap)` in _save_style (loader already ignores it). Until released, glue-solar can register version-2 style saver/loader
+            or drop preferred_cmap to a layer-state default when opening the viewer.
+        doc_corrections: PLAN L168-169 'metadata and preferred-colormap sanitizers in glue-solar' — the cmap crash is a glue-core bug affecting any plugin that sets preferred_cmap to a Colormap object; the sanitizer belongs upstream. Note
+            preferred_cmap is never restored by glue even after the fix (by design, state.py:752).
+      [6]:
+        id: P3.6-loadlog
+        title: Session size / re-load-from-file (LoadLog) for browser-loaded data
+        status: partial
+        where: glue-core data_factories/helpers.py:238-300 load_data attaches LoadLog; glue_solar/sources/iris.py:44 app.add_datasets(dialog.datasets) bypasses load_data; glue_solar/sources/iris.py:22 read_iris_file factory goes
+            through it
+        evidence: File>Open (load_data + read_iris_file) attaches _load_log to every dataset; with include_data=False the SJI session is 23 KB and raster (9 datasets) 255 KB, reload re-reads the FITS and coords match. Browser path embeds
+            every array base64 (test SJI 1225 KB; real cubes would be hundreds of MB per dataset). glue-qt _choose_save_session (application.py:1032) has no try/except — the exception surfaces raw.
+        feasibility: small
+        blockers: LoadLog keys on (path, factory, kwargs); the browser's multi-file/window selection would need a factory signature that can be re-run (e.g. read_iris_file(path, windows=..., stack=...)).
+        recommendation: Have the browser build datasets via load_data(path, factory=read_iris_file, **kwargs) per file so sessions store paths instead of arrays; otherwise document that browser-loaded sessions embed data.
+        doc_corrections: Neither document mentions that glue sessions normally reference files (LoadLog) and that the browser path forfeits this; this matters more for usability than the WCS savers.
+      [7]:
+        id: P3.6-forks
+        title: Fork branches / TODOs vs session work
+        status: not_implemented
+        where: glue fork branches ape14-wcs-autolink, profile-wcs; glue-qt profile-wcs; APE14_AUTOLINK_TODO.md:80, PROFILE_WCS_RESTART_TODO.md:35, MACOS_INTEGRATION_TODO.md:139
+        evidence: git diff main...profile-wcs and main...ape14-wcs-autolink contain no saver/loader/coords __gluestate__ changes (profile-wcs touches viewers/profile state/viewer sessions only). TODO grep for session/serial/gluestate:
+            only unrelated mentions (WCSLink __gluestate__ retention; 'open -a glue session.glu').
+        feasibility: n/a
+        blockers: None.
+        recommendation: No fork work to reuse; session serialization is untouched everywhere.
+        doc_corrections: 
+    checks_run: [8]
+      [0]:
+        command: grep/sed over .venv/.../glue/core/state.py (dispatch, @saver(WCS), _save_style/_load_style, _save_data_5 meta filter, _save_numpy, Colormap saver), coordinates.py, visual.py, data_factories/helpers.py (LoadLog,
+            load_data)
+        result: Only astropy.wcs.WCS has a saver (header string); dispatch checks __gluestate__ first then MRO; style saver emits raw Colormap; meta filter catches GlueSerializeError only; _load_style always drops preferred_cmap
+      [1]:
+        command: QT_QPA_PLATFORM=offscreen MPLBACKEND=agg .venv/bin/python scratchpad/probe_session.py (GlueSerializer on real irispy SJI_1330, raster r00000, 3-scan stack)
+        result: SJI: GlueSerializeError Don't know how to serialize _GlueWCS; raster/stack: TypeError numpy.save on Quantity (meta); SJI coords=None: TypeError LinearSegmentedColormap not JSON serializable; coords=None+cmap=None:
+            save+reload OK, 148 meta keys kept
+      [2]:
+        command: .venv/bin/python scratchpad/probe2.py (meta inspection; astropy to_header_string/to_fits on -TAB; asdf round trips)
+        result: raster meta non-scalars: Time, Quantity x2, SkyCoord, ndarray; to_header_string -> ValueError HDUList required; to_fits -> PRIMARY only, reload KeyError WCS-TABLE; asdf: gwcs OK (11809 B, p2w equal), -TAB FAIL,
+            CompoundLowLevelWCS FAIL (ndcube schema rejects SlicedLowLevelWCS item)
+      [3]:
+        command: .venv/bin/python (Tabprm/Wtbarr introspection)
+        result: Tabprm attrs K,M,coord,crval,delta,extrema,map,nc,p0,sense — no index vectors; Wtbarr has no .data; wcsprm.to_header works
+      [4]:
+        command: .venv/bin/python scratchpad/sess_e2e.py with scratchpad/sess_proto_savers.py (55-line glue-solar-only saver/loader on _GlueWCS)
+        result: SJI 1225 KB, raster 415 KB, stack 1190 KB save+reload; pixel_to_world equal on 50 random pixels (atol 1e-9) and world_to_pixel round trip for all three; via load_data/LoadLog include_data=False: SJI 23 KB, raster 9
+            datasets 255 KB, coords match
+      [5]:
+        command: gh api repos/glue-viz/glue-astronomy/contents/{glue_astronomy,io,translators}; gh api search/code q='repo:glue-viz/glue-astronomy saver|gluestate'
+        result: No serialization modules (io/spectral_cube, translators/*); code search empty
+      [6]:
+        command: gh search issues --repo glue-viz/glue 'preferred_cmap' | 'gwcs' | 'BaseLowLevelWCS session'; --repo astropy/astropy 'TAB to_fits' | 'Tabprm index'
+        result: No relevant upstream issues (only #2245 export-without-data, #2224 GWCS linking crash closed)
+      [7]:
+        command: git -C /Users/nabil/Git/glue diff main...profile-wcs / main...ape14-wcs-autolink | grep gluestate|saver; grep TODO files
+        result: No session/coords serialization work on any fork branch
+    notes: Prototype files (read-only artifacts, not in repo): /private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/sess_proto_savers.py and sess_e2e.py; earlier
+        probe_session.py/probe2.py/probe3.py. Note: the scratchpad is shared with other subagents (probe4.py was overwritten by another agent mid-run), so only the sess_* files are guaranteed mine. Sizing: glue-solar ~60 lines
+        (saver/loader + meta line + 3 round-trip tests reusing irispy_test_files fixture) = small; glue-core 2 one-liners (_save_style cmap name, meta filter except Exception) = trivial but needs a release; astropy generic -TAB
+        export = large and not required for IRIS. The plan's 'done completely or not at all' is refuted: gwcs, -TAB, compound, meta are independent and all doable in glue-solar; only the cmap crash is upstream, and it blocks
+        saving even with no WCS at all.
+  verify:
+    verdicts: [8]
+      [0]:
+        id: P3.6
+        agree: True
+        correction: 
+        evidence: Re-ran scratchpad/probe_session.py: SJI -> GlueSerializeError "Don't know how to serialize <_GlueWCS>"; raster/stack -> TypeError "no implementation found for 'numpy.save' ... Quantity"; SJI coords=None -> TypeError
+            LinearSegmentedColormap not JSON serializable; coords=None+cmap=None -> save+reload OK, 148 meta keys kept. Re-ran sess_e2e.py with the 55-line sess_proto_savers.py: SJI 1225KB / raster 415KB / stack 1190KB save+reload,
+            p2w_match=True, w2p=True. Also verified the __gluestate__/__setgluestate__ method form (ver_sess2.py, subclass G2) round-trips the raster with world components rebuilt ('Helioprojective Longitude','Helioprojective
+            Latitude','Wavelength') and equal values; dispatch at site-packages glue/core/state.py:378-381 (save) and :490 (load) checks __gluestate__ before MRO. Installed glue 1.27.0 state.py is byte-identical to fork main and
+            v1.27.0 tag (diff empty). Sizing 'small, glue-solar only' holds.
+      [1]:
+        id: P3.6-gwcs
+        agree: True
+        correction: 
+        evidence: ver_sess1.py: astropy 8.0.1, asdf 5.3.1, asdf_astropy 0.11.0, gwcs 1.0.3 installed. SJI coords wrap gwcs.wcs._wcs.WCS; with only the prototype gwcs saver + preferred_cmap=None and meta untouched: save 1225KB, reload
+            gives gwcs.wcs._wcs.WCS, 148 meta keys. (pickle.dumps of the gwcs also works, 21.5KB, but asdf is the right JSON-safe choice.)
+      [2]:
+        id: P3.6-tab
+        agree: False
+        correction: Status/feasibility right, evidence wrong on the failure point. On astropy 8.0.1 `w.to_header_string()` does NOT raise: it returns a 2880-char header carrying the PS2_0/PS2_1/PS2_2/PS3_* -TAB keys (my run). The ValueError
+            'HDUList is required to retrieve -TAB coordinates and/or indices' is raised by WCS.__init__ on RELOAD, i.e. by glue's `_load_wcs` (state.py:660-663), not by `_save_wcs`. So the doc_correction should read: glue's built-in
+            @saver(WCS) path saves the -TAB header silently (table dropped) and the session then fails to load — the opposite of 'raises rather than silently dropping'. Additional evidence: pickle.dumps/loads of the -TAB WCS fails
+            the same way (astropy __reduce__ -> to_fits -> KeyError "Extension ('WCS-TABLE', 1) not found"), asdf-astropy writes 3104 B but fails on read with that KeyError. Rebuild validated beyond 50 random pixels: full 8x109x17
+            grid and +0.37-pixel offsets, max abs diff <= 5.6e-17 per axis, no NaNs; rebuilt header keeps PS/PV keys. irispy/io/spectrograph.py:64-77 confirms index vectors are exactly linear ([1,NAXIS2] spatial, arange(1,NAXIS3+1)
+            raster), so the linspace reconstruction is faithful for irispy-built WCSes.
+        evidence: ver_sess1.py + ver_sess2.py output: to_header_string -> header string; to_fits/to_fits(relax) -> ['PRIMARY']; _save_wcs OK (2880 chars) then _load_wcs ValueError; pickle/asdf reload KeyError WCS-TABLE; Tabprm attrs
+            K,M,coord,crval,delta,extrema,map,nc,p0,sense (no index); wtb entries have no data; astropy/wcs/wcs.py only has the load callback (_load_tab_bintable, :254-267), no writer.
+      [3]:
+        id: P3.6-compound
+        agree: True
+        correction: 
+        evidence: Stack coords wrap ndcube CompoundLowLevelWCS (shape (3,8,109,17)); sess_e2e.py stack: 1190KB, inner=CompoundLowLevelWCS after reload, p2w_match=True, w2p=True, names preserved. pickle of the compound fails (KeyError WCS-
+            TABLE via its -TAB part), so the recursive record is needed.
+      [4]:
+        id: P3.6-meta
+        agree: True
+        correction: 
+        evidence: ver_sess1.py: raster non-scalar meta = {'auxiliary times': Time, 'exposure time': Quantity, 'exposure FOV center': SkyCoord, 'observer radial velocity': Quantity, 'orbital phase': ndarray}. Dropping only the two Quantity
+            values: save 415KB + reload OK, 396 of 398 keys kept, Time and SkyCoord silently filtered by _save_data_5 (state.py:1023-1033, catches GlueSerializeError only), ndarray kept. SJI meta 148/148 keys round-trip. Quantity
+            hits @saver(np.ndarray) (state.py:1266) -> np.save TypeError not caught.
+      [5]:
+        id: P3.6-cmap
+        agree: True
+        correction: 
+        evidence: Reproduced TypeError with coords=None. _save_style (state.py:744-746) emits the raw Colormap; _load_style (:749-756) always removes preferred_cmap from the per-instance _atts copy (visual.py:58) so it is never restored.
+            Verified the glue-solar-only workaround: @saver(VisualAttributes, version=2) + @loader(..., version=2) registered fine (VersionedDict accepts v2 after v1, __getitem__ returns max version, state.py:200-208), the SJI
+            session then saves with style rec {'preferred_cmap': 'irissji1330', '_protocol': 2} and the v2 loader restores the Colormap object. Missed by the auditor: the same crash already breaks sessions on glue-solar main for the
+            sunpy map loader — glue_solar/sources/maps.py:30 sets preferred_cmap=scan_map.cmap; ver_sess3.py: read_sunpy_map(synthetic AIA map) -> GlueSerializer -> TypeError LinearSegmentedColormap; with cmap=None it round-trips
+            (31/31 MetaDict keys, WCS coords equal). So this is a pre-existing glue-solar bug, not an IRIS-branch one. No upstream glue issue/PR mentions preferred_cmap serialization (gh search: only #2131/#2293 which
+            added/validated the attribute).
+      [6]:
+        id: P3.6-loadlog
+        agree: True
+        correction: 
+        evidence: sess_e2e.py File>Open path: load_data(sji, factory=read_iris_file) include_data=False -> 23KB; raster -> 9 datasets, all with _load_log, 255KB, reload coords match. Mechanism: helpers.py:277-292 attaches LoadLog to every
+            Data returned; LoadLog.__gluestate__/__setgluestate__ (helpers.py:154-184) re-runs load_data(path, factory, **kwargs) with coord_first/force_coords popped at helpers.py:260-261; Component saver embeds arrays only when no
+            _load_log (state.py:1093-1101); Data loader still takes coords from the record (state.py:923-925) so a coords saver is required regardless. Browser path: QtIRISImporter.finalize calls raster_data(obs.rasters, [name],
+            stack=...)/image_data(...) directly (loaders/iris.py:291-296) and browse_iris does app.add_datasets (sources/iris.py:44) — no LoadLog. glue-qt _choose_save_session (application.py:1032-1062) lacks the
+            @messagebox_on_error that _restore_session (:1064) has; the exception lands in the glue log widget via the app's excepthook writer (:150-160), not a dialog.
+      [7]:
+        id: P3.6-forks
+        agree: True
+        correction: 
+        evidence: git diff main...profile-wcs | grep -c 'gluestate|@saver|@loader' = 0 (17 hits are the word 'coords' in profile viewer code); main...ape14-wcs-autolink = 0; glue-qt main...profile-wcs = 0. TODO greps: only the unrelated
+            WCSLink __gluestate__ retention (APE14_AUTOLINK_TODO.md:80), a MatplotlibLayerState session= kwarg note (PROFILE_WCS_RESTART_TODO.md:35) and 'open -a glue session.glu' (MACOS_INTEGRATION_TODO.md:139). Fork upstream/main
+            (dae530c3, 2026-07-13) equals GitHub glue-viz/glue main HEAD.
+    summary: All auditor findings reproduce except one evidence detail: on astropy 8.0.1 `to_header_string()` on the -TAB raster WCS succeeds (header with PS/PV keys); the 'HDUList is required' ValueError comes from reloading
+        (`WCS(Header)`, i.e. glue's _load_wcs), so glue's stock WCS saver would save silently and fail on load — reverse the P3.6-tab doc_correction. Everything else confirmed by re-running: three independent save failures
+        (_GlueWCS unserializable; SGMeta Quantity -> np.save TypeError; preferred_cmap Colormap -> JSON TypeError); the 55-line glue-solar-only prototype (asdf for gwcs, Tabprm-coord rebuild for -TAB, recursive Sliced/Compound
+        record) round-trips SJI/raster/stack with p2w equal — I extended the -TAB check to the full pixel grid and sub-pixel offsets (max diff 5.6e-17); __gluestate__ method form works without any @saver registration; version-2
+        VisualAttributes saver/loader in glue-solar is a working workaround that even restores the cmap; pickle/asdf-astropy cannot carry a -TAB WCS (astropy has no -TAB writer, only the load callback); LoadLog path gives
+        23KB/255KB sessions and reload works, but coords are always read from the record so a coords saver is needed either way. Plan's 'complete unit spanning glue-core/glue-astronomy' is refuted: pieces are independent, glue-
+        astronomy has no serializers, no fork branch touches this. Two additions the auditor missed: (1) the preferred_cmap crash is pre-existing on glue-solar main — glue_solar/sources/maps.py:30 sets
+        preferred_cmap=scan_map.cmap, so saving ANY session containing a sunpy map loaded via glue-solar already fails (verified with a synthetic AIA map; works with cmap=None, 31/31 meta keys, WCS coords equal) — this deserves
+        its own bug entry independent of the IRIS plan; (2) sessions saved with the v2 style protocol or _GlueWCS type need glue-solar (and Qt, since loaders/iris.py imports glue_qt/qtpy at module level) importable at load time,
+        which is fine inside the glue-qt app but means such .glu files are not loadable by plain glue-core. Sizing: glue-solar ~60 lines + 3 tests (small); glue-core two one-liners (cmap name in _save_style, broader except in
+        _save_data_5) optional and release-gated; generic astropy -TAB export is a separate large upstream gap not required here.

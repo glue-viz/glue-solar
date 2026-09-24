@@ -1,0 +1,1 @@
+Superseded by #2596 and #2601: restarted off current main (the viewer code this branch touched moved to glue-qt in 2023 and the branch tip was broken). The salvageable parts are in #2601 with the defects fixed.

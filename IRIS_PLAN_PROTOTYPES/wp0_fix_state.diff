@@ -1,0 +1,27 @@
+diff --git a/glue/core/state.py b/glue/core/state.py
+index 9ef1341d..766eb457 100644
+--- a/glue/core/state.py
++++ b/glue/core/state.py
+@@ -743,7 +743,12 @@ def _load_roi(roi, context):
+ 
+ @saver(VisualAttributes)
+ def _save_style(style, context):
+-    return dict((a, getattr(style, a)) for a in style._atts)
++    result = dict((a, getattr(style, a)) for a in style._atts)
++    # preferred_cmap may be a Colormap object, which is not JSON-serializable
++    # (and is never restored by _load_style) - store its name instead
++    if 'preferred_cmap' in result:
++        result['preferred_cmap'] = getattr(result['preferred_cmap'], 'name', result['preferred_cmap'])
++    return result
+ 
+ 
+ @loader(VisualAttributes)
+@@ -1030,7 +1035,7 @@ def _save_data_5(data, context):
+         try:
+             context.do(key)
+             context.do(value)
+-        except GlueSerializeError:
++        except Exception:  # noqa: BLE001 - e.g. np.save TypeError on Quantity values
+             continue
+         else:
+             meta_filtered[key] = value

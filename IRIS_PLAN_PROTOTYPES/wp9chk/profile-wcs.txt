@@ -1,0 +1,255 @@
+profile-wcs.json:
+  audit:
+    items: [6]
+      [0]:
+        id: profile-wcs.C
+        title: Piece C - 'slice' collapse function in the profile viewer (glue-core)
+        status: implemented_on_fork_branch
+        where: glue:profile-wcs commits 175e7129 + 98d7bb7c; glue/viewers/profile/state.py (FUNCTIONS 'slice', `slices = DDCProperty`, `_set_default_slices` called from `_reference_data_changed`, `ProfileLayerState.slice_view`,
+            `update_profile` bypasses compute_statistic via `data.get_data(attribute, view=view)` + `get_mask` for subsets, then the shared `UnitConverter.to_unit` block), layer_artist.py ('slices' added to the recompute trigger
+            list), python_export.py (get_data/get_mask export path)
+        evidence: Diff read in full. Every TODO Piece C checkbox is satisfied: 'slice' in FUNCTIONS; get_data with view; UnitConverter applied (y values go through converter.to_unit after the if/else); slices property with (0,)*ndim
+            defaults and _set_default_slices wired in _reference_data_changed; tests test_slice_function, test_slice_function_subset, test_slice_function_linked, test_slice_function_out_of_bounds, test_slice_function_1d,
+            test_unit_conversion_slice (test_state.py) and test_slice/test_slice_subset (test_python_export.py). Tests: PYTHONPATH=<glue-wt> pytest glue/viewers/profile -> 57 passed, 1 skipped. E2E on irispy test data (2014 C II
+            1336 raster, shape (8,109,17), fork glue + fork glue-qt): function='slice', slices=(2,100,0) -> profile equals d[attr, (2,100,slice(None))] (allclose True); SJI (62,40,37) slice matches raw row too.
+        feasibility: small
+        blockers: None functional. Hardening gap found by e2e: slices out of range for the *reference* data (e.g. (3,50,60) on shape (62,40,37)) raise a raw IndexError from Component.__getitem__ (state.py:582) - slice_view bounds-checks
+            only non-reference layers; Qt sliders are bounded so the UI cannot hit it, but sessions/scripts can. Cherry-picking 175e7129+98d7bb7c alone onto main conflicts once in python_export.py (the profile_x_values line, because
+            98d7bb7c was written after Piece A touched that file) - trivial to resolve; C-only then passes 36 tests.
+        recommendation: Open this as the first glue-core PR (2 commits, resolve the one-line python_export conflict when reordering). Add a clamp or IncompatibleDataException for out-of-range reference slices before opening. No changelog file
+            needed (glue release notes are generated from .github/release.yml).
+        doc_corrections: PROFILE_WCS_RESTART_TODO.md Piece C: all four checkboxes are still unchecked although every item is implemented and tested on glue:profile-wcs. IRIS_IDL_GLUE_CAPABILITY_AUDIT.md line 152 '1-D profiles along a chosen
+            axis' and line 173 'Glue Image and 1-D Profile viewers plus subsets' describe released glue 1.27.0, where a profile is always a collapsed statistic - the single-pixel spectrum that iris_xdetector / iris_raster_browser
+            show needs this 'slice' function (or a 1-pixel subset); the audit should say so.
+      [1]:
+        id: profile-wcs.A
+        title: Piece A - opt-in WCSAxes in the profile viewer (glue-core)
+        status: implemented_on_fork_branch
+        where: glue:profile-wcs commits f767d320 + c3bcd75b; glue/viewers/profile/viewer.py (`MatplotlibProfileMixin._set_wcs`, `update_x_ticklabel`/`update_y_ticklabel` overrides, `apply_roi` pixel branch,
+            `_script_header`/`_script_footer`), glue/viewers/profile/state.py (`wcsaxes` class flag, `wcsaxes_active` property, `_wcsaxes_with_unit`, `wcsaxes_slice` property, `x_limits_pixel` DDCProperty, `_reset_x_limits` pixel
+            branch, unit-change reset in `_convert_units_x_limits`)
+        evidence: Checkbox audit against diff: (1) _set_wcs pattern: `axes.frame_class = RectangularFrame1D` + `axes.reset_wcs(slices=..., wcs=...)`, `reference_data is None or x_att_pixel is None` guard, fallback `get_identity_wcs(1)`
+            imported from glue.viewers.image.viewer - DONE. (2) wcsaxes_slice reads per-axis index from `self.slices` (no hardcoded 0), reversed to WCS order, no state mutation - DONE (implemented as a read-only property rather than
+            the 'plain method' the TODO asked for; harmless). (3) update_x_ticklabel override using `self.axes.coords[axis].set_ticklabel(size=...)` with axis = ndim - x_att_pixel.axis - 1 - DONE. (4) Units reconciliation: main's
+            `x_att -> _update_axes` callback kept (viewer.py setup_callbacks); axis label stays owned by _update_axes; BUT apply_roi now builds the subset on `x_att_pixel` when wcsaxes_active (the TODO listed the x_att->x_att_pixel
+            swap as 'explicitly dead') - a deliberate deviation, justified in commit f767d320 (profile is plotted in pixel coords in this mode, same model as the image viewer). (5) Tests: test_wcsaxes_profile,
+            test_wcsaxes_identity_fallback, test_wcsaxes_slices, test_wcsaxes_limits_mode_mismatch (test_viewer.py), TestExportPythonWCSAxes (re-runs the whole export suite on a WCSAxes viewer) - DONE; units tests unchanged and
+            green. DESIGN RULE PICKED: exactly the TODO's proposal - `wcsaxes_active = viewer built with wcs=True AND reference coords are real (not None/LegacyCoordinates) AND x_att is a world component AND (x_display_unit or '')
+            == component's native unit`; otherwise identity WCS + the untouched plain-numeric/x_display_unit path. In WCSAxes mode the profile, x limits and ROI are in pixel coordinates and WCSAxes formats world tick labels.
+            Crossing the unit boundary resets x limits instead of converting. c3bcd75b adds `x_limits_pixel` so sessions saved in one mode restore sanely in the other. E2E (real IRIS raster via glue_solar loader, Qt viewer
+            offscreen): wcsaxes True/active True, axes.wcs is d.coords, RectangularFrame1D, xlim (-0.5,16.5), ROI subset att = 'Pixel Axis 2 [x]', x_display_unit='nm' -> active False and x in nm (133.275..133.317), identity WCS
+            restored. SJI: active for Time/Latitude/Longitude x_att, arcsec labels formatted as e.g. '−402"'. Tests: 57 passed, 1 skipped on the fork worktree.
+        feasibility: small
+        blockers: Depends on Piece C (reads `slices`, `_set_default_slices`), so it must be a second PR stacked on C - verified: cherry-picking f767d320+c3bcd75b onto main+C gives one trivial conflict in python_export.py, then 57 passed.
+            IRIS-specific caveat found by e2e: glue-solar's `_GlueWCS.world_axis_units` leaves wavelength in 'm', so WCSAxes tick labels on the IRIS wavelength axis read like '0.00000013328'; selecting Angstrom as x_display_unit is
+            a unit override and switches WCSAxes off. That is a glue-solar loader issue (map em.wl to Angstrom the way helioprojective is mapped to arcsec in glue_solar/sources/loaders/iris.py:46-50), not a branch defect.
+        recommendation: Open as the second glue-core PR after C, with the design rule and the pixel-coordinate ROI model stated in the description (a reviewer will ask). Fix `_GlueWCS.world_axis_units` for wavelength in glue-solar before
+            recommending WCSAxes mode to IRIS users.
+        doc_corrections: PROFILE_WCS_RESTART_TODO.md: Piece A checkboxes unchecked though done; 'Explicitly dead: the x_att -> x_att_pixel swaps in apply_roi' is contradicted by the branch (swap reinstated only when wcsaxes_active) - the TODO/PR
+            text should record that as the decision, not as dead; 'make it a plain method, not a ... property getter' - implemented as a non-mutating property. IRIS_GLUE_GAP_PLAN.md: Phase 3 has no item for this work at all (only a
+            pointer at line 14-16) and the 'Current status' paragraph says active work is 'starting with Phase 3.1' - stale: Pieces A-C are implemented with green tests on glue:profile-wcs / glue-qt:profile-wcs, no PRs opened.
+      [2]:
+        id: profile-wcs.B
+        title: Piece B - glue-qt slice sliders + WCSAxes wiring, gated on glue-core capabilities
+        status: implemented_on_fork_branch
+        where: glue-qt:profile-wcs commit 1133c0e9; glue_qt/viewers/common/slice_widget.py (`MultiSliceWidgetHelper`: y_att/z_att both hasattr-guarded, `_plot_atts` uses `x_att_pixel` when present, clears stale sliders when data
+            removed, skips sync while len(slices) != ndim), glue_qt/viewers/profile/data_viewer.py (`wcs = hasattr(ProfileViewerState, 'wcsaxes')` passed to MatplotlibDataViewer.__init__), options_widget.py/.ui
+            (`widget_slices`/`layout_slices`, helper created only `if hasattr(viewer_state, 'slices')`, shown only when function == 'slice'), profile_tools.py (nearest-index lookup now unit-aware and pixel-aware)
+        evidence: Checkbox audit: (1) reuse MultiSliceWidgetHelper + y_att guard - DONE (plus a larger refactor than the TODO's one-line fix). (2) show/hide sliders when function == 'slice' - DONE (`_update_slices_visibility`). (3)
+            wcs=True gated on Piece A - DONE via feature detection `hasattr(ProfileViewerState, 'wcsaxes')`, not the version floor the TODO suggested (better: no release contains A yet). Tests added: test_state_without_y_att
+            (common), test_slice_function_sliders, test_wcsaxes_profile, test_reference_data_ndim_change, test_slice_sliders_data_removed (profile), test_profile_tools_unit_override; gates are `requires_slice_function = skipif(not
+            hasattr(ProfileViewerState,'slices'))` and `requires_wcsaxes = skipif(not hasattr(ProfileViewerState,'wcsaxes'))`. Runs: (a) PYTHONPATH=<glue-wt>:<glue-qt-wt> pytest glue_qt/viewers/profile glue_qt/viewers/common -> 81
+            passed, 1 skipped; (b) PYTHONPATH=<glue-qt-wt> only (installed glue-core 1.27.0 from site-packages, confirmed by glue.__file__) -> 68 passed, 14 skipped: 13 with reason 'installed glue-core has no WCSAxes profile
+            support' / 'no slice collapse function' + 1 pre-existing unconditional skip; nothing errors, so the gating claim holds. (c) glue_qt/viewers/image with both forks -> 69 passed, 2 skipped, 1 xfailed (the shared slider
+            helper refactor does not regress the image viewer). E2E: on the IRIS raster the options widget shows 2 sliders (non-profile axes) and widget_slices is visible only in slice mode.
+        feasibility: small
+        blockers: Commit 1133c0e9 adds the generated, gitignored file glue_qt/_version.py ('don't track in version control') - must be dropped before a PR. glue-qt CI against released glue-core will skip the 13 gated tests until the two
+            glue-core PRs are released (or CI adds a glue-core-dev job). profile_tools.py change is an independent bug fix (nearest-slice lookup ignored x_display_unit on main) and could be its own tiny PR.
+        recommendation: Rewrite the commit without glue_qt/_version.py, open the glue-qt PR after the glue-core C/A PRs exist and reference them; state in the description that the new tests are skipped against glue-core <= 1.27.0 by design.
+            Consider splitting the profile_tools.py unit fix out - it is mergeable today.
+        doc_corrections: PROFILE_WCS_RESTART_TODO.md Piece B: checkboxes unchecked though done; 'gated on Piece A being present in the installed glue-core (version floor)' - branch uses hasattr feature detection instead; 'One fix needed
+            upstream' (y_att guard) understates the change - the helper was refactored (x_att_pixel support, stale-slider clearing, ndim-change guard).
+      [3]:
+        id: profile-wcs.98d7bb7c
+        title: What commit 98d7bb7c 'Translate slice views across linked datasets' does, and its relation to Phase 3.2
+        status: implemented_on_fork_branch
+        where: glue:profile-wcs 98d7bb7c; glue/viewers/profile/state.py `ProfileLayerState.slice_view(data, pix_cid)`; python_export.py; test_state.py::test_slice_function_linked / test_slice_function_out_of_bounds
+        evidence: Diff and commit message read. It is PROFILE-VIEWER-INTERNAL: `ProfileViewerState.slices` is defined in the reference data's pixel frame; for a layer whose dataset is NOT the reference data, slice_view evaluates
+            `ref[data.pixel_component_ids[axis], point]` (i.e. walks the pixel/coordinate links) to find that dataset's own pixel index on each non-profile axis, rounds it, bounds-checks it, and raises IncompatibleDataException
+            (layer disabled) for unlinked or out-of-range axes. Test: d1 (3,4,2) and d2 (4,3,2) with axes 0/1 swapped via LinkSame; slices=(0,2,1) on d1 yields d1['x'][:,2,1] and d2['y'][2,:,1]. Second half fixes the exported script
+            fetching x values from the Subset (mask-shortened) instead of the parent Data. Nothing in it touches other viewers, ImageViewerState.slices, or any hub message - one viewer's slider position never moves another viewer's.
+        feasibility: n/a
+        blockers: None.
+        recommendation: Do not count this toward Phase 3.2. It is the per-layer correctness fix that lets two linked rasters share one profile viewer's slice point; the plan's 'synchronized slicing' (image viewer raster slider <-> SJI frame,
+            time-nearest join) is a separate, unstarted glue-core/glue-qt feature.
+        doc_corrections: IRIS_GLUE_GAP_PLAN.md 'Coordinated raster browser ... synchronized slicing upstream' (line 39) and Phase 3.2 (line 148-153) could be misread as advanced by this branch; add one sentence that profile-wcs only translates
+            slices between layers inside one profile viewer.
+      [4]:
+        id: phase-3.2-sync-slicing
+        title: Phase 3.2 synchronized slicing across viewers (cross-viewer slider join + time-nearest join)
+        status: not_implemented
+        where: none: glue-core 1.27.0 ImageViewerState.slices / fork ProfileViewerState.slices are per-viewer state; no code on any fork branch or upstream links slice positions between viewers
+        evidence: Reviewed both fork branches' full diffs (7 + 9 files); the only cross-dataset slice logic is the intra-viewer `slice_view` above. The glue-qt MultiSliceWidgetHelper is instantiated per options widget with its own
+            viewer_state and no hub subscription.
+        feasibility: large
+        blockers: Needs a new glue-core concept (a shared slice/'cursor' object or hub message that viewers subscribe to, translated through links per dataset) plus glue-qt UI, and the time-nearest join primitive; nobody has started it.
+        recommendation: Keep Phase 3.2 as the last upstream step as the plan already orders it. When designed, reuse the link-walking idiom from slice_view (`ref[other.pixel_component_ids[axis], point]`) as the translation primitive.
+        doc_corrections: 
+      [5]:
+        id: upstream-prs-and-2248
+        title: Upstream PR readiness (separate PRs per piece) and fate of glue-viz/glue#2248
+        status: partial
+        where: glue:profile-wcs (pushed to origin/profile-wcs, no PR), glue-qt:profile-wcs (pushed, no PR); PR glue-viz/glue#2248 head nabobalis:1dprofile_wcs; origin/1dprofile_wcs still exists
+        evidence: gh pr view 2248: state OPEN, isDraft true, mergeable CONFLICTING, created 2021-11-09, last commit 586d1948 2022-05-07 ('undone some other changes - unsure if this is a good idea'), one codecov comment, one self COMMENTED
+            review, no maintainer review. `git branch -r` in ~/Git/glue still lists origin/1dprofile_wcs. Split feasibility verified in a scratch clone: main + 175e7129 + 98d7bb7c (one 3-line conflict in python_export.py resolved by
+            hand) -> 36 passed, 1 skipped; + f767d320 + c3bcd75b (same line conflicts again) -> 57 passed, 1 skipped, tree identical to profile-wcs except that one line. Lint: flake8/ruff/pre-commit are not installed in the venv, so
+            the repos' pre-commit (ruff) checks were NOT run. Changelog: both repos generate release notes from .github/release.yml, so no CHANGES.md edit is required. Branch bases: glue merge-base = dae530c3 = upstream/main; glue-
+            qt merge-base = 9780eaf9 = upstream/main.
+        feasibility: small
+        blockers: (1) glue-qt commit must be recreated without glue_qt/_version.py. (2) The four glue commits interleave C and A (C, A, C-fix, A-fix); reorder into two branches with the python_export.py conflict resolved as described. (3)
+            Run pre-commit/ruff before opening (not verifiable here). (4) PR descriptions must carry the WCSAxes-vs-x_display_unit rule and the pixel-coordinate ROI model. (5) glue-qt PR tests are skipped on released glue-core until
+            the core PRs ship.
+        recommendation: Close #2248 now with a one-line comment pointing to the restart (it is a draft, conflicting, 4 years stale, and every salvageable idea is already captured per commit f767d320's message), then delete origin/1dprofile_wcs
+            - that ticks the first 'Order and acceptance' box. Open PR 1 = Piece C (2 commits), PR 2 = Piece A stacked on it, PR 3 = glue-qt Piece B referencing both.
+        doc_corrections: PROFILE_WCS_RESTART_TODO.md 'Order and acceptance': both boxes correctly still unchecked (branch not deleted, nothing merged) - but the header 'Keep origin/1dprofile_wcs untouched ... until the salvage below is copied
+            out' is now satisfied and should be updated to 'delete'. IRIS_GLUE_GAP_PLAN.md line 12-16 should say the three pieces are implemented on fork branches awaiting PRs rather than implying the profile work has not started.
+    checks_run: [12]
+      [0]:
+        command: git -C ~/Git/glue worktree add <S>/wt-glue-pw profile-wcs; git -C ~/Git/glue-qt worktree add <S>/wt-glueqt-pw profile-wcs (removed at end with worktree remove --force; `git worktree list` shows only the main checkouts,
+            `git status` shows only the pre-existing untracked TODO/_version files)
+        result: ok
+      [1]:
+        command: PYTHONPATH=<glue-wt> QT_QPA_PLATFORM=offscreen MPLBACKEND=agg python -m pytest <glue-wt>/glue/viewers/profile -q
+        result: 57 passed, 1 skipped, 6 warnings in 71s
+      [2]:
+        command: PYTHONPATH=<glue-wt>:<glue-qt-wt> QT_QPA_PLATFORM=offscreen MPLBACKEND=agg python -m pytest <glue-qt-wt>/glue_qt/viewers/profile <glue-qt-wt>/glue_qt/viewers/common -q
+        result: 81 passed, 1 skipped, 12 warnings in 16s
+      [3]:
+        command: PYTHONPATH=<glue-qt-wt> (installed glue-core 1.27.0, confirmed via glue.__file__) python -m pytest <glue-qt-wt>/glue_qt/viewers/profile <glue-qt-wt>/glue_qt/viewers/common -q -rs
+        result: 68 passed, 14 skipped (13 x 'installed glue-core has no WCSAxes profile support' / 'no slice collapse function', 1 pre-existing unconditional skip); no errors - gating confirmed
+      [4]:
+        command: PYTHONPATH=<glue-wt>:<glue-qt-wt> python -m pytest <glue-qt-wt>/glue_qt/viewers/image -q
+        result: 69 passed, 2 skipped, 1 xfailed (MultiSliceWidgetHelper refactor does not regress the image viewer)
+      [5]:
+        command: git clone ~/Git/glue <S>/glue-split; cherry-pick 175e7129 98d7bb7c onto main (1 conflict in python_export.py, resolved); pytest glue/viewers/profile
+        result: C-only: 36 passed, 1 skipped
+      [6]:
+        command: same clone: cherry-pick f767d320 c3bcd75b on top (1 conflict in python_export.py, resolved); pytest glue/viewers/profile; git diff origin/profile-wcs --stat
+        result: C+A: 57 passed, 1 skipped; tree differs from profile-wcs tip only by the resolved line
+      [7]:
+        command: <S>/e2e_profile.py with fork glue + fork glue-qt + glue_solar.raster_data([iris_l2_20140329_..._r00000.fits], ['C II 1336']) in a Qt ProfileViewer (offscreen)
+        result: shape (8,109,17); wcsaxes True, wcsaxes_active True, axes.wcs is coords, RectangularFrame1D, wcsaxes_slice ('x',0,0); xlim (-0.5,16.5), x_limits_pixel True; function='slice', slices=(2,100,0) equals raw row (True), 2
+            sliders shown; ROI subset att = Pixel Axis 2 [x]; x_display_unit='nm' -> active False, x in nm, identity WCS; WCSAxes label for wavelength in native unit 'm' = '0.00000013328'. Script then hung >4 min in
+            app.save_session(include_data=True) (unrelated to branch; sessions documented unsupported)
+      [8]:
+        command: <S>/e2e_sji.py with glue_solar.image_data(iris_l2_20210905_..._SJI_1400_t000.fits)
+        result: shape (62,40,37), inner coords type astropy WCS (not gWCS); wcsaxes_active True for Time/Latitude/Longitude x_att; canvas.draw ok; slice (3,20,30) matches raw row; arcsec labels e.g. '−402"'. First attempt with
+            slices=(3,50,60) raised IndexError from Component.__getitem__ - reference-data slices are not bounds-checked
+      [9]:
+        command: gh pr view 2248 --repo glue-viz/glue --json state,isDraft,mergeable,updatedAt,reviews,commits
+        result: OPEN draft, CONFLICTING, updated 2022-06-28, last commit 586d1948 2022-05-07, one self 'COMMENTED' review, no maintainer review
+      [10]:
+        command: git -C ~/Git/glue branch -r; git -C ~/Git/glue-qt ls-tree profile-wcs -- glue_qt/_version.py; git check-ignore -v glue_qt/_version.py
+        result: origin/1dprofile_wcs still exists; glue_qt/_version.py is committed on glue-qt:profile-wcs although .gitignore:47 ignores it
+      [11]:
+        command: python -m flake8 / pip list | grep ruff|pre-commit
+        result: not installed in the venv - repo pre-commit (ruff) checks not run
+    notes: Summary: the profile-wcs work in PROFILE_WCS_RESTART_TODO.md is fully implemented on the two fork branches (glue:profile-wcs 4 commits, glue-qt:profile-wcs 1 commit), every Piece A/B/C checkbox is satisfied by code +
+        tests, all suites green (57 / 81 / 68+14 skipped), and the glue-qt gating on glue-core capabilities works. The design rule chosen is the TODO's own proposal: WCSAxes formatting only when world coords are shown in their
+        native unit (x_display_unit unset or equal to the component unit) on real coords, else the plain-axes/unit path; in WCSAxes mode the profile, limits and ROI are in pixel coordinates (image-viewer model), which reinstates
+        the apply_roi x_att_pixel swap the TODO had marked dead. Commit 98d7bb7c is profile-viewer-internal (translates the reference slice point into other layers' pixel frames through links); it is not cross-viewer slice sync
+        and does not advance Phase 3.2. Not PR-ready as-is: split into C then A (one trivial python_export.py conflict, verified), drop glue_qt/_version.py from the glue-qt commit, run pre-commit, write the design rule into the
+        PR text; close #2248 and delete origin/1dprofile_wcs. Two IRIS-specific follow-ups for glue-solar rather than the branches: `_GlueWCS.world_axis_units` should present wavelength in Angstrom (currently 'm', giving
+        unreadable WCSAxes tick labels), and viewer presets should set x_att=Wavelength and function='slice' (the profile viewer defaults to Helioprojective Longitude). Side observation outside my area: with irispy 0.8.1 the SJI
+        dataset's inner WCS is an astropy `WCS`, not gWCS, contrary to the gap plan's Phase 3.1 wording. Also: irispy 0.8.1 read_files fails on the 2021 raster test file with spectral_windows=['Mg II k 2796'] ('Expected 187 NUV
+        source filename rows, found 1872'); glue-solar tests only use the 2014 raster. Scratch worktrees and clone removed; user repos untouched.
+  verify:
+    verdicts: [8]
+      [0]:
+        id: profile-wcs.C
+        agree: True
+        correction: 
+        evidence: Diff read (git diff main...profile-wcs): FUNCTIONS gains 'slice'; `slices = DDCProperty`; `_set_default_slices` wired in `_reference_data_changed`; `update_profile` uses `data.get_data(attribute, view=view)` +
+            `get_mask`, then `converter.to_unit` on y. Re-ran: PYTHONPATH=<glue-wt> pytest glue/viewers/profile -> 57 passed, 1 skipped (73s). Scratch clone: main + cherry-pick 175e7129 98d7bb7c -> 1 conflict in python_export.py
+            (profile_x_values line), resolved to `x_att = state.x_att` + `base_data[...]` -> 36 passed, 1 skipped; no 'wcsaxes' refs left in the C-only tree. E2E (fork glue+glue-qt, IRIS 2014 C II raster (8,109,17)):
+            function='slice', slices=(2,100,0) -> allclose to d[attr,(2,100,:)] True, x = pixel index. Out-of-range reference slices reproduced: slices=(7,200,0) -> IndexError 'index 200 is out of bounds for axis 1 with size 109' at
+            state.py:582 (`data.get_data(..., view=view)`); SJI (3,50,60) -> same. Nuance: in the live viewer this is not a crash - layer_artist._calculate_profile_error only calls disable() for
+            IncompatibleAttribute/IncompatibleDataException, so an IndexError just hides the artist silently (state.enabled stays True). Extra blocker the auditor missed: ruff 0.15.20 (the repo's pinned pre-commit version) with the
+            repo config flags 3 new RUF059 errors, 2 of them from 98d7bb7c: tests/test_state.py:229 and :257 (`x, y = layer.profile`, x unused); main is clean on the same files. The hook runs `--fix` but RUF059 fixes are unsafe, so
+            CI codestyle would fail.
+      [1]:
+        id: profile-wcs.A
+        agree: True
+        correction: 
+        evidence: Diff confirms every claim: `_set_wcs` with `reference_data is None or x_att_pixel is None` guard, RectangularFrame1D, `get_identity_wcs(1)` imported from glue.viewers.image.viewer; `wcsaxes_slice` property reads
+            `self.slices[i]` (no hardcoded 0), reversed; `update_x_ticklabel` uses `coords[ndim - x_att_pixel.axis - 1].set_ticklabel`; `_wcsaxes_with_unit` = real coords (not None/LegacyCoordinates) AND x_att not pixel AND `(unit
+            or '') == component.units` - exactly the TODO's proposed rule; apply_roi uses x_att_pixel only when wcsaxes_active. Tests test_wcsaxes_profile/_identity_fallback/_slices/_limits_mode_mismatch use
+            `SimpleProfileViewer(app.session, wcs=True)`. E2E reproduced: default x_att = Helioprojective Longitude (world_component_ids[0]), wcsaxes True/active True, axes.wcs is d.coords, RectangularFrame1D, wcsaxes_slice
+            (0,0,'x'); x_att=Wavelength -> xlim (-0.5,16.5), x_limits_pixel True, `coords[axis].format_coord(1.3328e-7)` = '0.00000013328' (glue-solar _GlueWCS.world_axis_units gives 'm' for em.wl, only helioprojective is remapped
+            to arcsec at loaders/iris.py:46-50); x_display_unit='nm' -> active False, x 133.275..133.317, axes.wcs is coords False; back to 'm' -> active True; ROI -> subset att 'Pixel Axis 2 [x]'. Note x_display_unit cannot be set
+            to '' (SelectionCallbackProperty choices), native = 'm'. Split verified: on the C-only clone, cherry-pick f767d320 -> 1 conflict (same python_export.py lines), c3bcd75b clean; 57 passed, 1 skipped; `git diff
+            origin/profile-wcs` EMPTY (byte-identical to the branch tip, not 'one line'). Lint: tests/test_viewer.py:336 RUF059 (`y` unused) is new from the A commits. Label reset in `_set_wcs` (x_axislabel/y_axislabel = '') mirrors
+            image viewer.py:120-121, so not a defect.
+      [2]:
+        id: profile-wcs.B
+        agree: True
+        correction: 
+        evidence: Diff confirms: MultiSliceWidgetHelper guards y_att/z_att via hasattr loop, `_plot_atts` prefers x_att_pixel, clears sliders when data/atts None, skips sync while len(slices) != ndim; data_viewer.py passes
+            `wcs=hasattr(ProfileViewerState, 'wcsaxes')` (glue-qt MatplotlibDataViewer.__init__ accepts wcs=); options_widget creates helper only `if hasattr(viewer_state, 'slices')` and toggles widget_slices on function=='slice';
+            profile_tools.py applies UnitConverter (main's `data[x_att, axis_view]` ignores x_display_unit - real bug). Re-ran: both forks -> 81 passed, 1 skipped (unconditional skip test_data_viewer.py:60); glue-qt worktree +
+            installed glue-core 1.27.0 (glue.__file__ = .venv site-packages) -> 68 passed, 14 skipped, 13 with 'installed glue-core has no WCSAxes profile support'/'no slice collapse function', 0 errors; glue_qt/viewers/image with
+            both forks -> 69 passed, 2 skipped, 1 xfailed. `git ls-tree profile-wcs -- glue_qt/_version.py` = committed blob; `.gitignore:47 glue_qt/_version.py` ignores it. ruff 0.15.20 with repo config on the branch's .py files:
+            'All checks passed'. E2E: options widget builds 2 sliders for the (8,109,17) raster.
+      [3]:
+        id: profile-wcs.98d7bb7c
+        agree: True
+        correction: 
+        evidence: Commit diff: adds `ProfileLayerState.slice_view(data, pix_cid)` - for `data is ref` uses viewer_state.slices directly; otherwise evaluates `ref[data.pixel_component_ids[axis], point]` (link walk), rounds, bounds-checks,
+            raises IncompatibleDataException on IncompatibleAttribute/out-of-range. Only touches glue/viewers/profile/{state,python_export,tests}; no hub message, no ImageViewerState, no other viewer. It is intra-profile-viewer per-
+            layer translation, not cross-viewer sync; correctly excluded from Phase 3.2.
+      [4]:
+        id: phase-3.2-sync-slicing
+        agree: True
+        correction: 
+        evidence: Full diffs of glue:profile-wcs (7 files) and glue-qt:profile-wcs (9 files) contain no cross-viewer slice linking; MultiSliceWidgetHelper is per-options-widget with one viewer_state and no hub subscription. Gap plan Phase
+            3.2 (IRIS_GLUE_GAP_PLAN.md:148-153) remains unstarted. Size 'large' is reasonable.
+      [5]:
+        id: upstream-prs-and-2248
+        agree: False
+        correction: Blocker (3) 'pre-commit/ruff not verifiable here' is wrong: ruff installs from pip (pip install --target <scratch> ruff==0.15.20, the repos' pinned pre-commit rev). With the repo config, glue:profile-wcs FAILS codestyle:
+            3 x RUF059 in new test code (glue/viewers/profile/tests/test_state.py:229, :257 from 98d7bb7c; tests/test_viewer.py:336 from the A commits). main is clean on the same files; the hook's `--fix` will not fix them (unsafe
+            fix). glue-qt:profile-wcs passes ruff. So the glue-core PRs need those 3 lines changed (`_, y = ...`) before CI is green, on top of the reorder/_version.py points. Minor: the reordered C->A tree is byte-identical to the
+            branch tip (empty diff), not 'differs by one line'.
+        evidence: gh pr view 2248: state OPEN, isDraft true, mergeable CONFLICTING, createdAt 2021-11-09, updatedAt 2022-06-28, last commit 586d1948 2022-05-07, 1 review by nabobalis (self). `git branch -r` lists origin/1dprofile_wcs and
+            origin/profile-wcs in glue, origin/profile-wcs in glue-qt. .pre-commit-config.yaml in both repos: ruff-pre-commit rev v0.15.20 with args --fix --show-fixes; .ruff.toml `extend = "pyproject.toml"`. ruff 0.15.20 output on
+            glue worktree: 'test_state.py:229:5 RUF059 Unpacked variable x is never used', ':257:5' same, 'test_viewer.py:336:8 RUF059 Unpacked variable y is never used', 'No fixes available (3 hidden fixes can be enabled with
+            --unsafe-fixes)'; on /Users/nabil/Git/glue main same files: 'All checks passed!'. Scratch clone reorder: C-only 36/1, C+A 57/1, `git diff origin/profile-wcs --stat` empty. Both CHANGES.md headers say 'Release notes
+            generated using configuration in .github/release.yml', so no changelog edit needed - agreed.
+      [6]:
+        id: notes.sji-inner-wcs
+        agree: False
+        correction: The auditor's side observation 'with irispy 0.8.1 the SJI dataset's inner WCS is an astropy WCS, not gWCS, contrary to the gap plan' is wrong - it was fooled by the class name. The gap plan's Phase 3.1 wording (SJI =
+            gWCS, raster = astropy -TAB WCS) is correct.
+        evidence: read_files(iris_l2_20210905_..._SJI_1400_t000.fits).wcs.low_level_wcs -> type gwcs.wcs._wcs.WCS; isinstance(w, astropy.wcs.WCS) False, isinstance(w, gwcs.WCS) True (MRO WCS -> GWCSAPIMixin -> BaseLowLevelWCS). The 2014
+            raster window wcs -> astropy.wcs.wcs.WCS (astropy True, gwcs False). glue_solar's _GlueWCS wraps it; SJI world_axis_names ['Longitude','Latitude','Time (UTC)'] units ('arcsec','arcsec','s').
+      [7]:
+        id: notes.irispy-read-files-2021
+        agree: False
+        correction: Partly wrong: the failure is not tied to spectral_windows=['Mg II k 2796']. irispy 0.8.1 read_files fails on the copy under irispy/data/test/raster/iris_l2_20210905_..._raster_t000_r00000.fits with ANY window (None or Mg
+            II k) - 'Expected 187 NUV source filename rows, found 1872' - while the identically named copy under data/test/sns/ loads fine (RasterCollection with 8 windows, and with ['Mg II k 2796']). glue-solar's irispy_test_files
+            fixture must simply avoid the raster/ copy of the 2021 file.
+        evidence: Ran read_files on both paths: sns None OK RasterCollection [C II 1336, Fe XII 1349, O I 1356, Si IV 1394, Si IV 1403, 2832, 2814, Mg II k 2796]; sns ['Mg II k 2796'] OK; raster None -> ValueError Expected 187 NUV source
+            filename rows, found 1872; raster ['Mg II k 2796'] -> same ValueError.
+    summary: Re-ran every decisive check with fresh worktrees (removed afterwards; ~/Git/glue on main, ~/Git/glue-qt on macos-integration, status unchanged). The auditor's core findings hold: glue:profile-wcs (4 commits) + glue-
+        qt:profile-wcs (1 commit) implement every Piece A/B/C checkbox of PROFILE_WCS_RESTART_TODO.md (all still unchecked in the file); glue profile suite 57 passed/1 skipped; glue-qt profile+common with both forks 81/1;
+        against installed glue-core 1.27.0 68 passed/14 skipped with the expected 'installed glue-core has no ...' reasons and zero errors (gating works); glue-qt image suite 69/2/1xfail; design rule = TODO's proposal
+        (`_wcsaxes_with_unit`: real coords, world x_att, x_display_unit == native unit), with the apply_roi x_att_pixel swap reinstated only in WCSAxes mode; 98d7bb7c is intra-profile-viewer per-layer slice translation through
+        links (`ref[data.pixel_component_ids[axis], point]`), not Phase 3.2 cross-viewer sync; E2E on the IRIS 2014 C II raster reproduced wcsaxes_active True, slice equality, ROI on 'Pixel Axis 2 [x]', unit override -> plain
+        axes, wavelength ticks '0.00000013328' because _GlueWCS leaves em.wl in 'm', and the IndexError on out-of-range reference slices (state.py:582; in the live viewer the artist is silently hidden rather than disabled, since
+        _calculate_profile_error only handles IncompatibleAttribute/IncompatibleDataException). Reorder into C then A verified: one python_export.py conflict per piece, C-only 36/1, C+A 57/1, and the result is byte-identical to
+        the branch tip. Two refutations: (1) lint IS checkable - ruff 0.15.20 (the repos' pinned pre-commit rev) with the repo config flags 3 new RUF059 errors on glue:profile-wcs (test_state.py:229, :257 from 98d7bb7c;
+        test_viewer.py:336 from Piece A), main clean, unsafe-fix only, so the glue-core PRs would fail codestyle as-is; glue-qt branch passes ruff (but still carries the gitignored glue_qt/_version.py, confirmed via ls-tree).
+        (2) The side note that the SJI inner WCS is astropy not gWCS is wrong: it is gwcs.wcs._wcs.WCS (isinstance gwcs.WCS True); the gap plan's Phase 3.1 wording is correct. Also the irispy read_files failure on the 2021
+        raster is specific to the data/test/raster/ copy of that file for any spectral window; the data/test/sns/ copy reads fine. PR #2248 state confirmed (open draft, CONFLICTING, last commit 2022-05-07, only a self review) -
+        closing it and deleting origin/1dprofile_wcs is reasonable. Doc corrections stand: TODO checkboxes stale; IRIS_GLUE_GAP_PLAN.md:10-17 'starting with Phase 3.1' and :39 'synchronized slicing upstream' do not reflect that
+        Pieces A-C exist on fork branches; IRIS_IDL_GLUE_CAPABILITY_AUDIT.md:152/173 describe 1.27.0's statistic-only profiles.

@@ -1,0 +1,160 @@
+{
+ "audit": {
+  "items": [
+   {
+    "id": "MACOS-1",
+    "title": "Issue 1: app name shows 'python' (argv, setApplicationName/DisplayName, CFBundleName via pyobjc)",
+    "status": "implemented_on_fork_branch",
+    "where": "glue-qt branch macos-integration (PR glue-viz/glue-qt#68), commit d8a3f715: glue_qt/utils/app.py (_fix_mac_app_name, get_qapp), pyproject.toml dependency 'pyobjc-framework-Cocoa; sys_platform == \"darwin\"'",
+    "evidence": "Diff: get_qapp now calls _fix_mac_app_name() on Darwin before QApplication(['glue']), then setApplicationName('glue') and setApplicationDisplayName('glue'). Ran get_qapp offscreen on this Mac (Python 3.14.7, PyQt6 6.11): bundle path .../Python.framework/.../Python.app, CFBundleName before='Python', after='glue'; applicationName='glue', displayName='glue', arguments()=['glue']. Foundation import cost 0.041 s; pyobjc-core 10 MB + Cocoa ~4 MB on disk. grep 'QSettings' in glue_qt: no hits (TODO's pre-merge check satisfied). No automated test asserts applicationName()/applicationDisplayName() even though the TODO says that is the only thing testable; glue_qt/utils/tests/test_app.py only tests the font migration and the Qt6 tab path.",
+    "feasibility": "trivial",
+    "blockers": "Menu-bar title/About/Quit/Cmd-Tab/Dock name are manual-only checks (PR screenshot shows the menu title fixed). conda-forge glue-qt-feedstock recipe (run: python.app [osx], pyqt, ...) has no pyobjc; conda users get the silent ImportError fallback until 'pyobjc-framework-cocoa  # [osx]' is added there. Qt doc (qwidget.cpp l.5992-5995): 'On some desktop platforms (including Windows and Unix), the application name (from QGuiApplication::applicationDisplayName) is added at the end of the window title' by the QPA plugin, so Linux/Windows viewer windows will now read 'My Viewer \u2014 glue'; not mentioned in the PR body, worth a sentence.",
+    "recommendation": "Keep the hard platform-conditional dep (already degrades gracefully via ImportError). Add a 3-line test asserting applicationName()/applicationDisplayName()=='glue' on the real qapp fixture. Open a follow-up on conda-forge/glue-qt-feedstock after merge. Mention the Linux/Windows title suffix in the PR body.",
+    "doc_corrections": "TODO l.53-55 'Automated test can only assert applicationName()/applicationDisplayName()' \u2014 such a test was never added. TODO l.46-49 dependency item is checked but omits the conda-forge recipe, which is how most mac glue users install."
+   },
+   {
+    "id": "MACOS-2",
+    "title": "Issue 2: fonts/icons too small (drop Darwin -2pt/-1pt offset, FONT_SIZE=-1 sentinel + migration, hardcoded-size sweep, Qt6 tab handling, platform toolbar icon size)",
+    "status": "implemented_on_fork_branch",
+    "where": "glue-qt macos-integration: glue_qt/utils/app.py (default_font_size, _font_size_is_set, fix_tab_widget_fontsize, update_global_font_size), glue_qt/app/preferences.py, application.py:381/445, edit_subset_mode_toolbar.py:32/73, data_collection_model.py:457, layer_artist_model.py:203, base_widget.py:34 (status-bar 10px removed), link_editor/data_graph.py:73-75 (setPointSize(10) removed)",
+    "evidence": "Diff removes __get_font_size_offset entirely (0 offset on every platform, not just Darwin). get_qapp records _default_point_size, migrates a saved FONT_SIZE equal to the platform default to -1 and only calls setFont when an override is set. fix_tab_widget_fontsize: Darwin and not QT6 and override set -> 'pt' stylesheet (was 'px'); preferences.py now calls it instead of its own copy. Icon sizes: min(style().pixelMetric(PM_ToolBarIconSize), 24) \u2014 offscreen PyQt6 on this Mac returns 24. Tests: python -m pytest glue_qt/utils/tests/test_app.py -q -> 2 passed; touched-module sweep (test_app, test_plugin_manager, test_preferences, test_application, dialogs/link_editor) -> 53 passed. Side effect observed when I ran get_qapp offscreen: ~/.glue/settings.cfg font_size 9.0 -> -1.0 was rewritten (9 == offscreen QPA default), i.e. the one-time migration fires in headless runs against whatever QPA is active. data_slice_widget.py:46 still has font.setPointSize(int(font.pointSize()*0.75)).",
+    "feasibility": "trivial",
+    "blockers": "Visual verification only: regression sweep of .ui dialogs at +2pt on macOS / +1pt on Linux and Windows is unchecked and not doable in CI. Minor hazard: migration compares against the *current* QPA default, so a deliberate FONT_SIZE=9 on macOS is silently reset to -1 the first time a headless process (pytest offscreen) calls get_qapp; and get_qapp writes the user's settings file at startup during test runs.",
+    "recommendation": "Merge as is; note in the PR body that the 1-pt reduction on Linux/Windows is also dropped (TODO acceptance flagged this). Optionally skip the migration+save when QT_QPA_PLATFORM is offscreen/minimal, or drop the migration entirely (a stale 13 on macOS is harmless and users can re-save). Decide explicitly whether the 0.75x slice-widget font stays; the checked TODO item says 'keep only if it still reads well' with no evidence it was looked at.",
+    "doc_corrections": "TODO l.88-91 says 'decide whether to keep the 1-point reduction elsewhere or zero both' as if open \u2014 the branch zeroes both. TODO l.76-80 (px/pt mixing in app.py:83-90 and preferences.py:95) is fixed by the branch (pt on Qt5, skipped on Qt6). TODO l.98-101 is checked although the slice-widget 0.75x decision was not made. TODO l.13 'app.py:56 creates the app as QApplication([''])' describes main, not the branch."
+   },
+   {
+    "id": "MACOS-3",
+    "title": "Unchecked TODO checkboxes: which are done, not done, or manual-only",
+    "status": "partial",
+    "where": "/Users/nabil/Git/glue-qt/MACOS_INTEGRATION_TODO.md l.50-55, 110-115, 119-126",
+    "evidence": "l.50 Dock name picks up CFBundleName: manual-only, not verifiable headless (CFBundleName mutation itself verified above). l.53 Manual verification (menu title/About/Quit/Cmd-Tab): manual-only; PR screenshot covers the menu title only. l.110 AA_UseHighDpiPixmaps: 'no change' item \u2014 app.py:103-107 still has the guarded try/except; effectively done, should be ticked or deleted. l.112 Regression sweep of .ui dialogs: not done, manual-only. Acceptance l.119 menu bar reads glue: partially evidenced by screenshot (title); About/Quit/Cmd-Tab unverified. l.120 side-by-side screenshots: done (both in PR body). l.122 no clipped dialogs: not verified; Linux/Windows CI green: done (all 'tests /' jobs SUCCESS on bd4dce6b). l.124 PyQt6+Retina and PyQt5: CI covers pyqt514/515 on ubuntu and pyqt515 on macos; Retina is manual. l.126 remove TODO file: pending (file is untracked, not in the PR).",
+    "feasibility": "small",
+    "blockers": "All remaining unchecked items are manual GUI verification on a real macOS session; none are automatable.",
+    "recommendation": "Do one manual pass (open Preferences, Link Editor, data importers; check About/Quit/Cmd-Tab/Dock) and tick or drop the items; delete the TODO file when the PR merges. Mark l.110 as done now.",
+    "doc_corrections": "l.110-111 is phrased as a task but is a no-op; l.120 is already satisfied by the PR body screenshots."
+   },
+   {
+    "id": "MACOS-4",
+    "title": "The three follow-up commits ('remove tox all?!', 'try to fix some CI?!', 'maybe?!!!!') are unrelated CI hygiene",
+    "status": "implemented_on_fork_branch",
+    "where": "glue-qt a34a2180 (tox.ini), b596af69 (pyproject.toml), bd4dce6b (glue_qt/app/tests/test_plugin_manager.py, glue_qt/viewers/common/tests/test_data_viewer.py); also .gitignore glue_qt/_version.py in d8a3f715",
+    "evidence": "CI on the first PR push (d8a3f715, run 33277435531) failed every 'tests /' job with 'pluggy._manager.PluginValidationError: Plugin flake8 for hook pytest_collect_file' \u2014 pytest-flake8 1.3.0 vs pytest 9.1.1; b596af69 drops pytest-flake8 from the test extra and the flake8-ignore ini key. a34a2180 removes tox 'extras = all: all': pyproject has no 'all' extra (only docs/qt/test), and main's own last CI run (22106772802, Feb 2026) already failed all '-all' jobs. bd4dce6b: run 33278127714 failed glue_qt/viewers/image/tests/test_data_viewer.py::TestImageViewer::test_removed_subset with 'assert 3 == 1' (leaked viewers from test_viewer_title/test_viewer_title_tool); reproduced on main in a scratch worktree with today's env: 1 failed/21 passed on main vs 22 passed on the branch after app.close(). The test_permission_fail '_checkboxes[\"test\"] = QTreeWidgetItem()' tweak: PluginConfig.save() always writes, so the exception path is unchanged; no failing-job evidence for it; it passes with and without. Net: all three fix pre-existing or environment-drift breakage, none touch macOS behaviour. .gitignore change is also unrelated hygiene.",
+    "feasibility": "trivial",
+    "blockers": "None technically; upstream maintainers (astrofrog/Carifio24) may prefer the CI fixes as a separate PR so main goes green independently.",
+    "recommendation": "Split a34a2180+b596af69+bd4dce6b(+.gitignore) into a 'Fix CI: drop pytest-flake8, nonexistent all extra, close leaked viewers in tests' PR, merge it first, then rebase #68 onto it; or at minimum squash #68 into one commit with a descriptive message so 'maybe?!!!!' does not land in history. Drop the unexplained _checkboxes tweak unless a failure justifies it.",
+    "doc_corrections": "The PR body does not mention the CI changes at all; the TODO file says 'Linux/Windows CI green' as an acceptance item without noting main was already red."
+   },
+   {
+    "id": "MACOS-5",
+    "title": "Merge readiness of PR glue-viz/glue-qt#68 (squash, changelog, pyobjc decision, reviewer questions)",
+    "status": "implemented_on_fork_branch",
+    "where": "https://github.com/glue-viz/glue-qt/pull/68 (head bd4dce6b, base main 9780eaf9 == upstream main as of today; MERGEABLE, no reviews, 0 comments, no labels)",
+    "evidence": "gh pr view: 14 files, +131/-55, all required 'tests /' and docs/codecov/pre-commit checks SUCCESS; only allowed_failures pyside/windows jobs fail (same as on main). Branch is based on 9780eaf9 (merge-base with main and with profile-wcs); profile-wcs does not contain d8a3f715, so the two glue-qt branches are independent. Changelog: CHANGES.md is generated from GitHub release notes via .github/release.yml (labels enhancement/bug/documentation/*), no fragment needed; PR carries no label. pyobjc: hard conditional dep in pyproject; venv already has pyobjc-core 12.2.2 + Cocoa 12.2.2 installed. PR body contains 'WARNING: AI SLOP ...' and an unrelated side question about dropping Qt5 / Python<3.12.",
+    "feasibility": "small",
+    "blockers": "Needs a maintainer review; no reviewer has looked in 4 days. Upstream may ask why pyobjc is a hard dep (alternative: optional 'macos' extra with the existing ImportError fallback) and may want the CI fixes separated.",
+    "recommendation": "Before pinging maintainers: squash (or split per MACOS-4), rewrite the body to list the Linux/Windows effects (font +1pt, 'Title \u2014 glue' suffix), move the Qt5/py<3.12 question to an issue, apply the 'enhancement' label, add the applicationName test. Keep pyobjc as a hard darwin-only dep unless upstream objects; it is the only way to fix the menu-bar name without an .app bundle.",
+    "doc_corrections": "None in the plan docs; TODO l.126 'Remove this TODO file when merged' still pending."
+   },
+   {
+    "id": "MACOS-6",
+    "title": "Relation to the IRIS gap plan / capability audit",
+    "status": "non_goal",
+    "where": "/Users/nabil/Git/glue-solar/IRIS_GLUE_GAP_PLAN.md l.16-17 (status paragraph only); not mentioned in IRIS_IDL_GLUE_CAPABILITY_AUDIT.md",
+    "evidence": "grep for macos/glue-qt#68 across both docs: single hit, 'macOS desktop-integration fixes are scoped in ~/Git/glue-qt/MACOS_INTEGRATION_TODO.md'. No phase, task, or dependency in the plan references it; nothing in glue-solar depends on it (glue-solar imports glue_qt only for the importer dialog; no font/app-name assumptions).",
+    "feasibility": "n/a",
+    "blockers": "None; it is orthogonal desktop polish that benefits all glue users on macOS.",
+    "recommendation": "Update the plan's status line to 'open as glue-viz/glue-qt#68 (code complete, CI green, awaiting review)' or drop the sentence; do not add it to any IRIS phase.",
+    "doc_corrections": "IRIS_GLUE_GAP_PLAN.md l.16-17 is stale: the work is no longer merely 'scoped' in a TODO, it is an open PR with code complete since 2026-08-29."
+   }
+  ],
+  "checks_run": [
+   {
+    "command": "git -C /Users/nabil/Git/glue-qt log --oneline main..macos-integration; git diff --stat main...macos-integration",
+    "result": "4 commits (d8a3f715, a34a2180, b596af69, bd4dce6b); 14 files, +131/-55"
+   },
+   {
+    "command": "gh pr view 68 -R glue-viz/glue-qt --json ... ; gh api .../pulls/68/comments; .../issues/68/comments",
+    "result": "OPEN, MERGEABLE, no reviews, 0 review comments, 0 issue comments, no labels; all 'tests /' jobs SUCCESS, allowed_failures pyside/windows FAILURE"
+   },
+   {
+    "command": "QT_QPA_PLATFORM=offscreen MPLBACKEND=agg .venv/bin/python -m pytest /Users/nabil/Git/glue-qt/glue_qt/utils/tests/test_app.py -q",
+    "result": "2 passed in 0.01s"
+   },
+   {
+    "command": "... pytest glue_qt/utils/tests/test_app.py glue_qt/app/tests/test_plugin_manager.py glue_qt/app/tests/test_preferences.py glue_qt/app/tests/test_application.py glue_qt/dialogs/link_editor -q",
+    "result": "53 passed, 10 warnings in 8.93s"
+   },
+   {
+    "command": "scratchpad/chk_mac.py (get_qapp offscreen on macOS, PyQt6 6.11)",
+    "result": "CFBundleName Python -> glue; applicationName/displayName 'glue'; argv ['glue']; PM_ToolBarIconSize 24; settings.FONT_SIZE 9.0 -> -1.0 (migration fired and rewrote ~/.glue/settings.cfg)"
+   },
+   {
+    "command": "gh run list/view for runs 33277435531, 33278127714, 33279171560 and main run 22106772802",
+    "result": "first push: all tests jobs fail with pluggy PluginValidationError (pytest-flake8 vs pytest 9.1.1); after flake8 removal: test_removed_subset 'assert 3 == 1'; final run: only allowed_failures red; main (Feb) already red on all '-all' jobs"
+   },
+   {
+    "command": "git worktree add <scratch>/wt-glueqt-main main; PYTHONPATH=<wt> pytest viewers/common/tests/test_data_viewer.py image/tests/test_data_viewer.py::TestImageViewer::test_removed_subset app/tests/test_plugin_manager.py; same on branch; worktree remove --force",
+    "result": "main: 1 failed (test_removed_subset assert 3 == 1), 21 passed; branch: 22 passed; worktree removed"
+   },
+   {
+    "command": "grep -rn QSettings glue_qt; grep pointSize glue_qt/viewers/common/data_slice_widget.py; grep AA_UseHighDpiPixmaps glue_qt/utils/app.py",
+    "result": "no QSettings use; 0.75x slice font still present at l.46; HiDPI try/except intact at app.py:103-107"
+   },
+   {
+    "command": "gh api repos/conda-forge/glue-qt-feedstock/contents/recipe/meta.yaml",
+    "result": "run deps include python.app [osx], pyqt; no pyobjc"
+   },
+   {
+    "command": "python -c 'import time;...from Foundation import NSBundle'; du -sh site-packages/objc Foundation AppKit CoreFoundation",
+    "result": "0.041 s import; 10M + 1.1M + 2.0M + 560K"
+   },
+   {
+    "command": "curl qtbase 6.8 qwidget.cpp; sed -n 5985,6000p",
+    "result": "Qt doc: on Windows and Unix the QPA plugin appends applicationDisplayName to window titles (not part of windowTitle string)"
+   }
+  ],
+  "notes": "Side effect to disclose: exercising get_qapp on the branch (offscreen) triggered its one-time migration and rewrote /Users/nabil/.glue/settings.cfg font_size from 9.0 to -1.0 (mtime 08:19 JST today). The old 9.0 was itself an offscreen-derived stale value (macOS Cocoa default is 13), so the practical effect is nil, but it demonstrates that the migration runs against whatever QPA is active and writes user settings from headless processes. No repository was modified; the throwaway main worktree was removed; another agent's worktree wt-glueqt-pw (profile-wcs) was left untouched. Overall verdict: the macOS work itself is complete, small, verified live on this machine, and CI-green; what remains is manual GUI verification, PR hygiene (squash or split the three CI commits, label, body), a conda-forge follow-up for pyobjc, and a one-line status update in IRIS_GLUE_GAP_PLAN.md. It is independent of the IRIS plan and of the profile-wcs branch."
+ },
+ "verify": {
+  "verdicts": [
+   {
+    "id": "MACOS-1",
+    "agree": false,
+    "correction": "Status/feasibility are right; two evidence/doc errors. (1) Qt's macOS About/Hide/Quit labels come from CFBundleName, not applicationName/DisplayName: qtbase 6.8 src/plugins/platforms/cocoa/qcocoahelpers.mm:184-190 qt_mac_applicationName() reads CFBundleGetValueForInfoDictionaryKey(CFBundleGetMainBundle(),'CFBundleName') first. So the setApplicationName/DisplayName lines do nothing for the mac menu; the pyobjc mutation is the entire macOS fix (verified: after info['CFBundleName']='glue', CFBundleGetValueForInfoDictionaryKey returns 'glue'). TODO l.22-25 ('on macOS Qt uses the display name for the auto-generated About/Quit labels') is wrong and the auditor did not flag it; conda-forge users (no pyobjc) get zero macOS change, not a partial one. (2) 'Linux/Windows viewer windows will now read My Viewer \u2014 glue' is wrong: formatWindowTitle (qplatformwindow.cpp:526-534) is applied only by native top-level windows (xcb: 1 caller, windows: 3, cocoa: 0); glue viewers are QMdiSubWindows and are unaffected. What IS affected: the main window, whose title is 'Glue' (application.py:1021-1026) \u2014 endsWith() is case-sensitive so it becomes 'Glue \u2014 glue' / 'Glue - glue' on Linux/Windows, plus top-level dialogs. Fix: setApplicationDisplayName('Glue') or drop the display-name call.",
+    "evidence": "Re-ran get_qapp offscreen with HOME isolated (scratch chk_branch.py): bundle Python.app CFBundleName Python->glue (info dict is __NSDictionaryM), applicationName/displayName 'glue', arguments ['glue'], style fusion, PM_ToolBarIconSize 24. grep QSettings/QStandardPaths in glue_qt: none (only glue_solar/sources/loaders/iris.py:13,119,209 with explicit org/app). test_app.py contains only the migration + Qt6 tab tests; no applicationName assertion. conda-forge recipe run deps: python.app [osx], pyqt ... no pyobjc (gh api, grep exit 1). QSettings default path changes org.python.python.Python.plist -> org.python.python.glue.plist on macOS (harmless, glue_qt has no QSettings use)."
+   },
+   {
+    "id": "MACOS-2",
+    "agree": false,
+    "correction": "Code findings verified; the side-effect note is stale and its 'practical effect is nil' conclusion is wrong. ~/.glue/settings.cfg now reads font_size = 9.0 again (mtime Sep 2 08:28:39 JST, after the auditor's 08:19 -1.0 write): some later run of main-based glue_qt code outside pytest rewrote it (glue_qt/conftest.py:66-70 redirects CFG_DIR to a tempdir for pytest, but a bare get_qapp() on main writes font_size = 9.0 \u2014 reproduced in an isolated HOME with the main worktree). Consequence on this machine: in a real Cocoa session (default 13pt) the branch treats 9.0 as a user override (9 != 13, no migration) and renders glue at 9pt \u2014 the 'too small' symptom the PR set out to fix (main would give 7pt). The auditor's hazard analysis is one-sided: it flags the offscreen migration resetting a deliberate 9, but misses that the far more common case \u2014 a stale offscreen 9.0 written by any headless script on main \u2014 is never migrated on a real display and becomes a permanent small-font override. User action: delete the font_size line (or set -1) before judging the branch visually. Minor: 'TODO l.13 describes main, not the branch' is not a doc error \u2014 that is the Cause section describing the pre-fix state.",
+    "evidence": "cat ~/.glue/settings.cfg -> font_size = 9.0; stat -> Sep 2 08:28:39 2026. Isolated-HOME main worktree: get_qapp() wrote settings.cfg with font_size = 9.0; pytest on main with conftest wrote nothing. Branch get_qapp with FONT_SIZE=-1: no write. Branch tests: test_app.py 2 passed; combined sweep (common test_data_viewer, image test_removed_subset, test_plugin_manager, test_app, test_preferences) 32 passed. Remaining hardcoded fonts on branch: data_slice_widget.py:46 (0.75x) and mdi_area.py:77 (4x, splash text, fine). HiDPI try/except at app.py:104-107."
+   },
+   {
+    "id": "MACOS-3",
+    "agree": true,
+    "correction": "",
+    "evidence": "l.110: branch app.py:104-107 still has the guarded AA_UseHighDpiPixmaps try/except. l.120: downloaded and viewed both PR screenshots \u2014 before: menu bar 'python', small 16px toolbar icons/text; after: 'glue', larger icons/text; menu title only, no About/Quit/Dock shown. l.122: all 'tests /' jobs SUCCESS on bd4dce6b. l.126: TODO file untracked (git status '?? MACOS_INTEGRATION_TODO.md'), not in the PR file list. Addition: l.53-55's 'automated test can only assert applicationName()' is wrong in the other direction \u2014 the thing that feeds title/About/Quit (CFBundleName) IS headless-testable: assert NSBundle.mainBundle().infoDictionary()['CFBundleName']=='glue' after get_qapp on Darwin (verified offscreen)."
+   },
+   {
+    "id": "MACOS-4",
+    "agree": true,
+    "correction": "",
+    "evidence": "Run 33277435531 job 99166633485 log: 'pluggy._manager.PluginValidationError: Plugin flake8 for hook pytest_collect_file' with pytest==9.1.1, pytest-flake8==1.3.0. Run 33278127714 job 99168504780: FAILED image/tests/test_data_viewer.py::TestImageViewer::test_removed_subset 'assert 3 == 1'. Reproduced in scratch worktree of main (isolated HOME): common test_data_viewer + image test_removed_subset + test_plugin_manager -> 1 failed/21 passed; same on branch -> passes. test_permission_fail alone on main without the _checkboxes tweak: 1 passed (tweak is a no-op; PluginConfig.save() writes unconditionally). main pyproject extras: docs/qt/test only; pip --dry-run '.[all]' on main succeeds (unknown extra non-fatal) so a34a2180 is cosmetic; the Feb main '-all' failures' cause is unverifiable (job logs expired; run annotations show git 'could not read Username for https://github.com'), so do not attribute them to the extra. glue_qt/_version.py is untracked/generated and absent from main's .gitignore -> legit hygiene. Worktree removed afterwards."
+   },
+   {
+    "id": "MACOS-5",
+    "agree": true,
+    "correction": "",
+    "evidence": "gh pr view 68: OPEN, MERGEABLE, labels [], reviews [], comments [], created 2026-08-29T13:40:59Z, 14 files +131/-55, all required checks SUCCESS, only allowed_failures pyside/windows red (same set red on main run 22106772802). git branch --contains d8a3f715 -> only macos-integration; merge-base(profile-wcs, macos-integration)=9780eaf9. .github/release.yml categories enhancement/bug/documentation/*; CHANGES.md is generated. pip list: pyobjc-core 12.2.2, pyobjc-framework-Cocoa 12.2.2. Refinements: the recommended 'applicationName test' is weak \u2014 assert CFBundleName instead (see MACOS-1); before pinging maintainers also fix the 'Glue \u2014 glue' Linux/Windows title (use displayName 'Glue' or drop it) and rewrite TODO/PR text that credits setApplicationDisplayName for the mac menu."
+   },
+   {
+    "id": "MACOS-6",
+    "agree": true,
+    "correction": "",
+    "evidence": "grep across both plan docs: only IRIS_GLUE_GAP_PLAN.md:16-17 ('macOS desktop-integration fixes are scoped in ~/Git/glue-qt/MACOS_INTEGRATION_TODO.md'); nothing in the capability audit. glue_solar/sources/loaders/iris.py:24 uses QSettings('glue-solar','glue-solar') with explicit org/app, so setApplicationName('glue') does not move its last_dir setting; no font/app-name assumptions elsewhere. Status line is stale as the auditor says (PR open since 2026-08-29)."
+   }
+  ],
+  "summary": "Overall the auditor's picture holds: branch macos-integration (= glue-qt#68, head bd4dce6b on 9780eaf9) is code-complete, CI-green, independent of profile-wcs and of the IRIS plan; the three '?!' commits are unrelated CI repairs (pytest-flake8/pytest-9 PluginValidationError; leaked viewers breaking test_removed_subset \u2014 both reproduced from logs and in a scratch worktree of main; the _checkboxes tweak is a no-op; the tox 'all: all' removal is cosmetic). Refutations/additions: (1) On macOS the About/Hide/Quit labels and menu title come from CFBundleName (qcocoahelpers.mm qt_mac_applicationName), so setApplicationName/DisplayName contribute nothing on mac \u2014 pyobjc is the whole fix, conda-forge users get nothing, and TODO l.22-25 is wrong (auditor missed it). (2) The window-title suffix affects native top-level windows only, not MDI viewers; the main window 'Glue' becomes 'Glue \u2014 glue' on Linux/Windows because endsWith is case-sensitive \u2014 use displayName 'Glue' or drop it. (3) A useful headless test exists: assert CFBundleName=='glue' after get_qapp on Darwin. (4) IMPORTANT for the user: ~/.glue/settings.cfg currently holds font_size = 9.0 (mtime 08:28:39 JST, after the auditor's -1.0 write) \u2014 a stale offscreen default written by main-based glue_qt code run outside pytest during this session; on the branch in a real Cocoa session that is a permanent 9pt override (default 13) reproducing the 'too small' symptom, and the branch's migration cannot catch it (9 != 13). Delete that line or set -1 before evaluating the PR visually; the auditor's 'practical effect is nil' is wrong. My runs used an isolated HOME and wrote nothing to the user's config; my scratch worktree wt-verify-main was removed (other agents' worktrees wt-glueqt-v, wt-glue-v, wt-ape14-sv2, wt-pw-sv2 left untouched). Remaining work is unchanged: manual GUI pass (About/Quit/Cmd-Tab/Dock, dialog clipping), squash or split the CI commits, label 'enhancement', fix PR body (Linux/Windows effects, move the Qt5/py<3.12 question to an issue), conda-forge feedstock follow-up for pyobjc, delete the TODO file, and a one-line status update in IRIS_GLUE_GAP_PLAN.md l.16-17."
+ }
+}

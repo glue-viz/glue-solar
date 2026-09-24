@@ -1,0 +1,9 @@
+Wires up glue-viz/glue#<C> ('slice' collapse function + `slices` state) and glue-viz/glue#<A> (opt-in WCSAxes) in the Qt profile viewer.
+
+- `MultiSliceWidgetHelper` (already shared in `glue_qt/viewers/common/slice_widget.py`) now works with any viewer state that has `x_att`/`slices`/`reference_data`: `y_att`/`z_att` callbacks and axis lookups are hasattr-guarded (ProfileViewerState has no `y_att`), `x_att_pixel` is used when `x_att` is a world component, stale sliders are cleared when data/attributes become None (they used to stay interactive and crash on drag), and syncing is skipped while `len(slices) != ndim` (the profile state's reference_data handler is a 2-arg echo callback and runs after this helper's 1-arg one; switching to a dataset of different ndim used to IndexError).
+- The profile options widget gets the slice sliders, shown only when the collapse function is 'slice'.
+- `ProfileViewer` passes `wcs=hasattr(ProfileViewerState, 'wcsaxes')` to `MatplotlibDataViewer`, so with a WCSAxes-capable glue-core the profile is drawn in pixel coordinates with WCS-formatted world tick labels, and `ProfileTools` range/navigation lookups follow the same rule (they also now convert to the display unit before the nearest-index search; on main they ignored `x_display_unit`, a pre-existing bug).
+
+Gating: every new code path is behind `hasattr(ProfileViewerState, 'slices')` / `hasattr(ProfileViewerState, 'wcsaxes')`. Against released glue-core (1.27.0) behaviour is unchanged and the 13 tests that encode the new behaviour skip with an explicit reason (68 passed / 14 skipped); with the two glue-core PRs applied they run (81 passed / 1 skipped). The `-dev` tox environments install glue from git main, so CI exercises the new paths once the core PRs merge. The hasattr gates can become a version floor after the next glue-core release.
+
+Label: enhancement (I cannot set labels on this repo).

@@ -1,0 +1,326 @@
+
+########## wp0-upstream
+--- WRITER SUMMARY
+ Brief written to `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp0-upstream.md` (460 lines). Summary:
+
+1. Concludes: all four fork branches are code-complete but none is PR-ready as-is; the brief gives exact lint fixes (ape14: make `forwards`/`backwards` and `transform` extras keyword-only for PLR0917; profile-wcs: four RUF059 lines, `test_state.py:226/229/257` and `test_viewer.py:336`), the C-then-A split with the python_export.py conflict resolutions, the glue-qt B commit without `glue_qt/_version.py`, a separate glue-qt CI-fix PR under a rewritten #68 (drop `setApplicationDisplayName`, add `test_mac_bundle_name`, body with Linux/Windows +1pt and CFBundleName mechanism), #2248 closing text, three tiny glue-core bug PRs (state.py cmap/meta, coordinate_helpers closure, matplotlib epoch + floor bump) plus a RegionData issue, review requests on #44 (astrofrog, Carifio24), full PR body drafts, and old->new edits for the three TODO files and the plan's status paragraph.
+2. Re-ran today: pinned ruff on every branch (0.15.20 glue, 0.14.14 glue-qt, 0.16.5 current); IRIS autolink 0 links on 1.27.0 vs 1 link on the branch (3e-7 arcsec agreement); keyword-only patch -> 69 passed/1 xfailed/1 xpassed; C-only 36/1 and C+A 57/1 in a scratch clone, tree identical to the tip except the RUF059 lines; glue-qt B 81/1 with forks and 68/14 on released core; CFBundleName Python->glue and the new test (3 passed); CI split rehearsal (0 conflicts, test_removed_subset 1 failed on main vs 19 passed); all five bug repros before/after fixes (247/171 targeted core tests passing with the fixes; real SJI derived x [21.05,144.96,275.06] -> [21.05,20.62,21.24]).
+3. Could not verify: anything visual on a real Cocoa session (menu/About/Quit/Dock, dialog clipping, the 0.75x slice font, the "Glue - glue" title on Linux/Windows; cited from Qt source instead), and no gh write commands were executed (auth works for reads; `gh auth status` reports a stale keyring token).
+4. Discovered along the way: global `rerere.enabled=true` silently replays a bad conflict resolution (hit it in the scratch clone); `glue/_version.py` is untracked-and-unignored in the glue main checkout; glue-qt pins ruff v0.14.14 (findings said 0.15.20 for both repos); the RegionData `np.asarray` patch stops the crash but the layer disables itself, so it stays an issue not a PR.
+5. Repos untouched (worktrees removed, `git status` shows only the pre-existing untracked files; `~/.glue/settings.cfg` mtime unchanged at 08:36). Artifacts: `$S/wp0_fix_{state,w2p,epoch}.diff`, `$S/wp0_bug_*.py`, `$S/wp0_t_*.log`, scratch clones `$S/glue-split` (branches profile-slice, profile-wcsaxes, ape14-kw, core-fixes) and `$S/glueqt-split` (ci-fixes, macos-only).
+--- CHECKER REPORT
+ Brief edited in place: `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp0-upstream.md` (now 512 lines).
+
+**Corrected**
+- `--label` / `--add-label` on glue-viz/glue and glue-viz/glue-qt: nabobalis has no push/triage access (`gh api .../collaborators/nabobalis/permission` -> 403; glue-solar -> admin). Removed `--label` from all five `gh pr create` calls and `gh pr edit 68`; every PR body now ends with "Label: enhancement/bug (I cannot set labels on this repo)"; added to Current state, Pitfalls, Acceptance.
+- `gh auth status` is clean today (keyring token valid, scopes gist/read:org/repo/workflow); brief said "invalid". Reworded to "refresh only if a write fails".
+- Epoch PR: neither `$S/wp0_fix_epoch.diff` nor commit 41982f92 touches `pyproject.toml`; the `matplotlib>=3.3` floor bump must be done by hand at `pyproject.toml:29` (Files to touch, step (d)3, Acceptance).
+- PR C body: `test_unit_conversion_slice` lives in `test_viewer.py:177`, not `test_state.py`.
+- "no other caller" of `get_cids_and_functions` was wrong: three call sites (`:219`, `:311`, `:318`); none passes `forwards`/`backwards` positionally, so the keyword-only change is safe.
+- Step (c)2 (#68 rewrite) was self-contradictory. Rewritten: `git cherry-pick d8a3f715` onto `ci-fixes` applies cleanly with no duplicate `.gitignore` line; verify `git diff ci-fixes -- .gitignore` empty, 10 files in the commit, diff vs `origin/macos-integration` = only the dropped `test_plugin_manager.py` tweak. Warned not to run `git checkout upstream/main -- .gitignore` (the writer's scratch clone still has that staged).
+- Step (c)5 push command made explicit: `git push -f origin macos-integration-v2:macos-integration`.
+- `#2464` is an issue ("X and Y problems with ScatterRegions"), not a PR.
+- `re.sub` pitfall reworded into an executable instruction (resolve by hand or `cp` the file).
+
+**Added**
+- "Checker re-run" block in Verified code with today's outputs: pinned ruff on every branch tip; RUF059 cascade to `test_state.py:226` reproduced; all pytest counts reproduced (69/1/1, 36/1, 57/1, 81/1, 68/14 with the 13 skip reasons listed, image 69/2/1, CI main 1 failed `assert 3 == 1` vs ci-fixes 19 passed, core-fixes 248 passed/1 skipped); C-then-A cherry-pick rehearsal from `origin/main` with rerere disabled (conflict hunks, resolution, `git diff origin/profile-wcs` empty, 4 RUF059 lines vs `profile-wcsaxes`); glueqt-split diff stats; `sv2_ape14c.py` (IndexError on 1.27.0; identical 3.27e-7 output on branch and keyword-only branch); `chk_branch.py`; `test_mac_bundle_name` passes on branch and FAILS on glue-qt main (`'Python' == 'glue'`); fresh-HOME `get_qapp()` writes `font_size = 9.0` on main and nothing on the branch; all five bug repros before/after plus `slit_workaround.py` ([21.05, 144.96, 275.06] -> [21.05, 20.62, 21.24]); irispy `raster/` vs `sns/` copy; gh state of #44/#68/#2248/#2152; conda-forge recipe; `qcocoahelpers.mm:184-190` fetched from code.qt.io (CFBundleName first).
+- ape14 PR body: sit-and-stare caveat (verifier P3.1-sec5).
+- PR 68 body: QSettings plist path side effect (macOS verifier MACOS-1).
+- Docs: plan `:144-146` "transform through values only" wording fix (doc-accuracy / P3.1-sec4), one-sentence note at the Phase 3.2 item that 98d7bb7c is intra-viewer only (profile-wcs finding), status paragraph now names D3 (Angstrom) and D4 (`layer_action`, no viewer).
+- Pitfalls: `wp0_bug_cmap.py` tail is broken (`saver.members`); tests calling `get_qapp()` outside the `glue_qt` tree bypass the conftest `CFG_DIR` redirect.
+
+**All file:line references checked** (glue, glue-qt, three TODO files, plan, user guide, `$S/qplatformwindow.cpp:526-534`): all correct as written.
+
+**Still unverifiable**
+- Anything visual on a real Cocoa session (menu/About/Quit/Dock, dialog clipping, 0.75x slice label, `Glue - glue` title on Linux/Windows).
+- No gh write commands executed (PR creation, close, review requests, force-push).
+- Whether pre-commit.ci on upstream runs anything beyond the pinned ruff (assumed from `.pre-commit-config.yaml`).
+
+Repos untouched (`git status` unchanged, only pre-existing untracked files; `~/.glue/settings.cfg` mtime still 08:36, `font_size = -1.0`). My scratch worktrees `wt-chk-*` and branches `chk-split*` removed; writer's scratch clones left as found.
+
+########## wp1-linking
+--- WRITER SUMMARY
+ Brief written to `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp1-linking.md`.
+
+1. Conclusion: WP1 is ~120 lines of glue-solar on released glue-core 1.27.0: `_GlueWCS` gains `_AXIS_UNITS` (wavelength m -> Angstrom, hpc -> arcsec), `_AXIS_NAMES` wins over irispy names (SJI now `Helioprojective Longitude/Latitude`, `Time (Utc)` kept), plus converting `world_axis_object_components`/`world_axis_object_classes` (constructor + getter wrapping, needed because astropy's spectral class has no `unit` kwarg); `link_hpc(dc)` (10 lines, physical-type LinkSame, idempotent, `_GlueWCS`-only), called from `browse_iris` and a new `IRIS: link helioprojective coordinates` menu action; `glue_solar/glue_patches.py` overrides `world2pixel_single_axis` (marked `# ponytail: monkeypatch`).
+2. Re-ran today in a scratch copy of the package: full suite 37 passed / 1 skipped on stock glue, ruff 0.16.5 and 0.15.20 clean; on a detached worktree of glue `ape14-wcs-autolink` (016d9cf2) the coherent `_GlueWCS` autolinks SJI<->raster, raster<->raster, raster3D<->map2D and map2D<->map2D (1 link each; stock glue 0 links, no crash), and the linking tests pass 10/10 with the version gate forced open.
+3. Re-ran the time-freeze bug: world links into the SJI derive x = 10/134/264 at frames 0/30/61 with glue-core's `world2pixel_single_axis`, 10/10/10 with the patch, `axis_correlation_matrix` untouched and `ImageViewer.format_coord` still works; viewers show `1398.9` A on the raster and `Angstrom` as ProfileViewer `x_display_unit`.
+4. Skipif gate stated exactly: `Version(glue.__version__) > Version("1.27.0")` (`packaging` via astropy); caveat documented that `glue.__version__` is metadata-based so a PYTHONPATH worktree needs an override (the fork test was run with `glue.__version__` overridden), plus the modal glue-qt `AutoLinkPreview` on the fork which blocks the Qt browse test offscreen.
+5. Not verified: the Qt browse test under the fork glue (modal dialog would block; only run on stock), and `pip install` of the fork (version string `1.27.1.dev20+g016d9cf2` inferred from `git describe`, not installed to keep the user's venv untouched). Worktree removed; repos unchanged.
+--- CHECKER REPORT
+ Brief checked and edited in place: `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp1-linking.md`
+
+**File:line references (all 22 opened and confirmed, no wrong numbers):** glue-solar `loaders/iris.py:27-32/:41/:35-69`, `sources/iris.py:30-48`, `test_importer.py:112/:176/:189-197`, rst `:31-32/:54-59`, `maps.py:27`; glue-core `coordinate_helpers.py:104/:189`, `wcs_autolinking.py:146-158/:321`, `link_helpers.py:535`, `component_link.py:9-11/:208-239`, `data.py:1398`, `__init__.py:11`; astropy `fitswcs.py:699-712`, `high_level_api.py:254/:390`, `shapes.py:281`, `formatter_locator.py:642`; glue-qt `application.py:1444-1447`, `autolinker.py:80-84`. Fork `git log v1.27.0..{main,ape14,profile-wcs} -- coordinate_helpers.py component_link.py` = 0/0/0 confirmed.
+
+**Re-run today (all reproduced byte-for-byte):** full suite in the scratch copy on stock glue 37 passed / 1 skipped; ruff clean at 0.16.1 (pre-commit pin, installed into the scratchpad since the writer had not run it), 0.16.5, 0.15.20, 0.14.14; `wp1_inspect.py`, `wp1_timepatch.py` (10/134.34/263.82 vs 10/10/10, matrix untouched), `wp1_viewers.py` (1398.9 A readout, `x_display_unit` Angstrom), `wp1_autolink.py` on stock (0 links, `has_celestial` AttributeError only on direct call) and on a fresh detached worktree of ape14 016d9cf2 (all four pairs 1 WCSLink); fork linking tests 10 passed with the gate forced open. The three verified-code blocks in the brief are verbatim identical to the scratch files.
+
+**Corrected:**
+1. Pitfall about the fork's modal `AutoLinkPreview`: the brief said "set `always_accept` or monkeypatch `run_autolinker`". Verified that `always_accept` makes the browse test FAIL (the accepted `WCSLink` lands in `external_links`, the LinkSame-only assertion trips) and that without any fix the test hangs (killed at 75 s). Fixed by adding `monkeypatch.setattr("glue_qt.app.application.run_autolinker", lambda data_collection: None)` to `test_browse_iris_links_what_it_loads` in the brief and the scratch copy; re-ran: stock suite still 37/1, fork `test_linking.py` now 11 passed including the Qt browse test. Step 8, Runs, Tests table, Pitfalls and Acceptance updated accordingly.
+2. Step 7 ruff claim now names 0.16.1 (the actual pre-commit pin) as verified.
+3. Skipif paragraph: version string `1.27.1.dev20+g016d9cf2` now attributed to setuptools_scm defaults (glue pyproject sets only `version_file`), marked not installed; added the accepted risk that any glue-core release > 1.27.0 without the PR opens the gate and fails CI, with the mitigation.
+4. Idempotency note now cites `link_manager.py:291` (`links` = `list(self._links)`) and the exact `component_link.py:208-237` range.
+
+**Added:**
+- Verified run `wp1chk_aia.py`: on the fork, raster<->AIA and SJI<->AIA (sunpy map, astropy WCS in deg) each autolink to 1 WCSLink with the coherent `_GlueWCS` (stock: 0). Resolves critic section 4's "catch ValueError for P2.4" concern; noted in Runs and Dropped.
+- Design note on why `values[n_args + index]` is safe on both astropy constructor paths (object-first path only hits single-component non-SkyCoord classes; all IRIS classes have `args == ()`), with a `# ponytail:` ceiling.
+- Dropped/out of scope: `clone()`/session save of a fork `WCSLink` between `_GlueWCS` datasets fails (`glue/core/state.py:655` only has `@saver(WCS)`; ape14 P3.1-sec3 verifier) -> sessions WP.
+- A "Checker re-run" paragraph in Runs listing what was reproduced.
+
+**Decisions:** D1 (link_hpc permanent, complementary), D2 (all glue-solar, one monkeypatch marked ponytail), D3 (`"Angstrom"` everywhere, verified in viewers and stack/2D map) respected; D4 correctly out of scope for WP1. No contradictions with the four findings JSONs or critic.md; the brief follows the verifiers where they overruled auditors (world2pixel wrap over all-ones matrix; 15-line coherence fix; keep P1.4).
+
+**Still unverifiable:** `pip install` of the fork (version string inferred, not installed, to leave the venv untouched). Repos unchanged; worktree `wt-wp1chk-ape14` removed; checker scripts left in the scratchpad: `wp1chk_browse_fork.py`, `wp1chk_aia.py`, `wp1chk_patch_brief.py`.
+
+########## wp2-moments
+--- WRITER SUMMARY
+ Brief written to `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp2-moments.md` (41 KB).
+
+1. **Conclusion:** WP2 is a single new module `glue_solar/sources/moments.py` (97 lines, ruff-clean) plus one import line in `glue_solar/__init__.py`: `@layer_action("IRIS: line moments…", single=True, data=True)` opens a QFormLayout dialog (rest wavelength prefilled from TWAVE, wings, min intensity, saturation, integrated), rewraps the glue Data into a `SpectrogramCube` with `data.coords._wcs` (raw metres, unaffected by WP1), and appends ONE 2D Data built as `_cube_data(first_map, "intensity")` + relabel + `add_component` for centroid/width/velocity/velocity_width + copied `Time`, with two pixel `LinkSame` links; no loader change, no viewer, no new deps; stacks/SJI rejected with one clear message (v1 = per-scan).
+2. **Re-ran today:** baseline suite (27 passed), `cc_rewrap.py`, `cc_collapse.py`, a full prototype (`wp2_moments_proto.py`: registration, dialog accept, component list/units, arcsec world axes, velocity finite iff intensity > 50, 2 external links, ROI 38 px map -> 1976 px raster and back, error path keeps dialog open, half-wings error, integrated unit `DN_IRIS_NUV nm`, stack + SJI rejection, layer-tree `_can_trigger` True for data / False for subset, RBA 36 us/px, `fiasco` missing), the shippable test file under the repo `pytest.ini` with warnings-as-errors (5 passed), ruff with `.ruff.toml`, and Collapse-tab reachability (`toolbar.tools["profile-analysis"]._profile_tools.rng_mode.state.x_range`, `AggregateSlice(slice(10,40))` == nansum, upper bound exclusive).
+3. **New pitfalls found today:** `get_test_data_filenames()` lists the sns raster twice (substring selection -> `read_files` "Expected 187 NUV source filename rows, found 1872"); a dialog attribute named `result` shadows `QDialog.result()`; modal `QMessageBox` hangs offscreen (tests must monkeypatch); a Data cannot join two DataCollections; blank rest still auto-resolves TWAVE.
+4. **Could not verify:** `gh` only works without the scratch `HOME` override (PR #44 state confirmed OPEN, checks SUCCESS/SKIPPED, once run with the real HOME); sphinx `-W` docs build and pre-commit were not run (docs extra/pre-commit not installed in the venv); the GUI right-click path was exercised only via `UserAction._can_trigger()`, not a real context-menu click.
+5. **Repos untouched:** `git status` shows only the two pre-existing untracked planning docs; no worktrees created; all Qt runs used `HOME=<scratch>/home-wp2`. Scratch artefacts: `wp2_moments_module.py`, `test_wp2_moments.py`, `wp2_moments_proto.py`, `wp2_collapse_reach.py`.
+--- CHECKER REPORT
+ Those worktrees (`wt-wp3chk`, `wt-wp1chk-ape14`) belong to sibling checkers, not this session; I created none. All checks are done and the brief is patched in place.
+
+**Corrected in `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp2-moments.md`:**
+- D3 violation: the writer's module stored `centroid`/`width` in `nm` and the integrated intensity as `DN_IRIS_NUV nm`, while its own checkbox label and docs said "DN Angstrom". Module now converts every map with `_in_angstrom` (`NDCube.to`, verified to keep mask/SGMeta/WCS) and passes `min_intensity * cube.unit * u.AA` when integrating (irispy compares the threshold in `DN nm`, `moments.py:161-166`; a plain 50 left every pixel NaN in my run). Module (107 lines), tests, "what each test pins", acceptance criteria, rst and changelog texts all updated; the new module + tests were run under the repo `pytest.ini` (5 passed) and ruff (`All checks passed!`), and a dialog run with the integrated checkbox is pasted (units `Angstrom DN_IRIS_NUV`, `Angstrom`, `Angstrom`, `km / s`; 4472/7480 finite at 50 DN Angstrom).
+- Wrong line refs: `pyproject.toml:19` -> `:22`; `pytest.ini:19` -> `:23` (+ `filterwarnings` :26-28); `_spectral.py:49-73` -> `:49-75`. All other file:line claims (loaders/iris.py, stack_spectrograms.py:80, `__init__.py`, test_plugin.py, conftest.py, irispy moments/meta/red_blue/density, glue_qt config/layer_tree_widget/profile_tools, glue config/data/wcs_autolinking, planning docs, .gitignore, rst files) confirmed.
+- `gh pr view 44` line replaced with today's real output (OPEN, 21 checks SUCCESS/SKIPPED). glue-qt version note: metadata `0.1.dev6892+ga9c8a0640` is stale; working tree is `bd4dce6b9`.
+- Timing claim updated to measured 20-46 ms per run; step 6 uses a scratch HOME instead of `/tmp/x`; step 7 wording reflects the actual ruff result; docs use double-backtick literals (`docs/conf.py` has no irispy intersphinx and the guessed objects.inv URL 404s).
+
+**Added:** `moments.py:109` nm conversion makes WP2 robust to whatever WP1 does to the raw WCS unit (no WP1 brief existed at check time); glue 1.27 `ImageLayerState.attribute_display_unit` cannot parse `DN_IRIS_*` composites, so converting at source is required; verifier P2.1 note 3 (moments Data keeps a sliced `SGMeta` with `rest_wavelength`/OBSID, re-run); pitfall that the writer's stale `scratchpad/wp2_moments_module.py` shadows the corrected `scratchpad/chk_wp2/wp2_moments_module.py` when cwd is the scratchpad root (hit it myself); re-ran and pasted every writer snippet (baseline 27 passed, proto, cc_rewrap, collapse reach, registry identity).
+
+**Still unverifiable:** `sphinx-build -W` and `pre-commit` (neither installed in the venv); a real GUI right-click (only `UserAction._can_trigger()` exercised); "explicit LinkSame stays harmless alongside fork autolink" (not re-run on the fork today). Repos untouched (`git status` unchanged, no worktrees created by me, `~/.glue` mtime 08:36 predates this session).
+
+########## wp3-sessions
+--- WRITER SUMMARY
+ Brief written to `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp3-sessions.md`.
+
+1. Conclusion: sessions are a ~120-line glue-solar-only change on released glue-core 1.27.0: `_GlueWCS.__gluestate__/__setgluestate__` (gWCS as base64 asdf, -TAB table rebuilt from `Tabprm` per irispy's layout, recursive sliced/compound records), a `@saver(u.Quantity)` pair instead of a meta sanitizer, a `SolarVisualAttributes` subclass instead of the version-2 `VisualAttributes` override (verified today that the v2 override makes every session saved with glue-solar installed unloadable without it), and the browser routed through `load_data(..., factory=read_iris_file / read_iris_rasters)` so sessions store file references (22 KB / 249 KB / 32 KB vs 1.2 / 4.5 / 1.2 MB embedded).
+2. Re-ran today from scratch with a final-form monkeypatch module (`wp3_impl.py`): stock failure modes (three save exceptions; stock `-TAB` saver = header saved, `HDUList is required` on load), full-pixel-grid round trips for SJI x2, raster, sit-and-stare raster, 3-scan stack and re-save of restored datasets (p2w <= 1e-9, inverse 3e-13, names/units intact, zero warnings), sunpy Map save with cmap restored, LoadLog sizes plus relocation reload, metadata survey over all irispy test files, the v2-override trap in a glue-solar-free subprocess.
+3. Two real bugs found in the audited prototype and fixed in the brief: sliced-WCS slices must be stored in array order (`_slices_array`; the stack's "Scan" axis name was lost, numerically invisible), and `pixel_shape` must be stored (re-saving a restored raster session raised `TypeError`); plus the rebuilt table's PrimaryHDU header triggered a `FITSFixedWarning` that `filterwarnings = error` would turn into test failures.
+4. Not run: the `QtIRISImporter.finalize` edit itself (repo is read-only); every `load_data` call it makes was run. The stock-glue reload failure mode is stated per the verifier's correction (save OK, load `ValueError`).
+5. Side finding: irispy 0.8.1 `read_files(spectral_windows=None)` on the sit-and-stare test raster raises `ValueError: Expected 187 NUV source filename rows, found 1872` (per-window loads work), so File -> Open fails on that file today; noted as a pitfall, out of WP3 scope.
+--- CHECKER REPORT
+ Brief checked and edited in place: `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp3-sessions.md`. Repos untouched (`git status`: only the two untracked planning docs; my worktree `wt-wp3chk` removed; another agent's `wt-wp6chk` left alone).
+
+**Corrected**
+- Wrong claim (also wrong in the audit verifier P3.6-loadlog): "save failure only reddens the console button, no dialog". `Application.save_session` is wrapped in `@catch_error("Failed to save session")` (glue-core `application_base.py:100`, decorator `:18-30`) which calls `GlueApplication.report_error` (`glue_qt/app/application.py:1303-1315`) = modal `QMessageBox.Critical`. Verified today with `wp3chk_dialog.py` (`report_error called: 1`, `file written: False`). Current-state paragraph and pitfall 14 rewritten.
+- Line numbers: `helpers.py:296-298` -> `314-316` (1-element unpack; two places); `state.py:1030` -> `1033` (the `except GlueSerializeError` line); `state.py:1058-1059` -> `1059-1060`; `application_base.py:156-163` -> `157-163`; `state.py:222` -> `235-237` (VersionedDict overwrite check); irispy `spectrograph.py:57-111` -> `56-111`. All other refs (loaders/iris.py 35-69/76/77/288-302, sources/iris.py 22-27/44, maps.py:30, conftest 94-101, rst 61-66, PLAN 52/165-171, AUDIT 141-144, state.py 378-381/490-500/655-663/744-756/923-925/1023-1038/1093-1101/1266-1270, helpers 154-184/238-300/260-261, visual.py 124-142, sliced_wcs.py 139-141, astropy wcs.py 254-267, wp3_impl.py 28-83/96-104/107-121/124-133) confirmed as stated.
+- Test spec: "tick both rows" was wrong (ticking the raster row loads all 9 windows -> 10 datasets); now says tick the SJI row and the "C II 1336" child; `ctype` assertion fixed to `list(...)[1:] == [...]` (passes); added the `_real` / `_style_record` helpers the spec relied on; measured browser session 56 KB.
+- Files to touch: `sources/iris.py` needs `import os` and the `raster_data` import; `maps.py` must drop the now-unused `VisualAttributes` import; added a pre-commit/ruff step (isort rule `I` enabled; ruff not installed in `.venv`, not lintable today).
+- `wp3_roundtrip.py`: quoted lines reproduce verbatim, but the script's trailing sunpy-map section crashes on its own print line (`'WCS' object has no attribute '_wcs'`); annotated (map covered by `wp3_map.py` and the new test).
+
+**Added**
+- "Verified code" 9: the brief's steps 1-6 plus the test file applied verbatim to a detached throwaway worktree of `d3a2bd3` (`wp3chk_patch.py`); full suite `33 passed` (27 existing + 6 new) under `filterwarnings = error`; the `finalize` rewrite, previously marked "not run", now is. Passing test file saved as `wp3chk_test_sessions.py` and referenced from the brief.
+- Colormap registration detail (pitfall 15): `import glue_solar` alone registers `irissji*`/`sdoaia*` with matplotlib (verified), `setup()` not required.
+- D3 note under the stack axis output (`'m'` today, `'Angstrom'` after WP1; record stores the raw WCS); D4 cross-checked against the WP2 brief (`_cube_data` on a 2-D astropy WCS -> `"fits"` record kind).
+- All of sections 1-8 re-run today from scratch; outputs match line for line. Findings JSON/critic cross-check: no contradictions left; verifier's -TAB correction, the `maps.py:30` pre-existing bug, the Qt-bound `.glu` caveat, critic §42/§43/§51 are all present.
+
+**Still unverifiable**
+- Ruff/isort ordering of the new imports (no `ruff`/`pre-commit` in the environment).
+- Docs/changelog/planning-doc wording is prose; not executable.
+- `wcslib` inverse closure numbers and session sizes are environment measurements (astropy 8.0.1, glue 1.27.0); other versions may differ slightly.
+
+########## wp4-quicklook
+--- WRITER SUMMARY
+ The brief is written and all cited runs are from today. Nothing else is needed.
+
+Brief written to `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp4-quicklook.md` (505 lines); reference implementation in `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/wp4_common.py`, runs in `wp4_[a-g]_*.py`.
+
+1. Conclusion: the whole bundle is glue-solar-only on glue 1.27 (~150 lines): SJI `Time` from the gWCS time axis, per-frame `Slit` as a data-only `Data.new_subset` from `SLTPX1IX` (factor detected from `max(SLTPX1IX) > NAXIS1`), `link_time` = int32 nearest-index components + identity `ComponentLink`s + one `JoinLink` (3 links per scan, 4 per 4D stack, serializable), `whisker` = `x_att=pix[-1], y_att=pix[-3]`, `sync_slices` hooks `ImageViewerState.slices` with a shared guard, translates leading axes via `ref[cid, point]`, and wraps `app.new_data_viewer` for later viewers; `quicklook` extends `browse_iris` (SJI + raster map + Profile `x_att=Wavelength`, `function='mean'` gated on `hasattr(ProfileViewerState,'slices')`).
+2. Re-ran today with pasted output: whisker on 3D and 4D (a), quicklook trio with 12 links (b), slit columns per frame for sit-and-stare (col 19) and the sweeping 2023 raster (cols 55/127) (c), SJI `Time` vs `Time (Utc)` to 1e-9 s (d), time link both ways plus `JoinLink` semantics, `translate_pixel` refusal and session round trips for the real pair and the 3-scan stack (e), Qt-slider sync end to end including a viewer opened after the action, whisker not driving, idempotent double install, zero echo drift (f), plus `cc_timelink.py`, `cc_stackwcs.py`, `slit_check.py` A/B and the 27-test baseline.
+3. New evidence changes one audit verdict: with the `JoinLink` present a `new_subset_group` for the slit selects the entire raster (216920/216920 px) and becomes the edit-subset target, so the brief specifies `Data.new_subset` instead (verified to render per slice in viewers opened later).
+4. Not verifiable here: AIA cutout extra coords (no AIA test file; the key check guards it), the real-file `SLTPX1IX` 0- vs 1-based convention beyond irispy's ~1 px coalign agreement, and a full real-data session save (needs WP6's `_GlueWCS`/meta/cmap savers; links verified with those stripped). Session-size pitfall for WP6 flagged (broadcast components materialise on save; 9.6 MB for the tiny test pair).
+5. Repos untouched (git status unchanged in glue-solar, glue, glue-qt, irispy); all runs used `HOME=<scratchpad>/home-wp4`.
+--- CHECKER REPORT
+ Nothing further is needed; every check has run and the brief is edited in place.
+
+Brief: `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp4-quicklook.md` (581 lines). Reference module `wp4_common.py` updated (writer's original kept as `wp4_common.py.writer`); checker scripts `wp4_chk_join.py`, `wp4_chk_linkeditor.py`, `wp4_chk_extra.py`, `wp4_chk_final.py`. All runs used `HOME=<scratch>/home-wp4chk`; `~/.glue/settings.cfg` mtime unchanged (08:36); all four repos untouched.
+
+**Corrected**
+1. `JoinLink` dropped (the one design change). `wp4_chk_join.py`: with it, an SJI-viewer rectangle ROI selects the whole raster (216920/216920 px), a spectroheliogram ROI selects the whole SJI (91760/91760), and the `Slit` state selects the whole raster, because `Data.get_mask` (`data.py:1436-1440`) falls back to the key join for any `IncompatibleAttribute` subset and Image Viewer ROIs never restrict the frame axis. Without it slice translation ([15]/[33]) and frame/exposure-range propagation ([30..35]/[10 11]) are identical and such subsets stay disabled as today. Identity links are listed/removable in the Link Editor (`wp4_chk_linkeditor.py`). Link counts changed everywhere: 2 per scan, 3 per stack, (b) 10 external links, tests 3/4/5/7, acceptance criteria, docs ("Join on ID" removed).
+2. OBSID guard in `quicklook` rewritten to `str(meta.get("OBSID")).split("_")[-1]`: AIA cutouts spell OBSID `<date>_<time>_<obsid>` (`test_importer.py:127`), so the writer's plain compare would never time-link a cutout. SJI/raster values verified `'3620258102' == '3620258102'`.
+3. `quicklook` now guards `coords is None` (`getattr(..., "world_axis_physical_types", ())`); the writer's form raised `AttributeError` (verified).
+4. `glue/viewers/image/state.py:76-78` -> `:76-79`; `io/sji.py:210-218` -> `:209-218`; `compress.py STRIDE=10` attributed to the local irispy checkout (`:28`, `_decimate_wcs :35-41`), installed 0.8.1 uses `factor` at `:59-71`; added exact line refs for `choose_new_data_viewer` (`application.py:992-1011`), session restore (`:1456 -> :1469`), `_on_add_subset` (`:418-421`), `Data.new_subset` (`data.py:183-211`).
+5. Re-ran (a)-(g), `cc_timelink.py`, `cc_stackwcs.py`, `slit_check.py`, baseline pytest (27 passed); pasted today's outputs (c)/(e)/(b) reflect the no-JoinLink module; `wp4_c_slit.py` amended to show the JoinLink case as the rejected design.
+6. Acceptance criterion 2 clarified: the viewer that follows the SJI slider is a default-layout (spectroheliogram) raster viewer; the quicklook map viewer displays step and never moves.
+7. Slit subset gets an explicit `color="#00ff00"` (default `Data.new_subset` colour is `#E31A1C`, the same the user's first ROI gets; verified).
+
+**Added**
+- Pitfall 1 (JoinLink), Pitfall 14 (closed viewers stay in the registry, harmless, verified), Pitfall 15 (AIA OBSID format), Pitfall 16 (critic §3.5 datetime-axis bug now also hits the SJI `Time`), note that `Data.new_subset`'s docstring itself warns about UI representation, verified `cube_times(stack) -> None` (no duplicate `Time`), `whisker_plot` flow verified through a real `QInputDialog` (auto-accepted), new test 8 `test_whisker_plot_action` (monkeypatched `getItem`), acceptance criterion "SJI ROI does not select the whole raster", docs Linking paragraph now states exactly which selection directions work.
+- D1-D4 checked: `link_hpc` kept and called, glue-solar-only, no units hard-coded (Profile `x_display_unit` untouched, Angstrom after WP1), moments untouched.
+
+**Still unverifiable here**
+- AIA cutout extra coords (`slit x position`) and time link on a real `_SDO` cutout: no AIA test file; key checks guard both.
+- Real-file `SLTPX1IX` 0- vs 1-based convention beyond irispy's ~1 px coalign agreement.
+- A full real-data session save including WP1 `LinkSame` (needs WP6 `_GlueWCS`/meta/cmap savers; stripping `coords` for the round trip drops the world-cid `LinkSame` pairs, only the time links were under test).
+- IDL slit overlay colour/style (no SSW locally); `#00ff00` is a choice, not a match.
+
+########## wp5-units-blink-lines
+--- WRITER SUMMARY
+ Brief written to `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp5-units-blink-lines.md` (545 lines). Repos untouched (only the pre-existing untracked planning/TODO files), `~/.glue/settings.cfg` unchanged (`unit_converter = "default"`, mtime 08:36).
+
+1. Conclusion: all three items ship from glue-solar in one new module (`glue_solar/viewers.py`, ~150 lines) plus `iris_lines.csv`, a `rest_wavelength()` helper and a two-line stack fix in `loaders/iris.py`; the converter overrides `unit_converter.members['default']` (pruned to Angstrom/nm/km/s, `u.doppler_optical`, matching irispy's moments), blink is a `CheckableTool` with a toolbar `QSpinBox` (menu_actions is dead for checkable tools), and the line list reuses `ProfileLayerState` (covers the `attribute`/`reset_cache`/`profile` couplings) with the style dict keyed on `QThreadedProfileLayerArtist`; only optional upstream one-liners remain (glue-qt dict form, glue-core `[unit]` label).
+2. Re-ran today: auditor/verifier scripts `ulb_conv.py`, `ulb_blink.py`, `ulb_ll2.py`, `linelist_proto.py`, the KeyError persistence trap in a scratch HOME, plus new final-form harnesses `wp5_conv.py` (native m and simulated D3 Angstrom, ROI round trip exact, override shift -16.05 km/s, stack with/without loader key), `wp5_blink.py`, `wp5_linelist.py`, `wp5_ll_session.py`, `wp5_override.py`, `wp5_label.py`, and the TWAVE-missing check on irispy 0.8.1 (raises TypeError; helper guards it).
+3. Correction to the task's assumption: the line-list layer needs neither a saver nor drop-on-save; stock `LayerArtist.__gluestate__` + `ProfileLayerState` round-trips it with colour, `km / s` and positions intact (verified); sessions with IRIS data still fail only on WP6's meta/WCS bugs.
+4. New pitfalls found and fixed in the verified code: `TWAVE` is not the lab rest wavelength (Mg II k +16.1 km/s zero-point shift, hence the override action), the reference-data callback fires before `x_att` moves (guard), a raster's default `x_att` is Helioprojective Longitude (draw only on length axes), unlinked blink test layers get disabled at draw time (LinkSame), and `viewer.close()` needs `warn=False` offscreen.
+5. Not verified: the `QInputDialog` path of the override (only the `value=` path ran), the profile-wcs fork WCSAxes-mode placement of line positions (noted for that WP, not run), the "wavelength column with units pollutes y choices" pitfall (by code inspection only), and NIST/lmsal pages were unreachable (403/500), so the 11 line wavelengths are cited from Rathore 2015, Dudík 2017, Young 2015 (arXiv:1509.05011), Kerr 2015, Young 2015 ApJ 799 218, Young's 2017 IRIS FUV line list (text extracted from the PDF) and the IRIS L2 `TWAVE` headers.
+--- CHECKER REPORT
+ Brief checked and edited in place: `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp5-units-blink-lines.md` (563 lines). Repos untouched (pre-existing untracked files only), `~/.glue/settings.cfg` unchanged.
+
+**Re-run today (all outputs match the brief):** `wp5_conv.py`, `wp5_override.py`, `wp5_label.py`, `wp5_blink.py`, `wp5_linelist.py`, `wp5_ll_session.py`, `ulb_conv.py`, `ulb_blink.py`, `ulb_ll2.py 1`, `linelist_proto.py`, the persisted-`UNIT_CONVERTER` trap (KeyError at `config.py:938`, import OK after revert). Every file:line reference opened and confirmed in glue-core site-packages, glue-qt checkout, glue-solar, irispy, the fork branch and the docs.
+
+**Corrected**
+- `glue/viewers/common/tool.py:56-72` -> `:60-79`; `irispy moments.py:184-194` -> `:187-194`; override comment `common/viewer.py:288-293` -> `:288-302` (data branch :300-302); glue-core label PR insertion "at :16" -> "after :18"; `layer_artist_model.py` note that it is `:364-369` on glue-qt main.
+- All "WP6 (sessions)" / "WP moments" references -> WP3 / WP2 (briefs dir: wp3-sessions, wp2-moments, wp6-fitting).
+- TWAVE offset table: sign convention made explicit and consistent with the measured -16.05 km/s override shift (Mg II k -16.1, Si IV 1394 +4.3), with the checker command pasted.
+- `wp5_linelist.py` trailing output: the "session save OK: 13 KB / restored viewers: 1" lines after the suppressed dialog read a stale `.glu` from `wp5_ll_session.py`; annotated.
+- Tests: Mg II k tests moved to the 2014 r00000 raster (same TWAVE 2796.19995117, verified), C II 1336 test selects the 2021 file with `parent.name == "sns"`; added `_real`/`mg2k`/`c2` fixtures.
+- Acceptance: ruff/pre-commit are not installed in `.venv` or on PATH; criterion now says how to run them.
+
+**Added**
+- New pitfall (found while re-verifying): irispy 0.8.1 ships two files named `iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits`; the `raster/` copy raises `ValueError: Expected 187 NUV source filename rows, found 1872` for every NUV window, the `sns/` copy works; a name-only `next(...)` (as `test_importer.py:28-29` does) is order-dependent.
+- Verifier's `meta.get('TWAVE1')` stack fallback rejected with evidence: the stack dict keeps `TWAVE1..9`, Mg II k is `TWAVE9`; `rest_wavelength(sequence[0])` verified on the SpectrogramCube.
+- y-choice pollution pitfall upgraded from "by inspection" to verified (`[None, 'Angstrom', 'nm', 'DN_IRIS_FUV']` vs `[None, 'DN_IRIS_FUV']`).
+- Cropped test windows exclude their TWAVE (velocities of hundreds of km/s are the data); `wp3-sessions.md:40/:440` and `critic.md` line 42 ("line lists need their own saver") marked superseded by the verified round trip; `wp2-moments.md:138-140` should switch to the `rest_wavelength()` helper; glue_qt import-time dependency already exists (`loaders/iris.py:10-13`); fork `wcsaxes_active` line numbers (`state.py:190-198`, `:597-600`); docs section names with rst line numbers; `SHOW_WARN_PROFILE_DUPLICATE`.
+
+**Still unverifiable today**: the `QInputDialog` branch of the override (only `value=` ran); the `viewer.close()` hang (only `warn=False` ran); line placement on the profile-wcs fork in WCSAxes mode (code read via `git show`, not executed); ruff cleanliness of the shipping code (no ruff available); the literature wavelengths (offline sources only, as the writer noted).
+
+########## wp6-fitting
+--- WRITER SUMMARY
+ Brief written to `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp6-fitting.md` (590 lines; no em-dashes; no repo or `~/.glue` changes, `settings.cfg` mtime still 08:36).
+
+1. Conclusion: WP6 is a ~175-line glue-solar module (`glue_solar/sources/fitting.py`, pasted verbatim, ruff-clean) around `parallel_fit_dask`: `layer_action` right-click, `Worker` + `scheduler='processes'`, data-driven seeds (argmax for 1 Gaussian, two highest local maxima for 2, optional user centre `-/+0.15 A`), no TRF prefit, no TWAVE prefill, 2D maps Data via `SlicedLowLevelWCS(data.coords, ...)` with pixel `LinkSame`, residual cube added as a component on the source, `Time` carried over, generic in ndim (4D stacks work unchanged), no cube handle, no dask extra, Angstrom throughout (unit-converted, so independent of WP1 ordering).
+2. Re-ran today: verifier bench (argmax 6.25/6.23/4.31 s single/threads/processes; prefit 11.09 s and degenerate), synthetic recovery (rel err < 1e-6), Data path + links + ROI (6 px -> 240 px), the wrong Cartesian order on synthetic and real -TAB WCS (constant wavelength, silent), seeding comparison on synthetic doubles (argmax-straddle fails, local maxima / user centre succeed), Worker + QProgressDialog responsiveness (54 timer ticks during a processes fit), BrokenProcessPool without `__main__` guard, dialog OK/cancel offscreen, bundled-raster timings (sns 6.0/4.2 s, 2014 r00000 0.63 s, stack 9.8 s), and the proposed 8-test module (8 passed in 1.04 s; baseline 27 passed).
+3. New verification beyond the audit: the exact irispy gallery raster (20180102_153155_3610108077, 320x548) exists locally, so the recipe was checked on full windows: 1-Gaussian Si IV agrees 95.9-97.5% with a windowed reference, 2-Gaussian Mg II k with local-maxima seeds agrees 99.9% with the gallery-07 reference (TWAVE seeds only 79.1%); full 175,360-spectrum windows fit in 25.3 s (n=1) / 25.9 s (n=2) with processes vs 152.6 s single-threaded, NaN 0.01-0.02%.
+4. Pitfalls added with evidence: `read_files(memmap=True)` returns unscaled int16 in irispy 0.8.1 (invalidated a first benchmark pass); the `raster/` copy of the sns test file loads Si IV but fails Mg II k (NUV row count); `SlicedLowLevelWCS.world_axis_units` is a list; `processes` only pays off above ~4000 spectra.
+5. Not verified: behaviour of the whole-window 2-Gaussian fit when Mg II h out-peaks k2r in the mean spectrum (no such dataset at hand; documented as the reason the optional "Line centre" field exists), and the GUI end-to-end click path (only the dialog and `start_fit` were driven offscreen; the interactive step 7 remains a manual check for the implementer).
+--- CHECKER REPORT
+ Brief checked and edited in place: `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp6-fitting.md` (934 lines, no em-dashes, no repo or `~/.glue` change; scratch worktree removed).
+
+**Corrected**
+- Real defect in the module: `start_fit` created a parentless `QProgressDialog` as a local and returned; PyQt deleted it on return (`wp6_chk_progress.py`: dialogs after return `[]`, 0 visible ticks during a 2.8 s fit). Fixed with one line `worker.progress = progress` (46 visible ticks, closes on finish). Module text in the brief updated; `diff` against the file that ran is empty.
+- Test module now pasted verbatim (162 lines, real import path, ruff-sorted, progress-visibility assertions in test 7); the old step 4 pointed at a scratch file with a scratch import that ruff rejects (I001). Full step 2-6 path executed in a throwaway worktree: 35 passed in 2.48 s, `ruff check glue_solar` clean.
+- `ruff format --check` acceptance criterion scoped to the four new/changed files: `conftest.py`, `loaders/maps.py`, `sources/maps.py` are not format-clean on the branch and pre-commit has no ruff-format hook.
+- `profile_tools.py:205-231` -> `:210-231` (Worker block :222-228, `wait_for_fit` :230-231). All other file:line refs confirmed (iris.py:22,30; loaders/iris.py:35-69, :81-84, :277,291; `__init__.py:5,9`; layer_tree_widget.py:481-486; PLAN 113-115/124; d65c3fe9 2023-08-11; bd4dce6b 2026-08-30; astropy PR #16696 milestone v7.0.0 via gh).
+- Docs step: WP2 adds a new user-guide page, not an "Analysis" section; WP6 now specifies `docs/user_guide/gaussian-fit-maps-of-a-raster-window.rst` (full rst text) plus the toctree line; dropped the vague "reuse WP2's dialog helper" sentence (WP2's `MomentsDialog` has different fields; keep `_ask`).
+- Timing tables replaced with today's re-runs (bench 6.29/6.38/4.22 s, prefit 11.70 s; gallery percentages identical; full raster 24.6/149.9/26.2 s; bundled rasters from a repaired copy of the writer's `wp6_check_real.py`, which no longer runs: `"rest (TWAVE) A:"(d)` TypeError).
+
+**Added**
+- Offscreen end-to-end through the registered `LayerAction.callback` (`wp6_chk_e2e.py`): dialog OK by timer, fit 4.2 s, ImageViewer on the `SlicedLowLevelWCS` maps (world labels, world `format_coord`), ProfileViewer with the residual, subset 12 px -> 480 px, SJI warning text. Step 7 reduced to the right-click menu itself.
+- Session save: `GlueSerializer` fails on `_GlueWCS` and on `SlicedLowLevelWCS` (run today); `app.save_session` hangs offscreen on the modal error box (killed). WP3's saver covers `{"kind": "sliced"}`; pitfalls + dependency added.
+- `test_plugin.py::test_setup_registers_hooks` registration assertion (verified, 4 passed, ruff clean); modal-box-under-offscreen pitfall (from WP2); critic nuance that the fork + coherence fix autolinks raster3D<->map2D while 1.27 needs the explicit `LinkSame`; `filterwarnings = error` is active and the fit runs clean under `-W error`; rejection path verified for an AIA-like astropy WCS and a coordinate-less Data.
+
+**Still unverifiable**
+- The real right-click context menu rendering in a live `glue` window (only the callback chain was driven offscreen).
+- Whole-window 2-Gaussian behaviour when Mg II h out-peaks k2r in the mean spectrum (no such dataset available; the optional "Line centre" field is the documented escape hatch).
+
+########## wp7-network
+--- WRITER SUMMARY
+ Brief written to `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp7-network.md` (506 lines). The only em-dash is the template's own `# WP7 — ...` header. User repos untouched (glue-solar status shows only the two pre-existing untracked planning docs; `~/.glue/settings.cfg` mtime unchanged at 08:36; the two `wt-wp0-*` worktrees in the scratchpad belong to another agent, I created none).
+
+1. Conclusion: both actions ship from glue-solar in one new module `glue_solar/sources/context.py` (~120 lines: `goes_xrs`, `fov_polygon`, `aia_context`, two `menubar_plugin`s), plus `sunpy[map,net,timeseries]` in pyproject and `matplotlib.rcParams["date.epoch"] = "0000-12-31T00:00:00"` in `setup()`; GOES goes to a Scatter viewer (Profile viewer cannot take a datetime-first Data, but ordering `time` last makes it at least addable), SDO adds the AIA cutout wrapped in `_GlueWCS` (arcsec, so WP1's physical-type `link_hpc` works) with the IRIS FOV as a `PolygonalROI` subset on AIA pixels; depends on WP1, nothing on glue-core/glue-qt.
+2. Re-ran today, no network: real `XRSTimeSeries` reader on sunpy's shipped `sci_xrsf-l2-avg1m_g16_d20210101_truncated.nc` (41 rows after truncate) and on two locally cached NOAA daily files (`concatenate=True`, truncate across midnight, 121 rows); glue Data + ScatterViewer offscreen with `y_log`, showing the epoch bug (year 3990 labels) and the rcParams fix (correct labels, `_epoch` still `None` after `GlueApplication()`); `QueryResponse` satellite masking keeps the client; FOV polygon via `axis_correlation_matrix` on SJI/raster/stack (matches irispy `to_maps(0)` corners to 0.09"); synthetic `AIAMap` from `make_fitswcs_header` (FITS round-trip), `propagate_with_solar_surface` no-op when co-temporal and 28" shift at +3 h, submap 800->344x346, FOV subset propagating to 1371/1480 SJI frame-0 pixels and raster steps 0-10 through physical-type links (0 pixels with the raw degree WCS), ImageViewer layers, GOES-time<->raster-`Time` link selecting 39 steps, `RegionData` crash trace, warnings audit (only the missing-`cdflib` SunpyUserWarning, which the full extra removes).
+3. Could not verify: live `Fido.search`/`Fido.fetch` against NOAA/VSO and a real AIA level-1 file (forbidden: no downloads); `h5netcdf` was used from the local uv cache via `PYTHONPATH`, not installed in the venv; WP1's exact `link_hpc` import path (brief includes the verified 4-line stand-in); the exact PR number for the changelog fragment.
+4. Tests specified: 6 network-free tests (`test_context.py`, stubbed `Fido` via `SimpleNamespace` + `parfive.Results`, real sunpy GOES test file, real irispy SJI/raster, synthetic AIA FITS in `tmp_path`) plus one optional Qt failure-path test and the `test_plugin.py` label extension, all with exact assertions from today's outputs.
+5. Notable pitfalls recorded: full `sunpy[timeseries]` extra required (warnings-as-errors in `pytest.ini`), `Component(datetime64)` raises, gWCS NaN at pixel edges, all-corner bboxes smear the drifting SJI FOV by 48", SJI pixel ROI -> AIA is `IncompatibleAttribute`, duplicate irispy test file names break `read_files`, `_parse_sunpy_map`'s `preferred_cmap` session crash belongs to WP6.
+--- CHECKER REPORT
+ Brief checked and rewritten in place: `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp7-network.md`. User repos untouched (`git status` shows only the two pre-existing untracked planning docs; `~/.glue/settings.cfg` mtime still 08:36:21; no worktrees created). Scratch artefacts: `scratchpad/wp7chk/` (verbatim module, test file, WP1 `_GlueWCS` copy), `scratchpad/home-wp7chk/`.
+
+**Corrected**
+- `link_hpc` integration: WP1's brief puts it in `glue_solar/sources/loaders/iris.py`, returning a list; the caller must `data_collection.add_link(link_hpc(data_collection))`, and it only pairs `_GlueWCS` datasets. The brief's bare `link_hpc(data_collection)` call and "import from wherever" were replaced with the exact import and call form; verified today with WP1's `_GlueWCS` + `link_hpc` code on the AIA cutout (2 links, FOV -> 1371 SJI px frame 0, 0 last frame, second call `[]`).
+- `fov_polygon` on data without HPC coords raised `AttributeError`, contradicting the acceptance criterion; added a 2-line guard raising `ValueError("... has no helioprojective coordinates")`, tested.
+- Test data path: the `raster/` copy of the 2021 `r00000` file fails on its own with `Expected 187 NUV source filename rows, found 1872`; only the `sns/` copy loads. The brief's "passing both raises" wording was wrong; tests now select `sns/...`.
+- "existing 23 tests" -> 27 collected (`test_importer.py`, `test_scan.py`, `test_plugin.py`).
+- Line refs: `glue/config.py:948-956` -> `949-956`; `glue/utils/matplotlib.py:449-468` -> `449-469`; Profile failure trace now cites `state.py:331 -> :161 -> :227`; `decorators.py:56-61`. All other refs (iris.py:30-48, loaders/iris.py:35-69/76/84/88-90/110-131, maps.py:19-32/30, scan.py:68/111-115/174-175, application.py:942-948, profile/state.py:69-71, goes.py:150-170, timeseries goes.py:7, data_region.py:219, component_link.py:393, coordinate_helpers.py:42, sess_proto_savers.py:33-36, audit L183/L184, plan §1.5/§2.4) confirmed.
+- Test file import order failed ruff I001 (`irispy.io` belongs in the third-party block); fixed. `# noqa: BLE001` dropped (rule not selected). `test_plugin.py` extension dropped (covered by `test_context.py`).
+- Reinstall command uses the real extras group `tests` (`pyproject.toml:42`).
+
+**Added**
+- Full verified 10-test `test_context.py` (was a prose list of 6 + 1 optional): adds stack FOV (`ptp` 14.3"/18.0"), non-spatial `ValueError`, and an end-to-end `sdo_context` Qt test; run verbatim from the brief: 10 passed under repo `pytest.ini` (warnings=error), ruff clean.
+- Verified facts: empty `Fido.search` still yields `res[0]` (patched `XRSClient.search`, offline) and `Fido.fetch(empty)` needs no network; one-file `concatenate=True` works; fractional-second `truncate` boundary drops one sample (40 vs 41); real `aia_171_level1.fits` loads warning-free; GOES Data session round-trip (datetime64[us], units) intact; `setup()` runs from `load_plugins` (`glue_qt/main.py:156`, `application.py:296`).
+- Findings the writer left out: P3.6-loadlog (context datasets embed in sessions, ~1 MB), critic §4 (fork 3.1 autolink needs WP1's coherence fix, not needed on 1.27), critic §2 rationale for `menubar_plugin` over `layer_action` (D4), pytest `-W "ignore:Importing sunpy.timeseries"` needed until the extra is installed.
+
+**Still unverifiable (no network / not yet merged)**
+- Live `Fido.search`/`Fido.fetch` against NOAA and VSO, and a real full-disk AIA level-1 download.
+- WP1's final `link_hpc`/`_GlueWCS` as merged (verified against the code in `briefs/wp1-linking.md`, not a branch).
+- The changelog fragment's PR number; the pre-commit hook's ruff v0.16.1 (checked with 0.15.20).
+
+########## wp8-browser-ux
+--- WRITER SUMMARY
+ Brief written to /private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp8-browser-ux.md.
+
+1. Conclusion: one QLineEdit filter (setHidden on top-level rows, ISO STARTOBS doubles as date filter), scan in `glue_qt.utils.Worker` with a `stop=lambda: False` kwarg on `scan_directory` polled per file, "Stop scan" button + busy bar, results identified by a `_scan_id` token via `functools.partial` (no `sender()`), `wait()` before every rescan and on dialog `finished`; log files DROPPED with archive-listing evidence recorded so it stays closed.
+2. Re-ran today: baseline 23 passed; real tree 0.57 s / 140 files (4.1 ms/file, 25 GUI timer ticks during a threaded scan); full prototype (scan.py diff, .ui diff, dialog methods as a subclass) with 8 tests passing 3/3 plus 2 shipped-form tests; verbatim test_importer.py against the async dialog fails 8/12, passes 12/12 with exactly 7 `qtbot.waitUntil` insertions (listed per test in the brief); ruff clean on scan/dialog code.
+3. Log evidence re-verified: irispy test files (31) and pooch registry have no .log, /Users/nabil/DATA/IRIS has only .DS_Store, sdc.uio.no public listings (368 and 18 entries) contain zero log files.
+4. Could not reproduce the feared "QThread: Destroyed while thread is still running" abort on PyQt6 6.11 (two lifetime scripts survive); the brief keeps `wait()` for determinism and PySide safety but does not claim the abort.
+5. Not run verbatim in the repo (read-only): the final integrated `iris.py`/test edits are given as exact code mirrored 1:1 from the verified prototype subclass; the only untested artifact is the changelog/plan/audit wording.
+--- CHECKER REPORT
+ Brief checked and edited in place: `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp8-browser-ux.md`
+
+**Corrected**
+- Real bug in the design (verified, fixed): `QProgressBar.setRange(0, 0)` resets the value to -1 when the bar's value was above 0 (what `finalize()` leaves behind at `iris.py:276/:290/:303`), and a bar with an invalid value renders no text, so "Scan stopped"/"Scan failed"/"Extraction failed" were invisible after an earlier load. Reproduced with a flow probe (`prev value 50: ('', -1)`) and through the prototype dialog (`'' == 'Scan stopped'`). Fix is one line in `set_directory` (`self.progress.setValue(0)` after `setRange(0, 0)`, accepted because Qt skips the range check when min == max == 0); added to the final-form snippet, the explanation, Pitfalls, Acceptance, and a 7th test `test_stop_message_is_visible_after_an_earlier_load` (fails unfixed, passes fixed; extract flow still ends at value 100).
+- Pitfall claiming PyQt raises `TypeError` when a no-arg slot receives `clicked(bool)`/`finished(int)`: false on PyQt6 6.11 (`['ok', 'ok']`); reworded, `*_args` kept as harmless.
+- Test totals were inconsistent ("23 + 7 = 30" vs "31" with "test_scan.py 13"): now 12 + 19 = 31 (11 + 1, 12 + 7), verified as a combined shipped-form suite 3 runs, 0 `QThread: Destroyed` lines.
+- `ruff check` step: no ruff/codespell/pre-commit/uvx exists in the venv or on PATH; replaced with the pre-commit cache binaries (0.16.1 pinned, verified) and a pip fallback.
+- "every slow_headers test waits for the scan" sentence was wrong for the closing test (relies on the synchronous `wait()`); reworded with evidence.
+- Optional helper renamed `_scanned` -> `_wait_scan` (clashes with the dialog slot); `_sample.py:15-23` -> `15-21`; timing updated to today's numbers (0.51 s, 3.6 ms/file; real-tree Worker run 0.64 s, 27 ticks).
+
+**Added**
+- Checker re-run results beside every verified block (baseline 23, proto 8x3, shipped 2, nowait 8F/4P, wait 12, lifetime x3, log evidence: 31 irispy files no log, `.DS_Store` only, sdc.uio.no 368/18 entries 0 log).
+- Evidence that `Worker` exists in released glue-qt v0.4.0 (raw GitHub file HTTP 200, `class Worker` line 8).
+- D1-D4 merge note: WP1 rewrites `test_importer.py:176` (metres -> Angstrom); none of the 7 WP8 insertions touch it.
+- QProgressBar semantics bullet in Current state; slot-arity/progress-text probe section under Verified code.
+
+**Confirmed unchanged (all file:line references match):** iris.py 183/186/205-211/213-249/281/284, scan.py 118-179/137/145, threading.py:8, `utils/__init__.py:9`, profile_tools.py 222-231, conftest.py:33, rst:21, plan L34/36/62-66/90-91/196, audit L57/167/170; findings JSON and critic.md contain nothing the brief omits or contradicts.
+
+**Still unverifiable:** the integrated repo edits themselves (read-only; mirrored 1:1 from the verified prototypes), PySide behaviour, and the planning-doc/changelog wording.
+
+########## wp9-doc-corrections
+--- WRITER SUMMARY
+ Brief written to `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp9-doc-corrections.md` (632 lines). All three repos untouched (only the pre-existing untracked md/_version files).
+
+1. Conclusion: 22 exact edits to `IRIS_IDL_GLUE_CAPABILITY_AUDIT.md` (moment rows and fitting row to Partial via the glue-qt Collapse/Fit tabs; axis-name, autolink-mechanism, stack NaN/float32, sessions, profile-statistic, selection-direction, GOES, SDO rows corrected; new gaps added: no movie/sequence export anywhere in glue, detector row has no reader/phase, per-scan gwcs WCS premise, sit-and-stare already loads, `irispy.obsid.ObsID`; irispy 0.7.0 dating), 7 rst edits in PR #44 (SJI labels `Longitude`/`Latitude` and raster-to-SJI-only selection direction, `_SDO` folder claim, stack NaN note, "sessions cannot be saved", AMI typo, dev-guide dtype), no changelog fragment for ndcube (verifier ruling), README optional only; plan file excluded.
+2. TODO-file corrections (APE14 15 boxes + D1 deletions + PLR0917 note, PROFILE 14 boxes + RUF059/`_version.py` pre-PR items + design decisions, MACOS CFBundleName/display-name/conda-forge/0.75x items) are included in section H because `briefs/wp0-upstream.md` did not exist yet (WP0 worktrees are present, so dedupe against it when it lands).
+3. Re-ran today with isolated HOME: `sv2_probe.py`, `sv2_probe_b.py`, `cc_collapse.py`, `cc_stackwcs.py`, `cc_region.py`, `ver_sess3.py`, `v_qt.py` (PATCH=0), `chk_branch.py`, ObsID/sns-raster one-liners, export/epoch/playback/FUNCTIONS/fitters greps, ndcube/dask/`_SDO`/irispy-tag checks, ruff 0.15.20 and 0.16.5 on the WP0 worktrees (read-only), `gh pr view` 44/68, TODO checkbox counts, `pytest glue_solar` (27 passed); all outputs pasted with commands.
+4. Not re-verified today (cited to the verifier only): fork WCSLink frame-0 numbers (14/187 steps, 42 arcsec drift), qtbase `qcocoahelpers.mm`/`qplatformwindow.cpp` source claims, sdc.uio.no "no .log files" listings, spectroheliogram default-axes check (A14).
+5. Every line number in the brief was re-derived from today's `cat -n` and spot-checked with `grep -n`; the audit/plan/TODO files are untracked local files, the rst edits are meant as one doc commit on `iris-observation-browser`.
+--- CHECKER REPORT
+ Brief checked and edited in place: `/private/tmp/claude-501/-Users-nabil-Git-glue-solar/72764293-8e82-4502-aeff-9f6c3d248202/scratchpad/briefs/wp9-doc-corrections.md` (now 723 lines). All three repos untouched (`git status`: only the pre-existing untracked md/_version files); user's `~/.glue/settings.cfg` mtime unchanged (08:36:21, `font_size = -1.0`, `unit_converter = "default"`); all runs used `HOME=<scratchpad>/home-wp9chk`.
+
+**Verified (every file:line and every runnable snippet re-run today)**
+- Audit line refs A0-A22 (L15, 122-124, 129-131, 134-139, 141-144, 152, 157, 169-184, 202, 214), rst refs (L28, 33-34, 57-59, 64-66; 1dprofile L16-17, 41-43; aia-hmi L43; loader-customization L21-23; README L27; pyproject L21-23), all TODO refs (APE14 L9-12, 56-123; PROFILE L8-152; MACOS L13-126) match `cat -n` at d3a2bd3.
+- Site-packages/fork refs: `wcs_autolinking.py:321`, profile `state.py:22-26`/`69-71`, `fitters.py` classes 17/173/269/348, `profile_tools.py:16,222,227`, `COLLAPSE_FUNCS:31-37`, `data_slice_widget.py:46,50-62,81`, `coordinate_helpers.py:42`, `matplotlib.py:449`, no `set_epoch`, `maps.py:30`, `scan.py:112-115`, `.gitignore:47`, `app.py:104-107`, profile-wcs `state.py` 28/109/190/198/200/209-210/257/268/278/582, glue-qt profile-wcs `data_viewer.py:34`/`options_widget.py:41`, fork `wcs_autolinking.py:82,148`.
+- Scripts re-run with matching output: `sv2_probe.py`, `sv2_probe_b.py`, `cc_collapse.py`, `cc_stackwcs.py`, `cc_region.py`, `ver_sess3.py`, `v_qt.py PATCH=0`, `chk_branch.py`; ObsID; sunpy.timeseries `h5netcdf`; epoch 738038.01 vs 18875.01; ruff 0.15.20 (3 RUF059) / 0.16.5 (2 PLR0917 + 4 CPY001 also on main); gh #44 OPEN/MERGEABLE/0 reviews, #68 OPEN, #2248 draft CONFLICTING last commit 2022-05-07; TODO counts 19/0, 14/0, 15/8; `pip`/`importlib` requires `ndcube>=2.4.0`, `dask[array]`; irispy tag v0.7.0; pytest 27 passed.
+
+**Corrected**
+- H-P3 range L77-79 -> L77-78.
+- `irispy/meta.py:194-200` -> `194-198`.
+- A9 "speed control" -> repeated back/forward presses change speed (`_adjust_play`, 500/|speed| ms); no speed widget exists.
+- Pitfall "CI-pinned ruff 0.15.20" -> glue only; glue-qt pins v0.14.14 (ran ruff 0.14.14 on `wt-wp0-qtpw`: clean).
+- Step 4: docutils is NOT importable in `.venv`; replaced with a verified scratch `pip --target` recipe and its expected output (two pre-existing `:class:` role errors in `loader-customization.rst`).
+- D3 grep claim: exact command over rst/changelog only (bare `meter` hits "parameters" in `docs/conf.py` and the ignored `docs/_build`).
+- Two elided "…" commands (A13 sns raster, A20 epoch) replaced with the full commands that were run; `sv2_probe.py` output block now shows the "different hub" artefact lines instead of hiding them.
+- Acceptance criteria no longer depend on post-edit line numbers (A0/A1-A6 shift the table by ~37 lines); replaced with count-based greps verified against today's baseline (Partial 12->15, Missing 5->2, etc.).
+- A14 and section C L41-43 upgraded from "cited" to verified today (new `wp9chk_axes.py`: 3-D x=Wavelength, y=Helioprojective Latitude, slider Longitude; 4-D adds Scan).
+- H-A6 ValueError re-run (-399.83 deg on the sns raster).
+
+**Added**
+- Sibling briefs now exist (wp2/3/4/7/8, no wp0-upstream.md at 17:25): dependency map of which WP9 rows/sections each later brief overwrites (A15/A16 by WP2; A4/B4 by WP3; A9/A11/A19/B3 by WP4; A20/A21 by WP7; A8/L167 by WP8), plus a pitfall that they cite pre-WP9 line numbers and WP9's line shifts (audit A1 +3, A2 +7, A3 +7, A4 +13, A5 +3, A6 +1; rst B1/B2/B4 +1, B3 +4). None touches the TODO files, so section H applies in full.
+- A3 reason: exact `stack_spectrograms.py` lines (14, 42, 44-45, 54-56, 79, 80; `loaders/iris.py:98`).
+- A4: sessions with `_GlueWCS`/v2 style need glue-solar importable at load time (session verifier).
+- A8: `iris_xfiles` has no log search, only `.*log` display (P1.7); note that WP8 later flips the row.
+- A15: D4 wording (right-click dataset action, no viewer) and D4 bullet aligned.
+- A18: stack dict-meta TWAVE fallback cite; A20: "Scatter or Histogram" (critic §3.5).
+- B3 follow-up: `_AXIS_NAMES` normalisation would rename SJI `Time (UTC)` -> `Time`, no collision (doc-4 verifier).
+- H-P5: optional split of the independent `profile_tools.py` unit fix (profile-wcs.B).
+- "Unchanged" list: L177 whisker row and the other untouched bullets.
+- Tests: `test_loaders.py` flagged as a new file.
+- Verified-code blocks for axes, H-A6, docutils, ruff14, irispy requires, PR 2248, `app.py:104-107`.
+
+**Still unverifiable today (cited to verifiers only, marked as such in the brief)**
+- Fork `WCSLink` numbers (14/187 steps, 42 arcsec drift, 3 WCSLinks incl. AIA) and the 68 passed / 14 skipped glue-qt gating run.
+- qtbase `qcocoahelpers.mm` / `qplatformwindow.cpp` source claims (H-M1), PR #68 screenshot contents, conda-forge feedstock recipe.
+- sdc.uio.no directory listings and SolarSoft `irisl12_writelogfile.pro` (network; A8).
+- All IDL/SolarSoft-side audit statements (out of scope by the audit brief).
