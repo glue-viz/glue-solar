@@ -19,7 +19,9 @@ dependencies = [
   "glue-core>=1.23.0",
   "glue-qt[qt]>=0.4.0",
   "sunpy[map,net]>=6.0.0",
-  "irispy-lmsal>=0.8.1",
+  # irispy main with LM-SAL/irispy#176 (V34 raster mask and step metadata); return to a version
+  # floor once it is released, as PyPI rejects packages with direct references
+  "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@49d705cece7661e0f1d013041bf2ee5b2d451058",
   "ndcube>=2.0",
 ]
 dynamic = ["version"]
