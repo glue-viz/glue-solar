@@ -1,0 +1,1423 @@
+[
+ {
+  "id": "solar-main-1",
+  "action": "decision_needed",
+  "wp": "WP9",
+  "milestone": "M0",
+  "text": "Decision (urgent, user action; agents must not touch the repos): what to do with docs/make_screenshots.py. It exists only in commit 93d05f05 (196 lines; regenerates the 1D-profile guide screenshots from a real multi-scan observation). Locally, only two HEAD reflog entries from 2026-08-28 hold it. They became expirable around 2026-09-27 04:24 PDT, but `git cat-file -t 93d05f05` still printed 'commit' at 09:56 PDT. GitHub still serves the commit, but does not promise to keep unreachable objects. Options: (a) run `git branch backup/iris-observation-browser-pre-rebase 93d05f05c250dfb3f96b419069d046df8090f09a` now (a local ref, never pushed) and decide in WP9 later; (b) save the file into the archive with `git show 93d05f05:docs/make_screenshots.py > IRIS_PLAN_PROTOTYPES/archive/make_screenshots.py`; (c) let it go and rely on the GitHub copy. Recommended: (a) today, plus a WP9 M1 checkbox: 'Re-add or drop make_screenshots.py when the guides get quicklook screenshots.' The cleanup-history checkbox at L190-194 then moves to the archive."
+ },
+ {
+  "id": "solar-main-2",
+  "action": "decision_needed",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Decision: branch `plan` (157cf44 'NEVER MERGE': the plan plus 247 prototype/archive files) is pushed to the public glue-viz/glue-solar repo. It contains /Users/nabil and /private/tmp paths: 3 lines in the plan (L1084-1088) and dozens of prototype files. Options: (a) keep it public as is and say so in the plan header; (b) keep it public and write all new plan text with `~/` or repo-relative paths, leaving history untouched; (c) delete the remote branch and keep the plan local. Recommended: (b), with no history rewrite and no deletion. Deleting or force-pushing the branch is the user's call only."
+ },
+ {
+  "id": "solar-main-3",
+  "action": "new_checkbox",
+  "wp": "WP11",
+  "milestone": "M0",
+  "text": "- [ ] (M0) Give `solar:cursor_readout` its own icon. On released glue-qt 0.4.2 it sits next to the Pixel tool (`image:point_selection`) and both use `glue_crosshair` (glue_solar/tools.py:81; glue pixel_selection_mode.py:18). Make the guides name the Pixel tool by its 'Pixel' label, not 'the crosshair icon' (guide-to-glue-1dprofile-viewer-for-iris-data.rst:54). Done when the two toolbar buttons look different and the guide text is unambiguous."
+ },
+ {
+  "id": "solar-main-4",
+  "action": "modify_checkbox",
+  "wp": "WP9",
+  "milestone": "M0",
+  "text": "Replaces L996-1000: - [ ] (M0) Add the towncrier fragments the merged PRs skipped. `52.feature.rst`: SJI and AIA-cutout frames gain a datetime64 `Time` component from the gWCS time axis, plus the new `solar:frame_time` and `solar:cursor_readout` Image Viewer tools. `53.bugfix.rst`: transparent NaN pixels. Raster and stack `Time` landed on main with #44 (ccdadd3) and is already in 44.feature.rst, so do not repeat it. Mention the two tools and the `Time` component in the IRIS user guide. `CHANGELOG.rst` is empty and `docs/whatsnew/changelog.rst` only renders fragments."
+ },
+ {
+  "id": "solar-main-5",
+  "action": "plan_text_fix",
+  "wp": "WP9",
+  "milestone": "n/a",
+  "text": "Fix L368-371 and the WP9 loading-guide item (L985-987) so they quote the labels Glue actually displays. SJI world components: `Time (Utc)`, `Latitude`, `Longitude` (Glue title-cases the gWCS name 'Time (UTC)'). Raster: `Helioprojective Longitude`, `Helioprojective Latitude`, `Wavelength`. These lists are in Glue's component order, which is the reverse of WCS order. Wavelength currently displays in metres."
+ },
+ {
+  "id": "solar-main-6",
+  "action": "modify_checkbox",
+  "wp": "WP9",
+  "milestone": "M0",
+  "text": "Replaces L981-991:\n- [ ] (M0) docs/user_guide/loading-iris-level-2-raster-and-sji-data.rst: say that aligned `aia_l2_*.fits` cutouts need no `_SDO` directory (rst:28). Add that stacks are floating memmaps with masked pixels stored as NaN (dtype `np.result_type(first scan, float32)`, float32 for the tested IRIS data). Quote the displayed component labels and state the directional linking limit. Replace the restore-only warning (rst:61-66) with 'saving can fail'. Time for stacks and single rasters is already documented (rst:33-39); do not duplicate it.\n- [ ] (M0) docs/user_guide/guide-to-glue-1dprofile-viewer-for-iris-data.rst: add the float/NaN stack note. Distinguish released collapse profiles, a one-pixel subset and the unreleased Slice profile (core #2596/#2601 + Qt #70). The Scan axis, `Time` component and scan-0 WCS are already covered (rst:30-34)."
+ },
+ {
+  "id": "solar-main-7",
+  "action": "history_only",
+  "wp": "archive",
+  "milestone": "n/a",
+  "text": "L70, L113 and L226-227 are merge history and move to the archive. If the WP0 open-PR table or the archive banner summarises the merges, word it as: '#44 (ccdadd3) and then #50 (83efae3) were squash-merged onto main separately on 2026-09-22 (#50's GitHub base was still iris-observation-browser).'"
+ },
+ {
+  "id": "solar-main-8",
+  "action": "plan_text_fix",
+  "wp": "Validation",
+  "milestone": "n/a",
+  "text": "Replace the solar baseline at L268-285 with: 'Solar baseline, 2026-09-27: `glue_solar` on main 236f0a8 in the micromamba env `iris-plan` (released glue-core 1.27.0, glue-qt 0.4.2, irispy-lmsal 0.9.0, isolated HOME and QSettings) gives 34 passed, 1 skipped. The skip is the released-core APE-14 autolink test (test_plugin.py:93). The solar cursor-readout test runs, because glue-qt 0.4.2 lacks `cursor_status`. The earlier 33 passed / 2 skipped used Qt #74 source, which skips that test. When #74 is validated, record one row for each side of the `cursor_status` gate.' (Reproduced 2026-09-27 with run_checks.py and -p qs_isolate: '34 passed, 1 skipped in 5.80s'.)"
+ },
+ {
+  "id": "upstream-state-1",
+  "action": "decision_needed",
+  "wp": "WP0",
+  "milestone": "M1",
+  "text": "Decision: glue-solar vs irispy `gwcs_raster_clean`. This is the user's own branch, pushed to LM-SAL/irispy with no open PR; irispy main instead merged FITS-TAB (#159). With that branch the unchanged loader splits one raster file into 1496 2D datasets, loses wavelength from the world components, and raises TypeError with `stack=True`. Options: (a) track only: add a WP0 gate 'do not propose or merge the irispy branch until the glue-solar loader accepts both APIs', and keep M0 on irispy 0.9.0 (recommended); (b) adapt now: `_raster_collection_data` accepts either a sequence or a combined cube, and `_GlueWCS` projects out the extra time/step world axes (or waits for glue #2574); (c) ignore until the branch lands. If it lands, its per-scan pointing (`_RasterSequenceCelestialTransform`) would supersede the scan-0 stack WCS and the deferred per-scan absolute WCS item (L1014)."
+ },
+ {
+  "id": "upstream-state-2",
+  "action": "new_checkbox",
+  "wp": "WP0",
+  "milestone": "M1",
+  "text": "- [ ] (M1, only if irispy `gwcs_raster_clean` proceeds) Ask irispy to ship ASDF converters for its custom `_RasterSequenceCelestialTransform` and `_InverseRasterSequenceCelestialTransform` models. Without them, WP3 cannot embed a combined multi-file raster gWCS (ASDF ValidationError). Single-file rasters still serialize through the sliced\u2192asdf record. Fallback: WP3 re-reads such rasters from their source files through LoadLog instead of embedding the WCS."
+ },
+ {
+  "id": "upstream-state-3",
+  "action": "new_checkbox",
+  "wp": "WP1",
+  "milestone": "M0",
+  "text": "- [ ] (M0) Make irispy-lmsal 0.9.0 (released 2026-09-10) the tested baseline. Record the reference micromamba env `iris-plan`: Python 3.13, glue-core 1.27.0, glue-qt 0.4.2, irispy-lmsal 0.9.0, ndcube 2.4.2, astropy 8.0.1, sunpy 8.0.0. Record its glue_solar result: 34 passed, 1 skipped on 2026-09-27. Re-run the WP2/WP5 prototype checks on 0.9.0, including the missing-TWAVE path, where `SGMeta.rest_wavelength` now returns None. Decide whether to raise `irispy-lmsal>=0.8.1` in pyproject.toml. Done when the results and the floor decision are recorded here."
+ },
+ {
+  "id": "upstream-state-4",
+  "action": "already_covered",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Covered by plan-integrity-1 (header text that describes the public, never-merged `plan` branch) and solar-main-2 (decision on local paths in the public branch). The snapshot lines L74 and L120-122 move to the archive."
+ },
+ {
+  "id": "upstream-state-5",
+  "action": "already_covered",
+  "wp": "WP9",
+  "milestone": "M0",
+  "text": "Covered by the modified wiki checkbox under plan-integrity-11: fetch 5ef5fa1 first and fix the dangling 'reconciled at the bottom' / '2020 roadmap status' references. L1035-1036 belong to the 2020-roadmap reconciliation, which moves to the archive now that the companion F001-F203 feature map replaces it."
+ },
+ {
+  "id": "upstream-state-6",
+  "action": "new_checkbox",
+  "wp": "WP0",
+  "milestone": "M1",
+  "text": "- [ ] (M1) Track draft glue #2603 and glue-qt #73 (astrofrog, 2026-09-15: vertical/horizontal line-layer artists and a Qt style editor). Under D2, keep WP5's solar line-list artist, but hold the IRIS line list as plain data (wavelength in Angstrom, name) that #2603's line layers could render. Once a release contains #2603, drop WP5's ProfileLayerState subclass workaround (wp5_linelist_mod.py:19-26, 122-124) and reconsider the custom artist."
+ },
+ {
+  "id": "upstream-state-7",
+  "action": "new_checkbox",
+  "wp": "WP0",
+  "milestone": "M2",
+  "text": "- [ ] (M2) Track glue #2604 ('Fix displaying regions on an image that has a WCS'; not a draft; fixes issue #2600). Keep WP7's pixel PolygonalROI FOV subset until a glue-core release contains #2604, then reconsider a RegionData footprint."
+ },
+ {
+  "id": "upstream-state-8",
+  "action": "new_checkbox",
+  "wp": "WP0",
+  "milestone": "M2",
+  "text": "- [ ] (M2) Track draft glue-qt #66 (astrofrog: the PV slicer refactored into a generic `path_slicer` tool on core `PathSlicedData`; last updated 2026-05-27). Build WP12's 4D and solar-coordinate path diagrams on #66 or its successor, not on the legacy PV widget. If #66 is still idle when WP12 starts, ask its author before duplicating it."
+ },
+ {
+  "id": "upstream-state-9",
+  "action": "plan_text_fix",
+  "wp": "WP0",
+  "milestone": "n/a",
+  "text": "Replace L147-149 with: 'Qt #70 and #75 merge with slice_widget.py auto-merged. The only conflict is add/add in glue_qt/viewers/common/tests/test_multi_slice_helper.py, where both PRs append a test; keep both, and rebase whichever lands second. With both tests kept, on core-combined (#2601 + #2595): Qt common+profile suites gave 83 passed, 1 skipped; glue_solar gave 35 passed; review_20260923/test_existing_workflows.py gave 9 passed (plan review, 2026-09-26/27). Native interactive behaviour is still untested.'"
+ },
+ {
+  "id": "upstream-state-10",
+  "action": "plan_text_fix",
+  "wp": "WP0",
+  "milestone": "n/a",
+  "text": "Add to the WP0 PR-boundary notes (the completed-work bullets L209-211 and L221-223 move to the archive): 'Qt #68 and #70 carry only reworded cherry-picks of #69's plugin-test fix (89773fd1 in macos-integration, 5c5b08a1 in profile-wcs-pr). They do not carry #69's CI configuration/viewer cleanup (5e1f0ee7) or its `_version` .gitignore rule. Both conflict with #69 in glue_qt/app/tests/test_plugin_manager.py. A maintainer noted that #69's viewer-test and config updates match glue-qt #65 ('TST: cleanup tox envs', dhomeier, open). These are PR-boundary items for the user; CI repair stays out of scope.'"
+ },
+ {
+  "id": "upstream-state-11",
+  "action": "plan_text_fix",
+  "wp": "Validation",
+  "milestone": "n/a",
+  "text": "Replace the runner examples and environment notes at L1081-1103 with: 'Run all Python in a micromamba env, never the solar `.venv` or the system Python. Reference env: `iris-plan` (`~/mamba/envs/iris-plan`: released glue-core 1.27.0, glue-qt 0.4.2 on PyQt5, irispy-lmsal 0.9.0, glue-solar editable). Command: `env HOME=<scratch> ~/mamba/envs/iris-plan/bin/python -B IRIS_PLAN_PROTOTYPES/review_20260905/run_checks.py <roots> <pytest args>`, with QSettings isolation (see the WP8 checkbox) until the suite isolates it itself. The `glue-solar` mamba env imports glue, glue-qt and irispy editable from the checkouts. ~/Git/irispy is now on the unmerged `gwcs_raster_clean` branch, which breaks the loader (see WP0). Its stale generated `_version.py` reports 0.7.1.dev21 whatever is checked out; on 2026-09-22 the checkout was main at 34b5805 (v0.9.0-7). Check that env's imports before validating with it. For an unreleased PR source, export it with `git -C <repo> archive <ref> | tar -x -C <scratch>/<name>` and prepend it as a root.'"
+ },
+ {
+  "id": "plan-integrity-1",
+  "action": "plan_text_fix",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Replace L23-27 and L36-37 with: 'This plan and IRIS_PLAN_PROTOTYPES/ live on the glue-solar branch `plan` (from 157cf44). The branch is pushed to the public glue-viz/glue-solar repository and must never be merged or opened as a PR. Production work happens on feature branches from `main`; never stage the plan or the prototypes there. Committing or pushing plan updates, and any documentation commit, push, PR, merge or review request, happens only when the user asks.'"
+ },
+ {
+  "id": "plan-integrity-2",
+  "action": "new_checkbox",
+  "wp": "WP8",
+  "milestone": "M0",
+  "text": "- [ ] (M0) Stop tests writing the user's real QSettings. `QtIRISImporter.set_directory` writes `iris.last_dir` to the macOS defaults domain com.glue-solar.glue-solar even with an isolated HOME (iris.py:204-220; test_importer.py constructs importers). Add an autouse fixture in glue_solar/conftest.py that redirects `QSettings('glue-solar', 'glue-solar')` to an IniFormat file in the test's temp dir. Done when `defaults read com.glue-solar.glue-solar` is unchanged after a full glue_solar run."
+ },
+ {
+  "id": "plan-integrity-3",
+  "action": "modify_checkbox",
+  "wp": "WP0",
+  "milestone": "M1",
+  "text": "Replaces L292-295: - [ ] (M1) Validate the integrated upstream stack against the solar workflow, using the heads in the PR table: core #2601 (which contains #2596) with #2595, #2597, #2598 and #2599, plus Qt #70, #74 and #75 (and #68 if wanted). The known conflicts are test-only. #70+#75 conflict add/add in glue_qt/viewers/common/tests/test_multi_slice_helper.py (keep both tests). #69 conflicts with #68 and with #70 in glue_qt/app/tests/test_plugin_manager.py. All 15 core pairs merge cleanly. Run Qt common+profile, glue_solar and review_20260923/test_existing_workflows.py in `iris-plan`, with the combined sources as roots. Done when the combined heads, the conflict resolutions and the pass counts are recorded here. CI status stays out of scope."
+ },
+ {
+  "id": "plan-integrity-4",
+  "action": "new_checkbox",
+  "wp": "WP9",
+  "milestone": "M1",
+  "text": "- [ ] (M1) When WP1's name/Angstrom change lands, update every guide, recipe and screenshot that quotes component labels or wavelength in metres: SJI Longitude/Latitude become the helioprojective names, and wavelength displays in Angstrom. The M0 docs refer to axes by role, so they need no rework beyond this. This replaces the 'document first (WP9)' versus 'WP1 first' ordering at L578/L682."
+ },
+ {
+  "id": "plan-integrity-5",
+  "action": "new_checkbox",
+  "wp": "WP9",
+  "milestone": "M0",
+  "text": "- [ ] (M0) Document the existing workflows in the IRIS guides before writing new code. Cover: Image axis choices for spectrogram (wavelength \u00d7 slit), raster-map (step \u00d7 slit) and time\u2013wavelength (scan or exposure \u00d7 wavelength) views; Pixel click/drag/release; Profile \u2192 Options \u2192 Navigate; 3D SJI Slice Extraction (P, draw, Enter); subset Mean versus draft Slice profiles; index versus UTC time. Refer to axes by role (wavelength, slit, step, scan, SJI frame), not by component label, until WP1 renames them. Done when a user can reproduce the four-panel, time\u2013wavelength and Navigate steps on released glue-core 1.27.0 / glue-qt 0.4.2 without any prototype."
+ },
+ {
+  "id": "plan-integrity-6",
+  "action": "new_checkbox",
+  "wp": "WP1",
+  "milestone": "M0",
+  "text": "- [ ] (M0) Combined link-graph regression. Under D1, `link_hpc` is always installed, never only 'where needed'; reword L570 and L585 accordingly. On real SJI + raster fixtures, add the `link_hpc` world links and WP4's nearest-index identity links together. Assert that point/ROI propagation, marker positions and slice sync each use the intended path and that no unintended transformation is chosen. In M1, extend the same test with #2595 WCS pixel links on a core that has them (behaviour-probed)."
+ },
+ {
+  "id": "plan-integrity-7",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M1",
+  "text": "- [ ] (M1) Aggregation controls for the spectrum and light-curve panels: explicit single sample, mean, sum or wavelength band, named in each panel title, reusing the native Profile functions. Define and test how persistent band or scan filters combine with the Pixel tool's replace-on-drag subset (for example, intersect with a fixed band subset). If the time-axis decision (usefulness-15) chooses physical UTC axes, a WP4 M2 checkbox owns the selected-location time-coordinate adapter."
+ },
+ {
+  "id": "plan-integrity-8",
+  "action": "decision_needed",
+  "wp": "WP10",
+  "milestone": "M0",
+  "text": "Decision: M0 end-to-end acceptance data and performance budgets. The current criterion (L452-456) only says 'record', and names no owner or dataset. Proposed data (local, ~/DATA/IRIS): sit-and-stare 20130902_163935 OBSID 4000255147 (raster ~4.1 GB float32 over 9 windows, plus SJI 1400 at 400\u00d7417\u00d7388); repeated raster 20130902_182935 OBSID 4000005156 (2 scans \u00d7 64 steps, plus deconvolved SJI 2796); large dense raster 20140708_114109 OBSID 3824262996 (400 steps, ~3.2 GB); plus the irispy fixtures for automated tests. Proposed budgets: peak RSS \u2264 2\u00d7 the loaded windows' array bytes; slice step and selected-point update \u2264 100 ms on the M0 preset; loading a ticked window keeps the GUI responsive, with progress shown. Options: accept these; set other numbers; or record-only (no pass/fail) for M0. Recommended: accept, owned by a WP10 M0 checkbox: '- [ ] (M0) Run the M0 end-to-end acceptance on the named data within the budgets, with results recorded here.'"
+ },
+ {
+  "id": "plan-integrity-9",
+  "action": "already_covered",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "The skeleton settles this. M0 runs on released glue-core 1.27.0 / glue-qt 0.4.2 with one-pixel subset (Mean) profiles. Draft Slice-profile coordination is M1, gated on #2596/#2601 + Qt #70 releasing. The rewritten M0 criterion must drop 'draft Profile slice indices' (L430-432)."
+ },
+ {
+  "id": "plan-integrity-10",
+  "action": "already_covered",
+  "wp": "WP9",
+  "milestone": "n/a",
+  "text": "Same fix as solar-main-5: quote `Time (Utc)` (Glue title-cases the gWCS name) at L368-369 and in the WP9 loading-guide item (L985)."
+ },
+ {
+  "id": "plan-integrity-11",
+  "action": "modify_checkbox",
+  "wp": "WP9",
+  "milestone": "M0",
+  "text": "Replaces L1057-1061: - [ ] (M0) Refresh the public wiki digest from the restructured plan, as a separate publication the user requests. Fetch first: remote master is 5ef5fa1 (a 2026-09-22 web edit), one commit past the local clone's 63f0400, whose tracking ref is stale. 5ef5fa1 removed the '2020 roadmap status' section, but Home.md:4 and Short-Term-Roadmap.md:1 still point to it; fix or remove those references. Replace the 'In preferred order' WP1-WP9 list with the M0-M3 milestones. Change 'float32/NaN stack storage' to 'floating memmap, NaN for masked pixels'. Keep local paths, prototype links and environment notes out. Done when the wiki shows the milestone digest with no dangling section references."
+ },
+ {
+  "id": "plan-integrity-12",
+  "action": "plan_text_fix",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Fix L409. The IRIS-9 link returned 404 on 2026-09-27. Replace it with the archived copy, https://web.archive.org/web/20250429073324/https://tiagopereira.space/iris9/exercises/tutorials_idl.html#crispex, labelled 'IRIS-9 CRISPEX exercises (archived copy)'. Optionally add https://www2.mps.mpg.de/meetings/iris9/abs/tut%201.pdf (its content has not been checked). The grviss/crispex and crispex.pro links still resolve."
+ },
+ {
+  "id": "plan-integrity-13",
+  "action": "plan_text_fix",
+  "wp": "WP4",
+  "milestone": "n/a",
+  "text": "Replace the WP4 contract at L656-659 with: 'WP4 uses identity ComponentLinks on precomputed int32 nearest-index components, not JoinLink and not lambda/closure links. A no-match is stored as an out-of-range index sentinel (for example -1), never as a clamped valid index; the controller then shows the partner panel empty, together with the offset. The signed offset in seconds is a separate float component shown in the readout. Keep these components compact in sessions (WP3). Key joins would let otherwise incompatible spatial ROIs select the whole partner dataset.' In the WP4 text, call the whisker's vertical axis 'exposure (sit-and-stare) or scan (stacks)', never 'step/time'. The four panels are defined by the per-type table (usefulness-4)."
+ },
+ {
+  "id": "plan-integrity-14",
+  "action": "modify_checkbox",
+  "wp": "WP0",
+  "milestone": "M1",
+  "text": "Replaces L320-322: - [x] Out-of-range reference slice: core ca9eb3db (2026-09-21, in both #2596 and #2601) turns the IndexError and the negative wrap-around into IncompatibleDataException, so the profile layer shows 'Incompatible data'. Reopen only if the M1 Slice-profile validation finds that message insufficient for IRIS users. (Completed; moves to the archive.)"
+ },
+ {
+  "id": "plan-integrity-15",
+  "action": "plan_text_fix",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Restructure rule: each task has one owner. Drop WP0 L307-309 in favour of WP1's autolink/coherence checkboxes. Drop WP0 L323-326 in favour of WP5's marker tests (changed slices, descending grids, session restore; M1, gated on core #2601 + Qt #70). Leave a one-line cross-reference in WP0. Movie, sequence and path export has a single status: WP12, M2 (replaces L493, L614-617, L1017-1018, L1051 and L1062)."
+ },
+ {
+  "id": "plan-integrity-16",
+  "action": "plan_text_fix",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Restructure rule: each WP gets a short 'Rules' list for standing constraints. Examples: L310-316 (the low-level clone/session limit and the WCSAxes-versus-unit-override contract), L864-865, the constraint part of L894-900, and L1004-1005. Checkboxes are only for completable work with a done condition; the real task inside L894-902 is 'Add action registration, docs/API entries and changelog'. Deferred lists such as L343-346 go under 'Deferred'. 'Pick an unchecked task' (L33) then always means work, not a rule."
+ },
+ {
+  "id": "plan-integrity-17",
+  "action": "modify_checkbox",
+  "wp": "WP9",
+  "milestone": "M0",
+  "text": "Replaces L994-995: - [ ] (M0) docs/dev_guide/loader-customization.rst: document the floating memmap (dtype from `np.result_type`), NaN storage of masked pixels and mask reconstruction (stack_spectrograms.py:42-56, 79). Exact acquisition times, scan 0's nominal WCS and the separate mask components are already documented (rst:21-23, 27-30); do not repeat them."
+ },
+ {
+  "id": "plan-integrity-18",
+  "action": "already_covered",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Split across other dispositions. The branch/checkout snapshot (L74, L120-123) moves to the archive. The public-branch wording is plan-integrity-1. The irispy 0.9.0 baseline is the WP1 M0 checkbox from upstream-state-3. The ~/Git/irispy gwcs_raster_clean and mamba-env warning is the Validation text fix from upstream-state-11."
+ },
+ {
+  "id": "plan-integrity-19",
+  "action": "plan_text_fix",
+  "wp": "Archive",
+  "milestone": "n/a",
+  "text": "List every plan snapshot in the Archive table and give each one a 'Historical snapshot' banner like the one in archive/2026-09-05: IRIS_PLAN_PROTOTYPES/IRIS_GLUE_GAP_PLAN.2026-08-29.md (move it to archive/2026-08-29/), archive/2026-09-22/, archive/2026-09-23-before-capability-audit/, archive/2026-09-23-prototype-refresh/, and archive/2026-09-27-restructure/ (the pre-restructure plan and index). Note that relative links inside snapshots are broken by the moves (27 in 09-22, 34 in before-audit, 1 in 08-29)."
+ },
+ {
+  "id": "plan-integrity-20",
+  "action": "plan_text_fix",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Drop the static-check counts at IRIS_PLAN_PROTOTYPES/README.md L86-87 ('168 .py, 69 links'; 157cf44 actually has 170 .py files and 72 resolving local links), or regenerate them at the restructure commit. The 'prototype index' link at L279-280 (which really points to the archived README.before-refresh.md) and the #50 merge wording move to the archive."
+ },
+ {
+  "id": "plan-integrity-21",
+  "action": "modify_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "Replaces the slit part of L788-794: - [ ] (M0) Draw the slit overlay from the SJI's own slit position at full resolution, with no `pixel_stride` in the production API. The irispy SJI fixtures appear spatially decimated about \u00d710 and report off-image slit x values (187 for 37-px-wide 2021 frames; 549-1268 for 178-px 2023 frames), so fixture tests accept or skip off-image values. Test on a full-resolution local SJI: 20130902 OBSID 4000255147 SJI 1400 (400\u00d7417\u00d7388) gives slit x 195.0. Reuse `_frame_times` and the existing `Time` component; add no second `Time`."
+ },
+ {
+  "id": "plan-integrity-22",
+  "action": "plan_text_fix",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "Replace 'Show each panel's actual exposure time' (L427) and the skeleton's 'exposure-time display' with: 'Show the acquisition timestamp of each displayed frame. For a raster-map panel, show the time range of its steps, because each step has its own timestamp. EXPTIME (the integration duration) is a separate, optional readout (F117).'"
+ },
+ {
+  "id": "plan-integrity-23",
+  "action": "plan_text_fix",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Terminology rule: glue-solar has no release (no GitHub release, no PyPI project). Say 'on main' or 'merged' for merged glue-solar code, and 'released' only for a tagged release. Replace 'ship' at L498, L674, L789 and L1005. 'Core ships PathSlicedData' (L1048) stays: it is in released glue-core 1.27.0."
+ },
+ {
+  "id": "archive-trace-1",
+  "action": "new_checkbox",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "- [ ] (M1) Keep sessions small. Released core embeds every component added after loading in full, even with include_data=False: one broadcast int32 (100,200,200) component took 21.3 MB against a 1.8 KB baseline. Do not save WP4's post-load derived components (nearest-index, offset, `Slit x`); re-derive them on restore, or store them compactly (1-D per axis). Decide whether WP6's residual cube is embedded or recomputed. Add a session-size check on a real SJI + raster quicklook session to the M1 reopened-session acceptance."
+ },
+ {
+  "id": "archive-trace-2",
+  "action": "new_checkbox",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "- [ ] (M1) Re-attach coordination after a restore. A restored session is a new application whose viewers arrive through `add_widget`. After restoring a saved quicklook session, the selected point, time matching and slice sync must work again without rerunning the browser. Save the preset's coordination state (for example with the fixed-layout tab or a solar session hook) and rebuild the controller from it; do not rely on a wrapped `app.new_data_viewer`."
+ },
+ {
+  "id": "archive-trace-3",
+  "action": "new_checkbox",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "- [ ] (M1) Persist the rest wavelength. The loader writes a float `meta['rest_wavelength']` in Angstrom for every raster window, for single scans and stacks alike; its value follows the rest-wavelength default decision (archive-trace-4). WP2 and WP5 read it before falling back to SGMeta. Test on a real raster (2014 Mg II k r00000) that km/s is still offered after a session round trip; today SGMeta becomes an OrderedDict and the helper returns None."
+ },
+ {
+  "id": "archive-trace-4",
+  "action": "decision_needed",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "Decision: the default rest wavelength when the user gives none. SGMeta.rest_wavelength is TWAVE, the window's reference wavelength, not a laboratory value. For Mg II k, TWAVE 2796.20 against laboratory 2796.35 \u00c5 shifts zero velocity by -16.1 km/s; for Si IV 1394 the shift is +4.3 km/s. Today WP2 (irispy moments default) and WP5 (irispy metadata) both fall back to TWAVE. Options: (a) default to the packaged line list's laboratory wavelength nearest TWAVE inside the window, showing the line name and source, with TWAVE as a labelled fallback ('window reference, not laboratory') (recommended); (b) keep TWAVE but label it as the window reference in the UI and docs; (c) no default: velocity and moments require an explicit rest wavelength. Whatever is chosen, WP2 and WP5 share one helper, and a test covers the Mg II k 16 km/s case."
+ },
+ {
+  "id": "archive-trace-5",
+  "action": "new_checkbox",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "- [ ] (M1) Land the solar-scoped style/colormap serialization fix on its own, without waiting for core #2597. On released core, a session holding a File\u2192Open sunpy Map fails to save (TypeError: LinearSegmentedColormap is not JSON serializable, because maps.py sets `preferred_cmap`); sessions with IRIS datasets fail too. Add a changelog fragment and a note in loading-aia-and-hmi.rst. Until the fix lands, state the boundary as 'sessions containing any glue-solar dataset, including sunpy Maps, fail to save on released core', replacing the IRIS-only wording at L375-377 and L395."
+ },
+ {
+  "id": "archive-trace-6",
+  "action": "already_covered",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Covered by plan-integrity-1 (the header describes the public, never-merged `plan` branch) and solar-main-2 (decision on local paths in the public branch). L74 moves to the archive."
+ },
+ {
+  "id": "archive-trace-7",
+  "action": "decision_needed",
+  "wp": "WP0",
+  "milestone": "M0",
+  "text": "Decision: how workarounds and gated tests are switched on. D2 says 'version-gate'. WP1's prototype instead uses behaviour probes (`needs_inverse_workaround`, `supports_wrapped_wcs_autolink`), because installs from source PRs keep the 1.27.0 release metadata. WP0 (L301-303) plans release floors, and the 2026-09-05 archive says the version gate was requested. Options: (a) behaviour probes decide whether a workaround or gated test runs; version floors are used only for dependency pins in pyproject.toml once a release contains the fix; each workaround carries a removal note naming that release (recommended); (b) version gates only, so source-PR runs take the workaround path; (c) both, and they must agree. Update D2, WP0 and WP1 to the chosen rule."
+ },
+ {
+  "id": "archive-trace-8",
+  "action": "new_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "- [ ] (M1) Show the display unit in the profile x-axis label. Glue sets `x_axislabel = x_att.label`, so an axis converted to km/s still reads 'Wavelength'. Fix it solar-side for the preset/IRIS viewers, or through a small upstream glue PR if the user directs one. Test that a velocity profile's label shows km/s. Optional upstream follow-up: let glue-qt's `_layer_style_widget_cls` accept a per-layer-class mapping, so WP5 need not replace it with a dict."
+ },
+ {
+  "id": "archive-trace-9",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M1",
+  "text": "- [ ] (M1) Raster footprint on the SJI (F125). Optionally overlay every slit position of the matched raster, with the current step highlighted, next to the per-frame slit; this matches IDL xsji_image `show_raster` and the IRIS-9 'SJI with the 4 raster positions superimposed'. A data-only subset over the unique `Slit x` values is one way to draw it."
+ },
+ {
+  "id": "archive-trace-10",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] (M0) Label the sit-and-stare exposure axis correctly. On main, axis 0 of a sit-and-stare raster (the exposures) is labelled 'Helioprojective Longitude', and its values drift about 42 arcsec over 187 exposures (sns C II fixture). The preset labels that axis as exposure (acquisition order), with a timestamp readout, and the WP9 recipe says so; the implementation route is still unverified. Done when no preset panel presents exposures as longitude."
+ },
+ {
+  "id": "archive-trace-11",
+  "action": "plan_text_fix",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Detector mosaic (full-detector reader/layout, F123): at both L385 (capability table) and L1012 (non-goals), write 'Excluded from this plan's scope by the user on 2026-09-27.' It is excluded, not a permanent non-goal; only Level-3 FITS writing and EIS are permanent non-goals."
+ },
+ {
+  "id": "archive-trace-12",
+  "action": "plan_text_fix",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Add to D2 (L634-638): 'New upstream PRs are appropriate for generic fixes and capabilities that belong in glue-core or glue-qt, as with Qt #74 (cursor status) and #75 (time labels). Opening, readying, requesting review of or merging any PR needs the user's direction. Solar work never waits for them: M0 requires no unreleased PR, and a solar workaround is gated and removed once a release contains the upstream fix.'"
+ },
+ {
+  "id": "archive-trace-13",
+  "action": "new_checkbox",
+  "wp": "WP6",
+  "milestone": "M2",
+  "text": "- [ ] (M2) Use one rest-wavelength key. WP2, WP5 and WP6 read and write only `meta['rest_wavelength']` (float, Angstrom). WP6 copies the source window's value to its fit-map dataset, so centroid maps can offer km/s. It stores its optional seed centre under a separate key (for example `fit_seed_center`) instead of `rest_wavelength_angstrom`, and never as a rest wavelength."
+ },
+ {
+  "id": "archive-trace-14",
+  "action": "new_checkbox",
+  "wp": "WP9",
+  "milestone": "M0",
+  "text": "- [ ] (M0) Copy the IRIS-9 \u00a73.3 CRISPEX exercise tasks (from the Wayback copy) into the plan as the acceptance script, each tagged with its owner. Section 3.3.1 (OBSID 3840007146, 2013-12-26, 400 steps): scaling with gamma < 1 [WP11, M1]; blinking the Si IV 1403 and Mg II k 2796 cores at about 2 frames/s [WP5, M1]; finding the solar (x, y) [WP4, M0]. Section 3.3.2 (2014-11-07 4-step \u00d780 flare with SJI): running the sequence and finding the end time [WP4, M0]; narrowing the Doppler range [WP5, M1]; locking the mouse and watching the spectral T-slice [WP4, M1]; the SJI with the raster positions superimposed [WP4, M1]. ~/DATA/IRIS holds neither observation, so name local stand-ins for each."
+ },
+ {
+  "id": "archive-trace-15",
+  "action": "modify_checkbox",
+  "wp": "WP0",
+  "milestone": "M1",
+  "text": "Replaces L333-336: - [ ] (M1) Check preferences, the link editor, the importers and other fixed-geometry dialogs for clipping at native font sizes, on PyQt6/Retina and on supported PyQt5 (Qt #68). Keep the slice label's 0.75x scale unless the manual pass shows it is unreadable. CI status, including Linux/Windows runs after the font change, is outside this plan."
+ },
+ {
+  "id": "archive-trace-16",
+  "action": "modify_checkbox",
+  "wp": "WP8",
+  "milestone": "M2",
+  "text": "Replaces L960-962: - [ ] (M2) Stop and await the previous worker on rescan, directory change, accept, reject and close, and preserve the archive-extraction messages. After leaving busy mode (`setRange(0, 100)`), repair an invalid progress value in `_scan_over` so that stopped/failed text is visible, without resetting a completed extraction from 100 to 0. This is the tested contract in wp8_proto.py:54-61."
+ },
+ {
+  "id": "archive-trace-17",
+  "action": "decision_needed",
+  "wp": "WP1",
+  "milestone": "M1",
+  "text": "Decision: D3 scope for sunpy Maps opened through File\u2192Open. maps.py keeps `scan_map.wcs`, so these maps display degrees and WP1's `link_hpc` ignores them. Options: (a) scope D3 to `_GlueWCS` data (IRIS and browser-loaded AIA cutouts), with the D3 text: 'D3 applies to data wrapped in `_GlueWCS`; File\u2192Open sunpy Maps keep sunpy's native units and are not linked by link_hpc; WP7 wraps its own context maps' (recommended for M1: it leaves generic map loading and its sessions unchanged); (b) wrap maps.py maps in `_GlueWCS` in WP1, so every solar map displays arcsec and joins link_hpc; this touches all sunpy-map users and WP3's map round trips."
+ },
+ {
+  "id": "archive-trace-18",
+  "action": "already_covered",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Covered by the companion feature map, which maps every F001-F203 row to a WP checkbox: frame-range and speed controls (F087/F088), row/column cuts (F145), full-disk AIA context (F046), CINT light-curve export and saving within t-bounds (F184), and extra line-list entries (F151). Make sure the F151 checkbox names Fe XII 1349.40 and S IV."
+ },
+ {
+  "id": "usefulness-1",
+  "action": "already_covered",
+  "wp": "general",
+  "milestone": "M0",
+  "text": "The agreed M0 in the skeleton is this thin milestone: a launch entry, the per-type preset, the Pixel point driving fixed indices, and nearest-exposure SJI/raster sync with a slit overlay, all on released core. WP1 coherence, WP3 and WP5 are M1. WP2, WP6, WP7 and the WP8 filter/stop are M2. M0 still needs WP1's `link_hpc`, which is an M0 WP1 item."
+ },
+ {
+  "id": "usefulness-2",
+  "action": "new_checkbox",
+  "wp": "WP1",
+  "milestone": "M1",
+  "text": "- [ ] (M1) SJI point \u2192 raster spectrum. On released core 1.27.0 this path fails: link_hpc's LinkSame links leave the pixel correlation matrix all zero, so an SJI Pixel subset is IncompatibleAttribute on the raster; a direct WCSLink raises AttributeError ('_GlueWCS' has no 'has_celestial'); and autolink suggests 0 links. With core-combined, autolink suggests 1 link, so accept the path on a core with #2595 (behaviour-probed). Before #2595 is released, try a solar-side `_GlueWCS` shim for the has_celestial path, and adopt it only if the real-fixture SJI\u2192raster marker and spectrum test passes. M0 drives the raster from raster-map clicks instead."
+ },
+ {
+  "id": "usefulness-3",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] (M0) Build the preset fresh and test-first on real fixtures, reusing only `nearest`, `link_time` and `observation_key` from wp4_common.py. Tests assert which panels move, and which stay put, for each interaction: SJI frame change, raster-map click, scan or exposure change. The spectrum panel shows the selected point's profile (a one-pixel subset Mean on released core, labelled with any averaging over scans), never a whole-cube mean. The slit overlay must actually be created; the prototype's `quicklook()` never calls `add_slit`."
+ },
+ {
+  "id": "usefulness-4",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] (M0) Define the preset per observation type; this table is WP4's definition of done. Single raster (step, slit, \u03bb): raster map = step \u00d7 slit at the selected \u03bb; spectrogram = \u03bb \u00d7 slit at the selected step; SJI = frame nearest the selected step's time, with slit and point overlay; spectrum = \u03bb at (step, slit). Sit-and-stare (exposure, slit, \u03bb): the map panel is exposure \u00d7 slit at the selected \u03bb (a space\u2013time image, not a map); spectrogram = \u03bb \u00d7 slit at the selected exposure; optional time\u2013wavelength view = exposure \u00d7 \u03bb at the selected slit; SJI = frame nearest the selected exposure; spectrum = \u03bb at (exposure, slit). Stack (scan, step, slit, \u03bb): raster map = step \u00d7 slit at the selected (scan, \u03bb); spectrogram = \u03bb \u00d7 slit at (scan, step); SJI = frame nearest the (scan, step) time; spectrum = \u03bb at (scan, step, slit); time\u2013wavelength = scan \u00d7 \u03bb at (step, slit). The point drives the spectrogram's step, exposure or scan and the SJI frame. The time axis is scan for stacks and exposure for sit-and-stare, never step (wp4_common.py hard-codes pix[-3])."
+ },
+ {
+  "id": "usefulness-5",
+  "action": "modify_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "Replaces L808-815: - [ ] (M0) Sync only the viewers the preset creates and owns (for example in a registered `qt_fixed_layout_tab`), and only the slice axes that represent the matched frame or exposure; never move wavelength or slit sliders by accident. Do not port the prototype's `app.new_data_viewer` wrapper (wp4_common.py:146-153); glue-core has no viewer-created message. Reuse Profile Navigate for same-dataset wavelength and scan changes, and validate WCS-linked Pixel subsets before adding callbacks. Viewers the user opens later join in M1 through a per-viewer, checkable 'Sync to observation time' tool."
+ },
+ {
+  "id": "usefulness-6",
+  "action": "modify_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "Replaces L844-849: - [ ] (M1) Keep the existing default unit-converter registration without persisting a new converter name, but narrow the choices only for IRIS data. Return the stock converter's choices unless the component belongs to an IRIS dataset (OBSID in meta, or a rest wavelength). Regression-test a plain non-IRIS 'm' and 'deg' component; the prototype narrows them to ['Angstrom', 'nm'] and ['arcsec', 'arcmin'] for every dataset. Use optical Doppler conversion consistent with moments. The rest wavelength follows the rest-wavelength default decision. Copy a stack's rest value from the selected window in scan 0's SGMeta, never blindly from TWAVE1."
+ },
+ {
+  "id": "usefulness-7",
+  "action": "decision_needed",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Decision: prototype directory housekeeping. The directory has 280 files. About 56 are live (the README entry points and their imports); the rest are historical probes, 27 logs and 4 diffs outside archive/. 19 non-archive .py files hard-code /Users, /private/tmp or scratchpad paths. wp6_fitting_brief.py differs from wp6_fitting.py only in 7 docstring lines. Options: (a) move everything outside the README entry-point table and its import closure to archive/probes-2026-09/, including wp6_fitting_brief.py, and delete nothing (recommended); (b) as (a), but delete wp6_fitting_brief.py; (c) leave the directory as is. Any move breaks those files' historical relative links; the README keeps a pointer to the new location."
+ },
+ {
+  "id": "usefulness-8",
+  "action": "decision_needed",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "Decision: where the Quantity session saver lives. Importing wp3_impl registers a process-global `@saver(u.Quantity)`/`@loader`. A second registration raises KeyError('Cannot overwrite version 1 ...') (glue/core/state.py:216-239), so a future core Quantity saver would make glue-solar's import fail. Options: (a) solar registers the saver only if none exists, and the user opens a small core PR adding it upstream (recommended; D2 says do not wait); (b) solar only, guarded; (c) core only, and WP3 waits for a release. In every case, port WP3 as `_GlueWCS.__gluestate__`/`__setgluestate__` methods and named factory functions in loaders/iris.py, never by importing prototype modules into production."
+ },
+ {
+  "id": "usefulness-9",
+  "action": "already_covered",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Covered by plan-integrity-1 (the header describes the public `plan` branch) and solar-main-2 (decision on local paths in tracked files). L74 and L120-123 move to the archive; the dated L1070-1071 goes with the validation history."
+ },
+ {
+  "id": "usefulness-10",
+  "action": "already_covered",
+  "wp": "general",
+  "milestone": "n/a",
+  "text": "Covered by the agreed restructure: history moves to the archive, and one feature map replaces the restated gap tables. Keep the live items when moving: the macOS acceptance tasks (L328-347) go to WP0 under Qt #68, the wiki tasks (L1057-1063) go to WP9, and the runner instructions (L1076-1090) stay in Validation."
+ },
+ {
+  "id": "usefulness-11",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] (M0) Add launch entry points for the quicklook: an 'Open quicklook' action in the IRIS browser for the ticked observation; a menubar action for datasets that are already loaded; and a registered glue-qt `startup_action`, so that `glue --startup=iris_quicklook <files>` loads the files and then opens the preset (glue-qt 0.4.2 main.py:57, 181-189, 232-233). Done when each entry point opens the same preset on a real fixture."
+ },
+ {
+  "id": "usefulness-12",
+  "action": "new_checkbox",
+  "wp": "WP10",
+  "milestone": "M0",
+  "text": "- [ ] (M0) Handle large data in the M0 preset. (1) The preset never triggers the ProfileViewer large-data modal, or answers it itself (`large_data_size = 1e8`, default 'Cancel'); a Mg II k window of OBSID 3824262996 has 235M points. (2) Load ticked windows off the GUI thread and show progress; today the loaders read with `memmap=False` inside the GUI-thread finalize loop. (3) Evaluate irispy `memmap=True`, which drops scaling and masks and so needs loader work, and record peak RSS. (4) Measure against the M0 budgets on the named datasets. Done when a ticked 1-1.5 GB window opens the preset with no modal and the budget results are recorded."
+ },
+ {
+  "id": "usefulness-13",
+  "action": "new_checkbox",
+  "wp": "WP9",
+  "milestone": "M1",
+  "text": "- [ ] (M1) Add a user-guide tutorial that performs each IRIS-9 CRISPEX task in Glue and serves as the milestone acceptance script. M0 tasks run on released glue-core/glue-qt; M1 tasks are added as their features land. Done when every task in the acceptance script has a documented Glue step list and a passing run on the named data."
+ },
+ {
+  "id": "usefulness-14",
+  "action": "new_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "- [ ] (M1) Cross-window blink, as in IRIS-9 3.3.1 (the Si IV 1403 and Mg II k 2796 cores). Alternate two raster windows of the same observation, each at its own wavelength, keeping the spatial point, the time and each window's scaling. Reuse the WP5 timer tool (default about 2 frames/s) and restore visibility and slices on stop. glue-solar loads each window as a separate Data, so the same-cube two-wavelength blink (L857-859) does not cover this case. Feasibility is unverified, so prototype first: either two layers in one viewer through step/slit pixel links, or two viewers."
+ },
+ {
+  "id": "usefulness-15",
+  "action": "decision_needed",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "Decision: WP4 coordination defaults, needed for a definition of done. Proposed, to confirm or replace item by item: (1) Tracking: a fixed detector pixel in M0, with no world tracking from the scan-0 stack WCS; a fixed solar position can come later if wanted. (2) Time axes: index axes (scan, exposure, frame) plus a timestamp readout; physical UTC axes no earlier than M2. (3) Nearest-exposure matching: ties choose the earlier exposure. There is no match when |offset| exceeds half the partner's median cadence, or when the time is outside the partner's coverage; the partner panel then shows no frame (greyed) and the offset, never a clamped frame. (4) Master: the raster by default, switchable to the SJI with a visible selector in the preset; the last-interacted viewer is the alternative."
+ },
+ {
+  "id": "usefulness-16",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] (M0) GUI test harness. Drive the preset and sync tests with the synthetic Matplotlib MouseEvent helpers `mouse` and `select_point` from review_20260923/test_existing_workflows.py:48-97, which perform a real Pixel press, drag and release. Use named real fixtures, and mock modal dialogs (including the large-data warning) so no test blocks. Add a short manual native-GUI checklist for the quicklook, like the macOS one."
+ },
+ {
+  "id": "usefulness-17",
+  "action": "new_checkbox",
+  "wp": "WP11",
+  "milestone": "M1",
+  "text": "- [ ] (M1) Add minimal CRISPEX-style keys and gamma through the public registries, with no new UI. Register frame and wavelength step/play keys for the preset viewers through glue-qt's `keyboard_shortcut` registry (F197). The registry holds only Tab and Backspace today and cannot express Shift/Ctrl chords such as CRISPEX's Shift+A/S. Add a power-law (gamma) stretch alongside linear, sqrt, arcsinh and log (F062). Done when the IRIS-9 'gamma < 1' task and frame/wavelength stepping work from the keyboard in the preset."
+ },
+ {
+  "id": "usefulness-18",
+  "action": "already_covered",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "Covered by the modified WP4 slit checkbox under plan-integrity-21: `pixel_stride` is dropped from the production API, fixture tests accept off-image values, and the overlay is tested on a full-resolution local SJI (OBSID 4000255147 SJI 1400, slit x 195.0)."
+ },
+ {
+  "id": "usefulness-19",
+  "action": "already_covered",
+  "wp": "WP9",
+  "milestone": "M0",
+  "text": "The workflow recipes are plan-integrity-5's WP9 M0 checkbox. The screenshot helper is solar-main-1's urgent decision, which takes the L190-194 checkbox out of the cleanup history."
+ },
+ {
+  "id": "wp1-links-1",
+  "action": "decision_needed",
+  "wp": "WP1",
+  "milestone": "M1",
+  "text": "Decision: which link serves SJI<->raster when a #2595 WCSLink and link_hpc both exist. Glue keeps the lowest-depth path (link_manager.py:54-94@v1.27.0), so the 1-hop WCSLink always wins for pixel ROIs. World-coordinate subsets still go through link_hpc. Options: A) Keep both. Pixel ROIs, Pixel subsets and markers follow frame-0 WCS geometry; world-component subsets follow link_hpc per frame; document the drift (42.2 arcsec over the 4.8 h fixture). B) The browser and the link action drop WCSLink suggestions for SJI<->raster pairs that link_hpc covers. This restores per-frame raster->SJI pixel ROIs but loses the M1 SJI Pixel->raster marker and spectrum, because link_hpc alone raises IncompatibleAttribute. Recommended default: A. Checkbox under A (F049/F050): 'Combined-graph regression, gated on #2595 behaviour: load real SJI+raster pairs through the browser path with the real autolinker (modal dialog mocked, not monkeypatched away as at wp1 test_linking.py:172), then link_hpc and the WP4 time mapping. Run every add order, on irispy 0.8.1 and 0.9.0 fixtures. Assert that an SJI Pixel reaches the raster marker and spectrum, a raster ROI reaches the SJI, an SJI world-component subset reaches the raster through link_hpc, and results are identical in every order. Document which path each interaction uses.' Duplicate/related: followup-1-3, followup-1-6, plan-integrity-6."
+ },
+ {
+  "id": "wp1-links-2",
+  "action": "plan_text_fix",
+  "wp": "WP1",
+  "milestone": "M0",
+  "text": "Replace D1 (plan:629-633) with: 'D1: keep link_hpc permanently. It supplies time-aware world-coordinate links between IRIS datasets: world-component subsets, and per-frame raster->SJI pixel ROIs where no WCSLink exists (the only IRIS link on released glue-core 1.27.0). APE-14 WCSLinks (#2595) describe frame-0 geometry. Once present, they are the 1-hop path and take over pixel ROIs, Pixel subsets and markers (see the WP1 link policy). On the 4.8-hour sit-and-stare fixture the frame-0 mapping is off by 42.2 arcsec at the last frame, on irispy 0.8.1 and 0.9.0. The archived 186/187 reach came from LinkSame plus a lambda time link plus an all-ones correlation matrix, which the contracts below forbid, so no WP delivers it. link_hpc alone does not let an SJI ROI reach the raster (IncompatibleAttribute). Reach counts are fixture-specific and are not test targets.' Duplicate: followup-1-4."
+ },
+ {
+  "id": "wp1-links-3",
+  "action": "plan_text_fix",
+  "wp": "WP1",
+  "milestone": "M0",
+  "text": "The D1 rewrite (full text under wp1-links-2) drops '14/187 ... versus 186/187' and cites only the drift. If a reach number is quoted anywhere, use: 'Pixel-link reach on the #2595 head is 12/187 raster steps with the irispy 0.8.1 fixture and 124/187 with 0.9.0. The 0.8.1 SJI CDELT is 10x too small; irispy e80c51f, released in 0.9.0, fixed it. SJI (25,25) maps to step 3 on 0.8.1 and to step 40 on 0.9.0.' Mark any plan reference to the audit's geometric numbers (review_20260923/README.md:27-28) as specific to the 0.8.1 fixture."
+ },
+ {
+  "id": "wp1-links-4",
+  "action": "new_checkbox",
+  "wp": "WP1",
+  "milestone": "M0",
+  "text": "irispy 0.9.0 baseline: record irispy-lmsal 0.9.0 (released 2026-09-10) as the validated irispy. Its bundled fixtures are named *_test.fits, its SJI CDELT is fixed, and its windows are full windows decimated 10x. M0 baseline: solar main on glue-core 1.27.0 / glue-qt 0.4.2 / irispy 0.9.0 gives 34 passed, 1 skipped. Every ported WP1/WP4 test and the WCS-capability probe find fixtures with glue_solar/conftest.py:181 find_irispy_test_file, never by exact name. The WP1 prototype's _real helper errors on 0.9.0 (StopIteration at test_linking.py:36; 1 failed, 9 errors). Keep the pyproject floor at >=0.8.1 unless a port needs 0.9.0. Duplicate: upstream-state-3."
+ },
+ {
+  "id": "wp1-links-5",
+  "action": "modify_checkbox",
+  "wp": "WP1",
+  "milestone": "M1",
+  "text": "Replace plan:716-719 with: 'Gate the real autolink tests on the actual #2595 behaviour, not a version. Test SJI/raster, raster/raster, source/map, map/map, SJI/SJI and sunpy-map pairings without a modal autolink dialog. Port only the three genuine test_importer.py hunks (label, Angstrom units, unit-generic stack round trip) onto main's test file. The WP1 prototype copy predates #50/#52: it drops find_irispy_test_file and expects 2 components where Time makes 3, and it fails 2 tests. Run the whole ported test directory in the recorded check, not only test_linking.py and test_plugin.py. Keep scalar/array coverage on the older supported Astropy stack, and update docs and the changelog.'"
+ },
+ {
+  "id": "wp1-links-6",
+  "action": "decision_needed",
+  "wp": "WP1",
+  "milestone": "M1",
+  "text": "Decision: does D3 cover glue-solar's own sunpy Map loaders? maps.py:27 and loaders/maps.py:68-70 assign the raw map WCS, so File->Open AIA/HMI maps show Hplt/Hpln in degrees and link_hpc ignores them (plan:707-708). Options: A) Wrap both map paths in _GlueWCS in WP1 (M1). Arcsec everywhere, link_hpc covers File->Open maps on released core, and WP7 reuses the same path. Costs: WP3 must round-trip wrapped maps (already listed at plan:767), and existing map users see arcsec readouts. B) Wrap them in WP7 (M2), as the 2026-09-05 archive planned (archive plan 'Dropped' list), and scope D3 to IRIS/_GlueWCS data until then. C) Scope D3 to IRIS data permanently; maps stay in degrees. Recommended default: A. Whatever is chosen, add the sunpy-map autolink regression: under #2595, raster and SJI each get 1 WCSLink to an AIA map, the link output equals the expected coordinates, and under A link_hpc links the wrapped map. Duplicate: archive-trace-17."
+ },
+ {
+  "id": "wp1-links-7",
+  "action": "modify_checkbox",
+  "wp": "WP1",
+  "milestone": "M1",
+  "text": "Append to plan:702-705: 'Constructor pass-through follows astropy's order, klass(*component_values, *class_args, **kwargs, **class_kwargs) (astropy high_level_api.py:369-390). So index values[index] and route string (keyword) component attributes through kwargs. The prototype indexes values[n_args + index] (wp1 loaders/iris.py:122-128); add a unit test with a class tuple that has positional args. Handle a 1-D WCS whose pixel_to_world_values returns a bare array rather than a tuple: main loaders/iris.py:53 calls list() on it, which fails for scalars (iteration over a 0-d array).'"
+ },
+ {
+  "id": "wp1-links-8",
+  "action": "decision_needed",
+  "wp": "WP1",
+  "milestone": "M0",
+  "text": "Decision: how temporary glue workarounds are gated. The 2026-09-05 archive plan (:1556) says a version gate was requested, but the prototype gates on a behaviour probe (wp1/glue_solar/glue_patches.py:34-48), as plan:698-699 describes. Options: A) Behaviour probe: install the #2598 correlated-axis workaround only when the probe shows the bug, with a removal note naming glue #2598. WP0 swaps the probe for a release floor once a glue-core release contains the fix. B) Version gate on glue-core <=1.27.0. It is simple, but no release contains #2598 yet, and WP0 (plan:301-303) forbids assuming a later version has it. C) Both. Recommended default: A. Then replace D2's 'Version-gate temporary workarounds and remove them only when the required upstream fix is actually available' (plan:637-638) with 'Gate temporary workarounds on a behaviour probe, with a removal note naming the upstream PR; replace the probe with a release floor once a release contains the fix (WP0).' In plan:709-711, replace 'only if the installed core lacks #2598' with 'only when its behaviour probe fails'. List WP1 with WP3/WP5 as a process-wide patch (the prototype installs it when glue_solar is imported, wp1/glue_solar/__init__.py:6). Duplicate: archive-trace-7."
+ },
+ {
+  "id": "wp2-wp6-science-1",
+  "action": "modify_checkbox",
+  "wp": "WP2",
+  "milestone": "M2",
+  "text": "Replace plan:731-734 with: 'Provide rest wavelength, blue/red wings, minimum intensity, saturation and integrated-mode fields. Prefill the rest only from the WP5 rest-wavelength helper (explicit override, then the line-list lab value, never TWAVE). TWAVE is the window's nominal wavelength: against Mg II k TWAVE 2796.20 vs vacuum 2796.352 A, v = c(lambda-lambda0)/lambda0 reads +16.3 km/s too red; Si IV 1394 reads -5.4 km/s. Without a rest, velocity products are disabled and the dialog says why; the dialog shows the line in use. Wings default to +/-0.5 A around the rest and are required. A blank wing is an error, not the whole window: whole windows hold several lines, and those defaults gave Mg II +504 km/s and sigma 5.9 A on the 2018 raster. Convert the integrated threshold to DN A. Document that irispy zeroes negative and non-finite samples (moments.py:135), which inflates sigma for faint lines, and suggest a minimum-intensity threshold. WP6 takes its optional centre from the same helper.' (Shared with wp2-wp6-science-2; the WP5 policy is under wp3-wp5-1.)"
+ },
+ {
+  "id": "wp2-wp6-science-2",
+  "action": "modify_checkbox",
+  "wp": "WP2",
+  "milestone": "M2",
+  "text": "This shares the plan:731-734 replacement with wp2-wp6-science-1; identical text: 'Provide rest wavelength, blue/red wings, minimum intensity, saturation and integrated-mode fields. Prefill the rest only from the WP5 rest-wavelength helper (explicit override, then the line-list lab value, never TWAVE). TWAVE is the window's nominal wavelength: against Mg II k TWAVE 2796.20 vs vacuum 2796.352 A, v = c(lambda-lambda0)/lambda0 reads +16.3 km/s too red; Si IV 1394 reads -5.4 km/s. Without a rest, velocity products are disabled and the dialog says why; the dialog shows the line in use. Wings default to +/-0.5 A around the rest and are required. A blank wing is an error, not the whole window: whole windows hold several lines, and those defaults gave Mg II +504 km/s and sigma 5.9 A on the 2018 raster. Convert the integrated threshold to DN A. Document that irispy zeroes negative and non-finite samples (moments.py:135), which inflates sigma for faint lines, and suggest a minimum-intensity threshold. WP6 takes its optional centre from the same helper.' The 'prefilled wings from a profile range' follow-up (plan:1022) stays in M3."
+ },
+ {
+  "id": "wp2-wp6-science-3",
+  "action": "modify_checkbox",
+  "wp": "WP6",
+  "milestone": "M2",
+  "text": "Replace plan:894-899 with: 'Fit only valid samples. Build mask = loader mask | ~isfinite(data) and pass it to parallel_fit_dask as mask= (zero weights; astropy _fitting_parallel.py:505-510). Do not clip negative values and do not apply nan_to_num. NaN every parameter of a spectrum with no valid sample: today 1687/1687 fully missing spectra get finite fits sitting at the seed. Test on a noisy, zero-background synthetic cube with missing samples: it recovers amplitude and sigma with mask= and fails with the old clipping. Weights/uncertainties and diagnostics files stay out of v1; no dask/fitting extra is needed. Do not call results calibrated science products. Historical timings are machine-specific, not CI thresholds. Add action registration, docs/API entries and a changelog entry; require WP3 before claiming fitted products save in sessions.' Fit-window controls and velocity maps leave the v1 exclusion list (see wp2-wp6-science-7). This also resolves the masks/quality contradiction with plan:495."
+ },
+ {
+  "id": "wp2-wp6-science-4",
+  "action": "new_checkbox",
+  "wp": "WP6",
+  "milestone": "M2",
+  "text": "Quality filter before publishing fit maps (F157). Gaussian1D depends on sigma^2, so where amplitude > 0 publish |sigma|. That covers 62% of the sigma<0 fits, which have median |sigma| 0.081 A and centroids within +/-0.5 A of rest. NaN fits with emission amplitude <= 0, a centroid outside the fit window, or a non-converged fit_info; a bounded fitter (TRFLSQFitter) is an alternative. Record the rejected fraction in the product meta and the completion message. Unfiltered fits on the 2018 Si IV raster: sigma<0 6.0%, amp<0 11.2%, NaN 0.000."
+ },
+ {
+  "id": "wp2-wp6-science-5",
+  "action": "already_covered",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "The skeleton puts the Doppler wing-difference image in WP5 at M1, ahead of WP6 (M2), as this finding asks. The checkbox text is under wp3-wp5-11 (F148/F149): a D4 layer_action that builds a Delta-v-indexed I(lambda0-dl) - I(lambda0+dl) cube from the WP5 rest helper. No further plan change is needed."
+ },
+ {
+  "id": "wp2-wp6-science-6",
+  "action": "new_checkbox",
+  "wp": "WP2",
+  "milestone": "M2",
+  "text": "Optically thick windows (F153/F157/F158). For Mg II h/k and C II windows (matched by window name), WP2 and WP6 mark centroid, velocity and width products as proxies. They set meta line_regime = 'optically thick: centroid/width are proxies, not line-of-sight velocity', and the dialog shows a warning. The WP6 double Gaussian is labelled 'Mg II k2v/k2r proxy', following irispy gallery 07 ('a simple fitted proxy ... rather than a full radiative-transfer inversion'). The user guide lists the thin lines where these products are physically interpretable (Si IV, O IV, Fe XII, Fe XXI, O I). For thick lines it points to the WP5 Doppler image or the k2/k3 feature extraction (F162, M3)."
+ },
+ {
+  "id": "wp2-wp6-science-7",
+  "action": "modify_checkbox",
+  "wp": "WP6",
+  "milestone": "M2",
+  "text": "Append to plan:875-880: 'Fit only inside a fit window taken from the WP2 rest/wings fields (default: rest from the WP5 helper +/-0.5 A, editable). When a rest is known, add velocity and sigma_velocity components (km/s, optical convention, same rest helper as WP2). Fitting the whole Mg II window instead of 2794-2798 A raises the background by about 70 DN (40%), lowers sigma by about 10% and moves the centroid by at most 0.004 A. The effect on multi-line Si IV/C II windows was not measured, so test one of them.' Remove 'fit-window controls, velocity' from the v1 exclusion at plan:894 (done in the wp2-wp6-science-3 replacement)."
+ },
+ {
+  "id": "wp2-wp6-science-8",
+  "action": "new_checkbox",
+  "wp": "WP2",
+  "milestone": "M2",
+  "text": "Saturation/Inf guard (F170): mask non-finite samples (NaN, +/-Inf) before calling irispy moments. irispy zeroes Inf (moments.py:135) before its saturation test (moments.py:176), so an Inf-flagged pixel currently shows reduced intensity instead of being flagged. The WP6 mask (wp2-wp6-science-3) covers fits; today one Inf spectrum leaves 1/18 finite centroids. Warn with the header counts when NSATPIX or TSATPXn is above 0. Test with synthetic Inf samples. ITN 26 section 6.4 says saturated pixels are Inf, but local int16 Level-2 files (BSCALE 0.25, BZERO 7992) cannot hold Inf and all show NSATPIX 0. This is a guard, not a demonstrated real-data defect."
+ },
+ {
+  "id": "wp2-wp6-science-9",
+  "action": "new_checkbox",
+  "wp": "WP2",
+  "milestone": "M2",
+  "text": "Exposure normalisation (F165): offer DN/s for WP2 intensity and WP6 amplitude/background maps. Divide by the per-exposure time the loader keeps in meta ('exposure time', irispy io/spectrograph.py:201-228). Default on, units 'DN / s'. Exposures of 0 s give NaN, and minimum-intensity thresholds apply after normalisation. Per ITN 26, AEC varies exposures only in extreme cases. The 2018 raster has constant 7.999 s apart from one 0-s FUV step, which is already masked. So this is for comparability, not a demonstrated defect."
+ },
+ {
+  "id": "wp2-wp6-science-10",
+  "action": "modify_checkbox",
+  "wp": "WP2",
+  "milestone": "M2",
+  "text": "Replace plan:735-738 with: 'Add one Data with intensity, its mask, centroid, sigma, velocity, sigma_velocity and Time. Widths are Gaussian 1-sigma standard deviations (irispy moments.py:79); give FWHM = 2 sqrt(2 ln 2) sigma ~ 2.355 sigma in the component description and the guide. Coordinates follow the derived-map contract: _GlueWCS(SlicedLowLevelWCS(raw_wcs, ...)) of the source raster's raw WCS at wavelength index 0. Do not use irispy's rebuilt 2-axis HPLT-TAB/HPLN-TAB WCS: it makes WP3's _tab_record raise IndexError (wp3_impl.py:41-43), and then no session containing a moments map saves. Convert nm outputs to Angstrom and use km/s for velocity products. Write the rest actually used to meta[rest_wavelength] (float, A). Add exactly two spatial pixel links and open no viewer.' (Shared with wp2-wp6-science-13. The round-trip test is in the WP2 test checkbox, wp2-wp6-science-14.)"
+ },
+ {
+  "id": "wp2-wp6-science-11",
+  "action": "already_covered",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "Covered by the new WP5 checkbox under wp3-wp5-10 (M1). It puts the Level-2 wavelength-calibration caveat into the WP5 UI, the WP2/WP6 product meta and the guide. It also documents a reference-line correction through the existing rest override: a zero-point offset dl is absorbed by entering rest + dl (first-order equivalent), so no separate offset field is added (F168)."
+ },
+ {
+  "id": "wp2-wp6-science-12",
+  "action": "modify_checkbox",
+  "wp": "WP6",
+  "milestone": "M2",
+  "text": "Replace plan:885-888 with: 'Put parameter maps in one new dataset, with one pixel link per non-spectral axis and the source Time. The residual cube is opt-in and off by default. When requested it is float32, at the source's original shape, on the source. fit_gaussians' float64 residual is 533 MB against a 266.5 MB float32 source for a 320x548x380 Mg II window, and a component without a LoadLog is embedded in sessions (glue state.py _save_component). Per-pixel model-versus-data comparison stays in the Profile Fit tab. Support 3D rasters and 4D stacks. Use the corrected _GlueWCS(SlicedLowLevelWCS(raw_wcs, slices)) form.' Duplicate: followup-2-4."
+ },
+ {
+  "id": "wp2-wp6-science-13",
+  "action": "modify_checkbox",
+  "wp": "WP2",
+  "milestone": "M2",
+  "text": "This shares the plan:735-738 replacement with wp2-wp6-science-10; identical text: 'Add one Data with intensity, its mask, centroid, sigma, velocity, sigma_velocity and Time. Widths are Gaussian 1-sigma standard deviations (irispy moments.py:79); give FWHM = 2 sqrt(2 ln 2) sigma ~ 2.355 sigma in the component description and the guide. Coordinates follow the derived-map contract: _GlueWCS(SlicedLowLevelWCS(raw_wcs, ...)) of the source raster's raw WCS at wavelength index 0. Do not use irispy's rebuilt 2-axis HPLT-TAB/HPLN-TAB WCS: it makes WP3's _tab_record raise IndexError (wp3_impl.py:41-43), and then no session containing a moments map saves. Convert nm outputs to Angstrom and use km/s for velocity products. Write the rest actually used to meta[rest_wavelength] (float, A). Add exactly two spatial pixel links and open no viewer.' WP6 also names its width components sigma (and sigma_1/sigma_2 for the double Gaussian), not width (wp6_fitting.py:111), with the same 1-sigma convention."
+ },
+ {
+  "id": "wp2-wp6-science-14",
+  "action": "modify_checkbox",
+  "wp": "WP2",
+  "milestone": "M2",
+  "text": "Replace plan:739-742 with: 'Test the numbers on a synthetic SpectrogramCube with a known Gaussian plus noise, masked samples and one Inf; assert centroid, sigma and velocity against the truth. Use real irispy rasters only for shapes, units, masks and plumbing: the 0.8.1 Mg II fixture window (2793.44-2794.74 A) contains no line core, so |median v| < 20 checks nothing physical. Test invalid input without partial publication, bidirectional source/map spatial subsets, and a save/reopen round trip through WP3. Reuse WP5's rest helper. Add the user-guide page, API entry and changelog.'"
+ },
+ {
+  "id": "wp2-wp6-science-15",
+  "action": "modify_checkbox",
+  "wp": "WP6",
+  "milestone": "M2",
+  "text": "Replace plan:889-893 with: 'Recover noiseless synthetic amplitudes/widths to rtol 1e-4 and centroids to 1e-6. Add the noisy, masked synthetic case and a 4D stack case to the recorded suite, which is 3D-only today; e.g. stack (13,8,109,17) should give maps (13,8,109) and 3 links. Test real irispy raster shapes and units, source/map subset propagation, the opt-in residual, worker completion and non-spectrogram rejection. Real-fixture finite/NaN behaviour is a regression check, not physical fit certification.' (This drops 'the bundled windows omit line cores', which is 0.8.1-specific; see wp2-wp6-science-17.)"
+ },
+ {
+  "id": "wp2-wp6-science-16",
+  "action": "new_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "One rest-wavelength key (F147). The WP5 helper reads meta[rest_wavelength] first: a float in Angstrom holding the user override or the rest a product actually used. After that it falls back to the line-list match on meta[spectral_window]. WP2 and WP6 products write the rest they used under that key. Today WP6 writes rest_wavelength_angstrom, so the helper returns None (wp6_fitting.py:105), and WP2 maps inherit SGMeta, so the helper returns TWAVE 2796.20 instead of the user's 2794.09 (wp5_units.py:11-24). Plain meta keys also survive session restore (wp3-wp5-4). Duplicate: archive-trace-13."
+ },
+ {
+  "id": "wp2-wp6-science-17",
+  "action": "plan_text_fix",
+  "wp": "WP2",
+  "milestone": "M2",
+  "text": "Replace plan:1110-1113 with: 'Use real irispy fixtures through glue_solar/conftest.py find_irispy_test_file, which handles the 0.8.1 names and the 0.9.0 *_test.fits names; prefer the sns/ copy when raster names repeat. irispy 0.9.0 bundles full windows decimated 10x (e.g. Mg II k 2793.42-2806.40 A at 0.2546 A/px). 0.8.1 bundled sub-windows without line cores and sometimes without TWAVE. Expectations measured on 0.8.1 fixtures (5354 masked samples, a Si IV window below 1400 A) fail on 0.9.0, so derive them from the fixture. Choose explicit in-window wavelengths for numerical checks and do not call them physical validation.' Also delete 'the bundled windows omit line cores' at plan:892-893 (the wp2-wp6-science-15 replacement already does). Before porting, re-run the WP2/WP6 prototype checks on 0.9.0; today they give 3 failed, 11 passed, 3 errors. Duplicate: upstream-state-3."
+ },
+ {
+  "id": "wp3-wp5-1",
+  "action": "new_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "Rest-wavelength policy shared by WP2, WP5 and WP6 (F147/F150/F069). Priority: explicit Angstrom override, then the lab vacuum value from the packaged line list matched to the window's TDESC name, then unavailable. When a window holds several candidate lines (e.g. C II 1334/1335 in 'C II 1336'), the user picks from the in-window lines. Never use TWAVE silently: irispy's SGMeta.rest_wavelength is TWAVEn (irispy meta.py:193-198, 0.8.1 and 0.9.0), and for Mg II k 2796.20 vs 2796.352 A it reads v = c(lambda-lambda0)/lambda0 +16.3 km/s too red. It equals the lab value only for C II 1336, O I 1356 and Si IV 1403. Continuum windows (1343, 2832, 2826, 2814) get no km/s. Show the rest in use next to the unit choice. A stack uses scan 0's window identity. Tests: Mg II k gives 2796.352, the C II window asks, continuum windows offer no km/s, and an override wins. Duplicates: wp2-wp6-science-1, archive-trace-4."
+ },
+ {
+  "id": "wp3-wp5-2",
+  "action": "new_checkbox",
+  "wp": "WP0",
+  "milestone": "M1",
+  "text": "Upstream bug plus scoped workaround (F175). ProfileViewerState restores x_att and x_display_unit at the same priority (glue/viewers/profile/state.py:333-341@v1.27.0, unchanged on upstream main, #2596 and #2601). So every Profile viewer whose x_att is not the default axis fails GlueApplication.restore_session with ValueError, e.g. 'value Angstrom is not in valid choices [arcsec, arcmin, deg]'. That includes every IRIS wavelength-spectrum panel. File a core issue/PR giving x_att a higher restore priority than x_display_unit. Until a release contains it, add a behaviour-probe-gated glue-solar workaround. WP3's application-level acceptance restores a multi-axis IRIS Profile viewer with Angstrom, nm and km/s display units."
+ },
+ {
+  "id": "wp3-wp5-3",
+  "action": "plan_text_fix",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "Replace the contract at plan:660-663 with: 'WP2 moments maps, WP6 fit maps and any other derived spatial map use coordinates _GlueWCS(SlicedLowLevelWCS(raw_wcs, slices)): unwrap the source once, slice its raw WCS and rewrap once, so WP3's saver reaches the sliced record. A bare outer sliced wrapper is not covered. Neither is irispy's rebuilt 2-axis -TAB WCS (make_spatial_template -> cube.wcs.dropaxis): with it, _tab_record's hard-coded axes (2, 3) raise IndexError and the whole save fails.' The WP2 round-trip test lives in the WP2 test checkbox (wp2-wp6-science-14)."
+ },
+ {
+  "id": "wp3-wp5-4",
+  "action": "new_checkbox",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "Keep window identity across sessions (F175/F147). Glue's data loader rebuilds Data.meta as a plain OrderedDict (glue/core/state.py _load_data_5), so a restored raster loses SGMeta. rest_wavelength and spectral_window disappear, the TWAVE/TDESC keys survive without the window index, and km/s stops being offered. At load time the loader writes plain meta[spectral_window] (the TDESC name) on every raster window and stack. The WP5 helper reads that key and meta[rest_wavelength] rather than SGMeta properties. Acceptance: a real Si IV 1403 raster saved with a km/s Profile viewer reopens with km/s still offered and the same rest value. Duplicate: archive-trace-3."
+ },
+ {
+  "id": "wp3-wp5-5",
+  "action": "modify_checkbox",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "Replace plan:760-763 with: 'Retain Quantity metadata of glue-solar datasets (values and units) without flattening or mutating live metadata. Use a saver scoped to those datasets, never a process-wide Quantity saver/loader. The prototype's global saver (wp3_impl.py:102-110) makes any session with Quantity metadata unreadable without glue-solar (KeyError data), and Quantity subclasses come back as plain Quantity. Stock 1.27.0 cannot save Quantity metadata at all (TypeError), and #2597 does not add it. Offer glue-core a small Quantity saver PR next to #2597 (WP0) and drop the solar saver once a release has it. Preserve the documented omission of Time/SkyCoord metadata. Keep plain datasets' style records unchanged; do not install a global version-2 VisualAttributes saver.' Related: usefulness-8."
+ },
+ {
+  "id": "wp3-wp5-6",
+  "action": "modify_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "Replace plan:844-849 with: 'Register through the existing default unit-converter name, with no new persisted converter name. Add km/s (optical convention v = c(lambda-lambda0)/lambda0, the same as WP2) only to the spectral component of datasets whose rest helper returns a value. For every other component and dataset, return super()'s stock choices unchanged. The prototype narrows every length/angle component of every dataset (wp5_units.py:36-40, 51): after import, rad offers only arcsec/arcmin/deg and loses mas. Add a regression test that a non-IRIS dataset keeps its stock length and angle unit lists. The rest value comes from the rest-wavelength policy checkbox.' Duplicate: usefulness-6."
+ },
+ {
+  "id": "wp3-wp5-7",
+  "action": "new_checkbox",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "Application-level session acceptance on real data (F175): save and reopen the M0 quicklook twice. Cover the raster-map, spectrogram, SJI and spectrum Image/Profile viewers (including a Profile with non-default x_att and A/km/s units), point and ROI subsets, and the WCS, link_hpc and WP4 time mapping. After reopening, the Pixel point, nearest-exposure time sync and slice coordination work again without rerunning the browser. WP4 coordination is re-attached from saved state through a restore hook, not by wrapping app.new_data_viewer, which misses restored viewers. WP2, WP4, WP5 and WP6 each add their own save/reopen test. Today the only round trips use bare DataCollections (wp3chk_test_sessions.py:32-35). Related: archive-trace-2, wp4-quicklook-9."
+ },
+ {
+  "id": "wp3-wp5-8",
+  "action": "new_checkbox",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "Compact derived components and a session budget (F175). WP4's nearest-exposure/frame maps are stored and saved as 1-D per-frame or per-exposure arrays, or recomputed from Time on restore, never as full-shape broadcast int32 components. This constrains the WP4 design from M0 onward. Components added after load have no LoadLog and are embedded at about 5.3 B/pixel: a file-referencing fixture session grows from 66525 B to 1197291 B, which becomes gigabytes at real SJI/raster sizes. Acceptance: a file-referencing session of SJI + 2 raster windows with time sync active stays within the WP3 budget on a representative real observation (proposed <= 1 MB and <= 2 s to save, per followup-2-3). Duplicates: followup-2-3, wp4-quicklook-4, archive-trace-1."
+ },
+ {
+  "id": "wp3-wp5-9",
+  "action": "modify_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "Replace the first sentence of plan:850-853 ('Add the 11-line IRIS wavelength/name list') with: 'Package a vetted IRIS line list: vacuum wavelengths in A to 3 decimals, a source column (NIST ASD/CHIANTI; iris_lines.csv has no provenance today) and names matching TDESC (C II 1336, not C II 1335). Keep the current 11 lines and add Fe XII 1349.40 (its window is in the test raster), the Mg II triplet 2798.75/2798.82, O IV 1404.78, S IV 1404.81/1406.02, and the reference lines Ni I 2799.474 and S I 1401.515. Use Fe XXI 1354.106 (Young, Tian and Jaeggli 2015) rather than 1354.08, or cite ITN 38 for 1354.08.' Keep the rest of the checkbox: registry layer/state pattern; positions follow units, visibility, colour and linewidth; hidden on a non-spectral x-axis; pixel positions in WCSAxes mode. Duplicate: followup-3-14."
+ },
+ {
+  "id": "wp3-wp5-10",
+  "action": "new_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "Wavelength-calibration caveat (F168). The rest dialog, WP2/WP6 velocity product meta and the user guide state that velocities are relative to the uncorrected Level-2 wavelength scale. ITN 26 section 5.1 says it is accurate to only a few pixels and should be checked manually; ITN 38 section 4.2 puts it within 5-10 km/s. Guide recipe: measure a reference line (Ni I 2799.474, S I 1401.515 or O I 1355.598 A) in the Profile viewer and enter rest + dl as the override. No separate per-dataset offset field (also covers wp2-wp6-science-11)."
+ },
+ {
+  "id": "wp3-wp5-11",
+  "action": "new_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "Doppler (wing-difference) image (F148/F149), a D4 layer_action 'IRIS: Doppler image...'. It takes a per-scan raster with a rest from the WP5 helper and adds one derived Data with a Doppler-offset axis in km/s. Each plane is I(lambda0-dl) - I(lambda0+dl), i.e. blue minus red as in irispy gallery 02 (doppler = I(-50 km/s) - I(+50 km/s)), taken at wavelength pixels mirrored about the rest pixel as CRISPEX's lp_dop = 2*lc - lp (crispex.pro:21000-21002, 21054-21059). Browse it with the ordinary slider; a +/-v Dopplergram is one plane. Give it spatial pixel links to the source, the source Time and meta[rest_wavelength]. Use the derived-map coordinate contract and open no viewer. Disable it when no rest is known. Test: a synthetic shifted Gaussian gives the expected sign and zero crossing, and the product survives save/reopen through WP3. Duplicate: wp2-wp6-science-5."
+ },
+ {
+  "id": "wp3-wp5-12",
+  "action": "new_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "UI entry points (F147/F151). A 'Set rest wavelength...' layer_action on raster/stack datasets, ported from IRIS_PLAN_PROTOTYPES/wp5_override.py:13. It shows the current value and its source (override, line list or unavailable), writes meta[rest_wavelength] and refreshes open viewers. A 'Plugins -> IRIS: Add line list' menubar action adds the line-list layer to the active Profile viewer. Both were in the archived plan (archive/2026-09-05/IRIS_GLUE_GAP_PLAN.md:3413, 3622, 3739-3761) and were dropped in consolidation."
+ },
+ {
+  "id": "wp3-wp5-13",
+  "action": "modify_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "Split plan:857-859 into its own checkbox: 'Wavelength blink (F076): alternate (dataset, wavelength-index) pairs, both two positions in one cube and two windows on a shared spatial grid (IRIS-9: Si IV 1403 vs Mg II k 2796), reusing the layer-blink timer. Keep the spatial point and time, and restore the original slices when disabled. Make scaling an explicit option: shared limits (default) or per-position auto limits, as in CRISPEX imagescale first/current/per-step (crispex.pro:4221-4230, 7950-7955).' Add an M3 checkbox: 'Temporal BLINK and CYCLE (ping-pong) playback (F086): generalise the two-index blink to any slice axis, and ask glue-qt upstream for bounce playback. Stock playback only steps forward or back with wrap (glue-qt data_slice_widget.py:81-89, 146-155).' Related: usefulness-14, followup-3-6."
+ },
+ {
+  "id": "wp3-wp5-14",
+  "action": "modify_checkbox",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "Append to plan:757-759: 'Slice records accept any numbers.Integral index, including numpy ints, and cast slice start/stop/step to int. The prototype checks isinstance(s, int) (wp3_impl.py:65), so a SlicedLowLevelWCS built with an np.int64 index fails to serialize. Add an np.int64 test.'"
+ },
+ {
+  "id": "wp3-wp5-15",
+  "action": "new_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "Line-list style editor without side effects (F151). glue-qt's on_artist_add looks up the artist class exactly in a dict and returns on a miss (layer_artist_model.py:364-369). Turning ProfileViewer._layer_style_widget_cls into such a dict (wp5_linelist_mod.py:116-118) drops the editor for unknown or subclassed Profile artists and for later artists in the same batch. Use a dict subclass whose __missing__ returns ProfileLayerStyleEditor, or scope the change to the line-list artist. Test that a stock profile layer added after the line list still gets its style editor. Retire this with the artist if #2603/#73 land (core-qt-capabilities-4)."
+ },
+ {
+  "id": "wp3-wp5-16",
+  "action": "modify_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "Replace plan:854-856 with: 'Layer blink (F110) with the existing checkable tool and timer. Show the interval control only while blink is active, or keep one interval in the tool's menu, never a permanent QSpinBox added to every Image viewer's toolbar (wp5_blink.py:31-38, 67-68). Re-read the enabled, visible data layers on each tick instead of freezing them at activation. Restore visibility on deactivation and close. Mix/alpha already exists. Make setup idempotent.' The two-wavelength part moves to its own checkbox (wp3-wp5-13)."
+ },
+ {
+  "id": "wp3-wp5-17",
+  "action": "plan_text_fix",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "Replace 'The refreshed artist handles WCSAxes by inverting the selected spectral trace' (plan:838-839) with: 'The refreshed artist handles WCSAxes by inverting the selected spectral trace. Port it as np.interp(value, trace_sorted, pixels_sorted) on the finite, strictly monotonic trace it already samples, not the prototype's per-line brentq root find, which calls the full WCS at every iteration (wp5_linelist_mod.py:85-100). The result is exact for IRIS's linear WAVE axis.'"
+ },
+ {
+  "id": "wp3-wp5-18",
+  "action": "new_checkbox",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "Serializer robustness to irispy changes (F175). Dispatch the WCS record on WCS type and capability (FITS WCS with -TAB -> table record; gWCS -> ASDF; SlicedLowLevelWCS/compound -> recursive), not on irispy's current raster layout. irispy 0.9.0 still uses _create_tabular_wcs and a TWAVE-based rest, which is None when TWAVE is missing. The gwcs_raster_clean branch (12 commits ahead, no PR) moves rasters to gWCS via _create_raster_gwcs/_combine_raster_cubes, so the ASDF path must handle any custom irispy transforms. Where possible, rely on LoadLog re-reads for file-backed data so that only embedded derived maps need a serialized WCS. Whether the current WP3 prototype already skips it is unverified. Retest when irispy's raster WCS changes. Duplicate: upstream-state-2."
+ },
+ {
+  "id": "wp3-wp5-19",
+  "action": "modify_checkbox",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "In plan:771-775, change 'small file-referencing sessions (prototype SJI/three-scan examples under 100 KB)' to 'small file-referencing sessions: the SJI and three-scan examples assert < 100 KB. The prototype asserts < 200000 B (wp3chk_test_sessions.py:131), and that looser bound is not carried over.'"
+ },
+ {
+  "id": "core-qt-capabilities-1",
+  "action": "decision_needed",
+  "wp": "WP1",
+  "milestone": "M1",
+  "text": "Decision: SJI/SJI multi-channel links under #2595. With core-combined, SJI 1400 and SJI 2796 get one WCSLink over all three pixel axes, time included, and frame 0 maps to NaN. A Pixel point on 1400 then raises IncompatibleAttribute on 2796, so no marker and no light curve appear there, while spatial ROIs still propagate. Released 1.27.0 suggests no link for this pair. Options: A) Change #2595 (the user's own draft) so autolinking leaves time axes out between datasets. SJI/SJI links become spatial only, and WP4 nearest-frame matching is authoritative for time. B) Keep #2595 as is; after autolinking, glue-solar replaces the suggested SJI/SJI WCSLink with a spatial-only link (the D2 route, with more solar code). C) Accept it: compare SJI channels through ROIs only, with no Pixel markers or light curves across channels. This hurts F141 multi-cadence light curves. Recommended default: A. Under any option, add the SJI/SJI row to the WCS matrix (plan:546-552) and to the WP1 tests (plan:716-719), and correct plan:1043 'time axes are still not autolinked' to '#2595 also autolinks SJI/SJI time axes; see the SJI/SJI link policy'."
+ },
+ {
+  "id": "core-qt-capabilities-2",
+  "action": "plan_text_fix",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "In recipe step 3 (plan:513-519), replace 'Intersect the subset with a spectral range to average a band, or with one scan to obtain that scan's spectrum' with: 'On the same dataset, intersect the subset with a spectral range to average a band, or with one scan to get that scan's spectrum. This does not work across links. A Pixel & band AndState gives an all-NaN profile on a WCS-linked dataset, because the SliceSubsetState fast path is taken only for a bare state (data.py:1733-1735@v1.27.0). The Pixel crosshair marker is drawn only for a bare PixelSubsetState (image layer_artist.py:319-331), even on the same dataset. Both hold on 1.27.0 and core-combined.' Add to WP4 (M0): 'A preset that adds band or scan filters keeps the Pixel subset bare and computes the band on the target dataset. Test the marker and linked spectra with filters active.'"
+ },
+ {
+  "id": "core-qt-capabilities-3",
+  "action": "new_checkbox",
+  "wp": "WP12",
+  "milestone": "M2",
+  "text": "Path (x-t and spectral-phi) diagrams (F135/F137/F138/F185). Build on core's BasePathSlicerMode (multi-trace) and BasePathSlicerCrosshairMode, added by #2579 and shipped in 1.26.0/1.27.0 (path_slicer/matplotlib_mode.py:32, 130), and on glue-qt #66 (draft, head 0797f62) once it lands. #66 deletes the legacy pv_slicer/PVSliceWidget, so do not extend that widget. For 4D stacks, add a glue-solar viewer_tool subclass (D2) that lifts core's ndim == 3 gate (matplotlib_mode.py:84) and drives each parent axis; common.py:40-42 currently writes int(slice_y) to every non-displayed axis. Give the result physical coordinates (Offset in arcsec, UTC or scan time), since PathSlicedData now has unitless Offset/Scan, and a PathSlicedData session saver. Replace 'extensions to the existing 3D Qt slit tool' (plan:616-621) and the Qt-tool wording at plan:497 to match. WP0 tracks #66. Duplicate: upstream-state-8."
+ },
+ {
+  "id": "core-qt-capabilities-4",
+  "action": "new_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "Line layers upstream (F151). glue #2603 and glue-qt #73 (drafts, 2026-09-15) add LineLayerState and vertical/horizontal line layer artists that draw unique x_att values with display-unit conversion. That overlaps WP5's LineListArtist (wp5_linelist_mod.py:19, 29, 108). Per D2, ship the solar artist without waiting, but keep the packaged line list a plain table (wavelength in A, name) that a #2603 line layer can render. Retire the solar artist and its style-editor patch once a release contains #2603/#73. WP0 tracks both PRs. Duplicate: upstream-state-6."
+ },
+ {
+  "id": "core-qt-capabilities-5",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "The preset layout (F190) opens its four viewers in an ordinary MDI tab (GlueMdiArea) with explicit tiled geometry, not through the experimental fixed-layout tab registry (customization.rst:366). In glue-qt 0.4.2 and main, add_fixed_layout_tab connects tab.subWindowActivated (application.py:972-985@0.4.2), so a plain QWidget raises AttributeError. Even with that signal, app.viewers and _update_viewer_in_focus fail because they need subWindowList/activeSubWindow, and restore rebuilds only GlueMdiArea tabs (application.py:1453-1469@9780eaf), so the fixed layout is lost. Correct the plan:485 claim of available 'fixed-layout registration' to say this. WP3 (M1) checks that a restored preset keeps its viewer arrangement."
+ },
+ {
+  "id": "core-qt-capabilities-6",
+  "action": "plan_text_fix",
+  "wp": "WP2",
+  "milestone": "M2",
+  "text": "Replace plan:495 'Profile Collapse already has Mean/Sum/Moment 1/Moment 2' (and plan:390 'Generic Profile Collapse tab exists') with: 'Profile Collapse offers Mean, Median, Minimum, Maximum, Sum, Moment 1 and Moment 2 (glue-qt profile_tools.py:31-37@0.4.2). It only sets an AggregateSlice on Image viewers of the same data and creates no dataset. Moment 1/2 are computed from the index within the selected sub-range, and one NaN sample makes the moment NaN (core aggregate.py:8-26). So it is a display-only quicklook. Calibrated, saved and linked maps need WP2's layer_action (D4).'"
+ },
+ {
+  "id": "core-qt-capabilities-8",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "On released glue-qt 0.4.2, the M0 preset sets no Profile x display-unit override. Stock Profile Navigate picks the wrong slice under such an override (assert 5 == 3 at review_20260923/test_existing_workflows.py:134). The bug is in stock Qt, independent of #2601, and Qt #70 fixes it. Keep wavelength in native units until WP1 makes Angstrom native (M1). Add this caveat to the plan:489 Navigate row. Regression probes gate the display-unit case on a Qt #70 symbol, not on the core HAS_SLICE flag (test_existing_workflows.py:19)."
+ },
+ {
+  "id": "core-qt-capabilities-9",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "Reuse existing hooks rather than rebuilding them (F020/F190). Register the quicklook launch as a glue-qt startup_action next to the browser action (config.py:83-96; its docstring says it 'can be used to set up specific layouts and create links'). Follow the Image 'profile-viewer' tool, which opens a Profile viewer with x_att set to a slider axis (profile_viewer_tool.py:45-78). Use ImageViewer.show_crosshairs/hide_crosshairs (core viewers/image/viewer.py:205-219) for the selected point. For WP12 (M2): sequence and movie frames come from GlueApplication.screenshot() (whole window, application.py:1402-1410) or per-viewer export, with axes hidden through glue #2128 (open, not draft) once released. No native movie exporter exists."
+ },
+ {
+  "id": "wp4-quicklook-1",
+  "action": "plan_text_fix",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "Replace the contract bullet at IRIS_GLUE_GAP_PLAN.md:656-659@157cf44 with: 'WP4 time sync never targets a pixel component ID. Identity links from nearest-index components into Pixel Axis IDs correlate SJI frame with raster step in pixel_cid_to_pixel_cid_matrix. PixelSubsetState then rejects the round trip, so an SJI Pixel point loses its linked raster marker and spectrum (verified on core #2601+#2595; raster to SJI still works). The mechanism, controller arrays or plain index-component links, is the WP4 time-link decision (followup-1-1). No JoinLink, lambda or closure links. Nearest-index sync alone does not make SJI pixel ROIs drive rasters. Regression: a raster Pixel point keeps its SJI marker (M0, released core), and an SJI Pixel point keeps its raster marker and spectrum (M1, with #2595), with link_hpc and time sync active.'"
+ },
+ {
+  "id": "wp4-quicklook-2",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] [M0] The sync controller reads its own 1-D nearest-index and signed-offset arrays. It never resolves another dataset's index through the link graph (data[other.pixel_component_ids[k], point]): for equal-hop alternatives that answer follows set-iteration order (followup-1-3). Test: add link_hpc and time sync (from M1 also the #2595 WCS links) in all 6 orders, repeated under PYTHONHASHSEED 0-3. SJI frame to raster step and raster step to SJI frame must equal the array reference with 0 mismatches; the prototype had 123 in some orders."
+ },
+ {
+  "id": "wp4-quicklook-3",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] [M0] SJI slit overlay (F109; current slit): draw the slit at the SJI aux SLTPX1IX column of the displayed frame, in stored-array pixels. Confirm the index base (CRISPEX uses it as a FITS CRPIX, i.e. 1-based; ITN41 plots it unshifted) on a full-size real SJI+raster pair from ~/DATA/IRIS and on a binned (SUMSPAT>1) SJI. No pixel_stride in the production API; tests rescale the stride-10 irispy fixtures themselves. Acceptance: on the full-size pair the overlay column is within 1 SJI pixel of the matched raster exposure's slit position projected through that frame's SJI WCS. Recheck after the CRPIX correction (followup-4-3). WP0: report that irispy tags these pixel values as arcsec (irispy 0.9.0 io/sji.py:227-234, 'slit x/y position' * u.arcsec)."
+ },
+ {
+  "id": "wp4-quicklook-4",
+  "action": "already_covered",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "Same defect as followup-2-3 (fixture session 67,608 -> 2,695,396 B here; real data 235 KB -> 1.28 GB there). Covered by the WP3/M1 session-size checkbox written for followup-2-3, and by the WP4 time-link decision (followup-1-1): option A persists nothing, and option B needs a saver that stores only the 1-D vectors."
+ },
+ {
+  "id": "wp4-quicklook-5",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Time-sync policy (F111, F113, F118). The quicklook has a master selector (dataset + axis: raster step/exposure, stack scan or SJI frame). Default: the raster, like CRISPEX master_time=main. nearest() returns (index, signed offset). A slave follows only when the master time lies inside its coverage and |offset| <= half its median cadence. Otherwise it keeps its current frame and its readout shows 'no match (dt = ...)'. There is no clamping at coverage edges, and ties go to the earlier exposure. solar:frame_time shows each viewer's exposure start UTC and, on slaves, the signed offset to the master. Tests: unequal cadence, a data gap, master before and after slave coverage, and an exact tie. The thresholds are proposed defaults."
+ },
+ {
+  "id": "wp4-quicklook-7",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] [M0] The quicklook preset opens the four criterion panels (F190, F102): raster map (step x slit at one wavelength), spectrogram (wavelength x slit at the selected step), SJI with slit and selected-point overlay, and the spectrum at the selected point. On released core the spectrum is the Pixel subset's profile. The data layer (a whole-cube mean) is hidden, and the label names the aggregation: 'mean over scans at pixel' for a 4D stack, exact for a per-scan raster. Slice profiles replace it only once #2596/#2601 + Qt #70 are released (M1, gated). Test on a real repeated raster: after a Pixel click and an SJI frame change, the map and spectrogram fixed indices and the spectrum follow. A fixed (0,0,0) slice or a whole-cube mean fails the test."
+ },
+ {
+  "id": "wp4-quicklook-8",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M1",
+  "text": "- [ ] [M1] Raster timing marker and footprint (F126, F125). Mark the step exposed at the master time on the raster map (a line at that step); the SJI current-slit overlay already marks it on the SJI. Add a toggleable static 'raster positions' overlay on the SJI showing every step's slit position. Compute it from the raster's step world coordinates mapped into SJI pixels through link_hpc/WCS, reusing the slit-overlay artist. SJI aux cannot supply these positions. Test on a sparse raster (4- or 8-step) and a dense raster."
+ },
+ {
+  "id": "wp4-quicklook-9",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Implement sync participation as registered Image/Profile viewer tools, following the solar:frame_time pattern. glue_solar/__init__.py appends the tool id, and ToolbarInitializer then instantiates the tool for every viewer, including session-restored ones. Each tool registers with one controller per data collection and unregisters in close(). Do not wrap app.new_data_viewer and add no private app attribute. Test: a later-opened viewer joins, a closed viewer leaves, and (M1, with WP3) a session-restored viewer joins, all without re-running the quicklook."
+ },
+ {
+  "id": "wp4-quicklook-10",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Sync tolerates AggregateSlice, which Profile Collapse writes into ImageViewerState.slices. As a source it uses .center (FrameTimeTool already uses getattr(s, 'slice', s)); as a target it leaves the aggregate alone. It never calls int() on one. Regression: collapse in a Profile viewer while sync is active on SJI and spectrogram viewers."
+ },
+ {
+  "id": "wp4-quicklook-11",
+  "action": "already_covered",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "Duplicate of followup-4-1, which confirmed it on the real negative-step raster 3400109360. Covered by the WP4/M0 checkbox written for followup-4-1 and by the loader decision in followup-4-2: with revert_v34=True the times ascend."
+ },
+ {
+  "id": "wp4-quicklook-12",
+  "action": "modify_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "Replace IRIS_GLUE_GAP_PLAN.md:824-828@157cf44 with: '- [ ] [M0] Test real-fixture slit motion, nearest-exposure mapping in both directions, and late and closed viewers. Define the expected SJI selection of a raster-map ROI for each observation type, and assert columns, rows and frames rather than non-emptiness. Scanning raster: the ROI's step-longitude x slit-latitude footprint. Sit-and-stare: the slit-x column strip over the ROI's slit rows, at the SJI frames that match its exposure range. Today a sit-and-stare ROI (steps 40-60, slit 10-20) selects full-width stripes (37/37 columns) on released core and 0 px with #2595; both are wrong, and the cause of the #2595 result is unexplained (investigate at M1). Unsupported spatial ROIs stay incompatible and never select the whole partner. Check Link Editor visibility and link serialization only if option B of the time-link decision is chosen. Document the remaining time-dependent ROI and scan-0 stack-WCS limits.'"
+ },
+ {
+  "id": "wp4-quicklook-13",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Add a selection mapping table to the WP4 brief and test each row. Default policy: the held point is a fixed detector pixel (step, slit), not a solar position (frame-0/scan-0 WCS). Per-scan raster (step, slit, wavelength): a Pixel point on the map sets the spectrogram's step, the spectrum pixel and the SJI point marker. If the raster is master, the master time becomes that step's exposure time. A point on the spectrogram sets the map wavelength and the point's slit. Sit-and-stare (exposure, slit, wavelength): a point on the exposure x slit image fixes the slit only. The exposure follows the master time and drives the spectrogram, the lambda-t image's slit slider and the spectrum. 4D stack (scan, step, slit, wavelength): a map point sets step and slit on the spectrogram, the lambda-t (scan x wavelength) image and the spectrum. Changing scan sets the master time to the locked step's exposure in that scan, which is the default representative step (F112). SJI Pixel point: marker only at M0; it drives raster step/slit through #2595 at M1. Selection never moves wavelength or slit sliders that the table does not name."
+ },
+ {
+  "id": "wp4-quicklook-14",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Preset per observation type: branch on STEPS_AV == 0 and NRASTERP to detect sit-and-stare. Sit-and-stare opens an exposure x slit image, a wavelength x slit spectrogram at the master exposure, the lambda-t image at the selected slit (F142, F134) and the SJI. Label the exposure axis Exposure/Time, not the constant 'Helioprojective Longitude' world name. Scanning rasters open the step x slit map, plus the whisker (F143) for repeated rasters. Test on 4000255147 (1600-exposure sit-and-stare) and on the irispy 2021 sit-and-stare fixture."
+ },
+ {
+  "id": "wp4-quicklook-15",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Before porting, turn the wp4_e_timelink and wp4_f_sync assertions into pytest cases on real fixtures. Cover cross-dataset time mapping, preset viewer setup, the slit overlay and the whisker and lambda-t presets. Add the regressions for the Pixel path (wp4-quicklook-1), link order (wp4-quicklook-2), AggregateSlice, V34 (followup-4-1), sit-and-stare and AIA classification. test_plan_integration's quicklook(app, []) run with new_data_viewer patched out does not count as quicklook coverage. Move wp4_chk_join.py, which crashes at line 54, to the archive."
+ },
+ {
+  "id": "wp4-quicklook-16",
+  "action": "plan_text_fix",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "Replace IRIS_GLUE_GAP_PLAN.md:788-794@157cf44 with: '- [ ] Use WP1's actual link_hpc contract and the Time component that ships on main (#52). Do not port add_time: it is a guarded no-op, because the loader already adds Time. Do not port pixel_stride: only the stride-10 irispy test SJIs need it, and tests rescale them. Port the per-frame slit overlay, the time-sync controller, the whisker and lambda-t presets and the browser quicklook under the contracts below.' That real L2 aux values are in stored-array pixels (SUMSPAT>1) is unverified; the slit-overlay checkbox (wp4-quicklook-3) tests it."
+ },
+ {
+  "id": "wp7-wp8-1",
+  "action": "modify_checkbox",
+  "wp": "WP7",
+  "milestone": "M2",
+  "text": "Replace IRIS_GLUE_GAP_PLAN.md:928-931@157cf44 with: '- [ ] [M2] Retrieve nearest-start AIA 171 through VSO and crop to the first-exposure footprint plus the margin. Transform the corners inside `with propagate_with_solar_surface(), SphericalScreen(iris_observer, only_off_disk=True):`. Without the screen, off-limb corners become NaN whenever the AIA observer or obstime differs from IRIS, which is always the case for real AIA, and submap raises. Wrap the cutout WCS in _GlueWCS before calling WP1 links. Test: an off-limb FOV (corners at Tx about 1000 arcsec) against an AIA frame with an SDO observer and a +5 s obstime yields a crop, not a ValueError.' The synthetic test's shared observer and obstime (test_context.py:41-46) hide the failure."
+ },
+ {
+  "id": "wp7-wp8-2",
+  "action": "modify_checkbox",
+  "wp": "WP8",
+  "milestone": "M2",
+  "text": "Extend IRIS_GLUE_GAP_PLAN.md:960-962@157cf44 with: 'Disable Load (ok) while a scan runs, so finalize() can never index a replaced observation list. Otherwise finalize() processEvents delivers a queued rescan result mid-load. Test: click Load during a gated slow rescan; the loaded files belong to the ticked observation.'"
+ },
+ {
+  "id": "wp7-wp8-3",
+  "action": "modify_checkbox",
+  "wp": "WP8",
+  "milestone": "M2",
+  "text": "Replace IRIS_GLUE_GAP_PLAN.md:968-971@157cf44 with: '- [ ] [M2] Poll the stop predicate inside directory enumeration: collect paths in a loop that breaks on stop(), then sort. _stop_scan calls worker.wait() on the GUI thread, so a walk that ignores stop freezes the whole application during Stop, Cancel, close or rescan; it does more than delay the stop. Test with Path.is_file slowed: reject returns within 0.5 s. No new dependency, persisted filter setting, log viewer, date widgets or filename-preset system.'"
+ },
+ {
+  "id": "wp7-wp8-4",
+  "action": "modify_checkbox",
+  "wp": "WP8",
+  "milestone": "M2",
+  "text": "Extend IRIS_GLUE_GAP_PLAN.md:957-959@157cf44 with: 'After a Stop, mark each observation whose files may be only partly seen: a (partial scan) suffix, with Stack disabled for it. The global Scan stopped label does not show which rows are truncated. Test: an observation with 2 raster files shows 1 and the partial marker after an early stop.'"
+ },
+ {
+  "id": "wp7-wp8-5",
+  "action": "modify_checkbox",
+  "wp": "WP7",
+  "milestone": "M2",
+  "text": "Replace IRIS_GLUE_GAP_PLAN.md:919-923@157cf44 with: '- [ ] [M2] Declare the full sunpy[map,net,timeseries] extra when adding GOES and verify warning-free imports. Satellite rule: when the search returns several XRS satellites, offer a choice (a.goes.SatelliteNumber) that defaults to the lowest-numbered satellite covering the whole observation interval (proposed default). GOES-19 needs sunpy >= 8.1. Set XRS samples with non-zero xrsa_quality or xrsb_quality to NaN, as sunpy's GOES example filters them; sunpy 8.0.0 does not mask them. Trim to the observation interval, keep datetime and W/m2 units, open a log-flux Scatter viewer rather than Profile, and link time ranges to raster/stack Time. Mocked tests use int64 SatelliteNumber and include a flagged row.'"
+ },
+ {
+  "id": "wp7-wp8-6",
+  "action": "modify_checkbox",
+  "wp": "WP7",
+  "milestone": "M2",
+  "text": "Same checkbox as wp7-wp8-5 (IRIS_GLUE_GAP_PLAN.md:919-923@157cf44). Its replacement text already carries the satellite rule, the GOES-19/sunpy>=8.1 note and the int64 mocks. NOAA's current XRS primary is GOES-18 with GOES-19 as secondary (services.swpc.noaa.gov/json/goes/instrument-sources.json, 2026-09-22), so released sunpy 8.0.0 is not a functional gap today."
+ },
+ {
+  "id": "wp7-wp8-7",
+  "action": "modify_checkbox",
+  "wp": "WP7",
+  "milestone": "M2",
+  "text": "Replace IRIS_GLUE_GAP_PLAN.md:924-927@157cf44 with: '- [ ] [M2] Datetime labels depend on core #2599 (WP0; still an open draft). Until a released core contains it, apply the archived epoch workaround only behind a behaviour probe and without affecting other plotting consumers; remove it once the release floor exists. Test: GOES Scatter x tick labels for 2021-09-05 data show 2021 dates (released 1.27.0 shows year 3990).' The milestone structure replaces the queue row at :688, so no separate queue text is needed."
+ },
+ {
+  "id": "wp7-wp8-8",
+  "action": "modify_checkbox",
+  "wp": "WP7",
+  "milestone": "M2",
+  "text": "Extend IRIS_GLUE_GAP_PLAN.md:932-936@157cf44 with: 'Port the success-path test: mocked GOES data opens a ScatterViewer with y_log True, and a GOES time-range subset with datetime64 bounds selects the matching SJI frames through Time. Only the failure path is in pytest today. Remove the stale comment that SJI lacks Time (context_chk.py:150); Time has shipped since #52.'"
+ },
+ {
+  "id": "wp7-wp8-9",
+  "action": "decision_needed",
+  "wp": "WP7",
+  "milestone": "M2",
+  "text": "Scope of the SDO/AIA action (F046 full-disk pointing context, could; F047 co-aligned AIA request, could). The planned VSO fetch returns one 64.6 MiB JSOC file and downloads it synchronously. Its FOV+100 arcsec crop overlaps the per-exposure LMSAL cutouts the browser already loads. The IDL counterpart is a small full-disk image with the IRIS FOV box. Options: (A) keep only the FOV+margin crop (F047), offered when no local co-aligned cutouts exist. (B) full-disk pointing context only (F046): the same download resampled to about 1k px, with the IRIS FOV outline and no crop. (C) both from one download: a full-disk locator plus an FOV crop with a configurable margin, the crop offered only when no local cutouts exist. In every option the download runs in the existing Worker (the WP8 pattern) instead of deferring threading, and the brief says when a fetch is preferable to local cutouts. Recommended default: C (one download, both context views, no GUI freeze)."
+ },
+ {
+  "id": "wp7-wp8-10",
+  "action": "plan_text_fix",
+  "wp": "WP8",
+  "milestone": "M2",
+  "text": "In the table row at IRIS_GLUE_GAP_PLAN.md:498@157cf44, rename 'Faster observation browsing' to 'Observation browsing: filter and stop'. Owner text: 'WP8, solar: port the text filter and the threaded, cooperatively stoppable header scan, and preserve grouping, selections and partial results. This does not reduce scan work: every supported FITS header is still read, whereas iris_xfiles reads one header per observation group. Optional M3 speed-up: skip SPEC header reads after the first raster of an observation already keyed by filename.'"
+ },
+ {
+  "id": "wp7-wp8-11",
+  "action": "modify_checkbox",
+  "wp": "WP8",
+  "milestone": "M2",
+  "text": "Extend IRIS_GLUE_GAP_PLAN.md:960-962@157cf44 with: 'Show Scan stopped only if the worker had not finished when Stop was pressed (check worker.isFinished(), or set the text in _scanned from the stop flag). A complete result must never be labelled stopped. Test: wait for the worker, then click Stop; all rows appear and the text is not Scan stopped.'"
+ },
+ {
+  "id": "wp7-wp8-12",
+  "action": "modify_checkbox",
+  "wp": "WP8",
+  "milestone": "M2",
+  "text": "Extend IRIS_GLUE_GAP_PLAN.md:963-967@157cf44 with: 'The fake header read blocks on a threading.Event that the test releases after clicking Stop or reject. The len(slow_headers)==1 assertions (wp8_test_proto.py:106, 147) then depend on read counts only, not on the 0.2 s sleep window.'"
+ },
+ {
+  "id": "wp7-wp8-13",
+  "action": "modify_checkbox",
+  "wp": "WP8",
+  "milestone": "M2",
+  "text": "Replace IRIS_GLUE_GAP_PLAN.md:953-956@157cf44 with: '- [ ] [M2] Add one case-insensitive text filter over STARTOBS, OBSID, description and the child rows' window, SJI and AIA names. ISO date substrings cover day, month and year filtering; this is not a pre-scan time-range search. Hidden ticked observations still load, and the Load button shows how many ticked items are hidden. The filter survives rescans. Keep the UI object names filter, stop_scan and progress.'"
+ },
+ {
+  "id": "followup-1-1",
+  "action": "decision_needed",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "WP4 time-sync mechanism. The prototype's identity links into pixel component IDs are ruled out: with #2595 + link_hpc they fail checks a/e in 6/6 add orders, and they crash overlays on 1.27.0. Option A: no glue links for time. The controller (registered viewer tools, wp4-quicklook-9) keeps 1-D nearest-index and signed-offset arrays per dataset pair, computed from Time, and moves the sliders itself. Nothing is persisted (it is recomputed on restore), there is no link-graph interaction, and it works on released 1.27.0. It loses Link Editor visibility and time-gated subset propagation, such as a sit-and-stare map ROI selecting the matching SJI frames. Option B (design B): link the nearest-index components to new plain components: SJI 'Nearest exposure: <raster>' to raster 'Exposure index', and raster 'Nearest frame: <sji>' to SJI 'Frame index'. Never target pixel IDs. It passed a-e in 6/6 orders on irispy 0.8.1 and 0.9.0, and it keeps the current contract (plan:656-659) and Link Editor visibility. But the components are full-shape, so sessions need a custom saver that stores only the 1-D vectors (followup-2-3), and every new link must pass the combined-graph regression. Recommended default: A for M0 (smallest, no session or graph risk); adopt B at M1 only if time-gated subsets are wanted. Contract text for A: 'WP4 time sync uses no glue links; the controller reads 1-D nearest/offset arrays derived from Time.' Contract text for B: 'Time links connect nearest-index components to plain index components, never to a pixel component ID.'"
+ },
+ {
+  "id": "followup-1-2",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Layer-overlay regression: with link_hpc and time sync active on released core 1.27.0 (plus #2595 from M1), add an SJI layer to a raster viewer and a raster layer to an SJI viewer. Each either draws or shows 'Cannot visualize this layer'. Neither raises Exception('Dependency on non-pixel component') at draw time: ImageLayerArtist catches only IncompatibleDataException, IncompatibleAttribute and IndexError, and the prototype's pixel-targeting links trigger the exception on 1.27.0. WP0: propose upstream that translate_pixel raise IncompatibleAttribute instead of a bare Exception."
+ },
+ {
+  "id": "followup-1-3",
+  "action": "plan_text_fix",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "Add to 'Decisions and cross-package contracts' (after IRIS_GLUE_GAP_PLAN.md:659@157cf44): 'Glue gives no ordering guarantee among equal-hop link paths. discover_links keeps the first accepted path while iterating a set of object-hashed links (link_manager.py:71-94, :250), so the winner depends on memory layout, not on add order. An IRIS link graph must never contain two equal-hop paths that give different values for the same component ID; equal-hop paths that compute the same value are harmless. Link-graph regressions run every add-order permutation plus repeated runs with perturbed allocation.'"
+ },
+ {
+  "id": "followup-1-4",
+  "action": "plan_text_fix",
+  "wp": "WP1",
+  "milestone": "M0",
+  "text": "Replace the D1 rationale at IRIS_GLUE_GAP_PLAN.md:629-633@157cf44 (the decision itself stays): 'D1: keep link_hpc permanently. It supplies exact, time-aware cross-dataset world coordinates and world-component subsets (e.g. sji[raster latitude]), which WCSLink alone cannot answer. Pixel WCSLinks (#2595) supply frame-0 pixel paths for ROIs, markers and overlays, and they set ROI reach when both kinds exist. The archived 42-arcsec drift is fixture evidence. The 14/187 figure (fork WCSLink, irispy 0.8.1 fixture) and the 186/187 figure (LinkSame + time link + an all-ones correlation matrix, now forbidden) are historical. With #2595 the reach is 12/187 on irispy 0.8.1 and 124/187 on 0.9.0, the same with or without link_hpc. Tests must not pin these numbers.'"
+ },
+ {
+  "id": "followup-1-5",
+  "action": "plan_text_fix",
+  "wp": "WP1",
+  "milestone": "M1",
+  "text": "Replace the last sentence of IRIS_GLUE_GAP_PLAN.md:714-715@157cf44 with: 'Do not add an SJI world-time link (raster Time to SJI world time). With WCSLink + link_hpc it breaks the SJI Pixel spectrum and the layer overlays in all add orders, and it adds no ROI reach. Under current core, time-dependent pixel ROI reach is a documented limitation of this link graph. If it is needed later, use a separate mechanism, not another link.' Apply the same wording at :826-828."
+ },
+ {
+  "id": "followup-1-6",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Combined link-graph regression with five checks: (a) SJI Pixel point to raster marker and spectrum; (b) raster-map ROI to SJI per the defined expectation; (c) time-sync mapping; (d) link_hpc world-component subsets; (e) SJI/raster layer overlays, plus raster Pixel point to SJI marker. Run all 6 add orders of WCS, link_hpc and time sync, on fixtures from both the supported irispy floor and irispy 0.9.0. It runs on released 1.27.0 now; the prototype design already fails (e) there. The #2595 rows switch on through a behaviour probe of wcs_autolink, not a version number."
+ },
+ {
+  "id": "followup-1-7",
+  "action": "plan_text_fix",
+  "wp": "WP0",
+  "milestone": "M0",
+  "text": "In 'Validation and working locations' (IRIS_GLUE_GAP_PLAN.md:1076-1103@157cf44) and the prototype READMEs (review_20260923/README.md:83-107; IRIS_PLAN_PROTOTYPES/README.md:136-146), state: 'PR source exports are disposable, and macOS periodic cleanup purges /tmp. Regenerate an export before use with git -C <repo> archive <head> | tar -x -C <scratch>/<name> (heads are listed in WP0). An emptied export directory, such as qt-profile, shadows the installed glue_qt as a namespace package and breaks imports, so drop missing roots; the link checks need no Qt root. As of 2026-09-27 only /tmp/iris-plan-validation-20260923/core-combined (core #2601 + #2595) is intact.' Also replace the .venv/bin/python runner examples with a micromamba env (~/mamba/envs/iris-plan/bin/python) plus QSettings isolation, following the user rule that every Python run uses a micromamba env."
+ },
+ {
+  "id": "followup-2-1",
+  "action": "new_checkbox",
+  "wp": "WP10",
+  "milestone": "M0",
+  "text": "- [ ] [M0] WCS thread safety. Released glue-qt 0.4.2 computes profiles above 1e7 elements in a worker thread (profile/layer_artist.py:50) while WCSAxes calls the same irispy -TAB WCS on the GUI thread, and the WP6 worker calls the WCS too. Serialize _GlueWCS.pixel_to_world_values, world_to_pixel_values and axis_correlation_matrix with a per-instance threading.Lock, or give worker threads a deepcopy. Acceptance: 0 crashes in 20 consecutive offscreen runs of each of two scenarios. (a) Quicklook with 3 Pixel clicks on a window above 1e7 elements. (b) Sit-and-stare Si IV with 2 Image + 1 Profile viewer and the slice stepped 100 to 300 (crashed 4/8 threaded vs 0/4 unthreaded). If (b) still crashes with the lock, find the remaining shared state before M0 closes. WP0: track astropy#19174 (open) and offer the reproduction there only with the user's approval."
+ },
+ {
+  "id": "followup-2-2",
+  "action": "new_checkbox",
+  "wp": "WP10",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Mask dtype: store every IRIS mask component as uint8. Component() turns bool into int64 via coerce_numeric (8 B per element, twice the float32 data); uint8 passes through unchanged. Keep the stack's mask component, which test_importer.py:171-180 asserts, as uint8, or derive it from the NaNs; hold no second in-RAM copy. Budgets on the 24 GB reference machine: raster_data retained <= 6 B/element and peak <= 10 B/element; all 7 windows of the 99-scan raster 3602506433 stacked with peak < 12 GB. The review measured 10.07 GB for 50 scans, so the full 99-scan figure is untested. If the budgets hold, Dask stays deferred for these datasets."
+ },
+ {
+  "id": "followup-2-3",
+  "action": "new_checkbox",
+  "wp": "WP3",
+  "milestone": "M1",
+  "text": "- [ ] [M1] Session size with time sync active: a file-referencing quicklook session (SJI + 2 windows + WP4 coordination) on real data is <= 1 MB and saves in <= 2 s; the fixture target stays < 100 KB. WP4 persists nothing full-shape. Under option A of the time-link decision (followup-1-1) there are no time components, and the controller recomputes the 1-D nearest/offset arrays from Time on restore. Under option B, a custom saver stores only the 1-D per-frame and per-exposure vectors. Baseline with the prototype's broadcast components: 235 KB -> 1.28 GB (real), 67 KB -> 1.7 MB (fixtures)."
+ },
+ {
+  "id": "followup-2-4",
+  "action": "modify_checkbox",
+  "wp": "WP6",
+  "milestone": "M2",
+  "text": "Replace IRIS_GLUE_GAP_PLAN.md:885-888@157cf44 with: '- [ ] [M2] Put parameter maps in one new dataset, with one pixel link per non-spectral axis and source Time, using _GlueWCS(SlicedLowLevelWCS(raw_wcs, slices)). Support the tested 3D/4D shape contract. Add no float64 residual cube by default. The float64 cast (wp6_fitting.py:61) doubles the float32 window, and the residual has no LoadLog, so it is embedded: it was about 630 MB of a 640 MB session. Make the residual opt-in, stored in the source dtype, or recompute it from the parameter maps. Budget (with WP3): fit products add at most 2x the 2-D map bytes to a session unless the user opts into the residual.'"
+ },
+ {
+  "id": "followup-2-5",
+  "action": "new_checkbox",
+  "wp": "WP10",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Large-data modal: the quicklook sets large_data_size = None on each viewer it creates before add_data. glue's add_data reads that attribute from the instance (glue/viewers/common/viewer.py:200), so the Profile viewer's 1e8 'Add large data set?' dialog cannot abort the preset. That dialog defaults to Cancel, after which the viewer is closed, new_data_viewer returns None and the prototype raises AttributeError. Show a non-blocking status-bar size note instead, and handle a None viewer defensively. Test at real size without monkeypatching warn: sit-and-stare windows of 1.7e8-3.7e8 elements and the 99-scan stack of 4.6e8."
+ },
+ {
+  "id": "followup-2-6",
+  "action": "new_checkbox",
+  "wp": "WP10",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Slider latency budget: one SJI or exposure slider step with 3 synced image viewers redraws in <= 0.25 s at any index on the 1600-exposure sit-and-stare 4000255147, i.e. at least 4 fps playback. WP4 sync may use at most 0.1 s of that. The cost already exists on main: each slice change re-runs WCSAxes _set_wcs, and irispy's -TAB pixel_to_world cost grows linearly with the exposure index (0.03 -> 0.84 ms per 1000 points from step 1 to 1599). Measure first. The candidate fix, caching or linearising the spatial -TAB per exposure in the loader/_GlueWCS, is untested."
+ },
+ {
+  "id": "followup-2-7",
+  "action": "new_checkbox",
+  "wp": "WP2",
+  "milestone": "M2",
+  "text": "- [ ] [M2] Moments responsiveness: run line_moments in the existing Qt Worker, as WP6 does, for windows above about 5e7 elements, and add the maps on the main thread. Budgets: at most 0.5 s of GUI-thread blocking, and a peak memory increase of at most 3x the float32 window bytes. Measured blocking today: 0.6 s on the 2018 windows and 2.2 s on sit-and-stare Si IV."
+ },
+ {
+  "id": "followup-2-8",
+  "action": "new_checkbox",
+  "wp": "WP10",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Performance budgets. These replace 'Record input sizes, interaction latency and memory' (IRIS_GLUE_GAP_PLAN.md:452-456@157cf44). They are proposed values for the 24 GB reference machine (warm cache, offscreen) and will be adjusted after the first measurement. WP10 loader: raster_data peak <= 10 B/element and retained <= 6 B/element; 99-scan all-window stack (3602506433) peak < 12 GB; 0 WCS thread crashes. WP4: Pixel click to drawn spectrum <= 0.35 s; synced slider step <= 0.25 s at any index; quicklook() <= 3 s; no modal; nearest-index state <= 1 MB. WP3 (M1): quicklook session <= 1 MB, saved in <= 2 s. WP6 (M2): full 2018 window fit <= 60 s with GUI timer gaps <= 0.2 s and process-tree peak <= 12 GB. WP8 (M2): header scan <= 5 ms/file median; stop <= 0.5 s. Measure on 4000255147 (sit-and-stare + SJI 1400), 3602506433 (99 scans) and 3610108077 (2018), and record results with each milestone's validation. Fixture tests still catch session bloat and the mask dtype."
+ },
+ {
+  "id": "followup-2-9",
+  "action": "new_checkbox",
+  "wp": "WP10",
+  "milestone": "M1",
+  "text": "- [ ] [M1] Non-blocking load (F201): run raster_data and image_data for each pick in the existing Worker with the progress bar visible, add the datasets on the GUI thread, and allow Stop between picks. Budget: loads longer than 1 s keep GUI timer gaps <= 0.2 s. Today finalize() blocks the GUI for 1.0-3.1 s per pick (glue_solar/sources/loaders/iris.py:299-310)."
+ },
+ {
+  "id": "followup-3-1",
+  "action": "already_covered",
+  "wp": "WP10",
+  "milestone": "M0",
+  "text": "Same crash class as followup-2-1: sit-and-stare Si IV with 2 Image + 1 Profile viewer crashed in 4/8 threaded runs and 0/4 unthreaded. Covered by the WP10/M0 thread-safety checkbox written for followup-2-1. That checkbox gates on this scenario and on the quicklook-click scenario, and requires finding the remaining shared state if the lock does not stop the crash; the lock is an untested mitigation for this scenario."
+ },
+ {
+  "id": "followup-3-2",
+  "action": "already_covered",
+  "wp": "WP4/WP5/WP10/WP11/WP12",
+  "milestone": "M0-M3",
+  "text": "Each journey step now has an owner through other dispositions in this batch, and the companion feature map links each to its F-id. -200 fill: WP10/M0 (followup-3-3). Cross-window blink: WP5/M1 (followup-3-6). All-positions SJI overlay: WP4/M1 (wp4-quicklook-8). Histogram-opt/gamma: WP11/M1 (followup-3-4). Exposure time: WP4/M0 (followup-3-11). Playback interval and range: WP11/M2 (followup-3-12). Raster timing offset: WP4/M0 mapping table (wp4-quicklook-13). Derived-data export: WP12/M2 (followup-3-8). Distance ruler: WP11/M2, and slope fits WP12/M3 (followup-3-15)."
+ },
+ {
+  "id": "followup-3-3",
+  "action": "new_checkbox",
+  "wp": "WP10",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Missing-data fill (F164): per-scan rasters publish masked samples (-200 DN fill) as NaN, as the stack already does. Auto-limits, Mean profiles and moment inputs then ignore them, and #53's transparent-NaN rendering applies. Keep the uint8 mask component. The mask must be correct first (followup-4-2). Check AIA cutouts for the same fill. Tests on 4000005156 scan 0 Si IV (11.5 % fill): the 99.5 % lower limit is no longer -200, a Mean profile over a region containing fill gets no -200 contribution, and the per-scan and stack paths give the same limits."
+ },
+ {
+  "id": "followup-3-4",
+  "action": "new_checkbox",
+  "wp": "WP11",
+  "milestone": "M1",
+  "text": "- [ ] [M1] Scaling presets (F061 must, F062 should; both exists_needs_preset_or_docs). The solar layer-artist maker (iris_image_layer) adds percentile choices matching IRIS_HISTO_OPT (cutoff 1e-3; 99.8) and CRISPEX (1e-4; 99.98). Register fixed gamma stretches (e.g. 0.5, 0.7, 1.5) through glue.config.stretches (D2). This depends on the M0 -200 -> NaN fix. WP9 documents today's workaround: Custom limits plus the sqrt stretch. A gamma slider bound to stretch_parameters would be upstream glue-qt work (optional WP0 item)."
+ },
+ {
+  "id": "followup-3-5",
+  "action": "plan_text_fix",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "Replace IRIS_GLUE_GAP_PLAN.md:430-435@157cf44 with: 'M0 reuses Glue's Pixel tool: click or drag follows, and release holds the selected point (F095 hold). The held point stays fixed during time stepping and drives the other panels' fixed indices through the WP4 mapping table, including the lambda-t slit slider and, once released, the Slice-profile scan/exposure slider. CRISPEX-style hover-follow (F094) with explicit click-to-lock/unlock is a required M1 WP4 tool, not an optional extra. In sit-and-stare a lock fixes the slit only; the exposure follows the master time. Distinguish a fixed detector pixel from a fixed solar coordinate, and do not promise world tracking from the scan-0 stack WCS.'"
+ },
+ {
+  "id": "followup-3-6",
+  "action": "new_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "- [ ] [M1] Cross-window blink (IRIS-9 3.3.1 step 3, Boulder Ex#7; F076, F110): alternate (dataset, wavelength index) pairs on the shared step x slit grid in one Image viewer. On each timer tick, switch the viewer's reference data and slice while keeping its limits; restore both on stop. Keep the same-cube two-index case. This is needed because Level-3 concatenated windows are a non-goal, and a Mg II layer is disabled in a Si IV-referenced viewer (IncompatibleAttribute even with step/slit links). Test on 4000005156 Si IV 1403 / Mg II k 2796 at about 2 fps."
+ },
+ {
+  "id": "followup-3-7",
+  "action": "already_covered",
+  "wp": "WP4",
+  "milestone": "M1",
+  "text": "Covered by the WP4/M1 raster-footprint and timing-marker checkbox written for wp4-quicklook-8 (F125). That checkbox computes a static all-positions overlay from raster step world coordinates through link_hpc/WCS. SJI aux cannot supply the positions: it has 16 distinct slit positions over 32 frames against 64 steps."
+ },
+ {
+  "id": "followup-3-8",
+  "action": "new_checkbox",
+  "wp": "WP12",
+  "milestone": "M2",
+  "text": "- [ ] [M2] Export derived data with coordinates (F178, F182, F185, F187). glue's FITS exporter writes WCS only for astropy WCS and skips non-numeric components, so add a glue-solar data_exporter. It writes FITS with the raw FITS/gWCS header behind _GlueWCS, and writes Time as ISO strings or MJD. Test a WP2 moment map and a WP6 parameter map: CTYPE/CRVAL are present and Time round-trips. The x-t path extraction (core PathSlicedData/BasePathSlicerMode) must produce a Data so it can be saved, exported and restored; the Qt PV tool adds 0 datasets."
+ },
+ {
+  "id": "followup-3-9",
+  "action": "already_covered",
+  "wp": "WP0",
+  "milestone": "M0",
+  "text": "Same purged /tmp exports as followup-1-7, covered by its plan_text_fix (regeneration recipe and namespace-shadow warning). git -C ~/Git/glue-qt archive f1471b7ad843 | tar -x regenerated Qt #70 here (tier ii: 17 passed, 10 xfailed)."
+ },
+ {
+  "id": "followup-3-10",
+  "action": "new_checkbox",
+  "wp": "WP11",
+  "milestone": "M1",
+  "text": "- [ ] [M1] Cursor readout on raster and SJI images (F100, F101): label the spatial components (Solar X/Solar Y or HPLN/HPLT), show them longitude first, and use sub-arcsec precision that does not depend on zoom. WCSAxes currently prints an unlabeled '82\u2033 112\u2033 (world)' in IRIS world order (wavelength, HPLT, HPLN). Implement it in solar:cursor_readout, which is active with released glue-qt 0.4.2, and propose the same change to Qt #74 (WP0). Test on a raster map."
+ },
+ {
+  "id": "followup-3-11",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Exposure-time display (F117). This clarifies the criterion at IRIS_GLUE_GAP_PLAN.md:427, 'actual exposure time', as exposure start UTC plus duration. The loader adds an 'Exposure time' (s) component to SJI, raster and stack data from irispy's 'exposure time' extra coordinate (EXPTIMES), and solar:frame_time shows the start UTC and duration of the displayed frame or step. DN/s normalisation (F165) stays a separate later option. Test with an SJI whose exposures vary; the local SJI 1400 has constant 2.0 s, so use synthetic data or another observation."
+ },
+ {
+  "id": "followup-3-12",
+  "action": "new_checkbox",
+  "wp": "WP11",
+  "milestone": "M2",
+  "text": "- [ ] [M2] Playback controls (F086-F088): allow playback intervals below 2 fps (glue-qt fixes 500/|speed| ms) and a frame sub-range for playback and blink (Boulder Ex#11). Deliver these through an upstream glue-qt slice-widget PR (WP0) or a glue-solar tool; otherwise list them as deferred. The raster timing offset (F112) is handled by the representative-step default in the WP4 mapping table (wp4-quicklook-13)."
+ },
+ {
+  "id": "followup-3-13",
+  "action": "already_covered",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "The offset display is in the WP4/M0 time-sync checkbox (wp4-quicklook-5): solar:frame_time shows the signed offset on slaves. The map-to-SJI rule, where a scan change sets the master time to the locked step's exposure in that scan, is in the WP4/M0 mapping table (wp4-quicklook-13). The prototype's early return for step/scan source axes (wp4_common.py:110-112) is not ported."
+ },
+ {
+  "id": "followup-3-14",
+  "action": "modify_checkbox",
+  "wp": "WP5",
+  "milestone": "M1",
+  "text": "Replace the first sentence of IRIS_GLUE_GAP_PLAN.md:850-853@157cf44 with: 'Add the IRIS wavelength/name list: the current 11 lines plus the Mg II UV triplet (about 2798.75/2798.82 A) and Fe XII 1349, with vetted rest wavelengths and cited sources, before packaging (F151). IRIS-9 and Boulder use the triplet, and Fe XII 1349 is a TDESC window in both local observations.' Keep the rest of the checkbox."
+ },
+ {
+  "id": "followup-3-15",
+  "action": "new_checkbox",
+  "wp": "WP11",
+  "milestone": "M2",
+  "text": "- [ ] [M2] Distance measurement (F131): a glue-solar two-click ruler tool on SJI and raster images that reports the WCS separation in arcsec and in km (using DSUN_OBS, not 1 AU). Also add under WP12 [M3]: speed and acceleration fits (TANAT-style) on x-t diagrams (F132), once physical path coordinates exist; drawn paths persist through WP3 sessions (F186)."
+ },
+ {
+  "id": "followup-3-16",
+  "action": "new_checkbox",
+  "wp": "WP11",
+  "milestone": "M2",
+  "text": "- [ ] [M2] Keyboard shortcuts (F197): in glue-solar, register single-key frame and wavelength steps and play/stop for the coordinated layout through the glue-qt keyboard_shortcut registry. That registry matches event.key() only, so it cannot express Shift/Ctrl chords; modifier-aware shortcuts are an upstream glue-qt item (WP0). WP9 documents that a focused slice slider already steps with the arrow keys."
+ },
+ {
+  "id": "followup-3-17",
+  "action": "plan_text_fix",
+  "wp": "WP9",
+  "milestone": "M0",
+  "text": "At IRIS_GLUE_GAP_PLAN.md:409@157cf44, replace the dead link (it and the /iris9/ root return 404) with the archived copy: [IRIS-9 CRISPEX exercises (archived 2025-04-29)](http://web.archive.org/web/20250429073324/https://tiagopereira.space/iris9/exercises/tutorials_idl.html#crispex)."
+ },
+ {
+  "id": "followup-3-18",
+  "action": "plan_text_fix",
+  "wp": "WP9",
+  "milestone": "M0",
+  "text": "At IRIS_GLUE_GAP_PLAN.md:368-369 and :984@157cf44, write the SJI axes as Longitude/Latitude/Time (Utc) and add: 'glue core title-cases gWCS names (glue/core/coordinate_helpers.py:188-189, .title()), so irispy's Time (UTC) is displayed as Time (Utc). A WP1 rename cannot change this; only an upstream core change can (optional WP0 item).'"
+ },
+ {
+  "id": "followup-4-1",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Negative-step (STEPS_AV < -0.01, V34) rasters in time sync: link_time and sync must not raise on the descending step times that irispy produces by default. With the followup-4-2 default (load with revert_v34=True) the times ascend and the sorted-reference check passes unchanged. If the loader keeps irispy's flip, nearest() argsorts the reference, maps the indices back and keeps the empty/NaT checks. Test on 3400109360: a single scan and a 2-scan stack link without error, and matched offsets are under half the cadence."
+ },
+ {
+  "id": "followup-4-2",
+  "action": "decision_needed",
+  "wp": "WP10",
+  "milestone": "M0",
+  "text": "How to load negative-step (STEPS_AV < -0.01) rasters. irispy 0.8.1 and 0.9.0 flip the data and times, but build the mask from the unflipped data (0.9.0 io/spectrograph.py:251 vs :260) and leave per-step meta unflipped. As a result masks, stack NaNs and WP2 moments are wrong. Option A: load with irispy's existing revert_v34=True, which read_files forwards and which exists in 0.8.1 and 0.9.0. Verified here on 3400109360 scan 0 C II with irispy 0.9.0 (iris-plan env): mask == (data == -200) with 0 mismatches (7026 without revert), the time extra coordinate ascends 0 -> 582.85 s, and the WCS step-0 longitude is -907.89 arcsec, equal to file XCENIX[0]. Data, mask, times, WCS and per-step meta all stay in acquisition order, no version gate is needed, and WP4's sorted-time check works unchanged. Cost: the pixel step runs east to west, so the map preset must flip x for standard orientation (F053; how to flip in glue is unverified), and glue's data order differs from irispy's default. Option B: keep irispy's flip. Recompute the mask as data == -200 behind a behaviour probe until irispy is fixed (the gwcs_raster_clean branch flips it), argsort in nearest(), and flip the per-step meta in glue-solar. Recommended default: A. With either option, WP0 reports the mask bug to irispy, and the acceptance tests on 3400109360 are: per-scan mask equals data == -200; stack NaN positions equal the fill; moments match a numpy reference; link_time on a scan and on a 2-scan stack does not raise; the map shows solar X increasing to the right."
+ },
+ {
+  "id": "followup-4-3",
+  "action": "new_checkbox",
+  "wp": "WP1",
+  "milestone": "M0",
+  "text": "- [ ] [M0] SJI/AIA pixel convention: irispy passes the 1-based header CRPIX to dkist's VaryingCelestialTransform (0.9.0 io/sji.py:83-89), which applies Shift(-crpix) to 0-based pixels. Glue's world coordinate at pixel p is therefore the FITS world at p-1: 0.168 arcsec for full-resolution SJI, 0.47 for the rolled binned SJI, 0.607 for AIA. Add a _GlueWCS correction behind a behaviour probe that compares with astropy WCS(header), and retest the slit-overlay column. Acceptance: per-frame corners and centre of a rolled SJI, a deconvolved SJI and an AIA cutout match an astropy WCS built from CRPIX, CDELT, XCENIX/YCENIX and PCij_IX within 0.05 px. WP0: report this to irispy."
+ },
+ {
+  "id": "followup-4-4",
+  "action": "new_checkbox",
+  "wp": "WP10",
+  "milestone": "M1",
+  "text": "- [ ] [M1] ROI propagation budget (F049, F050): evaluating a raster ROI on a full-resolution SJI (32x771x1506) takes about 10 s per frame, and about 4.1 s for a 600x800 viewer-sized buffer, with either link_hpc or #2595 WCS links. Profile the FITS -TAB world-to-pixel path before choosing the preset's link types. Budget: <= 0.5 s per frame for a viewer-sized buffer (proposed). Until this is met, the M0 preset shows the selected point on the SJI as a marker and does not rely on evaluating raster ROI subsets over full-resolution SJIs."
+ },
+ {
+  "id": "followup-4-5",
+  "action": "new_checkbox",
+  "wp": "WP8",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Deconvolved SJIs: key and label SJIs by TDESC1 plus the filename variant, e.g. 'SJI_2796 (deconvolved)'. Deconvolved files carry the plain TDESC1, and because they sort after the plain file they overwrite it in scan.py:165. Label the loaded dataset the same way (iris.py:125). Test: a folder holding both variants lists and loads both, each with the right label."
+ },
+ {
+  "id": "followup-4-6",
+  "action": "new_checkbox",
+  "wp": "WP8",
+  "milestone": "M1",
+  "text": "- [ ] [M1] Derived files: do not offer files without the Level-2 raster layout as raster windows. Example: iris_l2_20140910_fexxi_rb_steps has HDUs PRIMARY/FEXXI_DATA/AUX and no TIME keyword, yet it is listed as window O I 1356 and fails to load. List such files as unsupported/derived or skip them, and never let one join a real observation's raster list. If a load still fails, name the file and the reason. Test with the real header layout; the conftest writes only a sparse header."
+ },
+ {
+  "id": "followup-4-7",
+  "action": "modify_checkbox",
+  "wp": "WP1",
+  "milestone": "M1",
+  "text": "Extend IRIS_GLUE_GAP_PLAN.md:716-719@157cf44 with: 'For every pairing (SJI/raster, raster/raster, source/map, map/map, and rolled SJI/sunpy-style map), apply every suggested autolink and check ROI propagation in both directions; do not only count links. Main's wrapper with #2595 suggests one SJI/sunpy-map link that then raises the latitude-range ValueError, and in reverse selects 0 of 57820 pixels; WP1's wrapper matches both ways.'"
+ },
+ {
+  "id": "followup-4-8",
+  "action": "new_checkbox",
+  "wp": "WP4",
+  "milestone": "M0",
+  "text": "- [ ] [M0] Classify quicklook inputs by INSTRUME or cube class (SJICube vs AIACube), not by a 'time' physical type: AIA cutouts have [lon, lat, time] axes and a zero 'slit x position'. AIA cutouts never get a slit overlay; nearest-frame time sync with an AIA cutout is allowed as context. Test: a mixed SJI + AIA + raster selection uses the SJI as the slit/point panel and never adds a slit to AIA."
+ },
+ {
+  "id": "followup-4-9",
+  "action": "new_checkbox",
+  "wp": "WP1",
+  "milestone": "M3",
+  "text": "- [ ] [M3] NEXP_PRP > 1 (F116): document that a raster with several exposures per position has a degenerate step inverse. World-to-pixel returns the first exposure, so on a synthetic NEXP_PRP=2 raster a step-0 box selects 0 grid pixels. Test that a grid-to-raster selection covers both exposures. Locally only sit-and-stare programs have NEXP_PRP > 1 (4000255147: 1600; 3660259102: 1020)."
+ },
+ {
+  "id": "followup-4-10",
+  "action": "already_covered",
+  "wp": "WP0",
+  "milestone": "M0",
+  "text": "Same as followup-1-7 (purged exports; the empty qt-profile directory shadows glue_qt). Covered by its plan_text_fix. core-combined is complete against acaf4e1c (485/485 files)."
+ }
+]

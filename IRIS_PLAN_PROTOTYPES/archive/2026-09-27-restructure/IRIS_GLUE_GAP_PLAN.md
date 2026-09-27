@@ -1,4 +1,4 @@
-> Historical snapshot, archived 2026-09-23. Not an active checklist.
+> Historical snapshot, archived 2026-09-27. Not an active checklist.
 > Original location: `glue-solar/IRIS_GLUE_GAP_PLAN.md`. Body preserved verbatim; paths and status claims describe that original context and may be stale.
 > Current instructions: [the central work plan](../../../IRIS_GLUE_GAP_PLAN.md).
 
@@ -11,8 +11,8 @@ is the single maintained work plan for `~/Git/glue`, `~/Git/glue-qt`, and
 Revalidated against solar `main` `236f0a8`, the eleven open upstream PR
 heads below, and selected prototypes on 2026-09-22 evening (2026-09-23 UTC).
 The agreed target is **IRIS-first CRISPEX functionality**. The follow-up
-on 2026-09-23 refreshes selected existing prototypes and explains the missing
-interactions. It does not implement the remaining production features.
+on 2026-09-23 refreshes selected prototypes, then audits existing Glue
+workflows and WCS autolinking before defining the remaining work. It does not implement the remaining production features.
 CI status is outside this work's scope.
 Start with the [CRISPEX acceptance criteria](#iris-first-crispex-target)
 and the [prototype index](IRIS_PLAN_PROTOTYPES/README.md).
@@ -393,11 +393,11 @@ separately. Merged code is not necessarily released code.
 | Per-pixel spectrum | Released baseline collapses other axes; one-pixel subset works | Core #2596, Qt #70 |
 | Intensity/profile moments | Generic Profile Collapse tab exists, without IRIS scientific semantics | WP2 |
 | Gaussian fits | Generic single-spectrum fit exists; no per-pixel parameter products | WP6 |
-| Velocity and line IDs | Wavelength coordinate only | WP1/WP5 |
+| Velocity and line IDs | Wavelength coordinates and ordinary length-unit conversion exist; no IRIS rest-wavelength Doppler/line-list UI | WP1/WP5 |
 | Spatial/temporal coordination | Manual world links are partial; pixel autolink is frame-0 geometry; datetime64 `Time` exists on every IRIS dataset (#52) but nothing links it yet | Core #2595, WP1/WP4 |
 | GOES / SDO context | No GOES action; local aligned AIA cutouts load | WP7 |
 | Sessions | Unsupported for IRIS datasets | WP3 |
-| Movie / sequence export | Only current-frame export exists | Unscheduled |
+| Movie / sequence export | Axis playback and current-frame export exist; no native sequence/movie exporter found | Unscheduled |
 | Pipeline log files | No logs in the inspected public Level-2/test data | Dropped absent a mirror-user need |
 | Level-3 FITS writing / EIS | Outside the IRIS reader/viewer boundary | Permanent non-goals |
 
@@ -421,16 +421,20 @@ No IDL application was launched during this review.
 ### First milestone: coordinated IRIS exploration
 
 The following are proposed acceptance criteria derived from that workflow.
-They are all still open; WP4's existing prototype implements only a subset.
+The integrated milestone remains open. Several underlying workflows already
+exist in Glue; the capability audit below specifies what to reuse and what
+is actually additional work.
 
 - [ ] Open a matched Level-2 raster sequence, its selected spectral windows
   and SJI channels into a useful layout: monochromatic raster map,
   wavelength-versus-slit spectrogram, SJI with slit/selected-position overlay,
-  and detailed spectrum. Show each panel's actual exposure time. A mean
-  spectrum fallback is useful but does not satisfy selected-pixel browsing.
-- [ ] Moving the selected point on the raster map updates the spectrum,
-  slit position and corresponding SJI marker. Provide follow/lock behavior;
-  locked position survives time stepping. Distinguish a fixed detector
+  and detailed spectrum. Show each panel's actual exposure time. Reuse
+  selected-subset or Slice profiles and label any averaging across scans
+  or wavelengths; a whole-cube mean is not a selected-location spectrum.
+- [ ] Reuse Pixel click/drag/release and linked subset/profile/marker
+  behavior. Connect that selection to orthogonal image and draft Profile
+  slice indices. Keep a fixed selection during time stepping; hover-only
+  follow/lock is an optional extension. Distinguish a fixed detector
   pixel from a fixed solar coordinate, and do not promise world tracking
   from the scan-0 stack WCS. Reuse existing point subsets/profile navigation.
 - [ ] Coordinate scan, raster-step and SJI-frame navigation from an explicit
@@ -438,8 +442,9 @@ They are all still open; WP4's existing prototype implements only a subset.
   no-match policy. Pair by observation identity including start time,
   not OBSID alone. A repeated observing program can reuse its OBSID.
   Keep wavelengths/slit positions independent of temporal synchronization.
-- [ ] Provide a time–wavelength view at the selected location and a light
-  curve. For repeated rasters, time runs across scans at a selected step;
+- [ ] Configure existing Image/Profile axes for a time–wavelength view
+  and evolution curve; connect the selected location to their fixed indices.
+  For repeated rasters, time runs across scans at a selected step;
   for sit-and-stare, steps sample time. A raster's step axis mixes space
   and acquisition time and must not be presented as a stationary time series.
   Use the retained exposure timestamps, including irregular sampling/gaps.
@@ -456,47 +461,168 @@ They are all still open; WP4's existing prototype implements only a subset.
 
 Primary delivery is WP1 + WP4 + the relevant part of WP5, with core
 #2596/#2601 and Qt #70 supplying profile capabilities. WP3 adds resumable
-sessions. Qt #74/#75 improve readouts; they do not deliver the controller.
+sessions. Qt #74/#75 improve readouts. Native Pixel/subset/Navigate interactions
+already provide part of the coordination; add only the missing connections.
 WP2/WP6 numerical analysis and WP7 remote context are useful extensions,
 not prerequisites for basic CRISPEX-style exploration.
 
 ### What the missing features mean at the keyboard
 
-These examples describe the target behavior. They are not claims that a
-prototype already provides it. “In progress” below includes open upstream
-PRs and local experiments; none of WP1–WP8 has been ported into solar main.
+**Correction after the 2026-09-23 capability audit:** the previous version
+overstated several gaps. Glue already has point-selected profiles, selectable
+image/profile axes, profile-to-image navigation, slit extraction and playback.
+The profile PRs extend these workflows. A time–wavelength image is not a new
+viewer or a missing extraction algorithm. The remaining work is chiefly
+presets, selected-position/slice coordination, accurate time semantics and
+IRIS-specific products. Keep hover-only tracking optional: click–drag–release
+already provides a useful follow/hold interaction.
 
-| Missing capability | What you would do and see | What exists; what still needs work |
+The [reproducible capability checks](IRIS_PLAN_PROTOTYPES/review_20260923/README.md)
+use stock Glue/Qt plus the named PR sources. They do not import the quicklook,
+unit, session or blink prototypes. The WCS comparison separately swaps in WP1.
+The existing [solar profile guide](docs/user_guide/guide-to-glue-1dprofile-viewer-for-iris-data.rst)
+already describes point selection and changing the profile to Scan; it should
+be extended rather than replaced.
+
+| Feature | Already available | Smallest remaining work / owner |
 | --- | --- | --- |
-| Coordinated four-panel browser | Open one observation and get an SJI, a spatial raster map at one wavelength, a wavelength-versus-slit spectrogram and a detailed spectrum. Select a bright point in the map; all four indicate the same sample. | The loaders and individual viewers exist. WP4 opens a partial layout. The shared selection, full layout and cross-panel markers are missing. |
-| Follow and lock a position | Move over the map and inspect the spectrum under the pointer. Click to lock the point so moving the mouse no longer changes it; advance time while keeping that selection. | Qt #74 reports cursor coordinates/intensity. Core #2596/#2601 and Qt #70 can show an individual sliced spectrum. Neither supplies the point-follow controller. Locking a detector pixel and tracking a solar coordinate are distinct choices; solar tracking also needs time-dependent geometry. |
-| Honest time synchronization | Select a raster exposure and see the nearest SJI frame, with both timestamps and their offset. If there is no sufficiently close SJI, show “no matching frame” instead of implying simultaneity. | `Time` components already ship. WP4 experiments with nearest indices and image sliders, now with input checks and observation-start pairing. A master time control, gap tolerance, no-match display and profile/marker synchronization remain missing. |
-| Time–wavelength plot and light curve | Lock a location. One panel shows how its entire line profile changes with time; another shows brightness versus time in a selected wavelength band. Click a time in either and return the other panels to that sample. | Image/Profile viewers are reusable. The extraction, links and controls are missing. For repeated rasters, hold the raster step fixed and vary the scan. For sit-and-stare, successive exposures sample time. Ordinary raster steps move across the Sun and cannot be relabelled as a stationary light curve. |
-| Wavelength navigation and blink | Click the blue or red side of a spectral line and see the corresponding raster map. Choose two wavelengths and alternate between them while holding location/time/scaling fixed. | Generic profile navigation supplies a starting point. WP5 currently blinks separate data layers, such as two images; it does not alternate two slices of one spectral cube. The connected controls and two-wavelength state are missing. |
-| Spectral units and line labels | Read a profile in Angstrom or as velocity relative to a stated line centre; identify nearby transitions with labels that stay aligned after changing units or selected pixel. | WP5 has conversion and marker experiments; refreshed markers handle numeric and WCSAxes plots. Production integration, rest-wavelength controls, scientific conventions and packaged line-list data remain. A velocity axis alone is not a fitted velocity map. |
-| Resume an analysis session | Save the observation, selected points, windows, links, units and time selection. Reopen tomorrow, or move the folder with its data, and continue at the same place. | Stock sessions are not sufficient for IRIS WCS/metadata. WP3 now demonstrates real-data and relocated file-reference round trips. Production persistence and saving the future coordination controller remain missing. |
-| Reliable moment and fit maps | Choose a line window and obtain maps of integrated intensity, centroid/velocity and width; optionally fit one or more Gaussian components and inspect failure/quality maps. | WP2/WP6 numerical experiments pass selected tests. User actions, masks/uncertainty policy, calibration and physical validation are still needed. Moments summarize the samples; Gaussian fits assume a profile model. These are extensions after basic browsing. |
-| GOES/SDO context | Load a flare light curve spanning the observation or an AIA context image with the IRIS footprint, then relate a feature or time interval back to IRIS. | Local AIA cutouts already load. WP7 demonstrates requested remote context using mocked downloads. Production actions, declared dependencies, exact time labels and operational download behavior remain. |
-| Drawn-path diagrams and movies | Draw a path along a loop and inspect brightness versus distance and time; export a sequence with the same displayed selections and annotations. | Core path extraction and current-frame export are starting points. Path editing, physical distance/time sampling and sequence/movie export are later, currently unscheduled work. |
+| Four-panel exploration | Multiple Image/Profile viewers, axis selectors, per-viewer scaling, shared subsets, tiling and fixed-layout registration. | **WP4, solar:** an observation preset opening and configuring existing viewers; choose selected channels/window and useful axes/scaling. Reuse the existing layout machinery. Verify selected subset, reference data and fixed indices are visible and consistent. |
+| Point follow/hold | Image Pixel tool updates a subset while dragging and leaves it fixed on release. Mean profiles update from that subset. WCS-linked pixels have a coordinate-translation path for spectrum extraction and image markers. | **WP4, solar:** connect a selected pixel to the fixed indices of orthogonal image planes and draft `slice` profiles, which currently retain their own sliders. Reuse `PixelSubsetState`, `SubsetUpdateMessage` and the existing marker artist. Specify detector-pixel versus solar-position tracking. Hover without pressing is an optional interaction enhancement, not a prerequisite. |
+| Time–wavelength image | Image Viewer already selects any two cube dimensions; a 4D raster can show Scan × Wavelength at fixed step/slit. A 3D sit-and-stare cube can show exposure × wavelength at fixed slit. | **WP4, solar:** document/preset the axes, optionally drive fixed indices from the selected point, and expose exact acquisition times. No new image renderer or basic extraction module. UTC axis formatting for scan/step-dependent timestamps is a distinct coordinate-adapter task. |
+| Spectrum and light curve | A point subset with Mean gives a spectrum or a scan/exposure curve when the profile axis changes. Intersecting with a wavelength range selects a band. Draft Slice profiles instead hold all other dimensions fixed. | **WP4/WP5, solar:** explicit band/mean/sum/single-sample controls and coordination with the selected scan/point; retain native Profile calculations. `Time` is not a selectable Profile axis in the checked stack. Scatter supports datetime components; physical-UTC profile/image axes need a suitable selected-location coordinate representation, not a new plotting system. |
+| Navigate wavelength or scan | Profile Options → Navigate already changes the corresponding slice in open Image viewers showing that dataset. Qt #70 handles native WCSAxes pixels versus overridden display units. | **WP4/WP5:** expose/document the existing tool and test the configured layout. Add only missing directions: image/point selection to profile slices, or explicit temporal matching between different datasets. Do not write another same-dataset profile-to-image navigation tool. |
+| SJI/raster spatial links | Stock WCS autolinking exists. Core #2595 makes it accept the low-level IRIS wrappers; tested SJI/raster spatial ROIs work both ways, and an SJI point extracts a linked raster spectrum. | **WP1 + core #2595:** port the wrapper unit/object fix so raster/raster, stack/scan and derived-map pairs also link. Use the existing autolinker/Link Editor. Keep frame-0 geometry explicit and check later-frame tracking separately. |
+| Exposure matching | Existing sliders, playback, datetime components, component links and linked subset machinery are reusable. | **WP4, solar:** match by observation execution, choose the driving dataset, compute nearest exposure plus signed offset, define gap/no-match/tie rules, and update relevant viewers. WCS links do not infer nearest acquisition times from the `Time` data component. Keep wavelength and slit independent. |
+| Wavelength units, velocity, line labels | Standard unit conversion already supports wavelength length units. Profile viewers have unit selectors and layer registries. WP5 prototypes supply Doppler equivalencies and line labels. | **WP5, solar:** add explicit rest wavelength/convention, correct per-window/stack metadata, register the existing marker artist and package the line list. Verify native WCSAxes and unit-overridden paths. Ordinary Angstrom/nm conversion is not a new feature to build. |
+| Blink / movies | Slice widgets already animate forward/backward and wrap across an axis; layer visibility and image export already exist. | **WP5:** two chosen wavelength indices, interval, start/stop and restoration of the original slice/visibility. Stock playback visits the full axis, not an arbitrary two-index pair. **Later solar extension:** sequence selection, stable scaling/annotations and export/encoding with cancellation; no native movie-export action was found in the inspected core/Qt trees. |
+| Sessions | Glue already saves data collections, subsets, links, viewers, layouts and viewer state. WP3 demonstrates the IRIS-specific WCS/metadata/file-reference pieces. | **WP3, solar:** port those serializers/factories and validate full IRIS application sessions. Persist only any new coordination preferences; reuse native viewer/subset state. Do not build another session system. |
+| Moments and fits | Profile Collapse already has Mean/Sum/Moment 1/Moment 2; Fit already fits a selected 1D profile using Gaussian/polynomial models. | **WP2/WP6, solar:** calibrated IRIS maps, rest wavelength and units, masks/uncertainties/quality, source links, and per-pixel fitting over an image. Generic moments are in pixel coordinates; a generic single-profile fit is not a cube-wide scientific product. |
+| GOES/AIA context | Local maps/cutouts load; Scatter plots datetime versus flux; links/subsets and WCS image alignment exist. | **WP7, solar:** requested searches/downloads, observation/date/band selection, trimming/cropping, footprint, dependency declaration and errors. Reuse Scatter/Image/WCS links; verify the epoch fix for displayed dates. Do not build new context viewers or assume spatial links synchronize cadence. |
+| Slit / distance–time diagrams | Qt's existing Slice Extraction (`P`, draw, Enter) creates a path-versus-remaining-axis image from a 3D cube. Clicking/dragging it drives the parent slice and crosshair. | **Later, mostly Qt integration + solar coordinates:** retain that tool for 3D SJI time–distance work. The checked Qt tool is disabled for 4D stacks, uses the legacy standalone PV widget and does not preserve `_GlueWCS` as a native FITS WCS. Core has newer `PathSlicedData`/path helpers, but this Qt entry point does not use them. Scope 4D axis choice, APE-14/UTC/solar-distance coordinates, path width/sampling and session support; do not start by recreating path drawing. |
+| Faster observation browsing | IRIS observation discovery/grouping/loading and archive extraction already ship. WP8 demonstrates filter and cooperative stop. | **WP8, solar:** port the filter/threaded scan and focused lifecycle/progress fixes. Preserve grouping, selected observations and partial results; document that directory enumeration/current header reads can delay stop. |
 
-For an illustrative cadence mismatch, a raster sample at 12:00:10 and the
-nearest SJI at 12:00:13 differ by three seconds; show that difference. If
-the next usable SJI is minutes away, the software needs an explicit rule
-for whether to show it. This refresh deliberately does not invent that
-scientific threshold. Likewise, no universal wavelength or Gaussian model
-should be silently chosen for every IRIS line.
+### How to make the time–wavelength view with existing tools
 
-The next product milestone is the first five rows together, plus spectral
-units/labels and session support. Faster browsing (WP8) can be delivered
-independently. Fitting, remote context, path diagrams and movies should not
-hold up the first useful coordinated browser.
+For a repeated raster with dimensions `(scan, step, slit, wavelength)`:
+
+1. Open a 2D Image of the stack. Select wavelength for the horizontal
+   dimension and scan for the vertical dimension. Set the remaining step
+   and slit sliders to the location of interest. This already displays
+   `cube[:, step, slit, :]`; the real-IRIS probe compared the rendered
+   slice with exactly that array.
+2. In a Profile viewer with the draft Slice function, choose wavelength
+   and set scan/step/slit for an instantaneous spectrum. Change the profile
+   axis to Scan, retaining step/slit/wavelength, for a single-channel
+   evolution curve. Both operations already work on the real stack.
+3. Alternatively, click a pixel on a spatial image and use the subset's
+   Mean profile. Wavelength gives its scan-averaged spectrum; Scan gives
+   its wavelength-averaged evolution. Intersect the subset with a spectral
+   range to average a band, or with one scan to obtain that scan's spectrum.
+   These aggregations should be named accurately in the UI. The stock Pixel
+   tool replaces the active subset while dragging, so persistent band/scan
+   filters need an explicit combination rule when a preset adds them.
+4. Use Profile → Options → Navigate to move an image's wavelength or scan.
+   Changing the point subset does **not** currently set a different image
+   plane's fixed step/slit or the draft Profile's slice sliders. That small
+   coordination layer is the actual interaction gap.
+
+For sit-and-stare `(exposure, slit, wavelength)`, choose exposure versus
+wavelength and fix the slit position. For a 3D SJI `(time, y, x)`, draw a
+slit with the existing Slice Extraction tool to get time versus distance
+along that path. These are complementary existing workflows.
+
+**Index versus physical time:** the stacked WCS deliberately exposes Scan,
+not UTC. Its `Time[scan, step, slit, wavelength]` component contains the
+actual acquisition times. WCSAxes cannot manufacture a time axis from an
+arbitrary component merely by being enabled. First support the existing
+index view with timestamps/readouts; if absolute-time axes are wanted, supply
+the selected location's time coordinate and preserve irregular sampling/gaps.
+A scanning raster's step axis also changes solar position; it is not a
+stationary time series. A changing pointing is a separate issue again.
+
+### Where WCS autolinking fits
+
+The tested combination is core #2601 (including #2596) plus the #2595
+WCS-autolink changes, and Qt #70. All three heads were rechecked on GitHub.
+No PR or checkout was merged/modified. Tests accepted the suggested links
+with `DataCollection.add_link`; they did not automate the autolink dialog.
+
+| Real-data pair | Current solar wrapper + #2595 | Refreshed WP1 wrapper + #2595 |
+| --- | --- | --- |
+| SJI 1400 / Si IV 1403 raster, matched 2021 sit-and-stare | One WCS link | One WCS link |
+| Two C II raster scans, 2014 sample | No suggested link | One WCS link |
+| C II stack / its first scan | No suggested link | One WCS link |
+| Raster / spatial map made by slicing its raw WCS | No suggested link | One WCS link |
+| Two such spatial maps | No suggested link | One WCS link |
+
+The rejected main-wrapper cases are not a missing autolinker: their
+high-level coordinate objects disagree with the wrapper's advertised units.
+One raster conversion treats an arcsec latitude as degrees and raises a
+latitude-range error. WP1 fixes that contract. Thus **use WCS autolinking,
+and fix the adapter rather than duplicating spatial linking code**.
+
+On the matched SJI/raster, the link maps two spatial axes. The SJI frame and
+raster wavelength axes are excluded. Spatial ROIs propagate in both
+directions; an SJI Pixel subset uses existing `get_xy`/`to_array` support to
+supply a raster marker position and spectrum. These capabilities also work
+with solar main plus #2595. Preserve these paths in the integrated UI.
+
+The same test measured a **42.2202 arcsec** discrepancy between the fixed
+frame-0 mapping and the last SJI frame's sky coordinates at the sampled
+pixels. This is one fixture, not a universal error bound. It explains why
+static pixel links cannot stand in for time-dependent pointing or nearest
+exposure matching. Retain the separate world-coordinate helper where needed,
+but test the combined link graph: simultaneously adding pixel/world/nearest
+index paths must not select an unintended transformation. Link creation does
+not, by itself, move a viewer's sliders. Full AIA co-registration, all-PR
+integration and complete mixed IRIS session restoration remain evidence gates.
+
+### Minimal implementation sequence and completion checks
+
+1. **Document the existing workflows first (WP9).** Extend the current
+   guide with axis recipes, Pixel drag/release, Navigate, 3D slit extraction,
+   aggregation versus Slice, and index versus UTC. A user should reproduce
+   the basic workflow without loading a prototype controller.
+2. **Make native spatial links reliable (WP1/#2595).** Port the wrapper
+   coherence change and existing regression matrix. Accept native WCS links,
+   check point/ROI/profile behavior in both directions, and compare early/late
+   exposure geometry before choosing any extra world links. No new autolinker.
+3. **Add a small observation preset and missing connections (WP4).** Open
+   and configure existing viewers; translate the selected subset point into
+   their remaining fixed indices. Reuse existing Navigate and pixel markers.
+   Verify moving/releasing a point, changing axes, new/closed viewers and
+   multiple windows without feedback loops or moving unrelated axes.
+4. **Add physical temporal coordination (WP4).** Drive nearest-exposure
+   matching from a declared source, display both timestamps/offset, handle
+   gaps without silently showing an unrelated frame, and preserve the fixed
+   location policy. Keep optional physical-time axes separate from the already
+   working scan/exposure-index plots. Test unequal cadence and missing frames.
+5. **Port the spectral conveniences and persistence (WP5/WP3).** Rest
+   wavelength/line labels, two-index blink, IRIS session support. Require
+   slice/visibility restoration, unit-aware navigation and a saved/reopened
+   real-data layout; do not duplicate ordinary unit controls or session state.
+6. **Deliver independent extensions narrowly.** WP8 filter/cancel can land
+   separately. WP2/WP6 add scientific products beyond Collapse/Fit, WP7 adds
+   remote acquisition beyond existing viewers, and later path/movie work
+   extends the existing Qt/Matplotlib machinery. Each needs the specific
+   data/units/lifecycle tests in its work package, not a new viewer framework.
+
+Primary references: [Glue Profile tools](https://docs.glueviz.org/en/latest/gui_guide/spectrum.html),
+[Glue slit extraction](https://docs.glueviz.org/en/latest/gui_guide/slice.html),
+[APE-14 autolinking PR](https://github.com/glue-viz/glue/pull/2595),
+[profile WCSAxes PR](https://github.com/glue-viz/glue/pull/2601), and
+[Qt profile wiring PR](https://github.com/glue-viz/glue-qt/pull/70).
+Documentation versions lag source; the recorded source snapshots and probes
+establish the exact capabilities described here.
 
 ### Later milestones and explicit omissions
 
-Track drawn-path space–time diagrams/virtual slits and movie/sequence export
-as remaining CRISPEX gaps after the first milestone. Core `PathSlicedData`
-is a reusable extraction primitive; Qt path editing, solar distance/time
-coordinates and sampling rules still need a scoped implementation.
+Track 4D/solar-coordinate extensions to the existing 3D Qt slit tool, plus
+movie/sequence export, after the first milestone. Core `PathSlicedData` and
+path helpers are reusable, but the inspected Qt PV entry point still uses
+its legacy standalone widget. Physical distance/time coordinates, sampling
+policy and persistent 4D interaction need scoped integration; basic path
+drawing and 3D extraction are not missing.
 Broader instrument loaders, Stokes workflows and multi-instrument alignment
 remain later scope decisions. Pixel-identical IDL widgets, Level-3 FITS
 generation and EIS support remain outside this IRIS plan. Direct Level-2
@@ -542,8 +668,8 @@ loading can meet the workflow without recreating CRISPEX's input format.
 - WP3 must not globally replace the `VisualAttributes` serialization
   protocol for ordinary datasets. Use the accepted solar-scoped style
   handling when a workaround is needed; preserve plain-session portability.
-- The historical WP5 line-list check round-tripped with stock layer/state
-  serializers on synthetic data; it was not rerun in this validation.
+- The refreshed WP5 line-list checks round-trip with stock layer/state
+  serializers on synthetic data, on baseline and profile PR sources.
   No extra line-list saver is currently justified.
   Full IRIS sessions still require WP3.
 
@@ -658,9 +784,10 @@ coordinated quicklook session.
 
 Primary paths: browser and loader integration, proposed quicklook helpers
 and tests. Reference: [quicklook prototype](IRIS_PLAN_PROTOTYPES/wp4_common.py).
-That prototype has no cursor-follow/lock controller, no profile-slice
-synchronization and no linked time–wavelength panel. It is a starting point
-for the first-milestone criteria, not their completed implementation.
+The prototype has no controller connecting a selected point to other
+viewers' fixed indices. Glue already provides Pixel drag/release, linked
+profiles/markers, Navigate and the required image/profile axes. Extend those
+paths instead of treating basic follow/hold, extraction or navigation as new.
 
 - [ ] Use WP1's actual helper contract. The datetime64 `Time` component
   already ships on `main` (#52) for SJI, rasters and stacks, so drop the
@@ -687,10 +814,14 @@ for the first-milestone criteria, not their completed implementation.
   move wavelength or slit sliders inadvertently. Add explicit selected-point
   and ProfileViewer slice coordination for CRISPEX browsing; this was
   previously deferred, but belongs to the agreed first milestone. Reuse the
-  existing profile Navigate tool for profile-to-image wavelength selection.
-- [ ] Add the selected-location time–wavelength panel and light curve with
-  the scan/step semantics above. Reuse Image/Profile viewers; choose a fixed
-  pixel or solar-position policy explicitly. Remove callbacks when viewers
+  existing profile Navigate tool, which already drives same-dataset image
+  wavelength/scan slices. WCS-linked Pixel subsets already translate marker
+  positions and collapsed profiles; validate that path before adding callbacks.
+- [ ] Preset the existing Image/Profile axes for selected-location
+  time–wavelength and evolution views; wire only their fixed indices and
+  time matching. Decide whether physical UTC axes are needed beyond the
+  existing index view with timestamps. Choose a fixed pixel or solar-position
+  policy explicitly. Remove callbacks when viewers
   close. The refreshed image helper now disconnects callbacks and drops
   closed states, but still wraps `app.new_data_viewer`; this is not a
   persistent application-wide controller.
@@ -887,8 +1018,8 @@ Retain these decisions rather than silently losing them when old TODOs move:
 - Per-scan absolute WCS inside the 4D stack is deferred, not impossible:
   the demonstrated forward gWCS table model works; its inverse for links
   and subsets is the remaining problem. Load scans separately meanwhile.
-- Movie/sequence export and path-based space–time extraction remain later
-  CRISPEX gaps, without an implementation schedule. Decoded
+- Movie/sequence export and 4D/physical-coordinate extensions to the
+  existing 3D slit extraction remain later work, without a schedule. Decoded
   `irispy.obsid.ObsID` enrichment is unscheduled. Alpha/mix, per-viewer
   playback and the default spectrogram layout already exist; coordinate
   them rather than reimplementing their rendering.
@@ -903,22 +1034,22 @@ Retain these decisions rather than silently losing them when old TODOs move:
 - Native macOS extensions are listed under WP0, separately from #68's
   existing application identity/font/icon work.
 
-## 2020 wiki roadmap, reconciled 2026-09-22
+## 2020 wiki roadmap, reconciled 2026-09-23
 
 The wiki holds two pages from the 2020 GSoC period: "Short Term Roadmap"
 (2020-03-27) and "Current Workplan" (2020-09-11, last edit by Kris Stern).
 Their items map onto the current state as follows.
 
-| 2020 item | 2026-09-22 status | Home |
+| 2020 item | 2026-09-23 status | Home |
 | --- | --- | --- |
 | HMI/AIA map docs (#17), IRIS raster+SJI docs (#18), loader-customization dev docs (#33) | Merged in 2020; the IRIS and dev pages are being corrected | WP9 |
 | Auto selection of the solar colormap | Done: sunpy colormaps registered in `setup()`, `preferred_cmap` taken from the loaded map (#45), `irissji*`/`sdoaia*` for IRIS images | Maintained |
 | N-D WCS autolinking (glue #2161, merged 2020) | Celestial autolink exists; IRIS low-level (APE-14) WCS needs core #2595; time axes are still not autolinked | Core #2595, WP1, WP4 |
 | 1D profile sliders instead of collapsing (glue #2167, closed) | Reworked as core #2596/#2601 and Qt #70 | WP0 |
-| Spectrum/value under the mouse (3D) | Scalar readout exists (#52 / Qt #74); point subsets can select profiles, but cursor-follow/lock and synchronized profile slices remain | WP4, core #2596/#2601, Qt #70 |
-| Three viewers of one 4D dataset; wave/time plot under the cursor | The stacked-raster profile guide covers the viewers; the coordinated quicklook is WP4 | WP4, WP9 |
+| Spectrum/value under the mouse (3D) | Scalar readout and Pixel drag/release exist; point subsets drive profiles and linked markers. Remaining work: draft slice-index coordination; hover-only follow is optional | WP4, core #2596/#2601, Qt #70 |
+| Three viewers of one 4D dataset; wave/time plot under the cursor | Axis-swapped time–wavelength images, point-subset scan curves and profile Navigate exist; selected-point to fixed-index coordination is WP4 | WP4, WP9 |
 | Derived datasets from pixel selections with WCS and links; icon/UX | The 2020 `glue_solar/pixel_extraction` tool (an `IndexedData` extractor with its own user-guide screenshots) was removed by the 2024-09-19 retemplate (`0435fd4`) and is recoverable from history; core offers `image:point_selection` and `IndexedData` without a Qt extraction UI | Unscheduled |
-| Derived dataset under a drawn path (slit extraction) | Core 1.26 ships `PathSlicedData` (glue #2579) with a front-end-agnostic path mode; glue-qt registers no tool for it yet | Unscheduled candidate |
+| Derived dataset under a drawn path (slit extraction) | Core ships `PathSlicedData` and path helpers. Qt already registers legacy 3D PV extraction with parent navigation; it does not use the newer helper or support its 4D/solar-coordinate integration | Unscheduled candidate |
 | WCS info for derived datasets: raster + SJI time linking | Datetime64 `Time` is on every IRIS dataset (#52); nearest-exposure links are WP4 | WP4 |
 | Dask support | Core has `DaskComponent` and random-view statistics; IRIS reads eagerly (`memmap=False`), stacks use floating memmaps; a representative interactive workload still needs measurement | First-milestone performance evidence; implementation deferred |
 | Image/movie export with and without axes | Only single-frame export (`mpl:save`) exists | Unscheduled |

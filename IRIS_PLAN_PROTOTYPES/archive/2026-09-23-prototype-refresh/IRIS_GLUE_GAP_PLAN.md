@@ -1,3 +1,7 @@
+> Historical snapshot, archived 2026-09-23. Not an active checklist.
+> Original location: `glue-solar/IRIS_GLUE_GAP_PLAN.md`. Body preserved verbatim; paths and status claims describe that original context and may be stale.
+> Current instructions: [the central work plan](../../../IRIS_GLUE_GAP_PLAN.md).
+
 # IRIS and Glue cross-repository work plan
 
 Updated 2026-09-22 (America/Los_Angeles); previous revision 2026-09-05. This

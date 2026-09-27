@@ -1,155 +1,84 @@
-# IRIS prototype evidence index
+# IRIS prototype index
 
-Refreshed 2026-09-23. The [active plan](../IRIS_GLUE_GAP_PLAN.md) owns
-requirements and production status; its [GUI examples](../IRIS_GLUE_GAP_PLAN.md#what-the-missing-features-mean-at-the-keyboard)
-explain the missing CRISPEX interactions.
+Updated 2026-09-27. The [plan](../IRIS_GLUE_GAP_PLAN.md) owns requirements
+and status, and its section "Prototypes: what to port" says what production
+takes from each file. These are local experiments, not shipped features or a
+package to copy over glue-solar.
 
-The user selected **refresh existing prototypes**, leaving new interactions
-planned. The selected entry points below were repaired and checked. Originals
-are preserved under [archive/2026-09-23-prototype-refresh/](archive/2026-09-23-prototype-refresh/),
-including the [previous index and validation record](archive/2026-09-23-prototype-refresh/README.before-refresh.md).
-No tracked production code was changed. These prototypes are local experiments,
-not shipped features or a package to copy over glue-solar.
+On 2026-09-27, 186 historical probes, logs, diffs, WP0 PR drafts and review
+reports moved to [archive/probes-2026-09/](archive/probes-2026-09/). Nothing
+was deleted. The previous version of this index is
+[archive/2026-09-27-restructure/README.md](archive/2026-09-27-restructure/README.md).
 
-## Existing-capability audit after the refresh
+## Live files
 
-The [2026-09-23 audit](review_20260923/README.md) corrects the earlier gap
-classification: native axis-swapped images, point-selected profiles,
-profile Navigate, 3D slit extraction and playback already exist. It also
-checks real-data WCS autolinking with #2595, including the main-versus-WP1
-wrapper difference. Use that audit and the active plan when deciding what
-new implementation is actually needed; the refresh results below remain
-valid but do not define the feature gaps.
-
-## Useful entry points
-
-| Package | Start here | Refresh and remaining limits |
+| Area | Files | Role |
 | --- | --- | --- |
-| WP0 upstream | [historical drafts](wp0/) | Use the PR heads in the active plan. Old diffs/bodies remain historical; do not reapply them. |
-| WP1 coordinates/links | [copied package](wp1/glue_solar/), [link tests](wp1/glue_solar/tests/test_linking.py) | Refreshed with main's timestamps, tools, transparent NaN layers and fixtures. Autolink tests detect actual wrapped-WCS support; the inverse workaround is conditional on a behavior probe. Put this package first on the import path for dependent experiments. |
-| WP2 moments | [module](chk_wp2/wp2_moments_module.py), [tests](chk_wp2/test_wp2_moments.py) | Numerical implementation retained; checks pass with the refreshed WP1 package. Physical validation and production actions remain. |
-| WP3 sessions | [module](wp3_impl.py), [tests](wp3chk_test_sessions.py) | Explicit `install_browser_factories()` enables file-referencing browser loads. Six cases pass, including twice-relocated inputs/re-saved sessions and real SJI/raster/stack WCS. Import the module to install WCS/Quantity/scoped-style support. Keep `wp3_impl` importable when restoring its sessions. |
-| WP4 quicklook | [shared module](wp4_common.py) | Reuses current frame times, avoids duplicate `Time`, requires explicit slit decimation, validates nearest-time inputs, pairs quicklook observations by OBSID plus start, and disconnects closed viewers. Still image-slider synchronization only: no cursor follow/lock, profile coordination or time–wavelength panel. |
-| WP5 units/lines | [units](wp5_units.py), [artist](wp5_linelist_mod.py), [line list](iris_lines.csv), [session demo](wp5_ll_session.py) | Artist converts wavelengths to profile pixels in WCSAxes mode and follows slice/unit changes. Ascending/descending grids and synthetic sessions tested on released core and profile PR sources. Non-monotonic traces and out-of-range markers are omitted. Demo uses a temporary session and closes its windows. |
-| WP5 blink | [tool](wp5_blink.py) | Import no longer launches a GUI demo or starts a process timeout. Close restores layer visibility and stops the timer. Still blinks separate layers, not two wavelength slices of one cube. Run the file explicitly for its demo. |
-| WP6 fitting | [module](wp6_fitting.py), [brief variant](wp6_fitting_brief.py), [tests](wp6_test_fitting.py) | Numerical code retained; removed the deleted scratchpad path from tests. Fitting and both variants' WP3 product round trips pass. Source-mask/uncertainty handling and physical validation remain absent. |
-| WP7 context | [module](wp7chk/context_chk.py), [tests](wp7chk/test_context.py) | Tests now import the actual prototype; shared `link_hpc` comes from WP1. GOES-only timeseries import is deferred until needed. Ten mocked-network checks pass with temporary timeseries dependencies. No real science download or exact datetime-label check was performed. |
-| WP8 browser | [scanner](wp8_scan.py), [dialog](wp8_proto.py), [UI](wp8_loader.ui), [tests](wp8_test_proto.py) | Progress text now survives a prior load/busy state without resetting successful extraction from 100 to 0. Eight existing checks plus two text-regression variants pass. Directory enumeration and waiting for a current header read still limit cancellation. |
-| Cross-package checks | [runner](review_20260905/run_checks.py), [integration](review_20260905/test_plan_integration.py), [refresh regressions](review_20260905/test_refresh.py), [line positions](review_20260905/test_line_positions.py) | Isolated processes, explicit source paths and focused assertions; not a full interactive CRISPEX application test. |
+| WP1 coordinates and links | [wp1/glue_solar/](wp1/glue_solar/) | Copy of the glue-solar package with the proposed `link_hpc`, axis names, Angstrom units and gated `glue_patches`. Port the delta, never the package (its `tests/test_importer.py` is stale) |
+| WP2 moments | [chk_wp2/wp2_moments_module.py](chk_wp2/wp2_moments_module.py), [chk_wp2/test_wp2_moments.py](chk_wp2/test_wp2_moments.py), [wp2_moments_proto.py](wp2_moments_proto.py) | Moments layer action and tests; `wp2_moments_proto.py` holds two checks still to become tests |
+| WP3 sessions | [wp3_impl.py](wp3_impl.py), [wp3chk_test_sessions.py](wp3chk_test_sessions.py) | WCS/-TAB, Quantity and scoped-style savers and browser factories; importing `wp3_impl` installs process-wide patches |
+| WP4 quicklook | [wp4_common.py](wp4_common.py), [slit_check.py](slit_check.py) | Only `nearest`, `exposure_times`, `observation_key` and slit approach C are ported; the time links and sync wrapper are replaced (plan D8, D9) |
+| WP5 spectral | [wp5_units.py](wp5_units.py), [wp5_override.py](wp5_override.py), [wp5_linelist_mod.py](wp5_linelist_mod.py), [iris_lines.csv](iris_lines.csv), [wp5_blink.py](wp5_blink.py), [wp5_label.py](wp5_label.py) | Velocity converter, rest override, line-list artist and data, blink skeleton, axis-label idea for an upstream PR |
+| WP6 fits | [wp6_fitting.py](wp6_fitting.py), [wp6_test_fitting.py](wp6_test_fitting.py), [wp6_test_fitting_final.py](wp6_test_fitting_final.py), [wp6_fitting_brief.py](wp6_fitting_brief.py), `wp6_chk_real_fixed.{py,log}`, `wp6_full_raster.{py,log}` | Gaussian fit maps; the logs are 4-D stack and full-raster evidence. `wp6_fitting_brief.py` goes to the archive once `test_plan_integration.py` drops its parameter |
+| WP7 context | [wp7chk/context_chk.py](wp7chk/context_chk.py), [wp7chk/test_context.py](wp7chk/test_context.py), [wp7chk/conftest.py](wp7chk/conftest.py), [wp0_bug_epoch_viewer.py](wp0_bug_epoch_viewer.py) | GOES/AIA context actions (network mocked); the epoch probe becomes the date-label test |
+| WP8 browser | [wp8_scan.py](wp8_scan.py), [wp8_proto.py](wp8_proto.py), [wp8_loader.ui](wp8_loader.ui), [wp8_test_proto.py](wp8_test_proto.py), [wp8_test_shipped.py](wp8_test_shipped.py), [wp8_chk_test_text.py](wp8_chk_test_text.py), [wp8_chk_proto_fix.py](wp8_chk_proto_fix.py) | Filter, threaded stoppable scan and progress text; the Worker pattern also serves WP10's non-blocking load |
+| Cross-package checks | [review_20260905/](review_20260905/) (`run_checks.py`, `qs_isolate.py`, integration/refresh/line-position tests), [review_20260923/](review_20260923/README.md) (existing-capability probes) | Runner and probes; the probe figures in review_20260923 are specific to the irispy 0.8.1 fixture |
+| Review evidence | [review_20260927/](review_20260927/README.md) | Verified review, feasibility, prototype verdicts |
+
+## Reproduce
+
+Run from the glue-solar root in a micromamba environment (never `.venv`),
+with `HOME` and QSettings isolated:
+
+```sh
+P="$PWD/IRIS_PLAN_PROTOTYPES"; R="$P/review_20260905"
+run() { env HOME="$(mktemp -d)" PYTHONPATH="$R" "$PY" -B "$R/run_checks.py" "$1:$R" "${@:2}" -p qs_isolate; }
+
+PY=~/mamba/envs/iris-plan-irispy081/bin/python
+run "$P/wp1" "$P/wp1/glue_solar/tests/test_linking.py" "$P/wp1/glue_solar/tests/test_plugin.py"
+run "$P/wp1:$P:$P/chk_wp2" "$P/chk_wp2/test_wp2_moments.py" "$P/wp6_test_fitting.py" "$R/test_plan_integration.py" -p glue_solar.conftest
+run "$P/wp1:$P" "$R/test_refresh.py" "$R/test_line_positions.py" "$P/wp3chk_test_sessions.py" -p glue_solar.conftest
+run "$P/wp1:$P/wp7chk" "$P/wp7chk/test_context.py" -p glue_solar.conftest
+run "$PWD:$P" "$P/wp8_test_proto.py" "$P/wp8_chk_test_text.py" "$P/wp8_test_shipped.py"
+run "$PWD" "$P/review_20260923/test_existing_workflows.py" -p glue_solar.conftest
+```
+
+Environments: `iris-plan` has released glue-core 1.27.0, glue-qt 0.4.2 and
+irispy-lmsal 0.9.0. `iris-plan-irispy081` is the same with irispy-lmsal
+0.8.1, which the prototypes were written against. Results on 2026-09-27:
+
+| Check | irispy 0.8.1 | irispy 0.9.0 |
+| --- | --- | --- |
+| `glue_solar` on main | 34 passed, 1 skipped | 34 passed, 1 skipped |
+| WP1 linking + plugin | 19 passed, 2 skipped | 9 passed, 1 failed, 2 skipped, 9 errors |
+| WP2 + WP6 + integration | 17 passed | 11 passed, 3 failed, 3 errors |
+| Refresh + line positions + WP3 sessions | 15 passed | 11 passed, 4 failed |
+| WP7 context (network mocked) | 10 passed | 4 passed, 6 failed |
+| WP8 browser | 12 passed | 12 passed |
+| Existing-workflow probes | 7 passed, 2 skipped | 7 passed, 2 skipped |
+| WCS probes, released core | 3 passed, 1 failed (needs #2595) | 3 errors, 1 failed |
+| WCS probes, core #2601 + #2595 source | 4 passed (main and WP1) | errors (fixture names) |
+
+The 0.9.0 failures come from the prototypes looking up bundled fixtures by
+exact 0.8.1 names (0.9.0 renamed them to `*_test.fits`) and from values
+measured on the old cropped windows (`wp1-links-4`, `wp2-wp6-science-17`).
+Ported tests must use `glue_solar/conftest.py` `find_irispy_test_file` and
+derive expected values from the fixture.
+
+For upstream sources, prepend an export as an extra root. Exports are
+disposable, and macOS cleanup purges `/tmp`. Regenerate one with
+`git -C <repo> archive <head> | tar -x -C <dir>`, using the heads in the
+plan. Drop roots that no longer exist, because an empty export directory
+shadows the installed package.
 
 ## Contracts and limits
 
-- WP1 supplies `link_hpc`, which main does not yet export. WP4/WP7 require
-  this copied package on their import path. Source PR imports can retain
-  installed release metadata: use capabilities and source paths to identify them.
-- WP4 `nearest()` requires nonempty, sorted, finite reference times and
-  finite query times. Equal-distance ties choose the earlier sample; outside
-  coverage still clamps to an endpoint. No gap tolerance or “no match”
-  policy was invented. Direct `link_time()` callers must select matching
-  inputs; `quicklook()` checks OBSID and observation start conservatively.
-- `slit_x(cube, pixel_stride=10)` explicitly handles a known stride-10
-  fixture. The default is 1; an off-image slit does not imply decimation.
-  Old one-off WP4 probes may rely on the removed heuristic.
-- The image-sync experiment still wraps `app.new_data_viewer`. Disconnecting
-  closed viewers does not provide persistent, coordinated image/profile/point
-  state or resolve time-dependent geometry and scan-0 stack-WCS limitations.
-- WP3 and WP5 install process-local patches/registries. Do not import every
-  prototype into one application or interpret a patched process as main.
-  Existing sessions naming historical factory/class paths are not migrated.
-- WP6 clips negative samples and substitutes zero for NaNs before fitting;
-  it does not use source masks or uncertainty weights. Passing numerical
-  checks do not certify velocity calibration or a chosen line-profile model.
-- Unselected `wp*chk*`, `chk*`, `cc_*`, `sv2_*`, `ulb_*`, `ver_sess*`, `v_*`
-  and other probes remain historical. Some contain old paths, global patches,
-  network calls or output files. Headers saying “shipping code”, old test
-  totals and proposed production import paths are not current status.
-
-## Validation 2026-09-23
-
-Baseline: solar main `236f0a8`, glue-core 1.27.0, editable Qt #74
-`6b579814eb7c`, irispy 0.8.1, Astropy 8.0.1, NumPy 2.5.2,
-Matplotlib 3.11.1, ndcube 2.4.1, Python 3.14.7, pytest 9.1.1.
-CI status is excluded. No full eleven-PR combination, native macOS GUI,
-large-data latency/memory benchmark or physical-equivalence check was run.
-
-| Configuration and focused check | Result |
-| --- | --- |
-| WP1 copied package: linking plus refreshed plugin/readout tests, released core | 18 passed, 3 skipped (two autolink checks need upstream support; solar cursor is superseded by Qt #74) |
-| WP1 linking on core #2595 source | 11 passed, no autolink skip |
-| WP2 moments + WP6 fitting + four integration checks, WP1 package | 17 passed |
-| Refresh helpers/blink + numeric line positions/session + WP3 real sessions, WP1 package | 15 passed |
-| Line positions/session on core #2601 + Qt #70 sources | 3 passed |
-| WP7 context with WP1 and temporary timeseries dependencies | 10 passed; network mocked |
-| WP8 existing behavior + progress-text regression, current solar main | 10 passed |
-| Temporary smoke check of the refreshed line-session demo on the profile PRs | 1 passed |
-
-Static checks parsed all 168 Python files (including the archived originals)
-and resolved 69 local links/anchors across the active plan and this index.
-All 252 original artifacts remain byte-identical either at their original
-path or in the refresh archive; 17 original source files were refreshed.
-
-The progress-text regression failed before the fix. An initial unconditional
-reset also broke the extraction-at-100 check; the final fix only repairs an
-invalid progress value, and both behaviors pass. Test counts above describe
-separate configurations and overlap; they are not one full-suite total.
-
-For WP7, `cdflib==1.3.12` and `h5netcdf==1.8.1` were installed with `--no-deps`
-under `/tmp/iris-plan-validation-20260922/timeseries-deps`, using existing
-h5py and other dependencies. No project dependency declaration or environment
-was modified. A production port needs `sunpy[map,net,timeseries]`.
-pytest-doctestplus/pytest-mpl remain absent; routine unknown-config warnings
-were emitted. No docs/doctest or image-comparison coverage is claimed.
-
-### Reproduce selected checks
-
-Run from the repository root. Each invocation starts a fresh process;
-WP8 uses main, while WP1-dependent checks use the copied package.
-
-```sh
-iris_root="$PWD"
-iris_protos="$iris_root/IRIS_PLAN_PROTOTYPES"
-iris_runner="$iris_protos/review_20260905/run_checks.py"
-
-.venv/bin/python -B "$iris_runner" "$iris_protos/wp1" \
-  "$iris_protos/wp1/glue_solar/tests/test_linking.py" \
-  "$iris_protos/wp1/glue_solar/tests/test_plugin.py"
-
-.venv/bin/python -B "$iris_runner" "$iris_protos/wp1:$iris_protos:$iris_protos/chk_wp2" \
-  "$iris_protos/chk_wp2/test_wp2_moments.py" "$iris_protos/wp6_test_fitting.py" \
-  "$iris_protos/review_20260905/test_plan_integration.py" -p glue_solar.conftest
-
-.venv/bin/python -B "$iris_runner" "$iris_protos/wp1:$iris_protos" \
-  "$iris_protos/review_20260905/test_refresh.py" \
-  "$iris_protos/review_20260905/test_line_positions.py" \
-  "$iris_protos/wp3chk_test_sessions.py" -p glue_solar.conftest
-
-# Requires the SunPy timeseries dependencies; omit the temporary path if installed normally.
-.venv/bin/python -B "$iris_runner" \
-  "$iris_protos/wp1:$iris_protos/wp7chk:/tmp/iris-plan-validation-20260922/timeseries-deps" \
-  "$iris_protos/wp7chk/test_context.py" -p glue_solar.conftest
-
-.venv/bin/python -B "$iris_runner" "$iris_root:$iris_protos" \
-  "$iris_protos/wp8_test_proto.py" "$iris_protos/wp8_chk_test_text.py"
-```
-
-For the upstream variants, prepend exported source paths to the runner's
-colon-separated path argument. Exports used for this validation:
-
-- Core #2595: `c49aeb1af14a8504c8f75a42d3a36883be5e9776`.
-- Core #2601 (includes slice support): `acaf4e1c0ef88d513aecc158f81c8b9dcef9c28b`.
-- Qt #70: `f1471b7ad843b453bf0c8f4e92e743cce04c6e7d`.
-
-These disposable exports are under `/tmp/iris-plan-validation-20260922/`
-as `core-ape14`, `core-profile`, `qt-profile`. No checkout switch is needed.
-Run `test_linking.py` with the first, and `test_line_positions.py` with the
-latter two. Do not combine upstream core/Qt repository suites into one
-pytest invocation: their conftests register the same command-line option.
-
-## Historical evidence
-
-[Validation 2026-09-22](archive/2026-09-23-prototype-refresh/README.before-refresh.md#validation-2026-09-22)
-records the original failing imports, session gaps and prior upstream tests.
-It is superseded for the refreshed entry points, not deleted or rewritten.
-[archive/2026-09-05/](archive/2026-09-05/) contains the original plans/audits;
-[archive/2026-09-22/](archive/2026-09-22/) preserves the September 5 plan.
-Other findings, session fixtures and logs remain at their existing paths.
+- WP3 and WP5 prototypes install process-wide patches or registries when
+  imported. Do not import every prototype into one application, and do not
+  mistake a patched process for `main`.
+- `wp4_common.nearest` rejects unsorted references and clamps outside
+  coverage. The plan replaces both behaviours (D7, D10).
+- WP6 clips negative samples and replaces NaN with zero before fitting. The
+  port removes this (`wp2-wp6-science-3`).
+- Files in `archive/` keep their original relative links, some of which no
+  longer resolve. They are historical records, not work lists.

@@ -1,3 +1,7 @@
+> Historical snapshot, archived 2026-08-29, moved 2026-09-27. Not an active checklist.
+> Original location: `glue-solar/IRIS_PLAN_PROTOTYPES/IRIS_GLUE_GAP_PLAN.2026-08-29.md`. Body preserved verbatim; paths and status claims describe that original context and may be stale.
+> Current instructions: [the central work plan](../../../IRIS_GLUE_GAP_PLAN.md).
+
 # Plan: closing the IRIS capability gaps
 
 Companion to [`IRIS_IDL_GLUE_CAPABILITY_AUDIT.md`](IRIS_IDL_GLUE_CAPABILITY_AUDIT.md)
