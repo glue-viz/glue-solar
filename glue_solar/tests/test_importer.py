@@ -172,12 +172,12 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
     values = data.get_component(science).data
     times = data["Time"]
     raw_last = np.asarray(sequence[-1].data, dtype=np.float32).copy()
-    raw_last[sequence[-1].mask] = np.nan
+    raw_last[np.isin(raw_last, (-200, -199))] = np.nan
     assert data.shape == (len(paths), 8, 109, 17)
     assert [c.label for c in data.world_component_ids][0] == "Scan"
     assert data.coords.world_axis_units == ("m", "arcsec", "arcsec", "")
     np.testing.assert_array_equal(values[-1], raw_last)
-    np.testing.assert_array_equal(data.get_component(mask).data, ~np.isfinite(values))
+    np.testing.assert_array_equal(data.get_component(mask).data, np.isnan(values))
     for i, expected in enumerate(expected_times):
         np.testing.assert_array_equal(times[i, :, 0, 0], expected)
         np.testing.assert_array_equal(times[i, :, -1, -1], expected)
@@ -205,6 +205,37 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
 
     with pytest.raises(ValueError, match="same shape"):
         stack_spectrogram_sequence([sequence[0], sequence[1][:-1]], memmap=False)
+
+
+def test_real_raster_fill_values_become_nan(irispy_test_files):
+    path = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits")
+    data = raster_data([path], ["Si IV 1403"])[0]
+    values = data[data.main_components[0]]
+    assert values.size == 216_920
+    assert not np.isin(values, (-200, -199)).any()
+    assert np.isnan(values).sum() == 35_027
+
+
+def test_negative_step_raster_fill_follows_the_flipped_data(tmp_path, irispy_test_files):
+    # irispy flips STEPS_AV < -0.01 rasters along the step axis but builds their mask before the flip
+    source = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits")
+    path = tmp_path / source.name
+    shutil.copy2(source, path)
+    with fits.open(path, mode="update") as hdul:
+        hdul[0].header["STEPS_AV"] = -1.0
+        window = [hdul[0].header[f"TDESC{i}"] for i in range(1, hdul[0].header["NWIN"] + 1)].index("Si IV 1403") + 1
+        first = hdul[window].data[0]
+        first[tuple(np.argwhere(first != -200)[0])] = -199  # the fixtures hold no -199
+    with fits.open(path) as hdul:
+        fill = np.flip(np.isin(hdul[window].data, (-200, -199)), axis=0)
+    cube = read_files(path, spectral_windows=["Si IV 1403"], memmap=False, uncertainty=False)["Si IV 1403"][0]
+    assert not np.array_equal(cube.mask, fill)
+
+    scan = raster_data([path], ["Si IV 1403"])[0]
+    np.testing.assert_array_equal(np.isnan(scan[scan.main_components[0]]), fill)
+    stack = raster_data([path, path], ["Si IV 1403"], stack=True)[0]
+    for values in stack[stack.main_components[0]]:
+        np.testing.assert_array_equal(np.isnan(values), fill)
 
 
 def test_duplicate_real_raster_is_listed_and_loaded_once(qtbot, tmp_path, irispy_test_files):

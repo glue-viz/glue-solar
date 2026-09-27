@@ -10,6 +10,9 @@ from ndcube.wcs.wrappers import CompoundLowLevelWCS
 from astropy.wcs import WCS
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
+# IRIS Level 2 missing-data codes, as in iris_raster_browser (missing=[-200, -199])
+MISSING_VALUES = (-200, -199)
+
 
 def stack_spectrogram_sequence(cube_sequence, memmap=True):
     """
@@ -50,16 +53,15 @@ def stack_spectrogram_sequence(cube_sequence, memmap=True):
     acquisition_times = np.empty(cube_shape[:-1], dtype="datetime64[ns]")
 
     for i, cube in enumerate(cube_sequence):
-        source = np.asarray(cube.data, dtype=dtype)
-        if cube.mask is not None:
-            source = source.copy()
-            source[np.asarray(cube.mask, dtype=bool)] = np.nan
+        scan = output[i]
+        scan[...] = cube.data
+        # From the values, not cube.mask: irispy <= 0.9.0 flips STEPS_AV < -0.01 rasters but not their mask.
+        scan[np.isin(scan, MISSING_VALUES)] = np.nan
         times = cube.axis_world_coords("time", wcs=cube.extra_coords)[0].utc.to_value("datetime64")
         acquisition_times[i] = np.broadcast_to(
-            times.reshape((len(times),) + (1,) * (source.ndim - 2)),
-            source.shape[:-1],
+            times.reshape((len(times),) + (1,) * (scan.ndim - 2)),
+            scan.shape[:-1],
         )
-        output[i] = source
 
     # A sliced 2D FITS WCS handles the multidimensional pixel arrays Glue uses;
     # astropy's standalone 1D FITS WCS interprets them as coordinate tables.
@@ -76,7 +78,7 @@ def stack_spectrogram_sequence(cube_sequence, memmap=True):
         NDCube(
             output,
             out_wcs,
-            mask=~np.isfinite(output),
+            mask=np.isnan(output),
             meta=dict(cube_sequence[0].meta),
             unit=cube_sequence[0].unit,
         ),
