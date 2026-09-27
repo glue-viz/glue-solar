@@ -1,0 +1,1 @@
+Negative-step (``STEPS_AV < -0.01``) IRIS rasters now load with the right mask and per-step metadata (exposure time, exposure FOV center, auxiliary times, observer radial velocity and orbital phase). This needs irispy-lmsal with `LM-SAL/irispy#176 <https://github.com/LM-SAL/irispy/pull/176>`__, which glue-solar installs from irispy's main branch until a release contains it.
