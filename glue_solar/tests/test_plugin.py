@@ -1,3 +1,5 @@
+import shutil
+
 import numpy as np
 import pytest
 from glue.config import data_factory, menubar_plugin
@@ -8,9 +10,12 @@ from glue_qt.viewers.image import ImageViewer
 from irispy.io import read_files
 from matplotlib.backend_bases import MouseEvent
 
+from astropy.io import fits
+
 import glue_solar
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.sources.iris import is_iris_fits
+from glue_solar.sources.loaders.iris import image_data
 
 
 def test_setup_registers_hooks():
@@ -198,3 +203,28 @@ def test_iris_image_layers_render_nan_transparent(qtbot, irispy_test_files):
 
     other = app.new_data_viewer(ImageViewer, data=still)  # not IRIS: glue's default stays
     assert other.layers[0].state.cmap_bad is None
+
+
+def test_aia_cutout_fill_renders_transparent(qtbot, tmp_path, iris_tree):
+    d, t, o = OBS_A
+    source = iris_tree / f"{MD5}iris_l2_{d}_{t}_{o}_SDO" / f"aia_l2_{d}_{t}_{o}_171.fits"
+    clean = image_data(source)
+    assert np.issubdtype(clean[clean.main_components[0]].dtype, np.int16)  # no fill, no conversion
+
+    path = tmp_path / source.name
+    shutil.copy2(source, path)
+    with fits.open(path, mode="update") as hdul:
+        hdul[0].data[0, 1, 2] = -200
+        hdul[0].data[0, 2, 3] = -199  # unverified as missing in AIA cutouts, so it stays data
+    aia = image_data(path)
+    flux = aia[aia.main_components[0]]
+    assert flux.dtype == np.float32
+    np.testing.assert_array_equal(np.argwhere(np.isnan(flux)), [[0, 1, 2]])
+    assert flux[0, 2, 3] == -199
+
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(aia)
+    viewer = app.new_data_viewer(ImageViewer, data=aia)
+    image = viewer.axes._composite(bounds=[(-0.5, 3.5, 4), (-0.5, 4.5, 5)])
+    np.testing.assert_array_equal(image[1, 2], [1, 1, 1, 1])  # the white background shows through

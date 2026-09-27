@@ -16,7 +16,7 @@ import astropy.units as u
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
 from .scan import extract_archive, scan_directory
-from .stack_spectrograms import stack_spectrogram_sequence
+from .stack_spectrograms import MISSING_VALUES, stack_spectrogram_sequence
 
 __all__ = ["QtIRISImporter", "image_data", "iris_data", "last_directory", "raster_data"]
 
@@ -69,13 +69,20 @@ class _GlueWCS(BaseWCSWrapper):
         return self._wcs.world_to_pixel_values(*values)
 
 
-def _cube_data(cube, label, *, color=None, cmap=None):
-    """Convert one irispy cube into one Glue dataset."""
+def _cube_data(cube, label, *, color=None, cmap=None, missing=MISSING_VALUES):
+    """Convert one irispy cube into one Glue dataset, with the ``missing`` data codes as NaN."""
     data = Data(label=label)
     data.coords = _GlueWCS(cube.wcs.low_level_wcs)
     data.meta = cube.meta
     data.style = VisualAttributes(color=color, preferred_cmap=cmap)
-    data.add_component(Component(cube.data, units=str(cube.unit)), label)
+    values = cube.data
+    # From the values, not cube.mask: irispy <= 0.9.0 flips STEPS_AV < -0.01 rasters but not their mask.
+    fill = np.isin(values, missing) if missing else None
+    if fill is not None and fill.any():
+        # In place for float data: this writes into irispy's cube, which the loader discards.
+        values = values.astype(np.result_type(values.dtype, np.float32), copy=False)
+        values[fill] = np.nan
+    data.add_component(Component(values, units=str(cube.unit)), label)
     if cube.mask is not None:
         data.add_component(Component(np.asarray(cube.mask, dtype=bool)), f"{label} mask")
     times = _frame_times(cube)
@@ -108,7 +115,7 @@ def _raster_collection_data(collection, windows=None, stack=False):
         if stack and len(sequence) > 1:
             cube, times = stack_spectrogram_sequence(sequence)
             label = f"{name}-{_observation_label(cube.meta)}-stack"
-            data = _cube_data(cube, label, color="#7A617C")
+            data = _cube_data(cube, label, color="#7A617C", missing=())  # the stack already holds NaN
             data.add_component(np.broadcast_to(times[..., np.newaxis], cube.shape), "Time")
             datasets.append(data)
             continue
@@ -121,8 +128,10 @@ def _raster_collection_data(collection, windows=None, stack=False):
 def _image_cube_data(cube):
     desc = str(cube.meta["TDESC1"])
     wave = int(cube.meta["TWAVE1"])
-    cmap = f"irissji{wave}" if desc.startswith("SJI") else f"sdoaia{wave}"
-    return _cube_data(cube, f"{desc}-{_observation_label(cube.meta)}", cmap=cmap)
+    if desc.startswith("SJI"):
+        return _cube_data(cube, f"{desc}-{_observation_label(cube.meta)}", cmap=f"irissji{wave}")
+    # -199 is unverified as a missing code in AIA cutouts
+    return _cube_data(cube, f"{desc}-{_observation_label(cube.meta)}", cmap=f"sdoaia{wave}", missing=(-200,))
 
 
 def last_directory():
