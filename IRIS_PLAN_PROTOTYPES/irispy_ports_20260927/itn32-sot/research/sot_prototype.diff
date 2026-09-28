@@ -1,0 +1,139 @@
+diff -ru -x _ orig/irispy/io/sji.py irispy_main/irispy/io/sji.py
+--- orig/irispy/io/sji.py	2026-09-27 15:53:10
++++ irispy_main/irispy/io/sji.py	2026-09-27 16:28:20
+@@ -10,13 +10,20 @@
+ from dkist.wcs.models import CoupledCompoundModel, VaryingCelestialTransform
+ 
+ from irispy.meta import SJIMeta
+-from irispy.sji import AIACube, SJICube
++from irispy.sji import AIACube, SJICube, SOTCube
+ from irispy.utils import calculate_uncertainty
+ from irispy.utils.constants import BAD_PIXEL_VALUE_SCALED, BAD_PIXEL_VALUE_UNSCALED, DN_UNIT, READOUT_NOISE
+ 
+ __all__ = ["read_sji_lvl2"]
+ 
++# ITN32 SOT BUNIT strings that astropy cannot parse
++_SOT_BUNIT = {
++    "DN = 64 photoelectrons": u.DN,
++    "dimensionless ratio": u.dimensionless_unscaled,
++    "unitless number between 0 and 1": u.dimensionless_unscaled,
++}
+ 
++
+ def _t_obs(hdulist):
+     """
+     Return the SJI exposure midpoints (T_OBS): ``STARTOBS + AUX TIME + EXPTIMES / 2``.
+@@ -203,6 +210,8 @@
+     with fits.open(filename, memmap=memmap, do_not_scale_image_data=memmap) as hdulist:
+         hdulist.verify("silentfix")
+         instrume = hdulist[0].header["INSTRUME"]
++        # A one-frame cube (SOT-SP maps) has a 1D auxiliary row
++        hdulist[1].data = np.atleast_2d(hdulist[1].data)
+         t_obs = _t_obs(hdulist)
+         _fill_dropped_pointing_rows(hdulist)
+         extra_coords = [
+@@ -253,7 +262,11 @@
+             unit = DN_UNIT["SJI"]
+             if uncertainty and instrume in ["IRIS", "SJI"]:
+                 out_uncertainty = calculate_uncertainty(data, READOUT_NOISE["SJI"], DN_UNIT["SJI"])
+-        cube_class = SJICube if instrume in ["IRIS", "SJI"] else AIACube
++        if instrume.startswith("SOT"):
++            unit = _SOT_BUNIT.get(hdulist[0].header.get("BUNIT"), None) or u.Unit(
++                hdulist[0].header.get("BUNIT", ""), parse_strict="silent"
++            )
++        cube_class = SJICube if instrume in ["IRIS", "SJI"] else SOTCube if instrume.startswith("SOT") else AIACube
+         map_cube = cube_class(
+             data_nan_masked,
+             _create_gwcs(hdulist, t_obs),
+diff -ru -x _ orig/irispy/io/utils.py irispy_main/irispy/io/utils.py
+--- orig/irispy/io/utils.py	2026-09-27 15:53:10
++++ irispy_main/irispy/io/utils.py	2026-09-27 16:28:08
+@@ -33,6 +33,9 @@
+     header = fits.getheader(file)
+     instrume = header.get("INSTRUME", "")
+     describe = header.get("TDESC1", "")
++    if instrume == "SOT-SP":
++        # Every SP map of an OBS shares TDESC1 '6302A'; BTYPE names the quantity
++        describe = f"{describe} {header.get('BTYPE', '')}".strip()
+     return instrume, describe
+ 
+ 
+@@ -189,11 +192,11 @@
+     spec_groups = {}
+     for filename in filenames:
+         try:
+-            sdo_tarfile = bool(filename.name.endswith("SDO.tar.gz"))
++            sdo_tarfile = filename.name.endswith(("SDO.tar.gz", "SOTFG.tar.gz", "SOTSP.tar.gz"))
+             raster_tarfile = bool(filename.name.endswith("_raster.tar.gz"))
+             instrume, describe = _get_simple_metadata(filename)
+             log.debug(f"Processing file: {filename} with instrume: {instrume}")
+-            if sdo_tarfile or instrume in ["IRIS", "SJI"] or instrume.startswith("AIA"):
++            if sdo_tarfile or instrume in ["IRIS", "SJI"] or instrume.startswith(("AIA", "SOT")):
+                 file = _extract_tarfile([filename]) if sdo_tarfile else [filename]
+                 for f in file:
+                     instrume, describe = _get_simple_metadata(f)
+diff -ru -x _ orig/irispy/meta.py irispy_main/irispy/meta.py
+--- orig/irispy/meta.py	2026-09-27 15:53:10
++++ irispy_main/irispy/meta.py	2026-09-27 16:28:27
+@@ -9,6 +9,7 @@
+ 
+ from ndcube.meta import NDMeta
+ from sunpy.coordinates import Helioprojective
++from sunpy.time import parse_time
+ from sunraster.meta import RemoteSensorMetaABC, SlitSpectrographMetaABC
+ 
+ from irispy.utils.constants import SPECTRAL_BAND
+@@ -26,7 +27,8 @@
+     def _construct_time(self, key):
+         val = self.get(key)
+         if val is not None:
+-            val = Time(val, format="fits", scale="utc")
++            # SOT-SP cubes use the SSW '8-Jan-2016 19:13:48.658' form
++            val = parse_time(val, scale="utc")
+         return val
+ 
+     @property
+diff -ru -x _ orig/irispy/sji.py irispy_main/irispy/sji.py
+--- orig/irispy/sji.py	2026-09-27 15:53:10
++++ irispy_main/irispy/sji.py	2026-09-27 16:28:38
+@@ -2,6 +2,7 @@
+ import warnings
+ from numbers import Integral
+ 
++import matplotlib
+ import numpy as np
+ 
+ from astropy.wcs import WCS
+@@ -17,7 +18,7 @@
+ from irispy.utils.dust import remove_dust as _remove_dust
+ from irispy.visualization import SJIPlotter
+ 
+-__all__ = ["AIACube", "SJICube"]
++__all__ = ["AIACube", "SJICube", "SOTCube"]
+ 
+ 
+ def _normalize_tuple_index(item, ndim):
+@@ -323,7 +324,9 @@
+             m.meta["TELESCOP"] = self.meta.get("TELESCOP", "IRIS")
+             m.meta["EXPTIME"] = self.meta.get("EXPTIME", 0.0)
+             m.meta["TWAVE1"] = self.meta.get("TWAVE1")
+-            m.plot_settings["cmap"] = f"irissji{int(self.meta['TWAVE1'])}"
++            cmap = f"irissji{int(self.meta['TWAVE1'])}"
++            if cmap in matplotlib.colormaps:  # SOT and AIA cubes have no IRIS colormap
++                m.plot_settings["cmap"] = cmap
+         return maps[0] if isinstance(index, int) else maps
+ 
+ 
+@@ -336,3 +339,12 @@
+ 
+     def __str__(self) -> str:
+         return super().__str__().replace("SJICube", "AIACube")
++
++
++class SOTCube(SJICube):
++    """
++    A Hinode/SOT cube co-aligned to IRIS in the SJI level 2 format (ITN32).
++    """
++
++    def __str__(self) -> str:
++        return super().__str__().replace("SJICube", "SOTCube")

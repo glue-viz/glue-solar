@@ -1,0 +1,51 @@
+Matplotlib is building the font cache; this may take a moment.
+WARNING: target cannot be converted to ICRS, so will not be set on SpectralCoord [astropy.wcs.wcsapi.fitswcs]
+WARNING: target cannot be converted to ICRS, so will not be set on SpectralCoord [astropy.wcs.wcsapi.fitswcs]
+WARNING: target cannot be converted to ICRS, so will not be set on SpectralCoord [astropy.wcs.wcsapi.fitswcs]
+WARNING: target cannot be converted to ICRS, so will not be set on SpectralCoord [astropy.wcs.wcsapi.fitswcs]
+WARNING: target cannot be converted to ICRS, so will not be set on SpectralCoord [astropy.wcs.wcsapi.fitswcs]
+WARNING: target cannot be converted to ICRS, so will not be set on SpectralCoord [astropy.wcs.wcsapi.fitswcs]
+WARNING: target cannot be converted to ICRS, so will not be set on SpectralCoord [astropy.wcs.wcsapi.fitswcs]
+WARNING: target cannot be converted to ICRS, so will not be set on SpectralCoord [astropy.wcs.wcsapi.fitswcs]
+WARNING: target cannot be converted to ICRS, so will not be set on SpectralCoord [astropy.wcs.wcsapi.fitswcs]
+WARNING: target cannot be converted to ICRS, so will not be set on SpectralCoord [astropy.wcs.wcsapi.fitswcs]
+WARNING: target cannot be converted to ICRS, so will not be set on SpectralCoord [astropy.wcs.wcsapi.fitswcs]
+FUV noise model: 4.0 photon/DN, read noise 3.1 DN; ratio = median analytic / MC std
+bg=0.0 amp= 1000 DN  neg samples=20.3% valid=100.0% centroid bias= +0.05 mA  width/true= 1.03
+    clipped sigma=zero: I  1.01  centroid  1.08  width  1.21
+    clipped sigma=keep: I  1.02  centroid  1.26  width  1.60
+bg=0.0 amp=  100 DN  neg samples=26.2% valid=100.0% centroid bias= +0.54 mA  width/true= 1.24
+    clipped sigma=zero: I  1.05  centroid  1.18  width  1.24
+    clipped sigma=keep: I  1.15  centroid  1.54  width  1.75
+bg=0.0 amp=   30 DN  neg samples=30.2% valid=100.0% centroid bias= +1.47 mA  width/true= 1.65
+    clipped sigma=zero: I  1.08  centroid  1.21  width  1.23
+    clipped sigma=keep: I  1.26  centroid  1.64  width  1.78
+bg=0.0 amp=   10 DN  neg samples=35.0% valid=100.0% centroid bias= +3.34 mA  width/true= 2.26
+    clipped sigma=zero: I  1.12  centroid  1.22  width  1.21
+    clipped sigma=keep: I  1.36  centroid  1.72  width  1.79
+bg=0.0 amp=    3 DN  neg samples=42.8% valid=100.0% centroid bias= +6.03 mA  width/true= 2.87
+    clipped sigma=zero: I  1.19  centroid  1.20  width  1.23
+    clipped sigma=keep: I  1.56  centroid  1.74  width  1.89
+bg=2.0 amp= 1000 DN  neg samples=10.3% valid=100.0% centroid bias= +0.11 mA  width/true= 1.06
+    clipped sigma=zero: I  1.00  centroid  1.05  width  1.10
+    clipped sigma=keep: I  1.01  centroid  1.13  width  1.24
+bg=2.0 amp=  100 DN  neg samples=13.5% valid=100.0% centroid bias= +0.96 mA  width/true= 1.46
+    clipped sigma=zero: I  1.04  centroid  1.09  width  1.11
+    clipped sigma=keep: I  1.08  centroid  1.22  width  1.29
+bg=2.0 amp=   30 DN  neg samples=15.6% valid=100.0% centroid bias= +2.68 mA  width/true= 2.01
+    clipped sigma=zero: I  1.05  centroid  1.10  width  1.10
+    clipped sigma=keep: I  1.12  centroid  1.26  width  1.29
+bg=2.0 amp=   10 DN  neg samples=17.8% valid=100.0% centroid bias= +5.00 mA  width/true= 2.62
+    clipped sigma=zero: I  1.06  centroid  1.09  width  1.10
+    clipped sigma=keep: I  1.16  centroid  1.27  width  1.29
+bg=2.0 amp=    3 DN  neg samples=21.6% valid=100.0% centroid bias= +7.16 mA  width/true= 3.08
+    clipped sigma=zero: I  1.08  centroid  1.10  width  1.11
+    clipped sigma=keep: I  1.21  centroid  1.29  width  1.31
+Traceback (most recent call last):
+  File "<scratch>/features/moments-uncertainty/mc_moments.py", line 97, in <module>
+    main()
+    ~~~~^^
+  File "<scratch>/features/moments-uncertainty/mc_moments.py", line 93, in main
+    assert abs(ri - 1) < 0.05 and abs(rc - 1) < 0.05 and abs(rw - 1) < 0.05, rows
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: [('zero', np.float64(1.0111935214388947), np.float64(1.080183863437271), np.float64(1.186438936902736)), ('keep', np.float64(1.0273533987429713), np.float64(1.259763734496591), np.float64(1.5759656643645772))]

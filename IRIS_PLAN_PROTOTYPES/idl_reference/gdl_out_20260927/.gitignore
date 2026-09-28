@@ -1,0 +1,4 @@
+# GDL reference outputs are large binaries: keep them local, never commit them to the public branch
+*.sav
+sji_burst_*.txt
+gdl_console.log

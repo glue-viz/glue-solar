@@ -1,0 +1,17 @@
+#!/bin/tcsh -f
+# sswgdl launcher, per https://github.com/rbluosolar/sswgdl README (scratch-only paths).
+# Deviations from README: HOME redirected to scratch; ssw_nox set (headless);
+# optional $SSWGDL_PATCHES dir prepended (local GDL-compat overrides); args passed to sswidl.
+setenv HOME <scratch>/sswgdl-work/home
+setenv SSW <scratch>/sswgdl-work/ssw
+setenv IDL_DIR <scratch>/sswgdl-work/gdldir
+setenv GDL_LIB <scratch>/sswgdl-work/gdldir/share/gnudatalanguage/lib
+if ($?SSWGDL_PATCHES) then
+  setenv GDL_PATH +${SSWGDL_PATCHES}:+$GDL_LIB/:+$SSW/:+<scratch>/sswgdl-work/pro
+else
+  setenv GDL_PATH +$GDL_LIB/:+$SSW/:+<scratch>/sswgdl-work/pro
+endif
+setenv SSW_INSTR "gen iris"
+setenv ssw_nox 1
+source $SSW/gen/setup/setup.ssw
+sswidl $argv:q

@@ -1,6 +1,6 @@
 # IRIS and Glue cross-repository work plan
 
-Updated 2026-09-27 (America/Los_Angeles). This file is the single maintained
+Updated 2026-09-27, evening (America/Los_Angeles). This file is the single maintained
 work plan for glue-core (`~/Git/glue`), glue-qt (`~/Git/glue-qt`) and
 glue-solar (`~/Git/glue-solar`). Its target is an IRIS quicklook in Glue that
 covers what SolarSoft's CRISPEX offers IRIS users.
@@ -31,8 +31,20 @@ Companion files:
   the verified review, feasibility probes and prototype verdicts behind this
   revision. Finding ids such as `wp4-quicklook-1` and `followup-2-1` resolve
   there.
+- [IRIS_PLAN_PROTOTYPES/irispy_ports_20260927/](IRIS_PLAN_PROTOTYPES/irispy_ports_20260927/README.md):
+  the verified feasibility of porting five SolarSoft features into irispy
+  (efforts, decisions, prototypes; `feasibility.json` holds the raw reports).
+- [IRIS_PLAN_PROTOTYPES/idl_reference/](IRIS_PLAN_PROTOTYPES/idl_reference/README.md):
+  the IDL reference-run package for those ports and, in `gdl/`, the GDL
+  harness that runs the same routines without IDL.
+- `IRIS_PLAN_PROTOTYPES/upstream/`: the reproducers of the WP0 upstream
+  reports (`<slug>.py`).
 
 ## How to use this plan
+
+In a new session, read [Current state](#current-state-2026-09-27-evening)
+first. It lists the open PRs, worktrees, environments, work in flight and the
+next steps.
 
 1. Pick an unchecked checkbox in the earliest open milestone. Read its done
    condition, the features it lists (in the companion file) and the cited
@@ -82,26 +94,81 @@ Excluded:
   `SPECTFILE`, `LINE_CENTER` and `NO_WARP` keywords. The companion file names
   each equivalent.
 
-## Current state, 2026-09-27
+## Current state, 2026-09-27 (evening)
 
-On glue-solar `main` (236f0a8): the IRIS observation browser and loader
-(#44, with fixtures #50), a datetime64 `Time` component on SJI, raster and
-stack datasets, the `solar:frame_time` and `solar:cursor_readout` Image
-Viewer tools (#52), and transparent NaN pixels for IRIS image layers (#53).
-On released core, sessions that contain any glue-solar dataset fail to save,
-including sunpy Maps opened with File → Open (`archive-trace-5`); WP3 fixes
-this. No glue-solar release exists yet.
+Start a new session here. Refresh the PR states with `gh` before acting.
 
-Reference environment (micromamba `iris-plan`): released glue-core 1.27.0,
-glue-qt 0.4.2 (PyQt5), irispy-lmsal 0.9.0, astropy 8.0.1, sunpy 8.0.0,
-Python 3.13, glue-solar editable. The `glue_solar` suite gives 34 passed,
-1 skipped. The skip is the APE-14 autolink test, which needs core #2595.
-The solar cursor-readout test runs because glue-qt 0.4.2 lacks
-`cursor_status`.
+**glue-solar `main` (420dcea).**
+- #44 and #50: the IRIS observation browser and loader, with its fixtures.
+- #52: a datetime64 `Time` component on SJI, raster and stack datasets, and the `solar:frame_time` and `solar:cursor_readout` Image Viewer tools.
+- #53: transparent NaN pixels for IRIS image layers.
+- #54 (`wp10-fill-nan`): -200/-199 fill loads as NaN; AIA cutouts use -200 only.
+- #55: glue-solar installs irispy from a main commit by git URL, `irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@49d705c…`, which is LM-SAL/irispy#176. This is a user decision and an exception to D5. PyPI rejects direct references, so it must return to a version floor before any glue-solar release.
 
-Latest releases: glue-core v1.27.0 (2026-06-25), glue-qt v0.4.2
-(2026-02-11), irispy-lmsal v0.9.0 (2026-09-10). Open upstream PRs, checked
-with `gh` on 2026-09-27 (heads unchanged since 2026-09-22 except where noted):
+On released core, sessions that contain any glue-solar dataset fail to save, including sunpy Maps opened with File → Open (`archive-trace-5`); WP3 fixes this. No glue-solar release exists yet.
+
+**Open glue-solar PR.** Draft #56 (branch `irispy-pin-bump`, head eb23167, worktree `~/Git/glue-solar-irispy-pin-bump`) moves the pin to irispy main 5ce6029, which contains #176–#181. The glue-solar suite passes against that commit (37 passed, 1 skipped), and #56's CI is green.
+
+**irispy.** LM-SAL/irispy `main` is at 5ce6029 and contains:
+- #176 (`wp0-irispy-v34-flip`): V34 rasters flip their mask, uncertainty and per-step meta.
+- #177 (`wp0-irispy-tab-index`): the raster -TAB WCS has no step index.
+- #178 (`wp0-irispy-crpix`, `wp0-irispy-slit-units`): SJI and AIA gWCS use CRPIX − 1, and the slit extra coordinates are in pixels and stay 1-based (the user's decision).
+- #179: calculate_uncertainty gives negative counts readout noise only.
+- #180 (merged as 5ce6029): meta properties return None for header keys Level 2 files lack, `observer_radial_velocity` falls back to the per-exposure values, and the AIA cutouts' OBSID parses.
+- #181 (merged as 768c7eb): no raster uncertainty from memmap data.
+
+None of these is released; the latest release is irispy-lmsal 0.9.0.
+
+irispy work targets `main` only; the user said to ignore the gWCS raster branches (D14). `~/Git/irispy` is the user's in-progress `gwcs_raster_v2` checkout: never check out, stash or edit in it, and never run Python with it as the working directory. Branch from `origin/main` into a separate worktree instead. At 18:11 PDT on 2026-09-27 the user opened draft LM-SAL/irispy#182 from `gwcs_raster_v2` (base `main`). How it relates to D14 and `wp0-irispy-gwcs-branch` is the user's call; do not act on it unasked.
+
+**Committed state.** The 2026-09-27 evening commit on `plan` (pushed to `origin/plan`) holds this file and all of `IRIS_PLAN_PROTOTYPES/`. The exception is the GDL `.sav` outputs in `IRIS_PLAN_PROTOTYPES/idl_reference/gdl_out_20260927/`: they are git-ignored and exist only on the Mac that ran them.
+
+**In flight and next steps.**
+1. The user reviews and merges glue-solar draft #56, which pins irispy main 5ce6029 (#176–#181).
+2. IDL reference run. The user runs `IRIS_PLAN_PROTOTYPES/idl_reference/` on 2026-09-28 on another machine, from the copy in `~/Dropbox/iris_ref_idl/` (its four top-level files).
+   - Its README's step 3 pipes the commands into `sswidl`, because `sswidl -e "..."` breaks on spaces.
+   - Where the user returns `iris_ref_out/` and `iris_ref_console.log` is not yet known; ask.
+   - Before any port uses the results, check that `status.txt` lists 8 × ok.
+   - Then compare each output with the GDL run of the same `iris_ref_run.pro`, which is in `IRIS_PLAN_PROTOTYPES/idl_reference/gdl_out_20260927/`. Its `.sav` files are git-ignored and exist only on this Mac; `idl_reference/gdl/README.md` says how to regenerate them.
+   - Read the `.sav` files with `scipy.io.readsav` in `iris-plan`, and judge the differences with the tolerances the shared plan sets.
+3. irispy feature ports (`wp0-irispy-requests`, `wp2-m3-mg-features`, `wp2-burst-detection`): see `IRIS_PLAN_PROTOTYPES/irispy_ports_20260927/README.md`.
+   - SOT/ITN32 cubes (2–3 days) and moment uncertainties (2–4 days) can start without a plan.
+   - Wavelength drift, bursts and Mg II features need the shared plan listed there first (about a day).
+   - The user asked about feasibility and has not yet chosen what to start.
+4. irispy docs build: Read the Docs builds ran 565–775 s (median 704 s over 20 builds) against a 900 s limit, and two PR builds timed out on 2026-09-27. The user asked to keep this apart from the GUI plan, so the verified speed review is in the irispy worktree `~/Git/irispy-gallery-speed` (branch `gallery-speed`): `GALLERY_SPEED_REVIEW.md` plus `gallery_speed_review/`, untracked. Nothing from it has been applied.
+5. glue-solar M0 continues with `wp10-mask-uint8`, which depends only on `wp10-fill-nan`. The irispy pin changes three M0 items:
+   - `wp10-m0-negative-step`: irispy now flips the meta; drop or rescope with the user.
+   - `wp10-m0-interaction-latency`: the index rebuild is only needed for irispy 0.9.0.
+   - `wp1-m0-sji-crpix`: not needed with #178.
+
+   Their dependents carry the same notes.
+
+**Worktrees.** Remove the merged ones when convenient, except `~/Git/irispy-fix-negative-step-mask`, which the `irispy-v34-fix` env imports irispy from.
+
+| Path | Branch | State |
+| --- | --- | --- |
+| `~/Git/glue-solar` | `plan` | This plan; never merged |
+| `~/Git/glue-solar-wp10-fill-nan` | `wp10-fill-nan` | Merged (#54) |
+| `~/Git/glue-solar-irispy-git-pin` | `irispy-git-pin` | Merged (#55) |
+| `~/Git/glue-solar-irispy-pin-bump` | `irispy-pin-bump` | Draft #56 |
+| `~/Git/irispy-fix-negative-step-mask` | `fix-negative-step-mask` | Merged (irispy #176); keep for `irispy-v34-fix` |
+| `~/Git/irispy-raster-step-index` | `raster-wcs-step-index` | Merged (#177) |
+| `~/Git/irispy-sji-crpix` | `sji-crpix-slit-units` | Merged (#178); the worktree stops at 40fccf9, before the user's 454b49d |
+| `~/Git/irispy-uncertainty-negative` | `uncertainty-negative-counts` | Merged (#179) |
+| `~/Git/irispy-meta-missing-keys` | `meta-missing-keys` | Merged (#180) |
+| `~/Git/irispy-memmap-no-uncertainty` | `memmap-no-uncertainty` | Merged (#181) |
+| `~/Git/irispy-gallery-speed` | `gallery-speed` | The docs-build speed review (step 4); untracked files, no PR |
+
+The 2026-09-27 session removed its scratch worktrees. If a later session leaves detached worktrees in a purged scratchpad, `git -C ~/Git/irispy worktree prune` clears them.
+
+**Environments.** All are micromamba envs; see [Validation](#validation-environments-and-data).
+- `iris-plan`: the released baseline.
+- `irispy-v34-fix`: irispy development, editable from `~/Git/irispy-fix-negative-step-mask`.
+- `ruff-0161`: glue-solar's pinned ruff.
+- `iris-plan-irispy081`: exists, for reproducing prototypes on irispy 0.8.1.
+- `glue-solar`: exists; imports editable checkouts, so not for baselines.
+
+**Releases.** glue-core v1.27.0 (2026-06-25), glue-qt v0.4.2 (2026-02-11), irispy-lmsal v0.9.0 (2026-09-10). The glue and glue-qt PRs below were checked with `gh` on 2026-09-27 (evening). Their heads are unchanged since 2026-09-22, except glue #2604 (not the user's; head d2ddfa57774f committed 2026-09-25):
 
 | PR | Branch | State | Head | Relevance |
 | --- | --- | --- | --- | --- |
@@ -168,6 +235,11 @@ Settled decisions. Do not re-open them without the user.
   that add data and links without opening a viewer.
 - **D5 (M0 baseline):** M0 runs on released glue-core 1.27.0, glue-qt 0.4.2
   and irispy-lmsal 0.9.0. No unreleased PR is an M0 prerequisite.
+  Exception, decided by the user on 2026-09-27: glue-solar requires irispy
+  main by git URL until a release contains the fixes. #55 (merged) pins
+  49d705c (#176); draft #56 moves the pin to 5ce6029 (#176–#181). M0 checks
+  therefore run against the pinned irispy commit (see Validation). Return to
+  a version floor before any glue-solar release.
 - **D6 (selection):** M0 uses the stock Pixel tool (click or drag follows,
   release holds) plus an explicit "Clear point". M1 adds a CRISPEX-style
   hover-follow tool with click-to-lock. It is a required M1 tool, not an
@@ -214,7 +286,10 @@ Settled decisions. Do not re-open them without the user.
   - `nearest` accepts unsorted and duplicate references, with first-index
     semantics.
   - irispy's `revert_v34=True` is the documented alternative.
-  - WP0 reports the irispy mask/meta bug.
+  - WP0 reports the irispy mask/meta bug. Fixed upstream as LM-SAL/irispy#176,
+    which glue-solar pins (#55): with it irispy flips the mask, uncertainty and
+    per-step meta itself, so the glue-solar meta reversal
+    (`wp10-m0-negative-step`) is only needed for irispy 0.9.0.
 - **D11 (rest wavelength):** use an explicit override, else the packaged
   line-list laboratory (vacuum) value matching the window, else none. The
   user picks for multi-line windows (C II 1334/1335, Mg II k/h). Never fall
@@ -235,9 +310,14 @@ Settled decisions. Do not re-open them without the user.
   and propose it to core. Port WP3 as `_GlueWCS.__gluestate__` /
   `__setgluestate__` and named factory functions, never by importing
   prototype modules.
-- **D14 (irispy development branch):** track irispy `gwcs_raster_clean`
-  only. Do not propose it upstream until the glue-solar loader accepts both
-  APIs. M0 stays on irispy 0.9.0.
+- **D14 (irispy development branch):** irispy work targets `main` only. On
+  2026-09-27 the user said to ignore the gWCS raster branches
+  (`gwcs_raster_clean`, and `gwcs_raster_v2` in `~/Git/irispy`) for now; the
+  main-only fixes are #176–#181. If that work resumes, do not propose it
+  upstream until the glue-solar loader accepts both APIs
+  (`wp0-irispy-gwcs-branch`). M0 checks run against the pinned irispy main
+  commit (D5). The user's draft irispy #182 (from `gwcs_raster_v2`) is theirs
+  to direct.
 - **D15 (layout):** the quicklook preset uses an MDI tab with explicit
   viewer geometry, not the experimental fixed-layout tab. The fixed-layout
   tab breaks `app.viewers` and is not restored from sessions.
@@ -269,8 +349,9 @@ Defaults proposed during the restructure and confirmed by the user on
   covering the whole interval, else the one with the longest coverage, and
   names it. The confirm dialog can choose another.
 - `wp1-m0-irispy-baseline`: the first WP1 port PR raises the pyproject floors
-  to glue-core 1.27.0 and glue-qt 0.4.2. irispy-lmsal stays >=0.8.1, covered
-  by the floor env `iris-plan-floor`.
+  to glue-core 1.27.0 and glue-qt 0.4.2. irispy stays pinned to irispy main by
+  git URL (D5 exception) until a release contains #176. That release then
+  becomes the irispy floor, and `iris-plan-floor` is built on it.
 - `wp1-m0-link-hpc`: until `wp10-m1-roi-world-polygon`, the guide documents
   the ~10 s per SJI frame freeze of stock raster ROIs in browser-opened
   viewers. The alternative is to extend `wp10-m0-roi-guard` to those viewers.
@@ -342,7 +423,8 @@ Cross-package contracts:
 ### M0: Coordinated IRIS quicklook on released core
 
 A user opens an observation and gets a coordinated quicklook without any
-unreleased PR:
+unreleased glue-core or glue-qt PR (irispy: the pinned main commit, D5
+exception):
 
 - A preset per observation type: a raster map (slit versus time for
   sit-and-stare), a spectrogram, a step- or time-versus-wavelength panel, the
@@ -493,7 +575,7 @@ hold the tasks and their done conditions.
 
 ## Feasibility of the must-have features
 
-All must-have features are feasible. None needs an unreleased PR for its M0
+All must-have features are feasible. None needs an unreleased PR for its M0 (irispy 0.9.0 works with the M0 workarounds, although main now pins an irispy main commit, D5 exception)
 part. Full probes, measurements and the adversarial verifier's corrections are
 in [review_20260927/feas.json](IRIS_PLAN_PROTOTYPES/review_20260927/feas.json).
 Effort: S ≤ 1 day, M ≤ 1 week, L ≤ 3 weeks.
@@ -506,7 +588,7 @@ Effort: S ≤ 1 day, M ≤ 1 week, L ≤ 3 weeks.
 | Hold/unlock (F095) and hover-follow with click-lock (F094) | Feasible on released core | Hold M0, S; hover M1, M | Hold: the stock Pixel tool plus a "Clear point" subtool of the `solar:coordinate` SimpleToolMenu (`wp4-coordinator`). Lock/unlock and hover: a new throttled mouse mode (`wp4-m1-hover-lock-tool`) (WP4). |
 | Master time and nearest-exposure sync with offsets and a no-match rule (F111, F112) | Feasible on released core | M0, M | The coordinator reads `Time`, matches with first-index semantics, shows the offset in the frame-time label and greys the panel on no match (D7, D8) (WP4). |
 | Cross-dataset mapping (F049) | Raster → SJI feasible now; SJI click → raster feasible on released core through the coordinator | Raster → SJI M0 (`link_hpc` + overlays), S; SJI click → raster M1 (`wp1-m1-sji-to-raster`, `wp4-sji-click-to-raster`), M; #2595 native paths M1, gated | Port `link_hpc`. The coordinator translates points through per-frame WCS and `Time` and never resolves pixel IDs through the link graph (WP1, WP4). |
-| Time-dependent SJI pointing and slit geometry (F050) | Feasible with a glue-solar workaround | M0, S | The point marker uses the per-frame SJI gWCS. The slit line projects the raster slit's world position through the SJI WCS at each frame. Resolve the irispy CRPIX off-by-one with the gated `wp1-m0-sji-crpix` shift before trusting sub-pixel placement (WP1, WP4; WP0 reports). |
+| Time-dependent SJI pointing and slit geometry (F050) | Feasible with a glue-solar workaround | M0, S | The point marker uses the per-frame SJI gWCS. The slit line projects the raster slit's world position through the SJI WCS at each frame. irispy #178 (in the #56 pin) fixes the CRPIX off-by-one; on irispy 0.9.0 resolve it with the gated `wp1-m0-sji-crpix` shift before trusting sub-pixel placement (WP1, WP4; WP0 reports). |
 | Missing data and histogram scaling (F164, F061) | Feasible with a glue-solar workaround | Fill → NaN M0, S; HISTO_OPT tool M1, M | -200/-199 → NaN in `_cube_data` and the stack, with uint8 masks. The preset uses the 99.5 % limits; a cutoff tool sets Custom limits (D12) (WP10, WP11). |
 | Fast spectrum-versus-time access (F035) | Feasible with glue-solar workarounds | M0, S | Eager arrays plus an Image viewer with x = wavelength and y = exposure. Depends on the WCS lock and the index-free -TAB WCS below (WP10). |
 | Detailed spectrum (F071) and spectral-position marker (F068) | Feasible on released core | Point spectrum M0, S; markers, mirror and km/s axis M1, M | A Profile viewer with function "mean" on the Pixel subset; controller-owned `axvline` markers; `secondary_xaxis` for km/s (WP4, WP5). |
@@ -518,11 +600,11 @@ Effort: S ≤ 1 day, M ≤ 1 week, L ≤ 3 weeks.
 | Event-finding workflow (F093) | Partly in M0 | M0 on the SJI and raster-map side; complete once SJI click → raster lands in M1 | Playback, Pixel hold, zoom and the SJI light curve work now. It is documented as an acceptance script (WP9, WP4). |
 | Sessions (F175) | Feasible with glue-solar workarounds | M1, L | Port the WP3 savers. Add the gated Profile restore-priority patch, compact broadcast components, plain `rest_wavelength` meta, the index-free -TAB raster WCS record and the colormap registration fix (WP3). |
 | M0 blocker: WCS thread-safety crash | Feasible with a glue-solar workaround | M0, S | A module-level `threading.RLock` around `_GlueWCS` pixel/world calls; an RLock because nested wrappers re-enter. Gate: 0 crashes in 20 runs per `wp10-m0-wcs-lock` scenario (18 locked review runs had no crash) (WP10). |
-| M0 blocker: slider latency grows with exposure index | Feasible with a glue-solar workaround | M0, S | Rebuild the raster -TAB WCS without the linear RASTER index column, so wcslib indexes in O(1). Keep the original if a probe disagrees, and propose the irispy fix (WP10). |
+| M0 blocker: slider latency grows with exposure index | Feasible with a glue-solar workaround | M0, S | Rebuild the raster -TAB WCS without the linear RASTER index column, so wcslib indexes in O(1). Keep the original if a probe disagrees. irispy #177 (merged, in the #56 pin) removes the column, so the rebuild is only for irispy 0.9.0 (WP10). |
 | M0 blocker: "Add large data set?" modal | Feasible on released core | M0, S | Create the preset's Profile viewer empty, set `large_data_size = None` on that instance, then call `add_data` (`wp10-m0-large-data-modal`). |
 | M0 blocker: a stock ROI → full-resolution SJI takes 10–36 s per frame | Feasible with a glue-solar workaround | M0 guard, S; world-polygon ROIs M1, M | The preset's raster viewers expose only Pixel (`wp10-m0-roi-guard`). M1 converts raster pixel ROIs into world polygons and restores the ROI tools (`wp10-m1-roi-world-polygon`) (WP10). |
 | Loading blocks the GUI (not an M0 blocker; confirmed) | Feasible on released core | M1, M | Load picks, and extract archives, in the glue-qt `Worker`; OK is disabled while loading (`wp10-nonblocking-load`). In M0 each pick freezes the GUI for 1.0–3.1 s. |
-| M0 blockers: masks, negative-step rasters, deconvolved SJIs | Feasible | M0, S each | uint8 masks; data-derived NaN; per-step meta reversal; filename-based deconvolved keying (WP10, WP8). |
+| M0 blockers: masks, negative-step rasters, deconvolved SJIs | Feasible | M0, S each | uint8 masks; data-derived NaN; per-step meta reversal (irispy 0.9.0 only; #176 is pinned); filename-based deconvolved keying (WP10, WP8). |
 | M0 blocker: spurious Pixel crosshair at (0,0) on spectrogram and lambda-t viewers | Feasible with a gated patch | M0, S | A gated patch of the image subset artist's visibility update, plus a core PR (WP4; WP0 register). |
 
 ## Work packages
@@ -543,9 +625,9 @@ Workaround register. A behaviour probe switches each row on unless it says other
 | Physical aspect (WP11 `solar:physical_aspect`) (private: per-instance `_set_axes_aspect_ratio`) | Probe: no 'Physical pixels' aspect choice | `core-physical-aspect` PR (`wp11-physical-aspect`) |
 | `AggregateSlice` re-applied (WP11 `wp11-band-average`) | Probe: `sync_state_from_sliders` replaces an `AggregateSlice` | `wp0-qt-aggregate-slice` |
 | `_GlueWCS` RLock (WP10) | Always on: the race cannot be probed safely | astropy fix for #19174, once each 20-run `wp10-m0-wcs-lock` scenario gives 0 crashes unlocked |
-| -TAB exposure-index rebuild (WP10) | Probe: the index column is present | `wp0-irispy-tab-index` |
-| SJI/AIA CRPIX correction (WP1) and the matching SLTPX1IX shift (WP4 `wp4-slit-point-overlay`) | Probe against astropy `WCS(header)` | `wp0-irispy-crpix` |
-| Negative-step per-step meta reversal (WP10, D10) | WCS step-0 longitude compared with `Tx[0]`, `Tx[-1]` | `wp0-irispy-v34-flip` |
+| -TAB exposure-index rebuild (WP10) | Probe: the index column is present | `wp0-irispy-tab-index` (irispy #177, merged; not needed once the pin includes it, #56) |
+| SJI/AIA CRPIX correction (WP1) and the matching SLTPX1IX shift (WP4 `wp4-slit-point-overlay`) | Probe against astropy `WCS(header)` | `wp0-irispy-crpix` (irispy #178, merged; not needed once the pin includes it, #56; SLTPX1IX is 1-based, so overlays use SLTPX1IX − 1) |
+| Negative-step per-step meta reversal (WP10, D10) | WCS step-0 longitude compared with `Tx[0]`, `Tx[-1]` | `wp0-irispy-v34-flip` (irispy #176, merged and pinned by #55: the probe no longer fires) |
 | Datetime epoch port (WP7 `wp7-goes-date-labels`; `glue_patches.py`; runtime port of #2599's two functions, never `rcParams['date.epoch']`) | Probe: `datetime64_to_mpl(t) != date2num(t)` | core #2599 |
 | Quantity saver fallback (WP3, D13) | No Quantity saver registered | `wp0-core-quantity-saver` |
 | `DerivedComponent` subclass whose `__gluestate__` saves `units` (WP1 `wp1-dn-per-s`) | Probe: core's saver drops `units` | `wp0-core-derived-units`; the class stays importable (sessions record its path) |
@@ -561,7 +643,7 @@ Reports and requests. Reproducers are `IRIS_PLAN_PROTOTYPES/upstream/<slug>.py` 
 
 | Slugs | URLs or decisions |
 | --- | --- |
-| `irispy-v34-flip`, `irispy-crpix`, `irispy-slit-units`, `irispy-tab-index`, `irispy-asdf-converters` (`wp0-irispy-gwcs-branch`, only if the branch proceeds) | |
+| `irispy-v34-flip`, `irispy-crpix`, `irispy-slit-units`, `irispy-tab-index`, `irispy-asdf-converters` (`wp0-irispy-gwcs-branch`, only if the branch proceeds) | `irispy-v34-flip`: https://github.com/LM-SAL/irispy/pull/176 (merged 2026-09-27 as 49d705c; not yet released); `irispy-tab-index`: https://github.com/LM-SAL/irispy/pull/177; `irispy-crpix` and `irispy-slit-units`: https://github.com/LM-SAL/irispy/pull/178; `irispy-uncertainty-negative` (found 2026-09-27, not a plan slug): https://github.com/LM-SAL/irispy/pull/179 (#177–#179 merged 2026-09-27); `irispy-meta-missing-keys` (found 2026-09-27): https://github.com/LM-SAL/irispy/pull/180 (merged 2026-09-27 as 5ce6029); `irispy-memmap-uncertainty` (found 2026-09-27): https://github.com/LM-SAL/irispy/pull/181 (merged 2026-09-27 as 768c7eb); none released yet; `irispy-asdf-converters`: not filed, the user said to ignore the gWCS branch (D14) |
 | `core-pixel-crosshair` (issue and PR), `core-translate-pixel` (both `wp0-core-image-artist-bugs`), `core-physical-aspect` (issue and PR; `wp11-physical-aspect`) | |
 | `qt-large-data-cancel`, `qt-aggregate-slice`, `astropy-19174` (comment) | |
 | `core-profile-restore-priority` (issue and PR), `core-quantity-saver`, `core-derived-units`, `core-profile-unit-label` (optional), `core-datetime-export` | |
@@ -572,10 +654,41 @@ Reports and requests. Reproducers are `IRIS_PLAN_PROTOTYPES/upstream/<slug>.py` 
 **M0**
 
 - [ ] **M0** `wp0-workaround-register`: Apply D2 to every workaround (probes, not versions: PR-source installs report 1.27.0). Done when each workaround on main has a register row, a comment naming its probe (or why it is always on) and its fix (or 'none tracked' plus its signature test), and a test passing on the released baseline with the probe on, and off where a source export has the fix. Findings: archive-trace-7, wp1-links-8.
-- [ ] **M0** `wp0-irispy-v34-flip`: irispy report and a standalone PR off irispy main porting the `gwcs_raster_clean` fix (not the branch, D14): for negative-step rasters (STEPS_AV < -0.01), 0.9.0 flips data and times but not mask, uncertainty or per-step meta. Done when the reproducer shows the mismatch on 0.9.0 with 20250328 OBSID 3400109360 and its row closes. Findings: followup-4-2.
-- [ ] **M0** `wp0-irispy-crpix`: irispy report: SJI/AIA gWCS is one pixel off (dkist's `VaryingCelestialTransform` applies the 1-based CRPIX to 0-based pixels): 0.168″ full-resolution SJI, 0.47″ rolled binned SJI, 0.607″ AIA; SLTPX1IX shares the convention; report both. Not zero-valued aux pointing rows: 0.9.0 already fills them (irispy #169). Done when the reproducer compares the gWCS with astropy `WCS(header)` on 0.9.0 and its row closes. Findings: followup-4-3.
-- [ ] **M0** `wp0-irispy-slit-units`: irispy report: SLTPX1IX/SLTPX2IX carry `u.arcsec` on pixel values; file it with `wp0-irispy-crpix` if the user agrees. Done when the reproducer prints the arcsec tag beside the pixel-range values on 0.9.0 and its row closes. Findings: wp4-quicklook-3.
-- [ ] **M0** `wp0-irispy-tab-index`: irispy report and 2-line PR with test: the -TAB exposure index column (`PS3_2='RASTER'`) makes `pixel_to_world` O(exposure index), up to 0.36 s per synced slider step; the PR drops it from `_create_tabular_wcs`. Done when the reproducer shows the per-call cost growing with the exposure index on 0.9.0 and its row closes. Findings: followup-2-6.
+- [x] **M0** `wp0-irispy-v34-flip`: irispy report and a standalone PR off irispy main porting the `gwcs_raster_clean` fix (not the branch, D14): for negative-step rasters (STEPS_AV < -0.01), 0.9.0 flips data and times but not mask, uncertainty or per-step meta. Done when the reproducer shows the mismatch on 0.9.0 with 20250328 OBSID 3400109360 and its row closes. Findings: followup-4-2.
+
+  Done 2026-09-27: LM-SAL/irispy#176 (merged 2026-09-27 as 49d705c), from branch `fix-negative-step-mask` (worktree `~/Git/irispy-fix-negative-step-mask`, from irispy main 34b5805). It has two commits: 2512a6f, the fix plus a test, and 1f67ff3, `changelog/176.bugfix.rst`. The PR itself is the report; no separate issue was filed.
+  - The fix builds one step slice for V34 files and applies it to the data, mask, uncertainty, times and the five per-step meta arrays. `revert_v34=True` still reads the file order.
+  - Reproducer: `IRIS_PLAN_PROTOTYPES/upstream/irispy-v34-flip.py`, run as `env HOME="$(mktemp -d)" ~/mamba/envs/<env>/bin/python IRIS_PLAN_PROTOTYPES/upstream/irispy-v34-flip.py`. On Si IV 1403, 8 scans:
+    - `iris-plan` (irispy 0.9.0): the mask differs from `data == -200` at 2,952–341,728 samples per scan, and `meta['auxiliary times'][0]` is 586.8 s from time[0].
+    - `irispy-v34-fix` (new env: Python 3.14, the branch installed editable with `[dev]`): 0 samples, and 4.0 s (half an exposure).
+  - irispy suite in `irispy-v34-fix`: `pytest` gives 259 passed, 1 skipped. On main's reader the new test fails on the mask, at 3,120 of 14,824 samples. ruff 0.16.5 (irispy's pin) passes.
+  - Limits: the new test ignores irispy's "invalid value encountered in sqrt" warning. `calculate_uncertainty` took the square root of negative DN, and no other test read with `uncertainty=True`. That was fixed separately in LM-SAL/irispy#179 (merged 2026-09-27, in the #56 pin): negative counts get readout noise only. The user decided on 2026-09-27 to keep D12: only -200/-199 are missing, and negative noise stays data. It is 33–62 % of valid FUV samples on 4000005156 and 3824262996.
+  - Merged into irispy main on 2026-09-27 as 49d705c (squash; same tree as 1f67ff3). No release contains it yet.
+  - The user decided on 2026-09-27 to require that commit for now. glue-viz/glue-solar#55 (merged 2026-09-27 as 420dcea) (branch `irispy-git-pin`, worktree `~/Git/glue-solar-irispy-git-pin`, from main ef65509) sets `irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@49d705c…`, with `changelog/55.bugfix.rst`. With irispy imported from 1f67ff3 (extra run_checks root), the glue_solar suite gives 37 passed, 1 skipped. `pip install --dry-run .` resolves the git reference.
+  - Left over:
+    - PyPI rejects direct references, so #55 must return to a version floor (the first irispy release with #176) before any glue-solar release.
+    - #55 merged (420dcea): D5 now carries the irispy exception, and `iris-plan` (irispy 0.9.0) no longer matches main's requirement; test the pinned commit as an extra runner root (Validation).
+    - With #55 merged, `wp10-m0-negative-step` has lost its purpose (its probe no longer fires on 3400109360; see its status note). Drop or rescope it and its register row with the user.
+- [x] **M0** `wp0-irispy-crpix`: irispy report: SJI/AIA gWCS is one pixel off (dkist's `VaryingCelestialTransform` applies the 1-based CRPIX to 0-based pixels): 0.168″ full-resolution SJI, 0.47″ rolled binned SJI, 0.607″ AIA; SLTPX1IX shares the convention; report both. Not zero-valued aux pointing rows: 0.9.0 already fills them (irispy #169). Done when the reproducer compares the gWCS with astropy `WCS(header)` on 0.9.0 and its row closes. Findings: followup-4-3.
+
+  Done 2026-09-27: LM-SAL/irispy#178 (merged 2026-09-28 UTC as 69249a0; the user reworded the example in 454b49d), branch `sji-crpix-slit-units` (worktree `~/Git/irispy-sji-crpix`, from irispy main 49d705c), commits 031fc75, d4793c3 (`changelog/178.bugfix.rst`), 08c577e (merge of main), d715638 (tutorial axis types), 40fccf9 and 454b49d (the slit example; the local worktree stops at 40fccf9). It shares a PR with `wp0-irispy-slit-units`.
+  - The gWCS now gets `CRPIX - 1`.
+  - Reproducer: `IRIS_PLAN_PROTOTYPES/upstream/irispy-crpix.py`. The worst corner or centre offset from a FITS WCS built from the header and each frame's pointing is one pixel along each axis (1.41 px) on 0.9.0: 0.2353″ on the 4000255147 SJI 1400, 0.4705″ on the rolled 3860608353 SJI 2832 and 0.8485″ on the 3640107442 AIA 171. With the fix it is 0.0000″. The 0.168/0.47/0.607″ above mixed per-axis and diagonal offsets.
+  - The new irispy test compares the gWCS with that FITS WCS on the sns SJI 1400 test file; on main it is off by 1.68″ (one pixel of the decimated file). The offline suite passes: 261 passed, 1 skipped.
+  - SLTPX1IX/SLTPX2IX are 1-based FITS pixels. The Level 2 pipeline copies the Level 1 CRPIX into them (SSW `iris/idl/uio/level1to2/irisl12_savesjidata.pro:312-321`, which also puts XCENIX at the 1-based centre written as the Level 2 CRPIX). On 4000005156 step 55 with #178, `pixel_to_world(SLTPX1IX - 1, SLTPX2IX - 1)` lands at 157.489″ against the raster slit's 157.485″. The old agreement came from two cancelling off-by-ones. #178's gallery example `coalign/03_offset_sji_sg.py` now subtracts 1 (commit 40fccf9), after the Read the Docs preview showed the moved dot; the PR's changelog says the slit values stay 1-based.
+  - Left over: once glue-solar pins an irispy with #178, the `wp1-m0-sji-crpix` workaround and its register row are not needed. The WP4 slit overlay must use SLTPX − 1 with the corrected gWCS, or derive the slit from the raster's world coordinates as `wp4-slit-point-overlay` says. An earlier check against the raster pointing on the sit-and-stare 4000255147 was 2.5–3.5 SJI px off under either convention; that is a co-alignment offset in that observation, not the convention. The user decided on 2026-09-27 that irispy keeps the slit extra coordinates 1-based, as in the file; consumers subtract 1.
+  Environments: irispy's suite runs in `irispy-v34-fix` with the branch on `PYTHONPATH`; the reproducers run in `iris-plan` (irispy 0.9.0) and with #177–#179 merged in a scratch worktree on `PYTHONPATH`. That combined irispy passes its offline suite (263 passed, 1 skipped) and glue-solar main 420dcea (37 passed, 1 skipped).
+- [x] **M0** `wp0-irispy-slit-units`: irispy report: SLTPX1IX/SLTPX2IX carry `u.arcsec` on pixel values; file it with `wp0-irispy-crpix` if the user agrees. Done when the reproducer prints the arcsec tag beside the pixel-range values on 0.9.0 and its row closes. Findings: wp4-quicklook-3.
+
+  Done 2026-09-27 in LM-SAL/irispy#178 (merged) with `wp0-irispy-crpix`. `slit x position` and `slit y position` are now `u.pix` and `ophaseix` (orbital phase, also tagged arcsec) is dimensionless. The values are unchanged. ndcube now reports the slit positions' physical type as `custom:PIXEL`; irispy's physical-type tests and the tutorial's printed extra coordinates are updated.
+  - Reproducer: `IRIS_PLAN_PROTOTYPES/upstream/irispy-slit-units.py` on the sns SJI 1400 test file: on 0.9.0, SLTPX1IX 187, SLTPX2IX 474 and OPHASEIX 0.017–0.997 are all tagged 'arcsec'. With the fix they are 'pixel', 'pixel' and ''.
+- [x] **M0** `wp0-irispy-tab-index`: irispy report and 2-line PR with test: the -TAB exposure index column (`PS3_2='RASTER'`) makes `pixel_to_world` O(exposure index), up to 0.36 s per synced slider step; the PR drops it from `_create_tabular_wcs`. Done when the reproducer shows the per-call cost growing with the exposure index on 0.9.0 and its row closes. Findings: followup-2-6.
+
+  Done 2026-09-27: LM-SAL/irispy#177 (merged 2026-09-27 as 66cb3c7), branch `raster-wcs-step-index` (worktree `~/Git/irispy-raster-step-index`, from irispy main 49d705c), commits 5b57a18 and 85c17a7 (`changelog/177.bugfix.rst`).
+  - `_create_tabular_wcs` no longer writes the RASTER column or `PS3_2`, so FITS-TAB indexes COORDS by the 1-based step directly.
+  - Reproducer: `IRIS_PLAN_PROTOTYPES/upstream/irispy-tab-index.py` on 4000255147 Si IV 1403, per 1000 points: on 0.9.0 0.048/0.308/0.472/0.866 ms at steps 0/400/800/1599; with the fix 0.039–0.042 ms. World values at those points are bit-identical to main.
+  - The new irispy test checks that the header has no `PS3_2`, linear half-step interpolation and the world-to-pixel round trip. The offline suite passes: 260 passed, 1 skipped.
+  - Left over: once glue-solar pins an irispy with #177, `wp10-m0-interaction-latency`'s `_without_step_index` rebuild and its register row are not needed; its latency budgets still apply.
 - [ ] **M0** `wp0-core-image-artist-bugs`: Two glue-core 1.27.0 bugs, a PR for the first: (1) `ImageSubsetLayerArtist._update_visual_attributes` re-shows the hidden Pixel crosshair at (0, 0) on λ–t and spectrogram panels after `_update_data` hid it on `IncompatibleAttribute`; the PR re-shows it only when a position was found (or draws only the subset's own axis line); (2) `translate_pixel`'s bare `Exception` escapes `ImageLayerArtist`, so draws fail instead of showing 'Cannot visualize this layer' (propose `IncompatibleAttribute`). Done when both reproducers fail on released core and both rows close. Findings: followup-1-2.
 - [ ] **M0** `wp0-qt-large-data-cancel`: glue-qt report: after Cancel on the Profile 'Add large data set?' modal, the closed viewer's `LayerArtistView` stays hub-subscribed, so every later `new_data_viewer` raises 'wrapped C/C++ object of type LayerArtistView has been deleted'. Done when a minimal script reproduces it on glue-qt 0.4.2 and main 9780eaf and its row closes. Findings: followup-2-5.
 - [ ] **M0** `wp0-astropy-19174`: Track astropy#19174 and add the IRIS case (Profile worker and GUI-thread WCSAxes crash in wcslib `tabx2s` on a shared -TAB WCS). Done when the reproducer crashes without the lock in `iris-plan` and its row closes. Findings: followup-2-1, followup-3-1.
@@ -591,9 +704,9 @@ Reports and requests. Reproducers are `IRIS_PLAN_PROTOTYPES/upstream/<slug>.py` 
 - [ ] **M1** `wp0-core-quantity-saver`: Core PR beside #2597 with a `@saver(u.Quantity)`/`@loader(u.Quantity)` pair (D13) ported from `IRIS_PLAN_PROTOTYPES/wp3_impl.py` as a plain saver (re-registering raises KeyError), writing WP3's fallback record (saved type, protocol version 1, `{"value", "unit"}`). Done when its core session test round-trips a scalar and an array Quantity in `Data.meta`, a session saved by the solar fallback loads with the core loader, and the row has the PR URL. Findings: wp3-wp5-5, usefulness-8.
 - [ ] **M1** `wp0-core-derived-units`: Core PR saving `DerivedComponent.units`, still loading records without it (register row until released). Done when the PR's core session test round-trips a `DerivedComponent` with `units='DN/s'` and its row closes. Findings: wp2-wp6-science-9.
 - [ ] **M1** `wp0-core-profile-unit-label`: Optional (WP5's upstream route): port `IRIS_PLAN_PROTOTYPES/wp5_label.py` (display unit in the Profile x label) as a core PR, not a glue-solar patch (D2). Done when the PR's test shows a velocity profile labelled in km/s in both the numeric and the WCSAxes path. Findings: archive-trace-8.
-- [ ] **M1** `wp0-irispy-requests`: File the irispy requests other WPs cite: (1) per-exposure wavelength-drift correction like `iris_prep_wavecorr_l2`, for `wp5-m3-rest-from-measurement` (until then `LEVEL2_CAVEAT` in `wp5-m1-rest-wavelength-policy` states the limit); (2) uncertainty propagation in `calculate_moments`, for `wp2-m3-window-data`; (3) Hinode/SOT SJI-format (ITN32) cubes, for `wp4-context-reference`. Done when each request's row is closed. Findings: wp3-wp5-10.
+- [ ] **M1** `wp0-irispy-requests`: (Status 2026-09-27: the user is weighing porting these features into irispy rather than filing requests. Feasibility, efforts, decisions and prototypes are in `IRIS_PLAN_PROTOTYPES/irispy_ports_20260927/README.md`: SOT/ITN32 cubes need 2–3 days and moment uncertainties 2–4 days, both with no plan; the wavelength-drift correction needs 5–8 days after the shared plan. Nothing is chosen yet.) File the irispy requests other WPs cite: (1) per-exposure wavelength-drift correction like `iris_prep_wavecorr_l2`, for `wp5-m3-rest-from-measurement` (until then `LEVEL2_CAVEAT` in `wp5-m1-rest-wavelength-policy` states the limit); (2) uncertainty propagation in `calculate_moments`, for `wp2-m3-window-data`; (3) Hinode/SOT SJI-format (ITN32) cubes, for `wp4-context-reference`. Done when each request's row is closed. Findings: wp3-wp5-10.
 - [ ] **M1** `wp0-track-line-layers`: Track draft glue #2603 and glue-qt #73. WP5 keeps its `layer_artist_maker` line-list artist (D2); the stock Profile style editor already covers line-list and later layers (`wp5-m1-line-list` probe, 2026-09-27), so the prototype's rewrite is not ported. Comment on Qt #73 that its exact-class editor lookup misses `QThreadedProfileLayerArtist`. Done when the comment is posted or declined (recorded) and the register row names both PRs. Findings: upstream-state-6, core-qt-capabilities-4.
-- [ ] **M1** `wp0-irispy-gwcs-branch`: Track the user's `gwcs_raster_clean` branch only (D14): with it the loader makes 1496 2-D datasets per raster file, loses wavelength and fails with `stack=True`; do not propose or merge it until glue-solar's loader accepts both APIs (M0 and M1 stay on irispy 0.9.0). Its `_RasterSequenceCelestialTransform` and inverse lack ASDF converters and glue saves `data.coords` even for LoadLog data (`_save_data`@1.27.0), so combined multi-file raster sessions fail until irispy ships converters or a `_GlueWCS` record re-derives the WCS from the files (WP3 Notes). Ask irispy for converters first (`irispy-asdf-converters`). Done when its fate is recorded; a proposal also needs a passing `glue_solar` run on it and a WP3 multi-file raster session round-trip with converters. Findings: upstream-state-1, upstream-state-2, wp3-wp5-18.
+- [ ] **M1** `wp0-irispy-gwcs-branch`: (Status 2026-09-27: parked. The user said to ignore the gWCS branches and fix irispy `main` only (D14); `irispy-asdf-converters` is not filed. The user's draft irispy #182 is theirs to direct. Do not start without the user.) Track the user's `gwcs_raster_clean` branch only (D14): with it the loader makes 1496 2-D datasets per raster file, loses wavelength and fails with `stack=True`; do not propose or merge it until glue-solar's loader accepts both APIs (M0 and M1 run on the irispy main commit glue-solar pins, D5). Its `_RasterSequenceCelestialTransform` and inverse lack ASDF converters and glue saves `data.coords` even for LoadLog data (`_save_data`@1.27.0), so combined multi-file raster sessions fail until irispy ships converters or a `_GlueWCS` record re-derives the WCS from the files (WP3 Notes). Ask irispy for converters first (`irispy-asdf-converters`). Done when its fate is recorded; a proposal also needs a passing `glue_solar` run on it and a WP3 multi-file raster session round-trip with converters. Findings: upstream-state-1, upstream-state-2, wp3-wp5-18.
 - [ ] **M1** `wp0-qt68-macos-pass`: Manual macOS pass for Qt #68 (scratch HOME, isolated QSettings): first the saved font override (an old 9-point value hides the new default); then menu title, About/Hide/Quit, Cmd-Tab and Dock name, and clipping at native font sizes (preferences, link editor, importers, fixed-geometry dialogs), on PyQt6/Retina and PyQt5. Keep the slice label's 0.75x scale unless unreadable. Done when each item's result per binding is recorded here. Features: F203. Findings: archive-trace-15.
 - [ ] **M1** `wp0-qt-aggregate-slice`: glue-qt report and PR: `MultiSliceWidgetHelper.sync_state_from_sliders` (glue_qt/viewers/common/slice_widget.py:54) rebuilds every slice from `slice_center`, so any slider move turns a Profile Collapse `AggregateSlice` into an int; keep it on unmoved axes (register row until released). Done when a 0.4.2 reproducer (Profile Collapse, then one scan-slider step on a 4D stack map) shows the loss and its row closes.
 
@@ -630,11 +743,11 @@ WP1 owns the coordinate contract (D3) and link graph (D1) for IRIS data and glue
 
 **M0**
 
-- [ ] **M0** `wp1-m0-irispy-baseline`: Beside `iris-plan`, create the micromamba floor env `iris-plan-floor` (irispy-lmsal 0.8.1 at its declared floors astropy 7.2.x and ndcube 2.4.0, plus glue-core 1.27.0 and glue-qt 0.4.2) and record it in Validation. The existing `iris-plan-irispy081` (irispy 0.8.1 with iris-plan's astropy 8.0.1 and ndcube 2.4.2) only reproduces prototype results; it is not the floor. The first port PR raises the `pyproject.toml` glue floors to match (confirmed); irispy stays >=0.8.1. Fixtures via `find_irispy_test_file` (real names, `sns` filter). Re-run the WP2, WP5 and WP6 prototype checks on 0.9.0 (WP2/WP6 gave 3 failed, 11 passed, 3 errors; wp2-wp6-science-17), including the no-TWAVE path (`SGMeta.rest_wavelength` None). Done when the plan records both envs, test counts, WP2/WP5/WP6 results and the floor decision, main's suite passes in both, and scalar and array inputs to both `_GlueWCS` value methods give identical results in both envs. Features: none. Findings: upstream-state-3, wp1-links-4, wp1-links-5, wp2-wp6-science-17.
+- [ ] **M0** `wp1-m0-irispy-baseline`: (Status 2026-09-27: glue-solar main requires irispy main 49d705c by git URL (#55), so 'irispy stays >=0.8.1' and an irispy-0.8.1 floor env no longer apply. The irispy floor returns as the first release with #176. Rescope the floor env with the user; until then the M0 baseline is `iris-plan` plus the pinned commit as an extra root (Validation).) Beside `iris-plan`, create the micromamba floor env `iris-plan-floor` (irispy-lmsal 0.8.1 at its declared floors astropy 7.2.x and ndcube 2.4.0, plus glue-core 1.27.0 and glue-qt 0.4.2) and record it in Validation. The existing `iris-plan-irispy081` (irispy 0.8.1 with iris-plan's astropy 8.0.1 and ndcube 2.4.2) only reproduces prototype results; it is not the floor. The first port PR raises the `pyproject.toml` glue floors to match (confirmed); irispy stays >=0.8.1. Fixtures via `find_irispy_test_file` (real names, `sns` filter). Re-run the WP2, WP5 and WP6 prototype checks on 0.9.0 (WP2/WP6 gave 3 failed, 11 passed, 3 errors; wp2-wp6-science-17), including the no-TWAVE path (`SGMeta.rest_wavelength` None). Done when the plan records both envs, test counts, WP2/WP5/WP6 results and the floor decision, main's suite passes in both, and scalar and array inputs to both `_GlueWCS` value methods give identical results in both envs. Features: none. Findings: upstream-state-3, wp1-links-4, wp1-links-5, wp2-wp6-science-17.
 - [ ] **M0** `wp1-m0-axis-names`: M0 part of F024: `_AXIS_NAMES` beats gWCS names, so SJI, raster, stack and AIA-cutout axes share 'Helioprojective Longitude/Latitude' and 'Wavelength'; drop `"time": "Time"` so SJI world time stays 'Time (Utc)'. Match physical types, never labels. Done when `test_sji_and_raster_share_axis_names` and the SJI high-level round trip pass, an SJI has one `Time` component (`data.id['Time']`), and the ported SJI label hunk expects 'Helioprojective Longitude'. Features: none. Findings: archive-trace-10. Depends: wp1-m0-irispy-baseline.
 - [ ] **M0** `wp1-m0-inverse-workaround`: Port the process-wide patch module `glue_solar/glue_patches.py` (also home of WP7's gated datetime port `wp7-goes-date-labels`), imported from `glue_solar/__init__.py`. Its #2598 fix of `world2pixel_single_axis` (exposure-0 inverse) installs only when `needs_inverse_workaround()` finds the bug, with a `wp0-workaround-register` row; no all-ones `axis_correlation_matrix`. Done when the probe patches 1.27.0, `test_world_links_into_the_sji_use_each_exposure_time` recovers every frame's pixel to 1e-6 px, with #2598 in core the probe is False and glue untouched, and WCSAxes readouts are unchanged. Features: none. Findings: wp1-links-8, archive-trace-7. Depends: wp0-workaround-register.
-- [ ] **M0** `wp1-m0-sji-crpix`: A probe-gated `_GlueWCS` pixel shift for SJI and AIA-cutout gWCSs, whose 1-based CRPIX irispy 0.9.0 applies to 0-based pixels, with a removal note naming `wp0-irispy-crpix` and a `wp0-workaround-register` row. `wp4-slit-point-overlay` (owner of the joint SLTPX1IX/CRPIX test) and `wp4-sji-panels` (FOV label) depend on this item. Done when, at frames 0, N//2 and N−1, corners and centre of 4000255147 SJI 1400, 3860608353 SJI 2832 (SAT_ROT 45°), deconvolved 4000005156 SJI 2796 and a 3640107442 AIA cutout match an astropy WCS from CRPIX, CDELT, XCENIX/YCENIX and PCi_jIX to 0.05 px, and the shift stays off without an offset. Features: none. Findings: followup-4-3. Depends: wp0-workaround-register.
-- [ ] **M0** `wp1-m0-link-hpc`: Port `link_hpc(data_collection)` to `glue_solar/sources/loaders/iris.py` (D1): `LinkSame` between `_GlueWCS` helioprojective lon/lat world components by physical type, skipping linked pairs, called by `browse_iris` and a menubar action 'IRIS: link helioprojective coordinates'. No two-argument helper or degree↔arcsec link. Done when, without time links: (1) a second call adds 0 links; browser and menu both add them; (2) 4000005156 Si IV + SJI 2796: at frames 0 and N−1 a raster-map ROI selects exactly the SJI pixels whose per-frame header-WCS position is in its world footprint (0.05 px edge band exempt); (3) sns fixture and 4000255147 Si IV + SJI 1400: the selected SJI column moves ΔXCENIX/CDELT1 ± 1 px from frame 0 to N−1 (about 78 px on 4000255147), xfail until (4); (4) diagnose the released-core sit-and-stare full-width stripe (37/37 columns); if inherent, the guide records it and (3) stays xfail; (5) lon/lat world subsets propagate both ways; SJI pixel subsets stay IncompatibleAttribute on the raster (M1 routes SJI clicks through `wp1-m1-sji-to-raster`); (6) no link targets SJI world time. Release gate: `browse_iris` installs `link_hpc` by default only in a release that also carries `wp10-m0-roi-guard` and `wp10-m0-acceptance` (both depend on this item). Features: F050. Findings: wp1-links-2, wp1-links-3, followup-1-4, followup-1-5, wp4-quicklook-12, followup-4-4. Depends: wp1-m0-inverse-workaround, wp1-m0-sji-crpix.
+- [ ] **M0** `wp1-m0-sji-crpix`: (Status 2026-09-27: irispy #178 fixes the gWCS upstream and is in the #56 pin, so the shift is only needed for irispy 0.9.0. SLTPX1IX/SLTPX2IX are 1-based FITS pixels; with the fix, `pixel_to_world(SLTPX1IX - 1, SLTPX2IX - 1)` matches the raster slit to 0.004″ (see `wp0-irispy-crpix`). Rescope with the user.) A probe-gated `_GlueWCS` pixel shift for SJI and AIA-cutout gWCSs, whose 1-based CRPIX irispy 0.9.0 applies to 0-based pixels, with a removal note naming `wp0-irispy-crpix` and a `wp0-workaround-register` row. `wp4-slit-point-overlay` (owner of the joint SLTPX1IX/CRPIX test) and `wp4-sji-panels` (FOV label) depend on this item. Done when, at frames 0, N//2 and N−1, corners and centre of 4000255147 SJI 1400, 3860608353 SJI 2832 (SAT_ROT 45°), deconvolved 4000005156 SJI 2796 and a 3640107442 AIA cutout match an astropy WCS from CRPIX, CDELT, XCENIX/YCENIX and PCi_jIX to 0.05 px, and the shift stays off without an offset. Features: none. Findings: followup-4-3. Depends: wp0-workaround-register.
+- [ ] **M0** `wp1-m0-link-hpc`: Port `link_hpc(data_collection)` to `glue_solar/sources/loaders/iris.py` (D1): `LinkSame` between `_GlueWCS` helioprojective lon/lat world components by physical type, skipping linked pairs, called by `browse_iris` and a menubar action 'IRIS: link helioprojective coordinates'. No two-argument helper or degree↔arcsec link. Done when, without time links: (1) a second call adds 0 links; browser and menu both add them; (2) 4000005156 Si IV + SJI 2796: at frames 0 and N−1 a raster-map ROI selects exactly the SJI pixels whose per-frame header-WCS position is in its world footprint (0.05 px edge band exempt); (3) sns fixture and 4000255147 Si IV + SJI 1400: the selected SJI column moves ΔXCENIX/CDELT1 ± 1 px from frame 0 to N−1 (about 78 px on 4000255147), xfail until (4); (4) diagnose the released-core sit-and-stare full-width stripe (37/37 columns); if inherent, the guide records it and (3) stays xfail; (5) lon/lat world subsets propagate both ways; SJI pixel subsets stay IncompatibleAttribute on the raster (M1 routes SJI clicks through `wp1-m1-sji-to-raster`); (6) no link targets SJI world time. Release gate: `browse_iris` installs `link_hpc` by default only in a release that also carries `wp10-m0-roi-guard` and `wp10-m0-acceptance` (both depend on this item). Features: F050. Findings: wp1-links-2, wp1-links-3, followup-1-4, followup-1-5, wp4-quicklook-12, followup-4-4. Depends: wp1-m0-inverse-workaround, wp1-m0-sji-crpix (or an irispy pin with #178).
 - [ ] **M0** `wp1-m0-descending-step-orientation`: A real-data STEPS_AV < 0 regression in `glue_solar/tests/test_importer.py`, not a `flip_x` flag (D10). Done when, on 3400109360 (STEPS_AV −0.998, CDELT3 −0.998), the per-scan Si IV 1403 map with `flip_x` False has longitude increasing with displayed x; step 0 is at −971.0″ and step 63 at −908.2″ in WCS and cursor readout; a 2-scan stack keeps that orientation; `Time` descends from 23:06:15 (step 0) to 22:56:32 (step 63). Features: F053.
 - [ ] **M0** `wp1-m0-link-graph-regression`: In `glue_solar/tests/test_linking.py`, open 4000005156 Si IV + SJI 2796 via `browse_iris` with the real autolinker (mocked dialog), `link_hpc` and WP4's link-free coordinator. A `wcs_autolink` behaviour probe picks the expectation: False (1.27.0), only `link_hpc` links and (b) = the `wp1-m0-link-hpc` (2) footprint; True (#2595), SJI/raster `WCSLink`s too and (b) = the frame-0 footprint in every SJI frame, world subsets still per-frame. No link maps a main or world component into a pixel component ID (D8) or targets SJI world time. Checks: (a) a raster Pixel point gives the native marker and spectrum in the other windows; (b) the raster-map ROI's SJI selection; (c) time sync leaves `len(dc.links)` and every component list unchanged, and the coordinator's SJI-frame→raster-step and raster-step→SJI-frame indices equal the `nearest()` array reference with 0 mismatches; (d) lon/lat world subsets propagate; (e) the SJI layer draws in the raster viewer and vice versa without exception, and a layer with no pixel path shows glue's incompatible state. A CI variant runs on the irispy 20210905 3620258102 `sns` SJI 1400 + Si IV 1403 fixture pair in both `wp1-m0-irispy-baseline` envs, ported from `IRIS_PLAN_PROTOTYPES/review_20260927/probes/linkgraph/test_linkgraph.py` (its order/allocation matrix only, not the pixel-ID time-link design): checks (a) and (c)-(e) and the add-order and minimum-hop equality apply there; (b) there follows `wp1-m0-link-hpc` check (3)/(4), and the (2)-footprint form of (b) runs on local data only. Done when all checks agree over every add order and perturbed-allocation reruns, and all minimum-hop paths to each target component ID agree. Extended, under the same bans and each re-running this test, by `wp4-m1-multi-window` (window pixel links), `wp7-goes-context` (GOES `time`↔IRIS `Time` LinkSame), `wp12-point-light-curves` (curve `Time`/value LinkSame) and `wp12-path-slicer` (PathSlicedData pixel links). Features: none. Findings: plan-integrity-6, followup-1-6, followup-1-3. Depends: wp1-m0-link-hpc, wp4-time-sync.
 
@@ -643,7 +756,7 @@ WP1 owns the coordinate contract (D3) and link graph (D1) for IRIS data and glue
 - [ ] **M1** `wp1-m1-wrapper-coherence`: Angstrom and arcsec across `world_axis_units`, both value methods, `world_axis_object_components` (callable or string getters), `world_axis_object_classes` (3- or 4-tuples in astropy's argument order, tested with positional args), compound stacks, sliced maps and bare-array 1-D WCSs. Keep the `wp10-m0-wcs-lock` lock. Land before `wp3-app-session-acceptance`. F058 = the 'w' readout toggle plus Profile pixel/world x (no pixel-tick toggle). Done when, on 3610108077, the Image wavelength slider, cursor readout and Profile x show Å (|Δ| ≤ 1e-6 Å against irispy; nm and m still offered); HPLN/HPLT stay arcsec with identical labels on the SJI, raster (including 4000255147 sit-and-stare), 4D stack and a sliced map; pixel→world→pixel agrees to 1e-9 px through both APIs; the ported stack-unit hunks and the `wp10-m0-wcs-lock` thread test pass; scalar and array inputs to both value methods and the high-level API give identical results in both `wp1-m0-irispy-baseline` envs. Features: F024, F058. Findings: followup-2-1, wp1-links-7, wp1-links-5, wp1-links-6. Depends: wp1-m0-axis-names, wp10-m0-wcs-lock.
 - [ ] **M1** `wp1-m1-sunpy-maps`: Wrap map WCSs in `_GlueWCS` in `_parse_sunpy_map` (`glue_solar/sources/maps.py`) and `load_sunpy_map` (`glue_solar/sources/loaders/maps.py`) (D3); the 'sunpy Map' factory gets a 2-D-helioprojective identifier and priority 150, between glue's FITS reader (100) and IRIS (200) (confirmed). Done when a 2-D `make_fitswcs_header` AIA-style map FITS shows 'Helioprojective Longitude/Latitude' in arcsec via File → Open and the map importer; with `link_hpc`, `sji[map.pixel_component_ids]` at SJI frames 0 and N−1 equals the map-pixel projection of the SJI header WCS to 0.05 px, and a map ROI selects the SJI pixels whose header-WCS position is inside it; a non-map FITS table still opens with glue's reader; the map round-trips through a session; `test_link_hpc_leaves_datasets_in_other_units_alone` uses a non-`_GlueWCS` degree WCS. Features: none. Findings: wp1-links-6, archive-trace-17. Depends: wp1-m1-wrapper-coherence, wp1-m0-link-hpc, wp3-wcs-saver (session check).
 - [ ] **M1** `wp1-m1-autolink-matrix`: When a `wcs_autolink` behaviour probe finds #2595, apply every stock suggestion under the adopted SJI/raster and SJI/SJI policies (confirmed). Extend `wp1-m0-link-graph-regression` (both-way ROI propagation, not link counts) with 4000005156 Si IV/SJI 2796, 4000255147 raster/SJI 1400, two 4000005156 scans, 3602506433 stack/scan, raster/sliced map, map/map, fixture SJI 1400/2796, and rolled 3860608353 SJI 2832, 4000255147 raster and SJI 1400 and a 3640107442 AIA cutout, each against a covering `make_fitswcs_header` map. Done when: (a) an SJI Pixel point gives the raster marker and spectrum; (b) scanning: a raster ROI selects the frame-0 WCSLink footprint in every SJI frame (documented); sit-and-stare: the 0 px result is diagnosed, or pixel-ROI reach is declared unsupported (use `link_hpc`); (c) an SJI/SJI Pixel point propagates with no time-axis link; (d) WCSLinks leave `link_hpc` subsets unchanged; (e) results are identical over add orders and perturbed allocation; the rolled SJI readout matches the header WCS to 0.05 px and, on the map reference, its layer lands at its frame-0 header-WCS corners within 1 map px; each map row gives every IRIS dataset one WCSLink to the map, matching the header-WCS projection to 0.05 px (SJI frame 0); gated tests skip cleanly on 1.27.0. Check (c) is xfail until `wp0-own-draft-updates` amends #2595, and once this item runs, `wp4-m1-multi-window`'s window links join row (e). Both extend this item's probe-gated tests, run against the #2595 source export; neither `wp4-m1-multi-window` nor `wp0-own-draft-updates` depends on this item or waits for its release gate. Features: F049, F054. Findings: core-qt-capabilities-1, wp1-links-1, followup-4-7, wp4-quicklook-12, followup-1-6, followup-1-3. Depends: core #2595 release, wp1-m1-wrapper-coherence, wp1-m1-sunpy-maps, wp1-m0-link-graph-regression.
-- [ ] **M1** `wp1-m1-sji-to-raster`: `sji_to_raster()` in `glue_solar/sources/loaders/iris.py`: SJI pixel → world at the displayed frame; step by WCS (scanning) or nearest `Time` (sit-and-stare); slit row by WCS. `wp4-sji-click-to-raster` wires it into the coordinator and owns click handling (re-entrancy guard, subset replacement, undo, 'outside raster FOV' label). Done when, with `wp1-m0-sji-crpix` active, (step 32, slit 385) projected into 4000005156 SJI 2796 frame 7 and passed to `sji_to_raster()` returns (32, 385) within 0.5 px; slit 208 projected into 4000255147 SJI 1400 frames 0, 200 and 399 returns slit 208 within 0.5 px and exposures 1, 801 and 1597; no test pins an SJI pixel value; a point outside the raster FOV (frame 15, raster edge) returns no raster index; with #2595, frame N−1 returns the per-frame index, not the frame-0 WCSLink's. Features: none. Findings: usefulness-2. Depends: wp1-m0-sji-crpix.
+- [ ] **M1** `wp1-m1-sji-to-raster`: `sji_to_raster()` in `glue_solar/sources/loaders/iris.py`: SJI pixel → world at the displayed frame; step by WCS (scanning) or nearest `Time` (sit-and-stare); slit row by WCS. `wp4-sji-click-to-raster` wires it into the coordinator and owns click handling (re-entrancy guard, subset replacement, undo, 'outside raster FOV' label). Done when, with a corrected SJI gWCS (irispy #178 in the pin, or `wp1-m0-sji-crpix` on irispy 0.9.0), (step 32, slit 385) projected into 4000005156 SJI 2796 frame 7 and passed to `sji_to_raster()` returns (32, 385) within 0.5 px; slit 208 projected into 4000255147 SJI 1400 frames 0, 200 and 399 returns slit 208 within 0.5 px and exposures 1, 801 and 1597; no test pins an SJI pixel value; a point outside the raster FOV (frame 15, raster edge) returns no raster index; with #2595, frame N−1 returns the per-frame index, not the frame-0 WCSLink's. Features: none. Findings: usefulness-2. Depends: wp1-m0-sji-crpix (or an irispy pin with #178).
 - [ ] **M1** `wp1-dn-per-s`: `_cube_data` adds '<label> DN/s', a `DerivedComponent` (`units='DN/s'`) whose `ParsedComponentLink` divides flux by `Exposure time` under `np.where(... > 0, ..., np.nan)`. While a probe finds released core drops `units` from sessions, it is a `DerivedComponent` subclass in `glue_solar/sources/loaders/iris.py` whose `__gluestate__`/`__setgluestate__` save `units` (`wp0-workaround-register` row, retired by `wp0-core-derived-units`; kept importable for saved sessions). Done when on 3610108077 Si IV it equals flux / 7.999 s at normal steps and NaN at the 0-s step 157; a synthetic unmasked raster with a 0-s exposure gives NaN, not ±inf; on 4000255147 SJI 1400 it equals flux / EXPTIMES per frame; Profile y and the Image layer's `attribute_display_unit` show 'DN/s'; a saved session keeps the expression and the unit. Features: F165. Findings: wp2-wp6-science-9. Depends: wp4-exposure-readout, wp10-fill-nan, wp3-app-session-acceptance (session check).
 
 **M3**
@@ -714,15 +827,15 @@ WP2 turns IRIS spectra into derived maps: D4 `layer_action`s that rewrap the Dat
 
 - [ ] **M3** `wp2-m3-moments-extensions`: (1) 4D stacks: (scan, step, slit) maps with three pixel links, via WP6's sliced-coords contract. (2) Profile-range wings: a `layer_action` callback gets only the layers and data collection, no viewer or range (glue_qt/app/layer_tree_widget.py:484-486@0.4.2), so a Profile `viewer_tool` (the `solar:frame_time` pattern) subclassing glue-qt's public `RangeMouseMode` (`glue_qt/viewers/profile/mouse_mode.py:87@0.4.2`) opens `MomentsDialog` for the viewer's reference data with the dragged range, converted from `x_display_unit` to Å, as wings; it never reads the private `_profile_tools.rng_mode` (D2). Done when a 4D stack from the irispy fixture gives maps of its (scan, step, slit) shape with three links, scan 0 equals the per-scan action and the map survives a WP3 round trip; and a dragged range opens the dialog with those wings, while one not containing the centre is refused. Features: none (extends F153/F154). Findings: wp2-wp6-science-2. Depends: wp2-m2-moment-maps, wp2-m2-line-definition.
 - [ ] **M3** `wp2-m3-window-data`: Uncertainties, error maps and binning.
-  - Opt-in `read_files(..., uncertainty=True, memmap=False)` in `glue_solar/sources/loaders/iris.py` adds '<flux> uncertainty' (eager, doubles memory; `memmap=True` gives unscaled uncertainties, io/spectrograph.py:252-257@0.9.0), reversed along the step axis for negative-step rasters (D10).
+  - Opt-in `read_files(..., uncertainty=True, memmap=False)` in `glue_solar/sources/loaders/iris.py` adds '<flux> uncertainty' (eager, doubles memory). irispy 0.9.0 computed unscaled uncertainties from memmap data (io/spectrograph.py:252-257@0.9.0) and did not flip them on negative-step rasters. irispy #181 drops memmap uncertainties, and #176 (pinned since #55) flips them with the data, so glue-solar reverses them only on irispy 0.9.0 (D10), never twice.
   - Once irispy propagates uncertainty in `calculate_moments` (`wp0-irispy-requests`), moments add `intensity_error` and `velocity_error` (iris_xmap's Ierr/Verr).
   - 'Rebin…' wraps `NDCube.rebin` (ndcube 2.4.2) for spatial and spectral binning in a `layer_action` adding a Data with `_GlueWCS(ResampledLowLevelWCS(...))` coords, linked by `link_hpc`.
 
   Done when: on ~/DATA/IRIS 20180102 Si IV 1403 the uncertainty equals the irispy-loaded cube's; on 3400109360 it follows the data's step order; the error maps equal irispy's output; a 2×2 spatial rebin halves both spatial dimensions and preserves the mean of finite samples; the rebinned Data links to the source through `link_hpc` and survives a WP3 save/reopen with equal world coordinates. Features: F160. Findings: followup-4-2. Depends: wp2-m2-moment-maps, wp1-m0-link-hpc, a `wp3-wcs-saver` branch for `ResampledLowLevelWCS` (rebin only), and an irispy release with moments uncertainty propagation (error maps only).
 - [ ] **M3** `wp2-irispy-calibration-actions`: Two D4 `layer_action`s on the moments rewrap helper, which here keeps the SGMeta and restores the 'exposure time' extra coordinate from WP4's 'Exposure time' component (both calls need it): 'Remove dust' (`SJICube.remove_dust`, irispy 0.9.0 sji.py:234) on an SJI and 'Radiometric calibration' (`irispy.utils.spectrograph.radiometric_calibration`, packaged `iris_sra_c_20231106.geny`, no download; 0 s exposures become NaN) on a per-scan raster. Each adds one Data linked on every pixel axis and opens no viewer; data without SGMeta (e.g. restored from a session, wp3-wp5-4) is refused with a message. References are direct irispy calls on the irispy-loaded cube with the same D12 fill (NaN at -200/-199) and exposure times, compared with `equal_nan=True`. Done when: on 4000255147 SJI_1400, 'Remove dust' adds one same-shape Data equal to the reference `remove_dust` (`exposure_normalize=True`); on 4000005156 Si IV scan 0, calibration equals the reference (rtol 1e-6) and the Profile viewer shows erg s⁻¹ sr⁻¹ cm⁻² Å⁻¹; a raster given to 'Remove dust', or an SJI given to calibration, is refused and adds nothing. Features: F166, F169. Depends: wp2-m2-moment-maps, wp4-exposure-readout, wp10-fill-nan.
-- [ ] **M3** `wp2-m3-mg-features`: Ask irispy to port `iris_get_mg_features_lev2` (k2v, k2r, k3, h2v, h2r, h3 positions, velocities and intensities; absent from 0.8.1, 0.9.0 and main), contributing it if accepted, and wrap it as a D4 `layer_action` adding one linked map Data; if irispy declines, it becomes a scripting-only recipe (WP9). Done when, on ~/DATA/IRIS 20140708 3824262996 Mg II k, the maps equal a direct irispy call, pixels irispy flags invalid are NaN, and the maps link to the source raster with no viewer opened. Features: F162. Depends: wp2-m2-moment-maps, an irispy release (WP0).
+- [ ] **M3** `wp2-m3-mg-features`: (Status 2026-09-27: the port is feasible, 7–12 days with IDL parity or 5–7 without. A prototype, the parity decisions and the IDL reference run are in `IRIS_PLAN_PROTOTYPES/irispy_ports_20260927/` and `idl_reference/`; it needs the shared plan first.) Ask irispy to port `iris_get_mg_features_lev2` (k2v, k2r, k3, h2v, h2r, h3 positions, velocities and intensities; absent from 0.8.1, 0.9.0 and main), contributing it if accepted, and wrap it as a D4 `layer_action` adding one linked map Data; if irispy declines, it becomes a scripting-only recipe (WP9). Done when, on ~/DATA/IRIS 20140708 3824262996 Mg II k, the maps equal a direct irispy call, pixels irispy flags invalid are NaN, and the maps link to the source raster with no viewer opened. Features: F162. Depends: wp2-m2-moment-maps, an irispy release (WP0).
 - [ ] **M3** `wp2-m3-density-temperature`: A separate D4 `layer_action` on two same-grid WP2 intensity maps (e.g. O IV 1399.77/1401.16 from the Si IV 1403 window) that calls `irispy.utils.density.density_diagnostic` (density.py:99@0.9.0) with a fiasco `Ion`, or `map_ratio_to_quantity` for temperature ratios, and adds one linked log n_e (or T) map; fiasco and CHIANTI stay optional. Done when: with fiasco installed (the iris-plan env lacks it), a synthetic ratio map gives the same densities as a direct irispy call; a real O IV pair gives a log n_e map linked to the source; without fiasco the action refuses with a message and adds nothing. Features: F163. Depends: wp2-m2-moment-maps.
-- [ ] **M3** `wp2-burst-detection`: Port `iris_burst_check` (Si IV, threshold scaled by the time-dependent 1402.77 Å response) and `iris_sji_burst_check` (SJI 1400) to irispy first (0.9.0 has none), then add a D4 `layer_action` 'IRIS: detect UV bursts' adding a uint8 burst-mask Data linked to the source; if irispy declines, it becomes a scripting-only recipe (WP9). Done when the irispy function is released and pinned and, on 4000255147 SJI 1400 and a real Si IV raster window from ~/DATA/IRIS, the output equals irispy's, has the source's spatial and time shape, a subset on it propagates to the source, and other windows and channels are refused with a message. Features: F130. Depends: wp2-m2-moment-maps, an irispy release (WP0).
+- [ ] **M3** `wp2-burst-detection`: (Status 2026-09-27: both ports are feasible, 5–7 days together. The prototypes are in `IRIS_PLAN_PROTOTYPES/irispy_ports_20260927/bursts/`. The SJI groups need int32, not the uint8 mask named below: 4000255147 SJI 1400 alone has 1705 events, and IDL's byte groups wrap at 256.) Port `iris_burst_check` (Si IV, threshold scaled by the time-dependent 1402.77 Å response) and `iris_sji_burst_check` (SJI 1400) to irispy first (0.9.0 has none), then add a D4 `layer_action` 'IRIS: detect UV bursts' adding a uint8 burst-mask Data linked to the source; if irispy declines, it becomes a scripting-only recipe (WP9). Done when the irispy function is released and pinned and, on 4000255147 SJI 1400 and a real Si IV raster window from ~/DATA/IRIS, the output equals irispy's, has the source's spatial and time shape, a subset on it propagates to the source, and other windows and channels are refused with a message. Features: F130. Depends: wp2-m2-moment-maps, an irispy release (WP0).
 
 **Notes and limits**
 
@@ -730,7 +843,7 @@ WP2 turns IRIS spectra into derived maps: D4 `layer_action`s that rewrap the Dat
 - Velocities are relative to the uncorrected Level-2 wavelength scale (irispy 0.9.0 has no orbital/thermal drift correction), as `velocity_caveat` (`LEVEL2_CAVEAT`) states. Mg II h/k and C II centroids and widths are proxies.
 - The +Inf guard covers a code path only: local int16 Level-2 files cannot store Inf, and all show NSATPIX 0.
 - The 0.5 s and 3× limits are local acceptance numbers, not CI thresholds. `wp10-m0-wcs-lock` covers only `_GlueWCS` calls, so the rewrap deep-copies the raw WCS while holding it; the Worker and map coords use only that copy, and the map shares no astropy WCS with its source.
-- WP0 tracks the uncertainty request (`wp0-irispy-requests`) and the negative-step mask/uncertainty flip; WP2 files its Mg II and burst requests and records their URLs in the WP0 reports table.
+- WP0 tracks the uncertainty request (`wp0-irispy-requests`) and the negative-step mask/uncertainty flip (fixed in irispy #176, pinned by #55); WP2 files its Mg II and burst requests and records their URLs in the WP0 reports table.
 
 ### WP3: Sessions
 
@@ -746,7 +859,7 @@ Port from prototypes:
 
 - [ ] **M1** `wp3-style-cmap`: Make styles and colormaps session-safe without core #2597. Add `SolarVisualAttributes`, whose `__gluestate__` saves `preferred_cmap` by name (unknown names restore as `None`). `_cube_data` and both map loaders (`glue_solar/sources/maps.py`, `glue_solar/sources/loaders/maps.py`) construct it only while a probe shows core saving a Colormap object (WP0 register); the class stays importable afterwards (sessions record its path). `setup()` registers matplotlib's named colormap copies so core's `_load_cmap` resolves `cmap.name`. No global `VisualAttributes` saver. Add a changelog fragment and a sessions note in `docs/user_guide/loading-aia-and-hmi.rst`.
   Done when: an application session holding only an AIA map opened with the 'sunpy Map' factory restores with layer cmap `sdoaia171`; `SolarVisualAttributes(preferred_cmap='irissji1400')` on a plain-coords `Data` round-trips through `GlueSerializer` with an equal name; a plain `Data` style record keeps glue's `_type` and has no `_protocol`. Features: none. Findings: archive-trace-5, wp3-wp5-5.
-- [ ] **M1** `wp3-wcs-saver`: Add `_GlueWCS.__gluestate__`/`__setgluestate__` in `glue_solar/sources/loaders/iris.py` (builders module-level for WP12's export). Records: gWCS as ASDF; FITS WCS as header plus `pixel_shape`; `-TAB` (irispy's 3-axis raster layout only) as header plus the rebuilt WCS-TABLE, table axes from `PSi_1`, an index column only where `PSi_2` exists (WP10 drops `PS3_2`; followup-2-6); `SlicedLowLevelWCS`/`CompoundLowLevelWCS` recursively with slices, mapping and shape, indices any `numbers.Integral` cast to `int`. Anything else raises a `GlueSerializeError` naming it. Declare `asdf` and `gwcs`.
+- [ ] **M1** `wp3-wcs-saver`: Add `_GlueWCS.__gluestate__`/`__setgluestate__` in `glue_solar/sources/loaders/iris.py` (builders module-level for WP12's export). Records: gWCS as ASDF; FITS WCS as header plus `pixel_shape`; `-TAB` (irispy's 3-axis raster layout only) as header plus the rebuilt WCS-TABLE, table axes from `PSi_1`, an index column only where `PSi_2` exists (irispy #177 drops `PS3_2`; on irispy 0.9.0 WP10's rebuild does; followup-2-6); `SlicedLowLevelWCS`/`CompoundLowLevelWCS` recursively with slices, mapping and shape, indices any `numbers.Integral` cast to `int`. Anything else raises a `GlueSerializeError` naming it. Declare `asdf` and `gwcs`.
   Done when `test_sessions.py` round-trips each case twice with `pixel_to_world_values`/`world_to_pixel_values` agreeing to 1e-9 on integer and +0.37 pixel grids, and equal world axis names, units, component labels, arrays, masks and `Time`: a real SJI (gWCS); a raster window in both WP10 forms (index-free rebuild; original WCS kept when the probe fails); a 3-scan stack (compound, index-free `-TAB` inside); a 3400109360 negative-step window (local; skipped when absent); a `_GlueWCS`-wrapped sunpy Map (D3) and a mixed collection; an `np.int64`-indexed `SlicedLowLevelWCS`; `_GlueWCS(SlicedLowLevelWCS(raw, (slice(None), slice(None), 0)))` with `raw` a real raster window's `-TAB` WCS (the WP2 moments form). The irispy `make_spatial_template`/`dropaxis` 2-D `-TAB` WCS raises `GlueSerializeError` naming the layout, with no `IndexError` and nothing written. Features: none. Findings: wp3-wp5-14, wp3-wp5-3, wp3-wp5-18, followup-2-6, usefulness-8. Depends: `wp10-m0-interaction-latency`.
 - [ ] **M1** `wp3-quantity-meta`: Save Quantity meta as value and unit without mutating the live meta (D13). At import, register `@saver(u.Quantity)` only if `u.Quantity not in GlueSerializer.dispatch`, and `@loader(u.Quantity)` only if absent from `GlueUnSerializer.dispatch`. Use the version-1 `{"value", "unit"}` record of `wp0-core-quantity-saver`, so either saver's sessions load with the other; retire when a core release contains it (WP0 register). Document core's omission of `Time`/`SkyCoord` meta ('auxiliary times', 'exposure FOV center').
   Done when a real irispy 0.9.0 raster, whose SGMeta holds the 'exposure time' and 'observer radial velocity' Quantities, restores `meta['exposure time']` as an equal `Quantity` in s, and importing glue-solar after another Quantity saver and loader are registered raises nothing. Features: none. Findings: wp3-wp5-5, usefulness-8.
@@ -874,22 +987,22 @@ Panels (plus per-channel SJI viewers and the point spectrum; stacks open only fr
 - [ ] **M0** `wp4-sji-panels`: One ImageViewer per selected SJI channel, titled with channel and variant, following `wp4-time-sync`, with limits of the raster footprint plus a margin; off-frame points show 'outside SJI FOV'. Done when:
   - the 3620258102 fixture with SJI 1330, 1400, 2796 and 2832 opens four titled SJI viewers that follow the master;
   - on 4000005156 + SJI 2796 the limits contain the four raster-footprint corners;
-  - test points > 2 SJI px inside and outside the FOV get the expected label, with `wp1-m0-sji-crpix` active.
+  - test points > 2 SJI px inside and outside the FOV get the expected label, with a corrected SJI gWCS (irispy #178 in the pin, or `wp1-m0-sji-crpix` on irispy 0.9.0).
 
-  Features: F109, F118. Findings: followup-4-8. Depends: wp4-quicklook-preset, wp4-time-sync, wp1-m0-link-hpc, wp8-sji-variants, wp1-m0-sji-crpix.
-- [ ] **M0** `wp4-slit-point-overlay`: `solar:coordinate` draws on SJI viewers a slit line at the frame's SLTPX1IX (`wp4-exposure-readout`), hidden for a displayed frame axis or a 0/NaN value, and the raster point via `show_crosshairs`, projected through the frame's SJI WCS. The 1-based SLTPX1IX shift switches on with `wp1-m0-sji-crpix` in one joint test that this item owns. No `pixel_stride` or 'Slit x' component enters the production API; fixture tests rescale the stride-10 irispy SJIs themselves. Done when:
+  Features: F109, F118. Findings: followup-4-8. Depends: wp4-quicklook-preset, wp4-time-sync, wp1-m0-link-hpc, wp8-sji-variants, wp1-m0-sji-crpix (or an irispy pin with #178).
+- [ ] **M0** `wp4-slit-point-overlay`: `solar:coordinate` draws on SJI viewers a slit line at the frame's SLTPX1IX (`wp4-exposure-readout`), hidden for a displayed frame axis or a 0/NaN value, and the raster point via `show_crosshairs`, projected through the frame's SJI WCS. The overlay uses SLTPX1IX − 1 (SLTPX1IX/SLTPX2IX stay 1-based, the user's 2026-09-27 decision) whenever the SJI gWCS is corrected: irispy with #178, or `wp1-m0-sji-crpix` on irispy 0.9.0. One joint test that this item owns covers both. No `pixel_stride` or 'Slit x' component enters the production API; fixture tests rescale the stride-10 irispy SJIs themselves. Done when:
   - on the full-resolution 4000255147 SJI 1400 (400×417×388) the line sits at SLTPX1IX (195.0 at frame 0) in the joint test's convention, within 0.5 SJI px of the projected slit at frames 0 and N−1 and 1 px at every frame (`slit_check.py` approach C);
   - on the binned 3860608353 SJI 2832 (SUMSPAT 2), at frames 0, N//2 and N−1 the drawn line lies within 0.5 binned px of the centroid of the dark slit trough in that frame's column-median profile (probe 2026-09-27: 183.8-184.0 0-based against SLTPX1IX 184.75, which is 1-based). The raster-projection oracle is added once a 3860608353 raster is downloaded;
   - the marker follows the frame, hides off the FOV, and stays with link_hpc and time sync active.
 
-  Features: — (overlay part of F109). Findings: wp4-quicklook-3, plan-integrity-21, usefulness-18, wp4-quicklook-16. Depends: wp4-sji-panels, wp4-exposure-readout, wp1-m0-sji-crpix.
-- [ ] **M0** `wp4-exposure-readout`: The IRIS loader's `_cube_data` adds a per-frame 'Exposure time' [s] component at load (raster values as reordered by `wp10-m0-negative-step`; stacks per scan) and keeps the SJI's pztx/pzty, xcenix/ycenix and slit x in `data.meta`. `solar:frame_time` shows 'UTC start · exp N s' (a range for maps) with the pointing in its tooltip. Done when:
+  Features: — (overlay part of F109). Findings: wp4-quicklook-3, plan-integrity-21, usefulness-18, wp4-quicklook-16. Depends: wp4-sji-panels, wp4-exposure-readout, wp1-m0-sji-crpix (or an irispy pin with #178).
+- [ ] **M0** `wp4-exposure-readout`: The IRIS loader's `_cube_data` adds a per-frame 'Exposure time' [s] component at load (raster values in the data's step order: irispy with #176 orders them, `wp10-m0-negative-step` only on irispy 0.9.0; stacks per scan) and keeps the SJI's pztx/pzty, xcenix/ycenix and slit x in `data.meta`. `solar:frame_time` shows 'UTC start · exp N s' (a range for maps) with the pointing in its tooltip. Done when:
   - on 4000255147 SJI 1400 frame k shows EXPTIMES[k] (about 2.000 s); the tooltip equals the stored pztx/pzty;
   - on ~/DATA/IRIS 3610108077 Si IV step 157 shows 'exp 0 s', the other steps 7.999 s;
   - 4000005156 stack scan-1 values equal the r00001 file's;
   - 3400109360 values equal aux EXPTIMEF (FUV) or EXPTIMEN (NUV), reversed.
 
-  Features: F117. Findings: followup-3-11, plan-integrity-22. Depends: wp10-m0-negative-step.
+  Features: F117. Findings: followup-3-11, plan-integrity-22. Depends: wp10-m0-negative-step (irispy 0.9.0 only; see its status).
 - [ ] **M0** `wp4-tests`: Write `glue_solar/tests/test_quicklook.py` test-first on named data with the ported helpers, qs_isolate plus an isolated HOME, `dialogs.warn`/QMessageBox patched to fail, and a manual native-GUI checklist. Each interaction (SJI frame change, map click, λ-panel click, scan/exposure change, spectrogram slider edit) asserts which panels move and which stay; a `quicklook(app, [])` run with `new_data_viewer` patched out is not coverage. Regressions: V34 rasters, sit-and-stare labels, AIA classification (add-order, no-links and layer-overlay checks are `wp1-m0-link-graph-regression`'s). The quicklook crash stress runs (0 crashes in 20 offscreen runs, 3 Pixel clicks on 3824262996 and 4000255147) belong to `wp10-m0-acceptance`; WP4 adds no second stress harness. Done when the suite passes in `iris-plan` on released core, real-data tests skip cleanly without ~/DATA/IRIS, and CI runs the fixture cases.
 
   Features: —. Findings: usefulness-16, wp4-quicklook-15, usefulness-3. Depends: wp4-quicklook-preset, wp10-m0-wcs-lock.
@@ -936,9 +1049,9 @@ Panels (plus per-channel SJI viewers and the point spectrum; stacks open only fr
 - [ ] **M1** `wp4-context-reference`: An aligned AIA cutout (paired by OBSID + STARTOBS) opens a reference ImageViewer that follows `wp4-time-sync` and draws the IRIS slit and footprint from the raster WCS via link_hpc. `is_iris_fits` reuses `scan._is_supported_file`, so it also accepts `aia_l2_*` files with INSTRUME AIA*, giving File → Open context `_GlueWCS` and `Time`. ITN32 SJI cubes wait on irispy. Done when:
   - File → Open of a 3640107442 `aia_l2_*.fits` gives a Data with `Time` and `_GlueWCS` that follows the master once shown;
   - a generic, non-cutout AIA FITS is not claimed by the IRIS factory (it reaches the sunpy Map factory after `wp1-m1-sunpy-maps`);
-  - with the matching 3640107442 IRIS raster and SJI (skipped if absent), the reference slit is within 0.5 AIA px of the raster-WCS slit at the matched time, with `wp1-m0-sji-crpix` active (followup-4-3).
+  - with the matching 3640107442 IRIS raster and SJI (skipped if absent), the reference slit is within 0.5 AIA px of the raster-WCS slit at the matched time, with a corrected SJI gWCS (irispy #178 in the pin, or `wp1-m0-sji-crpix` on irispy 0.9.0) (followup-4-3).
 
-  Features: F103, F104, F106, F107. Findings: followup-4-8. Depends: wp4-sji-panels, wp4-time-sync, wp1-m0-link-hpc, wp1-m0-sji-crpix, wp1-m1-sunpy-maps.
+  Features: F103, F104, F106, F107. Findings: followup-4-8. Depends: wp4-sji-panels, wp4-time-sync, wp1-m0-link-hpc, wp1-m0-sji-crpix (or an irispy pin with #178), wp1-m1-sunpy-maps.
 - [ ] **M1** `wp4-time-controls`: A 'Playback' viewer_tool drives the master's `slices` with a QTimer. It has a 'Go to UTC' field (nearest master exposure), a frame range [lo, hi] with a reset, and a play/stop toggle, a method that `wp11-keyboard-shortcuts` binds to Space. Done when, with explicit timer ticks on 4000255147 SJI 1400:
   - 'Go to 2013-09-02T17:00:00' selects argmin|Δt| and the raster follower moves;
   - a [100, 120] loop visits only frames 100-120;
@@ -946,11 +1059,11 @@ Panels (plus per-channel SJI viewers and the point spectrum; stacks open only fr
 
   Features: F088, F091. Findings: followup-3-12, wp3-wp5-13. Depends: wp4-time-sync.
 - [ ] **M1** `wp4-raster-overlays`: A 'Raster overlays' toggle shows the SJI footprint, a data-only subset that ORs one thin `RangeSubsetState` per raster step at that step's slit position projected through the SJI frame nearest its exposure (`slit_check.py` approach C), and a dashed map line at the current scan's step exposed nearest the master time, hidden on NO MATCH. Done when:
-  - on 4000005156 (64 steps, deconvolved SJI 2796) and 3860258481 (8 steps) the footprint has one column per distinct projected step, each within 1 SJI px of the header-derived position with `wp1-m0-sji-crpix` active; 4000255147 gives one column;
+  - on 4000005156 (64 steps, deconvolved SJI 2796) and 3860258481 (8 steps) the footprint has one column per distinct projected step, each within 1 SJI px of the header-derived position with a corrected SJI gWCS (irispy #178 in the pin, or `wp1-m0-sji-crpix` on irispy 0.9.0); 4000255147 gives one column;
   - on the 4000005156 stack, SJI master, point at step 32: frames 0-15 put the map line on scan 0 steps 3, 7, …, 63 and frames 16-31 on scan 1 at the same steps (ties to the earlier exposure);
   - both overlays survive closing and reopening viewers; a saved WP3 session grows < 10 KB.
 
-  Features: F125, F126. Findings: wp4-quicklook-8, archive-trace-9, followup-3-7, followup-3-2. Depends: wp4-slit-point-overlay, wp4-time-sync, wp1-m0-sji-crpix, wp3-session-budget.
+  Features: F125, F126. Findings: wp4-quicklook-8, archive-trace-9, followup-3-7, followup-3-2. Depends: wp4-slit-point-overlay, wp4-time-sync, wp1-m0-sji-crpix (or an irispy pin with #178), wp3-session-budget.
 
 **M3**
 
@@ -1038,7 +1151,7 @@ D11 rest wavelengths, km/s views, line labels, CRISPEX-style blink and the Doppl
   - On ~/DATA/IRIS 20180102 3610108077 Mg II k with rest 2796.352 Å ('user choice'), every plane equals an `np.interp` reference to float32 precision; fill and masked samples are NaN. The WP11 readout on the plane nearest +50 km/s shows 50 km/s within half a pixel (about 1.4 km/s).
   - A Pixel click on the map shows the source spectrum at the same (step, slit) and moves the source panels' fixed indices. The product survives a WP3 save and reopen.
 
-  Features: F148, F149, F152. Findings: wp3-wp5-11, wp2-wp6-science-5. Depends: wp5-m1-rest-wavelength-policy, wp10-fill-nan, wp10-m0-negative-step, wp4-m1-multi-window, wp11-cursor-readout, wp3-wcs-saver.
+  Features: F148, F149, F152. Findings: wp3-wp5-11, wp2-wp6-science-5. Depends: wp5-m1-rest-wavelength-policy, wp10-fill-nan, wp10-m0-negative-step (irispy 0.9.0 only; see its status), wp4-m1-multi-window, wp11-cursor-readout, wp3-wcs-saver.
 
 **M3**
 
@@ -1173,7 +1286,7 @@ Goal: on request, add GOES XRS and SDO/AIA pointing context to a loaded IRIS obs
 
 **Port from prototypes**
 
-- `IRIS_PLAN_PROTOTYPES/wp7chk/context_chk.py` and `test_context.py` → `glue_solar/sources/context.py` and `glue_solar/tests/test_context.py`: all functions, both menubar plugins and the ten mocked tests (not `conftest.py`), with the checkbox fixes. Repair the 6 tests irispy 0.9.0 broke: use `find_irispy_test_file`; expected footprints from an astropy WCS built from the header (SJI/AIA: CRPIX, CDELT, XCENIX/YCENIX, PCi_jIX; raster/stack: window extension header at step 0), never `to_maps(0)` or pinned numbers. SJI/AIA agree to 0.05 px only with `wp1-m0-sji-crpix` active (followup-4-3).
+- `IRIS_PLAN_PROTOTYPES/wp7chk/context_chk.py` and `test_context.py` → `glue_solar/sources/context.py` and `glue_solar/tests/test_context.py`: all functions, both menubar plugins and the ten mocked tests (not `conftest.py`), with the checkbox fixes. Repair the 6 tests irispy 0.9.0 broke: use `find_irispy_test_file`; expected footprints from an astropy WCS built from the header (SJI/AIA: CRPIX, CDELT, XCENIX/YCENIX, PCi_jIX; raster/stack: window extension header at step 0), never `to_maps(0)` or pinned numbers. SJI/AIA agree to 0.05 px only with a corrected SJI gWCS (irispy #178 in the pin, or `wp1-m0-sji-crpix` on irispy 0.9.0) (followup-4-3).
 - `IRIS_PLAN_PROTOTYPES/archive/probes-2026-09/wp7_timelink.py` and `wp7_goes.py` → the GOES success-path test (wp7-wp8-8): viewer, log-axis and time-link recipe only, not the `EPOCH=1` path.
 - `IRIS_PLAN_PROTOTYPES/wp0_bug_epoch_viewer.py` → the 1.27.0 assertion of `wp7-goes-date-labels`; archive it after.
 
@@ -1185,7 +1298,7 @@ Goal: on request, add GOES XRS and SDO/AIA pointing context to a loaded IRIS obs
   - A 50 ms QTimer sees no gap above 0.2 s during a mocked 2 s download; closing the app during that download adds nothing and raises nothing.
   - Imports raise no warnings on `iris-plan`; the ported tests pass on irispy 0.9.0, including SJI, raster and stack footprints against the header-WCS oracle and the non-spatial-dataset error.
 
-  Features: none (shared plumbing). Findings: wp7-wp8-9. Depends: wp1-m0-link-hpc, wp1-m0-sji-crpix, wp10-nonblocking-load.
+  Features: none (shared plumbing). Findings: wp7-wp8-9. Depends: wp1-m0-link-hpc, wp1-m0-sji-crpix (or an irispy pin with #178), wp10-nonblocking-load.
 - [ ] **M2** `wp7-goes-context`: `goes_xrs` fetches 1-minute XRS for STARTOBS–ENDOBS from one satellite. Satellite choice (confirmed): auto (lowest-numbered covering the whole interval, else longest coverage, named in the message) or one chosen in the dialog. Non-zero `xrsa_quality`/`xrsb_quality` samples become NaN (wp7-wp8-5); data are truncated to the interval in `W / m2`, with a datetime64 `time` added last, in a Scatter viewer with `y_log=True`. GOES `time` gets `LinkSame` to the `Time` of every loaded dataset of the observation, never a pixel ID or SJI 'Time (Utc)' (D1, D8).
   Done when:
   - Mocked `Fido` returns int64 `SatelliteNumber` [15, 13], both covering, one flagged row: satellite 13 is fetched and the flagged sample is NaN. With satellite 15 chosen in the dialog, satellite 15 is fetched. In both cases `xrsa`/`xrsb` carry unit 'W / m2' and every `time` lies within STARTOBS–ENDOBS.
@@ -1218,7 +1331,7 @@ Goal: on request, add GOES XRS and SDO/AIA pointing context to a loaded IRIS obs
   - A session with locator, crop, their `link_hpc` links and the FOV subset reopens intact.
   - Manual live fetch recorded for local 20130902 OBSID 4000255147 (SJI 1400), network path forced.
 
-  Features: F046. Findings: wp7-wp8-1, wp7-wp8-9, upstream-state-7. Depends: wp7-context-port, wp1-m0-link-hpc, wp1-m0-sji-crpix, wp1-m1-sunpy-maps, wp3-app-session-acceptance.
+  Features: F046. Findings: wp7-wp8-1, wp7-wp8-9, upstream-state-7. Depends: wp7-context-port, wp1-m0-link-hpc, wp1-m0-sji-crpix (or an irispy pin with #178), wp1-m1-sunpy-maps, wp3-app-session-acceptance.
 
 **M3**
 
@@ -1311,7 +1424,7 @@ WP9 keeps the `docs/` guides accurate for what ships (M0: the D5 baseline plus s
   - `loading-aia-and-hmi.rst`: the same note for sunpy Maps; alt text "AMI" → "AIA".
   - Profile guide: float/NaN; collapse versus one-pixel subset with Mean versus the unreleased Slice profile; Maximum is the default function, Mean gives CRISPEX's average spectrum.
 
-  `wp3-app-session-acceptance` (M1) replaces both session notes. Done when `git grep` over `docs/` finds no "AMI", "folder is present" or "cannot currently be restored", and the IRIS and AIA/HMI guides both carry the session warning. Features: none. Findings: solar-main-5, solar-main-6, plan-integrity-10, plan-integrity-17, followup-3-18. Depends: wp10-fill-nan (Mean sentence and fill text), wp10-mask-uint8, wp10-m0-negative-step.
+  `wp3-app-session-acceptance` (M1) replaces both session notes. Done when `git grep` over `docs/` finds no "AMI", "folder is present" or "cannot currently be restored", and the IRIS and AIA/HMI guides both carry the session warning. Features: none. Findings: solar-main-5, solar-main-6, plan-integrity-10, plan-integrity-17, followup-3-18. Depends: wp10-fill-nan (Mean sentence and fill text), wp10-mask-uint8, wp10-m0-negative-step (irispy 0.9.0 only; see its status).
 - [ ] **M0** `wp9-m0-dev-guide-stack`: Document the stack storage in `docs/dev_guide/loader-customization.rst`. Done when the page states: the data is a memmap of dtype `np.result_type(first scan, float32)`; irispy-masked samples and -200/-199 fill are NaN (D12); `<label> mask` is `isnan(data)` as uint8; so +Inf saturated samples stay unmasked. Features: none. Findings: plan-integrity-17, solar-main-6. Depends: wp10-fill-nan, wp10-mask-uint8.
 - [ ] **M0** `wp9-m0-changelog-fragments`: Add `changelog/52.feature.rst` (SJI/AIA-cutout datetime64 `Time`; `solar:frame_time`, `solar:cursor_readout`) and `changelog/53.bugfix.rst` (transparent NaN pixels); raster/stack `Time` is already in `44.feature.rst`. Add no ndcube fragment, and do not edit README to mirror this plan. Done when `towncrier build --draft` lists both and neither mentions raster or stack Time. Features: none. Findings: solar-main-4.
 - [ ] **M0** `wp9-m0-viewer-tools-docs`: In the IRIS guides, document glue-qt 0.4.2 tools by action text and tooltip, shortcuts as Ctrl+… "(Cmd on macOS)": "Pixel" (`image:point_selection`) versus "Cursor readout" (`solar:cursor_readout`); `wp11-readout-icon` replaces "the crosshair icon" at profile rst:54 in its own PR; "Frame time"; Ctrl+I "View metadata/header"; the "Contrast/Bias" toolbar drag (`image:contrast_bias`); in the style editor, gamma < 1 is Custom limits + sqrt until `wp11-gamma-stretch`; windows (CRISPEX's Displays tab): minimise, Ctrl+N, Gather Windows (Ctrl+G), and Tab/Backspace only in Image, Scatter and Histogram viewers. Done when a glue-qt 0.4.2 test asserts Tab and Backspace cover ImageViewer, ScatterViewer and HistogramViewer, not TableViewer or ProfileViewer (`glue_qt/app/keyboard_shortcuts.py:32-52`); quoted tooltips and Ctrl+I/Ctrl+G text match the sources; no text WP9 adds says "the crosshair icon" without the tool name. Features: F037, F192. Findings: solar-main-3, solar-main-4, followup-3-4.
@@ -1323,7 +1436,7 @@ WP9 keeps the `docs/` guides accurate for what ships (M0: the D5 baseline plus s
   - SJI log stretch as xsji_image except north-up (`wp11-north-up`); Arithmetic scaling; Home/Pan/Zoom; Save menu (PNG/JPEG/PDF/PS/EPS/SVG); layer colour, alpha and linewidth in the style editor, Preferences colours and font size.
 
   Done when a glue-qt 0.4.2 test asserts the round(500/|n|) interval and wrap (`data_slice_widget.py`), that the stack option yields 4D Data with a per-pixel `Time`, and that a saved `.eps` starts with `%!PS-Adobe` and has a `%%BoundingBox` line. Features: none. Findings: followup-3-16.
-- [ ] **M0** `wp9-m0-mask-overlays`: In the loading guide, document overlays from the 0/1 uint8 `<label> mask` (D12): "Create faceted subsets" first; a Histogram x-range subset works, but its "Add large data set?" modal defaults to Cancel above 2e7 elements (4000255147 SJI_1400: 6.47e7); "Import subset mask(s)" takes same-shape signed-integer FITS HDUs, BITPIX 16/32/64 without unsigned BZERO (`glue/io/formats/fits/subset_mask.py:24`). Done when a fixture test shows the faceted-subset count equals `mask.sum()`, as does a recorded manual check on the real 4000255147 SJI_1400 and raster. Features: none. Depends: wp10-mask-uint8, wp10-m0-negative-step.
+- [ ] **M0** `wp9-m0-mask-overlays`: In the loading guide, document overlays from the 0/1 uint8 `<label> mask` (D12): "Create faceted subsets" first; a Histogram x-range subset works, but its "Add large data set?" modal defaults to Cancel above 2e7 elements (4000255147 SJI_1400: 6.47e7); "Import subset mask(s)" takes same-shape signed-integer FITS HDUs, BITPIX 16/32/64 without unsigned BZERO (`glue/io/formats/fits/subset_mask.py:24`). Done when a fixture test shows the faceted-subset count equals `mask.sum()`, as does a recorded manual check on the real 4000255147 SJI_1400 and raster. Features: none. Depends: wp10-mask-uint8, wp10-m0-negative-step (irispy 0.9.0 only; see its status).
 - [ ] **M0** `wp9-m0-workflow-recipes`: Extend the profile guide with released-Glue recipes, naming axes by role:
   - four panels by hand (raster as spectrogram and map, SJI, Profile, Pixel, Gather Windows); Profiles above 1e8 elements ask "Add large data set?", default Cancel;
   - axis choices for spectrogram (wavelength × slit), raster map (step × slit) and time–wavelength (scan/exposure × wavelength; that axis is an index, `Time` gives UTC); on sit-and-stare the stock exposure axis reads "Helioprojective Longitude" (drifting ~42 arcsec) but is acquisition order (the quicklook labels it Exposure);
@@ -1380,15 +1493,27 @@ WP10 makes the IRIS loaders correct and fast for the M0 quicklook, then lazy. Co
 Port from prototypes:
 - `IRIS_PLAN_PROTOTYPES/wp8_proto.py` and `wp8_scan.py` → the pattern only for `wp10-nonblocking-load` (code ports under `wp8-filter-stop`). Fix first: wp7-wp8-3, wp7-wp8-2.
 
-- [ ] **M0** `wp10-fill-nan`: In `_cube_data`, set -200/-199 to NaN (D12; exact codes, not SSW's `< -198.5`, as irispy float fixtures hold real values below -200) by `np.isin` on the already-flipped data, never from irispy's unflipped `cube.mask` (`irispy/io/spectrograph.py:251@0.9.0`); convert with `astype(np.result_type(dtype, np.float32), copy=False)` only when fill is present (writing into irispy's cube, safe only while the loader discards it). AIA cutouts (TDESC1 not starting 'SJI') treat only -200 as missing (-199 unverified for AIA); saturation (+Inf, int16 16182 DN) is unchanged. `stack_spectrograms.py` applies the fill rule per scan as it writes the memmap, replacing the irispy-mask NaN; the stack's `_cube_data` call skips the fill step. Done when:
+- [x] **M0** `wp10-fill-nan`: In `_cube_data`, set -200/-199 to NaN (D12; exact codes, not SSW's `< -198.5`, as irispy float fixtures hold real values below -200) by `np.isin` on the already-flipped data, never from irispy's unflipped `cube.mask` (`irispy/io/spectrograph.py:251@0.9.0`); convert with `astype(np.result_type(dtype, np.float32), copy=False)` only when fill is present (writing into irispy's cube, safe only while the loader discards it). AIA cutouts (TDESC1 not starting 'SJI') treat only -200 as missing (-199 unverified for AIA); saturation (+Inf, int16 16182 DN) is unchanged. `stack_spectrograms.py` applies the fill rule per scan as it writes the memmap, replacing the irispy-mask NaN; the stack's `_cube_data` call skips the fill step. Done when:
   - CI: `raster_data` on the irispy fixture `iris_l2_20210905_001833_3620258102_raster_t000_r00000_test.fits` Si IV 1403 gives 0 values of -200/-199 and exactly 35,027 NaN of 216,920 samples; a synthetic negative-step fixture (flipped data, unflipped mask) gets NaN exactly at the flipped fill positions; the `test_importer.py` stack mask assertions use `isnan`.
-  - 4000005156 Si IV scan 0 has no -200/-199 and a NaN count equal to the raw count of those codes (3,050,445); the default percentile lower limit is no longer -200 and per-scan and stack limits agree; a one-pixel Pixel-subset Mean spectrum equals the raw spectrum with fill as NaN.
+  - 4000005156 Si IV scan 0 has no -200/-199 and a NaN count equal to the raw count of those codes (3,050,448: 3,050,445 at -200 plus 3 at -199; followup-3-3 counted -200 only); the default percentile lower limit is no longer -200 and per-scan and stack limits agree; a one-pixel Pixel-subset Mean spectrum equals the raw spectrum with fill as NaN.
   - On 3400109360 the NaN positions of each scan and of the 2-scan stack equal the flipped raw fill positions.
   - A synthetic int16 AIA-like cutout with injected -200 renders those pixels transparent (#53); a fill-free cutout stays int16.
 
   Features: F164, F031. Findings: followup-3-3, followup-4-2, followup-3-2.
+
+  Done 2026-09-27 on branch `wp10-fill-nan` (worktree `~/Git/glue-solar-wp10-fill-nan`, from main 236f0a8): commit 7817310 and changelog commit 9298914, in glue-viz/glue-solar#54, merged 2026-09-27 as ef65509. `iris.py`: `_cube_data(..., missing=MISSING_VALUES)`; AIA cutouts pass `(-200,)` and the stack passes `()`. `stack_spectrograms.py`: `MISSING_VALUES = (-200, -199)`, the fill is applied per scan in the memmap, and the NDCube mask is `isnan` (was `~isfinite`). Tests: 3 new tests, and the stack assertions use `isnan`.
+  - CI, `iris-plan`, run from the worktree with `P=~/Git/glue-solar/IRIS_PLAN_PROTOTYPES/review_20260905`: `env HOME="$(mktemp -d)" PYTHONPATH=$P ~/mamba/envs/iris-plan/bin/python -B $P/run_checks.py "$PWD:$P" glue_solar -p qs_isolate` gives 37 passed, 1 skipped (baseline 34/1). On main's loader the 3 new tests fail. The negative-step test injects one -199, because no fixture holds -199; it fails if -199 is dropped from the codes. ruff 0.16.1 (env `ruff-0161`) passes.
+  - Data, manual: `IRIS_PLAN_PROTOTYPES/review_20260927/probes/wp10/test_fill_nan_data.py`, through the same runner with the worktree as the first root (command in its docstring): 4 passed.
+    - 4000005156 Si IV scan 0: 0 codes left and 3,050,448 NaN, exactly at the raw fill positions. Exact 0.25 % limit: -200 → -8.75. glue's default limits (100 %, sampled) are [-13.5, 44.75] and at 99.5 % [-8.5, 11.35]; the stack at 99.5 % gives [-8.25, 10.21]. Each stack scan equals its per-scan data, so exact limits agree. At pixel (32, 400), the Mean profile of a `PixelSubsetState` in a ProfileViewer equals the raw spectrum with its 28 fill samples as NaN.
+    - 3400109360: NaN equals the flipped raw fill in all 8 scans × 7 windows and in the 2-scan stack. irispy's mask differs from the fill at 158–341,761 samples per window and scan.
+    - The 9 real 3640107442 AIA cutouts hold no -200/-199 and stay int16. The synthetic -200 case is a CI test.
+  - Cost: all 9 windows of 4000005156 scan 0 load in 0.38 s (main 0.28 s), peak RSS 2.19 GB (main 2.01 GB). The extra ~1.5 B/element is transient `np.isin` output; the int64 mask still dominates (`wp10-mask-uint8`).
+  - Limits: timings at load average 3.4 with a warm cache. The CI counts hold for the irispy 0.9.0 fixtures only, like the existing fixture tests. An adversarial review (4 reviewers plus one verifier per finding) found no code defect; its only confirmed finding is the 3,050,445 correction above.
+  - Left over:
+    - `<label> mask` is still irispy's mask. It marks -200 only (no -199, on rasters and SJIs), and on irispy 0.9.0 it is unflipped on negative steps (fixed by #176, which main pins). `wp10-mask-uint8` replaces it.
+    - `docs/dev_guide/loader-customization.rst` still says the adapter preserves irispy's values (`wp9-m0-user-guide-corrections`, `wp9-m0-dev-guide-stack`).
 - [ ] **M0** `wp10-mask-uint8`: After the fill step, store every SJI, per-scan and stack mask as `Component(np.isnan(values).view(np.uint8))` with no second in-RAM copy (D12). Done when every mask component is uint8 and equals `isnan(data)` (real SJIs: `cube.mask` plus the -199 pixels), with the `test_importer.py` mask assertions updated; `raster_data` on all 9 windows of 4000005156 scan 0 retains ≤ 6 B/element and peaks ≤ 10 B/element, and stacking all 7 windows of the 99-scan 3602506433 peaks below 12 GB (50 scans measured 10.07 GB; 99 untested; memory limits: confirmed). If these hold, lazy loading stays in M2. Features: none. Findings: followup-2-2, usefulness-12. Depends: wp10-fill-nan.
-- [ ] **M0** `wp10-m0-negative-step`: In `_cube_data`, when STEPS_AV < -0.01 and the probe `abs(Tx[0] - lon(step 0)) > abs(Tx[-1] - lon(step 0))` fires (Tx: x of `meta['exposure FOV center']`; lon: WCS longitude at the FOV-centre slit row), set `data.meta` to a copy of `cube.meta` with the step axis reversed in the five per-step keys (auxiliary times, exposure time, exposure FOV center, observer radial velocity, orbital phase); never modify `cube.meta` (D10). It retires with `wp0-irispy-v34-flip`. Done when:
+- [ ] **M0** `wp10-m0-negative-step`: (Status 2026-09-27: irispy #176, pinned by glue-solar #55, already reverses the per-step meta and flips the mask, so this probe no longer fires on 3400109360 and the item only matters for irispy 0.9.0. Drop or rescope it with the user before starting.) In `_cube_data`, when STEPS_AV < -0.01 and the probe `abs(Tx[0] - lon(step 0)) > abs(Tx[-1] - lon(step 0))` fires (Tx: x of `meta['exposure FOV center']`; lon: WCS longitude at the FOV-centre slit row), set `data.meta` to a copy of `cube.meta` with the step axis reversed in the five per-step keys (auxiliary times, exposure time, exposure FOV center, observer radial velocity, orbital phase); never modify `cube.meta` (D10). It retires with `wp0-irispy-v34-flip`. Done when:
   - The probe fires for every 3400109360 scan (8 local, r00000-r00007) and not for 4000005156, 4000255147 or 3824262996.
   - On a synthetic negative-step raster with varying exposure times, `data.meta['exposure time'][k]` equals the file's EXPTIMEF at row N-1-k.
   - Nearest-index on 3400109360: `wp4-time-sync` check 3.
@@ -1396,7 +1521,7 @@ Port from prototypes:
 
   Features: none. Findings: followup-4-2. Depends: wp10-fill-nan, wp1-m0-descending-step-orientation.
 - [ ] **M0** `wp10-m0-wcs-lock`: Guard `_GlueWCS.pixel_to_world_values`, `world_to_pixel_values` and `axis_correlation_matrix` with one module-level `threading.RLock` (re-entrant: a `_GlueWCS` can wrap a sliced one; module-level: derived datasets share one astropy WCS). Export it publicly next to `_GlueWCS` in `glue_solar/sources/loaders/iris.py` (for example `WCS_LOCK`). Raw astropy WCS users (`data.coords._wcs`, `SlicedLowLevelWCS(raw_wcs)` in the WP2 and WP6 prototypes) go through `data.coords`, hold the lock, or deep-copy under it; WP2's rewrap and `wp6-m2-worker` build `SlicedLowLevelWCS` on the main thread, never in a Worker. It retires with `wp0-astropy-19174`. Done when a CI subprocess test with two threads each making 20,000 calls on one `_GlueWCS` of the irispy raster fixture exits 0, and 4000255147 Si IV in stock viewers (2 Image, 1 Profile), stepping the slice from 100 to 300, gives 0 crashes in 20 consecutive offscreen runs (today 4 of 8 threaded runs crash). If it still crashes with the lock, find the remaining shared state before M0 closes. Features: none. Findings: followup-2-1, followup-3-1.
-- [ ] **M0** `wp10-m0-interaction-latency`: Add `_without_step_index(wcs)`, applied in `_cube_data` and to the stack's `target_wcs`: for a -TAB WCS with the exposure-index column (`PS3_2 = 'RASTER'`), rebuild it from `to_header()` without `PS3_2` plus a 2-node index, and use the rebuild only if both agree to 1e-12 at probe points (else keep the original and log). It retires with `wp0-irispy-tab-index`. No transposed cube; λ–t is an Image axis choice. If a budget still fails, use `QSlider.setTracking(False)` on the preset's `value_slice_center` sliders, then a numpy slit-table evaluator (exact to 1e-10″, 0.07-0.08 s/step), not a cache. Done when:
+- [ ] **M0** `wp10-m0-interaction-latency`: (Status 2026-09-27: irispy #177 removes the step index upstream and is in the #56 pin, so `_without_step_index` is only needed for irispy 0.9.0. The latency budgets and the λ–t checks still apply; rescope with the user.) Add `_without_step_index(wcs)`, applied in `_cube_data` and to the stack's `target_wcs`: for a -TAB WCS with the exposure-index column (`PS3_2 = 'RASTER'`), rebuild it from `to_header()` without `PS3_2` plus a 2-node index, and use the rebuild only if both agree to 1e-12 at probe points (else keep the original and log). It retires with `wp0-irispy-tab-index`. No transposed cube; λ–t is an Image axis choice. If a budget still fails, use `QSlider.setTracking(False)` on the preset's `value_slice_center` sliders, then a numpy slit-table evaluator (exact to 1e-10″, 0.07-0.08 s/step), not a cache. Done when:
   - On 4000255147 Si IV a spectrogram slice step (set + draw) takes ≤ 0.10 s and stays within 20% across exposures 1, 800 and 1599.
   - The rebuild matches the original to 1e-12 deg (pixel→world) and 1e-9 px (world→pixel) at the far slit end and at fractional steps on 4000255147, 4000005156 and 3824262996.
   - The λ–t image at the selected point equals `cube[:, y, :]`.
@@ -1405,13 +1530,13 @@ Port from prototypes:
   Features: F035, F022. Findings: followup-2-6. Depends: wp10-m0-wcs-lock.
 - [ ] **M0** `wp10-m0-large-data-modal`: In `glue_solar/quicklook.py`, create the Profile viewer empty, set its instance `large_data_size = None`, then `add_data`, so the 1e8-point 'Add large data set?' modal (default Cancel) cannot abort the preset. The status bar notes the size, or why `add_data` returned False (the preset continues without the Profile layer); user settings and the class attribute are untouched. Done when, at real size and without monkeypatching `warn`, the preset opens with the Profile layer and `warn` is never called on the 4000255147 sit-and-stare windows (1.7e8-3.7e8 elements), 3824262996 Mg II k (2.35e8) and the 99-scan 3602506433 stack (4.6e8). Features: none. Findings: followup-2-5, usefulness-12. Depends: wp4-quicklook-preset.
 - [ ] **M0** `wp10-m0-roi-guard`: Add an ImageViewer subclass to `glue_solar/quicklook.py` whose `tools` is glue-qt's `ImageViewer.tools` (read after `setup()` appends the solar tools) minus the five `select:*` tools (rectangle, xrange, yrange, circle, polygon); the preset creates its raster image viewers from it via `app.new_data_viewer` (D9). Done when a test shows the preset's raster viewers expose no `select:*` tool, and an SJI frame step with the Pixel point active stays within the `wp10-m0-acceptance` SJI step budget on 4000005156 with the deconvolved SJI 2796 (32×771×1506). Features: none. Findings: followup-4-4. Depends: wp4-quicklook-preset, wp1-m0-link-hpc.
-- [ ] **M0** `wp10-m0-acceptance`: CI tier, on irispy fixtures: the `wp10-m0-wcs-lock` thread test, the index-free WCS equality check, and the `wp10-fill-nan`/`wp10-mask-uint8` fixture assertions. Data tier, `glue_solar/tests/test_performance.py`, skipped without `~/DATA/IRIS`: 4000255147 (sit-and-stare + SJI 1400), 4000005156 (2 scans + the deconvolved SJI 2796), 3824262996 (400-step Mg II), 3400109360 (`wp10-fill-nan` NaN positions, `wp10-m0-negative-step` probe, peak RSS) and 3602506433 (99 scans, memory only). It logs sizes, per-window load time (s/GB), latency, peak RSS, and the per-frame cost of a stock raster pixel ROI with `link_hpc` on the 4000005156 and 4000255147 raster/SJI pairs (followup-4-4; browser-opened viewers keep ROI tools (confirmed); `wp1-m0-link-hpc` needs this record before `browse_iris` installs `link_hpc` by default). Budgets (confirmed 2026-09-27) are fixed for the 24 GB reference machine (offscreen, warm cache; 1.5-1.9x headroom; the synced step rests on an unverified 0.22 s estimate) and change only by a recorded decision. Done when both tiers pass and the results, machine and load average are recorded with the M0 validation:
+- [ ] **M0** `wp10-m0-acceptance`: CI tier, on irispy fixtures: the `wp10-m0-wcs-lock` thread test, the index-free WCS equality check (only while `_without_step_index` exists; see `wp10-m0-interaction-latency`), and the `wp10-fill-nan`/`wp10-mask-uint8` fixture assertions. Data tier, `glue_solar/tests/test_performance.py`, skipped without `~/DATA/IRIS`: 4000255147 (sit-and-stare + SJI 1400), 4000005156 (2 scans + the deconvolved SJI 2796), 3824262996 (400-step Mg II), 3400109360 (`wp10-fill-nan` NaN positions, `wp10-m0-negative-step` probe (irispy 0.9.0 only), peak RSS) and 3602506433 (99 scans, memory only). It logs sizes, per-window load time (s/GB), latency, peak RSS, and the per-frame cost of a stock raster pixel ROI with `link_hpc` on the 4000005156 and 4000255147 raster/SJI pairs (followup-4-4; browser-opened viewers keep ROI tools (confirmed); `wp1-m0-link-hpc` needs this record before `browse_iris` installs `link_hpc` by default). Budgets (confirmed 2026-09-27) are fixed for the 24 GB reference machine (offscreen, warm cache; 1.5-1.9x headroom; the synced step rests on an unverified 0.22 s estimate) and change only by a recorded decision. Done when both tiers pass and the results, machine and load average are recorded with the M0 validation:
   - image slice step ≤ 0.10 s at any exposure index; λ–t slit step ≤ 0.15 s; Pixel click to drawn spectrum ≤ 0.35 s; SJI frame step ≤ 0.15 s;
   - one step across the preset's synced image viewers ≤ 0.25 s at exposures 1, 800 and 1599, of which WP4 sync uses ≤ 0.1 s;
   - `quicklook()` ≤ 3 s with no modal; WP4's cached nearest-index/offset state ≤ 1 MB; the `wp10-mask-uint8` memory budgets hold;
   - 0 crashes in 20 consecutive offscreen runs per scenario: the `wp10-m0-wcs-lock` stock-viewer scenario, and the quicklook with 3 Pixel clicks on 3824262996 Mg II k and on 4000255147.
 
-  Load time and ROI cost have no budget; `wp10-nonblocking-load` gates load-time GUI gaps. Features: none. Findings: plan-integrity-8, followup-2-8, usefulness-12. Depends: wp10-fill-nan, wp10-mask-uint8, wp10-m0-negative-step, wp10-m0-wcs-lock, wp10-m0-interaction-latency, wp10-m0-large-data-modal, wp10-m0-roi-guard, wp4-quicklook-preset, wp4-m0-point-fixed-index, wp4-time-sync.
+  Load time and ROI cost have no budget; `wp10-nonblocking-load` gates load-time GUI gaps. Features: none. Findings: plan-integrity-8, followup-2-8, usefulness-12. Depends: wp10-fill-nan, wp10-mask-uint8, wp10-m0-negative-step (irispy 0.9.0 only; see its status), wp10-m0-wcs-lock, wp10-m0-interaction-latency, wp10-m0-large-data-modal, wp10-m0-roi-guard, wp4-quicklook-preset, wp4-m0-point-fixed-index, wp4-time-sync.
 
 - [ ] **M1** `wp10-nonblocking-load`: Run the reads in `QtIRISImporter.finalize` (`raster_data`/`image_data`, `extract_archive`) in glue-qt's `Worker`, with the progress bar visible and OK disabled: build the Data in the worker touching no viewer-held WCS, extend `datasets` on the GUI thread, drop cancelled or superseded loads by load id, record each result through the `wp4-launch-entry` per-window helper, never `wait()` on the GUI thread, and check a stop between raster files (`raster_data` reads per file and assembles each window's sequence). Extraction, stop and 'Loading X failed' texts stay visible after the worker ends. `wp8-filter-stop` reuses this lifecycle (stop and discard on rescan, directory change, accept, reject and close). F201 is met by glue's plugin splash and Preferences 'Reset visibility of info messages and warnings'; no precomputation is needed. Done when:
   - Loading 3824262996 Mg II k or 4000255147 keeps GUI timer gaps ≤ 0.2 s.
@@ -1467,7 +1592,7 @@ WP11 brings CRISPEX-level display and inspection to stock Glue Image and Profile
 - [ ] **M1** `wp11-histo-opt-scaling`: Add a glue-solar 'Scaling' `SimpleToolMenu` for Image viewers (glue-qt 0.4.2 drops plain `Tool.menu_actions` menus); each subtool re-activates the mouse mode its click deactivates, as in `wp4-coordinator`. 'Histogram opt' (c = 1e-2, 1e-3 (IRIS) or 1e-4 (CRISPEX)) sets Custom limits `np.nanpercentile(layer_state.get_sliced_data(), [100·c, 100·(1−c)])`; 'Follow frames' re-applies them on slice changes; 'Per-frame auto limits' toggles `stretch_global`. No new percentile choices (restored sessions reject them). From M1, `wp4-quicklook-preset` calls the same helper (a WP11 change to `glue_solar/quicklook.py`). Done when: local 3610108077 after `wp10-fill-nan`, cutoff 1e-3: limits equal the displayed slice's nanpercentiles at 0.1 and 99.9, with v_min > −200; 'Follow frames' on: a wavelength step moves the limits to the new slice's percentiles; per-frame limits on: stock percentile limits change with the slider; a saved session restores the Custom limits. Features: F061, F064. Findings: followup-3-4, followup-3-2. Depends: wp10-fill-nan.
 - [ ] **M1** `wp11-gamma-stretch`: In `setup()`, add 'Gamma 0.4', 'Gamma 0.75', 'Gamma 1.5' and 'Gamma 2.2' through `glue.config.stretches.add`, each a no-argument astropy `PowerStretch` subclass, skipping labels already registered. Done when: 'Gamma 0.75' is listed in the Stretch combo on released glue-qt 0.4.2; its rendered normalised values equal `PowerStretch(0.75)` of the linear ones; a session using it restores; calling `setup()` twice raises nothing; the IRIS-9 'gamma < 1' step works in the preset. Features: F062. Findings: usefulness-17, followup-3-4.
 - [ ] **M1** `wp11-raster-cmap`: In `_raster_collection_data` (`glue_solar/sources/loaders/iris.py`), pass `cmap=` 'irissjiFUV' or 'irissjiNUV' for per-scan rasters and stacks from each window's `SGMeta.detector_band` (not the raw `TDET1`), read before stacking flattens the meta. Done when: on local 3610108077, layers default to irissjiFUV for C II and Si IV and to irissjiNUV for Mg II k and 2832; the same holds for a 2-scan 4000005156 stack; such a layer restores from a session. Features: F059. Depends: wp3-style-cmap.
-- [ ] **M1** `wp11-physical-aspect`: A `viewer_tool` `solar:physical_aspect` (D9) wraps the private `state._set_axes_aspect_ratio` to scale the ratio by the displayed axes' arcsec-per-pixel ratio (|Δ| per axis; 1 unless both are helioprojective with non-zero steps) and re-runs `_on_resize()` on axis changes; the preset sets `aspect='equal'` on maps. D2 probe: no 'Physical pixels' aspect choice (WP11 drafts the glue-core PR, filed on the user's direction); `wp0-workaround-register` row. Done when, on released core: (a) local 4000005156 (about 12:1) and 3400109360 (about 3:1) render a 10″×10″ solar square as square within 5% at the preset size, after a resize and after a zoom; (b) the scale factor is 1.03 on the dense 3610108077 raster and 1 on sit-and-stare, and a restored session re-installs the tool. Gated sub-check (c), closed with `wp0-release-tracking`: with a release containing the upstream choice, (a) and (b) pass and the probe turns the workaround off. Features: F193. Depends: wp4-quicklook-preset, wp10-m0-negative-step, wp0-workaround-register.
+- [ ] **M1** `wp11-physical-aspect`: A `viewer_tool` `solar:physical_aspect` (D9) wraps the private `state._set_axes_aspect_ratio` to scale the ratio by the displayed axes' arcsec-per-pixel ratio (|Δ| per axis; 1 unless both are helioprojective with non-zero steps) and re-runs `_on_resize()` on axis changes; the preset sets `aspect='equal'` on maps. D2 probe: no 'Physical pixels' aspect choice (WP11 drafts the glue-core PR, filed on the user's direction); `wp0-workaround-register` row. Done when, on released core: (a) local 4000005156 (about 12:1) and 3400109360 (about 3:1) render a 10″×10″ solar square as square within 5% at the preset size, after a resize and after a zoom; (b) the scale factor is 1.03 on the dense 3610108077 raster and 1 on sit-and-stare, and a restored session re-installs the tool. Gated sub-check (c), closed with `wp0-release-tracking`: with a release containing the upstream choice, (a) and (b) pass and the probe turns the workaround off. Features: F193. Depends: wp4-quicklook-preset, wp10-m0-negative-step (irispy 0.9.0 only; see its status), wp0-workaround-register.
 - [ ] **M1** `wp11-keyboard-shortcuts`: Register plain keys for `ImageViewer`, `ProfileViewer` and the `wp10-m0-roi-guard` subclass in glue-qt's `keyboard_shortcut` registry: D/F previous/next frame on the WP4-synced axis, A/S previous/next wavelength, Space play/stop; steps wrap. In the quicklook and in Profile viewers, D/F move the WP4 master, A/S the wavelength index, and Space toggles `wp4-time-controls`; elsewhere Space calls the slice widget's private `_adjust_play` (a `wp0-workaround-register` row). Skip keys already registered and bind glue's Tab/Backspace functions to the subclass; name the keys in tool tips and the IRIS guide. Done when, on released glue-qt 0.4.2 with `QTest.keyClick`:
   - real SJI and raster viewers: D/F step ±1 with wrap, and Space starts and stops playback;
   - after clicking the slice widget's forward and stop buttons, and with its slider focused, Space toggles playback exactly once and D/F/A/S still step (else use another free key and document it);
@@ -1491,7 +1616,7 @@ WP11 brings CRISPEX-level display and inspection to stock Glue Image and Profile
 
 #### Notes and limits
 
-- **SJI coordinates.** SJI world values are correct once `wp1-m0-sji-crpix` (M0) is active. That item keeps the 0.05 px check; the upstream report is `wp0-irispy-crpix` (followup-4-3).
+- **SJI coordinates.** SJI world values are correct with irispy #178 (in the #56 pin) or, on irispy 0.9.0, with `wp1-m0-sji-crpix`. That item keeps the 0.05 px check (followup-4-3).
 - **Keys.** glue-qt dispatch matches the exact viewer type, passes only the session, ignores modifiers and skips keys the focused widget consumes. B, C, G, H, K, M, P, R, W, X, Y, Z, Tab, Backspace and L (`solar:path`, `wp12-path-slicer`) are already taken.
 - **Upstream.** glue-qt's `sync_state_from_sliders` bug also breaks stock Profile Collapse on 4D stack maps; `wp0-qt-aggregate-slice` reports it. F067's interpolation preference is declined.
 - **Owned elsewhere or declined.** The playback range and Go to UTC (followup-3-12) belong to `wp4-time-controls` (M1); fps, frame increment and bounce belong to `wp4-playback-extras` (M3). Declined: a CRISPEX control-panel clone (F191) and, for F097, wheel or keyboard zoom and a zoom-% readout.
@@ -1575,7 +1700,7 @@ was deleted. Full verdicts, including verifier corrections, are in
 | `archive/probes-2026-09/wp7_timelink.py`, `wp7_goes.py` | Parts: the success-path recipe (viewer, log axis, time link) | `tests/test_context.py` (WP7, M2) | Not `wp7_goes.py`'s `EPOCH=1` `rcParams` path; update the pre-0.9.0 fixture name (`wp7-wp8-8`) |
 | `wp8_scan.py`, `wp8_proto.py`, `wp8_loader.ui` + `wp8_test_proto.py`, `wp8_test_shipped.py`, `wp8_chk_test_text.py`, `wp8_chk_proto_fix.py` | Parts / port | `sources/loaders/scan.py`, `iris.py`, `iris_loader.ui`, tests (WP8, M2); the Worker pattern also serves `wp10-nonblocking-load` (M1) | Load during rescan (`wp7-wp8-2`); stop inside the directory walk (`wp7-wp8-3`); "Scan stopped" wording (`wp7-wp8-11`); event-based tests (`wp7-wp8-12`) |
 | `review_20260927/probes/wp10/unit_thread.py` | Port | `wp10-m0-wcs-lock` CI subprocess test (WP10, M0) | Replace `<session-scratch>` sys.path entries; fixture via `find_irispy_test_file` |
-| `review_20260927/probes/wp10/noindex_fix.py` | Parts | `_without_step_index` (`wp10-m0-interaction-latency`, M0) | Keep the 1e-12/1e-9 agreement check |
+| `review_20260927/probes/wp10/noindex_fix.py` | Parts | `_without_step_index` (`wp10-m0-interaction-latency`, M0) | Only if `wp10-m0-interaction-latency` keeps the rebuild (irispy #177 removes the index); keep the 1e-12/1e-9 agreement check |
 | `review_20260905/test_plan_integration.py` | WP6 round-trip test only | `tests/test_sessions.py` (WP6, M2) | Drop the stubbed quicklook test and the brief-variant parameter |
 | `review_20260923/README.md` | Reference only | none | Its SJI (25,25) → step 3 figures are specific to the irispy 0.8.1 fixture (step 40 on 0.9.0); `wp0-readme-runner` replaces its `.venv` runner lines |
 
@@ -1619,23 +1744,59 @@ system Python.
   noarch 0.2.0; linux-64, osx-64 and win-64 have 0.4.2), PyQt5,
   irispy-lmsal 0.9.0, ndcube 2.4.2, astropy 8.0.1, sunpy 8.0.0 with the timeseries
   dependencies (cdflib, h5netcdf), pytest with pytest-doctestplus and
-  pytest-qt, Python 3.13, glue-solar editable. Baseline: `glue_solar` gives
-  34 passed, 1 skipped.
+  pytest-qt, Python 3.13, glue-solar editable. Baseline on glue-solar main
+  420dcea: `glue_solar` gives 37 passed, 1 skipped, both with irispy 0.9.0 and
+  with the pinned irispy commit as an extra root. The skip is the APE-14 autolink
+  test, which needs core #2595.
+- In the commands below, `P=~/Git/glue-solar/IRIS_PLAN_PROTOTYPES/review_20260905`,
+  and `<scratch>` is a disposable directory outside the repositories (for
+  example from `mktemp -d`). macOS purges temporary directories, so recreate
+  it before use.
+- glue-solar main requires irispy main by git URL (#55; #56 moves it to
+  5ce6029), but `iris-plan` has irispy 0.9.0. To test against the pinned commit:
+  1. Make a detached worktree, not a `git archive` export, because irispy reads
+     its version from git: `git -C ~/Git/irispy worktree add --detach <scratch>/irispy-<sha> <sha>`.
+  2. From the glue-solar checkout under test, pass it as an extra runner root:
+     `env HOME="$(mktemp -d)" PYTHONPATH=$P ~/mamba/envs/iris-plan/bin/python -B $P/run_checks.py "$PWD:<scratch>/irispy-<sha>:$P" glue_solar -p qs_isolate`.
+  3. Print `irispy.__file__` to confirm which irispy was imported.
+- irispy development env `irispy-v34-fix`: Python 3.14, with irispy editable
+  from `~/Git/irispy-fix-negative-step-mask` via `pip install -e ".[dev]"`, as
+  irispy's AGENTS.md describes. To test another irispy worktree, run pytest from
+  a neutral directory with `PYTHONPATH=<worktree>` and
+  `-c <worktree>/pytest.ini --rootdir=<worktree>`. Python puts the working
+  directory first on `sys.path`, so never run Python from `~/Git/irispy`, which
+  is the user's gWCS checkout. Docs doctests: `pytest docs --remote-data=any`
+  with `COLUMNS=300`, since `fits_info` tables truncate to the terminal width
+  locally. irispy's offline suite (irispy plus docs) on main 5ce6029: 267
+  passed, 1 skipped.
+- IDL and GDL: the IDL reference-run package and the GDL harness are in
+  `IRIS_PLAN_PROTOTYPES/idl_reference/`. GDL is not on conda-forge; use
+  MacPorts `gnudatalanguage` 1.1.3, Ubuntu's package, or the macOS weekly
+  `.dmg` from the GDL GitHub releases.
 - `iris-plan` has no pytest-mpl, so glue and glue-qt `@visual_test` image
   comparisons do not run. Pass counts (for example in
   `wp0-stack-validation`) do not certify rendering; record this as a
   validation limit.
 - The existing `glue-solar` micromamba env imports glue, glue-qt and irispy
-  editable from the checkouts. Its irispy checkout is on
-  `gwcs_raster_clean`, which breaks the raster loader (D14), so do not use
+  editable from the checkouts. Its irispy checkout (`~/Git/irispy`) is on the
+  user's in-progress gWCS branch `gwcs_raster_v2` (draft irispy #182). D14
+  found that the gWCS branch `gwcs_raster_clean` breaks the raster loader,
+  so do not use
   it for baselines. If a check needs a different package set (for example
   irispy 0.8.1), create a new named env rather than changing an existing one.
-- Runner, from the glue-solar root, with an isolated `HOME` and QSettings:
+- Runner. Run it from a checkout of the code under test, not from
+  `~/Git/glue-solar`. That checkout is on `plan` and holds the pre-#54 code,
+  where the suite gives 34 passed, 1 skipped, and local `main` is stale. For the
+  baseline, run `git -C ~/Git/glue-solar fetch origin` and then
+  `git -C ~/Git/glue-solar worktree add --detach ~/Git/glue-solar-main origin/main`,
+  or use a feature worktree. From that checkout, with an isolated `HOME` and
+  QSettings:
 
   ```sh
-  env HOME="$(mktemp -d)" PYTHONPATH=IRIS_PLAN_PROTOTYPES/review_20260905 \
-    ~/mamba/envs/iris-plan/bin/python -B IRIS_PLAN_PROTOTYPES/review_20260905/run_checks.py \
-    "$PWD:$PWD/IRIS_PLAN_PROTOTYPES/review_20260905" glue_solar -p qs_isolate
+  P=~/Git/glue-solar/IRIS_PLAN_PROTOTYPES/review_20260905
+  env HOME="$(mktemp -d)" PYTHONPATH=$P \
+    ~/mamba/envs/iris-plan/bin/python -B $P/run_checks.py \
+    "$PWD:$P" glue_solar -p qs_isolate
   ```
 
   `run_checks.py` sets offscreen Qt/Agg and temporary Glue, Matplotlib and
@@ -1669,13 +1830,17 @@ system Python.
   `iris_l2_20140910_fexxi_rb_steps` (a derived product, not Level 2). The
   IRIS-9 observations (for example OBSID 3840007146) are not local.
 - Linters: use the repo-pinned Ruff versions (core 0.15.20, Qt 0.14.14,
-  solar 0.16.1). Recheck the configuration before installing tools, and do
+  solar 0.16.1, irispy 0.16.5). The micromamba env `ruff-0161` has solar's
+  0.16.1, and the `glue-solar` env's ruff binary is irispy's 0.16.5. Recheck the configuration before installing tools, and do
   not weaken a baseline for newer lint rules.
 - Floor env (`wp1-m0-irispy-baseline` creates it): `iris-plan-floor`, a
   named micromamba env with irispy-lmsal 0.8.1 at its declared floors
   astropy 7.2.x and ndcube 2.4.0, on glue-core 1.27.0 and glue-qt 0.4.2.
   Install the glue-qt wheel and the editable glue-solar with `--no-deps`, as
   in `iris-plan`. WP1 items pass in both `iris-plan` and `iris-plan-floor`.
+  Deferred while glue-solar main pins irispy main by git URL (D5 exception):
+  the floor env is then built on the first irispy release with #176
+  (`wp1-m0-irispy-baseline`).
 - Prototype-reproduction env `iris-plan-irispy081`: a clone of `iris-plan`
   with irispy-lmsal 0.8.1 but iris-plan's astropy 8.0.1 and ndcube 2.4.2. It
   reproduces prototype results on irispy 0.8.1 and is not the floor env.

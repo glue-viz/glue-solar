@@ -24,6 +24,9 @@ was deleted. The previous version of this index is
 | WP8 browser | [wp8_scan.py](wp8_scan.py), [wp8_proto.py](wp8_proto.py), [wp8_loader.ui](wp8_loader.ui), [wp8_test_proto.py](wp8_test_proto.py), [wp8_test_shipped.py](wp8_test_shipped.py), [wp8_chk_test_text.py](wp8_chk_test_text.py), [wp8_chk_proto_fix.py](wp8_chk_proto_fix.py) | Filter, threaded stoppable scan and progress text; the Worker pattern also serves WP10's non-blocking load |
 | Cross-package checks | [review_20260905/](review_20260905/) (`run_checks.py`, `qs_isolate.py`, integration/refresh/line-position tests), [review_20260923/](review_20260923/README.md) (existing-capability probes) | Runner and probes; the probe figures in review_20260923 are specific to the irispy 0.8.1 fixture |
 | Review evidence | [review_20260927/](review_20260927/README.md) | Verified review, feasibility, prototype verdicts |
+| WP0 upstream reproducers | [upstream/](upstream/) | `<slug>.py` reproducers of the irispy reports (#176–#178) |
+| irispy feature ports | [irispy_ports_20260927/](irispy_ports_20260927/README.md) | Feasibility, efforts, decisions and prototypes of five irispy ports |
+| IDL/GDL reference | [idl_reference/](idl_reference/README.md) | IDL reference-run package (a copy is in the user's Dropbox as `iris_ref_idl/`), the GDL harness in `gdl/`, and the GDL outputs in `gdl_out_20260927/` (`.sav` files git-ignored) |
 
 ## Reproduce
 
@@ -49,7 +52,7 @@ irispy-lmsal 0.9.0. `iris-plan-irispy081` is the same with irispy-lmsal
 
 | Check | irispy 0.8.1 | irispy 0.9.0 |
 | --- | --- | --- |
-| `glue_solar` on main | 34 passed, 1 skipped | 34 passed, 1 skipped |
+| `glue_solar` on main (420dcea, after #54 and #55) | 37 passed, 1 skipped | 37 passed, 1 skipped |
 | WP1 linking + plugin | 19 passed, 2 skipped | 9 passed, 1 failed, 2 skipped, 9 errors |
 | WP2 + WP6 + integration | 17 passed | 11 passed, 3 failed, 3 errors |
 | Refresh + line positions + WP3 sessions | 15 passed | 11 passed, 4 failed |
