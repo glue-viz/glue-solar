@@ -102,7 +102,15 @@ editor's "WCS link" no longer raises on IRIS datasets (#66); CI runs only core
 (Linux 3.12), Linux 3.14, Linux 3.13 online and the docs (#67).
 
 Also merged 2026-09-29: dragged slice sliders redraw at most every 0.1 s and on
-release, re-applied when glue-qt rebuilds them (#68). No open glue-solar PRs.
+release, re-applied when glue-qt rebuilds them (#68).
+
+**glue-solar drafts waiting for the user's review** (from 04db42f; suite 53
+passed, 1 skipped in `iris-plan` and `iris-plan-floor` with
+`--remote-data=any`):
+
+| PR | Branch (worktree `~/Git/glue-solar-<branch>`) | Closes | Result |
+| --- | --- | --- | --- |
+| #69 | `wp4-coordinator` | `wp4-coordinator` | `solar:coordinate` menu ('Time master', 'Clear point') registers every Image viewer with one `Coordinator` per data collection (`glue_solar/quicklook.py`, with `observation_key`); raster map click: 1 message per dataset, no coordinator assignment; stack map click: 2 (scan pinned); axis swap moves the step slider to the point (fixture and remote 4000005156 Si IV); Pixel stays active; restored viewers join. A spectrogram click pins the step from its slider (λ canonicalisation stays `wp4-m0-point-fixed-index`'s). 'Time master' only records `masters[key]` until `wp4-time-sync`. Click helpers are in `glue_solar/tests/helpers.py` |
 
 **Slider speed** (user, 2026-09-29: slow on PyQt5 on their Linux/Wayland
 machine with 3860259453; measure now, optimise later). Probe:
@@ -193,10 +201,13 @@ PR notes (2026-09-29):
   `save` subtools in WP12); #65 (dhomeier, tox cleanup, overlaps #69).
 
 **Next steps.**
-1. The rest of M0, in glue-solar only: since 2026-09-29 upstream PRs,
-   reports and tracking wait for M4 (D2); next are `wp4-coordinator` and
-   `wp4-time-sync`.
-2. When the user has merged and irispy has released #197-#199 and #201, raise
+1. The user reviews #69.
+2. The rest of M0, in glue-solar only: since 2026-09-29 upstream PRs,
+   reports and tracking wait for M4 (D2). `wp4-time-sync` also needs
+   `wp4-m0-point-fixed-index` (after `wp4-quicklook-preset`) and
+   `wp1-m0-link-hpc`; the chain that needs nothing unmerged is
+   `wp0-workaround-register` → `wp1-m0-inverse-workaround` → `wp1-m0-link-hpc`.
+3. When the user has merged and irispy has released #197-#199 and #201, raise
    the irispy floor (`wp0-irispy-requests`).
 
 **Worktrees.**
@@ -204,6 +215,7 @@ PR notes (2026-09-29):
 | Path | Branch | State |
 | --- | --- | --- |
 | `~/Git/glue-solar` | `plan` | This plan |
+| `~/Git/glue-solar-wp4-coordinator` | `wp4-coordinator` | Draft glue-solar #69 |
 | `~/Git/irispy-bursts` | `uv-burst-detection` | Draft #197; the `irispy-ports` env imports irispy from here |
 | `~/Git/irispy-wavecorr` | `wavelength-drift` | Draft #198 |
 | `~/Git/irispy-mg-features` | `mg-features` | Draft #199 |
