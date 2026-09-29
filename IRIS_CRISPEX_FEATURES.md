@@ -11,9 +11,10 @@ feature-to-checkbox map: update it when checkbox keys or feature lists change. T
 authoritative.
 
 Columns: IRIS = relevant to IRIS data; Priority = review priority for an IRIS-first CRISPEX
-quicklook (must/should/could/wont); Milestone and Where = the owning checkbox.
+quicklook (must/should/could/wont); Milestone and Where = the owning checkbox (M4 = upstreaming,
+after the glue-solar work).
 
-Summary: Available: 32, Excluded: 17, M0: 28, M1: 44, M2: 24, M3: 58.
+Summary: Available: 32, Excluded: 17, M0: 28, M1: 42, M2: 24, M3: 59, M4: 1.
 
 ## IRIS raster/SJI semantics, reference cubes & time sync
 
@@ -115,12 +116,12 @@ Summary: Available: 32, Excluded: 17, M0: 28, M1: 44, M2: 24, M3: 58.
 
 | ID | Feature | IRIS | Priority | Milestone | Where | Note |
 | --- | --- | --- | --- | --- | --- | --- |
-| F049 | Cross-dataset pixel mapping via WCS | yes | must | M1 | `wp1-m1-autolink-matrix` (WP1, M1); `wp4-sji-click-to-raster` (WP4, M1) |  |
+| F049 | Cross-dataset pixel mapping via WCS | yes | must | M1 | `wp1-m4-autolink-matrix` (WP1, M4); `wp4-sji-click-to-raster` (WP4, M1) |  |
 | F050 | Time-dependent SJI pointing and slit geometry | yes | must | M0 | `wp1-m0-link-hpc` (WP1, M0) |  |
 | F051 | OFFSET_SJI arcsec offset | yes | could | M3 | `wp1-m3-pointing-offset` (WP1, M3) |  |
 | F052 | Channel/SJI co-alignment check (fiducials, yshift) | yes | could | M3 | `wp1-m3-pointing-offset` (WP1, M3) |  |
 | F053 | Raster scan direction (west-to-east scans) | yes | should | M0 | `wp1-m0-descending-step-orientation` (WP1, M0) |  |
-| F054 | Roll-angle handling | yes | should | M1 | `wp1-m1-autolink-matrix` (WP1, M1) |  |
+| F054 | Roll-angle handling | yes | should | M3 | `wp11-north-up` (WP11, M3); `wp1-m4-autolink-matrix` (WP1, M4) | Rolled SJIs already carry their roll in the WCS that `link_hpc` and the readouts use |
 | F055 | Multi-instrument co-registered browsing (IRIS + SST/AIA) | yes | could | M3 | `wp1-m3-multi-instrument` (WP1, M3) |  |
 
 ## Stokes/polarimetry
@@ -263,7 +264,7 @@ Summary: Available: 32, Excluded: 17, M0: 28, M1: 44, M2: 24, M3: 58.
 | F200 | About window and release notes | no | wont | — | Available today | Help > Version information lists every installed distribution, including glue-solar (application.py:817-822@0.4.2). Release notes come from the towncrier changelog, and auto-showing them is not needed. |
 | F201 | Start-up progress window, precomputation and set-up warnings | yes | should | M1 | `wp10-nonblocking-load` (WP10, M1) |  |
 | F202 | Developer menu (verbosity, interrupt, statistics, window IDs) | no | wont | — | Available today | `glue -v` for verbosity, `--faulthandler`, View > Console Log and Plugins > Plugin Manager (glue-qt main.py and application.py@0.4.2). |
-| F203 | Raster-browser layout and legacy options (RETINA, YOFFSETS, NO_SJI) | yes | could | M1 | `wp0-qt68-macos-pass` (WP0, M1) |  |
+| F203 | Raster-browser layout and legacy options (RETINA, YOFFSETS, NO_SJI) | yes | could | M4 | `wp0-qt68-macos-pass` (WP0, M4) |  |
 
 ## Observation metadata & external context
 
