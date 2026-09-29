@@ -431,7 +431,7 @@ a released-baseline test pins it.
 | Physical aspect (WP11 `solar:physical_aspect`) (private: per-instance `_set_axes_aspect_ratio`) | No 'Physical pixels' aspect choice | the `core-physical-aspect` PR (`wp11-physical-aspect`) |
 | `AggregateSlice` re-applied (WP11 `wp11-band-average`) | `sync_state_from_sliders` replaces an `AggregateSlice` | `wp0-qt-aggregate-slice` |
 | `_GlueWCS` RLock (WP10) | Always on: the race cannot be probed safely | astropy fix for #19174, once #60's thread test and 20 runs of `review_20260927/probes/wp10/test_race.py` give 0 crashes unlocked |
-| `_GlueWCS.has_celestial = False` (WP1, #66) | Always on: glue's `WCSLink` fallback reads FITS-only attributes of any WCS that claims celestial axes | a glue `WCSLink` that checks for an astropy WCS (M4) |
+| `_GlueWCS.has_celestial = False` (WP1, #66) | Always on: glue's `WCSLink` fallback reads FITS-only attributes of any WCS that claims celestial axes | glue #2595 (draft), which checks for an astropy `WCS` instead of reading `has_celestial`; harmless once released (M4) |
 | Datetime epoch port (WP7 `wp7-goes-date-labels`; runtime port of #2599's two functions, never `rcParams['date.epoch']`) | `datetime64_to_mpl(t) != date2num(t)` | core #2599 |
 | Quantity saver fallback (WP3, D13) | No Quantity saver registered | `wp0-core-quantity-saver` |
 | `DerivedComponent` subclass saving `units` (WP1 `wp1-dn-per-s`) | Core's saver drops `units` | `wp0-core-derived-units`; the class stays importable |
