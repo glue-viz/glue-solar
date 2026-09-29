@@ -1,0 +1,1 @@
+Dragging a slice slider in an Image viewer now updates the image at most every 0.1 s and again on release, instead of at every position the slider passes, so drags over large cubes no longer lag behind the mouse.

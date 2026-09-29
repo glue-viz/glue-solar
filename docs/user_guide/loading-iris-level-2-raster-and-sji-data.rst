@@ -45,6 +45,9 @@ Viewer toolbar shows the displayed frame's time and exposure in the status bar, 
 image spans several frames; for a single slit-jaw frame its tooltip gives that frame's pointing (PZT
 offset, field-of-view centre and slit position), which glue-solar keeps in the dataset's metadata.
 
+Dragging a slice slider updates the image at most every 0.1 s and again when you let go, so large
+cubes keep up with the mouse; the arrow keys, clicks on the slider and playback still step at once.
+
 Downloads that are still packed (``*_raster.tar.gz``, ``*_SDO.tar.gz``) show up under their observation
 as an "Extract ..." entry. Tick it and press "Load selected": the archive is unpacked into a folder of
 the same name next to it (the layout irispy and pooch use), the list refreshes, and you can then tick
