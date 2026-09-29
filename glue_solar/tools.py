@@ -6,11 +6,35 @@ import numpy as np
 from glue.config import viewer_tool
 from glue.core.component import DateTimeComponent
 from glue.viewers.common.tool import Tool
-from qtpy import QtWidgets
+from qtpy import QtCore, QtWidgets
 
 __all__ = ["CursorReadoutTool", "FrameTimeTool"]
 
 _WATCHED = ("reference_data", "x_att", "y_att", "slices")
+# glue-qt rebuilds the slice sliders when these change
+_SLIDER_REBUILDS = ("reference_data", "x_att", "y_att")
+# A dragged slice slider applies its position at most this often, and on release
+_DRAG_INTERVAL_MS = 100
+
+
+def _throttle_slice_sliders(viewer):
+    """
+    Make the viewer's slice sliders follow a drag at most every 0.1 s instead of at every position.
+
+    glue-qt applies every value a slider passes through, and each one recomputes and redraws the
+    image, so on a large cube a drag queues redraws and lags behind the mouse. With tracking off a
+    drag reports only its release, and a timer applies the dragged position in between. Keys,
+    clicks and playback still apply at once.
+    """
+    for slider in viewer.options_widget().findChildren(QtWidgets.QSlider, "value_slice_center"):
+        if not slider.hasTracking():
+            continue  # already throttled
+        slider.setTracking(False)
+        timer = QtCore.QTimer(slider)
+        timer.setSingleShot(True)
+        timer.setInterval(_DRAG_INTERVAL_MS)
+        timer.timeout.connect(lambda slider=slider: slider.setValue(slider.sliderPosition()))
+        slider.sliderMoved.connect(lambda _position, timer=timer: timer.isActive() or timer.start())
 
 
 def _time_component(data):
@@ -28,6 +52,8 @@ class FrameTimeTool(Tool):
     raster step); the toolbar button hides and shows it. A frame spanning several exposures,
     such as a raster shown as step against slit, shows the range. Data with an ``Exposure time``
     component also show it, and an SJI frame's pointing is in the tooltip.
+
+    The tool exists for every Image viewer, so it also throttles the viewer's slice sliders.
     """
 
     icon = "window_tab"
@@ -43,6 +69,9 @@ class FrameTimeTool(Tool):
         for prop in _WATCHED:
             viewer.state.add_callback(prop, self._refresh)
         self._refresh()
+        _throttle_slice_sliders(viewer)
+        for prop in _SLIDER_REBUILDS:
+            viewer.state.add_callback(prop, self._throttle_sliders)
 
     def activate(self):
         self.label.setHidden(not self.label.isHidden())
@@ -50,7 +79,12 @@ class FrameTimeTool(Tool):
     def close(self):
         for prop in _WATCHED:
             self.viewer.state.remove_callback(prop, self._refresh)
+        for prop in _SLIDER_REBUILDS:
+            self.viewer.state.remove_callback(prop, self._throttle_sliders)
         super().close()
+
+    def _throttle_sliders(self, *_):
+        _throttle_slice_sliders(self.viewer)
 
     def _refresh(self, *_):
         state = self.viewer.state
