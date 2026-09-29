@@ -103,6 +103,18 @@ worktree `~/Git/glue-solar-wcs-link-editor`, from c6681e8): the link editor's
 `_GlueWCS.has_celestial = False` sends glue down its APE-14 path, so SJI↔SJI
 links and SJI↔raster gets glue's `IncompatibleWCS` (printed by glue-qt's
 editor; `link_hpc` is the route for that pair). Suite 43 passed, 2 skipped.
+Also a draft: #67 (`ci-matrix`): CI runs only core (Linux 3.12), Linux 3.14,
+Linux 3.13 online and the docs; Linux 3.13, Windows, macOS and devdeps dropped
+for now at the user's request (tox envs unchanged).
+
+**Slider speed** (user, 2026-09-29: slow on PyQt5 on their Linux/Wayland
+machine with 3860259453; measure now, optimise later). Probe:
+`IRIS_PLAN_PROTOTYPES/wp10_slider_probe.py FILE [--window W] [--steps N]
+[--profile]` times set, draw, paint and one slider tick on screen, with the
+share spent in glue-solar's WCS. Baseline on the reference Mac, offscreen,
+4000255147 Si IV (1600 steps): set 0.028 s, draw 0.018 s, paint 0.018 s (WCS
+0.022 s of it, mostly WCSAxes tick updates), tick 0.030 s. Waiting for the
+user's Linux numbers.
 
 **irispy (LM-SAL/irispy main 8751589).** Draft PRs waiting for the user's
 review, each branched from main 51c0ec2, tested against an IDL 9.2 reference
@@ -176,7 +188,8 @@ PR notes (2026-09-29):
   `save` subtools in WP12); #65 (dhomeier, tox cleanup, overlaps #69).
 
 **Next steps.**
-1. The user reviews #66.
+1. The user reviews #66 and #67, and runs the slider probe on the Linux
+   machine.
 2. The rest of M0, in glue-solar only: since 2026-09-29 upstream PRs,
    reports and tracking wait for M4 (D2); next are `wp4-coordinator` and
    `wp4-time-sync`.
