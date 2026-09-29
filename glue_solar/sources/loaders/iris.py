@@ -44,6 +44,10 @@ WCS_LOCK = threading.RLock()
 class _GlueWCS(BaseWCSWrapper):
     """Present named, signed helioprojective coordinates in arcseconds to Glue."""
 
+    # glue's WCS link falls back to astropy FITS-WCS attributes (celestial, wcs.lng, ...) when a
+    # WCS says it has celestial axes; this wrapper has none of them, so send glue down its APE-14 path
+    has_celestial = False
+
     @property
     def axis_correlation_matrix(self):
         with WCS_LOCK:

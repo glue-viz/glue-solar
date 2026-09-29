@@ -1,4 +1,6 @@
 import pytest
+from glue.core import DataCollection
+from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
 
 import astropy.units as u
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
@@ -28,6 +30,16 @@ def test_sji_and_raster_share_axis_names(sns):
     assert [c.label for c in sji.world_component_ids] == ["Time (Utc)", *HPC[::-1]]
     assert [c.label for c in raster.world_component_ids] == [*HPC, "Wavelength"]
     assert [c.label for c in sji.components].count("Time") == 1
+
+
+def test_link_editor_wcs_link_works_or_refuses_cleanly(sns, irispy_test_files):
+    # The link editor's "WCS link" between IRIS datasets raised AttributeError: 'has_celestial'
+    sji, raster = sns
+    sji_2796 = image_data(_real(irispy_test_files, SJI.replace("1400", "2796")))
+    DataCollection([sji, raster, sji_2796]).add_link(WCSLink(sji, sji_2796))
+    assert [sji[cid][3, 20, 10] for cid in sji_2796.pixel_component_ids[1:]] == pytest.approx([20, 10], abs=0.01)
+    with pytest.raises(IncompatibleWCS):  # SJI and raster share only lon/lat, which link_hpc links
+        WCSLink(sji, raster)
 
 
 def test_sji_high_level_api_round_trips(sns):
