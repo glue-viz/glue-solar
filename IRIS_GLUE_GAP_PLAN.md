@@ -70,7 +70,7 @@ AIA gWCS use CRPIX − 1 and slit positions are pixels, still 1-based; negative
 counts get readout noise only; meta tolerates missing keys; no uncertainty
 from memmap data).
 
-**glue-solar `main` (e09c9df).** The IRIS observation browser and loader
+**glue-solar `main` (04db42f).** The IRIS observation browser and loader
 (#44, #50); a datetime64 `Time` component and the `solar:frame_time` and
 `solar:cursor_readout` Image tools (#52); transparent NaN pixels (#53);
 -200/-199 fill loaded as NaN, AIA cutouts -200 only (#54); the D5 baseline:
@@ -101,11 +101,8 @@ Also merged 2026-09-29: `_GlueWCS.has_celestial = False`, so the link
 editor's "WCS link" no longer raises on IRIS datasets (#66); CI runs only core
 (Linux 3.12), Linux 3.14, Linux 3.13 online and the docs (#67).
 
-**glue-solar draft waiting for the user's review:** #68 (`slider-throttle`,
-worktree `~/Git/glue-solar-slider-throttle`, from e09c9df): Image viewers'
-slice sliders report a drag only on release and apply the dragged position at
-most every 0.1 s in between (keys, clicks and playback unchanged), re-applied by
-the Frame time tool when glue-qt rebuilds them. Suite 44 passed, 2 skipped.
+Also merged 2026-09-29: dragged slice sliders redraw at most every 0.1 s and on
+release, re-applied when glue-qt rebuilds them (#68). No open glue-solar PRs.
 
 **Slider speed** (user, 2026-09-29: slow on PyQt5 on their Linux/Wayland
 machine with 3860259453; measure now, optimise later). Probe:
@@ -121,7 +118,7 @@ glue-solar, is the main cost. Per Wayland draw (0.065 s): WCSAxes tick and
 label updates about 0.026 s, of which `_GlueWCS.pixel_to_world_values` about
 0.018 s (53 calls of about 0.3 ms); tick-label text about 0.016 s; the image
 little. A drag queues one full redraw per slider position, which is the lag
-felt. The drag throttle is #68; the user put the other two options with the
+felt. The drag throttle is #68 (merged); the user put the other two options with the
 upstream work (`wp0-upstream-draw-speed`, M4).
 
 **irispy (LM-SAL/irispy main 8751589).** Draft PRs waiting for the user's
@@ -196,11 +193,10 @@ PR notes (2026-09-29):
   `save` subtools in WP12); #65 (dhomeier, tox cleanup, overlaps #69).
 
 **Next steps.**
-1. The user reviews #68.
-2. The rest of M0, in glue-solar only: since 2026-09-29 upstream PRs,
+1. The rest of M0, in glue-solar only: since 2026-09-29 upstream PRs,
    reports and tracking wait for M4 (D2); next are `wp4-coordinator` and
    `wp4-time-sync`.
-3. When the user has merged and irispy has released #197-#199 and #201, raise
+2. When the user has merged and irispy has released #197-#199 and #201, raise
    the irispy floor (`wp0-irispy-requests`).
 
 **Worktrees.**
@@ -220,7 +216,7 @@ Removable (merged): `~/Git/glue-solar-wp10-fill-nan`,
 `~/Git/glue-solar-axis-names`, `~/Git/glue-solar-sji-variants`,
 `~/Git/glue-solar-qsettings-isolation`, `~/Git/glue-solar-exposure-readout`,
 `~/Git/glue-solar-descending-step`, `~/Git/glue-solar-wcs-link-editor`,
-`~/Git/glue-solar-ci-matrix`,
+`~/Git/glue-solar-ci-matrix`, `~/Git/glue-solar-slider-throttle`,
 `~/Git/irispy-response-2013`. `~/Git/irispy` is the user's checkout (on main
 today): never check out, stash or edit in it, and never run Python with it as
 the working directory; branch into a separate worktree from `origin/main`.
