@@ -107,6 +107,12 @@ def _fill(obs, header):
             setattr(obs, attr, float(header[key]))
 
 
+def _sji_key(header, name):
+    """The SJI's TDESC1, plus the variant its filename names: deconvolved SJIs share the plain TDESC1."""
+    band = header.get("TDESC1", name)
+    return f"{band} (deconvolved)" if "_deconvolved." in name else band
+
+
 def _is_supported_file(name, header):
     """Accept IRIS science files and the aligned AIA cutouts produced for them."""
     instrume = str(header.get("INSTRUME", ""))
@@ -162,7 +168,7 @@ def scan_directory(root, recursive=True):
         _fill(obs, header)
         instrume = str(header.get("INSTRUME", ""))
         if instrume == "SJI":
-            obs.sji[header.get("TDESC1", name)] = path
+            obs.sji[_sji_key(header, name)] = path
         elif instrume == "SPEC":
             identity = (*key, name)
             if identity in raster_names:

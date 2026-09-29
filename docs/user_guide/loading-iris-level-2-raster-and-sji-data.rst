@@ -22,7 +22,8 @@ default; un-tick "Search subfolders" to look at one folder only. The last folder
 
 Expand an observation to see what can be loaded:
 
-- one entry per slit-jaw band (``SJI_1330``, ``SJI_1400``, ``SJI_2796``, ``SJI_2832``),
+- one entry per slit-jaw band (``SJI_1330``, ``SJI_1400``, ``SJI_2796``, ``SJI_2832``), and a
+  separate one for each deconvolved slit-jaw file (``SJI_2796 (deconvolved)``),
 - one entry per raster spectral window (for example ``Mg II k 2796 - 8 raster file(s)``): every
   raster scan of the observation is loaded for that window,
 - one entry per co-aligned SDO/AIA cutout when an ``_SDO`` folder is present.
