@@ -20,14 +20,17 @@ The implementation under ``glue_solar/sources/loaders`` has four responsibilitie
    files, then converts the returned cubes into :class:`glue.core.data.Data` objects.
 3. ``stack_spectrograms.py`` optionally stacks two or more raster scans without
    resampling. The 4D result has a leading scan-number axis, a separate exact
-   acquisition-time component, and scan 0's WCS as its nominal spatial frame.
+   acquisition-time component, and scan 0's WCS as its nominal spatial frame. Its data
+   is a memory-mapped temporary file of dtype ``np.result_type(first scan, float32)``.
 4. ``iris_loader.ui`` and ``QtIRISImporter`` present the observation and spectral-window
    selection dialog.
 
-``irispy`` remains responsible for instrument detection, FITS interpretation, bad-pixel
-masks, metadata normalization, units, and each input cube's WCS and exposure times. The
-Glue adapter preserves those values and exposes masks and raster times as separate Glue
-components.
+``irispy`` remains responsible for instrument detection, FITS interpretation, metadata
+normalization, units, and each input cube's WCS and exposure times. The Glue adapter keeps
+those and changes only missing data: the IRIS fill values -200 and -199 (only -200 in aligned
+AIA cutouts) become NaN. Each dataset's ``<label> mask`` component is ``isnan(data)`` stored as
+``uint8``, since Glue would store a boolean component as ``int64``, so saturated samples,
+which are +Inf, stay unmasked. Raster times are a separate ``Time`` component.
 
 Extending a loader
 ------------------
