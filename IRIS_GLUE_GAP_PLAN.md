@@ -113,8 +113,17 @@ machine with 3860259453; measure now, optimise later). Probe:
 [--profile]` times set, draw, paint and one slider tick on screen, with the
 share spent in glue-solar's WCS. Baseline on the reference Mac, offscreen,
 4000255147 Si IV (1600 steps): set 0.028 s, draw 0.018 s, paint 0.018 s (WCS
-0.022 s of it, mostly WCSAxes tick updates), tick 0.030 s. Waiting for the
-user's Linux numbers.
+0.022 s of it, mostly WCSAxes tick updates), tick 0.030 s. The user's Linux
+machine (Python 3.14, Qt 5.15.14, 3860259453 Si IV, 2490 × 775 × 283): one
+slider tick takes 0.068 s under Wayland at devicePixelRatio 2 and 0.028 s under
+X11 at 1, so the M0 budget (≤ 0.10 s) holds and HiDPI rendering, not
+glue-solar, is the main cost. Per Wayland draw (0.065 s): WCSAxes tick and
+label updates about 0.026 s, of which `_GlueWCS.pixel_to_world_values` about
+0.018 s (53 calls of about 0.3 ms); tick-label text about 0.016 s; the image
+little. A drag queues one full redraw per slider position, which is the lag
+felt. Decision: optimise later. Options, cheapest first: redraw on slider
+release or at most every ~0.1 s while dragging (`wp10` fallback); the numpy
+slit-table evaluator for the raster -TAB WCS; fewer WCSAxes tick samples.
 
 **irispy (LM-SAL/irispy main 8751589).** Draft PRs waiting for the user's
 review, each branched from main 51c0ec2, tested against an IDL 9.2 reference
@@ -188,8 +197,7 @@ PR notes (2026-09-29):
   `save` subtools in WP12); #65 (dhomeier, tox cleanup, overlaps #69).
 
 **Next steps.**
-1. The user reviews #66 and #67, and runs the slider probe on the Linux
-   machine.
+1. The user reviews #66 and #67.
 2. The rest of M0, in glue-solar only: since 2026-09-29 upstream PRs,
    reports and tracking wait for M4 (D2); next are `wp4-coordinator` and
    `wp4-time-sync`.

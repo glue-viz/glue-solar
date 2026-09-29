@@ -5,8 +5,10 @@ Opens one IRIS raster window or SJI in a real Glue window and steps its leading 
 
 - set: assigning the viewer's slice, as Glue recomputes the displayed image;
 - draw: rendering the figure (Agg);
-- paint: pushing the rendered figure to the screen (Qt repaint);
-- tick: one QSlider value change with its events, which is what each tick of a drag costs;
+- paint: pushing the figure to the screen (Qt repaint), which also runs glue's queued redraw, so it
+  overstates the paint alone;
+- tick: one QSlider value change with its events, which is what each tick of a drag costs and
+  the number to compare;
 
 and the share of each step spent in glue-solar's WCS conversions. ``--profile`` adds a cProfile
 of the ticks. Run it in the environment you use Glue from; it prints the versions it imported.
@@ -109,8 +111,8 @@ def report(label, rows, names):
     print(f"{label}: {parts}")
 
 
-report("Jumps across the axis", [step_by_state(i) for i in np.linspace(0, n - 1, args.steps).astype(int)], ("set", "draw", "paint", "WCS"))
-report("Neighbouring steps", [step_by_state(i % n) for i in range(n // 2, n // 2 + args.steps)], ("set", "draw", "paint", "WCS"))
+report("Jumps across the axis", [step_by_state(i) for i in np.linspace(0, n - 1, args.steps).astype(int)], ("set", "draw", "paint+redraw", "WCS"))
+report("Neighbouring steps", [step_by_state(i % n) for i in range(n // 2, n // 2 + args.steps)], ("set", "draw", "paint+redraw", "WCS"))
 start_value = slider.value()
 profiler = cProfile.Profile() if args.profile else None
 if profiler:
