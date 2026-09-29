@@ -117,7 +117,7 @@ def test_real_sji_adapter_preserves_mask_units_and_coordinates(irispy_test_files
     np.testing.assert_array_equal(mask, np.isnan(data.get_component(science).data))
     np.testing.assert_array_equal(mask, cube.mask | (cube.data == -199))  # irispy masks only -200
 
-    longitude = next(component for component in data.world_component_ids if component.label == "Longitude")
+    longitude = next(component for component in data.world_component_ids if component.label == "Helioprojective Longitude")
     expected = cube.axis_world_coords()[0][0, 0, 0].Tx.to_value(u.arcsec)
     assert data.get_component(longitude).units == "arcsec"
     assert data.get_component(longitude).data[0, 0, 0] == pytest.approx(expected)

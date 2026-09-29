@@ -1,0 +1,43 @@
+import pytest
+
+import astropy.units as u
+from astropy.wcs.wcsapi import HighLevelWCSWrapper
+
+from glue_solar.sources.loaders.iris import image_data, raster_data
+
+SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
+RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
+HPC = ["Helioprojective Longitude", "Helioprojective Latitude"]
+
+
+def _real(files, name):
+    return next(
+        path for path in files if path.name.replace("_test.fits", ".fits") == name and path.parent.name == "sns"
+    )
+
+
+@pytest.fixture
+def sns(irispy_test_files):
+    """The matched sit-and-stare SJI 1400 + Si IV 1403 raster pair shipped with irispy."""
+    [raster] = raster_data([_real(irispy_test_files, RASTER)], ["Si IV 1403"])
+    return image_data(_real(irispy_test_files, SJI)), raster
+
+
+def test_sji_and_raster_share_axis_names(sns):
+    sji, raster = sns
+    assert [c.label for c in sji.world_component_ids] == ["Time (Utc)", *HPC[::-1]]
+    assert [c.label for c in raster.world_component_ids] == [*HPC, "Wavelength"]
+    assert [c.label for c in sji.components].count("Time") == 1
+
+
+def test_sji_high_level_api_round_trips(sns):
+    sji, _ = sns
+    pixel = (10, 10, 5)
+    wcs = HighLevelWCSWrapper(sji.coords)
+    objects = wcs.pixel_to_world(*pixel)
+    values = sji.coords.pixel_to_world_values(*pixel)
+    types = list(sji.coords.world_axis_physical_types)
+    sky = next(o for o in objects if hasattr(o, "Tx"))
+    assert sky.Tx.to_value(u.arcsec) == pytest.approx(values[types.index("custom:pos.helioprojective.lon")])
+    assert sky.Ty.to_value(u.arcsec) == pytest.approx(values[types.index("custom:pos.helioprojective.lat")])
+    assert wcs.world_to_pixel(*objects) == pytest.approx(pixel, abs=1e-4)
