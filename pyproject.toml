@@ -16,13 +16,10 @@ authors = [
   { name = "The SunPy Community", email = "sunpy@googlegroups.com" },
 ]
 dependencies = [
-  "glue-core>=1.23.0",
-  "glue-qt[qt]>=0.4.0",
+  "glue-core>=1.27.0",
+  "glue-qt[qt]>=0.4.2",
   "sunpy[map,net]>=6.0.0",
-  # irispy main with LM-SAL/irispy#176-#181 (V34 raster mask and step metadata, raster WCS step
-  # index, SJI/AIA reference pixel, uncertainty fixes, metadata for missing header keys); return to a
-  # version floor once they are released, as PyPI rejects packages with direct references
-  "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@5ce6029a68176efd48ffd1ffeb7853ce35694bca",
+  "irispy-lmsal>=0.9.1",
   "ndcube>=2.0",
 ]
 dynamic = ["version"]

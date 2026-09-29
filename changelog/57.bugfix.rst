@@ -1,0 +1,1 @@
+glue-solar now requires irispy-lmsal 0.9.1, the first release with the raster, slit-jaw and AIA fixes it previously installed from irispy's main branch, so glue-solar can again be published on PyPI. The minimum versions of glue-core and glue-qt are now 1.27.0 and 0.4.2, the releases glue-solar is tested against.
