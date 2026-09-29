@@ -1,1 +1,1 @@
-Add a test, run when local IRIS data are available, that a negative-step raster keeps irispy's orientation: longitude grows with step and the acquisition times run backwards.
+Add remote-data tests that use real IRIS files from LM-SAL/irispy-data (run with ``--remote-data=any`` or the ``online`` tox environment), starting with one that a negative-step raster keeps irispy's orientation: longitude grows with step and the acquisition times run backwards.

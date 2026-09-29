@@ -326,21 +326,20 @@ def test_reader_failure_stays_in_dialog(qtbot, tmp_path):
     assert dialog.progress.format().startswith("Loading SJI_1400 failed:")
 
 
-def test_negative_step_raster_keeps_irispys_orientation(qtbot, local_iris_data):
+@pytest.mark.remote_data
+def test_negative_step_raster_keeps_irispys_orientation(qtbot, irispy_data):
     # D10: a STEPS_AV < 0 raster keeps irispy's orientation, unflipped, and longitude grows with step
     from glue_qt.app.application import GlueApplication
     from glue_qt.viewers.image import ImageViewer
 
-    paths = sorted(local_iris_data.glob("*3400109360_raster/*.fits"))
-    if len(paths) < 2:
-        pytest.skip("OBSID 3400109360 is not in the local data")
-    [scan] = raster_data(paths[:1], ["Si IV 1403"])
-    [stack] = raster_data(paths[:2], ["Si IV 1403"], stack=True)
+    [path] = irispy_data("iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz")
+    [scan] = raster_data([path], ["Mg II k 2796"])
+    [stack] = raster_data([path, path], ["Mg II k 2796"], stack=True)
     assert scan.meta["STEPS_AV"] < -0.01
     row = scan.shape[1] // 2
 
     longitude = scan[scan.id["Helioprojective Longitude"]][:, row, 0]
-    with fits.open(paths[0]) as hdul:  # the per-step FOV centre, stored in acquisition order
+    with fits.open(path) as hdul:  # the per-step FOV centre, stored in acquisition order
         aux = hdul[hdul[0].header["NWIN"] + 1]
         np.testing.assert_allclose(longitude, aux.data[::-1, aux.header["XCENIX"]], atol=0.01)
     assert longitude[[0, 63]] == pytest.approx([-970.73, -907.89], abs=0.01)
