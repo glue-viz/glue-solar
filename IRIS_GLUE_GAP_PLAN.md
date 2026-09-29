@@ -76,9 +76,18 @@ from memmap data).
 -200/-199 fill loaded as NaN, AIA cutouts -200 only (#54); the D5 baseline:
 `irispy-lmsal>=0.9.1`, glue-core ≥ 1.27.0 and glue-qt ≥ 0.4.2 instead of the
 irispy git pin (#57, merged 2026-09-29; 37 passed, 1 skipped in `iris-plan`
-and `iris-plan-floor`). No open glue-solar PRs and no release. On
+and `iris-plan-floor`). No release. On
 released core, saving a session that holds any glue-solar dataset (sunpy Maps
 from File → Open included) fails (WP3).
+
+**glue-solar drafts waiting for the user's review** (2026-09-29, each from
+e9e6a11; suite 37-38 passed, 1 skipped in `iris-plan`):
+
+| PR | Branch (worktree `~/Git/<name>`) | Closes | Result |
+| --- | --- | --- | --- |
+| #58 | `m0-quick-fixes` (`glue-solar-m0-quick`) | `wp9-m0-changelog-fragments`, `wp11-readout-icon` | Also moves `solar:frame_time` off glue-qt's `glue_slice` icon (to `window_tab`); a test checks neither solar tool shares an icon |
+| #59 | `mask-uint8` (`glue-solar-mask-uint8`) | `wp10-mask-uint8`, `wp9-m0-dev-guide-stack` | tracemalloc on 4000005156 scan 0 (9 windows): kept 5.01, peak 6.22 B/element (main 12.01, 13.08); 99-scan 3602506433 stack peak RSS 9.47 GiB |
+| #60 | `wcs-lock` (`glue-solar-wcs-lock`) | `wp10-m0-wcs-lock` | CI thread test (~6 s) aborts 2 of 3 runs without the lock; 4000255147 stock-viewer probe (`review_20260927/probes/wp10/test_race.py`) survives 20 of 20 |
 
 **irispy (LM-SAL/irispy main 8751589).** Draft PRs waiting for the user's
 review, each branched from main 51c0ec2, tested against an IDL 9.2 reference
@@ -130,8 +139,10 @@ nearest-index/display-unit correction in `profile_tools.py` could become its
 own PR if a maintainer asks.
 
 **Next steps.**
-1. `wp10-mask-uint8`, then the rest of M0.
-2. When the user has merged and irispy has released #197-#199 and #201, raise
+1. The user reviews and merges #58-#60; then delete their items here.
+2. The rest of M0, starting with `wp10-m0-interaction-latency` and
+   `wp1-m0-axis-names`.
+3. When the user has merged and irispy has released #197-#199 and #201, raise
    the irispy floor (`wp0-irispy-requests`).
 
 **Worktrees.**
