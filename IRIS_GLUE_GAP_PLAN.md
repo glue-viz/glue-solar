@@ -123,13 +123,13 @@ is theirs to direct (D14). The IDL reference outputs are untracked in
 `~/Git/irispy/iris_ref_out/`; the comparison with GDL and the scripts that
 built the fixtures are in `IRIS_PLAN_PROTOTYPES/idl_reference/comparison_20260929/`.
 
-**Upstream glue PRs** (checked 2026-09-29; heads unchanged since 2026-09-22,
-except #2604, 2026-09-25). "Ready" means the draft flag is off, not approval.
-No M0 item depends on any of them.
+**Upstream glue PRs** (checked 2026-09-29 evening; heads unchanged since
+2026-09-22, except #2604, 2026-09-25). "Ready" means the draft flag is off, not
+approval. No M0-M3 item depends on any of them; working on them is M4 (D2).
 
 | PR | Branch | State | Head | Relevance |
 | --- | --- | --- | --- | --- |
-| glue #2595 | `ape14-wcs-autolink` | Draft | `c49aeb1af14a` | APE-14 WCS autolinking (WP1, M1) |
+| glue #2595 | `ape14-wcs-autolink` | Draft | `c49aeb1af14a` | APE-14 WCS autolinking; also fixes the `has_celestial` crash glue-solar #66 works around (WP1, M4) |
 | glue #2596 | `profile-slice` | Draft | `1deff2999c9a` | Slice profile function; land before #2601 |
 | glue #2601 | `profile-wcsaxes` | Draft | `acaf4e1c0ef8` | Profile WCSAxes; contains #2596 |
 | glue #2597 | `fix-session-style-meta` | Draft | `bfe16085ea57` | Colormap/meta session fixes (WP3) |
@@ -145,13 +145,35 @@ No M0 item depends on any of them.
 | glue-qt #74 | `status-bar-cursor-readout` | Draft | `6b579814eb7c` | Generic cursor readout |
 | glue-qt #75 | `slice-widget-time-axis` | Draft | `8852fcd13ca8` | Absolute-time slider labels |
 
-PR notes: core pairs merge cleanly; Qt #70 and #75 conflict only add/add in
-`glue_qt/viewers/common/tests/test_multi_slice_helper.py` (keep both tests);
-#69 conflicts with #68 and #70 in `glue_qt/app/tests/test_plugin_manager.py`.
-Qt #68 and #70 carry only reworded cherry-picks of #69's plugin-test fix; #74
-and #75 lack #69; #69 overlaps the maintainer's glue-qt #65. Qt #70's
-nearest-index/display-unit correction in `profile_tools.py` could become its
-own PR if a maintainer asks.
+PR notes (2026-09-29):
+- CI. The six glue drafts pass everything except CircleCI `py311-test-visual`,
+  which fails on every glue PR (#2603, #2604 too) until dhomeier's #2592
+  updates the visual references; #2599 also fails `initial_checks /
+  codestyle` and pre-commit.ci, to fix before it is marked ready. glue-qt
+  main's own CI has failed since 2026-02: #68, #70, #74 and #75 fail 20
+  required test jobs plus 12 allowed failures, while #69 (the CI fix) passes
+  every required job and fails 4 allowed ones.
+- Reviews. astrofrog (2026-09-07, on #2595) will review the glue drafts, or
+  ask dhomeier to, once the user marks them ready; the user said they review
+  them first. dhomeier (2026-09-08) found #69's viewer-test and config changes
+  duplicate his glue-qt #65, leaving the matplotlib-failure handling there,
+  and is still checking #69's PluginManager fixes; on #68 (2026-09-11 and -16)
+  he tested it on macOS Tahoe and liked the larger toolbar icons and labels.
+  Open on #68: the Dock and menu-bar name (the standalone apps from
+  glue-standalone-apps already show "glueviz").
+- Merging. Core pairs merge cleanly; Qt #70 and #75 conflict only add/add in
+  `glue_qt/viewers/common/tests/test_multi_slice_helper.py` (keep both tests);
+  #69 conflicts with #68 and #70 in `glue_qt/app/tests/test_plugin_manager.py`.
+  Qt #68 and #70 carry only reworded cherry-picks of #69's plugin-test fix;
+  #74 and #75 lack #69, which is why they fail the required jobs. Qt #70's
+  nearest-index/display-unit correction in `profile_tools.py` could become its
+  own PR if a maintainer asks.
+- Others' open PRs that matter here: glue #2592 (visual references, ready);
+  #2507 (astrofrog, draft since 2025-03: fixed-resolution-buffer speed-up, the
+  image slicing path the slider latency measurements exercise); #2128 (hide
+  Matplotlib axes, changes requested; `wp12-sequence-export`); glue-qt #72
+  (Carifio24, ready: enable and disable subtools, relevant to glue-solar's
+  `save` subtools in WP12); #65 (dhomeier, tox cleanup, overlaps #69).
 
 **Next steps.**
 1. The user reviews #66.
