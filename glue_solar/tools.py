@@ -78,7 +78,7 @@ class CursorReadoutTool(Tool):
     readout.
     """
 
-    icon = "glue_crosshair"
+    icon = "glue_cross"
     tool_id = "solar:cursor_readout"
     action_text = "Cursor readout"
     tool_tip = "Show or hide the position and value under the mouse (press W over the image for pixels)"
