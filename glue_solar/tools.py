@@ -26,7 +26,8 @@ class FrameTimeTool(Tool):
     The readout follows the sliders and reads the first datetime component of the reference
     data, whichever loader attached it (the IRIS loaders add ``Time``, one per SJI exposure or
     raster step); the toolbar button hides and shows it. A frame spanning several exposures,
-    such as a raster shown as step against slit, shows the range.
+    such as a raster shown as step against slit, shows the range. Data with an ``Exposure time``
+    component also show it, and an SJI frame's pointing is in the tooltip.
     """
 
     icon = "window_tab"
@@ -63,7 +64,25 @@ class FrameTimeTool(Tool):
         view = tuple(slice(None) if i in shown else getattr(s, "slice", s) for i, s in enumerate(state.slices))
         times = data[cid, view]
         first, last = (np.datetime_as_string(t, unit="ms") for t in (times.min(), times.max()))
-        self.label.setText(f"{first} UTC" if first == last else f"{first} – {last} UTC")
+        text = f"{first} UTC" if first == last else f"{first} – {last} UTC"
+        exposure = data.find_component_id("Exposure time")
+        if exposure is not None:
+            seconds = data[exposure, view]
+            shortest, longest = f"{np.nanmin(seconds):.4g}", f"{np.nanmax(seconds):.4g}"
+            text += f" · exp {shortest} s" if shortest == longest else f" · exp {shortest}–{longest} s"
+        self.label.setText(text)
+        self.label.setToolTip(_pointing(data.meta, view[0]))
+
+
+def _pointing(meta, frame):
+    """The SJI pointing of one frame, or nothing when several frames or no pointing are shown."""
+    if not isinstance(frame, int | np.integer) or "pztx" not in meta:
+        return ""
+    return (
+        f"PZT offset {meta['pztx'][frame]:.2f}″, {meta['pzty'][frame]:.2f}″; "
+        f"FOV centre {meta['xcenix'][frame]:.2f}″, {meta['ycenix'][frame]:.2f}″; "
+        f"slit at x = {meta['slit x position'][frame]:.1f} px"
+    )
 
 
 @viewer_tool

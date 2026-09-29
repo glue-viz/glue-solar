@@ -38,6 +38,12 @@ raster and detector index rather than carrying their distinct absolute pointings
 separately when those per-scan absolute coordinates are required. A selected window containing one
 scan loads normally as a 3D dataset and also exposes its exact per-step ``Time`` values.
 
+Every raster, stack and slit-jaw dataset also has an ``Exposure time`` component in seconds, one
+value per raster step or slit-jaw frame (per scan for stacks). The "Frame time" tool in the Image
+Viewer toolbar shows the displayed frame's time and exposure in the status bar, as a range when the
+image spans several frames; for a single slit-jaw frame its tooltip gives that frame's pointing (PZT
+offset, field-of-view centre and slit position), which glue-solar keeps in the dataset's metadata.
+
 Downloads that are still packed (``*_raster.tar.gz``, ``*_SDO.tar.gz``) show up under their observation
 as an "Extract ..." entry. Tick it and press "Load selected": the archive is unpacked into a folder of
 the same name next to it (the layout irispy and pooch use), the list refreshes, and you can then tick

@@ -109,8 +109,14 @@ def test_real_sji_adapter_preserves_mask_units_and_coordinates(irispy_test_files
     cube = read_files(path, memmap=False, uncertainty=False)
     data = image_data(path)
 
-    science, mask, _time = data.main_components
+    science, mask, _time, exposure = data.main_components
     assert data.shape == cube.shape
+    assert data.get_component(exposure).units == "s"
+    with fits.open(path) as hdul:
+        aux = hdul[1]
+        np.testing.assert_array_equal(data[exposure][:, 0, 0], aux.data[:, aux.header["EXPTIMES"]])
+        for key, column in (("pztx", "PZTX"), ("pzty", "PZTY"), ("xcenix", "XCENIX"), ("slit x position", "SLTPX1IX")):
+            np.testing.assert_array_equal(data.meta[key], aux.data[:, aux.header[column]])
     assert data.get_component(science).units == str(cube.unit)
     mask = data.get_component(mask).data
     assert mask.dtype == np.uint8
@@ -139,7 +145,7 @@ def test_aia_cube_uses_the_same_irispy_adapter(tmp_path, irispy_test_files):
     data = image_data(path)
     assert data.label == "171_THIN-3620258102-2021-09-05T00:18:33"
     assert data.style.preferred_cmap.name == "sdoaia171"
-    assert len(data.main_components) == 3  # science, mask and the per-frame Time
+    assert len(data.main_components) == 4  # science, mask and the per-frame Time and Exposure time
 
 
 def test_real_raster_preserves_exact_exposure_times(irispy_test_files):
@@ -162,7 +168,8 @@ def test_real_raster_preserves_exact_exposure_times(irispy_test_files):
     np.testing.assert_array_equal(data[0]["Time"][:, -1, -1], expected_times)
     world = data[0].coords.pixel_to_world_values(0, 0, 0)
     assert data[0].coords.world_to_pixel_values(*world) == pytest.approx((0, 0, 0), abs=1e-8)
-    assert len(data[0].main_components) == 3
+    assert len(data[0].main_components) == 4
+    np.testing.assert_array_equal(data[0]["Exposure time"][:, 0, 0], cube.meta["exposure time"].to_value(u.s))
 
 
 def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_files):
@@ -188,6 +195,8 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
     for i, expected in enumerate(expected_times):
         np.testing.assert_array_equal(times[i, :, 0, 0], expected)
         np.testing.assert_array_equal(times[i, :, -1, -1], expected)
+    for i, scan in enumerate(sequence):  # each scan's own exposure times, not scan 0's
+        np.testing.assert_array_equal(data["Exposure time"][i, :, 0, 0], scan.meta["exposure time"].to_value(u.s))
     np.testing.assert_array_equal(
         data.coords.pixel_to_world_values(0, 0, 0, np.arange(len(paths)))[-1], np.arange(len(paths))
     )
