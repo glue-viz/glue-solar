@@ -324,3 +324,39 @@ def test_reader_failure_stays_in_dialog(qtbot, tmp_path):
     assert dialog.result() == 0
     assert dialog.datasets == []
     assert dialog.progress.format().startswith("Loading SJI_1400 failed:")
+
+
+def test_negative_step_raster_keeps_irispys_orientation(qtbot, local_iris_data):
+    # D10: a STEPS_AV < 0 raster keeps irispy's orientation, unflipped, and longitude grows with step
+    from glue_qt.app.application import GlueApplication
+    from glue_qt.viewers.image import ImageViewer
+
+    paths = sorted(local_iris_data.glob("*3400109360_raster/*.fits"))
+    if len(paths) < 2:
+        pytest.skip("OBSID 3400109360 is not in the local data")
+    [scan] = raster_data(paths[:1], ["Si IV 1403"])
+    [stack] = raster_data(paths[:2], ["Si IV 1403"], stack=True)
+    assert scan.meta["STEPS_AV"] < -0.01
+    row = scan.shape[1] // 2
+
+    longitude = scan[scan.id["Helioprojective Longitude"]][:, row, 0]
+    with fits.open(paths[0]) as hdul:  # the per-step FOV centre, stored in acquisition order
+        aux = hdul[hdul[0].header["NWIN"] + 1]
+        np.testing.assert_allclose(longitude, aux.data[::-1, aux.header["XCENIX"]], atol=0.01)
+    assert longitude[[0, 63]] == pytest.approx([-970.73, -907.89], abs=0.01)
+    assert (np.diff(longitude) > 0).all()
+    for i in range(2):  # every scan of the stack keeps scan 0's orientation
+        np.testing.assert_array_equal(stack[stack.id["Helioprojective Longitude"]][i, :, row, 0], longitude)
+    times = scan["Time"][:, 0, 0]
+    assert (np.diff(times) < np.timedelta64(0, "s")).all()  # acquired from the last step to the first
+    assert np.datetime_as_string(times[[0, 63]], unit="s").tolist() == ["2025-03-28T23:06:15", "2025-03-28T22:56:32"]
+
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(scan)
+    viewer = app.new_data_viewer(ImageViewer, data=scan)
+    viewer.state.x_att, viewer.state.y_att = scan.pixel_component_ids[0], scan.pixel_component_ids[1]
+    assert viewer.state.x_min < viewer.state.x_max  # unflipped: step, and so longitude, grows to the right
+    viewer.figure.canvas.draw()  # WCSAxes only formats positions once drawn
+    assert '−971"' in viewer.axes.format_coord(0, row)
+    assert '−908"' in viewer.axes.format_coord(63, row)

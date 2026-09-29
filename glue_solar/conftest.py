@@ -191,3 +191,14 @@ def irispy_test_files():
     files = get_test_data_filenames()
     assert files
     return files
+
+
+@pytest.fixture(scope="session")
+def local_iris_data():
+    """Real observations for data checks, in ``$IRIS_DATA`` or ``~/DATA/IRIS``; tests skip without them."""
+    from pathlib import Path
+
+    root = Path(os.environ.get("IRIS_DATA", "~/DATA/IRIS")).expanduser()
+    if not root.is_dir():
+        pytest.skip(f"no local IRIS data in {root}")
+    return root
