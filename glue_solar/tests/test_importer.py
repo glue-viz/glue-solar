@@ -36,6 +36,15 @@ def test_find_irispy_test_file(tmp_path, suffix):
     assert find_irispy_test_file([path], "iris_l2_example.fits") == path
 
 
+def test_tests_keep_off_the_users_settings(tmp_path):
+    from glue import config
+
+    from glue_solar.sources.loaders import iris
+
+    assert os.path.dirname(iris.QSettings("glue-solar", "glue-solar").fileName()) == str(tmp_path)
+    assert config.CFG_DIR != os.path.join(os.path.expanduser("~"), ".glue")
+
+
 def test_tree_lists_observations_and_files(dialog):
     assert dialog.obs_tree.topLevelItemCount() == 4
     row = _row(dialog, OBS_A[2])
