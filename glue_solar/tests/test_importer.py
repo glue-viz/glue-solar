@@ -12,7 +12,9 @@ import astropy.units as u
 from astropy.io import fits
 
 from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, find_irispy_test_file
+from glue_solar.sources.iris import read_iris_file
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
+from glue_solar.sources.loaders.scan import scan_directory
 from glue_solar.sources.loaders.stack_spectrograms import stack_spectrogram_sequence
 
 
@@ -67,6 +69,28 @@ def test_load_selected_real_sji(qtbot, tmp_path, irispy_test_files):
     assert data.label == "SJI_1400-3620258102-2021-09-05T00:18:33"
     assert data.shape == (62, 40, 37)
     assert data.style.preferred_cmap.name == "irissji1400"
+
+
+def test_deconvolved_sji_is_listed_and_loaded_beside_the_plain_one(qtbot, tmp_path, irispy_test_files):
+    source = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
+    plain = tmp_path / "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
+    deconvolved = tmp_path / "iris_l2_20210905_001833_3620258102_SJI_1400_t000_deconvolved.fits"
+    shutil.copy2(source, plain)
+    shutil.copy2(source, deconvolved)
+    [observation] = scan_directory(tmp_path)
+    assert observation.sji == {"SJI_1400": plain, "SJI_1400 (deconvolved)": deconvolved}
+
+    dialog = QtIRISImporter(tmp_path)
+    qtbot.addWidget(dialog)
+    dialog.obs_tree.topLevelItem(0).setCheckState(0, Qt.Checked)
+    dialog.finalize()
+    labels = [data.label for data in dialog.datasets]
+    assert labels == [
+        "SJI_1400-3620258102-2021-09-05T00:18:33",
+        "SJI_1400_deconvolved-3620258102-2021-09-05T00:18:33",
+    ]
+    assert read_iris_file(str(deconvolved)).label == labels[1]  # File -> Open labels it the same way
+    assert read_iris_file(str(plain)).label == labels[0]
 
 
 def test_single_entry_observation_is_ticked_on_its_own_row(dialog):

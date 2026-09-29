@@ -141,8 +141,10 @@ def _raster_collection_data(collection, windows=None, stack=False):
     return datasets
 
 
-def _image_cube_data(cube):
+def _image_cube_data(cube, path):
     desc = str(cube.meta["TDESC1"])
+    if "_deconvolved." in Path(path).name:  # the header does not say, the filename does
+        desc += "_deconvolved"
     wave = int(cube.meta["TWAVE1"])
     if desc.startswith("SJI"):
         return _cube_data(cube, f"{desc}-{_observation_label(cube.meta)}", cmap=f"irissji{wave}")
@@ -164,7 +166,7 @@ def image_data(path):
     `~glue.core.data.Data`
     """
     cube = read_files(path, memmap=False, uncertainty=False)
-    return _image_cube_data(cube)
+    return _image_cube_data(cube, path)
 
 
 def iris_data(path):
@@ -172,7 +174,7 @@ def iris_data(path):
     loaded = read_files(path, memmap=False, uncertainty=False)
     if isinstance(loaded, Mapping):
         return _raster_collection_data(loaded)
-    return _image_cube_data(loaded)
+    return _image_cube_data(loaded, path)
 
 
 def raster_data(files, windows=None, stack=False):
