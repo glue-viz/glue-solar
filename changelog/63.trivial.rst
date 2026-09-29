@@ -1,0 +1,1 @@
+Running the test suite no longer changes the user's glue-solar settings, such as the last browsed folder, or their Glue configuration in ``~/.glue``.
