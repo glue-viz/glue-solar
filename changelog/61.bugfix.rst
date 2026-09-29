@@ -1,0 +1,1 @@
+IRIS slit-jaw images and aligned AIA cutouts now name their spatial axes ``Helioprojective Longitude`` and ``Helioprojective Latitude``, like rasters, instead of ``Longitude`` and ``Latitude``, so the same coordinates have the same names in the link editor and axis menus.

@@ -57,6 +57,7 @@ Linking
 Glue does not currently autolink irispy's time-varying SJI gWCS and raster ``-TAB`` WCS. To
 propagate spatial selections, open the Data Manager's link editor and manually pair
 ``Helioprojective Longitude`` and ``Helioprojective Latitude`` between datasets.
+SJIs, aligned AIA cutouts and rasters all name their spatial axes this way.
 
 Saving sessions
 ---------------

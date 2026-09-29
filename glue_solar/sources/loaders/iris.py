@@ -24,12 +24,13 @@ __all__ = ["WCS_LOCK", "QtIRISImporter", "image_data", "iris_data", "last_direct
 UI_MAIN = os.path.join(os.path.dirname(__file__), "iris_loader.ui")
 _SETTINGS = ("glue-solar", "glue-solar")
 _LAST_DIR = "iris/last_dir"
-# FITS-based irispy WCSes carry no axis names, so Glue would label them "World N"
+# One name per axis type for every IRIS dataset, so Glue lines up SJI and raster axes: FITS-based irispy
+# WCSes carry no axis names (Glue would say "World N") and gWCS ones say "Longitude" and "Latitude".
+# Time keeps its own name, since the loader adds a "Time" component.
 _AXIS_NAMES = {
     "em.wl": "Wavelength",
     "custom:pos.helioprojective.lon": "Helioprojective Longitude",
     "custom:pos.helioprojective.lat": "Helioprojective Latitude",
-    "time": "Time",
 }
 
 
@@ -51,7 +52,7 @@ class _GlueWCS(BaseWCSWrapper):
     @property
     def world_axis_names(self):
         return [
-            name or _AXIS_NAMES.get(physical_type) or physical_type or ""
+            _AXIS_NAMES.get(physical_type) or name or physical_type or ""
             for name, physical_type in zip(self._wcs.world_axis_names, self._wcs.world_axis_physical_types)
         ]
 
