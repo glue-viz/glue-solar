@@ -93,6 +93,7 @@ jobs:
         - windows: py312
         - macos: py312
         - linux: py314-devdeps
+        - linux: py313-online
 
   docs:
     needs: [core]

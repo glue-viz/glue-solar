@@ -210,6 +210,28 @@ def find_irispy_test_file(files, name):
     return next(path for path in files if path.name.replace("_test.fits", ".fits") == name)
 
 
+# Real IRIS files for remote-data tests: release assets of LM-SAL/irispy-data, checked by SHA-256
+IRISPY_DATA = "https://github.com/LM-SAL/irispy-data/releases/download/v1/"
+IRISPY_DATA_HASHES = {
+    # OBSID 3400109360 (STEPS_AV -0.998): scan 0, Mg II k 2796 only
+    "iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz": "56574d2e425fdf2f4e2d4343c112c3c3d85dad7e121ca0bc2fa4200d7cc8adf8",
+}
+
+
+@pytest.fixture(scope="session")
+def irispy_data():
+    """Fetch a file of LM-SAL/irispy-data into pooch's cache; a tarball gives its sorted FITS files."""
+    import pooch
+
+    def fetch(name):
+        if name.endswith(".tar.gz"):
+            paths = pooch.retrieve(IRISPY_DATA + name, known_hash=IRISPY_DATA_HASHES[name], processor=pooch.Untar())
+            return sorted(path for path in paths if path.endswith(".fits"))
+        return pooch.retrieve(IRISPY_DATA + name, known_hash=IRISPY_DATA_HASHES[name])
+
+    return fetch
+
+
 @pytest.fixture(scope="session")
 def irispy_test_files():
     """Real files shipped with irispy and exposed through its public test-data helper."""
