@@ -85,8 +85,22 @@ class _GlueWCS(BaseWCSWrapper):
             return self._wcs.world_to_pixel_values(*values)
 
 
-def _cube_data(cube, label, *, color=None, cmap=None, missing=MISSING_VALUES):
-    """Convert one irispy cube into one Glue dataset, with the ``missing`` data codes as NaN."""
+# Per-frame SJI pointing that irispy keeps as extra coordinates; the frame time tool shows it
+_SJI_POINTING = ("pztx", "pzty", "xcenix", "ycenix", "slit x position")
+
+
+def _per_frame(values, shape):
+    """Broadcast values given for the leading axes of ``shape`` over the remaining axes, without copying."""
+    values = np.asarray(values)
+    return np.broadcast_to(values.reshape(values.shape + (1,) * (len(shape) - values.ndim)), shape)
+
+
+def _cube_data(cube, label, *, color=None, cmap=None, missing=MISSING_VALUES, exposure=None):
+    """
+    Convert one irispy cube into one Glue dataset, with the ``missing`` data codes as NaN.
+
+    ``exposure`` gives the exposure times in seconds for cubes that do not carry them, such as stacks.
+    """
     data = Data(label=label)
     data.coords = _GlueWCS(cube.wcs.low_level_wcs)
     data.meta = cube.meta
@@ -103,8 +117,15 @@ def _cube_data(cube, label, *, color=None, cmap=None, missing=MISSING_VALUES):
     data.add_component(Component(np.isnan(values).view(np.uint8)), f"{label} mask")
     times = _frame_times(cube)
     if times is not None:
-        times = np.broadcast_to(times.reshape((len(times),) + (1,) * (cube.data.ndim - 1)), cube.shape)
-        data.add_component(times, "Time")
+        data.add_component(_per_frame(times, cube.shape), "Time")
+    if exposure is None and getattr(cube, "exposure_time", None) is not None:
+        exposure = cube.exposure_time.to_value(u.s)  # per raster step or SJI frame, in the data's order
+    if exposure is not None:
+        data.add_component(Component(_per_frame(exposure, cube.shape), units="s"), "Exposure time")
+    if cube.extra_coords and set(_SJI_POINTING) <= set(cube.extra_coords.keys()):
+        frames = np.arange(cube.shape[0])
+        for name in _SJI_POINTING:
+            data.meta[name] = cube.extra_coords[name].wcs.pixel_to_world_values(frames)
     return data
 
 
@@ -131,8 +152,10 @@ def _raster_collection_data(collection, windows=None, stack=False):
         if stack and len(sequence) > 1:
             cube, times = stack_spectrogram_sequence(sequence)
             label = f"{name}-{_observation_label(cube.meta)}-stack"
-            data = _cube_data(cube, label, color="#7A617C", missing=())  # the stack already holds NaN
-            data.add_component(np.broadcast_to(times[..., np.newaxis], cube.shape), "Time")
+            exposure = np.stack([scan.exposure_time.to_value(u.s) for scan in sequence])
+            # the stack already holds NaN, and its meta is scan 0's, so exposure times come per scan
+            data = _cube_data(cube, label, color="#7A617C", missing=(), exposure=exposure)
+            data.add_component(_per_frame(times, cube.shape), "Time")
             datasets.append(data)
             continue
         for i, scan in enumerate(sequence):

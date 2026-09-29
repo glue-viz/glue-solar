@@ -124,12 +124,17 @@ def test_frame_time_tool_follows_the_sliders(qtbot, irispy_test_files):
     viewer = app.new_data_viewer(ImageViewer, data=sji)
     tool = viewer.toolbar.tools["solar:frame_time"]
     stamp = [np.datetime_as_string(t, unit="ms") for t in sji["Time"][:, 0, 0]]
+    exposure = sji["Exposure time"][:, 0, 0]
 
     viewer.state.slices = (5, 0, 0)
-    assert tool.label.text() == f"{stamp[5]} UTC"
+    assert tool.label.text() == f"{stamp[5]} UTC · exp {exposure[5]:.4g} s"
+    assert f"PZT offset {sji.meta['pztx'][5]:.2f}″, {sji.meta['pzty'][5]:.2f}″" in tool.label.toolTip()
 
     viewer.state.x_att = sji.pixel_component_ids[0]  # exposure against slit spans the whole sequence
-    assert tool.label.text() == f"{stamp[0]} – {stamp[-1]} UTC"
+    shortest, longest = f"{exposure.min():.4g}", f"{exposure.max():.4g}"
+    span = shortest if shortest == longest else f"{shortest}–{longest}"
+    assert tool.label.text() == f"{stamp[0]} – {stamp[-1]} UTC · exp {span} s"
+    assert tool.label.toolTip() == ""  # no single frame, so no pointing
 
     tool.activate()
     assert tool.label.isHidden()
