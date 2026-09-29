@@ -1,1 +1,1 @@
-The "Cursor readout" tool now has its own toolbar icon instead of sharing the "Pixel" tool's crosshair.
+The "Cursor readout" and "Frame time" tools now have their own toolbar icons instead of sharing the crosshair of glue's "Pixel" tool and the icon of its "slice" tool.

@@ -29,7 +29,7 @@ class FrameTimeTool(Tool):
     such as a raster shown as step against slit, shows the range.
     """
 
-    icon = "glue_slice"
+    icon = "window_tab"
     tool_id = "solar:frame_time"
     action_text = "Frame time"
     tool_tip = "Show or hide the acquisition time of the displayed frame"
