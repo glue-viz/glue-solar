@@ -1,12 +1,39 @@
 import os
 import tarfile
+import tempfile
 
 import numpy as np
 import pytest
+from qtpy.QtCore import QSettings
 
 from astropy.io import fits
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+
+def pytest_configure(config):
+    # As glue-qt's conftest does: never read or write the user's ~/.glue
+    from glue import config as glue_config
+
+    glue_config.CFG_DIR = tempfile.mkdtemp()
+
+
+class IsolatedQSettings(QSettings):
+    """``QSettings(organization, application)`` kept in an INI file in one test's ``tmp_path``."""
+
+    directory = None
+
+    def __init__(self, organization, application):
+        super().__init__(os.path.join(self.directory, f"{organization}-{application}.ini"), QSettings.IniFormat)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_settings(tmp_path, monkeypatch):
+    """Keep the loader's settings, such as the last browsed folder, out of the user's own."""
+    from glue_solar.sources.loaders import iris
+
+    monkeypatch.setattr(IsolatedQSettings, "directory", str(tmp_path))
+    monkeypatch.setattr(iris, "QSettings", IsolatedQSettings)
 
 MD5 = "0123456789abcdef0123456789abcdef-"
 # (date, time, obsid): raster + SJI + AIA cutout, split across pooch-style dirs
