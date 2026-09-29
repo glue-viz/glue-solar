@@ -90,6 +90,16 @@ helioprojective axis names, like rasters. No release. On
 released core, saving a session that holds any glue-solar dataset (sunpy Maps
 from File → Open included) fails (WP3).
 
+**glue-solar drafts waiting for the user's review** (2026-09-29, each from
+94c2941; `iris-plan`, suite 40-41 passed, 1-2 skipped):
+
+| PR | Branch (worktree `~/Git/glue-solar-<branch>`) | Closes | Result |
+| --- | --- | --- | --- |
+| #62 | `sji-variants` | `wp8-sji-variants` | Deconvolved SJIs list as `SJI_2796 (deconvolved)` and load as `SJI_2796_deconvolved-…`; `~/DATA/IRIS` file counts unchanged |
+| #63 | `qsettings-isolation` | `wp8-test-qsettings` | A plain `pytest glue_solar` with the real HOME leaves the glue-solar QSettings and `~/.glue/settings.cfg` untouched; `qs_isolate` can then leave the runner |
+| #64 | `exposure-readout` | `wp4-exposure-readout` | `Exposure time` component (stacks per scan) and SJI pointing in meta; Frame time reads "… UTC · exp 2 s" with the pointing tooltip; the four real-data checks pass |
+| #65 | `descending-step` | `wp1-m0-descending-step-orientation` | `local_iris_data` fixture; on 3400109360 longitude equals XCENIX reversed (-970.73″ at step 0, -907.89″ at step 63, not the item's -971.0/-908.2) |
+
 **irispy (LM-SAL/irispy main 8751589).** Draft PRs waiting for the user's
 review, each branched from main 51c0ec2, tested against an IDL 9.2 reference
 run, and documented where they deliberately differ from IDL:
@@ -140,8 +150,11 @@ nearest-index/display-unit correction in `profile_tools.py` could become its
 own PR if a maintainer asks.
 
 **Next steps.**
-1. The rest of M0, in glue-solar only: since 2026-09-29 upstream PRs,
-   reports and tracking wait for M4 (D2).
+1. The user reviews #62-#65. Merging them in order may need a rebase:
+   they touch the same test module.
+2. The rest of M0, in glue-solar only: since 2026-09-29 upstream PRs,
+   reports and tracking wait for M4 (D2); next are `wp4-coordinator` and
+   `wp4-time-sync`.
 3. When the user has merged and irispy has released #197-#199 and #201, raise
    the irispy floor (`wp0-irispy-requests`).
 
