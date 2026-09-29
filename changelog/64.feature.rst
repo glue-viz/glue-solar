@@ -1,0 +1,1 @@
+IRIS rasters, stacks, slit-jaw images and aligned AIA cutouts gain an ``Exposure time`` component in seconds, one value per raster step or frame. The "Frame time" tool shows it next to the frame time, and for a slit-jaw frame its tooltip gives the pointing (PZT offset, field-of-view centre and slit position).
