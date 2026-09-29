@@ -136,11 +136,12 @@ irispy work targets `main` only; the user said to ignore the gWCS raster branche
    - Bursts: LM-SAL/irispy#197 (`uv-burst-detection`, `~/Git/irispy-bursts`).
    - Wavelength drift: #198 (`wavelength-drift`, `~/Git/irispy-wavecorr`).
    - Mg II features: #199 (`mg-features`, `~/Git/irispy-mg-features`).
-   - All three branch from main 51c0ec2 and were tested in the micromamba env `irispy-ports` (Python 3.14, irispy[tests,docs] editable from `~/Git/irispy-bursts`; other worktrees via `PYTHONPATH`).
+   - Also: #200 (`response-idl-2013`, a second IDL test of the throughput fit, at 2013-10-22) and #201 (`moments-uncertainty`, StdDevUncertainty on each `calculate_moments` map).
+   - All branch from main 51c0ec2 and were tested in the micromamba env `irispy-ports` (Python 3.14, irispy[tests,docs] editable from `~/Git/irispy-bursts`; other worktrees via `PYTHONPATH`).
    - The user reviews each PR before marking it ready. Do not request reviews or merge.
    - SOT/ITN32 cubes (2–3 days) and moment uncertainties (2–4 days) are not started.
    - glue-solar layer actions for these (`wp2-burst-detection`, `wp2-m3-mg-features`) wait for the merges, an irispy pin and `wp2-m2-moment-maps`.
-4. irispy docs build: Read the Docs builds ran 565–775 s (median 704 s over 20 builds) against a 900 s limit, and two PR builds timed out on 2026-09-27. The user asked to keep this apart from the GUI plan, so the verified speed review is in the irispy worktree `~/Git/irispy-gallery-speed` (branch `gallery-speed`): `GALLERY_SPEED_REVIEW.md` plus `gallery_speed_review/`, untracked. Nothing from it has been applied.
+4. irispy docs build: done by the user in a separate session, through #183 (data as irispy-data release assets), #187 (gallery cutouts), #188 (faster tar reads, SJI WCS headers and dust fill), #189, #190 and #193 (no graphviz). Read the Docs builds now take 244–341 s (#197–#200, 2026-09-29), against the 900 s limit; they were 565–775 s. The `~/Git/irispy-gallery-speed` worktree and its untracked review are gone.
 5. glue-solar M0 continues with `wp10-mask-uint8`, which depends only on `wp10-fill-nan`. The irispy pin changes three M0 items:
    - `wp10-m0-negative-step`: irispy now flips the meta; drop or rescope with the user.
    - `wp10-m0-interaction-latency`: the index rebuild is only needed for irispy 0.9.0.
