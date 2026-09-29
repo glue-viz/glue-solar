@@ -1,0 +1,1 @@
+NaN pixels in IRIS images are now drawn transparent instead of in a dark grey that looked like data.

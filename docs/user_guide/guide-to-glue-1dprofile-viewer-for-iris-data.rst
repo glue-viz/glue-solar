@@ -51,8 +51,8 @@ The sliders are then ``Scan`` and ``Wavelength``. Set the aspect to "Automatic" 
 raster field fills the plot, then move the ``Wavelength`` slider onto the line core until
 structure appears in the map.
 
-Now activate the pixel selection tool (the crosshair icon in the viewer toolbar) and click a
-point of interest. This creates a subset, ``Subset 1``, containing that pixel in every scan and
+Now activate the "Pixel" tool in the viewer toolbar ("Select a single pixel based on mouse
+location") and click a point of interest. This creates a subset, ``Subset 1``, containing that pixel in every scan and
 wavelength; it appears under "Subsets" in the Data Collection and is drawn on top of the image.
 Click and drag to move it interactively.
 

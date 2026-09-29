@@ -154,6 +154,8 @@ def test_cursor_readout_shows_position_and_value(qtbot, irispy_test_files):
     app.data_collection.append(sji)
     viewer = app.new_data_viewer(ImageViewer, data=sji)
     tool = viewer.toolbar.tools["solar:cursor_readout"]
+    icons = [t.icon for t in viewer.toolbar.tools.values()]
+    assert all(icons.count(viewer.toolbar.tools[t].icon) == 1 for t in ("solar:frame_time", "solar:cursor_readout"))
     canvas = viewer.axes.figure.canvas
     canvas.draw()  # WCSAxes only formats positions once drawn
 
