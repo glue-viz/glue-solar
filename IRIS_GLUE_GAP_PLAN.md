@@ -126,16 +126,20 @@ irispy work targets `main` only; the user said to ignore the gWCS raster branche
 
 **In flight and next steps.**
 1. glue-solar needs nothing merged: #56 is in `main`, pinning irispy 5ce6029. Move the pin again only when new fixes land on irispy `main`.
-2. IDL reference run. The user runs `IRIS_PLAN_PROTOTYPES/idl_reference/` on 2026-09-28 on another machine, from the copy in `~/Dropbox/iris_ref_idl/` (its four top-level files).
-   - Its README's step 3 pipes the commands into `sswidl`, because `sswidl -e "..."` breaks on spaces.
-   - Where the user returns `iris_ref_out/` and `iris_ref_console.log` is not yet known; ask.
-   - Before any port uses the results, check that `status.txt` lists 8 × ok.
-   - Then compare each output with the GDL run of the same `iris_ref_run.pro`, which is in `IRIS_PLAN_PROTOTYPES/idl_reference/gdl_out_20260927/`. Its `.sav` files are git-ignored and exist only on this Mac; `idl_reference/gdl/README.md` says how to regenerate them.
-   - Read the `.sav` files with `scipy.io.readsav` in `iris-plan`, and judge the differences with the tolerances the shared plan sets.
-3. irispy feature ports (`wp0-irispy-requests`, `wp2-m3-mg-features`, `wp2-burst-detection`): see `IRIS_PLAN_PROTOTYPES/irispy_ports_20260927/README.md`.
-   - SOT/ITN32 cubes (2–3 days) and moment uncertainties (2–4 days) can start without a plan.
-   - Wavelength drift, bursts and Mg II features need the shared plan listed there first (about a day).
-   - The user asked about feasibility and has not yet chosen what to start.
+2. IDL reference run: done (IDL 9.2, 8 × ok, returned on 2026-09-29 in `~/Git/irispy/iris_ref_out/`, untracked in the irispy checkout).
+   - Compared with GDL, and the findings recorded, in `IRIS_PLAN_PROTOTYPES/idl_reference/comparison_20260929/README.md`. GDL stands in for the burst routines only.
+   - IDL's own quirks are confirmed:
+     - the wavelength drift of 4000005156 is MPFIT's starting guess;
+     - `SPLINE` on a decreasing T extrapolates one interval;
+     - `WHERE(-1)` changes the last element.
+3. irispy feature ports. The user decided on 2026-09-29: fix IDL quirks and test with tolerances, one draft PR each, no gallery examples.
+   - Bursts: LM-SAL/irispy#197 (`uv-burst-detection`, `~/Git/irispy-bursts`).
+   - Wavelength drift: #198 (`wavelength-drift`, `~/Git/irispy-wavecorr`).
+   - Mg II features: #199 (`mg-features`, `~/Git/irispy-mg-features`).
+   - All three branch from main 51c0ec2 and were tested in the micromamba env `irispy-ports` (Python 3.14, irispy[tests,docs] editable from `~/Git/irispy-bursts`; other worktrees via `PYTHONPATH`).
+   - The user reviews each PR before marking it ready. Do not request reviews or merge.
+   - SOT/ITN32 cubes (2–3 days) and moment uncertainties (2–4 days) are not started.
+   - glue-solar layer actions for these (`wp2-burst-detection`, `wp2-m3-mg-features`) wait for the merges, an irispy pin and `wp2-m2-moment-maps`.
 4. irispy docs build: Read the Docs builds ran 565–775 s (median 704 s over 20 builds) against a 900 s limit, and two PR builds timed out on 2026-09-27. The user asked to keep this apart from the GUI plan, so the verified speed review is in the irispy worktree `~/Git/irispy-gallery-speed` (branch `gallery-speed`): `GALLERY_SPEED_REVIEW.md` plus `gallery_speed_review/`, untracked. Nothing from it has been applied.
 5. glue-solar M0 continues with `wp10-mask-uint8`, which depends only on `wp10-fill-nan`. The irispy pin changes three M0 items:
    - `wp10-m0-negative-step`: irispy now flips the meta; drop or rescope with the user.
