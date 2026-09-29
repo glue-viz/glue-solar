@@ -14,7 +14,7 @@ Columns: IRIS = relevant to IRIS data; Priority = review priority for an IRIS-fi
 quicklook (must/should/could/wont); Milestone and Where = the owning checkbox (M4 = upstreaming,
 after the glue-solar work).
 
-Summary: Available: 32, Excluded: 17, M0: 28, M1: 42, M2: 24, M3: 59, M4: 1.
+Summary: Available: 35, Excluded: 17, M0: 25, M1: 42, M2: 24, M3: 59, M4: 1.
 
 ## IRIS raster/SJI semantics, reference cubes & time sync
 
@@ -34,7 +34,7 @@ Summary: Available: 32, Excluded: 17, M0: 28, M1: 42, M2: 24, M3: 59, M4: 1.
 | F114 | Assemble repeated rasters into a 4D time series | yes | must | — | Available today | Tick 'Stack sequential raster scans' in the browser (iris_loader.ui:107-112), or call raster_data(files, stack=True). Either gives a (scan, step, slit, wavelength) float memmap with a per-pixel datetime64 Time (loaders/iris.py:104-113,153-175; stack_spectrograms.py at 236f0a8). The scan-0 WCS limit is wp1-stack-per-scan-wcs, and per-scan exposure times are in wp4-exposure-readout. |
 | F115 | Multiple raster files with a file slider (per-scan coordinates) | yes | could | M3 | `wp1-stack-per-scan-wcs` (WP1, M3) |  |
 | F116 | Multi-exposure-per-position programs (NEXP_PRP > 1) | yes | could | M3 | `wp1-nexp-prp` (WP1, M3) |  |
-| F117 | Per-exposure readouts (exposure time, PZT offsets, pointing) | yes | should | M0 | `wp4-exposure-readout` (WP4, M0) |  |
+| F117 | Per-exposure readouts (exposure time, PZT offsets, pointing) | yes | should | — | Available today | Every IRIS dataset has an `Exposure time` component (stacks per scan) and SJIs keep pztx/pzty, xcenix/ycenix and the slit position in meta; the Frame time tool shows '<UTC> · exp N s' with the SJI pointing in its tooltip (#64). |
 | F118 | Nearest-in-time SJI panel with consistency check | yes | should | M0 | `wp4-sji-panels` (WP4, M0) |  |
 | F119 | SHOW MOVIE from the raster-browser SJI panel | yes | could | M3 | `wp4-playback-extras` (WP4, M3) |  |
 | F120 | xsji_image single-channel SJI viewer | yes | should | M3 | `wp11-north-up` (WP11, M3) |  |
@@ -83,7 +83,7 @@ Summary: Available: 32, Excluded: 17, M0: 28, M1: 42, M2: 24, M3: 59, M4: 1.
 | F006 | Search directory field, picker and in-list navigation | yes | could | M3 | `wp8-browser-conveniences` (WP8, M3) |  |
 | F007 | Persisted search settings | yes | could | M3 | `wp8-browser-conveniences` (WP8, M3) |  |
 | F008 | Observation summary list | yes | must | — | Available today | Open 'IRIS: browse observations…'. Each observation is one row showing STARTOBS, OBSID, description (OBS_DESC, falling back to an ObsID decode), XCEN, YCEN and SAT_ROT (scan.py:54-68,101-107 and iris.py:228-239@236f0a8). No OBS_DEC fallback is needed: a header probe of all 130 FITS files in ~/DATA/IRIS (2013-2026, iris-plan env) found OBS_DESC in 129 and OBS_DEC in none; the one file without OBS_DESC is the derived rb_steps file. Docs item: wp9-m0-browsing-recipes. |
-| F009 | Group all files of one observation | yes | must | M0 | `wp8-sji-variants` (WP8, M0) |  |
+| F009 | Group all files of one observation | yes | must | — | Available today | The browser groups every SJI, raster, AIA cutout and archive by OBSID and STARTOBS; deconvolved SJIs list beside the plain ones (#62). |
 | F010 | Find an observation's files by time (iris_find_file) | yes | could | M3 | `wp8-prescan-search` (WP8, M3) |  |
 | F011 | Open files by double-click or 'Confirm selection' | yes | must | — | Available today | Tick rows or children in the browser and press 'Load selected' (iris.py:195,280-315@236f0a8), or use File→Open, which routes through the 'IRIS Level 2 FITS' data_factory (sources/iris.py:23-28). Non-FITS files are never listed (scan.py:145-150). An optional double-click shortcut is part of wp8-browser-conveniences. Docs item: wp9-m0-browsing-recipes. |
 | F012 | Raster opens quicklook controller with matching SJIs | yes | must | M0 | `wp4-launch-entry` (WP4, M0) |  |
@@ -120,7 +120,7 @@ Summary: Available: 32, Excluded: 17, M0: 28, M1: 42, M2: 24, M3: 59, M4: 1.
 | F050 | Time-dependent SJI pointing and slit geometry | yes | must | M0 | `wp1-m0-link-hpc` (WP1, M0) |  |
 | F051 | OFFSET_SJI arcsec offset | yes | could | M3 | `wp1-m3-pointing-offset` (WP1, M3) |  |
 | F052 | Channel/SJI co-alignment check (fiducials, yshift) | yes | could | M3 | `wp1-m3-pointing-offset` (WP1, M3) |  |
-| F053 | Raster scan direction (west-to-east scans) | yes | should | M0 | `wp1-m0-descending-step-orientation` (WP1, M0) |  |
+| F053 | Raster scan direction (west-to-east scans) | yes | should | — | Available today | irispy 0.9.1 reverses STEPS_AV < 0 rasters with their mask and per-step metadata, and glue-solar keeps that orientation (longitude grows with step); a remote-data test on 3400109360 checks it (#65). |
 | F054 | Roll-angle handling | yes | should | M3 | `wp11-north-up` (WP11, M3); `wp1-m4-autolink-matrix` (WP1, M4) | Rolled SJIs already carry their roll in the WCS that `link_hpc` and the readouts use |
 | F055 | Multi-instrument co-registered browsing (IRIS + SST/AIA) | yes | could | M3 | `wp1-m3-multi-instrument` (WP1, M3) |  |
 
