@@ -70,13 +70,13 @@ AIA gWCS use CRPIX − 1 and slit positions are pixels, still 1-based; negative
 counts get readout noise only; meta tolerates missing keys; no uncertainty
 from memmap data).
 
-**glue-solar `main` (d4f3cfd).** The IRIS observation browser and loader
+**glue-solar `main` (e9e6a11).** The IRIS observation browser and loader
 (#44, #50); a datetime64 `Time` component and the `solar:frame_time` and
 `solar:cursor_readout` Image tools (#52); transparent NaN pixels (#53);
--200/-199 fill loaded as NaN, AIA cutouts -200 only (#54). irispy is pinned
-to main 5ce6029 by git URL (#55, #56); draft #57 (`wp1-m0-irispy-baseline`)
-replaces the pin with `irispy-lmsal>=0.9.1` and raises the floors to glue-core
-1.27.0 and glue-qt 0.4.2. No release. On
+-200/-199 fill loaded as NaN, AIA cutouts -200 only (#54); the D5 baseline:
+`irispy-lmsal>=0.9.1`, glue-core ≥ 1.27.0 and glue-qt ≥ 0.4.2 instead of the
+irispy git pin (#57, merged 2026-09-29; 37 passed, 1 skipped in `iris-plan`
+and `iris-plan-floor`). No open glue-solar PRs and no release. On
 released core, saving a session that holds any glue-solar dataset (sunpy Maps
 from File → Open included) fails (WP3).
 
@@ -130,9 +130,8 @@ nearest-index/display-unit correction in `profile_tools.py` could become its
 own PR if a maintainer asks.
 
 **Next steps.**
-1. `wp1-m0-irispy-baseline`: the user reviews and merges draft #57.
-2. `wp10-mask-uint8`, then the rest of M0.
-3. When the user has merged and irispy has released #197-#199 and #201, raise
+1. `wp10-mask-uint8`, then the rest of M0.
+2. When the user has merged and irispy has released #197-#199 and #201, raise
    the irispy floor (`wp0-irispy-requests`).
 
 **Worktrees.**
@@ -140,7 +139,6 @@ own PR if a maintainer asks.
 | Path | Branch | State |
 | --- | --- | --- |
 | `~/Git/glue-solar` | `plan` | This plan |
-| `~/Git/glue-solar-irispy-baseline` | `irispy-baseline` | Draft #57 |
 | `~/Git/irispy-bursts` | `uv-burst-detection` | Draft #197; the `irispy-ports` env imports irispy from here |
 | `~/Git/irispy-wavecorr` | `wavelength-drift` | Draft #198 |
 | `~/Git/irispy-mg-features` | `mg-features` | Draft #199 |
@@ -148,6 +146,7 @@ own PR if a maintainer asks.
 
 Removable (merged): `~/Git/glue-solar-wp10-fill-nan`,
 `~/Git/glue-solar-irispy-git-pin`, `~/Git/glue-solar-irispy-pin-bump`,
+`~/Git/glue-solar-irispy-baseline`,
 `~/Git/irispy-response-2013`. `~/Git/irispy` is the user's checkout (on main
 today): never check out, stash or edit in it, and never run Python with it as
 the working directory; branch into a separate worktree from `origin/main`.
@@ -324,7 +323,7 @@ Mg II feature maps, template fits and browser search extras.
 
 **M0**
 - WP0: `wp0-workaround-register`, `wp0-core-image-artist-bugs`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-readme-runner`
-- WP1: `wp1-m0-irispy-baseline`, `wp1-m0-axis-names`, `wp1-m0-inverse-workaround`, `wp1-m0-link-hpc`, `wp1-m0-descending-step-orientation`, `wp1-m0-link-graph-regression`
+- WP1: `wp1-m0-axis-names`, `wp1-m0-inverse-workaround`, `wp1-m0-link-hpc`, `wp1-m0-descending-step-orientation`, `wp1-m0-link-graph-regression`
 - WP4: `wp4-coordinator`, `wp4-quicklook-preset`, `wp4-launch-entry`, `wp4-m0-point-fixed-index`, `wp4-time-sync`, `wp4-m0-time-wavelength-panels`, `wp4-sji-panels`, `wp4-slit-point-overlay`, `wp4-exposure-readout`, `wp4-tests`
 - WP8: `wp8-test-qsettings`, `wp8-sji-variants`
 - WP9: `wp9-m0-user-guide-corrections`, `wp9-m0-dev-guide-stack`, `wp9-m0-changelog-fragments`, `wp9-m0-viewer-tools-docs`, `wp9-m0-browsing-recipes`, `wp9-m0-mask-overlays`, `wp9-m0-workflow-recipes`, `wp9-m0-scripting-recipe`, `wp9-m0-iris9-tutorial`, `wp9-m0-iris9-acceptance`, `wp9-m0-docs-build`, `wp9-m0-wiki-digest`
@@ -464,13 +463,12 @@ Notes:
 ### WP1: Coordinates, units and links
 
 The coordinate contract (D3) and link graph (D1) for IRIS data and
-glue-solar's maps. Tests run in both `wp1-m0-irispy-baseline` envs; each PR
+glue-solar's maps. Tests run in both `iris-plan` and `iris-plan-floor`; each PR
 carries a changelog fragment and its guide change.
 
 **M0**
 
-- [ ] **M0** `wp1-m0-irispy-baseline`: Merge draft #57, which replaces the irispy git-URL pin with `irispy-lmsal>=0.9.1` (PyPI rejects direct references, so this also unblocks a glue-solar release) and raises the floors to glue-core 1.27.0 and glue-qt 0.4.2. The envs and checks are done and recorded in Validation. Done when #57 is merged.
-- [ ] **M0** `wp1-m0-axis-names`: `_AXIS_NAMES` beats gWCS names, so SJI, raster, stack and AIA-cutout axes share 'Helioprojective Longitude/Latitude' and 'Wavelength'; drop `"time": "Time"` so SJI world time stays 'Time (Utc)'. Done when `test_sji_and_raster_share_axis_names` and the SJI high-level round trip pass, an SJI has one `Time` component, and the ported SJI label hunk expects 'Helioprojective Longitude'. Depends: wp1-m0-irispy-baseline.
+- [ ] **M0** `wp1-m0-axis-names`: `_AXIS_NAMES` beats gWCS names, so SJI, raster, stack and AIA-cutout axes share 'Helioprojective Longitude/Latitude' and 'Wavelength'; drop `"time": "Time"` so SJI world time stays 'Time (Utc)'. Done when `test_sji_and_raster_share_axis_names` and the SJI high-level round trip pass, an SJI has one `Time` component, and the ported SJI label hunk expects 'Helioprojective Longitude'.
 - [ ] **M0** `wp1-m0-inverse-workaround`: Add `glue_solar/glue_patches.py` (imported from `glue_solar/__init__.py`; also home of `wp7-goes-date-labels`). Its #2598 fix of `world2pixel_single_axis` (exposure-0 inverse) installs only when `needs_inverse_workaround()` finds the bug (register row); no all-ones `axis_correlation_matrix`. Done when the probe patches 1.27.0, `test_world_links_into_the_sji_use_each_exposure_time` recovers every frame's pixel to 1e-6 px, with #2598 in core the probe is False and glue untouched, and WCSAxes readouts are unchanged. Depends: wp0-workaround-register.
 - [ ] **M0** `wp1-m0-link-hpc`: Port `link_hpc(data_collection)` to `glue_solar/sources/loaders/iris.py` (D1), called by `browse_iris` and a menubar action 'IRIS: link helioprojective coordinates'. Done when, without time links: (1) a second call adds 0 links and both callers add them; (2) 4000005156 Si IV + SJI 2796: at frames 0 and N−1 a raster-map ROI selects exactly the SJI pixels whose per-frame header-WCS position is in its world footprint (0.05 px edge band exempt); (3) the sns fixture and 4000255147 Si IV + SJI 1400: the selected SJI column moves ΔXCENIX/CDELT1 ± 1 px from frame 0 to N−1 (about 78 px on 4000255147), xfail until (4); (4) the released-core sit-and-stare full-width stripe (37/37 columns) is diagnosed; if inherent, the guide records it and (3) stays xfail; (5) lon/lat world subsets propagate both ways, and SJI pixel subsets stay IncompatibleAttribute on the raster; (6) no link targets SJI world time. `browse_iris` installs `link_hpc` by default only in a release that also carries `wp10-m0-roi-guard` and `wp10-m0-acceptance`; until `wp10-m1-roi-world-polygon`, the guide documents the stock raster-ROI freeze (about 10 s per SJI frame). Depends: wp1-m0-inverse-workaround.
 - [ ] **M0** `wp1-m0-descending-step-orientation`: A real-data STEPS_AV < 0 regression in `glue_solar/tests/test_importer.py` (D10), not a `flip_x` flag. Done when, on 3400109360 (STEPS_AV −0.998), the per-scan Si IV 1403 map with `flip_x` False has longitude increasing with displayed x; step 0 is at −971.0″ and step 63 at −908.2″ in WCS and cursor readout; a 2-scan stack keeps that orientation; `Time` descends from 23:06:15 (step 0) to 22:56:32 (step 63).
@@ -955,12 +953,12 @@ Python. Create a new named env rather than changing an existing one.
   osx-arm64 has only noarch 0.2.0), PyQt5, irispy-lmsal 0.9.1 (conda-forge),
   ndcube 2.4.2, astropy 8.0.1, sunpy 8.0.0 with cdflib and h5netcdf,
   pytest-doctestplus, pytest-qt, glue-solar editable. Baseline: `glue_solar`
-  gives 37 passed, 1 skipped on #57 (dd51452; the skip needs core #2595).
+  gives 37 passed, 1 skipped on main e9e6a11 (the skip needs core #2595).
   It has no pytest-mpl, so glue `@visual_test` comparisons do not run.
 - **`iris-plan-floor`**: `iris-plan` with irispy 0.9.1's floors, astropy
   8.0.0 and ndcube 2.4.0 (conda-forge, plus pvextractor), and the glue-qt
   wheel and editable glue-solar installed `--no-deps`. Baseline: 37 passed,
-  1 skipped on #57. WP1 items pass in both envs.
+  1 skipped on main e9e6a11. WP1 items pass in both envs.
 - **Checks on both envs (2026-09-29):** scalar and array inputs to both
   `_GlueWCS` value methods agree exactly on every irispy raster window and
   the SJI. The WP2/WP5/WP6 prototype checks (`chk_wp2/test_wp2_moments.py`,
@@ -999,9 +997,7 @@ Python. Create a new named env rather than changing an existing one.
 
   `run_checks.py` sets offscreen Qt/Agg and temporary Glue, Matplotlib and
   SunPy config directories; `qs_isolate.py` keeps the importer tests off the
-  real macOS QSettings (drop it once `wp8-test-qsettings` lands). irispy 0.9.1
-  in the envs has everything main's git pin adds, so no irispy root is needed.
-  To test an unreleased irispy commit, add a detached worktree as an extra
+  real macOS QSettings (drop it once `wp8-test-qsettings` lands). To test an unreleased irispy commit, add a detached worktree as an extra
   root (`git -C ~/Git/irispy worktree add --detach <scratch>/irispy-<sha> <sha>`;
   not `git archive`, because irispy reads its version from git) and print
   `irispy.__file__`.
