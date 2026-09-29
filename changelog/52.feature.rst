@@ -1,0 +1,1 @@
+IRIS slit-jaw images and aligned AIA cutouts now get a datetime64 ``Time`` component with the UTC time of each frame, read from their time axis. Image Viewers gain two toolbar tools: "Frame time" shows the acquisition time of the displayed frame in the status bar, and "Cursor readout" shows the position and data value under the mouse.
