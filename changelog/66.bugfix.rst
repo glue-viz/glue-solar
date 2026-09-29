@@ -1,0 +1,1 @@
+Choosing "WCS link" in the link editor for two IRIS datasets no longer fails with an ``AttributeError`` about ``has_celestial``: slit-jaw images of one observation now link to each other, and glue reports a slit-jaw image and a raster as incompatible.
