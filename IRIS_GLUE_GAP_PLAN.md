@@ -70,7 +70,7 @@ AIA gWCS use CRPIX − 1 and slit positions are pixels, still 1-based; negative
 counts get readout noise only; meta tolerates missing keys; no uncertainty
 from memmap data).
 
-**glue-solar `main` (c6681e8).** The IRIS observation browser and loader
+**glue-solar `main` (e09c9df).** The IRIS observation browser and loader
 (#44, #50); a datetime64 `Time` component and the `solar:frame_time` and
 `solar:cursor_readout` Image tools (#52); transparent NaN pixels (#53);
 -200/-199 fill loaded as NaN, AIA cutouts -200 only (#54); the D5 baseline:
@@ -97,15 +97,15 @@ remote-data tests on LM-SAL/irispy-data (`irispy_data` fixture, `online` tox
 factor and CI job), starting with the 3400109360 negative-step orientation
 (#65).
 
-**glue-solar draft waiting for the user's review:** #66 (`wcs-link-editor`,
-worktree `~/Git/glue-solar-wcs-link-editor`, from c6681e8): the link editor's
-"WCS link" raised `AttributeError: has_celestial` on IRIS datasets;
-`_GlueWCS.has_celestial = False` sends glue down its APE-14 path, so SJI↔SJI
-links and SJI↔raster gets glue's `IncompatibleWCS` (printed by glue-qt's
-editor; `link_hpc` is the route for that pair). Suite 43 passed, 2 skipped.
-Also a draft: #67 (`ci-matrix`): CI runs only core (Linux 3.12), Linux 3.14,
-Linux 3.13 online and the docs; Linux 3.13, Windows, macOS and devdeps dropped
-for now at the user's request (tox envs unchanged).
+Also merged 2026-09-29: `_GlueWCS.has_celestial = False`, so the link
+editor's "WCS link" no longer raises on IRIS datasets (#66); CI runs only core
+(Linux 3.12), Linux 3.14, Linux 3.13 online and the docs (#67).
+
+**glue-solar draft waiting for the user's review:** #68 (`slider-throttle`,
+worktree `~/Git/glue-solar-slider-throttle`, from e09c9df): Image viewers'
+slice sliders report a drag only on release and apply the dragged position at
+most every 0.1 s in between (keys, clicks and playback unchanged), re-applied by
+the Frame time tool when glue-qt rebuilds them. Suite 44 passed, 2 skipped.
 
 **Slider speed** (user, 2026-09-29: slow on PyQt5 on their Linux/Wayland
 machine with 3860259453; measure now, optimise later). Probe:
@@ -121,9 +121,8 @@ glue-solar, is the main cost. Per Wayland draw (0.065 s): WCSAxes tick and
 label updates about 0.026 s, of which `_GlueWCS.pixel_to_world_values` about
 0.018 s (53 calls of about 0.3 ms); tick-label text about 0.016 s; the image
 little. A drag queues one full redraw per slider position, which is the lag
-felt. Decision: optimise later. Options, cheapest first: redraw on slider
-release or at most every ~0.1 s while dragging (`wp10` fallback); the numpy
-slit-table evaluator for the raster -TAB WCS; fewer WCSAxes tick samples.
+felt. The drag throttle is #68; the user put the other two options with the
+upstream work (`wp0-upstream-draw-speed`, M4).
 
 **irispy (LM-SAL/irispy main 8751589).** Draft PRs waiting for the user's
 review, each branched from main 51c0ec2, tested against an IDL 9.2 reference
@@ -197,7 +196,7 @@ PR notes (2026-09-29):
   `save` subtools in WP12); #65 (dhomeier, tox cleanup, overlaps #69).
 
 **Next steps.**
-1. The user reviews #66 and #67.
+1. The user reviews #68.
 2. The rest of M0, in glue-solar only: since 2026-09-29 upstream PRs,
    reports and tracking wait for M4 (D2); next are `wp4-coordinator` and
    `wp4-time-sync`.
@@ -220,7 +219,8 @@ Removable (merged): `~/Git/glue-solar-wp10-fill-nan`,
 `~/Git/glue-solar-mask-uint8`, `~/Git/glue-solar-wcs-lock`,
 `~/Git/glue-solar-axis-names`, `~/Git/glue-solar-sji-variants`,
 `~/Git/glue-solar-qsettings-isolation`, `~/Git/glue-solar-exposure-readout`,
-`~/Git/glue-solar-descending-step`,
+`~/Git/glue-solar-descending-step`, `~/Git/glue-solar-wcs-link-editor`,
+`~/Git/glue-solar-ci-matrix`,
 `~/Git/irispy-response-2013`. `~/Git/irispy` is the user's checkout (on main
 today): never check out, stash or edit in it, and never run Python with it as
 the working directory; branch into a separate worktree from `origin/main`.
@@ -444,7 +444,7 @@ Each release containing a fix retires the matching glue-solar workaround
 - WP12: `wp12-export-annotations`, `wp12-profile-values-export`, `wp12-path-overlays-slopes`, `wp12-path-batch`
 
 **M4**
-- WP0: `wp0-core-image-artist-bugs`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-core-profile-unit-label`, `wp0-track-line-layers`, `wp0-qt68-macos-pass`, `wp0-qt-aggregate-slice`, `wp0-track-2604`, `wp0-track-qt66`, `wp0-core-datetime-export`, `wp0-qt68-cocoa`, `wp0-optional-proposals`
+- WP0: `wp0-core-image-artist-bugs`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-core-profile-unit-label`, `wp0-track-line-layers`, `wp0-qt68-macos-pass`, `wp0-qt-aggregate-slice`, `wp0-track-2604`, `wp0-track-qt66`, `wp0-core-datetime-export`, `wp0-qt68-cocoa`, `wp0-optional-proposals`, `wp0-upstream-draw-speed`
 - WP1: `wp1-m4-autolink-matrix`
 - WP9: `wp9-m4-release-updates`
 
@@ -535,6 +535,7 @@ Reports and requests (each closes with a URL or the user's decision not to file)
   - astropy: reusing a fitter after `parallel_fit_dask(fit_info=...)` raises `KeyError: '__deepcopy__'` (8.0.1).
 
   Done when each is filed or declined and recorded in the reports table.
+- [ ] **M4** `wp0-upstream-draw-speed`: Two Image-viewer draw costs found by `IRIS_PLAN_PROTOTYPES/wp10_slider_probe.py` (user's Linux machine, 3860259453 Si IV, Wayland at 2× scale: 0.065 s per draw), to take up with upstream on the user's direction: (1) WCSAxes tick and label updates cost about 0.026 s per draw, 0.018 s of it in 53 `_GlueWCS.pixel_to_world_values` calls through the raster -TAB WCS (about 0.3 ms each): a faster -TAB evaluation, such as the numpy slit-table evaluator (exact to 1e-10″), in irispy or astropy; (2) fewer WCSAxes tick samples per draw in glue or astropy. Done when each is filed, merged or declined and the probe is re-run.
 
 Notes:
 - Qt #75 labels only WCS time axes, not the standalone `Time` of raster exposure and stack axes.
