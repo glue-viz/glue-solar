@@ -109,7 +109,10 @@ def test_real_sji_adapter_preserves_mask_units_and_coordinates(irispy_test_files
     science, mask, _time = data.main_components
     assert data.shape == cube.shape
     assert data.get_component(science).units == str(cube.unit)
-    np.testing.assert_array_equal(data.get_component(mask).data, cube.mask)
+    mask = data.get_component(mask).data
+    assert mask.dtype == np.uint8
+    np.testing.assert_array_equal(mask, np.isnan(data.get_component(science).data))
+    np.testing.assert_array_equal(mask, cube.mask | (cube.data == -199))  # irispy masks only -200
 
     longitude = next(component for component in data.world_component_ids if component.label == "Longitude")
     expected = cube.axis_world_coords()[0][0, 0, 0].Tx.to_value(u.arcsec)
@@ -177,6 +180,7 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
     assert [c.label for c in data.world_component_ids][0] == "Scan"
     assert data.coords.world_axis_units == ("m", "arcsec", "arcsec", "")
     np.testing.assert_array_equal(values[-1], raw_last)
+    assert data.get_component(mask).data.dtype == np.uint8
     np.testing.assert_array_equal(data.get_component(mask).data, np.isnan(values))
     for i, expected in enumerate(expected_times):
         np.testing.assert_array_equal(times[i, :, 0, 0], expected)
@@ -214,6 +218,9 @@ def test_real_raster_fill_values_become_nan(irispy_test_files):
     assert values.size == 216_920
     assert not np.isin(values, (-200, -199)).any()
     assert np.isnan(values).sum() == 35_027
+    mask = data[f"{data.label} mask"]
+    assert mask.dtype == np.uint8
+    np.testing.assert_array_equal(mask, np.isnan(values))
 
 
 def test_negative_step_raster_fill_follows_the_flipped_data(tmp_path, irispy_test_files):
@@ -233,6 +240,7 @@ def test_negative_step_raster_fill_follows_the_flipped_data(tmp_path, irispy_tes
 
     scan = raster_data([path], ["Si IV 1403"])[0]
     np.testing.assert_array_equal(np.isnan(scan[scan.main_components[0]]), fill)
+    np.testing.assert_array_equal(scan[f"{scan.label} mask"], fill)
     stack = raster_data([path, path], ["Si IV 1403"], stack=True)[0]
     for values in stack[stack.main_components[0]]:
         np.testing.assert_array_equal(np.isnan(values), fill)

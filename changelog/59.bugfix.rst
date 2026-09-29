@@ -1,0 +1,1 @@
+The mask component of IRIS datasets now marks exactly the samples loaded as NaN, including -199 fill, and takes one byte per sample instead of eight. Loading a raster needs about 5 bytes per sample instead of 12.

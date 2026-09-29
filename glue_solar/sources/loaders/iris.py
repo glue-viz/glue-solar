@@ -83,8 +83,8 @@ def _cube_data(cube, label, *, color=None, cmap=None, missing=MISSING_VALUES):
         values = values.astype(np.result_type(values.dtype, np.float32), copy=False)
         values[fill] = np.nan
     data.add_component(Component(values, units=str(cube.unit)), label)
-    if cube.mask is not None:
-        data.add_component(Component(np.asarray(cube.mask, dtype=bool)), f"{label} mask")
+    # Glue stores a bool component as int64, so view the NaN mask as one byte per sample
+    data.add_component(Component(np.isnan(values).view(np.uint8)), f"{label} mask")
     times = _frame_times(cube)
     if times is not None:
         times = np.broadcast_to(times.reshape((len(times),) + (1,) * (cube.data.ndim - 1)), cube.shape)
