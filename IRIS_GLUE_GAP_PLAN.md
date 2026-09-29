@@ -74,8 +74,9 @@ from memmap data).
 (#44, #50); a datetime64 `Time` component and the `solar:frame_time` and
 `solar:cursor_readout` Image tools (#52); transparent NaN pixels (#53);
 -200/-199 fill loaded as NaN, AIA cutouts -200 only (#54). irispy is pinned
-to main 5ce6029 by git URL (#55, #56); `wp1-m0-irispy-baseline` replaces the
-pin with `irispy-lmsal>=0.9.1`. No open glue-solar PRs and no release. On
+to main 5ce6029 by git URL (#55, #56); draft #57 (`wp1-m0-irispy-baseline`)
+replaces the pin with `irispy-lmsal>=0.9.1` and raises the floors to glue-core
+1.27.0 and glue-qt 0.4.2. No release. On
 released core, saving a session that holds any glue-solar dataset (sunpy Maps
 from File → Open included) fails (WP3).
 
@@ -129,8 +130,7 @@ nearest-index/display-unit correction in `profile_tools.py` could become its
 own PR if a maintainer asks.
 
 **Next steps.**
-1. `wp1-m0-irispy-baseline`: replace the git pin with `irispy-lmsal>=0.9.1`,
-   raise the glue floors and rebuild the baseline environments.
+1. `wp1-m0-irispy-baseline`: the user reviews and merges draft #57.
 2. `wp10-mask-uint8`, then the rest of M0.
 3. When the user has merged and irispy has released #197-#199 and #201, raise
    the irispy floor (`wp0-irispy-requests`).
@@ -140,6 +140,7 @@ own PR if a maintainer asks.
 | Path | Branch | State |
 | --- | --- | --- |
 | `~/Git/glue-solar` | `plan` | This plan |
+| `~/Git/glue-solar-irispy-baseline` | `irispy-baseline` | Draft #57 |
 | `~/Git/irispy-bursts` | `uv-burst-detection` | Draft #197; the `irispy-ports` env imports irispy from here |
 | `~/Git/irispy-wavecorr` | `wavelength-drift` | Draft #198 |
 | `~/Git/irispy-mg-features` | `mg-features` | Draft #199 |
@@ -468,7 +469,7 @@ carries a changelog fragment and its guide change.
 
 **M0**
 
-- [ ] **M0** `wp1-m0-irispy-baseline`: Move glue-solar to the D5 baseline. In `pyproject.toml`, replace the irispy git-URL pin with `irispy-lmsal>=0.9.1` (PyPI rejects direct references, so this also unblocks a glue-solar release) and raise the floors to glue-core 1.27.0 and glue-qt 0.4.2. Update `iris-plan` to irispy-lmsal 0.9.1 (it has 0.9.0), and create the floor env `iris-plan-floor` (irispy-lmsal 0.9.1 at its declared astropy and ndcube floors, glue-core 1.27.0, glue-qt 0.4.2). Fixtures via `find_irispy_test_file`. Re-run the WP2, WP5 and WP6 prototype checks on 0.9.1, including the no-TWAVE path. Done when both envs are recorded in Validation with test counts, main's suite passes in both, scalar and array inputs to both `_GlueWCS` value methods give identical results in both, and the WP2/WP5/WP6 results are recorded.
+- [ ] **M0** `wp1-m0-irispy-baseline`: Merge draft #57, which replaces the irispy git-URL pin with `irispy-lmsal>=0.9.1` (PyPI rejects direct references, so this also unblocks a glue-solar release) and raises the floors to glue-core 1.27.0 and glue-qt 0.4.2. The envs and checks are done and recorded in Validation. Done when #57 is merged.
 - [ ] **M0** `wp1-m0-axis-names`: `_AXIS_NAMES` beats gWCS names, so SJI, raster, stack and AIA-cutout axes share 'Helioprojective Longitude/Latitude' and 'Wavelength'; drop `"time": "Time"` so SJI world time stays 'Time (Utc)'. Done when `test_sji_and_raster_share_axis_names` and the SJI high-level round trip pass, an SJI has one `Time` component, and the ported SJI label hunk expects 'Helioprojective Longitude'. Depends: wp1-m0-irispy-baseline.
 - [ ] **M0** `wp1-m0-inverse-workaround`: Add `glue_solar/glue_patches.py` (imported from `glue_solar/__init__.py`; also home of `wp7-goes-date-labels`). Its #2598 fix of `world2pixel_single_axis` (exposure-0 inverse) installs only when `needs_inverse_workaround()` finds the bug (register row); no all-ones `axis_correlation_matrix`. Done when the probe patches 1.27.0, `test_world_links_into_the_sji_use_each_exposure_time` recovers every frame's pixel to 1e-6 px, with #2598 in core the probe is False and glue untouched, and WCSAxes readouts are unchanged. Depends: wp0-workaround-register.
 - [ ] **M0** `wp1-m0-link-hpc`: Port `link_hpc(data_collection)` to `glue_solar/sources/loaders/iris.py` (D1), called by `browse_iris` and a menubar action 'IRIS: link helioprojective coordinates'. Done when, without time links: (1) a second call adds 0 links and both callers add them; (2) 4000005156 Si IV + SJI 2796: at frames 0 and N−1 a raster-map ROI selects exactly the SJI pixels whose per-frame header-WCS position is in its world footprint (0.05 px edge band exempt); (3) the sns fixture and 4000255147 Si IV + SJI 1400: the selected SJI column moves ΔXCENIX/CDELT1 ± 1 px from frame 0 to N−1 (about 78 px on 4000255147), xfail until (4); (4) the released-core sit-and-stare full-width stripe (37/37 columns) is diagnosed; if inherent, the guide records it and (3) stays xfail; (5) lon/lat world subsets propagate both ways, and SJI pixel subsets stay IncompatibleAttribute on the raster; (6) no link targets SJI world time. `browse_iris` installs `link_hpc` by default only in a release that also carries `wp10-m0-roi-guard` and `wp10-m0-acceptance`; until `wp10-m1-roi-world-polygon`, the guide documents the stock raster-ROI freeze (about 10 s per SJI frame). Depends: wp1-m0-inverse-workaround.
@@ -951,16 +952,23 @@ Python. Create a new named env rather than changing an existing one.
 
 - **`iris-plan`** (the D5 baseline): Python 3.13, glue-core 1.27.0
   (conda-forge), glue-qt 0.4.2 (PyPI wheel with `--no-deps`; conda-forge's
-  osx-arm64 has only noarch 0.2.0), PyQt5, irispy-lmsal 0.9.0 (moves to 0.9.1
-  in `wp1-m0-irispy-baseline`), ndcube 2.4.2, astropy 8.0.1, sunpy 8.0.0 with
-  cdflib and h5netcdf, pytest-doctestplus, pytest-qt, glue-solar editable.
-  Baseline: `glue_solar` gives 37 passed, 1 skipped on main d4f3cfd with
-  irispy 5ce6029 as an extra root (the skip needs core #2595). It has no
-  pytest-mpl, so glue `@visual_test` comparisons do not run.
-- **`iris-plan-floor`** (`wp1-m0-irispy-baseline` creates it): irispy-lmsal
-  0.9.1 at its declared astropy and ndcube floors, glue-core 1.27.0 and
-  glue-qt 0.4.2, with the glue-qt wheel and editable glue-solar installed
-  `--no-deps` as in `iris-plan`. WP1 items pass in both envs.
+  osx-arm64 has only noarch 0.2.0), PyQt5, irispy-lmsal 0.9.1 (conda-forge),
+  ndcube 2.4.2, astropy 8.0.1, sunpy 8.0.0 with cdflib and h5netcdf,
+  pytest-doctestplus, pytest-qt, glue-solar editable. Baseline: `glue_solar`
+  gives 37 passed, 1 skipped on #57 (dd51452; the skip needs core #2595).
+  It has no pytest-mpl, so glue `@visual_test` comparisons do not run.
+- **`iris-plan-floor`**: `iris-plan` with irispy 0.9.1's floors, astropy
+  8.0.0 and ndcube 2.4.0 (conda-forge, plus pvextractor), and the glue-qt
+  wheel and editable glue-solar installed `--no-deps`. Baseline: 37 passed,
+  1 skipped on #57. WP1 items pass in both envs.
+- **Checks on both envs (2026-09-29):** scalar and array inputs to both
+  `_GlueWCS` value methods agree exactly on every irispy raster window and
+  the SJI. The WP2/WP5/WP6 prototype checks (`chk_wp2/test_wp2_moments.py`,
+  `wp6_test_fitting.py`, `review_20260905/test_line_positions.py`, run with
+  the fixtures symlinked to their pre-0.9.0 names) give 14 passed, 2 failed;
+  the same 2 fail on irispy 0.9.0 (counts measured on 0.8.1 fixtures), so the
+  ports derive them from the fixtures. irispy 0.9.1 still falls back to TWAVE
+  when `rest_wavelength` is None, so WP2 always passes it (D11).
 - **`iris-plan-docs`** (`wp9-m0-docs-build` creates it): the `iris-plan` pins
   plus the `docs` extra. Build with
   `sphinx-build -W --keep-going -b html docs <out>`, never `tox -e build_docs`.
@@ -991,11 +999,12 @@ Python. Create a new named env rather than changing an existing one.
 
   `run_checks.py` sets offscreen Qt/Agg and temporary Glue, Matplotlib and
   SunPy config directories; `qs_isolate.py` keeps the importer tests off the
-  real macOS QSettings (drop it once `wp8-test-qsettings` lands). Until
-  `wp1-m0-irispy-baseline` removes the git pin, add the pinned irispy as an
-  extra root: `git -C ~/Git/irispy worktree add --detach <scratch>/irispy-<sha> <sha>`
-  (a worktree, not `git archive`, because irispy reads its version from git),
-  pass `"$PWD:<scratch>/irispy-<sha>:$P"`, and print `irispy.__file__`.
+  real macOS QSettings (drop it once `wp8-test-qsettings` lands). irispy 0.9.1
+  in the envs has everything main's git pin adds, so no irispy root is needed.
+  To test an unreleased irispy commit, add a detached worktree as an extra
+  root (`git -C ~/Git/irispy worktree add --detach <scratch>/irispy-<sha> <sha>`;
+  not `git archive`, because irispy reads its version from git) and print
+  `irispy.__file__`.
 - **Unreleased upstream PRs** are tested as extra roots from exports
   (`git -C <repo> archive <head> | tar -x -C <scratch>/<name>`), regenerated
   before use because macOS purges temporary directories; drop missing roots
