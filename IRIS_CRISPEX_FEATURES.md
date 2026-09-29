@@ -13,7 +13,7 @@ authoritative.
 Columns: IRIS = relevant to IRIS data; Priority = review priority for an IRIS-first CRISPEX
 quicklook (must/should/could/wont); Milestone and Where = the owning checkbox.
 
-Summary: Available: 29, Excluded: 17, M0: 31, M1: 44, M2: 24, M3: 58.
+Summary: Available: 30, Excluded: 17, M0: 30, M1: 44, M2: 24, M3: 58.
 
 ## IRIS raster/SJI semantics, reference cubes & time sync
 
@@ -62,7 +62,7 @@ Summary: Available: 29, Excluded: 17, M0: 31, M1: 44, M2: 24, M3: 58.
 
 | ID | Feature | IRIS | Priority | Milestone | Where | Note |
 | --- | --- | --- | --- | --- | --- | --- |
-| F164 | Missing-data handling (NaN, -200/-199) | yes | must | M0 | `wp10-mask-uint8` (WP10, M0) | -200/-199 fill already loads as NaN on main (#54); the mask built from the NaN values remains |
+| F164 | Missing-data handling (NaN, -200/-199) | yes | must | — | Available today | IRIS rasters, SJIs and stacks load -200/-199 fill as NaN (#54; aligned AIA cutouts -200 only), so it draws transparent and stays out of limits and Mean profiles. Each dataset's '<label> mask' component is isnan(data) as uint8 (#59); +Inf saturation stays data. Docs: wp9-m0-user-guide-corrections, wp9-m0-mask-overlays. |
 | F165 | Exposure-time normalisation (DN/s) | yes | should | M1 | `wp1-dn-per-s` (WP1, M1); `wp2-m2-input-quality` (WP2, M2) |  |
 | F166 | SJI dust removal | yes | could | M3 | `wp2-irispy-calibration-actions` (WP2, M3) |  |
 | F167 | Orbital/thermal wavelength drift correction | yes | could | M3 | `wp5-m3-rest-from-measurement` (WP5, M3) |  |
