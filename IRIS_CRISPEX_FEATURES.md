@@ -13,7 +13,7 @@ authoritative.
 Columns: IRIS = relevant to IRIS data; Priority = review priority for an IRIS-first CRISPEX
 quicklook (must/should/could/wont); Milestone and Where = the owning checkbox.
 
-Summary: Available: 30, Excluded: 17, M0: 30, M1: 44, M2: 24, M3: 58.
+Summary: Available: 32, Excluded: 17, M0: 28, M1: 44, M2: 24, M3: 58.
 
 ## IRIS raster/SJI semantics, reference cubes & time sync
 
@@ -138,7 +138,7 @@ Summary: Available: 30, Excluded: 17, M0: 30, M1: 44, M2: 24, M3: 58.
 | --- | --- | --- | --- | --- | --- | --- |
 | F020 | CRISPEX entry-point keyword set | yes | could | M0 | `wp4-launch-entry` (WP4, M0) |  |
 | F021 | Main image cube input (imcube) | yes | must | — | Available today | File→Open uses the IRIS Level 2 data_factory (sources/iris.py:23-28, priority 200 over glue's FITS reader), or Plugins → 'IRIS: browse observations…' (sources/iris.py:47-65). raster_data/image_data load single scans, per-scan datasets, a 4D stack or a sit-and-stare cube through irispy (loaders/iris.py:133-175@236f0a8), and `glue file.glu` restores a session in place of data. Reads are eager (memmap=False); lazy access is tracked in wp10-m2-lazy-loading and docs in wp9-m0-scripting-recipe. |
-| F022 | Spectral (transposed) cube input (spcube) | yes | wont | M0 | `wp10-m0-interaction-latency` (WP10, M0) | spcube: IDL I/O workaround; Glue reads any axis pair (fast lambda-t access is F035) |
+| F022 | Spectral (transposed) cube input (spcube) | yes | wont | — | Available today | spcube: IDL I/O workaround; Glue reads any axis pair (fast lambda-t access is F035). No transposed cube is needed: choose wavelength and exposure as the Image viewer axes; on irispy 0.9.1 that λ–t image equals `cube[:, y, :]` and takes 0.070 s per slit step on 4000255147 Si IV. |
 | F023 | Data-cube ordering convention (folded third axis) | no | wont | — | Excluded | SST folded-cube storage (N/A) |
 | F024 | FITS header parsing (axes, WCS, units, scaling, IRIS keywords) | yes | must | M1 | `wp1-m1-wrapper-coherence` (WP1, M1) |  |
 | F025 | IRIS Level-3 im/sp FITS input and extensions | yes | wont | M3 | `wp8-m3-level3-input` (WP8, M3) |  |
@@ -151,7 +151,7 @@ Summary: Available: 30, Excluded: 17, M0: 30, M1: 44, M2: 24, M3: 58.
 | F032 | SCALE_CUBES multiplicative factor | no | wont | — | Available today | Data collection → 'Arithmetic attributes' (ArithmeticEditorWidget, glue_qt/app/application.py:423,487@0.4.2) defines a scaled derived component, e.g. `<window> * 2.5`. Documented in wp9-m0-browsing-recipes ('Arithmetic scaling'). |
 | F033 | Programmatic access to the browsed cube | yes | should | M0 | `wp9-m0-scripting-recipe` (WP9, M0) |  |
 | F034 | Memory-mapped lazy cube access | yes | should | M2 | `wp10-m2-lazy-loading` (WP10, M2) |  |
-| F035 | Fast spectrum-vs-time access via sp cube; deferred updates without it | yes | must | M0 | `wp10-m0-interaction-latency` (WP10, M0) |  |
+| F035 | Fast spectrum-vs-time access via sp cube; deferred updates without it | yes | must | — | Available today | On irispy 0.9.1 (no step index in the raster WCS) a spectrogram slider step takes 0.049-0.050 s at any exposure of the 1600-exposure 4000255147 Si IV raster, and a λ–t (wavelength × exposure) slit step 0.070 s, measured offscreen on main 0621253. |
 | F036 | Sit-and-stare chunking | yes | could | M3 | `wp10-m3-sit-stare-chunks` (WP10, M3) |  |
 
 ## Main image display, scaling & colour
