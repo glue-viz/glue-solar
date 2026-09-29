@@ -5,8 +5,10 @@ plan's checkboxes and the verified review in
 [IRIS_PLAN_PROTOTYPES/review_20260927/](IRIS_PLAN_PROTOTYPES/review_20260927/README.md).
 Each of the 203 features from CRISPEX and the IRIS SolarSoft quicklook tools maps to one or more plan
 checkboxes, to 'Available today' (with how to do it in Glue), or to an exclusion. The source
-citations and Glue evidence for every row are in `review_20260927/features.json`. Regenerate
-this file when checkbox keys or feature lists change; the plan is authoritative.
+citations and Glue evidence for every row are in `review_20260927/features.json`. Updated on
+2026-09-29 to the trimmed plan's keys. The plan no longer lists feature IDs, so this file is the
+feature-to-checkbox map: update it when checkbox keys or feature lists change. The plan is
+authoritative.
 
 Columns: IRIS = relevant to IRIS data; Priority = review priority for an IRIS-first CRISPEX
 quicklook (must/should/could/wont); Milestone and Where = the owning checkbox.
@@ -60,7 +62,7 @@ Summary: Available: 29, Excluded: 17, M0: 31, M1: 44, M2: 24, M3: 58.
 
 | ID | Feature | IRIS | Priority | Milestone | Where | Note |
 | --- | --- | --- | --- | --- | --- | --- |
-| F164 | Missing-data handling (NaN, -200/-199) | yes | must | M0 | `wp10-fill-nan` (WP10, M0) |  |
+| F164 | Missing-data handling (NaN, -200/-199) | yes | must | M0 | `wp10-mask-uint8` (WP10, M0) | -200/-199 fill already loads as NaN on main (#54); the mask built from the NaN values remains |
 | F165 | Exposure-time normalisation (DN/s) | yes | should | M1 | `wp1-dn-per-s` (WP1, M1); `wp2-m2-input-quality` (WP2, M2) |  |
 | F166 | SJI dust removal | yes | could | M3 | `wp2-irispy-calibration-actions` (WP2, M3) |  |
 | F167 | Orbital/thermal wavelength drift correction | yes | could | M3 | `wp5-m3-rest-from-measurement` (WP5, M3) |  |
@@ -145,7 +147,7 @@ Summary: Available: 29, Excluded: 17, M0: 31, M1: 44, M2: 24, M3: 58.
 | F028 | Legacy 'La Palma' CRISPEX binary cube format | no | wont | — | Excluded | SST La Palma format (N/A) |
 | F029 | SINGLE_CUBE keyword | no | wont | — | Excluded | SST SINGLE_CUBE keyword (N/A) |
 | F030 | Height-profile / simulation-cube mode | no | wont | — | Excluded | simulation height cubes (outside IRIS scope) |
-| F031 | SPECTFILE normalised/average spectrum file | no | wont | M0 | `wp10-fill-nan` (WP10, M0) | SPECTFILE: the mean-spectrum reference is a full-dataset Profile with function Mean (glue's default is Maximum) |
+| F031 | SPECTFILE normalised/average spectrum file | no | wont | M0 | `wp9-m0-user-guide-corrections` (WP9, M0) | SPECTFILE: the mean-spectrum reference is a full-dataset Profile with function Mean (glue's default is Maximum) |
 | F032 | SCALE_CUBES multiplicative factor | no | wont | — | Available today | Data collection → 'Arithmetic attributes' (ArithmeticEditorWidget, glue_qt/app/application.py:423,487@0.4.2) defines a scaled derived component, e.g. `<window> * 2.5`. Documented in wp9-m0-browsing-recipes ('Arithmetic scaling'). |
 | F033 | Programmatic access to the browsed cube | yes | should | M0 | `wp9-m0-scripting-recipe` (WP9, M0) |  |
 | F034 | Memory-mapped lazy cube access | yes | should | M2 | `wp10-m2-lazy-loading` (WP10, M2) |  |
@@ -205,7 +207,7 @@ Summary: Available: 29, Excluded: 17, M0: 31, M1: 44, M2: 24, M3: 58.
 | F075 | Spectral/velocity range restriction (global or per window) | yes | should | M1 | `wp4-m1-spectral-coupling` (WP4, M1) |  |
 | F076 | Spectral (two-wavelength) blink | yes | should | M1 | `wp5-m1-spectral-blink` (WP5, M1) |  |
 | F077 | Spectrum plot y-range and plot styling | yes | could | — | Available today | Profile Options y_min/y_max (glue/viewers/matplotlib/state.py:127-128@1.27.0), per-layer linewidth (glue/viewers/profile/state.py:349) and the axes-editor label/tick sizes. The CRISPEX replay step 02 set ylim (-5, 50). Noted in wp9-m3-spectral-recipes. |
-| F078 | Per-window spectral multiplier | yes | could | — | Available today | Each window gets its own Profile viewer, which autoscales on its own (wp4-m1-multi-window). Profile Normalize rescales each layer to [0,1] (glue/viewers/profile/state.py:50-51,411-412@1.27.0). The normalised range is only meaningful once the WP10 -200 fill fix lands (replay step 02 gave normalized_range (-200, 7.25)). Noted in wp9-m3-spectral-recipes. |
+| F078 | Per-window spectral multiplier | yes | could | — | Available today | Each window gets its own Profile viewer, which autoscales on its own (wp4-m1-multi-window). Profile Normalize rescales each layer to [0,1] (glue/viewers/profile/state.py:50-51,411-412@1.27.0). The -200/-199 fill that set the normalised range (replay step 02 gave (-200, 7.25)) loads as NaN on main since #54. Noted in wp9-m3-spectral-recipes. |
 | F079 | Compare detailed spectrum with the average spectrum | yes | could | M3 | `wp5-m3-mean-spectrum-compare` (WP5, M3) |  |
 | F080 | Average-spectrum time range (MNSPEC) | yes | could | M3 | `wp9-m3-spectral-recipes` (WP9, M3) |  |
 | F081 | Custom plot axis titles (XTITLE/YTITLE) | no | wont | — | Available today | Axis-label text fields in the Profile axes editor (glue_qt/viewers/matplotlib/axes_editor.ui:82,175). The Profile rewrites the x label when x_att changes (glue/viewers/profile/viewer.py:15-31@1.27.0). Priority 'wont', so no further work. Noted in wp9-m3-spectral-recipes. |
@@ -284,7 +286,7 @@ Summary: Available: 29, Excluded: 17, M0: 31, M1: 44, M2: 24, M3: 58.
 
 | ID | Feature | IRIS | Priority | Milestone | Where | Note |
 | --- | --- | --- | --- | --- | --- | --- |
-| F124 | Mask cube input and contour overlay | yes | could | — | Available today | IRIS masks load as a boolean '<label> mask' component (loaders/iris.py:79-80). An x-range selection in a Histogram viewer, or 'Create faceted subsets', gives a subset that is drawn as a filled overlay in every viewer of that dataset. A probe in the iris-plan env confirmed that a bool component has kind 'numerical' and that RangeSubsetState(0.5,1.5) selects exactly the masked pixels. An external integer FITS mask cube with the dataset's shape loads through the layer action 'Import subset mask(s)' (glue/io/formats/fits/subset_mask.py@1.27.0); masknt=1 cubes must be broadcast first. Contours are not built; a filled subset with alpha is the equivalent. Docs item: wp9-m0-mask-overlays. |
+| F124 | Mask cube input and contour overlay | yes | could | — | Available today | IRIS masks load as a boolean '<label> mask' component (loaders/iris.py:86-87@d4f3cfd). An x-range selection in a Histogram viewer, or 'Create faceted subsets', gives a subset that is drawn as a filled overlay in every viewer of that dataset. A probe in the iris-plan env confirmed that a bool component has kind 'numerical' and that RangeSubsetState(0.5,1.5) selects exactly the masked pixels. An external integer FITS mask cube with the dataset's shape loads through the layer action 'Import subset mask(s)' (glue/io/formats/fits/subset_mask.py@1.27.0); masknt=1 cubes must be broadcast first. Contours are not built; a filled subset with alpha is the equivalent. Docs item: wp9-m0-mask-overlays. |
 | F125 | Raster slit-position overlay (whole raster footprint) | yes | should | M1 | `wp4-raster-overlays` (WP4, M1) |  |
 | F126 | Raster timing marker (current exposure) | yes | should | M1 | `wp4-raster-overlays` (WP4, M1) |  |
 | F127 | Overlay saved paths and reopen their slices | yes | could | M3 | `wp12-path-overlays-slopes` (WP12, M3) |  |
