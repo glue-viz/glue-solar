@@ -1,4 +1,7 @@
+import os
 import shutil
+import subprocess
+import sys
 
 import numpy as np
 import pytest
@@ -214,6 +217,41 @@ def test_real_raster_fill_values_become_nan(irispy_test_files):
     assert values.size == 216_920
     assert not np.isin(values, (-200, -199)).any()
     assert np.isnan(values).sum() == 35_027
+
+
+_THREADS = """
+import os, sys, threading, traceback
+import numpy as np
+from glue_solar.sources.loaders.iris import raster_data
+
+wcs = raster_data([sys.argv[1]], ["Si IV 1403"])[0].coords
+pixels = [np.arange(1000.0) % n for n in wcs.pixel_shape]
+done = threading.Event()
+
+def convert():
+    try:
+        while not done.is_set():
+            wcs.pixel_to_world_values(*pixels)
+            wcs.axis_correlation_matrix
+    except Exception:  # wcslib errors from a race are as much a failure as a crash
+        traceback.print_exc()
+        os._exit(1)
+
+thread = threading.Thread(target=convert)
+thread.start()
+for _ in range(20_000):
+    wcs.pixel_to_world_values(*pixels)
+done.set()
+thread.join()
+"""
+
+
+def test_raster_coordinates_are_thread_safe(irispy_test_files):
+    # wcslib crashes when two threads use one -TAB WCS (astropy/astropy#19174), so run it apart
+    path = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits")
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)}
+    result = subprocess.run([sys.executable, "-c", _THREADS, str(path)], env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr[-2000:]
 
 
 def test_negative_step_raster_fill_follows_the_flipped_data(tmp_path, irispy_test_files):

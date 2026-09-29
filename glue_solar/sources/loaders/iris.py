@@ -1,5 +1,6 @@
 import os
 import tarfile
+import threading
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -18,7 +19,7 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 from .scan import extract_archive, scan_directory
 from .stack_spectrograms import MISSING_VALUES, stack_spectrogram_sequence
 
-__all__ = ["QtIRISImporter", "image_data", "iris_data", "last_directory", "raster_data"]
+__all__ = ["WCS_LOCK", "QtIRISImporter", "image_data", "iris_data", "last_directory", "raster_data"]
 
 UI_MAIN = os.path.join(os.path.dirname(__file__), "iris_loader.ui")
 _SETTINGS = ("glue-solar", "glue-solar")
@@ -32,8 +33,20 @@ _AXIS_NAMES = {
 }
 
 
+# wcslib is not thread-safe (astropy/astropy#19174), and Glue computes profiles and histograms in
+# worker threads while WCSAxes draws on the GUI thread, all through the same raster WCS. Re-entrant
+# because a _GlueWCS can wrap another; one lock for all, because derived datasets share a WCS.
+# Code that uses the astropy WCS directly must hold it too.
+WCS_LOCK = threading.RLock()
+
+
 class _GlueWCS(BaseWCSWrapper):
     """Present named, signed helioprojective coordinates in arcseconds to Glue."""
+
+    @property
+    def axis_correlation_matrix(self):
+        with WCS_LOCK:
+            return self._wcs.axis_correlation_matrix
 
     @property
     def world_axis_names(self):
@@ -50,7 +63,8 @@ class _GlueWCS(BaseWCSWrapper):
         )
 
     def pixel_to_world_values(self, *pixel_arrays):
-        values = list(self._wcs.pixel_to_world_values(*pixel_arrays))
+        with WCS_LOCK:
+            values = list(self._wcs.pixel_to_world_values(*pixel_arrays))
         for i, physical_type in enumerate(self.world_axis_physical_types):
             if physical_type and physical_type.startswith("custom:pos.helioprojective."):
                 unit = u.Unit(self._wcs.world_axis_units[i])
@@ -66,7 +80,8 @@ class _GlueWCS(BaseWCSWrapper):
         for i, physical_type in enumerate(self.world_axis_physical_types):
             if physical_type and physical_type.startswith("custom:pos.helioprojective."):
                 values[i] = (np.asarray(values[i]) * u.arcsec).to_value(u.Unit(self._wcs.world_axis_units[i]))
-        return self._wcs.world_to_pixel_values(*values)
+        with WCS_LOCK:
+            return self._wcs.world_to_pixel_values(*values)
 
 
 def _cube_data(cube, label, *, color=None, cmap=None, missing=MISSING_VALUES):
