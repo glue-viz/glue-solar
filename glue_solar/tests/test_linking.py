@@ -215,3 +215,23 @@ def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, mon
     dc.append(image_data(_real(irispy_test_files, SJI.replace("1400", "1330"))))  # loaded later
     link_iris(app.session, dc)
     assert len(dc.external_links) == 2 * (len(dc) - 1)
+
+
+def test_pixel_point_workaround_installs_only_where_glue_needs_it(sns):
+    import inspect
+
+    from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
+
+    installed = PixelSubsetState._to_linked_pixel_coords is glue_patches._to_linked_pixel_coords
+    assert installed == glue_patches.needs_pixel_point_workaround()  # probes glue's own method
+    assert not glue_patches.needs_pixel_point_workaround(glue_patches._to_linked_pixel_coords)
+    # a private method: pin its signature on the released baseline
+    assert list(inspect.signature(glue_patches._original_to_linked_pixel_coords).parameters) == ["self", "data"]
+    # a slit-jaw point off the raster, as a click beside its field of view, is incompatible with the
+    # raster (no crosshair, no spectrum) instead of an error box
+    sji, raster = sns
+    dc = DataCollection([sji, raster])
+    dc.add_link(link_hpc(dc))
+    point = PixelSubsetState(sji, [slice(0, 1), slice(0, 1), slice(0, 1)])
+    with pytest.raises(IncompatibleAttribute):
+        point.to_array(raster, raster.main_components[0])

@@ -14,6 +14,7 @@ from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from qtpy import QtWidgets
+from qtpy.QtCore import Qt
 
 import astropy.units as u
 from astropy.io import fits
@@ -866,8 +867,10 @@ def test_slit_jaw_panels(bare_app, qtbot, tmp_path, monkeypatch, irispy_test_fil
         x, y = footprint(raster, sji)
         margin = max(10, 0.1 * max(np.ptp(x), np.ptp(y)))
         state = viewer.state
-        assert state.x_min <= x.min() - margin + 1e-6 and x.max() + margin - 1e-6 <= state.x_max
-        assert state.y_min <= y.min() - margin + 1e-6 and y.max() + margin - 1e-6 <= state.y_max
+        assert state.x_min <= x.min() - margin + 1e-6
+        assert x.max() + margin - 1e-6 <= state.x_max
+        assert state.y_min <= y.min() - margin + 1e-6
+        assert y.max() + margin - 1e-6 <= state.y_max
         assert (state.x_min + state.x_max) / 2 == pytest.approx((x.min() + x.max()) / 2, abs=0.5)
         assert (state.y_min + state.y_max) / 2 == pytest.approx((y.min() + y.max()) / 2, abs=0.5)
 
@@ -960,7 +963,9 @@ def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files):
         qtbot.waitUntil(lambda: " · Δt " in readout(sji_viewer))
         frame = sji_viewer.state.slices[0]
         where = coord.point_on(sji_viewer)
-        assert where is not None and -0.5 <= where[0] <= nx - 0.5 and -0.5 <= where[1] <= ny - 0.5
+        assert where is not None
+        assert -0.5 <= where[0] <= nx - 0.5
+        assert -0.5 <= where[1] <= ny - 0.5
         assert overlays(sji_viewer) == ([[slit[frame] - 1, -0.5], [slit[frame] - 1, ny - 0.5]], pytest.approx(where))
     sji_viewer.state.slices = (0, 0, 0)  # moved back by hand: the late exposure is off the first frame
     assert overlays(sji_viewer)[1] is None
@@ -1006,3 +1011,127 @@ def test_the_slit_on_a_full_slit_jaw_image(bare_app, irispy_data):
         viewer.state.slices = (frame, 0, 0)
         x = sji.meta["slit x position"][frame] - 1
         assert overlays(viewer)[0] == [[x, -0.5], [x, ny - 0.5]]
+
+
+def viewer_rows(app):
+    """What each viewer of the last tab shows."""
+    return [
+        (
+            type(v).__name__,
+            v.state.title,
+            *(getattr(getattr(v.state, att, None), "label", None) for att in ("x_att", "y_att")),
+            getattr(v.state, "slices", None),
+        )
+        for v in app.viewers[-1]
+    ]
+
+
+def copy_files(folder, paths):
+    folder.mkdir()
+    for path in paths:
+        shutil.copy2(path, folder / path.name.replace("_test.fits", ".fits"))
+    return folder
+
+
+def browse(app, monkeypatch, folder, rows):
+    """Load observation ``rows`` of ``folder`` through the observation browser, with its quicklook box as is."""
+    from glue_solar.sources.iris import browse_iris
+    from glue_solar.sources.loaders.iris import QtIRISImporter
+
+    monkeypatch.setattr(QtWidgets.QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(folder))
+
+    def tick_and_load(dialog):
+        for row in rows:
+            dialog.obs_tree.topLevelItem(row).setCheckState(0, Qt.Checked)
+        dialog.finalize()
+        return QtWidgets.QDialog.Accepted
+
+    monkeypatch.setattr(QtIRISImporter, "exec", tick_and_load)
+    browse_iris(app.session, app.data_collection)
+
+
+def test_the_three_entry_points_open_the_same_quicklook(qtbot, monkeypatch, tmp_path, irispy_test_files):
+    from glue.core.data_factories import load_data
+
+    from glue_solar.sources.iris import iris_quicklook, quicklook_iris
+
+    paths = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in ("raster_t000_r00000", "SJI_1400_t000")]
+    folder = copy_files(tmp_path / "sns", paths)
+    rows = []
+    for path in ("browser", "menu", "startup"):
+        app = bare_app_for(qtbot, monkeypatch)
+        if path == "browser":
+            browse(app, monkeypatch, folder, [0])
+        else:
+            # glue loads command-line files with add_datasets, whose autolinker has nothing to suggest for
+            # IRIS data on glue-core 1.27.0 (with glue-viz/glue#2595 it asks, before any startup action)
+            app.data_collection.extend([data for p in sorted(folder.iterdir()) for data in as_list(load_data(str(p)))])
+            (quicklook_iris if path == "menu" else iris_quicklook)(app.session, app.data_collection)
+        rows.append(viewer_rows(app))
+    assert rows[0] == rows[1] == rows[2]
+    assert len(rows[0]) == 5  # map, spectrogram, wavelength, SJI 1400 and spectrum
+
+
+def test_the_browser_and_the_menu_open_the_chosen_observation(qtbot, monkeypatch, tmp_path, irispy_test_files):
+    from glue_solar.sources.iris import quicklook_iris
+
+    sns = find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))
+    other = find_irispy_test_file(irispy_test_files, SCAN)
+    folder = copy_files(tmp_path / "two", [sns, other])
+    app = bare_app_for(qtbot, monkeypatch)
+    browse(app, monkeypatch, folder, [1])  # the second observation only
+    assert app.tab_count == 2
+    shown = app.viewers[-1][0].state.reference_data
+    browsed = app.data_collection[0]
+    assert observation_key(shown) == observation_key(browsed)
+    # both observations loaded: the menu asks, and opens the one chosen
+    browse(app, monkeypatch, folder, [0])
+    keys = [observation_key(data) for data in app.data_collection]
+    choice = {}
+
+    def choose(parent, title, label, items, *args):
+        choice["items"] = items
+        return items[1], True
+
+    monkeypatch.setattr(QtWidgets.QInputDialog, "getItem", choose)
+    tabs = app.tab_count
+    quicklook_iris(app.session, app.data_collection)
+    assert len(choice["items"]) == 2
+    assert app.tab_count == tabs + 1
+    assert observation_key(app.viewers[-1][0].state.reference_data) == sorted(set(keys), key=keys.index)[1]
+
+
+def test_startup_shows_the_first_raster_file(qtbot, monkeypatch, irispy_test_files):
+    from glue.core.data_factories import load_data
+
+    from glue_solar.sources.iris import iris_quicklook
+
+    files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
+    app = bare_app_for(qtbot, monkeypatch)
+    app.data_collection.extend([data for path in files for data in load_data(path)])
+    labels = [data.label for data in app.data_collection]
+    assert len(set(labels)) == len(labels) == 13 * 9  # each file's windows are labelled by its raster number
+    iris_quicklook(app.session, app.data_collection)
+    shown = app.viewers[-1][0].state.reference_data
+    assert shown.ndim == 3
+    assert shown.label == "Mg_II_k_2796-3860258481-2014-03-29T14:09:38-r00000"
+    assert "stacks of scans need" in app.statusBar().currentMessage()
+
+
+def as_list(value):
+    return value if isinstance(value, list) else [value]
+
+
+def bare_app_for(qtbot, monkeypatch):
+    """An application like ``bare_app``, for tests that need several."""
+
+    def modal(*args, **kwargs):
+        raise AssertionError("a modal dialog opened")
+
+    for cls in (QtWidgets.QMessageBox, QtWidgets.QDialog):
+        monkeypatch.setattr(cls, "exec_", modal, raising=False)
+        monkeypatch.setattr(cls, "exec", modal, raising=False)
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    return app

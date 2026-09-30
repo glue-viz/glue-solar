@@ -1,4 +1,5 @@
 import os
+import re
 import tarfile
 import threading
 from collections.abc import Mapping
@@ -29,6 +30,7 @@ __all__ = [
     "iris_data",
     "keep_hpc_linked",
     "last_directory",
+    "load_entry",
     "link_hpc",
     "raster_data",
 ]
@@ -211,11 +213,21 @@ def image_data(path):
 
 
 def iris_data(path):
-    """Load one IRIS Level 2 file through irispy and convert its return shape."""
+    """
+    Load one IRIS Level 2 file through irispy and convert its return shape.
+
+    A raster file's windows are labelled by its raster number (``…-r00003``), so that the files of a
+    multi-scan observation opened one by one keep distinct labels.
+    """
     loaded = read_files(path, memmap=False, uncertainty=False)
-    if isinstance(loaded, Mapping):
-        return _raster_collection_data(loaded)
-    return _image_cube_data(loaded, path)
+    if not isinstance(loaded, Mapping):
+        return _image_cube_data(loaded, path)
+    datasets = _raster_collection_data(loaded)
+    number = re.search(r"_r(\d{5})", Path(path).name)
+    if number:
+        for data in datasets:
+            data.label = data.label.replace("-scan-0", f"-r{number.group(1)}")
+    return datasets
 
 
 def raster_data(files, windows=None, stack=False):
@@ -312,6 +324,20 @@ def keep_hpc_linked(data_collection):
         data_collection._solar_relinker = _Relinker(data_collection)  # the hub holds its listeners weakly
 
 
+def load_entry(observation, kind, name, stack=False):
+    """
+    Load one entry of the observation browser: a slit-jaw channel, an AIA cutout, or a raster window.
+
+    Returns
+    -------
+    list of `~glue.core.data.Data`
+        One per scan of a raster window (one stack with ``stack``), else one.
+    """
+    if kind == "raster":
+        return raster_data(observation.rasters, [name], stack=stack)
+    return [image_data(observation.sji[name] if kind == "sji" else observation.sdo[name])]
+
+
 def _fmt(value):
     return "" if value is None else f"{round(value, 1) + 0.0:.1f}"  # + 0.0 turns -0.0 into 0.0
 
@@ -322,7 +348,8 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     After ``exec()`` returns ``Accepted``, ``datasets`` holds the loaded
     `~glue.core.data.Data` objects and ``first_image`` the first SJI/AIA cube
-    (the natural thing to open in an image viewer).
+    (the natural thing to open in an image viewer). ``loaded`` records what each
+    ticked entry gave, as ``(observation, kind, name, datasets)``.
     """
 
     def __init__(self, directory=None, parent=None):
@@ -335,6 +362,7 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.observations = []
         self.datasets = []
         self.first_image = None
+        self.loaded = []
         self._payloads = []
         self.stack.setToolTip(
             "Stack two or more raster scans by detector position into one 4D cube. "
@@ -433,20 +461,19 @@ class QtIRISImporter(QtWidgets.QDialog):
             self.progress.setValue(100)
             self.progress.setFormat(f"Extracted {len(archives)} archive(s) — now tick what to load")
             return
-        self.datasets, self.first_image = [], None
+        self.datasets, self.first_image, self.loaded = [], None, []
         for n, (i, kind, name) in enumerate(picks):
             self.progress.setValue(int(100 * n / len(picks)))
             get_qapp().processEvents()
             obs = self.observations[i]
             try:
-                if kind == "raster":
-                    self.datasets.extend(raster_data(obs.rasters, [name], stack=self.stack.isChecked()))
-                else:
-                    image = image_data(obs.sji[name] if kind == "sji" else obs.sdo[name])
-                    self.datasets.append(image)
-                    self.first_image = self.first_image or image
+                datasets = load_entry(obs, kind, name, stack=self.stack.isChecked())
             except Exception as error:  # noqa: BLE001 - third-party reader errors must stay inside the dialog
                 self.progress.setFormat(f"Loading {name} failed: {error}")
                 return
+            self.loaded.append((obs, kind, name, datasets))
+            self.datasets.extend(datasets)
+            if kind != "raster":
+                self.first_image = self.first_image or datasets[0]
         self.progress.setValue(100)
         self.accept()

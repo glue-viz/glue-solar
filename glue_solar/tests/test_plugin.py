@@ -2,7 +2,7 @@ import shutil
 
 import numpy as np
 import pytest
-from glue.config import data_factory, menubar_plugin
+from glue.config import data_factory, menubar_plugin, startup_action
 from glue.core import Data
 from glue.core.data_factories import load_data
 from glue_qt.app.application import GlueApplication
@@ -14,7 +14,7 @@ from astropy.io import fits
 
 import glue_solar
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
-from glue_solar.sources.iris import is_iris_fits, link_iris
+from glue_solar.sources.iris import iris_quicklook, is_iris_fits, link_iris, quicklook_iris
 from glue_solar.sources.loaders.iris import image_data
 
 
@@ -23,6 +23,8 @@ def test_setup_registers_hooks():
     glue_solar.setup()  # glue calls it once; tests and reloads must not duplicate the tool
     assert "IRIS: browse observations…" in [label for label, _ in menubar_plugin]
     assert ("IRIS: link helioprojective coordinates", link_iris) in list(menubar_plugin)
+    assert ("IRIS: quicklook…", quicklook_iris) in list(menubar_plugin)
+    assert startup_action.members["iris_quicklook"] is iris_quicklook
     assert ImageViewer.tools.count("solar:frame_time") == 1
     assert ImageViewer.tools.count("solar:coordinate") == 1
     assert ImageViewer.tools.count("solar:cursor_readout") == (0 if hasattr(ImageViewer, "cursor_status") else 1)
@@ -57,7 +59,7 @@ def test_open_real_raster_through_load_data(irispy_test_files):
     path = find_irispy_test_file(irispy_test_files, "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits")
     datasets = load_data(str(path))
     assert len(datasets) == 9
-    assert datasets[0].label == "C_II_1336-3860258481-2014-03-29T14:09:38-scan-0"
+    assert datasets[0].label == "C_II_1336-3860258481-2014-03-29T14:09:38-r00000"  # its raster number
     assert datasets[0].shape == (8, 109, 17)
     assert datasets[0].find_component_id("Time") is not None
 
