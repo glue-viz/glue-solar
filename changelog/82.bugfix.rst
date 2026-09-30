@@ -1,0 +1,1 @@
+The time-sync and slit-jaw panel tests now cover a stack master, an SJI master over a scanning raster and the panels' limits, and the 'outside SJI FOV' label clears when the point is replaced or deleted.
