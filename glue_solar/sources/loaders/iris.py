@@ -37,7 +37,8 @@ _AXIS_NAMES = {
 # wcslib is not thread-safe (astropy/astropy#19174), and Glue computes profiles and histograms in
 # worker threads while WCSAxes draws on the GUI thread, all through the same raster WCS. Re-entrant
 # because a _GlueWCS can wrap another; one lock for all, because derived datasets share a WCS.
-# Code that uses the astropy WCS directly must hold it too.
+# Code that uses the astropy WCS directly must hold it too. Always on, since the race cannot be probed
+# safely; it can go once an astropy release fixes #19174 and the thread test passes without it.
 WCS_LOCK = threading.RLock()
 
 
@@ -45,7 +46,8 @@ class _GlueWCS(BaseWCSWrapper):
     """Present named, signed helioprojective coordinates in arcseconds to Glue."""
 
     # glue's WCS link falls back to astropy FITS-WCS attributes (celestial, wcs.lng, ...) when a
-    # WCS says it has celestial axes; this wrapper has none of them, so send glue down its APE-14 path
+    # WCS says it has celestial axes; this wrapper has none of them, so send glue down its APE-14 path.
+    # Always on, and harmless once glue checks for an astropy WCS instead (glue-viz/glue#2595, draft).
     has_celestial = False
 
     @property
@@ -110,7 +112,7 @@ def _cube_data(cube, label, *, color=None, cmap=None, missing=MISSING_VALUES, ex
     data.meta = cube.meta
     data.style = VisualAttributes(color=color, preferred_cmap=cmap)
     values = cube.data
-    # From the values, not cube.mask: irispy <= 0.9.0 flips STEPS_AV < -0.01 rasters but not their mask.
+    # From the values, not cube.mask: irispy masks only -200, and nothing in memory-mapped cubes.
     fill = np.isin(values, missing) if missing else None
     if fill is not None and fill.any():
         # In place for float data: this writes into irispy's cube, which the loader discards.

@@ -38,8 +38,13 @@ def test_link_editor_wcs_link_works_or_refuses_cleanly(sns, irispy_test_files):
     sji_2796 = image_data(_real(irispy_test_files, SJI.replace("1400", "2796")))
     DataCollection([sji, raster, sji_2796]).add_link(WCSLink(sji, sji_2796))
     assert [sji[cid][3, 20, 10] for cid in sji_2796.pixel_component_ids[1:]] == pytest.approx([20, 10], abs=0.01)
-    with pytest.raises(IncompatibleWCS):  # SJI and raster share only lon/lat, which link_hpc links
-        WCSLink(sji, raster)
+    try:
+        link = WCSLink(sji, raster)
+    except IncompatibleWCS:  # glue-core 1.27.0: SJI and raster share only lon/lat, which link_hpc links
+        return
+    # glue-viz/glue#2595 links the SJI image axes to the raster's step and slit
+    assert {cid.axis for cid in link.cids1} == {1, 2}
+    assert {cid.axis for cid in link.cids2} == {0, 1}
 
 
 def test_sji_high_level_api_round_trips(sns):
