@@ -117,7 +117,8 @@ The map shows the wavelength nearest the window's reference wavelength, and the 
 tool active: drag it on the map, and the spectrum panel shows its spectrum. The slit-jaw viewers do
 not mark the point. The raster panels have no region selection tools, because a region drawn on a
 raster map is recomputed on every slit-jaw viewer for each screen pixel at every frame (see
-Linking). Each quicklook shows only its own point. When a slit-jaw channel is loaded both plain and deconvolved,
+Linking). Each quicklook has its own point, shown only in its own panels and edited while its
+tab is shown. When a slit-jaw channel is loaded both plain and deconvolved,
 the plain one is shown and the status bar names the other. The spectrum panel does not ask "Add
 large data set?", and the status bar gives the size of the data it shows.
 
