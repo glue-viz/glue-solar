@@ -273,8 +273,10 @@ def test_slice_sliders_follow_a_drag_at_most_every_tenth_of_a_second(qtbot):
 
 
 
-# glue-qt 0.4.2's PV slice window sets its colormap through glue's deprecated 'color' key
+# glue-qt 0.4.2's PV slice window sets its colormap through glue's deprecated 'color' key, and its pvextractor
+# imports spectral-cube, which uses astropy's deprecated COPY_IF_NEEDED where spectral-cube is installed
 @pytest.mark.filterwarnings("ignore:Setting colormap using")
+@pytest.mark.filterwarnings("ignore:COPY_IF_NEEDED is no longer needed")
 def test_a_pv_slice_click_leaves_numbers_in_the_slices(qtbot, irispy_test_files):
     from glue_qt.plugins.tools.pv_slicer import pv_slicer
 
