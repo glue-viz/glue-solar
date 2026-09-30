@@ -1,0 +1,1 @@
+Links that map world coordinates into a slit-jaw image's pixels now use each frame's own pointing instead of the first frame's, on glue-core releases without glue-viz/glue#2598.
