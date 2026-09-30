@@ -219,6 +219,8 @@ IRISPY_DATA_HASHES = {
     "iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz": "ac50a0255b73af1610702653e17d3b3b9c8fc37bc487a313e1c9fb3a2983428a",
     # OBSID 3640107442: five minutes of the nine aligned AIA channels
     "iris_l2_20250519_165924_3640107442_cutout_SDO.tar.gz": "db95aec5c0b3400e39d077b0e840e9280f72e2fac798e1fd15975257f3677dc4",
+    # OBSID 4000255147: the first 50 frames of SJI 1400, full size
+    "iris_l2_20130902_163935_4000255147_SJI_1400_t000_f050.fits.gz": "b9a0b8cf2d98f5e1121000a14168079b113fdb0b169668ec1213411915afdb8f",
 }
 
 

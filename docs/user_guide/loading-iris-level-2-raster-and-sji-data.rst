@@ -142,9 +142,8 @@ it: the spectrogram moves to its step and the wavelength panel to its slit. Clic
 spectrogram or the wavelength panel moves the point there and the map to the clicked wavelength;
 no other wavelength slider moves. Moving a step, exposure or scan slider moves the point, so on a
 stack the point stays on the map's scan. A Profile's collapse of an axis is left in place, and
-after "Clear point" nothing follows until the next click. A raster point is not marked on the
-slit-jaw images; a point clicked on a slit-jaw image is marked only there, and the spectrum panel is
-empty until the next raster click. The raster panels have no region selection tools, because a region drawn on a
+after "Clear point" nothing follows until the next click. A point clicked on a slit-jaw image is
+marked only there, and the spectrum panel is empty until the next raster click. The raster panels have no region selection tools, because a region drawn on a
 raster map is recomputed on every slit-jaw viewer for each screen pixel at every frame (see
 Linking). Each quicklook has its own point, shown only in its own panels, edited while its tab is
 shown and moved only by that tab's sliders. Another Image viewer of the same data follows the point. When a slit-jaw channel is loaded both plain and deconvolved,
@@ -161,8 +160,12 @@ says which dataset is the time master, how far each matched dataset's time is fr
 (Δt) and "NO MATCH" with that offset for the others. Wavelength and slit sliders are never moved.
 
 Each slit-jaw viewer is titled with its channel ("SJI 1400", "SJI 2796 (deconvolved)") and opens on
-the raster's field of view with a margin. Its "Frame time" readout says "outside SJI FOV" when the
-raster point, placed with the displayed frame's own pointing, is off the image.
+the raster's field of view with a margin. Every slit-jaw viewer, in a quicklook or not, draws the
+displayed frame's slit as a dashed line (from the frame's slit position in the file) and the raster
+point as a red cross, placed with that frame's own pointing. The cross is hidden, and the "Frame
+time" readout says "outside SJI FOV", when the point is off the image; neither is drawn while the
+viewer shows the frame axis. A slit-jaw frame taken a raster step earlier or later than the point
+shows the slit a step away from the cross.
 
 Saving sessions
 ---------------

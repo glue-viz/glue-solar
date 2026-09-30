@@ -6,6 +6,7 @@ import numpy as np
 from glue.config import viewer_tool
 from glue.core.component import DateTimeComponent
 from glue.viewers.common.tool import SimpleToolMenu, Tool
+from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from qtpy import QtCore, QtWidgets
 
@@ -263,7 +264,9 @@ class CoordinateTool(SimpleToolMenu):
     The tool registers its viewer with the data collection's
     `~glue_solar.quicklook.Coordinator`, which keeps the viewers on the point selected with the
     Pixel tool, and unregisters it when the viewer closes. Its menu makes the displayed dataset the
-    time master of its observation, or clears the point.
+    time master of its observation, or clears the point. On a slit-jaw image it draws the displayed
+    frame's slit, and the point of a raster of the same observation placed with that frame's
+    coordinates while it is on the image.
     """
 
     icon = "glue_link"
@@ -280,14 +283,56 @@ class CoordinateTool(SimpleToolMenu):
         self.mode = self.toolbar.active_tool
         self.toolbar.tool_activated.connect(self._remember_mode)
         self.toolbar.tool_deactivated.connect(self._remember_mode)
+        self._slit = viewer.axes.add_line(Line2D([], [], color="white", lw=0.8, ls="--", zorder=99, visible=False))
+        # the style of glue's crosshair, but not glue's single crosshair artist, which the PV slicer moves and hides
+        self._marker = viewer.axes.add_line(
+            Line2D([], [], marker="+", ms=12, mfc="none", mec="#d32d26", mew=1, ls="", zorder=100, visible=False)
+        )
+        self.coordinator.add_listener(self._synced)
+        for prop in _WATCHED:
+            viewer.state.add_callback(prop, self._draw)
+        self._draw()
 
     def close(self):
-        self.coordinator.unregister(self.viewer)
+        self._forget()
+        for prop in _WATCHED:
+            self.viewer.state.remove_callback(prop, self._draw)
         super().close()
 
     def _forget(self, *_):
-        # a viewer torn down without closing its tools
+        # also for a viewer torn down without closing its tools
         self.coordinator.unregister(self.viewer)
+        self.coordinator.remove_listener(self._synced)
 
     def _remember_mode(self):
         self.mode = self.toolbar.active_tool
+
+    def _synced(self, key, time, exposure):
+        self._draw()
+
+    def _draw(self, *_):
+        """Draw the slit and the raster point on a slit-jaw image, or hide them."""
+        viewer = self.viewer
+        state = viewer.state
+        slit, point = self.coordinator.slit_on(viewer), self.coordinator.point_on(viewer)
+        line = None
+        if state.reference_data is None or state.reference_data.ndim != 3:
+            slit = point = None
+        if slit is not None or point is not None:
+            ny, nx = state.reference_data.shape[1:]
+            if point is not None and not (-0.5 <= point[0] <= nx - 0.5 and -0.5 <= point[1] <= ny - 0.5):
+                point = None
+            if slit is not None:
+                line = ([slit, slit], [-0.5, ny - 0.5])
+            if state.x_att.axis != 2:  # the image is shown transposed
+                line = line[::-1] if line is not None else None
+                point = point[::-1] if point is not None else None
+        changed = False
+        for artist, xy in ((self._slit, line), (self._marker, None if point is None else ([point[0]], [point[1]]))):
+            before = (artist.get_visible(), artist.get_xydata().tolist())
+            if xy is not None:
+                artist.set_data(*xy)
+            artist.set_visible(xy is not None)
+            changed |= (artist.get_visible(), artist.get_xydata().tolist()) != before
+        if changed:  # each sync calls this: redraw only for a move
+            viewer.figure.canvas.draw_idle()
