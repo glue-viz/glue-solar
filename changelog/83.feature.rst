@@ -1,0 +1,1 @@
+Slit-jaw viewers draw the displayed frame's slit and the raster point, placed with that frame's own pointing.
