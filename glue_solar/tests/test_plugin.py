@@ -14,7 +14,7 @@ from astropy.io import fits
 
 import glue_solar
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
-from glue_solar.sources.iris import is_iris_fits
+from glue_solar.sources.iris import is_iris_fits, link_iris
 from glue_solar.sources.loaders.iris import image_data
 
 
@@ -22,6 +22,7 @@ def test_setup_registers_hooks():
     glue_solar.setup()
     glue_solar.setup()  # glue calls it once; tests and reloads must not duplicate the tool
     assert "IRIS: browse observations…" in [label for label, _ in menubar_plugin]
+    assert ("IRIS: link helioprojective coordinates", link_iris) in list(menubar_plugin)
     assert ImageViewer.tools.count("solar:frame_time") == 1
     assert ImageViewer.tools.count("solar:coordinate") == 1
     assert ImageViewer.tools.count("solar:cursor_readout") == (0 if hasattr(ImageViewer, "cursor_status") else 1)

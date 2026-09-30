@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 from glue.core.component import Component
 from glue.core.data import Data
+from glue.core.link_helpers import LinkSame
 from glue.core.visual import VisualAttributes
 from glue_qt.utils import get_qapp, load_ui
 from irispy.io import read_files
@@ -19,7 +20,7 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 from .scan import extract_archive, scan_directory
 from .stack_spectrograms import MISSING_VALUES, stack_spectrogram_sequence
 
-__all__ = ["WCS_LOCK", "QtIRISImporter", "image_data", "iris_data", "last_directory", "raster_data"]
+__all__ = ["WCS_LOCK", "QtIRISImporter", "image_data", "iris_data", "last_directory", "link_hpc", "raster_data"]
 
 UI_MAIN = os.path.join(os.path.dirname(__file__), "iris_loader.ui")
 _SETTINGS = ("glue-solar", "glue-solar")
@@ -229,6 +230,37 @@ def raster_data(files, windows=None, stack=False):
     """
     collection = read_files(files, spectral_windows=windows, memmap=False, uncertainty=False)
     return _raster_collection_data(collection, windows, stack)
+
+
+def link_hpc(data_collection):
+    """
+    Links pairing the helioprojective longitude and latitude of every two IRIS datasets.
+
+    Datasets are matched by world axis physical type, not by component name. Only datasets whose coordinates are
+    a glue-solar IRIS WCS take part, since those are all in arcsec; a sunpy map WCS is in degrees and
+    `~glue.core.link_helpers.LinkSame` does not convert. No link involves time, so a slit-jaw image frame is
+    placed with its own pointing. Every pair is linked, as glue's WCS autolinker does, so removing a dataset
+    leaves the others linked. Pairs that are already linked, either way round, are skipped, so calling this
+    again after loading more data is safe. The caller adds the links::
+
+        data_collection.add_link(link_hpc(data_collection))
+
+    Returns
+    -------
+    list of `~glue.core.link_helpers.LinkSame`
+    """
+    linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in data_collection.links}
+    seen, links = {}, []
+    for data in data_collection:
+        if not isinstance(data.coords, _GlueWCS):
+            continue
+        # glue's world components are in numpy order, the reverse of the WCS world axes
+        for physical_type, cid in zip(data.coords.world_axis_physical_types[::-1], data.world_component_ids):
+            if physical_type and physical_type.startswith("custom:pos.helioprojective."):
+                others = seen.setdefault(physical_type, [])
+                links.extend(LinkSame(other, cid) for other in others if frozenset((other, cid)) not in linked)
+                others.append(cid)
+    return links
 
 
 def _fmt(value):

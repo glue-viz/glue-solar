@@ -72,10 +72,26 @@ cube, and a raster file loads one dataset per spectral window.
 Linking
 -------
 
-Glue does not currently autolink irispy's time-varying SJI gWCS and raster ``-TAB`` WCS. To
-propagate spatial selections, open the Data Manager's link editor and manually pair
-``Helioprojective Longitude`` and ``Helioprojective Latitude`` between datasets.
-SJIs, aligned AIA cutouts and rasters all name their spatial axes this way.
+The observation browser links the ``Helioprojective Longitude`` and ``Helioprojective Latitude``
+of every slit-jaw image, raster and aligned AIA cutout it loads, so selections carry over between
+them. For data opened with "File -> Open Data Set", choose "IRIS: link helioprojective
+coordinates" from the "Plugins" menu; it only adds links that are missing, so running it again
+after loading more data is safe.
+
+- A region drawn on a raster map selects, in every slit-jaw frame, the pixels that lie inside it at
+  that frame's own pointing. For a sit-and-stare raster the selection marks where the slit was on
+  the Sun during the selected exposures: it lies on the slit in the slit-jaw frames taken then, and
+  moves away from it in other frames as the pointing changes.
+- A selection on longitude or latitude, for example from a scatter plot, carries over in both
+  directions.
+- A region drawn on a slit-jaw image does not carry over to a raster: which frame it belongs to
+  would need the time, and time is never linked.
+
+A region drawn on a raster map can be slow to show on a slit-jaw image: glue works out the selection
+for every screen pixel of the slit-jaw viewer each time it draws a frame, and does not respond
+meanwhile. At the default viewer size this takes under a second with a 64-step raster, but 10 to 20
+seconds with a 1600-step sit-and-stare raster, for every frame you step to, and longer in a larger
+viewer.
 
 Saving sessions
 ---------------

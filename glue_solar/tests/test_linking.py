@@ -1,16 +1,24 @@
+import shutil
+
 import numpy as np
 import pytest
 from glue.core import Data, DataCollection, component_link, coordinate_helpers
+from glue.core.exceptions import IncompatibleAttribute
 from glue.core.link_helpers import LinkSame
+from glue.core.roi import RectangularROI
+from glue.core.subset import RoiSubsetState
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
 from glue_qt.app import GlueApplication
 from glue_qt.viewers.image import ImageViewer
+from qtpy import QtWidgets
+from qtpy.QtCore import Qt
 
 import astropy.units as u
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 from glue_solar import glue_patches
-from glue_solar.sources.loaders.iris import image_data, raster_data
+from glue_solar.sources.iris import browse_iris, link_iris
+from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, link_hpc, raster_data
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
 RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
@@ -105,3 +113,99 @@ def test_inverse_workaround_leaves_wcsaxes_readouts_alone(qtbot, sns, monkeypatc
         viewer.figure.canvas.draw()  # WCSAxes only formats positions once drawn
         readouts.append([viewer.axes.format_coord(x, 20) for x in (0, 10, 30)])
     assert readouts[0] == readouts[1]
+
+
+@pytest.fixture
+def linked_sns(sns):
+    dc = DataCollection(list(sns))
+    dc.add_link(link_hpc(dc))
+    return sns
+
+
+def test_link_hpc_pairs_longitude_and_latitude_only(sns):
+    sji, raster = sns
+    dc = DataCollection([sji, raster])
+    links = link_hpc(dc)
+    assert all(isinstance(link, LinkSame) for link in links)
+    # nothing links the SJI's time, so each SJI frame is placed with its own pointing
+    assert sorted((link.cids1[0].label, link.cids2[0].label) for link in links) == [(HPC[1], HPC[1]), (HPC[0], HPC[0])]
+    dc.add_link(LinkSame(_cid(raster, HPC[0]), _cid(sji, HPC[0])))  # as made by hand in the link editor
+    link_iris(None, dc)  # the menu action adds only the missing pair
+    assert len(dc.external_links) == 2
+    assert link_hpc(dc) == []
+    for label in HPC:
+        np.testing.assert_allclose(raster[_cid(sji, label)], raster[_cid(raster, label)])
+    for source, target in ((sji, raster), (raster, sji)):  # world subsets carry over both ways
+        lon = _cid(source, HPC[0])
+        assert 0 < target.get_mask(lon > float(np.nanmedian(source[lon]))).sum() < target.size
+    # an SJI pixel subset needs the time of an SJI frame, which the raster does not have
+    sji_roi = RoiSubsetState(
+        xatt=sji.pixel_component_ids[2], yatt=sji.pixel_component_ids[1], roi=RectangularROI(10, 25, 10, 30)
+    )
+    with pytest.raises(IncompatibleAttribute):
+        raster.get_mask(sji_roi)
+
+
+def test_link_hpc_links_every_pair_of_iris_datasets(sns, irispy_test_files):
+    import sunpy.data.test
+    import sunpy.map
+
+    from glue_solar.sources.maps import _parse_sunpy_map
+
+    sji, raster = sns
+    [other] = raster_data([_real(irispy_test_files, RASTER)], ["C II 1336"])
+    aia = _parse_sunpy_map(sunpy.map.Map(sunpy.data.test.get_test_filepath("aia_171_level1.fits")), "aia")
+    assert set(aia.coords.world_axis_units) == {"deg"}
+    dc = DataCollection([sji, raster, aia, other])
+    dc.add_link(link_hpc(dc))
+    assert len(dc.external_links) == 6  # three IRIS pairs; never degrees to arcsec
+    dc.remove(sji)  # the others stay linked
+    np.testing.assert_allclose(other[_cid(raster, HPC[1])], other[_cid(other, HPC[1])])
+
+
+@pytest.mark.parametrize("frame", [0, -1])
+def test_raster_map_roi_selects_the_sji_pixels_inside_it(linked_sns, frame):
+    # Each SJI frame's own coordinates decide, so the selection follows that frame's pointing
+    sji, raster = linked_sns
+    roi = RectangularROI(80, 100, 10.3, 19.8)  # raster steps and slit rows, edges off the SJI pixel grid
+    mask = sji.get_mask(
+        RoiSubsetState(xatt=raster.pixel_component_ids[0], yatt=raster.pixel_component_ids[1], roi=roi)
+    )[frame]
+    y, x = np.indices(mask.shape)
+    lon, lat, _ = sji.coords.pixel_to_world_values(x, y, frame % sji.shape[0])
+    wavelength = np.full(lon.shape, raster.coords.pixel_to_world_values(0, 0, 0)[0])
+    _, slit, step = raster.coords.world_to_pixel_values(wavelength, lat, lon)
+    (x, y), half_width, half_height = roi.center(), roi.width() / 2, roi.height() / 2
+
+    def inside(margin):
+        return (abs(step - x) < half_width + margin) & (abs(slit - y) < half_height + margin)
+
+    expected, edge = inside(0), inside(0.05) != inside(-0.05)
+    assert expected.sum() >= 10
+    assert edge.sum() <= expected.sum() // 10
+    np.testing.assert_array_equal(mask[~edge], expected[~edge])
+
+
+def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, monkeypatch):
+    for name in (SJI, SJI.replace("1400", "2796"), RASTER):
+        shutil.copy2(_real(irispy_test_files, name), tmp_path / name)
+    monkeypatch.setattr(QtWidgets.QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(tmp_path))
+    # glue-qt asks in a modal dialog whenever glue suggests links; this test is about link_hpc
+    monkeypatch.setattr("glue_qt.app.application.run_autolinker", lambda data_collection: None)
+
+    def tick_everything_and_load(dialog):
+        dialog.obs_tree.topLevelItem(0).setCheckState(0, Qt.Checked)
+        dialog.finalize()
+        return QtWidgets.QDialog.Accepted
+
+    monkeypatch.setattr(QtIRISImporter, "exec", tick_everything_and_load)
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    dc = app.data_collection
+    browse_iris(app.session, dc)
+    assert len(dc) > 3  # two SJIs and every raster window
+    assert len(dc.external_links) == len(dc) * (len(dc) - 1)  # longitude and latitude of every pair
+    assert {cid.label for link in dc.external_links for cid in (*link.cids1, *link.cids2)} == set(HPC)
+    dc.append(image_data(_real(irispy_test_files, SJI.replace("1400", "1330"))))  # loaded later
+    link_iris(app.session, dc)
+    assert len(dc.external_links) == len(dc) * (len(dc) - 1)
