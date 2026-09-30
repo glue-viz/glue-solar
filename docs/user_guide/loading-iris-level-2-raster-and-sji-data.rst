@@ -76,7 +76,7 @@ The observation browser links the ``Helioprojective Longitude`` and ``Helioproje
 of every slit-jaw image, raster and aligned AIA cutout it loads, so selections carry over between
 them. For data opened with "File -> Open Data Set", choose "IRIS: link helioprojective
 coordinates" from the "Plugins" menu; it only adds links that are missing, so running it again
-after loading more data is safe.
+after loading more data is safe. Removing a dataset leaves the others linked.
 
 - A region drawn on a raster map selects, in every slit-jaw frame, the pixels that lie inside it at
   that frame's own pointing. For a sit-and-stare raster the selection marks where the slit was on

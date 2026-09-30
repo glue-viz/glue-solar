@@ -18,7 +18,7 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 from glue_solar import glue_patches
 from glue_solar.sources.iris import browse_iris, link_iris
-from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, link_hpc, raster_data
+from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, keep_hpc_linked, link_hpc, raster_data
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
 RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
@@ -146,7 +146,7 @@ def test_link_hpc_pairs_longitude_and_latitude_only(sns):
         raster.get_mask(sji_roi)
 
 
-def test_link_hpc_links_every_pair_of_iris_datasets(sns, irispy_test_files):
+def test_link_hpc_links_every_iris_dataset_to_the_first(qtbot, sns, irispy_test_files):
     import sunpy.data.test
     import sunpy.map
 
@@ -157,10 +157,16 @@ def test_link_hpc_links_every_pair_of_iris_datasets(sns, irispy_test_files):
     aia = _parse_sunpy_map(sunpy.map.Map(sunpy.data.test.get_test_filepath("aia_171_level1.fits")), "aia")
     assert set(aia.coords.world_axis_units) == {"deg"}
     dc = DataCollection([sji, raster, aia, other])
-    dc.add_link(link_hpc(dc))
-    assert len(dc.external_links) == 6  # three IRIS pairs; never degrees to arcsec
-    dc.remove(sji)  # the others stay linked
+    links = link_hpc(dc)
+    assert len(links) == 4  # never degrees to arcsec
+    assert {link.cids1[0] for link in links} == {_cid(sji, label) for label in HPC}
+    keep_hpc_linked(dc)
+    dc.remove(sji)  # the others were linked through it
+    qtbot.waitUntil(lambda: len(dc.external_links) == 2)
     np.testing.assert_allclose(other[_cid(raster, HPC[1])], other[_cid(other, HPC[1])])
+    dc.clear()  # one relink after all the removals, with nothing left to link
+    qtbot.wait(10)
+    assert not dc.external_links
 
 
 @pytest.mark.parametrize("frame", [0, -1])
@@ -204,8 +210,8 @@ def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, mon
     dc = app.data_collection
     browse_iris(app.session, dc)
     assert len(dc) > 3  # two SJIs and every raster window
-    assert len(dc.external_links) == len(dc) * (len(dc) - 1)  # longitude and latitude of every pair
+    assert len(dc.external_links) == 2 * (len(dc) - 1)  # longitude and latitude of each to the first
     assert {cid.label for link in dc.external_links for cid in (*link.cids1, *link.cids2)} == set(HPC)
     dc.append(image_data(_real(irispy_test_files, SJI.replace("1400", "1330"))))  # loaded later
     link_iris(app.session, dc)
-    assert len(dc.external_links) == len(dc) * (len(dc) - 1)
+    assert len(dc.external_links) == 2 * (len(dc) - 1)

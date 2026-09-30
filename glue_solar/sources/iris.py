@@ -8,7 +8,7 @@ from qtpy import QtWidgets
 
 from astropy.io import fits
 
-from glue_solar.sources.loaders.iris import QtIRISImporter, iris_data, last_directory, link_hpc
+from glue_solar.sources.loaders.iris import QtIRISImporter, iris_data, keep_hpc_linked, last_directory
 
 __all__ = ["browse_iris", "iris_image_layer", "link_iris", "read_iris_file"]
 
@@ -60,7 +60,7 @@ def browse_iris(session, data_collection):
     if dialog.exec() != QtWidgets.QDialog.Accepted or not dialog.datasets:
         return
     app.add_datasets(dialog.datasets)
-    data_collection.add_link(link_hpc(data_collection))
+    keep_hpc_linked(data_collection)
     if dialog.first_image is not None:
         from glue_qt.viewers.image import ImageViewer
 
@@ -73,6 +73,7 @@ def link_iris(session, data_collection):
     Link the helioprojective longitude and latitude of every loaded IRIS dataset.
 
     Selections then carry over between slit-jaw images, rasters and aligned AIA cutouts through
-    their world coordinates. The observation browser does this when it loads data.
+    their world coordinates. The observation browser does this when it loads data, and the links
+    are kept when a dataset is removed.
     """
-    data_collection.add_link(link_hpc(data_collection))
+    keep_hpc_linked(data_collection)
