@@ -1,5 +1,5 @@
 """
-Gated fixes for glue-core bugs that IRIS data hits.
+Gated fixes for glue-core and glue-qt bugs that IRIS data hits.
 
 Each fix installs only when a probe finds the bug, and names the upstream change that retires it.
 """
@@ -9,8 +9,10 @@ from types import SimpleNamespace
 import numpy as np
 from glue.core import component_link, coordinate_helpers
 from glue.core.coordinate_helpers import unbroadcast
+from glue.utils import defer_draw
+from glue_qt.plugins.tools.pv_slicer import pv_slicer
 
-__all__ = ["needs_inverse_workaround", "world2pixel_single_axis"]
+__all__ = ["needs_inverse_workaround", "needs_pv_slice_workaround", "sync_pv_slice", "world2pixel_single_axis"]
 
 _original_world2pixel_single_axis = coordinate_helpers.world2pixel_single_axis
 
@@ -61,3 +63,35 @@ if needs_inverse_workaround():
     coordinate_helpers.world2pixel_single_axis = world2pixel_single_axis
     # glue.core.component_link imports it by name
     component_link.world2pixel_single_axis = world2pixel_single_axis
+
+
+_original_sync_slice = pv_slicer.PVSliceWidget._sync_slice
+
+
+@defer_draw
+def sync_pv_slice(self, event):
+    """
+    glue-qt's ``PVSliceWidget._sync_slice``, keeping the Image viewer's own numbers on its displayed axes.
+
+    A click in glue-qt 0.4.2's PV slice window moves the Image viewer to the clicked slice, but writes
+    WCSAxes' ``'x'`` and ``'y'`` markers into ``state.slices`` on the displayed axes. They then break the
+    next axis change (``int('y')`` in the slice sliders) and every reader of ``slices``. No upstream fix
+    exists yet.
+    """
+    s = list(self._slc)
+    _, _, z = self._pos_in_parent(event)
+    s[pv_slicer._slice_index(self._parent.state.reference_data, s)] = int(z)
+    current = self._parent.state.slices
+    self._parent.state.slices = tuple(current[i] if isinstance(value, str) else value for i, value in enumerate(s))
+
+
+def needs_pv_slice_workaround(func=_original_sync_slice):
+    """Whether ``func`` writes ``'x'`` or ``'y'`` into the Image viewer's slices."""
+    state = SimpleNamespace(reference_data=SimpleNamespace(ndim=3), slices=(0, 0, 0))
+    widget = SimpleNamespace(_slc=[0, "y", "x"], _parent=SimpleNamespace(state=state), _pos_in_parent=lambda e: (0, 0, 1))
+    func(widget, None)
+    return any(isinstance(value, str) for value in state.slices)
+
+
+if needs_pv_slice_workaround():
+    pv_slicer.PVSliceWidget._sync_slice = sync_pv_slice
