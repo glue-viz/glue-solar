@@ -106,8 +106,8 @@ choice and trial fits, fit maps on top); the red-blue asymmetry map stays as
 `wp2-m3-red-blue`. Lazy loading is M1's first item (`wp10-m1-lazy-loading`, was M2): IRIS
 Level 2 data are int16 with BSCALE 0.25 and BZERO 7992 (quarter-DN steps,
 fill -32768 raw), files reach 20 GB, and the eager float32 copy costs about 5
-bytes per element. A glue-core missing value that glue treats like NaN is an
-M4 proposal for later (`wp0-core-missing-value`). The plan has 132 items (148 before).
+bytes per element. Missing data stay NaN: the user decided against a
+sentinel value, here or upstream in glue-core. The plan has 132 items (148 before).
 
 **Releases.** glue-core 1.27.0 (2026-06-25), glue-qt 0.4.2 (2026-02-11),
 irispy-lmsal 0.9.1 (2026-09-28; 0.9.1post1 has the same code). irispy 0.9.1
@@ -570,7 +570,7 @@ Each release containing a fix retires the matching glue-solar workaround
 - WP12: `wp12-export-annotations`, `wp12-profile-values-export`, `wp12-path-overlays-slopes`, `wp12-path-batch`
 
 **M4**
-- WP0: `wp0-core-image-artist-bugs`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-core-profile-unit-label`, `wp0-track-line-layers`, `wp0-qt68-macos-pass`, `wp0-qt-aggregate-slice`, `wp0-track-qt66`, `wp0-core-datetime-export`, `wp0-qt68-cocoa`, `wp0-optional-proposals`, `wp0-upstream-draw-speed`, `wp0-core-missing-value`
+- WP0: `wp0-core-image-artist-bugs`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-core-profile-unit-label`, `wp0-track-line-layers`, `wp0-qt68-macos-pass`, `wp0-qt-aggregate-slice`, `wp0-track-qt66`, `wp0-core-datetime-export`, `wp0-qt68-cocoa`, `wp0-optional-proposals`, `wp0-upstream-draw-speed`
 - WP1: `wp1-m4-autolink-matrix`
 - WP6: `wp6-glue-fit-tool`
 - WP9: `wp9-m4-release-updates`
@@ -644,7 +644,6 @@ Reports and requests (each closes with a URL or the user's decision not to file)
 - [ ] **M4** `wp0-own-draft-updates`: Amend the user's drafts: (1) #2595's `wcs_autolink` leaves time axes out between datasets, so WP4 owns time (today frame 0 maps to NaN and a Pixel point on SJI 1400 misses SJI 2796); (2) Qt #74's `cursor_status` labels Solar X/Solar Y, longitude first, at sub-arcsec precision independent of zoom, and shows pixel and world positions together. Done when each amended head, as a source root, passes its suite and the owning WP's test (WP1: SJI/SJI Pixel propagation; WP11: raster-map readout); check (c) of `wp1-m4-autolink-matrix` is written here and run on the amended #2595 export. Depends: wp1-m0-link-graph-regression, wp11-cursor-readout.
 - [ ] **M4** `wp0-core-quantity-saver`: Core PR beside #2597 with a `@saver(u.Quantity)`/`@loader(u.Quantity)` pair (D13) from `IRIS_PLAN_PROTOTYPES/wp3_impl.py`, writing WP3's fallback record (saved type, protocol version 1, `{"value", "unit"}`). Done when its core session test round-trips a scalar and an array Quantity in `Data.meta`, a session saved by the solar fallback loads with the core loader, and the row has the PR URL.
 - [ ] **M4** `wp0-core-derived-units`: Core PR saving `DerivedComponent.units`, still loading records without it (register row until released). Done when the PR's session test round-trips a `DerivedComponent` with `units='DN/s'` and its row closes.
-- [ ] **M4** `wp0-core-missing-value`: Proposal for glue-core, filed only on the user's direction: a per-component missing value (for example `Component(..., missing=-200)`) that glue treats like NaN wherever NaN already works (transparent image pixels, percentile limits and stretches, Profile functions, histograms, statistics, fitting and value subsets), so integer data such as IRIS int16 (fill -32768 raw, -200 DN) can stay integer without a float copy. Neither glue-core 1.27.0 nor main has one; its readers turn masked values into NaN. Until then `wp10-m1-lazy-loading` converts each requested slice to float32 with NaN. Done when the user has decided whether to propose it and, if so, the issue or PR is linked here.
 - [ ] **M4** `wp0-core-profile-unit-label`: Optional: port `IRIS_PLAN_PROTOTYPES/wp5_label.py` (display unit in the Profile x label) as a core PR, not a glue-solar patch. Done when the PR's test shows a velocity profile labelled in km/s in both the numeric and WCSAxes paths.
 - [ ] **M4** `wp0-track-line-layers`: Track draft glue #2603 and glue-qt #73; WP5 keeps its `layer_artist_maker` line-list artist and the stock Profile style editor. Comment on Qt #73 that its exact-class editor lookup misses `QThreadedProfileLayerArtist`. Done when the comment is posted or declined and the register row names both PRs.
 - [ ] **M4** `wp0-qt68-macos-pass`: Manual macOS pass for Qt #68 (scratch HOME, isolated QSettings): first the saved font override (an old 9-point value hides the new default); then menu title, About/Hide/Quit, Cmd-Tab and Dock name, and clipping at native font sizes (preferences, link editor, importers, fixed-geometry dialogs), on PyQt6/Retina and PyQt5. Keep the slice label's 0.75x scale unless unreadable. Done when each result per binding is recorded here.
