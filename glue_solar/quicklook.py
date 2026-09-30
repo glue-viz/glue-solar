@@ -2,6 +2,7 @@
 The IRIS quicklook: a preset of glue viewers for one observation, kept on one selected point.
 """
 
+import weakref
 from contextlib import contextmanager
 
 import numpy as np
@@ -11,12 +12,13 @@ from glue.core.subset import SubsetState
 from glue.viewers.common.utils import get_viewer_tools
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
+from glue_qt.utils import process_events
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 
 import astropy.units as u
 
-from glue_solar.sources.loaders.iris import link_hpc
+from glue_solar.sources.loaders.iris import keep_hpc_linked
 
 __all__ = ["Coordinator", "QuicklookImageViewer", "coordinator", "observation_key", "quicklook"]
 
@@ -198,8 +200,8 @@ class QuicklookImageViewer(ImageViewer):
     An Image viewer without glue's region selection tools, used for IRIS rasters in the quicklook.
 
     A region drawn on a raster map is recomputed on every linked slit-jaw viewer for each screen pixel
-    at every draw, which takes seconds per frame. The Pixel tool stays: glue shows its point only on
-    the dataset it was drawn on.
+    at every draw, which takes seconds per frame. The Pixel tool stays: glue gives its point an empty
+    mask on any dataset that is not pixel-aligned with the one it was drawn on.
     """
 
     inherit_tools = False
@@ -276,6 +278,7 @@ def _image(app, cls, data, x, y, slices, title, aspect):
     state.y_att = pixel[y]
     state.slices = tuple(slices)
     state.aspect = aspect
+    state.reset_limits()  # glue pads the limits of a new viewer
     state.title = title
     state.layers[0].percentile = PERCENTILE
     return viewer
@@ -331,8 +334,9 @@ def quicklook(app, datasets, window=None):
 
     A raster (or a stack of scans) opens as a map, a spectrogram and a wavelength panel (wavelength
     against step, exposure or scan), each slit-jaw channel in its own viewer, and a spectrum panel
-    showing the mean spectrum of the point. The point starts at the centre of the map, in the edit
-    subset 'Point', with the Pixel tool active on the map.
+    showing the mean spectrum of the point. The point starts at the centre of the map, in a new
+    subset group 'Point' that is the edit subset while the tab is shown, with the Pixel tool active
+    on the map.
 
     Parameters
     ----------
@@ -352,7 +356,7 @@ def quicklook(app, datasets, window=None):
     for data in datasets:
         if data not in collection:
             collection.append(data)
-    collection.add_link(link_hpc(collection))
+    keep_hpc_linked(collection)
     rasters = [data for data in datasets if _role(data) == "raster"]
     sjis, offered = _pick_sjis([data for data in datasets if _role(data) == "sji"])
     key = observation_key((rasters or sjis or datasets)[0])
@@ -379,51 +383,85 @@ def quicklook(app, datasets, window=None):
 
     if rasters:
         group = collection.new_subset_group(label="Point", subset_state=point)
-        app.session.edit_subset_mode.edit_subset = [group]
-        _hide_other_points(group, [viewers[role] for role in ("map", "spectrogram", "wavelength", "spectrum")])
+        _edit_in_tab(app, tab, group)
+        _show_point(app, group, [viewers[role] for role in ("map", "spectrogram", "wavelength", "spectrum")])
         _fit_spectrum(viewers["spectrum"], group)
+    app.statusBar().showMessage(" ".join(notes))
+    process_events()  # let the tab take its final size
     _arrange(app, tab, viewers)
     if rasters:
         app.tab(tab).setActiveSubWindow(viewers["map"].parent())
         viewers["map"].toolbar.active_tool = "image:point_selection"
-    app.statusBar().showMessage(" ".join(notes))
     return viewers
 
 
-class _FitOnceComputed(HubListener):
-    """
-    Fit a spectrum panel's y range to the point's spectrum once it is computed.
+def _edit_in_tab(app, tab, group):
+    """Make ``group`` the edit subset now and whenever its tab is shown again."""
+    points = getattr(app, "_solar_points", None)
+    if points is None:
+        points = app._solar_points = weakref.WeakKeyDictionary()
 
-    glue computes the profiles of cubes above 1e7 elements on a worker thread and does not refit the
-    y range when one arrives, so fit it at the first end of a computation of the point's layer.
+        def follow(index):
+            group = points.get(app.tab_widget.widget(index))
+            if group is not None and group in app.data_collection.subset_groups:
+                app.session.edit_subset_mode.edit_subset = [group]
+
+        app.tab_widget.currentChanged.connect(follow)
+    points[app.tab(tab)] = group
+    app.session.edit_subset_mode.edit_subset = [group]
+
+
+def _show_point(app, group, own):
     """
+    Show the point only in its quicklook's raster and spectrum panels, and no other subset there.
+
+    Elsewhere glue 1.27.0 would draw its crosshair on a dataset it does not belong to, and an
+    earlier quicklook's point would show in this one's panels.
+    """
+    for viewer in (viewer for tab in app.viewers for viewer in tab):
+        for layer in viewer.state.layers:
+            other = getattr(layer.layer, "group", None)
+            if other is group:
+                layer.visible = viewer in own
+            elif other is not None and viewer in own:
+                layer.visible = False
+
+
+# glue-qt computes the profile of a layer above this size on a worker thread
+_THREADED_SIZE = 1e7
+
+
+def _fit(viewer):
+    """Fit the spectrum panel's y range to its profiles and the y = 0 line."""
+    state = viewer.state
+    state.reset_limits()
+    state.y_min, state.y_max = min(state.y_min, 0), max(state.y_max, 0)
+
+
+class _FitOnceComputed(HubListener):
+    """Fit a spectrum panel once glue has computed the point's spectrum on a worker thread."""
 
     def __init__(self, viewer, subset):
-        self.viewer = viewer
-        subset.data.hub.subscribe(
-            self,
-            ComputationEndedMessage,
-            handler=self._ended,
-            filter=lambda message: message.sender in viewer.layers and message.sender.state.layer is subset,
-        )
+        self.viewer, self.subset = viewer, subset
+        subset.data.hub.subscribe(self, ComputationEndedMessage, handler=self._ended, filter=self._is_point)
+
+    def _is_point(self, message):
+        return message.sender in self.viewer.layers and message.sender.state.layer is self.subset
 
     def _ended(self, message):
-        message.sender.state.layer.data.hub.unsubscribe(self, ComputationEndedMessage)
-        self.viewer.state.reset_limits()
+        self.subset.data.hub.unsubscribe(self, ComputationEndedMessage)
+        _fit(self.viewer)
 
 
 def _fit_spectrum(viewer, group):
-    viewer.state.reset_limits()  # smaller cubes are computed already
-    [subset] = [subset for subset in group.subsets if subset.data is viewer.state.reference_data]
-    viewer._solar_fit = _FitOnceComputed(viewer, subset)  # the hub holds its listeners weakly
-
-
-def _hide_other_points(group, viewers):
-    """Show no subset but the new point in the quicklook's raster panels, such as an earlier quicklook's point."""
-    for viewer in viewers:
-        for layer in viewer.state.layers:
-            if getattr(layer.layer, "group", group) is not group:
-                layer.visible = False
+    """Fit the spectrum panel to the point's spectrum, now or when glue's worker thread has computed it."""
+    data = viewer.state.reference_data
+    if data is None:
+        return  # the panel could not add the raster
+    _fit(viewer)
+    if data.size > _THREADED_SIZE:
+        [subset] = [subset for subset in group.subsets if subset.data is data]
+        viewer._solar_fit = _FitOnceComputed(viewer, subset)  # the hub holds its listeners weakly
 
 
 def _arrange(app, tab, viewers):
@@ -432,7 +470,7 @@ def _arrange(app, tab, viewers):
     width, height = max(size.width(), 1200), max(size.height(), 800)
     rows = [
         [viewers[role] for role in ("map", "spectrogram", "wavelength") if role in viewers],
-        viewers["sji"] + [viewers["spectrum"]] * ("spectrum" in viewers),
+        viewers["sji"] + [viewers[role] for role in ("spectrum",) if role in viewers],
     ]
     rows = [row for row in rows if row]
     for r, row in enumerate(rows):

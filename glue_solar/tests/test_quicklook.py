@@ -11,6 +11,7 @@ from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from qtpy import QtWidgets
 
+import astropy.units as u
 from astropy.io import fits
 
 import glue_solar
@@ -209,6 +210,18 @@ def bare_app(qtbot, monkeypatch):
     return app
 
 
+def expected_start(data):
+    """The point's first position: the map centre, scan 0 of a stack, and the pixel nearest the window's TWAVE."""
+    wave = data[data.world_component_ids[-1], (0,) * (data.ndim - 1)] * u.Unit(data.coords.world_axis_units[0])
+    wave = wave.to_value(u.AA)
+    twaves = [data.meta[f"TWAVE{n}"] for n in range(1, data.meta["NWIN"] + 1)]
+    [twave] = [t for t in twaves if wave.min() <= t <= wave.max()]
+    centre = [n // 2 for n in data.shape[:-1]]
+    if data.ndim == 4:
+        centre[0] = 0
+    return (*centre, int(np.argmin(np.abs(wave - twave))))
+
+
 def check_panels(app, viewers, data, rows):
     """Each raster panel shows ``rows[role] = (x, y)`` at the point, as the plan's panel table says."""
     [group] = app.session.edit_subset_mode.edit_subset
@@ -216,15 +229,15 @@ def check_panels(app, viewers, data, rows):
     assert group.label == "Point"
     assert point.reference_data is data
     index = tuple(s.start if s.start is not None else viewers["map"].state.slices[i] for i, s in enumerate(point.slices))
+    assert index == expected_start(data)
     for role, (x, y) in rows.items():
         state = viewers[role].state
         assert (state.x_att, state.y_att) == (data.pixel_component_ids[x], data.pixel_component_ids[y])
         assert state.slices == index
         assert state.aspect == "auto"
+        assert (state.x_min, state.x_max) == (-0.5, data.shape[x] - 0.5)  # the whole axis, not glue's padding
         assert isinstance(viewers[role], QuicklookImageViewer)
         assert not [tool for tool in viewers[role].toolbar.tools if tool.startswith("select:")]
-    wavelength = index[-1]
-    assert 0 < wavelength < data.shape[-1] - 1  # nearest TWAVE, never a window edge
     assert coordinator(app.data_collection).point is point
     assert viewers["map"].toolbar.active_tool.tool_id == "image:point_selection"
     for viewer in [viewers[role] for role in rows] + viewers["sji"]:
@@ -237,6 +250,10 @@ def check_panels(app, viewers, data, rows):
     # the point's own spectrum only: not the whole cube, nor an earlier quicklook's point
     assert [layer.layer for layer in spectrum.layers if layer.visible] == [s for s in group.subsets if s.data is data]
     assert ProfileViewer.large_data_size == 1  # the prompt was skipped for this viewer only
+    assert spectrum.x_display_unit == data.coords.world_axis_units[0]  # no display-unit override
+    assert spectrum.y_min <= 0 <= spectrum.y_max
+    assert [0, 0] in [list(line.get_ydata()) for line in viewers["spectrum"].axes.lines]
+    assert data.label in app.statusBar().currentMessage()
     assert set(app.viewers[-1]) == {*[viewers[role] for role in rows], viewers["spectrum"], *viewers["sji"]}
 
 
@@ -246,7 +263,7 @@ def test_quicklook_of_a_sit_and_stare(bare_app, tmp_path, irispy_test_files):
     deconvolved = tmp_path / SNS.format("SJI_2796_t000_deconvolved")
     shutil.copy2(find_irispy_test_file(irispy_test_files, SNS.format("SJI_2796_t000")), deconvolved)
     sjis.append(image_data(deconvolved))
-    viewers = quicklook(bare_app, rasters + sjis)
+    viewers = quicklook(bare_app, rasters + sjis[::-1])  # the deconvolved SJI first
     [mg] = [data for data in rasters if data.label.startswith("Mg_II_k_2796")]
     check_panels(bare_app, viewers, mg, {"map": (0, 1), "spectrogram": (2, 1), "wavelength": (2, 0)})
     assert [viewers[role].state.title for role in ("map", "wavelength")] == [
@@ -254,10 +271,13 @@ def test_quicklook_of_a_sit_and_stare(bare_app, tmp_path, irispy_test_files):
         "Mg II k 2796 λ–time",
     ]
     # the plain SJI 2796 is shown and the deconvolved one offered
-    assert [viewer.state.reference_data for viewer in viewers["sji"]] == sjis[:2]
+    assert [viewer.state.reference_data for viewer in viewers["sji"]] == sjis[1::-1]
     assert sjis[2].label in bare_app.statusBar().currentMessage()
     for viewer in viewers["sji"]:
         assert viewer.state.aspect == "equal"
+        # nor does glue draw the point's crosshair on a slit-jaw image
+        assert [layer.visible for layer in viewer.state.layers if layer.layer.label == "Point"] == [False]
+    assert bare_app.data_collection.external_links  # the datasets were added and linked
     # the stock axis combo still turns the spectrogram into a map and back
     spectrogram = viewers["spectrogram"].state
     spectrogram.x_att_world = mg.world_component_ids[0]
@@ -316,3 +336,42 @@ def test_quicklook_of_a_full_raster(bare_app, irispy_data):
     [data] = raster_data([irispy_data("iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz")])
     viewers = quicklook(bare_app, [data])
     check_panels(bare_app, viewers, data, {"map": (0, 1), "spectrogram": (2, 1), "wavelength": (2, 0)})
+
+
+def test_quicklook_without_a_raster(bare_app, irispy_test_files):
+    sjis = [image_data(find_irispy_test_file(irispy_test_files, SNS.format(f"SJI_{c}_t000"))) for c in (1400, 2796)]
+    viewers = quicklook(bare_app, sjis)
+    assert set(viewers) == {"sji"}
+    assert [viewer.state.reference_data for viewer in viewers["sji"]] == sjis
+
+
+def test_quicklook_reports_a_spectrum_it_could_not_add(bare_app, monkeypatch, scans):
+    monkeypatch.setattr(ProfileViewer, "add_data", lambda self, data: False)
+    viewers = quicklook(bare_app, [scans[0]])
+    assert "could not add" in bare_app.statusBar().currentMessage()
+    assert viewers["map"].toolbar.active_tool.tool_id == "image:point_selection"
+
+
+def test_each_quicklook_edits_its_own_point(bare_app, scans):
+    scan, stack = scans
+    first = quicklook(bare_app, [scan])
+    first_tab = bare_app.tab_count - 1
+    [first_point] = bare_app.session.edit_subset_mode.edit_subset
+    second = quicklook(bare_app, [stack])
+    [second_point] = bare_app.session.edit_subset_mode.edit_subset
+    assert second_point is not first_point
+    for viewer in (*[first[role] for role in ("map", "spectrogram", "wavelength", "spectrum")], *second["sji"]):
+        assert not [layer for layer in viewer.state.layers if layer.visible and layer.layer in second_point.subsets]
+    for role in ("map", "spectrum"):
+        shown = [layer.layer.group for layer in second[role].state.layers if hasattr(layer.layer, "group") and layer.visible]
+        assert shown == [second_point]
+    bare_app.tab_widget.setCurrentIndex(first_tab)
+    assert bare_app.session.edit_subset_mode.edit_subset == [first_point]
+
+
+def test_quicklook_keeps_the_users_spectrum_range(bare_app, scans):
+    viewers = quicklook(bare_app, [scans[0]])
+    spectrum = viewers["spectrum"].state
+    spectrum.y_min, spectrum.y_max = -3, 7
+    select_point(viewers["map"], 1, 2)
+    assert (spectrum.y_min, spectrum.y_max) == (-3, 7)
