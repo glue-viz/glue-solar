@@ -110,6 +110,7 @@ passed, 1 skipped in `iris-plan` and `iris-plan-floor` with
 
 | PR | Branch (worktree `~/Git/glue-solar-<branch>`) | Closes | Result |
 | --- | --- | --- | --- |
+| #70 | `workaround-register` | `wp0-workaround-register` | Comments at the four workarounds on main (WCS lock, `has_celestial`, cursor-readout gate, slider throttle) name their switch and retiring fix; the stale "irispy <= 0.9.0 mask" reason for value-based fill is now "irispy masks only -200, none when memmapped"; the link-editor test accepts #2595's SJI↔raster link. 45 passed, 1 skipped on both baselines; 46 passed with a #2595 export; 44 passed, 2 skipped with a Qt #74 export (gate off). Adds the throttle register row |
 | #69 | `wp4-coordinator` | `wp4-coordinator` | `solar:coordinate` menu ('Time master', 'Clear point') registers every Image viewer with one `Coordinator` per data collection (`glue_solar/quicklook.py`, with `observation_key`); raster map click: 1 message per dataset, no coordinator assignment; stack map click: 2 (scan pinned); axis swap moves the step slider to the point (fixture and remote 4000005156 Si IV); Pixel stays active; restored viewers join. A spectrogram click pins the step from its slider (λ canonicalisation stays `wp4-m0-point-fixed-index`'s). 'Time master' only records `masters[key]` until `wp4-time-sync`. Click helpers are in `glue_solar/tests/helpers.py` |
 
 **Slider speed** (user, 2026-09-29: slow on PyQt5 on their Linux/Wayland
@@ -201,12 +202,13 @@ PR notes (2026-09-29):
   `save` subtools in WP12); #65 (dhomeier, tox cleanup, overlaps #69).
 
 **Next steps.**
-1. The user reviews #69.
+1. The user reviews #69 and #70.
 2. The rest of M0, in glue-solar only: since 2026-09-29 upstream PRs,
    reports and tracking wait for M4 (D2). `wp4-time-sync` also needs
    `wp4-m0-point-fixed-index` (after `wp4-quicklook-preset`) and
-   `wp1-m0-link-hpc`; the chain that needs nothing unmerged is
-   `wp0-workaround-register` → `wp1-m0-inverse-workaround` → `wp1-m0-link-hpc`.
+   `wp1-m0-link-hpc`; the chain from main (user, 2026-09-29) is
+   `wp0-workaround-register` (#70) → `wp1-m0-inverse-workaround` →
+   `wp1-m0-link-hpc`.
 3. When the user has merged and irispy has released #197-#199 and #201, raise
    the irispy floor (`wp0-irispy-requests`).
 
@@ -216,6 +218,7 @@ PR notes (2026-09-29):
 | --- | --- | --- |
 | `~/Git/glue-solar` | `plan` | This plan |
 | `~/Git/glue-solar-wp4-coordinator` | `wp4-coordinator` | Draft glue-solar #69 |
+| `~/Git/glue-solar-workaround-register` | `workaround-register` | Draft glue-solar #70 |
 | `~/Git/irispy-bursts` | `uv-burst-detection` | Draft #197; the `irispy-ports` env imports irispy from here |
 | `~/Git/irispy-wavecorr` | `wavelength-drift` | Draft #198 |
 | `~/Git/irispy-mg-features` | `mg-features` | Draft #199 |
@@ -487,6 +490,7 @@ a released-baseline test pins it.
 | Quantity saver fallback (WP3, D13) | No Quantity saver registered | `wp0-core-quantity-saver` |
 | `DerivedComponent` subclass saving `units` (WP1 `wp1-dn-per-s`) | Core's saver drops `units` | `wp0-core-derived-units`; the class stays importable |
 | Generic part of `solar:cursor_readout` (WP11) | `not hasattr(ImageViewer, 'cursor_status')` | Qt #74; IRIS time, exposure and km/s stay in `solar:frame_time` |
+| Slice-slider drag throttle (WP10, #68; finds glue-qt's `value_slice_center` sliders) | Always on: glue-qt applies every value a dragged slider passes | none tracked (`wp0-upstream-draw-speed`); the drag test pins the slider name |
 | Line-list artist (WP5; public `layer_artist_maker`) | Always on: a feature, not a patch | reconsidered after #2603 and Qt #73 release |
 | `SolarVisualAttributes` (WP3 `wp3-style-cmap`) | Core's `VisualAttributes` saver emits a Colormap object | core #2597; the class stays importable |
 | km/s Profile x-unit gate (WP5 `wp5-m1-velocity-axis`) (private call: `ProfileTools._get_axis_and_pixel_slice`) | A non-native x display unit fails on a tiny nm-x Data | Qt #70 |
