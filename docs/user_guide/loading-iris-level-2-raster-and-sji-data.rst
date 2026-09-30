@@ -72,10 +72,75 @@ cube, and a raster file loads one dataset per spectral window.
 Linking
 -------
 
-Glue does not currently autolink irispy's time-varying SJI gWCS and raster ``-TAB`` WCS. To
-propagate spatial selections, open the Data Manager's link editor and manually pair
-``Helioprojective Longitude`` and ``Helioprojective Latitude`` between datasets.
-SJIs, aligned AIA cutouts and rasters all name their spatial axes this way.
+The observation browser links the ``Helioprojective Longitude`` and ``Helioprojective Latitude``
+of every slit-jaw image, raster and aligned AIA cutout it loads, so selections carry over between
+them. For data opened with "File -> Open Data Set", choose "IRIS: link helioprojective
+coordinates" from the "Plugins" menu; it only adds links that are missing, so running it again
+after loading more data is safe. Removing a dataset leaves the others linked.
+
+- A region drawn on a raster map selects, in every slit-jaw frame, the pixels that lie inside it at
+  that frame's own pointing. For a sit-and-stare raster the selection marks where the slit was on
+  the Sun during the selected exposures: it lies on the slit in the slit-jaw frames taken then, and
+  moves away from it in other frames as the pointing changes.
+- A selection on longitude or latitude, for example from a scatter plot, carries over in both
+  directions.
+- A region drawn on a slit-jaw image does not carry over to a raster: which frame it belongs to
+  would need the time, and time is never linked.
+
+A region drawn on a raster map can be slow to show on a slit-jaw image: glue works out the selection
+for every screen pixel of the slit-jaw viewer each time it draws a frame, and does not respond
+meanwhile. At the default viewer size this takes under a second with a 64-step raster, but 10 to 20
+seconds with a 1600-step sit-and-stare raster, for every frame you step to, and longer in a larger
+viewer.
+
+The quicklook
+-------------
+
+``glue_solar.quicklook.quicklook`` opens a CRISPEX-style set of viewers for one observation in a new
+tab. The browser and a menu entry will open it too; until then, run it from glue's Terminal
+(the "Terminal" button in the toolbar), for example::
+
+    from glue_solar.quicklook import quicklook
+    quicklook(application, [data for data in data_collection if "4000255147" in data.label])
+
+It shows one spectral window: Mg II k 2796 when loaded, otherwise the first (pass
+``window="Si IV 1403"`` to choose). The raster opens as three panels, plus one viewer per slit-jaw
+channel and a spectrum panel:
+
+- a raster: the map (step against slit), the spectrogram (wavelength against slit) and wavelength
+  against step;
+- a sit-and-stare raster: slit against time, the spectrogram and wavelength against time;
+- a stack of raster scans: the map of the current scan, the spectrogram and wavelength against scan.
+
+The map shows the wavelength nearest the window's reference wavelength, and the panels use
+99.5 % limits. A point, the edit subset "Point", starts at the centre of the map with the Pixel
+tool active: drag it on the map, and the spectrum panel shows its spectrum. The point is a detector
+pixel (a step or exposure, and a slit position) at every wavelength, and the other panels follow
+it: the spectrogram moves to its step and the wavelength panel to its slit. Clicking the
+spectrogram or the wavelength panel moves the point there and the map to the clicked wavelength;
+no other wavelength slider moves. Moving a step, exposure or scan slider moves the point, so on a
+stack the point stays on the map's scan. A Profile's collapse of an axis is left in place, and
+after "Clear point" nothing follows until the next click. A raster point is not marked on the
+slit-jaw images; a point clicked on a slit-jaw image is marked only there, and the spectrum panel is
+empty until the next raster click. The raster panels have no region selection tools, because a region drawn on a
+raster map is recomputed on every slit-jaw viewer for each screen pixel at every frame (see
+Linking). Each quicklook has its own point, shown only in its own panels, edited while its tab is
+shown and moved only by that tab's sliders. Another Image viewer of the same data follows the point. When a slit-jaw channel is loaded both plain and deconvolved,
+the plain one is shown and the status bar names the other. The spectrum panel does not ask "Add
+large data set?", and the status bar gives the size of the data it shows.
+
+The panels also follow one time. The raster is the time master: the slit-jaw viewers show the frame
+nearest the time of the point's exposure or raster step (mid-raster before there is a point). Choose
+"Time master" in the "Coordinate" menu of a slit-jaw viewer to make it the master instead; the
+raster then moves to the exposure, or on a stack the scan, nearest each frame, keeping the slit and
+the raster step. A dataset with nothing within half its own time step of the master's time (for a
+scanning raster, one that does not cover it) keeps its frame and is greyed. The "Frame time" readout
+says which dataset is the time master, how far each matched dataset's time is from the master's
+(Δt) and "NO MATCH" with that offset for the others. Wavelength and slit sliders are never moved.
+
+Each slit-jaw viewer is titled with its channel ("SJI 1400", "SJI 2796 (deconvolved)") and opens on
+the raster's field of view with a margin. Its "Frame time" readout says "outside SJI FOV" when the
+raster point, placed with the displayed frame's own pointing, is off the image.
 
 Saving sessions
 ---------------

@@ -1,17 +1,32 @@
 """
-Coordination of the Image viewers that show one IRIS observation.
+The IRIS quicklook: a preset of glue viewers for one observation, kept on one selected point.
 """
 
+import weakref
 from contextlib import contextmanager
 
 import numpy as np
+from echo import delay_callback
 from glue.core.hub import HubListener
-from glue.core.message import SubsetCreateMessage, SubsetUpdateMessage
+from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, SubsetUpdateMessage
 from glue.core.subset import SubsetState
+from glue.viewers.common.utils import get_viewer_tools
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
+from glue_qt.utils import process_events
+from glue_qt.viewers.image import ImageViewer
+from glue_qt.viewers.profile import ProfileViewer
+from qtpy.QtCore import QTimer
 
-__all__ = ["Coordinator", "coordinator", "observation_key"]
+import astropy.units as u
+
+from glue_solar.sources.loaders.iris import keep_hpc_linked
+
+__all__ = ["Coordinator", "QuicklookImageViewer", "coordinator", "nearest", "observation_key", "quicklook"]
+
+# The window the quicklook shows when the browser did not pick one
+DEFAULT_WINDOW = "Mg II k 2796"
+PERCENTILE = 99.5
 
 
 def observation_key(data):
@@ -30,6 +45,100 @@ def observation_key(data):
         return None
     # AIA cutouts spell the OBSID as date_time_obsid
     return None if np.isnat(start) else (str(obsid).split("_")[-1], start)
+
+
+def nearest(query, reference):
+    """
+    The index of the reference time nearest each query time, and the signed offset reference − query.
+
+    The reference may be unsorted or descending, as a negative-step raster's times are. Ties go to the
+    earlier time and equal times to the first index. Queries outside the reference's span get its
+    nearest end, with the offset showing how far off it is.
+
+    Parameters
+    ----------
+    query, reference : array-like of `numpy.datetime64`
+        ``reference`` is one-dimensional, not empty and has no NaT.
+
+    Returns
+    -------
+    index : `numpy.ndarray` of int
+    offset : `numpy.ndarray` of `numpy.timedelta64`
+    """
+    reference = np.asarray(reference, dtype="datetime64[ns]")
+    query = np.asarray(query, dtype="datetime64[ns]")
+    if reference.ndim != 1 or not len(reference):
+        raise ValueError("the reference times must be one-dimensional and not empty")
+    if np.isnat(reference).any():
+        raise ValueError("the reference times must not contain NaT")
+    order = np.argsort(reference, kind="stable")  # equal times keep their order, so the first comes first
+    ref = reference[order].view("int64")
+    q = query.view("int64")
+    if len(ref) == 1:
+        pick = np.zeros(q.shape, dtype=int)
+    else:
+        after = np.clip(np.searchsorted(ref, q), 1, len(ref) - 1)
+        before = after - 1
+        pick = np.where(q - ref[before] <= ref[after] - q, before, after)  # a tie goes to the earlier time
+    index = order[np.searchsorted(ref, ref[pick])]  # the first of equal times
+    return index, reference[index] - query
+
+
+def _lon_lat(data, pixel):
+    """Helioprojective longitude and latitude (arcsec) of ``data`` at the numpy-ordered ``pixel``."""
+    world = data.coords.pixel_to_world_values(*pixel[::-1])
+    types = list(data.coords.world_axis_physical_types)
+    return (
+        np.asarray(world[types.index("custom:pos.helioprojective.lon")]),
+        np.asarray(world[types.index("custom:pos.helioprojective.lat")]),
+    )
+
+
+def _placeable(data):
+    """Whether helioprojective positions can be placed in ``data``'s frames through its coordinates."""
+    types = getattr(data.coords, "world_axis_physical_types", None) or ()
+    return {"custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat", "time"} <= set(types)
+
+
+def _sji_pixels(sji, frame, lon, lat):
+    """The (x, y) pixels of ``sji``'s frame ``frame`` at helioprojective ``lon`` and ``lat`` (arcsec)."""
+    types = list(sji.coords.world_axis_physical_types)
+    when = sji.coords.pixel_to_world_values(0, 0, frame)[types.index("time")]
+    world = [None] * 3
+    world[types.index("custom:pos.helioprojective.lon")] = lon
+    world[types.index("custom:pos.helioprojective.lat")] = lat
+    world[types.index("time")] = np.broadcast_to(when, np.shape(lon))
+    x, y, _ = sji.coords.world_to_pixel_values(*world)
+    return x, y
+
+
+def _time_axis(data):
+    """
+    The axis along which ``data`` steps through time, or None for a scanning raster, which has none.
+
+    A slit-jaw image steps through frames, a sit-and-stare raster through exposures and a stack
+    through scans; a scanning raster's steps are places on the Sun.
+    """
+    role = _role(data)
+    if role == "sji" or (role == "raster" and (data.ndim == 4 or _is_sit_and_stare(data))):
+        return 0
+    return None
+
+
+def _times(data, step):
+    """The 1-D times of ``data``: per frame, exposure or step, or per scan at raster step ``step`` of a stack."""
+    index = [0] * data.ndim
+    index[0] = slice(None)
+    if data.ndim == 4:
+        index[1] = step
+    return data[data.find_component_id("Time"), tuple(index)]
+
+
+def _half_cadence(times):
+    """Half the median interval between successive times: the widest offset that still matches."""
+    steps = np.diff(np.sort(times)).astype("timedelta64[ns]").view("int64")
+    steps = steps[steps > 0]
+    return np.timedelta64(int(np.median(steps) / 2) if len(steps) else 0, "ns")
 
 
 def coordinator(data_collection):
@@ -53,6 +162,11 @@ def _spectral_axes(data):
     }
 
 
+def _pixel_tool_on(viewer):
+    tool = viewer.toolbar.active_tool
+    return tool is not None and tool.tool_id == "image:point_selection"
+
+
 def _shown(state):
     """The array axes an Image viewer state displays."""
     return {att.axis for att in (state.x_att, state.y_att) if att is not None}
@@ -64,19 +178,35 @@ class Coordinator(HubListener):
 
     The point is the Pixel tool's selection: the coordinator follows the last subset group given a
     `~glue.viewers.image.pixel_selection_subset_state.PixelSubsetState` on IRIS data. On a
-    spectral cube the point fixes every axis but wavelength, so a click takes the axes the clicked
-    viewer does not show, such as a stack's scan, from its sliders, and a viewer of that cube
-    whose displayed axes change moves its new sliders to the point. Wavelength sliders are never
-    moved. Each data collection has one coordinator (`coordinator`), and the ``solar:coordinate``
-    tool registers every Image viewer with it.
+    spectral cube the point is a detector pixel at every wavelength: a click takes the axes the
+    clicked viewer does not show, such as a stack's scan, from its sliders. A click on a panel that
+    shows wavelength moves the cube's maps to the clicked wavelength instead of fixing it. Every
+    other viewer of the cube then shows the point's step, exposure, scan and slit, after a drag
+    only its last position, and editing one of those sliders moves the point. No other wavelength
+    slider is moved, and a Profile's collapse is left in place. A viewer whose sliders glue resets for
+    new data joins the point. A quicklook's point drives only the viewers it `owns`, and shows only
+    on those of its own dataset; viewers no quicklook owns follow whichever point is followed. Each
+    data collection has one coordinator (`coordinator`), and the ``solar:coordinate`` tool
+    registers every Image viewer with it.
     """
 
     def __init__(self, data_collection):
         self.data_collection = data_collection
         self.group = None
         self.masters = {}  # observation key -> the dataset chosen as its time master
-        self._viewers = {}  # registered viewer -> its callback
+        self._master_times = {}  # observation key -> (master, its time, timing step) at the last sync
+        self._steps = {}  # raster -> its timing step when the point last was on it
+        self._listeners = []  # called with (observation key, master time, exposure) after each sync
+        self._pairs = {}  # (master, follower, raster step) -> nearest() of every master time
+        self._viewers = {}  # registered viewer -> its callbacks
+        self._shows = {}  # registered viewer -> the reference data its sliders were last set for
+        self._owners = {}  # a quicklook's point group -> the viewers it drives
         self._busy = False
+        # a drag moves the point at every mouse event: show only its latest position
+        self._timer = QTimer()
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(0)
+        self._timer.timeout.connect(self._update)
         hub = data_collection.hub
         hub.subscribe(self, SubsetCreateMessage, handler=self._subset_changed)
         hub.subscribe(
@@ -97,30 +227,74 @@ class Coordinator(HubListener):
         if viewer in self._viewers:
             return
 
-        def callback(*_):
+        def axes_changed(*_):
             self._apply_point(viewer)
 
+        def slices_changed(*_):
+            data = viewer.state.reference_data
+            if data is not self._shows.get(viewer):
+                # glue reset the sliders for new data: join the point rather than move it
+                self._shows[viewer] = data
+                self._apply_point(viewer)
+                self._timer.start()  # and the time master
+                return
+            self._move_point(viewer)
+            if not self._busy and self._master(observation_key(data)) is data:
+                self._timer.start()  # the time master moved
+
         for prop in ("reference_data", "x_att", "y_att"):
-            viewer.state.add_callback(prop, callback)
-        self._viewers[viewer] = callback
+            viewer.state.add_callback(prop, axes_changed)
+        viewer.state.add_callback("slices", slices_changed)
+        self._viewers[viewer] = (axes_changed, slices_changed)
+        self._shows[viewer] = viewer.state.reference_data
+        self._timer.start()  # join the time master
 
     def unregister(self, viewer):
         """Stop coordinating ``viewer``; unregistering it again does nothing."""
-        callback = self._viewers.pop(viewer, None)
-        if callback is not None:
+        callbacks = self._viewers.pop(viewer, None)
+        if callbacks is not None:
+            axes_changed, slices_changed = callbacks
             for prop in ("reference_data", "x_att", "y_att"):
-                viewer.state.remove_callback(prop, callback)
+                viewer.state.remove_callback(prop, axes_changed)
+            viewer.state.remove_callback("slices", slices_changed)
+            self._shows.pop(viewer, None)
+
+    def own(self, group, viewers):
+        """Let the point group ``group`` drive only ``viewers``, and ``viewers`` follow only it."""
+        self._owners[group] = set(viewers)
+
+    def follow(self, group):
+        """Make ``group`` the followed point, as when its quicklook's tab is shown."""
+        self.group = group
+        self._timer.start()
+
+    def _follows(self, viewer):
+        """Whether ``viewer`` follows the followed point: it owns the viewer, or no point does."""
+        owners = self._owners.get(self.group)
+        if owners is not None and viewer in owners:
+            return True
+        return not any(viewer in viewers for viewers in self._owners.values())
 
     def set_master(self, data):
         """Make ``data`` the time master of its observation."""
         key = observation_key(data)
         if key is not None:
             self.masters[key] = data
+            self._timer.start()
+
+    def add_listener(self, listener):
+        """Call ``listener(key, time, exposure)`` whenever the time master of observation ``key`` moves."""
+        self._listeners.append(listener)
+
+    def remove_listener(self, listener):
+        if listener in self._listeners:
+            self._listeners.remove(listener)
 
     def clear_point(self):
         """Empty the followed group, which hides its crosshairs."""
         if self.point is not None:
             self.group.subset_state = SubsetState()
+            self._timer.start()  # time sync continues from the sliders
 
     @contextmanager
     def _writing(self):
@@ -141,26 +315,248 @@ class Coordinator(HubListener):
             return
         self.group = group
         self._pin(state)
+        self._timer.start()
+
+    def _viewers_of(self, data):
+        """The registered viewers of ``data`` that follow the point."""
+        return [viewer for viewer in self._viewers if viewer.state.reference_data is data and self._follows(viewer)]
 
     def _pin(self, state):
-        """Fix the point's free axes, wavelength aside, at the sliders of the viewer it was clicked in."""
+        """
+        Make a click the point: a detector pixel at every wavelength.
+
+        The point's other free axes come from the sliders of the viewer it was clicked in. A click on
+        a panel showing wavelength frees the wavelength and moves the cube's maps to it.
+        """
         data = state.reference_data
         spectral = _spectral_axes(data)
         if not spectral:
             return  # a slit-jaw point is a detector pixel in every frame
         clicked = {axis for axis, s in enumerate(state.slices) if s.start is not None}
-        # ponytail: the first viewer that shows the clicked axes; ask the Pixel tool which one if two ever do
-        viewer = next((v for v in self._viewers if v.state.reference_data is data and _shown(v.state) == clicked), None)
+        candidates = [v for v in self._viewers_of(data) if _shown(v.state) == clicked]
+        # the viewer whose Pixel tool is on, if several show the clicked axes
+        viewer = next((v for v in candidates if _pixel_tool_on(v)), candidates[0] if candidates else None)
         if viewer is None:
             return
         slices = list(state.slices)
+        wavelengths = {axis: s.start for axis, s in enumerate(state.slices) if axis in spectral and s.start is not None}
         for axis, s in enumerate(state.slices):
-            if s.start is None and axis not in spectral:
+            if axis in wavelengths:
+                slices[axis] = slice(None)
+            elif s.start is None and axis not in spectral:
                 index = getattr(viewer.state.slices[axis], "center", viewer.state.slices[axis])
                 slices[axis] = slice(index, index + 1)
-        if slices != list(state.slices):
-            with self._writing():
+        with self._writing():
+            for other in self._viewers_of(data):
+                self._set_slices(other, wavelengths)
+            if slices != list(state.slices):
                 self.group.subset_state = PixelSubsetState(data, slices)
+
+    @staticmethod
+    def _set_slices(viewer, indices):
+        """Move the viewer's sliders on the axes it does not show to ``indices``, leaving a collapse in place."""
+        state = viewer.state
+        if len(state.slices) != state.reference_data.ndim:
+            return  # mid-way through an axis change
+        shown = _shown(state)
+        slices = list(state.slices)
+        for axis, index in indices.items():
+            if axis not in shown and not isinstance(slices[axis], AggregateSlice):
+                slices[axis] = index
+        if slices != list(state.slices):
+            state.slices = tuple(slices)
+
+    def _update(self):
+        """Follow each observation's time master, then move every viewer of the point's cube to it."""
+        # an observation in a hidden quicklook tab keeps its times until it is shown
+        followed = {observation_key(viewer.state.reference_data) for viewer in self._viewers if self._follows(viewer)}
+        for key in followed - {None}:
+            self._sync(key)
+        point = self.point
+        if point is None:
+            return
+        for viewer in list(self._viewers):
+            self._apply_point(viewer)
+        # among its quicklook's viewers, the point shows on those of its own dataset: glue 1.27.0 would
+        # draw a slit-jaw point's crosshair on the raster panels, and a raster point's on the slit-jaw
+        for viewer in self._owners.get(self.group, ()):
+            for layer in viewer.state.layers:
+                if getattr(layer.layer, "group", None) is self.group:
+                    layer.visible = viewer.state.reference_data is point.reference_data
+
+    def _datasets(self, key):
+        seen = {}
+        for viewer in self._viewers:
+            data = viewer.state.reference_data
+            if data is not None and observation_key(data) == key and _role(data):
+                seen.setdefault(id(data), data)
+        return list(seen.values())
+
+    def _master(self, key):
+        """The time master of observation ``key``: the chosen one, else the point's raster, else the first raster."""
+        if key is None:
+            return None
+        datasets = self._datasets(key)
+        chosen = self.masters.get(key)
+        if chosen is not None and chosen in datasets:
+            return chosen
+        point = self.point
+        if point is not None and point.reference_data in datasets and _role(point.reference_data) == "raster":
+            return point.reference_data
+        return next((data for data in datasets if _role(data) == "raster"), None)
+
+    def _timing(self, data):
+        """
+        The index of ``data``'s time along its first axis and, for rasters, the timing step.
+
+        A raster's timing step is the point's step, or the one it had when the point left the raster
+        (mid-raster before any); a sit-and-stare's exposure and a stack's scan otherwise come from the
+        sliders. A slit-jaw image's time is its frame.
+        """
+        point = self.point
+        if _role(data) != "raster":
+            return self._slider(data, 0), None
+        step_axis = data.ndim - 3
+        if point is not None and point.reference_data is data:
+            step = self._steps[data] = point.slices[step_axis].start
+            scan = point.slices[0].start
+        else:
+            step = self._steps.get(data, data.shape[step_axis] // 2)
+            if data.ndim == 3 and _time_axis(data) == 0:
+                step = self._slider(data, 0, step)
+            scan = self._slider(data, 0)
+        return (scan if data.ndim == 4 else step), step
+
+    def _slider(self, data, axis, default=0):
+        """The slider of a viewer of ``data`` that does not show ``axis``, at the centre of a collapse."""
+        for viewer in self._viewers_of(data):
+            if axis not in _shown(viewer.state) and len(viewer.state.slices) == data.ndim:
+                index = viewer.state.slices[axis]
+                return int(getattr(index, "center", index))
+        return default
+
+    def _pair(self, master, follower, master_step, follower_step):
+        """nearest() of every master time among the follower's, cached per pair."""
+        # only a stack's times depend on the raster step
+        key = (id(master), id(follower), master_step if master.ndim == 4 else None)
+        key += (follower_step if follower.ndim == 4 else None,)
+        if key not in self._pairs:
+            self._pairs[key] = nearest(_times(master, master_step), _times(follower, follower_step))
+        return self._pairs[key]
+
+    def _sync(self, key):
+        """Move the followers of observation ``key`` to its time master, or mark them NO MATCH."""
+        master = self._master(key)
+        if master is None:
+            return
+        index, step = self._timing(master)
+        times = _times(master, step)
+        index = min(max(index, 0), len(times) - 1)
+        self._master_times[key] = (master, times[index], step)
+        moved = {}
+        for data in self._datasets(key):
+            if data is master:
+                continue
+            follower_step = self._timing(data)[1]
+            follower_times = _times(data, follower_step)
+            nearest_index, offset = (value[index] for value in self._pair(master, data, step, follower_step))
+            axis = _time_axis(data)
+            if axis is not None and abs(offset) <= _half_cadence(follower_times):
+                moved[data] = (axis, int(nearest_index))
+        with self._writing():
+            for data, (axis, frame) in moved.items():
+                self._move_in_time(data, axis, frame)
+        exposure = master.find_component_id("Exposure time")
+        seconds = None
+        if exposure is not None:
+            view = [0] * master.ndim
+            view[0] = index
+            if master.ndim == 4:
+                view[1] = step
+            seconds = float(master[exposure, tuple(view)])
+        for listener in list(self._listeners):
+            listener(key, times[index], seconds)
+
+    def time_status(self, viewer):
+        """
+        What ``viewer``'s readout says about time: ("master", timing step or None), ("match", offset) or
+        ("no match", offset), with the offset of its time from the master's; None outside time sync.
+
+        A follower with no frame within half its cadence of the master's time is NO MATCH with the
+        nearest frame's offset; otherwise the offset is its displayed frame's, a match if that frame is
+        within half a cadence. A scanning raster's offset is its timing step's, a match while the
+        master's time is within its steps' span.
+        """
+        data = viewer.state.reference_data
+        key = observation_key(data) if data is not None else None
+        master, when, step = self._master_times.get(key, (None, None, None))
+        if master is None or master is not self._master(key) or not _role(data):
+            return None
+        if data is master:
+            return ("master", step)
+        follower_step = self._timing(data)[1]
+        times = _times(data, follower_step)
+        margin = _half_cadence(times)
+        axis = _time_axis(data)
+        if axis is None:
+            offset = times[follower_step] - when
+            return ("match" if times.min() - margin <= when <= times.max() + margin else "no match", offset)
+        _, [offset] = nearest([when], times)
+        if abs(offset) > margin:
+            return ("no match", offset)
+        state = viewer.state
+        if axis not in _shown(state) and len(state.slices) == data.ndim:
+            offset = times[int(getattr(state.slices[axis], "center", state.slices[axis]))] - when
+        return ("match" if abs(offset) <= margin else "no match", offset)
+
+    def point_on(self, viewer):
+        """
+        Where the point of a raster of the same observation falls in ``viewer``'s slit-jaw frame, as
+        (x, y) pixels projected through that frame's own coordinates, or None.
+        """
+        point, sji = self.point, viewer.state.reference_data
+        if point is None or sji is None or _role(sji) != "sji" or _role(point.reference_data) != "raster":
+            return None
+        if observation_key(sji) != observation_key(point.reference_data) or len(viewer.state.slices) != sji.ndim:
+            return None
+        if not _placeable(sji):
+            return None
+        pixel = [s.start if s.start is not None else 0 for s in point.slices]
+        lon, lat = _lon_lat(point.reference_data, pixel)
+        frame = viewer.state.slices[0]
+        frame = int(getattr(frame, "center", frame))
+        x, y = _sji_pixels(sji, frame, lon, lat)
+        return float(x), float(y)
+
+    def _move_in_time(self, data, axis, frame):
+        """Put ``data`` at ``frame`` along its time axis: on the point if it holds one, and on its viewers."""
+        point = self.point
+        if point is not None and point.reference_data is data and point.slices[axis].start is not None:
+            slices = list(point.slices)
+            if slices[axis].start != frame:
+                slices[axis] = slice(frame, frame + 1)
+                self.group.subset_state = PixelSubsetState(data, slices)
+        for viewer in self._viewers_of(data):
+            self._set_slices(viewer, {axis: frame})
+
+    def _move_point(self, viewer):
+        """Move the point along the axes whose sliders the user moved in ``viewer``."""
+        point = self.point
+        state = viewer.state
+        if self._busy or point is None or state.reference_data is not point.reference_data:
+            return
+        if len(state.slices) != point.reference_data.ndim or not self._follows(viewer):
+            return
+        shown, spectral = _shown(state), _spectral_axes(point.reference_data)
+        slices = list(point.slices)
+        for axis, s in enumerate(point.slices):
+            index = state.slices[axis]
+            if s.start is not None and axis not in shown | spectral and not isinstance(index, AggregateSlice):
+                slices[axis] = slice(index, index + 1)
+        if slices != list(point.slices):
+            with self._writing():
+                self.group.subset_state = PixelSubsetState(point.reference_data, slices)
+            self._timer.start()
 
     def _apply_point(self, viewer):
         """Move the viewer's sliders along the point's fixed axes to the point, wavelength aside."""
@@ -169,14 +565,333 @@ class Coordinator(HubListener):
         # mid-way through an axis change a viewer can show fewer than two axes
         if self._busy or point is None or data is not point.reference_data or len(shown) < 2:
             return
-        if len(state.slices) != data.ndim:
+        if not self._follows(viewer):
             return
         spectral = _spectral_axes(data)
-        slices = list(state.slices)
-        for axis, s in enumerate(point.slices):
-            # a Profile's collapse leaves an AggregateSlice, which stays
-            if s.start is not None and axis not in (shown | spectral) and not isinstance(slices[axis], AggregateSlice):
-                slices[axis] = s.start
-        if slices != list(state.slices):
-            with self._writing():
-                state.slices = tuple(slices)
+        fixed = {axis: s.start for axis, s in enumerate(point.slices) if s.start is not None and axis not in spectral}
+        with self._writing():
+            self._set_slices(viewer, fixed)
+
+
+class QuicklookImageViewer(ImageViewer):
+    """
+    An Image viewer without glue's region selection tools, used for IRIS rasters in the quicklook.
+
+    A region drawn on a raster map is recomputed on every linked slit-jaw viewer for each screen pixel
+    at every draw, which takes seconds per frame. The Pixel tool stays: glue gives its point an empty
+    mask on any dataset that is not pixel-aligned with the one it was drawn on.
+    """
+
+    inherit_tools = False
+    tools, subtools = [], {}
+
+    def initialize_toolbar(self):
+        # Read when a viewer is made: glue_solar.setup() and glue-qt's plugins add tools after import
+        tools, subtools = get_viewer_tools(ImageViewer)
+        type(self).tools = [tool for tool in tools if not tool.startswith("select:")]
+        type(self).subtools = subtools
+        super().initialize_toolbar()
+
+
+def _role(data):
+    """'raster', 'sji' or None, from the INSTRUME keyword: AIA cutouts load as slit-jaw cubes but are neither."""
+    instrument = str((getattr(data, "meta", None) or {}).get("INSTRUME", ""))
+    return {"SPEC": "raster", "SJI": "sji"}.get(instrument)
+
+
+def _wavelengths(data):
+    """The wavelength of each pixel along the spectral axis of ``data``, in Angstrom, and that axis."""
+    [axis] = _spectral_axes(data)
+    index = [0] * data.ndim
+    index[axis] = slice(None)
+    unit = u.Unit(data.coords.world_axis_units[data.ndim - 1 - axis])
+    return (data[data.world_component_ids[axis], tuple(index)] * unit).to_value(u.AA), axis
+
+
+def _window(data):
+    """
+    The name and TWAVE of the spectral window ``data`` holds.
+
+    The window keywords of every raster window describe window 1, so this takes the TWAVEn that
+    lies inside the data's own wavelength range. (None, None) if none does.
+    """
+    meta = data.meta
+    wave, _ = _wavelengths(data)
+    for n in range(1, int(meta.get("NWIN", 0) or 0) + 1):
+        twave = meta.get(f"TWAVE{n}")
+        if twave is not None and np.nanmin(wave) <= float(twave) <= np.nanmax(wave):
+            return str(meta.get(f"TDESC{n}")), float(twave)
+    return None, None
+
+
+def _is_sit_and_stare(data):
+    meta = data.meta
+    return float(meta.get("STEPS_AV", -1) or 0) == 0 and int(meta.get("NRASTERP", 0) or 0) == 1
+
+
+def _pick_raster(rasters, window):
+    """The raster to show: of the browser's window, else Mg II k, else the first; a stack before a scan."""
+    windows = {id(data): _window(data)[0] for data in rasters}
+    for name in (window, DEFAULT_WINDOW, windows[id(rasters[0])]):
+        chosen = [data for data in rasters if name is not None and windows[id(data)] == name]
+        if chosen:
+            return next((data for data in chosen if data.ndim == 4), chosen[0])
+    return rasters[0]
+
+
+def _sji_title(data):
+    """'SJI 1400', or 'SJI 2796 (deconvolved)'."""
+    title = str(data.meta.get("TDESC1") or data.label).replace("_", " ")
+    return f"{title} (deconvolved)" if "_deconvolved" in data.label else title
+
+
+def _footprint_limits(viewer, raster):
+    """Zoom a slit-jaw viewer to the raster's field of view in its first frame, with a margin."""
+    shape = raster.shape
+    step_axis = raster.ndim - 3
+    corners = []
+    for step in (0, shape[step_axis] - 1):
+        for slit in (0, shape[step_axis + 1] - 1):
+            pixel = [0] * raster.ndim
+            pixel[step_axis], pixel[step_axis + 1] = step, slit
+            corners.append(_lon_lat(raster, pixel))
+    lon, lat = (np.array([corner[i] for corner in corners], dtype=float) for i in (0, 1))
+    x, y = _sji_pixels(viewer.state.reference_data, 0, lon, lat)
+    if not (np.isfinite(x).all() and np.isfinite(y).all()):
+        return
+    margin = max(10.0, 0.1 * max(np.ptp(x), np.ptp(y)))
+    # limits already at the axes' aspect: for 'equal' glue derives y from a new x and could shrink it,
+    # while on later resizes it only widens
+    box = viewer.axes.get_window_extent()
+    ratio = box.height / box.width if box.width else 1.0
+    width = max(np.ptp(x) + 2 * margin, (np.ptp(y) + 2 * margin) / ratio)
+    x_mid, y_mid = (x.min() + x.max()) / 2, (y.min() + y.max()) / 2
+    state = viewer.state
+    with delay_callback(state, "x_min", "x_max", "y_min", "y_max"):
+        state.x_min, state.x_max = x_mid - width / 2, x_mid + width / 2
+        state.y_min, state.y_max = y_mid - width * ratio / 2, y_mid + width * ratio / 2
+
+
+def _pick_sjis(sjis):
+    """One slit-jaw cube per channel, the plain one before the deconvolved, and the ones left out."""
+    chosen = {}
+    for data in sorted(sjis, key=lambda data: "_deconvolved" in data.label):
+        chosen.setdefault(str(data.meta.get("TDESC1")), data)
+    shown = list(chosen.values())
+    return shown, [data for data in sjis if data not in shown]
+
+
+def _image(app, cls, data, x, y, slices, title, aspect):
+    viewer = app.new_data_viewer(cls, data=data)
+    state = viewer.state
+    pixel = data.pixel_component_ids
+    state.x_att = pixel[x]  # x before y: glue swaps the other axis when both would match
+    state.y_att = pixel[y]
+    state.slices = tuple(slices)
+    state.aspect = aspect
+    state.reset_limits()  # glue pads the limits of a new viewer
+    state.title = title
+    state.layers[0].percentile = PERCENTILE
+    return viewer
+
+
+def _raster_panels(app, raster, window):
+    """The map, spectrogram and wavelength panels of the table in the plan, with the point at the map centre."""
+    wave, spectral = _wavelengths(raster)
+    _, twave = _window(raster)
+    # the pixel nearest TWAVE, or mid-window; never index 0, which is a window edge
+    wl0 = int(np.nanargmin(np.abs(wave - twave))) if twave is not None else len(wave) // 2
+    shape = raster.shape
+    if raster.ndim == 4:  # scan, step, slit, wavelength
+        point = (0, shape[1] // 2, shape[2] // 2, wl0)
+        axes = {"map": (1, 2), "spectrogram": (3, 2), "wavelength": (3, 0)}
+        names = {"map": "map", "spectrogram": "spectrogram", "wavelength": "λ–scan"}
+    else:  # step or exposure, slit, wavelength
+        point = (shape[0] // 2, shape[1] // 2, wl0)
+        axes = {"map": (0, 1), "spectrogram": (2, 1), "wavelength": (2, 0)}
+        if _is_sit_and_stare(raster):
+            names = {"map": "slit vs time", "spectrogram": "spectrogram", "wavelength": "λ–time"}
+        else:
+            names = {"map": "map", "spectrogram": "spectrogram", "wavelength": "λ–step"}
+    viewers = {
+        role: _image(app, QuicklookImageViewer, raster, x, y, point, f"{window} {names[role]}", "auto")
+        for role, (x, y) in axes.items()
+    }
+    slices = [slice(i, i + 1) for i in point]
+    slices[spectral] = slice(None)
+    return viewers, PixelSubsetState(raster, slices)
+
+
+def _profile(app, raster, window):
+    """A Profile of the point's mean spectrum, with the raster itself hidden and no large-data prompt."""
+    viewer = app.new_data_viewer(ProfileViewer)
+    viewer.state.title = f"{window} spectrum"
+    viewer.state.function = "mean"
+    # glue asks 'Add large data set?' above 1e8 elements, defaulting to Cancel; only this viewer skips it
+    viewer.large_data_size = None
+    if not viewer.add_data(raster):
+        return viewer, f"The spectrum panel could not add {raster.label}."
+    for layer in viewer.state.layers:
+        if layer.layer is raster:
+            layer.visible = False  # only the point's spectrum, not the whole cube's
+    viewer.state.x_att = raster.world_component_ids[_wavelengths(raster)[1]]
+    viewer.axes.axhline(0, color="0.5", lw=0.8, zorder=0)
+    return viewer, f"Spectrum of {raster.label} ({raster.size:.3g} elements)."
+
+
+def quicklook(app, datasets, window=None):
+    """
+    Open the IRIS quicklook of one observation in a new tab.
+
+    A raster (or a stack of scans) opens as a map, a spectrogram and a wavelength panel (wavelength
+    against step, exposure or scan), each slit-jaw channel in its own viewer, and a spectrum panel
+    showing the mean spectrum of the point. The point starts at the centre of the map, in a new
+    subset group 'Point' that is the edit subset while the tab is shown, with the Pixel tool active
+    on the map.
+
+    Parameters
+    ----------
+    app : `~glue_qt.app.GlueApplication`
+    datasets : list of `~glue.core.data.Data`
+        IRIS datasets of one observation. Those not yet in the data collection are added and linked.
+    window : str, optional
+        The spectral window to show, by its ``TDESC`` name. By default Mg II k 2796, else the first.
+
+    Returns
+    -------
+    dict
+        The viewers: ``map``, ``spectrogram``, ``wavelength``, ``spectrum`` (absent without a raster)
+        and ``sji``, a list.
+    """
+    collection = app.data_collection
+    for data in datasets:
+        if data not in collection:
+            collection.append(data)
+    keep_hpc_linked(collection)
+    rasters = [data for data in datasets if _role(data) == "raster"]
+    sjis, offered = _pick_sjis([data for data in datasets if _role(data) == "sji"])
+    key = observation_key((rasters or sjis or datasets)[0])
+
+    app.new_tab()
+    tab = app.tab_count - 1
+    names = app.tab_names
+    names[tab] = f"IRIS {key[0]}" if key else "IRIS"
+    app.tab_names = names
+    coordinator(collection)  # before the point, so it follows it
+
+    viewers, notes = {"sji": []}, []
+    if rasters:
+        raster = _pick_raster(rasters, window)
+        window = _window(raster)[0] or raster.label
+        panels, point = _raster_panels(app, raster, window)
+        viewers.update(panels)
+        viewers["spectrum"], note = _profile(app, raster, window)
+        notes.append(note)
+    for sji in sjis:
+        frame = (0,) * sji.ndim
+        viewer = _image(app, ImageViewer, sji, sji.ndim - 1, sji.ndim - 2, frame, _sji_title(sji), "equal")
+        if rasters and _placeable(sji):
+            _footprint_limits(viewer, raster)
+        viewers["sji"].append(viewer)
+    notes += [f"{data.label} is loaded too: drag it onto a slit-jaw viewer to see it." for data in offered]
+
+    if rasters:
+        group = collection.new_subset_group(label="Point", subset_state=point)
+        own = [viewers[role] for role in ("map", "spectrogram", "wavelength")] + viewers["sji"]
+        coordinator(collection).own(group, own)
+        _edit_in_tab(app, tab, group)
+        _show_point(app, group, [viewers[role] for role in ("map", "spectrogram", "wavelength", "spectrum")])
+        _fit_spectrum(viewers["spectrum"], group)
+    app.statusBar().showMessage(" ".join(notes))
+    process_events()  # let the tab take its final size
+    _arrange(app, tab, viewers)
+    if rasters:
+        app.tab(tab).setActiveSubWindow(viewers["map"].parent())
+        viewers["map"].toolbar.active_tool = "image:point_selection"
+    return viewers
+
+
+def _edit_in_tab(app, tab, group):
+    """Make ``group`` the edit subset now and whenever its tab is shown again."""
+    points = getattr(app, "_solar_points", None)
+    if points is None:
+        points = app._solar_points = weakref.WeakKeyDictionary()
+
+        def follow(index):
+            group = points.get(app.tab_widget.widget(index))
+            if group is not None and group in app.data_collection.subset_groups:
+                app.session.edit_subset_mode.edit_subset = [group]
+                coordinator(app.data_collection).follow(group)
+
+        app.tab_widget.currentChanged.connect(follow)
+    points[app.tab(tab)] = group
+    app.session.edit_subset_mode.edit_subset = [group]
+    coordinator(app.data_collection).follow(group)
+
+
+def _show_point(app, group, own):
+    """
+    Show the point only in its quicklook's raster and spectrum panels, and no other subset there.
+
+    Elsewhere glue 1.27.0 would draw its crosshair on a dataset it does not belong to, and an
+    earlier quicklook's point would show in this one's panels.
+    """
+    for viewer in (viewer for tab in app.viewers for viewer in tab):
+        for layer in viewer.state.layers:
+            other = getattr(layer.layer, "group", None)
+            if other is group:
+                layer.visible = viewer in own
+            elif other is not None and viewer in own:
+                layer.visible = False
+
+
+# glue-qt computes the profile of a layer above this size on a worker thread
+_THREADED_SIZE = 1e7
+
+
+def _fit(viewer):
+    """Fit the spectrum panel's y range to its profiles and the y = 0 line."""
+    state = viewer.state
+    state.reset_limits()
+    state.y_min, state.y_max = min(state.y_min, 0), max(state.y_max, 0)
+
+
+class _FitOnceComputed(HubListener):
+    """Fit a spectrum panel once glue has computed the point's spectrum on a worker thread."""
+
+    def __init__(self, viewer, subset):
+        self.viewer, self.subset = viewer, subset
+        subset.data.hub.subscribe(self, ComputationEndedMessage, handler=self._ended, filter=self._is_point)
+
+    def _is_point(self, message):
+        return message.sender in self.viewer.layers and message.sender.state.layer is self.subset
+
+    def _ended(self, message):
+        self.subset.data.hub.unsubscribe(self, ComputationEndedMessage)
+        _fit(self.viewer)
+
+
+def _fit_spectrum(viewer, group):
+    """Fit the spectrum panel to the point's spectrum, now or when glue's worker thread has computed it."""
+    data = viewer.state.reference_data
+    if data is None:
+        return  # the panel could not add the raster
+    _fit(viewer)
+    if data.size > _THREADED_SIZE:
+        [subset] = [subset for subset in group.subsets if subset.data is data]
+        viewer._solar_fit = _FitOnceComputed(viewer, subset)  # the hub holds its listeners weakly
+
+
+def _arrange(app, tab, viewers):
+    """Raster panels in a top row, slit-jaw viewers and the spectrum in a bottom row."""
+    size = app.tab(tab).viewport().size()
+    width, height = max(size.width(), 1200), max(size.height(), 800)
+    rows = [
+        [viewers[role] for role in ("map", "spectrogram", "wavelength") if role in viewers],
+        viewers["sji"] + [viewers[role] for role in ("spectrum",) if role in viewers],
+    ]
+    rows = [row for row in rows if row]
+    for r, row in enumerate(rows):
+        for c, viewer in enumerate(row):
+            viewer.move(c * width // len(row), r * height // len(rows))
+            viewer.viewer_size = (width // len(row), height // len(rows))

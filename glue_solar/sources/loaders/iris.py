@@ -7,11 +7,14 @@ from pathlib import Path
 import numpy as np
 from glue.core.component import Component
 from glue.core.data import Data
+from glue.core.hub import HubListener
+from glue.core.link_helpers import LinkSame
+from glue.core.message import DataCollectionDeleteMessage
 from glue.core.visual import VisualAttributes
 from glue_qt.utils import get_qapp, load_ui
 from irispy.io import read_files
 from qtpy import QtWidgets
-from qtpy.QtCore import QSettings, Qt
+from qtpy.QtCore import QSettings, Qt, QTimer
 
 import astropy.units as u
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
@@ -19,7 +22,16 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 from .scan import extract_archive, scan_directory
 from .stack_spectrograms import MISSING_VALUES, stack_spectrogram_sequence
 
-__all__ = ["WCS_LOCK", "QtIRISImporter", "image_data", "iris_data", "last_directory", "raster_data"]
+__all__ = [
+    "WCS_LOCK",
+    "QtIRISImporter",
+    "image_data",
+    "iris_data",
+    "keep_hpc_linked",
+    "last_directory",
+    "link_hpc",
+    "raster_data",
+]
 
 UI_MAIN = os.path.join(os.path.dirname(__file__), "iris_loader.ui")
 _SETTINGS = ("glue-solar", "glue-solar")
@@ -229,6 +241,75 @@ def raster_data(files, windows=None, stack=False):
     """
     collection = read_files(files, spectral_windows=windows, memmap=False, uncertainty=False)
     return _raster_collection_data(collection, windows, stack)
+
+
+def link_hpc(data_collection):
+    """
+    Links pairing the helioprojective longitude and latitude of every IRIS dataset with those of the first one.
+
+    Datasets are matched by world axis physical type, not by component name. Only datasets whose coordinates are
+    a glue-solar IRIS WCS take part, since those are all in arcsec; a sunpy map WCS is in degrees and
+    `~glue.core.link_helpers.LinkSame` does not convert. No link involves time, so a slit-jaw image frame is
+    placed with its own pointing. Pairs that are already linked, either way round, are skipped, so calling this
+    again after loading more data is safe. The caller adds the links::
+
+        data_collection.add_link(link_hpc(data_collection))
+
+    Every dataset links to the first, not to every other: glue rediscovers all links at each change, which
+    takes 0.3 s for the 70 links of 36 datasets but 4 s for the 1260 links of every pair. Removing the first
+    dataset drops the links of all the others; `keep_hpc_linked` links them again.
+
+    Returns
+    -------
+    list of `~glue.core.link_helpers.LinkSame`
+    """
+    linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in data_collection.links}
+    anchors, links = {}, []
+    for data in data_collection:
+        if not isinstance(data.coords, _GlueWCS):
+            continue
+        # glue's world components are in numpy order, the reverse of the WCS world axes
+        for physical_type, cid in zip(data.coords.world_axis_physical_types[::-1], data.world_component_ids):
+            if physical_type and physical_type.startswith("custom:pos.helioprojective."):
+                anchor = anchors.setdefault(physical_type, cid)
+                if anchor is not cid and frozenset((anchor, cid)) not in linked:
+                    links.append(LinkSame(anchor, cid))
+    return links
+
+
+class _Relinker(HubListener):
+    """Link the IRIS datasets of a collection again, once, after datasets are removed from it."""
+
+    def __init__(self, data_collection):
+        self.data_collection = data_collection
+        # one relink after a burst of removals, such as clearing the collection
+        self._timer = QTimer()
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(0)
+        self._timer.timeout.connect(self._relink)
+        data_collection.hub.subscribe(self, DataCollectionDeleteMessage, handler=self._removed)
+
+    def _removed(self, message):
+        self._timer.start()
+
+    def _relink(self):
+        links = link_hpc(self.data_collection)
+        if links:  # glue rediscovers every dataset's links on each add_link, even an empty one
+            self.data_collection.add_link(links)
+
+
+def keep_hpc_linked(data_collection):
+    """
+    Add the `link_hpc` links to ``data_collection``, and add them again after any dataset is removed.
+
+    Removing the dataset the others are linked through drops their links, so they are then linked
+    through the new first dataset. Datasets loaded later need another call.
+    """
+    links = link_hpc(data_collection)
+    if links:
+        data_collection.add_link(links)
+    if not hasattr(data_collection, "_solar_relinker"):
+        data_collection._solar_relinker = _Relinker(data_collection)  # the hub holds its listeners weakly
 
 
 def _fmt(value):

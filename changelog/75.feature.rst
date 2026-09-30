@@ -1,0 +1,1 @@
+The quicklook panels now follow the selected point: a map click moves the spectrogram and wavelength panels to its step and slit, a click on a wavelength panel moves the map to that wavelength, and editing a step, exposure or scan slider moves the point.

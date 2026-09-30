@@ -6,6 +6,7 @@ import numpy as np
 from glue.config import viewer_tool
 from glue.core.component import DateTimeComponent
 from glue.viewers.common.tool import SimpleToolMenu, Tool
+from matplotlib.patches import Rectangle
 from qtpy import QtCore, QtWidgets
 
 from glue_solar.quicklook import coordinator
@@ -56,7 +57,10 @@ class FrameTimeTool(Tool):
     data, whichever loader attached it (the IRIS loaders add ``Time``, one per SJI exposure or
     raster step); the toolbar button hides and shows it. A frame spanning several exposures,
     such as a raster shown as step against slit, shows the range. Data with an ``Exposure time``
-    component also show it, and an SJI frame's pointing is in the tooltip.
+    component also show it, and an SJI frame's pointing is in the tooltip. For an IRIS observation
+    the readout also says which dataset is the time master (with its timing step for a raster), the
+    signed offset of a matched follower's time from the master's, or NO MATCH with that offset,
+    when the follower keeps its frame and is greyed.
 
     The tool exists for every Image viewer, so it also throttles the viewer's slice sliders.
     """
@@ -71,6 +75,14 @@ class FrameTimeTool(Tool):
         self.label = QtWidgets.QLabel()
         self.label.setContentsMargins(0, 0, 12, 0)  # keep clear of the window edge and size grip
         viewer.statusBar().addPermanentWidget(self.label)
+        # greys a follower with no frame near the time master's
+        self._grey = viewer.axes.add_patch(
+            Rectangle((0, 0), 1, 1, transform=viewer.axes.transAxes, color="0.6", alpha=0.6, zorder=1000, visible=False)
+        )
+        self.coordinator = coordinator(viewer._data)
+        self.coordinator.add_listener(self._synced)
+        # a viewer torn down without closing its tools must not be called back
+        self.label.destroyed.connect(self._forget)
         for prop in _WATCHED:
             viewer.state.add_callback(prop, self._refresh)
         self._refresh()
@@ -82,6 +94,7 @@ class FrameTimeTool(Tool):
         self.label.setHidden(not self.label.isHidden())
 
     def close(self):
+        self.coordinator.remove_listener(self._synced)
         for prop in _WATCHED:
             self.viewer.state.remove_callback(prop, self._refresh)
         for prop in _SLIDER_REBUILDS:
@@ -91,10 +104,22 @@ class FrameTimeTool(Tool):
     def _throttle_sliders(self, *_):
         _throttle_slice_sliders(self.viewer)
 
+    def _synced(self, key, time, exposure):
+        self._refresh()
+
+    def _forget(self, *_):
+        self.coordinator.remove_listener(self._synced)
+
     def _refresh(self, *_):
         state = self.viewer.state
         data = state.reference_data
         cid = _time_component(data) if data is not None else None
+        status = self.coordinator.time_status(self.viewer)
+        unmatched = status is not None and status[0] == "no match"
+        if self._grey.get_visible() != unmatched:
+            self._grey.set_visible(unmatched)
+            self.viewer.figure.canvas.draw_idle()
+        self.label.setStyleSheet("color: gray" if unmatched else "")
         if cid is None or state.x_att is None or state.y_att is None or len(state.slices) != data.ndim:
             self.label.setText("")
             return
@@ -109,6 +134,18 @@ class FrameTimeTool(Tool):
             seconds = data[exposure, view]
             shortest, longest = f"{np.nanmin(seconds):.4g}", f"{np.nanmax(seconds):.4g}"
             text += f" · exp {shortest} s" if shortest == longest else f" · exp {shortest}–{longest} s"
+        where = self.coordinator.point_on(self.viewer)
+        if where is not None:
+            ny, nx = data.shape[1:]
+            if not (-0.5 <= where[0] <= nx - 0.5 and -0.5 <= where[1] <= ny - 0.5):
+                text += " · outside SJI FOV"
+        if status is not None:
+            kind, value = status
+            if kind == "master":
+                text += " · time master" + (f", step {value}" if value is not None else "")
+            else:
+                seconds = value / np.timedelta64(1, "s")
+                text += f" · Δt {seconds:+.1f} s" if kind == "match" else f" · NO MATCH Δt = {seconds:+.1f} s"
         self.label.setText(text)
         self.label.setToolTip(_pointing(data.meta, view[0]))
 
@@ -238,6 +275,7 @@ class CoordinateTool(SimpleToolMenu):
         super().__init__(viewer, subtools=subtools or [_TimeMasterEntry(viewer, self), _ClearPointEntry(viewer, self)])
         self.coordinator = coordinator(viewer._data)
         self.coordinator.register(viewer)
+        viewer.destroyed.connect(self._forget)
         self.toolbar = viewer.toolbar
         self.mode = self.toolbar.active_tool
         self.toolbar.tool_activated.connect(self._remember_mode)
@@ -246,6 +284,10 @@ class CoordinateTool(SimpleToolMenu):
     def close(self):
         self.coordinator.unregister(self.viewer)
         super().close()
+
+    def _forget(self, *_):
+        # a viewer torn down without closing its tools
+        self.coordinator.unregister(self.viewer)
 
     def _remember_mode(self):
         self.mode = self.toolbar.active_tool

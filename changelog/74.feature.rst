@@ -1,0 +1,1 @@
+New ``glue_solar.quicklook.quicklook`` opens a CRISPEX-style quicklook of one IRIS observation in a new tab: the raster as a map, a spectrogram and a wavelength panel, one viewer per slit-jaw channel and the spectrum of a point that starts at the map centre, without glue's "Add large data set?" prompt.
