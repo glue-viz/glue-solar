@@ -27,6 +27,9 @@ def _throttle_slice_sliders(viewer):
     image, so on a large cube a drag queues redraws and lags behind the mouse. With tracking off a
     drag reports only its release, and a timer applies the dragged position in between. Keys,
     clicks and playback still apply at once.
+
+    Always on, with no upstream change tracked. It finds the sliders by glue-qt's object name
+    ``value_slice_center``, which the drag test pins.
     """
     for slider in viewer.options_widget().findChildren(QtWidgets.QSlider, "value_slice_center"):
         if not slider.hasTracking():

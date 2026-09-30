@@ -304,7 +304,8 @@ def test_raster_coordinates_are_thread_safe(irispy_test_files):
 
 
 def test_negative_step_raster_fill_follows_the_flipped_data(tmp_path, irispy_test_files):
-    # irispy flips STEPS_AV < -0.01 rasters along the step axis but builds their mask before the flip
+    # The fill must follow irispy's flip of STEPS_AV < -0.01 rasters and cover -199, which irispy's mask,
+    # -200 only, leaves out
     source = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits")
     path = tmp_path / source.name
     shutil.copy2(source, path)

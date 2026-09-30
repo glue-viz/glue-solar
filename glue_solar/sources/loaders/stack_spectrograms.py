@@ -55,7 +55,7 @@ def stack_spectrogram_sequence(cube_sequence, memmap=True):
     for i, cube in enumerate(cube_sequence):
         scan = output[i]
         scan[...] = cube.data
-        # From the values, not cube.mask: irispy <= 0.9.0 flips STEPS_AV < -0.01 rasters but not their mask.
+        # From the values, not cube.mask: irispy masks only -200, and nothing in memory-mapped cubes.
         scan[np.isin(scan, MISSING_VALUES)] = np.nan
         times = cube.axis_world_coords("time", wcs=cube.extra_coords)[0].utc.to_value("datetime64")
         acquisition_times[i] = np.broadcast_to(
