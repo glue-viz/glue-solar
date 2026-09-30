@@ -6,6 +6,7 @@ import pytest
 from glue.core import Data
 from glue.core.hub import HubListener
 from glue.core.message import SubsetUpdateMessage
+from glue.viewers.image.state import AggregateSlice
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
@@ -375,3 +376,108 @@ def test_quicklook_keeps_the_users_spectrum_range(bare_app, scans):
     spectrum.y_min, spectrum.y_max = -3, 7
     select_point(viewers["map"], 1, 2)
     assert (spectrum.y_min, spectrum.y_max) == (-3, 7)
+
+
+RASTER_PANELS = ("map", "spectrogram", "wavelength")
+
+
+def spectrum(viewers):
+    """The spectrum the spectrum panel shows for the point."""
+    [layer] = [layer for layer in viewers["spectrum"].state.layers if layer.visible]
+    return layer.profile[1]
+
+
+def cube(data):
+    return data[data.main_components[0]]
+
+
+def test_a_map_click_moves_the_other_panels(bare_app, qtbot, scans):
+    for data in scans:
+        viewers = quicklook(bare_app, [data])
+        step, slit = data.ndim - 3, data.ndim - 2
+        if data.ndim == 4:
+            viewers["map"].state.slices = (2, *viewers["map"].state.slices[1:])
+        wavelengths = [viewers[role].state.slices[-1] for role in RASTER_PANELS]
+        select_point(viewers["map"], 1, 30)
+        qtbot.waitUntil(lambda viewers=viewers, step=step: viewers["spectrogram"].state.slices[step] == 1)
+        assert viewers["wavelength"].state.slices[slit] == 30
+        assert [viewers[role].state.slices[-1] for role in RASTER_PANELS] == wavelengths
+        np.testing.assert_array_equal(spectrum(viewers), cube(data)[(2,) * (data.ndim == 4) + (1, 30)])
+        if data.ndim == 4:  # the point follows the map's scan, at the same step and slit
+            viewers["map"].state.slices = (4, *viewers["map"].state.slices[1:])
+            qtbot.waitUntil(lambda viewers=viewers: viewers["spectrogram"].state.slices[0] == 4)
+            np.testing.assert_array_equal(spectrum(viewers), cube(data)[4, 1, 30])
+            assert viewers["wavelength"].state.slices[1:3] == (1, 30)
+
+
+def test_a_click_on_a_wavelength_panel_moves_the_map_to_its_wavelength(bare_app, qtbot, scans):
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    step = viewers["spectrogram"].state.slices[0]
+    select_point(viewers["spectrogram"], 5, 40)  # wavelength 5, slit 40
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    assert group.subset_state.slices == [slice(step, step + 1), slice(40, 41), slice(None)]
+    assert viewers["map"].state.slices[2] == 5
+    qtbot.waitUntil(lambda: viewers["wavelength"].state.slices[1] == 40)
+    select_point(viewers["wavelength"], 9, 6)  # wavelength 9, step 6
+    assert group.subset_state.slices == [slice(6, 7), slice(40, 41), slice(None)]
+    assert viewers["map"].state.slices[2] == 9
+    qtbot.waitUntil(lambda: viewers["spectrogram"].state.slices[0] == 6)
+    assert viewers["spectrogram"].state.slices[2] == viewers["wavelength"].state.slices[2]  # never written
+
+
+def test_typing_a_step_moves_the_point_once(bare_app, qtbot, scans):
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    slit = group.subset_state.slices[1]
+    updates = SubsetUpdates(bare_app.data_collection.hub)
+    viewers["spectrogram"].state.slices = (6, *viewers["spectrogram"].state.slices[1:])
+    qtbot.wait(20)
+    assert updates.counts == {scan.label: 1}
+    assert group.subset_state.slices == [slice(6, 7), slit, slice(None)]
+    np.testing.assert_array_equal(spectrum(viewers), cube(scan)[6, slit.start])
+
+
+def test_a_collapse_is_never_overwritten(bare_app, qtbot, scans):
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    collapse = AggregateSlice(slice(0, 4), 2, np.nanmean)
+    viewers["spectrogram"].state.slices = (collapse, *viewers["spectrogram"].state.slices[1:])
+    select_point(viewers["map"], 5, 12)
+    select_point(viewers["wavelength"], 3, 5)
+    qtbot.wait(20)
+    assert viewers["spectrogram"].state.slices[0] is collapse
+
+
+def test_clearing_the_point_stops_the_coupling(bare_app, qtbot, scans):
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    menu_action(viewers["map"], "Clear point").trigger()
+    slit = viewers["wavelength"].state.slices[1]
+    viewers["spectrogram"].state.slices = (6, 20, viewers["spectrogram"].state.slices[2])
+    qtbot.wait(20)
+    assert coordinator(bare_app.data_collection).point is None
+    assert viewers["wavelength"].state.slices[1] == slit
+
+
+def test_an_sji_point_moves_no_raster_panel(bare_app, qtbot, irispy_test_files):
+    rasters = raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))], ["Si IV 1403"])
+    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    viewers = quicklook(bare_app, [*rasters, sji])
+    before = {role: viewers[role].state.slices for role in RASTER_PANELS}
+    select_point(viewers["sji"][0], 10, 20)
+    qtbot.wait(20)
+    assert {role: viewers[role].state.slices for role in RASTER_PANELS} == before
+
+
+@pytest.mark.remote_data
+def test_a_spectrogram_click_on_a_full_raster(bare_app, qtbot, irispy_data):
+    [data] = raster_data([irispy_data("iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz")])
+    viewers = quicklook(bare_app, [data])
+    step = viewers["spectrogram"].state.slices[0]
+    select_point(viewers["spectrogram"], 300, 500)
+    assert viewers["map"].state.slices[2] == 300
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    assert group.subset_state.slices == [slice(step, step + 1), slice(500, 501), slice(None)]
+    np.testing.assert_array_equal(spectrum(viewers), cube(data)[step, 500])

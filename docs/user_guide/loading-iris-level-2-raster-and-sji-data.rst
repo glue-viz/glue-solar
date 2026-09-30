@@ -114,8 +114,14 @@ channel and a spectrum panel:
 
 The map shows the wavelength nearest the window's reference wavelength, and the panels use
 99.5 % limits. A point, the edit subset "Point", starts at the centre of the map with the Pixel
-tool active: drag it on the map, and the spectrum panel shows its spectrum. The slit-jaw viewers do
-not mark the point. The raster panels have no region selection tools, because a region drawn on a
+tool active: drag it on the map, and the spectrum panel shows its spectrum. The point is a detector
+pixel (a step or exposure, and a slit position) at every wavelength, and the other panels follow
+it: the spectrogram moves to its step and the wavelength panel to its slit. Clicking the
+spectrogram or the wavelength panel moves the point there and the map to the clicked wavelength;
+no other wavelength slider moves. Moving a step, exposure or scan slider moves the point, so on a
+stack the point stays on the map's scan. A Profile's collapse of an axis is left in place, and
+after "Clear point" nothing follows until the next click. The slit-jaw viewers do not mark the
+point. The raster panels have no region selection tools, because a region drawn on a
 raster map is recomputed on every slit-jaw viewer for each screen pixel at every frame (see
 Linking). Each quicklook has its own point, shown only in its own panels and edited while its
 tab is shown. When a slit-jaw channel is loaded both plain and deconvolved,

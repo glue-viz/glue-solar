@@ -15,6 +15,7 @@ from glue.viewers.image.state import AggregateSlice
 from glue_qt.utils import process_events
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from qtpy.QtCore import QTimer
 
 import astropy.units as u
 
@@ -77,19 +78,27 @@ class Coordinator(HubListener):
 
     The point is the Pixel tool's selection: the coordinator follows the last subset group given a
     `~glue.viewers.image.pixel_selection_subset_state.PixelSubsetState` on IRIS data. On a
-    spectral cube the point fixes every axis but wavelength, so a click takes the axes the clicked
-    viewer does not show, such as a stack's scan, from its sliders, and a viewer of that cube
-    whose displayed axes change moves its new sliders to the point. Wavelength sliders are never
-    moved. Each data collection has one coordinator (`coordinator`), and the ``solar:coordinate``
-    tool registers every Image viewer with it.
+    spectral cube the point is a detector pixel at every wavelength: a click takes the axes the
+    clicked viewer does not show, such as a stack's scan, from its sliders. A click on a panel that
+    shows wavelength moves the cube's maps to the clicked wavelength instead of fixing it. Every
+    other viewer of the cube then shows the point's step, exposure, scan and slit, after a drag
+    only its last position, and editing one of those sliders moves the point. No other wavelength
+    slider is moved, and a Profile's collapse is left in place. Each data collection has one
+    coordinator (`coordinator`), and the ``solar:coordinate`` tool registers every Image viewer
+    with it.
     """
 
     def __init__(self, data_collection):
         self.data_collection = data_collection
         self.group = None
         self.masters = {}  # observation key -> the dataset chosen as its time master
-        self._viewers = {}  # registered viewer -> its callback
+        self._viewers = {}  # registered viewer -> its callbacks
         self._busy = False
+        # a drag moves the point at every mouse event: show only its latest position
+        self._timer = QTimer()
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(0)
+        self._timer.timeout.connect(self._show_point)
         hub = data_collection.hub
         hub.subscribe(self, SubsetCreateMessage, handler=self._subset_changed)
         hub.subscribe(
@@ -110,19 +119,25 @@ class Coordinator(HubListener):
         if viewer in self._viewers:
             return
 
-        def callback(*_):
+        def axes_changed(*_):
             self._apply_point(viewer)
 
+        def slices_changed(*_):
+            self._move_point(viewer)
+
         for prop in ("reference_data", "x_att", "y_att"):
-            viewer.state.add_callback(prop, callback)
-        self._viewers[viewer] = callback
+            viewer.state.add_callback(prop, axes_changed)
+        viewer.state.add_callback("slices", slices_changed)
+        self._viewers[viewer] = (axes_changed, slices_changed)
 
     def unregister(self, viewer):
         """Stop coordinating ``viewer``; unregistering it again does nothing."""
-        callback = self._viewers.pop(viewer, None)
-        if callback is not None:
+        callbacks = self._viewers.pop(viewer, None)
+        if callbacks is not None:
+            axes_changed, slices_changed = callbacks
             for prop in ("reference_data", "x_att", "y_att"):
-                viewer.state.remove_callback(prop, callback)
+                viewer.state.remove_callback(prop, axes_changed)
+            viewer.state.remove_callback("slices", slices_changed)
 
     def set_master(self, data):
         """Make ``data`` the time master of its observation."""
@@ -154,26 +169,79 @@ class Coordinator(HubListener):
             return
         self.group = group
         self._pin(state)
+        self._timer.start()
+
+    def _viewers_of(self, data):
+        return [viewer for viewer in self._viewers if viewer.state.reference_data is data]
 
     def _pin(self, state):
-        """Fix the point's free axes, wavelength aside, at the sliders of the viewer it was clicked in."""
+        """
+        Make a click the point: a detector pixel at every wavelength.
+
+        The point's other free axes come from the sliders of the viewer it was clicked in. A click on
+        a panel showing wavelength frees the wavelength and moves the cube's maps to it.
+        """
         data = state.reference_data
         spectral = _spectral_axes(data)
         if not spectral:
             return  # a slit-jaw point is a detector pixel in every frame
         clicked = {axis for axis, s in enumerate(state.slices) if s.start is not None}
         # ponytail: the first viewer that shows the clicked axes; ask the Pixel tool which one if two ever do
-        viewer = next((v for v in self._viewers if v.state.reference_data is data and _shown(v.state) == clicked), None)
+        viewer = next((v for v in self._viewers_of(data) if _shown(v.state) == clicked), None)
         if viewer is None:
             return
         slices = list(state.slices)
+        wavelengths = {axis: s.start for axis, s in enumerate(state.slices) if axis in spectral and s.start is not None}
         for axis, s in enumerate(state.slices):
-            if s.start is None and axis not in spectral:
+            if axis in wavelengths:
+                slices[axis] = slice(None)
+            elif s.start is None and axis not in spectral:
                 index = getattr(viewer.state.slices[axis], "center", viewer.state.slices[axis])
                 slices[axis] = slice(index, index + 1)
-        if slices != list(state.slices):
-            with self._writing():
+        with self._writing():
+            for other in self._viewers_of(data):
+                self._set_slices(other, wavelengths)
+            if slices != list(state.slices):
                 self.group.subset_state = PixelSubsetState(data, slices)
+
+    @staticmethod
+    def _set_slices(viewer, indices):
+        """Move the viewer's sliders on the axes it does not show to ``indices``, leaving a collapse in place."""
+        state = viewer.state
+        if len(state.slices) != state.reference_data.ndim:
+            return  # mid-way through an axis change
+        shown = _shown(state)
+        slices = list(state.slices)
+        for axis, index in indices.items():
+            if axis not in shown and not isinstance(slices[axis], AggregateSlice):
+                slices[axis] = index
+        if slices != list(state.slices):
+            state.slices = tuple(slices)
+
+    def _show_point(self):
+        """Move every viewer of the point's cube to its step, exposure, scan and slit."""
+        if self.point is not None:
+            for viewer in list(self._viewers):
+                self._apply_point(viewer)
+
+    def _move_point(self, viewer):
+        """Move the point along the axes whose sliders the user moved in ``viewer``."""
+        point = self.point
+        state = viewer.state
+        if self._busy or point is None or state.reference_data is not point.reference_data:
+            return
+        if len(state.slices) != point.reference_data.ndim:
+            return
+        shown, spectral = _shown(state), _spectral_axes(point.reference_data)
+        slices = list(point.slices)
+        for axis, s in enumerate(point.slices):
+            index = state.slices[axis]
+            if s.start is not None and axis not in shown | spectral and not isinstance(index, AggregateSlice):
+                slices[axis] = slice(index, index + 1)
+        if slices != list(point.slices):
+            with self._writing():
+                self.group.subset_state = PixelSubsetState(point.reference_data, slices)
+            self._timer.start()
 
     def _apply_point(self, viewer):
         """Move the viewer's sliders along the point's fixed axes to the point, wavelength aside."""
@@ -182,17 +250,10 @@ class Coordinator(HubListener):
         # mid-way through an axis change a viewer can show fewer than two axes
         if self._busy or point is None or data is not point.reference_data or len(shown) < 2:
             return
-        if len(state.slices) != data.ndim:
-            return
         spectral = _spectral_axes(data)
-        slices = list(state.slices)
-        for axis, s in enumerate(point.slices):
-            # a Profile's collapse leaves an AggregateSlice, which stays
-            if s.start is not None and axis not in (shown | spectral) and not isinstance(slices[axis], AggregateSlice):
-                slices[axis] = s.start
-        if slices != list(state.slices):
-            with self._writing():
-                state.slices = tuple(slices)
+        fixed = {axis: s.start for axis, s in enumerate(point.slices) if s.start is not None and axis not in spectral}
+        with self._writing():
+            self._set_slices(viewer, fixed)
 
 
 class QuicklookImageViewer(ImageViewer):
