@@ -1,0 +1,1 @@
+A click in glue-qt's PV slice window no longer leaves the Image viewer's slices holding 'x' and 'y', which broke the next axis change, the image and the cursor readout.
