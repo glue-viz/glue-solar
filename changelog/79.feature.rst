@@ -1,0 +1,1 @@
+Quicklook slit-jaw viewers are titled with their channel, open on the raster's field of view, and say "outside SJI FOV" when the raster point is off the displayed frame.
