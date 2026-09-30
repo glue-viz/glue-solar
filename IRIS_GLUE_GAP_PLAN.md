@@ -140,7 +140,11 @@ predates the last upload; its comparison shows 92.54 → 92.66 %).
 
 Done 2026-09-29 on the plan branch: `wp9-m0-docs-build`. The `iris-plan-docs`
 env and build recipe are in Validation; main 7a3c32f and draft #72 (ca1142e)
-build with `-W` and no warnings in about 12 s.
+build with `-W` and no warnings in about 12 s. Also done on the plan branch:
+`wp0-readme-runner`. `review_20260923/README.md` runs the Validation runner
+from `iris-plan` with scratch HOME and regenerated `<scratch>` exports instead
+of `.venv` and purged `/tmp` roots; its baseline command gives 7 passed, 2
+skipped (the draft-Slice cases) with #72's checkout.
 
 Open glue-solar PRs (the user reviews each draft):
 
@@ -446,7 +450,6 @@ Each release containing a fix retires the matching glue-solar workaround
 ### Checklist by milestone
 
 **M0**
-- WP0: `wp0-readme-runner`
 - WP1: `wp1-m0-link-hpc`, `wp1-m0-link-graph-regression`
 - WP4: `wp4-quicklook-preset`, `wp4-launch-entry`, `wp4-m0-point-fixed-index`, `wp4-time-sync`, `wp4-m0-time-wavelength-panels`, `wp4-sji-panels`, `wp4-slit-point-overlay`, `wp4-tests`
 - WP9: `wp9-m0-user-guide-corrections`, `wp9-m0-viewer-tools-docs`, `wp9-m0-browsing-recipes`, `wp9-m0-mask-overlays`, `wp9-m0-workflow-recipes`, `wp9-m0-scripting-recipe`, `wp9-m0-iris9-tutorial`, `wp9-m0-iris9-acceptance`, `wp9-m0-wiki-digest`
@@ -545,7 +548,6 @@ Reports and requests (each closes with a URL or the user's decision not to file)
 
 **M0**
 
-- [ ] **M0** `wp0-readme-runner`: In `IRIS_PLAN_PROTOTYPES/review_20260923/README.md`, replace the four `.venv/bin/python` runner lines and `/tmp/iris-plan-validation-*` roots with the Validation runner. Done when no runner instruction outside `IRIS_PLAN_PROTOTYPES/archive/` uses `.venv`.
 
 **M1**
 

@@ -95,34 +95,41 @@ both #2595 files (implementation and upstream tests), passes `git apply
 --check`, and leaves the real checkouts untouched. Export Qt #70 separately.
 This is a limited source combination, not an eleven-PR integration test.
 
-The actual combined directory is `/tmp/iris-plan-validation-20260923/core-combined`;
-Qt is `/tmp/iris-plan-validation-20260922/qt-profile`.
-From the solar repository root:
+The 2026-09-23 combined directories under `/tmp` have since been purged.
+Regenerate them before a rerun, as the plan's Validation section describes
+(`git archive` exports into a `<scratch>` directory, dropping missing roots),
+and run with the Validation runner from a checkout of `main` that also has
+`IRIS_PLAN_PROTOTYPES/` available (the `plan` checkout supplies it):
 
 ```sh
-iris_root="$PWD"
+iris_root=~/Git/glue-solar  # the plan checkout, for IRIS_PLAN_PROTOTYPES
+iris_solar="$PWD"           # a checkout of the glue-solar code under test
 iris_protos="$iris_root/IRIS_PLAN_PROTOTYPES"
 iris_runner="$iris_protos/review_20260905/run_checks.py"
-iris_core="/tmp/iris-plan-validation-20260923/core-combined"
-iris_qt="/tmp/iris-plan-validation-20260922/qt-profile"
+iris_core="<scratch>/core-combined"   # #2601 export plus the #2595 autolink diff
+iris_qt="<scratch>/qt-profile"        # Qt #70 export
+iris_py=~/mamba/envs/iris-plan/bin/python
 
 # Existing baseline; skips only the two draft-Slice cases.
-.venv/bin/python -B "$iris_runner" "$iris_root" \
+env HOME="$(mktemp -d)" PYTHONPATH="$iris_protos/review_20260905" "$iris_py" -B "$iris_runner" \
+  "$iris_solar:$iris_protos/review_20260905" \
   "$iris_protos/review_20260923/test_existing_workflows.py" -p glue_solar.conftest
 
 # Existing workflows with the draft features and main solar.
-.venv/bin/python -B "$iris_runner" "$iris_core:$iris_qt:$iris_root" \
+env HOME="$(mktemp -d)" PYTHONPATH="$iris_protos/review_20260905" "$iris_py" -B "$iris_runner" \
+  "$iris_core:$iris_qt:$iris_solar:$iris_protos/review_20260905" \
   "$iris_protos/review_20260923/test_existing_workflows.py" -p glue_solar.conftest
 
 # Native WCS autolinking with main's wrapper.
-.venv/bin/python -B "$iris_runner" "$iris_core:$iris_qt:$iris_root" \
+env HOME="$(mktemp -d)" PYTHONPATH="$iris_protos/review_20260905" "$iris_py" -B "$iris_runner" \
+  "$iris_core:$iris_qt:$iris_solar:$iris_protos/review_20260905" \
   "$iris_protos/review_20260923/test_wcs_capabilities.py" -p glue_solar.conftest -s
 
 # Same matrix, with the proposed wrapper correction.
-.venv/bin/python -B "$iris_runner" "$iris_core:$iris_qt:$iris_protos/wp1" \
+env HOME="$(mktemp -d)" PYTHONPATH="$iris_protos/review_20260905" "$iris_py" -B "$iris_runner" \
+  "$iris_core:$iris_qt:$iris_protos/wp1:$iris_protos/review_20260905" \
   "$iris_protos/review_20260923/test_wcs_capabilities.py" -p glue_solar.conftest -s
 ```
-
 PV checks filter only two pre-existing deprecations: spectral-cube's
 `COPY_IF_NEEDED` import under Astropy 8, and the legacy standalone viewer's
 colormap `color` key. Without these filters the repo's warnings-as-errors
