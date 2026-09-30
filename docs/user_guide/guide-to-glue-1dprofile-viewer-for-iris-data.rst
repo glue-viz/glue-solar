@@ -9,7 +9,7 @@ Loading and stacking multi-scan IRIS Level 2 raster cubes
 
 Use the observation browser for this task because it groups raster scans by observing-program
 execution and lets you select spectral windows before loading their arrays. Open
-"Plugins -> IRIS: browse observations..." and point it at a directory containing the IRIS
+"Plugins -> IRIS: browse observations…" and point it at a directory containing the IRIS
 Level 2 files or their downloaded archives. If an archive is still packed, tick its
 "Extract ..." entry and press "Load selected" first; the browser refreshes and shows its contents.
 Then tick the raster spectral windows to load (``C II 1336`` and ``Mg II k 2796`` here) and tick
@@ -37,10 +37,11 @@ Using ``glue``'s 2D image viewer to pick a pixel
 ------------------------------------------------
 
 Drag the stacked ``Mg_II_k_2796`` dataset from the "Data Collection" area onto the large plotting
-window to the right and choose "2D Image". The viewer shows one slice of the 4D
-(scan, raster position, slit position, wavelength) cube. By default the x-axis is ``Wavelength``
-and the y-axis is ``Helioprojective Latitude``, so you are looking at the spectrum along the slit,
-with sliders for ``Scan`` and ``Helioprojective Longitude``.
+window to the right and choose "2D Image". The viewer shows one slice of the 4D cube, whose axes
+Glue lists as ``Scan``, ``Helioprojective Longitude`` (raster position),
+``Helioprojective Latitude`` (slit position) and ``Wavelength``. By default the x-axis is
+``Wavelength`` and the y-axis is ``Helioprojective Latitude``, so you are looking at the spectrum
+along the slit, with sliders for ``Scan`` and ``Helioprojective Longitude``.
 
 The raw min/max limits can make the slice look flat. Change the limits to "99%" and pick a more
 nuanced colormap so the emission lines stand out.
@@ -52,24 +53,33 @@ raster field fills the plot, then move the ``Wavelength`` slider onto the line c
 structure appears in the map.
 
 Now activate the "Pixel" tool in the viewer toolbar ("Select a single pixel based on mouse
-location") and click a point of interest. This creates a subset, ``Subset 1``, containing that pixel in every scan and
-wavelength; it appears under "Subsets" in the Data Collection and is drawn on top of the image.
+location") and click a point of interest. This creates a subset, ``Subset 1``, containing that
+pixel at every wavelength in the scan shown by the ``Scan`` slider; it appears under "Subsets" in
+the Data Collection and is drawn on top of the image.
 Click and drag to move it interactively.
 
 Using Glue's 1D Profile viewer to plot the spectrum and scan evolution
 ----------------------------------------------------------------------
 
 Drag ``Mg_II_k_2796`` onto the plotting window again and choose "1D Profile". The profile viewer
-collapses the cube over every axis except the one chosen as the x-axis; pick ``Wavelength`` as
-the x-axis and "Mean" as the function. The ``Mg_II_k_2796`` layer is then the mean spectrum of the
-whole cube and the ``Subset 1`` layer is the spectrum at the selected pixel, averaged over the
-stacked scans.
+collapses the cube over every axis except the one chosen as the x-axis, using its function, which
+starts as "Maximum". Pick ``Wavelength`` as the x-axis and "Mean" as the function. The
+``Mg_II_k_2796`` layer is then the mean spectrum of the whole cube, the equivalent of CRISPEX's
+average spectrum. The ``Subset 1`` layer is the spectrum at the selected pixel in the scan it was
+selected in: the subset holds one sample per wavelength, so Mean returns that sample unchanged.
+
+The values are floating point, with NaN in place of the -200 and -199 fill of the files. The profile
+functions skip NaN samples, so the fill is left out.
+
+No glue release has a profile function that plots the profile through one position without
+collapsing, so use a one-pixel subset with Mean as above.
 
 .. image:: images/spectrum-at-the-selected-pixel.png
    :width: 800
    :alt: The 1D Profile viewer showing the spectrum at the selected pixel
 
-Switching the x-axis to ``Scan`` gives the intensity evolution by raster number, averaged over the
-spectral window. The ``Time`` component supplies the exact acquisition timestamp for individual
-pixels, but it depends on both scan number and raster position and is therefore not a single Glue
-profile axis. Both profiles update as you move the pixel selection in the image viewer.
+Switching the x-axis to ``Scan`` makes the ``Mg_II_k_2796`` layer the mean intensity of each scan,
+by raster number; the ``Subset 1`` layer then has only the scan it was selected in. The ``Time``
+component supplies the exact acquisition timestamp for individual pixels, but it depends on both
+scan number and raster position and is therefore not a single Glue profile axis. The ``Subset 1``
+profile updates as you move the pixel selection in the image viewer.

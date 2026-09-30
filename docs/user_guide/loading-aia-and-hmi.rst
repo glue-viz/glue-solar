@@ -40,6 +40,11 @@ On the other hand, if you drag and drop the HMI data set on top of the AIA image
 
 .. image:: images/loading-aia-and-hmi-4.png
    :width: 800
-   :alt: Overplotting AMI and HMI maps
+   :alt: Overplotting AIA and HMI maps
 
 The final result will be an overplot of both the AIA and HMI, where the HMI image has been rotated and aligned with the AIA image.
+
+Saving sessions
+---------------
+
+Saving a session that contains a sunpy Map can fail before any file is written.
