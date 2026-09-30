@@ -23,6 +23,7 @@ def test_setup_registers_hooks():
     glue_solar.setup()  # glue calls it once; tests and reloads must not duplicate the tool
     assert "IRIS: browse observations…" in [label for label, _ in menubar_plugin]
     assert ImageViewer.tools.count("solar:frame_time") == 1
+    assert ImageViewer.tools.count("solar:coordinate") == 1
     assert ImageViewer.tools.count("solar:cursor_readout") == (0 if hasattr(ImageViewer, "cursor_status") else 1)
     iris = next(f for f in data_factory if f.label == "IRIS Level 2 FITS")
     for label in ("FITS file", "sunpy Map"):  # both also match IRIS files; ours must win

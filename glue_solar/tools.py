@@ -5,10 +5,12 @@ Toolbar tools for glue's viewers.
 import numpy as np
 from glue.config import viewer_tool
 from glue.core.component import DateTimeComponent
-from glue.viewers.common.tool import Tool
+from glue.viewers.common.tool import SimpleToolMenu, Tool
 from qtpy import QtCore, QtWidgets
 
-__all__ = ["CursorReadoutTool", "FrameTimeTool"]
+from glue_solar.quicklook import coordinator
+
+__all__ = ["CoordinateTool", "CursorReadoutTool", "FrameTimeTool"]
 
 _WATCHED = ("reference_data", "x_att", "y_att", "slices")
 # glue-qt rebuilds the slice sliders when these change
@@ -178,3 +180,69 @@ class CursorReadoutTool(Tool):
         # IRIS components are named after their dataset; say 'value' rather than repeat it
         name = "value" if layer.attribute.label == data.label else layer.attribute.label
         return f"{text} | {name} = {value}"
+
+
+class _CoordinateEntry(Tool):
+    """An entry of the ``solar:coordinate`` menu; the viewer's mouse mode, such as Pixel, stays on."""
+
+    def __init__(self, viewer, menu):
+        super().__init__(viewer)
+        self.menu = menu
+
+    def activate(self):
+        # glue-qt switches the mouse mode off before running a menu entry, so switch it back on
+        mode = self.menu.mode
+        self.run(self.menu.coordinator)
+        if mode is not None:
+            self.viewer.toolbar.active_tool = mode
+
+
+class _TimeMasterEntry(_CoordinateEntry):
+    tool_id = "solar:time_master"
+    action_text = "Time master"
+    tool_tip = "Make the displayed dataset the time master of its observation"
+
+    def run(self, coordinator):
+        coordinator.set_master(self.viewer.state.reference_data)
+
+
+class _ClearPointEntry(_CoordinateEntry):
+    tool_id = "solar:clear_point"
+    action_text = "Clear point"
+    tool_tip = "Clear the selected point"
+
+    def run(self, coordinator):
+        coordinator.clear_point()
+
+
+@viewer_tool
+class CoordinateTool(SimpleToolMenu):
+    """
+    Coordinate the Image viewer with the others of its IRIS observation.
+
+    The tool registers its viewer with the data collection's
+    `~glue_solar.quicklook.Coordinator`, which keeps the viewers on the point selected with the
+    Pixel tool, and unregisters it when the viewer closes. Its menu makes the displayed dataset the
+    time master of its observation, or clears the point.
+    """
+
+    icon = "glue_link"
+    tool_id = "solar:coordinate"
+    action_text = "Coordinate"
+    tool_tip = "Coordinate this viewer with the others of its IRIS observation"
+
+    def __init__(self, viewer, subtools=None):
+        super().__init__(viewer, subtools=subtools or [_TimeMasterEntry(viewer, self), _ClearPointEntry(viewer, self)])
+        self.coordinator = coordinator(viewer._data)
+        self.coordinator.register(viewer)
+        self.toolbar = viewer.toolbar
+        self.mode = self.toolbar.active_tool
+        self.toolbar.tool_activated.connect(self._remember_mode)
+        self.toolbar.tool_deactivated.connect(self._remember_mode)
+
+    def close(self):
+        self.coordinator.unregister(self.viewer)
+        super().close()
+
+    def _remember_mode(self):
+        self.mode = self.toolbar.active_tool

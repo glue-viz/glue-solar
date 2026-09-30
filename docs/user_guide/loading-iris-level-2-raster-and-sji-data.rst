@@ -48,6 +48,14 @@ offset, field-of-view centre and slit position), which glue-solar keeps in the d
 Dragging a slice slider updates the image at most every 0.1 s and again when you let go, so large
 cubes keep up with the mouse; the arrow keys, clicks on the slider and playback still step at once.
 
+The point you select with the Pixel tool on a raster or stack is one slit position at one raster
+step or exposure; on a stack it stays on the scan that was displayed when you clicked. If you then
+swap the axes of a viewer of that dataset, for example turning the raster map into wavelength
+against slit, the viewer's new step slider moves to the point. Wavelength sliders are never moved.
+The "Coordinate" menu in the Image Viewer toolbar has "Clear point", and "Time master", which
+records the displayed dataset as the time reference of its observation (same OBSID and STARTOBS).
+The Pixel tool stays active after either entry.
+
 Downloads that are still packed (``*_raster.tar.gz``, ``*_SDO.tar.gz``) show up under their observation
 as an "Extract ..." entry. Tick it and press "Load selected": the archive is unpacked into a folder of
 the same name next to it (the layout irispy and pooch use), the list refreshes, and you can then tick

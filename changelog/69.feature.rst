@@ -1,0 +1,1 @@
+Add a "Coordinate" menu to the Image Viewer toolbar that keeps the viewers of an IRIS observation on the point selected with the Pixel tool: a point on a stack stays on the displayed scan, and a viewer whose axes are swapped moves its new step slider to the point.

@@ -215,6 +215,8 @@ IRISPY_DATA = "https://github.com/LM-SAL/irispy-data/releases/download/v1/"
 IRISPY_DATA_HASHES = {
     # OBSID 3400109360 (STEPS_AV -0.998): scan 0, Mg II k 2796 only
     "iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz": "56574d2e425fdf2f4e2d4343c112c3c3d85dad7e121ca0bc2fa4200d7cc8adf8",
+    # OBSID 4000005156: scan 0 of the 64-step raster, Si IV 1403 only
+    "iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz": "ac50a0255b73af1610702653e17d3b3b9c8fc37bc487a313e1c9fb3a2983428a",
 }
 
 
