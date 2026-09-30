@@ -19,7 +19,7 @@ import glue_solar
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.quicklook import QuicklookImageViewer, coordinator, observation_key, quicklook
 from glue_solar.sources.loaders.iris import image_data, raster_data
-from glue_solar.tests.helpers import select_point
+from glue_solar.tests.helpers import mouse, select_point
 
 SCAN = "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"
 
@@ -413,7 +413,7 @@ def test_a_map_click_moves_the_other_panels(bare_app, qtbot, scans):
 def test_a_click_on_a_wavelength_panel_moves_the_map_to_its_wavelength(bare_app, qtbot, scans):
     scan, _ = scans
     viewers = quicklook(bare_app, [scan])
-    step = viewers["spectrogram"].state.slices[0]
+    step, wavelength = viewers["spectrogram"].state.slices[0], viewers["spectrogram"].state.slices[2]
     select_point(viewers["spectrogram"], 5, 40)  # wavelength 5, slit 40
     [group] = bare_app.session.edit_subset_mode.edit_subset
     assert group.subset_state.slices == [slice(step, step + 1), slice(40, 41), slice(None)]
@@ -423,7 +423,8 @@ def test_a_click_on_a_wavelength_panel_moves_the_map_to_its_wavelength(bare_app,
     assert group.subset_state.slices == [slice(6, 7), slice(40, 41), slice(None)]
     assert viewers["map"].state.slices[2] == 9
     qtbot.waitUntil(lambda: viewers["spectrogram"].state.slices[0] == 6)
-    assert viewers["spectrogram"].state.slices[2] == viewers["wavelength"].state.slices[2]  # never written
+    # the panels that show wavelength never have their wavelength slider written
+    assert viewers["spectrogram"].state.slices[2] == viewers["wavelength"].state.slices[2] == wavelength
 
 
 def test_typing_a_step_moves_the_point_once(bare_app, qtbot, scans):
@@ -466,9 +467,22 @@ def test_an_sji_point_moves_no_raster_panel(bare_app, qtbot, irispy_test_files):
     sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
     viewers = quicklook(bare_app, [*rasters, sji])
     before = {role: viewers[role].state.slices for role in RASTER_PANELS}
+    select_point(viewers["map"], 30, 10)  # a raster point first: stepping the SJI leaves it alone
+    qtbot.wait(20)
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    point = group.subset_state.slices
+    before = {role: viewers[role].state.slices for role in RASTER_PANELS}
+    viewers["sji"][0].state.slices = (7, 0, 0)
+    qtbot.wait(20)
+    assert group.subset_state.slices == point
     select_point(viewers["sji"][0], 10, 20)
     qtbot.wait(20)
     assert {role: viewers[role].state.slices for role in RASTER_PANELS} == before
+    # the point shows on the slit-jaw image it was clicked on, not on the raster panels
+    for viewer, shown in ((viewers["sji"][0], True), *((viewers[role], False) for role in RASTER_PANELS)):
+        assert [layer.visible for layer in viewer.state.layers if getattr(layer.layer, "group", None) is group] == [
+            shown
+        ]
 
 
 @pytest.mark.remote_data
@@ -481,3 +495,59 @@ def test_a_spectrogram_click_on_a_full_raster(bare_app, qtbot, irispy_data):
     [group] = bare_app.session.edit_subset_mode.edit_subset
     assert group.subset_state.slices == [slice(step, step + 1), slice(500, 501), slice(None)]
     np.testing.assert_array_equal(spectrum(viewers), cube(data)[step, 500])
+
+
+def test_a_new_viewer_of_the_cube_joins_the_point(bare_app, qtbot, scans):
+    scan, stack = scans
+    viewers = quicklook(bare_app, [scan, stack])
+    stack_map = viewers["map"]
+    stack_map.state.slices = (5, *stack_map.state.slices[1:])
+    select_point(stack_map, 3, 70)
+    qtbot.wait(20)
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    point = group.subset_state.slices
+    viewer = bare_app.new_data_viewer(ImageViewer, data=stack)  # glue resets its sliders to 0
+    qtbot.wait(20)
+    assert group.subset_state.slices == point
+    assert viewer.state.slices[:2] == (5, 3)  # it shows wavelength against slit at the point's scan and step
+    other = bare_app.new_data_viewer(ImageViewer, data=scan)
+    other.add_data(stack)
+    other.state.reference_data = stack
+    qtbot.wait(20)
+    assert group.subset_state.slices == point
+    assert other.state.slices[0] == 5
+
+
+def test_each_tab_moves_its_own_point(bare_app, qtbot, scans):
+    scan, stack = scans
+    first = quicklook(bare_app, [scan])
+    first_tab = bare_app.tab_count - 1
+    [first_point] = bare_app.session.edit_subset_mode.edit_subset
+    quicklook(bare_app, [stack])
+    [second_point] = bare_app.session.edit_subset_mode.edit_subset
+    second = second_point.subset_state.slices
+    bare_app.tab_widget.setCurrentIndex(first_tab)
+    first["spectrogram"].state.slices = (6, *first["spectrogram"].state.slices[1:])
+    qtbot.wait(20)
+    assert first_point.subset_state.slices[0] == slice(6, 7)
+    assert second_point.subset_state.slices == second
+    # two quicklooks of one cube: a click in the second leaves the first's panels alone
+    again = quicklook(bare_app, [scan])
+    before = {role: first[role].state.slices for role in RASTER_PANELS}
+    select_point(again["map"], 1, 90)
+    qtbot.wait(20)
+    assert {role: first[role].state.slices for role in RASTER_PANELS} == before
+
+
+def test_a_drag_moves_the_other_panels_once(bare_app, qtbot, scans):
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    written = []
+    viewers["spectrogram"].state.add_callback("slices", lambda slices: written.append(slices[0]))
+    mouse(viewers["map"], "button_press_event", 1, 30)
+    for step in (2, 3, 4, 5):
+        mouse(viewers["map"], "motion_notify_event", step, 30)
+    mouse(viewers["map"], "button_release_event", 5, 30)
+    assert written == []  # nothing yet: the panels follow when Qt next runs
+    qtbot.waitUntil(lambda: viewers["spectrogram"].state.slices[0] == 5)
+    assert written == [5]

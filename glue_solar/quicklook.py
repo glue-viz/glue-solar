@@ -67,6 +67,11 @@ def _spectral_axes(data):
     }
 
 
+def _pixel_tool_on(viewer):
+    tool = viewer.toolbar.active_tool
+    return tool is not None and tool.tool_id == "image:point_selection"
+
+
 def _shown(state):
     """The array axes an Image viewer state displays."""
     return {att.axis for att in (state.x_att, state.y_att) if att is not None}
@@ -83,9 +88,11 @@ class Coordinator(HubListener):
     shows wavelength moves the cube's maps to the clicked wavelength instead of fixing it. Every
     other viewer of the cube then shows the point's step, exposure, scan and slit, after a drag
     only its last position, and editing one of those sliders moves the point. No other wavelength
-    slider is moved, and a Profile's collapse is left in place. Each data collection has one
-    coordinator (`coordinator`), and the ``solar:coordinate`` tool registers every Image viewer
-    with it.
+    slider is moved, and a Profile's collapse is left in place. A viewer whose sliders glue resets for
+    new data joins the point. A quicklook's point drives only the viewers it `owns`, and shows only
+    on those of its own dataset; viewers no quicklook owns follow whichever point is followed. Each
+    data collection has one coordinator (`coordinator`), and the ``solar:coordinate`` tool
+    registers every Image viewer with it.
     """
 
     def __init__(self, data_collection):
@@ -93,6 +100,8 @@ class Coordinator(HubListener):
         self.group = None
         self.masters = {}  # observation key -> the dataset chosen as its time master
         self._viewers = {}  # registered viewer -> its callbacks
+        self._shows = {}  # registered viewer -> the reference data its sliders were last set for
+        self._owners = {}  # a quicklook's point group -> the viewers it drives
         self._busy = False
         # a drag moves the point at every mouse event: show only its latest position
         self._timer = QTimer()
@@ -123,12 +132,19 @@ class Coordinator(HubListener):
             self._apply_point(viewer)
 
         def slices_changed(*_):
-            self._move_point(viewer)
+            data = viewer.state.reference_data
+            if data is not self._shows.get(viewer):
+                # glue reset the sliders for new data: join the point rather than move it
+                self._shows[viewer] = data
+                self._apply_point(viewer)
+            else:
+                self._move_point(viewer)
 
         for prop in ("reference_data", "x_att", "y_att"):
             viewer.state.add_callback(prop, axes_changed)
         viewer.state.add_callback("slices", slices_changed)
         self._viewers[viewer] = (axes_changed, slices_changed)
+        self._shows[viewer] = viewer.state.reference_data
 
     def unregister(self, viewer):
         """Stop coordinating ``viewer``; unregistering it again does nothing."""
@@ -138,6 +154,23 @@ class Coordinator(HubListener):
             for prop in ("reference_data", "x_att", "y_att"):
                 viewer.state.remove_callback(prop, axes_changed)
             viewer.state.remove_callback("slices", slices_changed)
+            self._shows.pop(viewer, None)
+
+    def own(self, group, viewers):
+        """Let the point group ``group`` drive only ``viewers``, and ``viewers`` follow only it."""
+        self._owners[group] = set(viewers)
+
+    def follow(self, group):
+        """Make ``group`` the followed point, as when its quicklook's tab is shown."""
+        self.group = group
+        self._timer.start()
+
+    def _follows(self, viewer):
+        """Whether ``viewer`` follows the followed point: it owns the viewer, or no point does."""
+        owners = self._owners.get(self.group)
+        if owners is not None and viewer in owners:
+            return True
+        return not any(viewer in viewers for viewers in self._owners.values())
 
     def set_master(self, data):
         """Make ``data`` the time master of its observation."""
@@ -172,7 +205,8 @@ class Coordinator(HubListener):
         self._timer.start()
 
     def _viewers_of(self, data):
-        return [viewer for viewer in self._viewers if viewer.state.reference_data is data]
+        """The registered viewers of ``data`` that follow the point."""
+        return [viewer for viewer in self._viewers if viewer.state.reference_data is data and self._follows(viewer)]
 
     def _pin(self, state):
         """
@@ -186,8 +220,9 @@ class Coordinator(HubListener):
         if not spectral:
             return  # a slit-jaw point is a detector pixel in every frame
         clicked = {axis for axis, s in enumerate(state.slices) if s.start is not None}
-        # ponytail: the first viewer that shows the clicked axes; ask the Pixel tool which one if two ever do
-        viewer = next((v for v in self._viewers_of(data) if _shown(v.state) == clicked), None)
+        candidates = [v for v in self._viewers_of(data) if _shown(v.state) == clicked]
+        # the viewer whose Pixel tool is on, if several show the clicked axes
+        viewer = next((v for v in candidates if _pixel_tool_on(v)), candidates[0] if candidates else None)
         if viewer is None:
             return
         slices = list(state.slices)
@@ -220,9 +255,17 @@ class Coordinator(HubListener):
 
     def _show_point(self):
         """Move every viewer of the point's cube to its step, exposure, scan and slit."""
-        if self.point is not None:
-            for viewer in list(self._viewers):
-                self._apply_point(viewer)
+        point = self.point
+        if point is None:
+            return
+        for viewer in list(self._viewers):
+            self._apply_point(viewer)
+        # among its quicklook's viewers, the point shows on those of its own dataset: glue 1.27.0 would
+        # draw a slit-jaw point's crosshair on the raster panels, and a raster point's on the slit-jaw
+        for viewer in self._owners.get(self.group, ()):
+            for layer in viewer.state.layers:
+                if getattr(layer.layer, "group", None) is self.group:
+                    layer.visible = viewer.state.reference_data is point.reference_data
 
     def _move_point(self, viewer):
         """Move the point along the axes whose sliders the user moved in ``viewer``."""
@@ -230,7 +273,7 @@ class Coordinator(HubListener):
         state = viewer.state
         if self._busy or point is None or state.reference_data is not point.reference_data:
             return
-        if len(state.slices) != point.reference_data.ndim:
+        if len(state.slices) != point.reference_data.ndim or not self._follows(viewer):
             return
         shown, spectral = _shown(state), _spectral_axes(point.reference_data)
         slices = list(point.slices)
@@ -249,6 +292,8 @@ class Coordinator(HubListener):
         data, shown = state.reference_data, _shown(state)
         # mid-way through an axis change a viewer can show fewer than two axes
         if self._busy or point is None or data is not point.reference_data or len(shown) < 2:
+            return
+        if not self._follows(viewer):
             return
         spectral = _spectral_axes(data)
         fixed = {axis: s.start for axis, s in enumerate(point.slices) if s.start is not None and axis not in spectral}
@@ -444,6 +489,8 @@ def quicklook(app, datasets, window=None):
 
     if rasters:
         group = collection.new_subset_group(label="Point", subset_state=point)
+        own = [viewers[role] for role in ("map", "spectrogram", "wavelength")] + viewers["sji"]
+        coordinator(collection).own(group, own)
         _edit_in_tab(app, tab, group)
         _show_point(app, group, [viewers[role] for role in ("map", "spectrogram", "wavelength", "spectrum")])
         _fit_spectrum(viewers["spectrum"], group)
@@ -466,10 +513,12 @@ def _edit_in_tab(app, tab, group):
             group = points.get(app.tab_widget.widget(index))
             if group is not None and group in app.data_collection.subset_groups:
                 app.session.edit_subset_mode.edit_subset = [group]
+                coordinator(app.data_collection).follow(group)
 
         app.tab_widget.currentChanged.connect(follow)
     points[app.tab(tab)] = group
     app.session.edit_subset_mode.edit_subset = [group]
+    coordinator(app.data_collection).follow(group)
 
 
 def _show_point(app, group, own):

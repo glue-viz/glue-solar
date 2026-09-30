@@ -120,11 +120,12 @@ it: the spectrogram moves to its step and the wavelength panel to its slit. Clic
 spectrogram or the wavelength panel moves the point there and the map to the clicked wavelength;
 no other wavelength slider moves. Moving a step, exposure or scan slider moves the point, so on a
 stack the point stays on the map's scan. A Profile's collapse of an axis is left in place, and
-after "Clear point" nothing follows until the next click. The slit-jaw viewers do not mark the
-point. The raster panels have no region selection tools, because a region drawn on a
+after "Clear point" nothing follows until the next click. A raster point is not marked on the
+slit-jaw images; a point clicked on a slit-jaw image is marked only there, and the spectrum panel is
+empty until the next raster click. The raster panels have no region selection tools, because a region drawn on a
 raster map is recomputed on every slit-jaw viewer for each screen pixel at every frame (see
-Linking). Each quicklook has its own point, shown only in its own panels and edited while its
-tab is shown. When a slit-jaw channel is loaded both plain and deconvolved,
+Linking). Each quicklook has its own point, shown only in its own panels, edited while its tab is
+shown and moved only by that tab's sliders. Another Image viewer of the same data follows the point. When a slit-jaw channel is loaded both plain and deconvolved,
 the plain one is shown and the status bar names the other. The spectrum panel does not ask "Add
 large data set?", and the status bar gives the size of the data it shows.
 
