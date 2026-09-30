@@ -6,6 +6,7 @@ import weakref
 from contextlib import contextmanager
 
 import numpy as np
+from echo import delay_callback
 from glue.core.hub import HubListener
 from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, SubsetUpdateMessage
 from glue.core.subset import SubsetState
@@ -81,6 +82,34 @@ def nearest(query, reference):
         pick = np.where(q - ref[before] <= ref[after] - q, before, after)  # a tie goes to the earlier time
     index = order[np.searchsorted(ref, ref[pick])]  # the first of equal times
     return index, reference[index] - query
+
+
+def _lon_lat(data, pixel):
+    """Helioprojective longitude and latitude (arcsec) of ``data`` at the numpy-ordered ``pixel``."""
+    world = data.coords.pixel_to_world_values(*pixel[::-1])
+    types = list(data.coords.world_axis_physical_types)
+    return (
+        np.asarray(world[types.index("custom:pos.helioprojective.lon")]),
+        np.asarray(world[types.index("custom:pos.helioprojective.lat")]),
+    )
+
+
+def _placeable(data):
+    """Whether helioprojective positions can be placed in ``data``'s frames through its coordinates."""
+    types = getattr(data.coords, "world_axis_physical_types", None) or ()
+    return {"custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat", "time"} <= set(types)
+
+
+def _sji_pixels(sji, frame, lon, lat):
+    """The (x, y) pixels of ``sji``'s frame ``frame`` at helioprojective ``lon`` and ``lat`` (arcsec)."""
+    types = list(sji.coords.world_axis_physical_types)
+    when = sji.coords.pixel_to_world_values(0, 0, frame)[types.index("time")]
+    world = [None] * 3
+    world[types.index("custom:pos.helioprojective.lon")] = lon
+    world[types.index("custom:pos.helioprojective.lat")] = lat
+    world[types.index("time")] = np.broadcast_to(when, np.shape(lon))
+    x, y, _ = sji.coords.world_to_pixel_values(*world)
+    return x, y
 
 
 def _time_axis(data):
@@ -480,6 +509,25 @@ class Coordinator(HubListener):
             offset = times[int(getattr(state.slices[axis], "center", state.slices[axis]))] - when
         return ("match" if abs(offset) <= margin else "no match", offset)
 
+    def point_on(self, viewer):
+        """
+        Where the point of a raster of the same observation falls in ``viewer``'s slit-jaw frame, as
+        (x, y) pixels projected through that frame's own coordinates, or None.
+        """
+        point, sji = self.point, viewer.state.reference_data
+        if point is None or sji is None or _role(sji) != "sji" or _role(point.reference_data) != "raster":
+            return None
+        if observation_key(sji) != observation_key(point.reference_data) or len(viewer.state.slices) != sji.ndim:
+            return None
+        if not _placeable(sji):
+            return None
+        pixel = [s.start if s.start is not None else 0 for s in point.slices]
+        lon, lat = _lon_lat(point.reference_data, pixel)
+        frame = viewer.state.slices[0]
+        frame = int(getattr(frame, "center", frame))
+        x, y = _sji_pixels(sji, frame, lon, lat)
+        return float(x), float(y)
+
     def _move_in_time(self, data, axis, frame):
         """Put ``data`` at ``frame`` along its time axis: on the point if it holds one, and on its viewers."""
         point = self.point
@@ -589,6 +637,39 @@ def _pick_raster(rasters, window):
         if chosen:
             return next((data for data in chosen if data.ndim == 4), chosen[0])
     return rasters[0]
+
+
+def _sji_title(data):
+    """'SJI 1400', or 'SJI 2796 (deconvolved)'."""
+    title = str(data.meta.get("TDESC1") or data.label).replace("_", " ")
+    return f"{title} (deconvolved)" if "_deconvolved" in data.label else title
+
+
+def _footprint_limits(viewer, raster):
+    """Zoom a slit-jaw viewer to the raster's field of view in its first frame, with a margin."""
+    shape = raster.shape
+    step_axis = raster.ndim - 3
+    corners = []
+    for step in (0, shape[step_axis] - 1):
+        for slit in (0, shape[step_axis + 1] - 1):
+            pixel = [0] * raster.ndim
+            pixel[step_axis], pixel[step_axis + 1] = step, slit
+            corners.append(_lon_lat(raster, pixel))
+    lon, lat = (np.array([corner[i] for corner in corners], dtype=float) for i in (0, 1))
+    x, y = _sji_pixels(viewer.state.reference_data, 0, lon, lat)
+    if not (np.isfinite(x).all() and np.isfinite(y).all()):
+        return
+    margin = max(10.0, 0.1 * max(np.ptp(x), np.ptp(y)))
+    # limits already at the axes' aspect: for 'equal' glue derives y from a new x and could shrink it,
+    # while on later resizes it only widens
+    box = viewer.axes.get_window_extent()
+    ratio = box.height / box.width if box.width else 1.0
+    width = max(np.ptp(x) + 2 * margin, (np.ptp(y) + 2 * margin) / ratio)
+    x_mid, y_mid = (x.min() + x.max()) / 2, (y.min() + y.max()) / 2
+    state = viewer.state
+    with delay_callback(state, "x_min", "x_max", "y_min", "y_max"):
+        state.x_min, state.x_max = x_mid - width / 2, x_mid + width / 2
+        state.y_min, state.y_max = y_mid - width * ratio / 2, y_mid + width * ratio / 2
 
 
 def _pick_sjis(sjis):
@@ -708,7 +789,10 @@ def quicklook(app, datasets, window=None):
         notes.append(note)
     for sji in sjis:
         frame = (0,) * sji.ndim
-        viewers["sji"].append(_image(app, ImageViewer, sji, sji.ndim - 1, sji.ndim - 2, frame, sji.label, "equal"))
+        viewer = _image(app, ImageViewer, sji, sji.ndim - 1, sji.ndim - 2, frame, _sji_title(sji), "equal")
+        if rasters and _placeable(sji):
+            _footprint_limits(viewer, raster)
+        viewers["sji"].append(viewer)
     notes += [f"{data.label} is loaded too: drag it onto a slit-jaw viewer to see it." for data in offered]
 
     if rasters:

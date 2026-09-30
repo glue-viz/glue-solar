@@ -134,6 +134,11 @@ class FrameTimeTool(Tool):
             seconds = data[exposure, view]
             shortest, longest = f"{np.nanmin(seconds):.4g}", f"{np.nanmax(seconds):.4g}"
             text += f" · exp {shortest} s" if shortest == longest else f" · exp {shortest}–{longest} s"
+        where = self.coordinator.point_on(self.viewer)
+        if where is not None:
+            ny, nx = data.shape[1:]
+            if not (-0.5 <= where[0] <= nx - 0.5 and -0.5 <= where[1] <= ny - 0.5):
+                text += " · outside SJI FOV"
         if status is not None:
             kind, value = status
             if kind == "master":

@@ -138,6 +138,10 @@ scanning raster, one that does not cover it) keeps its frame and is greyed. The 
 says which dataset is the time master, how far each matched dataset's time is from the master's
 (Δt) and "NO MATCH" with that offset for the others. Wavelength and slit sliders are never moved.
 
+Each slit-jaw viewer is titled with its channel ("SJI 1400", "SJI 2796 (deconvolved)") and opens on
+the raster's field of view with a margin. Its "Frame time" readout says "outside SJI FOV" when the
+raster point, placed with the displayed frame's own pointing, is off the image.
+
 Saving sessions
 ---------------
 
