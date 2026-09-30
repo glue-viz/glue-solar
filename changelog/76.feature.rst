@@ -1,0 +1,1 @@
+The IRIS quicklook now opens from the observation browser ("Open quicklook", on by default), from "IRIS: quicklook…" in the Plugins menu and with ``glue --startup=iris_quicklook``; raster files opened one by one keep their raster number in their labels, and a Pixel point outside a linked dataset no longer makes glue show an error.
