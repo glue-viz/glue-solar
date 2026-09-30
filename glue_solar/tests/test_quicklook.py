@@ -7,6 +7,8 @@ from glue.core import Data
 from glue.core.component import DateTimeComponent
 from glue.core.hub import HubListener
 from glue.core.message import SubsetUpdateMessage
+from glue.core.subset import SubsetState
+from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
@@ -836,45 +838,86 @@ def test_each_follower_viewer_reads_its_own_frame(bare_app, qtbot, irispy_test_f
     assert " · Δt " in readout(sji_viewer)
 
 
-def test_slit_jaw_panels(bare_app, qtbot, tmp_path, irispy_test_files):
-    from glue_solar import quicklook as module
+def footprint(raster, sji):
+    """The raster's four corners in the slit-jaw image's first frame, from both datasets' own coordinates."""
+    raster_types = list(raster.coords.world_axis_physical_types)
+    corners = [
+        raster.coords.pixel_to_world_values(0, slit, step)
+        for step in (0, raster.shape[0] - 1)
+        for slit in (0, raster.shape[1] - 1)
+    ]
+    types = list(sji.coords.world_axis_physical_types)
+    world = [None] * 3
+    for kind in ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat"):
+        world[types.index(kind)] = np.array([corner[raster_types.index(kind)] for corner in corners])
+    world[types.index("time")] = np.full(4, sji.coords.pixel_to_world_values(0, 0, 0)[types.index("time")])
+    x, y, _ = sji.coords.world_to_pixel_values(*world)
+    return x, y
 
+
+def test_slit_jaw_panels(bare_app, qtbot, tmp_path, monkeypatch, irispy_test_files):
     [raster] = raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))], ["Si IV 1403"])
     channels = (1330, 1400, 2796, 2832)
     sjis = [image_data(find_irispy_test_file(irispy_test_files, SNS.format(f"SJI_{c}_t000"))) for c in channels]
     viewers = quicklook(bare_app, [raster, *sjis])
     assert [viewer.state.title for viewer in viewers["sji"]] == [f"SJI {c}" for c in channels]
-    # each opens on the raster's field of view, with a margin
-    corners = [module._lon_lat(raster, [step, slit, 0]) for step in (0, 186) for slit in (0, 39)]
-    lon, lat = (np.array([corner[i] for corner in corners], dtype=float) for i in (0, 1))
-    for viewer in viewers["sji"]:
-        x, y = module._sji_pixels(viewer.state.reference_data, 0, lon, lat)
+    # each opens on the raster's field of view in its first frame, centred, with a margin
+    for viewer, sji in zip(viewers["sji"], sjis):
+        x, y = footprint(raster, sji)
+        margin = max(10, 0.1 * max(np.ptp(x), np.ptp(y)))
         state = viewer.state
-        assert state.x_min < x.min()
-        assert x.max() < state.x_max
-        assert state.y_min < y.min()
-        assert y.max() < state.y_max
-    # all follow the time master
-    viewers["spectrogram"].state.slices = (120, *viewers["spectrogram"].state.slices[1:])
-    for viewer in viewers["sji"]:
-        qtbot.waitUntil(lambda viewer=viewer: " · Δt " in readout(viewer) or "NO MATCH" in readout(viewer))
+        assert state.x_min <= x.min() - margin + 1e-6 and x.max() + margin - 1e-6 <= state.x_max
+        assert state.y_min <= y.min() - margin + 1e-6 and y.max() + margin - 1e-6 <= state.y_max
+        assert (state.x_min + state.x_max) / 2 == pytest.approx((x.min() + x.max()) / 2, abs=0.5)
+        assert (state.y_min + state.y_max) / 2 == pytest.approx((y.min() + y.max()) / 2, abs=0.5)
 
-    # the raster point, projected into the displayed frame: inside, or outside the field of view
+    # all follow the time master, and the matched frame holds the raster point
     coord = coordinator(bare_app.data_collection)
-    sji_viewer = viewers["sji"][1]
-    ny, nx = sjis[1].shape[1:]
-    viewers["spectrogram"].state.slices = (1, *viewers["spectrogram"].state.slices[1:])  # matched in time
-    qtbot.waitUntil(lambda: " · Δt " in readout(sji_viewer))
-    x, y = coord.point_on(sji_viewer)
-    assert 1.5 < x < nx - 2.5
-    assert 1.5 < y < ny - 2.5
-    assert "outside SJI FOV" not in readout(sji_viewer)
-    viewers["spectrogram"].state.slices = (186, *viewers["spectrogram"].state.slices[1:])
-    qtbot.wait(20)
-    sji_viewer.state.slices = (0, 0, 0)  # moved back by hand: the late exposure is off the first frame
-    x, _ = coord.point_on(sji_viewer)
-    assert x > nx - 0.5 + 2
+    spectrogram = viewers["spectrogram"]
+    for step in (120, 186):
+        spectrogram.state.slices = (step, *spectrogram.state.slices[1:])
+        for viewer, sji in zip(viewers["sji"], sjis):
+            assert check_follower(bare_app, qtbot, raster_time(raster, (step,)), sji, viewer)
+            assert "outside SJI FOV" not in readout(viewer)
+
+    # the point is placed through the displayed frame: off the image at the other end of the run
+    sji_viewer, sji = viewers["sji"][1], sjis[1]
+    n, ny, nx = sji.shape
+    sji_viewer.state.slices = (0, 0, 0)  # moved back by hand: the last exposure is off the first frame
+    assert coord.point_on(sji_viewer)[0] > nx - 0.5 + 2
     assert "outside SJI FOV" in readout(sji_viewer)
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    point = group.subset_state
+    group.subset_state = SubsetState()  # another selection replaces the point, and the label goes
+    qtbot.waitUntil(lambda: "outside SJI FOV" not in readout(sji_viewer))
+    group.subset_state = PixelSubsetState(raster, [slice(0, 1), *point.slices[1:]])
+    qtbot.waitUntil(lambda: "time master, step 0" in readout(spectrogram))
+    sji_viewer.state.slices = (n - 1, 0, 0)  # the first exposure is off the last frame
+    assert coord.point_on(sji_viewer)[0] < -0.5 - 2
+    assert "outside SJI FOV" in readout(sji_viewer)
+    sji_viewer.state.x_att = sji.pixel_component_ids[0]  # with the frame axis shown there is no frame to place it in
+    assert coord.point_on(sji_viewer) is None
+    assert "outside SJI FOV" not in readout(sji_viewer)
+    sji_viewer.state.x_att = sji.pixel_component_ids[2]
+    assert "outside SJI FOV" in readout(sji_viewer)
+    bare_app.data_collection.remove_subset_group(group)  # deleting the point's group takes the label too
+    qtbot.waitUntil(lambda: "outside SJI FOV" not in readout(sji_viewer))
+
+    # the label's bounds on every edge, with the point placed by hand (the fixture's slit spans the image)
+    tool = sji_viewer.toolbar.tools["solar:frame_time"]
+    for where, outside in [
+        ((nx / 2, ny - 0.5 + 2.5), True),
+        ((nx / 2, -0.5 - 2.5), True),
+        ((nx - 0.5 + 2.5, ny / 2), True),
+        ((-0.5 - 2.5, ny / 2), True),
+        ((nx / 2, ny - 0.5 - 2.5), False),
+        ((nx / 2, -0.5 + 2.5), False),
+        ((nx - 0.5 - 2.5, ny / 2), False),
+        ((-0.5 + 2.5, ny / 2), False),
+    ]:
+        monkeypatch.setattr(coord, "point_on", lambda viewer, where=where: where)
+        tool._refresh()
+        assert ("outside SJI FOV" in readout(sji_viewer)) is outside, where
 
     deconvolved = tmp_path / SNS.format("SJI_2796_t000_deconvolved")
     shutil.copy2(find_irispy_test_file(irispy_test_files, SNS.format("SJI_2796_t000")), deconvolved)

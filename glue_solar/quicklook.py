@@ -8,7 +8,7 @@ from contextlib import contextmanager
 import numpy as np
 from echo import delay_callback
 from glue.core.hub import HubListener
-from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, SubsetUpdateMessage
+from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, SubsetDeleteMessage, SubsetUpdateMessage
 from glue.core.subset import SubsetState
 from glue.viewers.common.utils import get_viewer_tools
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
@@ -172,6 +172,16 @@ def _shown(state):
     return {att.axis for att in (state.x_att, state.y_att) if att is not None}
 
 
+def _sji_frame(state):
+    """The frame a slit-jaw viewer shows, a collapse's centre, or None while it displays the frame axis."""
+    data = state.reference_data
+    if data is None or state.x_att is None or state.y_att is None or len(state.slices) != data.ndim:
+        return None
+    if 0 in _shown(state):
+        return None
+    return int(getattr(state.slices[0], "center", state.slices[0]))
+
+
 class Coordinator(HubListener):
     """
     Keep the Image viewers of each IRIS observation on one selected point.
@@ -209,6 +219,7 @@ class Coordinator(HubListener):
         self._timer.timeout.connect(self._update)
         hub = data_collection.hub
         hub.subscribe(self, SubsetCreateMessage, handler=self._subset_changed)
+        hub.subscribe(self, SubsetDeleteMessage, handler=self._subset_deleted)
         hub.subscribe(
             self, SubsetUpdateMessage, handler=self._subset_changed, filter=lambda m: m.attribute == "subset_state"
         )
@@ -307,6 +318,8 @@ class Coordinator(HubListener):
     def _subset_changed(self, message):
         subset = message.subset
         state = subset.subset_state
+        if getattr(subset, "group", None) is self.group and not isinstance(state, PixelSubsetState):
+            self._timer.start()  # another selection replaced the point: readouts follow
         # a group sends one message per dataset; answer the one of the point's own dataset
         if self._busy or not isinstance(state, PixelSubsetState) or subset.data is not state.reference_data:
             return
@@ -316,6 +329,10 @@ class Coordinator(HubListener):
         self.group = group
         self._pin(state)
         self._timer.start()
+
+    def _subset_deleted(self, message):
+        if getattr(message.subset, "group", None) is self.group:
+            self._timer.start()  # the point's group went: readouts follow
 
     def _viewers_of(self, data):
         """The registered viewers of ``data`` that follow the point."""
@@ -517,14 +534,11 @@ class Coordinator(HubListener):
         point, sji = self.point, viewer.state.reference_data
         if point is None or sji is None or _role(sji) != "sji" or _role(point.reference_data) != "raster":
             return None
-        if observation_key(sji) != observation_key(point.reference_data) or len(viewer.state.slices) != sji.ndim:
-            return None
-        if not _placeable(sji):
+        frame = _sji_frame(viewer.state)
+        if observation_key(sji) != observation_key(point.reference_data) or frame is None or not _placeable(sji):
             return None
         pixel = [s.start if s.start is not None else 0 for s in point.slices]
         lon, lat = _lon_lat(point.reference_data, pixel)
-        frame = viewer.state.slices[0]
-        frame = int(getattr(frame, "center", frame))
         x, y = _sji_pixels(sji, frame, lon, lat)
         return float(x), float(y)
 
@@ -660,8 +674,8 @@ def _footprint_limits(viewer, raster):
     if not (np.isfinite(x).all() and np.isfinite(y).all()):
         return
     margin = max(10.0, 0.1 * max(np.ptp(x), np.ptp(y)))
-    # limits already at the axes' aspect: for 'equal' glue derives y from a new x and could shrink it,
-    # while on later resizes it only widens
+    # limits at the axes' aspect, so that glue's equal aspect keeps them; a later resize keeps their
+    # area, so it can crop the footprint
     box = viewer.axes.get_window_extent()
     ratio = box.height / box.width if box.width else 1.0
     width = max(np.ptp(x) + 2 * margin, (np.ptp(y) + 2 * margin) / ratio)
@@ -789,10 +803,7 @@ def quicklook(app, datasets, window=None):
         notes.append(note)
     for sji in sjis:
         frame = (0,) * sji.ndim
-        viewer = _image(app, ImageViewer, sji, sji.ndim - 1, sji.ndim - 2, frame, _sji_title(sji), "equal")
-        if rasters and _placeable(sji):
-            _footprint_limits(viewer, raster)
-        viewers["sji"].append(viewer)
+        viewers["sji"].append(_image(app, ImageViewer, sji, sji.ndim - 1, sji.ndim - 2, frame, _sji_title(sji), "equal"))
     notes += [f"{data.label} is loaded too: drag it onto a slit-jaw viewer to see it." for data in offered]
 
     if rasters:
@@ -805,6 +816,10 @@ def quicklook(app, datasets, window=None):
     app.statusBar().showMessage(" ".join(notes))
     process_events()  # let the tab take its final size
     _arrange(app, tab, viewers)
+    process_events()  # and the panels theirs, before the slit-jaw limits take the axes' aspect
+    for viewer in viewers["sji"]:
+        if rasters and _placeable(viewer.state.reference_data):
+            _footprint_limits(viewer, raster)
     if rasters:
         app.tab(tab).setActiveSubWindow(viewers["map"].parent())
         viewers["map"].toolbar.active_tool = "image:point_selection"
