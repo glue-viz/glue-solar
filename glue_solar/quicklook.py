@@ -165,8 +165,8 @@ class Coordinator(HubListener):
         self.data_collection = data_collection
         self.group = None
         self.masters = {}  # observation key -> the dataset chosen as its time master
-        # dataset -> ("master", index), ("match", offset) or ("no match", offset), for the readouts
-        self.status = {}
+        self._master_times = {}  # observation key -> (master, its time, timing step) at the last sync
+        self._steps = {}  # raster -> its timing step when the point last was on it
         self._listeners = []  # called with (observation key, master time, exposure) after each sync
         self._pairs = {}  # (master, follower, raster step) -> nearest() of every master time
         self._viewers = {}  # registered viewer -> its callbacks
@@ -207,6 +207,7 @@ class Coordinator(HubListener):
                 # glue reset the sliders for new data: join the point rather than move it
                 self._shows[viewer] = data
                 self._apply_point(viewer)
+                self._timer.start()  # and the time master
                 return
             self._move_point(viewer)
             if not self._busy and self._master(observation_key(data)) is data:
@@ -217,6 +218,7 @@ class Coordinator(HubListener):
         viewer.state.add_callback("slices", slices_changed)
         self._viewers[viewer] = (axes_changed, slices_changed)
         self._shows[viewer] = viewer.state.reference_data
+        self._timer.start()  # join the time master
 
     def unregister(self, viewer):
         """Stop coordinating ``viewer``; unregistering it again does nothing."""
@@ -263,6 +265,7 @@ class Coordinator(HubListener):
         """Empty the followed group, which hides its crosshairs."""
         if self.point is not None:
             self.group.subset_state = SubsetState()
+            self._timer.start()  # time sync continues from the sliders
 
     @contextmanager
     def _writing(self):
@@ -336,7 +339,9 @@ class Coordinator(HubListener):
 
     def _update(self):
         """Follow each observation's time master, then move every viewer of the point's cube to it."""
-        for key in {observation_key(viewer.state.reference_data) for viewer in self._viewers} - {None}:
+        # an observation in a hidden quicklook tab keeps its times until it is shown
+        followed = {observation_key(viewer.state.reference_data) for viewer in self._viewers if self._follows(viewer)}
+        for key in followed - {None}:
             self._sync(key)
         point = self.point
         if point is None:
@@ -375,30 +380,37 @@ class Coordinator(HubListener):
         """
         The index of ``data``'s time along its first axis and, for rasters, the timing step.
 
-        A raster's timing step is the point's step, or mid-raster without a point on it; a stack's
-        scan is the point's, else its viewers'. A slit-jaw image's time is its viewers' frame.
+        A raster's timing step is the point's step, or the one it had when the point left the raster
+        (mid-raster before any); a sit-and-stare's exposure and a stack's scan otherwise come from the
+        sliders. A slit-jaw image's time is its frame.
         """
         point = self.point
-        on_point = point is not None and point.reference_data is data
-        if _role(data) == "raster":
-            step_axis = data.ndim - 3
-            step = point.slices[step_axis].start if on_point else data.shape[step_axis] // 2
-            if data.ndim == 3:
-                return step, step
-            scan = point.slices[0].start if on_point else self._slider(data, 0)
-            return scan, step
-        return self._slider(data, 0), None
+        if _role(data) != "raster":
+            return self._slider(data, 0), None
+        step_axis = data.ndim - 3
+        if point is not None and point.reference_data is data:
+            step = self._steps[data] = point.slices[step_axis].start
+            scan = point.slices[0].start
+        else:
+            step = self._steps.get(data, data.shape[step_axis] // 2)
+            if data.ndim == 3 and _time_axis(data) == 0:
+                step = self._slider(data, 0, step)
+            scan = self._slider(data, 0)
+        return (scan if data.ndim == 4 else step), step
 
-    def _slider(self, data, axis):
-        """The position of the first viewer of ``data`` along ``axis``, at the centre of a collapse."""
+    def _slider(self, data, axis, default=0):
+        """The slider of a viewer of ``data`` that does not show ``axis``, at the centre of a collapse."""
         for viewer in self._viewers_of(data):
-            index = viewer.state.slices[axis]
-            return int(getattr(index, "center", index))
-        return 0
+            if axis not in _shown(viewer.state) and len(viewer.state.slices) == data.ndim:
+                index = viewer.state.slices[axis]
+                return int(getattr(index, "center", index))
+        return default
 
     def _pair(self, master, follower, master_step, follower_step):
         """nearest() of every master time among the follower's, cached per pair."""
-        key = (id(master), id(follower), master_step, follower_step)
+        # only a stack's times depend on the raster step
+        key = (id(master), id(follower), master_step if master.ndim == 4 else None)
+        key += (follower_step if follower.ndim == 4 else None,)
         if key not in self._pairs:
             self._pairs[key] = nearest(_times(master, master_step), _times(follower, follower_step))
         return self._pairs[key]
@@ -411,7 +423,7 @@ class Coordinator(HubListener):
         index, step = self._timing(master)
         times = _times(master, step)
         index = min(max(index, 0), len(times) - 1)
-        self.status[master] = ("master", step)  # a slit-jaw master's time is its frame's
+        self._master_times[key] = (master, times[index], step)
         moved = {}
         for data in self._datasets(key):
             if data is master:
@@ -420,15 +432,8 @@ class Coordinator(HubListener):
             follower_times = _times(data, follower_step)
             nearest_index, offset = (value[index] for value in self._pair(master, data, step, follower_step))
             axis = _time_axis(data)
-            if axis is None:  # a scanning raster: its offset at the timing step, matched within its span
-                offset = follower_times[follower_step] - times[index]
-                margin = _half_cadence(follower_times)
-                matched = follower_times.min() - margin <= times[index] <= follower_times.max() + margin
-            else:
-                matched = abs(offset) <= _half_cadence(follower_times)
-                if matched:
-                    moved[data] = (axis, int(nearest_index))
-            self.status[data] = ("match" if matched else "no match", offset)
+            if axis is not None and abs(offset) <= _half_cadence(follower_times):
+                moved[data] = (axis, int(nearest_index))
         with self._writing():
             for data, (axis, frame) in moved.items():
                 self._move_in_time(data, axis, frame)
@@ -442,6 +447,38 @@ class Coordinator(HubListener):
             seconds = float(master[exposure, tuple(view)])
         for listener in list(self._listeners):
             listener(key, times[index], seconds)
+
+    def time_status(self, viewer):
+        """
+        What ``viewer``'s readout says about time: ("master", timing step or None), ("match", offset) or
+        ("no match", offset), with the offset of its time from the master's; None outside time sync.
+
+        A follower with no frame within half its cadence of the master's time is NO MATCH with the
+        nearest frame's offset; otherwise the offset is its displayed frame's, a match if that frame is
+        within half a cadence. A scanning raster's offset is its timing step's, a match while the
+        master's time is within its steps' span.
+        """
+        data = viewer.state.reference_data
+        key = observation_key(data) if data is not None else None
+        master, when, step = self._master_times.get(key, (None, None, None))
+        if master is None or master is not self._master(key) or not _role(data):
+            return None
+        if data is master:
+            return ("master", step)
+        follower_step = self._timing(data)[1]
+        times = _times(data, follower_step)
+        margin = _half_cadence(times)
+        axis = _time_axis(data)
+        if axis is None:
+            offset = times[follower_step] - when
+            return ("match" if times.min() - margin <= when <= times.max() + margin else "no match", offset)
+        _, [offset] = nearest([when], times)
+        if abs(offset) > margin:
+            return ("no match", offset)
+        state = viewer.state
+        if axis not in _shown(state) and len(state.slices) == data.ndim:
+            offset = times[int(getattr(state.slices[axis], "center", state.slices[axis]))] - when
+        return ("match" if abs(offset) <= margin else "no match", offset)
 
     def _move_in_time(self, data, axis, frame):
         """Put ``data`` at ``frame`` along its time axis: on the point if it holds one, and on its viewers."""

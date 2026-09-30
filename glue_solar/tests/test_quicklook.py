@@ -552,6 +552,13 @@ def test_a_drag_moves_the_other_panels_once(bare_app, qtbot, scans):
     assert written == []  # nothing yet: the panels follow when Qt next runs
     qtbot.waitUntil(lambda: viewers["spectrogram"].state.slices[0] == 5)
     assert written == [5]
+def expected_nearest(when, times):
+    """The nearest time's index by brute force: of equally near times the earliest, of equal times the first."""
+    distance = np.abs(times - when)
+    best = np.flatnonzero(distance == distance.min())
+    return int(best[times[best] == times[best].min()][0])
+
+
 def seconds(*values):
     return np.datetime64("2021-01-01T00:00:00", "ns") + np.array(values, "timedelta64[ms]")
 
@@ -593,7 +600,8 @@ def raster_time(data, index):
 def check_follower(app, qtbot, master_time, follower, viewer):
     """The follower's frame is the nearest to the master's time, or NO MATCH when half a cadence away."""
     times = follower[follower.id["Time"]][:, 0, 0]
-    [index], [offset] = nearest([master_time], times)
+    index = expected_nearest(master_time, times)
+    offset = times[index] - master_time
     half = np.median(np.diff(np.sort(times))) / 2
     delta = offset / np.timedelta64(1, "s")
     if abs(offset) <= half:
@@ -700,10 +708,63 @@ def test_time_sync_on_a_negative_step_raster(bare_app, qtbot, irispy_data):
     [scan] = raster_data([path])
     times = scan[scan.id["Time"]][:, 0, 0]
     assert (np.diff(times) < np.timedelta64(0, "s")).all()
-    frames = np.sort(times)[0] + np.arange(30) * (np.sort(times)[-1] - np.sort(times)[0]) / 29
+    first, last = np.sort(times)[[0, -1]]
+    frames = first + np.arange(30) * (last - first) / 29
+    frames[5] = times[21] + (times[20] - times[21]) / 2  # a frame halfway between two steps: a tie
+    frames[6] = frames[7]  # two frames at one time: the first
     sji = slit_jaw(frames, scan)
     viewers = quicklook(bare_app, [scan, sji])
     [sji_viewer] = viewers["sji"]
-    for step in (0, 10, scan.shape[0] - 1):
+    for step in (0, 10, 20, 21, scan.shape[0] - 1):
         viewers["spectrogram"].state.slices = (step, *viewers["spectrogram"].state.slices[1:])
         check_follower(bare_app, qtbot, times[step], sji, sji_viewer)
+    # a stack of two scans at the same times, and the slit-jaw image as master: the first scan
+    [stack] = raster_data([path, path], stack=True)
+    viewers = quicklook(bare_app, [stack, sji])
+    [sji_viewer] = viewers["sji"]
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    menu_action(sji_viewer, "Time master").trigger()
+    for frame in (0, 29):
+        sji_viewer.state.slices = (frame, 0, 0)
+        qtbot.wait(20)
+        assert group.subset_state.slices[0] == slice(0, 1)
+
+
+def sit_and_stare(irispy_test_files):
+    [raster] = raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))], ["Si IV 1403"])
+    return raster, image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+
+
+def test_time_sync_without_a_raster_point(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    coord = coordinator(bare_app.data_collection)
+    viewers["spectrogram"].state.slices = (1, *viewers["spectrogram"].state.slices[1:])
+    qtbot.waitUntil(lambda: sji_viewer.state.slices[0] == 0)
+    select_point(sji_viewer, 10, 20)  # a slit-jaw point leaves the frame where it is
+    qtbot.wait(20)
+    assert sji_viewer.state.slices[0] == 0
+    menu_action(viewers["map"], "Clear point").trigger()  # and the exposure slider still leads
+    viewers["spectrogram"].state.slices = (186, *viewers["spectrogram"].state.slices[1:])
+    expected = expected_nearest(raster_time(raster, (186,)), sji[sji.id["Time"]][:, 0, 0])
+    qtbot.waitUntil(lambda: sji_viewer.state.slices[0] == expected)
+    assert "time master, step 186" in readout(viewers["spectrogram"])
+    for step in range(0, 187, 11):  # one cached pair, whichever exposure
+        viewers["spectrogram"].state.slices = (step, *viewers["spectrogram"].state.slices[1:])
+        qtbot.wait(5)
+    assert len(coord._pairs) == 1
+
+
+def test_each_follower_viewer_reads_its_own_frame(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    viewers["spectrogram"].state.slices = (1, *viewers["spectrogram"].state.slices[1:])
+    qtbot.waitUntil(lambda: " · Δt " in readout(sji_viewer))
+    other = bare_app.new_data_viewer(ImageViewer, data=sji)  # a new viewer joins the master's time
+    qtbot.waitUntil(lambda: other.state.slices[0] == sji_viewer.state.slices[0])
+    other.state.slices = (40, 0, 0)  # moved away by hand: its own offset, and greyed
+    offset = sji[sji.id["Time"]][40, 0, 0] - raster_time(raster, (1,))
+    qtbot.waitUntil(lambda: f"NO MATCH Δt = {offset / np.timedelta64(1, 's'):+.1f} s" in readout(other))
+    assert " · Δt " in readout(sji_viewer)

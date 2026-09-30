@@ -114,7 +114,7 @@ class FrameTimeTool(Tool):
         state = self.viewer.state
         data = state.reference_data
         cid = _time_component(data) if data is not None else None
-        status = self.coordinator.status.get(data) if data is not None else None
+        status = self.coordinator.time_status(self.viewer)
         unmatched = status is not None and status[0] == "no match"
         if self._grey.get_visible() != unmatched:
             self._grey.set_visible(unmatched)
