@@ -53,5 +53,5 @@ position::
     import numpy as np
 
     values = raster[raster.main_components[0]]
-    mean_spectrum = np.nanmean(values, axis=(0, 1))
+    mean_spectrum = np.nanmean(values, axis=(0, 1), dtype=float)  # float64 sums, as glue uses
     point_spectrum = values[step, slit]

@@ -66,6 +66,6 @@ def test_scripting_recipe(qtbot, irispy_test_files):
     _, mean = profile.state.layers[0].profile
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)  # wavelengths with no valid sample give NaN
-        expected = np.nanmean(values, axis=(0, 1))
+        expected = np.nanmean(values, axis=(0, 1), dtype=float)
     np.testing.assert_allclose(mean, expected, rtol=1e-6)
     np.testing.assert_array_equal(values[step, slit], values[step, slit, :])
