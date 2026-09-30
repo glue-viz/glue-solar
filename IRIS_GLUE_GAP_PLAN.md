@@ -28,7 +28,7 @@ Out of scope ([Features excluded](#features-excluded)):
 
 ## Current state, 2026-09-30
 
-**Resume here.** Main is at 8c21de9: the M0 quicklook PRs #72-#79, #81, #82 (review follow-ups of #78 and #79, and a CI fix) and #83 (the slit line and raster point on slit-jaw viewers) are merged. #76's launch entries missed main in the stacked merge; #85 re-lands them and is being merged as its CI passes. #84 (drops the sunpy Map directory importer) waits for the user's review. On 2026-09-30 this plan was restructured after the user's review of all 203 features, a glue-overlap audit and the decisions in Scope and Decisions; the previous text, the feature map and the retired prototypes are in the plan branch's git history.
+**Resume here.** Main is at 2fdb847 and no glue-solar PR is open. Merged on 2026-09-30: the M0 quicklook (#72-#79), #81 (PV-slice patch), #82 (review follow-ups of #78 and #79, and a CI fix), #83 (slit line and raster point on slit-jaw viewers), #85 (re-lands #76's launch entries, which missed main in the stacked merge) and #84 (drops the sunpy Map directory importer; glue's Open Data Set replaces it). Since 2026-09-30 the user wants PRs marked ready and merged once CI passes. On 2026-09-30 this plan was restructured after the user's review of all 203 features, a glue-overlap audit and the decisions in Scope and Decisions; the previous text, the feature map and the retired prototypes are in the plan branch's git history.
 
 **Next.** Finish M0: `wp1-m0-link-graph-regression`, `wp4-m0-time-wavelength-panels`, `wp4-tests`, `wp10-m0-acceptance` and the M0 docs items. Then M1, starting with `wp10-m1-lazy-loading`.
 
@@ -36,7 +36,7 @@ Out of scope ([Features excluded](#features-excluded)):
 
 **Confirmed by the user (2026-09-30)**, formerly provisional: each quicklook tab has its own Point group; `link_hpc` links every dataset to the first (a star); a NO MATCH readout gives the nearest frame's offset, and a follower moved by hand shows its own, greyed beyond half a cadence; 'Open quicklook' starts ticked and the browser skips glue's autolinker; a quicklook's point drives only its own panels, and an SJI point leaves the spectrum empty until the next raster click (until `wp4-sji-click-to-raster`); lazy-loading limits from a sample of the raw ints within 1 % of the eager 99.5 % limits; moments and red-blue dialogs take a typed line centre until the Later line list; radiometric calibration is a glue derived component (D4); the time marker is glue's own range subset; F098 is covered by glue's Pan; `wp1-m3-multi-instrument` is Other missions with Level-3 input; the Profile display-unit restore patch goes to Later with sessions, sessions re-read IRIS files through glue's load log, and the Hinode/SOT reader is its own Later item.
 
-**Worktrees.** `~/Git/glue-solar` (this plan), `~/Git/glue-solar-land-launch-entry` (#85), `~/Git/glue-solar-drop-map-importer` (#84), irispy ports in `~/Git/irispy-bursts`, `-wavecorr`, `-mg-features`, `-moments-uncertainty`. The other `~/Git/glue-solar-*` worktrees are merged and removable.
+**Worktrees.** `~/Git/glue-solar` (this plan); irispy ports in `~/Git/irispy-bursts`, `-wavecorr`, `-mg-features`, `-moments-uncertainty`. The other `~/Git/glue-solar-*` worktrees are merged and removable.
 
 ## Decisions
 
