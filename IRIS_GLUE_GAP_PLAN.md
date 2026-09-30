@@ -103,7 +103,11 @@ pieces that the point light curves need became `wp12-date-labels` and
 `wp12-time-marker`. Fitting is later: WP6's nine items became one M4 item,
 `wp6-glue-fit-tool` (glue's Fit tool on astropy's parallel fitting, model
 choice and trial fits, fit maps on top); the red-blue asymmetry map stays as
-`wp2-m3-red-blue`. The plan has 132 items (148 before).
+`wp2-m3-red-blue`. Lazy loading is M1's first item (`wp10-m1-lazy-loading`, was M2): IRIS
+Level 2 data are int16 with BSCALE 0.25 and BZERO 7992 (quarter-DN steps,
+fill -32768 raw), files reach 20 GB, and the eager float32 copy costs about 5
+bytes per element. A glue-core missing value that glue treats like NaN is an
+M4 proposal for later (`wp0-core-missing-value`). The plan has 132 items (148 before).
 
 **Releases.** glue-core 1.27.0 (2026-06-25), glue-qt 0.4.2 (2026-02-11),
 irispy-lmsal 0.9.1 (2026-09-28; 0.9.1post1 has the same code). irispy 0.9.1
@@ -543,14 +547,13 @@ Each release containing a fix retires the matching glue-solar workaround
 - WP5: `wp5-m1-line-list`, `wp5-m1-rest-wavelength-policy`, `wp5-m1-velocity-axis`, `wp5-m1-spectral-blink`, `wp5-m1-doppler-image`
 - WP8: `wp8-derived-files`
 - WP9: `wp9-m1-screenshots`
-- WP10: `wp10-nonblocking-load`, `wp10-m1-roi-world-polygon`
+- WP10: `wp10-m1-lazy-loading`, `wp10-nonblocking-load`, `wp10-m1-roi-world-polygon`
 - WP11: `wp11-cursor-readout`, `wp11-selected-point-panel`, `wp11-histo-opt-scaling`, `wp11-gamma-stretch`, `wp11-raster-cmap`, `wp11-physical-aspect`, `wp11-keyboard-shortcuts`
 - WP12: `wp12-time-regrid`
 
 **M2**
 - WP2: `wp2-m2-moment-maps`, `wp2-m2-line-definition`, `wp2-m2-input-quality`, `wp2-m2-tests-docs`
 - WP8: `wp8-filter-stop`, `wp8-text-filter`
-- WP10: `wp10-m2-lazy-loading`
 - WP11: `wp11-colourbar`, `wp11-distance-measure`, `wp11-zoom-steps`
 - WP12: `wp12-sequence-export`, `wp12-derived-data-export`, `wp12-date-labels`, `wp12-time-marker`, `wp12-point-light-curves`, `wp12-path-slicer`, `wp12-path-persist`
 
@@ -567,7 +570,7 @@ Each release containing a fix retires the matching glue-solar workaround
 - WP12: `wp12-export-annotations`, `wp12-profile-values-export`, `wp12-path-overlays-slopes`, `wp12-path-batch`
 
 **M4**
-- WP0: `wp0-core-image-artist-bugs`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-core-profile-unit-label`, `wp0-track-line-layers`, `wp0-qt68-macos-pass`, `wp0-qt-aggregate-slice`, `wp0-track-qt66`, `wp0-core-datetime-export`, `wp0-qt68-cocoa`, `wp0-optional-proposals`, `wp0-upstream-draw-speed`
+- WP0: `wp0-core-image-artist-bugs`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-core-profile-unit-label`, `wp0-track-line-layers`, `wp0-qt68-macos-pass`, `wp0-qt-aggregate-slice`, `wp0-track-qt66`, `wp0-core-datetime-export`, `wp0-qt68-cocoa`, `wp0-optional-proposals`, `wp0-upstream-draw-speed`, `wp0-core-missing-value`
 - WP1: `wp1-m4-autolink-matrix`
 - WP6: `wp6-glue-fit-tool`
 - WP9: `wp9-m4-release-updates`
@@ -641,6 +644,7 @@ Reports and requests (each closes with a URL or the user's decision not to file)
 - [ ] **M4** `wp0-own-draft-updates`: Amend the user's drafts: (1) #2595's `wcs_autolink` leaves time axes out between datasets, so WP4 owns time (today frame 0 maps to NaN and a Pixel point on SJI 1400 misses SJI 2796); (2) Qt #74's `cursor_status` labels Solar X/Solar Y, longitude first, at sub-arcsec precision independent of zoom, and shows pixel and world positions together. Done when each amended head, as a source root, passes its suite and the owning WP's test (WP1: SJI/SJI Pixel propagation; WP11: raster-map readout); check (c) of `wp1-m4-autolink-matrix` is written here and run on the amended #2595 export. Depends: wp1-m0-link-graph-regression, wp11-cursor-readout.
 - [ ] **M4** `wp0-core-quantity-saver`: Core PR beside #2597 with a `@saver(u.Quantity)`/`@loader(u.Quantity)` pair (D13) from `IRIS_PLAN_PROTOTYPES/wp3_impl.py`, writing WP3's fallback record (saved type, protocol version 1, `{"value", "unit"}`). Done when its core session test round-trips a scalar and an array Quantity in `Data.meta`, a session saved by the solar fallback loads with the core loader, and the row has the PR URL.
 - [ ] **M4** `wp0-core-derived-units`: Core PR saving `DerivedComponent.units`, still loading records without it (register row until released). Done when the PR's session test round-trips a `DerivedComponent` with `units='DN/s'` and its row closes.
+- [ ] **M4** `wp0-core-missing-value`: Proposal for glue-core, filed only on the user's direction: a per-component missing value (for example `Component(..., missing=-200)`) that glue treats like NaN wherever NaN already works (transparent image pixels, percentile limits and stretches, Profile functions, histograms, statistics, fitting and value subsets), so integer data such as IRIS int16 (fill -32768 raw, -200 DN) can stay integer without a float copy. Neither glue-core 1.27.0 nor main has one; its readers turn masked values into NaN. Until then `wp10-m1-lazy-loading` converts each requested slice to float32 with NaN. Done when the user has decided whether to propose it and, if so, the issue or PR is linked here.
 - [ ] **M4** `wp0-core-profile-unit-label`: Optional: port `IRIS_PLAN_PROTOTYPES/wp5_label.py` (display unit in the Profile x label) as a core PR, not a glue-solar patch. Done when the PR's test shows a velocity profile labelled in km/s in both the numeric and WCSAxes paths.
 - [ ] **M4** `wp0-track-line-layers`: Track draft glue #2603 and glue-qt #73; WP5 keeps its `layer_artist_maker` line-list artist and the stock Profile style editor. Comment on Qt #73 that its exact-class editor lookup misses `QThreadedProfileLayerArtist`. Done when the comment is posted or declined and the register row names both PRs.
 - [ ] **M4** `wp0-qt68-macos-pass`: Manual macOS pass for Qt #68 (scratch HOME, isolated QSettings): first the saved font override (an old 9-point value hides the new default); then menu title, About/Hide/Quit, Cmd-Tab and Dock name, and clipping at native font sizes (preferences, link editor, importers, fixed-geometry dialogs), on PyQt6/Retina and PyQt5. Keep the slice label's 0.75x scale unless unreadable. Done when each result per binding is recorded here.
@@ -955,15 +959,15 @@ in `glue_solar/sources/loaders/`, tests in `glue_solar/tests/`.
 **M1**
 
 - [ ] **M1** `wp10-nonblocking-load`: Run the reads in `QtIRISImporter.finalize` (`raster_data`/`image_data`, `extract_archive`) in glue-qt's `Worker` with the progress bar visible and OK disabled: build the Data in the worker without touching viewer-held WCS, extend `datasets` on the GUI thread, drop cancelled or superseded loads by load id, record results through the `wp4-launch-entry` per-window helper, never `wait()` on the GUI thread, and check for a stop between raster files. Messages stay visible after the worker ends. `wp8-filter-stop` reuses this lifecycle. Done when loading 3824262996 Mg II k or 4000255147 keeps GUI timer gaps ≤ 0.2 s; a stop in the middle of the 3602506433 stack takes effect within one file, adds nothing half-built and leaves earlier picks usable; the per-file assembly equals the one-call read on 4000005156; tests gate on counted reads, not sleeps, and the crash scenarios still give 0 crashes.
+- [ ] **M1** `wp10-m1-lazy-loading`: The first M1 item (user, 2026-09-30: files can reach 20 GB). Open raster and SJI files with irispy `memmap=True` (raw int16, no BSCALE/BZERO, no mask; fill reads -32768) and publish glue `DaskComponent`s computing `raw*BSCALE + BZERO`, the fill rule and the uint8 mask per requested slice; build the 4D stack from lazy scans; lazy opens use the `wp10-nonblocking-load` Worker; eager loading stays the default until the lazy path passes the same tests. Add `dask[array]` to `pyproject.toml` in the PR that first imports dask. Done when opening all windows of 3824262996 (3.17 GB float32) and 4000255147 (4.14 GB) lazily keeps peak RSS before any viewer opens below 10% of the eager peak (record both); sampled slices' values, NaN positions and masks equal the eager loader's, including on 3400109360; GUI gaps stay ≤ 0.2 s and the M0 budgets hold. Depends: wp10-m0-acceptance, wp10-nonblocking-load.
 - [ ] **M1** `wp10-m1-roi-world-polygon`: Override `apply_roi` on the `wp10-m0-roi-guard` subclass: for IRIS raster data, map the ROI edges, sampled once per raster step, through `_GlueWCS.pixel_to_world_values` into a `PolygonalROI` `RoiSubsetState` on the lon/lat components; other data keep `roi_to_subset_state`; then restore the `select:*` tools. Done when on 4000005156 Si IV with the deconvolved SJI 2796 at frame 5 a raster rectangle selects the same 108,300 SJI pixels as the pixel-component subset (range tools likewise) in ≤ 0.5 s per full-resolution frame, and on sit-and-stare the result equals the pixel result; if `wp1-m0-link-hpc` check (4) finds the sit-and-stare stripe inherent, sit-and-stare maps keep no `select:*` tools. Depends: wp10-m0-roi-guard, wp1-m0-link-hpc.
 
 **M2**
 
-- [ ] **M2** `wp10-m2-lazy-loading`: Open raster and SJI files with irispy `memmap=True` (raw int16, no BSCALE/BZERO, no mask; fill reads -32768) and publish glue `DaskComponent`s computing `raw*BSCALE + BZERO`, the fill rule and the uint8 mask per requested slice; build the 4D stack from lazy scans; lazy opens use the `wp10-nonblocking-load` Worker; eager loading stays the default until the lazy path passes the same tests. Add `dask[array]` to `pyproject.toml` in the PR that first imports dask. Done when opening all windows of 3824262996 (3.17 GB float32) and 4000255147 (4.14 GB) lazily keeps peak RSS before any viewer opens below 10% of the eager peak (record both); sampled slices' values, NaN positions and masks equal the eager loader's, including on 3400109360; GUI gaps stay ≤ 0.2 s and the M0 budgets hold. Depends: wp10-m0-acceptance, wp10-nonblocking-load.
 
 **M3**
 
-- [ ] **M3** `wp10-m3-sit-stare-chunks`: Only if a recorded sit-and-stare run still exceeds 12 GB peak RSS or the M0 λ–t slit-step budget after lazy loading: a sit-and-stare exposure-range field in the browser that slices the lazy cube before conversion, keeping the chunk's `Time` and WCS. Done when on 4000255147 loading exposures 400-799 gives `Time` and world coordinates equal to the full load's there, peak RSS scales with the chunk, and navigation inside it is unchanged. Depends: wp10-m2-lazy-loading.
+- [ ] **M3** `wp10-m3-sit-stare-chunks`: Only if a recorded sit-and-stare run still exceeds 12 GB peak RSS or the M0 λ–t slit-step budget after lazy loading: a sit-and-stare exposure-range field in the browser that slices the lazy cube before conversion, keeping the chunk's `Time` and WCS. Done when on 4000255147 loading exposures 400-799 gives `Time` and world coordinates equal to the full load's there, peak RSS scales with the chunk, and navigation inside it is unchanged. Depends: wp10-m1-lazy-loading.
 
 Notes:
 - Stack storage stays a `np.result_type(scan 0, float32)` memmap with scan 0's spatial WCS (`wp1-stack-per-scan-wcs`).

@@ -14,7 +14,7 @@ Columns: IRIS = relevant to IRIS data; Priority = review priority for an IRIS-fi
 quicklook (must/should/could/wont); Milestone and Where = the owning checkbox (M4 = upstreaming,
 after the glue-solar work).
 
-Summary: Available: 35, Excluded: 27, M0: 25, M1: 38, M2: 20, M3: 54, M4: 4.
+Summary: Available: 35, Excluded: 27, M0: 25, M1: 39, M2: 19, M3: 54, M4: 4.
 
 ## IRIS raster/SJI semantics, reference cubes & time sync
 
@@ -151,7 +151,7 @@ Summary: Available: 35, Excluded: 27, M0: 25, M1: 38, M2: 20, M3: 54, M4: 4.
 | F031 | SPECTFILE normalised/average spectrum file | no | wont | M0 | `wp9-m0-user-guide-corrections` (WP9, M0) | SPECTFILE: the mean-spectrum reference is a full-dataset Profile with function Mean (glue's default is Maximum) |
 | F032 | SCALE_CUBES multiplicative factor | no | wont | — | Available today | Data collection → 'Arithmetic attributes' (ArithmeticEditorWidget, glue_qt/app/application.py:423,487@0.4.2) defines a scaled derived component, e.g. `<window> * 2.5`. Documented in wp9-m0-browsing-recipes ('Arithmetic scaling'). |
 | F033 | Programmatic access to the browsed cube | yes | should | M0 | `wp9-m0-scripting-recipe` (WP9, M0) |  |
-| F034 | Memory-mapped lazy cube access | yes | should | M2 | `wp10-m2-lazy-loading` (WP10, M2) |  |
+| F034 | Memory-mapped lazy cube access | yes | should | M1 | `wp10-m1-lazy-loading` (WP10, M1) | Moved to M1 (user, 2026-09-30). |
 | F035 | Fast spectrum-vs-time access via sp cube; deferred updates without it | yes | must | — | Available today | On irispy 0.9.1 (no step index in the raster WCS) a spectrogram slider step takes 0.049-0.050 s at any exposure of the 1600-exposure 4000255147 Si IV raster, and a λ–t (wavelength × exposure) slit step 0.070 s, measured offscreen on main 0621253. |
 | F036 | Sit-and-stare chunking | yes | could | M3 | `wp10-m3-sit-stare-chunks` (WP10, M3) |  |
 
