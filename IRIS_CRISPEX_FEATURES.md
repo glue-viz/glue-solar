@@ -6,7 +6,7 @@ plan's checkboxes and the verified review in
 Each of the 203 features from CRISPEX and the IRIS SolarSoft quicklook tools maps to one or more plan
 checkboxes, to 'Available today' (with how to do it in Glue), or to an exclusion. The source
 citations and Glue evidence for every row are in `review_20260927/features.json`. Updated on
-2026-09-29 to the trimmed plan's keys. The plan no longer lists feature IDs, so this file is the
+2026-09-29 to the trimmed plan's keys, and on 2026-09-30 for the user's exclusions. The plan no longer lists feature IDs, so this file is the
 feature-to-checkbox map: update it when checkbox keys or feature lists change. The plan is
 authoritative.
 
@@ -14,7 +14,7 @@ Columns: IRIS = relevant to IRIS data; Priority = review priority for an IRIS-fi
 quicklook (must/should/could/wont); Milestone and Where = the owning checkbox (M4 = upstreaming,
 after the glue-solar work).
 
-Summary: Available: 35, Excluded: 17, M0: 25, M1: 42, M2: 24, M3: 59, M4: 1.
+Summary: Available: 35, Excluded: 25, M0: 25, M1: 42, M2: 20, M3: 52, M4: 4.
 
 ## IRIS raster/SJI semantics, reference cubes & time sync
 
@@ -90,9 +90,9 @@ Summary: Available: 35, Excluded: 17, M0: 25, M1: 42, M2: 24, M3: 59, M4: 1.
 | F013 | Preview an SJI movie from the file list | yes | should | — | Available today | Tick an SJI in the browser and press 'Load selected'. The first SJI/AIA cube opens in an Image viewer (sources/iris.py:62-65) with transparent NaN padding (#53). Play it with the slice-widget playback buttons (released glue-qt 0.4.2 data_slice_widget.py:50-89,146) and adjust contrast with the stock stretches (glue/config.py:839-842@1.27.0). The missing gamma stretch belongs to the WP11 scaling item (F062), not here. Docs item: wp9-m0-browsing-recipes. |
 | F014 | Print filename to console | yes | could | M3 | `wp8-browser-conveniences` (WP8, M3) |  |
 | F015 | Quicklook mode launcher (iris_xcontrol) | yes | must | M0 | `wp4-launch-entry` (WP4, M0) |  |
-| F016 | IRIS data search web page | yes | could | M3 | `wp8-remote-search` (WP8, M3) |  |
-| F017 | SSW remote query by time/OBSID | yes | could | M3 | `wp8-remote-search` (WP8, M3) |  |
-| F018 | Browsable quicklook movies before download | yes | wont | M3 | `wp8-remote-search` (WP8, M3) |  |
+| F016 | IRIS data search web page | yes | could | — | Excluded | online context and search (excluded by the user, 2026-09-30) |
+| F017 | SSW remote query by time/OBSID | yes | could | — | Excluded | online context and search (excluded by the user, 2026-09-30) |
+| F018 | Browsable quicklook movies before download | yes | wont | — | Excluded | online context and search (excluded by the user, 2026-09-30) |
 | F019 | EIS data sources in iris_xfiles | no | wont | — | Excluded | EIS (confirmed non-goal) |
 
 ## Spectral analysis (moments, fits, diagnostics)
@@ -104,11 +104,11 @@ Summary: Available: 35, Excluded: 17, M0: 25, M1: 42, M2: 24, M3: 59, M4: 1.
 | F154 | Define Line / moments prep tool (line and continuum windows) | yes | should | M2 | `wp2-m2-line-definition` (WP2, M2); `wp2-m3-moments-extensions` (WP2, M3) |  |
 | F155 | Continuum-subtracted intensity map (iris_xmap) | yes | should | M2 | `wp2-m2-line-definition` (WP2, M2); `wp2-m2-tests-docs` (WP2, M2) |  |
 | F156 | Moment/fit product selector and plot limits | yes | should | M2 | `wp2-m2-tests-docs` (WP2, M2) |  |
-| F157 | Single-Gaussian fit maps | yes | could | M2 | `wp6-m2-fit-maps` (WP6, M2) |  |
-| F158 | Double-Gaussian fit with red-blue asymmetry | yes | could | M3 | `wp6-m3-rba-double-gaussian` (WP6, M3) |  |
-| F159 | Template multi-Gaussian fitting and fit viewer (iris_auto_fit, iris_fit_viewer) | yes | wont | M3 | `wp6-m3-template-fits` (WP6, M3) |  |
+| F157 | Single-Gaussian fit maps | yes | could | M4 | `wp6-glue-fit-tool` (WP6, M4) | Fitting moved to glue's Fit tool, later (user, 2026-09-30). |
+| F158 | Double-Gaussian fit with red-blue asymmetry | yes | could | M3 | `wp2-m3-red-blue` (WP2, M3); `wp6-glue-fit-tool` (WP6, M4) | The RB map is M3; the double-Gaussian fit is a model in the later fit tool. |
+| F159 | Template multi-Gaussian fitting and fit viewer (iris_auto_fit, iris_fit_viewer) | yes | wont | M4 | `wp6-glue-fit-tool` (WP6, M4) |  |
 | F160 | Window data with errors, calibration and binning (iris_getwindata) | yes | could | M3 | `wp2-m3-window-data` (WP2, M3) |  |
-| F161 | Region-averaged spectrum with interactive fit | yes | should | M2 | `wp6-m2-profile-fitter` (WP6, M2) |  |
+| F161 | Region-averaged spectrum with interactive fit | yes | should | M4 | `wp6-glue-fit-tool` (WP6, M4) | Today the stock Fit tab fits its own models to a Pixel-point or ROI-mean spectrum. |
 | F162 | Mg II k/h feature extraction | yes | could | M3 | `wp2-m3-mg-features` (WP2, M3) |  |
 | F163 | Density and temperature diagnostics | yes | wont | M3 | `wp2-m3-density-temperature` (WP2, M3) |  |
 
@@ -184,7 +184,7 @@ Summary: Available: 35, Excluded: 17, M0: 25, M1: 42, M2: 24, M3: 59, M4: 1.
 | F090 | Non-equidistant timing in spectrum-time display | yes | should | M1 | `wp12-time-regrid` (WP12, M1) |  |
 | F091 | Jump to a given UTC time | yes | should | M1 | `wp4-time-controls` (WP4, M1) |  |
 | F092 | Spectrogram animation ('Create Animation') | yes | should | — | Available today | Load a raster (default view wavelength × slit, the spectrogram) and press play on its step/exposure slider (data_slice_widget.py playback). Documented in wp9-m0-browsing-recipes (playback) and wp9-m0-workflow-recipes (spectrogram axes); movie export is the WP12 movie item (F178/F179). |
-| F093 | Event-finding workflow (TR brightenings, flares) | yes | must | M0 | `wp9-m0-iris9-acceptance` (WP9, M0) |  |
+| F093 | Event-finding workflow (TR brightenings, flares) | yes | must | M0 | `wp4-tests` (WP4, M0) | The IRIS-9 tutorial and its acceptance run were dropped (user, 2026-09-30); the per-interaction matrix covers the clicks. |
 
 ## Sessions, state & preferences
 
@@ -274,13 +274,13 @@ Summary: Available: 35, Excluded: 17, M0: 25, M1: 42, M2: 24, M3: 59, M4: 1.
 | F038 | Observation date and OBSID labels | yes | must | — | Available today | The browser shows STARTOBS and OBSID columns (loaders/iris_loader.ui:62-67@main), and every dataset label embeds OBSID-STARTOBS (loaders/iris.py _observation_label@main). DATE_OBS is available via Ctrl+I. |
 | F039 | Spectral-window line list / observation info panel | yes | could | M3 | `wp8-browser-metadata` (WP8, M3) |  |
 | F040 | Observation metadata summary (xcontrol labels, raster-browser Metadata tab) | yes | could | M3 | `wp8-browser-metadata` (WP8, M3) |  |
-| F041 | HCR observation metadata | yes | could | M3 | `wp7-hcr-metadata` (WP7, M3) |  |
+| F041 | HCR observation metadata | yes | could | — | Excluded | online context and search (excluded by the user, 2026-09-30) |
 | F042 | OBS XML tables viewer | yes | wont | — | Excluded | OBS XML viewer (user kept as non-goal 2026-09-27) |
 | F043 | Pipeline log-file viewer | yes | wont | — | Excluded | pipeline log viewer (user kept as non-goal 2026-09-27) |
-| F044 | GOES light curve with selected-exposure marker | yes | could | M2 | `wp7-goes-context` (WP7, M2); `wp7-goes-marker` (WP7, M2) |  |
-| F045 | SWPC flare list | yes | could | M3 | `wp7-flare-list` (WP7, M3) |  |
-| F046 | Full-disk AIA pointing context with IRIS FOV outline | yes | could | M2 | `wp7-aia-context` (WP7, M2) |  |
-| F047 | IRIS_getAIAdata co-aligned AIA request GUI | yes | could | M3 | `wp7-aia-channels` (WP7, M3) |  |
+| F044 | GOES light curve with selected-exposure marker | yes | could | — | Excluded | online context and search (excluded by the user, 2026-09-30) |
+| F045 | SWPC flare list | yes | could | — | Excluded | online context and search (excluded by the user, 2026-09-30) |
+| F046 | Full-disk AIA pointing context with IRIS FOV outline | yes | could | — | Excluded | online context and search (excluded by the user, 2026-09-30) |
+| F047 | IRIS_getAIAdata co-aligned AIA request GUI | yes | could | — | Excluded | online context and search (excluded by the user, 2026-09-30) |
 | F048 | Co-temporal Hinode/EIS observation list | no | wont | — | Excluded | EIS (confirmed non-goal) |
 
 ## Overlays, masks, detections & measurement
