@@ -23,7 +23,7 @@ Companion files:
 
 ## How to use this plan
 
-1. Start at [Current state](#current-state-2026-09-29) and refresh PR states
+1. Start at [Current state](#current-state-2026-09-30) and refresh PR states
    with `gh`.
 2. Pick an unchecked item in the earliest open milestone. Read its task, done
    condition and dependencies, and trace the current code before adapting a
@@ -60,7 +60,27 @@ Priorities set the milestone, not whether a feature is in scope. Out of scope:
   the control-panel clone, `SPECTFILE`/`LINE_CENTER`/`NO_WARP`), pixel-identical
   IDL layouts, the IDL PostScript device and a generic annotation framework.
 
-## Current state, 2026-09-29
+## Current state, 2026-09-30
+
+**Resume here (end of the 2026-09-30 session).** Eight glue-solar drafts are
+open, none merged; the user reviews and merges. Several are stacked, so merge
+in this order and, after each merge, retarget the next one's base to `main`
+(`gh pr edit <N> --base main`) and rebase it: #72 (`link_hpc`) → #74
+(quicklook preset) → #75 (point coupling) → #78 (time sync) → #79 (SJI
+panels); #76 (launch entries) also sits on #74. #73 (guide corrections) and
+#77 (scripting recipe) branch from main and are independent. On each merge,
+delete the items it closes: #72 `wp1-m0-link-hpc`; #73
+`wp9-m0-user-guide-corrections`; #74 `wp4-quicklook-preset`,
+`wp10-m0-large-data-modal`, `wp10-m0-roi-guard` (their full-data done-whens
+are in #74's probe); #75 `wp4-m0-point-fixed-index`; #76 `wp4-launch-entry`;
+#77 `wp9-m0-scripting-recipe`; #78 `wp4-time-sync`; #79 `wp4-sji-panels`.
+Every PR was reviewed by an adversarial workflow (lenses plus skeptics) and
+its confirmed findings fixed, except #79 (not yet reviewed) and #78's tests
+lens (see Next steps). Probes behind the manual checks, on `~/DATA/IRIS`:
+`IRIS_PLAN_PROTOTYPES/wp1_link_hpc_probe.py`, `wp4_quicklook_probe.py`
+(preset, coupling, SJI panels), `wp4_time_sync_probe.py`. A docs build needs
+the checkout's `glue_solar/version.py` first (Validation, `iris-plan-docs`).
+
 
 **Releases.** glue-core 1.27.0 (2026-06-25), glue-qt 0.4.2 (2026-02-11),
 irispy-lmsal 0.9.1 (2026-09-28; 0.9.1post1 has the same code). irispy 0.9.1
@@ -157,6 +177,7 @@ Open glue-solar PRs (the user reviews each draft):
 | #76 (base `wp4-quicklook-preset`) | `wp4-launch-entry` | `wp4-launch-entry` | 'Open quicklook' in the browser (on by default; the one ticked window, else the default), 'IRIS: quicklook…' (asks between observations), `@startup_action('iris_quicklook')` (first raster file per observation, note that stacks need the browser); single-file raster loads labelled `…-rNNNNN`; `load_entry()` + `QtIRISImporter.loaded`; the browser adds data without glue's autolinker. Gated `PixelSubsetState._to_linked_pixel_coords` wrapper (NaN → IncompatibleAttribute; `needs_pixel_point_workaround()`), register row added. Gap: with #2595, glue's own command-line loading shows AutoLinkPreview before startup actions (M4). 75 passed, 1 skipped both baselines; 76 with #2595. Changelog `76.feature.rst` |
 | #77 | `wp9-m0-scripting-recipe` | `wp9-m0-scripting-recipe` | Guide page "Scripting with IRIS data" (Terminal names, `raster_data`/`image_data`, `pixel_to_world_values` order, `Time`, Mean as `np.nanmean(..., dtype=float)`), checked by the new `glue_solar/tests/test_documented_workflows.py` on the 20210905 fixture (readout = world values at a Pixel point; Profile Mean = `np.nanmean`). 57 passed, 1 skipped both baselines. Changelog `77.doc.rst` |
 | #78 (base `wp4-m0-point-fixed-index`) | `wp4-time-sync` | `wp4-time-sync` | `nearest()` (unsorted/descending, ties earlier, duplicates first); raster master by default, 'Time master' for an SJI; followers move on their time axis within half their median cadence (point moves with them), scanning rasters show Δt at the timing step; per-viewer Frame time readout (time master / Δt / NO MATCH, greyed); `add_listener`; per-pair cache. Review fixes c4ce0bb. Probe `IRIS_PLAN_PROTOTYPES/wp4_time_sync_probe.py`: 4000005156 (scans per frame, Δt +84.91/+38.09/−90.54 s, scan 0 alone NO MATCH 16-31, step 0 NO MATCH 8.67 s), 4000255147 (argmin both ways, |Δt| ≤ 5.67 / 0.08 s, slit kept), 3400109360 real 2-scan stack (0 of 40 off both ways); coordinator 0.08 s per step, full synced step 0.30 s (acceptance budget 0.25 s, `wp10-m0-acceptance`). 90 passed, 1 skipped both baselines; 91 with #2595. Changelog `78.feature.rst` |
+| #79 (base `wp4-time-sync`) | `wp4-sji-panels` | `wp4-sji-panels` | SJI viewers titled 'SJI 1400' / 'SJI 2796 (deconvolved)', opened on the raster footprint (four corners through the first frame's pointing) plus a margin at the axes' aspect; `Coordinator.point_on(viewer)` and an 'outside SJI FOV' readout. Probe: corners inside the limits (also after a resize) on 4000005156 + deconvolved SJI 2796 and 4000255147 + SJI 1400; SJI step ≈ 0.11 s. 91 passed, 1 skipped both baselines; 92 with #2595. Not yet reviewed. Changelog `79.feature.rst` |
 
 **Provisional decisions** (made without the user under the 2026-09-29 direction to continue alone; confirm or change):
 - #74: each quicklook has its own 'Point' group, the edit subset while its tab is shown (the alternative, one shared point across quicklooks, was not taken). The spectrum panel's y range includes 0 so the y = 0 line shows.
@@ -254,11 +275,29 @@ PR notes (2026-09-29):
   `save` subtools in WP12); #65 (dhomeier, tox cleanup, overlaps #69).
 
 **Next steps.**
-1. The rest of M0, in glue-solar only: since 2026-09-29 upstream PRs,
-   reports and tracking wait for M4 (D2). Next, from main (user,
-   2026-09-29): the user reviews `wp1-m0-link-hpc` (#72), which unblocks `wp4-quicklook-preset` →
-   `wp4-m0-point-fixed-index` → `wp4-time-sync`.
-2. When the user has merged and irispy has released #197-#199 and #201, raise
+1. #78 follow-ups from its review's tests lens (confirmed, not yet done; the
+   other lenses' findings are fixed in c4ce0bb): the unmatched-SJI test must
+   wait for the exact step's "NO MATCH Δt" text before asserting the kept
+   frame; add a stack-as-master test (several (scan, step) points, listener
+   exposure); an SJI-master-over-a-scanning-raster test (Δt at the timing
+   step, NO MATCH outside the descending coverage on 3400109360); a step
+   (35 or 151) that tells median from mean cadence; record the wavelength
+   sliders before 'Time master' in the SJI-master tests.
+2. Run the adversarial review on #79 (as for #74-#78: correctness, tests,
+   compliance lenses plus skeptics; reusable scripts are in this session's
+   workflow scripts, or write one from the #78 prompt).
+3. The rest of M0, stacked on #79 (glue-solar only; upstream is M4):
+   `wp4-slit-point-overlay` (uses `Coordinator.point_on`), then
+   `wp4-m0-time-wavelength-panels` (edits the Frame time tool too),
+   `wp4-tests` (much is already covered; add the per-interaction matrix and
+   the native-GUI checklist), `wp1-m0-link-graph-regression`,
+   `wp10-m0-acceptance` (a full synced step is 0.30 s on 4000255147 against
+   its 0.25 s budget: coordinator 0.08 s, the rest glue's redraws), and the
+   docs items `wp9-m0-viewer-tools-docs`, `wp9-m0-browsing-recipes`,
+   `wp9-m0-mask-overlays`, `wp9-m0-workflow-recipes`. Blocked:
+   `wp9-m0-iris9-tutorial`/`-acceptance` (IRIS-9 data not local),
+   `wp9-m0-wiki-digest` (the user's).
+4. When the user has merged and irispy has released #197-#199 and #201, raise
    the irispy floor (`wp0-irispy-requests`).
 
 **Worktrees.**
@@ -272,6 +311,7 @@ PR notes (2026-09-29):
 | `~/Git/glue-solar-wp4-m0-point-fixed-index` | `wp4-m0-point-fixed-index` | Draft glue-solar #75, stacked on #74 |
 | `~/Git/glue-solar-wp4-time-sync` | `wp4-time-sync` | Draft glue-solar #78, stacked on #75 |
 | `~/Git/glue-solar-wp9-m0-scripting-recipe` | `wp9-m0-scripting-recipe` | Draft glue-solar #77 |
+| `~/Git/glue-solar-wp4-sji-panels` | `wp4-sji-panels` | Draft glue-solar #79, stacked on #78 |
 | `~/Git/glue-solar-wp4-launch-entry` | `wp4-launch-entry` | Draft glue-solar #76, stacked on #74 |
 | `~/Git/irispy-bursts` | `uv-burst-detection` | Draft #197; the `irispy-ports` env imports irispy from here |
 | `~/Git/irispy-wavecorr` | `wavelength-drift` | Draft #198 |
