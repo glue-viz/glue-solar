@@ -1,0 +1,1 @@
+The IRIS loading, profile and map guides now list what each dataset holds, in the order Glue shows it, and correct the stack Pixel-subset description; both warn that saving a session with IRIS data or a sunpy Map can fail before any file is written.
