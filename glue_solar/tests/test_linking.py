@@ -1,10 +1,15 @@
+import numpy as np
 import pytest
-from glue.core import DataCollection
+from glue.core import Data, DataCollection, component_link, coordinate_helpers
+from glue.core.link_helpers import LinkSame
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
+from glue_qt.app import GlueApplication
+from glue_qt.viewers.image import ImageViewer
 
 import astropy.units as u
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
+from glue_solar import glue_patches
 from glue_solar.sources.loaders.iris import image_data, raster_data
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
@@ -16,6 +21,10 @@ def _real(files, name):
     return next(
         path for path in files if path.name.replace("_test.fits", ".fits") == name and path.parent.name == "sns"
     )
+
+
+def _cid(data, label):
+    return next(cid for cid in data.world_component_ids if cid.label == label)
 
 
 @pytest.fixture
@@ -58,3 +67,41 @@ def test_sji_high_level_api_round_trips(sns):
     assert sky.Tx.to_value(u.arcsec) == pytest.approx(values[types.index("custom:pos.helioprojective.lon")])
     assert sky.Ty.to_value(u.arcsec) == pytest.approx(values[types.index("custom:pos.helioprojective.lat")])
     assert wcs.world_to_pixel(*objects) == pytest.approx(pixel, abs=1e-4)
+
+
+def test_inverse_workaround_installs_only_where_glue_needs_it():
+    installed = component_link.world2pixel_single_axis is glue_patches.world2pixel_single_axis
+    assert installed == glue_patches.needs_inverse_workaround()  # probes glue's own function
+    assert coordinate_helpers.world2pixel_single_axis is component_link.world2pixel_single_axis
+    assert not glue_patches.needs_inverse_workaround(glue_patches.world2pixel_single_axis)
+
+
+def test_world_links_into_the_sji_use_each_exposure_time(sns):
+    # glue-core 1.27.0 inverts every frame at exposure 0: x = 22.4 and 35.4 px at frames 30 and 61
+    sji, _ = sns
+    frames = np.arange(sji.shape[0], dtype=float)
+    lon, lat, time = sji.coords.pixel_to_world_values(10.0, 10.0, frames)
+    points = Data(label="points", lon=lon, lat=lat, t=time)
+    dc = DataCollection([sji, points])
+    dc.add_link(
+        [LinkSame(points.id[k], _cid(sji, label)) for k, label in zip("lon lat t".split(), [*HPC, "Time (Utc)"])]
+    )
+    np.testing.assert_allclose(points[sji.pixel_component_ids[2]], 10, atol=1e-6)
+    np.testing.assert_allclose(points[sji.pixel_component_ids[1]], 10, atol=1e-6)
+    np.testing.assert_allclose(points[sji.pixel_component_ids[0]], frames, atol=1e-6)
+
+
+def test_inverse_workaround_leaves_wcsaxes_readouts_alone(qtbot, sns, monkeypatch):
+    sji, _ = sns
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(sji)
+    viewer = app.new_data_viewer(ImageViewer, data=sji)
+    viewer.state.slices = (30, 0, 0)
+    readouts = []
+    for patch in (glue_patches.world2pixel_single_axis, glue_patches._original_world2pixel_single_axis):
+        monkeypatch.setattr(coordinate_helpers, "world2pixel_single_axis", patch)
+        monkeypatch.setattr(component_link, "world2pixel_single_axis", patch)
+        viewer.figure.canvas.draw()  # WCSAxes only formats positions once drawn
+        readouts.append([viewer.axes.format_coord(x, 20) for x in (0, 10, 30)])
+    assert readouts[0] == readouts[1]
