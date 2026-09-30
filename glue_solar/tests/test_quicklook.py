@@ -4,6 +4,7 @@ from collections import Counter
 import numpy as np
 import pytest
 from glue.core import Data
+from glue.core.component import DateTimeComponent
 from glue.core.hub import HubListener
 from glue.core.message import SubsetUpdateMessage
 from glue.viewers.image.state import AggregateSlice
@@ -17,7 +18,7 @@ from astropy.io import fits
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
-from glue_solar.quicklook import QuicklookImageViewer, coordinator, observation_key, quicklook
+from glue_solar.quicklook import QuicklookImageViewer, coordinator, nearest, observation_key, quicklook
 from glue_solar.sources.loaders.iris import image_data, raster_data
 from glue_solar.tests.helpers import mouse, select_point
 
@@ -551,3 +552,158 @@ def test_a_drag_moves_the_other_panels_once(bare_app, qtbot, scans):
     assert written == []  # nothing yet: the panels follow when Qt next runs
     qtbot.waitUntil(lambda: viewers["spectrogram"].state.slices[0] == 5)
     assert written == [5]
+def seconds(*values):
+    return np.datetime64("2021-01-01T00:00:00", "ns") + np.array(values, "timedelta64[ms]")
+
+
+def test_nearest():
+    times = seconds(0, 10000, 20000, 30000)
+    index, offset = nearest(seconds(4000, 5000, 6000), times)
+    assert list(index) == [0, 0, 1]  # 5 s is a tie: the earlier time
+    assert list(offset / np.timedelta64(1, "ms")) == [-4000, -5000, 4000]
+    assert list(nearest(seconds(4000, 5000, 6000), times[::-1])[0]) == [3, 3, 2]  # descending
+    assert list(nearest(seconds(0), times[[2, 0, 1]])[0]) == [1]  # unsorted
+    assert list(nearest(seconds(10000, 11000), times[[0, 1, 1, 2]])[0]) == [1, 1]  # equal times: the first
+    index, offset = nearest(seconds(-60000, 90000), times)  # outside: the nearest end, and how far
+    assert list(index) == [0, 3]
+    assert list(offset / np.timedelta64(1, "s")) == [60, -60]
+    index, _ = nearest(seconds(12000, 18000), times[[0, 3]])  # a gap: still the nearest
+    assert list(index) == [0, 1]
+    for bad in (np.array(["NaT", "2021-01-01"], "datetime64[ns]"), times[:0], times.reshape(2, 2)):
+        with pytest.raises(ValueError, match="reference times"):
+            nearest(seconds(0), bad)
+
+
+def slit_jaw(times, like, label="SJI_1400"):
+    """A slit-jaw cube of the observation of ``like`` with frames at ``times``."""
+    data = Data(label=label, **{label: np.arange(len(times) * 20, dtype=float).reshape(len(times), 4, 5)})
+    data.meta = {"INSTRUME": "SJI", "TDESC1": label, "OBSID": like.meta["OBSID"], "STARTOBS": like.meta["STARTOBS"]}
+    data.add_component(DateTimeComponent(np.repeat(times, 20).reshape(data.shape)), "Time")
+    return data
+
+
+def readout(viewer):
+    return viewer.toolbar.tools["solar:frame_time"].label.text()
+
+
+def raster_time(data, index):
+    return data[data.id["Time"]][(*index, 0, 0)]
+
+
+def check_follower(app, qtbot, master_time, follower, viewer):
+    """The follower's frame is the nearest to the master's time, or NO MATCH when half a cadence away."""
+    times = follower[follower.id["Time"]][:, 0, 0]
+    [index], [offset] = nearest([master_time], times)
+    half = np.median(np.diff(np.sort(times))) / 2
+    delta = offset / np.timedelta64(1, "s")
+    if abs(offset) <= half:
+        qtbot.waitUntil(lambda: f" · Δt {delta:+.1f} s" in readout(viewer))
+        assert viewer.state.slices[0] == index
+        assert not viewer.toolbar.tools["solar:frame_time"]._grey.get_visible()
+    else:
+        qtbot.waitUntil(lambda: f"NO MATCH Δt = {delta:+.1f} s" in readout(viewer))
+        assert viewer.toolbar.tools["solar:frame_time"]._grey.get_visible()
+    return abs(offset) <= half
+
+
+def test_a_raster_master_moves_the_slit_jaw_images(bare_app, qtbot, irispy_test_files):
+    [raster] = raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))], ["Si IV 1403"])
+    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    wavelengths = [viewers[role].state.slices[-1] for role in RASTER_PANELS]
+    matched = []
+    for step in (93, 0, 186, 1):
+        viewers["spectrogram"].state.slices = (step, *viewers["spectrogram"].state.slices[1:])
+        matched.append(check_follower(bare_app, qtbot, raster_time(raster, (step,)), sji, sji_viewer))
+        assert f"time master, step {step}" in readout(viewers["spectrogram"])
+    assert matched == [False, True, True, True]  # the decimated fixture's frames are 4.6 minutes apart
+    heard = []
+    coordinator(bare_app.data_collection).add_listener(lambda *args: heard.append(args))
+    viewers["spectrogram"].state.slices = (7, *viewers["spectrogram"].state.slices[1:])
+    qtbot.waitUntil(lambda: bool(heard))
+    key, when, exposure = heard[-1]
+    assert (key, when) == (observation_key(raster), raster_time(raster, (7,)))
+    assert exposure == raster[raster.id["Exposure time"]][7, 0, 0]
+    assert [viewers[role].state.slices[-1] for role in RASTER_PANELS] == wavelengths
+
+
+def test_a_slit_jaw_master_moves_the_raster_exposure(bare_app, qtbot, irispy_test_files):
+    [raster] = raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))], ["Si IV 1403"])
+    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    slit = group.subset_state.slices[1]
+    menu_action(sji_viewer, "Time master").trigger()
+    exposures = raster[raster.id["Time"]][:, 0, 0]
+    for frame in (5, 40):
+        sji_viewer.state.slices = (frame, 0, 0)
+        [exposure], _ = nearest([sji[sji.id["Time"]][frame, 0, 0]], exposures)
+        qtbot.waitUntil(lambda exposure=exposure: group.subset_state.slices[0] == slice(exposure, exposure + 1))
+        assert group.subset_state.slices[1] == slit  # the slit stays
+        qtbot.waitUntil(lambda exposure=exposure: viewers["spectrogram"].state.slices[0] == exposure)
+        assert "time master" in readout(sji_viewer)
+
+
+def test_an_unmatched_slit_jaw_keeps_its_frame(bare_app, qtbot, scans):
+    scan, _ = scans
+    late = raster_time(scan, (0,)) + np.timedelta64(1, "D") + np.arange(5) * np.timedelta64(10, "s")
+    sji = slit_jaw(late, scan)
+    viewers = quicklook(bare_app, [scan, sji])
+    [sji_viewer] = viewers["sji"]
+    sji_viewer.state.slices = (3, 0, 0)
+    viewers["spectrogram"].state.slices = (2, *viewers["spectrogram"].state.slices[1:])
+    qtbot.waitUntil(lambda: "NO MATCH Δt = " in readout(sji_viewer))
+    assert sji_viewer.state.slices[0] == 3
+    assert sji_viewer.toolbar.tools["solar:frame_time"]._grey.get_visible()
+
+
+def test_a_slit_jaw_master_picks_the_scan_of_a_stack(bare_app, qtbot, scans):
+    _, stack = scans
+    step = stack.shape[1] // 2
+    scan_times = stack[stack.id["Time"]][:, step, 0, 0]
+    sji = slit_jaw(scan_times[0] + np.arange(40) * (scan_times[-1] - scan_times[0]) / 39, stack)
+    viewers = quicklook(bare_app, [stack, sji])
+    [sji_viewer] = viewers["sji"]
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    point = group.subset_state.slices
+    menu_action(sji_viewer, "Time master").trigger()
+    for frame in (0, 20, 39):
+        sji_viewer.state.slices = (frame, 0, 0)
+        [scan], _ = nearest([sji[sji.id["Time"]][frame, 0, 0]], scan_times)
+        qtbot.waitUntil(lambda scan=scan: group.subset_state.slices[0] == slice(scan, scan + 1))
+        assert group.subset_state.slices[1:] == point[1:]  # step and slit stay
+        qtbot.waitUntil(lambda scan=scan: viewers["spectrogram"].state.slices[0] == scan)
+
+
+def test_a_collapse_on_the_master_and_a_follower(bare_app, qtbot, irispy_test_files):
+    [raster] = raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))], ["Si IV 1403"])
+    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    collapse = AggregateSlice(slice(0, 4), 2, np.nanmean)
+    sji_viewer.state.slices = (collapse, 0, 0)  # a follower's collapse stays
+    viewers["spectrogram"].state.slices = (120, *viewers["spectrogram"].state.slices[1:])
+    qtbot.wait(20)
+    assert sji_viewer.state.slices[0] is collapse
+    menu_action(sji_viewer, "Time master").trigger()  # a collapsed master's time is at its centre
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    [exposure], _ = nearest([sji[sji.id["Time"]][2, 0, 0]], raster[raster.id["Time"]][:, 0, 0])
+    qtbot.waitUntil(lambda: group.subset_state.slices[0] == slice(exposure, exposure + 1))
+
+
+@pytest.mark.remote_data
+def test_time_sync_on_a_negative_step_raster(bare_app, qtbot, irispy_data):
+    # 3400109360: STEPS_AV -0.998, so irispy's orientation makes Time run backwards along the step axis
+    [path] = irispy_data("iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz")
+    [scan] = raster_data([path])
+    times = scan[scan.id["Time"]][:, 0, 0]
+    assert (np.diff(times) < np.timedelta64(0, "s")).all()
+    frames = np.sort(times)[0] + np.arange(30) * (np.sort(times)[-1] - np.sort(times)[0]) / 29
+    sji = slit_jaw(frames, scan)
+    viewers = quicklook(bare_app, [scan, sji])
+    [sji_viewer] = viewers["sji"]
+    for step in (0, 10, scan.shape[0] - 1):
+        viewers["spectrogram"].state.slices = (step, *viewers["spectrogram"].state.slices[1:])
+        check_follower(bare_app, qtbot, times[step], sji, sji_viewer)

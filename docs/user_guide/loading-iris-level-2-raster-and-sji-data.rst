@@ -129,6 +129,15 @@ shown and moved only by that tab's sliders. Another Image viewer of the same dat
 the plain one is shown and the status bar names the other. The spectrum panel does not ask "Add
 large data set?", and the status bar gives the size of the data it shows.
 
+The panels also follow one time. The raster is the time master: the slit-jaw viewers show the frame
+nearest the time of the point's exposure or raster step (mid-raster before there is a point). Choose
+"Time master" in the "Coordinate" menu of a slit-jaw viewer to make it the master instead; the
+raster then moves to the exposure, or on a stack the scan, nearest each frame, keeping the slit and
+the raster step. A dataset with nothing within half its own time step of the master's time (for a
+scanning raster, one that does not cover it) keeps its frame and is greyed. The "Frame time" readout
+says which dataset is the time master, how far each matched dataset's time is from the master's
+(Δt) and "NO MATCH" with that offset for the others. Wavelength and slit sliders are never moved.
+
 Saving sessions
 ---------------
 
