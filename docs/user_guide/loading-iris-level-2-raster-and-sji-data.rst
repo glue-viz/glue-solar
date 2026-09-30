@@ -96,12 +96,32 @@ viewer.
 The quicklook
 -------------
 
-``glue_solar.quicklook.quicklook`` opens a CRISPEX-style set of viewers for one observation in a new
-tab. The browser and a menu entry will open it too; until then, run it from glue's Terminal
-(the "Terminal" button in the toolbar), for example::
+The quicklook is a CRISPEX-style set of viewers for one observation, in a new tab. Open it
 
-    from glue_solar.quicklook import quicklook
-    quicklook(application, [data for data in data_collection if "4000255147" in data.label])
+- from the observation browser, with "Open quicklook" ticked (the default): each observation you
+  load opens in its own quicklook, showing the raster window you ticked if you ticked one;
+- for data already loaded, with "IRIS: quicklook…" in the "Plugins" menu, which asks which
+  observation when several are loaded;
+- from the command line, with ``glue --startup=iris_quicklook`` followed by the files. Files given
+  this way load one by one, so each raster file keeps its raster number in its label
+  (``…-r00003``) and the quicklook shows the first; to stack the scans, use the browser;
+- from glue's Terminal, with ``glue_solar.quicklook.quicklook(application, datasets)``.
+
+For those used to CRISPEX:
+
+.. list-table::
+   :header-rows: 1
+
+   * - CRISPEX or iris_xcontrol
+     - In glue-solar
+   * - ``crispex, raster, sjicube=sji`` (one call per observation)
+     - Tick the observation in the browser, or ``glue --startup=iris_quicklook raster.fits sji.fits``
+   * - several ``sjicube`` files
+     - Tick every slit-jaw channel; each gets its own viewer
+   * - iris_xcontrol's raster, sit-and-stare and multi-raster modes
+     - Chosen from the observation: map, slit against time, or a stack's map with its scan slider
+   * - ``spcube`` (transposed cube)
+     - Not needed: the wavelength panel shows wavelength against step, exposure or scan
 
 It shows one spectral window: Mg II k 2796 when loaded, otherwise the first (pass
 ``window="Si IV 1403"`` to choose). The raster opens as three panels, plus one viewer per slit-jaw

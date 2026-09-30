@@ -114,6 +114,19 @@
       </widget>
      </item>
      <item>
+      <widget class="QCheckBox" name="quicklook">
+       <property name="toolTip">
+        <string>Open a quicklook of each loaded observation: raster panels, slit-jaw images and the spectrum of a selected point.</string>
+       </property>
+       <property name="text">
+        <string>Open quicklook</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer name="horizontalSpacer">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
