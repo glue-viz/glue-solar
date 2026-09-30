@@ -542,6 +542,16 @@ class Coordinator(HubListener):
         x, y = _sji_pixels(sji, frame, lon, lat)
         return float(x), float(y)
 
+    @staticmethod
+    def slit_on(viewer):
+        """The slit's x pixel in ``viewer``'s slit-jaw frame, or None where the frame gives none (0 or NaN)."""
+        sji = viewer.state.reference_data
+        frame = _sji_frame(viewer.state)
+        if frame is None or _role(sji) != "sji" or "slit x position" not in sji.meta:
+            return None
+        x = float(sji.meta["slit x position"][frame])
+        return None if x == 0 or np.isnan(x) else x - 1  # irispy gives the header's 1-based pixel
+
     def _move_in_time(self, data, axis, frame):
         """Put ``data`` at ``frame`` along its time axis: on the point if it holds one, and on its viewers."""
         point = self.point

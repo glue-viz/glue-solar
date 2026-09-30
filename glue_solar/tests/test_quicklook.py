@@ -923,3 +923,86 @@ def test_slit_jaw_panels(bare_app, qtbot, tmp_path, monkeypatch, irispy_test_fil
     shutil.copy2(find_irispy_test_file(irispy_test_files, SNS.format("SJI_2796_t000")), deconvolved)
     viewers = quicklook(bare_app, [raster, image_data(deconvolved)])
     assert [viewer.state.title for viewer in viewers["sji"]] == ["SJI 2796 (deconvolved)"]
+
+
+
+def overlays(viewer):
+    """The slit line's data while it shows, and where the raster point's marker is while it shows."""
+    tool = viewer.toolbar.tools["solar:coordinate"]
+    slit, marker = tool._slit, tool._marker
+    return (
+        slit.get_xydata().tolist() if slit.get_visible() else None,
+        tuple(marker.get_xydata()[0]) if marker.get_visible() else None,
+    )
+
+
+def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    # the fixture keeps full-size slit positions for 10x smaller frames: give each frame its own
+    n, ny, nx = sji.shape
+    slit = 1 + np.linspace(3, nx - 4, n)
+    slit[[5, 6]] = 0, np.nan  # frames without a slit position
+    sji.meta["slit x position"] = slit
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    coord = coordinator(bare_app.data_collection)
+    for frame in (0, n // 2, n - 1):
+        sji_viewer.state.slices = (frame, 0, 0)
+        assert overlays(sji_viewer)[0] == [[slit[frame] - 1, -0.5], [slit[frame] - 1, ny - 0.5]]
+    for frame in (5, 6):
+        sji_viewer.state.slices = (frame, 0, 0)
+        assert overlays(sji_viewer)[0] is None
+
+    # the raster point follows the time master into the frame it matches
+    for step in (1, 186):
+        viewers["spectrogram"].state.slices = (step, *viewers["spectrogram"].state.slices[1:])
+        qtbot.waitUntil(lambda step=step: f"step {step}" in readout(viewers["spectrogram"]))
+        qtbot.waitUntil(lambda: " · Δt " in readout(sji_viewer))
+        frame = sji_viewer.state.slices[0]
+        where = coord.point_on(sji_viewer)
+        assert where is not None and -0.5 <= where[0] <= nx - 0.5 and -0.5 <= where[1] <= ny - 0.5
+        assert overlays(sji_viewer) == ([[slit[frame] - 1, -0.5], [slit[frame] - 1, ny - 0.5]], pytest.approx(where))
+    sji_viewer.state.slices = (0, 0, 0)  # moved back by hand: the late exposure is off the first frame
+    assert overlays(sji_viewer)[1] is None
+    assert "outside SJI FOV" in readout(sji_viewer)
+    sji_viewer.state.slices = (frame, 0, 0)
+    assert overlays(sji_viewer)[1] == pytest.approx(where)
+
+    # shown transposed, both swap; with the frame axis shown, neither shows
+    sji_viewer.state.x_att, sji_viewer.state.y_att = sji.pixel_component_ids[1], sji.pixel_component_ids[2]
+    sji_viewer.state.slices = (frame, 0, 0)
+    assert overlays(sji_viewer) == ([[-0.5, slit[frame] - 1], [ny - 0.5, slit[frame] - 1]], pytest.approx(where[::-1]))
+    sji_viewer.state.x_att = sji.pixel_component_ids[0]
+    assert overlays(sji_viewer) == (None, None)
+    sji_viewer.state.x_att, sji_viewer.state.y_att = sji.pixel_component_ids[2], sji.pixel_component_ids[1]
+    sji_viewer.state.slices = (frame, 0, 0)
+    assert overlays(sji_viewer)[1] == pytest.approx(where)
+
+    sji_viewer.show_crosshairs(1, 1)  # glue's own crosshair, which the PV slicer moves and hides, is another artist
+    sji_viewer.hide_crosshairs()
+    assert overlays(sji_viewer)[1] == pytest.approx(where)
+    menu_action(viewers["map"], "Clear point").trigger()
+    qtbot.waitUntil(lambda: overlays(sji_viewer)[1] is None)
+    assert overlays(sji_viewer)[0] is not None  # the slit stays
+
+
+def test_no_raster_point_on_another_observation(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster])
+    other = image_data(find_irispy_test_file(irispy_test_files, "iris_l2_20230408_110821_3880012095_SJI_1400_t000.fits"))
+    bare_app.data_collection.append(other)
+    viewer = bare_app.new_data_viewer(ImageViewer, data=other)
+    viewers["spectrogram"].state.slices = (1, *viewers["spectrogram"].state.slices[1:])
+    qtbot.wait(20)
+    assert overlays(viewer)[1] is None
+
+
+@pytest.mark.remote_data
+def test_the_slit_on_a_full_slit_jaw_image(bare_app, irispy_data):
+    sji = image_data(irispy_data("iris_l2_20130902_163935_4000255147_SJI_1400_t000_f050.fits.gz"))
+    [viewer] = quicklook(bare_app, [sji])["sji"]
+    n, ny, _ = sji.shape
+    for frame in (0, n // 2, n - 1):
+        viewer.state.slices = (frame, 0, 0)
+        x = sji.meta["slit x position"][frame] - 1
+        assert overlays(viewer)[0] == [[x, -0.5], [x, ny - 0.5]]
