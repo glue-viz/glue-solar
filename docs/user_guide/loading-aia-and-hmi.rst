@@ -10,6 +10,7 @@ Loading the files
 Upon firing up ``glue`` while the environment is with ``glue-solar`` installed, import data with the third icon from the left on the top navigation bar of ``glue``.
 Choose the file one would like to view, then before clicking the "Open" button, select from the dropdown menu at the bottom, the "sunpy Map" format.
 Otherwise the AIA file would be loaded automatically as an ordinary FITS file instead.
+To load several maps at once, for example a folder of AIA and HMI files, select them all in the same dialog.
 
 Do this for the HMI file as well.
 
