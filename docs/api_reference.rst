@@ -12,3 +12,7 @@ API Reference
 
 .. automodapi:: glue_solar.sources.loaders.scan
    :no-inheritance-diagram:
+
+.. automodapi:: glue_solar.quicklook
+   :no-inheritance-diagram:
+   :skip: coordinator

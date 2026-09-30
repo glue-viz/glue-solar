@@ -93,6 +93,34 @@ meanwhile. At the default viewer size this takes under a second with a 64-step r
 seconds with a 1600-step sit-and-stare raster, for every frame you step to, and longer in a larger
 viewer.
 
+The quicklook
+-------------
+
+``glue_solar.quicklook.quicklook`` opens a CRISPEX-style set of viewers for one observation in a new
+tab. The browser and a menu entry will open it too; until then, run it from glue's Terminal
+(the "Terminal" button in the toolbar), for example::
+
+    from glue_solar.quicklook import quicklook
+    quicklook(application, [data for data in data_collection if "4000255147" in data.label])
+
+It shows one spectral window: Mg II k 2796 when loaded, otherwise the first (pass
+``window="Si IV 1403"`` to choose). The raster opens as three panels, plus one viewer per slit-jaw
+channel and a spectrum panel:
+
+- a raster: the map (step against slit), the spectrogram (wavelength against slit) and wavelength
+  against step;
+- a sit-and-stare raster: slit against time, the spectrogram and wavelength against time;
+- a stack of raster scans: the map of the current scan, the spectrogram and wavelength against scan.
+
+The map shows the wavelength nearest the window's reference wavelength, and the panels use
+99.5 % limits. A point, the edit subset "Point", starts at the centre of the map with the Pixel
+tool active: drag it on the map, and the spectrum panel shows its spectrum. The slit-jaw viewers do
+not mark the point. The raster panels have no region selection tools, because a region drawn on a
+raster map is recomputed on every slit-jaw viewer for each screen pixel at every frame (see
+Linking). Each quicklook shows only its own point. When a slit-jaw channel is loaded both plain and deconvolved,
+the plain one is shown and the status bar names the other. The spectrum panel does not ask "Add
+large data set?", and the status bar gives the size of the data it shows.
+
 Saving sessions
 ---------------
 

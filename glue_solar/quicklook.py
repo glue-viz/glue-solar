@@ -1,17 +1,28 @@
 """
-Coordination of the Image viewers that show one IRIS observation.
+The IRIS quicklook: a preset of glue viewers for one observation, kept on one selected point.
 """
 
 from contextlib import contextmanager
 
 import numpy as np
 from glue.core.hub import HubListener
-from glue.core.message import SubsetCreateMessage, SubsetUpdateMessage
+from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, SubsetUpdateMessage
 from glue.core.subset import SubsetState
+from glue.viewers.common.utils import get_viewer_tools
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
+from glue_qt.viewers.image import ImageViewer
+from glue_qt.viewers.profile import ProfileViewer
 
-__all__ = ["Coordinator", "coordinator", "observation_key"]
+import astropy.units as u
+
+from glue_solar.sources.loaders.iris import link_hpc
+
+__all__ = ["Coordinator", "QuicklookImageViewer", "coordinator", "observation_key", "quicklook"]
+
+# The window the quicklook shows when the browser did not pick one
+DEFAULT_WINDOW = "Mg II k 2796"
+PERCENTILE = 99.5
 
 
 def observation_key(data):
@@ -180,3 +191,251 @@ class Coordinator(HubListener):
         if slices != list(state.slices):
             with self._writing():
                 state.slices = tuple(slices)
+
+
+class QuicklookImageViewer(ImageViewer):
+    """
+    An Image viewer without glue's region selection tools, used for IRIS rasters in the quicklook.
+
+    A region drawn on a raster map is recomputed on every linked slit-jaw viewer for each screen pixel
+    at every draw, which takes seconds per frame. The Pixel tool stays: glue shows its point only on
+    the dataset it was drawn on.
+    """
+
+    inherit_tools = False
+    tools, subtools = [], {}
+
+    def initialize_toolbar(self):
+        # Read when a viewer is made: glue_solar.setup() and glue-qt's plugins add tools after import
+        tools, subtools = get_viewer_tools(ImageViewer)
+        type(self).tools = [tool for tool in tools if not tool.startswith("select:")]
+        type(self).subtools = subtools
+        super().initialize_toolbar()
+
+
+def _role(data):
+    """'raster', 'sji' or None, from the INSTRUME keyword: AIA cutouts load as slit-jaw cubes but are neither."""
+    instrument = str((getattr(data, "meta", None) or {}).get("INSTRUME", ""))
+    return {"SPEC": "raster", "SJI": "sji"}.get(instrument)
+
+
+def _wavelengths(data):
+    """The wavelength of each pixel along the spectral axis of ``data``, in Angstrom, and that axis."""
+    [axis] = _spectral_axes(data)
+    index = [0] * data.ndim
+    index[axis] = slice(None)
+    unit = u.Unit(data.coords.world_axis_units[data.ndim - 1 - axis])
+    return (data[data.world_component_ids[axis], tuple(index)] * unit).to_value(u.AA), axis
+
+
+def _window(data):
+    """
+    The name and TWAVE of the spectral window ``data`` holds.
+
+    The window keywords of every raster window describe window 1, so this takes the TWAVEn that
+    lies inside the data's own wavelength range. (None, None) if none does.
+    """
+    meta = data.meta
+    wave, _ = _wavelengths(data)
+    for n in range(1, int(meta.get("NWIN", 0) or 0) + 1):
+        twave = meta.get(f"TWAVE{n}")
+        if twave is not None and np.nanmin(wave) <= float(twave) <= np.nanmax(wave):
+            return str(meta.get(f"TDESC{n}")), float(twave)
+    return None, None
+
+
+def _is_sit_and_stare(data):
+    meta = data.meta
+    return float(meta.get("STEPS_AV", -1) or 0) == 0 and int(meta.get("NRASTERP", 0) or 0) == 1
+
+
+def _pick_raster(rasters, window):
+    """The raster to show: of the browser's window, else Mg II k, else the first; a stack before a scan."""
+    windows = {id(data): _window(data)[0] for data in rasters}
+    for name in (window, DEFAULT_WINDOW, windows[id(rasters[0])]):
+        chosen = [data for data in rasters if name is not None and windows[id(data)] == name]
+        if chosen:
+            return next((data for data in chosen if data.ndim == 4), chosen[0])
+    return rasters[0]
+
+
+def _pick_sjis(sjis):
+    """One slit-jaw cube per channel, the plain one before the deconvolved, and the ones left out."""
+    chosen = {}
+    for data in sorted(sjis, key=lambda data: "_deconvolved" in data.label):
+        chosen.setdefault(str(data.meta.get("TDESC1")), data)
+    shown = list(chosen.values())
+    return shown, [data for data in sjis if data not in shown]
+
+
+def _image(app, cls, data, x, y, slices, title, aspect):
+    viewer = app.new_data_viewer(cls, data=data)
+    state = viewer.state
+    pixel = data.pixel_component_ids
+    state.x_att = pixel[x]  # x before y: glue swaps the other axis when both would match
+    state.y_att = pixel[y]
+    state.slices = tuple(slices)
+    state.aspect = aspect
+    state.title = title
+    state.layers[0].percentile = PERCENTILE
+    return viewer
+
+
+def _raster_panels(app, raster, window):
+    """The map, spectrogram and wavelength panels of the table in the plan, with the point at the map centre."""
+    wave, spectral = _wavelengths(raster)
+    _, twave = _window(raster)
+    # the pixel nearest TWAVE, or mid-window; never index 0, which is a window edge
+    wl0 = int(np.nanargmin(np.abs(wave - twave))) if twave is not None else len(wave) // 2
+    shape = raster.shape
+    if raster.ndim == 4:  # scan, step, slit, wavelength
+        point = (0, shape[1] // 2, shape[2] // 2, wl0)
+        axes = {"map": (1, 2), "spectrogram": (3, 2), "wavelength": (3, 0)}
+        names = {"map": "map", "spectrogram": "spectrogram", "wavelength": "λ–scan"}
+    else:  # step or exposure, slit, wavelength
+        point = (shape[0] // 2, shape[1] // 2, wl0)
+        axes = {"map": (0, 1), "spectrogram": (2, 1), "wavelength": (2, 0)}
+        if _is_sit_and_stare(raster):
+            names = {"map": "slit vs time", "spectrogram": "spectrogram", "wavelength": "λ–time"}
+        else:
+            names = {"map": "map", "spectrogram": "spectrogram", "wavelength": "λ–step"}
+    viewers = {
+        role: _image(app, QuicklookImageViewer, raster, x, y, point, f"{window} {names[role]}", "auto")
+        for role, (x, y) in axes.items()
+    }
+    slices = [slice(i, i + 1) for i in point]
+    slices[spectral] = slice(None)
+    return viewers, PixelSubsetState(raster, slices)
+
+
+def _profile(app, raster, window):
+    """A Profile of the point's mean spectrum, with the raster itself hidden and no large-data prompt."""
+    viewer = app.new_data_viewer(ProfileViewer)
+    viewer.state.title = f"{window} spectrum"
+    viewer.state.function = "mean"
+    # glue asks 'Add large data set?' above 1e8 elements, defaulting to Cancel; only this viewer skips it
+    viewer.large_data_size = None
+    if not viewer.add_data(raster):
+        return viewer, f"The spectrum panel could not add {raster.label}."
+    for layer in viewer.state.layers:
+        if layer.layer is raster:
+            layer.visible = False  # only the point's spectrum, not the whole cube's
+    viewer.state.x_att = raster.world_component_ids[_wavelengths(raster)[1]]
+    viewer.axes.axhline(0, color="0.5", lw=0.8, zorder=0)
+    return viewer, f"Spectrum of {raster.label} ({raster.size:.3g} elements)."
+
+
+def quicklook(app, datasets, window=None):
+    """
+    Open the IRIS quicklook of one observation in a new tab.
+
+    A raster (or a stack of scans) opens as a map, a spectrogram and a wavelength panel (wavelength
+    against step, exposure or scan), each slit-jaw channel in its own viewer, and a spectrum panel
+    showing the mean spectrum of the point. The point starts at the centre of the map, in the edit
+    subset 'Point', with the Pixel tool active on the map.
+
+    Parameters
+    ----------
+    app : `~glue_qt.app.GlueApplication`
+    datasets : list of `~glue.core.data.Data`
+        IRIS datasets of one observation. Those not yet in the data collection are added and linked.
+    window : str, optional
+        The spectral window to show, by its ``TDESC`` name. By default Mg II k 2796, else the first.
+
+    Returns
+    -------
+    dict
+        The viewers: ``map``, ``spectrogram``, ``wavelength``, ``spectrum`` (absent without a raster)
+        and ``sji``, a list.
+    """
+    collection = app.data_collection
+    for data in datasets:
+        if data not in collection:
+            collection.append(data)
+    collection.add_link(link_hpc(collection))
+    rasters = [data for data in datasets if _role(data) == "raster"]
+    sjis, offered = _pick_sjis([data for data in datasets if _role(data) == "sji"])
+    key = observation_key((rasters or sjis or datasets)[0])
+
+    app.new_tab()
+    tab = app.tab_count - 1
+    names = app.tab_names
+    names[tab] = f"IRIS {key[0]}" if key else "IRIS"
+    app.tab_names = names
+    coordinator(collection)  # before the point, so it follows it
+
+    viewers, notes = {"sji": []}, []
+    if rasters:
+        raster = _pick_raster(rasters, window)
+        window = _window(raster)[0] or raster.label
+        panels, point = _raster_panels(app, raster, window)
+        viewers.update(panels)
+        viewers["spectrum"], note = _profile(app, raster, window)
+        notes.append(note)
+    for sji in sjis:
+        frame = (0,) * sji.ndim
+        viewers["sji"].append(_image(app, ImageViewer, sji, sji.ndim - 1, sji.ndim - 2, frame, sji.label, "equal"))
+    notes += [f"{data.label} is loaded too: drag it onto a slit-jaw viewer to see it." for data in offered]
+
+    if rasters:
+        group = collection.new_subset_group(label="Point", subset_state=point)
+        app.session.edit_subset_mode.edit_subset = [group]
+        _hide_other_points(group, [viewers[role] for role in ("map", "spectrogram", "wavelength", "spectrum")])
+        _fit_spectrum(viewers["spectrum"], group)
+    _arrange(app, tab, viewers)
+    if rasters:
+        app.tab(tab).setActiveSubWindow(viewers["map"].parent())
+        viewers["map"].toolbar.active_tool = "image:point_selection"
+    app.statusBar().showMessage(" ".join(notes))
+    return viewers
+
+
+class _FitOnceComputed(HubListener):
+    """
+    Fit a spectrum panel's y range to the point's spectrum once it is computed.
+
+    glue computes the profiles of cubes above 1e7 elements on a worker thread and does not refit the
+    y range when one arrives, so fit it at the first end of a computation of the point's layer.
+    """
+
+    def __init__(self, viewer, subset):
+        self.viewer = viewer
+        subset.data.hub.subscribe(
+            self,
+            ComputationEndedMessage,
+            handler=self._ended,
+            filter=lambda message: message.sender in viewer.layers and message.sender.state.layer is subset,
+        )
+
+    def _ended(self, message):
+        message.sender.state.layer.data.hub.unsubscribe(self, ComputationEndedMessage)
+        self.viewer.state.reset_limits()
+
+
+def _fit_spectrum(viewer, group):
+    viewer.state.reset_limits()  # smaller cubes are computed already
+    [subset] = [subset for subset in group.subsets if subset.data is viewer.state.reference_data]
+    viewer._solar_fit = _FitOnceComputed(viewer, subset)  # the hub holds its listeners weakly
+
+
+def _hide_other_points(group, viewers):
+    """Show no subset but the new point in the quicklook's raster panels, such as an earlier quicklook's point."""
+    for viewer in viewers:
+        for layer in viewer.state.layers:
+            if getattr(layer.layer, "group", group) is not group:
+                layer.visible = False
+
+
+def _arrange(app, tab, viewers):
+    """Raster panels in a top row, slit-jaw viewers and the spectrum in a bottom row."""
+    size = app.tab(tab).viewport().size()
+    width, height = max(size.width(), 1200), max(size.height(), 800)
+    rows = [
+        [viewers[role] for role in ("map", "spectrogram", "wavelength") if role in viewers],
+        viewers["sji"] + [viewers["spectrum"]] * ("spectrum" in viewers),
+    ]
+    rows = [row for row in rows if row]
+    for r, row in enumerate(rows):
+        for c, viewer in enumerate(row):
+            viewer.move(c * width // len(row), r * height // len(rows))
+            viewer.viewer_size = (width // len(row), height // len(rows))

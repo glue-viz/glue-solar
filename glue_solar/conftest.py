@@ -217,6 +217,8 @@ IRISPY_DATA_HASHES = {
     "iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz": "56574d2e425fdf2f4e2d4343c112c3c3d85dad7e121ca0bc2fa4200d7cc8adf8",
     # OBSID 4000005156: scan 0 of the 64-step raster, Si IV 1403 only
     "iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz": "ac50a0255b73af1610702653e17d3b3b9c8fc37bc487a313e1c9fb3a2983428a",
+    # OBSID 3640107442: five minutes of the nine aligned AIA channels
+    "iris_l2_20250519_165924_3640107442_cutout_SDO.tar.gz": "db95aec5c0b3400e39d077b0e840e9280f72e2fac798e1fd15975257f3677dc4",
 }
 
 
