@@ -70,7 +70,7 @@ AIA gWCS use CRPIX − 1 and slit positions are pixels, still 1-based; negative
 counts get readout noise only; meta tolerates missing keys; no uncertainty
 from memmap data).
 
-**glue-solar `main` (01afd4b).** The IRIS observation browser and loader
+**glue-solar `main` (7a3c32f).** The IRIS observation browser and loader
 (#44, #50); a datetime64 `Time` component and the `solar:frame_time` and
 `solar:cursor_readout` Image tools (#52); transparent NaN pixels (#53);
 -200/-199 fill loaded as NaN, AIA cutouts -200 only (#54); the D5 baseline:
@@ -125,6 +125,18 @@ the value-based fill's reason is now "irispy masks only -200, none when
 memmapped" (not the irispy ≤ 0.9.0 flip); the link-editor test accepts
 #2595's SJI↔raster link. 45 passed, 1 skipped on both baselines; 46 passed
 with a #2595 export; 44 passed, 2 skipped with a Qt #74 export (gate off).
+
+Merged 2026-09-29 as well: `wp1-m0-inverse-workaround` (#71, merge 7a3c32f).
+`glue_solar/glue_patches.py`, imported by `glue_solar/__init__.py`, carries
+#2598's `world2pixel_single_axis` and installs it in `coordinate_helpers` and
+`component_link` only when `needs_inverse_workaround()` finds the bug (True
+on 1.27.0, False with a #2598 export `ca3fb185e5a4`, which leaves glue
+untouched). Without it SJI pixel (10, 10) linked back through lon, lat and
+`Time (Utc)` lands at x = 22.4 and 35.4 px at frames 30 and 61 of the sns SJI
+1400 fixture; with it all 62 frames recover to 1e-6 px, and WCSAxes readouts
+are identical either way. 56 passed, 1 skipped on both baselines and with the
+#2598 export (`--remote-data=any`); CI green (codecov/project's -1.74 % status
+predates the last upload; its comparison shows 92.54 → 92.66 %).
 No open glue-solar PRs.
 
 **Slider speed** (user, 2026-09-29: slow on PyQt5 on their Linux/Wayland
@@ -218,9 +230,7 @@ PR notes (2026-09-29):
 **Next steps.**
 1. The rest of M0, in glue-solar only: since 2026-09-29 upstream PRs,
    reports and tracking wait for M4 (D2). Next, from main (user,
-   2026-09-29): `wp1-m0-inverse-workaround` (port
-   `IRIS_PLAN_PROTOTYPES/wp1/glue_solar/glue_patches.py`), then
-   `wp1-m0-link-hpc`, which unblocks `wp4-quicklook-preset` →
+   2026-09-29): `wp1-m0-link-hpc`, which unblocks `wp4-quicklook-preset` →
    `wp4-m0-point-fixed-index` → `wp4-time-sync`.
 2. When the user has merged and irispy has released #197-#199 and #201, raise
    the irispy floor (`wp0-irispy-requests`).
@@ -244,6 +254,7 @@ Removable (merged): `~/Git/glue-solar-wp10-fill-nan`,
 `~/Git/glue-solar-descending-step`, `~/Git/glue-solar-wcs-link-editor`,
 `~/Git/glue-solar-ci-matrix`, `~/Git/glue-solar-slider-throttle`,
 `~/Git/glue-solar-wp4-coordinator`, `~/Git/glue-solar-workaround-register`,
+`~/Git/glue-solar-wp1-m0-inverse-workaround`,
 `~/Git/irispy-response-2013`. `~/Git/irispy` is the user's checkout (on main
 today): never check out, stash or edit in it, and never run Python with it as
 the working directory; branch into a separate worktree from `origin/main`.
@@ -426,7 +437,7 @@ Each release containing a fix retires the matching glue-solar workaround
 
 **M0**
 - WP0: `wp0-readme-runner`
-- WP1: `wp1-m0-inverse-workaround`, `wp1-m0-link-hpc`, `wp1-m0-link-graph-regression`
+- WP1: `wp1-m0-link-hpc`, `wp1-m0-link-graph-regression`
 - WP4: `wp4-quicklook-preset`, `wp4-launch-entry`, `wp4-m0-point-fixed-index`, `wp4-time-sync`, `wp4-m0-time-wavelength-panels`, `wp4-sji-panels`, `wp4-slit-point-overlay`, `wp4-tests`
 - WP9: `wp9-m0-user-guide-corrections`, `wp9-m0-viewer-tools-docs`, `wp9-m0-browsing-recipes`, `wp9-m0-mask-overlays`, `wp9-m0-workflow-recipes`, `wp9-m0-scripting-recipe`, `wp9-m0-iris9-tutorial`, `wp9-m0-iris9-acceptance`, `wp9-m0-docs-build`, `wp9-m0-wiki-digest`
 - WP10: `wp10-m0-large-data-modal`, `wp10-m0-roi-guard`, `wp10-m0-acceptance`
@@ -491,7 +502,7 @@ a released-baseline test pins it.
 
 | Workaround (owner) | Switched on by | Retired by |
 | --- | --- | --- |
-| Correlated-axis `world2pixel_single_axis` (WP1, `glue_patches.py`) | A time-dependent SJI gWCS inverts at exposure 0 | core #2598 |
+| Correlated-axis `world2pixel_single_axis` (WP1, `glue_patches.py`, #71) | A time-dependent SJI gWCS inverts at exposure 0 | core #2598 |
 | Pixel crosshair visibility (WP4) (private: `ImageSubsetLayerArtist._update_visual_attributes`) | The line shows on an axis-incompatible panel | `wp0-core-image-artist-bugs` |
 | `x_display_unit` restore priority (WP0) (private: `ProfileViewerState._update_priority`) | `orig(None, 'x_display_unit') == orig(None, 'x_att')` | `wp0-core-profile-restore-priority` |
 | Physical aspect (WP11 `solar:physical_aspect`) (private: per-instance `_set_axes_aspect_ratio`) | No 'Physical pixels' aspect choice | the `core-physical-aspect` PR (`wp11-physical-aspect`) |
@@ -573,8 +584,7 @@ carries a changelog fragment and its guide change.
 
 **M0**
 
-- [ ] **M0** `wp1-m0-inverse-workaround`: Add `glue_solar/glue_patches.py` (imported from `glue_solar/__init__.py`; also home of `wp7-goes-date-labels`). Its #2598 fix of `world2pixel_single_axis` (exposure-0 inverse) installs only when `needs_inverse_workaround()` finds the bug (register row); no all-ones `axis_correlation_matrix`. Done when the probe patches 1.27.0, `test_world_links_into_the_sji_use_each_exposure_time` recovers every frame's pixel to 1e-6 px, with #2598 in core the probe is False and glue untouched, and WCSAxes readouts are unchanged.
-- [ ] **M0** `wp1-m0-link-hpc`: Port `link_hpc(data_collection)` to `glue_solar/sources/loaders/iris.py` (D1), called by `browse_iris` and a menubar action 'IRIS: link helioprojective coordinates'. Done when, without time links: (1) a second call adds 0 links and both callers add them; (2) 4000005156 Si IV + SJI 2796: at frames 0 and N−1 a raster-map ROI selects exactly the SJI pixels whose per-frame header-WCS position is in its world footprint (0.05 px edge band exempt); (3) the sns fixture and 4000255147 Si IV + SJI 1400: the selected SJI column moves ΔXCENIX/CDELT1 ± 1 px from frame 0 to N−1 (about 78 px on 4000255147), xfail until (4); (4) the released-core sit-and-stare full-width stripe (37/37 columns) is diagnosed; if inherent, the guide records it and (3) stays xfail; (5) lon/lat world subsets propagate both ways, and SJI pixel subsets stay IncompatibleAttribute on the raster; (6) no link targets SJI world time. `browse_iris` installs `link_hpc` by default only in a release that also carries `wp10-m0-roi-guard` and `wp10-m0-acceptance`; until `wp10-m1-roi-world-polygon`, the guide documents the stock raster-ROI freeze (about 10 s per SJI frame). Depends: wp1-m0-inverse-workaround.
+- [ ] **M0** `wp1-m0-link-hpc`: Port `link_hpc(data_collection)` to `glue_solar/sources/loaders/iris.py` (D1), called by `browse_iris` and a menubar action 'IRIS: link helioprojective coordinates'. Done when, without time links: (1) a second call adds 0 links and both callers add them; (2) 4000005156 Si IV + SJI 2796: at frames 0 and N−1 a raster-map ROI selects exactly the SJI pixels whose per-frame header-WCS position is in its world footprint (0.05 px edge band exempt); (3) the sns fixture and 4000255147 Si IV + SJI 1400: the selected SJI column moves ΔXCENIX/CDELT1 ± 1 px from frame 0 to N−1 (about 78 px on 4000255147), xfail until (4); (4) the released-core sit-and-stare full-width stripe (37/37 columns) is diagnosed; if inherent, the guide records it and (3) stays xfail; (5) lon/lat world subsets propagate both ways, and SJI pixel subsets stay IncompatibleAttribute on the raster; (6) no link targets SJI world time. `browse_iris` installs `link_hpc` by default only in a release that also carries `wp10-m0-roi-guard` and `wp10-m0-acceptance`; until `wp10-m1-roi-world-polygon`, the guide documents the stock raster-ROI freeze (about 10 s per SJI frame).
 - [ ] **M0** `wp1-m0-link-graph-regression`: In `glue_solar/tests/test_linking.py`, open 4000005156 Si IV + SJI 2796 via `browse_iris` with the real autolinker (mocked dialog), `link_hpc` and WP4's link-free coordinator. A `wcs_autolink` probe picks the expectation: False (1.27.0), only `link_hpc` links and (b) = the `wp1-m0-link-hpc` (2) footprint; True (#2595), SJI/raster `WCSLink`s too and (b) = the frame-0 footprint in every SJI frame. No link maps a main or world component into a pixel component ID (D8) or targets SJI world time. Checks: (a) a raster Pixel point gives the marker and spectrum in the other windows; (b) the raster-map ROI's SJI selection; (c) time sync leaves `len(dc.links)` and every component list unchanged, and the coordinator's frame↔step indices equal the `nearest()` reference; (d) lon/lat world subsets propagate; (e) the SJI layer draws in the raster viewer and vice versa, and a layer without a pixel path shows glue's incompatible state. A CI variant on the irispy `sns` SJI 1400 + Si IV 1403 fixtures, ported from `IRIS_PLAN_PROTOTYPES/review_20260927/probes/linkgraph/test_linkgraph.py` (its order/allocation matrix only), runs (a) and (c)-(e) in both baseline envs. Done when all checks agree over every add order and perturbed-allocation reruns, and all minimum-hop paths to each target component agree. Later items (`wp4-m1-multi-window`, `wp7-goes-context`, `wp12-point-light-curves`, `wp12-path-slicer`) extend it under the same bans. Depends: wp1-m0-link-hpc, wp4-time-sync.
 
 **M1**
@@ -817,7 +827,7 @@ path; `wp0_bug_epoch_viewer.py` as the 1.27.0 assertion of
 - [ ] **M2** `wp7-context-port`: Menubar actions 'IRIS: GOES context…' and 'IRIS: SDO context…'; `pyproject.toml` moves to `sunpy[map,net,timeseries]`. Each opens one confirm dialog listing IRIS datasets only; OK is consent to go online. Footprints are computed on the GUI thread; search, download, file reads and AIA processing run in glue-qt's `Worker` with the `wp10-nonblocking-load` lifecycle (stale results discarded by id); Data, links, subsets and viewers are made in the result slot; errors become message boxes. Done when Cancel makes no network call (Fido, HEK or HCR); a mocked network error shows a message and changes nothing; a 50 ms QTimer sees no gap above 0.2 s during a mocked 2 s download, and closing the app then adds and raises nothing; imports raise no warnings; the ported tests pass, including SJI, raster and stack footprints against the header-WCS oracle. Depends: wp1-m0-link-hpc, wp10-nonblocking-load.
 - [ ] **M2** `wp7-goes-context`: `goes_xrs` fetches 1-minute XRS for STARTOBS–ENDOBS from one satellite: auto (the lowest-numbered covering the whole interval, else the longest coverage, named in the message) or one chosen in the dialog. Non-zero `xrsa_quality`/`xrsb_quality` samples become NaN; data are truncated to the interval in W/m², with a datetime64 `time`, in a Scatter viewer with `y_log=True`. GOES `time` gets `LinkSame` to the `Time` of every loaded dataset of the observation, never a pixel ID or SJI 'Time (Utc)'. Done when mocked `Fido` with satellites [15, 13] both covering fetches 13 and NaNs the flagged sample, and a chosen 15 fetches 15, with W/m² units and times inside the interval; with none covering, the longest is fetched and named; a GOES time-range subset selects the matching SJI frames and raster steps; `wp1-m0-link-graph-regression` passes with GOES linked; a manual fetch for 20140329 3860258481 shows the X1.0 flare in xrsb near 17:48 UTC at about 1.4e-4 W/m². Depends: wp7-context-port, wp1-m0-link-graph-regression.
 - [ ] **M2** `wp7-goes-marker`: A `solar:time_marker` tool on `ScatterViewer.tools` draws, for a datetime `x_att`, an `axvspan` over the WP4 master exposure (start to start + `Exposure time`), redrawn on master changes, converting with `glue.utils.matplotlib.datetime64_to_mpl` looked up at call time. Done when, with raster and SJI masters, moving the master moves the span; with the #2599 port on 1.27.0 it lies inside the axes limits over the GOES samples at the master time; on a datetime Scatter without GOES data (WP12 light curves) it still follows the master; a session with GOES reopens with `y_log` True and the span redrawn. Depends: wp7-goes-context, wp7-goes-date-labels, wp4-time-sync, wp3-app-session-acceptance.
-- [ ] **M2** `wp7-goes-date-labels`: Until a core release has #2599, `glue_patches.py` installs a port of its `datetime64_to_mpl`/`mpl_to_datetime64` (epoch from `matplotlib.dates.get_epoch()`), rebound in `glue.utils.matplotlib`, `glue.utils` and the by-name importers (scatter, matplotlib viewer, histogram modules), only when a probe finds `datetime64_to_mpl(t) != date2num(t)`; never set `rcParams['date.epoch']`. Done when on 1.27.0 mocked 2021-09-05 GOES ticks show 2021 (3990 without the port) and `state.x_min`/`x_max` are 2021 values; an xrange ROI over 00:20-00:30 gives subset bounds in that range; with #2599 in core the probe is False. Depends: wp1-m0-inverse-workaround.
+- [ ] **M2** `wp7-goes-date-labels`: Until a core release has #2599, `glue_patches.py` installs a port of its `datetime64_to_mpl`/`mpl_to_datetime64` (epoch from `matplotlib.dates.get_epoch()`), rebound in `glue.utils.matplotlib`, `glue.utils` and the by-name importers (scatter, matplotlib viewer, histogram modules), only when a probe finds `datetime64_to_mpl(t) != date2num(t)`; never set `rcParams['date.epoch']`. Done when on 1.27.0 mocked 2021-09-05 GOES ticks show 2021 (3990 without the port) and `state.x_min`/`x_max` are 2021 values; an xrange ROI over 00:20-00:30 gives subset bounds in that range; with #2599 in core the probe is False.
 - [ ] **M2** `wp7-aia-context`: One download of the AIA 171 image nearest STARTOBS gives a full-disk locator resampled to about 1024 px and an FOV crop (the first-exposure footprint plus a dialog margin, default 100 arcsec). The crop is offered only when no same-observation `aia_l2` cutout is loaded (the action does not scan disk); the dialog then points to the browser's AIA rows. Corners are transformed inside `propagate_with_solar_surface(), SphericalScreen(iris_observer, only_off_disk=True)` with the IRIS observer at Earth at STARTOBS. Views go through `_parse_sunpy_map` (D3), link with `link_hpc`, and carry a pixel `PolygonalROI` FOV subset. Done when (mocked) an off-limb FOV (corners near Tx 1000″) against an AIA frame with an SDO observer 5 s later crops without NaN or error; the locator is uncropped at about 1024 px and its FOV subset covers the footprint; with a same-observation cutout loaded only the locator is made; a session with locator, crop, links and subset reopens intact; a manual fetch for 4000255147 is recorded. Depends: wp7-context-port, wp1-m0-link-hpc, wp1-m1-sunpy-maps, wp3-app-session-acceptance.
 
 **M3**
