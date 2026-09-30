@@ -7,12 +7,21 @@ Each fix installs only when a probe finds the bug, and names the upstream change
 from types import SimpleNamespace
 
 import numpy as np
-from glue.core import component_link, coordinate_helpers
+from glue.core import Data, DataCollection, component_link, coordinate_helpers
+from glue.core.component_link import ComponentLink
 from glue.core.coordinate_helpers import unbroadcast
+from glue.core.exceptions import IncompatibleAttribute
 from glue.utils import defer_draw
+from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
 
-__all__ = ["needs_inverse_workaround", "needs_pv_slice_workaround", "sync_pv_slice", "world2pixel_single_axis"]
+__all__ = [
+    "needs_inverse_workaround",
+    "needs_pixel_point_workaround",
+    "needs_pv_slice_workaround",
+    "sync_pv_slice",
+    "world2pixel_single_axis",
+]
 
 _original_world2pixel_single_axis = coordinate_helpers.world2pixel_single_axis
 
@@ -95,3 +104,41 @@ def needs_pv_slice_workaround(func=_original_sync_slice):
 
 if needs_pv_slice_workaround():
     pv_slicer.PVSliceWidget._sync_slice = sync_pv_slice
+
+
+_original_to_linked_pixel_coords = PixelSubsetState._to_linked_pixel_coords
+
+
+def _to_linked_pixel_coords(self, data):
+    """
+    glue-core's ``PixelSubsetState._to_linked_pixel_coords``, with a point off ``data`` incompatible with it.
+
+    glue-core 1.27.0 rounds the point's linked pixel position with ``int()``, so a point that lies
+    outside a linked dataset, where the position is NaN, raises ``ValueError`` and glue shows an error
+    box, for its crosshair or its spectrum. Retired by the ``core-translate-pixel`` report's fix.
+    """
+    try:
+        return _original_to_linked_pixel_coords(self, data)
+    except ValueError:  # int() of NaN: the point is not on ``data``
+        raise IncompatibleAttribute() from None
+
+
+def needs_pixel_point_workaround(method=_original_to_linked_pixel_coords):
+    """Whether ``method`` raises ``ValueError`` for a Pixel point with no finite pixel in a linked dataset."""
+    first, second = Data(x=np.zeros((2, 2)), label="first"), Data(y=np.zeros((2, 2)), label="second")
+    collection = DataCollection([first, second])
+    for a, b in zip(first.pixel_component_ids, second.pixel_component_ids):
+        collection.add_link(
+            [ComponentLink([a], b, using=lambda v: v * np.nan), ComponentLink([b], a, using=lambda v: v * np.nan)]
+        )
+    try:
+        method(PixelSubsetState(first, [slice(1, 2), slice(1, 2)]), second)
+    except ValueError:
+        return True
+    except IncompatibleAttribute:
+        pass
+    return False
+
+
+if needs_pixel_point_workaround():
+    PixelSubsetState._to_linked_pixel_coords = _to_linked_pixel_coords
