@@ -70,7 +70,7 @@ AIA gWCS use CRPIX − 1 and slit positions are pixels, still 1-based; negative
 counts get readout noise only; meta tolerates missing keys; no uncertainty
 from memmap data).
 
-**glue-solar `main` (04db42f).** The IRIS observation browser and loader
+**glue-solar `main` (3b9d6db).** The IRIS observation browser and loader
 (#44, #50); a datetime64 `Time` component and the `solar:frame_time` and
 `solar:cursor_readout` Image tools (#52); transparent NaN pixels (#53);
 -200/-199 fill loaded as NaN, AIA cutouts -200 only (#54); the D5 baseline:
@@ -104,14 +104,25 @@ editor's "WCS link" no longer raises on IRIS datasets (#66); CI runs only core
 Also merged 2026-09-29: dragged slice sliders redraw at most every 0.1 s and on
 release, re-applied when glue-qt rebuilds them (#68).
 
-**glue-solar drafts waiting for the user's review** (from 04db42f; suite 53
-passed, 1 skipped in `iris-plan` and `iris-plan-floor` with
-`--remote-data=any`):
+Merged 2026-09-29 as well: `wp4-coordinator` (#69). A `solar:coordinate`
+menu ('Time master', 'Clear point') on every Image viewer registers it with
+one `Coordinator` per data collection (`glue_solar/quicklook.py`, with
+`observation_key`). The coordinator follows the last group given a Pixel
+state on IRIS data and fixes every non-spectral axis: a raster map click
+gives 1 message per dataset and no coordinator assignment, a stack map click
+2 (scan pinned), and a spectrogram click pins the step from its slider (λ
+canonicalisation is `wp4-m0-point-fixed-index`'s). An axis swap moves the
+new step slider to the point (fixture and remote 4000005156 Si IV); Pixel
+stays active after either entry; restored viewers join. 'Time master' only
+records `masters[key]` until `wp4-time-sync`. Click helpers are in
+`glue_solar/tests/helpers.py`. Suite 53 passed, 1 skipped in both baseline
+envs with `--remote-data=any`.
+
+**glue-solar drafts waiting for the user's review** (rebased on 3b9d6db):
 
 | PR | Branch (worktree `~/Git/glue-solar-<branch>`) | Closes | Result |
 | --- | --- | --- | --- |
 | #70 | `workaround-register` | `wp0-workaround-register` | Comments at the four workarounds on main (WCS lock, `has_celestial`, cursor-readout gate, slider throttle) name their switch and retiring fix; the stale "irispy <= 0.9.0 mask" reason for value-based fill is now "irispy masks only -200, none when memmapped"; the link-editor test accepts #2595's SJI↔raster link. 45 passed, 1 skipped on both baselines; 46 passed with a #2595 export; 44 passed, 2 skipped with a Qt #74 export (gate off). Adds the throttle register row |
-| #69 | `wp4-coordinator` | `wp4-coordinator` | `solar:coordinate` menu ('Time master', 'Clear point') registers every Image viewer with one `Coordinator` per data collection (`glue_solar/quicklook.py`, with `observation_key`); raster map click: 1 message per dataset, no coordinator assignment; stack map click: 2 (scan pinned); axis swap moves the step slider to the point (fixture and remote 4000005156 Si IV); Pixel stays active; restored viewers join. A spectrogram click pins the step from its slider (λ canonicalisation stays `wp4-m0-point-fixed-index`'s). 'Time master' only records `masters[key]` until `wp4-time-sync`. Click helpers are in `glue_solar/tests/helpers.py` |
 
 **Slider speed** (user, 2026-09-29: slow on PyQt5 on their Linux/Wayland
 machine with 3860259453; measure now, optimise later). Probe:
@@ -202,7 +213,7 @@ PR notes (2026-09-29):
   `save` subtools in WP12); #65 (dhomeier, tox cleanup, overlaps #69).
 
 **Next steps.**
-1. The user reviews #69 and #70.
+1. The user reviews #70.
 2. The rest of M0, in glue-solar only: since 2026-09-29 upstream PRs,
    reports and tracking wait for M4 (D2). `wp4-time-sync` also needs
    `wp4-m0-point-fixed-index` (after `wp4-quicklook-preset`) and
@@ -217,7 +228,6 @@ PR notes (2026-09-29):
 | Path | Branch | State |
 | --- | --- | --- |
 | `~/Git/glue-solar` | `plan` | This plan |
-| `~/Git/glue-solar-wp4-coordinator` | `wp4-coordinator` | Draft glue-solar #69 |
 | `~/Git/glue-solar-workaround-register` | `workaround-register` | Draft glue-solar #70 |
 | `~/Git/irispy-bursts` | `uv-burst-detection` | Draft #197; the `irispy-ports` env imports irispy from here |
 | `~/Git/irispy-wavecorr` | `wavelength-drift` | Draft #198 |
@@ -232,6 +242,7 @@ Removable (merged): `~/Git/glue-solar-wp10-fill-nan`,
 `~/Git/glue-solar-qsettings-isolation`, `~/Git/glue-solar-exposure-readout`,
 `~/Git/glue-solar-descending-step`, `~/Git/glue-solar-wcs-link-editor`,
 `~/Git/glue-solar-ci-matrix`, `~/Git/glue-solar-slider-throttle`,
+`~/Git/glue-solar-wp4-coordinator`,
 `~/Git/irispy-response-2013`. `~/Git/irispy` is the user's checkout (on main
 today): never check out, stash or edit in it, and never run Python with it as
 the working directory; branch into a separate worktree from `origin/main`.
@@ -415,7 +426,7 @@ Each release containing a fix retires the matching glue-solar workaround
 **M0**
 - WP0: `wp0-workaround-register`, `wp0-readme-runner`
 - WP1: `wp1-m0-inverse-workaround`, `wp1-m0-link-hpc`, `wp1-m0-link-graph-regression`
-- WP4: `wp4-coordinator`, `wp4-quicklook-preset`, `wp4-launch-entry`, `wp4-m0-point-fixed-index`, `wp4-time-sync`, `wp4-m0-time-wavelength-panels`, `wp4-sji-panels`, `wp4-slit-point-overlay`, `wp4-tests`
+- WP4: `wp4-quicklook-preset`, `wp4-launch-entry`, `wp4-m0-point-fixed-index`, `wp4-time-sync`, `wp4-m0-time-wavelength-panels`, `wp4-sji-panels`, `wp4-slit-point-overlay`, `wp4-tests`
 - WP9: `wp9-m0-user-guide-corrections`, `wp9-m0-viewer-tools-docs`, `wp9-m0-browsing-recipes`, `wp9-m0-mask-overlays`, `wp9-m0-workflow-recipes`, `wp9-m0-scripting-recipe`, `wp9-m0-iris9-tutorial`, `wp9-m0-iris9-acceptance`, `wp9-m0-docs-build`, `wp9-m0-wiki-digest`
 - WP10: `wp10-m0-large-data-modal`, `wp10-m0-roi-guard`, `wp10-m0-acceptance`
 
@@ -674,10 +685,9 @@ modal guard, asserting band intersection only for same-dataset points.
 
 **M0**
 
-- [ ] **M0** `wp4-coordinator`: One `Coordinator` (`HubListener`) per DataCollection, held strongly on it, plus a registered `solar:coordinate` `SimpleToolMenu` (D9; 'Time master', 'Clear point') that registers viewers in `__init__` and unregisters idempotently in `close()`; each subtool restores the previous mouse mode. It couples only equal `observation_key`s (OBSID + STARTOBS), follows the last group given a `PixelSubsetState`, re-applies the point on axis or reference-data changes, and writes only on change under one busy guard. Done when: viewers opened later or restored join and closed ones leave (a second unregister raises nothing); one map click on a 3D raster gives one `group.subset_state` assignment, ≤ 1 `SubsetUpdateMessage` per dataset and no coordinator assignment, while on a 4D stack map the coordinator adds exactly one assignment pinning the scan (≤ 2 messages, no feedback); Pixel stays active after 'Clear point' and 'Time master'; after the stock combo swaps the 4000005156 map to λ × slit, its step slider equals the point's and no wavelength slider moved; a second loaded observation is never coupled.
-- [ ] **M0** `wp4-quicklook-preset`: `quicklook(app, datasets)` opens the panel table in a new MDI tab (D15), wiring in `wp10-m0-roi-guard` and `wp10-m0-large-data-modal` in the same PR. Roles come from INSTRUME or cube class; sit-and-stare from STEPS_AV == 0 and NRASTERP; the window is the browser's tick, else Mg II k 2796, else the first; λ0 is nearest TWAVE (mid-window without TWAVE), never index 0 or the D11 rest. Given 'SJI_<c>' and 'SJI_<c> (deconvolved)' (#62), open the plain one and offer the other. Raster and SJI layers get `percentile = 99.5`; aspect 'auto' on rasters until `wp11-physical-aspect`, 'equal' on SJIs; the Profile shows the bare Pixel subset's mean with a y = 0 line and no x display-unit override; the point starts at the map centre in a new edit-subset group 'Point' with Pixel active. Done when offscreen pytest-qt on 4000255147, 3824262996, 4000005156 (stack, deconvolved SJI 2796), 3620258102 and 3860258481 (one scan; 13 stacked) shows each viewer's `x_att`, `y_att` and `slices` match its row; `app.viewers` lists every panel; layers have percentile 99.5 and finite v_min < v_max; the Profile shows only the seeded Pixel subset; the stock axis combo still swaps spectrogram and map; no modal appears with the large-data prompt unpatched; a 3640107442 AIA cutout rewritten to 4000255147's OBSID and STARTOBS gets no SJI role or slit. Depends: wp4-coordinator, wp1-m0-link-hpc.
+- [ ] **M0** `wp4-quicklook-preset`: `quicklook(app, datasets)` opens the panel table in a new MDI tab (D15), wiring in `wp10-m0-roi-guard` and `wp10-m0-large-data-modal` in the same PR. Roles come from INSTRUME or cube class; sit-and-stare from STEPS_AV == 0 and NRASTERP; the window is the browser's tick, else Mg II k 2796, else the first; λ0 is nearest TWAVE (mid-window without TWAVE), never index 0 or the D11 rest. Given 'SJI_<c>' and 'SJI_<c> (deconvolved)' (#62), open the plain one and offer the other. Raster and SJI layers get `percentile = 99.5`; aspect 'auto' on rasters until `wp11-physical-aspect`, 'equal' on SJIs; the Profile shows the bare Pixel subset's mean with a y = 0 line and no x display-unit override; the point starts at the map centre in a new edit-subset group 'Point' with Pixel active. Done when offscreen pytest-qt on 4000255147, 3824262996, 4000005156 (stack, deconvolved SJI 2796), 3620258102 and 3860258481 (one scan; 13 stacked) shows each viewer's `x_att`, `y_att` and `slices` match its row; `app.viewers` lists every panel; layers have percentile 99.5 and finite v_min < v_max; the Profile shows only the seeded Pixel subset; the stock axis combo still swaps spectrogram and map; no modal appears with the large-data prompt unpatched; a 3640107442 AIA cutout rewritten to 4000255147's OBSID and STARTOBS gets no SJI role or slit. Depends: wp1-m0-link-hpc.
 - [ ] **M0** `wp4-launch-entry`: Entry points: `@startup_action('iris_quicklook')`; an 'Open quicklook' checkbox beside 'Stack' in `iris_loader.ui`, with `browse_iris` building one quicklook per loaded observation (`finalize` records each dataset's observation and kind through a per-window helper that `wp10-nonblocking-load` reuses); a menubar action 'IRIS: quicklook…' grouping data by `observation_key` and asking when several match. Startup cannot stack: it opens the single-raster preset on the first scan, labels files by rNNNNN and notes that stacks need the browser. Its guide section maps CRISPEX entry keywords and xcontrol modes to their owners (no CLI parser). Done when, with warnings and message boxes patched to fail: on 3620258102 + SJI 1400 the three paths open identical viewers; with two observations loaded, browser and menu open only the chosen one; startup on the 13 3860258481 files gives 13 distinct labels and the single-raster preset; with #2595 (probe-gated) `--startup=iris_quicklook` opens no AutoLinkPreview; a manual 4000255147 run shows no 'Add large data set?' dialog. Depends: wp4-quicklook-preset, wp10-m0-large-data-modal.
-- [ ] **M0** `wp4-m0-point-fixed-index`: The stock Pixel point is the selected detector pixel (D6, D7). On each point update the coordinator writes its step, exposure or scan and slit into the other same-dataset panels' non-displayed `slices` (a stack's point stays on the current scan), coalescing drag updates latest-only with a single-shot QTimer. A λ-panel click is canonicalised once: the point takes that panel's fixed indices and the clicked non-λ index, and the map moves to the clicked λ; nothing else writes a wavelength slice. Slider edits move the point. 'Clear point' or any non-Pixel state stops point updates and hides markers; time sync continues. SJI points mark only the SJI until `wp4-sji-click-to-raster`. Done when, on 3860258481 (one scan; 13-scan stack), 3824262996, 4000005156 (stack) and 4000255147: a map click at (s, y) sets the spectrogram step to s and the whisker/λ–t slit to y with no wavelength slider moving; the spectrum is cube[s, y, :] (cube[k, s, y, :] at scan k) and follows scan changes; on 4000005156 scan 0 a spectrogram click at (λj, y) moves the map to λj and the point to (s, y); typing step s′ moves crosshair and spectrum with one `group.subset_state` assignment; slit (and on rasters and stacks the step) stays fixed while scan, exposure or SJI master steps; a Profile Collapse `AggregateSlice` raises nothing and is never overwritten. Depends: wp4-coordinator, wp4-quicklook-preset.
+- [ ] **M0** `wp4-m0-point-fixed-index`: The stock Pixel point is the selected detector pixel (D6, D7). On each point update the coordinator writes its step, exposure or scan and slit into the other same-dataset panels' non-displayed `slices` (a stack's point stays on the current scan), coalescing drag updates latest-only with a single-shot QTimer. A λ-panel click is canonicalised once: the point takes that panel's fixed indices and the clicked non-λ index, and the map moves to the clicked λ; nothing else writes a wavelength slice. Slider edits move the point. 'Clear point' or any non-Pixel state stops point updates and hides markers; time sync continues. SJI points mark only the SJI until `wp4-sji-click-to-raster`. Done when, on 3860258481 (one scan; 13-scan stack), 3824262996, 4000005156 (stack) and 4000255147: a map click at (s, y) sets the spectrogram step to s and the whisker/λ–t slit to y with no wavelength slider moving; the spectrum is cube[s, y, :] (cube[k, s, y, :] at scan k) and follows scan changes; on 4000005156 scan 0 a spectrogram click at (λj, y) moves the map to λj and the point to (s, y); typing step s′ moves crosshair and spectrum with one `group.subset_state` assignment; slit (and on rasters and stacks the step) stays fixed while scan, exposure or SJI master steps; a Profile Collapse `AggregateSlice` raises nothing and is never overwritten. Depends: wp4-quicklook-preset.
 - [ ] **M0** `wp4-time-sync`: The coordinator caches per-pair nearest-index and signed-offset arrays from `nearest()` over each dataset's 1-D `Time` (D7, D8, D10) and adds no links or components after load. The raster is the default master ('Time master' switches to an SJI); its timing step is the point's step (mid-raster without a point). An SJI master moves only time axes (for a stack, the scan whose timing-step `Time` is nearest). A single scanning raster has no time axis: it shows its signed Δt at the timing step and is NO MATCH only outside its coverage. `solar:frame_time` shows 'time master' and the timing step on the master, the signed Δt on matched followers and 'NO MATCH Δt = …' on greyed followers, which keep their frame. Every registered viewer tool (WP7 `solar:time_marker`, WP12 light curves) gets each master-time change and exposure duration. Done when:
   1. 4000005156 2-scan stack + SJI 2796 (32 frames, 11.69 s), point at step 32. SJI master: frames 0-15 select scan 0 and 16-31 scan 1; frames 0, 20, 31 show Δt +85.0, +38.1, −90.5 s; step and slit unchanged; with scan 0 alone frames 16-31 are NO MATCH. Raster (scan 0) master: step 0 makes the SJI NO MATCH (Δt 8.611 s > 5.845 s); steps 1-3 match (5.581, 2.721, 0.069 s).
   2. 4000255147 (1600 × 2.89 s) + SJI 1400 (400 × 11.88 s): indices are argmin|Δt|; in coverage |Δt| ≤ 1.445 s (raster), ≤ 5.94 s (SJI); an SJI master keeps the slit fixed.
@@ -685,7 +695,7 @@ modal guard, asserting band intersection only for same-dataset points.
   4. `nearest()` units: an exact tie, duplicates, a gap, a NaT reference frame (raises), times before and after coverage.
   5. Wavelength and slit sliders never move; a Profile Collapse `AggregateSlice` on the master gives the time index by `.center` and is left in place on a follower.
 
-  Depends: wp4-coordinator, wp4-m0-point-fixed-index, wp1-m0-link-hpc.
+  Depends: wp4-m0-point-fixed-index, wp1-m0-link-hpc.
 - [ ] **M0** `wp4-m0-time-wavelength-panels`: Whisker and λ–t panels are stock ImageViewers (x wavelength pixel; y step, exposure or scan; unwarped), titled 'step (acquisition order)', 'exposure' or 'scan'. On a sit-and-stare step axis `solar:frame_time` sets the label 'Exposure (acquisition order)' and integer exposure-index ticks, re-applied after every `_set_wcs` label reset and axis change. A probed private patch (D2) stops the Pixel crosshair reappearing at (0,0) after an IncompatibleAttribute. Done when: on 4000255147 Si IV 1403 a point at slit y makes λ–t equal cube[:, y, :] and the label shows the UTC range, surviving a slit move and an axis swap; on the 3860258481 13-scan stack and 3602506433 (99 scans) λ–t equals stack[:, s, y, :] and follows a drag; on 4000005156 scan 0 the whisker equals cube[:, y, :]; no (0,0) crosshair appears on spectrogram, whisker or λ–t panels, and the patch turns off when its probe sees the upstream fix. Depends: wp4-quicklook-preset, wp4-m0-point-fixed-index.
 - [ ] **M0** `wp4-sji-panels`: One ImageViewer per selected SJI channel, titled with channel and variant, following `wp4-time-sync`, with limits of the raster footprint plus a margin; off-frame points show 'outside SJI FOV'. Done when the 3620258102 fixture with SJI 1330, 1400, 2796 and 2832 opens four titled SJI viewers that follow the master; on 4000005156 + SJI 2796 the limits contain the four raster-footprint corners; test points > 2 SJI px inside and outside the FOV get the expected label. Depends: wp4-quicklook-preset, wp4-time-sync, wp1-m0-link-hpc.
 - [ ] **M0** `wp4-slit-point-overlay`: `solar:coordinate` draws on SJI viewers a slit line at the frame's SLTPX1IX − 1 (the slit extra coordinates are 1-based; irispy ≥ 0.9.1's gWCS uses CRPIX − 1), hidden for a displayed frame axis or a 0/NaN value, and the raster point via `show_crosshairs`, projected through the frame's SJI WCS. No `pixel_stride` or 'Slit x' component enters the API; fixture tests rescale the stride-10 SJIs themselves. Done when on the full-resolution 4000255147 SJI 1400 (400×417×388) the line is within 0.5 SJI px of the projected raster slit at frames 0 and N−1 and 1 px at every frame (`slit_check.py` approach C); on the binned 3860608353 SJI 2832, at frames 0, N//2 and N−1 it lies within 0.5 binned px of the dark slit trough in that frame's column-median profile; the marker follows the frame, hides off the FOV and stays with `link_hpc` and time sync active. Depends: wp4-sji-panels.
