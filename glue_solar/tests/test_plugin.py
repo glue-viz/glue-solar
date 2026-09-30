@@ -270,3 +270,34 @@ def test_slice_sliders_follow_a_drag_at_most_every_tenth_of_a_second(qtbot):
     viewer.state.x_att = cube.pixel_component_ids[0]  # glue-qt rebuilds the sliders
     assert sliders()
     assert not any(slider.hasTracking() for slider in sliders())
+
+
+
+# glue-qt 0.4.2's PV slice window sets its colormap through glue's deprecated 'color' key
+@pytest.mark.filterwarnings("ignore:Setting colormap using")
+def test_a_pv_slice_click_leaves_numbers_in_the_slices(qtbot, irispy_test_files):
+    from glue_qt.plugins.tools.pv_slicer import pv_slicer
+
+    from glue_solar import glue_patches
+
+    installed = pv_slicer.PVSliceWidget._sync_slice is glue_patches.sync_pv_slice
+    assert installed == glue_patches.needs_pv_slice_workaround()  # probes glue-qt's own function
+    assert not glue_patches.needs_pv_slice_workaround(glue_patches.sync_pv_slice)
+    glue_solar.setup()
+    sji = load_data(str(find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")))
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(sji)
+    viewer = app.new_data_viewer(ImageViewer, data=sji)
+    tool = viewer.toolbar.tools["slice"]
+    tool._build_from_vertices(np.array([5.0, 30.0]), np.array([10.0, 30.0]))  # a path drawn on the frame
+    widget = tool._slice_widget
+    canvas = widget.axes.figure.canvas
+    canvas.draw()
+    # a click in the PV slice window at frame 7 moves the viewer to it
+    click = MouseEvent("button_press_event", canvas, *widget.axes.transData.transform((3, 7)), button=1)
+    widget._sync_slice(click)
+    assert viewer.state.slices[0] == 7
+    assert not any(isinstance(s, str) for s in viewer.state.slices)
+    viewer.state.y_att_world = sji.world_component_ids[0]  # glue-qt 0.4.2 alone raises int('y') here
+    assert viewer.state.y_att.axis == 0
