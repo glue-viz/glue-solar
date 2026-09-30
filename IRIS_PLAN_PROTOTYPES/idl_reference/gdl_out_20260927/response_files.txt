@@ -1,7 +1,0 @@
-<scratch>/sswgdl-work/ssw/iris/response/iris_sra_c_20150331.geny
-<scratch>/sswgdl-work/ssw/iris/response/iris_sra_c_20161022.geny
-<scratch>/sswgdl-work/ssw/iris/response/iris_sra_c_20191101.geny
-<scratch>/sswgdl-work/ssw/iris/response/iris_sra_c_20200223.geny
-<scratch>/sswgdl-work/ssw/iris/response/iris_sra_c_20230223.geny
-<scratch>/sswgdl-work/ssw/iris/response/iris_sra_c_20230331.geny
-<scratch>/sswgdl-work/ssw/iris/response/iris_sra_c_20231106.geny
