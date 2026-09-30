@@ -867,8 +867,10 @@ def test_slit_jaw_panels(bare_app, qtbot, tmp_path, monkeypatch, irispy_test_fil
         x, y = footprint(raster, sji)
         margin = max(10, 0.1 * max(np.ptp(x), np.ptp(y)))
         state = viewer.state
-        assert state.x_min <= x.min() - margin + 1e-6 and x.max() + margin - 1e-6 <= state.x_max
-        assert state.y_min <= y.min() - margin + 1e-6 and y.max() + margin - 1e-6 <= state.y_max
+        assert state.x_min <= x.min() - margin + 1e-6
+        assert x.max() + margin - 1e-6 <= state.x_max
+        assert state.y_min <= y.min() - margin + 1e-6
+        assert y.max() + margin - 1e-6 <= state.y_max
         assert (state.x_min + state.x_max) / 2 == pytest.approx((x.min() + x.max()) / 2, abs=0.5)
         assert (state.y_min + state.y_max) / 2 == pytest.approx((y.min() + y.max()) / 2, abs=0.5)
 
@@ -961,7 +963,9 @@ def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files):
         qtbot.waitUntil(lambda: " · Δt " in readout(sji_viewer))
         frame = sji_viewer.state.slices[0]
         where = coord.point_on(sji_viewer)
-        assert where is not None and -0.5 <= where[0] <= nx - 0.5 and -0.5 <= where[1] <= ny - 0.5
+        assert where is not None
+        assert -0.5 <= where[0] <= nx - 0.5
+        assert -0.5 <= where[1] <= ny - 0.5
         assert overlays(sji_viewer) == ([[slit[frame] - 1, -0.5], [slit[frame] - 1, ny - 0.5]], pytest.approx(where))
     sji_viewer.state.slices = (0, 0, 0)  # moved back by hand: the late exposure is off the first frame
     assert overlays(sji_viewer)[1] is None
