@@ -138,6 +138,10 @@ are identical either way. 56 passed, 1 skipped on both baselines and with the
 #2598 export (`--remote-data=any`); CI green (codecov/project's -1.74 % status
 predates the last upload; its comparison shows 92.54 → 92.66 %).
 
+Done 2026-09-29 on the plan branch: `wp9-m0-docs-build`. The `iris-plan-docs`
+env and build recipe are in Validation; main 7a3c32f and draft #72 (ca1142e)
+build with `-W` and no warnings in about 12 s.
+
 Open glue-solar PRs (the user reviews each draft):
 
 | PR | Branch | Item | Adds |
@@ -445,7 +449,7 @@ Each release containing a fix retires the matching glue-solar workaround
 - WP0: `wp0-readme-runner`
 - WP1: `wp1-m0-link-hpc`, `wp1-m0-link-graph-regression`
 - WP4: `wp4-quicklook-preset`, `wp4-launch-entry`, `wp4-m0-point-fixed-index`, `wp4-time-sync`, `wp4-m0-time-wavelength-panels`, `wp4-sji-panels`, `wp4-slit-point-overlay`, `wp4-tests`
-- WP9: `wp9-m0-user-guide-corrections`, `wp9-m0-viewer-tools-docs`, `wp9-m0-browsing-recipes`, `wp9-m0-mask-overlays`, `wp9-m0-workflow-recipes`, `wp9-m0-scripting-recipe`, `wp9-m0-iris9-tutorial`, `wp9-m0-iris9-acceptance`, `wp9-m0-docs-build`, `wp9-m0-wiki-digest`
+- WP9: `wp9-m0-user-guide-corrections`, `wp9-m0-viewer-tools-docs`, `wp9-m0-browsing-recipes`, `wp9-m0-mask-overlays`, `wp9-m0-workflow-recipes`, `wp9-m0-scripting-recipe`, `wp9-m0-iris9-tutorial`, `wp9-m0-iris9-acceptance`, `wp9-m0-wiki-digest`
 - WP10: `wp10-m0-large-data-modal`, `wp10-m0-roi-guard`, `wp10-m0-acceptance`
 
 **M1**
@@ -893,8 +897,8 @@ Keep the `docs/` guides accurate for what ships and maintain an IRIS-9-style
 CRISPEX tutorial whose steps are the acceptance script. Recipe checks live in
 `glue_solar/tests/test_documented_workflows.py`. Each feature PR documents its
 own capability; WP9 owns cross-cutting guides, corrections, the tutorial and
-acceptance, and no doc claims planned features ship. Every docs item also
-needs a passing `wp9-m0-docs-build`. M0 event finding starts on the raster
+acceptance, and no doc claims planned features ship. Every PR that touches
+`docs/` builds with the `iris-plan-docs` recipe (Validation) with no warnings. M0 event finding starts on the raster
 map: stock SJI Pixel subsets give no raster spectrum on released core.
 
 **M0**
@@ -907,7 +911,6 @@ map: stock SJI Pixel subsets give no raster spectrum on released core.
 - [ ] **M0** `wp9-m0-scripting-recipe`: A recipe for the Terminal button, `raster_data`/`image_data`, `data.coords.pixel_to_world_values` and `data['Time']`. Done when a doctest or offscreen check on the irispy 20210905 fixture shows `pixel_to_world_values` at a Pixel point equals the status-bar readout and the raster's Profile Mean equals `np.nanmean` over the non-spectral axes.
 - [ ] **M0** `wp9-m0-iris9-tutorial`: Add `docs/user_guide/iris9-crispex-tutorial.rst` (linked from the index): every IRIS-9 §3.3 CRISPEX task with local stand-in data, Glue steps where supported and "not yet supported in Glue" otherwise. §3.3.1 (OBSID 3840007146; stand-in 3824262996, Si IV 1403, Mg II k): gamma < 1, ~2 frames/s core blink, a feature's solar (x, y). §3.3.2 (stand-ins 3602506433, and 4000005156 for raster + SJI): run and find the end time; Doppler range; mouse lock with T-slice; raster positions on the SJI. Event finding: play, pause on a brightening, select on the raster map (sit-and-stare: slit–time panel), zoom, read spectrum and matched times. Done when every task appears with its stand-in, the M0 steps are those `wp9-m0-iris9-acceptance` runs, and no rst text names a WP or milestone. Depends: wp4-quicklook-preset, wp4-m0-point-fixed-index, wp4-time-sync, wp4-sji-panels.
 - [ ] **M0** `wp9-m0-iris9-acceptance`: `glue_solar/tests/test_iris9_acceptance.py`, a pytest-qt remote-data run of the M0 tutorial steps through the quicklook on released core, on irispy-data files for 4000005156 two-scan stack + deconvolved SJI 2796 and 4000255147 + SJI 1400 (irispy-data lacks 4000005156 scan 1 and the deconvolved SJI 2796, and its 4000255147 raster cutout is 439 MB, so smaller cutouts go into irispy-data first, on the user's direction): switch the master to the SJI and play; stop at the frame with the highest 99.9th percentile in the raster footprint (sit-and-stare: slit column ±1 px); click the brightest in-region position via the WCS and zoom (4000005156 raster map: step from the WCS, scan argmin|dt|, shown offset = Time[scan, step] − SJI time; 4000255147 slit–time panel at the matched exposure and WCS slit row); the spectrum panel equals the raster spectrum there and zooming keeps the selection; on 4000005156 in a fresh preset, closing the SJI viewer and opening a new raster Image viewer joins it to coordination, and a spectrum with raw -200/-199 shows NaN gaps. Done when the script passes on both observations. Depends: wp9-m0-iris9-tutorial.
-- [ ] **M0** `wp9-m0-docs-build`: Build with `sphinx-build -W --keep-going -b html docs <out>` in a new micromamba env `iris-plan-docs` (the `iris-plan` packages plus the `docs` extra), not `tox -e build_docs`, with QSettings isolation. Done when the env recipe is in Validation and main plus the M0 edits build with no warnings.
 - [ ] **M0** `wp9-m0-wiki-digest`: Only on request, fetch and refresh the public wiki; fix `Home.md:4` and `Short-Term-Roadmap.md:1`; replace "In preferred order" with M0-M3; no local paths or prototype links. Done when the wiki shows the milestone digest with no dangling section references.
 
 **M1**
@@ -1073,9 +1076,21 @@ Python. Create a new named env rather than changing an existing one.
   the same 2 fail on irispy 0.9.0 (counts measured on 0.8.1 fixtures), so the
   ports derive them from the fixtures. irispy 0.9.1 still falls back to TWAVE
   when `rest_wavelength` is None, so WP2 always passes it (D11).
-- **`iris-plan-docs`** (`wp9-m0-docs-build` creates it): the `iris-plan` pins
-  plus the `docs` extra. Build with
-  `sphinx-build -W --keep-going -b html docs <out>`, never `tox -e build_docs`.
+- **`iris-plan-docs`** (2026-09-29): `micromamba create -n iris-plan-docs
+  --clone iris-plan`, then conda-forge `sphinx sphinx-automodapi packaging`,
+  pip `sphinx-changelog sunpy-sphinx-theme` (not on conda-forge) and the
+  glue-qt 0.4.2 wheel `--no-deps` (a clone copies only conda packages);
+  glue-solar is not installed. Sphinx 9.1.0, sphinx-automodapi 0.22.0. To
+  build a checkout, write its gitignored `glue_solar/version.py` with
+  `~/mamba/envs/iris-plan-docs/bin/python -m setuptools_scm --root <checkout>
+  --config <checkout>/pyproject.toml --force-write-version-files`, then from
+  `<scratch>` run `env HOME="$(mktemp -d)" QT_QPA_PLATFORM=offscreen
+  MPLBACKEND=agg PYTHONPATH=<checkout> ~/mamba/envs/iris-plan-docs/bin/sphinx-build
+  -W --keep-going -b html <checkout>/docs <scratch>/html` (about 12 s); never
+  `tox -e build_docs`. The scratch HOME keeps it off `~/.glue`; nothing in the
+  build calls the loader's QSettings. (The `iris-plan` test runner finds
+  `glue_solar.version` through that env's editable install of
+  `~/Git/glue-solar` when a worktree has none.)
 - **`irispy-ports`**: irispy development, Python 3.14, irispy `[tests,docs]`
   editable from `~/Git/irispy-bursts`. Test another irispy worktree from a
   neutral directory with `PYTHONPATH=<worktree>` and
