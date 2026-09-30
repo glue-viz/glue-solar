@@ -546,9 +546,6 @@ Reports and requests (each closes with a URL or the user's decision not to file)
 | `irispy-asdf-converters` (`wp0-irispy-gwcs-branch`, only if that work proceeds) | not filed (D14) |
 | One row per proposal (`wp0-optional-proposals`) | |
 
-**M0**
-
-
 **M1**
 
 - [ ] **M1** `wp0-release-tracking`: Date each glue-core, glue-qt, irispy-lmsal or astropy release after the D5 baseline (1.27.0, 0.4.2, 0.9.1). A fix counts only if its merge commit is reachable from the tag; then raise the floor, retire register rows, close report rows and switch on gated work (#2595: WP1 SJI↔raster pixel paths; #2596/#2601 + Qt #70: slice profiles; #2599: WP7 date labels; glue #2128, hidden axes: `wp12-sequence-export` drops its `set_axis_off()` fallback). Done when each such release has a line here naming its PRs, floors and rows.
