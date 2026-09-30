@@ -1,0 +1,1 @@
+The observation browser now links the helioprojective longitude and latitude of the slit-jaw images, rasters and aligned AIA cutouts it loads, so a region drawn on a raster map selects the slit-jaw pixels inside it at each frame's own pointing; the new "IRIS: link helioprojective coordinates" menu action does the same for data opened with "File -> Open Data Set".
