@@ -1,0 +1,1 @@
+New user-guide page "Scripting with IRIS data": loading windows and slit-jaw images from glue's Terminal, pixel and world coordinates, acquisition times and mean spectra.
