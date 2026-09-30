@@ -14,17 +14,17 @@ Columns: IRIS = relevant to IRIS data; Priority = review priority for an IRIS-fi
 quicklook (must/should/could/wont); Milestone and Where = the owning checkbox (M4 = upstreaming,
 after the glue-solar work).
 
-Summary: Available: 35, Excluded: 25, M0: 25, M1: 42, M2: 20, M3: 52, M4: 4.
+Summary: Available: 35, Excluded: 27, M0: 25, M1: 38, M2: 20, M3: 54, M4: 4.
 
 ## IRIS raster/SJI semantics, reference cubes & time sync
 
 | ID | Feature | IRIS | Priority | Milestone | Where | Note |
 | --- | --- | --- | --- | --- | --- | --- |
-| F103 | Reference cube (REFCUBE) incl. dual-cube mode | yes | should | M1 | `wp4-context-reference` (WP4, M1) |  |
-| F104 | Load reference and SJI cubes at runtime (File > Open) | yes | should | M1 | `wp4-context-reference` (WP4, M1) |  |
+| F103 | Reference cube (REFCUBE) incl. dual-cube mode | yes | should | — | Excluded | A reference cube is imaging only, like an SJI; spectra come only from the spectrograph files, whose second windows are `wp4-m1-multi-window` (user, 2026-09-30). |
+| F104 | Load reference and SJI cubes at runtime (File > Open) | yes | should | M3 | `wp8-m3-context-cubes` (WP8, M3) | Low priority (user, 2026-09-30); aligned AIA cutouts already load through the browser and link with `link_hpc`. |
 | F105 | Slit-jaw / context cubes (SJICUBE, up to six) | yes | must | — | Available today | The IRIS browser lists every SJI (keyed by TDESC1) and aligned AIA cutout of an observation, with no channel limit (glue_solar/sources/loaders/scan.py:164-165,174-175; loaders/iris.py:121-125,240-242 at 236f0a8). Each loads as a Data with an irissji/sdoaia colormap and can be opened from the data collection. Multi-SJI coordination is wp4-sji-panels and wp4-time-sync; docs are in wp9-m0-browsing-recipes. |
-| F106 | SJI-formatted AIA / Hinode context cubes | yes | should | M1 | `wp4-context-reference` (WP4, M1) |  |
-| F107 | Reference image window | yes | should | M1 | `wp4-context-reference` (WP4, M1) |  |
+| F106 | SJI-formatted AIA / Hinode context cubes | yes | should | M3 | `wp8-m3-context-cubes` (WP8, M3) | Low priority (user, 2026-09-30); aligned AIA cutouts already load through the browser and link with `link_hpc`. |
+| F107 | Reference image window | yes | should | — | Excluded | A reference cube is imaging only, like an SJI; spectra come only from the spectrograph files, whose second windows are `wp4-m1-multi-window` (user, 2026-09-30). |
 | F108 | Reference detailed-spectrum and spectrum-time windows | yes | should | M1 | `wp4-m1-multi-window` (WP4, M1) |  |
 | F109 | Slit-jaw image windows | yes | must | M0 | `wp4-sji-panels` (WP4, M0); `wp4-slit-point-overlay` (WP4, M0) |  |
 | F110 | Main vs reference (two-stream) blink | yes | could | M3 | `wp5-m3-reference-blink` (WP5, M3) |  |
