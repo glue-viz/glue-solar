@@ -1,6 +1,5 @@
 import shutil
 from collections import Counter
-from functools import partial
 
 import numpy as np
 import pytest
@@ -26,7 +25,7 @@ import glue_solar
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.quicklook import QuicklookImageViewer, coordinator, nearest, observation_key, quicklook
 from glue_solar.sources.loaders.iris import image_data, raster_data
-from glue_solar.tests.helpers import mouse, raster_point_on_sji, select_point
+from glue_solar.tests.helpers import count_tick_work, mouse, raster_point_on_sji, select_point
 
 SCAN = "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"
 
@@ -377,8 +376,6 @@ def test_a_sit_and_stare_exposure_axis(bare_app, monkeypatch, irispy_test_files)
 
 
 def test_a_slit_step_relabels_the_exposure_axis_without_placing_its_ticks(bare_app, monkeypatch, irispy_test_files):
-    from astropy.visualization.wcsaxes.coordinate_helpers import CoordinateHelper
-
     raster, _ = sit_and_stare(irispy_test_files)
     wavelength = quicklook(bare_app, [raster])["wavelength"]  # exposure on y
     label = wavelength.state.y_axislabel
@@ -389,32 +386,15 @@ def test_a_slit_step_relabels_the_exposure_axis_without_placing_its_ticks(bare_a
         edit.editingFinished.emit()
         assert wavelength.state.y_axislabel == edit.text() == label
         assert list(drawn_ticks(wavelength, "l")) == [label]
-    calls = Counter()
-
-    def labelled(name, method, *args, **kwargs):
-        calls[name] += 1
-        ticks = calls["_update_ticks"]
-        method(*args, **kwargs)
-        calls["_update_ticks in labels"] += calls["_update_ticks"] - ticks
-
-    for name in ("set_xlabel", "set_ylabel"):
-        monkeypatch.setattr(wavelength.axes, name, partial(labelled, name, getattr(wavelength.axes, name)))
-    update_ticks = CoordinateHelper._update_ticks
-
-    def counted(self, *args, **kwargs):
-        calls.update(["_update_ticks"] if self.parent_axes is wavelength.axes else [])
-        return update_ticks(self, *args, **kwargs)
-
-    monkeypatch.setattr(CoordinateHelper, "_update_ticks", counted)
+    calls = count_tick_work(monkeypatch, wavelength.axes)
     for typed in (False, True):
         coords = wavelength.axes.coords
         calls.clear()
         wavelength.state.slices = (wavelength.state.slices[0], 5 + typed, wavelength.state.slices[2])
         assert wavelength.axes.coords is not coords  # glue reset the axes and their labels
-        # glue's '' and wavelength label on x, each a full tick placement, and the exposure label only if
-        # typed over: not '', glue's own label and the exposure label again
-        assert (calls["set_xlabel"], calls["set_ylabel"]) == (2, typed)
-        assert calls["_update_ticks"] == calls["_update_ticks in labels"] > 0  # no other placement
+        # glue's '' and world labels, and the exposure label again, go on their coordinates, which places
+        # no tick until the draw (glue-core 1.27.0 alone: 6 set_xlabel and set_ylabel and 28 tick updates)
+        assert calls == {}
         assert wavelength.state.y_axislabel == edit.text() == label
         assert list(drawn_ticks(wavelength, "l")) == [label]
         edit.setText("Exposure")  # typed in the axes options: kept until glue resets the axes

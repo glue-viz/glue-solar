@@ -2,8 +2,6 @@
 Toolbar tools for glue's viewers.
 """
 
-from functools import partial
-
 import numpy as np
 from glue.config import settings, viewer_tool
 from glue.core.component import DateTimeComponent
@@ -77,15 +75,6 @@ def _exposure_label(data):
     return f"Exposure (acquisition order)\n{first} – {last} UTC"
 
 
-def _shows_exposures(state, axis):
-    """Whether the Image viewer state ``state`` shows the exposure axis of a sit-and-stare raster along ``axis``."""
-    data, att = state.reference_data, getattr(state, f"{axis}_att")
-    other = getattr(state, "y_att" if axis == "x" else "x_att")
-    if data is None or att is None or other is None or att.axis != 0:
-        return False
-    return _role(data) == "raster" and data.ndim == 3 and _is_sit_and_stare(data)
-
-
 def _index_ticks(axes, index, shown):
     """
     Give the x (``index`` 0) or y (1) axis of the WCSAxes ``axes`` integer pixel-index ticks, instead of
@@ -131,8 +120,8 @@ class FrameTimeTool(Tool, HubListener):
     exposures, in glue's own axis label, with integer exposure ticks instead of the helioprojective
     coordinates glue would show along it. glue resets both whenever it resets the axes (an axis or
     data change, or a slice the displayed coordinates depend on, such as the slit on the wavelength
-    panel): the tool keeps the exposure label in place of glue's reset label and applies the ticks
-    again; a label typed in the viewer's axes options is kept until then, as glue's own labels are.
+    panel), and the tool applies them again; a label typed in the viewer's axes options is kept until
+    then, as glue's own labels are.
     """
 
     icon = "window_tab"
@@ -160,10 +149,6 @@ class FrameTimeTool(Tool, HubListener):
         for prop in _SLIDER_REBUILDS:
             viewer.state.add_callback(prop, self._throttle_sliders)
         self._exposure_ticks = (None, None)  # the WCSAxes coordinates they were added to, and their helper
-        self._reset = {}  # axis -> the WCSAxes coordinates on which glue has reset its label
-        self._keep_labels = {f"{axis}_axislabel": partial(self._keep_exposure_label, axis) for axis in "xy"}
-        for prop, keep in self._keep_labels.items():
-            viewer.state.add_callback(prop, keep, validator=True)
         for prop in _LABELS:
             viewer.state.add_callback(prop, self._label_exposures)
         # glue's Preferences restyle only the WCS coordinates
@@ -182,38 +167,23 @@ class FrameTimeTool(Tool, HubListener):
             self.viewer.state.remove_callback(prop, self._throttle_sliders)
         for prop in _LABELS:
             self.viewer.state.remove_callback(prop, self._label_exposures)
-        for prop, keep in self._keep_labels.items():
-            self.viewer.state.remove_callback(prop, keep)
         super().close()
-
-    def _keep_exposure_label(self, axis, label):
-        """
-        Keep the exposure label of a displayed sit-and-stare exposure axis through glue's reset of its
-        label on new axes ('' then its world label). Unchanged, it is not set on the axes again, which
-        WCSAxes follows with a full tick placement each time; this tool labels the exposure ticks itself.
-        """
-        state = self.viewer.state
-        if label not in ("", getattr(getattr(state, f"{axis}_att_world"), "label", None)):
-            return label
-        coords = self.viewer.axes.coords
-        if not _shows_exposures(state, axis) or self._reset.get(axis) is coords:
-            return label  # typed in the axes options: _label_exposures replaces it, as the options then show
-        if label:
-            self._reset[axis] = coords  # the world label ends glue's reset
-        return _exposure_label(state.reference_data)
 
     def _label_exposures(self, *_):
         """Label a displayed sit-and-stare exposure axis and give it exposure ticks (see the class)."""
         state = self.viewer.state
         data = state.reference_data
+        if data is None or _role(data) != "raster" or data.ndim != 3 or not _is_sit_and_stare(data):
+            return
         for index, axis in enumerate("xy"):
-            if not _shows_exposures(state, axis):
+            att, world = getattr(state, f"{axis}_att"), getattr(state, f"{axis}_att_world")
+            other = getattr(state, f"{'yx'[index]}_att")
+            if att is None or other is None or att.axis != 0:
                 continue
             label = getattr(state, f"{axis}_axislabel")
-            if label in ("", getattr(getattr(state, f"{axis}_att_world"), "label", None)):  # typed, or set before
+            if label in ("", getattr(world, "label", None)):  # glue's reset
                 setattr(state, f"{axis}_axislabel", _exposure_label(data))  # which calls this again
                 return
-            other = getattr(state, f"{'yx'[index]}_att")
             axes = self.viewer.axes
             coords, ticks = self._exposure_ticks
             if coords is not axes.coords:  # glue reset the axes, and the ticks with them
@@ -377,6 +347,9 @@ class HideAxesTool(Tool):
             viewer.state.show_axes = settings.SOLAR_SHOW_AXES
         viewer.state.add_callback("show_axes", self._show)
         self._show()
+        self._placed = None  # the WCSAxes coordinates, view and size for which the readout placed the ticks
+        self._format_coord = viewer.axes.format_coord  # WCSAxes' world readout, set on the axes
+        viewer.axes.format_coord = self._readout
 
     def activate(self):
         # the mouse mode the Coordinate tool remembers, as for its menu entries
@@ -387,7 +360,22 @@ class HideAxesTool(Tool):
 
     def close(self):
         self.viewer.state.remove_callback("show_axes", self._show)
+        self.viewer.axes.format_coord = self._format_coord
         super().close()
+
+    def _readout(self, x, y):
+        """
+        WCSAxes' mouse-over readout, which formats each world coordinate as its last tick placement does.
+        Without axes no draw places the ticks, and before its first draw nothing places those of the
+        coordinates glue makes when it resets the axes, so the first readout after a reset, a zoom, a pan
+        or a resize places them once. Always on, with no upstream change tracked.
+        """
+        axes = self.viewer.axes
+        placed = (axes.coords, axes.viewLim.bounds, axes.bbox.bounds)
+        if placed != self._placed:
+            axes._update_tick_and_label_positions()
+            self._placed = placed
+        return self._format_coord(x, y)
 
     def _show(self, *_):
         axes, shown = self.viewer.axes, self.viewer.state.show_axes

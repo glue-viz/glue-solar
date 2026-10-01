@@ -15,14 +15,22 @@ from glue.utils import defer_draw
 from glue.viewers.image.layer_artist import ImageSubsetLayerArtist
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
+from glue_qt.viewers.image import ImageViewer
+from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
+from astropy.visualization.wcsaxes import WCSAxes
+from astropy.wcs import WCS
+
 __all__ = [
+    "needs_axis_label_workaround",
     "needs_crosshair_workaround",
     "needs_inverse_workaround",
     "needs_pixel_point_workaround",
     "needs_pv_slice_workaround",
     "sync_pv_slice",
+    "update_x_axislabel",
+    "update_y_axislabel",
     "world2pixel_single_axis",
 ]
 
@@ -195,3 +203,79 @@ def needs_crosshair_workaround(method=_original_update_visual_attributes):
 
 if needs_crosshair_workaround():
     ImageSubsetLayerArtist._update_visual_attributes = _update_visual_attributes
+
+
+_original_update_axislabels = (ImageViewer.update_x_axislabel, ImageViewer.update_y_axislabel)
+
+
+def _set_axislabel(viewer, axis):
+    """Label the WCSAxes coordinate of the Image viewer's ``axis`` ('x' or 'y') with glue's label and style."""
+    state = viewer.state
+    data, att = state.reference_data, getattr(state, f"{axis}_att")
+    index = "xy".index(axis)
+    # glue's own mapping, as in its update_x_ticklabel, but not waiting for its _wcs_set: a restored viewer
+    # sets its labels only once, on the axes of its first reset, before glue sets that flag
+    if data is not None and att is not None and data.ndim - 1 - att.axis in viewer.axes.coords:
+        index = data.ndim - 1 - att.axis
+    viewer.axes.coords[index].set_axislabel(
+        getattr(state, f"{axis}_axislabel"),
+        weight=getattr(state, f"{axis}_axislabel_weight"),
+        size=getattr(state, f"{axis}_axislabel_size"),
+    )
+    viewer.redraw()
+
+
+@defer_draw
+def update_x_axislabel(self, *event):
+    """
+    glue-qt's ``ImageViewer.update_x_axislabel``, labelling the WCSAxes coordinate of the x axis directly.
+
+    glue-core 1.27.0 labels an Image viewer's axes with ``WCSAxes.set_xlabel`` and ``set_ylabel``, which
+    place every tick at once to find the coordinate to label, and the next draw places them again. glue
+    sets both labels twice whenever it resets the axes, as at each slit-jaw frame step, so that is four
+    extra tick placements per step. The label goes to the coordinate glue already maps the axis to for
+    its tick label sizes instead. That is the coordinate ``set_xlabel`` finds on the bottom spine, except
+    where WCSAxes puts another one there, as latitude past a 45° roll: glue then names that one after
+    the x axis, and here each coordinate keeps its own name. Retired by the ``wp0-perf-core-draw`` fix
+    in glue-core, or by an astropy release whose ``set_xlabel`` places no ticks.
+    """
+    if not hasattr(self.axes, "coords"):  # not WCSAxes
+        return _original_update_axislabels[0](self, *event)
+    _set_axislabel(self, "x")
+
+
+@defer_draw
+def update_y_axislabel(self, *event):
+    """glue-qt's ``ImageViewer.update_y_axislabel``, as `update_x_axislabel` is for the x axis."""
+    if not hasattr(self.axes, "coords"):
+        return _original_update_axislabels[1](self, *event)
+    _set_axislabel(self, "y")
+
+
+def needs_axis_label_workaround(updates=_original_update_axislabels):
+    """Whether ``updates``, an Image viewer's x and y axis label updates, place the ticks of its WCSAxes."""
+    data = Data(x=np.zeros((2, 2)), label="probe")
+    state = SimpleNamespace(
+        reference_data=data,
+        x_att=data.pixel_component_ids[1],
+        y_att=data.pixel_component_ids[0],
+        x_axislabel="x",
+        y_axislabel="y",
+        x_axislabel_size=10,
+        y_axislabel_size=10,
+        x_axislabel_weight="normal",
+        y_axislabel_weight="normal",
+    )
+    wcs = WCS(naxis=2)
+    axes = WCSAxes(Figure(), [0, 0, 1, 1], wcs=wcs)
+    viewer = SimpleNamespace(axes=axes, state=state, _wcs_set=True, redraw=lambda: None)
+    # placing ticks evaluates the WCS, and labelling a coordinate does not
+    evaluated, evaluate = [], wcs.pixel_to_world_values
+    wcs.pixel_to_world_values = lambda *pixel: evaluated.append(pixel) or evaluate(*pixel)
+    for update in updates:
+        update(viewer)
+    return bool(evaluated)
+
+
+if needs_axis_label_workaround():
+    ImageViewer.update_x_axislabel, ImageViewer.update_y_axislabel = update_x_axislabel, update_y_axislabel

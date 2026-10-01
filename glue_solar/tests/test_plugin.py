@@ -13,11 +13,14 @@ from irispy.io import read_files
 from matplotlib.backend_bases import MouseEvent
 
 from astropy.io import fits
+from astropy.wcs import WCS
 
 import glue_solar
+from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.sources.iris import iris_quicklook, is_iris_fits, link_iris, quicklook_iris
-from glue_solar.sources.loaders.iris import image_data
+from glue_solar.sources.loaders.iris import image_data, raster_data
+from glue_solar.tests.helpers import count_tick_work
 
 
 def test_setup_registers_hooks():
@@ -253,9 +256,12 @@ def test_hide_axes(qtbot, monkeypatch, irispy_test_files):
             assert (placed[viewer.axes] > 0) == viewer.state.show_axes  # no tick placement in a draw without axes
         assert len(margins(shown)) > 1  # ticks and labels
         assert len(margins(hidden)) == 1  # the background only
-        # the mouse-over readout stays in world coordinates
+        # the mouse-over readout stays in world coordinates, placing the ticks once after the step to format them
+        placed.clear()
         assert hidden.axes.format_coord(10, 20) == shown.axes.format_coord(10, 20)
+        assert hidden.axes.format_coord(11, 21) == shown.axes.format_coord(11, 21)
         assert shown.axes.format_coord(10, 20).endswith("\" (world)")  # arcsec
+        assert placed[hidden.axes] == 3  # longitude, latitude and the hidden time
 
     # the button repaints the viewer and leaves its mouse mode on, which glue-qt ends for a plain button
     hidden.toolbar.active_tool = "image:point_selection"
@@ -273,6 +279,14 @@ def test_hide_axes(qtbot, monkeypatch, irispy_test_files):
     mouse(hidden, "button_release_event", 10, 20)
     [group] = app.data_collection.subset_groups
     assert [(s.start, s.stop) for s in group.subset_state.slices] == [(None, None), (20, 21), (10, 11)]
+    for viewer in (shown, hidden):
+        viewer.state.slices = (6, 0, 0)  # a readout between a step and its draw, as during playback
+        assert viewer.axes.format_coord(10, 20).endswith("\" (world)")
+    full = shown.axes.format_coord(10.3, 20.7)
+    for viewer in (shown, hidden):
+        viewer.state.x_min, viewer.state.x_max, viewer.state.y_min, viewer.state.y_max = 10, 11, 20, 21
+        viewer.figure.canvas.draw()
+    assert hidden.axes.format_coord(10.3, 20.7) == shown.axes.format_coord(10.3, 20.7) != full  # finer, zoomed in
 
 
 def test_sessions_keep_each_viewers_axes(qtbot, monkeypatch, tmp_path):
@@ -401,3 +415,159 @@ def test_a_pv_slice_click_leaves_numbers_in_the_slices(qtbot, irispy_test_files)
     assert not any(isinstance(s, str) for s in viewer.state.slices)
     viewer.state.y_att_world = sji.world_component_ids[0]  # glue-qt 0.4.2 alone raises int('y') here
     assert viewer.state.y_att.axis == 0
+
+
+SIT_AND_STARE = "iris_l2_20210905_001833_3620258102_{}.fits"
+PATCHED_LABELS = (glue_patches.update_x_axislabel, glue_patches.update_y_axislabel)
+
+
+def test_axis_label_workaround_installs_only_where_glue_needs_it(qtbot, monkeypatch, irispy_test_files):
+    installed = ImageViewer.update_x_axislabel is glue_patches.update_x_axislabel
+    assert installed == glue_patches.needs_axis_label_workaround()  # probes glue-qt's own methods
+    assert not glue_patches.needs_axis_label_workaround(PATCHED_LABELS)
+    glue_solar.setup()
+    sji = load_data(str(find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("SJI_1400_t000"))))
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(sji)
+    viewer = app.new_data_viewer(ImageViewer, data=sji)
+    viewer.figure.canvas.draw()
+    calls = count_tick_work(monkeypatch, viewer.axes)
+    coords = viewer.axes.coords
+    viewer.state.slices = (5, 0, 0)  # a frame step
+    assert viewer.axes.coords is not coords  # glue reset the axes, and set both labels twice
+    # glue-core 1.27.0 alone: 2 set_xlabel, 2 set_ylabel and 12 tick updates, then the draw places them again
+    assert calls == {}
+    viewer.figure.canvas.draw()
+    assert calls == {"_update_ticks": 3}  # one per coordinate: longitude, latitude and the hidden time
+    draw, draws = viewer.figure.canvas.draw, []
+    monkeypatch.setattr(viewer.figure.canvas, "draw", lambda *args: draws.append(args) or draw(*args))
+    qtbot.wait(10)  # draws already queued
+    draws.clear()
+    viewer.state.x_axislabel = "typed"  # in the axes options: it shows at once
+    qtbot.waitUntil(lambda: bool(draws), timeout=1000)
+    assert viewer.axes.coords[0].get_axislabel() == "typed"
+    app.data_collection.remove(sji)  # glue keeps x_att without its reference data
+    viewer.state.x_axislabel, viewer.state.y_axislabel_weight = "empty", "bold"
+
+
+def drawn_labels(viewer):
+    """The viewer's canvas, and the text, spines and box of each WCSAxes coordinate's axis label on a spine."""
+    canvas = viewer.figure.canvas
+    canvas.draw()
+    labels = [
+        (coord.get_axislabel(), coord.get_axislabel_position(), coord._axislabels.get_window_extent().bounds)
+        for coords in viewer.axes._all_coords  # the world coordinates and any overlay, such as exposure numbers
+        for coord in coords
+        if coord.get_axislabel_position()
+    ]
+    return bytes(canvas.buffer_rgba()), labels
+
+
+def own_names(viewer):
+    """Whether each world coordinate labelled on a spine has its own name as its label."""
+    names = viewer.state.reference_data.coords.world_axis_names
+    shown = [coord for coord in viewer.axes.coords if coord.get_axislabel_position()]
+    return all(coord.get_axislabel() == names[coord.coord_index] for coord in shown)
+
+
+SCANNING = "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "slit-jaw",
+        "slit-jaw rolled 30°",
+        "raster map",
+        "spectrogram",
+        "sit-and-stare exposures",
+        "λ–time",
+        "map",
+        "no WCS",
+        "λ–step",
+        "slit-jaw rolled 60°",
+    ],
+)
+def test_axis_labels_on_their_coordinates_draw_as_glues(qtbot, tmp_path, irispy_test_files, case):
+    from glue_solar.conftest import OBS_A, _header, _write_image, startobs
+
+    def rolled(roll):
+        d, t, o = OBS_A
+        path = tmp_path / f"iris_l2_{d}_{t}_{o}_SJI_1400_t000.fits"
+        _write_image(path, _header("SJI", o, startobs(d, t), TDESC1="SJI_1400", TWAVE1=1400.0, NWIN=1), roll=roll)
+        return image_data(path)
+
+    def raster(name, window):
+        return raster_data([find_irispy_test_file(irispy_test_files, name)], [window])[0]
+
+    def plain_map():
+        wcs = WCS(naxis=2)
+        wcs.wcs.ctype, wcs.wcs.cunit = ["HPLN-TAN", "HPLT-TAN"], ["arcsec", "arcsec"]
+        wcs.wcs.crpix, wcs.wcs.cdelt, wcs.wcs.crval = [25, 30], [0.6, 0.6], [100, -200]
+        return Data(label="map", flux=np.random.default_rng(0).random((60, 50)), coords=wcs)
+
+    def cube():
+        return Data(label="cube", flux=np.random.default_rng(1).random((8, 40, 50)))
+
+    sji = find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("SJI_1400_t000"))
+    sit_and_stare = SIT_AND_STARE.format("raster_t000_r00000")
+    # the dataset, its x and y pixel axes, and the slices of two steps, the second after an axis swap
+    data, x, y, steps = {
+        "slit-jaw": (lambda: image_data(sji), 2, 1, [(5, 0, 0), (6, 0, 0)]),
+        "slit-jaw rolled 30°": (lambda: rolled(30), 2, 1, [(1, 0, 0), (2, 0, 0)]),
+        "raster map": (lambda: raster(SCANNING, "C II 1336"), 0, 1, [(0, 0, 8), (0, 0, 9)]),
+        "spectrogram": (lambda: raster(SCANNING, "C II 1336"), 2, 1, [(3, 0, 0), (4, 0, 0)]),
+        "sit-and-stare exposures": (lambda: raster(sit_and_stare, "Si IV 1403"), 0, 1, [(0, 0, 5), (0, 0, 6)]),
+        "λ–time": (lambda: raster(sit_and_stare, "Si IV 1403"), 2, 0, [(0, 20, 0), (0, 21, 0)]),
+        "map": (plain_map, 1, 0, []),
+        "no WCS": (cube, 2, 1, [(3, 0, 0), (4, 0, 0)]),
+        "λ–step": (lambda: raster(SCANNING, "C II 1336"), 2, 0, [(0, 50, 0), (0, 51, 0)]),
+        "slit-jaw rolled 60°": (lambda: rolled(60), 2, 1, [(1, 0, 0), (2, 0, 0)]),
+    }[case]
+    data = data()
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewers = []
+    for updates in (glue_patches._original_update_axislabels, PATCHED_LABELS):
+        with pytest.MonkeyPatch.context() as patch:  # a viewer keeps the label updates it was made with
+            patch.setattr(ImageViewer, "update_x_axislabel", updates[0])
+            patch.setattr(ImageViewer, "update_y_axislabel", updates[1])
+            viewers.append(app.new_data_viewer(ImageViewer, data=data))
+    for viewer in viewers:
+        viewer.state.x_att, viewer.state.y_att = data.pixel_component_ids[x], data.pixel_component_ids[y]
+    glues, ours = viewers
+    for step in [None, steps[:1], "swap", steps[1:], "style"]:
+        for viewer in viewers:
+            if step == "swap":
+                viewer.state.x_att, viewer.state.y_att = viewer.state.y_att, viewer.state.x_att
+            elif step == "style":  # as set in the axes options
+                viewer.state.x_axislabel_size, viewer.state.x_axislabel_weight = 14, "bold"
+                viewer.state.y_axislabel_size, viewer.state.y_axislabel_weight = 7, "light"
+            elif step:
+                viewer.state.slices = step[0]
+        if case not in ("λ–step", "slit-jaw rolled 60°"):
+            assert drawn_labels(ours) == drawn_labels(glues)
+            if case in ("sit-and-stare exposures", "λ–time"):  # with the exposure numbers of the frame-time tool
+                assert any(text.startswith("Exposure") for text, _, _ in drawn_labels(ours)[1])
+        else:
+            # WCSAxes shows a coordinate on another spine than the axis glue maps it to: in the λ–step
+            # of a raster with a roll, latitude on the step axis' near side and longitude on its far side,
+            # and past a 45° roll, latitude along x. glue labels the coordinates on the bottom and left
+            # spines after the x and y axes; each coordinate keeps its own name here.
+            assert drawn_labels(ours)[0] != drawn_labels(glues)[0]
+            assert own_names(ours)
+            assert not own_names(glues)
+    if case in ("map", "no WCS"):  # restored from a session, which can hold plain Data but not yet IRIS data
+        app.save_session(str(tmp_path / "labels.glu"))
+        sessions = []
+        for updates in (glue_patches._original_update_axislabels, PATCHED_LABELS):
+            with pytest.MonkeyPatch.context() as patch:
+                patch.setattr(ImageViewer, "update_x_axislabel", updates[0])
+                patch.setattr(ImageViewer, "update_y_axislabel", updates[1])
+                sessions.append(GlueApplication.restore_session(str(tmp_path / "labels.glu")))
+            qtbot.addWidget(sessions[-1])
+        glues, ours = (session.viewers[0][0] for session in sessions)  # swapped and styled
+        assert drawn_labels(ours) == drawn_labels(glues)

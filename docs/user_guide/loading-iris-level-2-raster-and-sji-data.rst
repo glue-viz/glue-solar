@@ -193,6 +193,14 @@ The other axis shows only its own coordinate. The label and ticks come back when
 the axes, after an axis change or, on the wavelength panel, a slit move; a label typed in the
 viewer's axes options is kept until that reset, as glue's own labels are.
 
+In every Image viewer, each world coordinate's ticks are labelled with that coordinate's name.
+WCSAxes can put a coordinate's ticks on another side than the axis it belongs to: latitude can run
+along the bottom of a slit-jaw image rolled by more than 45°, and the step axis of a raster's
+wavelength-against-step panel can show latitude on the left and longitude on the right when the
+raster has a small roll. The label then stays with the ticks, and an x or y axis label typed in the
+axes options names the coordinate of that axis, wherever its ticks are; glue-core 1.27.0 alone
+labels the bottom and left ticks after the x and y axes, whichever coordinate they show.
+
 The map shows the wavelength nearest the window's reference wavelength, and the panels use
 99.5 % limits. A point, the edit subset "Point", starts at the centre of the map with the Pixel
 tool active: drag it on the map, and the spectrum panel shows its spectrum. The point is a detector
