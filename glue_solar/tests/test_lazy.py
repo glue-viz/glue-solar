@@ -16,10 +16,11 @@ from astropy.io import fits
 
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.sources.loaders import iris, lazy
-from glue_solar.sources.loaders.iris import iris_data, raster_data
+from glue_solar.sources.loaders.iris import image_data, iris_data, raster_data
 from glue_solar.sources.loaders.lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask
 
 RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
+SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
 WINDOW = 5  # Si IV 1403, which holds missing data
 BSCALE, BZERO = 0.25, 7992
 
@@ -236,6 +237,19 @@ def test_int16_stacks_load_lazily_scan_by_scan(monkeypatch, tmp_path, irispy_tes
             np.testing.assert_array_equal(stack[name][i], scan[name])
 
 
+def test_int16_slit_jaw_and_aia_cubes_load_lazily(monkeypatch, tmp_path, irispy_test_files):
+    source = find_irispy_test_file(irispy_test_files, SJI)
+    plain, gzipped = int16_copy(source, tmp_path / SJI, [0]), int16_copy(source, tmp_path / f"{SJI}.gz", [0])
+    aia = tmp_path / "aia_l2_20210905_001833_3620258102_171.fits"
+    int16_copy(source, aia, [0], INSTRUME="AIA_3", OBSID="20210905_001833_3620258102", TDESC1="171_THIN", TWAVE1=171)
+    for path in (plain, gzipped, aia):
+        lazy_result, eager = lazy_and_eager(monkeypatch, lambda path=path: image_data(path))
+        assert_loads_as_before(lazy_result, eager)
+        assert lazy_result.meta["scaled"]
+    assert (lazy_result[lazy_result.main_components[0]] == -199).any()  # data in AIA cutouts, unverified as missing
+    assert_loads_as_before(*lazy_and_eager(monkeypatch, lambda: iris_data(gzipped)))  # File -> Open
+
+
 def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path, int16_raster):
     from glue_qt.app.application import GlueApplication
     from glue_qt.viewers.histogram import HistogramViewer
@@ -270,3 +284,11 @@ def test_level_2_rasters_load_lazily_as_before(monkeypatch, irispy_data):
     for files in (negative_step, gzipped):
         for lazy_result, eager in zip(*lazy_and_eager(monkeypatch, lambda files=files: raster_data(files)), strict=True):
             assert_loads_as_before(lazy_result, eager)
+
+
+@pytest.mark.remote_data
+def test_level_2_slit_jaw_and_aia_cubes_load_lazily_as_before(monkeypatch, irispy_data):
+    paths = [irispy_data("iris_l2_20130902_163935_4000255147_SJI_1400_t000_f050.fits.gz")]
+    paths += irispy_data("iris_l2_20250519_165924_3640107442_cutout_SDO.tar.gz")  # nine AIA channels
+    for path in paths:
+        assert_loads_as_before(*lazy_and_eager(monkeypatch, lambda path=path: image_data(path)))

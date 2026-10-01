@@ -17,6 +17,7 @@ from glue.core.message import DataCollectionDeleteMessage
 from glue.core.visual import VisualAttributes
 from glue_qt.utils import get_qapp, load_ui
 from irispy.io import read_files
+from irispy.utils.constants import DN_UNIT
 from qtpy import QtWidgets
 from qtpy.QtCore import QSettings, Qt, QTimer
 
@@ -202,10 +203,15 @@ def _dataset(wcs, meta, unit, values, label, *, color=None, cmap=None, missing=M
     return data
 
 
-def _cube_data(cube, label, *, color=None, cmap=None, missing=MISSING_VALUES, scaling=None):
-    """Convert one irispy cube into one Glue dataset (`_dataset`), with its times and exposure times."""
-    data = _dataset(cube.wcs.low_level_wcs, cube.meta, cube.unit, cube.data, label, color=color, cmap=cmap,
-                    missing=missing, scaling=scaling)
+def _cube_data(cube, label, *, values=None, unit=None, color=None, cmap=None, missing=MISSING_VALUES, scaling=None):
+    """
+    Convert one irispy cube into one Glue dataset (`_dataset`), with its times and exposure times.
+
+    ``values`` and ``unit`` replace the cube's own data and unit.
+    """
+    values, unit = cube.data if values is None else values, cube.unit if unit is None else unit
+    data = _dataset(cube.wcs.low_level_wcs, cube.meta, unit, values, label, color=color, cmap=cmap, missing=missing,
+                    scaling=scaling)
     times = _frame_times(cube)
     if times is not None:
         data.add_component(_per_frame(times, cube.shape), "Time")
@@ -285,15 +291,22 @@ def _raster_collection_data(collection, windows=None, stack=False, scaling=None)
     return datasets
 
 
-def _image_cube_data(cube, path):
+def _image_cube_data(cube, path, raw=None, scaling=None):
+    """
+    A Glue dataset of irispy's SJI or AIA cube, or with ``scaling`` of the file's ``raw`` int16 instead: irispy's
+    memory-mapped cube writes 0, a valid value, over the fill, and so supplies only the coordinates and metadata.
+    """
     desc = str(cube.meta["TDESC1"])
     if "_deconvolved." in Path(path).name:  # the header does not say, the filename does
         desc += "_deconvolved"
     wave = int(cube.meta["TWAVE1"])
-    if desc.startswith("SJI"):
-        return _cube_data(cube, f"{desc}-{_observation_label(cube.meta)}", cmap=f"irissji{wave}")
+    label = f"{desc}-{_observation_label(cube.meta)}"
     # -199 is unverified as a missing code in AIA cutouts
-    return _cube_data(cube, f"{desc}-{_observation_label(cube.meta)}", cmap=f"sdoaia{wave}", missing=(-200,))
+    cmap, missing = (f"irissji{wave}", MISSING_VALUES) if desc.startswith("SJI") else (f"sdoaia{wave}", (-200,))
+    if scaling is None:
+        return _cube_data(cube, label, cmap=cmap, missing=missing)
+    cube.meta["scaled"] = True  # the values glue reads are; irispy's unit for the raw values says otherwise
+    return _cube_data(cube, label, values=raw, unit=DN_UNIT["SJI"], cmap=cmap, missing=missing, scaling=scaling)
 
 
 def last_directory():
@@ -305,12 +318,19 @@ def image_data(path):
     """
     Load an SJI or AIA-cutout file through irispy.
 
+    Data stored as int16, as Level 2 files store them, stay in the file and are scaled where glue reads them
+    (`LAZY`); a ``.fits.gz`` file's are held in memory as int16.
+
     Returns
     -------
     `~glue.core.data.Data`
     """
-    cube = read_files(path, memmap=False, uncertainty=False)
-    return _image_cube_data(cube, path)
+    with fits.open(path, memmap=True, do_not_scale_image_data=True) as hdulist:
+        scaling = _raw_scaling(hdulist[0].header)
+        raw = hdulist[0].data if scaling else None
+    if scaling:
+        allow_open_files()
+    return _image_cube_data(read_files(path, memmap=bool(scaling), uncertainty=False), path, raw, scaling)
 
 
 def iris_data(path):

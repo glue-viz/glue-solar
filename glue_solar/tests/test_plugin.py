@@ -337,7 +337,7 @@ def test_aia_cutout_fill_renders_transparent(qtbot, tmp_path, iris_tree):
     d, t, o = OBS_A
     source = iris_tree / f"{MD5}iris_l2_{d}_{t}_{o}_SDO" / f"aia_l2_{d}_{t}_{o}_171.fits"
     clean = image_data(source)
-    assert np.issubdtype(clean[clean.main_components[0]].dtype, np.int16)  # no fill, no conversion
+    assert not np.isnan(clean[clean.main_components[0]]).any()  # no fill
 
     path = tmp_path / source.name
     shutil.copy2(source, path)
@@ -345,7 +345,7 @@ def test_aia_cutout_fill_renders_transparent(qtbot, tmp_path, iris_tree):
         hdul[0].data[0, 1, 2] = -200
         hdul[0].data[0, 2, 3] = -199  # unverified as missing in AIA cutouts, so it stays data
     aia = image_data(path)
-    flux = aia[aia.main_components[0]]
+    flux = np.asarray(aia[aia.main_components[0]])
     assert flux.dtype == np.float32
     np.testing.assert_array_equal(np.argwhere(np.isnan(flux)), [[0, 1, 2]])
     assert flux[0, 2, 3] == -199
