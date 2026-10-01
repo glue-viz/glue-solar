@@ -3,12 +3,13 @@ import re
 import tarfile
 import threading
 from collections import OrderedDict
-from collections.abc import Mapping
 from functools import cached_property
 from pathlib import Path
 
 import numpy as np
 from glue.core.component import Component
+from glue.core.component_id import ComponentID
+from glue.core.component_link import ComponentLink
 from glue.core.data import Data
 from glue.core.hub import HubListener
 from glue.core.link_helpers import LinkSame
@@ -20,8 +21,10 @@ from qtpy import QtWidgets
 from qtpy.QtCore import QSettings, Qt, QTimer
 
 import astropy.units as u
+from astropy.io import fits
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
+from .lazy import LazyData, RawComponent, allow_open_files, fill_mask
 from .scan import extract_archive, scan_directory
 from .stack_spectrograms import MISSING_VALUES, stack_spectrogram_sequence
 
@@ -36,6 +39,10 @@ __all__ = [
     "link_hpc",
     "raster_data",
 ]
+
+# Load data stored as int16, as Level 2 files store it, lazily: the raw integers stay in the file (in memory for a
+# .fits.gz file) and are scaled where glue reads them. False loads everything as float32 in memory, as before.
+LAZY = True
 
 UI_MAIN = os.path.join(os.path.dirname(__file__), "iris_loader.ui")
 _SETTINGS = ("glue-solar", "glue-solar")
@@ -167,26 +174,33 @@ def _per_frame(values, shape):
     return np.broadcast_to(values.reshape(values.shape + (1,) * (len(shape) - values.ndim)), shape)
 
 
-def _cube_data(cube, label, *, color=None, cmap=None, missing=MISSING_VALUES, exposure=None):
+def _cube_data(cube, label, *, color=None, cmap=None, missing=MISSING_VALUES, exposure=None, scaling=None):
     """
     Convert one irispy cube into one Glue dataset, with the ``missing`` data codes as NaN.
 
     ``exposure`` gives the exposure times in seconds for cubes that do not carry them, such as stacks.
+    ``scaling`` is the ``(BSCALE, BZERO)`` of a cube holding a file's raw int16 (`_raw_scaling`), which then stay
+    where they are and are scaled where glue reads them.
     """
-    data = Data(label=label)
+    data = (Data if scaling is None else LazyData)(label=label)
     data.coords = _GlueWCS(cube.wcs.low_level_wcs)
     data.meta = cube.meta
     data.style = VisualAttributes(color=color, preferred_cmap=cmap)
     values = cube.data
-    # From the values, not cube.mask: irispy masks only -200, and nothing in memory-mapped cubes.
-    fill = np.isin(values, missing) if missing else None
-    if fill is not None and fill.any():
-        # In place for float data: this writes into irispy's cube, which the loader discards.
-        values = values.astype(np.result_type(values.dtype, np.float32), copy=False)
-        values[fill] = np.nan
-    data.add_component(Component(values, units=str(cube.unit)), label)
-    # Glue stores a bool component as int64, so view the NaN mask as one byte per sample
-    data.add_component(Component(np.isnan(values).view(np.uint8)), f"{label} mask")
+    if scaling is not None:
+        cid = data.add_component(RawComponent(values, *scaling, missing, units=str(cube.unit)), label)
+        # a glue derived component, computed from the values glue reads
+        data.add_component_link(ComponentLink([cid], ComponentID(f"{label} mask", parent=data), using=fill_mask))
+    else:
+        # From the values, not cube.mask: irispy masks only -200, and nothing in memory-mapped cubes.
+        fill = np.isin(values, missing) if missing else None
+        if fill is not None and fill.any():
+            # In place for float data: this writes into irispy's cube, which the loader discards.
+            values = values.astype(np.result_type(values.dtype, np.float32), copy=False)
+            values[fill] = np.nan
+        data.add_component(Component(values, units=str(cube.unit)), label)
+        # Glue stores a bool component as int64, so view the NaN mask as one byte per sample
+        data.add_component(Component(np.isnan(values).view(np.uint8)), f"{label} mask")
     times = _frame_times(cube)
     if times is not None:
         data.add_component(_per_frame(times, cube.shape), "Time")
@@ -217,7 +231,29 @@ def _observation_label(meta):
     return "-".join(filter(None, (obsid, str(meta.get("STARTOBS", ""))[:19])))
 
 
-def _raster_collection_data(collection, windows=None, stack=False):
+def _raw_scaling(header):
+    """
+    ``(BSCALE, BZERO)`` of an image HDU of int16, as Level 2 files store their data, which then loads lazily; None
+    for any other data, such as irispy's float32 test files, or with `LAZY` off.
+    """
+    if LAZY and header["BITPIX"] == 16:
+        return header.get("BSCALE", 1), header.get("BZERO", 0)
+    return None
+
+
+def _window_scaling(path):
+    """
+    The `_raw_scaling` of each spectral window of a raster file by its ``TDESC`` name, or None unless every window
+    loads lazily. Every raster file of an observation scales each window alike.
+    """
+    with fits.open(path) as hdulist:  # headers only
+        header = hdulist[0].header
+        scaling = {header[f"TDESC{i}"]: _raw_scaling(hdulist[i].header) for i in range(1, header["NWIN"] + 1)}
+    return None if None in scaling.values() else scaling
+
+
+def _raster_collection_data(collection, windows=None, stack=False, scaling=None):
+    """``scaling``: each window's ``(BSCALE, BZERO)`` when the collection holds the files' raw int16."""
     datasets = []
     for window, sequence in collection.items():
         name = str(window).replace(" ", "_")
@@ -232,7 +268,7 @@ def _raster_collection_data(collection, windows=None, stack=False):
             continue
         for i, scan in enumerate(sequence):
             label = f"{name}-{_observation_label(scan.meta)}-scan-{i}"
-            datasets.append(_cube_data(scan, label, color="#5A4FCF"))
+            datasets.append(_cube_data(scan, label, color="#5A4FCF", scaling=scaling and scaling[window]))
     return datasets
 
 
@@ -271,10 +307,12 @@ def iris_data(path):
     A raster file's windows are labelled by its raster number (``…-r00003``), so that the files of a
     multi-scan observation opened one by one keep distinct labels.
     """
-    loaded = read_files(path, memmap=False, uncertainty=False)
-    if not isinstance(loaded, Mapping):
-        return _image_cube_data(loaded, path)
-    datasets = _raster_collection_data(loaded)
+    if fits.getheader(path).get("INSTRUME") != "SPEC":
+        return image_data(path)
+    scaling = _window_scaling(path)
+    if scaling:
+        allow_open_files()
+    datasets = _raster_collection_data(read_files(path, memmap=bool(scaling), uncertainty=False), scaling=scaling)
     number = re.search(r"_r(\d{5})", Path(path).name)
     if number:
         for data in datasets:
@@ -301,10 +339,14 @@ def raster_data(files, windows=None, stack=False):
     Returns
     -------
     list of `~glue.core.data.Data`
-        One per scan and window, or one per window when ``stack`` is set.
+        One per scan and window, or one per window when ``stack`` is set. Windows stored as int16, as Level 2
+        files store them, stay in their files and are scaled where glue reads them (`LAZY`).
     """
-    collection = read_files(files, spectral_windows=windows, memmap=False, uncertainty=False)
-    return _raster_collection_data(collection, windows, stack)
+    scaling = None if stack else _window_scaling(files[0])
+    if scaling:
+        allow_open_files()
+    collection = read_files(files, spectral_windows=windows, memmap=bool(scaling), uncertainty=False)
+    return _raster_collection_data(collection, windows, stack, scaling)
 
 
 def link_hpc(data_collection):

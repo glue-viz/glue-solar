@@ -3,8 +3,11 @@ Lazily loaded IRIS data, on int16 copies of irispy's test files: Level 2 files s
 while irispy's test files hold float32.
 """
 
+from itertools import combinations
+
 import numpy as np
 import pytest
+from glue.core.component import Component
 from glue.core.component_id import ComponentID
 from glue.core.component_link import ComponentLink
 from glue.core.data import Data
@@ -12,7 +15,8 @@ from glue.core.data import Data
 from astropy.io import fits
 
 from glue_solar.conftest import find_irispy_test_file
-from glue_solar.sources.loaders import lazy
+from glue_solar.sources.loaders import iris, lazy
+from glue_solar.sources.loaders.iris import iris_data, raster_data
 from glue_solar.sources.loaders.lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask
 
 RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
@@ -40,12 +44,18 @@ def int16_copy(source, path, hdus, **header):
     return path
 
 
-@pytest.fixture
-def int16_raster(tmp_path, irispy_test_files):
+def int16_raster_copy(irispy_test_files, path, **header):
+    """The bundled 3620258102 raster with every window stored as int16 (`int16_copy`)."""
     source = find_irispy_test_file(irispy_test_files, RASTER)
     with fits.open(source) as hdulist:
         windows = range(1, hdulist[0].header["NWIN"] + 1)
-    return int16_copy(source, tmp_path / RASTER, windows)
+    path.parent.mkdir(exist_ok=True)
+    return int16_copy(source, path, windows, **header)
+
+
+@pytest.fixture
+def int16_raster(tmp_path, irispy_test_files):
+    return int16_raster_copy(irispy_test_files, tmp_path / RASTER)
 
 
 def expected(path, hdu):
@@ -152,3 +162,98 @@ def test_open_file_limit_is_raised_never_lowered(monkeypatch, soft, hard, raised
     monkeypatch.setattr(resource, "setrlimit", lambda kind, limits: calls.append(limits))
     allow_open_files()
     assert calls == ([] if raised is None else [(raised, hard)])
+
+
+def lazy_and_eager(monkeypatch, load):
+    """What ``load()`` gives lazily, and as before, with `~glue_solar.sources.loaders.iris.LAZY` off."""
+    lazy_result = load()
+    monkeypatch.setattr(iris, "LAZY", False)
+    eager = load()
+    monkeypatch.setattr(iris, "LAZY", True)
+    return lazy_result, eager
+
+
+def assert_loads_as_before(lazy, eager):
+    """
+    ``lazy`` holds raw int16 and its mask is a glue derived component, while ``eager`` is laid out as before; every
+    value, NaN, mask sample, time and exposure, and glue's image buffers of every pair of axes, are the same.
+    """
+    assert type(lazy) is LazyData
+    assert type(eager) is Data
+    [science, mask] = lazy.main_components[:1] + lazy.derived_components
+    assert isinstance(lazy.get_component(science), RawComponent)
+    assert [type(eager.get_component(cid)) for cid in eager.main_components[:2]] == [Component, Component]
+    assert [cid.label for cid in lazy.components] == [cid.label for cid in eager.components]
+    assert lazy.get_component(science).units == eager.get_component(eager.main_components[0]).units
+    assert lazy[mask].dtype == np.uint8
+    pairs = [(science, eager.main_components[0]), (mask, eager.main_components[1])]
+    for name in ("Time", "Exposure time"):
+        pairs.append((lazy.id[name], eager.id[name]))
+    for lazy_cid, eager_cid in pairs:
+        np.testing.assert_array_equal(lazy[lazy_cid], eager[eager_cid])
+    for percentile in (0.25, 99.75):  # glue's 99.5% colour limits, exactly as from every eager value
+        exact = np.nanpercentile(eager[eager.main_components[0]], percentile)
+        assert lazy.compute_statistic("percentile", science, percentile=percentile, random_subset=10000) == exact
+    for axes in combinations(range(lazy.ndim), 2):
+        bounds = [(0, n - 1, n) if axis in axes else n // 2 for axis, n in enumerate(lazy.shape)]
+        resampled = [(0, n - 1, 2 * n - 1) if axis in axes else n // 3 for axis, n in enumerate(lazy.shape)]
+        for bounds in (bounds, resampled):
+            for lazy_cid, eager_cid in pairs[:2]:
+                np.testing.assert_array_equal(
+                    lazy.compute_fixed_resolution_buffer(bounds, target_cid=lazy_cid),
+                    eager.compute_fixed_resolution_buffer(bounds, target_cid=eager_cid),
+                )
+
+
+def test_int16_rasters_load_lazily_and_float32_ones_as_before(monkeypatch, tmp_path, int16_raster, irispy_test_files):
+    for window in ("Si IV 1403", "Mg II k 2796"):
+        assert_loads_as_before(*lazy_and_eager(monkeypatch, lambda: raster_data([int16_raster], [window])[0]))
+    # File -> Open, every window
+    for lazy_result, eager in zip(*lazy_and_eager(monkeypatch, lambda: iris_data(int16_raster)), strict=True):
+        assert lazy_result.label == eager.label
+        assert_loads_as_before(lazy_result, eager)
+    # a negative raster step, which irispy flips (D10), and a gzipped file, held in memory as int16
+    flipped = int16_raster_copy(irispy_test_files, tmp_path / "flipped" / RASTER, STEPS_AV=-1.0)
+    gzipped = int16_raster_copy(irispy_test_files, tmp_path / "gzipped" / f"{RASTER}.gz")
+    for path in (flipped, gzipped):
+        assert_loads_as_before(*lazy_and_eager(monkeypatch, lambda path=path: raster_data([path], ["Si IV 1403"])[0]))
+    # irispy's float32 test file loads as before
+    [float32] = raster_data([find_irispy_test_file(irispy_test_files, RASTER)], ["Si IV 1403"])
+    assert type(float32) is Data
+    assert [type(float32.get_component(cid)) for cid in float32.main_components[:2]] == [Component, Component]
+
+
+def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path, int16_raster):
+    from glue_qt.app.application import GlueApplication
+    from glue_qt.viewers.histogram import HistogramViewer
+    from glue_qt.viewers.image import ImageViewer
+
+    [data] = raster_data([int16_raster], ["Si IV 1403"])
+    oracle = expected(int16_raster, WINDOW)
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    layer = viewer.state.layers[0]
+    layer.percentile = 99.5
+    assert [layer.v_min, layer.v_max] == [np.nanpercentile(oracle, 0.25), np.nanpercentile(oracle, 99.75)]
+    layer.attribute = data.derived_components[0]  # the mask draws too
+    viewer.figure.canvas.draw()
+    histogram = app.new_data_viewer(HistogramViewer, data=data)
+    histogram.state.x_att = data.main_components[0]
+    assert [histogram.state.hist_x_min, histogram.state.hist_x_max] == [np.nanmin(oracle), np.nanmax(oracle)]
+    # a session cannot hold lazy data yet (WP3): glue reports it and writes nothing
+    errors = []
+    monkeypatch.setattr(app, "report_error", lambda message, detail: errors.append(message))
+    app.save_session(str(tmp_path / "lazy.glu"))
+    assert errors[0].startswith("Failed to save session")
+    assert not (tmp_path / "lazy.glu").exists()
+
+
+@pytest.mark.remote_data
+def test_level_2_rasters_load_lazily_as_before(monkeypatch, irispy_data):
+    negative_step = irispy_data("iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz")
+    gzipped = [irispy_data("iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz")]
+    for files in (negative_step, gzipped):
+        for lazy_result, eager in zip(*lazy_and_eager(monkeypatch, lambda files=files: raster_data(files)), strict=True):
+            assert_loads_as_before(lazy_result, eager)
