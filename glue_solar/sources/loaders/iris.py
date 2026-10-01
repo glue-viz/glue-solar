@@ -3,6 +3,7 @@ import re
 import tarfile
 import threading
 from collections.abc import Mapping
+from functools import cached_property
 from pathlib import Path
 
 import numpy as np
@@ -83,24 +84,35 @@ class _GlueWCS(BaseWCSWrapper):
             for unit, physical_type in zip(self._wcs.world_axis_units, self._wcs.world_axis_physical_types)
         )
 
+    @cached_property
+    def _helioprojective(self):
+        """
+        Each helioprojective world axis: its index, its unit's scale to arcsec and back, and for the
+        longitude the full circle in its unit; worked out once, since WCSAxes converts every draw.
+        """
+        axes = []
+        for i, (unit, physical_type) in enumerate(zip(self._wcs.world_axis_units, self.world_axis_physical_types)):
+            if physical_type and physical_type.startswith("custom:pos.helioprojective."):
+                unit = u.Unit(unit)
+                full_circle = (360 * u.deg).to_value(unit) if physical_type.endswith(".lon") else None
+                # the scales a Quantity conversion multiplies by
+                axes.append((i, unit.to(u.arcsec), u.arcsec.to(unit), full_circle))
+        return axes
+
     def pixel_to_world_values(self, *pixel_arrays):
         with WCS_LOCK:
             values = list(self._wcs.pixel_to_world_values(*pixel_arrays))
-        for i, physical_type in enumerate(self.world_axis_physical_types):
-            if physical_type and physical_type.startswith("custom:pos.helioprojective."):
-                unit = u.Unit(self._wcs.world_axis_units[i])
-                values[i] = np.asarray(values[i])
-                if physical_type.endswith(".lon"):
-                    full_circle = (360 * u.deg).to_value(unit)
-                    values[i] = (values[i] + full_circle / 2) % full_circle - full_circle / 2
-                values[i] = (values[i] * unit).to_value(u.arcsec)
+        for i, to_arcsec, _, full_circle in self._helioprojective:
+            values[i] = np.asarray(values[i])
+            if full_circle is not None:
+                values[i] = (values[i] + full_circle / 2) % full_circle - full_circle / 2
+            values[i] = values[i] * to_arcsec
         return tuple(values)
 
     def world_to_pixel_values(self, *world_arrays):
         values = list(world_arrays)
-        for i, physical_type in enumerate(self.world_axis_physical_types):
-            if physical_type and physical_type.startswith("custom:pos.helioprojective."):
-                values[i] = (np.asarray(values[i]) * u.arcsec).to_value(u.Unit(self._wcs.world_axis_units[i]))
+        for i, _, from_arcsec, _ in self._helioprojective:
+            values[i] = np.asarray(values[i]) * from_arcsec
         with WCS_LOCK:
             return self._wcs.world_to_pixel_values(*values)
 

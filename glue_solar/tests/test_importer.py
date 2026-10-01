@@ -10,6 +10,7 @@ from qtpy.QtCore import Qt
 
 import astropy.units as u
 from astropy.io import fits
+from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
 from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, find_irispy_test_file
 from glue_solar.sources.iris import read_iris_file
@@ -266,6 +267,65 @@ def test_real_raster_fill_values_become_nan(irispy_test_files):
     mask = data[f"{data.label} mask"]
     assert mask.dtype == np.uint8
     np.testing.assert_array_equal(mask, np.isnan(values))
+
+
+class _CountedWCS(BaseWCSWrapper):
+    """A WCS that counts how often its world axis units and physical types are read."""
+
+    def __init__(self, wcs):
+        super().__init__(wcs)
+        self.reads = 0
+
+    @property
+    def world_axis_units(self):
+        self.reads += 1
+        return self._wcs.world_axis_units
+
+    @property
+    def world_axis_physical_types(self):
+        self.reads += 1
+        return self._wcs.world_axis_physical_types
+
+    def pixel_to_world_values(self, *pixel_arrays):
+        return self._wcs.pixel_to_world_values(*pixel_arrays)
+
+    def world_to_pixel_values(self, *world_arrays):
+        return self._wcs.world_to_pixel_values(*world_arrays)
+
+
+def test_arcsec_coordinates_read_the_axes_once(irispy_test_files):
+    obs = "iris_l2_20210905_001833_3620258102_{}.fits"
+    raster = raster_data([find_irispy_test_file(irispy_test_files, obs.format("raster_t000_r00000"))], ["Si IV 1403"])
+    sji = image_data(find_irispy_test_file(irispy_test_files, obs.format("SJI_1400_t000")))
+    for data in (*raster, sji):
+        raw = _CountedWCS(data.coords._wcs)
+        wcs = type(data.coords)(raw)
+        units, kinds = raw._wcs.world_axis_units, raw._wcs.world_axis_physical_types
+        arrays = [np.array([-0.5, 1.5, n - 1.5]) for n in data.shape[::-1]]
+        missing = [np.array([np.nan, 1.5])] * raw.pixel_n_dim  # gWCS cannot take NaN back to pixels
+        for pixel in (missing, arrays, [1] * raw.pixel_n_dim, [np.float64(2.5)] * raw.pixel_n_dim):
+            world = wcs.pixel_to_world_values(*pixel)
+            # the values of a Quantity conversion, bit for bit
+            for value, expected, unit, kind in zip(world, raw.pixel_to_world_values(*pixel), units, kinds):
+                if kind.startswith("custom:pos.helioprojective."):
+                    if kind.endswith(".lon"):
+                        circle = (360 * u.deg).to_value(unit)
+                        expected = (np.asarray(expected) + circle / 2) % circle - circle / 2
+                    expected = (np.asarray(expected) * u.Unit(unit)).to_value(u.arcsec)
+                assert type(value) is type(expected)
+                assert np.asarray(value).tobytes() == np.asarray(expected).tobytes()
+            if pixel is not missing:
+                # and back, also as a single-precision world position
+                for where in (world, [np.asarray(value, dtype=np.float32) for value in world]):
+                    native = [
+                        (np.asarray(value) * u.arcsec).to_value(unit) if kind.startswith("custom:pos.helioprojective.")
+                        else value
+                        for value, unit, kind in zip(where, units, kinds)
+                    ]
+                    for value, expected in zip(wcs.world_to_pixel_values(*where), raw.world_to_pixel_values(*native)):
+                        assert np.asarray(value).tobytes() == np.asarray(expected).tobytes()
+        # WCSAxes converts through these dozens of times per draw: the axes are read once, not per call
+        assert raw.reads == 2
 
 
 _THREADS = """
