@@ -278,7 +278,7 @@ def test_link_graph_in_every_add_order(qtbot, monkeypatch, sns, order):
         qtbot.waitUntil(lambda: sji_viewer.state.slices[0] == frame)
         qtbot.waitUntil(marker.get_visible)
         assert tuple(marker.get_xydata()[0]) == pytest.approx(raster_point_on_sji(raster, sji, step, slit, frame))
-    assert [layer.visible for layer in sji_viewer.state.layers if layer.layer.label == "Point"] == [False]
+    assert [layer for layer in sji_viewer.state.layers if layer.layer.label == "Point"] == []
 
     # and a slit-jaw time master moves the point to the nearest exposure
     coordinator(dc).set_master(sji)

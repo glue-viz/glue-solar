@@ -7,6 +7,7 @@ from glue.config import settings
 from glue.core import Data
 from glue.core.component import DateTimeComponent
 from glue.core.hub import HubListener
+from glue.core.link_manager import LinkManager
 from glue.core.message import SettingsChangeMessage, SubsetUpdateMessage
 from glue.core.subset import SubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
@@ -24,7 +25,7 @@ import glue_solar
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.quicklook import QuicklookImageViewer, coordinator, nearest, observation_key, quicklook
 from glue_solar.sources.loaders.iris import image_data, raster_data
-from glue_solar.tests.helpers import mouse, raster_point_on_sji, select_point
+from glue_solar.tests.helpers import count_tick_work, mouse, raster_point_on_sji, select_point
 
 SCAN = "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"
 
@@ -281,8 +282,8 @@ def test_quicklook_of_a_sit_and_stare(bare_app, tmp_path, irispy_test_files):
     assert sjis[2].label in bare_app.statusBar().currentMessage()
     for viewer in viewers["sji"]:
         assert viewer.state.aspect == "equal"
-        # nor does glue draw the point's crosshair on a slit-jaw image
-        assert [layer.visible for layer in viewer.state.layers if layer.layer.label == "Point"] == [False]
+        # nor does glue draw, or update, the point's crosshair on a slit-jaw image
+        assert [layer for layer in viewer.state.layers if layer.layer.label == "Point"] == []
     assert bare_app.data_collection.external_links  # the datasets were added and linked
     # the stock axis combo still turns the spectrogram into a map and back
     spectrogram = viewers["spectrogram"].state
@@ -374,6 +375,34 @@ def test_a_sit_and_stare_exposure_axis(bare_app, monkeypatch, irispy_test_files)
     assert list(drawn_ticks(wavelength, "b")) == ["Exposure"]
 
 
+def test_a_slit_step_relabels_the_exposure_axis_without_placing_its_ticks(bare_app, monkeypatch, irispy_test_files):
+    raster, _ = sit_and_stare(irispy_test_files)
+    wavelength = quicklook(bare_app, [raster])["wavelength"]  # exposure on y
+    label = wavelength.state.y_axislabel
+    assert label.startswith("Exposure (acquisition order)\n")
+    edit = wavelength.options_widget().ui.axes_editor.ui.text_y_axislabel  # the axes options
+    for typed in ("", wavelength.state.y_att_world.label):  # glue's own labels, typed: the exposure label again
+        edit.setText(typed)
+        edit.editingFinished.emit()
+        assert wavelength.state.y_axislabel == edit.text() == label
+        assert list(drawn_ticks(wavelength, "l")) == [label]
+    calls = count_tick_work(monkeypatch, wavelength.axes)
+    for typed in (False, True):
+        coords = wavelength.axes.coords
+        calls.clear()
+        wavelength.state.slices = (wavelength.state.slices[0], 5 + typed, wavelength.state.slices[2])
+        assert wavelength.axes.coords is not coords  # glue reset the axes and their labels
+        # glue's '' and world labels, and the exposure label again, go on their coordinates, which places
+        # no tick until the draw (glue-core 1.27.0 alone: 6 set_xlabel and set_ylabel and 28 tick updates)
+        assert calls == {}
+        assert wavelength.state.y_axislabel == edit.text() == label
+        assert list(drawn_ticks(wavelength, "l")) == [label]
+        edit.setText("Exposure")  # typed in the axes options: kept until glue resets the axes
+        edit.editingFinished.emit()
+        assert wavelength.state.y_axislabel == "Exposure"
+        assert list(drawn_ticks(wavelength, "l")) == ["Exposure"]
+
+
 def crosshair(viewer):
     """Where the Point's crosshair shows in an Image viewer, or None."""
     [artist] = [artist for artist in viewer.layers if artist.layer.label == "Point"]
@@ -423,6 +452,28 @@ def test_quicklook_of_a_raster_and_of_a_stack(bare_app, scans):
     viewers = quicklook(bare_app, [scan, stack])  # a stack of the window is shown rather than one scan
     check_panels(bare_app, viewers, stack, {"map": (1, 2), "spectrogram": (3, 2), "wavelength": (3, 0)})
     assert viewers["map"].state.slices[0] == 0
+
+
+def test_quicklook_adds_its_datasets_in_one_link_update(bare_app, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    sjis = [sji, image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_2796_t000")))]
+    collection = bare_app.data_collection
+    updates = []
+    update = LinkManager.update_externally_derivable_components
+
+    def counted(self, *args, **kwargs):
+        updates.append(len(collection))
+        return update(self, *args, **kwargs)
+
+    monkeypatch.setattr(LinkManager, "update_externally_derivable_components", counted)
+    quicklook(bare_app, [raster, *sjis, raster])
+    # each update pairs every two datasets: one for the three, and one for the links between them
+    assert updates == [3, 3]
+    assert list(collection) == [raster, *sjis]
+    assert len(collection.external_links) == 4  # each slit-jaw's longitude and latitude to the raster's
+    updates.clear()
+    quicklook(bare_app, [raster, *sjis])  # already added and linked
+    assert updates == []
 
 
 def test_quicklook_fits_a_spectrum_computed_on_a_thread(bare_app, qtbot, monkeypatch, irispy_test_files):
@@ -479,14 +530,17 @@ def test_each_quicklook_edits_its_own_point(bare_app, scans):
     first = quicklook(bare_app, [scan])
     first_tab = bare_app.tab_count - 1
     [first_point] = bare_app.session.edit_subset_mode.edit_subset
+    mine = bare_app.data_collection.new_subset_group(label="mine", subset_state=SubsetState())
     second = quicklook(bare_app, [stack])
     [second_point] = bare_app.session.edit_subset_mode.edit_subset
     assert second_point is not first_point
+    # not even as hidden layers, which glue would still update and redraw at each move
     for viewer in (*[first[role] for role in ("map", "spectrogram", "wavelength", "spectrum")], *second["sji"]):
-        assert not [layer for layer in viewer.state.layers if layer.visible and layer.layer in second_point.subsets]
+        assert not [layer for layer in viewer.state.layers if layer.layer in second_point.subsets]
     for role in ("map", "spectrum"):
-        shown = [layer.layer.group for layer in second[role].state.layers if hasattr(layer.layer, "group") and layer.visible]
-        assert shown == [second_point]
+        # another subset is only hidden
+        subsets = [layer for layer in second[role].state.layers if hasattr(layer.layer, "group")]
+        assert {layer.layer.group: layer.visible for layer in subsets} == {second_point: True, mine: False}
     bare_app.tab_widget.setCurrentIndex(first_tab)
     assert bare_app.session.edit_subset_mode.edit_subset == [first_point]
 
@@ -599,11 +653,54 @@ def test_an_sji_point_moves_no_raster_panel(bare_app, qtbot, irispy_test_files):
     select_point(viewers["sji"][0], 10, 20)
     qtbot.wait(20)
     assert {role: viewers[role].state.slices for role in RASTER_PANELS} == before
-    # the point shows on the slit-jaw image it was clicked on, not on the raster panels
-    for viewer, shown in ((viewers["sji"][0], True), *((viewers[role], False) for role in RASTER_PANELS)):
-        assert [layer.visible for layer in viewer.state.layers if getattr(layer.layer, "group", None) is group] == [
-            shown
-        ]
+    # the point shows on the slit-jaw image it was clicked on, and the raster panels drop its layer, until
+    # the next raster click
+    for click in (False, True):
+        for viewer, shown in ((viewers["sji"][0], not click), *((viewers[role], click) for role in RASTER_PANELS)):
+            layers = [layer.visible for layer in viewer.state.layers if getattr(layer.layer, "group", None) is group]
+            assert layers == ([True] if shown else [])
+        select_point(viewers["map"], 30, 10)
+        qtbot.wait(20)
+    assert crosshair(viewers["map"]) == (30, 10)
+
+
+def test_a_raster_point_move_leaves_the_slit_jaw_layers_alone(bare_app, qtbot, monkeypatch, irispy_test_files):
+    from glue.viewers.image.layer_artist import ImageSubsetLayerArtist
+
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    for viewer in (sji_viewer, viewers["map"]):  # the slit-jaw viewer gets the point, then drops it
+        select_point(viewer, 10, 20)
+        qtbot.wait(20)
+    updated = []
+    update = ImageSubsetLayerArtist.update
+
+    def counted(self, *args, **kwargs):
+        updated.append(self.state.viewer_state)
+        return update(self, *args, **kwargs)
+
+    monkeypatch.setattr(ImageSubsetLayerArtist, "update", counted)
+    for exposure in (1, 2, 3):
+        viewers["spectrogram"].state.slices = (exposure, *viewers["spectrogram"].state.slices[1:])
+        qtbot.waitUntil(lambda exposure=exposure: f"step {exposure}" in readout(viewers["spectrogram"]))
+    qtbot.wait(20)
+    # glue updates, and redraws, a hidden layer at every move of its subset
+    assert [state for state in updated if state is sji_viewer.state] == []
+    assert len([state for state in updated if state is viewers["map"].state]) == 3
+    assert crosshair(viewers["map"])[0] == 3
+
+
+def test_a_closed_panel_gets_no_point(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    spectrogram = viewers["spectrogram"]
+    spectrogram.close(warn=False)
+    layers = list(spectrogram.state.layers)
+    for viewer in (viewers["sji"][0], viewers["map"]):  # a slit-jaw point, then a raster point
+        select_point(viewer, 10, 20)
+        qtbot.wait(20)
+    assert list(spectrogram.state.layers) == layers
 
 
 @pytest.mark.remote_data
@@ -666,12 +763,42 @@ def test_a_drag_moves_the_other_panels_once(bare_app, qtbot, scans):
     written = []
     viewers["spectrogram"].state.add_callback("slices", lambda slices: written.append(slices[0]))
     mouse(viewers["map"], "button_press_event", 1, 30)
+    assert written == [1]  # the press, like a click, at once
     for step in (2, 3, 4, 5):
         mouse(viewers["map"], "motion_notify_event", step, 30)
     mouse(viewers["map"], "button_release_event", 5, 30)
-    assert written == []  # nothing yet: the panels follow when Qt next runs
+    assert written == [1]  # the drag only when Qt next runs, at its last position
     qtbot.waitUntil(lambda: viewers["spectrogram"].state.slices[0] == 5)
-    assert written == [5]
+    assert written == [1, 5]
+    select_point(viewers["map"], 7, 30)  # and the next click at once again
+    assert written == [1, 5, 7]
+
+
+def test_a_click_draws_each_other_panel_once(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    qtbot.wait(50)
+    draws = Counter()
+    panels = {"spectrogram": viewers["spectrogram"], "wavelength": viewers["wavelength"], "sji": viewers["sji"][0]}
+    for role, viewer in panels.items():
+        draw = viewer.figure.canvas.draw
+        monkeypatch.setattr(viewer.figure.canvas, "draw", lambda draw=draw, role=role: draws.update([role]) or draw())
+    select_point(viewers["map"], 100, 30)  # the map's own draws are the helper's
+    # moved before glue draws the click: each draws once, with its new slider and the new point
+    assert viewers["spectrogram"].state.slices[0] == 100
+    assert viewers["wavelength"].state.slices[1] == 30
+    qtbot.waitUntil(lambda: " · Δt " in readout(panels["sji"]))
+    qtbot.wait(50)
+    assert draws == {"spectrogram": 1, "wavelength": 1, "sji": 1}
+
+
+def test_an_error_after_a_click_is_reported(bare_app, qtbot, monkeypatch, scans):
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    with monkeypatch.context() as patch, qtbot.captureExceptions() as errors:
+        patch.setattr(coordinator(bare_app.data_collection), "_sync", lambda key: 1 / 0)
+        select_point(viewers["map"], 1, 30)  # matplotlib's mouse events would only print it
+    assert [type(error) for _, error, _ in errors] == [ZeroDivisionError]
 
 
 def expected_nearest(when, times):
@@ -1045,15 +1172,18 @@ def overlays(viewer):
     )
 
 
-def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files):
+@pytest.mark.parametrize("show_axes", [True, False])
+def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, monkeypatch, irispy_test_files, show_axes):
     raster, sji = sit_and_stare(irispy_test_files)
     # the fixture keeps full-size slit positions for 10x smaller frames: give each frame its own
     n, ny, nx = sji.shape
     slit = 1 + np.linspace(3, nx - 4, n)
     slit[[5, 6]] = 0, np.nan  # frames without a slit position
     sji.meta["slit x position"] = slit
+    monkeypatch.setattr(settings, "SOLAR_SHOW_AXES", show_axes)  # all the same without axes
     viewers = quicklook(bare_app, [raster, sji])
     [sji_viewer] = viewers["sji"]
+    assert {viewer.axes.axison for viewer in bare_app.viewers[-1] if isinstance(viewer, ImageViewer)} == {show_axes}
     coord = coordinator(bare_app.data_collection)
     for frame in (0, n // 2, n - 1):
         sji_viewer.state.slices = (frame, 0, 0)
@@ -1095,6 +1225,58 @@ def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files):
     menu_action(viewers["map"], "Clear point").trigger()
     qtbot.waitUntil(lambda: overlays(sji_viewer)[1] is None)
     assert overlays(sji_viewer)[0] is not None  # the slit stays
+
+
+def test_a_wavelength_step_leaves_the_time_sync_alone(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    coord = coordinator(bare_app.data_collection)
+    qtbot.wait(20)
+    syncs = []
+    sync = coord._sync
+    monkeypatch.setattr(coord, "_sync", lambda key: syncs.append(key) or sync(key))
+    for wavelength in (3, 4, 5):  # the time master's map
+        viewers["map"].state.slices = (*viewers["map"].state.slices[:2], wavelength)
+        qtbot.wait(20)
+    assert syncs == []
+    assert "time master" in readout(viewers["map"])
+    viewers["spectrogram"].state.slices = (1, *viewers["spectrogram"].state.slices[1:])  # its exposure slider
+    assert check_follower(bare_app, qtbot, raster_time(raster, (1,)), sji, sji_viewer)
+    assert syncs == [observation_key(raster)]
+
+
+def test_the_raster_point_is_placed_once_per_frame(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    coord = coordinator(bare_app.data_collection)
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    qtbot.wait(20)
+    placed = []
+    place = glue_solar.quicklook._sji_pixels
+
+    def counted(data, frame, lon, lat):
+        placed.append(frame)
+        return place(data, frame, lon, lat)
+
+    monkeypatch.setattr(glue_solar.quicklook, "_sji_pixels", counted)
+    viewers["spectrogram"].state.slices = (186, *viewers["spectrogram"].state.slices[1:])
+    qtbot.waitUntil(lambda: " · Δt " in readout(sji_viewer))
+    qtbot.wait(20)
+    frame = sji_viewer.state.slices[0]
+    # the frame-time readout and the marker share one projection through the frame's coordinates
+    assert placed == [frame]
+    # and it follows the point and the frame
+    for slit in (group.subset_state.slices[1].start + 3, group.subset_state.slices[1].start):
+        group.subset_state = PixelSubsetState(raster, [slice(186, 187), slice(slit, slit + 1), slice(None)])
+        where = raster_point_on_sji(raster, sji, 186, slit, frame)
+        qtbot.waitUntil(lambda where=where: overlays(sji_viewer)[1] == pytest.approx(where))
+        assert coord.point_on(sji_viewer) == pytest.approx(where)
+        sji_viewer.state.slices = (frame - 1, 0, 0)  # by hand
+        where = raster_point_on_sji(raster, sji, 186, slit, frame - 1)
+        assert overlays(sji_viewer)[1] == coord.point_on(sji_viewer) == pytest.approx(where)
+        sji_viewer.state.slices = (frame, 0, 0)
 
 
 def test_no_raster_point_on_another_observation(bare_app, qtbot, irispy_test_files):

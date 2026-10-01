@@ -93,10 +93,10 @@ def _source_filename_hdu(start, column):
     return fits.BinTableHDU.from_columns([fits.Column(name=column, format="66A", array=names)])
 
 
-def _write_image(path, header):
-    # A small real rotation avoids irispy 0.8.1 treating zero off-diagonal
-    # PC entries as missing pointing samples.
-    angle = np.deg2rad(1.0)
+def _write_image(path, header, roll=1.0):
+    # A small real rotation by default avoids irispy 0.8.1 treating zero
+    # off-diagonal PC entries as missing pointing samples.
+    angle = np.deg2rad(roll)
     # real SJI files spell the units this way; astropy's WCS warns unless they are normalised
     header["CUNIT1"], header["CUNIT2"], header["CUNIT3"] = "arcsecs", "arcsecs", "seconds"
     header.update({

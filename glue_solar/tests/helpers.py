@@ -2,9 +2,34 @@
 Helpers that drive glue's viewers the way a user does, and read the expected answers from the data.
 """
 
+from collections import Counter
+
 from matplotlib.backend_bases import MouseEvent
 
-__all__ = ["mouse", "raster_point_on_sji", "select_point"]
+__all__ = ["count_tick_work", "mouse", "raster_point_on_sji", "select_point"]
+
+
+def count_tick_work(monkeypatch, axes):
+    """
+    A Counter of the WCSAxes ``axes``' ``set_xlabel`` and ``set_ylabel`` calls, which place every tick at once,
+    and of its ``_update_ticks``, one per coordinate in each tick placement.
+    """
+    from astropy.visualization.wcsaxes.coordinate_helpers import CoordinateHelper
+
+    calls = Counter()
+    for name in ("set_xlabel", "set_ylabel"):
+        method = getattr(axes, name)
+        monkeypatch.setattr(axes, name, lambda *args, _name=name, _method=method, **kwargs: (
+            calls.update([_name]) or _method(*args, **kwargs)
+        ))
+    update_ticks = CoordinateHelper._update_ticks
+
+    def counted(self):
+        calls.update(["_update_ticks"] if self.parent_axes is axes else [])
+        return update_ticks(self)
+
+    monkeypatch.setattr(CoordinateHelper, "_update_ticks", counted)
+    return calls
 
 
 def mouse(viewer, name, x, y, button=1):

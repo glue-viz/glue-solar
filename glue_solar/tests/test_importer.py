@@ -1,3 +1,4 @@
+import copy
 import os
 import shutil
 import subprocess
@@ -10,6 +11,7 @@ from qtpy.QtCore import Qt
 
 import astropy.units as u
 from astropy.io import fits
+from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
 from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, find_irispy_test_file
 from glue_solar.sources.iris import read_iris_file
@@ -268,30 +270,165 @@ def test_real_raster_fill_values_become_nan(irispy_test_files):
     np.testing.assert_array_equal(mask, np.isnan(values))
 
 
+class _CountedWCS(BaseWCSWrapper):
+    """A WCS that counts how often its world axis units and physical types are read, and its conversions to world."""
+
+    def __init__(self, wcs):
+        super().__init__(wcs)
+        self.reads = 0
+        self.conversions = 0
+
+    @property
+    def world_axis_units(self):
+        self.reads += 1
+        return self._wcs.world_axis_units
+
+    @property
+    def world_axis_physical_types(self):
+        self.reads += 1
+        return self._wcs.world_axis_physical_types
+
+    def pixel_to_world_values(self, *pixel_arrays):
+        self.conversions += 1
+        return self._wcs.pixel_to_world_values(*pixel_arrays)
+
+    def world_to_pixel_values(self, *world_arrays):
+        return self._wcs.world_to_pixel_values(*world_arrays)
+
+
+def test_arcsec_coordinates_read_the_axes_once(irispy_test_files):
+    obs = "iris_l2_20210905_001833_3620258102_{}.fits"
+    raster = raster_data([find_irispy_test_file(irispy_test_files, obs.format("raster_t000_r00000"))], ["Si IV 1403"])
+    sji = image_data(find_irispy_test_file(irispy_test_files, obs.format("SJI_1400_t000")))
+    for data in (*raster, sji):
+        raw = _CountedWCS(data.coords._wcs)
+        wcs = type(data.coords)(raw)
+        units, kinds = raw._wcs.world_axis_units, raw._wcs.world_axis_physical_types
+        arrays = [np.array([-0.5, 1.5, n - 1.5]) for n in data.shape[::-1]]
+        missing = [np.array([np.nan, 1.5])] * raw.pixel_n_dim  # gWCS cannot take NaN back to pixels
+        for pixel in (missing, arrays, [1] * raw.pixel_n_dim, [np.float64(2.5)] * raw.pixel_n_dim):
+            world = wcs.pixel_to_world_values(*pixel)
+            # the values of a Quantity conversion, bit for bit
+            for value, expected, unit, kind in zip(world, raw.pixel_to_world_values(*pixel), units, kinds):
+                if kind.startswith("custom:pos.helioprojective."):
+                    if kind.endswith(".lon"):
+                        circle = (360 * u.deg).to_value(unit)
+                        expected = (np.asarray(expected) + circle / 2) % circle - circle / 2
+                    expected = (np.asarray(expected) * u.Unit(unit)).to_value(u.arcsec)
+                assert type(value) is type(expected)
+                assert np.asarray(value).tobytes() == np.asarray(expected).tobytes()
+            if pixel is not missing:
+                # and back, also as a single-precision world position
+                for where in (world, [np.asarray(value, dtype=np.float32) for value in world]):
+                    native = [
+                        (np.asarray(value) * u.arcsec).to_value(unit) if kind.startswith("custom:pos.helioprojective.")
+                        else value
+                        for value, unit, kind in zip(where, units, kinds)
+                    ]
+                    for value, expected in zip(wcs.world_to_pixel_values(*where), raw.world_to_pixel_values(*native)):
+                        assert np.asarray(value).tobytes() == np.asarray(expected).tobytes()
+        # WCSAxes converts through these dozens of times per draw: the axes are read once, not per call
+        assert raw.reads == 2
+
+
+def test_arcsec_coordinates_reuse_identical_conversions(irispy_test_files):
+    from glue_solar.sources.loaders.iris import _MEMO_ENTRIES, _MEMO_SAMPLES
+
+    obs = "iris_l2_20210905_001833_3620258102_{}.fits"
+    raster = raster_data([find_irispy_test_file(irispy_test_files, obs.format("raster_t000_r00000"))], ["Si IV 1403"])
+    sji = image_data(find_irispy_test_file(irispy_test_files, obs.format("SJI_1400_t000")))
+    for data in (*raster, sji):
+        raw = _CountedWCS(data.coords._wcs)
+        wcs, fresh = type(data.coords)(raw), type(data.coords)(raw)
+        pixel = [np.array([-0.5, 1.5, n - 1.5]) for n in data.shape[::-1]]
+        for inputs in (pixel, [np.float64(2.5)] * raw.pixel_n_dim):
+            first = wcs.pixel_to_world_values(*inputs)
+            conversions = raw.conversions
+            again = wcs.pixel_to_world_values(*copy.deepcopy(inputs))  # the same inputs in other objects
+            assert raw.conversions == conversions  # reused
+            # bit for bit what the wrapped WCS gives, of the same types
+            for value, expected in zip(again, fresh.pixel_to_world_values(*inputs)):
+                assert type(value) is type(expected)
+                assert np.asarray(value).tobytes() == np.asarray(expected).tobytes()
+            # each caller has its own arrays: changing them changes nothing kept
+            for value in (*first, *again):
+                if isinstance(value, np.ndarray):
+                    value[...] = 0
+            for value, expected in zip(wcs.pixel_to_world_values(*inputs), fresh.pixel_to_world_values(*inputs)):
+                assert np.asarray(value).tobytes() == np.asarray(expected).tobytes()
+        # another type, dtype, shape or value is converted again
+        conversions = raw.conversions
+        wcs.pixel_to_world_values(*[np.asarray(2.5)] * raw.pixel_n_dim)  # a 0-d array, not a scalar
+        for change in (lambda p: p.astype(np.float32), lambda p: p[:2], lambda p: np.nextafter(p, 0)):
+            wcs.pixel_to_world_values(*map(change, pixel))
+        assert raw.conversions == conversions + 4
+        # at most the _MEMO_ENTRIES inputs used last are kept, and none larger than _MEMO_SAMPLES samples
+        scalars = [np.float64(2.5)] * raw.pixel_n_dim
+        for shift in range(1, 2 * _MEMO_ENTRIES + 1):
+            wcs.pixel_to_world_values(*[p + shift for p in pixel])
+            conversions = raw.conversions
+            wcs.pixel_to_world_values(*scalars)  # used after each new input, as by an unchanged panel's redraw
+            assert raw.conversions == conversions
+        assert len(wcs._memo) == _MEMO_ENTRIES
+        conversions = raw.conversions
+        wcs.pixel_to_world_values(*[p + 2 * _MEMO_ENTRIES for p in pixel])  # the latest is kept
+        wcs.pixel_to_world_values(*pixel)  # the first is not
+        large = [np.zeros(_MEMO_SAMPLES + 1)] * raw.pixel_n_dim
+        side = int(_MEMO_SAMPLES**0.5) + 1  # small inputs that broadcast to more samples
+        spread = [np.zeros((side, 1)), np.zeros((1, side)), *[np.zeros((1, 1))] * (raw.pixel_n_dim - 2)]
+        for inputs in (large, large, spread, spread):
+            wcs.pixel_to_world_values(*inputs)
+        assert raw.conversions == conversions + 5
+
+
 _THREADS = """
 import os, sys, threading, traceback
 import numpy as np
-from glue_solar.sources.loaders.iris import raster_data
+from glue_solar.sources.loaders import iris
 
-wcs = raster_data([sys.argv[1]], ["Si IV 1403"])[0].coords
+wcs = iris.raster_data([sys.argv[1]], ["Si IV 1403"])[0].coords
 pixels = [np.arange(1000.0) % n for n in wcs.pixel_shape]
 done = threading.Event()
 
+def pixels_of(i):  # more inputs than the wrapper keeps, so each conversion reaches wcslib
+    return [p + i % 300 * 1e-3 for p in pixels]
+
 def convert():
     try:
+        i = 0
         while not done.is_set():
-            wcs.pixel_to_world_values(*pixels)
+            wcs.pixel_to_world_values(*pixels_of(i))
             wcs.axis_correlation_matrix
+            i += 1
     except Exception:  # wcslib errors from a race are as much a failure as a crash
         traceback.print_exc()
         os._exit(1)
 
 thread = threading.Thread(target=convert)
 thread.start()
-for _ in range(20_000):
-    wcs.pixel_to_world_values(*pixels)
+for i in range(20_000):
+    wcs.pixel_to_world_values(*pixels_of(i))
 done.set()
 thread.join()
+
+# then threads that reuse and evict the wrapper's kept conversions at once, with room for 2 of 4 inputs
+iris._MEMO_ENTRIES = 2
+wcs._memo.clear()
+sys.setswitchinterval(1e-6)
+
+def reuse(seed):
+    try:
+        for i in np.random.default_rng(seed).integers(0, 4, 5000):
+            wcs.pixel_to_world_values(*[p[:2] + i for p in pixels])
+    except Exception:
+        traceback.print_exc()
+        os._exit(1)
+
+threads = [threading.Thread(target=reuse, args=(seed,)) for seed in range(4)]
+for thread in threads:
+    thread.start()
+for thread in threads:
+    thread.join()
 """
 
 

@@ -193,6 +193,14 @@ The other axis shows only its own coordinate. The label and ticks come back when
 the axes, after an axis change or, on the wavelength panel, a slit move; a label typed in the
 viewer's axes options is kept until that reset, as glue's own labels are.
 
+In every Image viewer, each world coordinate's ticks are labelled with that coordinate's name.
+WCSAxes can put a coordinate's ticks on another side than the axis it belongs to: latitude can run
+along the bottom of a slit-jaw image rolled by more than 45°, and the step axis of a raster's
+wavelength-against-step panel can show latitude on the left and longitude on the right when the
+raster has a small roll. The label then stays with the ticks, and an x or y axis label typed in the
+axes options names the coordinate of that axis, wherever its ticks are; glue-core 1.27.0 alone
+labels the bottom and left ticks after the x and y axes, whichever coordinate they show.
+
 The map shows the wavelength nearest the window's reference wavelength, and the panels use
 99.5 % limits. A point, the edit subset "Point", starts at the centre of the map with the Pixel
 tool active: drag it on the map, and the spectrum panel shows its spectrum. The point is a detector
@@ -206,7 +214,10 @@ after "Clear point" nothing follows until the next click. A point clicked on a s
 marked only there, and the spectrum panel is empty until the next raster click. The raster panels have no region selection tools, because a region drawn on a
 raster map is recomputed on every slit-jaw viewer for each screen pixel at every frame (see
 Linking). Each quicklook has its own point, shown only in its own panels, edited while its tab is
-shown and moved only by that tab's sliders. Another Image viewer of the same data follows the point. When a slit-jaw channel is loaded both plain and deconvolved,
+shown and moved only by that tab's sliders. Where a point does not show, it is not in the viewer's
+layer list either, since glue would still redraw a hidden layer at every move: drag the subset onto
+a viewer outside its quicklook to show it there. In its own quicklook, each move adds the point
+back to the image panels of the dataset it is on and removes it from the others. Another Image viewer of the same data follows the point. When a slit-jaw channel is loaded both plain and deconvolved,
 the plain one is shown and the status bar names the other. The spectrum panel does not ask "Add
 large data set?", and the status bar gives the size of the data it shows.
 
@@ -248,6 +259,15 @@ toolbar has:
   status bar. Press W over the image to switch between world and pixel positions; the button hides
   and shows the readout.
 - "Frame time" and the "Coordinate" menu, from glue-solar, described above.
+- "Hide axes", from glue-solar: hides the viewer's axes (ticks, tick labels, axis labels and frame),
+  and shows them again; the mouse mode, such as Pixel, stays on. Without them each slice step and
+  redraw is faster, since no ticks are placed; the image, subsets, links, the slit and point of
+  slit-jaw viewers and the readouts work as before, and the mouse-over position stays in world
+  coordinates. A saved session keeps each viewer's choice. To open every new Image viewer,
+  quicklook panels included, without axes, add ``solar_show_axes = false`` to the ``[main]`` section
+  of glue's settings file, ``~/.glue/settings.cfg``, or type
+  ``from glue.config import settings; settings.SOLAR_SHOW_AXES = False`` in glue's terminal for the
+  rest of the session ("OK" in glue's Preferences then saves it to that file).
 - A button with a spectrum icon and no tooltip, which opens a 1D Profile viewer of the image's data.
 - The save menu, with "Save plot to file" and "Save Python script to reproduce plot", and the
   window menu, with "Move to another tab" and "Change viewer title".

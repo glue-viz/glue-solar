@@ -2,6 +2,7 @@
 The IRIS quicklook: a preset of glue viewers for one observation, kept on one selected point.
 """
 
+import sys
 import weakref
 from contextlib import contextmanager
 
@@ -211,7 +212,9 @@ class Coordinator(HubListener):
         self._viewers = {}  # registered viewer -> its callbacks
         self._shows = {}  # registered viewer -> the reference data its sliders were last set for
         self._owners = {}  # a quicklook's point group -> the viewers it drives
+        self._placed = (None, None)  # point_on's last (raster, pixel, slit-jaw, frame) and answer
         self._busy = False
+        self._drag = None  # while a mouse button is down on a viewer: whether a point was clicked
         # a drag moves the point at every mouse event: show only its latest position
         self._timer = QTimer()
         self._timer.setSingleShot(True)
@@ -241,7 +244,7 @@ class Coordinator(HubListener):
         def axes_changed(*_):
             self._apply_point(viewer)
 
-        def slices_changed(*_):
+        def slices_changed(old, new):
             data = viewer.state.reference_data
             if data is not self._shows.get(viewer):
                 # glue reset the sliders for new data: join the point rather than move it
@@ -250,24 +253,35 @@ class Coordinator(HubListener):
                 self._timer.start()  # and the time master
                 return
             self._move_point(viewer)
-            if not self._busy and self._master(observation_key(data)) is data:
+            # a master's time is along its first axis, or at the point, which _move_point follows
+            moved = (old or ())[:1] != (new or ())[:1]
+            if moved and not self._busy and self._master(observation_key(data)) is data:
                 self._timer.start()  # the time master moved
+
+        def mouse_button(event):
+            self._drag = False if event.name == "button_press_event" else None
 
         for prop in ("reference_data", "x_att", "y_att"):
             viewer.state.add_callback(prop, axes_changed)
-        viewer.state.add_callback("slices", slices_changed)
-        self._viewers[viewer] = (axes_changed, slices_changed)
+        viewer.state.add_callback("slices", slices_changed, echo_old=True)
+        canvas = viewer.figure.canvas
+        buttons = [canvas.mpl_connect(name, mouse_button) for name in ("button_press_event", "button_release_event")]
+        self._viewers[viewer] = (axes_changed, slices_changed, buttons)
         self._shows[viewer] = viewer.state.reference_data
         self._timer.start()  # join the time master
 
     def unregister(self, viewer):
         """Stop coordinating ``viewer``; unregistering it again does nothing."""
+        for owned in self._owners.values():
+            owned.discard(viewer)  # or its quicklook's point would add layers to it after it closed
         callbacks = self._viewers.pop(viewer, None)
         if callbacks is not None:
-            axes_changed, slices_changed = callbacks
+            axes_changed, slices_changed, buttons = callbacks
             for prop in ("reference_data", "x_att", "y_att"):
                 viewer.state.remove_callback(prop, axes_changed)
             viewer.state.remove_callback("slices", slices_changed)
+            for connection in buttons:
+                viewer.figure.canvas.mpl_disconnect(connection)
             self._shows.pop(viewer, None)
 
     def own(self, group, viewers):
@@ -328,7 +342,17 @@ class Coordinator(HubListener):
             return
         self.group = group
         self._pin(state)
-        self._timer.start()
+        if self._drag:
+            self._timer.start()
+            return
+        if self._drag is False:
+            self._drag = True  # the press: until the release, a drag
+        # a click, or a point set by code: move the panels before glue draws the point, so each draws once
+        self._timer.stop()
+        try:
+            self._update()
+        except Exception:  # reported as from the timer: matplotlib's mouse events would only print it
+            sys.excepthook(*sys.exc_info())
 
     def _subset_deleted(self, message):
         if getattr(message.subset, "group", None) is self.group:
@@ -397,9 +421,7 @@ class Coordinator(HubListener):
         # among its quicklook's viewers, the point shows on those of its own dataset: glue 1.27.0 would
         # draw a slit-jaw point's crosshair on the raster panels, and a raster point's on the slit-jaw
         for viewer in self._owners.get(self.group, ()):
-            for layer in viewer.state.layers:
-                if getattr(layer.layer, "group", None) is self.group:
-                    layer.visible = viewer.state.reference_data is point.reference_data
+            _show(viewer, self.group, viewer.state.reference_data is point.reference_data)
 
     def _datasets(self, key):
         seen = {}
@@ -538,9 +560,13 @@ class Coordinator(HubListener):
         if observation_key(sji) != observation_key(point.reference_data) or frame is None or not _placeable(sji):
             return None
         pixel = [s.start if s.start is not None else 0 for s in point.slices]
-        lon, lat = _lon_lat(point.reference_data, pixel)
-        x, y = _sji_pixels(sji, frame, lon, lat)
-        return float(x), float(y)
+        # the frame-time readout and the slit-jaw marker both ask for each move
+        key = (point.reference_data, pixel, sji, frame)
+        if self._placed[0] != key:
+            lon, lat = _lon_lat(point.reference_data, pixel)
+            x, y = _sji_pixels(sji, frame, lon, lat)
+            self._placed = (key, (float(x), float(y)))
+        return self._placed[1]
 
     @staticmethod
     def slit_on(viewer):
@@ -788,9 +814,9 @@ def quicklook(app, datasets, window=None):
         and ``sji``, a list.
     """
     collection = app.data_collection
-    for data in datasets:
-        if data not in collection:
-            collection.append(data)
+    new = [data for data in datasets if data not in collection]
+    if new:  # one link update for all, where each append runs one
+        collection.extend(new)
     keep_hpc_linked(collection)
     rasters = [data for data in datasets if _role(data) == "raster"]
     sjis, offered = _pick_sjis([data for data in datasets if _role(data) == "sji"])
@@ -854,19 +880,39 @@ def _edit_in_tab(app, tab, group):
     coordinator(app.data_collection).follow(group)
 
 
+def _show(viewer, group, shown):
+    """
+    Give ``viewer`` the layers of ``group`` for the datasets it shows, or remove them all.
+
+    Removed rather than hidden: glue still updates and redraws a hidden layer whenever its subset changes.
+    """
+    if shown:
+        for subset in group.subsets:
+            if any(layer.layer is subset.data for layer in viewer.state.layers):
+                viewer.add_subset(subset)
+        return
+    for layer in list(viewer.state.layers):
+        if getattr(layer.layer, "group", None) is group:
+            viewer.remove_subset(layer.layer)
+
+
 def _show_point(app, group, own):
     """
     Show the point only in its quicklook's raster and spectrum panels, and no other subset there.
 
     Elsewhere glue 1.27.0 would draw its crosshair on a dataset it does not belong to, and an
-    earlier quicklook's point would show in this one's panels.
+    earlier quicklook's point would show in this one's panels. Quicklook points are removed where
+    they must not show, as they move at every click; other subsets are only hidden.
     """
+    points = coordinator(app.data_collection)._owners  # every quicklook's point
     for viewer in (viewer for tab in app.viewers for viewer in tab):
-        for layer in viewer.state.layers:
+        for layer in list(viewer.state.layers):
             other = getattr(layer.layer, "group", None)
-            if other is group:
-                layer.visible = viewer in own
-            elif other is not None and viewer in own:
+            if other is None or (other is group) == (viewer in own):
+                continue
+            if other in points:
+                viewer.remove_subset(layer.layer)  # see _show
+            else:
                 layer.visible = False
 
 
