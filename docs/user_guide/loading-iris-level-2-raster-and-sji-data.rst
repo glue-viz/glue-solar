@@ -103,21 +103,25 @@ Overlaying the missing-data mask
 
 To see where data are missing, turn ``<label> mask`` into a
 `subset <http://docs.glueviz.org/en/stable/getting_started/index.html#defining-subsets>`__, which
-every Image Viewer of the dataset draws over the data:
+every Image Viewer of the dataset draws over the data. A selection replaces the subset selected in
+the data collection, which in a quicklook is ``Point``, so select the dataset itself first:
 
 - Select the dataset in the data collection and choose "Create faceted subsets" in the
   "Data Manager" menu (or the data collection's right-click menu). Pick the ``<label> mask``
   attribute, set the range from 0 to 1 and the number of subsets to 2. The second subset,
   ``0.5<=<label> mask<=1.0``, holds every missing sample, and the first the others.
-- Or show ``<label> mask`` in a Histogram viewer and select an "X range" over the bar at 1. The
-  Histogram viewer asks "Add large data set?" for datasets of 2e7 samples or more, with Cancel as
-  the default button: a full slit-jaw cube, such as the 6.5e7 samples of OBSID 4000255147's
-  SJI 1400, needs "OK".
+- Or select the dataset in the data collection, show ``<label> mask`` in a Histogram viewer and
+  select an "X range" over the bar at 1. The Histogram viewer asks "Add large data set?" for
+  datasets of 2e7 samples or more, with Cancel as the default button: a full slit-jaw cube, such as
+  the 6.5e7 samples of OBSID 4000255147's SJI 1400, needs "OK".
 - A mask of your own comes from a FITS file through "Import subset mask(s)" in the "Data Manager"
   menu, with the dataset selected. Each HDU of signed integers (BITPIX 16, 32 or 64) becomes a
   subset of the samples above 0, and must have the dataset's shape. glue skips unsigned HDUs, such
   as 8-bit images (BITPIX 8) and 16-bit ones stored with BZERO. "Export subset mask(s)" writes
   masks it can read back.
+
+The first two leave the new subset selected, and "Pixel" would replace it, so select ``Point`` in
+the data collection before moving a quicklook's point again.
 
 Linking
 -------
@@ -243,8 +247,9 @@ toolbar has:
 Each viewer is a window in the current tab, with its own minimise, maximise and close buttons. The
 "Canvas" menu has "New Data Viewer" (Ctrl+N), "New Tab" (Ctrl+T), "Gather Windows" (Ctrl+G), which
 places the tab's viewers side by side, and "Rename Tab" (Ctrl+R); on macOS these use Cmd. Backspace
-closes the active Image, Scatter or Histogram viewer after asking "Do you want to close this
-window?", and does nothing in a Profile or Table viewer. In the data collection, though, Backspace is
+closes the active viewer after asking "Do you want to close this window?" if it is one of glue's own
+Image, Scatter or Histogram viewers. It does nothing in a Profile or Table viewer, or in the
+quicklook's map, spectrogram and wavelength panels. In the data collection, though, Backspace is
 "Delete Layer": it removes the selected datasets and subsets at once, without asking and without
 undo.
 

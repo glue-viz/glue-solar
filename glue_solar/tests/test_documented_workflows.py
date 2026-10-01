@@ -77,12 +77,17 @@ def test_browser_stacks_scans_into_4d_data_with_per_pixel_time(qtbot, irispy_tes
     scans = [path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name]
     dialog = QtIRISImporter(scans[0].parent)
     qtbot.addWidget(dialog)
-    observation = dialog.obs_tree.topLevelItem(0)
+    tree = dialog.obs_tree
+    observation = next(
+        item for item in map(tree.topLevelItem, range(tree.topLevelItemCount())) if item.text(1) == "3860258481"
+    )
     entries = [observation.child(i) for i in range(observation.childCount())]
     next(entry for entry in entries if entry.text(0).startswith("C II 1336")).setCheckState(0, Qt.Checked)
+    dialog.finalize()
+    assert [data.ndim for data in dialog.datasets] == [3] * len(scans)
+
     dialog.stack.setChecked(True)
     dialog.finalize()
-
     [stack] = dialog.datasets
     assert stack.ndim == 4
     assert stack.world_component_ids[0].label == "Scan"
