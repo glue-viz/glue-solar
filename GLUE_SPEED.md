@@ -33,7 +33,7 @@ Not measured: real screens and Wayland, Mg II k windows, cold disk, Qt6.
 - [ ] Re-verified on current versions
 - [ ] Fixed upstream
 
-- Prototyped 2026-10-01: the glue-side fix takes the SJI set phase from 66 to 0.4 ms; astropy's lazy-label alternative is in 'WCSAxes tick rendering' (prototype 3, PR 4).
+- Worked around in glue-solar by a probe-gated patch (#90): SJI step 104 → 35 ms on 4000255147 together with the other #90 fixes. Prototyped 2026-10-01: the glue-side fix takes the SJI set phase from 66 to 0.4 ms; astropy's lazy-label alternative is in 'WCSAxes tick rendering' (prototype 3, PR 4).
 
 **Repository:** glue-core (astropy alternative, which also helps sunpy users). **Confidence:** high. **Verification:** Confirmed by the draw, events, hidpi-many and startup verifiers. Merged from draw#1, events#1, hidpi-many#1 and startup#2; links#7 is an untested duplicate.
 
@@ -1100,7 +1100,7 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 ### S1. Exposure labels from #87 slow slider steps on origin/main 5eae565 (confirmed by the draw and events verifiers on a git-archive copy).
 
 - [ ] Re-verified
-- [ ] Fixed in glue-solar
+- [x] Fixed in glue-solar (#90, 2026-10-01)
 
 - Cause: FrameTimeTool._label_exposures (tools.py) sets the exposure-axis label again after every glue _set_wcs, and each set_ylabel is a full WCSAxes tick placement.
 - Cost: the λ-time slit step's set phase grows from 47 to 73-76 ms (_set_wcs 65.5 ms with 4 set_ylabel calls). A Pixel click grows from 368 to 401 ms; _set_wcs per click from 135 to 166 ms (8 y-label callbacks instead of 6).
@@ -1110,7 +1110,7 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 ### S2. The coordinator's 0 ms QTimer moves the sliders after glue has already drawn the Point change (confirmed, events#5, gain corrected from -39 ms; draw#8 untested).
 
 - [ ] Re-verified
-- [ ] Fixed in glue-solar
+- [x] Fixed in glue-solar (#90, 2026-10-01)
 
 - Code: quicklook.py:216-219 (timer), _subset_changed 318-331, _update 386-402.
 - Cost: the spectrogram, λ and SJI panels draw twice per Pixel click (10 draws instead of 7). About 20 ms of extra λ-scan draw per stack raster step (draw, untested).
@@ -1120,7 +1120,7 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 ### S3. Workaround for glue-core rank 4: the quicklook hides the Point layer instead of removing it (confirmed, events#3).
 
 - [ ] Re-verified
-- [ ] Fixed in glue-solar
+- [x] Fixed in glue-solar (#90, 2026-10-01)
 
 - Code: quicklook.py:399-402 and 857-870 hide the layer on the SJI panel and on other quicklooks' panels. glue still updates and redraws hidden subset layers.
 - Fix: remove the layer with viewer.remove_subset where it must not show (re-add it when needed), or apply item 2.
@@ -1159,7 +1159,7 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 ### S7. _GlueWCS.pixel_to_world_values recomputes per-axis metadata on every call (untested: draw#7 and hidpi-many#8 measured it independently; the memo variant was confirmed by the draw#2 verifier).
 
 - [ ] Re-verified
-- [ ] Fixed in glue-solar
+- [x] Fixed in glue-solar (#90, 2026-10-01)
 
 - Code: sources/loaders/iris.py:86-97. Each call rebuilds u.Unit per axis and world_axis_physical_types, and round-trips through Quantity.
 - Cost: 0.056-0.059 ms per call, against 0.017 ms for the wrapped FITS WCS. That is 12.5 ms per Si IV tick (21%) and 7.8 ms per SJI tick.
@@ -1170,7 +1170,7 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 ### S8. A wavelength-slider step runs the full time sync, and the SJI point is projected twice per sync (confirmed, events#6).
 
 - [ ] Re-verified
-- [ ] Fixed in glue-solar
+- [x] Fixed in glue-solar (#90, 2026-10-01)
 
 - Code: quicklook.py:253-254 starts the timer on any slider change of the time master's viewer, wavelength included. _sync (464-495) then calls every listener, and point_on calls _sji_pixels twice per sync (1.84 ms each; tools.py:108-150 and 310-338).
 - Cost: Coordinator._update takes 11 ms of a 35 ms map wavelength step (31%).
@@ -1180,7 +1180,7 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 ### S9. quicklook() appends datasets one at a time (confirmed, io-model#6).
 
 - [ ] Re-verified
-- [ ] Fixed in glue-solar
+- [x] Fixed in glue-solar (#90, 2026-10-01)
 
 - Code: quicklook.py:791-794 appends each dataset not yet in the collection, and each append runs a full link update.
 - Cost: 5.38 s for 99 new scans, against 0.158 s with one extend. It only applies when quicklook() is given new datasets; the IRIS browser extends first.
@@ -1222,7 +1222,7 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 ### S14. Turning an Image viewer's axes off skips WCSAxes in every draw (measured 2026-10-01, not a survey finding).
 
 - [ ] Re-verified
-- [ ] Fixed in glue-solar
+- [x] Fixed in glue-solar (#90, 2026-10-01)
 
 - Code: WCSAxes.draw_wcsaxes returns at once when `axison` is False (astropy main core.py:585-587). Hiding a coordinate's ticks and labels saves nothing: `_update_tick_and_label_positions` (core.py:555-582) still updates every coordinate, and astropy #20499 only keeps hidden coordinates off the spines. glue-core has a `show_axes` state on Matplotlib viewers (glue/viewers/matplotlib/state.py:135) that glue-qt never connects.
 - Cost measured: the quicklook on 4000255147 (Si IV 1403 and SJI 1400), offscreen 640x480 canvases, axes on and off alternated in one process while two other jobs ran (ratios hold, absolute times are inflated). One panel's redraw: map 25.5 -> 10.6 ms, spectrogram 29.3 -> 10.8, λ-t 35.0 -> 11.2, SJI 30.6 -> 7.7 (−58 to −75 %). A step with every panel's axes off and every panel redrawn: map wavelength 168 -> 73 ms (−56 %), spectrogram raster step 392 -> 233 (−41 %), λ-t slit 353 -> 189 (−46 %), SJI frame 229 -> 124 (−46 %).
