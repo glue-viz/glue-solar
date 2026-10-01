@@ -4,7 +4,8 @@ Gated fixes for glue-core and glue-qt bugs that IRIS data hits.
 Each fix installs only when a probe finds the bug, and names the upstream change that retires it.
 """
 
-from io import BytesIO
+import os
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
 import dask.array as da
@@ -183,8 +184,9 @@ def export_fits(filename, data, components=None):
     glue-core's "FITS (1 component/HDU)" exporter (``fits_writer``), reading each component as a NumPy array.
 
     glue-core 1.27.0 sets the values outside an exported subset to NaN in place, which a dask array, as a lazily
-    loaded IRIS component is, refuses with ``IndexError``. The rest is unchanged from glue-core. Retired once glue
-    exports a DaskComponent's subset; no upstream fix exists yet.
+    loaded IRIS component is, refuses with ``IndexError``. The rest is glue-core's, except that a subset's unsigned
+    components, such as the mask, are exported unmasked where glue-core fails on them. Retired once glue exports a
+    DaskComponent's subset; no upstream fix exists yet.
     """
     mask = None
     if isinstance(data, Subset):
@@ -217,10 +219,13 @@ def export_fits(filename, data, components=None):
 def needs_fits_export_dask_workaround(func=_original_fits_writer):
     """Whether ``func`` fails to export a subset of a dataset of a glue DaskComponent."""
     data = _dask_probe((2, 2))
-    try:
-        func(BytesIO(), data.new_subset(PixelSubsetState(data, [slice(0, 1), slice(None)])))
-    except Exception:  # noqa: BLE001 - any failure means the patch is needed
-        return True
+    subset = data.new_subset(PixelSubsetState(data, [slice(0, 1), slice(None)]))
+    # to a file: astropy writes no dask array to an in-memory one, so a fix that keeps dask would still fail there
+    with TemporaryDirectory() as directory:
+        try:
+            func(os.path.join(directory, "probe.fits"), subset)
+        except Exception:  # noqa: BLE001 - any failure means the patch is needed
+            return True
     return False
 
 

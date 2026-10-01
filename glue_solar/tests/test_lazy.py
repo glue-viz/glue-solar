@@ -5,6 +5,7 @@ while irispy's test files hold float32.
 
 from itertools import combinations
 
+import dask.array as da
 import numpy as np
 import pytest
 from glue.core.component import Component
@@ -338,6 +339,12 @@ def test_pv_slices_and_subset_exports_of_lazy_data(monkeypatch, tmp_path, int16_
     installed = exporter.function is glue_patches.export_fits
     assert installed == glue_patches.needs_fits_export_dask_workaround()  # probes glue's own exporter
     assert not glue_patches.needs_fits_export_dask_workaround(glue_patches.export_fits)
+
+    def dask_export(filename, subset):  # an upstream fix could keep the values dask, which astropy writes to a file
+        values = subset.data[subset.data.main_components[0]]
+        fits.HDUList([fits.PrimaryHDU(), fits.ImageHDU(da.where(subset.to_mask(), values, np.nan))]).writeto(filename)
+
+    assert not glue_patches.needs_fits_export_dask_workaround(dask_export)
 
     lazy_result, eager = lazy_and_eager(monkeypatch, lambda: raster_data([int16_raster], ["Si IV 1403"])[0])
     path = (np.array([3.0, 25.0]), np.array([5.0, 30.0]))  # drawn on a spectrogram, slit against wavelength
