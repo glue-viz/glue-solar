@@ -187,6 +187,44 @@ time" readout says "outside SJI FOV", when the point is off the image; neither i
 viewer shows the frame axis. A slit-jaw frame taken a raster step earlier or later than the point
 shows the slit a step away from the cross.
 
+Viewer tools and windows
+------------------------
+
+glue's `getting started guide <http://docs.glueviz.org/en/stable/getting_started/index.html>`__
+describes its viewers and tools; this section names those IRIS work uses most, as glue-qt 0.4.2
+labels them. A toolbar button's tooltip gives the tool's single-key shortcut if it has one, for
+example "Zoom to rectangle [shortcut: Z]".
+
+Besides glue's "Home" (H), "Pan" (M), "Zoom" (Z) and region selection tools, the Image Viewer
+toolbar has:
+
+- "Pixel" ("Select a single pixel based on mouse location"): click or drag to select one pixel.
+  On IRIS data this is the point the other viewers follow (see `The quicklook`_).
+- "Contrast/Bias": drag on the image, left and right for the bias, up and down for the contrast.
+  The "Reset" button next to the layer's contrast/bias sliders undoes it.
+- "Slice Extraction" (P): draw a path and press Enter to see the data along it in a new window.
+  It is offered for 3D data only, so not for stacks.
+- "Cursor readout", from glue-solar: the world position and the value under the mouse, in the
+  status bar. Press W over the image to switch between world and pixel positions; the button hides
+  and shows the readout.
+- "Frame time" and the "Coordinate" menu, from glue-solar, described above.
+- A button with a spectrum icon and no tooltip, which opens a 1D Profile viewer of the image's data.
+- The save menu, with "Save plot to file" and "Save Python script to reproduce plot", and the
+  window menu, with "Move to another tab" and "Change viewer title".
+
+Each viewer is a window in the current tab, with its own minimise, maximise and close buttons. The
+"Canvas" menu has "New Data Viewer" (Ctrl+N), "New Tab" (Ctrl+T), "Gather Windows" (Ctrl+G), which
+places the tab's viewers side by side, and "Rename Tab" (Ctrl+R); on macOS these use Cmd. Backspace
+closes the active Image, Scatter or Histogram viewer after asking "Do you want to close this
+window?", and does nothing in a Profile or Table viewer. In the data collection, though, Backspace is
+"Delete Layer": it removes the selected datasets and subsets at once, without asking and without
+undo.
+
+Glue has no gamma setting. A gamma below 1, which brightens faint emission, can be approximated with
+the "Square Root" stretch, a gamma of 0.5 applied between the limits: in the Image Viewer's layer
+options, type the lower and upper limits (the limits menu then reads "Custom") and choose
+"Square Root" in the stretch menu.
+
 Saving sessions
 ---------------
 
