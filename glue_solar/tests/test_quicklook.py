@@ -1,5 +1,6 @@
 import shutil
 from collections import Counter
+from functools import partial
 
 import numpy as np
 import pytest
@@ -373,6 +374,53 @@ def test_a_sit_and_stare_exposure_axis(bare_app, monkeypatch, irispy_test_files)
     assert {part.get_color() for part in parts} == {"#ff0000"}
     wavelength.state.x_axislabel = "Exposure"  # typed in the axes options
     assert list(drawn_ticks(wavelength, "b")) == ["Exposure"]
+
+
+def test_a_slit_step_relabels_the_exposure_axis_without_placing_its_ticks(bare_app, monkeypatch, irispy_test_files):
+    from astropy.visualization.wcsaxes.coordinate_helpers import CoordinateHelper
+
+    raster, _ = sit_and_stare(irispy_test_files)
+    wavelength = quicklook(bare_app, [raster])["wavelength"]  # exposure on y
+    label = wavelength.state.y_axislabel
+    assert label.startswith("Exposure (acquisition order)\n")
+    edit = wavelength.options_widget().ui.axes_editor.ui.text_y_axislabel  # the axes options
+    for typed in ("", wavelength.state.y_att_world.label):  # glue's own labels, typed: the exposure label again
+        edit.setText(typed)
+        edit.editingFinished.emit()
+        assert wavelength.state.y_axislabel == edit.text() == label
+        assert list(drawn_ticks(wavelength, "l")) == [label]
+    calls = Counter()
+
+    def labelled(name, method, *args, **kwargs):
+        calls[name] += 1
+        ticks = calls["_update_ticks"]
+        method(*args, **kwargs)
+        calls["_update_ticks in labels"] += calls["_update_ticks"] - ticks
+
+    for name in ("set_xlabel", "set_ylabel"):
+        monkeypatch.setattr(wavelength.axes, name, partial(labelled, name, getattr(wavelength.axes, name)))
+    update_ticks = CoordinateHelper._update_ticks
+
+    def counted(self, *args, **kwargs):
+        calls.update(["_update_ticks"] if self.parent_axes is wavelength.axes else [])
+        return update_ticks(self, *args, **kwargs)
+
+    monkeypatch.setattr(CoordinateHelper, "_update_ticks", counted)
+    for typed in (False, True):
+        coords = wavelength.axes.coords
+        calls.clear()
+        wavelength.state.slices = (wavelength.state.slices[0], 5 + typed, wavelength.state.slices[2])
+        assert wavelength.axes.coords is not coords  # glue reset the axes and their labels
+        # glue's '' and wavelength label on x, each a full tick placement, and the exposure label only if
+        # typed over: not '', glue's own label and the exposure label again
+        assert (calls["set_xlabel"], calls["set_ylabel"]) == (2, typed)
+        assert calls["_update_ticks"] == calls["_update_ticks in labels"] > 0  # no other placement
+        assert wavelength.state.y_axislabel == edit.text() == label
+        assert list(drawn_ticks(wavelength, "l")) == [label]
+        edit.setText("Exposure")  # typed in the axes options: kept until glue resets the axes
+        edit.editingFinished.emit()
+        assert wavelength.state.y_axislabel == "Exposure"
+        assert list(drawn_ticks(wavelength, "l")) == ["Exposure"]
 
 
 def crosshair(viewer):
