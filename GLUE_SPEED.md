@@ -1213,6 +1213,17 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 - glue's _reset_y_limits computes the hidden layer's whole-cube profile on the main thread first: 368-400 ms of quicklook open on the sit-and-stare cube, 119 ms on the stack.
 - No glue-solar workaround was tested; the fix is glue-core rank 14.
 
+### S14. Turning an Image viewer's axes off skips WCSAxes in every draw (measured 2026-10-01, not a survey finding).
+
+- [ ] Re-verified
+- [ ] Fixed in glue-solar
+
+- Code: WCSAxes.draw_wcsaxes returns at once when `axison` is False (astropy main core.py:585-587). Hiding a coordinate's ticks and labels saves nothing: `_update_tick_and_label_positions` (core.py:555-582) still updates every coordinate, and astropy #20499 only keeps hidden coordinates off the spines. glue-core has a `show_axes` state on Matplotlib viewers (glue/viewers/matplotlib/state.py:135) that glue-qt never connects.
+- Cost measured: the quicklook on 4000255147 (Si IV 1403 and SJI 1400), offscreen 640x480 canvases, axes on and off alternated in one process while two other jobs ran (ratios hold, absolute times are inflated). One panel's redraw: map 25.5 -> 10.6 ms, spectrogram 29.3 -> 10.8, λ-t 35.0 -> 11.2, SJI 30.6 -> 7.7 (−58 to −75 %). A step with every panel's axes off and every panel redrawn: map wavelength 168 -> 73 ms (−56 %), spectrogram raster step 392 -> 233 (−41 %), λ-t slit 353 -> 189 (−46 %), SJI frame 229 -> 124 (−46 %).
+- What remains with the axes off: 12-28 CoordinateHelper._update_ticks calls per step, from glue's _set_wcs label round trip (WCSAxes.set_xlabel and set_ylabel place ticks eagerly and do not check `axison`, core.py:596-615 in 8.0.1). Ranked item R1 (glue) or a lazy set_xlabel (astropy) removes them.
+- Fix: an opt-in 'Hide axes' in glue-solar, connecting `show_axes` to `set_axis_off`/`set_axis_on` (`wp10-m0-quicklook-speed`); upstream, an axes-options checkbox in glue-qt (`wp0-perf-qt`).
+- Scripts: wcsaxes_study_20261001.tar.gz, `axesoff/ab.py` (one panel at a time) and `axesoff/ab_all.py` (all panels).
+
 ## Raw findings by area, with the second measurement
 
 Every finding each area reported, including those the ranking merged or left out, with the re-measuring agent's verdict where it tested one (it tested up to six per area).
