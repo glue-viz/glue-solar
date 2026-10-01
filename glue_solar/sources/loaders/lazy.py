@@ -146,10 +146,7 @@ class RawStack:
         if isinstance(first, (int, np.integer)):
             return np.asarray(self.scans[first][rest])
         if isinstance(first, slice):
-            picked = range(*first.indices(len(self.scans)))
-            if not picked:
-                return np.empty((0, *np.shape(self.scans[0][rest])), self.dtype)
-            return np.stack([np.asarray(self.scans[i][rest]) for i in picked])
+            return np.stack([np.asarray(self.scans[i][rest]) for i in range(*first.indices(len(self.scans)))])
         # one index array per axis, as glue's fixed-resolution buffer asks
         arrays = np.broadcast_arrays(*key)
         values = np.empty(arrays[0].shape, self.dtype)
