@@ -28,9 +28,9 @@ Out of scope ([Features excluded](#features-excluded)):
 
 ## Current state, 2026-09-30
 
-**Resume here.** Main is at 2fdb847 and no glue-solar PR is open. Merged on 2026-09-30: the M0 quicklook (#72-#79), #81 (PV-slice patch), #82 (review follow-ups of #78 and #79, and a CI fix), #83 (slit line and raster point on slit-jaw viewers), #85 (re-lands #76's launch entries, which missed main in the stacked merge) and #84 (drops the sunpy Map directory importer; glue's Open Data Set replaces it). Since 2026-09-30 the user wants PRs marked ready and merged once CI passes. On 2026-09-30 this plan was restructured after the user's review of all 203 features, a glue-overlap audit and the decisions in Scope and Decisions; the previous text, the feature map and the retired prototypes are in the plan branch's git history.
+**Resume here.** Main is at 5eae565 and no glue-solar PR is open. Merged on 2026-09-30: the M0 quicklook (#72-#79), #81 (PV-slice patch), #82 (review follow-ups and a CI fix), #83 (slit line and raster point on slit-jaw viewers), #85 (re-lands #76's launch entries), #84 (drops the sunpy Map directory importer), #86 (link-graph tests), #87 (sit-and-stare exposure axes and the (0,0) crosshair patch) and #88 (the M0 guides). PRs are marked ready and merged once CI passes. On 2026-09-30 this plan was restructured after the user's review of all 203 features, a glue-overlap audit and the decisions in Scope and Decisions; the previous text, the feature map and the retired prototypes are in the plan branch's git history.
 
-**Next.** Finish M0: `wp1-m0-link-graph-regression`, `wp4-m0-time-wavelength-panels`, `wp4-tests`, `wp10-m0-acceptance` and the M0 docs items. Then M1, starting with `wp10-m1-lazy-loading`.
+**Next.** A one-line guard so the Frame time readout does not crash on an empty Collapse range; `wp4-tests` (also set `GLUE_TESTING` suite-wide in conftest, as glue does, so a viewer error fails a test instead of opening a modal box); `wp10-m0-acceptance` (a synced step is 0.30 s against its 0.25 s budget; #87 adds about 25 ms to a slit move). A profiling survey of glue-core and glue-qt on IRIS workflows (draw, links, statistics, IO, events, startup) is running; its ranked findings go into WP0 as M4 work, measured only, nothing patched. Then M1, starting with `wp10-m1-lazy-loading` and `wp1-m1-wrapper-coherence` (wavelength axes show metres with overlapping tick labels).
 
 **Releases.** glue-core 1.27.0, glue-qt 0.4.2, irispy-lmsal 0.9.1 (all fixes glue-solar needs). irispy drafts for the user's review: #197 (UV bursts), #198 (wavelength drift), #199 (Mg II features), #201 (moment uncertainties).
 
@@ -76,9 +76,8 @@ A milestone is done when all its items are ticked; M0 also needs `wp10-m0-accept
 ### Checklist by milestone
 
 **M0**
-- WP1: `wp1-m0-link-graph-regression`
-- WP4: `wp4-m0-time-wavelength-panels`, `wp4-tests`
-- WP9: `wp9-m0-viewer-tools-docs`, `wp9-m0-browsing-recipes`, `wp9-m0-mask-overlays`, `wp9-m0-workflow-recipes`, `wp9-m0-wiki-digest`
+- WP4: `wp4-tests`
+- WP9: `wp9-m0-wiki-digest`
 - WP10: `wp10-m0-acceptance`
 
 **M1**
@@ -153,7 +152,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 - [ ] **M4** `wp0-astropy-19174`: Add the IRIS -TAB WCS thread crash to astropy#19174. Done when reproduced without `WCS_LOCK` and posted or declined.
 - [ ] **M4** `wp0-stack-validation`: Merge the upstream heads (core #2595, #2597-#2599, #2601; Qt #70, #74, #75) and run the Qt and `glue_solar` suites. Done when pass counts are recorded.
 - [ ] **M4** `wp0-user-review`: The user reviews each upstream draft before it is ready. Done when each is merged, closed or parked. Depends: wp0-stack-validation.
-- [ ] **M4** `wp0-own-draft-updates`: Amend #2595 to keep time axes out of `wcs_autolink`, and Qt #74 to show Solar X/Y. Done when both pass their suites. Depends: wp1-m0-link-graph-regression, wp11-cursor-readout.
+- [ ] **M4** `wp0-own-draft-updates`: Amend #2595 to keep time axes out of `wcs_autolink`, and Qt #74 to show Solar X/Y. Done when both pass their suites. Depends: wp11-cursor-readout.
 - [ ] **M4** `wp0-core-quantity-saver`: Core `u.Quantity` saver (D13) that loads glue-solar's fallback record. Done when its test round-trips Quantities in `Data.meta`.
 - [ ] **M4** `wp0-core-derived-units`: Core PR saving `DerivedComponent.units`. Done when its test round-trips `units='DN/s'` and older records still load.
 - [ ] **M4** `wp0-track-line-layers`: Track glue #2603 and glue-qt #73, which retire WP5's line-list workaround. Done when both are released or the user parks them.
@@ -184,7 +183,6 @@ The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links be
 
 **M0**
 
-- [ ] **M0** `wp1-m0-link-graph-regression`: Open the sns fixture SJI 1400 and Si IV 1403 with the real autolinker, `link_hpc` and coordinator in every add order. Done when a raster Pixel point reaches the other windows, time sync adds no links and matches `nearest()`, no link targets a pixel component or SJI world time, and #2595 leaves `link_hpc` unchanged.
 
 **M1**
 
@@ -201,7 +199,7 @@ The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links be
 
 **M4**
 
-- [ ] **M4** `wp1-m4-autolink-matrix` (F049, F054): Once a core release has #2595, use its `WCSLink` suggestions for IRIS dataset pairs. Done when SJI Pixel points reach rasters and other SJIs without a time link, with `link_hpc` subsets unchanged. Depends: wp1-m1-wrapper-coherence, wp1-m1-sunpy-maps, wp1-m0-link-graph-regression.
+- [ ] **M4** `wp1-m4-autolink-matrix` (F049, F054): Once a core release has #2595, use its `WCSLink` suggestions for IRIS dataset pairs. Done when SJI Pixel points reach rasters and other SJIs without a time link, with `link_hpc` subsets unchanged. Depends: wp1-m1-wrapper-coherence, wp1-m1-sunpy-maps.
 
 **OM**
 
@@ -265,15 +263,14 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 
 **M0**
 
-- [ ] **M0** `wp4-m0-time-wavelength-panels` (F082, F134, F142): Label sit-and-stare exposure axes 'Exposure (acquisition order)' with their UTC range (`state.y_axislabel`) and integer ticks that survive WCS resets; add a probe-gated patch that stops the Pixel crosshair reappearing at (0,0). Done when on 4000255147 Si IV 1403 label and ticks survive a slit move and an axis swap, no (0,0) crosshair appears, and the patch turns off once upstream is fixed.
-- [ ] **M0** `wp4-tests`: Extend `test_quicklook.py` into a move/stay matrix over SJI frame, map click, λ-panel click, scan or exposure and slider changes, with V34-raster and sit-and-stare-label regressions and a manual native-GUI checklist. Done when it passes in `iris-plan` with HOME and QSettings isolated, uses only LM-SAL/irispy-data, and CI runs the fixture and `online` cases. Depends: wp4-m0-time-wavelength-panels.
+- [ ] **M0** `wp4-tests`: Extend `test_quicklook.py` into a move/stay matrix over SJI frame, map click, λ-panel click, scan or exposure and slider changes, with V34-raster and sit-and-stare-label regressions and a manual native-GUI checklist. Done when it passes in `iris-plan` with HOME and QSettings isolated, uses only LM-SAL/irispy-data, and CI runs the fixture and `online` cases.
 
 **M1**
 
 - [ ] **M1** `wp4-m1-hover-lock-tool` (F094, F095): A 'Follow/lock' `PixelSelectionTool` subclass: hover moves the point (50 ms throttle, no undo entry), a left click locks it with one undoable `ApplySubsetState`, a right click or Esc unlocks. Done when on 3860258481, 3824262996 and 4000255147 hover updates the spectrum within 0.35 s, 100 motion events give ≤ 1 update per 50 ms, and the lock survives scan and exposure steps.
-- [ ] **M1** `wp4-sji-click-to-raster` (F049): Map an SJI Pixel point to the raster point with `sji_to_raster()` (Replace mode, re-entrancy guard, one undo entry); off-FOV points show 'outside raster FOV'. Done when on 4000255147 and 4000005156 the `wp1-m1-sji-to-raster` 0.5 px cases pass through the UI, and one click makes one assignment that one undo reverts. Depends: wp1-m1-sji-to-raster, wp1-m0-link-graph-regression.
-- [ ] **M1** `wp4-m1-spectral-coupling` (F068, F075): Add what glue's Navigate lacks: Image wavelengths as Profile lines, wavelength and master-time lines on λ–t panels, a thin line at the point's slit on the spectrogram and at its exposure on λ–t (user, 2026-09-30), and the Profile x-range copied to λ–t x-limits. Done when on 4000005156 scan 0 and 4000255147 slider index k marks λ[k] in Å and nm, λ–t lines follow axis swaps, Navigate to λ[j] moves the map to j (Å needs Qt #70), and markers update in < 5 ms. Depends: wp4-m0-time-wavelength-panels, wp1-m1-wrapper-coherence.
-- [ ] **M1** `wp4-m1-multi-window` (F072, F073, F074, F108): For each ticked window of one file, open a Profile and any λ–t panel, and link step, exposure, scan and slit pixels with idempotent glue `LinkSame` links. Done when on 4000005156 scan 0 with three windows a point at (s, y) gives each Profile cube_w[s, y, :] and each map a crosshair, rerunning adds 0 links, and on 4000255147 all windows share one exposure. Depends: wp4-m0-time-wavelength-panels, wp1-m0-link-graph-regression, wp10-m1-lazy-loading.
+- [ ] **M1** `wp4-sji-click-to-raster` (F049): Map an SJI Pixel point to the raster point with `sji_to_raster()` (Replace mode, re-entrancy guard, one undo entry); off-FOV points show 'outside raster FOV'. Done when on 4000255147 and 4000005156 the `wp1-m1-sji-to-raster` 0.5 px cases pass through the UI, and one click makes one assignment that one undo reverts. Depends: wp1-m1-sji-to-raster.
+- [ ] **M1** `wp4-m1-spectral-coupling` (F068, F075): Add what glue's Navigate lacks: Image wavelengths as Profile lines, wavelength and master-time lines on λ–t panels, a thin line at the point's slit on the spectrogram and at its exposure on λ–t (user, 2026-09-30), and the Profile x-range copied to λ–t x-limits. Done when on 4000005156 scan 0 and 4000255147 slider index k marks λ[k] in Å and nm, λ–t lines follow axis swaps, Navigate to λ[j] moves the map to j (Å needs Qt #70), and markers update in < 5 ms. Depends: wp1-m1-wrapper-coherence.
+- [ ] **M1** `wp4-m1-multi-window` (F072, F073, F074, F108): For each ticked window of one file, open a Profile and any λ–t panel, and link step, exposure, scan and slit pixels with idempotent glue `LinkSame` links. Done when on 4000005156 scan 0 with three windows a point at (s, y) gives each Profile cube_w[s, y, :] and each map a crosshair, rerunning adds 0 links, and on 4000255147 all windows share one exposure. Depends: wp10-m1-lazy-loading.
 - [ ] **M1** `wp4-time-controls` (F088, F091): Add 'Go to UTC' and a [lo, hi] loop to glue's slider playback, and stop the play timer when its viewer closes. Done when on 4000255147 SJI 1400 'Go to 2013-09-02T17:00:00' picks the nearest exposure and the raster follows, a [100, 120] loop visits only frames 100-120, and closing the master stops playback.
 - [ ] **M1** `wp4-raster-overlays` (F125, F126): A toggle draws each raster step's slit on SJIs, in the SJI frame nearest that exposure, and a dashed map line at the step nearest the master time (hidden on NO MATCH). Done when on 4000005156 and 3860258481 each slit lies within 1 SJI px, and on 4000005156 SJI frames 0-15 mark scan 0 steps 3, 7, …, 63 and frames 16-31 scan 1.
 
@@ -362,10 +359,6 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 
 **M0**
 
-- [ ] **M0** `wp9-m0-viewer-tools-docs` (F192): Document 'Cursor readout', 'Frame time', glue-qt's window and viewer tools, and gamma < 1 as Custom limits plus sqrt. Done when texts and shortcuts match glue-qt 0.4.2.
-- [ ] **M0** `wp9-m0-browsing-recipes`: Document the observation browser: grouping, 'Load selected', SJI and AIA channels and scan stacking. Done when a fixture test shows stacking gives 4D Data with a per-pixel `Time`.
-- [ ] **M0** `wp9-m0-mask-overlays`: Document overlays from the uint8 `<label> mask` via faceted subsets, Histogram range subsets and 'Import subset mask(s)'. Done when a recorded check on 4000255147 SJI 1400 gives a faceted count of `mask.sum()`.
-- [ ] **M0** `wp9-m0-workflow-recipes`: Profile-guide recipes, axes named by role: four panels, spectrogram, raster-map and time–wavelength views, Pixel, Navigate, band maps and Slice Extraction. Done when each runs by hand on the irispy fixtures with released glue, caveats noted in WP0.
 - [ ] **M0** `wp9-m0-wiki-digest`: Only on request, fix the wiki's `Home.md:4` and `Short-Term-Roadmap.md:1` and add the milestone digest. Done when no section reference dangles.
 
 **M1**
@@ -376,7 +369,7 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 **M3**
 
 - [ ] **M3** `wp9-m3-saturation-recipe` (F170): A 'Was it saturated?' recipe: NSATPIX/TSATPXn in View metadata, then an `np.isinf` subset. Done when checked on 4000005156 Si IV (NSATPIX 0).
-- [ ] **M3** `wp9-m3-spectral-recipes` (F080, F084): Recipes for an average spectrum over scans, photospheric context and per-window flux × k. Done when each reproduces on 3602506433, 3660259102 and 3640107442. Depends: wp9-m0-workflow-recipes.
+- [ ] **M3** `wp9-m3-spectral-recipes` (F080, F084): Recipes for an average spectrum over scans, photospheric context and per-window flux × k. Done when each reproduces on 3602506433, 3660259102 and 3640107442.
 - [ ] **M3** `wp9-m3-shortcuts-help` (F198, F199): A table of keys glue's tooltips omit and an 'IRIS: user guide and issues' `menubar_plugin` entry. Done when a test covers every shortcut and both URLs. Depends: wp11-keyboard-shortcuts, wp12-path-slicer.
 
 **L**
@@ -436,7 +429,7 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 **M3**
 
 - [ ] **M3** `wp11-band-average` (F083): Map bands of 1, 5, 9 or 15 wavelength pixels via Collapse's Mean `AggregateSlice`, following the slider. Done when a width-5 map equals the `nanmean` over k±2; scan steps wait for `wp0-qt-aggregate-slice`.
-- [ ] **M3** `wp11-north-up` (F054, F120): Show rolled SJIs north-up by reprojecting onto a north-up helioprojective grid. Done when the rolled 3860608353 SJI 2832 shows north up within 0.5°. Depends: wp1-m0-link-graph-regression.
+- [ ] **M3** `wp11-north-up` (F054, F120): Show rolled SJIs north-up by reprojecting onto a north-up helioprojective grid. Done when the rolled 3860608353 SJI 2832 shows north up within 0.5°.
 
 **L**
 
