@@ -1224,6 +1224,181 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 - Fix: an opt-in 'Hide axes' in glue-solar, connecting `show_axes` to `set_axis_off`/`set_axis_on` (`wp10-m0-quicklook-speed`); upstream, an axes-options checkbox in glue-qt (`wp0-perf-qt`).
 - Scripts: wcsaxes_study_20261001.tar.gz, `axesoff/ab.py` (one panel at a time) and `axesoff/ab_all.py` (all panels).
 
+## Decoupling WCSAxes from matplotlib
+
+This is a read-only feasibility study of astropy main 1f930be7c4 (2026-09-28), answering whether WCSAxes could work outside matplotlib, for example in Qt. File:line references are to `astropy/visualization/wcsaxes/` on main. The call counts come from `decouple/count_calls.py` in wcsaxes_study_20261001.tar.gz, an Agg script with no timing: a FITS helioprojective TAN WCS with an IRIS-like roll, a 500x500 image, and a 6x6 inch figure.
+
+- One draw makes 37 `pixel_to_world_values` calls on 26,625 points. 33 of those calls are one tick placement.
+- `get_xlabel()` on its own makes the same 33 calls.
+- Label layout makes 2 text-extent calls per tick label (12 for 6 labels) and 1 per axis label.
+
+- [ ] Re-verified on current versions
+- [ ] Proposed upstream
+
+**Short answer.** Yes, and it is less work than it looks.
+
+- WCSAxes already bypasses matplotlib's Axis, Tick and Locator machinery. It hides them (core.py:195-202) and draws its own decorations through a dummy z-order artist (core.py:32-48). The exception is the 1D frame, which keeps matplotlib's own y axis (core.py:201, 723-724).
+- Its only ticker import is `Formatter.fix_minus` (formatter_locator.py:16, 65).
+- About 1,800 of the 6,633 source lines are already free of matplotlib, or nearly so.
+- The coupled geometry needs only the view limits, the data-to-display transform (an affine for linear axes) and the DPI. Only label anchoring, overlap removal and axis-label placement need a text renderer.
+
+Decoupling does not make glue faster by itself. The measured cost is WCS calls, and those are the same whichever toolkit draws. Do the speed fixes (R1, R5) first, and shape them so they produce the first matplotlib-free function.
+
+### Coupling map
+
+| Module (lines) | Takes from matplotlib | Pure geometry or formatting |
+|---|---|---|
+| core.py (1061) | `Axes` subclass (51), `subplot_class_factory` (1058), z-order Artist hack (32-48), `transData` override (143-146), canvas key event (154), `Affine2D`/`Transform` in `get_transform` (817-911), `get_tightbbox` re-runs the whole `draw_wcsaxes` (913-926), `rcParams['axes.grid']` (553), wrappers for imshow, contour and `*_coord` | orchestration (556-583, 585-626), `format_coord` (160-187), SkyCoord to arrays (303-355) |
+| coordinates_map.py (203) | only `axes.get_xlim/ylim` in `get_coord_range` (161-176) | container, aliases, repr |
+| coordinate_helpers.py (1652) | rcParams (125, 140-147), one `PathPatch` per grid line clipped to the frame patch (919-942), `Path` codes (1279, 1426-1427), `axes.contour` for contour grids (1520), `transData` for tick angles (1023-1067), renderer groups (920-982), arbitrary Text/PathPatch kwargs in `set_ticklabel`, `set_axislabel` and `grid` (659-696, 739-769, 335-380) | locator calls, spine crossings by interpolation, longitude wrapping (1100-1241), grid sampling and world-to-pixel (1281-1339), label strings (1136) |
+| frame.py (462) | `Line2D`/`PathPatch` drawing (200-230, 360-375, 441-462), rcParams (178-179), `Spine._get_pixel` through `transData` (67-68) for normals (104-109) and the label midpoint (111-129), spines read `parent_axes.get_xlim` (386-395) | spine outlines in data pixels, resampling (232-249), position validation |
+| ticks.py (249) | `Line2D` subclass used for style (11), rcParams (51-62), one `renderer.draw_markers` per tick (230-247), `points_to_pixels` (188) | per-spine storage of world, pixel, angle and displacement (142-167) |
+| ticklabels.py (376) | `Text` subclass (43), `get_window_extent` twice per label (257, 332), `transData` (251), `points_to_pixels` (252), `Bbox.count_overlaps` (373), rcParams minus sign (28-32) | sorting, label simplification (153-197), anchor geometry from width and height (262-305) |
+| axislabels.py (151) | `Text` subclass (12), rcParams (15-20), `Bbox.union` of tick-label boxes (114), draws and then measures (148-151) | rotation and padding rules (98-145) |
+| grid_paths.py (120) | `Path` with MOVETO/LINETO codes (5, 55-88) | discontinuity and round-trip masking |
+| formatter_locator.py (721) | `rcParams['text.usetex']` (490), `fix_minus` (65), mathtext separators `$\mathregular{^h}$` (527-531) | locators (385-439, 650-697), `Angle.to_string`, format parsing |
+| transforms.py (238) | `CurvedTransform` subclasses `Transform` (31), `Path` (54) | frame-to-frame conversion through SkyCoord (118-154) |
+| wcsapi.py (491) | the WCS transforms inherit `CurvedTransform` (340, 419) | coord_meta from APE 14 (135-293), slicing (296-329), `pixel_to_world_values` (478) |
+| utils.py (174) | `transform_contour_set_inplace` takes a ContourSet (117-174) | `select_step_*` (15-87), `get_coord_meta` |
+| coordinate_range.py (147), _auto.py (139) | none: the transform is duck-typed | range finding modelled on PGSBOX, automatic spine assignment |
+| helpers.py (198) | all of it: `AuxTransformBox`, `Ellipse`, `AnchoredOffsetbox` (113-123), `AnchoredSizeBar` (186) | pixel-scale arithmetic |
+| patches.py (202) | `Polygon` subclasses (68, 133) | vertex generation (37-66) |
+
+Aside, checked: `coords.frame.update()` (core.py:571) is `OrderedDict.update()` called with no arguments, so it does nothing. `BaseFrame` subclasses OrderedDict (frame.py:155) and defines no `update`.
+
+### What the tick algorithm actually needs
+
+- **Data pixels plus the WCS only.**
+  - Coordinate range: one 51x51 call (coordinate_range.py:44-58).
+  - Tick values and spacing: the locators.
+  - Frame sampling: 4x1000 points per coordinate (frame.py:232-249).
+  - Spine crossings (coordinate_helpers.py:1100-1241).
+  - Grid paths (1281-1339 and grid_paths.py).
+  - Automatic spine assignment (_auto.py).
+- **Display geometry, but only through the transform.**
+  - Tick angles shift the samples 2 device pixels and map them back through `transData.inverted()` (coordinate_helpers.py:1023-1067).
+  - Spine normals go through `transData` (frame.py:104-109).
+  - For linear axes this is a 2x2 matrix (aspect ratio and flips), and no renderer is involved.
+  - Tick lengths and pads also need the DPI.
+- **Needs a text renderer.**
+  - Label anchors need each label's width and height (ticklabels.py:257-305).
+  - Overlap removal needs the final boxes (373).
+  - Axis-label placement needs the union of the tick-label boxes and the size of the rotated label (axislabels.py:108-151).
+  - These steps run in order: tick labels for every coordinate, then axis labels against all the boxes (core.py:606-624).
+- **Label strings** are pure, but they are written for matplotlib. They contain mathtext such as the hour-angle separators and `{unit:latex}` axis labels (coordinate_helpers.py:819), and they read rcParams. A non-matplotlib backend needs a `'unicode'` output mode; `Angle.to_string` already has one.
+
+Of the 33 calls in one placement:
+
+- 16 are the 2-pixel shifts for the tick angles (60% of the points).
+- 8 resample the same frame again for the second coordinate, with identical input.
+- 1 is the range grid; the rest are 2-point spine updates.
+
+None of these depend on how the result is drawn.
+
+### A split
+
+```python
+# _layout.py: imports numpy and astropy only
+place_ticks(pixel_to_world, coord_specs, spines, to_display, from_display, dpi, settings)
+    -> {coord: {spine: TickSet(world, pixel_xy, angle_deg, normal_deg, disp, text)}}
+place_labels(ticks, measure, pad_px, tick_out_px, exclude_overlapping)
+    -> anchors, kept flags, boxes   # optional phase
+place_axis_labels(spines, label_boxes, measure, ...)
+grid_lines(world_to_pixel, pixel_to_world, coord_range, ...) -> list of (K, 2) polylines with breaks
+```
+
+- **Inputs:**
+  - An APE 14 low-level WCS plus slices, through the existing `apply_slices` and `WCSPixel2WorldTransform.transform`. These only need wrapping, not a new base class.
+  - View limits and the spine outlines in data pixels.
+  - `measure(text) -> (w, h)`.
+  - A text mode: mathtext, unicode or ascii.
+  - Locator and format settings.
+- **Outputs:** the TickSet fields above plus grid polylines in data pixels.
+- **The matplotlib backend** is today's classes, slimmed down. `Ticks`, `TickLabels` and `AxisLabels` keep their style APIs but receive positions. `draw_wcsaxes` passes `transData.transform` and its inverse, plus a `measure` backed by the renderer.
+
+**Public API that must stay:**
+
+- The `WCSAxes` constructor and `projection=wcs`, `reset_wcs`, `get_coords_overlay`, and `get_transform`, which returns a matplotlib Transform.
+- `plot_coord`, `scatter_coord`, `text_coord`, the imshow and contour overrides, `grid`, `tick_params`, and `set_xlabel`/`get_xlabel` and their y versions.
+- `CoordinatesMap` indexing.
+- Every `CoordinateHelper` setter and getter: `set_ticks`, `set_ticklabel(**Text kwargs)`, `set_axislabel(**Text kwargs)`, `set_major_formatter`, `set_format_unit`, `set_separator`, the position and visibility setters, the minor-tick setters, `add_tickable_gridline`, `format_coord`, and the `locator`/`formatter` properties.
+- `SphericalCircle`, `Quadrangle`, `add_beam` and `add_scalebar` stay matplotlib-only.
+
+**Extension points that constrain where the boundary goes:**
+
+- Users subclass `BaseFrame` and read `self.parent_axes.get_xlim()` (docs custom_frames.rst:81-86). So the core should consume the spines' arrays, not replace frames.
+- The transforms are public matplotlib Transforms (transforms.py:23-28, generic_transforms.rst). The core should duck-type `.transform`, `.inverted` and `.has_inverse`.
+- Downstream code touches internals: glue uses `frame.set_color` and `reset_wcs`, mpl-animators calls `reset_wcs` per frame (sunpy/mpl-animators#3), and sunpy uses others.
+
+**Size.** About 1,100-1,200 lines move behind the boundary:
+
+- `_update_ticks`, `_compute_ticks` and the grids: about 560.
+- Frame geometry: about 250.
+- Label layout: about 200.
+- Axis labels: about 90.
+- Orchestration: about 80.
+
+That is plus 400-600 new lines (result types, entry points, adapter): roughly 2-3k changed lines over 3-4 PRs.
+
+**Test guard.**
+
+- There are 56 `@figure_test` tests: test_images.py 47, test_frame.py 4, test_transform_coord_meta.py 3, test_wcsapi.py 2.
+- They compare hashes exactly (tolerance 0, astropy/tests/figures/helpers.py:22) against two hash libraries (tox.ini:4-6, 26), with baselines in astropy/astropy-figure-tests.
+- A pure move that keeps the arithmetic order keeps every hash. That is a strong regression guard with no churn, provided the matplotlib backend passes `transData`'s own callables rather than a recomputed 2x2 matrix.
+- Numeric changes go in separate PRs that regenerate the hashes.
+- Add matplotlib-free unit tests: import the core in a subprocess with `sys.modules['matplotlib'] = None`, and compare stored tick tables for TAN, an all-sky CAR with wrap, AIT with an elliptical frame, a sliced 3D cube, helioprojective with roll, and the 1D frame.
+- Existing tests that touch private attributes: test_misc.py and test_coordinate_helpers.py (`_axislabels`, `_coord_range`, spines) and test_wcsapi.py (`_ticks`).
+
+### Prior art and other consumers
+
+- [astropy#9993](https://github.com/astropy/astropy/issues/9993) (Robitaille, 2020, open, needs-discussion), "Think about ways to make WCSAxes be usable by other plotting libraries", raised for STScI's Jupyter tools. mhvk advised waiting for a concrete request.
+- [astropy#16464](https://github.com/astropy/astropy/issues/16464) (2024, open) proposes public `CoordinateHelper.get_ticks()`/`get_ticklabels()` and mentions splitting the core out. pllim asked whether that needs an APE and whether it overlaps with astrowidgets.
+- [glue-jupyter#154](https://github.com/glue-viz/glue-jupyter/issues/154) (2020, open) asks for world coordinates in the bqplot image viewer and is blocked on #9993. Maarten Breddels said bqplot takes `tick_values`, but labels only through a formatter.
+  - Today the viewer only sets the axis label to the world attribute name (glue_jupyter/bqplot/image/viewer.py:68-74), and its ticks are pixel indices.
+  - jdaviz Imviz inherits this: its compass, coords_info and orientation plugins show world information, but there are no WCS ticks.
+  - Both glue-qt (through matplotlib, unchanged) and glue-jupyter's bqplot viewer (new) would use a core.
+  - A browser backend cannot measure text synchronously from the kernel, so the label phase must be optional or approximate.
+- **Ginga** has its own [WCSAxes canvas object](https://github.com/ejeschke/ginga/blob/main/ginga/canvas/types/astro.py) (lines 1079-1260). It draws grid lines with labels inside the image, celestial only, and recomputes only when the limits or rotation change. It has no spine ticks.
+- **ds9** uses Starlink AST `astPlot` plus `astGrid` through a Tk backend ([tksao/frame/grid2d.C:171-172](https://github.com/SAOImageDS9/SAOImageDS9/blob/master/tksao/frame/grid2d.C)). AST's GRF callbacks (Line, Mark, Text, TxExt for text extent, Qch, Scales, Attr, Cap) are a long-standing precedent for this exact split. starlink-pyast ships a [matplotlib GRF](https://github.com/Starlink/starlink-pyast/blob/master/src/starlink/Grf.py) (lines 198-399). WCSAxes' range finder is itself "inspired by PGSBOX" (coordinate_range.py:11).
+- **Firefly** (drawingLayers/WebGrid.js, ComputeWebGridData.js) and **Aladin Lite / ipyaladin** (Rust/WebGL, src/core/src/renderable/grid/) have their own grids, which cannot be reused from Python.
+- **matplotlib's axisartist** `grid_finder.py` already separates grid computation from the artists, and WCSAxes' `select_step_*` came from it (utils.py:16).
+- **Nothing found** for pyqtgraph, vispy, napari, Bokeh or plotly (issue, repo and code searches). pyqtgraph's `AxisItem.setTicks` takes (value, string) pairs, which only covers unrotated rectangular axes. An IRIS SJI with roll needs ticks of one coordinate on two spines, at an angle, so any second backend has to draw its own tick items, as WCSAxes does in matplotlib.
+
+### Would a Qt-native renderer be faster?
+
+R5 and R18 measured an SJI draw at 28.4 ms:
+
+- WCSAxes takes 24.5 ms of it.
+- Tick placement takes 16.2-16.5 ms of that.
+- Placement is mostly 33 gWCS calls at 0.36-0.41 ms each, nearly independent of the number of points.
+
+Placement costs the same under QPainter, pyqtgraph or bqplot, because it is the same `pixel_to_world` calls. A renderer swap can only reach the remaining WCSAxes drawing, about 8 ms per SJI draw. That figure is derived from the notes, not measured: label layout and drawing, one `draw_markers` call per tick (ticks.py:230-247) and the frame lines. Part of it can also be removed inside matplotlib, by batching the tick markers per spine and caching label anchors with the placement. On maximized or HiDPI panels the cost is the image path (R19), which a Qt WCS axis does not touch. For glue-solar, hiding the axes (S14) already removes all of it.
+
+- **The speed fixes need no decoupling.**
+  - R5: batch the frame and shifted samples into about 2 calls (estimated -12 to -13 ms per SJI placement), and cache the placement while limits, size, transform and slice are unchanged (-16 ms per redrawn SJI viewer).
+  - R1: glue's label fix, or a lazy `set_xlabel` in astropy (SJI step 105 -> 39 ms).
+- **What decoupling buys:**
+  - Reuse in glue-jupyter, jdaviz and other toolkits.
+  - Tests that do not need matplotlib.
+  - A pure function whose inputs are an obvious cache key.
+- **What it costs in glue-qt:** a Qt overlay would make the screen differ from matplotlib export and from glue's script export (glue/viewers/image/viewer.py:247), unless the whole viewer left matplotlib.
+
+### Recommendation
+
+It is worth proposing upstream, but as the third step, and argued on reuse rather than speed.
+
+1. R1 in glue-core (with a lazy `set_xlabel` in astropy) and R5 in astropy. Write R5's batched sampling as a matplotlib-free function that takes `pixel_to_world`, the spines in data pixels and the display-transform callables. That is the core's first piece, and the measured speed gain justifies it on its own.
+2. #16464's getters. They are small and unblock glue-jupyter#154 with a hidden Agg WCSAxes as a stopgap.
+3. The split itself, discussed on #9993/#16464 first (which answers pllim's APE question). Order it as a pure-move PR with unchanged hashes, then the public core API, then a bqplot backend in glue-jupyter (not in astropy) as the proof.
+
+**Risks:**
+
+- Few people maintain it. Robitaille wrote 191 of the 430 non-test commits ever made to wcsaxes, and 70 of the 152 since 2023.
+- The figure tests compare hashes exactly, so any reordering of floating-point operations changes the images. Keep numeric changes out of the move PRs.
+- Custom frames, matplotlib Transforms and the free-form Text/PathPatch kwargs fix where the boundary can go.
+- Downstream code uses private attributes.
+- #9993 has sat in needs-discussion for six years, so a working second backend will carry the proposal better than another issue.
+
 ## Raw findings by area, with the second measurement
 
 Every finding each area reported, including those the ranking merged or left out, with the re-measuring agent's verdict where it tested one (it tested up to six per area).
