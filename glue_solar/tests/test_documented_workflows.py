@@ -10,12 +10,13 @@ from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from qtpy.QtCore import Qt
 
 import astropy.units as u
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
-from glue_solar.sources.loaders.iris import image_data, raster_data
+from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
 from glue_solar.tests.helpers import select_point
 
 SNS = "iris_l2_20210905_001833_3620258102_{}.fits"
@@ -69,3 +70,25 @@ def test_scripting_recipe(qtbot, irispy_test_files):
         expected = np.nanmean(values, axis=(0, 1), dtype=float)
     np.testing.assert_allclose(mean, expected, rtol=1e-6)
     np.testing.assert_array_equal(values[step, slit], values[step, slit, :])
+
+
+def test_browser_stacks_scans_into_4d_data_with_per_pixel_time(qtbot, irispy_test_files):
+    # docs/user_guide/loading-iris-level-2-raster-and-sji-data.rst: "Stack sequential raster scans"
+    scans = [path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name]
+    dialog = QtIRISImporter(scans[0].parent)
+    qtbot.addWidget(dialog)
+    observation = dialog.obs_tree.topLevelItem(0)
+    entries = [observation.child(i) for i in range(observation.childCount())]
+    next(entry for entry in entries if entry.text(0).startswith("C II 1336")).setCheckState(0, Qt.Checked)
+    dialog.stack.setChecked(True)
+    dialog.finalize()
+
+    [stack] = dialog.datasets
+    assert stack.ndim == 4
+    assert stack.world_component_ids[0].label == "Scan"
+    times = stack["Time"]
+    assert times.shape == stack.shape
+    assert times.dtype.kind == "M"
+    # one time per scan and raster step, the same at every slit position and wavelength
+    np.testing.assert_array_equal(times, np.broadcast_to(times[:, :, :1, :1], stack.shape))
+    assert len(np.unique(times[:, :, 0, 0])) == len(scans) * stack.shape[1]

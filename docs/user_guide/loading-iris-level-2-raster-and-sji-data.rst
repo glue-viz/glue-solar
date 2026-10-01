@@ -10,8 +10,9 @@ Browsing a folder by observation
 ``glue-solar`` adds an observation browser inspired by a subset of the IDL ``iris_xfiles`` tool;
 it does not reproduce the IDL quicklook features.
 Point it at any folder holding IRIS Level 2 files - the usual ``level2/yyyy/mm/dd/<obs>/`` tree,
-a flat download folder, or a pooch cache - and it lists every observation it finds, grouped by
-OBSID and start time, with the description, pointing and number of files:
+a flat download folder, or a pooch cache - and it lists every observation it finds, one row per
+OBSID and start time, with the columns STARTOBS, OBSID, Description, the pointing XCEN, YCEN and
+SAT_ROT, and Files, the number of files:
 
 .. image:: images/loading-iris-data-2.png
    :width: 800
@@ -32,9 +33,12 @@ Expand an observation to see what can be loaded:
 An observation with only one entry shows it in its "Files" column (for example ``1 — AIA 1700``)
 and has its tick box on its own row.
 
-Tick the entries you want (ticking the observation row ticks everything under it) and press
-"Load selected". The data are added to the data collection and the first slit-jaw (or AIA) cube is
-opened in an Image Viewer; use its ``Time (Utc)`` slider to step through time.
+Tick the entries you want (ticking the observation row ticks everything under it); each slit-jaw
+channel and AIA cutout you tick loads as a dataset of its own. Then press "Load selected": the data
+are added to the data collection. With "Open quicklook" ticked, the default, each observation with a
+raster or slit-jaw image opens in a quicklook (see `The quicklook`_). Otherwise the first slit-jaw
+(or AIA) cube opens in an Image Viewer, where its ``Time (Utc)`` slider steps through time; nothing
+opens for rasters alone.
 Tick "Stack sequential raster scans" to place two or more raster scans of a window into a single
 4D cube without resampling their detector values. The stack's values are floating point and are
 kept in a temporary file (a NumPy memmap) rather than in memory. Its leading ``Scan`` coordinate
@@ -89,7 +93,10 @@ Opening a single file
 ---------------------
 
 "File -> Open Data Set" also understands IRIS Level 2 files directly: a slit-jaw file loads as one
-cube, and a raster file loads one dataset per spectral window.
+cube, and a raster file loads one dataset per spectral window, labelled with the file's raster number
+(``…-r00003``). Files opened this way, or given on the ``glue`` command line, load one by one with
+every spectral window and cannot be stacked, so use the observation browser for large or multi-scan
+observations.
 
 Linking
 -------
