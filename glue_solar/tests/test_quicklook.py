@@ -1847,6 +1847,7 @@ def test_closing_the_slit_jaw_master_makes_the_raster_master_again(bare_app, qtb
     }
     # closing it moves nothing; the raster is master again, and SJI 2796 follows its exposure slider
     assert event(lambda: viewers["sji"][0].close(warn=False)) == {}
+    assert f"time master, step {exposure}" in readout(viewers["spectrogram"])
     assert event(lambda: slide(viewers["spectrogram"], 0, 186)) == {
         "point": (label, (186, slit, None)),
         "spectrogram": (186, None, None),

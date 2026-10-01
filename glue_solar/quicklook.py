@@ -288,6 +288,7 @@ class Coordinator(HubListener):
             for connection in buttons:
                 viewer.figure.canvas.mpl_disconnect(connection)
             self._shows.pop(viewer, None)
+            self._timer.start()  # the time master may have gone with it
 
     def own(self, group, viewers):
         """Let the point group ``group`` drive only ``viewers``, and ``viewers`` follow only it."""
