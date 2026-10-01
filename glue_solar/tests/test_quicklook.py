@@ -615,6 +615,8 @@ def test_typing_a_step_moves_the_point_once(bare_app, qtbot, scans):
     np.testing.assert_array_equal(spectrum(viewers), cube(scan)[6, slit.start])
 
 
+# glue collapses the NaN fill too, which numpy warns about
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
 def test_a_collapse_is_never_overwritten(bare_app, qtbot, scans):
     scan, _ = scans
     viewers = quicklook(bare_app, [scan])
@@ -981,6 +983,8 @@ def test_a_slit_jaw_master_picks_the_scan_of_a_stack(bare_app, qtbot, scans):
         assert [viewers[role].state.slices[-1] for role in RASTER_PANELS] == wavelengths
 
 
+# glue collapses the NaN fill too, which numpy warns about
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
 def test_a_collapse_on_the_master_and_a_follower(bare_app, qtbot, irispy_test_files):
     [raster] = raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))], ["Si IV 1403"])
     sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
@@ -1423,3 +1427,120 @@ def bare_app_for(qtbot, monkeypatch):
     app = GlueApplication()
     qtbot.addWidget(app)
     return app
+
+
+# The move/stay matrix: each event changes the sliders and the point it lists, and nothing else
+
+
+def sliders(app, viewers):
+    """
+    Each Image panel's slider positions, None along its shown axes, keyed by role and 'sji0', 'sji1', ... for
+    the slit-jaw panels; and the point as its dataset's label and indices (None along free axes), or None.
+    """
+    found = {}
+    panels = [(role, viewers[role]) for role in RASTER_PANELS] + [(f"sji{n}", v) for n, v in enumerate(viewers["sji"])]
+    for key, viewer in panels:
+        shown = {viewer.state.x_att.axis, viewer.state.y_att.axis}
+        found[key] = tuple(None if axis in shown else index for axis, index in enumerate(viewer.state.slices))
+    [group] = app.session.edit_subset_mode.edit_subset
+    point = group.subset_state
+    if isinstance(point, PixelSubsetState):
+        found["point"] = (point.reference_data.label, tuple(s.start for s in point.slices))
+    else:
+        found["point"] = None
+    return found
+
+
+def changes(app, qtbot, viewers, event):
+    """Run ``event``, let Qt run the coordinator's deferred work, and return what it changed in ``sliders``."""
+    before = sliders(app, viewers)
+    event()
+    qtbot.wait(20)
+    after = sliders(app, viewers)
+    return {key: value for key, value in after.items() if value != before[key]}
+
+
+def slide(viewer, axis, index):
+    """Move the viewer's slice slider along ``axis`` to ``index``, as a click on its track or a key does."""
+    viewer.options_widget().slice_helper._sliders[axis].value_slice_center.setValue(index)
+
+
+def type_index(viewer, axis, index):
+    """Type ``index`` into the box next to the viewer's slice slider along ``axis``."""
+    box = viewer.options_widget().slice_helper._sliders[axis].text_slider_label
+    box.setText(str(index))
+    box.editingFinished.emit()
+
+
+def test_what_moves_on_a_scanning_raster(bare_app, qtbot, scans):
+    scan, _ = scans
+    times = scan[scan.id["Time"]][:, 0, 0]
+    frames = times[0] + (np.arange(24) - 2) * ((times[-1] - times[0]) / 19)  # about three per step
+    sji = slit_jaw(frames, scan)
+    viewers = quicklook(bare_app, [scan, sji])
+    [sji_viewer] = viewers["sji"]
+    label = scan.label
+
+    def frame(step):
+        return expected_nearest(times[step], frames)
+
+    def event(action):
+        return changes(bare_app, qtbot, viewers, action)
+
+    assert len({frame(step) for step in range(scan.shape[0])}) == scan.shape[0]  # each step its own frame
+    # a map click moves the point; the spectrogram to its step, the λ panel to its slit, the SJI to its time
+    assert event(lambda: select_point(viewers["map"], 1, 30)) == {
+        "point": (label, (1, 30, None)),
+        "spectrogram": (1, None, None),
+        "wavelength": (None, 30, None),
+        "sji0": (frame(1), None, None),
+    }
+    # a spectrogram click (wavelength 5, slit 40) keeps the step, so the time
+    assert event(lambda: select_point(viewers["spectrogram"], 5, 40)) == {
+        "point": (label, (1, 40, None)),
+        "wavelength": (None, 40, None),
+        "map": (None, None, 5),
+    }
+    # a λ panel click (wavelength 9, step 6) keeps the slit
+    assert event(lambda: select_point(viewers["wavelength"], 9, 6)) == {
+        "point": (label, (6, 40, None)),
+        "spectrogram": (6, None, None),
+        "map": (None, None, 9),
+        "sji0": (frame(6), None, None),
+    }
+    # the step slider, moved or typed, moves the point and the time; no wavelength slider moves
+    for move, step in ((slide, 2), (type_index, 3)):
+        assert event(lambda move=move, step=step: move(viewers["spectrogram"], 0, step)) == {
+            "point": (label, (step, 40, None)),
+            "spectrogram": (step, None, None),
+            "sji0": (frame(step), None, None),
+        }
+    assert event(lambda: slide(viewers["map"], 2, 11)) == {"map": (None, None, 11)}
+    assert event(lambda: slide(viewers["wavelength"], 1, 7)) == {
+        "point": (label, (3, 7, None)),
+        "wavelength": (None, 7, None),
+    }
+    # a slit-jaw follower moved by hand keeps its frame until the next sync
+    assert event(lambda: slide(sji_viewer, 0, 0)) == {"sji0": (0, None, None)}
+    assert event(lambda: slide(viewers["spectrogram"], 0, 5)) == {
+        "point": (label, (5, 7, None)),
+        "spectrogram": (5, None, None),
+        "sji0": (frame(5), None, None),
+    }
+    # a slit-jaw master moves nothing on a scanning raster, whose time is the point's step
+    assert event(lambda: menu_action(sji_viewer, "Time master").trigger()) == {}
+    assert "time master" in readout(sji_viewer)
+    assert event(lambda: slide(sji_viewer, 0, 10)) == {"sji0": (10, None, None)}
+    assert event(lambda: menu_action(viewers["map"], "Time master").trigger()) == {"sji0": (frame(5), None, None)}
+    # after Clear point the time stays at the last point's step, and nothing follows the sliders
+    assert event(lambda: menu_action(viewers["map"], "Clear point").trigger()) == {"point": None}
+    assert event(lambda: slide(viewers["spectrogram"], 0, 0)) == {"spectrogram": (0, None, None)}
+    assert event(lambda: slide(viewers["wavelength"], 1, 20)) == {"wavelength": (None, 20, None)}
+    assert "time master, step 5" in readout(viewers["spectrogram"])
+    # until the next click
+    assert event(lambda: select_point(viewers["map"], 2, 50)) == {
+        "point": (label, (2, 50, None)),
+        "spectrogram": (2, None, None),
+        "wavelength": (None, 50, None),
+        "sji0": (frame(2), None, None),
+    }
