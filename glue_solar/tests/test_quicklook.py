@@ -496,6 +496,31 @@ def test_quicklook_fits_a_spectrum_computed_on_a_thread(bare_app, qtbot, monkeyp
     assert (spectrum.y_min, spectrum.y_max) == (np.nanmin(values), np.nanmax(values))
 
 
+def test_the_spectrum_panel_never_profiles_the_whole_cube(bare_app, qtbot, monkeypatch, scans):
+    # glue would compute the mean spectrum of the whole cube for a layer that is only hidden again
+    whole = []
+    compute = Data.compute_statistic
+
+    def counted(self, *args, **kwargs):
+        if kwargs.get("axis") is not None and kwargs.get("subset_state") is None:
+            whole.append(self.label)
+        return compute(self, *args, **kwargs)
+
+    monkeypatch.setattr(Data, "compute_statistic", counted)
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    select_point(viewers["map"], 1, 30)
+    qtbot.wait(50)
+    assert whole == []
+    [cube] = [layer for layer in viewers["spectrum"].state.layers if layer.layer is scan]
+    assert not cube.visible
+    # a raster added again later shows as glue adds it
+    viewers["spectrum"].remove_data(scan)
+    viewers["spectrum"].add_data(scan)
+    [cube] = [layer for layer in viewers["spectrum"].state.layers if layer.layer is scan]
+    assert cube.visible
+
+
 @pytest.mark.remote_data
 def test_quicklook_gives_aia_cutouts_no_role(bare_app, tmp_path, irispy_data, irispy_test_files):
     # A real AIA cutout claiming the fixture observation loads as a slit-jaw cube, but INSTRUME says AIA
