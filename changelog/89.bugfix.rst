@@ -1,0 +1,1 @@
+The Frame time readout no longer raises when a Profile Collapse range is narrower than one sample; it is blank instead.
