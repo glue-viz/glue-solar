@@ -10,8 +10,9 @@ Browsing a folder by observation
 ``glue-solar`` adds an observation browser inspired by a subset of the IDL ``iris_xfiles`` tool;
 it does not reproduce the IDL quicklook features.
 Point it at any folder holding IRIS Level 2 files - the usual ``level2/yyyy/mm/dd/<obs>/`` tree,
-a flat download folder, or a pooch cache - and it lists every observation it finds, grouped by
-OBSID and start time, with the description, pointing and number of files:
+a flat download folder, or a pooch cache - and it lists every observation it finds, one row per
+OBSID and start time, with the columns STARTOBS, OBSID, Description, the pointing XCEN, YCEN and
+SAT_ROT, and Files, the number of files:
 
 .. image:: images/loading-iris-data-2.png
    :width: 800
@@ -32,9 +33,12 @@ Expand an observation to see what can be loaded:
 An observation with only one entry shows it in its "Files" column (for example ``1 — AIA 1700``)
 and has its tick box on its own row.
 
-Tick the entries you want (ticking the observation row ticks everything under it) and press
-"Load selected". The data are added to the data collection and the first slit-jaw (or AIA) cube is
-opened in an Image Viewer; use its ``Time (Utc)`` slider to step through time.
+Tick the entries you want (ticking the observation row ticks everything under it); each slit-jaw
+channel and AIA cutout you tick loads as a dataset of its own. Then press "Load selected": the data
+are added to the data collection. With "Open quicklook" ticked, the default, each observation with a
+raster or slit-jaw image opens in a quicklook (see `The quicklook`_). Otherwise the first slit-jaw
+(or AIA) cube opens in an Image Viewer, where its ``Time (Utc)`` slider steps through time; nothing
+opens for rasters alone.
 Tick "Stack sequential raster scans" to place two or more raster scans of a window into a single
 4D cube without resampling their detector values. The stack's values are floating point and are
 kept in a temporary file (a NumPy memmap) rather than in memory. Its leading ``Scan`` coordinate
@@ -89,7 +93,35 @@ Opening a single file
 ---------------------
 
 "File -> Open Data Set" also understands IRIS Level 2 files directly: a slit-jaw file loads as one
-cube, and a raster file loads one dataset per spectral window.
+cube, and a raster file loads one dataset per spectral window, labelled with the file's raster number
+(``…-r00003``). Files opened this way, or given on the ``glue`` command line, load one by one with
+every spectral window and cannot be stacked, so use the observation browser for large or multi-scan
+observations.
+
+Overlaying the missing-data mask
+--------------------------------
+
+To see where data are missing, turn ``<label> mask`` into a
+`subset <http://docs.glueviz.org/en/stable/getting_started/index.html#defining-subsets>`__, which
+every Image Viewer of the dataset draws over the data. A selection replaces the subset selected in
+the data collection, which in a quicklook is ``Point``, so select the dataset itself first:
+
+- Select the dataset in the data collection and choose "Create faceted subsets" in the
+  "Data Manager" menu (or the data collection's right-click menu). Pick the ``<label> mask``
+  attribute, set the range from 0 to 1 and the number of subsets to 2. The second subset,
+  ``0.5<=<label> mask<=1.0``, holds every missing sample, and the first the others.
+- Or select the dataset in the data collection, show ``<label> mask`` in a Histogram viewer and
+  select an "X range" over the bar at 1. The Histogram viewer asks "Add large data set?" for
+  datasets of 2e7 samples or more, with Cancel as the default button: a full slit-jaw cube, such as
+  the 6.5e7 samples of OBSID 4000255147's SJI 1400, needs "OK".
+- A mask of your own comes from a FITS file through "Import subset mask(s)" in the "Data Manager"
+  menu, with the dataset selected. Each HDU of signed integers (BITPIX 16, 32 or 64) becomes a
+  subset of the samples above 0, and must have the dataset's shape. glue skips unsigned HDUs, such
+  as 8-bit images (BITPIX 8) and 16-bit ones stored with BZERO. "Export subset mask(s)" writes
+  masks it can read back.
+
+The first two leave the new subset selected, and "Pixel" would replace it, so select ``Point`` in
+the data collection before moving a quicklook's point again.
 
 Linking
 -------
@@ -194,6 +226,45 @@ point as a red cross, placed with that frame's own pointing. The cross is hidden
 time" readout says "outside SJI FOV", when the point is off the image; neither is drawn while the
 viewer shows the frame axis. A slit-jaw frame taken a raster step earlier or later than the point
 shows the slit a step away from the cross.
+
+Viewer tools and windows
+------------------------
+
+glue's `getting started guide <http://docs.glueviz.org/en/stable/getting_started/index.html>`__
+describes its viewers and tools; this section names those IRIS work uses most, as glue-qt 0.4.2
+labels them. A toolbar button's tooltip gives the tool's single-key shortcut if it has one, for
+example "Zoom to rectangle [shortcut: Z]".
+
+Besides glue's "Home" (H), "Pan" (M), "Zoom" (Z) and region selection tools, the Image Viewer
+toolbar has:
+
+- "Pixel" ("Select a single pixel based on mouse location"): click or drag to select one pixel.
+  On IRIS data this is the point the other viewers follow (see `The quicklook`_).
+- "Contrast/Bias": drag on the image, left and right for the bias, up and down for the contrast.
+  The "Reset" button next to the layer's contrast/bias sliders undoes it.
+- "Slice Extraction" (P): draw a path and press Enter to see the data along it in a new window.
+  It is offered for 3D data only, so not for stacks.
+- "Cursor readout", from glue-solar: the world position and the value under the mouse, in the
+  status bar. Press W over the image to switch between world and pixel positions; the button hides
+  and shows the readout.
+- "Frame time" and the "Coordinate" menu, from glue-solar, described above.
+- A button with a spectrum icon and no tooltip, which opens a 1D Profile viewer of the image's data.
+- The save menu, with "Save plot to file" and "Save Python script to reproduce plot", and the
+  window menu, with "Move to another tab" and "Change viewer title".
+
+Each viewer is a window in the current tab, with its own minimise, maximise and close buttons. The
+"Canvas" menu has "New Data Viewer" (Ctrl+N), "New Tab" (Ctrl+T), "Gather Windows" (Ctrl+G), which
+places the tab's viewers side by side, and "Rename Tab" (Ctrl+R); on macOS these use Cmd. Backspace
+closes the active viewer after asking "Do you want to close this window?" if it is one of glue's own
+Image, Scatter or Histogram viewers. It does nothing in a Profile or Table viewer, or in the
+quicklook's map, spectrogram and wavelength panels. In the data collection, though, Backspace is
+"Delete Layer": it removes the selected datasets and subsets at once, without asking and without
+undo.
+
+Glue has no gamma setting. A gamma below 1, which brightens faint emission, can be approximated with
+the "Square Root" stretch, a gamma of 0.5 applied between the limits: in the Image Viewer's layer
+options, type the lower and upper limits (the limits menu then reads "Custom") and choose
+"Square Root" in the stretch menu.
 
 Saving sessions
 ---------------

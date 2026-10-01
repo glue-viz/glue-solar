@@ -83,3 +83,70 @@ by raster number; the ``Subset 1`` layer then has only the scan it was selected 
 component supplies the exact acquisition timestamp for individual pixels, but it depends on both
 scan number and raster position and is therefore not a single Glue profile axis. The ``Subset 1``
 profile updates as you move the pixel selection in the image viewer.
+
+Recipes
+-------
+
+The quicklook (see :ref:`the loading guide <glue_solar_users_guide_loading_iris_level_2_raster_and_sji_files>`)
+sets up most of these views. The recipes below build them by hand with glue's own viewers, for any
+raster. Glue names a raster's axes after its world coordinates, so by role they are:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Role
+     - Glue's name for the axis
+   * - Raster step
+     - ``Helioprojective Longitude``
+   * - Exposure of a sit-and-stare raster, in acquisition order
+     - ``Helioprojective Longitude``
+   * - Position along the slit
+     - ``Helioprojective Latitude``
+   * - Wavelength
+     - ``Wavelength``
+   * - Scan of a stack
+     - ``Scan``
+   * - Slit-jaw frame
+     - ``Time (Utc)``
+
+The ``Time`` component gives the time of each raster step or exposure.
+
+**Views.** Drag the raster onto the canvas, choose "2D Image" and set the "x axis" and "y axis" in
+the viewer's options:
+
+- spectrogram: wavelength against slit (x ``Wavelength``, y ``Helioprojective Latitude``), glue's
+  default for a raster, with a slider for the raster step or exposure;
+- raster map: step against slit (x ``Helioprojective Longitude``, y ``Helioprojective Latitude``),
+  with a ``Wavelength`` slider;
+- time–wavelength: wavelength against exposure (x ``Wavelength``, y ``Helioprojective Longitude``)
+  for a sit-and-stare raster, or against scan (y ``Scan``) for a stack. On a scanning raster the
+  same axes give wavelength against raster step.
+
+**Four panels.** Open a raster map, a spectrogram, a slit-jaw image and a 1D Profile of the raster
+with ``Wavelength`` as its x axis, then choose "Canvas -> Gather Windows" (Ctrl+G) to place them side
+by side. The 1D Profile viewer asks "Add large data set?" for datasets of 1e8 samples or more, with
+Cancel as the default button.
+
+**Pixel.** "Pixel" in an Image viewer of a raster selects a detector pixel, one step (and scan) and
+slit position at every wavelength, and the Profile shows its spectrum. Click to select, or drag to
+move the point; it stays where you release the button. Pixel replaces the selected subset and
+switches glue's selection mode to replace.
+
+**Navigate.** "Options" in the Profile viewer's toolbar opens glue's
+`profile tools <http://docs.glueviz.org/en/stable/gui_guide/spectrum.html>`__. On their "Navigate"
+tab, click the profile or drag its line to move the wavelength slider of every Image viewer of the
+same raster to the nearest wavelength.
+
+**Band maps.** On the "Collapse" tab, drag a wavelength range on the profile, pick a function (Mean,
+Median, Minimum, Maximum, Sum, Moment 1 or Moment 2) and press "Collapse": the Image viewers of the
+raster show the data combined over the range until their wavelength slider moves. glue-qt 0.4.2
+leaves out the sample at the upper end of the range, so the range must cover at least two samples.
+
+In glue-qt 0.4.2, Navigate and Collapse pick the wrong wavelengths when the Profile's "x unit" is not
+the data's own (``m`` for IRIS wavelengths), so leave it unchanged for them.
+
+**Slice Extraction.** In an Image viewer of a raster or slit-jaw cube, "Slice Extraction" (P) takes a
+path drawn on the image and, on Enter, shows the data along the path against the slider's axis in a
+new window, for example along a path across a slit-jaw frame against time. The window is not a
+dataset, and the tool is not offered for stacks; see glue's
+`slice extraction <http://docs.glueviz.org/en/stable/gui_guide/slice.html>`__.
