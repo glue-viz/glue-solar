@@ -147,11 +147,9 @@ Coordinate menu and mouse mode
     is still pressed, and the next click on the map moves the point without choosing Pixel again.
     "Clear point" removes the crosshair and empties the spectrum panel.
 
-22. On the same map, press "Hide axes", "Frame time" and "Cursor readout", each twice, with the Pixel
-    tool active before each press (choose it again if it went off), and click the map after each.
-    Pixel should stay on after each press. At the time of writing it stays on after "Hide axes", but
-    "Frame time" and "Cursor readout" switch it off, since glue-qt switches the mouse mode off for
-    any plain toolbar button; write down what you see.
+22. On the same map, with the Pixel tool active, press "Hide axes", "Frame time" and "Cursor
+    readout", each twice, and click the map after each. The Pixel button stays pressed and each click
+    moves the point, although glue-qt switches the mouse mode off for any plain toolbar button.
 
 Readouts, labels and themes
 ---------------------------

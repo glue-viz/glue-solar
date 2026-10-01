@@ -228,8 +228,9 @@ The panels also follow one time. The raster is the time master: the slit-jaw vie
 nearest the time of the point's exposure or raster step (mid-raster before there is a point). Choose
 "Time master" in the "Coordinate" menu of a slit-jaw viewer to make it the master instead; the
 raster then moves to the exposure, or on a stack the scan, nearest each frame, keeping the slit and
-the raster step. The master rules: moving the raster's exposure or scan slider by hand, or clicking
-another exposure or scan, snaps the raster back to the one matching the master's frame, while a
+the raster step. The master rules: while there is a point, moving the raster's exposure or scan
+slider by hand, or clicking another exposure or scan, snaps the raster back to the one matching the
+master's frame (after "Clear point" it keeps a hand-moved exposure or scan, as below), while a
 slit-jaw follower moved by hand keeps its frame until the panels next follow the time, on a click, a
 move of the point or of the master, or when its tab is shown again. A dataset with nothing within
 half its own time step of the master's time (for a
