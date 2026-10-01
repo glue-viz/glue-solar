@@ -257,8 +257,9 @@ toolbar has:
   It is offered for 3D data only, so not for stacks.
 - "Cursor readout", from glue-solar: the world position and the value under the mouse, in the
   status bar. Press W over the image to switch between world and pixel positions; the button hides
-  and shows the readout.
-- "Frame time" and the "Coordinate" menu, from glue-solar, described above.
+  and shows the readout, and the mouse mode, such as Pixel, stays on.
+- "Frame time" and the "Coordinate" menu, from glue-solar, described above; the "Frame time" button
+  hides and shows its readout, and the mouse mode stays on.
 - "Hide axes", from glue-solar: hides the viewer's axes (ticks, tick labels, axis labels and frame),
   and shows them again; the mouse mode, such as Pixel, stays on. Without them each slice step and
   redraw is faster, since no ticks are placed; the image, subsets, links, the slit and point of

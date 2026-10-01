@@ -146,10 +146,13 @@ def test_frame_time_tool_follows_the_sliders(qtbot, irispy_test_files):
     assert tool.label.text() == f"{stamp[0]} – {stamp[-1]} UTC · exp {span} s"
     assert tool.label.toolTip() == ""  # no single frame, so no pointing
 
-    tool.activate()
-    assert tool.label.isHidden()
-    tool.activate()
-    assert not tool.label.isHidden()
+    # the button leaves the mouse mode on, which glue-qt ends for a plain button
+    viewer.toolbar.active_tool = "image:point_selection"
+    pixel, button = viewer.toolbar.active_tool, viewer.toolbar.actions["solar:frame_time"]
+    button.trigger()
+    assert (tool.label.isHidden(), viewer.toolbar.active_tool) == (True, pixel)
+    button.trigger()
+    assert (tool.label.isHidden(), viewer.toolbar.active_tool) == (False, pixel)
 
     # Any loader's datetime component will do, whatever it is called
     still = Data(label="still", flux=np.zeros((4, 5)), obs_date=np.full((4, 5), np.datetime64("2020-01-01T12:00:00")))
@@ -200,11 +203,15 @@ def test_cursor_readout_shows_position_and_value(qtbot, irispy_test_files):
     assert tool.describe(10, 20).endswith(f"| value = {float(sji[viewer.layers[0].state.attribute, (5, 20, 10)]):.6g}")
     assert tool.describe(-3, 20) == viewer.axes.format_coord(-3, 20)  # outside the image: position only
 
-    tool.activate()  # hide
+    viewer.toolbar.active_tool = "image:point_selection"
+    pixel, button = viewer.toolbar.active_tool, viewer.toolbar.actions["solar:cursor_readout"]
+    button.trigger()  # hide, leaving the mouse mode on
+    assert viewer.toolbar.active_tool is pixel
     assert viewer.statusBar().currentMessage() == ""
     move_to(10, 20)
     assert viewer.statusBar().currentMessage() == ""
-    tool.activate()  # show again
+    button.trigger()  # show again
+    assert viewer.toolbar.active_tool is pixel
     event = move_to(10, 20)
     assert viewer.statusBar().currentMessage() == tool.describe(event.xdata, event.ydata) != ""
 
