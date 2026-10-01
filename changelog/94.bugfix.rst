@@ -1,0 +1,1 @@
+With a slit-jaw image as time master, a click on a stack's λ–scan panel or a scanning raster's spectrogram no longer raises and leaves the point half set, a raster without a ``Time`` component no longer breaks its observation's time sync, and closing the time master's viewer updates the other viewers' Frame time readouts at once.

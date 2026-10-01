@@ -126,6 +126,11 @@ def _time_axis(data):
     return None
 
 
+def _timed(data):
+    """Whether ``data`` takes part in time sync: an IRIS dataset with times."""
+    return bool(_role(data)) and data.find_component_id("Time") is not None
+
+
 def _times(data, step):
     """The 1-D times of ``data``: per frame, exposure or step, or per scan at raster step ``step`` of a stack."""
     index = [0] * data.ndim
@@ -283,6 +288,7 @@ class Coordinator(HubListener):
             for connection in buttons:
                 viewer.figure.canvas.mpl_disconnect(connection)
             self._shows.pop(viewer, None)
+            self._timer.start()  # the time master may have gone with it
 
     def own(self, group, viewers):
         """Let the point group ``group`` drive only ``viewers``, and ``viewers`` follow only it."""
@@ -427,7 +433,7 @@ class Coordinator(HubListener):
         seen = {}
         for viewer in self._viewers:
             data = viewer.state.reference_data
-            if data is not None and observation_key(data) == key and _role(data):
+            if data is not None and observation_key(data) == key and _timed(data):
                 seen.setdefault(id(data), data)
         return list(seen.values())
 
@@ -456,7 +462,9 @@ class Coordinator(HubListener):
         if _role(data) != "raster":
             return self._slider(data, 0), None
         step_axis = data.ndim - 3
-        if point is not None and point.reference_data is data:
+        # a click is the point before _pin gives it the axes it was not clicked on
+        on_data = point is not None and point.reference_data is data
+        if on_data and point.slices[0].start is not None and point.slices[step_axis].start is not None:
             step = self._steps[data] = point.slices[step_axis].start
             scan = point.slices[0].start
         else:
@@ -529,7 +537,7 @@ class Coordinator(HubListener):
         data = viewer.state.reference_data
         key = observation_key(data) if data is not None else None
         master, when, step = self._master_times.get(key, (None, None, None))
-        if master is None or master is not self._master(key) or not _role(data):
+        if master is None or master is not self._master(key) or not _timed(data):
             return None
         if data is master:
             return ("master", step)
