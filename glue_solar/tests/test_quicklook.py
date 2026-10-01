@@ -23,7 +23,7 @@ import glue_solar
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.quicklook import QuicklookImageViewer, coordinator, nearest, observation_key, quicklook
 from glue_solar.sources.loaders.iris import image_data, raster_data
-from glue_solar.tests.helpers import mouse, select_point
+from glue_solar.tests.helpers import mouse, raster_point_on_sji, select_point
 
 SCAN = "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"
 
@@ -841,19 +841,8 @@ def test_each_follower_viewer_reads_its_own_frame(bare_app, qtbot, irispy_test_f
 
 def footprint(raster, sji):
     """The raster's four corners in the slit-jaw image's first frame, from both datasets' own coordinates."""
-    raster_types = list(raster.coords.world_axis_physical_types)
-    corners = [
-        raster.coords.pixel_to_world_values(0, slit, step)
-        for step in (0, raster.shape[0] - 1)
-        for slit in (0, raster.shape[1] - 1)
-    ]
-    types = list(sji.coords.world_axis_physical_types)
-    world = [None] * 3
-    for kind in ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat"):
-        world[types.index(kind)] = np.array([corner[raster_types.index(kind)] for corner in corners])
-    world[types.index("time")] = np.full(4, sji.coords.pixel_to_world_values(0, 0, 0)[types.index("time")])
-    x, y, _ = sji.coords.world_to_pixel_values(*world)
-    return x, y
+    corners = [(step, slit) for step in (0, raster.shape[0] - 1) for slit in (0, raster.shape[1] - 1)]
+    return np.transpose([raster_point_on_sji(raster, sji, step, slit) for step, slit in corners])
 
 
 def test_slit_jaw_panels(bare_app, qtbot, tmp_path, monkeypatch, irispy_test_files):

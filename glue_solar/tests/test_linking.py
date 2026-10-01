@@ -26,7 +26,7 @@ from glue_solar import glue_patches
 from glue_solar.quicklook import coordinator, nearest, quicklook
 from glue_solar.sources.iris import browse_iris, link_iris
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, keep_hpc_linked, link_hpc, raster_data
-from glue_solar.tests.helpers import select_point
+from glue_solar.tests.helpers import raster_point_on_sji, select_point
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
 RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
@@ -226,7 +226,7 @@ def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, mon
 
 
 def _autolink(data_collection):
-    """Add every link glue's autolinkers suggest, as Apply in glue-qt's suggestion dialog does."""
+    """Add every link glue's autolinkers suggest, as glue-qt's run_autolinker does when set to always accept."""
     links = [link for found in find_possible_links(data_collection).values() for link in found]
     data_collection.add_link(links)
     return links
@@ -262,29 +262,31 @@ def test_link_graph_in_every_add_order(qtbot, monkeypatch, sns, order):
         # only glue's WCS links, from pixel to pixel, reach pixel components (D8)
         assert len({isinstance(cid, PixelComponentID) for cid in cids}) == 1
 
-    # a raster point reaches the other panels, and the slit-jaw image at the matching frame
+    # a raster point reaches the other panels, and the slit-jaw image at the nearest frame
     links, components = dc.external_links, [list(data.components) for data in dc]
     sji_times, raster_times = (data[data.id["Time"]][:, 0, 0] for data in (sji, raster))
-    step, slit = 186, 20  # an exposure with a slit-jaw frame within half a cadence
     [sji_viewer] = viewers["sji"]
-    select_point(viewers["map"], step, slit)
-    qtbot.waitUntil(lambda: viewers["spectrogram"].state.slices[0] == step)
-    assert viewers["wavelength"].state.slices[1] == slit
-    [spectrum] = [layer for layer in viewers["spectrum"].state.layers if layer.visible]
-    np.testing.assert_array_equal(spectrum.profile[1], raster[raster.main_components[0]][step, slit])
-    [frame], _ = nearest(raster_times[step : step + 1], sji_times)
-    qtbot.waitUntil(lambda: sji_viewer.state.slices[0] == frame)
     marker = sji_viewer.toolbar.tools["solar:coordinate"]._marker
-    qtbot.waitUntil(marker.get_visible)
-    assert tuple(marker.get_xydata()[0]) == pytest.approx(coordinator(dc).point_on(sji_viewer))
+    slit = 20
+    for step in (2, 186):  # the nearest slit-jaw frame comes after, then before, the exposure
+        select_point(viewers["map"], step, slit)
+        qtbot.waitUntil(lambda: viewers["spectrogram"].state.slices[0] == step)
+        assert viewers["wavelength"].state.slices[1] == slit
+        [spectrum] = [layer for layer in viewers["spectrum"].state.layers if layer.visible]
+        np.testing.assert_array_equal(spectrum.profile[1], raster[raster.main_components[0]][step, slit])
+        [frame], _ = nearest(raster_times[step : step + 1], sji_times)
+        qtbot.waitUntil(lambda: sji_viewer.state.slices[0] == frame)
+        qtbot.waitUntil(marker.get_visible)
+        assert tuple(marker.get_xydata()[0]) == pytest.approx(raster_point_on_sji(raster, sji, step, slit, frame))
     assert [layer.visible for layer in sji_viewer.state.layers if layer.layer.label == "Point"] == [False]
 
     # and a slit-jaw time master moves the point to the nearest exposure
     coordinator(dc).set_master(sji)
-    sji_viewer.state.slices = (40, 0, 0)
-    [exposure], _ = nearest(sji_times[40:41], raster_times)
     [group] = app.session.edit_subset_mode.edit_subset
-    qtbot.waitUntil(lambda: group.subset_state.slices[:2] == [slice(exposure, exposure + 1), slice(slit, slit + 1)])
+    for frame in (8, 40):  # the nearest exposure comes after, then before, the frame
+        sji_viewer.state.slices = (frame, 0, 0)
+        [exposure], _ = nearest(sji_times[frame : frame + 1], raster_times)
+        qtbot.waitUntil(lambda: group.subset_state.slices[:2] == [slice(exposure, exposure + 1), slice(slit, slit + 1)])
     assert dc.external_links == links  # time sync adds no links
     assert [list(data.components) for data in dc] == components
 
