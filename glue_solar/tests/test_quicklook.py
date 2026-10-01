@@ -735,12 +735,42 @@ def test_a_drag_moves_the_other_panels_once(bare_app, qtbot, scans):
     written = []
     viewers["spectrogram"].state.add_callback("slices", lambda slices: written.append(slices[0]))
     mouse(viewers["map"], "button_press_event", 1, 30)
+    assert written == [1]  # the press, like a click, at once
     for step in (2, 3, 4, 5):
         mouse(viewers["map"], "motion_notify_event", step, 30)
     mouse(viewers["map"], "button_release_event", 5, 30)
-    assert written == []  # nothing yet: the panels follow when Qt next runs
+    assert written == [1]  # the drag only when Qt next runs, at its last position
     qtbot.waitUntil(lambda: viewers["spectrogram"].state.slices[0] == 5)
-    assert written == [5]
+    assert written == [1, 5]
+    select_point(viewers["map"], 7, 30)  # and the next click at once again
+    assert written == [1, 5, 7]
+
+
+def test_a_click_draws_each_other_panel_once(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    qtbot.wait(50)
+    draws = Counter()
+    panels = {"spectrogram": viewers["spectrogram"], "wavelength": viewers["wavelength"], "sji": viewers["sji"][0]}
+    for role, viewer in panels.items():
+        draw = viewer.figure.canvas.draw
+        monkeypatch.setattr(viewer.figure.canvas, "draw", lambda draw=draw, role=role: draws.update([role]) or draw())
+    select_point(viewers["map"], 100, 30)  # the map's own draws are the helper's
+    # moved before glue draws the click: each draws once, with its new slider and the new point
+    assert viewers["spectrogram"].state.slices[0] == 100
+    assert viewers["wavelength"].state.slices[1] == 30
+    qtbot.waitUntil(lambda: " · Δt " in readout(panels["sji"]))
+    qtbot.wait(50)
+    assert draws == {"spectrogram": 1, "wavelength": 1, "sji": 1}
+
+
+def test_an_error_after_a_click_is_reported(bare_app, qtbot, monkeypatch, scans):
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    with monkeypatch.context() as patch, qtbot.captureExceptions() as errors:
+        patch.setattr(coordinator(bare_app.data_collection), "_sync", lambda key: 1 / 0)
+        select_point(viewers["map"], 1, 30)  # matplotlib's mouse events would only print it
+    assert [type(error) for _, error, _ in errors] == [ZeroDivisionError]
 
 
 def expected_nearest(when, times):

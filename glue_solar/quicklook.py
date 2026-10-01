@@ -2,6 +2,7 @@
 The IRIS quicklook: a preset of glue viewers for one observation, kept on one selected point.
 """
 
+import sys
 import weakref
 from contextlib import contextmanager
 
@@ -213,6 +214,7 @@ class Coordinator(HubListener):
         self._owners = {}  # a quicklook's point group -> the viewers it drives
         self._placed = (None, None)  # point_on's last (raster, pixel, slit-jaw, frame) and answer
         self._busy = False
+        self._drag = None  # while a mouse button is down on a viewer: whether a point was clicked
         # a drag moves the point at every mouse event: show only its latest position
         self._timer = QTimer()
         self._timer.setSingleShot(True)
@@ -256,10 +258,15 @@ class Coordinator(HubListener):
             if moved and not self._busy and self._master(observation_key(data)) is data:
                 self._timer.start()  # the time master moved
 
+        def mouse_button(event):
+            self._drag = False if event.name == "button_press_event" else None
+
         for prop in ("reference_data", "x_att", "y_att"):
             viewer.state.add_callback(prop, axes_changed)
         viewer.state.add_callback("slices", slices_changed, echo_old=True)
-        self._viewers[viewer] = (axes_changed, slices_changed)
+        canvas = viewer.figure.canvas
+        buttons = [canvas.mpl_connect(name, mouse_button) for name in ("button_press_event", "button_release_event")]
+        self._viewers[viewer] = (axes_changed, slices_changed, buttons)
         self._shows[viewer] = viewer.state.reference_data
         self._timer.start()  # join the time master
 
@@ -269,10 +276,12 @@ class Coordinator(HubListener):
             owned.discard(viewer)  # or its quicklook's point would add layers to it after it closed
         callbacks = self._viewers.pop(viewer, None)
         if callbacks is not None:
-            axes_changed, slices_changed = callbacks
+            axes_changed, slices_changed, buttons = callbacks
             for prop in ("reference_data", "x_att", "y_att"):
                 viewer.state.remove_callback(prop, axes_changed)
             viewer.state.remove_callback("slices", slices_changed)
+            for connection in buttons:
+                viewer.figure.canvas.mpl_disconnect(connection)
             self._shows.pop(viewer, None)
 
     def own(self, group, viewers):
@@ -333,7 +342,17 @@ class Coordinator(HubListener):
             return
         self.group = group
         self._pin(state)
-        self._timer.start()
+        if self._drag:
+            self._timer.start()
+            return
+        if self._drag is False:
+            self._drag = True  # the press: until the release, a drag
+        # a click, or a point set by code: move the panels before glue draws the point, so each draws once
+        self._timer.stop()
+        try:
+            self._update()
+        except Exception:  # reported as from the timer: matplotlib's mouse events would only print it
+            sys.excepthook(*sys.exc_info())
 
     def _subset_deleted(self, message):
         if getattr(message.subset, "group", None) is self.group:
