@@ -139,7 +139,7 @@ same raster to the nearest wavelength.
 
 **Band maps.** On the "Collapse" tab, drag a wavelength range on the profile, pick a function (Mean,
 Median, Minimum, Maximum, Sum, Moment 1 or Moment 2) and press "Collapse": the Image viewers of the
-raster show the data combined over the range until their wavelength slider moves. glue-qt 0.4.2
+raster show the data combined over the range, each until you move any of its sliders. glue-qt 0.4.2
 leaves out the sample at the upper end of the range, so the range must cover at least two samples.
 
 In glue-qt 0.4.2, Navigate and Collapse pick the wrong wavelengths when the Profile's "x unit" is not
