@@ -1546,6 +1546,11 @@ def test_what_moves_on_a_scanning_raster(bare_app, qtbot, scans):
     assert event(lambda: menu_action(sji_viewer, "Time master").trigger()) == {}
     assert "time master" in readout(sji_viewer)
     assert event(lambda: slide(sji_viewer, 0, 10)) == {"sji0": (10, None, None)}
+    assert event(lambda: select_point(viewers["spectrogram"], 4, 60)) == {
+        "point": (label, (5, 60, None)),
+        "wavelength": (None, 60, None),
+        "map": (None, None, 4),
+    }
     assert event(lambda: menu_action(viewers["map"], "Time master").trigger()) == {"sji0": (frame(5), None, None)}
     # after Clear point the time stays at the last point's step, and nothing follows the sliders
     assert event(lambda: menu_action(viewers["map"], "Clear point").trigger()) == {"point": None}
@@ -1665,11 +1670,6 @@ def test_what_moves_on_a_stack(bare_app, qtbot, scans):
     }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=ValueError,
-    reason="the click's own point has no step until it is pinned, so the readouts' time_status raises in _pin",
-)
 def test_a_click_on_another_scan_snaps_back_to_a_slit_jaw_master(bare_app, qtbot, scans):
     _, stack = scans
     scan_times = stack[stack.id["Time"]][:, expected_start(stack)[1], 0, 0]  # at the point's step
@@ -1944,18 +1944,9 @@ def test_an_exposure_axis_across_midnight_gives_both_dates(bare_app, irispy_test
     check_exposure_axis(viewer, "x", f"{EXPOSURES}\n{first} – {last} UTC", raster.shape[0])
 
 
-@pytest.mark.parametrize(
-    "observation",
-    [
-        False,
-        pytest.param(True, marks=pytest.mark.xfail(strict=True, reason="the coordinator's time sync needs Time")),
-    ],
-)
-def test_an_exposure_axis_without_times_has_a_one_line_label(bare_app, irispy_test_files, observation):
+def test_an_exposure_axis_without_times_has_a_one_line_label(bare_app, irispy_test_files):
     raster, _ = sit_and_stare(irispy_test_files)
-    raster.remove_component(raster.id["Time"])
-    if not observation:
-        del raster.meta["OBSID"]  # of no observation, so no time sync
+    raster.remove_component(raster.id["Time"])  # which also keeps it out of its observation's time sync
     bare_app.data_collection.append(raster)
     viewer = image(bare_app, raster, 0, 1, (0, 0, 5))
     check_exposure_axis(viewer, "x", EXPOSURES, raster.shape[0])
