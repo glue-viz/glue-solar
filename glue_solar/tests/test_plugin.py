@@ -1,8 +1,9 @@
 import shutil
+from collections import Counter
 
 import numpy as np
 import pytest
-from glue.config import data_factory, menubar_plugin, startup_action
+from glue.config import data_factory, menubar_plugin, settings, startup_action
 from glue.core import Data
 from glue.core.data_factories import load_data
 from glue.viewers.image.state import AggregateSlice
@@ -28,6 +29,7 @@ def test_setup_registers_hooks():
     assert startup_action.members["iris_quicklook"] is iris_quicklook
     assert ImageViewer.tools.count("solar:frame_time") == 1
     assert ImageViewer.tools.count("solar:coordinate") == 1
+    assert ImageViewer.tools.count("solar:hide_axes") == 1
     assert ImageViewer.tools.count("solar:cursor_readout") == (0 if hasattr(ImageViewer, "cursor_status") else 1)
     iris = next(f for f in data_factory if f.label == "IRIS Level 2 FITS")
     for label in ("FITS file", "sunpy Map"):  # both also match IRIS files; ours must win
@@ -208,6 +210,87 @@ def test_cursor_readout_shows_position_and_value(qtbot, irispy_test_files):
     app.data_collection.append(still)
     other = app.new_data_viewer(ImageViewer, data=still)
     assert other.toolbar.tools["solar:cursor_readout"].describe(1, 1).endswith(" | flux = 3.5")
+
+
+def margins(viewer):
+    """The colours the canvas draws left of and below the viewer's axes, where WCSAxes puts its ticks and labels."""
+    viewer.figure.canvas.draw()
+    rgba = np.asarray(viewer.figure.canvas.buffer_rgba())
+    box = viewer.axes.get_window_extent()
+    left, below = rgba[:, : int(box.x0) - 2], rgba[rgba.shape[0] - int(box.y0) + 2 :]
+    return {tuple(colour) for part in (left, below) for colour in part.reshape(-1, 4)}
+
+
+def test_hide_axes(qtbot, monkeypatch, irispy_test_files):
+    from astropy.visualization.wcsaxes.coordinate_helpers import CoordinateHelper
+
+    from glue_solar.tests.helpers import mouse
+
+    glue_solar.setup()
+    sji = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
+    sji = load_data(str(sji))
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(sji)
+    shown = app.new_data_viewer(ImageViewer, data=sji)
+    monkeypatch.setattr(settings, "SOLAR_SHOW_AXES", False)  # for new viewers
+    hidden = app.new_data_viewer(ImageViewer, data=sji)
+    assert (shown.state.show_axes, shown.axes.axison) == (True, True)
+    assert (hidden.state.show_axes, hidden.axes.axison) == (False, False)
+    placed = Counter()
+    update_ticks = CoordinateHelper._update_ticks
+
+    def counted(self):
+        placed[self.parent_axes] += 1
+        return update_ticks(self)
+
+    monkeypatch.setattr(CoordinateHelper, "_update_ticks", counted)
+    for frame in (0, 5):
+        for viewer in (shown, hidden):
+            viewer.state.slices = (frame, 0, 0)
+            placed.clear()
+            viewer.figure.canvas.draw()
+            assert (placed[viewer.axes] > 0) == viewer.state.show_axes  # no tick placement in a draw without axes
+        assert len(margins(shown)) > 1  # ticks and labels
+        assert len(margins(hidden)) == 1  # the background only
+        # the mouse-over readout stays in world coordinates
+        assert hidden.axes.format_coord(10, 20) == shown.axes.format_coord(10, 20)
+        assert shown.axes.format_coord(10, 20).endswith("\" (world)")  # arcsec
+
+    # the button repaints the viewer and leaves its mouse mode on, which glue-qt ends for a plain button
+    hidden.toolbar.active_tool = "image:point_selection"
+    pixel, button = hidden.toolbar.active_tool, hidden.toolbar.actions["solar:hide_axes"]
+    draw, draws = hidden.figure.canvas.draw, []
+    monkeypatch.setattr(hidden.figure.canvas, "draw", lambda *args: draws.append(args) or draw(*args))
+    for show in (True, False):
+        qtbot.wait(10)  # draws already queued
+        draws.clear()
+        button.trigger()
+        assert (hidden.state.show_axes, hidden.axes.axison, hidden.toolbar.active_tool) == (show, show, pixel)
+        qtbot.waitUntil(lambda: bool(draws), timeout=1000)
+        assert (len(margins(hidden)) > 1) == show
+    mouse(hidden, "button_press_event", 10, 20)  # a Pixel click: subsets work without axes
+    mouse(hidden, "button_release_event", 10, 20)
+    [group] = app.data_collection.subset_groups
+    assert [(s.start, s.stop) for s in group.subset_state.slices] == [(None, None), (20, 21), (10, 11)]
+
+
+def test_sessions_keep_each_viewers_axes(qtbot, monkeypatch, tmp_path):
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    image = Data(label="image", flux=np.arange(20.0).reshape(4, 5))
+    app.data_collection.append(image)
+    viewers = [app.new_data_viewer(ImageViewer, data=image) for _ in range(2)]
+    viewers[0].toolbar.actions["solar:hide_axes"].trigger()
+    app.save_session(str(tmp_path / "axes.glu"))
+    monkeypatch.setattr(settings, "SOLAR_SHOW_AXES", False)  # applies to new viewers only
+    restored = GlueApplication.restore_session(str(tmp_path / "axes.glu"))
+    qtbot.addWidget(restored)
+    assert [(viewer.state.show_axes, viewer.axes.axison) for viewer in restored.viewers[0]] == [
+        (False, False),
+        (True, True),
+    ]
 
 
 def test_iris_image_layers_render_nan_transparent(qtbot, irispy_test_files):

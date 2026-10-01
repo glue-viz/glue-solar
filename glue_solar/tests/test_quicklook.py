@@ -1192,15 +1192,18 @@ def overlays(viewer):
     )
 
 
-def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files):
+@pytest.mark.parametrize("show_axes", [True, False])
+def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, monkeypatch, irispy_test_files, show_axes):
     raster, sji = sit_and_stare(irispy_test_files)
     # the fixture keeps full-size slit positions for 10x smaller frames: give each frame its own
     n, ny, nx = sji.shape
     slit = 1 + np.linspace(3, nx - 4, n)
     slit[[5, 6]] = 0, np.nan  # frames without a slit position
     sji.meta["slit x position"] = slit
+    monkeypatch.setattr(settings, "SOLAR_SHOW_AXES", show_axes)  # all the same without axes
     viewers = quicklook(bare_app, [raster, sji])
     [sji_viewer] = viewers["sji"]
+    assert {viewer.axes.axison for viewer in bare_app.viewers[-1] if isinstance(viewer, ImageViewer)} == {show_axes}
     coord = coordinator(bare_app.data_collection)
     for frame in (0, n // 2, n - 1):
         sji_viewer.state.slices = (frame, 0, 0)

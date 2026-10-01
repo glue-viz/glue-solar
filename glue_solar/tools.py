@@ -18,7 +18,10 @@ import astropy.units as u
 
 from glue_solar.quicklook import _is_sit_and_stare, _role, coordinator
 
-__all__ = ["CoordinateTool", "CursorReadoutTool", "FrameTimeTool"]
+__all__ = ["CoordinateTool", "CursorReadoutTool", "FrameTimeTool", "HideAxesTool"]
+
+# Whether a new Image viewer shows its axes; the user guide says how to change it
+settings.add("SOLAR_SHOW_AXES", True, validator=bool)
 
 _WATCHED = ("reference_data", "x_att", "y_att", "slices")
 # glue sets both axis labels whenever it resets the WCSAxes, which also drops their tick settings
@@ -348,6 +351,49 @@ class CursorReadoutTool(Tool):
         # IRIS components are named after their dataset; say 'value' rather than repeat it
         name = "value" if layer.attribute.label == data.label else layer.attribute.label
         return f"{text} | {name} = {value}"
+
+
+@viewer_tool
+class HideAxesTool(Tool):
+    """
+    Hide or show the Image viewer's axes: their ticks, tick labels, axis labels and frame.
+
+    The button switches glue's own ``show_axes`` viewer state, which glue-qt 0.4.2 has no control for
+    and sessions save; a new viewer starts from the ``SOLAR_SHOW_AXES`` glue setting. Without its axes
+    WCSAxes places no ticks when the viewer draws, so slice steps and redraws are faster. The image,
+    subsets, links and the readouts are unchanged; the mouse-over position stays in world coordinates.
+    A plain button, since a checkable glue tool is a mouse mode, which would end Pixel; glue-qt ends the
+    mouse mode before running a plain button too, so the button switches it back on.
+    """
+
+    icon = "glue_image"
+    tool_id = "solar:hide_axes"
+    action_text = "Hide axes"
+    tool_tip = "Hide or show the axes, which makes slice steps and redraws faster"
+
+    def __init__(self, viewer):
+        super().__init__(viewer)
+        if not viewer.state.layers:  # a new viewer; a restored one already has its session's layers and axes
+            viewer.state.show_axes = settings.SOLAR_SHOW_AXES
+        viewer.state.add_callback("show_axes", self._show)
+        self._show()
+
+    def activate(self):
+        # the mouse mode the Coordinate tool remembers, as for its menu entries
+        mode = self.viewer.toolbar.tools["solar:coordinate"].mode
+        self.viewer.state.show_axes = not self.viewer.state.show_axes
+        if mode is not None:
+            self.viewer.toolbar.active_tool = mode
+
+    def close(self):
+        self.viewer.state.remove_callback("show_axes", self._show)
+        super().close()
+
+    def _show(self, *_):
+        axes, shown = self.viewer.axes, self.viewer.state.show_axes
+        if axes.axison != shown:
+            axes.set_axis_on() if shown else axes.set_axis_off()
+            self.viewer.figure.canvas.draw_idle()
 
 
 class _CoordinateEntry(Tool):

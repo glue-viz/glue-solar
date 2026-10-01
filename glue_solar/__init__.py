@@ -15,7 +15,7 @@ def setup():
     # Enables sunpy colormaps to be used in glueviz
     for _, ctable in sorted(cmlist.items()):
         colormaps.add(ctable.name, ctable)
-    wanted = [tools.FrameTimeTool, tools.CoordinateTool]
+    wanted = [tools.FrameTimeTool, tools.CoordinateTool, tools.HideAxesTool]
     # glue-qt with its own readout (glue-viz/glue-qt#74, draft) does not need ours
     if not hasattr(ImageViewer, "cursor_status"):
         wanted.append(tools.CursorReadoutTool)

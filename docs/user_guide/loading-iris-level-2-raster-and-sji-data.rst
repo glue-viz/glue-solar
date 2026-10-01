@@ -251,6 +251,15 @@ toolbar has:
   status bar. Press W over the image to switch between world and pixel positions; the button hides
   and shows the readout.
 - "Frame time" and the "Coordinate" menu, from glue-solar, described above.
+- "Hide axes", from glue-solar: hides the viewer's axes (ticks, tick labels, axis labels and frame),
+  and shows them again; the mouse mode, such as Pixel, stays on. Without them each slice step and
+  redraw is faster, since no ticks are placed; the image, subsets, links, the slit and point of
+  slit-jaw viewers and the readouts work as before, and the mouse-over position stays in world
+  coordinates. A saved session keeps each viewer's choice. To open every new Image viewer,
+  quicklook panels included, without axes, add ``solar_show_axes = false`` to the ``[main]`` section
+  of glue's settings file, ``~/.glue/settings.cfg``, or type
+  ``from glue.config import settings; settings.SOLAR_SHOW_AXES = False`` in glue's terminal for the
+  rest of the session ("OK" in glue's Preferences then saves it to that file).
 - A button with a spectrum icon and no tooltip, which opens a 1D Profile viewer of the image's data.
 - The save menu, with "Save plot to file" and "Save Python script to reproduce plot", and the
   window menu, with "Move to another tab" and "Change viewer title".
