@@ -4,12 +4,17 @@ Gated fixes for glue-core and glue-qt bugs that IRIS data hits.
 Each fix installs only when a probe finds the bug, and names the upstream change that retires it.
 """
 
+from io import BytesIO
 from types import SimpleNamespace
 
+import dask.array as da
 import numpy as np
-from glue.core import Data, DataCollection, component_link, coordinate_helpers
+from glue.config import data_exporter
+from glue.core import Data, DataCollection, Subset, component_link, coordinate_helpers
+from glue.core.component import DaskComponent
 from glue.core.component_link import ComponentLink
 from glue.core.coordinate_helpers import unbroadcast
+from glue.core.data_exporters import gridded_fits
 from glue.core.exceptions import IncompatibleAttribute
 from glue.utils import defer_draw
 from glue.viewers.image.layer_artist import ImageSubsetLayerArtist
@@ -19,15 +24,20 @@ from glue_qt.viewers.image import ImageViewer
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
+from astropy.io import fits
 from astropy.visualization.wcsaxes import WCSAxes
 from astropy.wcs import WCS
 
 __all__ = [
+    "export_fits",
     "needs_axis_label_workaround",
     "needs_crosshair_workaround",
+    "needs_fits_export_dask_workaround",
     "needs_inverse_workaround",
     "needs_pixel_point_workaround",
+    "needs_pv_dask_workaround",
     "needs_pv_slice_workaround",
+    "pv_slice_from_path",
     "sync_pv_slice",
     "update_x_axislabel",
     "update_y_axislabel",
@@ -115,6 +125,109 @@ def needs_pv_slice_workaround(func=_original_sync_slice):
 
 if needs_pv_slice_workaround():
     pv_slicer.PVSliceWidget._sync_slice = sync_pv_slice
+
+
+def _dask_probe(shape):
+    """A dataset whose ``values`` are a glue DaskComponent of zeros, as lazily loaded IRIS values are."""
+    data = Data(label="probe")
+    data.add_component(DaskComponent(da.zeros(shape, chunks=2)), "values")
+    return data
+
+
+class _NumpyValues:
+    """``data``, whose values come out as NumPy arrays."""
+
+    def __init__(self, data):
+        self._data = data
+
+    def __getattr__(self, name):
+        return getattr(self._data, name)
+
+    def __getitem__(self, key):
+        return np.asarray(self._data[key])
+
+
+_original_slice_from_path = pv_slicer._slice_from_path
+
+
+def pv_slice_from_path(x, y, data, attribute, slc):
+    """
+    glue-qt's PV slice (``_slice_from_path``) of a dataset of a dask array, as lazily loaded IRIS data are.
+
+    glue-qt 0.4.2 passes the values it reads, here a dask array, to pvextractor, which takes anything but a NumPy
+    array for a spectral cube and fails on its missing WCS. The slice reads the whole cube, as for eager data.
+    Retired once glue-qt passes NumPy values; no upstream fix exists yet.
+    """
+    return _original_slice_from_path(x, y, _NumpyValues(data), attribute, slc)
+
+
+def needs_pv_dask_workaround(func=_original_slice_from_path):
+    """Whether ``func`` fails on a dataset of a glue DaskComponent."""
+    data = _dask_probe((3, 4, 5))
+    try:
+        func(np.array([0.0, 3.0]), np.array([1.0, 1.0]), data, data.id["values"], [0, "y", "x"])
+    except Exception:  # noqa: BLE001 - any failure means the patch is needed
+        return True
+    return False
+
+
+if needs_pv_dask_workaround():
+    pv_slicer._slice_from_path = pv_slice_from_path
+
+
+_original_fits_writer = gridded_fits.fits_writer
+
+
+def export_fits(filename, data, components=None):
+    """
+    glue-core's "FITS (1 component/HDU)" exporter (``fits_writer``), reading each component as a NumPy array.
+
+    glue-core 1.27.0 sets the values outside an exported subset to NaN in place, which a dask array, as a lazily
+    loaded IRIS component is, refuses with ``IndexError``. The rest is unchanged from glue-core. Retired once glue
+    exports a DaskComponent's subset; no upstream fix exists yet.
+    """
+    mask = None
+    if isinstance(data, Subset):
+        mask = data.to_mask()
+        data = data.data
+    data_header = data.coords.to_header() if isinstance(data.coords, WCS) else fits.Header()
+    hdus = fits.HDUList()
+    for cid in data.main_components + data.derived_components:
+        if (components is not None and cid not in components) or data.get_kind(cid) != "numerical":
+            continue
+        values = np.asarray(data[cid])
+        blank = None
+        if mask is not None:
+            values = values.copy()
+            if values.dtype.kind == "f":
+                values[~mask] = np.nan
+            elif values.dtype.kind == "i":
+                blank = np.iinfo(values.dtype).min
+                values[~mask] = blank
+        if isinstance(data, Data):
+            header = gridded_fits.make_component_header(data.get_component(cid), data_header)
+        else:
+            header = fits.Header()
+        if blank is not None:
+            header["BLANK"] = blank
+        hdus.append(fits.ImageHDU(values, name=cid.label, header=header))
+    hdus.writeto(filename, overwrite=True)
+
+
+def needs_fits_export_dask_workaround(func=_original_fits_writer):
+    """Whether ``func`` fails to export a subset of a dataset of a glue DaskComponent."""
+    data = _dask_probe((2, 2))
+    try:
+        func(BytesIO(), data.new_subset(PixelSubsetState(data, [slice(0, 1), slice(None)])))
+    except Exception:  # noqa: BLE001 - any failure means the patch is needed
+        return True
+    return False
+
+
+if needs_fits_export_dask_workaround():
+    for i, exporter in enumerate(data_exporter.members):
+        if exporter.function is _original_fits_writer:
+            data_exporter.members[i] = exporter._replace(function=export_fits)
 
 
 _original_to_linked_pixel_coords = PixelSubsetState._to_linked_pixel_coords

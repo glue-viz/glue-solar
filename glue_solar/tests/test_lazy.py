@@ -282,8 +282,9 @@ def test_level_2_rasters_load_lazily_as_before(monkeypatch, irispy_data):
     negative_step = irispy_data("iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz")
     gzipped = [irispy_data("iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz")]
     for files in (negative_step, gzipped):
-        for lazy_result, eager in zip(*lazy_and_eager(monkeypatch, lambda files=files: raster_data(files)), strict=True):
-            assert_loads_as_before(lazy_result, eager)
+        lazy_results, eager = lazy_and_eager(monkeypatch, lambda files=files: raster_data(files))
+        for pair in zip(lazy_results, eager, strict=True):
+            assert_loads_as_before(*pair)
 
 
 @pytest.mark.remote_data
@@ -292,3 +293,36 @@ def test_level_2_slit_jaw_and_aia_cubes_load_lazily_as_before(monkeypatch, irisp
     paths += irispy_data("iris_l2_20250519_165924_3640107442_cutout_SDO.tar.gz")  # nine AIA channels
     for path in paths:
         assert_loads_as_before(*lazy_and_eager(monkeypatch, lambda path=path: image_data(path)))
+
+
+# pvextractor imports spectral-cube, which uses astropy's deprecated COPY_IF_NEEDED where spectral-cube is installed,
+# and glue's exporter names each HDU after its component, a longer EXTNAME than a FITS card holds with its comment
+@pytest.mark.filterwarnings("ignore:COPY_IF_NEEDED is no longer needed")
+@pytest.mark.filterwarnings("ignore:Card is too long")
+def test_pv_slices_and_subset_exports_of_lazy_data(monkeypatch, tmp_path, int16_raster):
+    from glue.config import data_exporter
+    from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
+    from glue_qt.plugins.tools.pv_slicer import pv_slicer
+
+    from glue_solar import glue_patches
+
+    installed = pv_slicer._slice_from_path is glue_patches.pv_slice_from_path
+    assert installed == glue_patches.needs_pv_dask_workaround()  # probes glue-qt's own function
+    assert not glue_patches.needs_pv_dask_workaround(glue_patches.pv_slice_from_path)
+    exporter = next(exporter for exporter in data_exporter if exporter.label == "FITS (1 component/HDU)")
+    installed = exporter.function is glue_patches.export_fits
+    assert installed == glue_patches.needs_fits_export_dask_workaround()  # probes glue's own exporter
+    assert not glue_patches.needs_fits_export_dask_workaround(glue_patches.export_fits)
+
+    lazy_result, eager = lazy_and_eager(monkeypatch, lambda: raster_data([int16_raster], ["Si IV 1403"])[0])
+    path = (np.array([3.0, 25.0]), np.array([5.0, 30.0]))  # drawn on a spectrogram, slit against wavelength
+    pv = pv_slicer._slice_from_path
+    slices = [pv(*path, data, data.main_components[0], [0, "y", "x"]) for data in (lazy_result, eager)]
+    np.testing.assert_array_equal(slices[0][0], slices[1][0])
+    # a Pixel point exported: its spectrum, NaN elsewhere
+    point = lazy_result.new_subset(PixelSubsetState(lazy_result, [slice(2, 3), slice(5, 6), slice(None)]))
+    exporter.function(str(tmp_path / "point.fits"), point)
+    oracle = expected(int16_raster, WINDOW)
+    values = np.full(oracle.shape, np.nan, np.float32)
+    values[2, 5] = oracle[2, 5]
+    np.testing.assert_array_equal(fits.getdata(tmp_path / "point.fits", lazy_result.main_components[0].label), values)
