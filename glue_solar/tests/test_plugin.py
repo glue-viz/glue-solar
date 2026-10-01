@@ -451,6 +451,33 @@ def test_axis_label_workaround_installs_only_where_glue_needs_it(qtbot, monkeypa
     viewer.state.x_axislabel, viewer.state.y_axislabel_weight = "empty", "bold"
 
 
+def test_a_slit_jaw_redraw_reuses_its_coordinates(qtbot, monkeypatch, irispy_test_files):
+    glue_solar.setup()
+    sji = image_data(find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("SJI_1400_t000")))
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(sji)
+    viewer = app.new_data_viewer(ImageViewer, data=sji)
+    wrapped = sji.coords._wcs
+    convert, inputs = wrapped.pixel_to_world_values, []
+
+    def counted(*pixel):
+        inputs.append(tuple(np.asarray(p).tobytes() for p in pixel))
+        return convert(*pixel)
+
+    monkeypatch.setattr(wrapped, "pixel_to_world_values", counted)
+    for frame in (0, 5):
+        viewer.state.slices = (frame, 0, 0)
+        inputs.clear()
+        viewer.figure.canvas.draw()
+        # WCSAxes asks most of its questions twice in a draw (without the memo: 37 conversions, 17 different)
+        assert inputs
+        assert len(set(inputs)) == len(inputs)
+        inputs.clear()
+        viewer.figure.canvas.draw()
+        assert inputs == []  # an unchanged redraw, as for a subset or contrast change, converts nothing
+
+
 def drawn_labels(viewer):
     """The viewer's canvas, and the text, spines and box of each WCSAxes coordinate's axis label on a spine."""
     canvas = viewer.figure.canvas

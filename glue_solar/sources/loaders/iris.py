@@ -2,6 +2,7 @@ import os
 import re
 import tarfile
 import threading
+from collections import OrderedDict
 from collections.abc import Mapping
 from functools import cached_property
 from pathlib import Path
@@ -56,6 +57,18 @@ _AXIS_NAMES = {
 # safely; it can go once an astropy release fixes #19174 and the thread test passes without it.
 WCS_LOCK = threading.RLock()
 
+# WCSAxes converts the same pixels about twice in each draw, and all of them again at every redraw; one
+# raster's three quicklook panels ask about 60 different questions. Bounded by entries, and by samples per
+# input and output array: at most about 25 MB per dataset. Always on; it can go once WCSAxes memoizes its
+# own conversions in each tick placement (wp0-perf-astropy-irispy).
+_MEMO_ENTRIES = 128
+_MEMO_SAMPLES = 4096
+
+
+def _copies(values):
+    """``values`` with its arrays copied; scalars cannot be changed."""
+    return tuple(value.copy() if isinstance(value, np.ndarray) else value for value in values)
+
 
 class _GlueWCS(BaseWCSWrapper):
     """Present named, signed helioprojective coordinates in arcseconds to Glue."""
@@ -64,6 +77,13 @@ class _GlueWCS(BaseWCSWrapper):
     # WCS says it has celestial axes; this wrapper has none of them, so send glue down its APE-14 path.
     # Always on, and harmless once glue checks for an astropy WCS instead (glue-viz/glue#2595, draft).
     has_celestial = False
+
+    def __init__(self, wcs):
+        super().__init__(wcs)
+        self._memo = OrderedDict()  # pixel_to_world_values by its exact inputs, least recently used first
+        # glue converts on worker threads too. The memo has its own lock, held only to read or add an entry:
+        # holding WCS_LOCK through the arcsec arithmetic as well lets a busy thread starve the others.
+        self._memo_lock = threading.Lock()
 
     @property
     def axis_correlation_matrix(self):
@@ -100,6 +120,20 @@ class _GlueWCS(BaseWCSWrapper):
         return axes
 
     def pixel_to_world_values(self, *pixel_arrays):
+        # The same inputs give the same values: the wrapped WCS is never changed once loaded (glue-solar
+        # changes none, and WCSAxes calls wcs.set() only on an astropy WCS it is given, never through this
+        # wrapper). So identical inputs reuse the values, each caller with its own copy. Identical means
+        # the same type (a scalar and a 0-d array can come back differently), dtype, shape and bytes.
+        arrays = [np.asarray(pixel) for pixel in pixel_arrays]
+        key = None
+        if all(array.dtype.kind in "biuf" and array.size <= _MEMO_SAMPLES for array in arrays):
+            key = tuple((type(p), a.dtype.str, a.shape, a.tobytes()) for p, a in zip(pixel_arrays, arrays))
+            with self._memo_lock:
+                kept = self._memo.get(key)
+                if kept is not None:
+                    self._memo.move_to_end(key)
+            if kept is not None:
+                return _copies(kept)
         with WCS_LOCK:
             values = list(self._wcs.pixel_to_world_values(*pixel_arrays))
         for i, to_arcsec, _, full_circle in self._helioprojective:
@@ -107,6 +141,12 @@ class _GlueWCS(BaseWCSWrapper):
             if full_circle is not None:
                 values[i] = (values[i] + full_circle / 2) % full_circle - full_circle / 2
             values[i] = values[i] * to_arcsec
+        if key is not None and all(np.size(value) <= _MEMO_SAMPLES for value in values):  # inputs can broadcast
+            kept = _copies(values)
+            with self._memo_lock:
+                self._memo[key] = kept
+                if len(self._memo) > _MEMO_ENTRIES:
+                    self._memo.popitem(last=False)
         return tuple(values)
 
     def world_to_pixel_values(self, *world_arrays):
