@@ -3,10 +3,11 @@ from collections import Counter
 
 import numpy as np
 import pytest
+from glue.config import settings
 from glue.core import Data
 from glue.core.component import DateTimeComponent
 from glue.core.hub import HubListener
-from glue.core.message import SubsetUpdateMessage
+from glue.core.message import SettingsChangeMessage, SubsetUpdateMessage
 from glue.core.subset import SubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
@@ -309,24 +310,44 @@ def drawn_ticks(viewer, side):
     }
 
 
-def test_a_sit_and_stare_exposure_axis(bare_app, irispy_test_files):
+def exposure_axis(viewer, label):
+    """The exposure-number coordinate the frame-time tool adds to an Image viewer, by its axis label."""
+    [coord] = [coord for coords in viewer.axes._all_coords[1:] for coord in coords if coord.get_axislabel() == label]
+    return coord
+
+
+def test_a_sit_and_stare_exposure_axis(bare_app, monkeypatch, irispy_test_files):
     raster, _ = sit_and_stare(irispy_test_files)
+    bare_app.show()  # the quicklook's own panel sizes
     viewers = quicklook(bare_app, [raster])
     times = raster[raster.id["Time"]][:, 0, 0]
     first, last = (np.datetime_as_string(t, unit="s") for t in (times[0], times[-1]))
-    label = f"Exposure (acquisition order), {first} – {last[11:]} UTC"  # one day
+    label = f"Exposure (acquisition order)\n{first} – {last[11:]} UTC"  # one day
 
     def check(viewer, axis):
-        assert getattr(viewer.state, f"{axis}_axislabel") == label
-        near, far = "bt" if axis == "x" else "lr"
+        state = viewer.state
+        other = "y" if axis == "x" else "x"
+        near, far, other_near, other_far = "btlr" if axis == "x" else "lrbt"
+        assert getattr(state, f"{axis}_axislabel") == label
         ticks = drawn_ticks(viewer, near)
         assert list(ticks) == [label]  # exposure numbers, and no world coordinate along the axis
         assert len(ticks[label]) >= 2
         assert {int(tick) for tick in ticks[label]} <= set(range(raster.shape[0]))
+        # the other axis shows glue's own coordinate and label, on its near side only
+        assert list(drawn_ticks(viewer, other_near)) == [getattr(state, f"{other}_axislabel")]
         assert not drawn_ticks(viewer, far)
+        assert not drawn_ticks(viewer, other_far)
+        # the whole label, with its UTC range, fits the panel along the axis
+        box = exposure_axis(viewer, label)._axislabels.get_window_extent()
+        (start, end), (low, high) = getattr(box, f"interval{axis}"), getattr(viewer.figure.bbox, f"interval{axis}")
+        assert low <= start < end <= high
 
     check(viewers["map"], "x")
+    viewers["map"].state.x_min, viewers["map"].state.x_max = 2.6, 4.4  # zoomed: WCSAxes would move the coordinates
+    check(viewers["map"], "x")
     wavelength = viewers["wavelength"]
+    check(wavelength, "y")
+    wavelength.state.y_min, wavelength.state.y_max = 2.6, 4.4
     check(wavelength, "y")
     coords = wavelength.axes.coords
     wavelength.state.slices = (wavelength.state.slices[0], 5, wavelength.state.slices[2])  # the slit slider
@@ -339,6 +360,16 @@ def test_a_sit_and_stare_exposure_axis(bare_app, irispy_test_files):
     check(wavelength, "y")
     wavelength.state.x_att_world = raster.world_component_ids[0]  # exposure on x, wavelength on y
     check(wavelength, "x")
+    # sizes from the axes options, and colours from the Preferences, as glue gives its own coordinates
+    exposures = exposure_axis(wavelength, label)
+    wavelength.state.x_axislabel_size = 12
+    assert exposures._axislabels.get_size() == 12
+    wavelength.state.x_ticklabel_size = 7
+    assert exposures._ticklabels.get_size() == 7
+    monkeypatch.setattr(settings, "FOREGROUND_COLOR", "#ff0000")
+    bare_app.session.hub.broadcast(SettingsChangeMessage(bare_app, ("FOREGROUND_COLOR",)))
+    parts = (exposures._axislabels, exposures._ticklabels, exposures._ticks)
+    assert {part.get_color() for part in parts} == {"#ff0000"}
     wavelength.state.x_axislabel = "Exposure"  # typed in the axes options
     assert list(drawn_ticks(wavelength, "b")) == ["Exposure"]
 
@@ -346,7 +377,7 @@ def test_a_sit_and_stare_exposure_axis(bare_app, irispy_test_files):
 def crosshair(viewer):
     """Where the Point's crosshair shows in an Image viewer, or None."""
     [artist] = [artist for artist in viewer.layers if artist.layer.label == "Point"]
-    if not artist._line_x.get_visible():  # glue shows or hides both lines
+    if not (artist._line_x.get_visible() or artist._line_y.get_visible()):
         return None
     return artist._line_x.get_xdata()[0], artist._line_y.get_ydata()[0]
 

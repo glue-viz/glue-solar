@@ -5,6 +5,8 @@ Toolbar tools for glue's viewers.
 import numpy as np
 from glue.config import settings, viewer_tool
 from glue.core.component import DateTimeComponent
+from glue.core.hub import HubListener
+from glue.core.message import SettingsChangeMessage
 from glue.viewers.common.tool import SimpleToolMenu, Tool
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
@@ -56,7 +58,10 @@ def _time_component(data):
 
 
 def _exposure_label(data):
-    """'Exposure (acquisition order), <first> – <last> UTC' for the exposure axis of a sit-and-stare raster."""
+    """
+    'Exposure (acquisition order)' and, on a second line, '<first> – <last> UTC' for the exposure axis of
+    a sit-and-stare raster; one line would not fit a quicklook panel.
+    """
     cid = _time_component(data)
     if cid is None:
         return "Exposure (acquisition order)"
@@ -64,29 +69,27 @@ def _exposure_label(data):
     first, last = (np.datetime_as_string(t, unit="s") for t in (times.min(), times.max()))
     if last[:10] == first[:10]:
         last = last[11:]  # the same day: the time only
-    return f"Exposure (acquisition order), {first} – {last} UTC"
+    return f"Exposure (acquisition order)\n{first} – {last} UTC"
 
 
-def _index_ticks(axes, index, label):
+def _index_ticks(axes, index, shown):
     """
     Give the x (``index`` 0) or y (1) axis of the WCSAxes ``axes`` integer pixel-index ticks, instead of
     the world coordinates, and return that axis' coordinate helper.
 
-    The ticks are a pixel overlay of WCSAxes: the world coordinates keep the other axis. A world
-    coordinate that glue gave the axis ``label`` gets its own back.
+    The ticks are a pixel overlay of WCSAxes. Of the world coordinates only ``shown``, glue's coordinate
+    along the other axis, keeps ticks, at fixed places on that axis; left to WCSAxes' automatic
+    placement, the others would move to free edges as the limits change, and glue's labels to
+    whichever coordinate holds an axis' edge.
     """
     near, far = "bt" if index == 0 else "lr"
+    other_near, other_far = "lr" if index == 0 else "bt"
     for coord in axes.coords:
-        if coord.get_axislabel() == label:
-            coord.set_axislabel(coord.default_label)
-        coord.set_ticks_position([side for side in coord.get_ticks_position() if side not in (near, far)])
-        coord.set_ticklabel_position([side for side in coord.get_ticklabel_position() if side not in (near, far)])
-        coord.set_axislabel_position([side for side in coord.get_axislabel_position() if side not in (near, far)])
+        coord.set_ticks_position(other_near + other_far if coord is shown else "")
+        coord.set_ticklabel_position(other_near if coord is shown else "")
+        coord.set_axislabel_position(other_near if coord is shown else "")
     pixel = axes.get_coords_overlay("pixel", coord_meta=_PIXEL_COORDS)
-    other = pixel[1 - index]
-    other.set_visible(False)
-    # a fixed tick label position, even hidden, keeps WCSAxes' automatic layout from putting world labels there
-    other.set_ticklabel_position(far)
+    pixel[1 - index].set_visible(False)
     coord = pixel[index]
     coord.set_ticks_position(near + far)
     coord.set_ticklabel_position(near)
@@ -96,7 +99,7 @@ def _index_ticks(axes, index, label):
 
 
 @viewer_tool
-class FrameTimeTool(Tool):
+class FrameTimeTool(Tool, HubListener):
     """
     Show the acquisition time of the displayed frame in the Image Viewer's status bar.
 
@@ -113,8 +116,9 @@ class FrameTimeTool(Tool):
     a displayed sit-and-stare exposure axis 'Exposure (acquisition order)' with the UTC range of its
     exposures, in glue's own axis label, with integer exposure ticks instead of the helioprojective
     coordinates glue would show along it. glue resets both whenever it resets the axes (an axis or
-    data change, or a slice the displayed coordinates depend on), and the tool applies them again; a
-    label typed in the viewer's axes options is kept.
+    data change, or a slice the displayed coordinates depend on, such as the slit on the wavelength
+    panel), and the tool applies them again; a label typed in the viewer's axes options is kept until
+    then, as glue's own labels are.
     """
 
     icon = "window_tab"
@@ -144,13 +148,16 @@ class FrameTimeTool(Tool):
         self._exposure_ticks = (None, None)  # the WCSAxes coordinates they were added to, and their helper
         for prop in _LABELS:
             viewer.state.add_callback(prop, self._label_exposures)
+        # glue's Preferences restyle only the WCS coordinates
+        self._hub = viewer.session.hub
+        self._hub.subscribe(self, SettingsChangeMessage, handler=self._label_exposures)
         self._label_exposures()
 
     def activate(self):
         self.label.setHidden(not self.label.isHidden())
 
     def close(self):
-        self.coordinator.remove_listener(self._synced)
+        self._forget()
         for prop in _WATCHED:
             self.viewer.state.remove_callback(prop, self._refresh)
         for prop in _SLIDER_REBUILDS:
@@ -167,7 +174,8 @@ class FrameTimeTool(Tool):
             return
         for index, axis in enumerate("xy"):
             att, world = getattr(state, f"{axis}_att"), getattr(state, f"{axis}_att_world")
-            if att is None or att.axis != 0:
+            other = getattr(state, f"{'yx'[index]}_att")
+            if att is None or other is None or att.axis != 0:
                 continue
             label = getattr(state, f"{axis}_axislabel")
             if label in ("", getattr(world, "label", None)):  # glue's reset
@@ -176,9 +184,10 @@ class FrameTimeTool(Tool):
             axes = self.viewer.axes
             coords, ticks = self._exposure_ticks
             if coords is not axes.coords:  # glue reset the axes, and the ticks with them
-                ticks = _index_ticks(axes, index, label)
+                # glue's own mapping of a pixel axis to its world coordinate, as in its tick label sizes
+                ticks = _index_ticks(axes, index, axes.coords[data.ndim - 1 - other.axis])
                 self._exposure_ticks = (axes.coords, ticks)
-            # glue styles only the WCS coordinates, and draws the label on the one along the axis
+            # glue styles and labels only the WCS coordinates
             color = settings.FOREGROUND_COLOR
             ticks.set_ticks(color=color)
             ticks.set_ticklabel(color=color, size=getattr(state, f"{axis}_ticklabel_size"))
@@ -194,6 +203,7 @@ class FrameTimeTool(Tool):
 
     def _forget(self, *_):
         self.coordinator.remove_listener(self._synced)
+        self._hub.unsubscribe_all(self)
 
     def _refresh(self, *_):
         state = self.viewer.state

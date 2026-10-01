@@ -155,10 +155,11 @@ channel and a spectrum panel:
 - a stack of raster scans: the map of the current scan, the spectrogram and wavelength against scan.
 
 A sit-and-stare raster's exposure axis, in the quicklook or any Image viewer, is labelled
-"Exposure (acquisition order)" with the UTC range of its exposures, and its ticks are exposure
-numbers: it is an index axis, so exposures are evenly spaced whatever their cadence. The label and
-ticks come back after an axis change or a slit move; a label typed in the viewer's axes options is
-kept.
+"Exposure (acquisition order)" with the UTC range of its exposures on a second line, and its ticks
+are exposure numbers: it is an index axis, so exposures are evenly spaced whatever their cadence.
+The other axis shows only its own coordinate. The label and ticks come back whenever glue resets
+the axes, after an axis change or, on the wavelength panel, a slit move; a label typed in the
+viewer's axes options is kept until that reset, as glue's own labels are.
 
 The map shows the wavelength nearest the window's reference wavelength, and the panels use
 99.5 % limits. A point, the edit subset "Point", starts at the centre of the map with the Pixel
