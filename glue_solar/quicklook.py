@@ -788,9 +788,9 @@ def quicklook(app, datasets, window=None):
         and ``sji``, a list.
     """
     collection = app.data_collection
-    for data in datasets:
-        if data not in collection:
-            collection.append(data)
+    new = [data for data in datasets if data not in collection]
+    if new:  # one link update for all, where each append runs one
+        collection.extend(new)
     keep_hpc_linked(collection)
     rasters = [data for data in datasets if _role(data) == "raster"]
     sjis, offered = _pick_sjis([data for data in datasets if _role(data) == "sji"])

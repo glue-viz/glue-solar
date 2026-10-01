@@ -7,6 +7,7 @@ from glue.config import settings
 from glue.core import Data
 from glue.core.component import DateTimeComponent
 from glue.core.hub import HubListener
+from glue.core.link_manager import LinkManager
 from glue.core.message import SettingsChangeMessage, SubsetUpdateMessage
 from glue.core.subset import SubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
@@ -423,6 +424,28 @@ def test_quicklook_of_a_raster_and_of_a_stack(bare_app, scans):
     viewers = quicklook(bare_app, [scan, stack])  # a stack of the window is shown rather than one scan
     check_panels(bare_app, viewers, stack, {"map": (1, 2), "spectrogram": (3, 2), "wavelength": (3, 0)})
     assert viewers["map"].state.slices[0] == 0
+
+
+def test_quicklook_adds_its_datasets_in_one_link_update(bare_app, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    sjis = [sji, image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_2796_t000")))]
+    collection = bare_app.data_collection
+    updates = []
+    update = LinkManager.update_externally_derivable_components
+
+    def counted(self, *args, **kwargs):
+        updates.append(len(collection))
+        return update(self, *args, **kwargs)
+
+    monkeypatch.setattr(LinkManager, "update_externally_derivable_components", counted)
+    quicklook(bare_app, [raster, *sjis, raster])
+    # each update pairs every two datasets: one for the three, and one for the links between them
+    assert updates == [3, 3]
+    assert list(collection) == [raster, *sjis]
+    assert len(collection.external_links) == 4  # each slit-jaw's longitude and latitude to the raster's
+    updates.clear()
+    quicklook(bare_app, [raster, *sjis])  # already added and linked
+    assert updates == []
 
 
 def test_quicklook_fits_a_spectrum_computed_on_a_thread(bare_app, qtbot, monkeypatch, irispy_test_files):
