@@ -1,12 +1,17 @@
+import itertools
 import shutil
 
 import numpy as np
 import pytest
 from glue.core import Data, DataCollection, component_link, coordinate_helpers
+from glue.core.autolinking import find_possible_links
+from glue.core.component_id import PixelComponentID
+from glue.core.component_link import CoordinateComponentLink
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.link_helpers import LinkSame
 from glue.core.roi import RectangularROI
 from glue.core.subset import RoiSubsetState
+from glue.plugins.wcs_autolinking import wcs_autolinking
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
 from glue_qt.app import GlueApplication
 from glue_qt.viewers.image import ImageViewer
@@ -16,9 +21,12 @@ from qtpy.QtCore import Qt
 import astropy.units as u
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
+import glue_solar
 from glue_solar import glue_patches
+from glue_solar.quicklook import coordinator, nearest, quicklook
 from glue_solar.sources.iris import browse_iris, link_iris
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, keep_hpc_linked, link_hpc, raster_data
+from glue_solar.tests.helpers import raster_point_on_sji, select_point
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
 RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
@@ -215,6 +223,94 @@ def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, mon
     dc.append(image_data(_real(irispy_test_files, SJI.replace("1400", "1330"))))  # loaded later
     link_iris(app.session, dc)
     assert len(dc.external_links) == 2 * (len(dc) - 1)
+
+
+def _autolink(data_collection):
+    """Add every link glue's autolinkers suggest, as glue-qt's run_autolinker does when set to always accept."""
+    links = [link for found in find_possible_links(data_collection).values() for link in found]
+    data_collection.add_link(links)
+    return links
+
+
+@pytest.mark.parametrize("order", list(itertools.permutations(["autolinker", "link_hpc", "quicklook"])), ids="-".join)
+def test_link_graph_in_every_add_order(qtbot, monkeypatch, sns, order):
+    monkeypatch.setenv("GLUE_TESTING", "True")  # glue-qt then raises errors instead of showing a modal box
+    sji, raster = sns
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    dc = app.data_collection
+    dc.extend([sji, raster])
+    suggested = []
+    for step in order:
+        if step == "autolinker":
+            suggested = _autolink(dc)
+        elif step == "link_hpc":
+            dc.add_link(link_hpc(dc))
+        else:
+            viewers = quicklook(app, [raster, sji])  # with its coordinator; it adds link_hpc's links if missing
+    # link_hpc's longitude and latitude, glue's own suggestions, and nothing else
+    hpc = [link for link in dc.external_links if link not in suggested]
+    assert all(isinstance(link, LinkSame) for link in hpc)
+    assert sorted((link.cids1[0].label, link.cids2[0].label) for link in hpc) == [(HPC[1], HPC[1]), (HPC[0], HPC[0])]
+    time = _cid(sji, "Time (Utc)")
+    for link in dc.links:
+        if isinstance(link, CoordinateComponentLink):
+            continue  # each dataset's own pixel-world conversions
+        cids = [*link.get_from_ids(), link.get_to_id()]
+        assert time not in cids
+        # only glue's WCS links, from pixel to pixel, reach pixel components (D8)
+        assert len({isinstance(cid, PixelComponentID) for cid in cids}) == 1
+
+    # a raster point reaches the other panels, and the slit-jaw image at the nearest frame
+    links, components = dc.external_links, [list(data.components) for data in dc]
+    sji_times, raster_times = (data[data.id["Time"]][:, 0, 0] for data in (sji, raster))
+    [sji_viewer] = viewers["sji"]
+    marker = sji_viewer.toolbar.tools["solar:coordinate"]._marker
+    slit = 20
+    for step in (2, 186):  # the nearest slit-jaw frame comes after, then before, the exposure
+        select_point(viewers["map"], step, slit)
+        qtbot.waitUntil(lambda: viewers["spectrogram"].state.slices[0] == step)
+        assert viewers["wavelength"].state.slices[1] == slit
+        [spectrum] = [layer for layer in viewers["spectrum"].state.layers if layer.visible]
+        np.testing.assert_array_equal(spectrum.profile[1], raster[raster.main_components[0]][step, slit])
+        [frame], _ = nearest(raster_times[step : step + 1], sji_times)
+        qtbot.waitUntil(lambda: sji_viewer.state.slices[0] == frame)
+        qtbot.waitUntil(marker.get_visible)
+        assert tuple(marker.get_xydata()[0]) == pytest.approx(raster_point_on_sji(raster, sji, step, slit, frame))
+    assert [layer.visible for layer in sji_viewer.state.layers if layer.layer.label == "Point"] == [False]
+
+    # and a slit-jaw time master moves the point to the nearest exposure
+    coordinator(dc).set_master(sji)
+    [group] = app.session.edit_subset_mode.edit_subset
+    for frame in (8, 40):  # the nearest exposure comes after, then before, the frame
+        sji_viewer.state.slices = (frame, 0, 0)
+        [exposure], _ = nearest(sji_times[frame : frame + 1], raster_times)
+        qtbot.waitUntil(lambda: group.subset_state.slices[:2] == [slice(exposure, exposure + 1), slice(slit, slit + 1)])
+    assert dc.external_links == links  # time sync adds no links
+    assert [list(data.components) for data in dc] == components
+
+
+@pytest.mark.parametrize("autolink_first", [True, False])
+def test_wcs_autolinks_leave_link_hpc_unchanged(sns, autolink_first):
+    if not hasattr(wcs_autolinking, "permuted_values_functions"):
+        pytest.skip("glue-core without APE-14 low-level WCS autolinking")
+    sji, raster = sns
+    dc = DataCollection([sji, raster])
+    if autolink_first:
+        suggested = _autolink(dc)
+    dc.add_link(link_hpc(dc))
+    if not autolink_first:
+        suggested = _autolink(dc)
+    [wcs_link] = suggested  # glue-viz/glue#2595 links the SJI image axes to the raster's step and slit
+    assert isinstance(wcs_link, WCSLink)
+    hpc = [link for link in dc.external_links if link is not wcs_link]
+    assert sorted((link.cids1[0].label, link.cids2[0].label) for link in hpc) == [(HPC[1], HPC[1]), (HPC[0], HPC[0])]
+    # each reads the other's longitude and latitude through link_hpc, not the WCS link's first frame
+    # (raster pixel selections in the slit-jaw image do take the WCS link)
+    for label in HPC:
+        np.testing.assert_array_equal(raster[_cid(sji, label)], raster[_cid(raster, label)])
+        np.testing.assert_array_equal(sji[_cid(raster, label)], sji[_cid(sji, label)])
 
 
 def test_pixel_point_workaround_installs_only_where_glue_needs_it(sns):

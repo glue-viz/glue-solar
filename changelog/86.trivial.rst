@@ -1,0 +1,1 @@
+Tests check the IRIS link graph in every order of autolinking, link_hpc and the quicklook.
