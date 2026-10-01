@@ -168,6 +168,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
   - glue-qt keyboard shortcuts: Tab never cycles windows (Qt focus takes it), keys are looked up by exact viewer class (subclasses such as `QuicklookImageViewer` get none), Table viewer keys are registered on `DataTableModel`; the Image viewer's profile button has no tooltip.
   - glue-qt Profile Navigate and Collapse compare display-unit x with native values; Collapse drops the range's last sample, and an empty `AggregateSlice` raises when drawn.
   - glue's FITS subset-mask importer refuses unsigned integer masks.
+  - glue-core 1.27.0's FITS exporter fails on any uint8 component in a subset export (`UnboundLocalError` on `blank`, `data_exporters/gridded_fits.py`), so a subset export of IRIS data with its uint8 mask crashes on main; it also writes no dask array. `wp10-m1-lazy-loading` replaces the exporter behind a probe (2026-10-01).
   - glue-qt's `MultiSliceWidgetHelper.sync_state_from_sliders` rewrites every slice when any slider of a viewer moves, so a Profile Collapse on one axis ends when another slider moves (the Profile guide says so since #93).
   - astropy WCSAxes `auto_assign_coord_positions` raises `TypeError` when no consistent tick-label placement exists.
   - with glue #2595, raster pixel ROIs in an SJI take #2595's frame-0 WCSLink instead of `link_hpc`'s per-frame path (shorter link chain); amend #2595 or document it.
