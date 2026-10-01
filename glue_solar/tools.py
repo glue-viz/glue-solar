@@ -222,6 +222,9 @@ class FrameTimeTool(Tool, HubListener):
         # an aggregated slider range carries its slice on the AggregateSlice object
         view = tuple(slice(None) if i in shown else getattr(s, "slice", s) for i, s in enumerate(state.slices))
         times = data[cid, view]
+        if times.size == 0:  # a Collapse range narrower than one sample
+            self.label.setText("")
+            return
         first, last = (np.datetime_as_string(t, unit="ms") for t in (times.min(), times.max()))
         text = f"{first} UTC" if first == last else f"{first} – {last} UTC"
         exposure = data.find_component_id("Exposure time")

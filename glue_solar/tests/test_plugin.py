@@ -5,6 +5,7 @@ import pytest
 from glue.config import data_factory, menubar_plugin, startup_action
 from glue.core import Data
 from glue.core.data_factories import load_data
+from glue.viewers.image.state import AggregateSlice
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
 from irispy.io import read_files
@@ -150,6 +151,18 @@ def test_frame_time_tool_follows_the_sliders(qtbot, irispy_test_files):
     app.data_collection.append(still)
     other = app.new_data_viewer(ImageViewer, data=still)
     assert other.toolbar.tools["solar:frame_time"].label.text() == "2020-01-01T12:00:00.000 UTC"
+
+
+def test_frame_time_tool_survives_an_empty_collapse(qtbot):
+    glue_solar.setup()
+    cube = Data(label="cube", flux=np.zeros((4, 5, 6)), obs_date=np.full((4, 5, 6), np.datetime64("2020-01-01T12:00:00")))
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(cube)
+    viewer = app.new_data_viewer(ImageViewer, data=cube)
+    tool = viewer.toolbar.tools["solar:frame_time"]
+    viewer.state.slices = (AggregateSlice(slice(2, 2), 2, np.nanmean), 0, 0)
+    assert tool.label.text() == ""
 
 
 def test_cursor_readout_shows_position_and_value(qtbot, irispy_test_files):
