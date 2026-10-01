@@ -98,6 +98,27 @@ cube, and a raster file loads one dataset per spectral window, labelled with the
 every spectral window and cannot be stacked, so use the observation browser for large or multi-scan
 observations.
 
+Overlaying the missing-data mask
+--------------------------------
+
+To see where data are missing, turn ``<label> mask`` into a
+`subset <http://docs.glueviz.org/en/stable/getting_started/index.html#defining-subsets>`__, which
+every Image Viewer of the dataset draws over the data:
+
+- Select the dataset in the data collection and choose "Create faceted subsets" in the
+  "Data Manager" menu (or the data collection's right-click menu). Pick the ``<label> mask``
+  attribute, set the range from 0 to 1 and the number of subsets to 2. The second subset,
+  ``0.5<=<label> mask<=1.0``, holds every missing sample, and the first the others.
+- Or show ``<label> mask`` in a Histogram viewer and select an "X range" over the bar at 1. The
+  Histogram viewer asks "Add large data set?" for datasets of 2e7 samples or more, with Cancel as
+  the default button: a full slit-jaw cube, such as the 6.5e7 samples of OBSID 4000255147's
+  SJI 1400, needs "OK".
+- A mask of your own comes from a FITS file through "Import subset mask(s)" in the "Data Manager"
+  menu, with the dataset selected. Each HDU of signed integers (BITPIX 16, 32 or 64) becomes a
+  subset of the samples above 0, and must have the dataset's shape. glue skips unsigned HDUs, such
+  as 8-bit images (BITPIX 8) and 16-bit ones stored with BZERO. "Export subset mask(s)" writes
+  masks it can read back.
+
 Linking
 -------
 
