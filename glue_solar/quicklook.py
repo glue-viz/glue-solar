@@ -8,12 +8,14 @@ from contextlib import contextmanager
 
 import numpy as np
 from echo import delay_callback
+from glue.config import layer_artist_maker
 from glue.core.hub import HubListener
 from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, SubsetDeleteMessage, SubsetUpdateMessage
 from glue.core.subset import SubsetState
 from glue.viewers.common.utils import get_viewer_tools
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
+from glue.viewers.profile.state import ProfileLayerState
 from glue_qt.utils import process_events
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
@@ -780,6 +782,18 @@ def _raster_panels(app, raster, window):
     return viewers, PixelSubsetState(raster, slices)
 
 
+@layer_artist_maker("IRIS: quicklook spectrum without the cube's own")
+def hidden_cube_profile(viewer, data):
+    """
+    Add the raster to a quicklook's spectrum panel hidden, so glue never computes the mean spectrum of the
+    whole cube, which the panel would only hide (0.4 s of opening a quicklook on 4000255147, a full read of
+    lazily loaded data).
+    """
+    if getattr(viewer, "_solar_hidden", None) is not data:
+        return None
+    return viewer.get_data_layer_artist(data, ProfileLayerState(layer=data, viewer_state=viewer.state, visible=False))
+
+
 def _profile(app, raster, window):
     """A Profile of the point's mean spectrum, with the raster itself hidden and no large-data prompt."""
     viewer = app.new_data_viewer(ProfileViewer)
@@ -787,11 +801,11 @@ def _profile(app, raster, window):
     viewer.state.function = "mean"
     # glue asks 'Add large data set?' above 1e8 elements, defaulting to Cancel; only this viewer skips it
     viewer.large_data_size = None
-    if not viewer.add_data(raster):
+    viewer._solar_hidden = raster  # only the point's spectrum shows, not the whole cube's
+    added = viewer.add_data(raster)
+    viewer._solar_hidden = None
+    if not added:
         return viewer, f"The spectrum panel could not add {raster.label}."
-    for layer in viewer.state.layers:
-        if layer.layer is raster:
-            layer.visible = False  # only the point's spectrum, not the whole cube's
     viewer.state.x_att = raster.world_component_ids[_wavelengths(raster)[1]]
     viewer.axes.axhline(0, color="0.5", lw=0.8, zorder=0)
     return viewer, f"Spectrum of {raster.label} ({raster.size:.3g} elements)."
