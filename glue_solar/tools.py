@@ -55,6 +55,16 @@ def _throttle_slice_sliders(viewer):
         slider.sliderMoved.connect(lambda _position, timer=timer: timer.isActive() or timer.start())
 
 
+def _keep_mouse_mode(viewer):
+    """
+    Switch the viewer's mouse mode, such as Pixel, back on: glue-qt ends it before running any plain
+    toolbar button or menu entry. The mode is the one the viewer's Coordinate tool remembers.
+    """
+    mode = viewer.toolbar.tools["solar:coordinate"].mode
+    if mode is not None:
+        viewer.toolbar.active_tool = mode
+
+
 def _time_component(data):
     """The first datetime component of ``data``, or None."""
     return next((cid for cid in data.main_components if isinstance(data.get_component(cid), DateTimeComponent)), None)
@@ -158,6 +168,7 @@ class FrameTimeTool(Tool, HubListener):
 
     def activate(self):
         self.label.setHidden(not self.label.isHidden())
+        _keep_mouse_mode(self.viewer)
 
     def close(self):
         self._forget()
@@ -288,6 +299,7 @@ class CursorReadoutTool(Tool):
         self.shown = not self.shown
         if not self.shown:
             self.viewer.set_status("")
+        _keep_mouse_mode(self.viewer)
 
     def close(self):
         self.viewer.axes.figure.canvas.mpl_disconnect(self._motion)
@@ -333,7 +345,8 @@ class HideAxesTool(Tool):
     WCSAxes places no ticks when the viewer draws, so slice steps and redraws are faster. The image,
     subsets, links and the readouts are unchanged; the mouse-over position stays in world coordinates.
     A plain button, since a checkable glue tool is a mouse mode, which would end Pixel; glue-qt ends the
-    mouse mode before running a plain button too, so the button switches it back on.
+    mouse mode before running a plain button too, so the button switches it back on, as glue-solar's
+    other buttons do.
     """
 
     icon = "glue_image"
@@ -352,11 +365,8 @@ class HideAxesTool(Tool):
         viewer.axes.format_coord = self._readout
 
     def activate(self):
-        # the mouse mode the Coordinate tool remembers, as for its menu entries
-        mode = self.viewer.toolbar.tools["solar:coordinate"].mode
         self.viewer.state.show_axes = not self.viewer.state.show_axes
-        if mode is not None:
-            self.viewer.toolbar.active_tool = mode
+        _keep_mouse_mode(self.viewer)
 
     def close(self):
         self.viewer.state.remove_callback("show_axes", self._show)
@@ -392,11 +402,8 @@ class _CoordinateEntry(Tool):
         self.menu = menu
 
     def activate(self):
-        # glue-qt switches the mouse mode off before running a menu entry, so switch it back on
-        mode = self.menu.mode
         self.run(self.menu.coordinator)
-        if mode is not None:
-            self.viewer.toolbar.active_tool = mode
+        _keep_mouse_mode(self.viewer)
 
 
 class _TimeMasterEntry(_CoordinateEntry):
