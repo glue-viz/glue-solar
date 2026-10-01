@@ -1120,6 +1120,58 @@ def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files):
     assert overlays(sji_viewer)[0] is not None  # the slit stays
 
 
+def test_a_wavelength_step_leaves_the_time_sync_alone(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    coord = coordinator(bare_app.data_collection)
+    qtbot.wait(20)
+    syncs = []
+    sync = coord._sync
+    monkeypatch.setattr(coord, "_sync", lambda key: syncs.append(key) or sync(key))
+    for wavelength in (3, 4, 5):  # the time master's map
+        viewers["map"].state.slices = (*viewers["map"].state.slices[:2], wavelength)
+        qtbot.wait(20)
+    assert syncs == []
+    assert "time master" in readout(viewers["map"])
+    viewers["spectrogram"].state.slices = (1, *viewers["spectrogram"].state.slices[1:])  # its exposure slider
+    assert check_follower(bare_app, qtbot, raster_time(raster, (1,)), sji, sji_viewer)
+    assert syncs == [observation_key(raster)]
+
+
+def test_the_raster_point_is_placed_once_per_frame(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    coord = coordinator(bare_app.data_collection)
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    qtbot.wait(20)
+    placed = []
+    place = glue_solar.quicklook._sji_pixels
+
+    def counted(data, frame, lon, lat):
+        placed.append(frame)
+        return place(data, frame, lon, lat)
+
+    monkeypatch.setattr(glue_solar.quicklook, "_sji_pixels", counted)
+    viewers["spectrogram"].state.slices = (186, *viewers["spectrogram"].state.slices[1:])
+    qtbot.waitUntil(lambda: " · Δt " in readout(sji_viewer))
+    qtbot.wait(20)
+    frame = sji_viewer.state.slices[0]
+    # the frame-time readout and the marker share one projection through the frame's coordinates
+    assert placed == [frame]
+    # and it follows the point and the frame
+    for slit in (group.subset_state.slices[1].start + 3, group.subset_state.slices[1].start):
+        group.subset_state = PixelSubsetState(raster, [slice(186, 187), slice(slit, slit + 1), slice(None)])
+        where = raster_point_on_sji(raster, sji, 186, slit, frame)
+        qtbot.waitUntil(lambda where=where: overlays(sji_viewer)[1] == pytest.approx(where))
+        assert coord.point_on(sji_viewer) == pytest.approx(where)
+        sji_viewer.state.slices = (frame - 1, 0, 0)  # by hand
+        where = raster_point_on_sji(raster, sji, 186, slit, frame - 1)
+        assert overlays(sji_viewer)[1] == coord.point_on(sji_viewer) == pytest.approx(where)
+        sji_viewer.state.slices = (frame, 0, 0)
+
+
 def test_no_raster_point_on_another_observation(bare_app, qtbot, irispy_test_files):
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster])

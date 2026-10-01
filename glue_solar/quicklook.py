@@ -211,6 +211,7 @@ class Coordinator(HubListener):
         self._viewers = {}  # registered viewer -> its callbacks
         self._shows = {}  # registered viewer -> the reference data its sliders were last set for
         self._owners = {}  # a quicklook's point group -> the viewers it drives
+        self._placed = (None, None)  # point_on's last (raster, pixel, slit-jaw, frame) and answer
         self._busy = False
         # a drag moves the point at every mouse event: show only its latest position
         self._timer = QTimer()
@@ -241,7 +242,7 @@ class Coordinator(HubListener):
         def axes_changed(*_):
             self._apply_point(viewer)
 
-        def slices_changed(*_):
+        def slices_changed(old, new):
             data = viewer.state.reference_data
             if data is not self._shows.get(viewer):
                 # glue reset the sliders for new data: join the point rather than move it
@@ -250,12 +251,14 @@ class Coordinator(HubListener):
                 self._timer.start()  # and the time master
                 return
             self._move_point(viewer)
-            if not self._busy and self._master(observation_key(data)) is data:
+            # a master's time is along its first axis, or at the point, which _move_point follows
+            moved = (old or ())[:1] != (new or ())[:1]
+            if moved and not self._busy and self._master(observation_key(data)) is data:
                 self._timer.start()  # the time master moved
 
         for prop in ("reference_data", "x_att", "y_att"):
             viewer.state.add_callback(prop, axes_changed)
-        viewer.state.add_callback("slices", slices_changed)
+        viewer.state.add_callback("slices", slices_changed, echo_old=True)
         self._viewers[viewer] = (axes_changed, slices_changed)
         self._shows[viewer] = viewer.state.reference_data
         self._timer.start()  # join the time master
@@ -538,9 +541,13 @@ class Coordinator(HubListener):
         if observation_key(sji) != observation_key(point.reference_data) or frame is None or not _placeable(sji):
             return None
         pixel = [s.start if s.start is not None else 0 for s in point.slices]
-        lon, lat = _lon_lat(point.reference_data, pixel)
-        x, y = _sji_pixels(sji, frame, lon, lat)
-        return float(x), float(y)
+        # the frame-time readout and the slit-jaw marker both ask for each move
+        key = (point.reference_data, pixel, sji, frame)
+        if self._placed[0] != key:
+            lon, lat = _lon_lat(point.reference_data, pixel)
+            x, y = _sji_pixels(sji, frame, lon, lat)
+            self._placed = (key, (float(x), float(y)))
+        return self._placed[1]
 
     @staticmethod
     def slit_on(viewer):
