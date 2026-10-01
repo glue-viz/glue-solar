@@ -11,6 +11,7 @@ from glue.core.component import Component
 from glue.core.component_id import ComponentID
 from glue.core.component_link import ComponentLink
 from glue.core.data import Data
+from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 
 from astropy.io import fits
 
@@ -38,7 +39,7 @@ def int16_copy(source, path, hdus, **header):
             fill = values == -200
             values = np.clip(values, -199.75, 16000)
             values[fill] = -200
-            values.flat[[1, 2, 3]] = -199, -199.5, -5.25  # raw -32764, -32766 and -32789
+            values.flat[[1, 2, 3]] = -199, -199.5, -5.25  # raw -32764, -32766 and -31989
             hdulist[i].data = values
             hdulist[i].scale("int16", bscale=BSCALE, bzero=BZERO)
         hdulist.writeto(path)
@@ -122,11 +123,20 @@ def test_colour_limits_count_every_raw_value(int16_raster):
     positive = oracle[oracle > 0]
     lowest = data.compute_statistic("percentile", cid, percentile=1.0, positive=True, random_subset=10000)
     assert lowest == np.percentile(positive, 1.0)
-    # glue's own statistics for anything else: a view or an axis
+    # glue's own statistics for anything else: a view, a subset or an axis
     eager = Data(values=oracle, label="eager")
-    assert data.compute_statistic("percentile", cid, percentile=50, view=(0,)) == np.nanpercentile(oracle[0], 50)
+    upper = data.compute_statistic("percentile", cid, percentile=99.75, view=(0,), random_subset=10000)
+    assert upper == np.nanpercentile(oracle[0], 99.75)
+    first = PixelSubsetState(data, [slice(0, 1), slice(None), slice(None)])
+    assert data.compute_statistic("maximum", cid, subset_state=first, random_subset=10000) == np.nanmax(oracle[0])
     expected_maxima = eager.compute_statistic("maximum", eager.id["values"], axis=(0, 1))
     np.testing.assert_array_equal(data.compute_statistic("maximum", cid, axis=(0, 1)), expected_maxima)
+    # NumPy's interpolation between unequal neighbours, in float32 to the last bit (compared as float64, as NumPy
+    # compares a float32 with a Python float in float32)
+    small, cid, _ = lazy_data(np.array([[[0, 1, 5, -32768]]], np.int16))
+    for percentile in (20.0, 80.0):
+        exact = float(np.nanpercentile(np.array([7992, 7992.25, 7993.25, np.nan], np.float32), percentile))
+        assert small.compute_statistic("percentile", cid, percentile=percentile, random_subset=10000) == exact
 
 
 def test_colour_limits_of_a_large_window_count_evenly_spaced_planes(monkeypatch, int16_raster):
@@ -165,11 +175,17 @@ def test_open_file_limit_is_raised_never_lowered(monkeypatch, soft, hard, raised
 
 
 def lazy_and_eager(monkeypatch, load):
-    """What ``load()`` gives lazily, and as before, with `~glue_solar.sources.loaders.iris.LAZY` off."""
+    """
+    What ``load()`` gives lazily, and as before, with `~glue_solar.sources.loaders.iris.LAZY` off; only the lazy
+    load raises the open-file limit.
+    """
+    raised = []
+    monkeypatch.setattr(iris, "allow_open_files", lambda: raised.append(True))
     lazy_result = load()
     monkeypatch.setattr(iris, "LAZY", False)
     eager = load()
     monkeypatch.setattr(iris, "LAZY", True)
+    assert raised == [True]
     return lazy_result, eager
 
 
@@ -218,10 +234,20 @@ def test_int16_rasters_load_lazily_and_float32_ones_as_before(monkeypatch, tmp_p
     gzipped = int16_raster_copy(source, tmp_path / "gzipped" / f"{RASTER}.gz")
     for path in (flipped, gzipped):
         assert_loads_as_before(*lazy_and_eager(monkeypatch, lambda path=path: raster_data([path], ["Si IV 1403"])[0]))
-    # irispy's float32 test file loads as before
-    [float32] = raster_data([source], ["Si IV 1403"])
-    assert type(float32) is Data
-    assert [type(float32.get_component(cid)) for cid in float32.main_components[:2]] == [Component, Component]
+    # irispy's float32 test file loads as before, as do a file with only one window stored as int16 and one stored
+    # as int32, more codes than the colour limits count
+    (tmp_path / "partly").mkdir()
+    partly = int16_copy(source, tmp_path / "partly" / RASTER, [WINDOW])
+    int32 = tmp_path / "int32" / RASTER
+    int32.parent.mkdir()
+    with fits.open(int16_raster) as hdulist:
+        for i in range(1, hdulist[0].header["NWIN"] + 1):
+            hdulist[i].scale("int32", bscale=BSCALE, bzero=BZERO)
+        hdulist.writeto(int32)
+    for path in (source, partly, int32):
+        [loaded] = raster_data([path], ["Si IV 1403"])
+        assert type(loaded) is Data
+        assert [type(loaded.get_component(cid)) for cid in loaded.main_components[:2]] == [Component, Component]
 
 
 def test_int16_stacks_load_lazily_scan_by_scan(monkeypatch, tmp_path, irispy_test_files):
@@ -301,7 +327,6 @@ def test_level_2_slit_jaw_and_aia_cubes_load_lazily_as_before(monkeypatch, irisp
 @pytest.mark.filterwarnings("ignore:Card is too long")
 def test_pv_slices_and_subset_exports_of_lazy_data(monkeypatch, tmp_path, int16_raster):
     from glue.config import data_exporter
-    from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
     from glue_qt.plugins.tools.pv_slicer import pv_slicer
 
     from glue_solar import glue_patches
