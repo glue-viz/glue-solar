@@ -317,23 +317,32 @@ def exposure_axis(viewer, label):
     return coord
 
 
+EXPOSURES = "Exposure (acquisition order)"
+
+
+def check_exposure_axis(viewer, axis, label, exposures):
+    """``axis`` shows ``label`` and integer exposure numbers on its near side, and no world coordinate."""
+    assert getattr(viewer.state, f"{axis}_axislabel") == label
+    ticks = drawn_ticks(viewer, "b" if axis == "x" else "l")
+    assert list(ticks) == [label]
+    assert len(ticks[label]) >= 2
+    assert {int(tick) for tick in ticks[label]} <= set(range(exposures))
+    exposure_axis(viewer, label)  # one exposure coordinate, no stale copy
+
+
 def test_a_sit_and_stare_exposure_axis(bare_app, monkeypatch, irispy_test_files):
     raster, _ = sit_and_stare(irispy_test_files)
     bare_app.show()  # the quicklook's own panel sizes
     viewers = quicklook(bare_app, [raster])
     times = raster[raster.id["Time"]][:, 0, 0]
     first, last = (np.datetime_as_string(t, unit="s") for t in (times[0], times[-1]))
-    label = f"Exposure (acquisition order)\n{first} – {last[11:]} UTC"  # one day
+    label = f"{EXPOSURES}\n{first} – {last[11:]} UTC"  # one day
 
     def check(viewer, axis):
         state = viewer.state
         other = "y" if axis == "x" else "x"
-        near, far, other_near, other_far = "btlr" if axis == "x" else "lrbt"
-        assert getattr(state, f"{axis}_axislabel") == label
-        ticks = drawn_ticks(viewer, near)
-        assert list(ticks) == [label]  # exposure numbers, and no world coordinate along the axis
-        assert len(ticks[label]) >= 2
-        assert {int(tick) for tick in ticks[label]} <= set(range(raster.shape[0]))
+        _, far, other_near, other_far = "btlr" if axis == "x" else "lrbt"
+        check_exposure_axis(viewer, axis, label, raster.shape[0])
         # the other axis shows glue's own coordinate and label, on its near side only
         assert list(drawn_ticks(viewer, other_near)) == [getattr(state, f"{other}_axislabel")]
         assert not drawn_ticks(viewer, far)
@@ -379,7 +388,7 @@ def test_a_slit_step_relabels_the_exposure_axis_without_placing_its_ticks(bare_a
     raster, _ = sit_and_stare(irispy_test_files)
     wavelength = quicklook(bare_app, [raster])["wavelength"]  # exposure on y
     label = wavelength.state.y_axislabel
-    assert label.startswith("Exposure (acquisition order)\n")
+    assert label.startswith(f"{EXPOSURES}\n")
     edit = wavelength.options_widget().ui.axes_editor.ui.text_y_axislabel  # the axes options
     for typed in ("", wavelength.state.y_att_world.label):  # glue's own labels, typed: the exposure label again
         edit.setText(typed)
@@ -848,6 +857,13 @@ def raster_time(data, index):
     return data[data.id["Time"]][(*index, 0, 0)]
 
 
+def nearest_frame(data, when):
+    """The frame of ``data`` nearest ``when``, or None when more than half its median cadence away (NO MATCH)."""
+    frames = data[data.id["Time"]][:, 0, 0]
+    index = expected_nearest(when, frames)
+    return index if abs(frames[index] - when) <= np.median(np.diff(np.sort(frames))) / 2 else None
+
+
 def check_follower(app, qtbot, master_time, follower, viewer):
     """
     The follower's frame is the nearest to the master's time, or NO MATCH when half a cadence away,
@@ -856,10 +872,9 @@ def check_follower(app, qtbot, master_time, follower, viewer):
     before = viewer.state.slices[0]
     times = follower[follower.id["Time"]][:, 0, 0]
     index = expected_nearest(master_time, times)
-    offset = times[index] - master_time
-    half = np.median(np.diff(np.sort(times))) / 2
-    delta = offset / np.timedelta64(1, "s")
-    if abs(offset) <= half:
+    delta = (times[index] - master_time) / np.timedelta64(1, "s")
+    matched = nearest_frame(follower, master_time) is not None
+    if matched:
         qtbot.waitUntil(lambda: f" · Δt {delta:+.1f} s" in readout(viewer))
         assert viewer.state.slices[0] == index
         assert not viewer.toolbar.tools["solar:frame_time"]._grey.get_visible()
@@ -867,7 +882,7 @@ def check_follower(app, qtbot, master_time, follower, viewer):
         qtbot.waitUntil(lambda: f"NO MATCH Δt = {delta:+.1f} s" in readout(viewer))
         assert viewer.state.slices[0] == before
         assert viewer.toolbar.tools["solar:frame_time"]._grey.get_visible()
-    return abs(offset) <= half
+    return matched
 
 
 def test_a_raster_master_moves_the_slit_jaw_images(bare_app, qtbot, irispy_test_files):
@@ -1652,7 +1667,7 @@ def test_what_moves_on_a_stack(bare_app, qtbot, scans):
 
 @pytest.mark.xfail(
     strict=True,
-    raises=AssertionError,
+    raises=ValueError,
     reason="the click's own point has no step until it is pinned, so the readouts' time_status raises in _pin",
 )
 def test_a_click_on_another_scan_snaps_back_to_a_slit_jaw_master(bare_app, qtbot, scans):
@@ -1669,13 +1684,6 @@ def test_a_click_on_another_scan_snaps_back_to_a_slit_jaw_master(bare_app, qtbot
     assert changes(bare_app, qtbot, viewers, lambda: select_point(viewers["wavelength"], 2, 0)) == {
         "map": (scan, None, None, 2),
     }
-
-
-def nearest_frame(sji, when):
-    """The slit-jaw frame nearest ``when``, or None when more than half its median cadence away (NO MATCH)."""
-    frames = sji[sji.id["Time"]][:, 0, 0]
-    index = expected_nearest(when, frames)
-    return index if abs(frames[index] - when) <= np.median(np.diff(np.sort(frames))) / 2 else None
 
 
 def test_what_moves_on_a_sit_and_stare(bare_app, qtbot, irispy_test_files):
@@ -1759,13 +1767,17 @@ def test_what_moves_on_a_sit_and_stare(bare_app, qtbot, irispy_test_files):
             "sji1": (nearest_frame(sjis[1], master_times[frame]), None, None),
         }
         assert check_follower(bare_app, qtbot, master_times[frame], raster, viewers["spectrogram"])
-    # the master rules: the raster's own exposure slider, or a map click on another exposure, snaps back to frame
-    # 40's exposure; the click's slit still moves
+    # the master rules: the raster's own exposure slider, or a map or λ–time click on another exposure, snaps back
+    # to frame 40's exposure; a click's slit or wavelength still moves
+    shown = []
+    viewers["spectrogram"].state.add_callback("slices", lambda slices: shown.append(slices[0]))
     assert event(lambda: slide(viewers["spectrogram"], 0, 100)) == {}
+    assert shown == [100, exposure]
     assert event(lambda: select_point(viewers["map"], 150, 33)) == {
         "point": (label, (exposure, 33, None)),
         "wavelength": (None, 33, None),
     }
+    assert event(lambda: select_point(viewers["wavelength"], 7, 150)) == {"map": (None, None, 7)}
     # SJI 2796 moved by hand keeps its frame until the next sync, here the map taking the time master back, which
     # leaves SJI 1400 on frame 40
     assert event(lambda: slide(viewers["sji"][1], 0, 0)) == {"sji1": (0, None, None)}
@@ -1801,7 +1813,7 @@ def test_what_moves_on_a_sit_and_stare(bare_app, qtbot, irispy_test_files):
         spectrogram.x_att_world = raster.world_component_ids[world]
 
     assert event(lambda: x_axis(0)) == {"spectrogram": (None, None, wavelength)}
-    assert spectrogram.x_axislabel.startswith("Exposure (acquisition order)\n")
+    assert spectrogram.x_axislabel.startswith(f"{EXPOSURES}\n")
     assert event(lambda: select_point(viewers["wavelength"], 20, 100)) == {
         "point": (label, (100, 12, None)),
         "map": (None, None, 20),
@@ -1900,25 +1912,12 @@ def test_what_moves_on_a_negative_step_raster(bare_app, qtbot, irispy_data):
     assert [viewers[role].state.title.split()[-1] for role in ("map", "wavelength")] == ["map", "λ–step"]
 
 
-EXPOSURES = "Exposure (acquisition order)"
-
-
 def exposure_labels(viewer):
     """The exposure labels a viewer has, in its axes options or drawn on any side, and its overlays' coordinates."""
     state = viewer.state
     drawn = [label for side in "bltr" for label in drawn_ticks(viewer, side)]
     labels = [label for label in (state.x_axislabel, state.y_axislabel, *drawn) if label.startswith(EXPOSURES)]
     return labels, [coord for coords in viewer.axes._all_coords[1:] for coord in coords]
-
-
-def check_exposure_axis(viewer, axis, label, exposures):
-    """``axis`` shows ``label`` and integer exposure numbers on its near side, and no world coordinate."""
-    assert getattr(viewer.state, f"{axis}_axislabel") == label
-    ticks = drawn_ticks(viewer, "b" if axis == "x" else "l")
-    assert list(ticks) == [label]
-    assert len(ticks[label]) >= 2
-    assert {int(tick) for tick in ticks[label]} <= set(range(exposures))
-    exposure_axis(viewer, label)  # one exposure coordinate, no stale copy
 
 
 def test_a_scanning_raster_has_no_exposure_axis(bare_app, scans):

@@ -29,8 +29,12 @@ def pytest_unconfigure(config):
 
 
 @pytest.fixture(autouse=True)
-def _idle_draw_errors_fail():
-    """Fail a test in which a Qt canvas raised during an idle draw, which matplotlib only prints."""
+def _canvas_errors_fail(monkeypatch):
+    """
+    Fail a test in which a canvas callback, such as a mouse click, or a Qt idle draw raised: under a
+    running Qt, matplotlib only prints them.
+    """
+    from matplotlib import cbook
     from matplotlib.backends import backend_qt
 
     errors = []
@@ -39,11 +43,12 @@ def _idle_draw_errors_fail():
         traceback.print_exc()
         errors.append(sys.exc_info()[1])
 
-    original, backend_qt.traceback = backend_qt.traceback, SimpleNamespace(print_exc=print_exc)
-    try:
-        yield
-    finally:
-        backend_qt.traceback = original
+    def reraise():
+        raise  # the callback's error, which CallbackRegistry.process is handling
+
+    monkeypatch.setattr(backend_qt, "traceback", SimpleNamespace(print_exc=print_exc))
+    monkeypatch.setattr(cbook, "traceback", SimpleNamespace(print_exc=reraise))
+    yield
     if errors:
         pytest.fail(f"an idle draw raised {errors[0]!r}")
 

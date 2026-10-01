@@ -49,8 +49,11 @@ write down whether it does, and close it with either button.
    3620258102: the map (slit against time), the spectrogram and wavelength against time in the top
    row, and the SJI 1330, 1400, 2796 and 2832 viewers and the spectrum panel in the bottom row, side
    by side without overlapping. The Pixel tool is active on the map, the point is at its centre and
-   the spectrum panel shows its spectrum. The terminal shows no traceback; write down any warning it
-   prints, such as a font alias warning on macOS.
+   the spectrum panel shows its spectrum. The fixture's slit-jaw frames are minutes apart, and SJI
+   1330, 1400 and 2796 have none within half their cadence of the centre exposure: these three keep
+   their first frame under a grey veil, and their "Frame time" readouts are grey and end with
+   "NO MATCH Δt = …"; SJI 2832 shows its nearest frame. The terminal shows no traceback; write down
+   any warning it prints, such as a font alias warning on macOS.
 
 6. Run ``glue --startup=iris_quicklook $T/raster/iris_l2_20140329_140938_3860258481_raster/*.fits``.
    The 13 files load one by one and the quicklook shows the first scan: the map (step against slit),
@@ -156,8 +159,9 @@ Readouts, labels and themes
 
 23. In the quicklook of item 5, move the spectrogram's exposure slider to 1, then the ``Time (Utc)``
     slider of SJI 1400 to 40. SJI 1400 is covered by a grey veil, and its "Frame time" readout, in
-    grey, ends with "NO MATCH Δt = …". Click the map: SJI 1400 moves to a matching frame and the veil
-    goes.
+    grey, ends with "NO MATCH Δt = …". Click the map near its left edge (an exposure below 20): SJI
+    1400 moves to a matching frame and the veil goes. A click on one of the few exposures with no SJI
+    1400 frame within half its cadence, such as the map's centre, leaves it greyed with NO MATCH.
 
 24. At the size the quicklook gives each panel, its "Frame time" readout, for example
     "2021-09-05T… UTC · exp … s · Δt +… s", shows in full in the status bar beside the position and
