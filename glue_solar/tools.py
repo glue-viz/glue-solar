@@ -3,18 +3,24 @@ Toolbar tools for glue's viewers.
 """
 
 import numpy as np
-from glue.config import viewer_tool
+from glue.config import settings, viewer_tool
 from glue.core.component import DateTimeComponent
 from glue.viewers.common.tool import SimpleToolMenu, Tool
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from qtpy import QtCore, QtWidgets
 
-from glue_solar.quicklook import coordinator
+import astropy.units as u
+
+from glue_solar.quicklook import _is_sit_and_stare, _role, coordinator
 
 __all__ = ["CoordinateTool", "CursorReadoutTool", "FrameTimeTool"]
 
 _WATCHED = ("reference_data", "x_att", "y_att", "slices")
+# glue sets both axis labels whenever it resets the WCSAxes, which also drops their tick settings
+_LABELS = tuple(f"{axis}_{prop}" for axis in "xy" for prop in ("axislabel", "axislabel_size", "axislabel_weight"))
+_LABELS += ("x_ticklabel_size", "y_ticklabel_size")
+_PIXEL_COORDS = {"type": ("scalar", "scalar"), "wrap": (None, None), "unit": (u.one, u.one), "name": ("x", "y")}
 # glue-qt rebuilds the slice sliders when these change
 _SLIDER_REBUILDS = ("reference_data", "x_att", "y_att")
 # A dragged slice slider applies its position at most this often, and on release
@@ -49,6 +55,46 @@ def _time_component(data):
     return next((cid for cid in data.main_components if isinstance(data.get_component(cid), DateTimeComponent)), None)
 
 
+def _exposure_label(data):
+    """'Exposure (acquisition order), <first> – <last> UTC' for the exposure axis of a sit-and-stare raster."""
+    cid = _time_component(data)
+    if cid is None:
+        return "Exposure (acquisition order)"
+    times = data[cid, (slice(None), 0, 0)]
+    first, last = (np.datetime_as_string(t, unit="s") for t in (times.min(), times.max()))
+    if last[:10] == first[:10]:
+        last = last[11:]  # the same day: the time only
+    return f"Exposure (acquisition order), {first} – {last} UTC"
+
+
+def _index_ticks(axes, index, label):
+    """
+    Give the x (``index`` 0) or y (1) axis of the WCSAxes ``axes`` integer pixel-index ticks, instead of
+    the world coordinates, and return that axis' coordinate helper.
+
+    The ticks are a pixel overlay of WCSAxes: the world coordinates keep the other axis. A world
+    coordinate that glue gave the axis ``label`` gets its own back.
+    """
+    near, far = "bt" if index == 0 else "lr"
+    for coord in axes.coords:
+        if coord.get_axislabel() == label:
+            coord.set_axislabel(coord.default_label)
+        coord.set_ticks_position([side for side in coord.get_ticks_position() if side not in (near, far)])
+        coord.set_ticklabel_position([side for side in coord.get_ticklabel_position() if side not in (near, far)])
+        coord.set_axislabel_position([side for side in coord.get_axislabel_position() if side not in (near, far)])
+    pixel = axes.get_coords_overlay("pixel", coord_meta=_PIXEL_COORDS)
+    other = pixel[1 - index]
+    other.set_visible(False)
+    # a fixed tick label position, even hidden, keeps WCSAxes' automatic layout from putting world labels there
+    other.set_ticklabel_position(far)
+    coord = pixel[index]
+    coord.set_ticks_position(near + far)
+    coord.set_ticklabel_position(near)
+    coord.set_axislabel_position(near)
+    coord.set_major_formatter("x")  # integers
+    return coord
+
+
 @viewer_tool
 class FrameTimeTool(Tool):
     """
@@ -63,7 +109,12 @@ class FrameTimeTool(Tool):
     signed offset of a matched follower's time from the master's, or NO MATCH with that offset,
     when the follower keeps its frame and is greyed.
 
-    The tool exists for every Image viewer, so it also throttles the viewer's slice sliders.
+    The tool exists for every Image viewer, so it also throttles the viewer's slice sliders and labels
+    a displayed sit-and-stare exposure axis 'Exposure (acquisition order)' with the UTC range of its
+    exposures, in glue's own axis label, with integer exposure ticks instead of the helioprojective
+    coordinates glue would show along it. glue resets both whenever it resets the axes (an axis or
+    data change, or a slice the displayed coordinates depend on), and the tool applies them again; a
+    label typed in the viewer's axes options is kept.
     """
 
     icon = "window_tab"
@@ -90,6 +141,10 @@ class FrameTimeTool(Tool):
         _throttle_slice_sliders(viewer)
         for prop in _SLIDER_REBUILDS:
             viewer.state.add_callback(prop, self._throttle_sliders)
+        self._exposure_ticks = (None, None)  # the WCSAxes coordinates they were added to, and their helper
+        for prop in _LABELS:
+            viewer.state.add_callback(prop, self._label_exposures)
+        self._label_exposures()
 
     def activate(self):
         self.label.setHidden(not self.label.isHidden())
@@ -100,7 +155,36 @@ class FrameTimeTool(Tool):
             self.viewer.state.remove_callback(prop, self._refresh)
         for prop in _SLIDER_REBUILDS:
             self.viewer.state.remove_callback(prop, self._throttle_sliders)
+        for prop in _LABELS:
+            self.viewer.state.remove_callback(prop, self._label_exposures)
         super().close()
+
+    def _label_exposures(self, *_):
+        """Label a displayed sit-and-stare exposure axis and give it exposure ticks (see the class)."""
+        state = self.viewer.state
+        data = state.reference_data
+        if data is None or _role(data) != "raster" or data.ndim != 3 or not _is_sit_and_stare(data):
+            return
+        for index, axis in enumerate("xy"):
+            att, world = getattr(state, f"{axis}_att"), getattr(state, f"{axis}_att_world")
+            if att is None or att.axis != 0:
+                continue
+            label = getattr(state, f"{axis}_axislabel")
+            if label in ("", getattr(world, "label", None)):  # glue's reset
+                setattr(state, f"{axis}_axislabel", _exposure_label(data))  # which calls this again
+                return
+            axes = self.viewer.axes
+            coords, ticks = self._exposure_ticks
+            if coords is not axes.coords:  # glue reset the axes, and the ticks with them
+                ticks = _index_ticks(axes, index, label)
+                self._exposure_ticks = (axes.coords, ticks)
+            # glue styles only the WCS coordinates, and draws the label on the one along the axis
+            color = settings.FOREGROUND_COLOR
+            ticks.set_ticks(color=color)
+            ticks.set_ticklabel(color=color, size=getattr(state, f"{axis}_ticklabel_size"))
+            size, weight = getattr(state, f"{axis}_axislabel_size"), getattr(state, f"{axis}_axislabel_weight")
+            ticks.set_axislabel(label, color=color, size=size, weight=weight)
+            self.viewer.figure.canvas.draw_idle()
 
     def _throttle_sliders(self, *_):
         _throttle_slice_sliders(self.viewer)

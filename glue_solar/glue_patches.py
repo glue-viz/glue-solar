@@ -12,10 +12,13 @@ from glue.core.component_link import ComponentLink
 from glue.core.coordinate_helpers import unbroadcast
 from glue.core.exceptions import IncompatibleAttribute
 from glue.utils import defer_draw
+from glue.viewers.image.layer_artist import ImageSubsetLayerArtist
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
+from matplotlib.lines import Line2D
 
 __all__ = [
+    "needs_crosshair_workaround",
     "needs_inverse_workaround",
     "needs_pixel_point_workaround",
     "needs_pv_slice_workaround",
@@ -142,3 +145,53 @@ def needs_pixel_point_workaround(method=_original_to_linked_pixel_coords):
 
 if needs_pixel_point_workaround():
     PixelSubsetState._to_linked_pixel_coords = _to_linked_pixel_coords
+
+
+_original_update_visual_attributes = ImageSubsetLayerArtist._update_visual_attributes
+
+
+@defer_draw
+def _update_visual_attributes(self, redraw=True):
+    """
+    glue-core's ``ImageSubsetLayerArtist._update_visual_attributes``, keeping a Pixel crosshair hidden
+    where the point has no position.
+
+    glue-core 1.27.0 hides the crosshair of a Pixel point that has no position on a displayed axis, as
+    a raster point has none in wavelength, then shows it again here, at (0, 0) or where it last was.
+    Retired by the ``core-pixel-crosshair`` fix (``wp0-core-image-artist-bugs``).
+    """
+    if not self.enabled:
+        return
+    _original_update_visual_attributes(self, redraw=False)
+    if self._line_x.get_visible():
+        viewer = self._viewer_state
+        try:
+            self.state.layer.subset_state.get_xy(self.layer.data, viewer.x_att.axis, viewer.y_att.axis)
+        except IncompatibleAttribute:
+            self._line_x.set_visible(False)
+            self._line_y.set_visible(False)
+    if redraw:
+        self.redraw()
+
+
+def needs_crosshair_workaround(method=_original_update_visual_attributes):
+    """Whether ``method`` shows the Pixel crosshair of a point that has no position on a displayed axis."""
+    data = Data(x=np.zeros((2, 2)), label="probe")
+    point = PixelSubsetState(data, [slice(1, 2), slice(None)])  # no position along x
+    image, line_x, line_y = Line2D([], []), Line2D([], [], visible=False), Line2D([], [], visible=False)
+    artist = SimpleNamespace(
+        enabled=True,
+        image_artist=image,
+        _line_x=line_x,
+        _line_y=line_y,
+        mpl_artists=[image, line_x, line_y],
+        layer=SimpleNamespace(data=data),
+        state=SimpleNamespace(visible=True, alpha=1.0, color="red", zorder=1, layer=SimpleNamespace(subset_state=point)),
+        _viewer_state=SimpleNamespace(x_att=data.pixel_component_ids[1], y_att=data.pixel_component_ids[0]),
+    )
+    method(artist, redraw=False)
+    return line_x.get_visible()
+
+
+if needs_crosshair_workaround():
+    ImageSubsetLayerArtist._update_visual_attributes = _update_visual_attributes

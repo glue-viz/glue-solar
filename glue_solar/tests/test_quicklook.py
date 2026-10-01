@@ -298,11 +298,97 @@ def test_quicklook_shows_the_chosen_window(bare_app, irispy_test_files):
     assert viewers["map"].state.title == "Si IV 1403 slit vs time"
 
 
+def drawn_ticks(viewer, side):
+    """The tick labels WCSAxes draws on ``side`` ('b', 'l', 't' or 'r') of an Image viewer, by axis label."""
+    viewer.figure.canvas.draw()
+    return {
+        coord.get_axislabel(): list(coord._ticklabels.text[side])
+        for coords in viewer.axes._all_coords  # the world coordinates and any overlay
+        for coord in coords
+        if coord.get_ticklabel_visible() and side in coord.get_ticklabel_position() and coord._ticklabels.text.get(side)
+    }
+
+
+def test_a_sit_and_stare_exposure_axis(bare_app, irispy_test_files):
+    raster, _ = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster])
+    times = raster[raster.id["Time"]][:, 0, 0]
+    first, last = (np.datetime_as_string(t, unit="s") for t in (times[0], times[-1]))
+    label = f"Exposure (acquisition order), {first} – {last[11:]} UTC"  # one day
+
+    def check(viewer, axis):
+        assert getattr(viewer.state, f"{axis}_axislabel") == label
+        near, far = "bt" if axis == "x" else "lr"
+        ticks = drawn_ticks(viewer, near)
+        assert list(ticks) == [label]  # exposure numbers, and no world coordinate along the axis
+        assert len(ticks[label]) >= 2
+        assert {int(tick) for tick in ticks[label]} <= set(range(raster.shape[0]))
+        assert not drawn_ticks(viewer, far)
+
+    check(viewers["map"], "x")
+    wavelength = viewers["wavelength"]
+    check(wavelength, "y")
+    coords = wavelength.axes.coords
+    wavelength.state.slices = (wavelength.state.slices[0], 5, wavelength.state.slices[2])  # the slit slider
+    assert wavelength.axes.coords is not coords  # glue reset the axes
+    check(wavelength, "y")
+    wavelength.state.y_att_world = raster.world_component_ids[1]  # the axis combo: slit
+    assert wavelength.state.y_axislabel == raster.world_component_ids[1].label  # glue's own
+    assert label not in drawn_ticks(wavelength, "l")
+    wavelength.state.y_att_world = raster.world_component_ids[0]
+    check(wavelength, "y")
+    wavelength.state.x_att_world = raster.world_component_ids[0]  # exposure on x, wavelength on y
+    check(wavelength, "x")
+    wavelength.state.x_axislabel = "Exposure"  # typed in the axes options
+    assert list(drawn_ticks(wavelength, "b")) == ["Exposure"]
+
+
+def crosshair(viewer):
+    """Where the Point's crosshair shows in an Image viewer, or None."""
+    [artist] = [artist for artist in viewer.layers if artist.layer.label == "Point"]
+    if not artist._line_x.get_visible():  # glue shows or hides both lines
+        return None
+    return artist._line_x.get_xdata()[0], artist._line_y.get_ydata()[0]
+
+
+def test_no_crosshair_where_the_point_has_no_position(bare_app, irispy_test_files):
+    import inspect
+
+    from glue.viewers.image.layer_artist import ImageSubsetLayerArtist
+
+    from glue_solar import glue_patches
+
+    installed = ImageSubsetLayerArtist._update_visual_attributes is glue_patches._update_visual_attributes
+    assert installed == glue_patches.needs_crosshair_workaround()  # probes glue's own method
+    assert not glue_patches.needs_crosshair_workaround(glue_patches._update_visual_attributes)
+    # a private method: pin its signature on the released baseline
+    parameters = inspect.signature(glue_patches._original_update_visual_attributes).parameters
+    assert list(parameters) == ["self", "redraw"]
+
+    raster, _ = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster])
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    exposure, slit, _ = (s.start for s in group.subset_state.slices)
+    assert crosshair(viewers["map"]) == (exposure, slit)
+    # the point is free in wavelength: glue-core 1.27.0 alone draws these at (0, 0)
+    panels = [viewers[role] for role in ("spectrogram", "wavelength")]
+    assert [crosshair(viewer) for viewer in panels] == [None, None]
+    viewers["wavelength"].state.slices = (exposure, 5, viewers["wavelength"].state.slices[2])  # moves the point
+    assert crosshair(viewers["map"]) == (exposure, 5)
+    for viewer in panels:
+        [layer] = [layer for layer in viewer.state.layers if layer.layer.label == "Point"]
+        layer.visible = False
+        layer.visible = True  # glue updates only the visual attributes
+        assert crosshair(viewer) is None
+
+
 def test_quicklook_of_a_raster_and_of_a_stack(bare_app, scans):
     scan, stack = scans
     viewers = quicklook(bare_app, [scan])
     check_panels(bare_app, viewers, scan, {"map": (0, 1), "spectrogram": (2, 1), "wavelength": (2, 0)})
     assert viewers["wavelength"].state.title == "C II 1336 λ–step"
+    # a scanning raster's steps are places on the Sun: glue's own label
+    assert viewers["map"].state.x_axislabel == scan.world_component_ids[0].label
     viewers = quicklook(bare_app, [scan, stack])  # a stack of the window is shown rather than one scan
     check_panels(bare_app, viewers, stack, {"map": (1, 2), "spectrogram": (3, 2), "wavelength": (3, 0)})
     assert viewers["map"].state.slices[0] == 0
