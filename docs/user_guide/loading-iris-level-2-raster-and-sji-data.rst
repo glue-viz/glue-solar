@@ -154,11 +154,19 @@ channel and a spectrum panel:
 - a sit-and-stare raster: slit against time, the spectrogram and wavelength against time;
 - a stack of raster scans: the map of the current scan, the spectrogram and wavelength against scan.
 
+A sit-and-stare raster's exposure axis, in the quicklook or any Image viewer, is labelled
+"Exposure (acquisition order)" with the UTC range of its exposures on a second line, and its ticks
+are exposure numbers: it is an index axis, so exposures are evenly spaced whatever their cadence.
+The other axis shows only its own coordinate. The label and ticks come back whenever glue resets
+the axes, after an axis change or, on the wavelength panel, a slit move; a label typed in the
+viewer's axes options is kept until that reset, as glue's own labels are.
+
 The map shows the wavelength nearest the window's reference wavelength, and the panels use
 99.5 % limits. A point, the edit subset "Point", starts at the centre of the map with the Pixel
 tool active: drag it on the map, and the spectrum panel shows its spectrum. The point is a detector
 pixel (a step or exposure, and a slit position) at every wavelength, and the other panels follow
-it: the spectrogram moves to its step and the wavelength panel to its slit. Clicking the
+it: the spectrogram moves to its step and the wavelength panel to its slit. Its crosshair shows
+only on the map; the spectrogram and the wavelength panel highlight its row instead. Clicking the
 spectrogram or the wavelength panel moves the point there and the map to the clicked wavelength;
 no other wavelength slider moves. Moving a step, exposure or scan slider moves the point, so on a
 stack the point stays on the map's scan. A Profile's collapse of an axis is left in place, and
