@@ -8,3 +8,4 @@ Developer Documentation
    :maxdepth: 1
 
    loader-customization
+   manual-checks

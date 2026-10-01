@@ -1,0 +1,1 @@
+Tests now fail on an error raised in a viewer, an idle draw or a mouse click instead of passing with a printed traceback or a message box, and pin which quicklook panels move or stay for each click, slider and time master change. The developer guide has a manual checklist for the quicklook.

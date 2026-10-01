@@ -209,8 +209,11 @@ it: the spectrogram moves to its step and the wavelength panel to its slit. Its 
 only on the map; the spectrogram and the wavelength panel highlight its row instead. Clicking the
 spectrogram or the wavelength panel moves the point there and the map to the clicked wavelength;
 no other wavelength slider moves. Moving a step, exposure or scan slider moves the point, so on a
-stack the point stays on the map's scan. A Profile's collapse of an axis is left in place, and
-after "Clear point" nothing follows until the next click. A point clicked on a slit-jaw image is
+stack the point stays on the map's scan. A Profile's collapse of an axis is left in place. After
+"Clear point" the panels stop following each other until the next click, except in time: the
+slit-jaw viewers keep following the exposure slider of a sit-and-stare raster and the scan slider of
+a stack's map, on a scanning raster the time stays at the last point's raster step, and a slit-jaw
+time master (see below) still moves the others. A point clicked on a slit-jaw image is
 marked only there, and the spectrum panel is empty until the next raster click. The raster panels have no region selection tools, because a region drawn on a
 raster map is recomputed on every slit-jaw viewer for each screen pixel at every frame (see
 Linking). Each quicklook has its own point, shown only in its own panels, edited while its tab is
@@ -225,7 +228,12 @@ The panels also follow one time. The raster is the time master: the slit-jaw vie
 nearest the time of the point's exposure or raster step (mid-raster before there is a point). Choose
 "Time master" in the "Coordinate" menu of a slit-jaw viewer to make it the master instead; the
 raster then moves to the exposure, or on a stack the scan, nearest each frame, keeping the slit and
-the raster step. A dataset with nothing within half its own time step of the master's time (for a
+the raster step. The master rules: while there is a point, moving the raster's exposure or scan
+slider by hand, or clicking another exposure of a sit-and-stare, snaps the raster back to the one
+matching the master's frame (after "Clear point" it keeps a hand-moved exposure or scan, as below), while a
+slit-jaw follower moved by hand keeps its frame until the panels next follow the time, on a click, a
+move of the point or of the master, or when its tab is shown again. A dataset with nothing within
+half its own time step of the master's time (for a
 scanning raster, one that does not cover it) keeps its frame and is greyed. The "Frame time" readout
 says which dataset is the time master, how far each matched dataset's time is from the master's
 (Δt) and "NO MATCH" with that offset for the others. Wavelength and slit sliders are never moved.

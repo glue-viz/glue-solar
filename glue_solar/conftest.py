@@ -1,6 +1,9 @@
 import os
+import sys
 import tarfile
 import tempfile
+import traceback
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -12,10 +15,42 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
 def pytest_configure(config):
-    # As glue-qt's conftest does: never read or write the user's ~/.glue
+    # As glue's and glue-qt's conftests do: an error in a viewer's add_data or add_subset raises instead of
+    # opening a message box, and close prompts are skipped
+    os.environ["GLUE_TESTING"] = "True"
+    # and never read or write the user's ~/.glue
     from glue import config as glue_config
 
     glue_config.CFG_DIR = tempfile.mkdtemp()
+
+
+def pytest_unconfigure(config):
+    os.environ.pop("GLUE_TESTING", None)
+
+
+@pytest.fixture(autouse=True)
+def _canvas_errors_fail(monkeypatch):
+    """
+    Fail a test in which a canvas callback, such as a mouse click, or a Qt idle draw raised: under a
+    running Qt, matplotlib only prints them.
+    """
+    from matplotlib import cbook
+    from matplotlib.backends import backend_qt
+
+    errors = []
+
+    def print_exc():
+        traceback.print_exc()
+        errors.append(sys.exc_info()[1])
+
+    def reraise():
+        raise  # the callback's error, which CallbackRegistry.process is handling
+
+    monkeypatch.setattr(backend_qt, "traceback", SimpleNamespace(print_exc=print_exc))
+    monkeypatch.setattr(cbook, "traceback", SimpleNamespace(print_exc=reraise))
+    yield
+    if errors:
+        pytest.fail(f"an idle draw raised {errors[0]!r}")
 
 
 class IsolatedQSettings(QSettings):

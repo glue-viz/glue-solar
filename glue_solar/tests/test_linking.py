@@ -233,8 +233,7 @@ def _autolink(data_collection):
 
 
 @pytest.mark.parametrize("order", list(itertools.permutations(["autolinker", "link_hpc", "quicklook"])), ids="-".join)
-def test_link_graph_in_every_add_order(qtbot, monkeypatch, sns, order):
-    monkeypatch.setenv("GLUE_TESTING", "True")  # glue-qt then raises errors instead of showing a modal box
+def test_link_graph_in_every_add_order(qtbot, sns, order):
     sji, raster = sns
     glue_solar.setup()
     app = GlueApplication()
