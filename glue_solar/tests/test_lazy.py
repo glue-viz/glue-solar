@@ -44,9 +44,8 @@ def int16_copy(source, path, hdus, **header):
     return path
 
 
-def int16_raster_copy(irispy_test_files, path, **header):
-    """The bundled 3620258102 raster with every window stored as int16 (`int16_copy`)."""
-    source = find_irispy_test_file(irispy_test_files, RASTER)
+def int16_raster_copy(source, path, **header):
+    """The raster file ``source`` with every window stored as int16 (`int16_copy`)."""
     with fits.open(source) as hdulist:
         windows = range(1, hdulist[0].header["NWIN"] + 1)
     path.parent.mkdir(exist_ok=True)
@@ -55,7 +54,7 @@ def int16_raster_copy(irispy_test_files, path, **header):
 
 @pytest.fixture
 def int16_raster(tmp_path, irispy_test_files):
-    return int16_raster_copy(irispy_test_files, tmp_path / RASTER)
+    return int16_raster_copy(find_irispy_test_file(irispy_test_files, RASTER), tmp_path / RASTER)
 
 
 def expected(path, hdu):
@@ -213,14 +212,28 @@ def test_int16_rasters_load_lazily_and_float32_ones_as_before(monkeypatch, tmp_p
         assert lazy_result.label == eager.label
         assert_loads_as_before(lazy_result, eager)
     # a negative raster step, which irispy flips (D10), and a gzipped file, held in memory as int16
-    flipped = int16_raster_copy(irispy_test_files, tmp_path / "flipped" / RASTER, STEPS_AV=-1.0)
-    gzipped = int16_raster_copy(irispy_test_files, tmp_path / "gzipped" / f"{RASTER}.gz")
+    source = find_irispy_test_file(irispy_test_files, RASTER)
+    flipped = int16_raster_copy(source, tmp_path / "flipped" / RASTER, STEPS_AV=-1.0)
+    gzipped = int16_raster_copy(source, tmp_path / "gzipped" / f"{RASTER}.gz")
     for path in (flipped, gzipped):
         assert_loads_as_before(*lazy_and_eager(monkeypatch, lambda path=path: raster_data([path], ["Si IV 1403"])[0]))
     # irispy's float32 test file loads as before
-    [float32] = raster_data([find_irispy_test_file(irispy_test_files, RASTER)], ["Si IV 1403"])
+    [float32] = raster_data([source], ["Si IV 1403"])
     assert type(float32) is Data
     assert [type(float32.get_component(cid)) for cid in float32.main_components[:2]] == [Component, Component]
+
+
+def test_int16_stacks_load_lazily_scan_by_scan(monkeypatch, tmp_path, irispy_test_files):
+    sources = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)[:3]
+    paths = [int16_raster_copy(source, tmp_path / source.name) for source in sources]
+    [stack], [eager] = lazy_and_eager(monkeypatch, lambda: raster_data(paths, ["C II 1336"], stack=True))
+    assert_loads_as_before(stack, eager)
+    [science, mask] = stack.main_components[:1] + stack.derived_components
+    for i, scan in enumerate(raster_data(paths, ["C II 1336"])):
+        np.testing.assert_array_equal(stack[science, (i,)], scan[scan.main_components[0]])
+        np.testing.assert_array_equal(stack[mask, (i,)], scan[scan.derived_components[0]])
+        for name in ("Time", "Exposure time"):
+            np.testing.assert_array_equal(stack[name][i], scan[name])
 
 
 def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path, int16_raster):

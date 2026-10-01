@@ -24,9 +24,9 @@ import astropy.units as u
 from astropy.io import fits
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
-from .lazy import LazyData, RawComponent, allow_open_files, fill_mask
+from .lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask
 from .scan import extract_archive, scan_directory
-from .stack_spectrograms import MISSING_VALUES, stack_spectrogram_sequence
+from .stack_spectrograms import MISSING_VALUES, stack_spectrogram_sequence, stack_times, stack_wcs
 
 __all__ = [
     "WCS_LOCK",
@@ -174,39 +174,43 @@ def _per_frame(values, shape):
     return np.broadcast_to(values.reshape(values.shape + (1,) * (len(shape) - values.ndim)), shape)
 
 
-def _cube_data(cube, label, *, color=None, cmap=None, missing=MISSING_VALUES, exposure=None, scaling=None):
+def _dataset(wcs, meta, unit, values, label, *, color=None, cmap=None, missing=MISSING_VALUES, scaling=None):
     """
-    Convert one irispy cube into one Glue dataset, with the ``missing`` data codes as NaN.
+    A Glue dataset of ``values`` and their mask, with the ``missing`` data codes as NaN.
 
-    ``exposure`` gives the exposure times in seconds for cubes that do not carry them, such as stacks.
-    ``scaling`` is the ``(BSCALE, BZERO)`` of a cube holding a file's raw int16 (`_raw_scaling`), which then stay
-    where they are and are scaled where glue reads them.
+    ``scaling`` is the ``(BSCALE, BZERO)`` of ``values`` that are a file's raw int16 (`_raw_scaling`), which then
+    stay where they are and are scaled where glue reads them.
     """
     data = (Data if scaling is None else LazyData)(label=label)
-    data.coords = _GlueWCS(cube.wcs.low_level_wcs)
-    data.meta = cube.meta
+    data.coords = _GlueWCS(wcs)
+    data.meta = meta
     data.style = VisualAttributes(color=color, preferred_cmap=cmap)
-    values = cube.data
     if scaling is not None:
-        cid = data.add_component(RawComponent(values, *scaling, missing, units=str(cube.unit)), label)
+        cid = data.add_component(RawComponent(values, *scaling, missing, units=str(unit)), label)
         # a glue derived component, computed from the values glue reads
         data.add_component_link(ComponentLink([cid], ComponentID(f"{label} mask", parent=data), using=fill_mask))
-    else:
-        # From the values, not cube.mask: irispy masks only -200, and nothing in memory-mapped cubes.
-        fill = np.isin(values, missing) if missing else None
-        if fill is not None and fill.any():
-            # In place for float data: this writes into irispy's cube, which the loader discards.
-            values = values.astype(np.result_type(values.dtype, np.float32), copy=False)
-            values[fill] = np.nan
-        data.add_component(Component(values, units=str(cube.unit)), label)
-        # Glue stores a bool component as int64, so view the NaN mask as one byte per sample
-        data.add_component(Component(np.isnan(values).view(np.uint8)), f"{label} mask")
+        return data
+    # From the values, not cube.mask: irispy masks only -200, and nothing in memory-mapped cubes.
+    fill = np.isin(values, missing) if missing else None
+    if fill is not None and fill.any():
+        # In place for float data: this writes into irispy's cube, which the loader discards.
+        values = values.astype(np.result_type(values.dtype, np.float32), copy=False)
+        values[fill] = np.nan
+    data.add_component(Component(values, units=str(unit)), label)
+    # Glue stores a bool component as int64, so view the NaN mask as one byte per sample
+    data.add_component(Component(np.isnan(values).view(np.uint8)), f"{label} mask")
+    return data
+
+
+def _cube_data(cube, label, *, color=None, cmap=None, missing=MISSING_VALUES, scaling=None):
+    """Convert one irispy cube into one Glue dataset (`_dataset`), with its times and exposure times."""
+    data = _dataset(cube.wcs.low_level_wcs, cube.meta, cube.unit, cube.data, label, color=color, cmap=cmap,
+                    missing=missing, scaling=scaling)
     times = _frame_times(cube)
     if times is not None:
         data.add_component(_per_frame(times, cube.shape), "Time")
-    if exposure is None and getattr(cube, "exposure_time", None) is not None:
+    if getattr(cube, "exposure_time", None) is not None:
         exposure = cube.exposure_time.to_value(u.s)  # per raster step or SJI frame, in the data's order
-    if exposure is not None:
         data.add_component(Component(_per_frame(exposure, cube.shape), units="s"), "Exposure time")
     if cube.extra_coords and set(_SJI_POINTING) <= set(cube.extra_coords.keys()):
         frames = np.arange(cube.shape[0])
@@ -258,12 +262,21 @@ def _raster_collection_data(collection, windows=None, stack=False, scaling=None)
     for window, sequence in collection.items():
         name = str(window).replace(" ", "_")
         if stack and len(sequence) > 1:
-            cube, times = stack_spectrogram_sequence(sequence)
-            label = f"{name}-{_observation_label(cube.meta)}-stack"
+            label = f"{name}-{_observation_label(sequence[0].meta)}-stack"
+            if scaling:
+                raw = RawStack([scan.data for scan in sequence])
+                data = _dataset(stack_wcs(sequence[0].wcs), dict(sequence[0].meta), sequence[0].unit, raw, label,
+                                color="#7A617C", scaling=scaling[window])
+                times = stack_times(sequence)
+            else:
+                cube, times = stack_spectrogram_sequence(sequence)
+                # the stack already holds NaN
+                data = _dataset(cube.wcs.low_level_wcs, cube.meta, cube.unit, cube.data, label, color="#7A617C",
+                                missing=())
+            # its meta is scan 0's, so exposure times come per scan
             exposure = np.stack([scan.exposure_time.to_value(u.s) for scan in sequence])
-            # the stack already holds NaN, and its meta is scan 0's, so exposure times come per scan
-            data = _cube_data(cube, label, color="#7A617C", missing=(), exposure=exposure)
-            data.add_component(_per_frame(times, cube.shape), "Time")
+            data.add_component(Component(_per_frame(exposure, data.shape), units="s"), "Exposure time")
+            data.add_component(_per_frame(times, data.shape), "Time")
             datasets.append(data)
             continue
         for i, scan in enumerate(sequence):
@@ -342,7 +355,7 @@ def raster_data(files, windows=None, stack=False):
         One per scan and window, or one per window when ``stack`` is set. Windows stored as int16, as Level 2
         files store them, stay in their files and are scaled where glue reads them (`LAZY`).
     """
-    scaling = None if stack else _window_scaling(files[0])
+    scaling = _window_scaling(files[0])
     if scaling:
         allow_open_files()
     collection = read_files(files, spectral_windows=windows, memmap=bool(scaling), uncertainty=False)
