@@ -1405,6 +1405,62 @@ It is worth proposing upstream, but as the third step, and argued on reuse rathe
 - Downstream code uses private attributes.
 - #9993 has sat in needs-discussion for six years, so a working second backend will carry the proposal better than another issue.
 
+### Matplotlib-free core prototype
+
+Built 2026-10-01 as a starting point for in-person discussion. It does step 3 of the Recommendation above, ahead of steps 1 and 2. WCSAxes' tick, grid and label geometry moves into a new module, `astropy/visualization/wcsaxes/_layout.py`, which imports only numpy and astropy. The matplotlib classes call it, and every figure renders as before. Two demos outside astropy draw the same ticks with Qt and with bqplot.
+
+- [x] Pushed to the fork as a private copy (branches only: no PR, no upstream notice)
+- [ ] Reviewed by Fable 5.1 (running; fixes go on top as new commits)
+- [ ] Proposed upstream
+
+**Where things are.**
+- Branches on the user's fork nabobalis/astropy: `wcsaxes-layout-core` (the 4 commits, tip 8371f45c41, on upstream main c55a2b2067 of 2026-09-30) and `wcsaxes-layout-core-demos` (the same plus f096afe0e7, which adds the demos under `demos/wcsaxes_core/`). Pushed 2026-10-01; no PR and no upstream notice. Local clone: `/Users/nabil/Git/astropy-wcsaxes-core`, with a `fork` remote and origin's push URL disabled. `/Users/nabil/Git/astropy` was only read.
+- Demos: `demos/wcsaxes_core/` on the demos branch (`qt/`, `bqplot/`, `check_move.py`, `README.md`), copied from the local repository `/Users/nabil/Git/wcsaxes-core-demos` where they were written (no remote).
+- Env: micromamba `astropy-wcsaxes-core` (Python 3.13.15, numpy 2.5.3, matplotlib 3.11.2, PyQt5 5.15.11, bqplot 0.13.1, pytest-mpl 0.19.0). astropy 8.1.0.dev676 is an editable install of the clone. The linters match astropy's pre-commit pins: ruff 0.15.20, codespell 2.4.3 and numpydoc 1.10.0.
+- Scratch: `scratchpad/wcsaxes-core/` in this session holds the design (`design.md`; section 12 covers the review round), the baselines, the check scripts and every run output. It is under /private/tmp and may be purged. `tick_tables.py`, `compare_figures.sh` and `no_mpl.py` regenerate every baseline from c55a2b2067.
+
+**Commits** (12 files, +2071/−621; `_layout.py` is 1174 lines, `tests/test_layout.py` 659):
+
+| SHA | Commit | What moves |
+|---|---|---|
+| ab1da84b88 | Move WCSAxes tick placement into a matplotlib-free module | Spine resampling and normals, tick placement. Also a tolerant package `__init__`, the changelog fragment `XXXXX.api.rst` and the no-matplotlib tests |
+| 46a6b95e79 | Compute WCSAxes grid lines in the matplotlib-free layout module | Grid line vertices and path codes. `grid_paths` keeps thin wrappers |
+| 4d9b546e32 | Lay out WCSAxes tick labels in the matplotlib-free layout module | Sorting, simplification, anchoring and overlap removal of tick labels. `measure` is a callable |
+| 8371f45c41 | Place WCSAxes axis labels in the matplotlib-free layout module | Spine midpoint and axis-label position |
+
+Demos: 6f55618 (Qt), 07def1f (bqplot), d18fde0 (`check_move.py`). No commit message in either repository contains `#`, `@` or `github.com`, so pushing creates no notices. Each message ends with the Claude-Session line.
+
+**What was verified, and how.** Every check ran on each of the 4 commits, against baselines taken from c55a2b2067:
+- **Figures.** All 59 figure tests have byte-identical PNG hashes at tolerance 0 (`test_latex_labels` is excluded: no TeX on this machine). A run with one dot added to a figure fails, so the check can see a change.
+- **Tick tables.** `tick_tables.py` records 16 cases, each drawn 4 times (initial, pan, zoom, resize): ticks, labels as drawn, grid paths, axis labels and frame data. The output is byte-identical to the baseline (`cmp`). A label-state dump (positions, alignments, boxes) is also identical.
+- **Call counts.** `pixel_to_world_values` plus `world_to_pixel_values` calls per draw are unchanged in all 16 cases, for example tan 37, overlay 94, car_allsky 61/49/55/55 and tickable_gridline 126/114/126/126. No timing was done.
+- **Tests.** astropy's own pytest config, run through `-c`: 270 passed, 63 skipped, 1 xfailed; with `--remote-data=any`, 330 passed, 3 skipped, 1 xfailed. The baseline was 261 and 321; the 9 new tests account for the difference. One new test imports `_layout` in a subprocess with `sys.modules['matplotlib'] = None` and lays out TAN and off-sky AIT images against stored values. Each commit's mutation runs failed at least one test, apart from the two gaps listed under the open findings.
+- **No-matplotlib import.** With matplotlib blocked, `astropy.visualization.wcsaxes`, `_layout` and `coordinate_range` import. Asking for `WCSAxes` and the other public names raises `ModuleNotFoundError` naming matplotlib. Test collection without matplotlib gives 12 skipped and no errors.
+- **Independent review.** A second agent re-ran all of this and wrote a 26-scenario differential harness that runs on both the base and HEAD. The scenarios cover custom frames, overlays, 3-D slices, `reset_wcs`, tight bbox saves to PNG, PDF and SVG, and `format_coord`, and the harness records every WCS call in order. The base and HEAD outputs are byte-identical.
+- **Lint.** ruff check and format, codespell and numpydoc pass on every touched file.
+- **Move check.** `check_move.py` applies the renames (`self.` to `spec.` and so on) to the 17 moved pieces at the base and compares them with `_layout` through `ast.unparse`. 251 lines are the same, 69 stayed behind or were replaced, and 25 are new.
+
+**Review findings left open.**
+- **The diff does not read as a move.** `--color-moved` marks only part of it, because the moved code is renamed on the way. `check_move.py` shows the move instead. For a PR, the better form is two commits per step, a rename in place and then a byte-for-byte move (8 commits). Offering commit 1 on its own is also an option.
+- **With matplotlib installed, `_layout` still loads it.** Importing `_layout` runs the package `__init__`, which imports the public API (86 matplotlib modules, including `matplotlib.axes`). `formatter_locator` reads `rcParams` and `Formatter.fix_minus`. The commit messages now say that only `_layout` itself does not need matplotlib. A lazy `__init__` was not done, because it would change when matplotlib is imported for every user.
+- **Import behaviour change.** Without matplotlib, the package now imports and only its classes fail. This is stated in the changelog fragment. `XXXXX` has to be renamed once there is a number.
+- **The label boundary is TickLabels' storage.** The labels go through a namespace of six `defaultdict(list)`. `_layout.tick_labels(placed)` now builds it. Kept boxes passed between coordinates, and the union for axis labels, are still left to the caller. `TickTable`'s field names (`angle`, `normal`, `disp`) were not renamed; their docstring maps them to the label names.
+- **Tests.** The no-matplotlib test is a 195-line script in a string, checked against a hand-maintained snapshot. The two tests that compare with WCSAxes check that plain inputs are enough (plumbing), not the algorithm; the figure hashes and the snapshot guard the algorithm. The new tests do not catch the dx NaN fallback or the segment index on curved spines; the figure tests and tick tables do.
+- **One residual draw case.** A `TickLabels` drawn with `exclude_overlapping` on and no non-empty labels, before `_existing_bboxes` is set, would still raise. No code path does this (design.md 6.8(h)).
+
+**What the demos showed.** Both demos call only `_layout`, `find_coordinate_range` and `AngleFormatterLocator`. They create no Figure, Axes, transform or renderer, and they check at exit that pyplot, figure and the backend modules were never imported. Each has a `compare.py` that draws WCSAxes on the same frame and exits 1 on a mismatch. Both exit 0 on the final branch. The cases are a rolled helioprojective WCS, an all-sky CAR with the 0/360 seam, and a TAN RA/Dec image, each as first drawn and after a pan, zoom and resize.
+- **Exact:** tick world values, label texts after simplification, which labels are drawn, and grid vertices and codes.
+- **Positions:** ticks agree to 1e-12 px and 1e-11°. Label anchors agree within 0.5 px in Qt, which measures text with its own metrics, and to 0.00 px in bqplot, which measures with Pillow and DejaVu Sans. The exception is TAN RA, off by up to 3.45 px: matplotlib draws the hour superscripts as mathtext and the demos use Unicode.
+- **Qt** (QPainter, 374 lines): pan, zoom and resize just repaint, and the layout is recomputed on every paint. **bqplot:** the layout is recomputed when the scales change, which is what PanZoom triggers. There is also a notebook, plus static HTML pages and screenshots.
+
+**What the demos could not show.**
+- They cannot run without matplotlib installed (see the open findings above).
+- Hour labels are mathtext, which the demos map to Unicode by string replacement. Default axis labels that carry a unit have the same problem.
+- Coordinate metadata (type, wrap, format unit) is written by hand, because `transform_coord_meta_from_wcs` needs a matplotlib frame and Transform. Label spines are fixed: the automatic placement is not in the core.
+- Part of each demo's `layout()` (90 lines in Qt, 69 in bqplot) still redoes what `CoordinateHelper` and `AxisLabels` do around the core: passing kept boxes between coordinates, the union for axis labels, and the label visibility rule.
+- `measure` must follow matplotlib's convention: the advance width, and a height of one em unless the ink is taller. Qt's natural line height put labels 2.4 px off. bqplot's kernel cannot measure text in the browser, so its boxes are approximate.
+- Not exercised: overlap exclusion (no labels overlap in any view), minor ticks, the interactive Qt window (offscreen only), and mouse pan and zoom in a live Jupyter session (no kernel here; the HTML pages are static).
+
 ## WCSAxes tick rendering
 
 This section records a read-only study of astropy's WCSAxes. It covers how WCSAxes places and draws ticks, where the time goes on IRIS data, and three ways to make it cheaper. Each way was built as a runtime monkeypatch and then re-measured by a second agent (the "skeptic") with its own harness. Nothing in astropy, glue, glue-qt, glue-solar or irispy was edited, and nothing was posted upstream. It expands R5 and the astropy halves of R1 and R18. The architecture question (can WCSAxes leave matplotlib) is in "Decoupling WCSAxes from matplotlib" above.
