@@ -206,7 +206,10 @@ after "Clear point" nothing follows until the next click. A point clicked on a s
 marked only there, and the spectrum panel is empty until the next raster click. The raster panels have no region selection tools, because a region drawn on a
 raster map is recomputed on every slit-jaw viewer for each screen pixel at every frame (see
 Linking). Each quicklook has its own point, shown only in its own panels, edited while its tab is
-shown and moved only by that tab's sliders. Another Image viewer of the same data follows the point. When a slit-jaw channel is loaded both plain and deconvolved,
+shown and moved only by that tab's sliders. Where a point does not show, it is not in the viewer's
+layer list either, since glue would still redraw a hidden layer at every move: drag the subset onto
+a viewer outside its quicklook to show it there. In its own quicklook, each move adds the point
+back to the image panels of the dataset it is on and removes it from the others. Another Image viewer of the same data follows the point. When a slit-jaw channel is loaded both plain and deconvolved,
 the plain one is shown and the status bar names the other. The spectrum panel does not ask "Add
 large data set?", and the status bar gives the size of the data it shows.
 

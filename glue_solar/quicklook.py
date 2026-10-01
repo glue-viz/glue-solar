@@ -265,6 +265,8 @@ class Coordinator(HubListener):
 
     def unregister(self, viewer):
         """Stop coordinating ``viewer``; unregistering it again does nothing."""
+        for owned in self._owners.values():
+            owned.discard(viewer)  # or its quicklook's point would add layers to it after it closed
         callbacks = self._viewers.pop(viewer, None)
         if callbacks is not None:
             axes_changed, slices_changed = callbacks
@@ -400,9 +402,7 @@ class Coordinator(HubListener):
         # among its quicklook's viewers, the point shows on those of its own dataset: glue 1.27.0 would
         # draw a slit-jaw point's crosshair on the raster panels, and a raster point's on the slit-jaw
         for viewer in self._owners.get(self.group, ()):
-            for layer in viewer.state.layers:
-                if getattr(layer.layer, "group", None) is self.group:
-                    layer.visible = viewer.state.reference_data is point.reference_data
+            _show(viewer, self.group, viewer.state.reference_data is point.reference_data)
 
     def _datasets(self, key):
         seen = {}
@@ -861,19 +861,39 @@ def _edit_in_tab(app, tab, group):
     coordinator(app.data_collection).follow(group)
 
 
+def _show(viewer, group, shown):
+    """
+    Give ``viewer`` the layers of ``group`` for the datasets it shows, or remove them all.
+
+    Removed rather than hidden: glue still updates and redraws a hidden layer whenever its subset changes.
+    """
+    if shown:
+        for subset in group.subsets:
+            if any(layer.layer is subset.data for layer in viewer.state.layers):
+                viewer.add_subset(subset)
+        return
+    for layer in list(viewer.state.layers):
+        if getattr(layer.layer, "group", None) is group:
+            viewer.remove_subset(layer.layer)
+
+
 def _show_point(app, group, own):
     """
     Show the point only in its quicklook's raster and spectrum panels, and no other subset there.
 
     Elsewhere glue 1.27.0 would draw its crosshair on a dataset it does not belong to, and an
-    earlier quicklook's point would show in this one's panels.
+    earlier quicklook's point would show in this one's panels. Quicklook points are removed where
+    they must not show, as they move at every click; other subsets are only hidden.
     """
+    points = coordinator(app.data_collection)._owners  # every quicklook's point
     for viewer in (viewer for tab in app.viewers for viewer in tab):
-        for layer in viewer.state.layers:
+        for layer in list(viewer.state.layers):
             other = getattr(layer.layer, "group", None)
-            if other is group:
-                layer.visible = viewer in own
-            elif other is not None and viewer in own:
+            if other is None or (other is group) == (viewer in own):
+                continue
+            if other in points:
+                viewer.remove_subset(layer.layer)  # see _show
+            else:
                 layer.visible = False
 
 
