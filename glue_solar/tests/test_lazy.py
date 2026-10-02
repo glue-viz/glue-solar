@@ -58,6 +58,14 @@ def int16_raster_copy(source, path, **header):
     return int16_copy(source, path, windows, **header)
 
 
+def zero_exposure(path, step):
+    """``path`` with the FUV or slit-jaw exposure time of ``step`` 0 s, as 3610108077 records its Si IV step 157."""
+    with fits.open(path, mode="update") as hdulist:
+        aux = hdulist[-2]  # before the Level 1 file names
+        aux.data[step, aux.header["EXPTIMES" if "EXPTIMES" in aux.header else "EXPTIMEF"]] = 0
+    return path
+
+
 @pytest.fixture
 def int16_raster(tmp_path, irispy_test_files):
     return int16_raster_copy(find_irispy_test_file(irispy_test_files, RASTER), tmp_path / RASTER)
@@ -229,21 +237,27 @@ def lazy_and_eager(monkeypatch, load):
 def assert_loads_as_before(lazy, eager):
     """
     ``lazy`` holds raw int16 and its mask is a glue derived component, while ``eager`` is laid out as before; every
-    value, NaN, mask sample, time and exposure, and glue's image buffers of every pair of axes, are the same.
+    value, NaN, mask sample, time, exposure and DN/s, and glue's image buffers of every pair of axes, are the same.
+    DN/s, a glue derived component of both, is the data over a positive exposure time, else NaN.
     """
     assert type(lazy) is LazyData
     assert type(eager) is Data
-    [science, mask] = lazy.main_components[:1] + lazy.derived_components
+    [science, mask, rate] = lazy.main_components[:1] + lazy.derived_components
     assert isinstance(lazy.get_component(science), RawComponent)
     assert [type(eager.get_component(cid)) for cid in eager.main_components[:2]] == [Component, Component]
     assert [cid.label for cid in lazy.components] == [cid.label for cid in eager.components]
     assert lazy.get_component(science).units == eager.get_component(eager.main_components[0]).units
+    assert rate.label == f"{science.label} DN/s"
+    assert [data.get_component(data.id[rate.label]).units for data in (lazy, eager)] == ["DN/s", "DN/s"]
     assert lazy[mask].dtype == np.uint8
     pairs = [(science, eager.main_components[0]), (mask, eager.main_components[1])]
-    for name in ("Time", "Exposure time"):
+    for name in ("Time", "Exposure time", rate.label):
         pairs.append((lazy.id[name], eager.id[name]))
     for lazy_cid, eager_cid in pairs:
         np.testing.assert_array_equal(lazy[lazy_cid], eager[eager_cid])
+    exposure = eager["Exposure time"]
+    oracle = eager[eager.main_components[0]] / np.where(exposure > 0, exposure, np.nan)
+    np.testing.assert_allclose(lazy[rate], oracle, rtol=1e-6)
     for percentile in (0.25, 99.75):  # glue's 99.5% colour limits, exactly as from every eager value
         exact = np.nanpercentile(eager[eager.main_components[0]], percentile)
         assert lazy.compute_statistic("percentile", science, percentile=percentile, random_subset=10000) == exact
@@ -306,10 +320,11 @@ def test_int16_stacks_load_lazily_scan_by_scan(monkeypatch, tmp_path, irispy_tes
     assert_loads_as_before(stack, eager)
     # a value subset, whose mask glue reads with an Ellipsis
     np.testing.assert_array_equal(*[(data.main_components[0] > 10).to_mask(data) for data in (stack, eager)])
-    [science, mask] = stack.main_components[:1] + stack.derived_components
+    [science, mask, rate] = stack.main_components[:1] + stack.derived_components
     for i, scan in enumerate(raster_data(paths, ["C II 1336"])):
         np.testing.assert_array_equal(stack[science, (i,)], scan[scan.main_components[0]])
         np.testing.assert_array_equal(stack[mask, (i,)], scan[scan.derived_components[0]])
+        np.testing.assert_array_equal(stack[rate, (i,)], scan[scan.derived_components[1]])  # each scan's exposures
         for name in ("Time", "Exposure time"):
             np.testing.assert_array_equal(stack[name][i], scan[name])
 
@@ -325,6 +340,27 @@ def test_int16_slit_jaw_and_aia_cubes_load_lazily(monkeypatch, tmp_path, irispy_
         assert lazy_result.meta["scaled"]
     assert (lazy_result[lazy_result.main_components[0]] == -199).any()  # data in AIA cutouts, unverified as missing
     assert_loads_as_before(*lazy_and_eager(monkeypatch, lambda: iris_data(gzipped)))  # File -> Open
+
+
+def test_dn_per_s_is_nan_where_an_exposure_took_0_s(monkeypatch, tmp_path, irispy_test_files):
+    # as at step 157 of 3610108077 Si IV: a raster step, a slit-jaw frame and a step of a stack's second scan
+    raster = zero_exposure(int16_raster_copy(find_irispy_test_file(irispy_test_files, RASTER), tmp_path / RASTER), 157)
+    sji = zero_exposure(int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0]), 1)
+    sources = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)[:2]
+    scans = [int16_raster_copy(source, tmp_path / source.name) for source in sources]
+    zero_exposure(scans[1], 3)
+    loads = {
+        (157,): lambda: raster_data([raster], ["Si IV 1403"])[0],
+        (1,): lambda: image_data(sji),
+        (1, 3): lambda: raster_data(scans, ["C II 1336"], stack=True)[0],
+    }
+    for zero, load in loads.items():
+        lazy_result, eager = lazy_and_eager(monkeypatch, load)
+        assert_loads_as_before(lazy_result, eager)
+        [science, _, rate] = lazy_result.main_components[:1] + lazy_result.derived_components
+        assert lazy_result["Exposure time"][zero].max() == 0
+        assert not np.isnan(lazy_result[science, zero]).all()
+        assert np.isnan(lazy_result[rate, zero]).all()
 
 
 def test_scripting_recipe_computes_spectra_of_lazy_data(int16_raster):
@@ -346,6 +382,7 @@ def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path
     from glue_qt.app.application import GlueApplication
     from glue_qt.viewers.histogram import HistogramViewer
     from glue_qt.viewers.image import ImageViewer
+    from glue_qt.viewers.profile import ProfileViewer
 
     [data] = raster_data([int16_raster], ["Si IV 1403"])
     oracle = expected(int16_raster, WINDOW)
@@ -358,6 +395,17 @@ def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path
     assert [layer.v_min, layer.v_max] == [np.nanpercentile(oracle, 0.25), np.nanpercentile(oracle, 99.75)]
     layer.attribute = data.derived_components[0]  # the mask draws too
     viewer.figure.canvas.draw()
+    # and DN/s, with colour limits from random points, whose unit labels a profile
+    rate = data.derived_components[1]
+    rates = np.asarray(data[rate])
+    layer.attribute = rate
+    assert np.nanpercentile(rates, 0) <= layer.v_min <= np.nanpercentile(rates, 1)
+    assert np.nanpercentile(rates, 99) <= layer.v_max <= np.nanpercentile(rates, 100)
+    viewer.figure.canvas.draw()
+    profile = app.new_data_viewer(ProfileViewer, data=data)
+    profile.state.layers[0].attribute = rate
+    profile.state.y_display_unit = "DN/s"  # which glue offers, as it refuses units it does not
+    assert profile.state.y_axislabel == "Data values [DN/s]"
     histogram = app.new_data_viewer(HistogramViewer, data=data)
     histogram.state.x_att = data.main_components[0]
     assert [histogram.state.hist_x_min, histogram.state.hist_x_max] == [np.nanmin(oracle), np.nanmax(oracle)]

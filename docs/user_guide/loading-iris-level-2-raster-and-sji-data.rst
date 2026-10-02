@@ -55,14 +55,17 @@ separately when those per-scan absolute coordinates are required. A selected win
 scan loads normally as a 3D dataset and also exposes its exact per-step ``Time`` values.
 
 Every raster, stack, slit-jaw and AIA dataset has these components: the data (named after the
-dataset), ``Time`` and ``Exposure time`` (a stack lists ``Exposure time`` before ``Time``), and
+dataset), ``Time`` and ``Exposure time`` (a stack lists ``Exposure time`` before ``Time``),
 ``<label> mask``, which Glue computes from the data as it reads them and so lists under "Derived
-components" (files stored as floating point keep it in memory, listed second). ``Time`` is the UTC
-acquisition time as a datetime64, one value
-per raster step, slit-jaw frame or AIA frame (per scan and step for stacks). ``Exposure time`` is in
-seconds, one value per raster step or frame (per scan and step for stacks). The "Frame time" tool
-in the Image Viewer toolbar shows the displayed frame's time and exposure in the status bar, as a
-range when the image spans several frames; for a single slit-jaw frame its tooltip gives that
+components" (files stored as floating point keep it in memory, listed second), and ``<label> DN/s``,
+also derived. ``Time`` is the UTC acquisition time as a datetime64, one value per raster step,
+slit-jaw frame or AIA frame (per scan and step for stacks). ``Exposure time`` is in seconds, one
+value per raster step or frame (per scan and step for stacks). ``<label> DN/s`` is the data divided
+by the exposure time, with the unit DN/s (the 1D Profile viewer's "y_unit" menu labels its axis
+with it), and NaN where an exposure took 0 s, as step 157 of OBSID 3610108077's Si IV windows did.
+The "Frame time" tool in the Image Viewer toolbar shows the displayed frame's time and exposure in
+the status bar, as a range when the image spans several frames; for a single slit-jaw frame its
+tooltip gives that
 frame's pointing (PZT offset, field-of-view centre and slit position), which glue-solar keeps in
 the dataset's metadata.
 

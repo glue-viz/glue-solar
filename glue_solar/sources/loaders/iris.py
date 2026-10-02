@@ -221,6 +221,22 @@ def _per_frame(values, shape):
     return np.broadcast_to(values.reshape(values.shape + (1,) * (len(shape) - values.ndim)), shape)
 
 
+def per_second(flux, exposure):
+    """``flux`` over a positive ``exposure`` time, else NaN, in the precision of ``flux`` (float32 for IRIS data)."""
+    return flux / np.where(exposure > 0, exposure, np.nan).astype(np.float32)
+
+
+def _add_exposure(data, exposure):
+    """
+    Add ``Exposure time``, ``exposure`` in seconds over the leading axes, and ``<label> DN/s``, the data over it as a
+    glue derived component.
+    """
+    seconds = data.add_component(Component(_per_frame(exposure, data.shape), units="s"), "Exposure time")
+    flux = data.main_components[0]
+    rate = ComponentLink([flux, seconds], ComponentID(f"{flux.label} DN/s", parent=data), using=per_second)
+    data.add_component_link(rate).units = "DN/s"
+
+
 def _dataset(wcs, meta, unit, values, label, *, color=None, cmap=None, missing=MISSING_VALUES, scaling=None):
     """
     A Glue dataset of ``values`` and their mask, with the ``missing`` data codes as NaN.
@@ -262,8 +278,7 @@ def _cube_data(cube, label, *, values=None, unit=None, color=None, cmap=None, mi
     if times is not None:
         data.add_component(_per_frame(times, cube.shape), "Time")
     if getattr(cube, "exposure_time", None) is not None:
-        exposure = cube.exposure_time.to_value(u.s)  # per raster step or SJI frame, in the data's order
-        data.add_component(Component(_per_frame(exposure, cube.shape), units="s"), "Exposure time")
+        _add_exposure(data, cube.exposure_time.to_value(u.s))  # per raster step or SJI frame, in the data's order
     if cube.extra_coords and set(_SJI_POINTING) <= set(cube.extra_coords.keys()):
         frames = np.arange(cube.shape[0])
         for name in _SJI_POINTING:
@@ -327,8 +342,7 @@ def _raster_collection_data(collection, windows=None, stack=False, scaling=None)
                 data = _dataset(cube.wcs.low_level_wcs, cube.meta, cube.unit, cube.data, label, color="#7A617C",
                                 cmap=cmap, missing=())
             # its meta is scan 0's, so exposure times come per scan
-            exposure = np.stack([scan.exposure_time.to_value(u.s) for scan in sequence])
-            data.add_component(Component(_per_frame(exposure, data.shape), units="s"), "Exposure time")
+            _add_exposure(data, np.stack([scan.exposure_time.to_value(u.s) for scan in sequence]))
             data.add_component(_per_frame(times, data.shape), "Time")
             datasets.append(data)
             continue
