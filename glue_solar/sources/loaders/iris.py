@@ -25,7 +25,7 @@ from astropy.io import fits
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
 from .lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask
-from .scan import extract_archive, scan_directory
+from .scan import _primary_header, extract_archive, scan_directory
 from .stack_spectrograms import MISSING_VALUES, stack_spectrogram_sequence, stack_times, stack_wcs
 
 __all__ = [
@@ -390,7 +390,7 @@ def iris_data(path):
     A raster file's windows are labelled by its raster number (``…-r00003``), so that the files of a
     multi-scan observation opened one by one keep distinct labels.
     """
-    if fits.getheader(path).get("INSTRUME") != "SPEC":
+    if _primary_header(path).get("INSTRUME") != "SPEC":
         return image_data(path)
     datasets = raster_data([path])
     number = re.search(r"_r(\d{5})", Path(path).name)
