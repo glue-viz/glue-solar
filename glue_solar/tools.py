@@ -28,23 +28,22 @@ _LABELS += ("x_ticklabel_size", "y_ticklabel_size")
 _PIXEL_COORDS = {"type": ("scalar", "scalar"), "wrap": (None, None), "unit": (u.one, u.one), "name": ("x", "y")}
 # glue-qt rebuilds the slice sliders when these change
 _SLIDER_REBUILDS = ("reference_data", "x_att", "y_att")
-# A dragged slice slider applies its position at most this often, and on release
-_DRAG_INTERVAL_MS = 100
 # Beside another coordinate, an angle changing by less than this fraction of the other across a panel has no tick labels
 _FLAT = 0.05
 
 
 def _throttle_slice_sliders(viewer):
     """
-    Make the viewer's slice sliders follow a drag at most every 0.1 s instead of at every position.
+    Make the viewer's slice sliders follow a drag with its latest position instead of every position.
 
     glue-qt applies every value a slider passes through, and each one recomputes and redraws the
     image, so on a large cube a drag queues redraws and lags behind the mouse. With tracking off a
-    drag reports only its release, and a timer applies the dragged position in between. Keys,
-    clicks and playback still apply at once.
+    drag reports only its release, and a 0 ms timer applies the latest dragged position in between, as
+    soon as Qt has handled the input queued behind the previous one. Keys, clicks and playback still
+    apply at once.
 
-    Always on, with no upstream change tracked. It finds the sliders by glue-qt's object name
-    ``value_slice_center``, which the drag test pins.
+    Always on, until glue-qt coalesces a drag itself (``wp0-perf-qt``). It finds the sliders by glue-qt's
+    object name ``value_slice_center``, which the drag test pins.
     """
     for slider in viewer.options_widget().findChildren(QtWidgets.QSlider, "value_slice_center"):
         if not slider.hasTracking():
@@ -52,7 +51,7 @@ def _throttle_slice_sliders(viewer):
         slider.setTracking(False)
         timer = QtCore.QTimer(slider)
         timer.setSingleShot(True)
-        timer.setInterval(_DRAG_INTERVAL_MS)
+        timer.setInterval(0)
         timer.timeout.connect(lambda slider=slider: slider.setValue(slider.sliderPosition()))
         slider.sliderMoved.connect(lambda _position, timer=timer: timer.isActive() or timer.start())
 

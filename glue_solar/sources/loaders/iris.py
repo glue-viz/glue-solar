@@ -17,8 +17,6 @@ from glue.core.link_helpers import LinkSame
 from glue.core.message import DataCollectionDeleteMessage
 from glue.core.visual import VisualAttributes
 from glue_qt.utils import get_qapp, load_ui
-from irispy.io import read_files
-from irispy.utils.constants import DN_UNIT
 from qtpy import QtWidgets
 from qtpy.QtCore import QSettings, Qt, QTimer
 
@@ -27,7 +25,7 @@ from astropy.io import fits
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
 from .lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask
-from .scan import extract_archive, scan_directory
+from .scan import _primary_header, extract_archive, scan_directory
 from .stack_spectrograms import MISSING_VALUES, stack_spectrogram_sequence, stack_times, stack_wcs
 
 __all__ = [
@@ -353,6 +351,8 @@ def _image_cube_data(cube, path, raw=None, scaling=None):
     cmap, missing = (f"irissji{wave}", MISSING_VALUES) if desc.startswith("SJI") else (f"sdoaia{wave}", (-200,))
     if scaling is None:
         return _cube_data(cube, label, cmap=cmap, missing=missing)
+    from irispy.utils.constants import DN_UNIT
+
     cube.meta["scaled"] = True  # the values glue reads are; irispy's unit for the raw values says otherwise
     return _cube_data(cube, label, values=raw, unit=DN_UNIT["SJI"], cmap=cmap, missing=missing, scaling=scaling)
 
@@ -373,6 +373,8 @@ def image_data(path):
     -------
     `~glue.core.data.Data`
     """
+    from irispy.io import read_files  # with the first file rather than at glue's launch
+
     with fits.open(path, memmap=True, do_not_scale_image_data=True) as hdulist:
         scaling = _raw_scaling(hdulist[0].header)
         raw = hdulist[0].data if scaling else None
@@ -388,7 +390,7 @@ def iris_data(path):
     A raster file's windows are labelled by its raster number (``…-r00003``), so that the files of a
     multi-scan observation opened one by one keep distinct labels.
     """
-    if fits.getheader(path).get("INSTRUME") != "SPEC":
+    if _primary_header(path).get("INSTRUME") != "SPEC":
         return image_data(path)
     datasets = raster_data([path])
     number = re.search(r"_r(\d{5})", Path(path).name)
@@ -431,6 +433,8 @@ def _raster_windows_data(files, windows=None, stack=False):
         scaling = None
     if scaling:
         allow_open_files()
+    from irispy.io import read_files
+
     collection = read_files(files, spectral_windows=windows, memmap=bool(scaling), uncertainty=False)
     return {window: _raster_collection_data({window: scans}, stack=stack, scaling=scaling)
             for window, scans in collection.items()}

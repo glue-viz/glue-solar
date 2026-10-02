@@ -1,0 +1,1 @@
+glue starts about half a second sooner with glue-solar installed, since irispy, sunpy.map and ndcube are imported only when IRIS or sunpy data first load; browsing a folder of gzipped IRIS files reads only their primary headers; dragging a slice slider follows the mouse with its latest position about five times as often.

@@ -1,19 +1,43 @@
 """
 A reader for `sunpy.map.Map`.
 """
-from glue.config import data_factory, qglue_parser
+import sys
+from abc import ABC
+
+from glue.config import colormaps, data_factory, qglue_parser
 from glue.core.component import Component
 from glue.core.data import Data
 from glue.core.data_factories import is_fits
 from glue.core.visual import VisualAttributes
 
-import sunpy.map
-from sunpy.map.mapbase import GenericMap
+from sunpy.visualization.colormaps import cmlist
 
 __all__ = ["read_sunpy_map", "_parse_sunpy_map"]
 
 
-@qglue_parser(GenericMap)
+class _GenericMap(ABC):
+    """
+    `sunpy.map.GenericMap` for glue's ``isinstance`` check, without importing sunpy.map at glue's launch: a map
+    exists only once something has imported it.
+    """
+
+    @classmethod
+    def __subclasshook__(cls, subclass):
+        mapbase = sys.modules.get("sunpy.map.mapbase")
+        return True if mapbase and issubclass(subclass, mapbase.GenericMap) else NotImplemented
+
+
+def _add_colormap(name):
+    """
+    List sunpy's colormap ``name``, if sunpy has one, in glue's colormap menus. glue-qt draws every colormap listed
+    each time it builds an Image layer's menu, so only those that data ask for are listed.
+    """
+    ctable = cmlist.get(name)
+    if ctable is not None and all(ctable is not cmap for _, cmap in colormaps.members):
+        colormaps.add(ctable.name, ctable)
+
+
+@qglue_parser(_GenericMap)
 def _parse_sunpy_map(data, label):
     """
     Parse sunpy map so that it can be loaded by ``glue``.
@@ -24,6 +48,7 @@ def _parse_sunpy_map(data, label):
     result.coords = scan_map.wcs  # preferred way, preserves more info in some cases
     result.add_component(Component(scan_map.data), scan_map.name)
     result.meta = scan_map.meta
+    _add_colormap(scan_map.cmap.name)  # for the colormap menu of its Image layers
     result.style = VisualAttributes(color="#FDB813", preferred_cmap=scan_map.cmap)
 
     return result
@@ -34,6 +59,8 @@ def read_sunpy_map(sunpy_map_file):
     """
     For ``glue`` to read in parsed sunpy map.
     """
+    import sunpy.map
+
     sunpy_map_data = _parse_sunpy_map(sunpy.map.Map(sunpy_map_file), "sunpy-map")
     return sunpy_map_data
 

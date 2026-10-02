@@ -5,6 +5,7 @@ Only primary headers are read, never data, so scanning a multi-GB archive
 takes seconds. Files cached by pooch (``<md5>-<name>``) are handled.
 """
 
+import gzip
 import re
 import tarfile
 import tempfile
@@ -19,6 +20,22 @@ _POOCH = re.compile(r"^[0-9a-f]{32}-")
 # iris_l2_YYYYMMDD_HHMMSS_OBSID_... and the co-aligned aia_l2_... cutouts
 _L2_STEM = re.compile(r"^(?:iris|aia)_l2_(?P<date>\d{8})_(?P<time>\d{6})_(?P<obsid>\d{10})")
 _FITS = (".fits", ".fits.gz")
+
+
+def _primary_header(path):
+    """
+    The primary header of the FITS file ``path``, gzipped or not. astropy's ``getheader`` decompresses all of a
+    gzipped file to find where the next HDU starts.
+    """
+    with open(path, "rb") as file:
+        gzipped = file.read(2) == b"\x1f\x8b"
+        file.seek(0)
+        stream = gzip.GzipFile(fileobj=file) if gzipped else file
+        # as astropy does: a header is read up to its END card, so any other file would be read to its end
+        if stream.read(6) != b"SIMPLE":
+            raise OSError(f"{path} is not a FITS file")
+        stream.seek(0)
+        return fits.Header.fromfile(stream)
 
 
 def strip_pooch(name):
@@ -151,7 +168,7 @@ def scan_directory(root, recursive=True):
         if not name.endswith(_FITS):
             continue
         try:
-            header = fits.getheader(path)
+            header = _primary_header(path)
         except Exception:  # noqa: BLE001 - not a FITS file after all
             continue
         if not _is_supported_file(name, header):

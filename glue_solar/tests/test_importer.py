@@ -1,4 +1,5 @@
 import copy
+import gzip
 import os
 import shutil
 import subprocess
@@ -16,9 +17,8 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 from astropy.wcs.wcsapi.high_level_api import values_to_high_level_objects
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
-from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, find_irispy_test_file
-from glue_solar.sources.iris import read_iris_file
-from glue_solar.sources.loaders import iris
+from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, find_irispy_test_file, startobs
+from glue_solar.sources.iris import is_iris_fits, read_iris_file
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
 from glue_solar.sources.loaders.scan import scan_directory
 from glue_solar.sources.loaders.stack_spectrograms import stack_spectrogram_sequence
@@ -97,7 +97,7 @@ def test_ticked_raster_windows_of_an_observation_are_read_at_once(qtbot, monkeyp
         reads.append(kwargs["spectral_windows"])
         return read_files(files, **kwargs)
 
-    monkeypatch.setattr(iris, "read_files", read)
+    monkeypatch.setattr("irispy.io.read_files", read)  # the loaders import it as they read
     scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
     dialog = QtIRISImporter(scans[0].parent)
     qtbot.addWidget(dialog)
@@ -168,6 +168,25 @@ def test_extract_archive_then_lists_its_windows(qtbot, iris_tree, tmp_path):
         "C II 1336 — 1 raster file(s)",
         "Mg II k 2796 — 1 raster file(s)",
     ]
+
+
+def test_browser_and_file_open_read_only_the_primary_header_of_a_gzipped_file(tmp_path):
+    d, t, o = OBS_B
+    header = fits.PrimaryHDU(np.zeros((100, 100), np.int16)).header
+    header.update(TELESCOP="IRIS", INSTRUME="SJI", OBSID=o, STARTOBS=startobs(d, t), TDESC1="SJI_2832")
+    path = tmp_path / f"iris_l2_{d}_{t}_{o}_SJI_2832_t000.fits.gz"
+    # not even gzip after the header: reading on into the data, as astropy's getheader does, fails
+    path.write_bytes(gzip.compress(header.tostring().encode()) + b"not the data")
+    [observation] = scan_directory(tmp_path)
+    assert observation.sji == {"SJI_2832": path}
+    assert is_iris_fits(str(path))
+
+
+def test_file_open_reads_no_header_from_a_file_that_does_not_start_as_fits(tmp_path):
+    # File > Open asks about every file; read on to an END card, a large file of another kind is read whole
+    path = tmp_path / "table.csv"
+    path.write_text(fits.Header({"TELESCOP": "IRIS"}).tostring())
+    assert not is_iris_fits(str(path))
 
 
 def test_real_sji_adapter_preserves_mask_units_and_coordinates(irispy_test_files):

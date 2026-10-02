@@ -67,6 +67,14 @@ in AIA cutouts only -200 does. glue-solar leaves
 16-bit integers cannot hold +Inf, so their saturated samples keep the largest value the file can
 store. ``<label> mask`` is a uint8 array that is 1 where the data are NaN and 0 elsewhere.
 
+Slit-jaw images open in sunpy's IRIS colormap of their channel and AIA cutouts in sunpy's AIA
+colormap of their wavelength. The colormap menu of an Image Viewer layer lists Glue's own colormaps
+and these IRIS and AIA ones, plus the colormap of any file loaded as a sunpy Map; Glue draws every
+colormap listed each time it opens a layer, so the other sunpy colormaps are left out. To list
+another, add it with ``colormaps.add`` in a ``config.py``, as
+`Glue's customization guide <https://docs.glueviz.org/en/stable/customizing_guide/customization.html>`__
+describes.
+
 Rasters with a negative raster step (``STEPS_AV`` below -0.01) keep irispy's default orientation:
 irispy reverses their raster-step axis, with the data, coordinates, times and per-step metadata
 together, so the step axis runs opposite to the acquisition order and ``Time`` runs backwards
@@ -74,8 +82,9 @@ along it. The documented alternative is irispy's ``revert_v34=True`` option
 (``irispy.io.spectrograph.read_spectrograph_lvl2``, also passed on by ``irispy.io.read_files``),
 which keeps the file order; glue-solar does not use it.
 
-Dragging a slice slider updates the image at most every 0.1 s and again when you let go, so large
-cubes keep up with the mouse; the arrow keys, clicks on the slider and playback still step at once.
+Dragging a slice slider shows its latest position each time the image has been redrawn, skipping
+the positions passed in between, and again when you let go, so large cubes keep up with the mouse;
+the arrow keys, clicks on the slider and playback still step at once.
 
 The point you select with the Pixel tool on a raster or stack is one slit position at one raster
 step or exposure; on a stack it stays on the scan that was displayed when you clicked. If you then

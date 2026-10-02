@@ -8,18 +8,17 @@ from glue.config import data_factory, layer_artist_maker, menubar_plugin, startu
 from glue.viewers.image.viewer import MatplotlibImageMixin
 from qtpy import QtWidgets
 
-from astropy.io import fits
-
 from glue_solar.quicklook import observation_key, quicklook
 from glue_solar.sources.loaders.iris import QtIRISImporter, iris_data, keep_hpc_linked, last_directory
+from glue_solar.sources.loaders.scan import _primary_header
 
 __all__ = ["browse_iris", "iris_image_layer", "iris_quicklook", "link_iris", "quicklook_iris", "read_iris_file"]
 
 
 def is_iris_fits(filename, **_kwargs):
     try:
-        return fits.getheader(filename).get("TELESCOP") == "IRIS"
-    except OSError:
+        return _primary_header(filename).get("TELESCOP") == "IRIS"
+    except (OSError, ValueError, EOFError):  # not a FITS file
         return False
 
 

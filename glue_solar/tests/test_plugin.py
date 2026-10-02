@@ -1,9 +1,12 @@
+import os
 import shutil
+import subprocess
+import sys
 from collections import Counter
 
 import numpy as np
 import pytest
-from glue.config import data_factory, menubar_plugin, settings, startup_action
+from glue.config import colormaps, data_factory, menubar_plugin, settings, startup_action
 from glue.core import Data
 from glue.core.data_factories import load_data
 from glue.viewers.image.state import AggregateSlice
@@ -20,6 +23,7 @@ from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.sources.iris import iris_quicklook, is_iris_fits, link_iris, quicklook_iris
 from glue_solar.sources.loaders.iris import image_data, raster_data
+from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.tests.helpers import count_tick_work
 
 
@@ -38,6 +42,31 @@ def test_setup_registers_hooks():
     for label in ("FITS file", "sunpy Map"):  # both also match IRIS files; ours must win
         other = next(f for f in data_factory if f.label == label)
         assert iris.priority > (other.priority or 0)
+
+
+_PLUGIN_LOAD = """
+import sys
+
+import glue_solar
+
+glue_solar.setup()
+print(*[name for name in ("irispy", "sunpy.map", "ndcube") if name in sys.modules], "|")
+
+import sunpy.data.test
+import sunpy.map
+from glue.core.parsers import parse_data
+
+print(parse_data(sunpy.map.Map(sunpy.data.test.get_test_filepath("aia_171_level1.fits")), "aia").label)
+"""
+
+
+def test_plugin_load_leaves_the_readers_libraries_to_the_first_read():
+    # in a process of its own, since the other tests import them
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)}
+    result = subprocess.run([sys.executable, "-c", _PLUGIN_LOAD], env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr[-2000:]
+    # a map made after the plugin loaded still finds its parser
+    assert result.stdout.splitlines()[:2] == ["|", "aia-AIA 171.0 Angstrom 2011-02-15 00:00:00"]
 
 
 def test_data_factory_claims_only_iris_files(iris_tree):
@@ -314,6 +343,53 @@ def test_sessions_keep_each_viewers_axes(qtbot, monkeypatch, tmp_path):
     ]
 
 
+def _cmap_menu(viewer):
+    """The colormap menu of the viewer's first layer."""
+    return viewer.layer_view().layout_style_widgets[viewer.layers[0]].ui.combodata_cmap
+
+
+# sunpy's RHESSI test image has no observer position
+@pytest.mark.filterwarnings("ignore:Missing metadata for observer")
+def test_only_the_colormaps_data_ask_for_are_listed(qtbot, monkeypatch, irispy_test_files):
+    import sunpy.data.test
+    from sunpy.visualization.colormaps import cmlist
+
+    # glue's own colormaps only, which glue lists on first use: glue-qt draws every one listed whenever it builds
+    # an Image layer's menu
+    monkeypatch.setattr(colormaps, "_members", [])
+    monkeypatch.setattr(colormaps, "_loaded", False)
+    glue_solar.setup()
+    glue_solar.setup()
+    iris_and_aia = [cmlist[name] for name in sorted(cmlist) if name.startswith(("irissji", "sdoaia"))]
+    assert colormaps.members[len(colormaps.default_members()):] == [[cmap.name, cmap] for cmap in iris_and_aia]
+    sji = load_data(str(find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("SJI_1400_t000"))))
+    rhessi = read_sunpy_map(sunpy.data.test.get_test_filepath("hsi_image_20101016_191218.fits"))
+    assert colormaps.members[-1] == [cmlist["rhessi"].name, cmlist["rhessi"]]  # a map lists its own
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.extend([sji, rhessi])
+    for data, cmap in ((sji, cmlist["irissji1400"]), (rhessi, cmlist["rhessi"])):
+        assert _cmap_menu(app.new_data_viewer(ImageViewer, data=data)).currentText() == cmap.name
+
+
+def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_path):
+    monkeypatch.setattr(colormaps, "_members", [])
+    monkeypatch.setattr(colormaps, "_loaded", False)
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    image = Data(label="image", flux=np.arange(20.0).reshape(4, 5))
+    app.data_collection.append(image)
+    app.new_data_viewer(ImageViewer, data=image)
+    app.save_session(str(tmp_path / "cmap.glu"))
+    session = (tmp_path / "cmap.glu").read_text()
+    # glue restores a colormap by its name, here one that setup() does not list
+    (tmp_path / "cmap.glu").write_text(session.replace('"cmap": "gray"', '"cmap": "rhessi"'))
+    restored = GlueApplication.restore_session(str(tmp_path / "cmap.glu"))
+    qtbot.addWidget(restored)
+    assert _cmap_menu(restored.viewers[0][0]).currentText() == "rhessi"
+
+
 def test_iris_image_layers_render_nan_transparent(qtbot, irispy_test_files):
     sji = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
     sji = load_data(str(sji))
@@ -358,8 +434,8 @@ def test_aia_cutout_fill_renders_transparent(qtbot, tmp_path, iris_tree):
     np.testing.assert_array_equal(image[1, 2], [1, 1, 1, 1])  # the white background shows through
 
 
-def test_slice_sliders_follow_a_drag_at_most_every_tenth_of_a_second(qtbot):
-    from qtpy import QtWidgets
+def test_slice_sliders_follow_a_drag_with_its_latest_position(qtbot):
+    from qtpy import QtCore, QtWidgets
 
     glue_solar.setup()
     cube = Data(label="cube", flux=np.zeros((30, 4, 5)))
@@ -373,12 +449,16 @@ def test_slice_sliders_follow_a_drag_at_most_every_tenth_of_a_second(qtbot):
 
     [slider] = sliders()
     assert not slider.hasTracking()
-    start = viewer.state.slices[0]
-    slider.setSliderDown(True)  # a drag across ten positions
+    applied = []
+    viewer.state.add_callback("slices", lambda slices: applied.append(slices[0]))
+    slider.setSliderDown(True)  # a drag across ten positions, as Qt delivers input queued behind a redraw
     for position in range(11, 21):
         slider.setSliderPosition(position)
-    assert viewer.state.slices[0] == start  # nothing applied at each position
-    qtbot.waitUntil(lambda: viewer.state.slices[0] == 20, timeout=1000)  # the timer applies the latest
+    assert applied == []  # nothing applied at each position
+    later = []
+    QtCore.QTimer.singleShot(1, lambda: later.append(list(applied)))
+    qtbot.waitUntil(lambda: bool(later))
+    assert later == [[20]]  # only the latest, applied with no wait of its own
     slider.setSliderPosition(25)
     slider.setSliderDown(False)  # the release applies the last position
     assert viewer.state.slices[0] == 25
