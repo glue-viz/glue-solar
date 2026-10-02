@@ -254,7 +254,7 @@ def _raw_scaling(header):
 def _window_scaling(path):
     """
     The `_raw_scaling` of each spectral window of a raster file by its ``TDESC`` name, or None unless every window
-    loads lazily. Every raster file of an observation scales each window alike.
+    loads lazily.
     """
     with fits.open(path) as hdulist:  # headers only
         header = hdulist[0].header
@@ -373,9 +373,12 @@ def raster_data(files, windows=None, stack=False):
     -------
     list of `~glue.core.data.Data`
         One per scan and window, or one per window when ``stack`` is set. Windows stored as int16, as Level 2
-        files store them, stay in their files and are scaled where glue reads them (`LAZY`).
+        files store them, stay in their files and are scaled where glue reads them (`LAZY`), if every file stores
+        them alike.
     """
     scaling = _window_scaling(files[0])
+    if any(_window_scaling(path) != scaling for path in files[1:]):
+        scaling = None
     if scaling:
         allow_open_files()
     collection = read_files(files, spectral_windows=windows, memmap=bool(scaling), uncertainty=False)

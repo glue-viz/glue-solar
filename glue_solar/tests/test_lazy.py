@@ -264,6 +264,18 @@ def test_int16_rasters_load_lazily_and_float32_ones_as_before(monkeypatch, tmp_p
         assert [type(loaded.get_component(cid)) for cid in loaded.main_components[:2]] == [Component, Component]
 
 
+def test_raster_files_stored_differently_load_as_before(monkeypatch, int16_raster, irispy_test_files):
+    # an int16 copy beside irispy's float32 file, which irispy reads first: each scan and their stack
+    files = [int16_raster, find_irispy_test_file(irispy_test_files, RASTER)]
+    for stack in (False, True):
+        mixed = raster_data(files, ["Si IV 1403"], stack)
+        monkeypatch.setattr(iris, "LAZY", False)
+        eager = raster_data(files, ["Si IV 1403"], stack)
+        monkeypatch.setattr(iris, "LAZY", True)
+        for data, before in zip(mixed, eager, strict=True):
+            np.testing.assert_array_equal(data[data.main_components[0]], before[before.main_components[0]])
+
+
 def test_int16_stacks_load_lazily_scan_by_scan(monkeypatch, tmp_path, irispy_test_files):
     sources = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)[:3]
     paths = [int16_raster_copy(source, tmp_path / source.name) for source in sources]
