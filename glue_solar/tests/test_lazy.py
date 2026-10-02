@@ -3,6 +3,7 @@ Lazily loaded IRIS data, on int16 copies of irispy's test files: Level 2 files s
 while irispy's test files hold float32.
 """
 
+import warnings
 from itertools import combinations
 
 import dask.array as da
@@ -324,6 +325,21 @@ def test_int16_slit_jaw_and_aia_cubes_load_lazily(monkeypatch, tmp_path, irispy_
         assert lazy_result.meta["scaled"]
     assert (lazy_result[lazy_result.main_components[0]] == -199).any()  # data in AIA cutouts, unverified as missing
     assert_loads_as_before(*lazy_and_eager(monkeypatch, lambda: iris_data(gzipped)))  # File -> Open
+
+
+def test_scripting_recipe_computes_spectra_of_lazy_data(int16_raster):
+    # docs/user_guide/scripting-iris-data.rst, whose raster is lazy when stored as int16, as Level 2 files store it
+    [raster] = raster_data([int16_raster], ["Si IV 1403"])
+    step, slit = 90, 20
+    cid = raster.main_components[0]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # wavelengths with no valid sample give NaN
+        mean_spectrum = np.asarray(np.nanmean(raster[cid], axis=(0, 1), dtype=float))
+        expected_mean = np.nanmean(expected(int16_raster, WINDOW), axis=(0, 1), dtype=float)
+    point_spectrum = raster[cid, step, slit]
+    assert type(mean_spectrum) is type(point_spectrum) is np.ndarray
+    np.testing.assert_allclose(mean_spectrum, expected_mean)
+    np.testing.assert_array_equal(point_spectrum, expected(int16_raster, WINDOW)[step, slit])
 
 
 def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path, int16_raster):

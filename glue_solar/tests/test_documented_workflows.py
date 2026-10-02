@@ -60,16 +60,16 @@ def test_scripting_recipe(qtbot, irispy_test_files):
     assert sji["Time"][:, 0, 0].dtype.kind == "M"
 
     # the Profile viewer's Mean against Wavelength is the mean over every step and slit position
-    values = raster[raster.main_components[0]]
+    cid = raster.main_components[0]
     profile = app.new_data_viewer(ProfileViewer, data=raster)
     profile.state.function = "mean"
     profile.state.x_att = raster.world_component_ids[2]
     _, mean = profile.state.layers[0].profile
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)  # wavelengths with no valid sample give NaN
-        expected = np.nanmean(values, axis=(0, 1), dtype=float)
+        expected = np.asarray(np.nanmean(raster[cid], axis=(0, 1), dtype=float))
     np.testing.assert_allclose(mean, expected, rtol=1e-6)
-    np.testing.assert_array_equal(values[step, slit], values[step, slit, :])
+    np.testing.assert_array_equal(raster[cid, step, slit], raster[cid][step, slit])
 
 
 def test_browser_stacks_scans_into_4d_data_with_per_pixel_time(qtbot, irispy_test_files):
