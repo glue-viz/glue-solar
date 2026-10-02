@@ -27,7 +27,7 @@ from astropy.wcs import WCS
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
-from glue_solar.quicklook import QuicklookImageViewer, coordinator, nearest, observation_key, quicklook
+from glue_solar.quicklook import QuicklookImageViewer, coordinator, nearest, observation_key, quicklook, sji_to_raster
 from glue_solar.sources.loaders.iris import image_data, raster_data
 from glue_solar.tests.helpers import count_tick_work, load_selected, mouse, raster_point_on_sji, select_point
 
@@ -1457,6 +1457,74 @@ def test_no_raster_point_on_another_observation(bare_app, qtbot, irispy_test_fil
     viewers["spectrogram"].state.slices = (1, *viewers["spectrogram"].state.slices[1:])
     qtbot.wait(20)
     assert overlays(viewer)[1] is None
+
+
+def past(raster, sji, end, inner, frame):
+    """The slit-jaw pixel one raster pixel past ``end``, away from ``inner``, both (step, slit) pixels."""
+    end, inner = (np.array(raster_point_on_sji(raster, sji, *pixel, frame)) for pixel in (end, inner))
+    return 2 * end - inner
+
+
+def test_sji_to_raster_on_a_sit_and_stare(irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    exposures, frames = raster[raster.id["Time"]][:, 0, 0], sji[sji.id["Time"]][:, 0, 0]
+    top = raster.shape[1] - 1
+    for frame in (0, len(frames) // 2, len(frames) - 1):
+        exposure = expected_nearest(frames[frame], exposures)  # by time: the slit stays in place
+        for slit in (0, top // 2, top):
+            x, y = raster_point_on_sji(raster, sji, exposure, slit, frame)
+            assert sji_to_raster(sji, frame, x, y, raster) == (exposure, slit)
+            assert sji_to_raster(sji, frame, x + 3, y, raster) == (exposure, slit)  # beside the slit: its row
+        for end, inner in ((0, 1), (top, top - 1)):  # past either end of the slit: outside the raster
+            assert sji_to_raster(sji, frame, *past(raster, sji, (exposure, end), (exposure, inner), frame), raster) is None
+
+
+def scanning(path, irispy_test_files, step=0.3):
+    """The sit-and-stare fixture's raster written to ``path`` as a raster stepping ``step`` arcsec west per exposure."""
+    with fits.open(find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))) as hdulist:
+        aux = hdulist[-2]  # before the Level 1 file names
+        n = len(aux.data)
+        aux.data[:, aux.header["XCENIX"]] = hdulist[0].header["XCEN"] + step * (np.arange(n) - n // 2)
+        hdulist[0].header["STEPS_AV"] = step
+        hdulist.writeto(path)
+    return path
+
+
+def test_sji_to_raster_on_a_scanning_raster_and_a_stack(tmp_path, irispy_test_files):
+    path = scanning(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files)
+    [raster] = raster_data([path], ["Si IV 1403"])
+    _, sji = sit_and_stare(irispy_test_files)
+    last, top = raster.shape[0] - 1, raster.shape[1] - 1
+    # by place, through each frame's own pointing, which follows the Sun's rotation
+    for frame in (0, sji.shape[0] - 1):
+        for step in (0, last // 2, last):
+            for slit in (0, top // 2, top):
+                x, y = raster_point_on_sji(raster, sji, step, slit, frame)
+                assert sji_to_raster(sji, frame, x, y, raster) == (step, slit)
+        # the nearest step and slit row
+        assert sji_to_raster(sji, frame, *raster_point_on_sji(raster, sji, 10.4, 20.4, frame), raster) == (10, 20)
+        assert sji_to_raster(sji, frame, *raster_point_on_sji(raster, sji, 10.6, 20.6, frame), raster) == (11, 21)
+        for end, inner in ((0, 1), (last, last - 1)):  # past the first or last step: outside the raster
+            assert sji_to_raster(sji, frame, *past(raster, sji, (end, 9), (inner, 9), frame), raster) is None
+
+    # a stack of the scan and a copy right after it: the scan nearest the frame's time at the step
+    [stack] = raster_data([path, path], ["Si IV 1403"], stack=True)
+    times = stack[stack.id["Time"]].copy()
+    times[1] += times.max() - times.min()
+    stack.update_components({stack.id["Time"]: times})
+    frames = sji[sji.id["Time"]][:, 0, 0]
+    scans = []
+    for frame in (0, len(frames) - 1):
+        for step in (0, last):
+            scans.append(expected_nearest(frames[frame], times[:, step, 0, 0]))
+            x, y = raster_point_on_sji(stack, sji, step, 9, frame)
+            assert sji_to_raster(sji, frame, x, y, stack) == (scans[-1], step, 9)
+    assert set(scans) == {0, 1}
+    # a day later: the later scan, however far; a scan's steps are places
+    sji.update_components({sji.id["Time"]: sji[sji.id["Time"]] + np.timedelta64(1, "D")})
+    x, y = raster_point_on_sji(raster, sji, 0, 9, 0)
+    assert sji_to_raster(sji, 0, x, y, stack) == (1, 0, 9)
+    assert sji_to_raster(sji, 0, x, y, raster) == (0, 9)
 
 
 @pytest.mark.remote_data

@@ -26,7 +26,7 @@ import astropy.units as u
 
 from glue_solar.sources.loaders.iris import keep_hpc_linked
 
-__all__ = ["Coordinator", "QuicklookImageViewer", "coordinator", "nearest", "observation_key", "quicklook"]
+__all__ = ["Coordinator", "QuicklookImageViewer", "coordinator", "nearest", "observation_key", "quicklook", "sji_to_raster"]
 
 # The window the quicklook shows when the browser did not pick one
 DEFAULT_WINDOW = "Mg II k 2796"
@@ -114,6 +114,55 @@ def _sji_pixels(sji, frame, lon, lat):
     world[types.index("time")] = np.broadcast_to(when, np.shape(lon))
     x, y, _ = sji.coords.world_to_pixel_values(*world)
     return x, y
+
+
+def sji_to_raster(sji, frame, x, y, raster):
+    """
+    The pixel of ``raster`` under pixel ``x, y`` of the slit-jaw image ``sji``'s frame ``frame``, placed with that
+    frame's own pointing.
+
+    A scanning raster's step and slit row are those nearest that place. A sit-and-stare raster's exposure is the one
+    nearest the frame's time, as its slit stays in place, and its slit row the one level with the pixel, beside the
+    slit too. A stack's scan is the one nearest the frame's time at that step, however far from it.
+
+    Parameters
+    ----------
+    sji : `~glue.core.data.Data`
+        A slit-jaw image as glue-solar loads it.
+    frame : int
+    x, y : float
+    raster : `~glue.core.data.Data`
+        A raster or a stack of scans as glue-solar loads them, of the same observation.
+
+    Returns
+    -------
+    tuple of int, or None
+        ``(step, slit)``, a stack's ``(scan, step, slit)``, or None outside the raster: past its first or last step
+        or either end of its slit.
+    """
+    lon, lat = _lon_lat(sji, (frame, y, x))
+    when = _times(sji, None)[frame]
+    steps, rows = raster.shape[-3:-1]
+    if raster.ndim == 3 and _is_sit_and_stare(raster):
+        # the slit row from the slit's ends: the raster's world-to-pixel is slow here, and ambiguous along time
+        [step], _ = nearest([when], _times(raster, None))
+        lons, lats = _lon_lat(raster, (np.full(2, step), [0, rows - 1], np.zeros(2)))
+        along = np.array([lons[1] - lons[0], lats[1] - lats[0]]) / (rows - 1)  # one slit pixel
+        slit = np.dot([lon - lons[0], lat - lats[0]], along) / np.dot(along, along)
+    else:
+        types = list(raster.coords.world_axis_physical_types)
+        world = list(raster.coords.pixel_to_world_values(*[0] * raster.ndim))  # any wavelength and scan
+        world[types.index("custom:pos.helioprojective.lon")] = lon
+        world[types.index("custom:pos.helioprojective.lat")] = lat
+        *_, step, slit, _ = raster.coords.world_to_pixel_values(*world)[::-1]  # NaN off the raster
+    step, slit = np.round(step), np.round(slit)
+    if not (0 <= step < steps and 0 <= slit < rows):
+        return None
+    index = (int(step), int(slit))
+    if raster.ndim == 3:
+        return index
+    [scan], _ = nearest([when], _times(raster, index[0]))
+    return (int(scan), *index)
 
 
 def _time_axis(data):

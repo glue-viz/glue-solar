@@ -16,8 +16,9 @@ import astropy.units as u
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
+from glue_solar.quicklook import sji_to_raster
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
-from glue_solar.tests.helpers import load_selected, select_point
+from glue_solar.tests.helpers import load_selected, raster_point_on_sji, select_point
 
 SNS = "iris_l2_20210905_001833_3620258102_{}.fits"
 
@@ -58,6 +59,13 @@ def test_scripting_recipe(qtbot, irispy_test_files):
     assert times.dtype.kind == "M"
     assert len(times) == raster.shape[0]
     assert sji["Time"][:, 0, 0].dtype.kind == "M"
+
+    # on this sit-and-stare raster the exposure nearest the frame's time, and the slit row level with the pixel: back
+    # in the frame, within half a pixel of it (the fixture's raster and slit-jaw pixels are both 1.66")
+    frame, x, y = 30, 18.5, 20.0
+    index = sji_to_raster(sji, frame, x, y, raster)
+    assert index[0] == np.argmin(np.abs(times - sji["Time"][frame, 0, 0]))
+    assert abs(raster_point_on_sji(raster, sji, *index, frame)[1] - y) <= 0.5
 
     # the Profile viewer's Mean against Wavelength is the mean over every step and slit position
     cid = raster.main_components[0]
