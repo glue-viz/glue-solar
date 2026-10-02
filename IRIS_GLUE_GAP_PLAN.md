@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-02
 
-**Resume here.** M0 is done. Main has #107 and #108; glue-solar PRs are marked ready and merged once CI passes. Open: #109 (`wp11-cursor-readout`) and #110 (`wp12-time-regrid`), rebased on main, to merge when CI passes and then delete their items. Next: `wp9-m1-split-guide` alone (every open PR edits that guide), then M1 batch 4. Checking glue-solar against irispy main (57813b8, with #205 and #206) is in progress.
+**Resume here.** M0 is done. Main has #107-#109; glue-solar PRs are marked ready and merged once CI passes. Open: #110 (`wp12-time-regrid`), rebased on main, to merge when CI passes and then delete its item. Next: `wp9-m1-split-guide` alone (every open PR edits that guide), then M1 batch 4. Checking glue-solar against irispy main (57813b8, with #205 and #206) is in progress.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -70,7 +70,7 @@ Settled by the user; reopen only with the user.
 - **D28:** The IRIS loading guide is split into topic pages in M1 (`wp9-m1-split-guide`).
 - **D29:** Every Image viewer of a sit-and-stare raster shows the exposure label and integer exposure ticks only, with no helioprojective ticks on the far edge.
 - **D30:** 'Hide axes' hides the whole axes, with no pixel-coordinate ticks instead, since the mouse-over readout keeps world coordinates. On rolled views each axis label stays with its own coordinate's ticks (glue-solar's label patch), not glue's spine-based labels.
-- **D31:** IRIS world values reach glue in Å and arcsec, high-level objects included; their texts keep glue's and WCSAxes' precision (readout precision is `wp11-cursor-readout`'s); -TAB round trips hold to the wrapped WCS's own error (1.3-2.7e-6 px); a longitude or latitude beside a non-angle coordinate that barely changes across a panel loses its tick labels, while an image of the two angles alone keeps both (user, 2026-10-01).
+- **D31:** IRIS world values reach glue in Å and arcsec, high-level objects included; their texts keep glue's and WCSAxes' precision (the mouse-over readout gives IRIS Å and arcsec at a fixed precision, #109); -TAB round trips hold to the wrapped WCS's own error (1.3-2.7e-6 px); a longitude or latitude beside a non-angle coordinate that barely changes across a panel loses its tick labels, while an image of the two angles alone keeps both (user, 2026-10-01).
 - **D32:** Lazy loading (design synthesis in `IRIS_PLAN_PROTOTYPES/wp10_lazy_design_20261001.tar.gz`): raw int16 through irispy's memmap view, with a plane reader as the swap point if SIGBUS or resident memory while viewing bite; gzipped SJIs held as raw int16 in RAM; the mask is a glue derived component; the quicklook's spectrum never computes whole-cube profiles; the lazy loaders raise the open-file soft limit.
 - **D33:** Lazy colour limits come from an exact count of raw codes over up to 512 MiB of planes per window, within 1 % of the eager 99.5 % limits. The < 10 % memory budget is the peak RSS increase over the post-import baseline with no viewer, the absolute peak reported beside it; the per-element memory budgets are tracemalloc figures, and resident memory is `wp10-l-resident-memory`.
 - **D34:** The GitHub wiki stays off rather than refreshed; its history, with the user's 2026-09-22 edit, is `IRIS_PLAN_PROTOTYPES/glue-solar-wiki-20261001.bundle`.
@@ -97,7 +97,7 @@ A milestone is done when it has no items left.
 - WP5: `wp5-m1-spectral-blink`
 - WP9: `wp9-m1-screenshots`, `wp9-m1-split-guide`
 - WP10: `wp10-m1-roi-world-polygon`
-- WP11: `wp11-cursor-readout`, `wp11-selected-point-panel`, `wp11-keyboard-shortcuts`
+- WP11: `wp11-selected-point-panel`, `wp11-keyboard-shortcuts`
 - WP12: `wp12-time-regrid`
 
 **M2**
@@ -161,7 +161,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 - [ ] **M4** `wp0-astropy-19174`: Add the IRIS -TAB WCS thread crash to astropy#19174. Done when reproduced without `WCS_LOCK` and posted or declined.
 - [ ] **M4** `wp0-stack-validation`: Merge the upstream heads (core #2595, #2597-#2599, #2601; Qt #70, #74, #75) and run the Qt and `glue_solar` suites. They are the user's drafts: core #2595 WCS autolink, #2597 session cmap and meta, #2598 correlated-axis inverse, #2599 datetime epoch (fix its codestyle), #2601 Profile WCSAxes (contains #2596, Slice profile); Qt #70 Profile sliders and km/s axis, #74 cursor readout, #75 time slider labels. Done when pass counts are recorded.
 - [ ] **M4** `wp0-user-review`: The user reviews each upstream draft before it is ready; glue-qt #68 (macOS integration) and #69 (a CI fix overlapping #65) are ready, and glue PRs fail `py311-test-visual` until dhomeier's ready glue #2592 (visual references) merges. Done when each is merged, closed or parked. Depends: wp0-stack-validation.
-- [ ] **M4** `wp0-own-draft-updates`: Amend #2595 to keep time axes out of `wcs_autolink`, and Qt #74 to show Solar X/Y. Done when both pass their suites. Depends: wp11-cursor-readout.
+- [ ] **M4** `wp0-own-draft-updates`: Amend #2595 to keep time axes out of `wcs_autolink`, and Qt #74 to show Solar X/Y. Done when both pass their suites.
 - [ ] **M4** `wp0-core-quantity-saver`: Core `u.Quantity` saver (D13) that loads glue-solar's fallback record. Done when its test round-trips Quantities in `Data.meta`.
 - [ ] **M4** `wp0-core-derived-units`: Core PR saving `DerivedComponent.units`. Done when its test round-trips `units='DN/s'` and older records still load.
 - [ ] **M4** `wp0-track-line-layers`: Track glue #2603 and glue-qt #73, which retire WP5's line-list workaround. Done when both are released or the user parks them.
@@ -412,7 +412,6 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 
 **M1**
 
-- [ ] **M1** `wp11-cursor-readout` (F100, F101, F113): `solar:frame_time` adds the hovered pixel's `Time`, exposure and Doppler km/s to the readout. Done when step s of the 4000005156 Si IV map shows its UTC (within 1 ms) and exposure.
 - [ ] **M1** `wp11-selected-point-panel` (F099, F191): A read-only quicklook dock lists the Pixel point's indices, coordinates, time, exposure and value per dataset, plus the time master and SJI–raster offset. Done when on 3860258481 (3D and 4D) each field equals a direct read and the unrelated 3880012095 SJI shows 'no match'.
 - [ ] **M1** `wp11-keyboard-shortcuts` (F197): Register D/F (frame), A/S (wavelength), Space (play) and quicklook Tab/Backspace via `glue_qt.config.keyboard_shortcut`. Done when `QTest.keyClick` on glue-qt 0.4.2 steps with wrap and plays, and quicklook D/F move the time master and A/S only wavelength.
 
@@ -433,7 +432,6 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 - [ ] **L** `wp11-scaling-extras` (F066, F067): Per-band default stretches in the preset; glue's controls adjust them. Done when each IRIS band opens with its default.
 
 Notes:
-- On a sit-and-stare λ–t panel the mouse-over position reads helioprojective coordinates along the exposure axis (2026-10-01); `wp11-cursor-readout` covers it.
 - glue-qt already takes B, C, G, H, K, M, P, R, W, X, Y, Z, Tab, Backspace and L, and dispatches keys by exact viewer type.
 - Not planned: zoom ×2/÷2, centring and a percentile menu (glue has them), or a CRISPEX control-panel clone.
 
