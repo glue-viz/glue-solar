@@ -507,6 +507,9 @@ def _arcsec_ratio(viewer):
     return ratio if np.isfinite(ratio) and ratio > 0 else None
 
 
+_ASPECT_HOOKS = ("_set_axes_aspect_ratio", "_axes_aspect_ratio", "_adjust_limits_aspect")
+
+
 @viewer_tool
 class PhysicalAspectTool(Tool):
     """
@@ -532,6 +535,10 @@ class PhysicalAspectTool(Tool):
         self.ratio = None  # `_arcsec_ratio`, or 1, while on
         self._aspect = None  # glue's aspect before
         state = viewer.state
+        # glue's private aspect hooks this scales; a glue without them gets a button that does nothing, not no viewer
+        self._hooked = all(hasattr(state, name) for name in _ASPECT_HOOKS) and hasattr(viewer, "axes_ratio")
+        if not self._hooked:
+            return
         # glue gives the state the axes' height over width through this at each resize, and 'Square Pixels' fits the
         # limits to it: scaled by the ratio, it fits them to the sky's proportions
         set_axes_ratio = state._set_axes_aspect_ratio
@@ -542,6 +549,8 @@ class PhysicalAspectTool(Tool):
 
     def activate(self):
         state = self.viewer.state
+        if not self._hooked:
+            return _keep_mouse_mode(self.viewer)
         if self.ratio is None:
             self._aspect, self.ratio = state.aspect, _arcsec_ratio(self.viewer) or 1.0
             self._fit()  # glue widens the limits to it now under 'Square Pixels' already,
@@ -559,6 +568,8 @@ class PhysicalAspectTool(Tool):
         _keep_mouse_mode(self.viewer)
 
     def close(self):
+        if not self._hooked:
+            return super().close()
         state = self.viewer.state
         del state._set_axes_aspect_ratio
         for prop in ("x_att", "y_att"):

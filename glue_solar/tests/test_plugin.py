@@ -517,6 +517,21 @@ def test_physical_aspect_is_the_same_all_along_a_raster(qtbot, irispy_test_files
     assert proportions[0] == pytest.approx(proportions[1], rel=1e-3)
 
 
+def test_physical_aspect_stands_aside_without_glues_aspect_hooks(qtbot, monkeypatch):
+    from glue_solar import tools
+
+    glue_solar.setup()
+    monkeypatch.setattr(tools, "_ASPECT_HOOKS", (*tools._ASPECT_HOOKS, "_renamed_in_a_later_glue"))
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    image = Data(label="image", flux=np.arange(20.0).reshape(4, 5))
+    app.data_collection.append(image)
+    viewer = app.new_data_viewer(ImageViewer, data=image)  # the viewer still opens
+    viewer.toolbar.actions["solar:physical_aspect"].trigger()  # and the button does nothing
+    assert viewer.toolbar.tools["solar:physical_aspect"].ratio is None
+    viewer.close(warn=False)
+
+
 @pytest.mark.parametrize("case", ["spectrogram", "sit-and-stare exposures", "slit-jaw x–t", "no WCS"])
 def test_physical_aspect_gives_square_pixels_off_the_sky(qtbot, irispy_test_files, case):
     def bundled(name):
