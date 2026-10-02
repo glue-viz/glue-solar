@@ -523,6 +523,21 @@ def load_entry(observation, kind, name, stack=False):
     return [image_data(observation.sji[name] if kind == "sji" else observation.sdo[name])]
 
 
+def _failing_file(observation, kind, name, windows):
+    """
+    The name of the file of a browser entry that failed to load: for a raster window, the first raster file that fails
+    on its own, as irispy reads them all at once.
+    """
+    if kind != "raster":
+        return (observation.sji[name] if kind == "sji" else observation.sdo[name]).name
+    for path in observation.rasters:
+        try:
+            _raster_windows_data([path], windows)
+        except Exception:  # noqa: BLE001 - whatever the read of every file raised
+            return path.name
+    return f"{len(observation.rasters)} raster files"  # each loads on its own, but not together
+
+
 def _fmt(value):
     return "" if value is None else f"{round(value, 1) + 0.0:.1f}"  # + 0.0 turns -0.0 into 0.0
 
@@ -665,7 +680,8 @@ class QtIRISImporter(QtWidgets.QDialog):
                 else:
                     datasets = load_entry(obs, kind, name)
             except Exception as error:  # noqa: BLE001 - third-party reader errors must stay inside the dialog
-                self.progress.setFormat(f"Loading {name} failed: {error}")
+                self.progress.setFormat(f"Loading {name} from {_failing_file(obs, kind, name, windows.get(i))} "
+                                        f"failed: {error}")
                 return
             self.loaded.append((obs, kind, name, datasets))
             self.datasets.extend(datasets)
