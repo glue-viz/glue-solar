@@ -1465,33 +1465,47 @@ def past(raster, sji, end, inner, frame):
     return 2 * end - inner
 
 
-def test_sji_to_raster_on_a_sit_and_stare(irispy_test_files):
-    raster, sji = sit_and_stare(irispy_test_files)
-    exposures, frames = raster[raster.id["Time"]][:, 0, 0], sji[sji.id["Time"]][:, 0, 0]
-    top = raster.shape[1] - 1
-    for frame in (0, len(frames) // 2, len(frames) - 1):
-        exposure = expected_nearest(frames[frame], exposures)  # by time: the slit stays in place
-        for slit in (0, top // 2, top):
-            x, y = raster_point_on_sji(raster, sji, exposure, slit, frame)
-            assert sji_to_raster(sji, frame, x, y, raster) == (exposure, slit)
-            assert sji_to_raster(sji, frame, x + 3, y, raster) == (exposure, slit)  # beside the slit: its row
-        for end, inner in ((0, 1), (top, top - 1)):  # past either end of the slit: outside the raster
-            assert sji_to_raster(sji, frame, *past(raster, sji, (exposure, end), (exposure, inner), frame), raster) is None
-
-
-def scanning(path, irispy_test_files, step=0.3):
-    """The sit-and-stare fixture's raster written to ``path`` as a raster stepping ``step`` arcsec west per exposure."""
+def repointed(path, irispy_test_files, step=0.0, drift=0.0, roll=0.0):
+    """
+    The sit-and-stare fixture's raster written to ``path``, stepping ``step`` arcsec west and drifting ``drift`` arcsec
+    north per exposure, with its slit rolled ``roll`` degrees: a scanning raster unless ``step`` is 0.
+    """
     with fits.open(find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))) as hdulist:
-        aux = hdulist[-2]  # before the Level 1 file names
-        n = len(aux.data)
-        aux.data[:, aux.header["XCENIX"]] = hdulist[0].header["XCEN"] + step * (np.arange(n) - n // 2)
-        hdulist[0].header["STEPS_AV"] = step
+        aux, header = hdulist[-2], hdulist[0].header  # before the Level 1 file names
+        n = np.arange(len(aux.data)) - len(aux.data) // 2
+        aux.data[:, aux.header["XCENIX"]] = header["XCEN"] + step * n
+        aux.data[:, aux.header["YCENIX"]] = header["YCEN"] + drift * n
+        roll = np.radians(roll)
+        aux.data[:, aux.header["PC3_2IX"]], aux.data[:, aux.header["PC2_2IX"]] = np.sin(roll), np.cos(roll)
+        header["STEPS_AV"] = step
         hdulist.writeto(path)
     return path
 
 
+def test_sji_to_raster_on_a_sit_and_stare(tmp_path, irispy_test_files):
+    bundled, sji = sit_and_stare(irispy_test_files)
+    # and a copy whose rolled slit drifts north: each exposure's slit is its own
+    path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, drift=0.1, roll=20)
+    [moved] = raster_data([path], ["Si IV 1403"])
+    frames = sji[sji.id["Time"]][:, 0, 0]
+    for raster in (bundled, moved):
+        exposures, top = raster[raster.id["Time"]][:, 0, 0], raster.shape[1] - 1
+        for frame in (0, len(frames) // 2, len(frames) - 1):
+            exposure = expected_nearest(frames[frame], exposures)  # by time, not place
+            low, high = (np.array(raster_point_on_sji(raster, sji, exposure, slit, frame)) for slit in (0, top))
+            across = np.array([low[1] - high[1], high[0] - low[0]]) / np.hypot(*(high - low))  # one pixel
+            for slit in (0, top // 2, top):
+                x, y = raster_point_on_sji(raster, sji, exposure, slit, frame)
+                assert sji_to_raster(sji, frame, x, y, raster) == (exposure, slit)
+                # beside the slit: its row
+                assert sji_to_raster(sji, frame, *np.add((x, y), 5 * across), raster) == (exposure, slit)
+            for end, inner in ((0, 1), (top, top - 1)):  # past either end of the slit: outside the raster
+                pixel = past(raster, sji, (exposure, end), (exposure, inner), frame)
+                assert sji_to_raster(sji, frame, *pixel, raster) is None
+
+
 def test_sji_to_raster_on_a_scanning_raster_and_a_stack(tmp_path, irispy_test_files):
-    path = scanning(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files)
+    path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
     [raster] = raster_data([path], ["Si IV 1403"])
     _, sji = sit_and_stare(irispy_test_files)
     last, top = raster.shape[0] - 1, raster.shape[1] - 1
