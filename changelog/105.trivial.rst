@@ -1,0 +1,1 @@
+The test suite finds irispy's bundled test files from ``irispy.data.test.ROOTDIR``, so it keeps working once irispy drops its ``get_test_data_filenames`` helper.
