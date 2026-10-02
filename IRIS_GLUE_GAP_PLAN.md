@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-02
 
-**Resume here.** M0 is done. Main is at 0e3eb12; glue-solar PRs are marked ready and merged once CI passes. No PR is open. In progress (M1 batch 3, worktrees `~/Git/glue-solar-<item>`): `wp1-m1-sunpy-maps`, `wp1-m1-sji-to-raster`, `wp11-cursor-readout`, `wp12-time-regrid`.
+**Resume here.** M0 is done. Main has #107 and #108; glue-solar PRs are marked ready and merged once CI passes. Open: #109 (`wp11-cursor-readout`) and #110 (`wp12-time-regrid`), rebased on main, to merge when CI passes and then delete their items. Next: `wp9-m1-split-guide` alone (every open PR edits that guide), then M1 batch 4. Checking glue-solar against irispy main (57813b8, with #205 and #206) is in progress.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -75,6 +75,7 @@ Settled by the user; reopen only with the user.
 - **D33:** Lazy colour limits come from an exact count of raw codes over up to 512 MiB of planes per window, within 1 % of the eager 99.5 % limits. The < 10 % memory budget is the peak RSS increase over the post-import baseline with no viewer, the absolute peak reported beside it; the per-element memory budgets are tracemalloc figures, and resident memory is `wp10-l-resident-memory`.
 - **D34:** The GitHub wiki stays off rather than refreshed; its history, with the user's 2026-09-22 edit, is `IRIS_PLAN_PROTOTYPES/glue-solar-wiki-20261001.bundle`.
 - **D35:** glue-solar registers only the IRIS and AIA colormaps (since #98) until glue-qt's colormap combo stops re-rendering every icon; the user wants every sunpy colormap back then, through `wp11-l-all-colormaps` or the upstream fix in `wp0-perf-qt` (2026-10-01).
+- **D37:** Provisional (2026-10-02, batch 3): `link_hpc` anchors on the first IRIS dataset and links helioprojective maps to it with `LinkSameWithUnits` (IRIS pairs keep `LinkSame`), so value selections between two maps pass through IRIS and ignore their observers, documented; `_GlueWCS` wraps a map's 0-360° longitudes back to the raster's; `sji_to_raster` applies D7's half-cadence limit on sit-and-stare rasters only, never to a stack's scans; the readout gives fixed precision only for IRIS Å and helioprojective arcsec, and drops the angle along a sit-and-stare exposure axis; 'Regrid on time' regrids a stack by scans timed at their middle step, keeps real exposure times in `Time`, and includes exactly 0.75 steps.
 - **D36:** The observation browser's background load (#106) covers the quicklook too (colour-limit counts for the datasets it will show on the worker, an event-loop turn between its viewers) and moves archive extraction to the worker; Stop keeps the picks read in full while Esc or closing drops the load; a gzipped SJI is decompressed once; every raster file is read on its own so a stop acts between files (user, 2026-10-02); what Stop keeps is still counted on the worker, a result 0.15-0.2 s later rather than a 0.4 s freeze as its first viewer opens (provisional, 2026-10-02; design and measurements in `IRIS_PLAN_PROTOTYPES/wp10_nonblocking_design_20261002.tar.gz`).
 
 ## Milestones
@@ -92,7 +93,6 @@ A milestone is done when it has no items left.
 
 **M1**
 - WP0: `wp0-release-tracking`, `wp0-irispy-requests`
-- WP1: `wp1-m1-sunpy-maps`, `wp1-m1-sji-to-raster`
 - WP4: `wp4-m1-hover-lock-tool`, `wp4-sji-click-to-raster`, `wp4-m1-spectral-coupling`, `wp4-m1-multi-window`, `wp4-time-controls`, `wp4-raster-overlays`
 - WP5: `wp5-m1-spectral-blink`
 - WP9: `wp9-m1-screenshots`, `wp9-m1-split-guide`
@@ -205,8 +205,6 @@ The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links be
 
 **M1**
 
-- [ ] **M1** `wp1-m1-sunpy-maps`: Keep sunpy maps on glue's plain astropy WCS; `link_hpc` links them to IRIS data with `LinkSameWithUnits`. Done when two overlapping maps autolink, and a synthetic map over the sns fixture SJI 1400 places it within 0.05 px at the first and last frames.
-- [ ] **M1** `wp1-m1-sji-to-raster`: `sji_to_raster()` maps an SJI pixel at the displayed frame to a raster step (nearest `Time` for sit-and-stare) and slit row. Done when (step 32, slit 385) round-trips through 4000005156 SJI 2796 frame 7 within 0.5 px and 4000255147 SJI 1400 frames 0, 200, 399 give exposures 1, 801, 1597.
 
 **M3**
 
@@ -216,7 +214,7 @@ The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links be
 
 **M4**
 
-- [ ] **M4** `wp1-m4-autolink-matrix` (F049, F054): Once a core release has #2595, use its `WCSLink` suggestions for IRIS dataset pairs. Done when SJI Pixel points reach rasters and other SJIs without a time link, with `link_hpc` subsets unchanged. Depends: wp1-m1-sunpy-maps.
+- [ ] **M4** `wp1-m4-autolink-matrix` (F049, F054): Once a core release has #2595, use its `WCSLink` suggestions for IRIS dataset pairs. Done when SJI Pixel points reach rasters and other SJIs without a time link, with `link_hpc` subsets unchanged.
 
 **OM**
 
@@ -267,8 +265,8 @@ Makes Save and Open Session work for the quicklook and every glue-solar dataset 
 - [ ] **L** `wp3-quantity-meta`: Save Quantity meta and make SJI `frame_wcs_headers` session-safe. Done when a raster's exposure time and an SJI session restore.
 - [ ] **L** `wp3-file-references`: Load browser data through path-first factories so LoadLog references the files, which dask data need. Done when sessions save under 100 KB and restore after the files move.
 - [ ] **L** `wp3-session-budget`: Guard session size. Done when a 4000255147 quicklook session is ≤ 1 MB and saves in ≤ 2 s. Depends: wp3-file-references.
-- [ ] **L** `wp3-coordination-reattach`: Restored viewers re-register with the coordinator. Done when a restored quicklook keeps its time master and offsets, and Pixel drags drive the other panels. Depends: wp1-m1-sji-to-raster, wp3-wcs-saver, wp3-quantity-meta, wp3-style-cmap.
-- [ ] **L** `wp3-app-session-acceptance` (F175): A pytest-qt test restores two quicklook sessions twice by file reference; then drop the guide's 'Saving sessions' warning. Done when coords, slices, cmaps, units, `link_hpc` links and meta match. Depends: wp3-wcs-saver, wp3-file-references, wp3-session-budget, wp3-coordination-reattach, wp0-core-profile-restore-priority, wp1-m1-sunpy-maps, wp5-m1-velocity-axis.
+- [ ] **L** `wp3-coordination-reattach`: Restored viewers re-register with the coordinator. Done when a restored quicklook keeps its time master and offsets, and Pixel drags drive the other panels. Depends: wp3-wcs-saver, wp3-quantity-meta, wp3-style-cmap.
+- [ ] **L** `wp3-app-session-acceptance` (F175): A pytest-qt test restores two quicklook sessions twice by file reference; then drop the guide's 'Saving sessions' warning. Done when coords, slices, cmaps, units, `link_hpc` links and meta match. Depends: wp3-wcs-saver, wp3-file-references, wp3-session-budget, wp3-coordination-reattach, wp0-core-profile-restore-priority, wp5-m1-velocity-axis.
 - [ ] **L** `wp3-last-session` (F176): Autosave on quit, skipping sessions over 1 MB, with a menu action to restore. Done when a quicklook restores from the menu and a failed save writes nothing. Depends: wp3-app-session-acceptance.
 
 Notes:
@@ -282,7 +280,7 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 **M1**
 
 - [ ] **M1** `wp4-m1-hover-lock-tool` (F094, F095): A 'Follow/lock' `PixelSelectionTool` subclass: hover moves the point (50 ms throttle, no undo entry), a left click locks it with one undoable `ApplySubsetState`, a right click or Esc unlocks. Done when on 3860258481, 3824262996 and 4000255147 hover updates the spectrum within 0.35 s, 100 motion events give ≤ 1 update per 50 ms, and the lock survives scan and exposure steps.
-- [ ] **M1** `wp4-sji-click-to-raster` (F049): Map an SJI Pixel point to the raster point with `sji_to_raster()` (Replace mode, re-entrancy guard, one undo entry); off-FOV points show 'outside raster FOV'. Done when on 4000255147 and 4000005156 the `wp1-m1-sji-to-raster` 0.5 px cases pass through the UI, and one click makes one assignment that one undo reverts. Depends: wp1-m1-sji-to-raster.
+- [ ] **M1** `wp4-sji-click-to-raster` (F049): Map an SJI Pixel point to the raster point with `sji_to_raster()` (Replace mode, re-entrancy guard, one undo entry); off-FOV points show 'outside raster FOV'. Done when on 4000255147 and 4000005156 (step 32, slit 385) round-trips through 4000005156 SJI 2796 frame 7 within 0.5 px and 4000255147 SJI 1400 frames 0, 200, 399 give exposures 1, 801, 1597, through the UI, and one click makes one assignment that one undo reverts. `sji_to_raster` (#108) gives None past the centre of the first or last step or of either end slit pixel, and on a sit-and-stare more than half a cadence from its exposures; it takes the row level with a click at any distance beside a sit-and-stare slit: decide whether the click must lie within about one SJI pixel of the slit.
 - [ ] **M1** `wp4-m1-spectral-coupling` (F068, F075): Add what glue's Navigate lacks: Image wavelengths as Profile lines, wavelength and master-time lines on λ–t panels, a thin line at the point's slit on the spectrogram and at its exposure on λ–t (user, 2026-09-30), and the Profile x-range copied to λ–t x-limits. Done when on 4000005156 scan 0 and 4000255147 slider index k marks λ[k] in Å and nm, λ–t lines follow axis swaps, Navigate to λ[j] moves the map to j (a Profile unit other than the data's, such as nm, needs Qt #70), and markers update in < 5 ms.
 - [ ] **M1** `wp4-m1-multi-window` (F072, F073, F074, F108): For each ticked window of one file, open a Profile and any λ–t panel, and link step, exposure, scan and slit pixels with idempotent glue `LinkSame` links. Done when on 4000005156 scan 0 with three windows a point at (s, y) gives each Profile cube_w[s, y, :] and each map a crosshair, rerunning adds 0 links, and on 4000255147 all windows share one exposure.
 - [ ] **M1** `wp4-time-controls` (F088, F091): Add 'Go to UTC' and a [lo, hi] loop to glue's slider playback, and stop the play timer when its viewer closes. Done when on 4000255147 SJI 1400 'Go to 2013-09-02T17:00:00' picks the nearest exposure and the raster follows, a [100, 120] loop visits only frames 100-120, and closing the master stops playback.
@@ -502,6 +500,7 @@ Gated workarounds on main. Raw-WCS readers hold `WCS_LOCK` or use a deep copy; n
 | PV slicer on lazy (dask) data (`pv_slice_from_path`, #96) | `needs_pv_dask_workaround()` | glue-qt's PV slicer accepting dask data |
 | FITS export of lazy data and of uint8 components in a subset (`export_fits`, #96) | `needs_fits_export_dask_workaround()` | glue-core's exporter writing dask arrays and uint8 subsets (report candidate) |
 | No (0,0) Pixel crosshair (`ImageSubsetLayerArtist._update_visual_attributes`, #87) | `needs_crosshair_workaround()` | `wp0-core-image-artist-bugs`'s fix |
+| Pixel crosshair of a linked layer placed from the reference data (`ImageSubsetLayerArtist._update_data`, #107) | `needs_reference_crosshair_workaround()` | `wp0-core-image-artist-bugs`'s fix |
 
 Planned workarounds are named in their items.
 
