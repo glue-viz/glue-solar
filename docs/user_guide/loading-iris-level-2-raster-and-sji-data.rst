@@ -330,10 +330,10 @@ quicklook's map, spectrogram and wavelength panels. In the data collection, thou
 "Delete Layer": it removes the selected datasets and subsets at once, without asking and without
 undo.
 
-Glue has no gamma setting. A gamma below 1, which brightens faint emission, can be approximated with
-the "Square Root" stretch, a gamma of 0.5 applied between the limits: in the Image Viewer's layer
-options, type the lower and upper limits (the limits menu then reads "Custom") and choose
-"Square Root" in the stretch menu.
+The stretch menu in the Image Viewer's layer options lists glue-solar's "Gamma 0.4", "Gamma 0.75",
+"Gamma 1.5" and "Gamma 2.2" after Glue's own stretches. Each raises the values between the limits to
+that power: a gamma below 1 brightens faint emission, one above 1 darkens it, and "Square Root" is a
+gamma of 0.5.
 
 Saving sessions
 ---------------
