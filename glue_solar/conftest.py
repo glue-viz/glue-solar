@@ -278,9 +278,10 @@ def irispy_data():
 
 @pytest.fixture(scope="session")
 def irispy_test_files():
-    """Real files shipped with irispy and exposed through its public test-data helper."""
-    from irispy.data.test import get_test_data_filenames
+    """Real files shipped with irispy, from its test data folder."""
+    from irispy.data.test import ROOTDIR
 
-    files = get_test_data_filenames()
+    # its get_test_data_filenames helper is going away
+    files = [path for path in ROOTDIR.rglob("*") if path.is_file() and path.suffix not in (".py", ".pyc")]
     assert files
     return files
