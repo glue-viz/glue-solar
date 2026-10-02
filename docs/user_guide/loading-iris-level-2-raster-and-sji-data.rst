@@ -67,9 +67,11 @@ in AIA cutouts only -200 does. glue-solar leaves
 16-bit integers cannot hold +Inf, so their saturated samples keep the largest value the file can
 store. ``<label> mask`` is a uint8 array that is 1 where the data are NaN and 0 elsewhere.
 
-Slit-jaw images open in sunpy's IRIS colormap of their channel and AIA cutouts in sunpy's AIA
-colormap of their wavelength. The colormap menu of an Image Viewer layer lists Glue's own colormaps
-and these IRIS and AIA ones, plus the colormap of any file loaded as a sunpy Map; Glue draws every
+Slit-jaw images open in sunpy's IRIS colormap of their channel, raster windows and stacks in its
+FUV or NUV colormap by their detector (``TDETn``), and AIA cutouts in sunpy's AIA colormap of their
+wavelength. The FUV and NUV colormaps have the colours of the 1330 and 2796 ones, whose names the
+colormap menu of an Image Viewer layer shows for them. That menu lists Glue's own colormaps and
+these IRIS and AIA ones, plus the colormap of any file loaded as a sunpy Map; Glue draws every
 colormap listed each time it opens a layer, so the other sunpy colormaps are left out. To list
 another, add it with ``colormaps.add`` in a ``config.py``, as
 `Glue's customization guide <https://docs.glueviz.org/en/stable/customizing_guide/customization.html>`__
