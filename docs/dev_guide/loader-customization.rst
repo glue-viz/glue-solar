@@ -46,12 +46,12 @@ window's BSCALE and BZERO come from its own header. A slit-jaw or AIA file's raw
 read by glue-solar itself, since irispy's memory-mapped cube writes 0 over the fill, and irispy
 supplies the coordinates and metadata. irispy still reads the whole file to do so, and its zeroing
 makes each page holding fill, in practice all of them, a private copy: about one and a half times
-the file's size at peak, until its cube is garbage collected. Files of any other type load as
-float32 in memory, through irispy's usual reader. Setting
-``glue_solar.sources.loaders.iris.LAZY = False`` before loading reads everything that way, as
-glue-solar did before lazy loading, for example to compare the two or for files on a drive that may
-disconnect. Lazy loading raises the process's soft limit on open files
-(``lazy.allow_open_files``), as every memory-mapped file stays open.
+the file's size at peak, until its cube is garbage collected. Files of any other type load in
+memory through irispy's usual reader, promoted to float32 only where fill becomes NaN (a cutout
+without fill keeps its integers). Setting ``glue_solar.sources.loaders.iris.LAZY = False`` before
+loading reads everything that way, as glue-solar did before lazy loading, for example to compare
+the two or for files on a drive that may disconnect. Lazy loading raises the process's soft limit
+on open files (``lazy.allow_open_files``), as every memory-mapped file stays open.
 
 Extending a loader
 ------------------

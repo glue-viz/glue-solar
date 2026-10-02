@@ -42,7 +42,8 @@ __all__ = [
 ]
 
 # Load data stored as int16, as Level 2 files store it, lazily: the raw integers stay in the file (in memory for a
-# .fits.gz file) and are scaled where glue reads them. False loads everything as float32 in memory, as before.
+# .fits.gz file) and are scaled where glue reads them. False loads everything in memory through irispy, as before
+# (float32 where fill becomes NaN).
 LAZY = True
 
 UI_MAIN = os.path.join(os.path.dirname(__file__), "iris_loader.ui")
