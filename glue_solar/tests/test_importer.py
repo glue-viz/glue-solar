@@ -211,6 +211,10 @@ def test_real_sji_adapter_preserves_mask_units_and_coordinates(irispy_test_files
         for key, column in (("pztx", "PZTX"), ("pzty", "PZTY"), ("xcenix", "XCENIX"), ("slit x position", "SLTPX1IX")):
             np.testing.assert_array_equal(data.meta[key], aux.data[:, aux.header[column]])
     assert data.get_component(science).units == str(cube.unit)
+    [rate] = data.derived_components
+    assert rate.label == f"{science.label} DN/s"
+    assert data.get_component(rate).units == "DN/s"
+    np.testing.assert_allclose(data[rate], data[science] / data[exposure], rtol=1e-6)
     mask = data.get_component(mask).data
     assert mask.dtype == np.uint8
     np.testing.assert_array_equal(mask, np.isnan(data.get_component(science).data))
@@ -289,7 +293,9 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
         np.testing.assert_array_equal(times[i, :, 0, 0], expected)
         np.testing.assert_array_equal(times[i, :, -1, -1], expected)
     for i, scan in enumerate(sequence):  # each scan's own exposure times, not scan 0's
-        np.testing.assert_array_equal(data["Exposure time"][i, :, 0, 0], scan.meta["exposure time"].to_value(u.s))
+        exposure = scan.meta["exposure time"].to_value(u.s)
+        np.testing.assert_array_equal(data["Exposure time"][i, :, 0, 0], exposure)
+        np.testing.assert_allclose(data[f"{data.label} DN/s"][i], values[i] / exposure[:, None, None], rtol=1e-6)
     np.testing.assert_array_equal(
         data.coords.pixel_to_world_values(0, 0, 0, np.arange(len(paths)))[-1], np.arange(len(paths))
     )

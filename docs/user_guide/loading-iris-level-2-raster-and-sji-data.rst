@@ -55,14 +55,17 @@ separately when those per-scan absolute coordinates are required. A selected win
 scan loads normally as a 3D dataset and also exposes its exact per-step ``Time`` values.
 
 Every raster, stack, slit-jaw and AIA dataset has these components: the data (named after the
-dataset), ``Time`` and ``Exposure time`` (a stack lists ``Exposure time`` before ``Time``), and
+dataset), ``Time`` and ``Exposure time`` (a stack lists ``Exposure time`` before ``Time``),
 ``<label> mask``, which Glue computes from the data as it reads them and so lists under "Derived
-components" (files stored as floating point keep it in memory, listed second). ``Time`` is the UTC
-acquisition time as a datetime64, one value
-per raster step, slit-jaw frame or AIA frame (per scan and step for stacks). ``Exposure time`` is in
-seconds, one value per raster step or frame (per scan and step for stacks). The "Frame time" tool
-in the Image Viewer toolbar shows the displayed frame's time and exposure in the status bar, as a
-range when the image spans several frames; for a single slit-jaw frame its tooltip gives that
+components" (files stored as floating point keep it in memory, listed second), and ``<label> DN/s``,
+also derived. ``Time`` is the UTC acquisition time as a datetime64, one value per raster step,
+slit-jaw frame or AIA frame (per scan and step for stacks). ``Exposure time`` is in seconds, one
+value per raster step or frame (per scan and step for stacks). ``<label> DN/s`` is the data divided
+by the exposure time, with the unit DN/s (the 1D Profile viewer's "y_unit" menu labels its axis
+with it), and NaN where an exposure took 0 s, as step 157 of OBSID 3610108077's Si IV windows did.
+The "Frame time" tool in the Image Viewer toolbar shows the displayed frame's time and exposure in
+the status bar, as a range when the image spans several frames; for a single slit-jaw frame its
+tooltip gives that
 frame's pointing (PZT offset, field-of-view centre and slit position), which glue-solar keeps in
 the dataset's metadata.
 
@@ -118,8 +121,10 @@ values as NaN, so even every spectral window of a large observation opens in lit
 still read in full as it opens, briefly taking about one and a half times its size. The first image
 of a window takes its colour limits from a count of every stored value (of evenly spaced raster
 steps or frames of a window over 512 MiB), which takes up to about half a second, and the "99.5%"
-and other presets of the layer's style editor use the same count. Memory still grows as you view a
-window, since the parts of the file read are kept, and a Profile or Histogram of a whole cube, a
+and other presets of the layer's style editor use the same count. ``<label> DN/s`` and other derived
+attributes take theirs from 10,000 random samples, as glue does for data in memory, so they are
+approximate. Memory still grows as you view a window, since the parts of the file read are kept, and
+a Profile or Histogram of a whole cube, a
 value-range subset, "Slice Extraction" and an export each read every value, as they did before.
 Datasets merged with glue's "Merge datasets" take glue's own colour limits, sampled from a few
 corners of the data, so set those by hand.
