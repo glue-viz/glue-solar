@@ -193,6 +193,8 @@ the Sun's rotation between a map and the IRIS data, or for a map taken far from 
   lie inside it at that frame's own pointing. For a sit-and-stare raster the selection marks where
   the slit was on the Sun during the selected exposures: it lies on the slit in the slit-jaw frames
   taken then, and moves away from it in other frames as the pointing changes.
+- A region drawn on a raster map selects the pixels of a sunpy Map inside it, and the other way
+  round.
 - A selection on longitude or latitude, for example from a scatter plot, carries over in both
   directions; with a sunpy Map, only where Glue shows its longitude between -180° and 180°. Glue
   shows a map's longitudes as astropy gives them: from 0 to 360° when the map's reference

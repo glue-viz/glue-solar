@@ -177,8 +177,10 @@ class _GlueWCS(BaseWCSWrapper):
 
     def world_to_pixel_values(self, *world_arrays):
         values = list(world_arrays)
-        for i, _, from_shown, _ in self._converted:
+        for i, _, from_shown, full_circle in self._converted:
             values[i] = np.asarray(values[i]) * from_shown
+            if full_circle is not None:  # a longitude in any turn, as a sunpy map's run from 0 to 360 degrees
+                values[i] = (values[i] + full_circle / 2) % full_circle - full_circle / 2
         with WCS_LOCK:
             return self._wcs.world_to_pixel_values(*values)
 

@@ -246,6 +246,23 @@ def test_link_hpc_places_a_sunpy_map_on_each_sji_frame(sns, frame):
         np.testing.assert_allclose(sji[cid][frame], values, rtol=0, atol=0.05)
 
 
+def test_raster_pixels_reach_a_sunpy_map_whose_longitudes_run_from_0_to_360(sns):
+    # astropy gives a map whose reference longitude is not negative longitudes from 0 to 360 degrees, so a raster
+    # east of that reference is near 360 degrees there
+    _, raster = sns
+    aia = _sunpy_map(10, -430, 0.5, (60, 240), "aia")
+    assert aia[aia.world_component_ids[1]].max() > 359
+    dc = DataCollection([raster, aia])
+    dc.add_link(link_hpc(dc))
+    y, x = np.indices(aia.shape)
+    sky = aia.coords.pixel_to_world(x, y)
+    wavelength = np.full(x.shape, raster.coords.pixel_to_world_values(0, 0, 0)[0])
+    _, slit, step = raster.coords.world_to_pixel_values(wavelength, sky.Ty.to_value(u.arcsec), sky.Tx.to_value(u.arcsec))
+    assert np.isfinite(step).sum() > 1000
+    np.testing.assert_allclose(aia[raster.pixel_component_ids[0]], step, rtol=0, atol=0.05)
+    np.testing.assert_allclose(aia[raster.pixel_component_ids[1]], slit, rtol=0, atol=0.05)
+
+
 @pytest.mark.parametrize("frame", [0, -1])
 def test_raster_map_roi_selects_the_sji_pixels_inside_it(linked_sns, frame):
     # Each SJI frame's own coordinates decide, so the selection follows that frame's pointing
