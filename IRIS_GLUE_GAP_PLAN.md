@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-01
 
-**Resume here.** M0 is done. Main is at fa75f88; glue-solar PRs are marked ready and merged once CI passes. No PR is open. In progress: `wp10-nonblocking-load` (D36) on branch `wp10-nonblocking-load` in `~/Git/glue-solar-nonblocking-load` (implementation, check and Fable review running).
+**Resume here.** M0 is done. Main is at fa75f88; glue-solar PRs are marked ready and merged once CI passes. No PR is open. In progress, each in `~/Git/glue-solar-<branch>`: `wp10-nonblocking-load` (D36; implementation, check and Fable review), `wp11-histo-opt-scaling`, `wp11-physical-aspect`, `wp1-dn-per-s`.
 
 **Next.** M1 continues with `wp10-nonblocking-load`, `wp1-m1-sunpy-maps` and `wp1-m1-sji-to-raster`. The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
