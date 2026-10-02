@@ -26,7 +26,15 @@ import astropy.units as u
 
 from glue_solar.sources.loaders.iris import keep_hpc_linked
 
-__all__ = ["Coordinator", "QuicklookImageViewer", "coordinator", "nearest", "observation_key", "quicklook", "sji_to_raster"]
+__all__ = [
+    "Coordinator",
+    "QuicklookImageViewer",
+    "coordinator",
+    "nearest",
+    "observation_key",
+    "quicklook",
+    "sji_to_raster",
+]
 
 # The window the quicklook shows when the browser did not pick one
 DEFAULT_WINDOW = "Mg II k 2796"
