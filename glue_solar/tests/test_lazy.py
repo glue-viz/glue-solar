@@ -13,8 +13,9 @@ from glue.core.component import Component
 from glue.core.component_id import ComponentID
 from glue.core.component_link import ComponentLink
 from glue.core.data import Data
+from glue.core.exceptions import IncompatibleAttribute
 from glue.core.parse import ParsedCommand, ParsedComponentLink
-from glue.core.subset import RangeSubsetState
+from glue.core.subset import RangeSubsetState, SliceSubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 
 from astropy.io import fits
@@ -150,7 +151,7 @@ def test_colour_limits_count_every_raw_value(int16_raster):
     positive = oracle[oracle > 0]
     lowest = data.compute_statistic("percentile", cid, percentile=1.0, positive=True, random_subset=10000)
     assert lowest == np.percentile(positive, 1.0)
-    # glue's own statistics for anything else: a view, a subset or an axis
+    # the values of a view too (see the next test); glue's own statistics for anything else: a subset or an axis
     eager = Data(values=oracle, label="eager")
     upper = data.compute_statistic("percentile", cid, percentile=99.75, view=(0,), random_subset=10000)
     assert upper == np.nanpercentile(oracle[0], 99.75)
@@ -166,6 +167,27 @@ def test_colour_limits_count_every_raw_value(int16_raster):
     for percentile in (20.0, 80.0):
         exact = float(np.nanpercentile(np.array([7992, 7992.25, 7993.25, np.nan], np.float32), percentile))
         assert small.compute_statistic("percentile", cid, percentile=percentile, random_subset=10000) == exact
+
+
+def test_colour_limits_of_a_slice_count_its_values(int16_raster):
+    # per-frame colour limits (glue's stretch_global off) of a raster map at one wavelength, a slice subset of more
+    # values than the 10,000 glue picks at random: exactly those of every value, as for a view of the same slice
+    raw = np.concatenate([raw_of(int16_raster, WINDOW)] * 2, axis=1)
+    oracle = np.concatenate([expected(int16_raster, WINDOW)] * 2, axis=1)
+    data, cid, _ = lazy_data(raw)
+    for wavelength in (1, data.shape[2] // 2):
+        view = (slice(None), slice(None), wavelength)
+        assert np.isfinite(oracle[view]).sum() > 10000
+        for where in ({"subset_state": SliceSubsetState(data, list(view))}, {"view": view}):
+            for percentile in (0.25, 99.75):
+                limit = data.compute_statistic("percentile", cid, percentile=percentile, random_subset=10000, **where)
+                assert limit == np.nanpercentile(oracle[view], percentile)
+            assert data.compute_statistic("maximum", cid, random_subset=10000, **where) == np.nanmax(oracle[view])
+        # glue's own answers for the slice within a view, and for a slice of another dataset
+        both = {"subset_state": SliceSubsetState(data, list(view)), "view": (0,)}
+        assert data.compute_statistic("maximum", cid, random_subset=10000, **both) == np.nanmax(oracle[0, :, wavelength])
+        with pytest.raises(IncompatibleAttribute):
+            data.compute_statistic("maximum", cid, subset_state=SliceSubsetState(Data(x=oracle), list(view)))
 
 
 def test_colour_limits_of_a_large_window_count_evenly_spaced_planes(monkeypatch, int16_raster):
@@ -188,6 +210,11 @@ def test_colour_limits_of_a_derived_attribute_sample_random_points(int16_raster)
     for percentile, low, high in ((0.25, 0, 1), (50, 45, 55), (99.75, 99, 100)):
         limit = data.compute_statistic("percentile", rate, percentile=percentile, random_subset=10000)
         assert np.nanpercentile(values, low) <= limit <= np.nanpercentile(values, high)
+    # per-frame limits: glue's own, of every value of a slice of fewer than 10,000, not a sample of the whole cube
+    view = (slice(None), slice(None), 1)
+    limit = data.compute_statistic("percentile", rate, percentile=99.75, random_subset=10000,
+                                   subset_state=SliceSubsetState(data, list(view)))
+    assert limit == np.nanpercentile(values[view], 99.75)
 
 
 def test_a_stack_reads_only_the_scans_it_selects(int16_raster):
@@ -418,6 +445,53 @@ def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path
     app.save_session(str(tmp_path / "lazy.glu"))
     assert "serialize dask.array" in errors[0]
     assert not (tmp_path / "lazy.glu").exists()
+
+
+def test_per_frame_limits_follow_the_wavelength_lazily_and_as_before(qtbot, monkeypatch, int16_raster):
+    from glue_qt.app.application import GlueApplication
+    from glue_qt.viewers.image import ImageViewer
+
+    import glue_solar
+    from glue_solar.tests.helpers import select_point
+
+    glue_solar.setup()
+    oracle = expected(int16_raster, WINDOW)
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    datasets = lazy_and_eager(monkeypatch, lambda: raster_data([int16_raster], ["Si IV 1403"])[0])
+    stack = Data(label="stack", values=np.zeros((2, *oracle.shape)))
+    app.data_collection.extend([*datasets, stack])
+    for data in datasets:
+        # a raster map, step against slit, of the wavelength on the slider, with a Pixel point
+        viewer = app.new_data_viewer(ImageViewer, data=data)
+        viewer.state.x_att, viewer.state.y_att = data.pixel_component_ids[:2]
+        layer = viewer.state.layers[0]
+        layer.percentile = 99.5
+        whole = [layer.v_min, layer.v_max]
+        select_point(viewer, 3, 5)
+        other = next(other for other in datasets if other is not data)
+        viewer.add_data(other)  # a layer of another dataset keeps its limits
+        [other] = [state for state in viewer.state.layers if state.layer is other]
+        viewer.add_data(data)  # a second layer of the dataset, already per frame: the first click turns both on
+        twin = [state for state in viewer.state.layers if state.layer is data][1]
+        twin.stretch_global = False
+        pixel, button = viewer.toolbar.active_tool, viewer.toolbar.actions["solar:per_frame_limits"]
+        for per_frame in (True, False):
+            button.trigger()
+            assert (layer.stretch_global, twin.stretch_global, other.stretch_global) == (not per_frame,) * 2 + (True,)
+            assert viewer.toolbar.active_tool is pixel  # the Pixel tool stays on
+            for wavelength in (1, 14, 20):
+                viewer.state.slices = (0, 0, wavelength)
+                limits = [np.nanpercentile(oracle[:, :, wavelength], p) for p in (0.25, 99.75)] if per_frame else whole
+                assert [layer.v_min, layer.v_max] == limits
+    # a 4D reference data, whose slices the layer cannot take: its whole cube's limits again, with a subset shown (a
+    # value range, as glue fails to show a point on 4D data); a new choice of reference data keeps the limits
+    button.trigger()
+    app.data_collection.subset_groups[0].subset_state = RangeSubsetState(0, 10, data.main_components[0])
+    viewer.add_data(stack)
+    assert not layer.stretch_global
+    viewer.state.reference_data = stack
+    assert (layer.stretch_global, [layer.v_min, layer.v_max]) == (True, whole)
 
 
 def test_raster_windows_and_stacks_open_in_their_detectors_colormap(qtbot, monkeypatch, tmp_path, int16_raster,

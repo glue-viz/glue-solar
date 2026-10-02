@@ -94,6 +94,12 @@ class RawComponent(DaskComponent):
     def __getitem__(self, key):
         return self._source[key]
 
+    def _count(self, key):
+        """How often each raw code occurs in ``raw[key]``, the fill codes left out."""
+        counts = np.bincount(np.asarray(self._source.raw[key]).ravel().astype(np.int32) + 32768, minlength=65536)
+        counts[self._source.fill.astype(np.int32) + 32768] = 0
+        return counts
+
     def _sample(self):
         """How often each raw code occurs in the colour-limit sample (`SAMPLE_BYTES`), the fill codes left out."""
         if self._counts is None:
@@ -102,15 +108,18 @@ class RawComponent(DaskComponent):
             wanted = max(1, min(planes, SAMPLE_BYTES // (raw.shape[-2] * raw.shape[-1] * raw.dtype.itemsize)))
             counts = np.zeros(65536, np.int64)
             for plane in np.unique(np.linspace(0, planes - 1, wanted).round().astype(int)):
-                values = np.asarray(raw[np.unravel_index(plane, raw.shape[:-2])])
-                counts += np.bincount(values.ravel().astype(np.int32) + 32768, minlength=65536)
-            counts[self._source.fill.astype(np.int32) + 32768] = 0
+                counts += self._count(np.unravel_index(plane, raw.shape[:-2]))
             self._counts = counts
         return self._counts
 
-    def sampled_statistic(self, statistic, percentile=None, positive=False):
-        """'minimum', 'maximum' or 'percentile' of the sample, as NumPy's linear percentile of the scaled values."""
-        counts = self._sample()
+    def sampled_statistic(self, statistic, percentile=None, positive=False, view=None):
+        """
+        'minimum', 'maximum' or 'percentile' of the sample, or of every value ``view`` selects, as NumPy's linear
+        percentile of the scaled values.
+        """
+        # ponytail: a view's codes are counted at once, 14 bytes a value; a Collapse range across a whole window
+        # would want them plane by plane, as the sample is
+        counts = self._sample() if view is None else self._count(view)
         values = np.arange(-32768, 32768, dtype=np.float32) * self._source.bscale + self._source.bzero
         if positive:
             counts = np.where(values > 0, counts, 0)
@@ -164,21 +173,24 @@ class RawStack:
 class LazyData(Data):
     """
     A glue dataset whose `RawComponent` answers glue's sampled statistics, the colour limits of an Image layer, its
-    style editor and a Histogram's range, from the counts of its raw codes (`SAMPLE_BYTES`).
+    style editor and a Histogram's range, from the counts of its raw codes (`SAMPLE_BYTES`), and those of a view or
+    a slice, such as an Image layer's per-frame limits, from the counts of every raw code it selects.
 
-    glue samples a dask array at a corner of ten chunks, mostly fill in IRIS windows, which gives limits of 0 to 1; a
-    derived attribute, such as one made with glue's arithmetic attribute editor, is sampled at random points instead,
-    as glue samples NumPy data.
+    glue samples a dask array at a corner of ten chunks, mostly fill in IRIS windows, which gives limits of 0 to 1, and
+    10,000 random values of a slice; a derived attribute, such as one made with glue's arithmetic attribute editor, is
+    sampled at random points instead, as glue samples NumPy data.
     """
 
     def compute_statistic(self, statistic, cid, subset_state=None, axis=None, finite=True, positive=False,
                           percentile=None, view=None, random_subset=None, **kwargs):
         sampled = random_subset and finite and statistic in ("minimum", "maximum", "percentile")
-        if sampled and subset_state is None and axis is None and view is None:
+        if isinstance(subset_state, SliceSubsetState) and subset_state.reference_data is self and view is None:
+            subset_state, view = None, tuple(subset_state.slices)  # the view glue reads it as
+        if sampled and subset_state is None and axis is None:
             component = self.get_component(cid)
             if isinstance(component, RawComponent):
-                return component.sampled_statistic(statistic, percentile, positive)
-            if isinstance(component, DerivedComponent) and self.size > random_subset:
+                return component.sampled_statistic(statistic, percentile, positive, view)
+            if view is None and isinstance(component, DerivedComponent) and self.size > random_subset:
                 view, random_subset = random_indices_for_array(self, random_subset), None
         if subset_state is not None and not isinstance(subset_state, SliceSubsetState):
             # glue picks its sample of a subset's values from a mask that can be dask, which refuses index arrays;

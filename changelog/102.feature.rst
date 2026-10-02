@@ -1,0 +1,1 @@
+Image viewers have a "Per-frame limits" button that makes the displayed dataset's colour limits follow the displayed slice; on IRIS data stored as integers they are the exact percentiles of that slice.

@@ -16,7 +16,7 @@ import astropy.units as u
 
 from glue_solar.quicklook import _is_sit_and_stare, _role, coordinator
 
-__all__ = ["CoordinateTool", "CursorReadoutTool", "FrameTimeTool", "HideAxesTool"]
+__all__ = ["CoordinateTool", "CursorReadoutTool", "FrameTimeTool", "HideAxesTool", "PerFrameLimitsTool"]
 
 # Whether a new Image viewer shows its axes; the user guide says how to change it
 settings.add("SOLAR_SHOW_AXES", True, validator=bool)
@@ -432,6 +432,51 @@ class HideAxesTool(Tool):
         if axes.axison != shown:
             axes.set_axis_on() if shown else axes.set_axis_off()
             self.viewer.figure.canvas.draw_idle()
+
+
+@viewer_tool
+class PerFrameLimitsTool(Tool):
+    """
+    Take the colour limits of the Image viewer's reference data from the displayed slice, so each slice step, such as
+    a wavelength step of a raster map, gives that slice's limits, or again from the whole cube.
+
+    The button switches glue's own ``stretch_global`` of each layer of the reference data, which glue-qt 0.4.2 has no
+    control for: to per frame for every layer unless all already are. The layer's percentile, such as 99.5%, applies
+    to the slice, and on lazily loaded IRIS data the limits count every value of it (`LazyData`). A layer of another
+    dataset keeps its limits, and one of the previous reference data takes its whole cube's again, since glue would
+    take them from its values at the reference data's slice indices: the wrong slice, or an IndexError for a cube of
+    another shape. A plain button, as Hide axes is, since a checkable glue tool is a mouse mode, which would end
+    Pixel; it leaves the mouse mode on. glue-core 1.27.0 fails to restore a session saved with per-frame limits on
+    (``wp0-core-session-reports``).
+    """
+
+    icon = "glue_rainbow"
+    tool_id = "solar:per_frame_limits"
+    action_text = "Per-frame limits"
+    tool_tip = "Take the colour limits from the displayed slice, or again from the whole cube"
+
+    def __init__(self, viewer):
+        super().__init__(viewer)
+        # before glue sets the sliders of the new reference data
+        viewer.state.add_callback("reference_data", self._whole_cube_again, priority=10000)
+
+    def activate(self):
+        state = self.viewer.state
+        layers = [layer for layer in state.layers if layer.layer is state.reference_data]
+        per_frame = any(layer.stretch_global for layer in layers)
+        for layer in layers:
+            layer.stretch_global = not per_frame
+        _keep_mouse_mode(self.viewer)
+
+    def close(self):
+        self.viewer.state.remove_callback("reference_data", self._whole_cube_again)
+        super().close()
+
+    def _whole_cube_again(self, reference_data):
+        """Give the layers of every dataset but the new reference data their whole cube's limits again."""
+        for layer in self.viewer.state.layers:
+            if layer.layer is not reference_data and not getattr(layer, "stretch_global", True):
+                layer.stretch_global = True
 
 
 class _CoordinateEntry(Tool):
