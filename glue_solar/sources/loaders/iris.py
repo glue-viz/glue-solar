@@ -343,10 +343,7 @@ def iris_data(path):
     """
     if fits.getheader(path).get("INSTRUME") != "SPEC":
         return image_data(path)
-    scaling = _window_scaling(path)
-    if scaling:
-        allow_open_files()
-    datasets = _raster_collection_data(read_files(path, memmap=bool(scaling), uncertainty=False), scaling=scaling)
+    datasets = raster_data([path])
     number = re.search(r"_r(\d{5})", Path(path).name)
     if number:
         for data in datasets:
