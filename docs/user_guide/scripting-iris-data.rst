@@ -30,7 +30,7 @@ Coordinates and times
 A raster is indexed ``[step, slit, wavelength]`` (a stack ``[scan, step, slit, wavelength]``), and a
 slit-jaw image ``[frame, y, x]``. ``data.coords.pixel_to_world_values`` takes the pixel indices in
 the opposite order, fastest axis first, and returns the world values in that order too: for a raster,
-wavelength (in metres), then helioprojective latitude and longitude (in arcsec)::
+wavelength (in Angstrom), then helioprojective latitude and longitude (in arcsec)::
 
     raster = rasters[0]
     step, slit, pixel = 90, 20, 14

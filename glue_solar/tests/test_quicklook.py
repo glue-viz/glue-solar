@@ -13,6 +13,7 @@ from glue.core.subset import SubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue_qt.app.application import GlueApplication
+from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from matplotlib.text import Text
@@ -566,6 +567,28 @@ def test_quicklook_of_a_full_raster(bare_app, monkeypatch, irispy_data):
         assert all(0 <= box.x0 and box.x1 <= width and 0 <= box.y0 and box.y1 <= height for _, box in drawn)
         boxes = [box for _, box in drawn]
         assert not [(a, b) for i, a in enumerate(boxes) for b in boxes[i + 1:] if a.overlaps(b)], role
+
+
+def test_raster_panels_show_wavelengths_in_angstrom(bare_app, scans):
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    # the dataset's own wavelengths, from the WCS it wraps
+    wave = (scan.coords._wcs.pixel_to_world_values(np.arange(scan.shape[2]), 0, 0)[0] * u.m).to_value(u.AA)
+    np.testing.assert_allclose(scan[scan.world_component_ids[2], 0, 0], wave, rtol=0, atol=1e-6)
+    k = viewers["map"].state.slices[2]
+    [slider] = [w.state for w in viewers["map"].options_widget().findChildren(SliceWidget) if w.state.slider_unit]
+    assert slider.slider_unit == "Angstrom"
+    decimals = len(slider.slider_label.partition(".")[2])  # as few as tell every wavelength apart
+    assert abs(float(slider.slider_label) - wave[k]) <= 0.5 * 10.0**-decimals
+    spectrum = viewers["spectrum"].state
+    assert spectrum.x_display_unit == "Angstrom"
+    [x] = [layer.profile[0] for layer in spectrum.layers if layer.visible]
+    np.testing.assert_allclose(x, wave, rtol=0, atol=1e-6)
+    panel = viewers["wavelength"]
+    panel.figure.canvas.draw()
+    shown = panel.toolbar.tools["solar:cursor_readout"].describe(k, 3).split()[0]
+    decimals = len(shown.partition(".")[2])
+    assert abs(float(shown) - wave[k]) <= 0.5 * 10.0**-decimals
 
 
 def tick_label_sides(viewer):
