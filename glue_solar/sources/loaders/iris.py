@@ -459,8 +459,12 @@ def raster_data(files, windows=None, stack=False):
     return [data for datasets in _raster_windows_data(files, windows, stack).values() for data in datasets]
 
 
-def _raster_windows_data(files, windows=None, stack=False):
-    """`raster_data` by window name, from one read of ``files`` for every window, which maps each file once."""
+def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None):
+    """
+    `raster_data` by window name, from one read of each file for every window, which maps each file once.
+
+    None once ``stop``, a `threading.Event`, is set between files; ``step()`` is called after each file.
+    """
     scaling = _window_scaling(files[0])
     if any(_window_scaling(path) != scaling for path in files[1:]):
         scaling = None
@@ -468,9 +472,17 @@ def _raster_windows_data(files, windows=None, stack=False):
         allow_open_files()
     from irispy.io import read_files
 
-    collection = read_files(files, spectral_windows=windows, memmap=bool(scaling), uncertainty=False)
-    return {window: _raster_collection_data({window: scans}, stack=stack, scaling=scaling)
-            for window, scans in collection.items()}
+    scans = {}
+    for path in sorted(files):  # as irispy orders them
+        if stop is not None and stop.is_set():
+            return None
+        for window, sequence in read_files([path], spectral_windows=windows, memmap=bool(scaling),
+                                           uncertainty=False).items():
+            scans.setdefault(window, []).extend(sequence)
+        if step is not None:
+            step()
+    return {window: _raster_collection_data({window: cubes}, stack=stack, scaling=scaling)
+            for window, cubes in scans.items()}
 
 
 def link_hpc(data_collection):
@@ -559,7 +571,7 @@ def load_entry(observation, kind, name, stack=False):
 def _failing_file(observation, kind, name, windows):
     """
     The name of the file of a browser entry that failed to load: for a raster window, the first raster file that fails
-    on its own, as irispy reads them all at once.
+    on its own, as the error does not name it.
     """
     if kind != "raster":
         return (observation.sji[name] if kind == "sji" else observation.sdo[name]).name

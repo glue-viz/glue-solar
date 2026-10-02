@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 
 import numpy as np
 import pytest
@@ -19,7 +20,7 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
 from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, OBS_S, find_irispy_test_file, startobs
 from glue_solar.sources.iris import is_iris_fits, read_iris_file
-from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
+from glue_solar.sources.loaders.iris import QtIRISImporter, _raster_windows_data, image_data, raster_data
 from glue_solar.sources.loaders.scan import scan_directory
 from glue_solar.sources.loaders.stack_spectrograms import stack_spectrogram_sequence
 
@@ -97,15 +98,22 @@ def test_load_selected_real_sji(qtbot, tmp_path, irispy_test_files):
     assert data.style.preferred_cmap.name == "irissji1400"
 
 
-def test_ticked_raster_windows_of_an_observation_are_read_at_once(qtbot, monkeypatch, irispy_test_files):
-    # each read maps every raster file, and a mapped file stays open
+def counted_reads(monkeypatch):
+    """The ``(files, spectral_windows)`` of each read of raster files, as the loaders make them."""
     reads = []
 
     def read(files, **kwargs):
-        reads.append(kwargs["spectral_windows"])
+        reads.append((files, kwargs["spectral_windows"]))
         return read_files(files, **kwargs)
 
     monkeypatch.setattr("irispy.io.read_files", read)  # the loaders import it as they read
+    return reads
+
+
+def test_ticked_raster_windows_of_an_observation_are_read_together_file_by_file(qtbot, monkeypatch,
+                                                                                 irispy_test_files):
+    # each read maps the file, and a mapped file stays open; one file at a time, so that a load can stop between them
+    reads = counted_reads(monkeypatch)
     scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
     dialog = QtIRISImporter(scans[0].parent)
     qtbot.addWidget(dialog)
@@ -115,10 +123,25 @@ def test_ticked_raster_windows_of_an_observation_are_read_at_once(qtbot, monkeyp
         entry.setCheckState(0, Qt.Checked)
     dialog.finalize()
     windows = [name for _, _, name, _ in dialog.loaded]
-    assert reads == [windows]
+    assert reads == [([scan], windows) for scan in scans]
     assert len(windows) == 2
     for _, _, name, datasets in dialog.loaded:
         assert [data.label for data in datasets] == [data.label for data in raster_data(scans, [name])]
+
+
+def test_raster_files_are_read_until_the_load_stops(monkeypatch, irispy_test_files):
+    reads = counted_reads(monkeypatch)
+    scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
+    stop, steps = threading.Event(), []
+
+    def step():
+        steps.append(len(reads))
+        if len(steps) == 2:
+            stop.set()
+
+    assert _raster_windows_data(scans, ["C II 1336"], stack=True, stop=stop, step=step) is None
+    assert steps == [1, 2]
+    assert [files for files, _ in reads] == [[scan] for scan in scans[:2]]
 
 
 def test_deconvolved_sji_is_listed_and_loaded_beside_the_plain_one(qtbot, tmp_path, irispy_test_files):
