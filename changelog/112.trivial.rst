@@ -1,1 +1,0 @@
-A loader test no longer assumes irispy masks only -200, so the suite passes against irispy's main branch too.
