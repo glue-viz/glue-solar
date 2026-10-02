@@ -13,6 +13,7 @@ from glue.core.component_id import ComponentID
 from glue.core.component_link import ComponentLink
 from glue.core.data import Data
 from glue.core.parse import ParsedCommand, ParsedComponentLink
+from glue.core.subset import RangeSubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 
 from astropy.io import fits
@@ -131,6 +132,8 @@ def test_colour_limits_count_every_raw_value(int16_raster):
     assert upper == np.nanpercentile(oracle[0], 99.75)
     first = PixelSubsetState(data, [slice(0, 1), slice(None), slice(None)])
     assert data.compute_statistic("maximum", cid, subset_state=first, random_subset=10000) == np.nanmax(oracle[0])
+    within = RangeSubsetState(5, 50, cid)  # a value range, whose mask glue reads through dask
+    assert data.compute_statistic("minimum", cid, subset_state=within, random_subset=10000) == oracle[oracle >= 5].min()
     expected_maxima = eager.compute_statistic("maximum", eager.id["values"], axis=(0, 1))
     np.testing.assert_array_equal(data.compute_statistic("maximum", cid, axis=(0, 1)), expected_maxima)
     # NumPy's interpolation between unequal neighbours, in float32 to the last bit (compared as float64, as NumPy

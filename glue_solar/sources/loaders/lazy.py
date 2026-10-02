@@ -8,6 +8,7 @@ import dask.array as da
 import numpy as np
 from glue.core.component import DaskComponent, DerivedComponent
 from glue.core.data import Data
+from glue.core.subset import SliceSubsetState
 from glue.utils import random_indices_for_array
 
 __all__ = ["LazyData", "RawComponent", "RawStack", "allow_open_files", "fill_mask"]
@@ -176,6 +177,10 @@ class LazyData(Data):
                 return component.sampled_statistic(statistic, percentile, positive)
             if isinstance(component, DerivedComponent) and self.size > random_subset:
                 view, random_subset = random_indices_for_array(self, random_subset), None
+        if subset_state is not None and not isinstance(subset_state, SliceSubsetState):
+            # glue picks its sample of a subset's values from a mask that can be dask, which refuses index arrays;
+            # the mask has read every value already
+            random_subset = None
         return super().compute_statistic(statistic, cid, subset_state=subset_state, axis=axis, finite=finite,
                                           positive=positive, percentile=percentile, view=view,
                                           random_subset=random_subset, **kwargs)
