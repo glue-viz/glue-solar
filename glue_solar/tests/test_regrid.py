@@ -61,8 +61,9 @@ def expected_regrid(times):
 
 def check_regrid(source, regridded):
     """
-    ``regridded`` holds ``source`` at the indices `expected_regrid` gives, with NaN, NaT, missing samples and no
-    pointing in its gaps, and the coordinates of ``source`` at the time of each pixel; returns the gaps.
+    ``regridded`` holds ``source``, in its units and colormap, at the indices `expected_regrid` gives, with NaN, NaT,
+    missing samples and no pointing in its gaps, and the coordinates of ``source`` at the time of each pixel; returns
+    the gaps.
     """
     middle = (source.shape[1] // 2,) if source.ndim == 4 else ()  # a stack's scans by their middle step's times
     times = source[source.id["Time"]][(slice(None), *middle, 0, 0)]
@@ -71,6 +72,8 @@ def check_regrid(source, regridded):
     assert regridded.shape == (len(index), *source.shape[1:])
     assert regridded.meta["time_step"] == pytest.approx(step, abs=1e-9)
     cid = regridded.main_components[0]
+    assert regridded.get_component(cid).units == source.get_component(source.main_components[0]).units
+    assert regridded.style.preferred_cmap == source.style.preferred_cmap
     values = np.asarray(source[source.main_components[0]])[np.maximum(index, 0)]
     values[gaps] = np.nan
     np.testing.assert_array_equal(regridded[cid], values)
@@ -105,11 +108,15 @@ def check_regrid(source, regridded):
 def test_a_sit_and_stare_regrids_at_its_median_exposure_step(monkeypatch, tmp_path, irispy_test_files):
     raster = sit_and_stare(tmp_path, irispy_test_files)
     regridded = regrid_on_time(raster)
-    # its planes stay in the file
-    assert type(regridded) is LazyData
-    assert isinstance(regridded.get_component(regridded.main_components[0]), RawComponent)
     # ceil(span / step) + 1 pixels, NaN where the 10 exposures were left out, and only there
-    assert list(check_regrid(raster, regridded)) == list(range(GAP, GAP + 10))
+    gaps = list(check_regrid(raster, regridded))
+    assert gaps == list(range(GAP, GAP + 10))
+    # its planes stay in the file: views of the source's, but in the gaps
+    assert type(regridded) is LazyData
+    component = regridded.get_component(regridded.main_components[0])
+    assert isinstance(component, RawComponent)
+    planes, raw = component._source.raw.scans, raster.get_component(raster.main_components[0])._source.raw
+    assert [np.may_share_memory(plane, raw) for plane in planes] == [i not in gaps for i in range(len(planes))]
     assert regridded.shape[0] == 198
     assert regridded.label == f"{raster.label} regridded"
     assert regridded.meta["OBSID"] == raster.meta["OBSID"]
@@ -141,9 +148,10 @@ def test_a_slit_jaw_image_regrids_on_its_frame_times(tmp_path, irispy_test_files
 def test_a_stack_regrids_its_scans(tmp_path, irispy_test_files):
     sources = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
     paths = []
-    for scan, start in ((0, 0), (1, 60), (3, 180), (4, 242)):  # scan 2 left out, and scan 4 2 s late
+    # scan 2 left out, and scan 4 2 s late at its middle step, which times it, in shorter steps than the others
+    for scan, start, step in ((0, 0, 5.0), (1, 60, 5.0), (3, 180, 5.0), (4, 246, 4.0)):
         paths.append(with_times(int16_raster_copy(sources[scan], tmp_path / sources[scan].name),
-                                start + 5.0 * np.arange(8)))
+                                start + step * np.arange(8)))
     [stack] = raster_data(paths, ["C II 1336"], stack=True)
     regridded = regrid_on_time(stack)
     assert list(check_regrid(stack, regridded)) == [2]
@@ -211,7 +219,9 @@ def test_the_quicklook_shows_a_regridded_raster(app, qtbot, tmp_path, irispy_tes
     viewers = quicklook(app, [regridded, sji])
     [sji_viewer] = viewers["sji"]
     assert viewers["map"].state.reference_data is regridded
-    assert viewers["map"].state.x_axislabel.startswith("Time (3 s per pixel)\n")
+    times = regridded[regridded.id["Time"]][:, 0, 0]
+    first, last = (np.datetime_as_string(t, unit="s") for t in (times[0], times[~np.isnat(times)][-1]))
+    assert viewers["map"].state.x_axislabel == f"Time (3 s per pixel)\n{first} – {last[11:]} UTC"
     # a pixel in the gap has no time: the slit-jaw image keeps its frame, greyed
     spectrogram = viewers["spectrogram"]
     frame = sji_viewer.state.slices[0]
@@ -221,7 +231,6 @@ def test_the_quicklook_shows_a_regridded_raster(app, qtbot, tmp_path, irispy_tes
     assert sji_viewer.state.slices[0] == frame
     # a slit-jaw master moves the raster to the pixel nearest each frame's time, never into the gap
     menu_action(sji_viewer, "Time master").trigger()
-    times = regridded[regridded.id["Time"]][:, 0, 0]
     [group] = app.session.edit_subset_mode.edit_subset
     for frame in (2, 3):
         sji_viewer.state.slices = (frame, 0, 0)
