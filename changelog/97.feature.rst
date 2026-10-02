@@ -1,0 +1,1 @@
+IRIS wavelengths show in Angstrom on the slice sliders, the Profile x axis, the tick labels and the cursor readout; glue's WCS link works between IRIS raster windows; and a longitude or latitude that barely changes across a panel, such as the latitude on a quicklook's wavelength panel, no longer draws overlapping tick labels.
