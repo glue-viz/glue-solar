@@ -43,7 +43,8 @@ progress bar counts them; meanwhile the list and its boxes are locked and "Cance
 "Stop" ends the load once the file being read is done and loads the entries read in full, such as a
 slit-jaw channel read before a raster window, or nothing if none was. Pressing Esc or closing the
 browser drops the load: nothing is loaded. With "Open quicklook" ticked, the default, each
-observation with a raster or slit-jaw image opens in a quicklook (see `The quicklook`_). Otherwise the
+observation with a raster or slit-jaw image opens in a quicklook
+(see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). Otherwise the
 first slit-jaw (or AIA) cube opens in an Image Viewer, where its ``Time (Utc)`` slider steps through
 time; nothing opens for rasters alone. If an entry fails to load, the browser stays open and its progress bar names
 the file and the error; for a raster window, the first raster file that fails to load on its own, or
@@ -71,7 +72,8 @@ The "Frame time" tool in the Image Viewer toolbar shows the displayed frame's ti
 the status bar, as a range when the image spans several frames; for a single slit-jaw frame its
 tooltip gives that
 frame's pointing (PZT offset, field-of-view centre and slit position), which glue-solar keeps in
-the dataset's metadata. The mouse-over readout (see "Cursor readout" in `Viewer tools and windows`_)
+the dataset's metadata. The mouse-over readout (see "Cursor readout" in
+:ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`)
 gives the time and exposure of the pixel under the mouse: on a raster map those of the step it is
 on.
 
@@ -119,6 +121,8 @@ is completed in a hidden temporary sibling directory, which the list leaves out,
 archive visible for retry.
 Nothing is loaded in that step, and the archive is left in place.
 
+.. _glue_solar_users_guide_iris_memory_and_open_files:
+
 Memory and open files
 ---------------------
 
@@ -129,8 +133,9 @@ values as NaN, so even every spectral window of a large observation opens in lit
 still read in full as it opens, briefly taking about one and a half times its size. The first image
 of a window takes its colour limits from a count of every stored value (of evenly spaced raster
 steps or frames of a window over 512 MiB), which takes up to about half a second, and the "99.5%"
-and other presets of the layer's style editor use the same count; "Per-frame limits" (see `Viewer
-tools and windows`_) count every value of the displayed slice. ``<label> DN/s`` and other derived
+and other presets of the layer's style editor use the same count; "Per-frame limits" (see
+:ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`) count every value of the
+displayed slice. ``<label> DN/s`` and other derived
 attributes take theirs from 10,000 random samples, as glue does for data in memory, so they are
 approximate. Memory still grows as you view a window, since the parts of the file read are kept, and
 a Profile or Histogram of a whole cube, a
@@ -178,6 +183,8 @@ the data collection, which in a quicklook is ``Point``, so select the dataset it
 The first two leave the new subset selected, and "Pixel" would replace it, so select ``Point`` in
 the data collection before moving a quicklook's point again.
 
+.. _glue_solar_users_guide_iris_linking:
+
 Linking
 -------
 
@@ -214,233 +221,3 @@ meanwhile. At the default viewer size this takes under a second with a 64-step r
 seconds with a 1600-step sit-and-stare raster, for every frame you step to, and longer in a larger
 viewer. On a sunpy Map it takes about 4 seconds with a 1600-step raster, each time the map's viewer
 draws.
-
-The quicklook
--------------
-
-The quicklook is a CRISPEX-style set of viewers for one observation, in a new tab. Open it
-
-- from the observation browser, with "Open quicklook" ticked (the default): each observation you
-  load opens in its own quicklook, showing the raster window you ticked if you ticked one;
-- for data already loaded, with "IRIS: quicklook…" in the "Plugins" menu, which asks which
-  observation when several are loaded;
-- from the command line, with ``glue --startup=iris_quicklook`` followed by the files. Files given
-  this way load one by one, so each raster file keeps its raster number in its label
-  (``…-r00003``) and the quicklook shows the first; to stack the scans, use the browser;
-- from glue's Terminal, with ``glue_solar.quicklook.quicklook(application, datasets)``.
-
-For those used to CRISPEX:
-
-.. list-table::
-   :header-rows: 1
-
-   * - CRISPEX or iris_xcontrol
-     - In glue-solar
-   * - ``crispex, raster, sjicube=sji`` (one call per observation)
-     - Tick the observation in the browser, or ``glue --startup=iris_quicklook raster.fits sji.fits``
-   * - several ``sjicube`` files
-     - Tick every slit-jaw channel; each gets its own viewer
-   * - iris_xcontrol's raster, sit-and-stare and multi-raster modes
-     - Chosen from the observation: map, slit against time, or a stack's map with its scan slider
-   * - ``spcube`` (transposed cube)
-     - Not needed: the wavelength panel shows wavelength against step, exposure or scan
-   * - ``dt`` and non-equidistant timing
-     - "Regrid on time" (see `Regridding on time`_)
-
-It shows one spectral window: Mg II k 2796 when loaded, otherwise the first (pass
-``window="Si IV 1403"`` to choose). The raster opens as three panels, plus one viewer per slit-jaw
-channel and a spectrum panel:
-
-- a raster: the map (step against slit), the spectrogram (wavelength against slit) and wavelength
-  against step;
-- a sit-and-stare raster: slit against time, the spectrogram and wavelength against time;
-- a stack of raster scans: the map of the current scan, the spectrogram and wavelength against scan.
-
-A sit-and-stare raster's exposure axis, in the quicklook or any Image viewer, is labelled
-"Exposure (acquisition order)" with the UTC range of its exposures on a second line, and its ticks
-are exposure numbers: it is an index axis, so exposures are evenly spaced whatever their cadence
-(`Regridding on time`_ places them in time). The other axis shows only its own coordinate, and so
-does the mouse-over readout, followed by the time and exposure of the exposure under the mouse,
-rather than where the slit was then. The label and ticks come back whenever glue resets the axes,
-after an axis change or, on the wavelength panel, a slit move; a label typed in the viewer's axes
-options is kept until that reset, as glue's own labels are.
-
-In every Image viewer, each world coordinate's ticks are labelled with that coordinate's name.
-WCSAxes can put a coordinate's ticks on another side than the axis it belongs to: latitude can run
-along the bottom of a slit-jaw image rolled by more than 45°. The label then stays with the ticks,
-and an x or y axis label typed in the axes options names the coordinate of that axis, wherever its
-ticks are; glue-core 1.27.0 alone labels the bottom and left ticks after the x and y axes, whichever
-coordinate they show.
-
-On an image that shows another coordinate, such as wavelength or time, beside longitude and
-latitude, an angle that changes by less than 5 % of the other across the image has no tick labels,
-also after glue resets the axes: the latitude along a raster's steps on the wavelength-against-step
-panel, or the longitude along the slit on the spectrogram. WCSAxes would label it wherever pointing
-jitter takes it across a tick value, one label over another or off the panel. An image of the two
-angles alone, such as the map, a slit-jaw image or any other celestial map, keeps both.
-
-The map shows the wavelength nearest the window's reference wavelength, and the panels use
-99.5 % limits. A point, the edit subset "Point", starts at the centre of the map with the Pixel
-tool active: drag it on the map, and the spectrum panel shows its spectrum. The point is a detector
-pixel (a step or exposure, and a slit position) at every wavelength, and the other panels follow
-it: the spectrogram moves to its step and the wavelength panel to its slit. Its crosshair shows
-only on the map; the spectrogram and the wavelength panel highlight its row instead. Clicking the
-spectrogram or the wavelength panel moves the point there and the map to the clicked wavelength;
-no other wavelength slider moves. Moving a step, exposure or scan slider moves the point, so on a
-stack the point stays on the map's scan. A Profile's collapse of an axis is left in place. After
-"Clear point" the panels stop following each other until the next click, except in time: the
-slit-jaw viewers keep following the exposure slider of a sit-and-stare raster and the scan slider of
-a stack's map, on a scanning raster the time stays at the last point's raster step, and a slit-jaw
-time master (see below) still moves the others. A point clicked on a slit-jaw image is
-marked only there, and the spectrum panel is empty until the next raster click. The raster panels have no region selection tools, because a region drawn on a
-raster map is recomputed on every slit-jaw viewer for each screen pixel at every frame (see
-Linking). Each quicklook has its own point, shown only in its own panels, edited while its tab is
-shown and moved only by that tab's sliders. Where a point does not show, it is not in the viewer's
-layer list either, since glue would still redraw a hidden layer at every move: drag the subset onto
-a viewer outside its quicklook to show it there. In its own quicklook, each move adds the point
-back to the image panels of the dataset it is on and removes it from the others. Another Image viewer of the same data follows the point. When a slit-jaw channel is loaded both plain and deconvolved,
-the plain one is shown and the status bar names the other. The spectrum panel does not ask "Add
-large data set?", and the status bar gives the size of the data it shows.
-
-The panels also follow one time. The raster is the time master: the slit-jaw viewers show the frame
-nearest the time of the point's exposure or raster step (mid-raster before there is a point). Choose
-"Time master" in the "Coordinate" menu of a slit-jaw viewer to make it the master instead; the
-raster then moves to the exposure, or on a stack the scan, nearest each frame, keeping the slit and
-the raster step. The master rules: while there is a point, moving the raster's exposure or scan
-slider by hand, or clicking another exposure or scan, snaps the raster back to the one matching
-the master's frame (after "Clear point" it keeps a hand-moved exposure or scan, as below), while a
-slit-jaw follower moved by hand keeps its frame until the panels next follow the time, on a click, a
-move of the point or of the master, or when its tab is shown again. A dataset with nothing within
-half its own time step of the master's time (for a
-scanning raster, one that does not cover it) keeps its frame and is greyed. The "Frame time" readout
-says which dataset is the time master, how far each matched dataset's time is from the master's
-(Δt) and "NO MATCH" with that offset for the others. Wavelength and slit sliders are never moved.
-
-Each slit-jaw viewer is titled with its channel ("SJI 1400", "SJI 2796 (deconvolved)") and opens on
-the raster's field of view with a margin. Every slit-jaw viewer, in a quicklook or not, draws the
-displayed frame's slit as a dashed line (from the frame's slit position in the file) and the raster
-point as a red cross, placed with that frame's own pointing. The cross is hidden, and the "Frame
-time" readout says "outside SJI FOV", when the point is off the image; neither is drawn while the
-viewer shows the frame axis. A slit-jaw frame taken a raster step earlier or later than the point
-shows the slit a step away from the cross.
-
-Regridding on time
-------------------
-
-Every axis of glue's viewers is an index axis, so a sit-and-stare raster's exposures, a slit-jaw
-image's frames and a stack's scans show evenly spaced whatever their timing: the cadence of OBSID
-4000255147's Si IV varies from 2.71 to 3.29 s, and an observation can have gaps. To see them in
-time, select one such dataset in the data collection and choose "Regrid on time" from its
-right-click menu. This adds ``<label> regridded``, resampled at the median step between their times:
-each pixel along that axis is one step after the previous one, from the first time up to the first
-pixel at or past the last, and holds the exposure, frame or scan nearest its time within 0.75 steps
-(the earlier of two as near), so one exposure can fill two pixels. A pixel with none, in a gap, is
-NaN, with ``Time`` NaT, ``Exposure time`` NaN and the missing-data mask 1. The 1600 exposures of
-4000255147's Si IV, 4750 s at a median step of 2.89 s, give 1645 pixels, none of them empty.
-
-- A stack is regridded scan by scan, each scan timed by its middle raster step: its steps are
-  places on the Sun, so each pixel keeps a whole scan, and the scan slider stays its time, as in
-  the quicklook.
-- A scanning raster is refused with a message saying why: its steps are places on the Sun, not
-  times. Stack its scans in the observation browser and regrid the stack instead.
-- The new dataset has the original's other axes, units, colormap, ``<label> DN/s`` and metadata,
-  ``meta['time_step']`` adding the step in seconds, and its coordinates: along the regridded axis,
-  those at each pixel's time, so that a slit-jaw image's time coordinate is regular, and those of
-  the last time for a last pixel past it. Its helioprojective coordinates are linked with the other
-  IRIS datasets, no viewer opens, and data read from their files as they are viewed (see `Memory and
-  open files`_) stay there.
-- In an Image viewer, a regridded sit-and-stare raster's time axis is labelled "Time (2.89 s per
-  pixel)", with the UTC range of its exposures on a second line, and its ticks are pixel numbers. It
-  follows and leads the time sync as its original does (see `The quicklook`_): a pixel in a gap has
-  no time, so its "Frame time" readout is empty, the other datasets keep their frames and show "NO
-  MATCH", and a slit-jaw time master never moves it into a gap. "IRIS: quicklook…" shows the
-  original; for a quicklook of the regridded raster, type
-  ``from glue_solar.quicklook import quicklook`` in glue's terminal, then
-  ``quicklook(application, [dc["<raster label> regridded"], dc["<slit-jaw label>"]])`` with the
-  labels the data collection shows. ``glue_solar.regrid.regrid_on_time(data)`` regrids a dataset
-  there too.
-
-Viewer tools and windows
-------------------------
-
-glue's `getting started guide <http://docs.glueviz.org/en/stable/getting_started/index.html>`__
-describes its viewers and tools; this section names those IRIS work uses most, as glue-qt 0.4.2
-labels them. A toolbar button's tooltip gives the tool's single-key shortcut if it has one, for
-example "Zoom to rectangle [shortcut: Z]".
-
-Besides glue's "Home" (H), "Pan" (M), "Zoom" (Z) and region selection tools, the Image Viewer
-toolbar has:
-
-- "Pixel" ("Select a single pixel based on mouse location"): click or drag to select one pixel.
-  On IRIS data this is the point the other viewers follow (see `The quicklook`_).
-- "Contrast/Bias": drag on the image, left and right for the bias, up and down for the contrast.
-  The "Reset" button next to the layer's contrast/bias sliders undoes it.
-- "Slice Extraction" (P): draw a path and press Enter to see the data along it in a new window.
-  It is offered for 3D data only, so not for stacks.
-- "Cursor readout", from glue-solar: the world position under the mouse, the ``Time`` (UTC, to the
-  millisecond) and ``Exposure time`` of that pixel, and its value, in the status bar, for example
-  ``65.13" 109.32" (world) · 2013-09-02T18:31:07.229 UTC · exp 2 s | value = -3`` on a raster map,
-  where the time is that of the step under the mouse; on a slit-jaw image or a sit-and-stare
-  raster it is that of the frame or exposure. Helioprojective angles are in arcsec to 0.01″ and
-  IRIS wavelengths in Å to 0.001 Å, a tenth of an IRIS pixel or finer, whatever the zoom; other
-  coordinates, such as a stack's scan or a Carrington longitude, are as on their ticks. Press W
-  over the image to switch between world and pixel positions; the button hides and shows the
-  readout, and the mouse mode, such as Pixel, stays on.
-- "Frame time" and the "Coordinate" menu, from glue-solar, described above; the "Frame time" button
-  hides and shows its readout of the displayed frame, not the mouse-over one, and the mouse mode
-  stays on.
-- "Hide axes", from glue-solar: hides the viewer's axes (ticks, tick labels, axis labels and frame),
-  and shows them again; the mouse mode, such as Pixel, stays on. Without them each slice step and
-  redraw is faster, since no ticks are placed; the image, subsets, links, the slit and point of
-  slit-jaw viewers and the readouts work as before, and the mouse-over position stays in world
-  coordinates. A saved session keeps each viewer's choice. To open every new Image viewer,
-  quicklook panels included, without axes, add ``solar_show_axes = false`` to the ``[main]`` section
-  of glue's settings file, ``~/.glue/settings.cfg``, or type
-  ``from glue.config import settings; settings.SOLAR_SHOW_AXES = False`` in glue's terminal for the
-  rest of the session ("OK" in glue's Preferences then saves it to that file).
-- "Per-frame limits", from glue-solar: takes the colour limits of the displayed dataset from the
-  displayed slice, at the layer's percentile (99.5 % on the quicklook panels), so each slice step,
-  such as a wavelength step of a raster map, gets that slice's limits; press it again for the whole
-  cube's limits. Layers of other datasets keep theirs, and choosing another reference data in the
-  viewer's options gives the previous one the whole cube's limits again. The mouse mode, such as
-  Pixel, stays on. The button does not stay pressed: the limits in the layer's style editor change
-  with each step while it is on. A session saved with it on does not open (see `Saving sessions`_).
-- "Physical aspect", from glue-solar: shows the image in its proportions on the sky, an arcsecond
-  as long on screen along x as along y, and pressed again, with the aspect it had; the mouse mode
-  stays on. It sets the aspect in the viewer's options to "Square Pixels", scaled by the ratio of
-  the arcseconds a pixel spans along y and along x, on average across the image through the centre
-  of the view, so that a raster map of 2″ steps along a slit of 0.17″ pixels shows each step 12
-  times as wide as a slit pixel is tall, wherever the view is. Resizing, zooming, panning and the
-  sliders keep the proportions, and choosing other x or y axes shows the new image whole, in its
-  own proportions. Axes other than a longitude and a latitude alone show square pixels: a
-  spectrogram, a sit-and-stare raster's exposures against its slit, or a slit-jaw image's x
-  against time. Choosing "Automatic" in the viewer's options switches it off too. Pressed again on
-  a quicklook raster panel, whose aspect is "Automatic", the image fills the panel again, keeping a
-  zoom. A saved session restores the viewer with "Square Pixels".
-- A button with a spectrum icon and no tooltip, which opens a 1D Profile viewer of the image's data.
-- The save menu, with "Save plot to file" and "Save Python script to reproduce plot", and the
-  window menu, with "Move to another tab" and "Change viewer title".
-
-Each viewer is a window in the current tab, with its own minimise, maximise and close buttons. The
-"Canvas" menu has "New Data Viewer" (Ctrl+N), "New Tab" (Ctrl+T), "Gather Windows" (Ctrl+G), which
-places the tab's viewers side by side, and "Rename Tab" (Ctrl+R); on macOS these use Cmd. Backspace
-closes the active viewer after asking "Do you want to close this window?" if it is one of glue's own
-Image, Scatter or Histogram viewers. It does nothing in a Profile or Table viewer, or in the
-quicklook's map, spectrogram and wavelength panels. In the data collection, though, Backspace is
-"Delete Layer": it removes the selected datasets and subsets at once, without asking and without
-undo.
-
-The stretch menu in the Image Viewer's layer options lists glue-solar's "Gamma 0.4", "Gamma 0.75",
-"Gamma 1.5" and "Gamma 2.2" after Glue's own stretches. Each raises the values between the limits to
-that power: a gamma below 1 brightens faint emission, one above 1 darkens it, and "Square Root" is a
-gamma of 0.5.
-
-Saving sessions
----------------
-
-Saving a session that contains IRIS data can fail before any file is written. The irispy
-metadata and WCS objects, including SJI gWCS and raster lookup tables, need dedicated serializers,
-and data read from their files as they are viewed cannot be saved in a session yet; save derived
-products separately rather than relying on a Glue session as their only copy. With glue-core 1.27.0
-a session saved while an Image viewer has "Per-frame limits" on, whatever its data, does not open:
-glue reports "'NoneType' object has no attribute 'add_callback'". Turn them off before saving.

@@ -88,7 +88,7 @@ profile updates as you move the pixel selection in the image viewer.
 Recipes
 -------
 
-The quicklook (see :ref:`the loading guide <glue_solar_users_guide_loading_iris_level_2_raster_and_sji_files>`)
+:ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`
 sets up most of these views. The recipes below build them by hand with glue's own viewers, for any
 raster. Glue names a raster's axes after its world coordinates, so by role they are:
 
