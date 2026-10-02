@@ -6,7 +6,7 @@ from collections import Counter
 
 import numpy as np
 import pytest
-from glue.config import data_factory, menubar_plugin, settings, startup_action
+from glue.config import colormaps, data_factory, menubar_plugin, settings, startup_action
 from glue.core import Data
 from glue.core.data_factories import load_data
 from glue.viewers.image.state import AggregateSlice
@@ -23,6 +23,7 @@ from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.sources.iris import iris_quicklook, is_iris_fits, link_iris, quicklook_iris
 from glue_solar.sources.loaders.iris import image_data, raster_data
+from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.tests.helpers import count_tick_work
 
 
@@ -340,6 +341,50 @@ def test_sessions_keep_each_viewers_axes(qtbot, monkeypatch, tmp_path):
         (False, False),
         (True, True),
     ]
+
+
+def _cmap_menu(viewer):
+    """The colormap menu of the viewer's first layer."""
+    return viewer.layer_view().layout_style_widgets[viewer.layers[0]].ui.combodata_cmap
+
+
+# sunpy's RHESSI test image has no observer position
+@pytest.mark.filterwarnings("ignore:Missing metadata for observer")
+def test_only_the_colormaps_data_ask_for_are_listed(qtbot, monkeypatch, irispy_test_files):
+    import sunpy.data.test
+    from sunpy.visualization.colormaps import cmlist
+
+    # glue's own colormaps only: glue-qt draws every one listed whenever it builds an Image layer's menu
+    monkeypatch.setattr(colormaps, "_members", colormaps.default_members())
+    glue_solar.setup()
+    glue_solar.setup()
+    iris_and_aia = [cmlist[name] for name in sorted(cmlist) if name.startswith(("irissji", "sdoaia"))]
+    assert colormaps.members[len(colormaps.default_members()):] == [[cmap.name, cmap] for cmap in iris_and_aia]
+    sji = load_data(str(find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("SJI_1400_t000"))))
+    rhessi = read_sunpy_map(sunpy.data.test.get_test_filepath("hsi_image_20101016_191218.fits"))
+    assert colormaps.members[-1] == [cmlist["rhessi"].name, cmlist["rhessi"]]  # a map lists its own
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.extend([sji, rhessi])
+    for data, cmap in ((sji, cmlist["irissji1400"]), (rhessi, cmlist["rhessi"])):
+        assert _cmap_menu(app.new_data_viewer(ImageViewer, data=data)).currentText() == cmap.name
+
+
+def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_path):
+    monkeypatch.setattr(colormaps, "_members", colormaps.default_members())
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    image = Data(label="image", flux=np.arange(20.0).reshape(4, 5))
+    app.data_collection.append(image)
+    app.new_data_viewer(ImageViewer, data=image)
+    app.save_session(str(tmp_path / "cmap.glu"))
+    session = (tmp_path / "cmap.glu").read_text()
+    # glue restores a colormap by its name, here one that setup() does not list
+    (tmp_path / "cmap.glu").write_text(session.replace('"cmap": "gray"', '"cmap": "rhessi"'))
+    restored = GlueApplication.restore_session(str(tmp_path / "cmap.glu"))
+    qtbot.addWidget(restored)
+    assert _cmap_menu(restored.viewers[0][0]).currentText() == "rhessi"
 
 
 def test_iris_image_layers_render_nan_transparent(qtbot, irispy_test_files):

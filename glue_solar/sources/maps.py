@@ -30,12 +30,15 @@ def _parse_sunpy_map(data, label):
     """
     Parse sunpy map so that it can be loaded by ``glue``.
     """
+    from glue_solar import _add_colormap  # glue_solar imports this module
+
     scan_map = data
     label = label + "-" + scan_map.name
     result = Data(label=label)
     result.coords = scan_map.wcs  # preferred way, preserves more info in some cases
     result.add_component(Component(scan_map.data), scan_map.name)
     result.meta = scan_map.meta
+    _add_colormap(scan_map.cmap.name)  # for the colormap menu of its Image layers
     result.style = VisualAttributes(color="#FDB813", preferred_cmap=scan_map.cmap)
 
     return result
