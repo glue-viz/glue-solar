@@ -343,11 +343,11 @@ toolbar has:
   millisecond) and ``Exposure time`` of that pixel, and its value, in the status bar, for example
   ``65.13" 109.32" (world) · 2013-09-02T18:31:07.229 UTC · exp 2 s | value = -3`` on a raster map,
   where the time is that of the step under the mouse; on a slit-jaw image or a sit-and-stare
-  raster it is that of the frame or exposure. Angles are in arcsec to 0.01″ and wavelengths in Å
-  to 0.001 Å, a tenth of an IRIS pixel or finer, whatever the zoom; other coordinates, such as a
-  stack's scan, have the precision of their ticks. Press W over the image to switch between world
-  and pixel positions; the button hides and shows the readout, and the mouse mode, such as Pixel,
-  stays on.
+  raster it is that of the frame or exposure. Helioprojective angles are in arcsec to 0.01″ and
+  IRIS wavelengths in Å to 0.001 Å, a tenth of an IRIS pixel or finer, whatever the zoom; other
+  coordinates, such as a stack's scan or a Carrington longitude, are as on their ticks. Press W
+  over the image to switch between world and pixel positions; the button hides and shows the
+  readout, and the mouse mode, such as Pixel, stays on.
 - "Frame time" and the "Coordinate" menu, from glue-solar, described above; the "Frame time" button
   hides and shows its readout of the displayed frame, not the mouse-over one, and the mouse mode
   stays on.

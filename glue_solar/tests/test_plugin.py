@@ -209,6 +209,31 @@ def test_frame_time_tool_survives_an_empty_collapse(qtbot):
     assert tool.label.text() == ""
 
 
+def test_readout_gives_arcsec_only_where_wcsaxes_shows_arcsec(qtbot):
+    import sunpy.data.test
+
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    # an AIA map, whose FITS WCS gives a longitude just west of 0 as nearly 360°
+    aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))
+    app.data_collection.append(aia)
+    viewer = app.new_data_viewer(ImageViewer, data=aia)
+    viewer.figure.canvas.draw()
+    for x in (2, 100):  # east and west of 0
+        position = aia.coords.pixel_to_world(x, 60)
+        assert viewer.axes.format_coord(x, 60) == f'{position.Tx.arcsec:.2f}" {position.Ty.arcsec:.2f}" (world)'
+    # a right ascension and a Carrington longitude keep WCSAxes' own text, in hours and degrees
+    for ctype in (("RA---TAN", "DEC--TAN"), ("CRLN-CEA", "CRLT-CEA")):
+        wcs = WCS(naxis=2)
+        wcs.wcs.ctype, wcs.wcs.crval = ctype, (150, 2)
+        image = Data(label=ctype[0], flux=np.zeros((10, 10)), coords=wcs)
+        app.data_collection.append(image)
+        viewer = app.new_data_viewer(ImageViewer, data=image)
+        viewer.figure.canvas.draw()
+        assert viewer.axes.format_coord(3, 4) == viewer.axes._display_world_coords(3, 4)  # WCSAxes' readout
+
+
 def test_cursor_readout_shows_position_and_value(qtbot, irispy_test_files):
     if hasattr(ImageViewer, "cursor_status"):
         pytest.skip("this glue-qt shows the position under the mouse itself")

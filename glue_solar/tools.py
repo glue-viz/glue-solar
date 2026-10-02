@@ -105,9 +105,10 @@ def _hovered(state, x, y):
 
 def _world_position(axes, x, y, keep=None):
     """
-    The world position WCSAxes reads out at ``x, y`` of the WCSAxes ``axes``, with each longitude and latitude in arcsec
-    to 0.01" and each wavelength in Å to 0.001 Å, a tenth of an IRIS pixel or finer, where WCSAxes gives each the
-    precision of its ticks (2834 for a wavelength of an NUV window, of 0.025 Å pixels); other coordinates keep WCSAxes'
+    The world position WCSAxes reads out at ``x, y`` of the WCSAxes ``axes``, with each coordinate it shows in arcsec
+    (a helioprojective longitude or latitude) to 0.01" and each it shows in Å (an IRIS wavelength) to 0.001 Å, a tenth
+    of an IRIS pixel or finer, where WCSAxes gives each the precision of its ticks (2834 for a wavelength of an NUV
+    window, of 0.025 Å pixels); other coordinates, such as a right ascension or a Carrington longitude, keep WCSAxes'
     text. Given ``keep``, one of the coordinates of ``axes``, the other angles are left out.
     """
     world = axes.coords[0].transform.transform(np.array([[x, y]]))[0]
@@ -115,12 +116,13 @@ def _world_position(axes, x, y, keep=None):
     for coord in axes.coords:
         if coord.coord_index is None:  # not on these axes
             continue
+        if coord.coord_type in ("longitude", "latitude") and keep not in (None, coord):
+            continue
         value = world[coord.coord_index] * coord.coord_unit
-        if coord.coord_type in ("longitude", "latitude"):
-            if keep is None or coord is keep:
-                angle = Angle(value) if coord.coord_wrap is None else Angle(value).wrap_at(coord.coord_wrap)
-                texts.append(f'{angle.to_value(u.arcsec):.2f}"')
-        elif value.unit.is_equivalent(u.AA):
+        if coord.get_format_unit() == u.arcsec:
+            angle = Angle(value) if coord.coord_wrap is None else Angle(value).wrap_at(coord.coord_wrap)
+            texts.append(f'{angle.to_value(u.arcsec):.2f}"')
+        elif coord.get_format_unit() == u.AA:
             texts.append(f"{value.to_value(u.AA):.3f} Å")
         else:
             texts.append(coord.format_coord(world[coord.coord_index], format="ascii"))
