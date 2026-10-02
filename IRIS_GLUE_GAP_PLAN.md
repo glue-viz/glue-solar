@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-02
 
-**Resume here.** M0 is done. Main has #107-#109; glue-solar PRs are marked ready and merged once CI passes. Open: #110 (`wp12-time-regrid`), rebased on main, to merge when CI passes and then delete its item. Next: `wp9-m1-split-guide` alone (every open PR edits that guide), then M1 batch 4. Checking glue-solar against irispy main (57813b8, with #205 and #206) is in progress.
+**Resume here.** M0 is done. Main has #107-#110; glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp9-m1-split-guide` alone (every open PR edits that guide), then M1 batch 4. Checking glue-solar against irispy main (57813b8, with #205 and #206) is in progress.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -98,7 +98,6 @@ A milestone is done when it has no items left.
 - WP9: `wp9-m1-screenshots`, `wp9-m1-split-guide`
 - WP10: `wp10-m1-roi-world-polygon`
 - WP11: `wp11-selected-point-panel`, `wp11-keyboard-shortcuts`
-- WP12: `wp12-time-regrid`
 
 **M2**
 - WP2: `wp2-m2-moment-maps`, `wp2-m2-line-definition`, `wp2-m2-input-quality`, `wp2-m2-tests-docs`
@@ -441,7 +440,6 @@ Frame, movie and data export plus path diagrams, built on glue's 'save' subtools
 
 **M1**
 
-- [ ] **M1** `wp12-time-regrid` (F089, F090): 'Regrid on time' resamples a sit-and-stare raster, SJI or scan stack at its median exposure spacing, taking the nearest exposure within 0.75 × median, else NaN. Done when 4000255147 Si IV (median 2.89 s) gives ceil(span/2.89)+1 pixels, a 10-exposure gap is NaN only there, and a raster step axis is refused.
 
 **M2**
 
