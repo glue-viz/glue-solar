@@ -138,7 +138,7 @@ def _is_supported_file(name, header):
     return name.startswith("aia_l2_") and instrume.startswith("AIA")
 
 
-def scan_directory(root, recursive=True):
+def scan_directory(root, recursive=True, skipped=None):
     """
     Group every IRIS Level 2 file below ``root`` into `Observation` objects.
 
@@ -148,12 +148,16 @@ def scan_directory(root, recursive=True):
         Directory to scan.
     recursive : bool
         Descend into subdirectories.
+    skipped : list, optional
+        Gets the path of every IRIS raster file left out because it is not Level 2 (its ``DATA_LEV`` is not 2), such
+        as a product derived from rasters.
 
     Returns
     -------
     list of `Observation`, sorted by start time.
     """
     root = Path(root)
+    skipped = [] if skipped is None else skipped
     paths = root.rglob("*") if recursive else root.iterdir()
     found = {}
     headers = []
@@ -172,6 +176,9 @@ def scan_directory(root, recursive=True):
         except Exception:  # noqa: BLE001 - not a FITS file after all
             continue
         if not _is_supported_file(name, header):
+            continue
+        if header["INSTRUME"] == "SPEC" and header.get("DATA_LEV") != 2:
+            skipped.append(path)
             continue
         key = _key_from_name(name) or _key_from_header(header)
         if key is not None:

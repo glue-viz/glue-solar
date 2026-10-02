@@ -17,7 +17,7 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 from astropy.wcs.wcsapi.high_level_api import values_to_high_level_objects
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
-from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, find_irispy_test_file, startobs
+from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, OBS_S, find_irispy_test_file, startobs
 from glue_solar.sources.iris import is_iris_fits, read_iris_file
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
 from glue_solar.sources.loaders.scan import scan_directory
@@ -55,7 +55,7 @@ def test_tests_keep_off_the_users_settings(tmp_path):
 
 
 def test_tree_lists_observations_and_files(dialog):
-    assert dialog.obs_tree.topLevelItemCount() == 4
+    assert dialog.obs_tree.topLevelItemCount() == 3
     row = _row(dialog, OBS_A[2])
     children = [row.child(i).text(0) for i in range(row.childCount())]
     assert children == [
@@ -66,6 +66,14 @@ def test_tree_lists_observations_and_files(dialog):
     ]
     assert row.text(2) == "Test raster 1x2 3s"
     assert row.text(6) == "4"
+
+
+def test_derived_raster_file_is_never_a_window_and_counted(dialog, tmp_path):
+    tree = dialog.obs_tree
+    assert OBS_S not in [tree.topLevelItem(i).text(1) for i in range(tree.topLevelItemCount())]
+    assert dialog.progress.text() == "Skipped 1 raster file(s) that are not Level 2"
+    dialog.set_directory(tmp_path)  # nothing left out, so the count goes
+    assert dialog.progress.format() == "%p%"
 
 
 def test_ticking_the_observation_ticks_its_files(dialog):
@@ -559,16 +567,23 @@ def test_duplicate_real_raster_is_listed_and_loaded_once(qtbot, tmp_path, irispy
     assert len(dialog.datasets) == 1
 
 
-def test_reader_failure_stays_in_dialog(qtbot, tmp_path):
-    path = tmp_path / "iris_l2_20240101_000000_1234567890_SJI_1400_t000.fits"
+@pytest.mark.parametrize(
+    ("name", "instrume", "band"),
+    [
+        ("iris_l2_20240101_000000_1234567890_SJI_1400_t000.fits", "SJI", "SJI_1400"),
+        ("aia_l2_20240101_000000_1234567890_171.fits", "AIA_3", "171_THIN"),
+    ],
+)
+def test_reader_failure_stays_in_dialog(qtbot, tmp_path, name, instrume, band):
+    path = tmp_path / name
     fits.PrimaryHDU(
         header=fits.Header(
             {
                 "TELESCOP": "IRIS",
-                "INSTRUME": "SJI",
+                "INSTRUME": instrume,
                 "OBSID": "1234567890",
                 "STARTOBS": "2024-01-01T00:00:00",
-                "TDESC1": "SJI_1400",
+                "TDESC1": band,
                 "TWAVE1": 1400,
             }
         )
@@ -581,7 +596,43 @@ def test_reader_failure_stays_in_dialog(qtbot, tmp_path):
 
     assert dialog.result() == 0
     assert dialog.datasets == []
-    assert dialog.progress.format().startswith("Loading SJI_1400 failed:")
+    assert dialog.progress.format().startswith(f"Loading {band} from {name} failed:")
+
+
+def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_test_files):
+    scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r0000" in path.name)[:2]
+    for scan in scans:
+        shutil.copy2(scan, tmp_path / scan.name)
+    truncated = tmp_path / scans[1].name
+    data = truncated.read_bytes()
+    truncated.write_bytes(data[: len(data) // 2])  # as an interrupted download leaves it
+
+    dialog = QtIRISImporter(tmp_path)
+    qtbot.addWidget(dialog)
+    _row(dialog, "3860258481").child(0).setCheckState(0, Qt.Checked)
+    dialog.finalize()
+
+    assert dialog.result() == 0
+    window = dialog.observations[0].windows[0]
+    assert dialog.progress.format().startswith(f"Loading {window} from {truncated.name} failed:")
+
+
+def test_raster_load_failure_of_files_that_load_alone_names_how_many(qtbot, tmp_path, monkeypatch, irispy_test_files):
+    def fail(_sequence):
+        raise ValueError("the scans differ")
+
+    monkeypatch.setattr("glue_solar.sources.loaders.iris.stack_spectrogram_sequence", fail)
+    for scan in sorted(path for path in irispy_test_files if "3860258481_raster_t000_r0000" in path.name)[:2]:
+        shutil.copy2(scan, tmp_path / scan.name)
+
+    dialog = QtIRISImporter(tmp_path)
+    qtbot.addWidget(dialog)
+    _row(dialog, "3860258481").child(0).setCheckState(0, Qt.Checked)
+    dialog.stack.setChecked(True)
+    dialog.finalize()
+
+    window = dialog.observations[0].windows[0]
+    assert dialog.progress.format() == f"Loading {window} from 2 raster files failed: the scans differ"
 
 
 @pytest.mark.remote_data

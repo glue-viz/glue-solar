@@ -20,6 +20,9 @@ SAT_ROT, and Files, the number of files:
 
 Open it from the "Plugins" menu with "IRIS: browse observations…". Subfolders are searched by
 default; un-tick "Search subfolders" to look at one folder only. The last folder used is remembered.
+A raster file that is not Level 2 (its ``DATA_LEV`` is not 2), such as a product derived from
+rasters, is left out, and the progress bar says how many were, for example "Skipped 1 raster file(s)
+that are not Level 2".
 
 Expand an observation to see what can be loaded:
 
@@ -38,7 +41,9 @@ channel and AIA cutout you tick loads as a dataset of its own. Then press "Load 
 are added to the data collection. With "Open quicklook" ticked, the default, each observation with a
 raster or slit-jaw image opens in a quicklook (see `The quicklook`_). Otherwise the first slit-jaw
 (or AIA) cube opens in an Image Viewer, where its ``Time (Utc)`` slider steps through time; nothing
-opens for rasters alone.
+opens for rasters alone. If an entry fails to load, the browser stays open and its progress bar names
+the file and the error; for a raster window, the first raster file that fails to load on its own, or
+how many raster files there are if each loads on its own but not together.
 Tick "Stack sequential raster scans" to place two or more raster scans of a window into a single
 4D cube without resampling their detector values. Each scan stays in its own file, as a single scan
 does (see `Memory and open files`_); scans stored as floating point, such as irispy's test files,

@@ -77,7 +77,7 @@ OBS_A = ("20250328", "225628", "3400109360")
 OBS_B = ("20230211", "083601", "3880012095")
 # un-extracted archive only
 OBS_C = ("20140708", "114109", "3824262996")
-# hand-made file with a sparse header and no L2 stem in its name
+# a product derived from its rasters: a hand-made sparse header with no DATA_LEV, and no L2 stem in its name
 OBS_S = "3860259453"
 
 
@@ -178,6 +178,7 @@ def _window_hdu(start, twave, xcen, ycen):
 def _write_raster(path, obsid, start):
     primary = fits.PrimaryHDU(header=_header(
         "SPEC", obsid, start,
+        DATA_LEV=2.0,  # raster files are listed only at Level 2; slit-jaw and AIA files need no DATA_LEV
         NWIN=2,
         TDESC1="C II 1336", TDET1="FUV1", TWAVE1=1335.7,
         TDESC2="Mg II k 2796", TDET2="NUV", TWAVE2=2796.4,
@@ -202,7 +203,7 @@ def _write_raster(path, obsid, start):
 
 @pytest.fixture(scope="session")
 def iris_tree(tmp_path_factory):
-    """A pooch-cache-like folder holding four IRIS observations plus junk."""
+    """A pooch-cache-like folder holding three IRIS observations, a derived raster file and junk."""
     root = tmp_path_factory.mktemp("pooch")
     d, t, o = OBS_A
     stem = f"iris_l2_{d}_{t}_{o}"
@@ -233,6 +234,8 @@ def iris_tree(tmp_path_factory):
     sparse["INSTRUME"] = "SPEC"
     sparse["OBSID"] = OBS_S
     sparse["STARTOBS"] = "2014-09-10T11:28:25.590"
+    sparse["NWIN"] = 1
+    sparse["TDESC1"] = "O I 1356"
     fits.PrimaryHDU(header=sparse).writeto(root / f"{MD5}iris_l2_20140910_fexxi_rb_steps.fits.gz")
 
     (root / "tmpabc").write_bytes(b"\x1f\x8b\x08junk")
