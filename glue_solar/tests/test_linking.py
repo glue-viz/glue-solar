@@ -1,5 +1,6 @@
 import itertools
 import shutil
+import threading
 
 import numpy as np
 import pytest
@@ -8,6 +9,7 @@ from glue.core.autolinking import find_possible_links
 from glue.core.component_id import PixelComponentID
 from glue.core.component_link import CoordinateComponentLink
 from glue.core.exceptions import IncompatibleAttribute
+from glue.core.hub import Hub
 from glue.core.link_helpers import LinkSame
 from glue.core.roi import RectangularROI
 from glue.core.subset import RoiSubsetState
@@ -227,7 +229,13 @@ def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, mon
     app = GlueApplication()
     qtbot.addWidget(app)
     dc = app.data_collection
+    on_gui, broadcast = [], Hub.broadcast
+    monkeypatch.setattr(Hub, "broadcast", lambda hub, message: (
+        on_gui.append(threading.current_thread() is threading.main_thread()) or broadcast(hub, message)
+    ))
     browse_iris(app.session, dc)
+    assert on_gui
+    assert all(on_gui)  # glue's hub has no locks: the datasets are added on the GUI thread
     assert len(dc) > 3  # two SJIs and every raster window
     assert len(dc.external_links) == 2 * (len(dc) - 1)  # longitude and latitude of each to the first
     assert {cid.label for link in dc.external_links for cid in (*link.cids1, *link.cids2)} == set(HPC)

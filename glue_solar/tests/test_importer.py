@@ -5,12 +5,13 @@ import shutil
 import subprocess
 import sys
 import threading
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 from irispy.io import read_files
 from qtpy.QtCore import QMetaObject, Qt
-from qtpy.QtWidgets import QDialog
+from qtpy.QtWidgets import QDialog, QFileDialog
 
 import astropy.units as u
 from astropy.io import fits
@@ -160,17 +161,26 @@ def tick(dialog, *entries):
             item.setCheckState(0, Qt.Checked)
 
 
+def from_the_worker(widget, method):
+    """The user's ``widget.method()`` on the GUI thread, which the worker thread waits for."""
+    # on the GUI thread it would wait for itself: a load moved back there fails rather than hangs
+    assert threading.current_thread() is not threading.main_thread()
+    QMetaObject.invokeMethod(widget, method, Qt.BlockingQueuedConnection)
+
+
 def test_load_reads_a_file_at_a_time_off_the_gui_thread(dialog, qtbot, monkeypatch):
     tick(dialog, "SJI_1400", "Mg II k")
     dialog.stack.setChecked(True)
     on_gui = []
     reads = counted_reads(monkeypatch, lambda n: on_gui.append(threading.current_thread() is threading.main_thread()))
+    dialog.accepted.connect(lambda: on_gui.append(threading.current_thread() is threading.main_thread()),
+                            Qt.DirectConnection)  # on the thread that accepts
     progress = []
     dialog.progress.valueChanged.connect(progress.append)
     load_selected(qtbot, dialog)
     assert dialog.result() == QDialog.Accepted
     assert len(reads) == 2
-    assert on_gui == [False, False]
+    assert on_gui == [False, False, True]  # the reads, then the result
     assert progress == [33, 66, 100]  # the slit-jaw file, then each raster file
     assert [data.ndim for data in dialog.datasets] == [3, 4]
 
@@ -180,8 +190,8 @@ def test_stop_keeps_the_entries_read_in_full(dialog, qtbot, monkeypatch):
     dialog.stack.setChecked(True)
 
     def stop_in_the_first_file(n):
-        if n == 1:  # the user presses Stop while raster file 1 is read, which waits until the press is handled
-            QMetaObject.invokeMethod(dialog.cancel, "click", Qt.BlockingQueuedConnection)
+        if n == 1:  # the user presses Stop while raster file 1 is read
+            from_the_worker(dialog.cancel, "click")
 
     reads = counted_reads(monkeypatch, stop_in_the_first_file)
     load_selected(qtbot, dialog)
@@ -196,7 +206,7 @@ def test_closing_the_dialog_drops_the_load(dialog, qtbot, monkeypatch):
 
     def close_in_the_first_file(n):
         if n == 1:
-            QMetaObject.invokeMethod(dialog, "reject", Qt.BlockingQueuedConnection)
+            from_the_worker(dialog, "reject")
 
     reads = counted_reads(monkeypatch, close_in_the_first_file)
     dialog.ok.click()
@@ -208,17 +218,26 @@ def test_closing_the_dialog_drops_the_load(dialog, qtbot, monkeypatch):
 
 
 @pytest.mark.parametrize(("quicklook", "shown"), [(True, ["SJI_1400", "Mg_II_k_2796"]), (False, ["SJI_1400"])])
-def test_colour_limits_of_what_browse_iris_shows_are_counted_in_the_background(qtbot, iris_tree, quicklook, shown):
-    from glue_solar.sources.iris import _shown
+def test_colour_limits_of_what_browse_iris_shows_are_counted_in_the_background(qtbot, monkeypatch, iris_tree, quicklook,
+                                                                              shown):
+    from glue_solar.sources.iris import browse_iris
 
-    dialog = QtIRISImporter(iris_tree, shown=_shown)
-    qtbot.addWidget(dialog)
-    _row(dialog, OBS_A[2]).setCheckState(0, Qt.Checked)
-    dialog.quicklook.setChecked(quicklook)
-    load_selected(qtbot, dialog)
-    assert len(dialog.datasets) == 6  # the slit-jaw image, scans 0 and 1 of two raster windows, and the AIA cutout
+    loaded = []
+
+    def load(dialog):
+        qtbot.addWidget(dialog)
+        _row(dialog, OBS_A[2]).setCheckState(0, Qt.Checked)
+        dialog.quicklook.setChecked(quicklook)
+        load_selected(qtbot, dialog)
+        loaded.extend(dialog.datasets)
+        return QDialog.Rejected  # before browse_iris opens a viewer
+
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
+    monkeypatch.setattr(QtIRISImporter, "exec", load)
+    browse_iris(SimpleNamespace(application=None), None)
+    assert len(loaded) == 6  # the slit-jaw image, scans 0 and 1 of two raster windows, and the AIA cutout
     # the quicklook's Mg II k scan and slit-jaw image, or the Image viewer's slit-jaw image: no viewer has asked
-    counted = [data.label for data in dialog.datasets if data.get_component(data.main_components[0])._counts is not None]
+    counted = [data.label for data in loaded if data.get_component(data.main_components[0])._counts is not None]
     assert counted == [f"{name}-{OBS_A[2]}-2025-03-28T22:56:28" + "-scan-0" * name.startswith("Mg") for name in shown]
 
 
@@ -306,7 +325,7 @@ def test_stop_keeps_the_archives_unpacked_in_full(qtbot, iris_tree, tmp_path, mo
 
     def extract(path):
         unpacked.append(extract_archive(path))
-        QMetaObject.invokeMethod(dlg.cancel, "click", Qt.BlockingQueuedConnection)  # Stop, as the first is unpacked
+        from_the_worker(dlg.cancel, "click")  # Stop, as the first is unpacked
 
     monkeypatch.setattr("glue_solar.sources.loaders.iris.extract_archive", extract)
     load_selected(qtbot, dlg)
@@ -315,6 +334,15 @@ def test_stop_keeps_the_archives_unpacked_in_full(qtbot, iris_tree, tmp_path, mo
     assert dlg.progress.format() == "Extracted 1 archive(s) — now tick what to load"
     assert [row.text(6) for row in map(dlg.obs_tree.topLevelItem, range(dlg.obs_tree.topLevelItemCount()))
             if row.text(6).startswith("0 — Extract ")] == [f"0 — Extract {later.name} (0 MB, next to the archive)"]
+
+
+def test_closing_the_dialog_drops_the_unpacking(dialog, qtbot, monkeypatch):
+    _row(dialog, OBS_C[2]).setCheckState(0, Qt.Checked)
+    monkeypatch.setattr("glue_solar.sources.loaders.iris.extract_archive", lambda path: from_the_worker(dialog, "reject"))
+    dialog.ok.click()
+    qtbot.waitUntil(lambda: not _RUNNING, timeout=60_000)
+    assert dialog.result() == QDialog.Rejected
+    assert dialog.progress.format() == "%p%"  # the closed dialog does not list the folder again
 
 
 def test_browser_and_file_open_read_only_the_primary_header_of_a_gzipped_file(tmp_path):
