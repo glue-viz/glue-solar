@@ -12,6 +12,7 @@ from glue.core.component import Component
 from glue.core.component_id import ComponentID
 from glue.core.component_link import ComponentLink
 from glue.core.data import Data
+from glue.core.parse import ParsedCommand, ParsedComponentLink
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 
 from astropy.io import fits
@@ -148,6 +149,18 @@ def test_colour_limits_of_a_large_window_count_evenly_spaced_planes(monkeypatch,
     for percentile in (0.25, 99.75):
         limit = data.compute_statistic("percentile", cid, percentile=percentile, random_subset=10000)
         assert limit == np.nanpercentile(sample, percentile)
+
+
+def test_colour_limits_of_a_derived_attribute_sample_random_points(int16_raster):
+    # a rate, as glue's arithmetic attribute editor makes it; glue's own sample of its ten dask chunk corners is fill
+    [data] = raster_data([int16_raster], ["Si IV 1403"])
+    rate = ComponentID("rate", parent=data)
+    command = ParsedCommand("{raw} / {exposure}", {"raw": data.main_components[0], "exposure": data.id["Exposure time"]})
+    data.add_component_link(ParsedComponentLink(rate, command))
+    values = np.asarray(data[rate])
+    for percentile, low, high in ((0.25, 0, 1), (50, 45, 55), (99.75, 99, 100)):
+        limit = data.compute_statistic("percentile", rate, percentile=percentile, random_subset=10000)
+        assert np.nanpercentile(values, low) <= limit <= np.nanpercentile(values, high)
 
 
 def test_a_stack_reads_only_the_scans_it_selects(int16_raster):

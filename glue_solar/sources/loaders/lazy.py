@@ -6,8 +6,9 @@ from uuid import uuid4
 
 import dask.array as da
 import numpy as np
-from glue.core.component import DaskComponent
+from glue.core.component import DaskComponent, DerivedComponent
 from glue.core.data import Data
+from glue.utils import random_indices_for_array
 
 __all__ = ["LazyData", "RawComponent", "RawStack", "allow_open_files", "fill_mask"]
 
@@ -161,7 +162,9 @@ class LazyData(Data):
     A glue dataset whose `RawComponent` answers glue's sampled statistics, the colour limits of an Image layer, its
     style editor and a Histogram's range, from the counts of its raw codes (`SAMPLE_BYTES`).
 
-    glue samples a dask array at a corner of ten chunks, mostly fill in IRIS windows, which gives limits of 0 to 1.
+    glue samples a dask array at a corner of ten chunks, mostly fill in IRIS windows, which gives limits of 0 to 1; a
+    derived attribute, such as one made with glue's arithmetic attribute editor, is sampled at random points instead,
+    as glue samples NumPy data.
     """
 
     def compute_statistic(self, statistic, cid, subset_state=None, axis=None, finite=True, positive=False,
@@ -171,6 +174,8 @@ class LazyData(Data):
             component = self.get_component(cid)
             if isinstance(component, RawComponent):
                 return component.sampled_statistic(statistic, percentile, positive)
+            if isinstance(component, DerivedComponent) and self.size > random_subset:
+                view, random_subset = random_indices_for_array(self, random_subset), None
         return super().compute_statistic(statistic, cid, subset_state=subset_state, axis=axis, finite=finite,
                                           positive=positive, percentile=percentile, view=view,
                                           random_subset=random_subset, **kwargs)
