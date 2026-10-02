@@ -483,15 +483,19 @@ class PerFrameLimitsTool(Tool):
 def _arcsec_ratio(viewer):
     """
     The angle one pixel spans along the viewer's y axis over the angle it spans along x, at the view centre, or None
-    unless the displayed axes show a longitude and a latitude, of any celestial frame. Measured between neighbouring
-    pixel centres inside the image, since -TAB rasters have no coordinates past the outer centres.
+    unless the displayed axes show a longitude and a latitude alone, of any celestial frame, and neither is the
+    exposures of a sit-and-stare raster, which the pointing and the solar rotation move by a fraction of a slit pixel.
+    Measured between neighbouring pixel centres inside the image, since -TAB rasters have no coordinates past the
+    outer centres.
     """
     state = viewer.state
     data = state.reference_data
     if data is None or None in (state.x_att, state.y_att, state.x_min, state.y_min):
         return None
+    if _is_sit_and_stare(data) and 0 in (state.x_att.axis, state.y_att.axis):  # an index, as its ticks show
+        return None
     angles = {coord.coord_type: coord for coord in viewer.axes.coords if coord.coord_index is not None}
-    if not {"longitude", "latitude"} <= angles.keys():
+    if sorted(angles) != ["latitude", "longitude"]:  # also no wavelength or time beside them
         return None
     lon, lat = angles["longitude"], angles["latitude"]
     limits = ((state.x_att, state.x_min, state.x_max), (state.y_att, state.y_min, state.y_max))
@@ -512,10 +516,10 @@ class PhysicalAspectTool(Tool):
     along x (`_arcsec_ratio`), so that a raster map of 2″ steps along a slit of 0.17″ pixels shows each step 12 times
     as wide as a slit pixel. glue keeps these proportions as it keeps square pixels, through resizes, zooms, pans and
     slices; the ratio is taken again at the view centre when the displayed axes change, as glue shows the whole image
-    again. On axes other than a longitude and a latitude, such as a spectrogram's, the pixels are square. Pressed
-    again, or with 'Automatic' chosen in the viewer's options, the viewer returns to the aspect it had; back to
-    'Automatic' from the button, the image fills the axes again, keeping a zoom. A plain button, as 'Hide axes' is,
-    which leaves the mouse mode on.
+    again. On axes other than a longitude and a latitude alone, such as a spectrogram's or a sit-and-stare raster's
+    exposures against its slit, the pixels are square. Pressed again, or with 'Automatic' chosen in the viewer's
+    options, the viewer returns to the aspect it had; back to 'Automatic' from the button, the image fills the axes
+    again, keeping a zoom. A plain button, as 'Hide axes' is, which leaves the mouse mode on.
     """
 
     icon = "glue_move_x"

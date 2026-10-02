@@ -495,10 +495,17 @@ def test_physical_aspect_draws_a_square_of_sky_square(qtbot, request, source):
     assert square_pixels()
 
 
-@pytest.mark.parametrize("case", ["spectrogram", "no WCS"])
+@pytest.mark.parametrize("case", ["spectrogram", "sit-and-stare exposures", "slit-jaw x–t", "no WCS"])
 def test_physical_aspect_gives_square_pixels_off_the_sky(qtbot, irispy_test_files, case):
+    def bundled(name):
+        return find_irispy_test_file(irispy_test_files, name)
+
+    # the dataset and its x and y pixel axes: wavelength, exposures or time against the slit or x, or no coordinates
     data, x, y = {
-        "spectrogram": (lambda: raster_data([find_irispy_test_file(irispy_test_files, SCANNING)])[0], 2, 1),
+        "spectrogram": (lambda: raster_data([bundled(SCANNING)])[0], 2, 1),
+        # exposures of one place, which the pointing and the solar rotation move by a fraction of a slit pixel
+        "sit-and-stare exposures": (lambda: raster_data([bundled(SIT_AND_STARE.format("raster_t000_r00000"))])[0], 0, 1),
+        "slit-jaw x–t": (lambda: image_data(bundled(SIT_AND_STARE.format("SJI_1400_t000"))), 2, 0),
         "no WCS": (lambda: Data(label="cube", flux=np.zeros((8, 40, 50))), 2, 1),
     }[case]
     data = data()
