@@ -495,6 +495,28 @@ def test_physical_aspect_draws_a_square_of_sky_square(qtbot, request, source):
     assert square_pixels()
 
 
+def test_physical_aspect_is_the_same_all_along_a_raster(qtbot, irispy_test_files):
+    # pointing jitter makes 3860258481's 2″ steps differ by up to 2.6 % from one to the next
+    data = raster_data([find_irispy_test_file(irispy_test_files, SCANNING)])[0]
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    state = viewer.state
+    state.x_att, state.y_att = data.pixel_component_ids[0], data.pixel_component_ids[1]  # step against slit
+    state.aspect = "auto"
+    button = viewer.toolbar.actions["solar:physical_aspect"]
+    proportions = []
+    for step in (0, 2):  # zoomed on steps 0 and 1, 1.994″ apart, then on steps 2 and 3, 2.047″ apart
+        with delay_callback(state, "x_min", "x_max"):
+            state.x_min, state.x_max = step - 0.5, step + 1.5
+        button.trigger()
+        proportions.append((state.y_max - state.y_min) / (state.x_max - state.x_min))
+        button.trigger()
+    assert proportions[0] == pytest.approx(proportions[1], rel=1e-3)
+
+
 @pytest.mark.parametrize("case", ["spectrogram", "sit-and-stare exposures", "slit-jaw x–t", "no WCS"])
 def test_physical_aspect_gives_square_pixels_off_the_sky(qtbot, irispy_test_files, case):
     def bundled(name):

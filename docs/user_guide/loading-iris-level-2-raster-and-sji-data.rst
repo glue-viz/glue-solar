@@ -340,8 +340,9 @@ toolbar has:
 - "Physical aspect", from glue-solar: shows the image in its proportions on the sky, an arcsecond
   as long on screen along x as along y, and pressed again, with the aspect it had; the mouse mode
   stays on. It sets the aspect in the viewer's options to "Square Pixels", scaled by the ratio of
-  the arcseconds a pixel spans along y and along x at the centre of the view, so that a raster map
-  of 2″ steps along a slit of 0.17″ pixels shows each step 12 times as wide as a slit pixel is tall.
+  the arcseconds a pixel spans along y and along x, on average across the image through the centre
+  of the view, so that a raster map of 2″ steps along a slit of 0.17″ pixels shows each step 12
+  times as wide as a slit pixel is tall, wherever the view is.
   Resizing, zooming, panning and the sliders keep the proportions. Choosing other x or y axes
   shows their whole image in its own proportions. Axes other than a longitude and a latitude alone
   show square pixels: a spectrogram, a sit-and-stare raster's exposures against its slit, or a
