@@ -19,7 +19,7 @@ from glue.core.hub import HubListener
 from glue.core.link_helpers import LinkSame
 from glue.core.message import DataCollectionDeleteMessage
 from glue.core.visual import VisualAttributes
-from glue_qt.utils import get_qapp, load_ui
+from glue_qt.utils import load_ui
 from glue_qt.utils.threading import Worker
 from qtpy import QtWidgets
 from qtpy.QtCore import QSettings, Qt, QTimer, Signal
@@ -623,6 +623,24 @@ def _load(load, observations, picks, stack, stop, report):
     return load, loaded, None
 
 
+def _extract(load, archives, stop, report):
+    """
+    Unpack the browser's ticked archives on glue-qt's worker thread, until ``stop`` is set: ``report(load, percent)``
+    after each.
+
+    Returns ``(load, extracted, error)``: how many were unpacked, and the text of an extraction error.
+    """
+    for n, archive in enumerate(archives):
+        if stop.is_set():
+            return load, n, None
+        try:
+            extract_archive(archive)
+        except (OSError, tarfile.TarError) as error:
+            return load, n, f"Extraction failed: {error}"
+        report(load, 100 * (n + 1) // len(archives))
+    return load, len(archives), None
+
+
 # glue-qt's workers that are still running: Python would delete one that nothing holds, which aborts the process
 _RUNNING = set()
 
@@ -745,28 +763,19 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.progress.setFormat("%p%")
         picks = self.selected()
         archives = [name for _, kind, name in picks if kind == "archive"]
-        if archives:
-            # Unpack, rescan and stay open so the user can pick from what was inside.
-            for n, archive in enumerate(archives):
-                self.progress.setValue(int(100 * n / len(archives)))
-                get_qapp().processEvents()
-                try:
-                    extract_archive(archive)
-                except (OSError, tarfile.TarError) as error:
-                    self.set_directory(self.directory.text())
-                    self.progress.setFormat(f"Extraction failed: {error}")
-                    return
-            self.set_directory(self.directory.text())
-            self.progress.setValue(100)
-            self.progress.setFormat(f"Extracted {len(archives)} archive(s) — now tick what to load")
-            return
+        if archives:  # unpack, rescan and stay open so the user can pick from what was inside
+            self._start(self._extracted, _extract, archives)
+        else:
+            self._start(self._loaded, _load, self.observations, picks, self.stack.isChecked())
+
+    def _start(self, done, function, *args):
+        """Run ``function(load, *args, stop, report)`` on glue-qt's worker thread, and ``done`` with its result."""
         self.progress.setValue(0)
         self._load += 1
         self._stop = threading.Event()
         self._busy(True)
-        worker = Worker(_load, self._load, self.observations, picks, self.stack.isChecked(), self._stop,
-                        self.progressed.emit)
-        worker.result.connect(self._loaded)
+        worker = Worker(function, self._load, *args, self._stop, self.progressed.emit)
+        worker.result.connect(done)
         worker.error.connect(partial(self._failed, self._load))
         _RUNNING.add(worker)
         worker.finished.connect(lambda: _RUNNING.discard(worker))
@@ -795,6 +804,14 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     def _failed(self, load, exc_info):
         self._loaded((load, [], f"Loading failed: {exc_info[1]}"))
+
+    def _extracted(self, result):
+        load, extracted, error = result
+        if load != self._load:
+            return
+        self._busy(False)
+        self.set_directory(self.directory.text())
+        self.progress.setFormat(error or f"Extracted {extracted} archive(s) — now tick what to load")
 
     def _loaded(self, result):
         load, loaded, error = result

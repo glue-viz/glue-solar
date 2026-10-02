@@ -22,7 +22,7 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, OBS_S, find_irispy_test_file, startobs
 from glue_solar.sources.iris import is_iris_fits, read_iris_file
 from glue_solar.sources.loaders.iris import _RUNNING, QtIRISImporter, _raster_windows_data, image_data, raster_data
-from glue_solar.sources.loaders.scan import scan_directory
+from glue_solar.sources.loaders.scan import extract_archive, scan_directory
 from glue_solar.sources.loaders.stack_spectrograms import stack_spectrogram_sequence
 from glue_solar.tests.helpers import load_selected
 
@@ -253,7 +253,7 @@ def test_extract_archive_then_lists_its_windows(qtbot, iris_tree, tmp_path):
     assert row.childCount() == 0
     assert row.text(6).startswith("0 — Extract ")
     row.setCheckState(0, Qt.Checked)
-    dlg.finalize()
+    load_selected(qtbot, dlg)
     assert dlg.result() == 0  # stays open
     assert dlg.datasets == []
     assert (tree / f"{MD5}iris_l2_{'_'.join(OBS_C)}_raster").is_dir()
@@ -262,6 +262,31 @@ def test_extract_archive_then_lists_its_windows(qtbot, iris_tree, tmp_path):
         "C II 1336 — 1 raster file(s)",
         "Mg II k 2796 — 1 raster file(s)",
     ]
+
+
+def test_stop_keeps_the_archives_unpacked_in_full(qtbot, iris_tree, tmp_path, monkeypatch):
+    tree = tmp_path / "copy"
+    shutil.copytree(iris_tree, tree)
+    later = tree / f"iris_l2_20140709_000000_{OBS_C[2]}_raster.tar.gz"  # another run of the program
+    shutil.copy2(tree / f"{MD5}iris_l2_{'_'.join(OBS_C)}_raster.tar.gz", later)
+    dlg = QtIRISImporter(tree)
+    qtbot.addWidget(dlg)
+    for row in map(dlg.obs_tree.topLevelItem, range(dlg.obs_tree.topLevelItemCount())):
+        if row.text(6).startswith("0 — Extract "):
+            row.setCheckState(0, Qt.Checked)
+    unpacked = []
+
+    def extract(path):
+        unpacked.append(extract_archive(path))
+        QMetaObject.invokeMethod(dlg.cancel, "click", Qt.BlockingQueuedConnection)  # Stop, as the first is unpacked
+
+    monkeypatch.setattr("glue_solar.sources.loaders.iris.extract_archive", extract)
+    load_selected(qtbot, dlg)
+    assert unpacked == [tree / f"{MD5}iris_l2_{'_'.join(OBS_C)}_raster"]
+    assert dlg.result() == 0  # stays open, listing what it holds
+    assert dlg.progress.format() == "Extracted 1 archive(s) — now tick what to load"
+    assert [row.text(6) for row in map(dlg.obs_tree.topLevelItem, range(dlg.obs_tree.topLevelItemCount()))
+            if row.text(6).startswith("0 — Extract ")] == [f"0 — Extract {later.name} (0 MB, next to the archive)"]
 
 
 def test_browser_and_file_open_read_only_the_primary_header_of_a_gzipped_file(tmp_path):
