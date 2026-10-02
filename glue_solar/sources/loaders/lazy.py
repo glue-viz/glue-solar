@@ -26,8 +26,9 @@ def allow_open_files():
     """
     Raise this process's soft limit on open files to `OPEN_FILES` (never above the hard limit, never lower).
 
-    Each memory-mapped raster file stays open, once per window read from it: the 99 scans of 3602506433
-    pass the 256 files macOS gives GUI applications by its third window.
+    Each memory-mapped raster file stays open, once per read of its windows (a ``raster_data`` call, or the windows
+    of an observation ticked in the browser): the 99 scans of 3602506433 pass the 256 files macOS gives GUI
+    applications by their third read.
     """
     try:
         import resource

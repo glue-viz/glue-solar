@@ -376,13 +376,19 @@ def raster_data(files, windows=None, stack=False):
         files store them, stay in their files and are scaled where glue reads them (`LAZY`), if every file stores
         them alike.
     """
+    return [data for datasets in _raster_windows_data(files, windows, stack).values() for data in datasets]
+
+
+def _raster_windows_data(files, windows=None, stack=False):
+    """`raster_data` by window name, from one read of ``files`` for every window, which maps each file once."""
     scaling = _window_scaling(files[0])
     if any(_window_scaling(path) != scaling for path in files[1:]):
         scaling = None
     if scaling:
         allow_open_files()
     collection = read_files(files, spectral_windows=windows, memmap=bool(scaling), uncertainty=False)
-    return _raster_collection_data(collection, windows, stack, scaling)
+    return {window: _raster_collection_data({window: scans}, stack=stack, scaling=scaling)
+            for window, scans in collection.items()}
 
 
 def link_hpc(data_collection):
@@ -592,12 +598,21 @@ class QtIRISImporter(QtWidgets.QDialog):
             self.progress.setFormat(f"Extracted {len(archives)} archive(s) — now tick what to load")
             return
         self.datasets, self.first_image, self.loaded = [], None, []
+        windows, rasters = {}, {}  # each observation's ticked raster windows, read at once to map each file once
+        for i, kind, name in picks:
+            if kind == "raster":
+                windows.setdefault(i, []).append(name)
         for n, (i, kind, name) in enumerate(picks):
             self.progress.setValue(int(100 * n / len(picks)))
             get_qapp().processEvents()
             obs = self.observations[i]
             try:
-                datasets = load_entry(obs, kind, name, stack=self.stack.isChecked())
+                if kind == "raster":
+                    if i not in rasters:
+                        rasters[i] = _raster_windows_data(obs.rasters, windows[i], stack=self.stack.isChecked())
+                    datasets = rasters[i][name]
+                else:
+                    datasets = load_entry(obs, kind, name)
             except Exception as error:  # noqa: BLE001 - third-party reader errors must stay inside the dialog
                 self.progress.setFormat(f"Loading {name} failed: {error}")
                 return

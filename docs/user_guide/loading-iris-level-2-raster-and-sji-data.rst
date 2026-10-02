@@ -107,10 +107,11 @@ parts of the file read are kept, and a Profile or Histogram of a whole cube, a v
 glue's "Merge datasets" take glue's own colour limits, sampled from a few corners of the data, so
 set those by hand.
 
-Each loaded file stays open, so glue-solar raises the number of files glue may have open to 10240,
-or the system's hard limit if lower. A file must not be overwritten, cut short or have its drive
-disconnected while it is loaded, which can crash glue; the observation browser's archive extraction
-never overwrites a file.
+Each loaded file stays open, once for each time windows are loaded from it (the observation browser
+loads the windows ticked in an observation at once), so glue-solar raises the number of files glue
+may have open to 10240, or the system's hard limit if lower. A file must not be overwritten, cut
+short or have its drive disconnected while it is loaded, which can crash glue; the observation
+browser's archive extraction never overwrites a file.
 
 Opening a single file
 ---------------------
