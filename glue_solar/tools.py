@@ -120,8 +120,9 @@ def _hide_flat_angles(axes, shape):
     back and forth across each tick value, and WCSAxes labels every crossing, one over another. Decided on the
     array's edges, so zooming keeps it.
     """
-    angles = [coord for coord in axes.coords if coord.coord_type in ("longitude", "latitude")]
-    if len(angles) != 2:
+    shown = [coord for coord in axes.coords if coord.coord_index is not None]  # the others are not on these axes
+    angles = [coord for coord in shown if coord.coord_type in ("longitude", "latitude")]
+    if len(angles) != 2 or len(shown) == 2:  # an image of the two angles alone: both change across it
         return
     x, y = (np.linspace(0, n - 1, 64) for n in shape)  # -TAB rasters have no coordinates past the outer centres
     pixel = np.concatenate([

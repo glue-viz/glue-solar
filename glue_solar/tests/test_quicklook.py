@@ -23,6 +23,7 @@ from qtpy.QtCore import Qt
 import astropy.units as u
 from astropy.io import fits
 from astropy.visualization.wcsaxes.ticklabels import TickLabels
+from astropy.wcs import WCS
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
@@ -592,7 +593,7 @@ def test_raster_panels_show_wavelengths_in_angstrom(bare_app, scans):
 
 
 def tick_label_sides(viewer):
-    """The tick label positions of the viewer's helioprojective coordinates, by name, after a draw."""
+    """The tick label positions of the viewer's longitude and latitude, by name, after a draw."""
     viewer.figure.canvas.draw()
     return {c.default_label: c.get_ticklabel_position() for c in viewer.axes.coords if c.coord_type != "scalar"}
 
@@ -607,6 +608,24 @@ def test_flat_helioprojective_coordinates_have_no_tick_labels(bare_app, scans):
     assert [] not in tick_label_sides(viewers["map"]).values()
     viewers["wavelength"].state.slices = (0, 3, 0)  # a slit step resets the axes
     assert tick_label_sides(viewers["wavelength"])["Helioprojective Latitude"] == []
+
+
+@pytest.mark.parametrize(
+    ("ctype", "unit", "crval", "cdelt", "shape"),
+    [
+        (["HPLN-TAN", "HPLT-TAN"], "arcsec", [10, 20], 0.6, (400, 400)),  # across Tx = 0
+        (["HPLN-TAN", "HPLT-TAN"], "arcsec", [10, 20], 0.6, (500, 20)),  # a narrow strip
+        (["RA---TAN", "DEC--TAN"], "deg", [0, 10], 0.02, (100, 100)),  # across RA = 0
+    ],
+)
+def test_a_map_keeps_the_tick_labels_of_both_angles(bare_app, ctype, unit, crval, cdelt, shape):
+    # with no other coordinate beside them, both angles change across the image, however narrow or wherever it is
+    wcs = WCS(naxis=2)
+    wcs.wcs.ctype, wcs.wcs.cunit, wcs.wcs.crval, wcs.wcs.cdelt = ctype, [unit] * 2, crval, [cdelt] * 2
+    wcs.wcs.crpix = [shape[1] / 2, shape[0] / 2]
+    data = Data(label="map", flux=np.zeros(shape), coords=wcs)
+    bare_app.data_collection.append(data)
+    assert [] not in tick_label_sides(bare_app.new_data_viewer(ImageViewer, data=data)).values()
 
 
 def test_quicklook_without_a_raster(bare_app, irispy_test_files):
