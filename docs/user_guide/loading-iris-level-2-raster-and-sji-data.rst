@@ -337,6 +337,18 @@ toolbar has:
   viewer's options gives the previous one the whole cube's limits again. The mouse mode, such as
   Pixel, stays on. The button does not stay pressed: the limits in the layer's style editor change
   with each step while it is on. A session saved with it on does not open (see `Saving sessions`_).
+- "Physical aspect", from glue-solar: shows the image in its proportions on the sky, an arcsecond
+  as long on screen along x as along y, and pressed again, with the aspect it had; the mouse mode
+  stays on. It sets the aspect in the viewer's options to "Square Pixels", scaled by the ratio of
+  the arcseconds a pixel spans along y and along x, on average across the image through the centre
+  of the view, so that a raster map of 2″ steps along a slit of 0.17″ pixels shows each step 12
+  times as wide as a slit pixel is tall, wherever the view is. Resizing, zooming, panning and the
+  sliders keep the proportions, and choosing other x or y axes shows the new image whole, in its
+  own proportions. Axes other than a longitude and a latitude alone show square pixels: a
+  spectrogram, a sit-and-stare raster's exposures against its slit, or a slit-jaw image's x
+  against time. Choosing "Automatic" in the viewer's options switches it off too. Pressed again on
+  a quicklook raster panel, whose aspect is "Automatic", the image fills the panel again, keeping a
+  zoom. A saved session restores the viewer with "Square Pixels".
 - A button with a spectrum icon and no tooltip, which opens a 1D Profile viewer of the image's data.
 - The save menu, with "Save plot to file" and "Save Python script to reproduce plot", and the
   window menu, with "Move to another tab" and "Change viewer title".

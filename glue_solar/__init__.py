@@ -37,7 +37,13 @@ def setup():
         if f"gamma_{gamma}" not in stretches.members:
             stretch = type("GammaStretch", (PowerStretch,), {"__init__": partialmethod(PowerStretch.__init__, gamma)})
             stretches.add(f"gamma_{gamma}", stretch, display=f"Gamma {gamma}")
-    wanted = [tools.FrameTimeTool, tools.CoordinateTool, tools.HideAxesTool, tools.PerFrameLimitsTool]
+    wanted = [
+        tools.FrameTimeTool,
+        tools.CoordinateTool,
+        tools.HideAxesTool,
+        tools.PerFrameLimitsTool,
+        tools.PhysicalAspectTool,
+    ]
     # glue-qt with its own readout (glue-viz/glue-qt#74, draft) does not need ours
     if not hasattr(ImageViewer, "cursor_status"):
         wanted.append(tools.CursorReadoutTool)

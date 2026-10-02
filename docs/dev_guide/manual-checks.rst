@@ -183,35 +183,41 @@ Readouts, labels and themes
     the mouse again: the first readout after each is already in world coordinates. Press "Hide
     axes" again: the axes come back, with the exposure label.
 
+28. Press "Physical aspect" on the map of item 11, whose 1″ raster steps are three times as wide as
+    its 0.33″ slit pixels. The map narrows to its field's proportions on the sky, and the Pixel tool
+    stays on. With a screenshot tool, measure the distance between two longitude ticks 10″ apart and
+    between two latitude ticks 10″ apart: they agree within 5 %. Resize the panel and zoom with "Zoom"
+    (Z), and measure again. Press "Physical aspect" again: the map fills the panel again.
+
 Windows, tabs and shortcuts
 ---------------------------
 
-28. In the quicklook of item 5 no panel overlaps another or reaches past the tab. Maximise the map
+29. In the quicklook of item 5 no panel overlaps another or reaches past the tab. Maximise the map
     with its window's maximise button: it fills the tab; restore it: it returns to its place.
     Minimise SJI 2832 and restore it. Choose "Gather Windows" in the "Canvas" menu: the viewers are
     placed side by side, and still follow the point.
 
-29. With two screens, move glue's window to the other screen, ideally one with a different scaling,
+30. With two screens, move glue's window to the other screen, ideally one with a different scaling,
     and back. The panels redraw sharp at each screen's scaling, and the click of item 13 still lands
     under the pointer.
 
-30. In the two quicklook tabs of item 8, click the map of the second tab: only that tab's panels
+31. In the two quicklook tabs of item 8, click the map of the second tab: only that tab's panels
     move. Click the first tab's label to show it, and click its map: its own point moves, and the
     second tab's point is still where you left it.
 
-31. Ctrl+N ("New Data Viewer"), Ctrl+T ("New Tab"), Ctrl+G ("Gather Windows") and Ctrl+R ("Rename
+32. Ctrl+N ("New Data Viewer"), Ctrl+T ("New Tab"), Ctrl+G ("Gather Windows") and Ctrl+R ("Rename
     Tab") work, with Cmd in place of Ctrl on macOS. Click SJI 1400 and press Backspace (⌫ on a Mac
     keyboard): glue asks "Do you want to close this window?", with "Cancel" as the default. Click the
     map, the spectrogram or the wavelength panel and press Backspace: nothing happens. Do not press
     Backspace in the data collection, which removes the selected datasets without asking.
 
-32. Close a quicklook tab with its tab's close button. glue asks "Are you sure you want to close this
+33. Close a quicklook tab with its tab's close button. glue asks "Are you sure you want to close this
     tab?", with "Cancel" as the default. "Cancel" keeps the tab; "OK" closes it without a traceback,
     and the quicklook in the other tab still follows its point.
 
 Responsiveness
 --------------
 
-33. In the quicklook of item 11, whose raster has 13 million samples, glue computes the spectrum on a
+34. In the quicklook of item 11, whose raster has 13 million samples, glue computes the spectrum on a
     worker thread. Once the first spectrum is computed, the spectrum panel shows it, scaled to fit.
     Click a new point on the map: while the spectrum is computed, menus open and sliders move.

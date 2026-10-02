@@ -6,6 +6,7 @@ from collections import Counter
 
 import numpy as np
 import pytest
+from echo import delay_callback
 from glue.config import colormaps, data_factory, menubar_plugin, settings, startup_action
 from glue.core import Data
 from glue.core.data_factories import load_data
@@ -15,6 +16,7 @@ from glue_qt.viewers.image import ImageViewer
 from irispy.io import read_files
 from matplotlib.backend_bases import MouseEvent
 
+import astropy.units as u
 from astropy.io import fits
 from astropy.visualization import PowerStretch
 from astropy.wcs import WCS
@@ -39,6 +41,7 @@ def test_setup_registers_hooks():
     assert ImageViewer.tools.count("solar:coordinate") == 1
     assert ImageViewer.tools.count("solar:hide_axes") == 1
     assert ImageViewer.tools.count("solar:per_frame_limits") == 1
+    assert ImageViewer.tools.count("solar:physical_aspect") == 1
     assert ImageViewer.tools.count("solar:cursor_readout") == (0 if hasattr(ImageViewer, "cursor_status") else 1)
     iris = next(f for f in data_factory if f.label == "IRIS Level 2 FITS")
     for label in ("FITS file", "sunpy Map"):  # both also match IRIS files; ours must win
@@ -357,6 +360,203 @@ def test_sessions_with_per_frame_limits_fail_to_restore(qtbot, tmp_path):
     app.save_session(str(tmp_path / "limits.glu"))
     with pytest.raises(AttributeError, match="add_callback"):
         GlueApplication.restore_session(str(tmp_path / "limits.glu"))
+
+def generated_map():
+    """A raster map of 30 steps of 2″ along a slit of 300 pixels of 0.33″, rolled by 10°."""
+    wcs = WCS(naxis=2)
+    wcs.wcs.ctype = "HPLN-TAN", "HPLT-TAN"
+    wcs.wcs.cunit = "arcsec", "arcsec"
+    roll = np.deg2rad(10)
+    wcs.wcs.cd = np.array([[np.cos(roll), -np.sin(roll)], [np.sin(roll), np.cos(roll)]]) @ np.diag([2.0, 0.33])
+    wcs.wcs.crpix = 15.5, 150.5
+    wcs.wcs.crval = 100.0, -200.0
+    return Data(label="map", flux=np.zeros((300, 30)), coords=wcs)
+
+
+def sky_square(viewer, side=10):
+    """
+    The lengths on screen, in screen pixels, of the sides of a ``side``″ square of sky about the view centre, along
+    its longitude and along its latitude, placed with the reference data's own coordinates.
+    """
+    state = viewer.state
+    data, x, y = state.reference_data, state.x_att.axis, state.y_att.axis
+    coords, last = data.coords, data.ndim - 1  # WCS axes run in reverse
+    kinds = coords.world_axis_physical_types
+    lon, lat = (next(i for i, kind in enumerate(kinds) if kind.endswith(end)) for end in (".lon", ".lat"))
+    pixel = [float(s) for s in state.slices[::-1]]
+    pixel[last - x], pixel[last - y] = (state.x_min + state.x_max) / 2, (state.y_min + state.y_max) / 2
+    centre = coords.pixel_to_world_values(*pixel)
+    half = (side / 2 * u.arcsec).to_value(coords.world_axis_units[lon])
+    ends = []
+    for axis in (lon, lat):
+        for sign in (-1, 1):
+            world = list(centre)
+            world[axis] = world[axis] + sign * half
+            end = coords.world_to_pixel_values(*world)
+            ends.append((end[last - x], end[last - y]))
+    a, b, c, d = viewer.axes.transData.transform(ends)
+    return np.hypot(*(b - a)), np.hypot(*(d - c))
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        None,  # generated_map: 6:1
+        # 4000005156 scan 0, Si IV 1403: 2″ steps along a slit of 0.17″ pixels, about 12:1
+        pytest.param(
+            "iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz", marks=pytest.mark.remote_data
+        ),
+        # 3400109360: 1″ steps along a slit of 0.33″ pixels, about 3:1
+        pytest.param("iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz", marks=pytest.mark.remote_data),
+    ],
+)
+def test_physical_aspect_draws_a_square_of_sky_square(qtbot, request, source):
+    from glue_solar.tests.helpers import mouse
+
+    glue_solar.setup()
+    if source is None:
+        data, x, y = generated_map(), 1, 0
+    else:  # real rasters, whose step axis is a -TAB lookup table
+        paths = request.getfixturevalue("irispy_data")(source)
+        [data] = raster_data(paths if isinstance(paths, list) else [paths])
+        x, y = 0, 1
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    state = viewer.state
+    state.x_att, state.y_att = data.pixel_component_ids[x], data.pixel_component_ids[y]  # step against slit
+    state.aspect = "auto"  # as on a quicklook raster panel, which shows the whole image
+    state.reset_limits()
+    app.show()  # for resizes to reach the canvas
+
+    def resize(width, height):
+        viewer.viewer_size = (width, height)
+        box = viewer.axes.get_window_extent
+        qtbot.waitUntil(lambda: (box().width > box().height) == (width > height))
+
+    def square():
+        width, height = sky_square(viewer)
+        return abs(width / height - 1) < 0.05
+
+    def square_pixels():  # glue's 'Square Pixels'
+        return (state.y_max - state.y_min) / (state.x_max - state.x_min) == pytest.approx(viewer.axes_ratio, rel=1e-3)
+
+    def pan(dx):
+        with delay_callback(state, "x_min", "x_max"):
+            state.x_min, state.x_max = state.x_min + dx, state.x_max + dx
+
+    resize(600, 400)
+    assert not square()
+    viewer.toolbar.active_tool = "image:point_selection"
+    pixel, button = viewer.toolbar.active_tool, viewer.toolbar.actions["solar:physical_aspect"]
+    button.trigger()  # leaving the mouse mode on, which glue-qt ends for a plain button
+    assert (state.aspect, viewer.toolbar.active_tool) == ("equal", pixel)
+    assert square()
+    nx, ny = data.shape[x], data.shape[y]
+    assert state.x_min <= -0.5 < nx - 0.5 <= state.x_max  # the whole image still shows
+    assert state.y_min <= -0.5 < ny - 0.5 <= state.y_max
+
+    resize(300, 700)
+    assert square()
+
+    shown = (state.x_max - state.x_min, state.y_max - state.y_min)
+    viewer.toolbar.active_tool = "mpl:zoom"  # glue's Zoom: a drag across the middle of the axes
+    for name, corner in (("button_press_event", (0.3, 0.3)), ("button_release_event", (0.6, 0.5))):
+        mouse(viewer, name, *viewer.axes.transData.inverted().transform(viewer.axes.transAxes.transform(corner)))
+    assert state.x_max - state.x_min < shown[0]
+    assert state.y_max - state.y_min < shown[1]
+    assert square()
+
+    state.x_att, state.y_att = data.pixel_component_ids[y], data.pixel_component_ids[x]  # slit against step
+    assert square()
+    assert (state.x_min, state.x_max) == (-0.5, ny - 0.5) or (state.y_min, state.y_max) == (-0.5, nx - 0.5)  # fitted
+
+    button.trigger()  # back to glue's aspect, filling the axes with the image again
+    assert state.aspect == "auto"
+    assert (state.x_min, state.x_max, state.y_min, state.y_max) == (-0.5, ny - 0.5, -0.5, nx - 0.5)
+    assert not square()
+
+    state.x_att, state.y_att = data.pixel_component_ids[x], data.pixel_component_ids[y]  # off, it stays off
+    button.trigger()
+    assert state.aspect == "equal"
+    assert square()
+
+    state.aspect = "auto"  # 'Automatic' in the viewer's options switches it off too,
+    state.aspect = "equal"  # and 'Square Pixels' then gives square pixels
+    assert square_pixels()
+
+    pan(nx)  # the view centre past the last step, where -TAB rasters have no coordinates
+    button.trigger()  # from 'Square Pixels', as on a slit-jaw viewer,
+    pan(-nx)
+    assert square()
+    button.trigger()  # and back to them
+    assert state.aspect == "equal"
+    assert square_pixels()
+
+
+def test_physical_aspect_is_the_same_all_along_a_raster(qtbot, irispy_test_files):
+    # pointing jitter makes 3860258481's 2″ steps differ by up to 2.6 % from one to the next
+    data = raster_data([find_irispy_test_file(irispy_test_files, SCANNING)])[0]
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    state = viewer.state
+    state.x_att, state.y_att = data.pixel_component_ids[0], data.pixel_component_ids[1]  # step against slit
+    state.aspect = "auto"
+    button = viewer.toolbar.actions["solar:physical_aspect"]
+    proportions = []
+    for step in (0, 2):  # zoomed on steps 0 and 1, 1.994″ apart, then on steps 2 and 3, 2.047″ apart
+        with delay_callback(state, "x_min", "x_max"):
+            state.x_min, state.x_max = step - 0.5, step + 1.5
+        button.trigger()
+        proportions.append((state.y_max - state.y_min) / (state.x_max - state.x_min))
+        button.trigger()
+    assert proportions[0] == pytest.approx(proportions[1], rel=1e-3)
+
+
+def test_physical_aspect_stands_aside_without_glues_aspect_hooks(qtbot, monkeypatch):
+    from glue_solar import tools
+
+    glue_solar.setup()
+    monkeypatch.setattr(tools, "_ASPECT_HOOKS", (*tools._ASPECT_HOOKS, "_renamed_in_a_later_glue"))
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    image = Data(label="image", flux=np.arange(20.0).reshape(4, 5))
+    app.data_collection.append(image)
+    viewer = app.new_data_viewer(ImageViewer, data=image)  # the viewer still opens
+    viewer.toolbar.actions["solar:physical_aspect"].trigger()  # and the button does nothing
+    assert viewer.toolbar.tools["solar:physical_aspect"].ratio is None
+    viewer.close(warn=False)
+
+
+@pytest.mark.parametrize("case", ["spectrogram", "sit-and-stare exposures", "slit-jaw x–t", "no WCS"])
+def test_physical_aspect_gives_square_pixels_off_the_sky(qtbot, irispy_test_files, case):
+    def bundled(name):
+        return find_irispy_test_file(irispy_test_files, name)
+
+    # the dataset and its x and y pixel axes: wavelength, exposures or time against the slit or x, or no coordinates
+    data, x, y = {
+        "spectrogram": (lambda: raster_data([bundled(SCANNING)])[0], 2, 1),
+        # exposures of one place, which the pointing and the solar rotation move by a fraction of a slit pixel
+        "sit-and-stare exposures": (lambda: raster_data([bundled(SIT_AND_STARE.format("raster_t000_r00000"))])[0], 0, 1),
+        "slit-jaw x–t": (lambda: image_data(bundled(SIT_AND_STARE.format("SJI_1400_t000"))), 2, 0),
+        "no WCS": (lambda: Data(label="cube", flux=np.zeros((8, 40, 50))), 2, 1),
+    }[case]
+    data = data()
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    state = viewer.state
+    state.x_att, state.y_att = data.pixel_component_ids[x], data.pixel_component_ids[y]
+    state.aspect = "auto"
+    viewer.toolbar.actions["solar:physical_aspect"].trigger()
+    assert state.aspect == "equal"
+    assert (state.y_max - state.y_min) / (state.x_max - state.x_min) == pytest.approx(viewer.axes_ratio, rel=1e-3)
 
 
 def _cmap_menu(viewer):
