@@ -57,9 +57,9 @@ def select_point(viewer, x, y):
 
 
 def raster_point_on_sji(raster, sji, step, slit, frame=0):
-    """Raster pixel ``step, slit`` in slit-jaw frame ``frame``, from both datasets' own coordinates."""
+    """Raster pixel ``step, slit`` (at a stack's scan 0) in slit-jaw frame ``frame``, from the datasets' coordinates."""
     raster_types, types = list(raster.coords.world_axis_physical_types), list(sji.coords.world_axis_physical_types)
-    raster_world, world = raster.coords.pixel_to_world_values(0, slit, step), [None] * 3
+    raster_world, world = raster.coords.pixel_to_world_values(0, slit, step, *[0] * (raster.ndim - 3)), [None] * 3
     for kind in ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat"):
         world[types.index(kind)] = raster_world[raster_types.index(kind)]
     world[types.index("time")] = sji.coords.pixel_to_world_values(0, 0, frame)[types.index("time")]
