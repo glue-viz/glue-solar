@@ -802,8 +802,11 @@ def test_an_sji_point_moves_no_raster_panel(bare_app, qtbot, irispy_test_files):
     viewers["sji"][0].state.slices = (7, 0, 0)
     qtbot.wait(20)
     assert group.subset_state.slices == point
+    # a click on the slit-jaw image showing its frame axis, which is no place on the Sun, stays a slit-jaw point
+    viewers["sji"][0].state.x_att = sji.pixel_component_ids[0]
     select_point(viewers["sji"][0], 10, 20)
     qtbot.wait(20)
+    assert group.subset_state.reference_data is sji
     assert {role: viewers[role].state.slices for role in RASTER_PANELS} == before
     # the point shows on the slit-jaw image it was clicked on, and the raster panels drop its layer, until
     # the next raster click
@@ -822,7 +825,7 @@ def test_a_raster_point_move_leaves_the_slit_jaw_layers_alone(bare_app, qtbot, m
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
     [sji_viewer] = viewers["sji"]
-    for viewer in (sji_viewer, viewers["map"]):  # the slit-jaw viewer gets the point, then drops it
+    for viewer in (sji_viewer, viewers["map"]):  # a slit-jaw click and a map click both make a raster point
         select_point(viewer, 10, 20)
         qtbot.wait(20)
     updated = []
@@ -849,7 +852,7 @@ def test_a_closed_panel_gets_no_point(bare_app, qtbot, irispy_test_files):
     spectrogram = viewers["spectrogram"]
     spectrogram.close(warn=False)
     layers = list(spectrogram.state.layers)
-    for viewer in (viewers["sji"][0], viewers["map"]):  # a slit-jaw point, then a raster point
+    for viewer in (viewers["sji"][0], viewers["map"]):  # a slit-jaw click, then a raster click
         select_point(viewer, 10, 20)
         qtbot.wait(20)
     assert list(spectrogram.state.layers) == layers
@@ -1240,7 +1243,7 @@ def test_time_sync_without_a_raster_point(bare_app, qtbot, irispy_test_files):
     coord = coordinator(bare_app.data_collection)
     viewers["spectrogram"].state.slices = (1, *viewers["spectrogram"].state.slices[1:])
     qtbot.waitUntil(lambda: sji_viewer.state.slices[0] == 0)
-    select_point(sji_viewer, 10, 20)  # a slit-jaw point leaves the frame where it is
+    select_point(sji_viewer, 10, 20)  # a slit-jaw click leaves the frame where it is
     qtbot.wait(20)
     assert sji_viewer.state.slices[0] == 0
     menu_action(viewers["map"], "Clear point").trigger()  # and the exposure slider still leads
@@ -2163,6 +2166,142 @@ def test_what_moves_on_a_negative_step_raster(bare_app, qtbot, irispy_data):
     longitude = scan.world_component_ids[0].label
     assert viewers["map"].state.x_axislabel == viewers["wavelength"].state.y_axislabel == longitude
     assert [viewers[role].state.title.split()[-1] for role in ("map", "wavelength")] == ["map", "λ–step"]
+
+
+def clicked(viewer, raster, step, slit):
+    """
+    The slit-jaw pixel a Pixel click takes nearest raster pixel ``step, slit`` (at a stack's scan 0) in the frame the
+    viewer shows, and the raster pixel `sji_to_raster` finds there.
+    """
+    sji, frame = viewer.state.reference_data, viewer.state.slices[0]
+    x, y = np.round(raster_point_on_sji(raster, sji, step, slit, frame))
+    return (x, y), sji_to_raster(sji, frame, x, y, raster)
+
+
+@pytest.mark.parametrize("arcsec", [0.3, -0.3])  # per step: a scanning raster, and one of negative step (D10)
+def test_what_a_slit_jaw_click_moves_on_a_scanning_raster(bare_app, qtbot, tmp_path, irispy_test_files, arcsec):
+    path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=arcsec)
+    [raster] = raster_data([path], ["Si IV 1403"])
+    _, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    label = raster.label
+    times = raster[raster.id["Time"]][:, 0, 0]
+
+    def event(action):
+        return changes(bare_app, qtbot, viewers, action)
+
+    qtbot.wait(20)
+    frame = sji_viewer.state.slices[0]
+    # a click moves the point to the step and slit there, placed with the frame shown: the spectrogram to its step, the
+    # λ panel to its slit; the frame stays, though taken at another step's time (so NO MATCH), and marks the point
+    (x, y), (step, slit) = clicked(sji_viewer, raster, 30, 25)
+    assert nearest_frame(sji, times[step]) not in (frame, None)
+    assert event(lambda: select_point(sji_viewer, x, y)) == {
+        "point": (label, (step, slit, None)),
+        "spectrogram": (step, None, None),
+        "wavelength": (None, slit, None),
+    }
+    assert "NO MATCH" in readout(sji_viewer)
+    assert overlays(sji_viewer)[1] == pytest.approx(raster_point_on_sji(raster, sji, step, slit, frame))
+    # a click 20 steps before the first leaves the point and the panels as they were, and the readout says so
+    outside = np.round(past(raster, sji, (0, slit), (20, slit), frame))
+    assert event(lambda: select_point(sji_viewer, *outside)) == {}
+    assert "outside raster FOV" in readout(sji_viewer)
+    # until the point moves, here by the step slider, which takes the slit-jaw image to the time of the point's step
+    assert event(lambda: slide(viewers["spectrogram"], 0, 150)) == {
+        "point": (label, (150, slit, None)),
+        "spectrogram": (150, None, None),
+        "sji0": (nearest_frame(sji, times[150]), None, None),
+    }
+    assert "outside raster FOV" not in readout(sji_viewer)
+
+
+def test_what_a_slit_jaw_click_moves_on_a_stack(bare_app, qtbot, tmp_path, irispy_test_files):
+    path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
+    [stack] = raster_data([path, path], ["Si IV 1403"], stack=True)
+    times = stack[stack.id["Time"]].copy()
+    times[0] -= times.max() - times.min()  # scan 0 before the slit-jaw image, scan 1 during it
+    stack.update_components({stack.id["Time"]: times})
+    _, sji = sit_and_stare(irispy_test_files)
+    # the slit-jaw image first: glue tells the stack's subset of the click after the coordinator has replaced it
+    viewers = quicklook(bare_app, [sji, stack])
+    [sji_viewer] = viewers["sji"]
+    qtbot.wait(20)
+    assert sji_viewer.state.slices[0] == 0  # NO MATCH with scan 0
+    # a click moves the point to the step and slit there and to the scan nearest the frame's time at that step: the map
+    # to the scan, the spectrogram to its scan and step, the λ–scan panel to its step and slit; the frame stays
+    (x, y), (scan, step, slit) = clicked(sji_viewer, stack, 30, 25)
+    assert scan == 1
+    assert changes(bare_app, qtbot, viewers, lambda: select_point(sji_viewer, x, y)) == {
+        "point": (stack.label, (1, step, slit, None)),
+        "map": (1, None, None, expected_start(stack)[-1]),
+        "spectrogram": (1, step, None, None),
+        "wavelength": (None, step, slit, None),
+    }
+
+
+def test_what_a_slit_jaw_click_moves_on_a_sit_and_stare(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    sjis = [sji, image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_2796_t000")))]
+    viewers = quicklook(bare_app, [raster, *sjis])
+    label = raster.label
+    times = raster[raster.id["Time"]][:, 0, 0]
+
+    def event(action):
+        return changes(bare_app, qtbot, viewers, action)
+
+    qtbot.wait(20)
+    # SJI 1400 moved by hand, then clicked on the slit: the point moves to the exposure nearest the frame's time and the
+    # slit row there, the spectrogram to its exposure, the λ–time panel to its slit, and SJI 2796 follows the time
+    assert event(lambda: slide(viewers["sji"][0], 0, 20)) == {"sji0": (20, None, None)}
+    exposure = expected_nearest(sji[sji.id["Time"]][20, 0, 0], times)
+    (x, y), index = clicked(viewers["sji"][0], raster, exposure, 30)
+    assert index == (exposure, 30)
+    assert event(lambda: select_point(viewers["sji"][0], x, y)) == {
+        "point": (label, (exposure, 30, None)),
+        "spectrogram": (exposure, None, None),
+        "wavelength": (None, 30, None),
+        "sji1": (nearest_frame(sjis[1], times[exposure]), None, None),
+    }
+    # beside the slit, however far: the row level with the click
+    assert event(lambda: select_point(viewers["sji"][0], x - 5, y - 5)) == {
+        "point": (label, (exposure, 25, None)),
+        "wavelength": (None, 25, None),
+    }
+    # under a slit-jaw time master, a click on another moves the point's slit row, while the master rules: the
+    # exposure snaps back to the master's, and the image clicked follows the master too
+    assert event(lambda: menu_action(viewers["sji"][1], "Time master").trigger()) == {}
+    assert event(lambda: slide(viewers["sji"][0], 0, 40)) == {"sji0": (40, None, None)}
+    assert event(lambda: select_point(viewers["sji"][0], x, y)) == {
+        "point": (label, (exposure, 30, None)),
+        "wavelength": (None, 30, None),
+        "sji0": (20, None, None),
+    }
+
+
+def test_one_undo_reverts_a_slit_jaw_click(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    undo = bare_app._actions["undo"]
+    qtbot.wait(20)
+    assert not undo.isEnabled()
+    before = sliders(bare_app, viewers)
+    updates = SubsetUpdates(bare_app.data_collection.hub)
+    (x, y), index = clicked(sji_viewer, raster, 0, 30)
+    select_point(sji_viewer, x, y)
+    qtbot.wait(20)
+    assert sliders(bare_app, viewers)["point"] == (raster.label, (*index, None))
+    # one undo step, glue's, which the Pixel tool's slit-jaw point and the coordinator's raster point there share: the
+    # coordinator replaces the one by the other as glue applies it, and does not answer its own assignment
+    assert updates.counts == {raster.label: 2, sji.label: 2}
+    assert undo.isEnabled()
+    assert undo.text() == "Undo apply subset"
+    undo.trigger()
+    qtbot.wait(20)
+    assert sliders(bare_app, viewers) == before
+    assert not undo.isEnabled()
 
 
 def exposure_labels(viewer):

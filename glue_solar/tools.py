@@ -393,6 +393,8 @@ class FrameTimeTool(Tool, HubListener):
             ny, nx = data.shape[1:]
             if not (-0.5 <= where[0] <= nx - 0.5 and -0.5 <= where[1] <= ny - 0.5):
                 text += " · outside SJI FOV"
+        if self.coordinator.outside_raster(self.viewer):
+            text += " · outside raster FOV"
         if status is not None:
             text += f" · {_sync_text(status)}"
         self.label.setText(text)

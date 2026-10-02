@@ -279,7 +279,8 @@ class Coordinator(HubListener):
     only its last position, and editing one of those sliders moves the point. No other wavelength
     slider is moved, and a Profile's collapse is left in place. A viewer whose sliders glue resets for
     new data joins the point. A quicklook's point drives only the viewers it `owns`, and shows only
-    on those of its own dataset; viewers no quicklook owns follow whichever point is followed. Each
+    on those of its own dataset; viewers no quicklook owns follow whichever point is followed. A click
+    on a quicklook's slit-jaw image moves its point to the raster there (`_to_raster`). Each
     data collection has one coordinator (`coordinator`), and the ``solar:coordinate`` tool
     registers every Image viewer with it.
     """
@@ -296,6 +297,9 @@ class Coordinator(HubListener):
         self._shows = {}  # registered viewer -> the reference data its sliders were last set for
         self._owners = {}  # a quicklook's point group -> the viewers it drives
         self._placed = (None, None)  # point_on's last (raster, pixel, slit-jaw, frame) and answer
+        self._before = {}  # point group -> its last state other than a slit-jaw point (see _to_raster)
+        self._kept = (None, None)  # a slit-jaw image clicked, and the point its click set or left (see _to_raster)
+        self._outside = (None, None)  # a slit-jaw viewer clicked outside the raster, and the point its click left
         self._busy = False
         self._drag = None  # while a mouse button is down on a viewer: whether a point was clicked
         # a drag moves the point at every mouse event: show only its latest position
@@ -416,6 +420,8 @@ class Coordinator(HubListener):
     def _subset_changed(self, message):
         subset = message.subset
         state = subset.subset_state
+        if _role(getattr(state, "reference_data", None)) != "sji":
+            self._before[getattr(subset, "group", None)] = state
         if getattr(subset, "group", None) is self.group and not isinstance(state, PixelSubsetState):
             self._timer.start()  # another selection replaced the point: readouts follow
         # a group sends one message per dataset; answer the one of the point's own dataset
@@ -426,6 +432,7 @@ class Coordinator(HubListener):
             return
         self.group = group
         self._pin(state)
+        self._to_raster(state)
         if self._drag:
             self._timer.start()
             return
@@ -476,6 +483,39 @@ class Coordinator(HubListener):
                 self._set_slices(other, wavelengths)
             if slices != list(state.slices):
                 self.group.subset_state = PixelSubsetState(data, slices)
+
+    def _to_raster(self, state):
+        """
+        Make a click on a slit-jaw image of a quicklook the point of the quicklook's raster there, placed with the frame
+        the clicked viewer shows (`sji_to_raster`). Under a raster time master that frame stays while the point is the
+        click's, rather than move to the time the click gave the raster. A click outside the raster leaves the point as
+        it was, and the viewer's readout says so (`outside_raster`). A click on an image showing its frame axis, or
+        outside a quicklook, stays a slit-jaw point.
+        """
+        sji, owners = state.reference_data, self._owners.get(self.group, ())
+        clicked = {axis for axis, s in enumerate(state.slices) if s.start is not None}
+        if _role(sji) != "sji" or clicked != {1, 2} or not _placeable(sji):
+            return
+        rasters = [viewer.state.reference_data for viewer in self._viewers if viewer in owners]
+        key = observation_key(sji)
+        raster = next((data for data in rasters if _role(data) == "raster" and observation_key(data) == key), None)
+        viewers = [viewer for viewer in self._viewers_of(sji) if _sji_frame(viewer.state) is not None]
+        viewer = next((v for v in viewers if _pixel_tool_on(v)), viewers[0] if viewers else None)
+        if raster is None or viewer is None:
+            return
+        index = sji_to_raster(sji, _sji_frame(viewer.state), state.slices[2].start, state.slices[1].start, raster)
+        with self._writing():  # within glue's undo step for the click, which restores the point before it
+            if index is None:
+                self.group.subset_state = self._before.get(self.group, SubsetState())
+            else:
+                self.group.subset_state = PixelSubsetState(raster, [slice(i, i + 1) for i in index] + [slice(None)])
+        self._kept = (sji, self.group.subset_state)
+        self._outside = (viewer if index is None else None, self.group.subset_state)
+
+    def outside_raster(self, viewer):
+        """Whether the last click on the slit-jaw ``viewer`` fell outside the raster, while the point is as it left it."""
+        clicked, point = self._outside
+        return clicked is viewer and self.group.subset_state is point
 
     @staticmethod
     def _set_slices(viewer, indices):
@@ -579,8 +619,11 @@ class Coordinator(HubListener):
         index = min(max(index, 0), len(times) - 1)
         self._master_times[key] = (master, times[index], step)
         moved = {}
+        kept, clicked = self._kept
+        if _role(master) != "raster" or getattr(self.group, "subset_state", None) is not clicked:
+            kept = None  # a slit-jaw master rules, and once the point moves the image clicked follows it
         for data in self._datasets(key):
-            if data is master:
+            if data is master or data is kept:
                 continue
             follower_step = self._timing(data)[1]
             follower_times = _times(data, follower_step)
