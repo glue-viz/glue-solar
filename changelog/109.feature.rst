@@ -1,0 +1,1 @@
+The mouse-over readout adds the hovered pixel's UTC time and exposure, gives IRIS coordinates in arcsec and Å at a fixed precision, and on sit-and-stare panels no longer shows helioprojective coordinates along the exposure axis.

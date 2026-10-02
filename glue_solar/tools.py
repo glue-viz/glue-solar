@@ -14,7 +14,7 @@ from matplotlib.patches import Rectangle
 from qtpy import QtCore, QtWidgets
 
 import astropy.units as u
-from astropy.coordinates import angular_separation
+from astropy.coordinates import Angle, angular_separation
 
 from glue_solar.quicklook import _is_sit_and_stare, _role, coordinator
 
@@ -78,6 +78,55 @@ def _keep_mouse_mode(viewer):
 def _time_component(data):
     """The first datetime component of ``data``, or None."""
     return next((cid for cid in data.main_components if isinstance(data.get_component(cid), DateTimeComponent)), None)
+
+
+def _sit_and_stare_raster(data):
+    """Whether ``data`` is a sit-and-stare raster window, whose leading axis is its exposures."""
+    return data is not None and _role(data) == "raster" and data.ndim == 3 and _is_sit_and_stare(data)
+
+
+def _hovered(state, x, y):
+    """
+    The index of the reference data's pixel at ``x, y`` of the Image viewer's displayed axes, in the displayed slice, or
+    None off the image.
+    """
+    data = state.reference_data
+    if data is None or state.x_att is None or state.y_att is None or len(state.slices) != data.ndim:
+        return None
+    ix, iy = int(round(x)), int(round(y))
+    if not (0 <= ix < data.shape[state.x_att.axis] and 0 <= iy < data.shape[state.y_att.axis]):
+        return None
+    # an aggregated slider range carries its middle slice on the AggregateSlice object
+    return tuple(
+        ix if i == state.x_att.axis else iy if i == state.y_att.axis else getattr(s, "center", s)
+        for i, s in enumerate(state.slices)
+    )
+
+
+def _world_position(axes, x, y, keep=None):
+    """
+    The world position WCSAxes reads out at ``x, y`` of the WCSAxes ``axes``, with each coordinate it shows in arcsec
+    (a helioprojective longitude or latitude) to 0.01" and each it shows in Å (an IRIS wavelength) to 0.001 Å, a tenth
+    of an IRIS pixel or finer, where WCSAxes gives each the precision of its ticks (2834 for a wavelength of an NUV
+    window, of 0.025 Å pixels); other coordinates, such as a right ascension or a Carrington longitude, keep WCSAxes'
+    text. Given ``keep``, one of the coordinates of ``axes``, the other angles are left out.
+    """
+    world = axes.coords[0].transform.transform(np.array([[x, y]]))[0]
+    texts = []
+    for coord in axes.coords:
+        if coord.coord_index is None:  # not on these axes
+            continue
+        if coord.coord_type in ("longitude", "latitude") and keep not in (None, coord):
+            continue
+        value = world[coord.coord_index] * coord.coord_unit
+        if coord.get_format_unit() == u.arcsec:
+            angle = Angle(value) if coord.coord_wrap is None else Angle(value).wrap_at(coord.coord_wrap)
+            texts.append(f'{angle.to_value(u.arcsec):.2f}"')
+        elif coord.get_format_unit() == u.AA:
+            texts.append(f"{value.to_value(u.AA):.3f} Å")
+        else:
+            texts.append(coord.format_coord(world[coord.coord_index], format="ascii"))
+    return " ".join(texts) + " (world)"
 
 
 def _exposure_label(data):
@@ -174,6 +223,14 @@ class FrameTimeTool(Tool, HubListener):
     the axes (an axis or data change, or a slice the displayed coordinates depend on, such as the slit
     on the wavelength panel), and the tool applies them again; a label typed in the viewer's axes
     options is kept until then, as glue's own labels are.
+
+    It also gives the mouse-over readout (the axes' ``format_coord``, which glue-solar's Cursor readout and
+    glue-qt's own show), which follows the mouse, the hovered pixel's time and exposure, from the same
+    components: on a raster map each step's, on a slit-jaw image or a sit-and-stare raster the frame's or
+    exposure's. Its position has fixed precision (`_world_position`), and on a displayed sit-and-stare
+    exposure axis reads only the coordinate along the other axis, as the ticks do, with the time and
+    exposure in place of the slit's position along the exposures. Doppler velocities wait for a rest
+    wavelength (``wp5-m1-rest-wavelength-policy``). The toolbar button hides the frame time only.
     """
 
     icon = "window_tab"
@@ -208,6 +265,8 @@ class FrameTimeTool(Tool, HubListener):
         self._hub = viewer.session.hub
         self._hub.subscribe(self, SettingsChangeMessage, handler=self._label_exposures)
         self._label_exposures()
+        self._format_coord = viewer.axes.format_coord  # WCSAxes' world readout, set on the axes
+        viewer.axes.format_coord = self._readout
 
     def activate(self):
         self.label.setHidden(not self.label.isHidden())
@@ -221,7 +280,29 @@ class FrameTimeTool(Tool, HubListener):
             self.viewer.state.remove_callback(prop, self._throttle_sliders)
         for prop in _LABELS:
             self.viewer.state.remove_callback(prop, self._label_exposures)
+        self.viewer.axes.format_coord = self._format_coord
         super().close()
+
+    def _readout(self, x, y):
+        """The mouse-over readout at ``x, y`` of the displayed axes (see the class)."""
+        text, state = self._format_coord(x, y), self.viewer.state
+        data = state.reference_data
+        if data is None or state.x_att is None or state.y_att is None:
+            return text
+        if text.endswith(" (world)"):  # not a pixel position or an overlay, which W switches to
+            axes, shown = self.viewer.axes, (state.x_att.axis, state.y_att.axis)
+            # glue's own mapping of the axis beside the exposures to its world coordinate, as for the ticks
+            keep = axes.coords[data.ndim - 1 - max(shown)] if 0 in shown and _sit_and_stare_raster(data) else None
+            text = _world_position(axes, x, y, keep)
+        pixel = _hovered(state, x, y)
+        if pixel is None:
+            return text
+        cid, exposure = _time_component(data), data.find_component_id("Exposure time")
+        if cid is not None:
+            text += f" · {np.datetime_as_string(data[cid, pixel], unit='ms')} UTC"
+        if exposure is not None:
+            text += f" · exp {data[exposure, pixel]:.4g} s"
+        return text
 
     def _label_exposures(self, *_):
         """
@@ -234,7 +315,7 @@ class FrameTimeTool(Tool, HubListener):
         if data is not None and None not in shown and axes.coords is not self._flat_checked:  # glue reset the axes
             self._flat_checked = axes.coords
             _hide_flat_angles(axes, [data.shape[att.axis] for att in shown])
-        if data is None or _role(data) != "raster" or data.ndim != 3 or not _is_sit_and_stare(data):
+        if not _sit_and_stare_raster(data):
             return
         for index, axis in enumerate("xy"):
             att, world = getattr(state, f"{axis}_att"), getattr(state, f"{axis}_att_world")
@@ -328,10 +409,10 @@ class CursorReadoutTool(Tool):
     Show the world position and the data value under the mouse in the Image Viewer's status bar.
 
     The position is whatever the reference data's WCS maps the displayed axes to (helioprojective
-    position, wavelength, ...), formatted by the viewer's WCSAxes; the value is the reference
-    layer's displayed attribute at that pixel of the current slice. Pressing ``w`` over the image
-    switches WCSAxes between world and pixel positions. The toolbar button hides and shows the
-    readout.
+    position, wavelength, ...), as the viewer's WCSAxes reads it out, with the time and exposure the
+    Frame time tool adds; the value is the reference layer's displayed attribute at that pixel of the
+    current slice. Pressing ``w`` over the image switches WCSAxes between world and pixel positions.
+    The toolbar button hides and shows the readout.
     """
 
     icon = "glue_cross"
@@ -362,18 +443,10 @@ class CursorReadoutTool(Tool):
         """The status text for pixel position ``x, y`` of the displayed axes."""
         state = self.viewer.state
         text = self.viewer.axes.format_coord(x, y)
-        data = state.reference_data
+        data, view = state.reference_data, _hovered(state, x, y)
         layer = next((ls for ls in state.layers if ls.layer is data and ls.visible), None)
-        if layer is None or state.x_att is None or state.y_att is None or len(state.slices) != data.ndim:
+        if layer is None or view is None:
             return text
-        ix, iy = int(round(x)), int(round(y))
-        if not (0 <= ix < data.shape[state.x_att.axis] and 0 <= iy < data.shape[state.y_att.axis]):
-            return text
-        # an aggregated slider range carries its middle slice on the AggregateSlice object
-        view = tuple(
-            ix if i == state.x_att.axis else iy if i == state.y_att.axis else getattr(s, "center", s)
-            for i, s in enumerate(state.slices)
-        )
         value = data[layer.attribute, view]
         try:
             value = f"{float(value):.6g}"

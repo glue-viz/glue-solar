@@ -18,6 +18,8 @@ from glue.core.exceptions import IncompatibleAttribute
 from glue.core.parse import ParsedCommand, ParsedComponentLink
 from glue.core.subset import RangeSubsetState, SliceSubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
+from glue.viewers.image.state import AggregateSlice
+from matplotlib.backend_bases import KeyEvent
 
 from astropy.io import fits
 
@@ -541,6 +543,103 @@ def test_raster_windows_and_stacks_open_in_their_detectors_colormap(qtbot, monke
     app.data_collection.extend(datasets[-4:])  # the stacks, as before
     for data, cmap in zip(datasets[-4:], cmaps[-4:]):
         assert app.new_data_viewer(ImageViewer, data=data).layers[0].state.cmap == cmlist[cmap]
+
+
+def hover(viewer, x, y):
+    """The status bar's readout with the mouse over data position ``x, y`` of the viewer's axes."""
+    from glue_solar.tests.helpers import mouse
+
+    mouse(viewer, "motion_notify_event", x, y)
+    return viewer.statusBar().currentMessage()
+
+
+def time_and_exposure(data, pixel):
+    """What the readout gives after the position for ``pixel`` of ``data``: its own time and exposure there."""
+    utc = np.datetime_as_string(data["Time"][pixel], unit="ms")
+    return f" (world) · {utc} UTC · exp {data['Exposure time'][pixel]:.4g} s"
+
+
+def test_readout_gives_the_hovered_raster_steps_time_and_exposure(qtbot, tmp_path, irispy_test_files):
+    from glue_qt.app.application import GlueApplication
+    from glue_qt.viewers.image import ImageViewer
+
+    import glue_solar
+    from glue_solar.tests.helpers import select_point
+
+    glue_solar.setup()
+    sources = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)[:3]
+    paths = [int16_raster_copy(source, tmp_path / source.name) for source in sources]
+    zero_exposure(paths[2], 5)
+    [scan] = raster_data(paths[:1], ["C II 1336"])
+    [stack] = raster_data(paths, ["C II 1336"], stack=True)
+    assert stack["Exposure time"][2, 5, 0, 0] == 0  # so the readout must give the hovered scan's exposure
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.extend([scan, stack])
+    k = 8
+    for data, scans in ((scan, ()), (stack, (2,))):
+        assert isinstance(data, LazyData)
+        # a raster map, step against slit, at wavelength k, in the Pixel mode the quicklook opens in
+        viewer = app.new_data_viewer(ImageViewer, data=data)
+        step_axis = len(scans)
+        viewer.state.x_att, viewer.state.y_att = data.pixel_component_ids[step_axis : step_axis + 2]
+        viewer.state.slices = (*scans, 0, 0, k)
+        viewer.toolbar.active_tool = "image:point_selection"
+        for step, slit in ((0, 10), (5, 50), (7, 100)):
+            pixel = (*scans, step, slit, k)
+            _, latitude, longitude = data.coords.pixel_to_world_values(*pixel[::-1])[:3]
+            position = f'{latitude:.2f}" {longitude:.2f}"'  # the wavelength is on the slider
+            assert hover(viewer, step, slit).startswith(position + time_and_exposure(data, pixel))
+    # W switches WCSAxes to pixel positions, which the readout keeps
+    canvas = viewer.figure.canvas
+    canvas.callbacks.process("key_press_event", KeyEvent("key_press_event", canvas, "w"))
+    assert time_and_exposure(stack, (2, 5, 50, k)).replace("world", "pixel") in hover(viewer, 5, 50)
+    # the Pixel tool still selects a point
+    select_point(viewer, 5, 50)
+    assert viewer.toolbar.active_tool.tool_id == "image:point_selection"
+    [group] = app.data_collection.subset_groups
+    assert [(s.start, s.stop) for s in group.subset_state.slices[1:3]] == [(5, 6), (50, 51)]
+
+
+def test_readout_reads_the_time_along_sit_and_stare_exposures_and_slit_jaw_frames(qtbot, tmp_path, int16_raster,
+                                                                                    irispy_test_files):
+    from glue_qt.app.application import GlueApplication
+    from glue_qt.viewers.image import ImageViewer
+
+    import glue_solar
+
+    glue_solar.setup()
+    [raster] = raster_data([int16_raster], ["Si IV 1403"])
+    sji = image_data(int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0]))
+    assert isinstance(raster, LazyData)
+    assert isinstance(sji, LazyData)
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.extend([raster, sji])
+    viewer = app.new_data_viewer(ImageViewer, data=raster)
+    slit, k = 20, 14
+    for exposure in (0, 90, 186):
+        pixel = (exposure, slit, k)
+        wavelength, latitude, _ = raster.coords.pixel_to_world_values(k, slit, exposure)
+        # λ–time: the wavelength and the hovered exposure's time, not where the slit pixel was then
+        viewer.state.x_att, viewer.state.y_att = raster.pixel_component_ids[2], raster.pixel_component_ids[0]
+        viewer.state.slices = (0, slit, 0)
+        assert hover(viewer, k, exposure).startswith(f"{wavelength:.3f} Å" + time_and_exposure(raster, pixel))
+        # slit against time: the latitude along the slit
+        viewer.state.x_att, viewer.state.y_att = raster.pixel_component_ids[0], raster.pixel_component_ids[1]
+        viewer.state.slices = (0, 0, k)
+        assert hover(viewer, exposure, slit).startswith(f'{latitude:.2f}"' + time_and_exposure(raster, pixel))
+    # a slit-jaw frame, and x against the frames
+    viewer = app.new_data_viewer(ImageViewer, data=sji)
+    viewer.state.slices = (30, 0, 0)
+    longitude, latitude, _ = sji.coords.pixel_to_world_values(10, 20, 30)
+    assert hover(viewer, 10, 20).startswith(f'{longitude:.2f}" {latitude:.2f}"' + time_and_exposure(sji, (30, 20, 10)))
+    viewer.state.slices = (AggregateSlice(slice(10, 15), 12, np.nansum), 0, 0)  # a Collapse: its middle frame's
+    assert time_and_exposure(sji, (12, 20, 10)) in hover(viewer, 10, 20)
+    viewer.state.x_att, viewer.state.y_att = sji.pixel_component_ids[0], sji.pixel_component_ids[2]
+    viewer.state.slices = (0, 20, 0)
+    for frame in (0, 30, sji.shape[0] - 1):
+        assert time_and_exposure(sji, (frame, 20, 10)) in hover(viewer, frame, 10)
 
 
 @pytest.mark.remote_data

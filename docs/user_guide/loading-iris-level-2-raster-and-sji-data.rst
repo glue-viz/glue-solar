@@ -71,7 +71,9 @@ The "Frame time" tool in the Image Viewer toolbar shows the displayed frame's ti
 the status bar, as a range when the image spans several frames; for a single slit-jaw frame its
 tooltip gives that
 frame's pointing (PZT offset, field-of-view centre and slit position), which glue-solar keeps in
-the dataset's metadata.
+the dataset's metadata. The mouse-over readout (see "Cursor readout" in `Viewer tools and windows`_)
+gives the time and exposure of the pixel under the mouse: on a raster map those of the step it is
+on.
 
 Slit-jaw, raster and AIA values are floating point. The IRIS fill values -200 and -199 become NaN;
 in AIA cutouts only -200 does. glue-solar leaves
@@ -255,7 +257,9 @@ channel and a spectrum panel:
 A sit-and-stare raster's exposure axis, in the quicklook or any Image viewer, is labelled
 "Exposure (acquisition order)" with the UTC range of its exposures on a second line, and its ticks
 are exposure numbers: it is an index axis, so exposures are evenly spaced whatever their cadence.
-The other axis shows only its own coordinate. The label and ticks come back whenever glue resets
+The other axis shows only its own coordinate, and so does the mouse-over readout, followed by the
+time and exposure of the exposure under the mouse, rather than where the slit was then. The label
+and ticks come back whenever glue resets
 the axes, after an axis change or, on the wavelength panel, a slit move; a label typed in the
 viewer's axes options is kept until that reset, as glue's own labels are.
 
@@ -335,11 +339,18 @@ toolbar has:
   The "Reset" button next to the layer's contrast/bias sliders undoes it.
 - "Slice Extraction" (P): draw a path and press Enter to see the data along it in a new window.
   It is offered for 3D data only, so not for stacks.
-- "Cursor readout", from glue-solar: the world position and the value under the mouse, in the
-  status bar. Press W over the image to switch between world and pixel positions; the button hides
-  and shows the readout, and the mouse mode, such as Pixel, stays on.
+- "Cursor readout", from glue-solar: the world position under the mouse, the ``Time`` (UTC, to the
+  millisecond) and ``Exposure time`` of that pixel, and its value, in the status bar, for example
+  ``65.13" 109.32" (world) · 2013-09-02T18:31:07.229 UTC · exp 2 s | value = -3`` on a raster map,
+  where the time is that of the step under the mouse; on a slit-jaw image or a sit-and-stare
+  raster it is that of the frame or exposure. Helioprojective angles are in arcsec to 0.01″ and
+  IRIS wavelengths in Å to 0.001 Å, a tenth of an IRIS pixel or finer, whatever the zoom; other
+  coordinates, such as a stack's scan or a Carrington longitude, are as on their ticks. Press W
+  over the image to switch between world and pixel positions; the button hides and shows the
+  readout, and the mouse mode, such as Pixel, stays on.
 - "Frame time" and the "Coordinate" menu, from glue-solar, described above; the "Frame time" button
-  hides and shows its readout, and the mouse mode stays on.
+  hides and shows its readout of the displayed frame, not the mouse-over one, and the mouse mode
+  stays on.
 - "Hide axes", from glue-solar: hides the viewer's axes (ticks, tick labels, axis labels and frame),
   and shows them again; the mouse mode, such as Pixel, stays on. Without them each slice step and
   redraw is faster, since no ticks are placed; the image, subsets, links, the slit and point of

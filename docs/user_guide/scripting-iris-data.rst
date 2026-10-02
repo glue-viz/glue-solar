@@ -36,7 +36,10 @@ wavelength (in Angstrom), then helioprojective latitude and longitude (in arcsec
     step, slit, pixel = 90, 20, 14
     wavelength, latitude, longitude = raster.coords.pixel_to_world_values(pixel, slit, step)
 
-These are the values the Image viewer's readout shows at that position, latitude first.
+The Image viewer's readout shows those of the displayed axes at that position, latitude first,
+angles in arcsec to 0.01″ and wavelengths in Angstrom to 0.001 Å, with the step's time and exposure;
+on a sit-and-stare raster such as this one, whose steps are exposures, its map (step against slit)
+reads only the latitude, along the slit.
 Each dataset's ``Time`` component holds the acquisition time as ``numpy.datetime64``, one value per
 raster step or slit-jaw frame::
 

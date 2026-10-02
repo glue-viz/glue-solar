@@ -193,6 +193,8 @@ def test_frame_time_tool_follows_the_sliders(qtbot, irispy_test_files):
     app.data_collection.append(still)
     other = app.new_data_viewer(ImageViewer, data=still)
     assert other.toolbar.tools["solar:frame_time"].label.text() == "2020-01-01T12:00:00.000 UTC"
+    other.figure.canvas.draw()  # WCSAxes only formats positions once drawn
+    assert other.axes.format_coord(1, 1).endswith(" (world) · 2020-01-01T12:00:00.000 UTC")  # the mouse-over readout
 
 
 def test_frame_time_tool_survives_an_empty_collapse(qtbot):
@@ -205,6 +207,31 @@ def test_frame_time_tool_survives_an_empty_collapse(qtbot):
     tool = viewer.toolbar.tools["solar:frame_time"]
     viewer.state.slices = (AggregateSlice(slice(2, 2), 2, np.nanmean), 0, 0)
     assert tool.label.text() == ""
+
+
+def test_readout_gives_arcsec_only_where_wcsaxes_shows_arcsec(qtbot):
+    import sunpy.data.test
+
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    # an AIA map, whose FITS WCS gives a longitude just west of 0 as nearly 360°
+    aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))
+    app.data_collection.append(aia)
+    viewer = app.new_data_viewer(ImageViewer, data=aia)
+    viewer.figure.canvas.draw()
+    for x in (2, 100):  # east and west of 0
+        position = aia.coords.pixel_to_world(x, 60)
+        assert viewer.axes.format_coord(x, 60) == f'{position.Tx.arcsec:.2f}" {position.Ty.arcsec:.2f}" (world)'
+    # a right ascension, a Carrington longitude and a wavelength in metres keep WCSAxes' own text
+    for ctype in (("RA---TAN", "DEC--TAN"), ("CRLN-CEA", "CRLT-CEA"), ("WAVE", "LINEAR")):
+        wcs = WCS(naxis=2)
+        wcs.wcs.ctype, wcs.wcs.crval = ctype, (150, 2)
+        image = Data(label=ctype[0], flux=np.zeros((10, 10)), coords=wcs)
+        app.data_collection.append(image)
+        viewer = app.new_data_viewer(ImageViewer, data=image)
+        viewer.figure.canvas.draw()
+        assert viewer.axes.format_coord(3, 4) == viewer.axes._display_world_coords(3, 4)  # WCSAxes' readout
 
 
 def test_cursor_readout_shows_position_and_value(qtbot, irispy_test_files):
@@ -301,7 +328,7 @@ def test_hide_axes(qtbot, monkeypatch, irispy_test_files):
         placed.clear()
         assert hidden.axes.format_coord(10, 20) == shown.axes.format_coord(10, 20)
         assert hidden.axes.format_coord(11, 21) == shown.axes.format_coord(11, 21)
-        assert shown.axes.format_coord(10, 20).endswith("\" (world)")  # arcsec
+        assert '" (world) · ' in shown.axes.format_coord(10, 20)  # arcsec, then the frame's time
         assert placed[hidden.axes] == 3  # longitude, latitude and the hidden time
 
     # the button repaints the viewer and leaves its mouse mode on, which glue-qt ends for a plain button
@@ -322,12 +349,12 @@ def test_hide_axes(qtbot, monkeypatch, irispy_test_files):
     assert [(s.start, s.stop) for s in group.subset_state.slices] == [(None, None), (20, 21), (10, 11)]
     for viewer in (shown, hidden):
         viewer.state.slices = (6, 0, 0)  # a readout between a step and its draw, as during playback
-        assert viewer.axes.format_coord(10, 20).endswith("\" (world)")
+        assert '" (world) · ' in viewer.axes.format_coord(10, 20)
     full = shown.axes.format_coord(10.3, 20.7)
     for viewer in (shown, hidden):
         viewer.state.x_min, viewer.state.x_max, viewer.state.y_min, viewer.state.y_max = 10, 11, 20, 21
         viewer.figure.canvas.draw()
-    assert hidden.axes.format_coord(10.3, 20.7) == shown.axes.format_coord(10.3, 20.7) != full  # finer, zoomed in
+    assert hidden.axes.format_coord(10.3, 20.7) == shown.axes.format_coord(10.3, 20.7) == full  # whatever the zoom
 
 
 def test_sessions_keep_each_viewers_axes(qtbot, monkeypatch, tmp_path):
