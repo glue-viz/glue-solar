@@ -223,8 +223,8 @@ def test_readout_gives_arcsec_only_where_wcsaxes_shows_arcsec(qtbot):
     for x in (2, 100):  # east and west of 0
         position = aia.coords.pixel_to_world(x, 60)
         assert viewer.axes.format_coord(x, 60) == f'{position.Tx.arcsec:.2f}" {position.Ty.arcsec:.2f}" (world)'
-    # a right ascension and a Carrington longitude keep WCSAxes' own text, in hours and degrees
-    for ctype in (("RA---TAN", "DEC--TAN"), ("CRLN-CEA", "CRLT-CEA")):
+    # a right ascension, a Carrington longitude and a wavelength in metres keep WCSAxes' own text
+    for ctype in (("RA---TAN", "DEC--TAN"), ("CRLN-CEA", "CRLT-CEA"), ("WAVE", "LINEAR")):
         wcs = WCS(naxis=2)
         wcs.wcs.ctype, wcs.wcs.crval = ctype, (150, 2)
         image = Data(label=ctype[0], flux=np.zeros((10, 10)), coords=wcs)

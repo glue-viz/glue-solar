@@ -18,6 +18,8 @@ from glue.core.exceptions import IncompatibleAttribute
 from glue.core.parse import ParsedCommand, ParsedComponentLink
 from glue.core.subset import RangeSubsetState, SliceSubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
+from glue.viewers.image.state import AggregateSlice
+from matplotlib.backend_bases import KeyEvent
 
 from astropy.io import fits
 
@@ -588,6 +590,10 @@ def test_readout_gives_the_hovered_raster_steps_time_and_exposure(qtbot, tmp_pat
             _, latitude, longitude = data.coords.pixel_to_world_values(*pixel[::-1])[:3]
             position = f'{latitude:.2f}" {longitude:.2f}"'  # the wavelength is on the slider
             assert hover(viewer, step, slit).startswith(position + time_and_exposure(data, pixel))
+    # W switches WCSAxes to pixel positions, which the readout keeps
+    canvas = viewer.figure.canvas
+    canvas.callbacks.process("key_press_event", KeyEvent("key_press_event", canvas, "w"))
+    assert time_and_exposure(stack, (2, 5, 50, k)).replace("world", "pixel") in hover(viewer, 5, 50)
     # the Pixel tool still selects a point
     select_point(viewer, 5, 50)
     assert viewer.toolbar.active_tool.tool_id == "image:point_selection"
@@ -628,6 +634,8 @@ def test_readout_reads_the_time_along_sit_and_stare_exposures_and_slit_jaw_frame
     viewer.state.slices = (30, 0, 0)
     longitude, latitude, _ = sji.coords.pixel_to_world_values(10, 20, 30)
     assert hover(viewer, 10, 20).startswith(f'{longitude:.2f}" {latitude:.2f}"' + time_and_exposure(sji, (30, 20, 10)))
+    viewer.state.slices = (AggregateSlice(slice(10, 15), 12, np.nansum), 0, 0)  # a Collapse: its middle frame's
+    assert time_and_exposure(sji, (12, 20, 10)) in hover(viewer, 10, 20)
     viewer.state.x_att, viewer.state.y_att = sji.pixel_component_ids[0], sji.pixel_component_ids[2]
     viewer.state.slices = (0, 20, 0)
     for frame in (0, 30, sji.shape[0] - 1):
