@@ -51,7 +51,7 @@ Settled by the user; reopen only with the user.
 - **D9:** One `Coordinator` per DataCollection behind the registered `solar:coordinate` tool; restored viewers re-register; never wrap `app.new_data_viewer`; menus use `SimpleToolMenu`.
 - **D10:** Negative-step rasters keep irispy's orientation; `revert_v34=True` is the documented alternative.
 - **D11:** Rest wavelength: explicit override, else the packaged vacuum line list, else none (none for multi-line windows, no km/s for continuum, never TWAVE); float Å in `meta['rest_wavelength']`, read through the WP5 helper.
-- **D12:** -200 and -199 are missing (AIA: -200 only), +Inf is saturation, negatives are data; stored masks are uint8.
+- **D12:** -200 and -199 are missing (AIA: -200 only), +Inf is saturation, negatives are data; stored masks are uint8. -200 and Inf are documented (ITN 45, ITN 26); -199 is IRIS SolarSoft's convention only (`iris_make_fits_level3` v1.29 NaNs values < -198.5, `iris_raster_browser` has `missing=[-200.,-199.]`), seen in the files as raw -32764 (1905 samples in 4000255147 SJI 1400), with no header keyword naming it.
 - **D13:** Sessions add the Quantity saver only if none exists, save `_GlueWCS` via `__gluestate__`, never replace glue's `VisualAttributes` serialization globally, and save added components as 1-D vectors.
 - **D14:** irispy work targets LM-SAL `main`; the gWCS raster work (irispy #182) is the user's to direct.
 - **D15:** The quicklook is an MDI tab with explicit viewer geometry.
@@ -178,7 +178,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
   - irispy `memmap=True` zeroes SJI fill (`io/sji.py`), which reads the whole file and makes every fill page a private copy: a lazy open of 4000255147 SJI 1400 (124 MB) still peaks at +188 MB RSS (eager +497 MB), +1-2 MB without the zeroing (no saving on `.fits.gz`). Skipping the zeroing under `memmap=True` would leave glue-solar's own raw read as the only one (a behaviour probe would detect it).
   - irispy's readers run `verify("silentfix")` on every HDU (`io/spectrograph.py`, `io/sji.py`): 99 raster files read in 1.85 s, 1.09 s without.
   - irispy's `remove_dust` and `radiometric_calibration` skip `check_scaled`, so on a memmap (raw int16) cube they return wrong values silently.
-  - irispy treats -199 as fill in some places only: not in the readers, the dust mask, `calculate_mg_features` or the wobble correction.
+  - irispy treats -199 as fill in some places only: not in the readers, the dust mask, `calculate_mg_features` or the wobble correction. -199 is SolarSoft's convention, not ITN 26's (D12): confirm it with LMSAL before changing irispy.
   - irispy imports `sunpy.map` at import time; lazily would shorten glue's startup.
   - glue-qt keyboard shortcuts: Tab never cycles windows (Qt focus takes it), keys are looked up by exact viewer class (subclasses such as `QuicklookImageViewer` get none), Table viewer keys are registered on `DataTableModel`; the Image viewer's profile button has no tooltip.
   - glue-qt Profile Navigate and Collapse compare display-unit x with native values; Collapse drops the range's last sample, and an empty `AggregateSlice` raises when drawn.
