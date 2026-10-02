@@ -403,6 +403,7 @@ def test_gamma_stretches_are_listed_and_restored(qtbot, tmp_path):
     gammas = ["Gamma 0.4", "Gamma 0.75", "Gamma 1.5", "Gamma 2.2"]
     assert [menu.itemText(i) for i in range(menu.count())][-4:] == gammas
     menu.setCurrentIndex(menu.findText("Gamma 0.75"))
+    assert viewer.state.layers[0].stretch == "gamma_0.75"  # sessions save the key; one renamed fails to restore
     assert isinstance(viewer.state.layers[0].stretch_object, PowerStretch)
     assert viewer.state.layers[0].stretch_object.a == 0.75
     app.save_session(str(tmp_path / "gamma.glu"))
