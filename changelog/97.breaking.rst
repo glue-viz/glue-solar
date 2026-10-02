@@ -1,0 +1,1 @@
+IRIS data now give glue their wavelengths in Angstrom, so ``data.coords.pixel_to_world_values`` returns Angstrom instead of metres for the wavelength axis; scripts that converted from metres must drop that conversion.

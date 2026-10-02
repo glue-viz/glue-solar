@@ -143,7 +143,7 @@ raster show the data combined over the range, each until you move any of its sli
 leaves out the sample at the upper end of the range, so the range must cover at least two samples.
 
 In glue-qt 0.4.2, Navigate and Collapse pick the wrong wavelengths when the Profile's "x unit" is not
-the data's own (``m`` for IRIS wavelengths), so leave it unchanged for them.
+the data's own (``Angstrom`` for IRIS wavelengths), so leave it unchanged for them.
 
 **Slice Extraction.** In an Image viewer of a raster or slit-jaw cube, "Slice Extraction" (P) takes a
 path drawn on the image and, on Enter, shows the data along the path against the slider's axis in a

@@ -72,6 +72,17 @@ def test_link_editor_wcs_link_works_or_refuses_cleanly(sns, irispy_test_files):
     assert {cid.axis for cid in link.cids2} == {0, 1}
 
 
+def test_wcs_link_between_two_raster_windows(irispy_test_files):
+    # glue's "WCS link" raised IncompatibleWCS: its SkyCoord took the arcsec values for degrees
+    windows = raster_data([_real(irispy_test_files, RASTER)], ["C II 1336", "Si IV 1403"])
+    wrapped = [Data(x=np.zeros(data.shape), coords=data.coords._wcs, label=data.label) for data in windows]
+    link, expected = WCSLink(*windows), WCSLink(*wrapped)
+    pixel = [np.array([n / 2 + 0.25]) for n in windows[0].shape]
+    args = [pixel[cid.axis] for cid in link.cids1]
+    assert [cid.axis for cid in expected.cids1] == [cid.axis for cid in link.cids1]
+    np.testing.assert_allclose(link.forwards(*args), expected.forwards(*args), rtol=0, atol=1e-9)
+
+
 def test_sji_high_level_api_round_trips(sns):
     sji, _ = sns
     pixel = (10, 10, 5)

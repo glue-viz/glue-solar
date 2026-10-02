@@ -220,11 +220,17 @@ viewer's axes options is kept until that reset, as glue's own labels are.
 
 In every Image viewer, each world coordinate's ticks are labelled with that coordinate's name.
 WCSAxes can put a coordinate's ticks on another side than the axis it belongs to: latitude can run
-along the bottom of a slit-jaw image rolled by more than 45°, and the step axis of a raster's
-wavelength-against-step panel can show latitude on the left and longitude on the right when the
-raster has a small roll. The label then stays with the ticks, and an x or y axis label typed in the
-axes options names the coordinate of that axis, wherever its ticks are; glue-core 1.27.0 alone
-labels the bottom and left ticks after the x and y axes, whichever coordinate they show.
+along the bottom of a slit-jaw image rolled by more than 45°. The label then stays with the ticks,
+and an x or y axis label typed in the axes options names the coordinate of that axis, wherever its
+ticks are; glue-core 1.27.0 alone labels the bottom and left ticks after the x and y axes, whichever
+coordinate they show.
+
+On an image that shows another coordinate, such as wavelength or time, beside longitude and
+latitude, an angle that changes by less than 5 % of the other across the image has no tick labels,
+also after glue resets the axes: the latitude along a raster's steps on the wavelength-against-step
+panel, or the longitude along the slit on the spectrogram. WCSAxes would label it wherever pointing
+jitter takes it across a tick value, one label over another or off the panel. An image of the two
+angles alone, such as the map, a slit-jaw image or any other celestial map, keeps both.
 
 The map shows the wavelength nearest the window's reference wavelength, and the panels use
 99.5 % limits. A point, the edit subset "Point", starts at the centre of the map with the Pixel

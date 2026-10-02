@@ -13,13 +13,17 @@ from glue.core.subset import SubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue_qt.app.application import GlueApplication
+from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from matplotlib.text import Text
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 
 import astropy.units as u
 from astropy.io import fits
+from astropy.visualization.wcsaxes.ticklabels import TickLabels
+from astropy.wcs import WCS
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
@@ -538,11 +542,114 @@ def test_quicklook_gives_aia_cutouts_no_role(bare_app, tmp_path, irispy_data, ir
     assert all(viewer.state.reference_data is not aia for viewer in bare_app.viewers[-1] if hasattr(viewer.state, "reference_data"))
 
 
+def drawn_tick_labels(monkeypatch, viewer):
+    """The text and window extent of every tick label the viewer draws."""
+    drawn, draw = [], Text.draw
+
+    def spy(self, renderer):
+        draw(self, renderer)
+        if isinstance(self, TickLabels) and self.get_visible() and self.get_text():
+            drawn.append((self.get_text(), self.get_window_extent(renderer)))
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Text, "draw", spy)
+        viewer.figure.canvas.draw()
+    return drawn
+
+
 @pytest.mark.remote_data
-def test_quicklook_of_a_full_raster(bare_app, irispy_data):
+def test_quicklook_of_a_full_raster(bare_app, monkeypatch, irispy_data):
     [data] = raster_data([irispy_data("iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz")])
     viewers = quicklook(bare_app, [data])
     check_panels(bare_app, viewers, data, {"map": (0, 1), "spectrogram": (2, 1), "wavelength": (2, 0)})
+    for role in ("map", "spectrogram", "wavelength"):  # no tick label over another or off the panel
+        drawn = drawn_tick_labels(monkeypatch, viewers[role])
+        width, height = viewers[role].figure.canvas.get_width_height()
+        assert all(0 <= box.x0 and box.x1 <= width and 0 <= box.y0 and box.y1 <= height for _, box in drawn)
+        boxes = [box for _, box in drawn]
+        assert not [(a, b) for i, a in enumerate(boxes) for b in boxes[i + 1:] if a.overlaps(b)], role
+
+
+def test_raster_panels_show_wavelengths_in_angstrom(bare_app, scans):
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    # the dataset's own wavelengths, from the WCS it wraps
+    wave = (scan.coords._wcs.pixel_to_world_values(np.arange(scan.shape[2]), 0, 0)[0] * u.m).to_value(u.AA)
+    np.testing.assert_allclose(scan[scan.world_component_ids[2], 0, 0], wave, rtol=0, atol=1e-6)
+    k = viewers["map"].state.slices[2]
+    [slider] = [w.state for w in viewers["map"].options_widget().findChildren(SliceWidget) if w.state.slider_unit]
+    assert slider.slider_unit == "Angstrom"
+    decimals = len(slider.slider_label.partition(".")[2])  # as few as tell every wavelength apart
+    assert abs(float(slider.slider_label) - wave[k]) <= 0.5 * 10.0**-decimals
+    spectrum = viewers["spectrum"].state
+    assert spectrum.x_display_unit == "Angstrom"
+    [x] = [layer.profile[0] for layer in spectrum.layers if layer.visible]
+    np.testing.assert_allclose(x, wave, rtol=0, atol=1e-6)
+    panel = viewers["wavelength"]
+    panel.figure.canvas.draw()
+    shown = panel.toolbar.tools["solar:cursor_readout"].describe(k, 3).split()[0]
+    decimals = len(shown.partition(".")[2])
+    assert abs(float(shown) - wave[k]) <= 0.5 * 10.0**-decimals
+
+
+def tick_label_sides(viewer):
+    """The tick label positions of the viewer's longitude and latitude, by name, after a draw."""
+    viewer.figure.canvas.draw()
+    return {c.default_label: c.get_ticklabel_position() for c in viewer.axes.coords if c.coord_type != "scalar"}
+
+
+def test_flat_helioprojective_coordinates_have_no_tick_labels(bare_app, scans):
+    # latitude along the steps jitters back and forth across each tick value, and WCSAxes labels every crossing
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    sides = tick_label_sides(viewers["wavelength"])
+    assert sides == {"Helioprojective Latitude": [], "Helioprojective Longitude": ["l", "#"]}
+    assert tick_label_sides(viewers["spectrogram"])["Helioprojective Longitude"] == []
+    assert [] not in tick_label_sides(viewers["map"]).values()
+    viewers["wavelength"].state.slices = (0, 3, 0)  # a slit step resets the axes
+    assert tick_label_sides(viewers["wavelength"])["Helioprojective Latitude"] == []
+
+
+@pytest.mark.parametrize(
+    ("ctype", "unit", "crval", "cdelt", "shape"),
+    [
+        (["HPLN-TAN", "HPLT-TAN"], "arcsec", [10, 20], 0.6, (400, 400)),  # across Tx = 0
+        (["HPLN-TAN", "HPLT-TAN"], "arcsec", [10, 20], 0.6, (500, 20)),  # a narrow strip
+        (["RA---TAN", "DEC--TAN"], "deg", [0, 10], 0.02, (100, 100)),  # across RA = 0
+    ],
+)
+def test_a_map_keeps_the_tick_labels_of_both_angles(bare_app, ctype, unit, crval, cdelt, shape):
+    # with no other coordinate beside them, both angles change across the image, however narrow or wherever it is
+    wcs = WCS(naxis=2)
+    wcs.wcs.ctype, wcs.wcs.cunit, wcs.wcs.crval, wcs.wcs.cdelt = ctype, [unit] * 2, crval, [cdelt] * 2
+    wcs.wcs.crpix = [shape[1] / 2, shape[0] / 2]
+    data = Data(label="map", flux=np.zeros(shape), coords=wcs)
+    bare_app.data_collection.append(data)
+    assert [] not in tick_label_sides(bare_app.new_data_viewer(ImageViewer, data=data)).values()
+
+
+def test_a_flat_longitude_across_0_has_no_tick_labels(bare_app):
+    # a FITS WCS gives longitudes from 0° to 360°: a slit at Tx = 0 rolled by 1° must not look 360° wide in longitude
+    wcs = WCS(naxis=3)
+    wcs.wcs.ctype, wcs.wcs.cunit = ["HPLN-TAN", "HPLT-TAN", "TIME"], ["arcsec", "arcsec", "s"]
+    wcs.wcs.crpix, wcs.wcs.cdelt, wcs.wcs.crval = [3, 50, 1], [0.6, 0.6, 10], [0, 20, 0]
+    roll = np.deg2rad(1)
+    wcs.wcs.pc = [[np.cos(roll), -np.sin(roll), 0], [np.sin(roll), np.cos(roll), 0], [0, 0, 1]]
+    data = Data(label="raster", flux=np.zeros((40, 100, 5)), coords=wcs)
+    bare_app.data_collection.append(data)
+    sides = tick_label_sides(image(bare_app, data, 0, 1, (0, 0, 2)))  # the slit at Tx = 0 against time
+    assert sides == {"custom:pos.helioprojective.lat": ["l", "#"], "custom:pos.helioprojective.lon": []}
+
+
+def test_a_flat_latitude_beside_corners_off_the_sky_has_no_tick_labels(bare_app):
+    # an all-sky image has no coordinates in its corners, which must not hide how far its longitude goes
+    wcs = WCS(naxis=3)
+    wcs.wcs.ctype, wcs.wcs.cunit = ["GLON-AIT", "GLAT-AIT", "VRAD"], ["deg", "deg", "m/s"]
+    wcs.wcs.crpix, wcs.wcs.cdelt = [90.5, 1, 1], [-2, 2, 1000]
+    data = Data(label="cube", flux=np.zeros((5, 45, 180)), coords=wcs)
+    bare_app.data_collection.append(data)
+    sides = tick_label_sides(image(bare_app, data, 2, 0))  # longitude against velocity along the equator
+    assert sides == {"pos.galactic.lon": ["b", "#"], "pos.galactic.lat": []}
 
 
 def test_quicklook_without_a_raster(bare_app, irispy_test_files):

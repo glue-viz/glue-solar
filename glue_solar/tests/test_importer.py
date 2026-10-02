@@ -11,6 +11,9 @@ from qtpy.QtCore import Qt
 
 import astropy.units as u
 from astropy.io import fits
+from astropy.utils.masked import Masked
+from astropy.wcs.wcsapi import HighLevelWCSWrapper
+from astropy.wcs.wcsapi.high_level_api import values_to_high_level_objects
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
 from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, find_irispy_test_file
@@ -19,6 +22,9 @@ from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
 from glue_solar.sources.loaders.scan import scan_directory
 from glue_solar.sources.loaders.stack_spectrograms import stack_spectrogram_sequence
+
+# The unit glue is shown each world axis in, by physical type; time, scan and the others keep their own
+SHOWN = {"em.wl": u.AA, "custom:pos.helioprojective.lat": u.arcsec, "custom:pos.helioprojective.lon": u.arcsec}
 
 
 @pytest.fixture
@@ -248,7 +254,7 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
     raw_last[np.isin(raw_last, (-200, -199))] = np.nan
     assert data.shape == (len(paths), 8, 109, 17)
     assert [c.label for c in data.world_component_ids][0] == "Scan"
-    assert data.coords.world_axis_units == ("m", "arcsec", "arcsec", "")
+    assert data.coords.world_axis_units == ("Angstrom", "arcsec", "arcsec", "")
     np.testing.assert_array_equal(values[-1], raw_last)
     assert data.get_component(mask).data.dtype == np.uint8
     np.testing.assert_array_equal(data.get_component(mask).data, np.isnan(values))
@@ -270,8 +276,8 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
         sequence[0].wcs.world_axis_units,
         sequence[0].wcs.world_axis_physical_types,
     ):
-        if physical_type.startswith("custom:pos.helioprojective."):
-            expected = (expected * u.Unit(unit)).to_value(u.arcsec)
+        if physical_type in SHOWN:
+            expected = (expected * u.Unit(unit)).to_value(SHOWN[physical_type])
         np.testing.assert_allclose(actual, expected)
     for actual, expected in zip(
         data.coords.world_to_pixel_values(*stacked_world),
@@ -335,25 +341,53 @@ def test_arcsec_coordinates_read_the_axes_once(irispy_test_files):
             world = wcs.pixel_to_world_values(*pixel)
             # the values of a Quantity conversion, bit for bit
             for value, expected, unit, kind in zip(world, raw.pixel_to_world_values(*pixel), units, kinds):
-                if kind.startswith("custom:pos.helioprojective."):
+                if kind in SHOWN:
                     if kind.endswith(".lon"):
                         circle = (360 * u.deg).to_value(unit)
                         expected = (np.asarray(expected) + circle / 2) % circle - circle / 2
-                    expected = (np.asarray(expected) * u.Unit(unit)).to_value(u.arcsec)
+                    expected = (np.asarray(expected) * u.Unit(unit)).to_value(SHOWN[kind])
                 assert type(value) is type(expected)
                 assert np.asarray(value).tobytes() == np.asarray(expected).tobytes()
             if pixel is not missing:
                 # and back, also as a single-precision world position
                 for where in (world, [np.asarray(value, dtype=np.float32) for value in world]):
                     native = [
-                        (np.asarray(value) * u.arcsec).to_value(unit) if kind.startswith("custom:pos.helioprojective.")
-                        else value
+                        value if kind not in SHOWN else (np.asarray(value) * SHOWN[kind]).to_value(unit)
                         for value, unit, kind in zip(where, units, kinds)
                     ]
                     for value, expected in zip(wcs.world_to_pixel_values(*where), raw.world_to_pixel_values(*native)):
                         assert np.asarray(value).tobytes() == np.asarray(expected).tobytes()
         # WCSAxes converts through these dozens of times per draw: the axes are read once, not per call
         assert raw.reads == 2
+
+
+def _same(shown, wrapped):
+    """Whether two high-level world objects are the same position, time or quantity."""
+    if hasattr(shown, "Tx"):
+        return u.allclose(shown.Tx, wrapped.Tx, rtol=0, atol=1e-9 * u.arcsec) and u.allclose(
+            shown.Ty, wrapped.Ty, rtol=0, atol=1e-9 * u.arcsec
+        )
+    if hasattr(shown, "jd"):
+        return abs((shown - wrapped).to_value(u.s)) < 1e-6
+    return u.allclose(shown, wrapped, rtol=1e-15)
+
+
+def test_high_level_objects_agree_with_the_values(irispy_test_files):
+    # glue's WCS link builds SkyCoords and SpectralCoords from the values: they said degrees and metres while the
+    # values were arcsec and Angstrom, which raised (latitude past 90 deg) or gave positions 3600 times too far out
+    obs = "iris_l2_20210905_001833_3620258102_{}.fits"
+    [raster] = raster_data([find_irispy_test_file(irispy_test_files, obs.format("raster_t000_r00000"))], ["Si IV 1403"])
+    sji = image_data(find_irispy_test_file(irispy_test_files, obs.format("SJI_1400_t000")))
+    scans = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
+    [stack] = raster_data(scans, ["C II 1336"], stack=True)
+    for data in (raster, sji, stack):
+        pixel = [n / 2 + 0.25 for n in data.shape[::-1]]
+        shown, wrapped = HighLevelWCSWrapper(data.coords), HighLevelWCSWrapper(data.coords._wcs)
+        objects = shown.pixel_to_world(*pixel)
+        assert all(map(_same, objects, wrapped.pixel_to_world(*pixel)))
+        assert shown.world_to_pixel(*objects) == pytest.approx(wrapped.world_to_pixel(*objects), abs=1e-9)
+        values = map(Masked, data.coords.pixel_to_world_values(*pixel))  # astropy takes masked low-level values too
+        assert all(map(_same, values_to_high_level_objects(*values, low_level_wcs=data.coords), objects))
 
 
 def test_arcsec_coordinates_reuse_identical_conversions(irispy_test_files):

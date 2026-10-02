@@ -30,6 +30,8 @@ _PIXEL_COORDS = {"type": ("scalar", "scalar"), "wrap": (None, None), "unit": (u.
 _SLIDER_REBUILDS = ("reference_data", "x_att", "y_att")
 # A dragged slice slider applies its position at most this often, and on release
 _DRAG_INTERVAL_MS = 100
+# Beside another coordinate, an angle changing by less than this fraction of the other across a panel has no tick labels
+_FLAT = 0.05
 
 
 def _throttle_slice_sliders(viewer):
@@ -111,6 +113,36 @@ def _index_ticks(axes, index, shown):
     return coord
 
 
+def _hide_flat_angles(axes, shape):
+    """
+    Hide the tick labels of a longitude or latitude, of any celestial frame, of the WCSAxes ``axes`` that barely
+    changes across the displayed array of ``shape`` (x, y) while another coordinate, such as wavelength or time, is
+    shown beside the two, as the latitude along a raster's steps does: pointing jitter takes it back and forth across
+    each tick value, and WCSAxes labels every crossing, one over another. An image of the two angles alone, such as
+    a map or a slit-jaw image, keeps both. Decided on the array's edges, so zooming keeps it, with a longitude across
+    0° unwrapped rather than 360° wide.
+    """
+    shown = [coord for coord in axes.coords if coord.coord_index is not None]  # the others are not on these axes
+    angles = [coord for coord in shown if coord.coord_type in ("longitude", "latitude")]
+    if len(angles) != 2 or len(shown) == 2:  # an image of the two angles alone: both change across it
+        return
+    x, y = (np.linspace(0, n - 1, 64) for n in shape)  # -TAB rasters have no coordinates past the outer centres
+    pixel = np.concatenate([
+        np.column_stack([x, np.zeros(64)]), np.column_stack([x, np.full(64, shape[1] - 1)]),
+        np.column_stack([np.zeros(64), y]), np.column_stack([np.full(64, shape[0] - 1), y]),
+    ])
+    world = angles[0].transform.transform(pixel)
+    for coord in angles:  # a FITS WCS gives longitudes from 0° to 360°, so one across 0° would span the circle
+        if coord.coord_type == "longitude":  # measured from its least value, which a sample off the sky (NaN) keeps
+            full_circle = (360 * u.deg).to_value(coord.coord_unit)
+            values = world[:, coord.coord_index]
+            world[:, coord.coord_index] = (values - np.nanmin(values) + full_circle / 2) % full_circle
+    spans = [np.nanmax(world[:, coord.coord_index]) - np.nanmin(world[:, coord.coord_index]) for coord in angles]
+    for coord, span, other in zip(angles, spans, spans[::-1]):
+        if span < _FLAT * other:
+            coord.set_ticklabel_position("")
+
+
 @viewer_tool
 class FrameTimeTool(Tool, HubListener):
     """
@@ -125,13 +157,15 @@ class FrameTimeTool(Tool, HubListener):
     signed offset of a matched follower's time from the master's, or NO MATCH with that offset,
     when the follower keeps its frame and is greyed.
 
-    The tool exists for every Image viewer, so it also throttles the viewer's slice sliders and labels
+    The tool exists for every Image viewer, so it also throttles the viewer's slice sliders, labels
     a displayed sit-and-stare exposure axis 'Exposure (acquisition order)' with the UTC range of its
     exposures, in glue's own axis label, with integer exposure ticks instead of the helioprojective
-    coordinates glue would show along it. glue resets both whenever it resets the axes (an axis or
-    data change, or a slice the displayed coordinates depend on, such as the slit on the wavelength
-    panel), and the tool applies them again; a label typed in the viewer's axes options is kept until
-    then, as glue's own labels are.
+    coordinates glue would show along it, and hides the tick labels of a longitude or latitude that
+    barely changes across an image showing another coordinate beside the two, such as the latitude on
+    a raster's wavelength-against-step panel (`_hide_flat_angles`). glue resets these whenever it resets
+    the axes (an axis or data change, or a slice the displayed coordinates depend on, such as the slit
+    on the wavelength panel), and the tool applies them again; a label typed in the viewer's axes
+    options is kept until then, as glue's own labels are.
     """
 
     icon = "window_tab"
@@ -159,6 +193,7 @@ class FrameTimeTool(Tool, HubListener):
         for prop in _SLIDER_REBUILDS:
             viewer.state.add_callback(prop, self._throttle_sliders)
         self._exposure_ticks = (None, None)  # the WCSAxes coordinates they were added to, and their helper
+        self._flat_checked = None  # the WCSAxes coordinates last checked for a flat angle
         for prop in _LABELS:
             viewer.state.add_callback(prop, self._label_exposures)
         # glue's Preferences restyle only the WCS coordinates
@@ -181,9 +216,16 @@ class FrameTimeTool(Tool, HubListener):
         super().close()
 
     def _label_exposures(self, *_):
-        """Label a displayed sit-and-stare exposure axis and give it exposure ticks (see the class)."""
+        """
+        Hide the tick labels of a flat angle, and label a displayed sit-and-stare exposure axis and give it
+        exposure ticks (see the class).
+        """
         state = self.viewer.state
         data = state.reference_data
+        axes, shown = self.viewer.axes, (state.x_att, state.y_att)
+        if data is not None and None not in shown and axes.coords is not self._flat_checked:  # glue reset the axes
+            self._flat_checked = axes.coords
+            _hide_flat_angles(axes, [data.shape[att.axis] for att in shown])
         if data is None or _role(data) != "raster" or data.ndim != 3 or not _is_sit_and_stare(data):
             return
         for index, axis in enumerate("xy"):
@@ -195,7 +237,6 @@ class FrameTimeTool(Tool, HubListener):
             if label in ("", getattr(world, "label", None)):  # glue's reset
                 setattr(state, f"{axis}_axislabel", _exposure_label(data))  # which calls this again
                 return
-            axes = self.viewer.axes
             coords, ticks = self._exposure_ticks
             if coords is not axes.coords:  # glue reset the axes, and the ticks with them
                 # glue's own mapping of a pixel axis to its world coordinate, as in its tick label sizes
