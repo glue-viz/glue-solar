@@ -98,14 +98,15 @@ Memory and open files
 Level 2 files store their data as 16-bit integers with a scale and an offset. glue-solar leaves
 those integers in the file and scales only what a viewer, readout or profile reads, with the fill
 values as NaN, so even every spectral window of a large observation opens in little memory; a
-``.fits.gz`` file is decompressed into memory, at two bytes a sample. The first image of a window
-takes its colour limits from a count of every stored value (of evenly spaced raster steps or frames
-of a window over 512 MiB), which takes up to about half a second, and the "99.5%" and other presets
-of the layer's style editor use the same count. Memory still grows as you view a window, since the
-parts of the file read are kept, and a Profile or Histogram of a whole cube, a value-range subset,
-"Slice Extraction" and an export each read every value, as they did before. Datasets merged with
-glue's "Merge datasets" take glue's own colour limits, sampled from a few corners of the data, so
-set those by hand.
+``.fits.gz`` file is decompressed into memory, at two bytes a sample. A slit-jaw or AIA file is
+still read in full as it opens, briefly taking about one and a half times its size. The first image
+of a window takes its colour limits from a count of every stored value (of evenly spaced raster
+steps or frames of a window over 512 MiB), which takes up to about half a second, and the "99.5%"
+and other presets of the layer's style editor use the same count. Memory still grows as you view a
+window, since the parts of the file read are kept, and a Profile or Histogram of a whole cube, a
+value-range subset, "Slice Extraction" and an export each read every value, as they did before.
+Datasets merged with glue's "Merge datasets" take glue's own colour limits, sampled from a few
+corners of the data, so set those by hand.
 
 Each loaded file stays open, once for each time windows are loaded from it (the observation browser
 loads the windows ticked in an observation at once), so glue-solar raises the number of files glue
