@@ -1,0 +1,1 @@
+The observation browser loads its selection and unpacks archives in the background, one file at a time, with a progress bar and a "Stop" that keeps what was read in full; Esc drops the load. The colour limits of what the quicklook shows are counted there too, and a gzipped slit-jaw file is decompressed once.
