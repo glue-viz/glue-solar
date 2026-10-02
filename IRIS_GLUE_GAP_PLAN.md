@@ -28,9 +28,9 @@ Out of scope:
 
 ## Current state, 2026-10-02
 
-**Resume here.** M0 is done. Main is at e1882ee; glue-solar PRs are marked ready and merged once CI passes. Open: #106 (`wp10-nonblocking-load`, D36, `~/Git/glue-solar-nonblocking-load`), to merge when CI passes and then delete its item. Next: the M1 items below.
+**Resume here.** M0 is done. Main is at e1882ee; glue-solar PRs are marked ready and merged once CI passes. Open: #106 (`wp10-nonblocking-load`, D36, `~/Git/glue-solar-nonblocking-load`), to merge when CI passes and then delete its item. In progress (M1 batch 3, worktrees `~/Git/glue-solar-<item>`): `wp1-m1-sunpy-maps`, `wp1-m1-sji-to-raster`, `wp11-cursor-readout`, `wp12-time-regrid`.
 
-**Next.** M1 continues with `wp10-nonblocking-load`, `wp1-m1-sunpy-maps` and `wp1-m1-sji-to-raster`. The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
+**Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
 **Releases.** glue-core 1.27.0, glue-qt 0.4.2, irispy-lmsal 0.9.1 (all fixes glue-solar needs). irispy #197 (UV bursts), #198 (wavelength drift), #199 (Mg II features) and #201 (moment uncertainties) are merged on main but unreleased; glue-solar passes against main unchanged. Awaited: astropy 8.0.2, with a WCSAxes tick-crossing fix for rolled views (`wp0-release-tracking`).
 
