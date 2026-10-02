@@ -10,7 +10,7 @@ from glue.core.component_id import PixelComponentID
 from glue.core.component_link import CoordinateComponentLink
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.hub import Hub
-from glue.core.link_helpers import LinkSame
+from glue.core.link_helpers import LinkSame, LinkSameWithUnits
 from glue.core.roi import RectangularROI
 from glue.core.subset import RoiSubsetState
 from glue.plugins.wcs_autolinking import wcs_autolinking
@@ -21,6 +21,8 @@ from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 
 import astropy.units as u
+from astropy.coordinates import SkyCoord
+from astropy.wcs import WCS
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 import glue_solar
@@ -179,15 +181,69 @@ def test_link_hpc_links_every_iris_dataset_to_the_first(qtbot, sns, irispy_test_
     assert set(aia.coords.world_axis_units) == {"deg"}
     dc = DataCollection([sji, raster, aia, other])
     links = link_hpc(dc)
-    assert len(links) == 4  # never degrees to arcsec
+    assert len(links) == 6
     assert {link.cids1[0] for link in links} == {_cid(sji, label) for label in HPC}
+    # the map's degrees to arcsec; IRIS data keep LinkSame, which glue-core 1.27.0 restores from a session and
+    # LinkSameWithUnits not
+    assert {type(link) for link in links if link.cids2[0].parent is aia} == {LinkSameWithUnits}
+    assert {type(link) for link in links if link.cids2[0].parent is not aia} == {LinkSame}
     keep_hpc_linked(dc)
     dc.remove(sji)  # the others were linked through it
-    qtbot.waitUntil(lambda: len(dc.external_links) == 2)
+    qtbot.waitUntil(lambda: len(dc.external_links) == 4)
     np.testing.assert_allclose(other[_cid(raster, HPC[1])], other[_cid(other, HPC[1])])
     dc.clear()  # one relink after all the removals, with nothing left to link
     qtbot.wait(10)
     assert not dc.external_links
+
+
+def _sunpy_map(lon, lat, scale, shape, label, rotation=0, obstime="2021-09-05T00:30"):
+    """A map of ``shape`` pixels of ``scale``″ around (``lon``, ``lat``)″ seen from Earth, as glue-solar loads one."""
+    import sunpy.map
+    from sunpy.coordinates import frames
+
+    from glue_solar.sources.maps import _parse_sunpy_map
+
+    center = SkyCoord(lon * u.arcsec, lat * u.arcsec, obstime=obstime, observer="earth", frame=frames.Helioprojective)
+    header = sunpy.map.make_fitswcs_header(
+        shape, center, scale=[scale, scale] * u.arcsec / u.pix, rotation_angle=rotation * u.deg
+    )
+    return _parse_sunpy_map(sunpy.map.Map(np.zeros(shape), header), label)
+
+
+def test_two_overlapping_sunpy_maps_autolink():
+    # sunpy maps keep their astropy WCS, so glue's own WCS autolinker links them, through their observers' frames
+    first = _sunpy_map(0, 0, 2, (40, 50), "first")
+    second = _sunpy_map(10, 5, 1.5, (40, 50), "second", rotation=30, obstime="2021-09-05T01:30")
+    assert isinstance(first.coords, WCS)
+    dc = DataCollection([first, second])
+    assert link_hpc(dc) == []  # it links maps to IRIS data only
+    [link] = _autolink(dc)
+    assert isinstance(link, WCSLink)
+    y, x = np.indices(first.shape)
+    expected = second.coords.world_to_pixel(first.coords.pixel_to_world(x, y))
+    for cid, values in zip(second.pixel_component_ids[::-1], expected):
+        np.testing.assert_allclose(first[cid], values, rtol=0, atol=1e-6)
+
+
+@pytest.mark.parametrize("frame", [0, -1])
+def test_link_hpc_places_a_sunpy_map_on_each_sji_frame(sns, frame):
+    # glue converts the map's degrees to the arcsec of IRIS data, and each slit-jaw frame keeps its own pointing
+    sji, _ = sns
+    lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, sji.shape[0] // 2)
+    aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia", rotation=10, obstime=sji.meta["DATE_OBS"])
+    dc = DataCollection([aia, sji])
+    links = link_hpc(dc)
+    # to the IRIS dataset, though the map came first
+    assert [(type(link), link.cids1[0], link.cids2[0]) for link in links] == [
+        (LinkSameWithUnits, _cid(sji, label), cid) for label, cid in zip(HPC[::-1], aia.world_component_ids)
+    ]
+    dc.add_link(links)
+    assert link_hpc(dc) == []
+    y, x = np.indices(sji.shape[1:])
+    lon, lat, _ = sji.coords.pixel_to_world_values(x, y, frame % sji.shape[0])
+    expected = aia.coords.world_to_pixel_values((lon * u.arcsec).to_value(u.deg), (lat * u.arcsec).to_value(u.deg))
+    for cid, values in zip(aia.pixel_component_ids[::-1], expected):
+        np.testing.assert_allclose(sji[cid][frame], values, rtol=0, atol=0.05)
 
 
 @pytest.mark.parametrize("frame", [0, -1])

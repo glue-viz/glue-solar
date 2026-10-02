@@ -46,6 +46,12 @@ On the other hand, if you drag and drop the HMI data set on top of the AIA image
 
 The final result will be an overplot of both the AIA and HMI, where the HMI image has been rotated and aligned with the AIA image.
 
+Linking maps to IRIS data
+-------------------------
+
+Maps keep their own coordinates in degrees, which Glue's autolinking uses to link them to each other.
+The IRIS observation browser and "IRIS: link helioprojective coordinates" in the "Plugins" menu link them to IRIS data as well, so that a region drawn on a map selects the matching pixels of each slit-jaw frame and raster (see :ref:`glue_solar_users_guide_loading_iris_level_2_raster_and_sji_files`).
+
 Saving sessions
 ---------------
 
