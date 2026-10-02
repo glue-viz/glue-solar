@@ -182,6 +182,13 @@ def test_browser_and_file_open_read_only_the_primary_header_of_a_gzipped_file(tm
     assert is_iris_fits(str(path))
 
 
+def test_file_open_reads_no_header_from_a_file_that_does_not_start_as_fits(tmp_path):
+    # File > Open asks about every file; read on to an END card, a large file of another kind is read whole
+    path = tmp_path / "table.csv"
+    path.write_text(fits.Header({"TELESCOP": "IRIS"}).tostring())
+    assert not is_iris_fits(str(path))
+
+
 def test_real_sji_adapter_preserves_mask_units_and_coordinates(irispy_test_files):
     path = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
     cube = read_files(path, memmap=False, uncertainty=False)

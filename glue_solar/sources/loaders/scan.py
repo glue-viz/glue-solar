@@ -30,7 +30,12 @@ def _primary_header(path):
     with open(path, "rb") as file:
         gzipped = file.read(2) == b"\x1f\x8b"
         file.seek(0)
-        return fits.Header.fromfile(gzip.GzipFile(fileobj=file) if gzipped else file)
+        stream = gzip.GzipFile(fileobj=file) if gzipped else file
+        # as astropy does: a header is read up to its END card, so any other file would be read to its end
+        if stream.read(6) != b"SIMPLE":
+            raise OSError(f"{path} is not a FITS file")
+        stream.seek(0)
+        return fits.Header.fromfile(stream)
 
 
 def strip_pooch(name):
