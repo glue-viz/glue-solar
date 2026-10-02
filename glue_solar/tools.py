@@ -130,6 +130,10 @@ def _hide_flat_angles(axes, shape):
         np.column_stack([np.zeros(64), y]), np.column_stack([np.full(64, shape[0] - 1), y]),
     ])
     world = angles[0].transform.transform(pixel)
+    for coord in angles:  # a FITS WCS gives longitudes from 0° to 360°, so one across 0° would span the circle
+        if coord.coord_type == "longitude":
+            full_circle = (360 * u.deg).to_value(coord.coord_unit)
+            world[:, coord.coord_index] = np.unwrap(world[:, coord.coord_index], period=full_circle)
     spans = [np.nanmax(world[:, coord.coord_index]) - np.nanmin(world[:, coord.coord_index]) for coord in angles]
     for coord, span, other in zip(angles, spans, spans[::-1]):
         if span < _FLAT * other:

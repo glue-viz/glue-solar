@@ -628,6 +628,19 @@ def test_a_map_keeps_the_tick_labels_of_both_angles(bare_app, ctype, unit, crval
     assert [] not in tick_label_sides(bare_app.new_data_viewer(ImageViewer, data=data)).values()
 
 
+def test_a_flat_longitude_across_0_has_no_tick_labels(bare_app):
+    # a FITS WCS gives longitudes from 0° to 360°: a slit at Tx = 0 rolled by 1° must not look 360° wide in longitude
+    wcs = WCS(naxis=3)
+    wcs.wcs.ctype, wcs.wcs.cunit = ["HPLN-TAN", "HPLT-TAN", "TIME"], ["arcsec", "arcsec", "s"]
+    wcs.wcs.crpix, wcs.wcs.cdelt, wcs.wcs.crval = [3, 50, 1], [0.6, 0.6, 10], [0, 20, 0]
+    roll = np.deg2rad(1)
+    wcs.wcs.pc = [[np.cos(roll), -np.sin(roll), 0], [np.sin(roll), np.cos(roll), 0], [0, 0, 1]]
+    data = Data(label="raster", flux=np.zeros((40, 100, 5)), coords=wcs)
+    bare_app.data_collection.append(data)
+    sides = tick_label_sides(image(bare_app, data, 0, 1, (0, 0, 2)))  # the slit at Tx = 0 against time
+    assert sides == {"custom:pos.helioprojective.lat": ["l", "#"], "custom:pos.helioprojective.lon": []}
+
+
 def test_quicklook_without_a_raster(bare_app, irispy_test_files):
     sjis = [image_data(find_irispy_test_file(irispy_test_files, SNS.format(f"SJI_{c}_t000"))) for c in (1400, 2796)]
     viewers = quicklook(bare_app, sjis)
