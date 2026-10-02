@@ -1,4 +1,3 @@
-import numbers
 import os
 import re
 import tarfile
@@ -90,11 +89,6 @@ def _shown_unit(physical_type):
     return None
 
 
-def _plain(value):
-    """Whether ``value`` is a low-level world value: a number or a plain array, not a Quantity."""
-    return isinstance(value, numbers.Number) or type(value) is np.ndarray
-
-
 class _GlueWCS(BaseWCSWrapper):
     """
     Present named, signed helioprojective coordinates in arcseconds and wavelengths in Angstrom to Glue,
@@ -128,7 +122,7 @@ class _GlueWCS(BaseWCSWrapper):
     @property
     def world_axis_units(self):
         return tuple(
-            unit if _shown_unit(physical_type) is None else _shown_unit(physical_type).to_string()
+            unit if (shown := _shown_unit(physical_type)) is None else shown.to_string()
             for unit, physical_type in zip(self._wcs.world_axis_units, self._wcs.world_axis_physical_types)
         )
 
@@ -209,10 +203,10 @@ class _GlueWCS(BaseWCSWrapper):
         for key, scale in scales.items():
             klass, args, kwargs, *factory = classes[key]
 
-            def build(*values, _make=factory[0] if factory else klass, _scale=scale, **named):
+            def build(*values, _make=factory[0] if factory else klass, _cls=klass, _scale=scale, **named):
                 # high-level objects, as world_to_pixel passes them, go through as they are
-                values = [v * _scale[n] if n in _scale and _plain(v) else v for n, v in enumerate(values)]
-                named = {n: v * _scale[n] if n in _scale and _plain(v) else v for n, v in named.items()}
+                values = [v * _scale[n] if n in _scale and not isinstance(v, _cls) else v for n, v in enumerate(values)]
+                named = {n: v * _scale[n] if n in _scale and not isinstance(v, _cls) else v for n, v in named.items()}
                 return _make(*values, **named)
 
             classes[key] = (klass, args, kwargs, build)

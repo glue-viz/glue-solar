@@ -11,7 +11,9 @@ from qtpy.QtCore import Qt
 
 import astropy.units as u
 from astropy.io import fits
+from astropy.utils.masked import Masked
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
+from astropy.wcs.wcsapi.high_level_api import values_to_high_level_objects
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
 from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, find_irispy_test_file
@@ -384,6 +386,8 @@ def test_high_level_objects_agree_with_the_values(irispy_test_files):
         objects = shown.pixel_to_world(*pixel)
         assert all(map(_same, objects, wrapped.pixel_to_world(*pixel)))
         assert shown.world_to_pixel(*objects) == pytest.approx(wrapped.world_to_pixel(*objects), abs=1e-9)
+        values = map(Masked, data.coords.pixel_to_world_values(*pixel))  # astropy takes masked low-level values too
+        assert all(map(_same, values_to_high_level_objects(*values, low_level_wcs=data.coords), objects))
 
 
 def test_arcsec_coordinates_reuse_identical_conversions(irispy_test_files):
