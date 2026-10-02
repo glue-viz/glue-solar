@@ -75,6 +75,7 @@ Settled by the user; reopen only with the user.
 - **D33:** Lazy colour limits come from an exact count of raw codes over up to 512 MiB of planes per window, within 1 % of the eager 99.5 % limits. The < 10 % memory budget is the peak RSS increase over the post-import baseline with no viewer, the absolute peak reported beside it; the per-element memory budgets are tracemalloc figures, and resident memory is `wp10-l-resident-memory`.
 - **D34:** The GitHub wiki stays off rather than refreshed; its history, with the user's 2026-09-22 edit, is `IRIS_PLAN_PROTOTYPES/glue-solar-wiki-20261001.bundle`.
 - **D35:** glue-solar registers only the IRIS and AIA colormaps (since #98) until glue-qt's colormap combo stops re-rendering every icon; the user wants every sunpy colormap back then, through `wp11-l-all-colormaps` or the upstream fix in `wp0-perf-qt` (2026-10-01).
+- **D36:** `wp10-nonblocking-load` covers the quicklook too (colour-limit counts for the datasets it will show on the worker, an event-loop turn between its viewers) and moves archive extraction to the worker; Stop keeps the picks read in full while Esc or closing drops the load; a gzipped SJI is decompressed once; every raster file is read on its own so a stop acts between files (user, 2026-10-02; design and measurements in `IRIS_PLAN_PROTOTYPES/wp10_nonblocking_design_20261002.tar.gz`).
 
 ## Milestones
 
