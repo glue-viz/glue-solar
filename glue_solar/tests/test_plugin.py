@@ -431,8 +431,8 @@ def test_aia_cutout_fill_renders_transparent(qtbot, tmp_path, iris_tree):
     np.testing.assert_array_equal(image[1, 2], [1, 1, 1, 1])  # the white background shows through
 
 
-def test_slice_sliders_follow_a_drag_at_most_every_tenth_of_a_second(qtbot):
-    from qtpy import QtWidgets
+def test_slice_sliders_follow_a_drag_with_its_latest_position(qtbot):
+    from qtpy import QtCore, QtWidgets
 
     glue_solar.setup()
     cube = Data(label="cube", flux=np.zeros((30, 4, 5)))
@@ -446,12 +446,16 @@ def test_slice_sliders_follow_a_drag_at_most_every_tenth_of_a_second(qtbot):
 
     [slider] = sliders()
     assert not slider.hasTracking()
-    start = viewer.state.slices[0]
-    slider.setSliderDown(True)  # a drag across ten positions
+    applied = []
+    viewer.state.add_callback("slices", lambda slices: applied.append(slices[0]))
+    slider.setSliderDown(True)  # a drag across ten positions, as Qt delivers input queued behind a redraw
     for position in range(11, 21):
         slider.setSliderPosition(position)
-    assert viewer.state.slices[0] == start  # nothing applied at each position
-    qtbot.waitUntil(lambda: viewer.state.slices[0] == 20, timeout=1000)  # the timer applies the latest
+    assert applied == []  # nothing applied at each position
+    later = []
+    QtCore.QTimer.singleShot(1, lambda: later.append(list(applied)))
+    qtbot.waitUntil(lambda: bool(later))
+    assert later == [[20]]  # only the latest, applied with no wait of its own
     slider.setSliderPosition(25)
     slider.setSliderDown(False)  # the release applies the last position
     assert viewer.state.slices[0] == 25

@@ -82,8 +82,9 @@ along it. The documented alternative is irispy's ``revert_v34=True`` option
 (``irispy.io.spectrograph.read_spectrograph_lvl2``, also passed on by ``irispy.io.read_files``),
 which keeps the file order; glue-solar does not use it.
 
-Dragging a slice slider updates the image at most every 0.1 s and again when you let go, so large
-cubes keep up with the mouse; the arrow keys, clicks on the slider and playback still step at once.
+Dragging a slice slider shows its latest position each time the image has been redrawn, skipping
+the positions passed in between, and again when you let go, so large cubes keep up with the mouse;
+the arrow keys, clicks on the slider and playback still step at once.
 
 The point you select with the Pixel tool on a raster or stack is one slit position at one raster
 step or exposure; on a stack it stays on the scan that was displayed when you clicked. If you then
