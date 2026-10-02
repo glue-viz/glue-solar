@@ -103,6 +103,22 @@ scanning raster, one that does not cover it) keeps its frame and is greyed. The 
 says which dataset is the time master, how far each matched dataset's time is from the master's
 (Δt) and "NO MATCH" with that offset for the others. Wavelength and slit sliders are never moved.
 
+The "Coordinate" menu of every Image viewer also has "Go to UTC…" and "Loop…", for the slider of the
+data's first axis: a slit-jaw image's frames, a sit-and-stare raster's exposures, a scanning
+raster's steps or a stack's scans (a viewer showing that axis has no such slider). "Go to UTC…"
+asks for a UTC time, such as ``2013-09-02T17:00:00``, starting from the displayed one, and moves the
+slider to the frame, exposure, step or scan nearest it (the earlier of two as near; a stack's scans
+are timed at the point's raster step), as moving the slider by hand does: on the time master's
+viewer the other panels follow, while a follower keeps it only until the panels next follow the
+time, and a raster under a slit-jaw master snaps back. A time more than half the dataset's time
+step from the nearest moves nothing, and glue says why. "Loop…" asks for the first and last index
+to play, such as ``100 120``, starting from the whole range: the slider's play buttons then go round
+those, both included, from the first forwards or the last backwards when the slider is outside them.
+Give the whole range to play everything again; the loop also ends when glue rebuilds the slider, for
+other data or axes. Playing the time master's slider moves the other panels at each step, so to play
+a slit-jaw viewer with the raster following, make it the time master first. Closing a viewer stops
+its playback, which glue-qt 0.4.2 would leave running.
+
 Each slit-jaw viewer is titled with its channel ("SJI 1400", "SJI 2796 (deconvolved)") and opens on
 the raster's field of view with a margin. Every slit-jaw viewer, in a quicklook or not, draws the
 displayed frame's slit as a dashed line (from the frame's slit position in the file) and the raster

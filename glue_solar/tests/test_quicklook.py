@@ -2129,6 +2129,160 @@ def test_closing_the_slit_jaw_master_makes_the_raster_master_again(bare_app, qtb
     assert "time master, step 186" in readout(viewers["spectrogram"])
 
 
+def type_in_dialog(monkeypatch, typed):
+    """Make each text dialog return ``typed``, as if typed and confirmed; returns the texts the dialogs opened with."""
+    opened = []
+    monkeypatch.setattr(
+        QtWidgets.QInputDialog, "getText", lambda *args, text="", **kwargs: opened.append(text) or (typed, True)
+    )
+    return opened
+
+
+def utc(when):
+    return np.datetime_as_string(when, unit="ms")
+
+
+def refusals(monkeypatch):
+    """The texts of glue's error boxes from now on, which glue would raise instead while testing."""
+    shown = []
+    monkeypatch.setenv("GLUE_TESTING", "False")
+    monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
+    return shown
+
+
+def test_what_moves_on_go_to_utc(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    label = raster.label
+    times, frames = (data[data.id["Time"]][:, 0, 0] for data in (raster, sji))
+    _, slit, _ = expected_start(raster)
+
+    def go_to(viewer, text):
+        opened = type_in_dialog(monkeypatch, text)
+        return changes(bare_app, qtbot, viewers, lambda: menu_action(viewer, "Go to UTC…").trigger()), opened
+
+    # under the raster master the spectrogram's exposure slider goes to the exposure nearest the typed time, from the
+    # displayed exposure's, and the point and the slit-jaw image follow, as for the slider
+    when = times[150] + (times[151] - times[150]) * 0.45
+    shown = viewers["spectrogram"].state.slices[0]
+    assert go_to(viewers["spectrogram"], utc(when)) == (
+        {
+            "point": (label, (150, slit, None)),
+            "spectrogram": (150, None, None),
+            "sji0": (nearest_frame(sji, times[150]), None, None),
+        },
+        [utc(times[shown])],
+    )
+    # nothing within half a cadence, an unreadable time, or a viewer showing the exposures: nothing moves, and glue
+    # says why
+    shown = refusals(monkeypatch)
+    for viewer, text, message in (
+        (viewers["spectrogram"], utc(times[-1] + np.timedelta64(60, "s")), "Nothing is within half a cadence"),
+        (viewers["spectrogram"], "noon", "'noon' is not a UTC time"),
+        (viewers["map"], utc(when), "no frame, exposure, step or scan slider"),
+    ):
+        assert go_to(viewer, text)[0] == {}
+        assert shown[-1].startswith("Could not go to UTC\n")
+        assert message in shown[-1]
+    assert len(shown) == 3
+
+    # SJI 1400 as time master goes to the frame nearest the typed time, and the raster follows
+    menu_action(sji_viewer, "Time master").trigger()
+    qtbot.wait(20)
+    exposure = nearest_frame(raster, frames[30])
+    assert exposure is not None
+    assert go_to(sji_viewer, utc(frames[30] + np.timedelta64(60, "s")))[0] == {
+        "sji0": (30, None, None),
+        "point": (label, (exposure, slit, None)),
+        "spectrogram": (exposure, None, None),
+    }
+    assert "time master" in readout(sji_viewer)
+    # and the master rules: the raster sent elsewhere snaps back
+    assert go_to(viewers["spectrogram"], utc(times[10]))[0] == {}
+
+
+def test_go_to_utc_on_a_stack_takes_the_scan_at_the_points_step(bare_app, qtbot, monkeypatch, scans):
+    _, stack = scans
+    viewers = quicklook(bare_app, [stack])
+    _, step, slit, wavelength = expected_start(stack)
+    times = stack[stack.id["Time"]][:, :, 0, 0]
+    when = times[7, step] + (times[8, step] - times[7, step]) * 0.45
+    assert expected_nearest(when, times[:, 0]) == 8  # at the first step, another scan
+    type_in_dialog(monkeypatch, utc(when))
+    assert changes(bare_app, qtbot, viewers, lambda: menu_action(viewers["map"], "Go to UTC…").trigger()) == {
+        "point": (stack.label, (7, step, slit, None)),
+        "map": (7, None, None, wavelength),
+        "spectrogram": (7, step, None, None),
+    }
+
+
+def play(qtbot, viewer, button, frames):
+    """Press the play ``button`` of the viewer's first slider, with a 1 ms timer, and return at least ``frames`` shown."""
+    slider = viewer.options_widget().slice_helper._sliders[0]
+    shown = []
+
+    def record(slices):
+        shown.append(slices[0])
+
+    viewer.state.add_callback("slices", record)
+    getattr(slider, button).click()
+    slider._play_timer.setInterval(1)
+    qtbot.waitUntil(lambda: len(shown) >= frames)
+    slider.button_stop.click()
+    viewer.state.remove_callback("slices", record)
+    return shown
+
+
+def test_a_loop_plays_only_its_frames(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    menu_action(sji_viewer, "Time master").trigger()
+    sji_viewer.state.slices = (0, 0, 0)
+    opened = type_in_dialog(monkeypatch, "20 25")
+    menu_action(sji_viewer, "Loop…").trigger()
+    assert opened == ["0 61"]  # the whole range
+    # forwards from frame 0: from the first, round and round; then backwards from where it stopped
+    shown = play(qtbot, sji_viewer, "button_forw", 14)
+    assert shown == [20 + i % 6 for i in range(len(shown))]
+    back = play(qtbot, sji_viewer, "button_back", 8)
+    assert back == [20 + (shown[-1] - 21 - i) % 6 for i in range(len(back))]
+    # the raster followed
+    frames = sji[sji.id["Time"]][:, 0, 0]
+    assert check_follower(bare_app, qtbot, frames[back[-1]], raster, viewers["spectrogram"])
+    # a range out of order, past the last frame or of one index keeps the loop, which the next dialog opens on
+    shown = refusals(monkeypatch)
+    for text in ("25 20", "20 62", "20"):
+        opened = type_in_dialog(monkeypatch, text)
+        menu_action(sji_viewer, "Loop…").trigger()
+        assert opened == ["20 25"]
+        assert shown[-1] == f"Could not loop\n'{text}' is not two indices from 0 to 61, the first not after the last."
+    # the whole range plays as glue does
+    type_in_dialog(monkeypatch, "0 61")
+    menu_action(sji_viewer, "Loop…").trigger()
+    sji_viewer.state.slices = (59, 0, 0)
+    assert play(qtbot, sji_viewer, "button_forw", 4)[:4] == [60, 61, 0, 1]
+
+
+def test_closing_the_master_stops_its_playback(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    menu_action(sji_viewer, "Time master").trigger()
+    slider = sji_viewer.options_widget().slice_helper._sliders[0]
+    shown = []
+    sji_viewer.state.add_callback("slices", lambda slices: shown.append(slices[0]))
+    slider.button_forw.click()
+    slider._play_timer.setInterval(1)
+    qtbot.waitUntil(lambda: len(shown) >= 3)
+    sji_viewer.close(warn=False)
+    assert not slider._play_timer.isActive()
+    played = len(shown)
+    qtbot.wait(20)
+    assert len(shown) == played
+
+
 @pytest.mark.remote_data
 def test_what_moves_on_a_negative_step_raster(bare_app, qtbot, irispy_data):
     # 3400109360: STEPS_AV -0.998, so Time runs backwards along the step axis

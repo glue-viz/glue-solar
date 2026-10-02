@@ -1,7 +1,7 @@
 """
 Gated fixes for glue-core and glue-qt bugs that IRIS data hits.
 
-Each fix installs only when a probe finds the bug, and names the upstream change that retires it.
+Each fix installs, or acts, only when a probe finds the bug, and names the upstream change that retires it.
 """
 
 import os
@@ -21,6 +21,7 @@ from glue.utils import defer_draw
 from glue.viewers.image.layer_artist import ImageSubsetLayerArtist
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
+from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
@@ -30,6 +31,7 @@ from astropy.visualization.wcsaxes import WCSAxes
 from astropy.wcs import WCS
 
 __all__ = [
+    "close_event",
     "export_fits",
     "needs_axis_label_workaround",
     "needs_crosshair_workaround",
@@ -452,3 +454,24 @@ def needs_axis_label_workaround(updates=_original_update_axislabels):
 
 if needs_axis_label_workaround():
     ImageViewer.update_x_axislabel, ImageViewer.update_y_axislabel = update_x_axislabel, update_y_axislabel
+
+
+_original_close_event = ImageViewer.closeEvent
+
+
+def close_event(self, *args):
+    """
+    glue-qt's ``ImageViewer.closeEvent``, stopping the playback of the viewer's slice sliders.
+
+    glue-qt 0.4.2 leaves a slider's play timer running when its viewer closes: the viewer's options, sliders
+    included, stay in the application's options panel, and the timer goes on stepping the closed viewer. Each close
+    probes for a slider still playing after glue-qt's own close, so this stops nothing once glue-qt does. Retired by
+    a glue-qt fix (report candidate).
+    """
+    _original_close_event(self, *args)
+    for slider in self.options_widget().findChildren(SliceWidget):
+        if slider._play_timer.isActive():
+            slider._adjust_play("stop")  # glue-qt's Stop button
+
+
+ImageViewer.closeEvent = close_event
