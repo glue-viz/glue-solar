@@ -38,6 +38,7 @@ __all__ = [
     "needs_pixel_point_workaround",
     "needs_pv_dask_workaround",
     "needs_pv_slice_workaround",
+    "needs_reference_crosshair_workaround",
     "pv_slice_from_path",
     "sync_pv_slice",
     "update_x_axislabel",
@@ -292,7 +293,7 @@ def _update_visual_attributes(self, redraw=True):
     if self._line_x.get_visible():
         viewer = self._viewer_state
         try:
-            self.state.layer.subset_state.get_xy(self.layer.data, viewer.x_att.axis, viewer.y_att.axis)
+            self.state.layer.subset_state.get_xy(viewer.reference_data, viewer.x_att.axis, viewer.y_att.axis)
         except IncompatibleAttribute:
             self._line_x.set_visible(False)
             self._line_y.set_visible(False)
@@ -313,7 +314,9 @@ def needs_crosshair_workaround(method=_original_update_visual_attributes):
         mpl_artists=[image, line_x, line_y],
         layer=SimpleNamespace(data=data),
         state=SimpleNamespace(visible=True, alpha=1.0, color="red", zorder=1, layer=SimpleNamespace(subset_state=point)),
-        _viewer_state=SimpleNamespace(x_att=data.pixel_component_ids[1], y_att=data.pixel_component_ids[0]),
+        _viewer_state=SimpleNamespace(
+            reference_data=data, x_att=data.pixel_component_ids[1], y_att=data.pixel_component_ids[0]
+        ),
     )
     method(artist, redraw=False)
     return line_x.get_visible()
@@ -321,6 +324,58 @@ def needs_crosshair_workaround(method=_original_update_visual_attributes):
 
 if needs_crosshair_workaround():
     ImageSubsetLayerArtist._update_visual_attributes = _update_visual_attributes
+
+
+_original_update_data = ImageSubsetLayerArtist._update_data
+
+
+@defer_draw
+def _update_data(self):
+    """
+    glue-core's ``ImageSubsetLayerArtist._update_data``, placing a Pixel crosshair where the point lies in the
+    viewer's reference data.
+
+    glue-core 1.27.0 places each subset layer's crosshair at the point's pixel in the layer's own dataset, along the
+    reference data's axes: a sunpy map linked to IRIS data and shown over a raster map adds a crosshair elsewhere, and
+    over a slit-jaw image, which has one more axis, glue raises IndexError. Retired by the
+    ``wp0-core-image-artist-bugs`` fix.
+    """
+    viewer, point = self._viewer_state, self.state.layer.subset_state
+    try:
+        if not isinstance(point, PixelSubsetState):
+            raise IncompatibleAttribute()
+        x, y = point.get_xy(viewer.reference_data, viewer.x_att.axis, viewer.y_att.axis)
+    except IncompatibleAttribute:
+        self._line_x.set_visible(False)
+        self._line_y.set_visible(False)
+    else:
+        self._line_x.set_data([x, x], [0, 1])
+        self._line_x.set_visible(True)
+        self._line_y.set_data([0, 1], [y, y])
+        self._line_y.set_visible(True)
+    self.image_artist.invalidate_cache()
+
+
+def needs_reference_crosshair_workaround(method=_original_update_data):
+    """Whether ``method`` places the Pixel crosshair of a point that has no place in the viewer's reference data."""
+    reference, data = Data(x=np.zeros((2, 2)), label="reference"), Data(y=np.zeros((2, 2)), label="probe")
+    line_x, line_y = Line2D([], [], visible=False), Line2D([], [], visible=False)
+    artist = SimpleNamespace(
+        image_artist=SimpleNamespace(invalidate_cache=lambda: None),
+        _line_x=line_x,
+        _line_y=line_y,
+        layer=SimpleNamespace(data=data),
+        state=SimpleNamespace(layer=SimpleNamespace(subset_state=PixelSubsetState(data, [slice(1, 2)] * 2))),
+        _viewer_state=SimpleNamespace(
+            reference_data=reference, x_att=reference.pixel_component_ids[1], y_att=reference.pixel_component_ids[0]
+        ),
+    )
+    method(artist)
+    return line_x.get_visible()
+
+
+if needs_reference_crosshair_workaround():
+    ImageSubsetLayerArtist._update_data = _update_data
 
 
 _original_update_axislabels = (ImageViewer.update_x_axislabel, ImageViewer.update_y_axislabel)

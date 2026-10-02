@@ -267,6 +267,39 @@ def test_raster_pixels_reach_a_sunpy_map_whose_longitudes_run_from_0_to_360(sns)
     np.testing.assert_allclose(turned[1:], [slit, step], rtol=0, atol=1e-6)
 
 
+def test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair(qtbot, sns):
+    # glue-core 1.27.0 places each layer's Pixel crosshair at the point's pixel in the layer's own dataset: a map
+    # linked to the raster added a second crosshair on the raster map, and raised IndexError over a slit-jaw image
+    import inspect
+
+    from glue.viewers.image.layer_artist import ImageSubsetLayerArtist
+
+    installed = ImageSubsetLayerArtist._update_data is glue_patches._update_data
+    assert installed == glue_patches.needs_reference_crosshair_workaround()  # probes glue's own method
+    assert not glue_patches.needs_reference_crosshair_workaround(glue_patches._update_data)
+    # a private method: pin its signature on the released baseline
+    assert list(inspect.signature(glue_patches._original_update_data).parameters) == ["self"]
+    sji, raster = sns
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, sji.shape[0] // 2)
+    aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia", rotation=10)
+    app.data_collection.append(aia)
+    viewers = quicklook(app, [raster, sji])  # which links the map too
+    select_point(viewers["map"], 30, 15)
+    crosshairs = {}
+    for viewer in (viewers["map"], *viewers["sji"]):
+        viewer.add_data(aia)
+        viewer.figure.canvas.draw()
+        crosshairs[viewer] = {
+            (artist._line_x.get_xdata()[0], artist._line_y.get_ydata()[0])
+            for artist in viewer.layers
+            if artist.layer.label == "Point" and artist._line_x.get_visible()
+        }
+    assert list(crosshairs.values()) == [{(30, 15)}, set()]
+
+
 @pytest.mark.parametrize("frame", [0, -1])
 def test_raster_map_roi_selects_the_sji_pixels_inside_it(linked_sns, frame):
     # Each SJI frame's own coordinates decide, so the selection follows that frame's pointing
