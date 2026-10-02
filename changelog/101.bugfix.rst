@@ -1,0 +1,1 @@
+The IRIS observation browser no longer lists derived (not Level 2) raster files as windows, says how many it skipped, and names the file a raster load fails on.
