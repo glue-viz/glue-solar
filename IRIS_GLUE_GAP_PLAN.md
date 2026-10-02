@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-01
 
-**Resume here.** M0 is done. Main is at fa75f88; glue-solar PRs are marked ready and merged once CI passes. Open: #102 (`wp11-histo-opt-scaling`), #103 (`wp11-physical-aspect`), #104 (`wp1-dn-per-s`), each in `~/Git/glue-solar-<branch>`. In progress: `wp10-nonblocking-load` (D36; implementation, check and Fable review). Separately, at the user's request (2026-10-02): a review of the few-line upstream performance fixes in `GLUE_SPEED.md`, to be pushed as branches to the user's forks of glue, glue-qt and astropy for the user's review, no PRs.
+**Resume here.** M0 is done. Main has #104; glue-solar PRs are marked ready and merged once CI passes. Open: #102 (`wp11-histo-opt-scaling`, rebased after #104), #103 (`wp11-physical-aspect`), each in `~/Git/glue-solar-<branch>`. In progress: `wp10-nonblocking-load` (D36). Separately, at the user's request (2026-10-02): 17 few-line upstream performance fixes from `GLUE_SPEED.md` on branches `perf-*` in worktrees `~/Git/glue-perf-*`, `~/Git/glue-qt-perf-*` and `~/Git/astropy-perf-*`, to be pushed to the user's forks for review, no PRs.
 
 **Next.** M1 continues with `wp10-nonblocking-load`, `wp1-m1-sunpy-maps` and `wp1-m1-sji-to-raster`. The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -92,7 +92,7 @@ A milestone is done when it has no items left.
 
 **M1**
 - WP0: `wp0-release-tracking`, `wp0-irispy-requests`
-- WP1: `wp1-m1-sunpy-maps`, `wp1-m1-sji-to-raster`, `wp1-dn-per-s`
+- WP1: `wp1-m1-sunpy-maps`, `wp1-m1-sji-to-raster`
 - WP4: `wp4-m1-hover-lock-tool`, `wp4-sji-click-to-raster`, `wp4-m1-spectral-coupling`, `wp4-m1-multi-window`, `wp4-time-controls`, `wp4-raster-overlays`
 - WP5: `wp5-m1-spectral-blink`
 - WP9: `wp9-m1-screenshots`, `wp9-m1-split-guide`
@@ -202,7 +202,6 @@ The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links be
 
 - [ ] **M1** `wp1-m1-sunpy-maps`: Keep sunpy maps on glue's plain astropy WCS; `link_hpc` links them to IRIS data with `LinkSameWithUnits`. Done when two overlapping maps autolink, and a synthetic map over the sns fixture SJI 1400 places it within 0.05 px at the first and last frames.
 - [ ] **M1** `wp1-m1-sji-to-raster`: `sji_to_raster()` maps an SJI pixel at the displayed frame to a raster step (nearest `Time` for sit-and-stare) and slit row. Done when (step 32, slit 385) round-trips through 4000005156 SJI 2796 frame 7 within 0.5 px and 4000255147 SJI 1400 frames 0, 200, 399 give exposures 1, 801, 1597.
-- [ ] **M1** `wp1-dn-per-s` (F165): The loader adds '<label> DN/s' (flux over a positive `Exposure time`, else NaN) as a glue `DerivedComponent`. Done when it matches on 3610108077 Si IV (NaN at the 0-s step 157) and 4000255147 SJI 1400, and viewers show 'DN/s'.
 
 **M3**
 
@@ -229,14 +228,14 @@ Products from IRIS spectra, as dataset `layer_action`s that add linked Data and 
 
 - [ ] **M2** `wp2-m2-moment-maps` (F152, F153): 'IRIS: line moments…' adds irispy's `calculate_moments` maps of a per-scan window as one linked Data, with no viewer. Done when 4000005156 C II intensity is NaN over fill and 4000255147 Si IV blocks the GUI ≤ 0.5 s at peak RSS ≤ 3× the float32 window.
 - [ ] **M2** `wp2-m2-line-definition` (F154, F155): The dialog takes a required centre in Å (never TWAVE), wings (default ±0.5 Å) and an optional continuum window. Done when on 3610108077 Mg II k 2796.352 Å sets `moments_centre` and a blank centre adds nothing. Depends: wp2-m2-moment-maps.
-- [ ] **M2** `wp2-m2-input-quality` (F165, F170): Moments use '<flux> DN/s' when present, mask NaN and -Inf, NaN a pixel on +Inf or saturation, and warn on NSATPIX or TSATPXn > 0. Done when the 3610108077 Si IV DN/s intensity equals DN intensity / exposure time. Depends: wp1-dn-per-s, wp2-m2-moment-maps.
+- [ ] **M2** `wp2-m2-input-quality` (F165, F170): Moments use '<flux> DN/s' when present, mask NaN and -Inf, NaN a pixel on +Inf or saturation, and warn on NSATPIX or TSATPXn > 0. Done when the 3610108077 Si IV DN/s intensity equals DN intensity / exposure time. Depends: wp2-m2-moment-maps.
 - [ ] **M2** `wp2-m2-tests-docs` (F153, F155, F156): Test against direct `calculate_moments` calls on a synthetic cube and irispy-data's remote 3400109360 cutout; add a guide page (FWHM ≈ 2.355 σ, optically thick lines). Done when `test_moments.py` passes and Sphinx builds with `-W`. Depends: wp2-m2-line-definition, wp2-m2-input-quality.
 
 **M3**
 
 - [ ] **M3** `wp2-m3-moments-extensions` (F153, F154): Moments on 4-D stacks, and a Profile range tool (glue-qt's `RangeMouseMode`) giving the wings. Done when a stack's scan 0 equals the per-scan maps. Depends: wp2-m2-line-definition.
 - [ ] **M3** `wp2-m3-window-data` (F160): Opt-in uncertainties, moment error maps (irispy #201) and 'Rebin…' via `NDCube.rebin`. Done when 3610108077 Si IV 1403 errors equal irispy's and a 2×2 rebin keeps the finite mean. Depends: wp2-m2-moment-maps.
-- [ ] **M3** `wp2-irispy-calibration-actions` (F166, F169): 'Remove dust' adds `SJICube.remove_dust` output as Data; radiometric calibration is a glue derived component on '<flux> DN/s' (D4). Done when both equal direct irispy calls (rtol 1e-6). Depends: wp1-dn-per-s, wp2-m2-moment-maps.
+- [ ] **M3** `wp2-irispy-calibration-actions` (F166, F169): 'Remove dust' adds `SJICube.remove_dust` output as Data; radiometric calibration is a glue derived component on '<flux> DN/s' (D4). Done when both equal direct irispy calls (rtol 1e-6). Depends: wp2-m2-moment-maps.
 - [ ] **M3** `wp2-m3-mg-features` (F162): 'IRIS: Mg II features…' wraps irispy's `calculate_mg_features` (#199) into k and h feature velocity and intensity maps. Done when they equal a direct irispy call on 3824262996. Depends: wp2-m2-moment-maps.
 - [ ] **M3** `wp2-m3-density-temperature` (F163): Add a log n_e or T map from two same-grid intensity maps via irispy's `density_diagnostic` or `map_ratio_to_quantity` (fiasco optional). Done when a synthetic ratio matches irispy. Depends: wp2-m2-moment-maps.
 - [ ] **M3** `wp2-m3-red-blue` (F158): 'Red-blue asymmetry…' wraps irispy's `calculate_red_blue_asymmetry` with a required rest and an iris_xfiles preset. Done when on 3610108077 Mg II k it equals a direct irispy call. Depends: wp2-m2-moment-maps.
