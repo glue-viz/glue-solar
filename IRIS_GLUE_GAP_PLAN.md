@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-01
 
-**Resume here.** M0 is done. Main is at a4f14c2; glue-solar PRs are marked ready and merged once CI passes. Open: #99 (`wp11-gamma-stretch`), #100 (`wp11-raster-cmap`), #101 (`wp8-derived-files`), each in `~/Git/glue-solar-<branch>`. In progress: `wp10-nonblocking-load` (design from measurements: raster reads already meet 0.2 s; colour limits at viewer creation, gzipped SJI reads and stack reads still block).
+**Resume here.** M0 is done. Main is at fa75f88; glue-solar PRs are marked ready and merged once CI passes. No PR is open. In progress: `wp10-nonblocking-load` (D36) on branch `wp10-nonblocking-load` in `~/Git/glue-solar-nonblocking-load` (implementation, check and Fable review running).
 
 **Next.** M1 continues with `wp10-nonblocking-load`, `wp1-m1-sunpy-maps` and `wp1-m1-sji-to-raster`. The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -95,10 +95,9 @@ A milestone is done when it has no items left.
 - WP1: `wp1-m1-sunpy-maps`, `wp1-m1-sji-to-raster`, `wp1-dn-per-s`
 - WP4: `wp4-m1-hover-lock-tool`, `wp4-sji-click-to-raster`, `wp4-m1-spectral-coupling`, `wp4-m1-multi-window`, `wp4-time-controls`, `wp4-raster-overlays`
 - WP5: `wp5-m1-spectral-blink`
-- WP8: `wp8-derived-files`
 - WP9: `wp9-m1-screenshots`, `wp9-m1-split-guide`
 - WP10: `wp10-nonblocking-load`, `wp10-m1-roi-world-polygon`
-- WP11: `wp11-cursor-readout`, `wp11-selected-point-panel`, `wp11-histo-opt-scaling`, `wp11-gamma-stretch`, `wp11-raster-cmap`, `wp11-physical-aspect`, `wp11-keyboard-shortcuts`
+- WP11: `wp11-cursor-readout`, `wp11-selected-point-panel`, `wp11-histo-opt-scaling`, `wp11-physical-aspect`, `wp11-keyboard-shortcuts`
 - WP12: `wp12-time-regrid`
 
 **M2**
@@ -338,7 +337,6 @@ Covers the observation browser, the header scanner (`scan.py`) and the IRIS read
 
 **M1**
 
-- [ ] **M1** `wp8-derived-files`: The scanner lists an IRIS `SPEC` file only if `DATA_LEV == 2`, counting skipped derived files; a load failure names the file. Done when on `iris_tree` a derived fixture is never a window and progress reports 1 skipped file; locally the scan skips 1 of 130.
 
 **M3**
 
@@ -346,7 +344,7 @@ Covers the observation browser, the header scanner (`scan.py`) and the IRIS read
 
 **L**
 
-- [ ] **L** `wp8-filter-stop` (F005): Run the scan in glue-qt's `Worker` with a working Stop. Done when Stop returns within 0.5 s and the tests pass 20 runs. Depends: wp8-derived-files, wp10-nonblocking-load.
+- [ ] **L** `wp8-filter-stop` (F005): Run the scan in glue-qt's `Worker` with a working Stop. Done when Stop returns within 0.5 s and the tests pass 20 runs. Depends: wp10-nonblocking-load.
 - [ ] **L** `wp8-text-filter`: A case-insensitive filter on browser rows. Done when `iris_tree` tests filter by line and date and the filter survives a rescan. Depends: wp8-filter-stop.
 - [ ] **L** `wp8-prescan-search` (F003, F010): Time-window and glob arguments for `scan_directory` that prune by filename, and `find_observation_files`. Done when a 2013-09-02 window reads only 2013-09-01/02 headers. Depends: wp8-filter-stop.
 - [ ] **L** `wp8-search-ui` (F001, F002, F004): Start/Stop time fields, named search locations and recent searches. Done when tests set and restore the scan window. Depends: wp8-prescan-search.
@@ -417,14 +415,12 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 - [ ] **M1** `wp11-cursor-readout` (F100, F101, F113): `solar:frame_time` adds the hovered pixel's `Time`, exposure and Doppler km/s to the readout. Done when step s of the 4000005156 Si IV map shows its UTC (within 1 ms) and exposure.
 - [ ] **M1** `wp11-selected-point-panel` (F099, F191): A read-only quicklook dock lists the Pixel point's indices, coordinates, time, exposure and value per dataset, plus the time master and SJI–raster offset. Done when on 3860258481 (3D and 4D) each field equals a direct read and the unrelated 3880012095 SJI shows 'no match'.
 - [ ] **M1** `wp11-histo-opt-scaling` (F061, F064): A checkable 'Per-frame limits' tool toggles each layer's `ImageLayerState.stretch_global`. Done when on 3610108077 a wavelength step gives that slice's 99.5-percentile limits when on and whole-cube limits when off. Sessions saved with per-frame limits fail to restore on glue 1.27.0 (`wp0-core-session-reports`).
-- [ ] **M1** `wp11-gamma-stretch` (F062): Register 'Gamma 0.4', '0.75', '1.5' and '2.2' as `PowerStretch` subclasses via `glue.config.stretches.add`. Done when 'Gamma 0.75' is in glue-qt 0.4.2's Stretch combo and a second `setup()` raises nothing.
-- [ ] **M1** `wp11-raster-cmap` (F059): Set glue's `preferred_cmap` to 'irissjiFUV' or 'irissjiNUV' by detector band. Done when 3610108077's C II and Si IV open in irissjiFUV and Mg II k and 2832 in irissjiNUV, also in a 2-scan 4000005156 stack.
 - [ ] **M1** `wp11-physical-aspect` (F193): `solar:physical_aspect` scales glue's aspect by the arcsec-per-pixel ratio. Done when a 10″×10″ square renders square within 5% on 4000005156 (about 12:1) and 3400109360 (about 3:1) after resize and zoom.
 - [ ] **M1** `wp11-keyboard-shortcuts` (F197): Register D/F (frame), A/S (wavelength), Space (play) and quicklook Tab/Backspace via `glue_qt.config.keyboard_shortcut`. Done when `QTest.keyClick` on glue-qt 0.4.2 steps with wrap and plays, and quicklook D/F move the time master and A/S only wavelength.
 
 **M2**
 
-- [ ] **M2** `wp11-colourbar` (F060): A checkable 'Colour bar' tool draws the reference layer's bar with glue's normalisation. Done when it follows limits, stretch, cmap, Contrast/Bias and slices and shows in `mpl:save` PNGs. Depends: wp11-gamma-stretch.
+- [ ] **M2** `wp11-colourbar` (F060): A checkable 'Colour bar' tool draws the reference layer's bar with glue's normalisation. Done when it follows limits, stretch, cmap, Contrast/Bias and slices and shows in `mpl:save` PNGs.
 - [ ] **M2** `wp11-distance-measure` (F131): A `solar:measure` mode (glue's `ToolbarModeBase`) reports a dragged line in pixels, arcsec and km. Done when a 100-pixel line on 4000255147 SJI 1400 reads 16.6″ (within 0.01″ of WCS) and 12,172 km (within 0.1%).
 - [ ] **M2** `wp11-zoom-steps` (F097): A 'Zoom 1:1' action makes one data pixel one screen pixel about the view centre. Done when the axes width in screen pixels equals x_max − x_min on an irispy raster.
 
@@ -436,7 +432,7 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 **L**
 
 - [ ] **L** `wp11-l-all-colormaps`: Register every sunpy colormap again, with glue-qt's colormap icons cached by a probe-gated patch (`glue_patches.py`) until glue-qt caches them itself (`wp0-perf-qt`, D35). Done when every sunpy colormap is in the Image viewer's combo and building a combo stays within 2 ms of the IRIS-and-AIA-only time.
-- [ ] **L** `wp11-scaling-extras` (F066, F067): Per-band default stretches in the preset; glue's controls adjust them. Done when each IRIS band opens with its default. Depends: wp11-gamma-stretch.
+- [ ] **L** `wp11-scaling-extras` (F066, F067): Per-band default stretches in the preset; glue's controls adjust them. Done when each IRIS band opens with its default.
 
 Notes:
 - On a sit-and-stare λ–t panel the mouse-over position reads helioprojective coordinates along the exposure axis (2026-10-01); `wp11-cursor-readout` covers it.
