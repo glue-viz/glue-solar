@@ -582,15 +582,18 @@ def test_axis_labels_on_their_coordinates_draw_as_glues(qtbot, tmp_path, irispy_
                 viewer.state.y_axislabel_size, viewer.state.y_axislabel_weight = 7, "light"
             elif step:
                 viewer.state.slices = step[0]
-        if case not in ("λ–step", "slit-jaw rolled 60°"):
+        if case == "λ–step":
+            # no latitude tick labels, which pointing jitter piles up (FrameTimeTool), so longitude takes the step
+            # axis' near side, where glue labels it: the same drawing
+            assert drawn_labels(ours)[0] == drawn_labels(glues)[0]
+        elif case != "slit-jaw rolled 60°":
             assert drawn_labels(ours) == drawn_labels(glues)
             if case in ("sit-and-stare exposures", "λ–time"):  # with the exposure numbers of the frame-time tool
                 assert any(text.startswith("Exposure") for text, _, _ in drawn_labels(ours)[1])
         else:
-            # WCSAxes shows a coordinate on another spine than the axis glue maps it to: in the λ–step
-            # of a raster with a roll, latitude on the step axis' near side and longitude on its far side,
-            # and past a 45° roll, latitude along x. glue labels the coordinates on the bottom and left
-            # spines after the x and y axes; each coordinate keeps its own name here.
+            # WCSAxes shows a coordinate on another spine than the axis glue maps it to: past a 45° roll,
+            # latitude along x. glue labels the coordinates on the bottom and left spines after the x and y
+            # axes; each coordinate keeps its own name here.
             assert drawn_labels(ours)[0] != drawn_labels(glues)[0]
             assert own_names(ours)
             assert not own_names(glues)

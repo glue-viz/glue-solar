@@ -15,11 +15,13 @@ from glue.viewers.image.state import AggregateSlice
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from matplotlib.text import Text
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 
 import astropy.units as u
 from astropy.io import fits
+from astropy.visualization.wcsaxes.ticklabels import TickLabels
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
@@ -538,11 +540,50 @@ def test_quicklook_gives_aia_cutouts_no_role(bare_app, tmp_path, irispy_data, ir
     assert all(viewer.state.reference_data is not aia for viewer in bare_app.viewers[-1] if hasattr(viewer.state, "reference_data"))
 
 
+def drawn_tick_labels(monkeypatch, viewer):
+    """The text and window extent of every tick label the viewer draws."""
+    drawn, draw = [], Text.draw
+
+    def spy(self, renderer):
+        draw(self, renderer)
+        if isinstance(self, TickLabels) and self.get_visible() and self.get_text():
+            drawn.append((self.get_text(), self.get_window_extent(renderer)))
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Text, "draw", spy)
+        viewer.figure.canvas.draw()
+    return drawn
+
+
 @pytest.mark.remote_data
-def test_quicklook_of_a_full_raster(bare_app, irispy_data):
+def test_quicklook_of_a_full_raster(bare_app, monkeypatch, irispy_data):
     [data] = raster_data([irispy_data("iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz")])
     viewers = quicklook(bare_app, [data])
     check_panels(bare_app, viewers, data, {"map": (0, 1), "spectrogram": (2, 1), "wavelength": (2, 0)})
+    for role in ("map", "spectrogram", "wavelength"):  # no tick label over another or off the panel
+        drawn = drawn_tick_labels(monkeypatch, viewers[role])
+        width, height = viewers[role].figure.canvas.get_width_height()
+        assert all(0 <= box.x0 and box.x1 <= width and 0 <= box.y0 and box.y1 <= height for _, box in drawn)
+        boxes = [box for _, box in drawn]
+        assert not [(a, b) for i, a in enumerate(boxes) for b in boxes[i + 1:] if a.overlaps(b)], role
+
+
+def tick_label_sides(viewer):
+    """The tick label positions of the viewer's helioprojective coordinates, by name, after a draw."""
+    viewer.figure.canvas.draw()
+    return {c.default_label: c.get_ticklabel_position() for c in viewer.axes.coords if c.coord_type != "scalar"}
+
+
+def test_flat_helioprojective_coordinates_have_no_tick_labels(bare_app, scans):
+    # latitude along the steps jitters back and forth across each tick value, and WCSAxes labels every crossing
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    sides = tick_label_sides(viewers["wavelength"])
+    assert sides == {"Helioprojective Latitude": [], "Helioprojective Longitude": ["l", "#"]}
+    assert tick_label_sides(viewers["spectrogram"])["Helioprojective Longitude"] == []
+    assert [] not in tick_label_sides(viewers["map"]).values()
+    viewers["wavelength"].state.slices = (0, 3, 0)  # a slit step resets the axes
+    assert tick_label_sides(viewers["wavelength"])["Helioprojective Latitude"] == []
 
 
 def test_quicklook_without_a_raster(bare_app, irispy_test_files):
