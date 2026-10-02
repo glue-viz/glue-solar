@@ -70,7 +70,8 @@ def nearest(query, reference):
     Parameters
     ----------
     query, reference : array-like of `numpy.datetime64`
-        ``reference`` is one-dimensional, not empty and has no NaT.
+        ``reference`` is one-dimensional and holds a time; its NaT, the gaps of data regridded on time, are never
+        the nearest.
 
     Returns
     -------
@@ -79,11 +80,10 @@ def nearest(query, reference):
     """
     reference = np.asarray(reference, dtype="datetime64[ns]")
     query = np.asarray(query, dtype="datetime64[ns]")
-    if reference.ndim != 1 or not len(reference):
-        raise ValueError("the reference times must be one-dimensional and not empty")
-    if np.isnat(reference).any():
-        raise ValueError("the reference times must not contain NaT")
+    if reference.ndim != 1 or np.isnat(reference).all():
+        raise ValueError("the reference times must be one-dimensional and hold a time")
     order = np.argsort(reference, kind="stable")  # equal times keep their order, so the first comes first
+    order = order[~np.isnat(reference[order])]  # NaT sorts last
     ref = reference[order].view("int64")
     q = query.view("int64")
     if len(ref) == 1:
@@ -204,11 +204,16 @@ def _times(data, step):
     return data[data.find_component_id("Time"), tuple(index)]
 
 
+def _cadence(times):
+    """The median interval between successive times, NaT left out, or 0 without two different times."""
+    steps = np.diff(np.sort(times)).astype("timedelta64[ns]").view("int64")
+    steps = steps[steps > 0]  # NaT sorts last, and its intervals are the least int64
+    return np.timedelta64(int(np.median(steps)) if len(steps) else 0, "ns")
+
+
 def _half_cadence(times):
     """Half the median interval between successive times: the widest offset that still matches."""
-    steps = np.diff(np.sort(times)).astype("timedelta64[ns]").view("int64")
-    steps = steps[steps > 0]
-    return np.timedelta64(int(np.median(steps) / 2) if len(steps) else 0, "ns")
+    return _cadence(times) / 2
 
 
 def coordinator(data_collection):

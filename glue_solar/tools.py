@@ -131,17 +131,19 @@ def _world_position(axes, x, y, keep=None):
 
 def _exposure_label(data):
     """
-    'Exposure (acquisition order)' and, on a second line, '<first> – <last> UTC' for the exposure axis of
-    a sit-and-stare raster; one line would not fit a quicklook panel.
+    'Exposure (acquisition order)', or 'Time (<step> s per pixel)' once regridded on time, and on a second line
+    '<first> – <last> UTC' for the exposure axis of a sit-and-stare raster; one line would not fit a quicklook panel.
     """
+    step = data.meta.get("time_step")
+    name = "Exposure (acquisition order)" if step is None else f"Time ({step:.3g} s per pixel)"
     cid = _time_component(data)
     if cid is None:
-        return "Exposure (acquisition order)"
+        return name
     times = data[cid, (slice(None), 0, 0)]
-    first, last = (np.datetime_as_string(t, unit="s") for t in (times.min(), times.max()))
+    first, last = (np.datetime_as_string(t, unit="s") for t in (np.nanmin(times), np.nanmax(times)))  # NaT: gaps
     if last[:10] == first[:10]:
         last = last[11:]  # the same day: the time only
-    return f"Exposure (acquisition order)\n{first} – {last} UTC"
+    return f"{name}\n{first} – {last} UTC"
 
 
 def _index_ticks(axes, index, shown):
@@ -366,7 +368,8 @@ class FrameTimeTool(Tool, HubListener):
         # an aggregated slider range carries its slice on the AggregateSlice object
         view = tuple(slice(None) if i in shown else getattr(s, "slice", s) for i, s in enumerate(state.slices))
         times = data[cid, view]
-        if times.size == 0:  # a Collapse range narrower than one sample
+        times = times[~np.isnat(times)]  # NaT: a gap of data regridded on time
+        if times.size == 0:  # a Collapse range narrower than one sample, or a gap
             self.label.setText("")
             return
         first, last = (np.datetime_as_string(t, unit="ms") for t in (times.min(), times.max()))
@@ -385,9 +388,10 @@ class FrameTimeTool(Tool, HubListener):
             kind, value = status
             if kind == "master":
                 text += " · time master" + (f", step {value}" if value is not None else "")
-            else:
-                seconds = value / np.timedelta64(1, "s")
-                text += f" · Δt {seconds:+.1f} s" if kind == "match" else f" · NO MATCH Δt = {seconds:+.1f} s"
+            elif kind == "match":
+                text += f" · Δt {value / np.timedelta64(1, 's'):+.1f} s"
+            else:  # a master in a gap of data regridded on time has no time, so no offset
+                text += " · NO MATCH" + ("" if np.isnat(value) else f" Δt = {value / np.timedelta64(1, 's'):+.1f} s")
         self.label.setText(text)
         self.label.setToolTip(_pointing(data.meta, view[0]))
 

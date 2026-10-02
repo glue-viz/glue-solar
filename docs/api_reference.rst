@@ -16,3 +16,6 @@ API Reference
 .. automodapi:: glue_solar.quicklook
    :no-inheritance-diagram:
    :skip: coordinator
+
+.. automodapi:: glue_solar.regrid
+   :no-inheritance-diagram:

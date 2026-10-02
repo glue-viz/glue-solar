@@ -244,6 +244,8 @@ For those used to CRISPEX:
      - Chosen from the observation: map, slit against time, or a stack's map with its scan slider
    * - ``spcube`` (transposed cube)
      - Not needed: the wavelength panel shows wavelength against step, exposure or scan
+   * - ``dt`` and non-equidistant timing
+     - "Regrid on time" (see `Regridding on time`_)
 
 It shows one spectral window: Mg II k 2796 when loaded, otherwise the first (pass
 ``window="Si IV 1403"`` to choose). The raster opens as three panels, plus one viewer per slit-jaw
@@ -256,10 +258,10 @@ channel and a spectrum panel:
 
 A sit-and-stare raster's exposure axis, in the quicklook or any Image viewer, is labelled
 "Exposure (acquisition order)" with the UTC range of its exposures on a second line, and its ticks
-are exposure numbers: it is an index axis, so exposures are evenly spaced whatever their cadence.
-The other axis shows only its own coordinate, and so does the mouse-over readout, followed by the
-time and exposure of the exposure under the mouse, rather than where the slit was then. The label
-and ticks come back whenever glue resets
+are exposure numbers: it is an index axis, so exposures are evenly spaced whatever their cadence
+(`Regridding on time`_ places them in time). The other axis shows only its own coordinate, and so
+does the mouse-over readout, followed by the time and exposure of the exposure under the mouse,
+rather than where the slit was then. The label and ticks come back whenever glue resets
 the axes, after an axis change or, on the wavelength panel, a slit move; a label typed in the
 viewer's axes options is kept until that reset, as glue's own labels are.
 
@@ -321,6 +323,41 @@ point as a red cross, placed with that frame's own pointing. The cross is hidden
 time" readout says "outside SJI FOV", when the point is off the image; neither is drawn while the
 viewer shows the frame axis. A slit-jaw frame taken a raster step earlier or later than the point
 shows the slit a step away from the cross.
+
+Regridding on time
+------------------
+
+Every axis of glue's viewers is an index axis, so a sit-and-stare raster's exposures, a slit-jaw
+image's frames and a stack's scans show evenly spaced whatever their timing: the cadence of OBSID
+4000255147's Si IV varies from 2.71 to 3.29 s, and an observation can have gaps. To see them in
+time, select one such dataset in the data collection and choose "Regrid on time" from its
+right-click menu. This adds ``<label> regridded``, resampled at the median step between their times:
+each pixel along that axis is one step after the previous one, from the first time up to the first
+pixel at or past the last, and holds the exposure, frame or scan nearest its time within 0.75 steps
+(the earlier of two as near), so one exposure can fill two pixels. A pixel with none, in a gap, is
+NaN, with ``Time`` NaT, ``Exposure time`` NaN and the missing-data mask 1. The 1600 exposures of
+4000255147's Si IV, 4750 s at a median step of 2.89 s, give 1645 pixels, none of them empty.
+
+- A stack is regridded scan by scan, each scan timed by its middle raster step: its steps are
+  places on the Sun, so each pixel keeps a whole scan, and the scan slider stays its time, as in
+  the quicklook.
+- A scanning raster is refused with a message saying why: its steps are places on the Sun, not
+  times. Stack its scans in the observation browser and regrid the stack instead.
+- The new dataset has the original's other axes, units, colormap, ``<label> DN/s`` and metadata,
+  ``meta['time_step']`` adding the step in seconds, and its coordinates: along the regridded axis,
+  those at each pixel's time, so that a slit-jaw image's time coordinate is regular, and those of
+  the last time for a last pixel past it. Its helioprojective coordinates are linked with the other
+  IRIS datasets, no viewer opens, and data read from their files as they are viewed (see `Memory and
+  open files`_) stay there.
+- In an Image viewer, a regridded sit-and-stare raster's time axis is labelled "Time (2.89 s per
+  pixel)", with the UTC range of its exposures on a second line, and its ticks are pixel numbers. It
+  follows and leads the time sync as its original does (see `The quicklook`_): a pixel in a gap has
+  no time, so its "Frame time" readout is empty, the other datasets keep their frames and show "NO
+  MATCH", and a slit-jaw time master never moves it into a gap. "IRIS: quicklook…" shows the
+  original; for a quicklook of the regridded raster, type
+  ``quicklook(application, [regridded, sji])`` in glue's terminal, after
+  ``from glue_solar.quicklook import quicklook``. ``glue_solar.regrid.regrid_on_time(data)`` regrids
+  a dataset there too.
 
 Viewer tools and windows
 ------------------------
