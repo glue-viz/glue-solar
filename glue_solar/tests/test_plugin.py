@@ -16,6 +16,7 @@ from irispy.io import read_files
 from matplotlib.backend_bases import MouseEvent
 
 from astropy.io import fits
+from astropy.visualization import PowerStretch
 from astropy.wcs import WCS
 
 import glue_solar
@@ -388,6 +389,27 @@ def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_pa
     restored = GlueApplication.restore_session(str(tmp_path / "cmap.glu"))
     qtbot.addWidget(restored)
     assert _cmap_menu(restored.viewers[0][0]).currentText() == "rhessi"
+
+
+def test_gamma_stretches_are_listed_and_restored(qtbot, tmp_path):
+    glue_solar.setup()
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    image = Data(label="image", flux=np.arange(20.0).reshape(4, 5))
+    app.data_collection.append(image)
+    viewer = app.new_data_viewer(ImageViewer, data=image)
+    menu = viewer.layer_view().layout_style_widgets[viewer.layers[0]].ui.combosel_stretch
+    gammas = ["Gamma 0.4", "Gamma 0.75", "Gamma 1.5", "Gamma 2.2"]
+    assert [menu.itemText(i) for i in range(menu.count())][-4:] == gammas
+    menu.setCurrentIndex(menu.findText("Gamma 0.75"))
+    assert viewer.state.layers[0].stretch == "gamma_0.75"  # sessions save the key; one renamed fails to restore
+    assert isinstance(viewer.state.layers[0].stretch_object, PowerStretch)
+    assert viewer.state.layers[0].stretch_object.a == 0.75
+    app.save_session(str(tmp_path / "gamma.glu"))
+    restored = GlueApplication.restore_session(str(tmp_path / "gamma.glu"))
+    qtbot.addWidget(restored)
+    assert restored.viewers[0][0].state.layers[0].stretch_object.a == 0.75
 
 
 def test_iris_image_layers_render_nan_transparent(qtbot, irispy_test_files):

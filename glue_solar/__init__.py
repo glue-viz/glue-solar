@@ -1,5 +1,9 @@
-from glue.config import session_patch
+from functools import partialmethod
+
+from glue.config import session_patch, stretches
 from glue_qt.viewers.image import ImageViewer
+
+from astropy.visualization import PowerStretch
 
 from sunpy.visualization.colormaps import cmlist
 
@@ -28,6 +32,11 @@ def setup():
     for name in sorted(cmlist):
         if name.startswith(("irissji", "sdoaia")):
             _add_colormap(name)
+    # Gamma stretches, value ** gamma between the limits; glue creates a stretch from its class with no arguments
+    for gamma in (0.4, 0.75, 1.5, 2.2):
+        if f"gamma_{gamma}" not in stretches.members:
+            stretch = type("GammaStretch", (PowerStretch,), {"__init__": partialmethod(PowerStretch.__init__, gamma)})
+            stretches.add(f"gamma_{gamma}", stretch, display=f"Gamma {gamma}")
     wanted = [tools.FrameTimeTool, tools.CoordinateTool, tools.HideAxesTool]
     # glue-qt with its own readout (glue-viz/glue-qt#74, draft) does not need ours
     if not hasattr(ImageViewer, "cursor_status"):
