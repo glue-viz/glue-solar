@@ -333,9 +333,10 @@ toolbar has:
 - "Per-frame limits", from glue-solar: takes the colour limits of the displayed dataset from the
   displayed slice, at the layer's percentile (99.5 % on the quicklook panels), so each slice step,
   such as a wavelength step of a raster map, gets that slice's limits; press it again for the whole
-  cube's limits. Layers of other datasets keep theirs, and the mouse mode, such as Pixel, stays on.
-  The button does not stay pressed: the limits in the layer's style editor change with each step
-  while it is on. A session saved with it on does not open (see `Saving sessions`_).
+  cube's limits. Layers of other datasets keep theirs, and choosing another reference data in the
+  viewer's options gives the previous one the whole cube's limits again. The mouse mode, such as
+  Pixel, stays on. The button does not stay pressed: the limits in the layer's style editor change
+  with each step while it is on. A session saved with it on does not open (see `Saving sessions`_).
 - A button with a spectrum icon and no tooltip, which opens a 1D Profile viewer of the image's data.
 - The save menu, with "Save plot to file" and "Save Python script to reproduce plot", and the
   window menu, with "Move to another tab" and "Change viewer title".

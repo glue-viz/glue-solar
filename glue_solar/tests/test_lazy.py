@@ -448,7 +448,8 @@ def test_per_frame_limits_follow_the_wavelength_lazily_and_as_before(qtbot, monk
     app = GlueApplication()
     qtbot.addWidget(app)
     datasets = lazy_and_eager(monkeypatch, lambda: raster_data([int16_raster], ["Si IV 1403"])[0])
-    app.data_collection.extend(datasets)
+    stack = Data(label="stack", values=np.zeros((2, *oracle.shape)))
+    app.data_collection.extend([*datasets, stack])
     for data in datasets:
         # a raster map, step against slit, of the wavelength on the slider, with a Pixel point
         viewer = app.new_data_viewer(ImageViewer, data=data)
@@ -469,6 +470,14 @@ def test_per_frame_limits_follow_the_wavelength_lazily_and_as_before(qtbot, monk
                 viewer.state.slices = (0, 0, wavelength)
                 limits = [np.nanpercentile(oracle[:, :, wavelength], p) for p in (0.25, 99.75)] if per_frame else whole
                 assert [layer.v_min, layer.v_max] == limits
+    # a 4D reference data, whose slices the layer cannot take: its whole cube's limits again, with a subset shown (a
+    # value range, as glue fails to show a point on 4D data); a new choice of reference data keeps the limits
+    button.trigger()
+    app.data_collection.subset_groups[0].subset_state = RangeSubsetState(0, 10, data.main_components[0])
+    viewer.add_data(stack)
+    assert not layer.stretch_global
+    viewer.state.reference_data = stack
+    assert (layer.stretch_global, [layer.v_min, layer.v_max]) == (True, whole)
 
 
 def test_raster_windows_and_stacks_open_in_their_detectors_colormap(qtbot, monkeypatch, tmp_path, int16_raster,
