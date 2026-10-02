@@ -164,7 +164,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
   - core `PathSlicedData` crashes on IRIS data (`world_axis_names` per kept pixel axis) and has generic gaps: 3-D-only enable, zeros not NaN, datetime cast, no session saver.
   - core dask percentile sampling reads only chunk corners.
   - glue-qt ignores Fit constraints; its playback timer outlives the viewer.
-  - irispy `memmap=True` zeroes SJI fill.
+  - irispy `memmap=True` zeroes SJI fill, which reads the whole file and makes every fill page a private copy: a lazy open of 4000255147 SJI 1400 (124 MB) still peaks at +188 MB RSS (eager +497 MB). Skipping the zeroing under `memmap=True` would leave glue-solar's own raw read as the only one (a behaviour probe would detect it).
   - glue-qt keyboard shortcuts: Tab never cycles windows (Qt focus takes it), keys are looked up by exact viewer class (subclasses such as `QuicklookImageViewer` get none), Table viewer keys are registered on `DataTableModel`; the Image viewer's profile button has no tooltip.
   - glue-qt Profile Navigate and Collapse compare display-unit x with native values; Collapse drops the range's last sample, and an empty `AggregateSlice` raises when drawn.
   - glue's FITS subset-mask importer refuses unsigned integer masks.
