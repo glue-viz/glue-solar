@@ -133,9 +133,10 @@ def _hide_flat_angles(axes, shape):
     ])
     world = angles[0].transform.transform(pixel)
     for coord in angles:  # a FITS WCS gives longitudes from 0° to 360°, so one across 0° would span the circle
-        if coord.coord_type == "longitude":
+        if coord.coord_type == "longitude":  # measured from its least value, which a sample off the sky (NaN) keeps
             full_circle = (360 * u.deg).to_value(coord.coord_unit)
-            world[:, coord.coord_index] = np.unwrap(world[:, coord.coord_index], period=full_circle)
+            values = world[:, coord.coord_index]
+            world[:, coord.coord_index] = (values - np.nanmin(values) + full_circle / 2) % full_circle
     spans = [np.nanmax(world[:, coord.coord_index]) - np.nanmin(world[:, coord.coord_index]) for coord in angles]
     for coord, span, other in zip(angles, spans, spans[::-1]):
         if span < _FLAT * other:

@@ -641,6 +641,17 @@ def test_a_flat_longitude_across_0_has_no_tick_labels(bare_app):
     assert sides == {"custom:pos.helioprojective.lat": ["l", "#"], "custom:pos.helioprojective.lon": []}
 
 
+def test_a_flat_latitude_beside_corners_off_the_sky_has_no_tick_labels(bare_app):
+    # an all-sky image has no coordinates in its corners, which must not hide how far its longitude goes
+    wcs = WCS(naxis=3)
+    wcs.wcs.ctype, wcs.wcs.cunit = ["GLON-AIT", "GLAT-AIT", "VRAD"], ["deg", "deg", "m/s"]
+    wcs.wcs.crpix, wcs.wcs.cdelt = [90.5, 1, 1], [-2, 2, 1000]
+    data = Data(label="cube", flux=np.zeros((5, 45, 180)), coords=wcs)
+    bare_app.data_collection.append(data)
+    sides = tick_label_sides(image(bare_app, data, 2, 0))  # longitude against velocity along the equator
+    assert sides == {"pos.galactic.lon": ["b", "#"], "pos.galactic.lat": []}
+
+
 def test_quicklook_without_a_raster(bare_app, irispy_test_files):
     sjis = [image_data(find_irispy_test_file(irispy_test_files, SNS.format(f"SJI_{c}_t000"))) for c in (1400, 2796)]
     viewers = quicklook(bare_app, sjis)
