@@ -1,4 +1,7 @@
+import os
 import shutil
+import subprocess
+import sys
 from collections import Counter
 
 import numpy as np
@@ -38,6 +41,31 @@ def test_setup_registers_hooks():
     for label in ("FITS file", "sunpy Map"):  # both also match IRIS files; ours must win
         other = next(f for f in data_factory if f.label == label)
         assert iris.priority > (other.priority or 0)
+
+
+_PLUGIN_LOAD = """
+import sys
+
+import glue_solar
+
+glue_solar.setup()
+print(*[name for name in ("irispy", "sunpy.map", "ndcube") if name in sys.modules], "|")
+
+import sunpy.data.test
+import sunpy.map
+from glue.core.parsers import parse_data
+
+print(parse_data(sunpy.map.Map(sunpy.data.test.get_test_filepath("aia_171_level1.fits")), "aia").label)
+"""
+
+
+def test_plugin_load_leaves_the_readers_libraries_to_the_first_read():
+    # in a process of its own, since the other tests import them
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)}
+    result = subprocess.run([sys.executable, "-c", _PLUGIN_LOAD], env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr[-2000:]
+    # a map made after the plugin loaded still finds its parser
+    assert result.stdout.splitlines()[:2] == ["|", "aia-AIA 171.0 Angstrom 2011-02-15 00:00:00"]
 
 
 def test_data_factory_claims_only_iris_files(iris_tree):

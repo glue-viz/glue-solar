@@ -18,7 +18,6 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
 from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, find_irispy_test_file
 from glue_solar.sources.iris import read_iris_file
-from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
 from glue_solar.sources.loaders.scan import scan_directory
 from glue_solar.sources.loaders.stack_spectrograms import stack_spectrogram_sequence
@@ -97,7 +96,7 @@ def test_ticked_raster_windows_of_an_observation_are_read_at_once(qtbot, monkeyp
         reads.append(kwargs["spectral_windows"])
         return read_files(files, **kwargs)
 
-    monkeypatch.setattr(iris, "read_files", read)
+    monkeypatch.setattr("irispy.io.read_files", read)  # the loaders import it as they read
     scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
     dialog = QtIRISImporter(scans[0].parent)
     qtbot.addWidget(dialog)

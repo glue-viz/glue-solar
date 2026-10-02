@@ -4,8 +4,6 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
-from ndcube import NDCube
-from ndcube.wcs.wrappers import CompoundLowLevelWCS
 
 from astropy.wcs import WCS
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
@@ -31,6 +29,8 @@ def stack_spectrogram_sequence(cube_sequence, memmap=True):
         A 4D cube with a leading scan dimension, plus its `stack_times`.
         The first scan supplies the nominal spatial WCS (`stack_wcs`).
     """
+    from ndcube import NDCube  # with the first stack rather than at glue's launch
+
     if len(cube_sequence) == 1:
         raise ValueError("No point doing this to one raster")
 
@@ -67,6 +67,8 @@ def stack_times(cube_sequence):
 
 def stack_wcs(target_wcs):
     """The WCS of a stack of scans: ``target_wcs``, scan 0's, with a leading ``Scan`` axis of scan numbers."""
+    from ndcube.wcs.wrappers import CompoundLowLevelWCS
+
     # A sliced 2D FITS WCS handles the multidimensional pixel arrays Glue uses;
     # astropy's standalone 1D FITS WCS interprets them as coordinate tables.
     scan_wcs = WCS(naxis=2)
