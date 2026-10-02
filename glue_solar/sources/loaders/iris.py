@@ -369,14 +369,13 @@ def _image_cube_data(cube, path, raw=None, scaling=None):
         desc += "_deconvolved"
     wave = int(cube.meta["TWAVE1"])
     label = f"{desc}-{_observation_label(cube.meta)}"
-    # -199 is unverified as a missing code in AIA cutouts
-    cmap, missing = (f"irissji{wave}", MISSING_VALUES) if desc.startswith("SJI") else (f"sdoaia{wave}", (-200,))
+    cmap = f"irissji{wave}" if desc.startswith("SJI") else f"sdoaia{wave}"
     if scaling is None:
-        return _cube_data(cube, label, cmap=cmap, missing=missing)
+        return _cube_data(cube, label, cmap=cmap)
     from irispy.utils.constants import DN_UNIT
 
     cube.meta["scaled"] = True  # the values glue reads are; irispy's unit for the raw values says otherwise
-    return _cube_data(cube, label, values=raw, unit=DN_UNIT["SJI"], cmap=cmap, missing=missing, scaling=scaling)
+    return _cube_data(cube, label, values=raw, unit=DN_UNIT["SJI"], cmap=cmap, scaling=scaling)
 
 
 def last_directory():

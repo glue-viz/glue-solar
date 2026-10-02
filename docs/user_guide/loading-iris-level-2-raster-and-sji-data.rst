@@ -77,8 +77,8 @@ the dataset's metadata. The mouse-over readout (see "Cursor readout" in
 gives the time and exposure of the pixel under the mouse: on a raster map those of the step it is
 on.
 
-Slit-jaw, raster and AIA values are floating point. The IRIS fill values -200 and -199 become NaN;
-in AIA cutouts only -200 does. glue-solar leaves
+Slit-jaw, raster and AIA values are floating point. The IRIS fill values -200 and -199 become NaN,
+in AIA cutouts too. glue-solar leaves
 +Inf samples (the ITN 26 saturation code) unchanged and outside the mask; Level 2 files stored as
 16-bit integers cannot hold +Inf, so their saturated samples keep the largest value the file can
 store. ``<label> mask`` is a uint8 array that is 1 where the data are NaN and 0 elsewhere.
