@@ -238,7 +238,7 @@ def assert_loads_as_before(lazy, eager):
     """
     ``lazy`` holds raw int16 and its mask is a glue derived component, while ``eager`` is laid out as before; every
     value, NaN, mask sample, time, exposure and DN/s, and glue's image buffers of every pair of axes, are the same.
-    DN/s, a glue derived component of both, is the data over a positive exposure time, else NaN.
+    DN/s, a glue derived component of both, is the data over a positive exposure time, else NaN, in float32.
     """
     assert type(lazy) is LazyData
     assert type(eager) is Data
@@ -249,6 +249,7 @@ def assert_loads_as_before(lazy, eager):
     assert lazy.get_component(science).units == eager.get_component(eager.main_components[0]).units
     assert rate.label == f"{science.label} DN/s"
     assert [data.get_component(data.id[rate.label]).units for data in (lazy, eager)] == ["DN/s", "DN/s"]
+    assert [data[rate.label].dtype for data in (lazy, eager)] == [np.float32, np.float32]  # the data's precision
     assert lazy[mask].dtype == np.uint8
     pairs = [(science, eager.main_components[0]), (mask, eager.main_components[1])]
     for name in ("Time", "Exposure time", rate.label):
