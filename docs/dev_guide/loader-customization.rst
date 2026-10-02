@@ -12,25 +12,46 @@ Current IRIS loader structure
 
 ``glue_solar/sources/iris.py`` registers the IRIS Level 2 data factory used by
 "File -> Open Data Set" and the "IRIS: browse observations..." menu action.
-The implementation under ``glue_solar/sources/loaders`` has four responsibilities:
+The implementation under ``glue_solar/sources/loaders`` has five responsibilities:
 
 1. ``scan.py`` reads primary headers to group standard IRIS filenames by observation.
    It does not load science arrays while browsing.
 2. ``iris.py`` asks ``irispy.io.read_files`` to decode SJI, aligned AIA, and raster
    files, then converts the returned cubes into :class:`glue.core.data.Data` objects.
-3. ``stack_spectrograms.py`` optionally stacks two or more raster scans without
-   resampling. The 4D result has a leading scan-number axis, a separate exact
-   acquisition-time component, and scan 0's WCS as its nominal spatial frame. Its data
-   is a memory-mapped temporary file of dtype ``np.result_type(first scan, float32)``.
-4. ``iris_loader.ui`` and ``QtIRISImporter`` present the observation and spectral-window
+3. ``lazy.py`` holds data stored as int16, as Level 2 files store it, without scaling it
+   in memory. ``RawComponent``, a glue ``DaskComponent``, keeps the raw integers (a
+   memory map, or an array for a ``.fits.gz`` file) and scales only what a view selects,
+   astropy's way, with the fill codes as NaN; a read of the whole component goes through
+   dask. ``LazyData`` answers glue's sampled statistics, such as colour limits, from a
+   count of the raw values. ``RawStack`` stacks scans along a new leading axis without
+   copying them.
+4. ``stack_spectrograms.py`` gives a stack of two or more raster scans its WCS
+   (``stack_wcs``, scan 0's with a leading scan-number axis) and its exact acquisition
+   times (``stack_times``), and stacks floating-point scans without resampling into a
+   memory-mapped temporary file of dtype ``np.result_type(first scan, float32)``.
+5. ``iris_loader.ui`` and ``QtIRISImporter`` present the observation and spectral-window
    selection dialog.
 
 ``irispy`` remains responsible for instrument detection, FITS interpretation, metadata
 normalization, units, and each input cube's WCS and exposure times. The Glue adapter keeps
 those and changes only missing data: the IRIS fill values -200 and -199 (only -200 in aligned
-AIA cutouts) become NaN. Each dataset's ``<label> mask`` component is ``isnan(data)`` stored as
+AIA cutouts) become NaN. Each dataset's ``<label> mask`` component is ``isnan(data)`` as
 ``uint8``, since Glue would store a boolean component as ``int64``, so saturated samples,
-which are +Inf, stay unmasked. Raster times are a separate ``Time`` component.
+which are +Inf, stay unmasked; for int16 data it is a glue derived component of the data
+(``lazy.fill_mask``). Raster times are a separate ``Time`` component.
+
+Data stored as int16 load through irispy's memory map (``read_files(memmap=True)``), which
+gives the raw integers of raster windows, flipped as irispy flips negative-step rasters; each
+window's BSCALE and BZERO come from its own header. A slit-jaw or AIA file's raw integers are
+read by glue-solar itself, since irispy's memory-mapped cube writes 0 over the fill, and irispy
+supplies the coordinates and metadata. irispy still reads the whole file to do so, and its zeroing
+makes each page holding fill, in practice all of them, a private copy: about one and a half times
+the file's size at peak, until its cube is garbage collected. Files of any other type load in
+memory through irispy's usual reader, promoted to float32 only where fill becomes NaN (a cutout
+without fill keeps its integers). Setting ``glue_solar.sources.loaders.iris.LAZY = False`` before
+loading reads everything that way, as glue-solar did before lazy loading, for example to compare
+the two or for files on a drive that may disconnect. Lazy loading raises the process's soft limit
+on open files (``lazy.allow_open_files``), as every memory-mapped file stays open.
 
 Extending a loader
 ------------------

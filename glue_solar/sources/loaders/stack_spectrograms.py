@@ -28,10 +28,8 @@ def stack_spectrogram_sequence(cube_sequence, memmap=True):
     Returns
     -------
     tuple
-        A 4D cube with a leading scan dimension, plus a matching
-        spatial `~numpy.datetime64` array containing the acquisition time of
-        every pixel. The time array is broadcastable over the cube's
-        wavelength axis. The first scan supplies the nominal spatial WCS.
+        A 4D cube with a leading scan dimension, plus its `stack_times`.
+        The first scan supplies the nominal spatial WCS (`stack_wcs`).
     """
     if len(cube_sequence) == 1:
         raise ValueError("No point doing this to one raster")
@@ -50,19 +48,25 @@ def stack_spectrogram_sequence(cube_sequence, memmap=True):
             temporary.close()
     else:
         output = np.empty(cube_shape, dtype=dtype)
-    acquisition_times = np.empty(cube_shape[:-1], dtype="datetime64[ns]")
 
     for i, cube in enumerate(cube_sequence):
         scan = output[i]
         scan[...] = cube.data
         # From the values, not cube.mask: irispy masks only -200, and nothing in memory-mapped cubes.
         scan[np.isin(scan, MISSING_VALUES)] = np.nan
-        times = cube.axis_world_coords("time", wcs=cube.extra_coords)[0].utc.to_value("datetime64")
-        acquisition_times[i] = np.broadcast_to(
-            times.reshape((len(times),) + (1,) * (scan.ndim - 2)),
-            scan.shape[:-1],
-        )
 
+    cube = NDCube(output, stack_wcs(target_wcs), meta=dict(cube_sequence[0].meta), unit=cube_sequence[0].unit)
+    return cube, stack_times(cube_sequence)
+
+
+def stack_times(cube_sequence):
+    """The UTC acquisition time of every raster step of every scan, as `~numpy.datetime64` of shape (scan, step)."""
+    times = [cube.axis_world_coords("time", wcs=cube.extra_coords)[0] for cube in cube_sequence]
+    return np.stack([time.utc.to_value("datetime64") for time in times])
+
+
+def stack_wcs(target_wcs):
+    """The WCS of a stack of scans: ``target_wcs``, scan 0's, with a leading ``Scan`` axis of scan numbers."""
     # A sliced 2D FITS WCS handles the multidimensional pixel arrays Glue uses;
     # astropy's standalone 1D FITS WCS interprets them as coordinate tables.
     scan_wcs = WCS(naxis=2)
@@ -72,15 +76,4 @@ def stack_spectrogram_sequence(cube_sequence, memmap=True):
     scan_wcs.wcs.crval = [0, 0]
     scan_wcs.wcs.cdelt = [1, 1]
     scan_wcs = SlicedLowLevelWCS(scan_wcs, [slice(None), 0])
-    out_wcs = CompoundLowLevelWCS(target_wcs, scan_wcs)
-
-    return (
-        NDCube(
-            output,
-            out_wcs,
-            mask=np.isnan(output),
-            meta=dict(cube_sequence[0].meta),
-            unit=cube_sequence[0].unit,
-        ),
-        acquisition_times,
-    )
+    return CompoundLowLevelWCS(target_wcs, scan_wcs)

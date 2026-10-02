@@ -40,17 +40,20 @@ raster or slit-jaw image opens in a quicklook (see `The quicklook`_). Otherwise 
 (or AIA) cube opens in an Image Viewer, where its ``Time (Utc)`` slider steps through time; nothing
 opens for rasters alone.
 Tick "Stack sequential raster scans" to place two or more raster scans of a window into a single
-4D cube without resampling their detector values. The stack's values are floating point and are
-kept in a temporary file (a NumPy memmap) rather than in memory. Its leading ``Scan`` coordinate
+4D cube without resampling their detector values. Each scan stays in its own file, as a single scan
+does (see `Memory and open files`_); scans stored as floating point, such as irispy's test files,
+are copied into a temporary file (a NumPy memmap) instead. Its leading ``Scan`` coordinate
 selects the original raster scan, and its ``Time`` component contains the exact acquisition time of
 every pixel. Scan 0 supplies the stack's nominal helioprojective WCS; later scans remain aligned by
 raster and detector index rather than carrying their distinct absolute pointings. Load scans
 separately when those per-scan absolute coordinates are required. A selected window containing one
 scan loads normally as a 3D dataset and also exposes its exact per-step ``Time`` values.
 
-Every raster, stack, slit-jaw and AIA dataset has these components, in the order Glue lists them:
-the data (named after the dataset), ``<label> mask``, ``Time`` and ``Exposure time`` (a stack lists
-``Exposure time`` before ``Time``). ``Time`` is the UTC acquisition time as a datetime64, one value
+Every raster, stack, slit-jaw and AIA dataset has these components: the data (named after the
+dataset), ``Time`` and ``Exposure time`` (a stack lists ``Exposure time`` before ``Time``), and
+``<label> mask``, which Glue computes from the data as it reads them and so lists under "Derived
+components" (files stored as floating point keep it in memory, listed second). ``Time`` is the UTC
+acquisition time as a datetime64, one value
 per raster step, slit-jaw frame or AIA frame (per scan and step for stacks). ``Exposure time`` is in
 seconds, one value per raster step or frame (per scan and step for stacks). The "Frame time" tool
 in the Image Viewer toolbar shows the displayed frame's time and exposure in the status bar, as a
@@ -58,8 +61,8 @@ range when the image spans several frames; for a single slit-jaw frame its toolt
 frame's pointing (PZT offset, field-of-view centre and slit position), which glue-solar keeps in
 the dataset's metadata.
 
-Slit-jaw and raster values are floating point. The IRIS fill values -200 and -199 become NaN; in
-AIA cutouts only -200 does, and a cutout without fill keeps its integer values. glue-solar leaves
+Slit-jaw, raster and AIA values are floating point. The IRIS fill values -200 and -199 become NaN;
+in AIA cutouts only -200 does. glue-solar leaves
 +Inf samples (the ITN 26 saturation code) unchanged and outside the mask; Level 2 files stored as
 16-bit integers cannot hold +Inf, so their saturated samples keep the largest value the file can
 store. ``<label> mask`` is a uint8 array that is 1 where the data are NaN and 0 elsewhere.
@@ -88,6 +91,28 @@ the archive is unpacked into a folder of the same name next to it (the layout ir
 the list refreshes, and you can then tick the spectral windows or cutouts it contained. Extraction
 is completed in a temporary sibling directory, so a failure leaves the archive visible for retry.
 Nothing is loaded in that step, and the archive is left in place.
+
+Memory and open files
+---------------------
+
+Level 2 files store their data as 16-bit integers with a scale and an offset. glue-solar leaves
+those integers in the file and scales only what a viewer, readout or profile reads, with the fill
+values as NaN, so even every spectral window of a large observation opens in little memory; a
+``.fits.gz`` file is decompressed into memory, at two bytes a sample. A slit-jaw or AIA file is
+still read in full as it opens, briefly taking about one and a half times its size. The first image
+of a window takes its colour limits from a count of every stored value (of evenly spaced raster
+steps or frames of a window over 512 MiB), which takes up to about half a second, and the "99.5%"
+and other presets of the layer's style editor use the same count. Memory still grows as you view a
+window, since the parts of the file read are kept, and a Profile or Histogram of a whole cube, a
+value-range subset, "Slice Extraction" and an export each read every value, as they did before.
+Datasets merged with glue's "Merge datasets" take glue's own colour limits, sampled from a few
+corners of the data, so set those by hand.
+
+Each loaded file stays open, once for each time windows are loaded from it (the observation browser
+loads the windows ticked in an observation at once), so glue-solar raises the number of files glue
+may have open to 10240, or the system's hard limit if lower. A file must not be overwritten, cut
+short or have its drive disconnected while it is loaded, which can crash glue; the observation
+browser's archive extraction never overwrites a file.
 
 Opening a single file
 ---------------------
@@ -299,5 +324,6 @@ Saving sessions
 ---------------
 
 Saving a session that contains IRIS data can fail before any file is written. The irispy
-metadata and WCS objects, including SJI gWCS and raster lookup tables, need dedicated serializers;
-save derived products separately rather than relying on a Glue session as their only copy.
+metadata and WCS objects, including SJI gWCS and raster lookup tables, need dedicated serializers,
+and data read from their files as they are viewed cannot be saved in a session yet; save derived
+products separately rather than relying on a Glue session as their only copy.

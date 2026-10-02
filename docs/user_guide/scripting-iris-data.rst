@@ -46,12 +46,14 @@ raster step or slit-jaw frame::
 Spectra
 -------
 
-The data values are ``raster[raster.main_components[0]]``, with NaN for missing samples. The Profile
-viewer's Mean of a raster against ``Wavelength`` is the mean spectrum over every step and slit
-position::
+The data values are ``raster[raster.main_components[0]]``, with NaN for missing samples. For data
+stored as 16-bit integers, as Level 2 files store them, this is a dask array, which reads the file
+only when computed: ``np.asarray`` computes a result, and a view in the brackets, such as
+``raster[cid, step, slit]``, reads only what it selects. The Profile viewer's Mean of a raster
+against ``Wavelength`` is the mean spectrum over every step and slit position::
 
     import numpy as np
 
-    values = raster[raster.main_components[0]]
-    mean_spectrum = np.nanmean(values, axis=(0, 1), dtype=float)  # float64 sums, as glue uses
-    point_spectrum = values[step, slit]
+    cid = raster.main_components[0]
+    mean_spectrum = np.asarray(np.nanmean(raster[cid], axis=(0, 1), dtype=float))  # float64 sums, as glue uses
+    point_spectrum = raster[cid, step, slit]

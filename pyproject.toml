@@ -16,6 +16,7 @@ authors = [
   { name = "The SunPy Community", email = "sunpy@googlegroups.com" },
 ]
 dependencies = [
+  "dask[array]>=2024.7.0",
   "glue-core>=1.27.0",
   "glue-qt[qt]>=0.4.2",
   "sunpy[map,net]>=6.0.0",

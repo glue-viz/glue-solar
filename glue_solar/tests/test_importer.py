@@ -15,6 +15,7 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
 from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, find_irispy_test_file
 from glue_solar.sources.iris import read_iris_file
+from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
 from glue_solar.sources.loaders.scan import scan_directory
 from glue_solar.sources.loaders.stack_spectrograms import stack_spectrogram_sequence
@@ -80,6 +81,30 @@ def test_load_selected_real_sji(qtbot, tmp_path, irispy_test_files):
     assert data.label == "SJI_1400-3620258102-2021-09-05T00:18:33"
     assert data.shape == (62, 40, 37)
     assert data.style.preferred_cmap.name == "irissji1400"
+
+
+def test_ticked_raster_windows_of_an_observation_are_read_at_once(qtbot, monkeypatch, irispy_test_files):
+    # each read maps every raster file, and a mapped file stays open
+    reads = []
+
+    def read(files, **kwargs):
+        reads.append(kwargs["spectral_windows"])
+        return read_files(files, **kwargs)
+
+    monkeypatch.setattr(iris, "read_files", read)
+    scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
+    dialog = QtIRISImporter(scans[0].parent)
+    qtbot.addWidget(dialog)
+    row = _row(dialog, "3860258481")
+    entries = [row.child(i) for i in range(row.childCount()) if "raster file(s)" in row.child(i).text(0)][:2]
+    for entry in entries:
+        entry.setCheckState(0, Qt.Checked)
+    dialog.finalize()
+    windows = [name for _, _, name, _ in dialog.loaded]
+    assert reads == [windows]
+    assert len(windows) == 2
+    for _, _, name, datasets in dialog.loaded:
+        assert [data.label for data in datasets] == [data.label for data in raster_data(scans, [name])]
 
 
 def test_deconvolved_sji_is_listed_and_loaded_beside_the_plain_one(qtbot, tmp_path, irispy_test_files):
