@@ -4,11 +4,13 @@ A reader for `sunpy.map.Map`.
 import sys
 from abc import ABC
 
-from glue.config import data_factory, qglue_parser
+from glue.config import colormaps, data_factory, qglue_parser
 from glue.core.component import Component
 from glue.core.data import Data
 from glue.core.data_factories import is_fits
 from glue.core.visual import VisualAttributes
+
+from sunpy.visualization.colormaps import cmlist
 
 __all__ = ["read_sunpy_map", "_parse_sunpy_map"]
 
@@ -25,13 +27,21 @@ class _GenericMap(ABC):
         return True if mapbase and issubclass(subclass, mapbase.GenericMap) else NotImplemented
 
 
+def _add_colormap(name):
+    """
+    List sunpy's colormap ``name``, if sunpy has one, in glue's colormap menus. glue-qt draws every colormap listed
+    each time it builds an Image layer's menu, so only those that data ask for are listed.
+    """
+    ctable = cmlist.get(name)
+    if ctable is not None and all(ctable is not cmap for _, cmap in colormaps.members):
+        colormaps.add(ctable.name, ctable)
+
+
 @qglue_parser(_GenericMap)
 def _parse_sunpy_map(data, label):
     """
     Parse sunpy map so that it can be loaded by ``glue``.
     """
-    from glue_solar import _add_colormap  # glue_solar imports this module
-
     scan_map = data
     label = label + "-" + scan_map.name
     result = Data(label=label)

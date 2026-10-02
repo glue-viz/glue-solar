@@ -1,29 +1,23 @@
-from glue.config import colormaps, session_patch
+from glue.config import session_patch
 from glue_qt.viewers.image import ImageViewer
 
 from sunpy.visualization.colormaps import cmlist
 
 from glue_solar import glue_patches, tools
 from glue_solar.sources import iris, maps
+from glue_solar.sources.maps import _add_colormap
 
 from glue_solar.version import version as __version__
 
 __all__ = ["setup", "__version__", "glue_patches", "iris", "maps", "tools"]
 
 
-def _add_colormap(name):
-    """
-    List sunpy's colormap ``name``, if sunpy has one, in glue's colormap menus. glue-qt draws every colormap listed
-    each time it builds an Image layer's menu, so only those that data ask for are listed.
-    """
-    ctable = cmlist.get(name)
-    if ctable is not None and all(ctable is not cmap for _, cmap in colormaps.members):
-        colormaps.add(ctable.name, ctable)
-
-
 @session_patch()
 def _add_session_colormaps(session):
-    """List the sunpy colormaps a session names, which glue restores by name, before it restores them."""
+    """
+    List the sunpy colormaps a session names by sunpy key, the name glue restores a colormap by, before it restores
+    them. glue saves a colormap's own name, which is its key only for rhessi, std_gamma_2 and the SUIT maps.
+    """
     for record in session.values():
         if isinstance(record, dict) and isinstance(record.get("cmap"), str):
             _add_colormap(record["cmap"])
