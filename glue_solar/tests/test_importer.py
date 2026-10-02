@@ -17,9 +17,12 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, find_irispy_test_file
 from glue_solar.sources.iris import read_iris_file
 from glue_solar.sources.loaders import iris
-from glue_solar.sources.loaders.iris import QtIRISImporter, _shown_unit, image_data, raster_data
+from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
 from glue_solar.sources.loaders.scan import scan_directory
 from glue_solar.sources.loaders.stack_spectrograms import stack_spectrogram_sequence
+
+# The unit glue is shown each world axis in, by physical type; time, scan and the others keep their own
+SHOWN = {"em.wl": u.AA, "custom:pos.helioprojective.lat": u.arcsec, "custom:pos.helioprojective.lon": u.arcsec}
 
 
 @pytest.fixture
@@ -271,8 +274,8 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
         sequence[0].wcs.world_axis_units,
         sequence[0].wcs.world_axis_physical_types,
     ):
-        if _shown_unit(physical_type) is not None:
-            expected = (expected * u.Unit(unit)).to_value(_shown_unit(physical_type))
+        if physical_type in SHOWN:
+            expected = (expected * u.Unit(unit)).to_value(SHOWN[physical_type])
         np.testing.assert_allclose(actual, expected)
     for actual, expected in zip(
         data.coords.world_to_pixel_values(*stacked_world),
@@ -336,18 +339,18 @@ def test_arcsec_coordinates_read_the_axes_once(irispy_test_files):
             world = wcs.pixel_to_world_values(*pixel)
             # the values of a Quantity conversion, bit for bit
             for value, expected, unit, kind in zip(world, raw.pixel_to_world_values(*pixel), units, kinds):
-                if _shown_unit(kind) is not None:
+                if kind in SHOWN:
                     if kind.endswith(".lon"):
                         circle = (360 * u.deg).to_value(unit)
                         expected = (np.asarray(expected) + circle / 2) % circle - circle / 2
-                    expected = (np.asarray(expected) * u.Unit(unit)).to_value(_shown_unit(kind))
+                    expected = (np.asarray(expected) * u.Unit(unit)).to_value(SHOWN[kind])
                 assert type(value) is type(expected)
                 assert np.asarray(value).tobytes() == np.asarray(expected).tobytes()
             if pixel is not missing:
                 # and back, also as a single-precision world position
                 for where in (world, [np.asarray(value, dtype=np.float32) for value in world]):
                     native = [
-                        value if _shown_unit(kind) is None else (np.asarray(value) * _shown_unit(kind)).to_value(unit)
+                        value if kind not in SHOWN else (np.asarray(value) * SHOWN[kind]).to_value(unit)
                         for value, unit, kind in zip(where, units, kinds)
                     ]
                     for value, expected in zip(wcs.world_to_pixel_values(*where), raw.world_to_pixel_values(*native)):
