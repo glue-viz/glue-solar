@@ -28,9 +28,9 @@ Out of scope:
 
 ## Current state, 2026-10-01
 
-**Resume here.** M0 is done. Main is at 60a9e4a; glue-solar PRs are marked ready and merged once CI passes. Open: #98 (`wp10-m1-startup-io-speed`, branch in `~/Git/glue-solar-startup-io`).
+**Resume here.** M0 is done. Main is at a4f14c2; glue-solar PRs are marked ready and merged once CI passes. No PR is open. In progress: `wp10-nonblocking-load`, measured and designed first (which load paths still block after lazy loading).
 
-**Next.** After `wp10-m1-startup-io-speed`, M1 continues with `wp10-nonblocking-load`, `wp1-m1-sunpy-maps` and `wp1-m1-sji-to-raster`. The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
+**Next.** M1 continues with `wp10-nonblocking-load`, `wp1-m1-sunpy-maps` and `wp1-m1-sji-to-raster`. The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
 **Releases.** glue-core 1.27.0, glue-qt 0.4.2, irispy-lmsal 0.9.1 (all fixes glue-solar needs). irispy drafts for the user's review: #197 (UV bursts), #198 (wavelength drift), #199 (Mg II features), #201 (moment uncertainties). Awaited: astropy 8.0.2, with a WCSAxes tick-crossing fix for rolled views (`wp0-release-tracking`).
 
@@ -74,7 +74,7 @@ Settled by the user; reopen only with the user.
 - **D32:** Lazy loading (design synthesis in `IRIS_PLAN_PROTOTYPES/wp10_lazy_design_20261001.tar.gz`): raw int16 through irispy's memmap view, with a plane reader as the swap point if SIGBUS or resident memory while viewing bite; gzipped SJIs held as raw int16 in RAM; the mask is a glue derived component; the quicklook's spectrum never computes whole-cube profiles; the lazy loaders raise the open-file soft limit.
 - **D33:** Lazy colour limits come from an exact count of raw codes over up to 512 MiB of planes per window, within 1 % of the eager 99.5 % limits. The < 10 % memory budget is the peak RSS increase over the post-import baseline with no viewer, the absolute peak reported beside it; the per-element memory budgets are tracemalloc figures, and resident memory is `wp10-l-resident-memory`.
 - **D34:** The GitHub wiki stays off rather than refreshed; its history, with the user's 2026-09-22 edit, is `IRIS_PLAN_PROTOTYPES/glue-solar-wiki-20261001.bundle`.
-- **D35:** glue-solar registers only the IRIS and AIA colormaps (`wp10-m1-startup-io-speed`) until glue-qt's colormap combo stops re-rendering every icon; the user wants every sunpy colormap back then, through `wp11-l-all-colormaps` or the upstream fix in `wp0-perf-qt` (2026-10-01).
+- **D35:** glue-solar registers only the IRIS and AIA colormaps (since #98) until glue-qt's colormap combo stops re-rendering every icon; the user wants every sunpy colormap back then, through `wp11-l-all-colormaps` or the upstream fix in `wp0-perf-qt` (2026-10-01).
 
 ## Milestones
 
@@ -96,7 +96,7 @@ A milestone is done when it has no items left.
 - WP5: `wp5-m1-spectral-blink`
 - WP8: `wp8-derived-files`
 - WP9: `wp9-m1-screenshots`, `wp9-m1-split-guide`
-- WP10: `wp10-m1-startup-io-speed`, `wp10-nonblocking-load`, `wp10-m1-roi-world-polygon`
+- WP10: `wp10-nonblocking-load`, `wp10-m1-roi-world-polygon`
 - WP11: `wp11-cursor-readout`, `wp11-selected-point-panel`, `wp11-histo-opt-scaling`, `wp11-gamma-stretch`, `wp11-raster-cmap`, `wp11-physical-aspect`, `wp11-keyboard-shortcuts`
 - WP12: `wp12-time-regrid`
 
@@ -394,7 +394,6 @@ Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on file
 
 **M1**
 
-- [ ] **M1** `wp10-m1-startup-io-speed`: glue-solar's launch and IO costs from the survey: import irispy, sunpy.map and ndcube lazily (0.5 s of a 2.45 s launch, 596 modules); read only primary headers of `.fits.gz` (browser open 0.98 → 0.18 s); register only the IRIS and AIA colormaps (each colormap combo 28 → about 8 ms); make the slider throttle coalesce to the latest position with a 0 ms timer. Done when each is measured before and after.
 - [ ] **M1** `wp10-nonblocking-load` (F201): Run importer reads in glue-qt's `Worker` with a progress bar, a stop between raster files, Data added on the GUI thread and superseded loads dropped. Done when loading 3824262996 Mg II k or 4000255147 keeps GUI gaps ≤ 0.2 s, and a stop in the 3602506433 stack acts within one file and keeps earlier picks.
 - [ ] **M1** `wp10-m1-roi-world-polygon`: Override `apply_roi` on `QuicklookImageViewer` so a raster ROI becomes a lon/lat `PolygonalROI` (edges sampled once per step through `_GlueWCS`), and give raster viewers back their `select:*` tools. Done when on 4000005156 Si IV with deconvolved SJI 2796 frame 5 a raster rectangle selects the same 108,300 SJI pixels as the pixel subset in ≤ 0.5 s per frame, and sit-and-stare matches the pixel result.
 
@@ -435,7 +434,7 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 
 **L**
 
-- [ ] **L** `wp11-l-all-colormaps`: Register every sunpy colormap again, with glue-qt's colormap icons cached by a probe-gated patch (`glue_patches.py`) until glue-qt caches them itself (`wp0-perf-qt`, D35). Done when every sunpy colormap is in the Image viewer's combo and building a combo stays within 2 ms of the IRIS-and-AIA-only time. Depends: wp10-m1-startup-io-speed.
+- [ ] **L** `wp11-l-all-colormaps`: Register every sunpy colormap again, with glue-qt's colormap icons cached by a probe-gated patch (`glue_patches.py`) until glue-qt caches them itself (`wp0-perf-qt`, D35). Done when every sunpy colormap is in the Image viewer's combo and building a combo stays within 2 ms of the IRIS-and-AIA-only time.
 - [ ] **L** `wp11-scaling-extras` (F066, F067): Per-band default stretches in the preset; glue's controls adjust them. Done when each IRIS band opens with its default. Depends: wp11-gamma-stretch.
 
 Notes:
