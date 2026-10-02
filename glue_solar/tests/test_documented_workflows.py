@@ -50,8 +50,8 @@ def test_scripting_recipe(qtbot, irispy_test_files):
     viewer.figure.canvas.draw()
     readout = viewer.axes.format_coord(step, slit)
     assert arcsec(readout) == [round(latitude), round(longitude)]  # WCS order: latitude first
-    assert 1390e-10 < wavelength < 1410e-10  # Si IV 1403, in metres
-    assert raster.coords.world_axis_units[0] == "m"
+    assert 1390 < wavelength < 1410  # Si IV 1403, in Angstrom
+    assert raster.coords.world_axis_units[0] == "Angstrom"
     assert (latitude * u.arcsec).unit == u.arcsec
 
     times = raster["Time"][:, 0, 0]

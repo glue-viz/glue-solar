@@ -79,8 +79,17 @@ def _copies(values):
     return tuple(value.copy() if isinstance(value, np.ndarray) else value for value in values)
 
 
+def _shown_unit(physical_type):
+    """The unit Glue is shown a world axis of this physical type in, or None for the wrapped WCS's own."""
+    if physical_type == "em.wl":
+        return u.AA
+    if physical_type and physical_type.startswith("custom:pos.helioprojective."):
+        return u.arcsec
+    return None
+
+
 class _GlueWCS(BaseWCSWrapper):
-    """Present named, signed helioprojective coordinates in arcseconds to Glue."""
+    """Present named, signed helioprojective coordinates in arcseconds and wavelengths in Angstrom to Glue."""
 
     # glue's WCS link falls back to astropy FITS-WCS attributes (celestial, wcs.lng, ...) when a
     # WCS says it has celestial axes; this wrapper has none of them, so send glue down its APE-14 path.
@@ -91,7 +100,7 @@ class _GlueWCS(BaseWCSWrapper):
         super().__init__(wcs)
         self._memo = OrderedDict()  # pixel_to_world_values by its exact inputs, least recently used first
         # glue converts on worker threads too. The memo has its own lock, held only to read or add an entry:
-        # holding WCS_LOCK through the arcsec arithmetic as well lets a busy thread starve the others.
+        # holding WCS_LOCK through the unit arithmetic as well lets a busy thread starve the others.
         self._memo_lock = threading.Lock()
 
     @property
@@ -109,23 +118,24 @@ class _GlueWCS(BaseWCSWrapper):
     @property
     def world_axis_units(self):
         return tuple(
-            "arcsec" if physical_type and physical_type.startswith("custom:pos.helioprojective.") else unit
+            unit if _shown_unit(physical_type) is None else _shown_unit(physical_type).to_string()
             for unit, physical_type in zip(self._wcs.world_axis_units, self._wcs.world_axis_physical_types)
         )
 
     @cached_property
-    def _helioprojective(self):
+    def _converted(self):
         """
-        Each helioprojective world axis: its index, its unit's scale to arcsec and back, and for the
+        Each world axis shown in another unit: its index, its unit's scale to the shown unit and back, and for the
         longitude the full circle in its unit; worked out once, since WCSAxes converts every draw.
         """
         axes = []
         for i, (unit, physical_type) in enumerate(zip(self._wcs.world_axis_units, self.world_axis_physical_types)):
-            if physical_type and physical_type.startswith("custom:pos.helioprojective."):
+            shown = _shown_unit(physical_type)
+            if shown is not None:
                 unit = u.Unit(unit)
                 full_circle = (360 * u.deg).to_value(unit) if physical_type.endswith(".lon") else None
                 # the scales a Quantity conversion multiplies by
-                axes.append((i, unit.to(u.arcsec), u.arcsec.to(unit), full_circle))
+                axes.append((i, unit.to(shown), shown.to(unit), full_circle))
         return axes
 
     def pixel_to_world_values(self, *pixel_arrays):
@@ -145,11 +155,11 @@ class _GlueWCS(BaseWCSWrapper):
                 return _copies(kept)
         with WCS_LOCK:
             values = list(self._wcs.pixel_to_world_values(*pixel_arrays))
-        for i, to_arcsec, _, full_circle in self._helioprojective:
+        for i, to_shown, _, full_circle in self._converted:
             values[i] = np.asarray(values[i])
             if full_circle is not None:
                 values[i] = (values[i] + full_circle / 2) % full_circle - full_circle / 2
-            values[i] = values[i] * to_arcsec
+            values[i] = values[i] * to_shown
         if key is not None and all(np.size(value) <= _MEMO_SAMPLES for value in values):  # inputs can broadcast
             kept = _copies(values)
             with self._memo_lock:
@@ -160,8 +170,8 @@ class _GlueWCS(BaseWCSWrapper):
 
     def world_to_pixel_values(self, *world_arrays):
         values = list(world_arrays)
-        for i, _, from_arcsec, _ in self._helioprojective:
-            values[i] = np.asarray(values[i]) * from_arcsec
+        for i, _, from_shown, _ in self._converted:
+            values[i] = np.asarray(values[i]) * from_shown
         with WCS_LOCK:
             return self._wcs.world_to_pixel_values(*values)
 
