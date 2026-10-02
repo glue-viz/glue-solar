@@ -121,8 +121,10 @@ values as NaN, so even every spectral window of a large observation opens in lit
 still read in full as it opens, briefly taking about one and a half times its size. The first image
 of a window takes its colour limits from a count of every stored value (of evenly spaced raster
 steps or frames of a window over 512 MiB), which takes up to about half a second, and the "99.5%"
-and other presets of the layer's style editor use the same count. Memory still grows as you view a
-window, since the parts of the file read are kept, and a Profile or Histogram of a whole cube, a
+and other presets of the layer's style editor use the same count. ``<label> DN/s`` and other derived
+attributes take theirs from 10,000 random samples, as glue does for data in memory, so they are
+approximate. Memory still grows as you view a window, since the parts of the file read are kept, and
+a Profile or Histogram of a whole cube, a
 value-range subset, "Slice Extraction" and an export each read every value, as they did before.
 Datasets merged with glue's "Merge datasets" take glue's own colour limits, sampled from a few
 corners of the data, so set those by hand.
