@@ -3,6 +3,7 @@ Toolbar tools for glue's viewers.
 """
 
 import numpy as np
+from echo import delay_callback
 from glue.config import settings, viewer_tool
 from glue.core.component import DateTimeComponent
 from glue.core.hub import HubListener
@@ -13,10 +14,11 @@ from matplotlib.patches import Rectangle
 from qtpy import QtCore, QtWidgets
 
 import astropy.units as u
+from astropy.coordinates import angular_separation
 
 from glue_solar.quicklook import _is_sit_and_stare, _role, coordinator
 
-__all__ = ["CoordinateTool", "CursorReadoutTool", "FrameTimeTool", "HideAxesTool", "PerFrameLimitsTool"]
+__all__ = ["CoordinateTool", "CursorReadoutTool", "FrameTimeTool", "HideAxesTool", "PerFrameLimitsTool", "PhysicalAspectTool"]
 
 # Whether a new Image viewer shows its axes; the user guide says how to change it
 settings.add("SOLAR_SHOW_AXES", True, validator=bool)
@@ -477,6 +479,107 @@ class PerFrameLimitsTool(Tool):
         for layer in self.viewer.state.layers:
             if layer.layer is not reference_data and not getattr(layer, "stretch_global", True):
                 layer.stretch_global = True
+
+def _arcsec_ratio(viewer):
+    """
+    The angle one pixel spans along the viewer's y axis over the angle it spans along x, at the view centre, or None
+    unless the displayed axes show a longitude and a latitude, of any celestial frame. Measured between neighbouring
+    pixel centres inside the image, since -TAB rasters have no coordinates past the outer centres.
+    """
+    state = viewer.state
+    data = state.reference_data
+    if data is None or None in (state.x_att, state.y_att, state.x_min, state.y_min):
+        return None
+    angles = {coord.coord_type: coord for coord in viewer.axes.coords if coord.coord_index is not None}
+    if not {"longitude", "latitude"} <= angles.keys():
+        return None
+    lon, lat = angles["longitude"], angles["latitude"]
+    limits = ((state.x_att, state.x_min, state.x_max), (state.y_att, state.y_min, state.y_max))
+    x, y = (np.clip(np.floor((low + high) / 2), 0, data.shape[att.axis] - 2) for att, low, high in limits)
+    world = lon.transform.transform(np.array([[x, y], [x + 1, y], [x, y + 1]]))
+    lons, lats = (u.Quantity(world[:, coord.coord_index], coord.coord_unit) for coord in (lon, lat))
+    along_x, along_y = angular_separation(lons[0], lats[0], lons[1:], lats[1:])
+    ratio = (along_y / along_x).to_value(u.one)
+    return ratio if np.isfinite(ratio) and ratio > 0 else None
+
+
+@viewer_tool
+class PhysicalAspectTool(Tool):
+    """
+    Show the Image viewer's image in its proportions on the sky: an arcsecond as long on screen along x as along y.
+
+    The button switches glue's 'Square Pixels' aspect on, scaled by the angle a pixel spans along y over the angle
+    along x (`_arcsec_ratio`), so that a raster map of 2″ steps along a slit of 0.17″ pixels shows each step 12 times
+    as wide as a slit pixel. glue keeps these proportions as it keeps square pixels, through resizes, zooms, pans and
+    slices; the ratio is taken again at the view centre when the displayed axes change, as glue shows the whole image
+    again. On axes other than a longitude and a latitude, such as a spectrogram's, the pixels are square. Pressed
+    again, or with 'Automatic' chosen in the viewer's options, the viewer returns to the aspect it had; back to
+    'Automatic' from the button, the image fills the axes again, keeping a zoom. A plain button, as 'Hide axes' is,
+    which leaves the mouse mode on.
+    """
+
+    icon = "glue_move_x"
+    tool_id = "solar:physical_aspect"
+    action_text = "Physical aspect"
+    tool_tip = "Show the image in its proportions on the sky, or with the aspect it had"
+
+    def __init__(self, viewer):
+        super().__init__(viewer)
+        self.ratio = None  # `_arcsec_ratio`, or 1, while on
+        self._aspect = None  # glue's aspect before
+        state = viewer.state
+        # glue gives the state the axes' height over width through this at each resize, and 'Square Pixels' fits the
+        # limits to it: scaled by the ratio, it fits them to the sky's proportions
+        set_axes_ratio = state._set_axes_aspect_ratio
+        state._set_axes_aspect_ratio = lambda ratio: set_axes_ratio(ratio / (self.ratio or 1))
+        for prop in ("x_att", "y_att"):
+            state.add_callback(prop, self._update)
+        state.add_callback("aspect", self._aspect_changed)
+
+    def activate(self):
+        state = self.viewer.state
+        if self.ratio is None:
+            self._aspect, self.ratio = state.aspect, _arcsec_ratio(self.viewer) or 1.0
+            self._fit()  # glue widens the limits to it now under 'Square Pixels' already,
+            state.aspect = "equal"  # else as it switches to it
+        else:
+            self.ratio = None
+            state.aspect = self._aspect
+            self._fit()
+            data = state.reference_data
+            if self._aspect == "auto" and None not in (data, state.x_att, state.y_att, state.x_min):
+                nx, ny = data.shape[state.x_att.axis], data.shape[state.y_att.axis]
+                with delay_callback(state, "x_min", "x_max", "y_min", "y_max"):  # the image fills the axes again
+                    state.x_min, state.x_max = max(state.x_min, -0.5), min(state.x_max, nx - 0.5)
+                    state.y_min, state.y_max = max(state.y_min, -0.5), min(state.y_max, ny - 0.5)
+        _keep_mouse_mode(self.viewer)
+
+    def close(self):
+        state = self.viewer.state
+        del state._set_axes_aspect_ratio
+        for prop in ("x_att", "y_att"):
+            state.remove_callback(prop, self._update)
+        state.remove_callback("aspect", self._aspect_changed)
+        super().close()
+
+    def _aspect_changed(self, aspect):
+        if aspect != "equal" and self.ratio is not None:  # 'Automatic' chosen in the viewer's options
+            self.ratio = None
+            self._fit()
+
+    def _update(self, *_):
+        if self.ratio is not None:  # glue has shown the whole image of the new axes, at the old ratio
+            self.ratio = _arcsec_ratio(self.viewer) or 1.0
+            self._fit(whole=True)
+
+    def _fit(self, whole=False):
+        """
+        Give glue the axes' ratio, scaled while on, and let 'Square Pixels' widen the limits to it, or show the whole
+        image with it, as glue does.
+        """
+        state = self.viewer.state
+        state._axes_aspect_ratio = self.viewer.axes_ratio / (self.ratio or 1)
+        state.reset_limits() if whole else state._adjust_limits_aspect()
 
 
 class _CoordinateEntry(Tool):
