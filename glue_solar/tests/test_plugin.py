@@ -6,6 +6,7 @@ from collections import Counter
 
 import numpy as np
 import pytest
+from echo import delay_callback
 from glue.config import colormaps, data_factory, menubar_plugin, settings, startup_action
 from glue.core import Data
 from glue.core.data_factories import load_data
@@ -438,6 +439,13 @@ def test_physical_aspect_draws_a_square_of_sky_square(qtbot, request, source):
         width, height = sky_square(viewer)
         return abs(width / height - 1) < 0.05
 
+    def square_pixels():  # glue's 'Square Pixels'
+        return (state.y_max - state.y_min) / (state.x_max - state.x_min) == pytest.approx(viewer.axes_ratio, rel=1e-3)
+
+    def pan(dx):
+        with delay_callback(state, "x_min", "x_max"):
+            state.x_min, state.x_max = state.x_min + dx, state.x_max + dx
+
     resize(600, 400)
     assert not square()
     viewer.toolbar.active_tool = "image:point_selection"
@@ -469,10 +477,42 @@ def test_physical_aspect_draws_a_square_of_sky_square(qtbot, request, source):
     assert (state.x_min, state.x_max, state.y_min, state.y_max) == (-0.5, ny - 0.5, -0.5, nx - 0.5)
     assert not square()
 
+    state.x_att, state.y_att = data.pixel_component_ids[x], data.pixel_component_ids[y]  # off, it stays off
     button.trigger()
+    assert state.aspect == "equal"
+    assert square()
+
     state.aspect = "auto"  # 'Automatic' in the viewer's options switches it off too,
     state.aspect = "equal"  # and 'Square Pixels' then gives square pixels
-    assert not square()
+    assert square_pixels()
+
+    pan(nx)  # the view centre past the last step, where -TAB rasters have no coordinates
+    button.trigger()  # from 'Square Pixels', as on a slit-jaw viewer,
+    pan(-nx)
+    assert square()
+    button.trigger()  # and back to them
+    assert state.aspect == "equal"
+    assert square_pixels()
+
+
+@pytest.mark.parametrize("case", ["spectrogram", "no WCS"])
+def test_physical_aspect_gives_square_pixels_off_the_sky(qtbot, irispy_test_files, case):
+    data, x, y = {
+        "spectrogram": (lambda: raster_data([find_irispy_test_file(irispy_test_files, SCANNING)])[0], 2, 1),
+        "no WCS": (lambda: Data(label="cube", flux=np.zeros((8, 40, 50))), 2, 1),
+    }[case]
+    data = data()
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    state = viewer.state
+    state.x_att, state.y_att = data.pixel_component_ids[x], data.pixel_component_ids[y]
+    state.aspect = "auto"
+    viewer.toolbar.actions["solar:physical_aspect"].trigger()
+    assert state.aspect == "equal"
+    assert (state.y_max - state.y_min) / (state.x_max - state.x_min) == pytest.approx(viewer.axes_ratio, rel=1e-3)
 
 
 def _cmap_menu(viewer):
