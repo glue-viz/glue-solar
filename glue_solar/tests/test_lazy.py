@@ -82,13 +82,26 @@ def raw_of(path, hdu):
         return hdulist[hdu].data
 
 
+class Reads:
+    """``raw``, counting the values its reads return."""
+
+    def __init__(self, raw):
+        self.raw, self.shape, self.ndim, self.dtype, self.read = raw, raw.shape, raw.ndim, raw.dtype, 0
+
+    def __getitem__(self, key):
+        values = self.raw[key]
+        self.read += np.size(values)
+        return values
+
+
 def test_views_scale_only_what_they_select(int16_raster):
     raw, oracle = raw_of(int16_raster, WINDOW), expected(int16_raster, WINDOW)
     assert raw.dtype == ">i2"
     assert np.isnan(oracle).sum() > 1000
     assert (oracle == -199.5).any()
     for raw, oracle in ((raw, oracle), (raw[::-1], oracle[::-1])):  # a negative step, as irispy flips V34 rasters
-        data, cid, mask = lazy_data(raw)
+        reads = Reads(raw)
+        data, cid, mask = lazy_data(reads)
         n, ny, nl = data.shape
         index = np.arange(min(ny, nl))
         views = [
@@ -101,7 +114,9 @@ def test_views_scale_only_what_they_select(int16_raster):
             (oracle > 10,),
         ]
         for view in views:
+            reads.read = 0
             values = data[cid, view]
+            assert reads.read == oracle[view].size
             assert values.dtype == np.float32
             np.testing.assert_array_equal(values, oracle[view])
             assert data[mask, view].dtype == np.uint8
@@ -167,17 +182,21 @@ def test_colour_limits_of_a_derived_attribute_sample_random_points(int16_raster)
 
 
 def test_a_stack_reads_only_the_scans_it_selects(int16_raster):
-    scans = [raw_of(int16_raster, WINDOW), raw_of(int16_raster, WINDOW)[::-1]]
-    stack, whole = RawStack(scans), np.stack(scans)
-    n, ny, nl = scans[0].shape
+    raws = [raw_of(int16_raster, WINDOW), raw_of(int16_raster, WINDOW)[::-1]]
+    scans = [Reads(raw) for raw in raws]
+    stack, whole = RawStack(scans), np.stack(raws)
+    n, ny, nl = raws[0].shape
     index = np.arange(min(ny, nl))
     keys = [1, (0, 2), (slice(None), 3), (slice(None, None, -1), 1, slice(2, 5)), (index % 2, index % n, index, index)]
     for key in keys:
+        for scan in scans:
+            scan.read = 0
         np.testing.assert_array_equal(stack[key], whole[key])
+        assert sum(scan.read for scan in scans) == whole[key].size
     data, cid, _ = lazy_data(stack)
     np.testing.assert_array_equal(data[cid, (1, 2)], expected(int16_raster, WINDOW)[::-1][2])
     with pytest.raises(ValueError, match="same shape"):
-        RawStack([scans[0], scans[1][:-1]])
+        RawStack([raws[0], raws[1][:-1]])
 
 
 @pytest.mark.parametrize(("soft", "hard", "raised"), [(256, 10**6, 10240), (256, 1000, 1000), (20000, 10**6, None)])
