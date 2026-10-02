@@ -1,0 +1,1 @@
+glue-solar now lists only the IRIS slit-jaw and AIA colormaps in glue's colormap menus (a sunpy Map adds its own as it loads), as glue-qt redraws every listed colormap each time it builds a menu; add another with ``glue.config.colormaps.add``.
