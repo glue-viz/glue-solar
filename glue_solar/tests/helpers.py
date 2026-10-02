@@ -6,7 +6,7 @@ from collections import Counter
 
 from matplotlib.backend_bases import MouseEvent
 
-__all__ = ["count_tick_work", "mouse", "raster_point_on_sji", "select_point"]
+__all__ = ["count_tick_work", "load_selected", "mouse", "raster_point_on_sji", "select_point"]
 
 
 def count_tick_work(monkeypatch, axes):
@@ -30,6 +30,16 @@ def count_tick_work(monkeypatch, axes):
 
     monkeypatch.setattr(CoordinateHelper, "_update_ticks", counted)
     return calls
+
+
+def load_selected(qtbot, dialog):
+    """Press the observation browser's Load selected, and wait until its worker thread is done."""
+    from glue_solar.sources.loaders.iris import _RUNNING
+
+    dialog.ok.click()
+    assert not any(button.isEnabled() for button in (dialog.ok, dialog.change, dialog.recursive))
+    assert dialog.cancel.text() == "Stop"
+    qtbot.waitUntil(lambda: dialog.ok.isEnabled() and not _RUNNING, timeout=60_000)
 
 
 def mouse(viewer, name, x, y, button=1):

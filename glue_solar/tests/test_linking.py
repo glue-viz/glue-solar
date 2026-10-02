@@ -26,7 +26,7 @@ from glue_solar import glue_patches
 from glue_solar.quicklook import coordinator, nearest, quicklook
 from glue_solar.sources.iris import browse_iris, link_iris
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, keep_hpc_linked, link_hpc, raster_data
-from glue_solar.tests.helpers import raster_point_on_sji, select_point
+from glue_solar.tests.helpers import load_selected, raster_point_on_sji, select_point
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
 RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
@@ -220,7 +220,7 @@ def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, mon
 
     def tick_everything_and_load(dialog):
         dialog.obs_tree.topLevelItem(0).setCheckState(0, Qt.Checked)
-        dialog.finalize()
+        load_selected(qtbot, dialog)
         return QtWidgets.QDialog.Accepted
 
     monkeypatch.setattr(QtIRISImporter, "exec", tick_everything_and_load)

@@ -1,11 +1,12 @@
 import gzip
 import io
+import itertools
 import os
 import re
 import tarfile
 import threading
 from collections import OrderedDict
-from functools import cached_property
+from functools import cached_property, partial
 from operator import attrgetter
 from pathlib import Path
 
@@ -19,8 +20,9 @@ from glue.core.link_helpers import LinkSame
 from glue.core.message import DataCollectionDeleteMessage
 from glue.core.visual import VisualAttributes
 from glue_qt.utils import get_qapp, load_ui
+from glue_qt.utils.threading import Worker
 from qtpy import QtWidgets
-from qtpy.QtCore import QSettings, Qt, QTimer
+from qtpy.QtCore import QSettings, Qt, QTimer, Signal
 
 import astropy.units as u
 from astropy.io import fits
@@ -583,6 +585,48 @@ def _failing_file(observation, kind, name, windows):
     return f"{len(observation.rasters)} raster files"  # each loads on its own, but not together
 
 
+def _load(load, observations, picks, stack, stop, report):
+    """
+    Read the browser's ticked entries on glue-qt's worker thread, until ``stop`` is set: ``report(load, percent)``
+    after each raster, slit-jaw or AIA file.
+
+    Returns ``(load, loaded, error)``: the entries read in full, as `QtIRISImporter.loaded` holds them, and the text
+    of a reader error, which loads nothing.
+    """
+    windows, rasters, loaded = {}, {}, []  # each observation's ticked raster windows, read together
+    for i, kind, name in picks:
+        if kind == "raster":
+            windows.setdefault(i, []).append(name)
+    files = sum(len(observations[i].rasters) for i in windows) + sum(kind != "raster" for _, kind, _ in picks)
+    done = itertools.count(1)
+
+    def step():
+        report(load, 100 * next(done) // files)
+
+    for i, kind, name in picks:
+        if stop.is_set():
+            break
+        obs = observations[i]
+        try:
+            if kind == "raster":
+                if i not in rasters:
+                    rasters[i] = _raster_windows_data(obs.rasters, windows[i], stack=stack, stop=stop, step=step)
+                if rasters[i] is None:  # stopped between its files
+                    break
+                datasets = rasters[i][name]
+            else:
+                datasets = load_entry(obs, kind, name)
+                step()
+        except Exception as error:  # noqa: BLE001 - third-party reader errors must stay inside the dialog
+            return load, [], f"Loading {name} from {_failing_file(obs, kind, name, windows.get(i))} failed: {error}"
+        loaded.append((obs, kind, name, datasets))
+    return load, loaded, None
+
+
+# glue-qt's workers that are still running: Python would delete one that nothing holds, which aborts the process
+_RUNNING = set()
+
+
 def _fmt(value):
     return "" if value is None else f"{round(value, 1) + 0.0:.1f}"  # + 0.0 turns -0.0 into 0.0
 
@@ -595,13 +639,20 @@ class QtIRISImporter(QtWidgets.QDialog):
     `~glue.core.data.Data` objects and ``first_image`` the first SJI/AIA cube
     (the natural thing to open in an image viewer). ``loaded`` records what each
     ticked entry gave, as ``(observation, kind, name, datasets)``.
+
+    Load selected reads in the background, a file at a time, and the progress bar
+    counts the files. Meanwhile Cancel reads Stop, which closes the dialog with the
+    entries read in full; Esc or closing the dialog drops the load.
     """
+
+    progressed = Signal(int, int)  # (load, percent), from the worker thread
 
     def __init__(self, directory=None, parent=None):
         super().__init__(parent)
         self.ui = load_ui(UI_MAIN, self)
-        self.cancel.clicked.connect(self.reject)
+        self.cancel.clicked.connect(self._cancel)
         self.ok.clicked.connect(self.finalize)
+        self.progressed.connect(self._progressed)
         self.change.clicked.connect(self.choose_directory)
         self.recursive.toggled.connect(lambda _checked: self.set_directory(self.directory.text()))
         self.observations = []
@@ -609,6 +660,7 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.first_image = None
         self.loaded = []
         self._payloads = []
+        self._load, self._stop = 0, threading.Event()  # the latest load, and its stop
         self.stack.setToolTip(
             "Stack two or more raster scans by detector position into one 4D cube. "
             "Scan 0 supplies the nominal spatial coordinates; exact acquisition times are retained."
@@ -708,29 +760,52 @@ class QtIRISImporter(QtWidgets.QDialog):
             self.progress.setValue(100)
             self.progress.setFormat(f"Extracted {len(archives)} archive(s) — now tick what to load")
             return
-        self.datasets, self.first_image, self.loaded = [], None, []
-        windows, rasters = {}, {}  # each observation's ticked raster windows, read at once to map each file once
-        for i, kind, name in picks:
-            if kind == "raster":
-                windows.setdefault(i, []).append(name)
-        for n, (i, kind, name) in enumerate(picks):
-            self.progress.setValue(int(100 * n / len(picks)))
-            get_qapp().processEvents()
-            obs = self.observations[i]
-            try:
-                if kind == "raster":
-                    if i not in rasters:
-                        rasters[i] = _raster_windows_data(obs.rasters, windows[i], stack=self.stack.isChecked())
-                    datasets = rasters[i][name]
-                else:
-                    datasets = load_entry(obs, kind, name)
-            except Exception as error:  # noqa: BLE001 - third-party reader errors must stay inside the dialog
-                self.progress.setFormat(f"Loading {name} from {_failing_file(obs, kind, name, windows.get(i))} "
-                                        f"failed: {error}")
-                return
-            self.loaded.append((obs, kind, name, datasets))
-            self.datasets.extend(datasets)
-            if kind != "raster":
-                self.first_image = self.first_image or datasets[0]
+        self.progress.setValue(0)
+        self._load += 1
+        self._stop = threading.Event()
+        self._busy(True)
+        worker = Worker(_load, self._load, self.observations, picks, self.stack.isChecked(), self._stop,
+                        self.progressed.emit)
+        worker.result.connect(self._loaded)
+        worker.error.connect(partial(self._failed, self._load))
+        _RUNNING.add(worker)
+        worker.finished.connect(lambda: _RUNNING.discard(worker))
+        worker.start()
+
+    def _busy(self, busy):
+        """While a load runs, only Stop."""
+        for widget in (self.ok, self.change, self.recursive):
+            widget.setEnabled(not busy)
+        self.cancel.setText("Stop" if busy else "Cancel")
+
+    def _cancel(self):
+        if self.ok.isEnabled():
+            self.reject()
+        else:
+            self._stop.set()  # the load ends with what is read in full
+
+    def reject(self):
+        self._load += 1  # its result is dropped
+        self._stop.set()
+        super().reject()
+
+    def _progressed(self, load, percent):
+        if load == self._load:
+            self.progress.setValue(percent)
+
+    def _failed(self, load, exc_info):
+        self._loaded((load, [], f"Loading failed: {exc_info[1]}"))
+
+    def _loaded(self, result):
+        load, loaded, error = result
+        if load != self._load:
+            return
+        self._busy(False)
+        if error:
+            self.progress.setFormat(error)
+            return
+        self.loaded = loaded
+        self.datasets = [data for *_, datasets in loaded for data in datasets]
+        self.first_image = next((datasets[0] for _, kind, _, datasets in loaded if kind != "raster"), None)
         self.progress.setValue(100)
         self.accept()

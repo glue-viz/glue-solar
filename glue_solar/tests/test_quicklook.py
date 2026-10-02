@@ -29,7 +29,7 @@ import glue_solar
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.quicklook import QuicklookImageViewer, coordinator, nearest, observation_key, quicklook
 from glue_solar.sources.loaders.iris import image_data, raster_data
-from glue_solar.tests.helpers import count_tick_work, mouse, raster_point_on_sji, select_point
+from glue_solar.tests.helpers import count_tick_work, load_selected, mouse, raster_point_on_sji, select_point
 
 SCAN = "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"
 
@@ -1472,7 +1472,7 @@ def copy_files(folder, paths):
     return folder
 
 
-def browse(app, monkeypatch, folder, rows):
+def browse(qtbot, app, monkeypatch, folder, rows):
     """Load observation ``rows`` of ``folder`` through the observation browser, with its quicklook box as is."""
     from glue_solar.sources.iris import browse_iris
     from glue_solar.sources.loaders.iris import QtIRISImporter
@@ -1482,7 +1482,7 @@ def browse(app, monkeypatch, folder, rows):
     def tick_and_load(dialog):
         for row in rows:
             dialog.obs_tree.topLevelItem(row).setCheckState(0, Qt.Checked)
-        dialog.finalize()
+        load_selected(qtbot, dialog)
         return QtWidgets.QDialog.Accepted
 
     monkeypatch.setattr(QtIRISImporter, "exec", tick_and_load)
@@ -1500,7 +1500,7 @@ def test_the_three_entry_points_open_the_same_quicklook(qtbot, monkeypatch, tmp_
     for path in ("browser", "menu", "startup"):
         app = bare_app_for(qtbot, monkeypatch)
         if path == "browser":
-            browse(app, monkeypatch, folder, [0])
+            browse(qtbot, app, monkeypatch, folder, [0])
         else:
             # glue loads command-line files with add_datasets, whose autolinker has nothing to suggest for
             # IRIS data on glue-core 1.27.0 (with glue-viz/glue#2595 it asks, before any startup action)
@@ -1518,13 +1518,13 @@ def test_the_browser_and_the_menu_open_the_chosen_observation(qtbot, monkeypatch
     other = find_irispy_test_file(irispy_test_files, SCAN)
     folder = copy_files(tmp_path / "two", [sns, other])
     app = bare_app_for(qtbot, monkeypatch)
-    browse(app, monkeypatch, folder, [1])  # the second observation only
+    browse(qtbot, app, monkeypatch, folder, [1])  # the second observation only
     assert app.tab_count == 2
     shown = app.viewers[-1][0].state.reference_data
     browsed = app.data_collection[0]
     assert observation_key(shown) == observation_key(browsed)
     # both observations loaded: the menu asks, and opens the one chosen
-    browse(app, monkeypatch, folder, [0])
+    browse(qtbot, app, monkeypatch, folder, [0])
     keys = [observation_key(data) for data in app.data_collection]
     choice = {}
 
