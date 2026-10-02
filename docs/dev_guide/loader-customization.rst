@@ -17,7 +17,9 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
 1. ``scan.py`` reads primary headers to group standard IRIS filenames by observation.
    It does not load science arrays while browsing.
 2. ``iris.py`` asks ``irispy.io.read_files`` to decode SJI, aligned AIA, and raster
-   files, then converts the returned cubes into :class:`glue.core.data.Data` objects.
+   files, a raster file at a time, then converts the returned cubes into
+   :class:`glue.core.data.Data` objects. A ``.fits.gz`` slit-jaw or AIA file is decompressed
+   once and its bytes read by ``irispy.io.sji.read_sji_lvl2``.
 3. ``lazy.py`` holds data stored as int16, as Level 2 files store it, without scaling it
    in memory. ``RawComponent``, a glue ``DaskComponent``, keeps the raw integers (a
    memory map, or an array for a ``.fits.gz`` file) and scales only what a view selects,
@@ -30,7 +32,8 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
    times (``stack_times``), and stacks floating-point scans without resampling into a
    memory-mapped temporary file of dtype ``np.result_type(first scan, float32)``.
 5. ``iris_loader.ui`` and ``QtIRISImporter`` present the observation and spectral-window
-   selection dialog.
+   selection dialog, which reads the selection on glue-qt's worker thread: the datasets are
+   built there without a hub, and ``browse_iris`` adds them on the GUI thread.
 
 ``irispy`` remains responsible for instrument detection, FITS interpretation, metadata
 normalization, units, and each input cube's WCS and exposure times. The Glue adapter keeps
