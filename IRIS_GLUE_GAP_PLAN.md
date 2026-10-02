@@ -335,9 +335,6 @@ Notes:
 
 Covers the observation browser, the header scanner (`scan.py`) and the IRIS readers (`iris.py`).
 
-**M1**
-
-
 **M3**
 
 - [ ] **M3** `wp8-m3-context-cubes` (F104): Low priority. File → Open reads aligned `aia_l2_*` cutouts through `image_data`, as the browser does. Done when a 3640107442 `aia_l2_*.fits` opens with `Time` and `_GlueWCS`, and `link_hpc` and time sync reach it.
