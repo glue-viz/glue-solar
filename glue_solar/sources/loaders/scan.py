@@ -140,7 +140,7 @@ def _is_supported_file(name, header):
 
 def scan_directory(root, recursive=True, skipped=None):
     """
-    Group every IRIS Level 2 file below ``root`` into `Observation` objects.
+    Group every IRIS Level 2 file below ``root``, outside hidden files and folders, into `Observation` objects.
 
     Parameters
     ----------
@@ -161,7 +161,9 @@ def scan_directory(root, recursive=True, skipped=None):
     paths = root.rglob("*") if recursive else root.iterdir()
     found = {}
     headers = []
-    for path in sorted(p for p in paths if p.is_file()):
+    # not hidden ones, such as the folder `extract_archive` unpacks into before it renames it
+    visible = (p for p in paths if not any(part.startswith(".") for part in p.relative_to(root).parts))
+    for path in sorted(p for p in visible if p.is_file()):
         name = strip_pooch(path.name)
         if name.endswith(".tar.gz"):
             key = _key_from_name(name)

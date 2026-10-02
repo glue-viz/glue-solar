@@ -17,7 +17,7 @@ import astropy.units as u
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
-from glue_solar.tests.helpers import select_point
+from glue_solar.tests.helpers import load_selected, select_point
 
 SNS = "iris_l2_20210905_001833_3620258102_{}.fits"
 
@@ -83,11 +83,11 @@ def test_browser_stacks_scans_into_4d_data_with_per_pixel_time(qtbot, irispy_tes
     )
     entries = [observation.child(i) for i in range(observation.childCount())]
     next(entry for entry in entries if entry.text(0).startswith("C II 1336")).setCheckState(0, Qt.Checked)
-    dialog.finalize()
+    load_selected(qtbot, dialog)
     assert [data.ndim for data in dialog.datasets] == [3] * len(scans)
 
     dialog.stack.setChecked(True)
-    dialog.finalize()
+    load_selected(qtbot, dialog)
     [stack] = dialog.datasets
     assert stack.ndim == 4
     assert stack.world_component_ids[0].label == "Scan"

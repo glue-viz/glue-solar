@@ -19,7 +19,8 @@ from glue.viewers.profile.state import ProfileLayerState
 from glue_qt.utils import process_events
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
-from qtpy.QtCore import QTimer
+from qtpy.QtCore import QEventLoop, QTimer
+from qtpy.QtWidgets import QApplication
 
 import astropy.units as u
 
@@ -742,6 +743,8 @@ def _pick_sjis(sjis):
 
 
 def _image(app, cls, data, x, y, slices, title, aspect):
+    # a turn of the event loop before each viewer, user input aside, so that glue keeps drawing as the quicklook opens
+    QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)
     viewer = app.new_data_viewer(cls, data=data)
     state = viewer.state
     pixel = data.pixel_component_ids
@@ -796,6 +799,7 @@ def hidden_cube_profile(viewer, data):
 
 def _profile(app, raster, window):
     """A Profile of the point's mean spectrum, with the raster itself hidden and no large-data prompt."""
+    QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # as before each Image viewer
     viewer = app.new_data_viewer(ProfileViewer)
     viewer.state.title = f"{window} spectrum"
     viewer.state.function = "mean"
@@ -864,6 +868,7 @@ def quicklook(app, datasets, window=None):
         viewers["sji"].append(_image(app, ImageViewer, sji, sji.ndim - 1, sji.ndim - 2, frame, _sji_title(sji), "equal"))
     notes += [f"{data.label} is loaded too: drag it onto a slit-jaw viewer to see it." for data in offered]
 
+    QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # and after the last (see _image)
     if rasters:
         group = collection.new_subset_group(label="Point", subset_state=point)
         own = [viewers[role] for role in ("map", "spectrogram", "wavelength")] + viewers["sji"]

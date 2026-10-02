@@ -4,11 +4,14 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 from irispy.io import read_files
-from qtpy.QtCore import Qt
+from qtpy.QtCore import QMetaObject, Qt
+from qtpy.QtWidgets import QDialog, QFileDialog
 
 import astropy.units as u
 from astropy.io import fits
@@ -19,9 +22,17 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
 from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, OBS_S, find_irispy_test_file, startobs
 from glue_solar.sources.iris import is_iris_fits, read_iris_file
-from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
-from glue_solar.sources.loaders.scan import scan_directory
+from glue_solar.sources.loaders.iris import (
+    _RUNNING,
+    QtIRISImporter,
+    _raster_collection_data,
+    _raster_windows_data,
+    image_data,
+    raster_data,
+)
+from glue_solar.sources.loaders.scan import extract_archive, scan_directory
 from glue_solar.sources.loaders.stack_spectrograms import stack_spectrogram_sequence
+from glue_solar.tests.helpers import load_selected
 
 # The unit glue is shown each world axis in, by physical type; time, scan and the others keep their own
 SHOWN = {"em.wl": u.AA, "custom:pos.helioprojective.lat": u.arcsec, "custom:pos.helioprojective.lon": u.arcsec}
@@ -88,7 +99,7 @@ def test_load_selected_real_sji(qtbot, tmp_path, irispy_test_files):
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
     dialog.obs_tree.topLevelItem(0).setCheckState(0, Qt.Checked)
-    dialog.finalize()
+    load_selected(qtbot, dialog)
     assert len(dialog.datasets) == 1
     data = dialog.datasets[0]
     assert data is dialog.first_image
@@ -97,15 +108,28 @@ def test_load_selected_real_sji(qtbot, tmp_path, irispy_test_files):
     assert data.style.preferred_cmap.name == "irissji1400"
 
 
-def test_ticked_raster_windows_of_an_observation_are_read_at_once(qtbot, monkeypatch, irispy_test_files):
-    # each read maps every raster file, and a mapped file stays open
+def counted_reads(monkeypatch, on_read=None):
+    """
+    The ``(files, spectral_windows)`` of each read of raster files, as the loaders make them; ``on_read(n)`` after the
+    n-th, on the thread that reads.
+    """
     reads = []
 
     def read(files, **kwargs):
-        reads.append(kwargs["spectral_windows"])
-        return read_files(files, **kwargs)
+        collection = read_files(files, **kwargs)
+        reads.append((files, kwargs["spectral_windows"]))
+        if on_read is not None:
+            on_read(len(reads))
+        return collection
 
     monkeypatch.setattr("irispy.io.read_files", read)  # the loaders import it as they read
+    return reads
+
+
+def test_ticked_raster_windows_of_an_observation_are_read_together_file_by_file(qtbot, monkeypatch,
+                                                                                 irispy_test_files):
+    # each read maps the file, and a mapped file stays open; one file at a time, so that a load can stop between them
+    reads = counted_reads(monkeypatch)
     scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
     dialog = QtIRISImporter(scans[0].parent)
     qtbot.addWidget(dialog)
@@ -113,12 +137,173 @@ def test_ticked_raster_windows_of_an_observation_are_read_at_once(qtbot, monkeyp
     entries = [row.child(i) for i in range(row.childCount()) if "raster file(s)" in row.child(i).text(0)][:2]
     for entry in entries:
         entry.setCheckState(0, Qt.Checked)
-    dialog.finalize()
+    load_selected(qtbot, dialog)
     windows = [name for _, _, name, _ in dialog.loaded]
-    assert reads == [windows]
+    assert reads == [([scan], windows) for scan in scans]
     assert len(windows) == 2
     for _, _, name, datasets in dialog.loaded:
         assert [data.label for data in datasets] == [data.label for data in raster_data(scans, [name])]
+
+
+def test_raster_files_are_read_until_the_load_stops(monkeypatch, irispy_test_files):
+    reads = counted_reads(monkeypatch)
+    scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
+    stop, steps = threading.Event(), []
+
+    def step():
+        steps.append(len(reads))
+        if len(steps) == 2:
+            stop.set()
+
+    assert _raster_windows_data(scans, ["C II 1336"], stack=True, stop=stop, step=step) is None
+    assert steps == [1, 2]
+    assert [files for files, _ in reads] == [[scan] for scan in scans[:2]]
+
+
+def tick(dialog, *entries):
+    """Tick the entries of ``OBS_A`` whose names start with any of ``entries``."""
+    row = _row(dialog, OBS_A[2])
+    for item in map(row.child, range(row.childCount())):
+        if item.text(0).startswith(entries):
+            item.setCheckState(0, Qt.Checked)
+
+
+def from_the_worker(widget, method):
+    """The user's ``widget.method()`` on the GUI thread, which the worker thread waits for."""
+    # on the GUI thread it would wait for itself: a load moved back there fails rather than hangs
+    assert threading.current_thread() is not threading.main_thread()
+    QMetaObject.invokeMethod(widget, method, Qt.BlockingQueuedConnection)
+
+
+def test_load_reads_a_file_at_a_time_off_the_gui_thread(dialog, qtbot, monkeypatch):
+    tick(dialog, "SJI_1400", "Mg II k")
+    dialog.stack.setChecked(True)
+    on_gui = []
+    reads = counted_reads(monkeypatch, lambda n: on_gui.append(threading.current_thread() is threading.main_thread()))
+    dialog.accepted.connect(lambda: on_gui.append(threading.current_thread() is threading.main_thread()),
+                            Qt.DirectConnection)  # on the thread that accepts
+    progress = []  # and whether anything that would start or change a load can be used meanwhile
+    widgets = dialog.ok, dialog.change, dialog.recursive, dialog.obs_tree, dialog.stack, dialog.quicklook
+    dialog.progress.valueChanged.connect(lambda value: progress.append((value, any(w.isEnabled() for w in widgets))))
+    load_selected(qtbot, dialog)
+    assert dialog.result() == QDialog.Accepted
+    assert len(reads) == 2
+    assert on_gui == [False, False, True]  # the reads, then the result
+    # the slit-jaw file, each raster file, then the colour limits
+    assert progress == [(25, False), (50, False), (75, False), (100, False)]
+    assert [data.ndim for data in dialog.datasets] == [3, 4]
+
+
+def test_stop_keeps_the_entries_read_in_full(dialog, qtbot, monkeypatch):
+    tick(dialog, "SJI_1400", "Mg II k")
+    dialog.stack.setChecked(True)
+    dialog.shown = lambda loaded, quicklooks: [datasets[0] for *_, datasets in loaded]
+
+    def stop_in_the_first_file(n):
+        if n == 1:  # the user presses Stop while raster file 1 is read
+            from_the_worker(dialog.cancel, "click")
+
+    reads = counted_reads(monkeypatch, stop_in_the_first_file)
+    load_selected(qtbot, dialog)
+    assert len(reads) == 1  # file 2 is not read
+    assert dialog.result() == QDialog.Accepted
+    assert [kind for _, kind, _, _ in dialog.loaded] == ["sji"]
+    assert [data.label for data in dialog.datasets] == [f"SJI_1400-{OBS_A[2]}-2025-03-28T22:56:28"]
+    [data] = dialog.datasets
+    assert data.get_component(data.main_components[0])._counts is not None  # not left to its first viewer
+
+
+def test_stop_keeps_every_window_of_a_raster_read_in_full(dialog, qtbot, monkeypatch):
+    # both windows of OBS_A come from the same two raster files, read together: Stop during file 2 (the last)
+    tick(dialog, "C II", "Mg II k")
+    dialog.stack.setChecked(True)
+
+    def stop_in_the_last_file(n):
+        if n == 2:
+            from_the_worker(dialog.cancel, "click")
+
+    reads = counted_reads(monkeypatch, stop_in_the_last_file)
+    load_selected(qtbot, dialog)
+    assert len(reads) == 2
+    assert dialog.result() == QDialog.Accepted
+    assert [name for _, _, name, _ in dialog.loaded] == ["C II 1336", "Mg II k 2796"]
+
+
+def test_stop_ends_the_look_for_the_file_that_fails(dialog, qtbot, monkeypatch):
+    tick(dialog, "Mg II k")
+    dialog.stack.setChecked(True)
+
+    def fail(collection, **kwargs):
+        if any(len(cubes) > 1 for cubes in collection.values()):  # the scans together, not one alone
+            raise ValueError("the scans differ")
+        return _raster_collection_data(collection, **kwargs)
+
+    monkeypatch.setattr("glue_solar.sources.loaders.iris._raster_collection_data", fail)
+
+    def stop_in_the_first_read_again(n):
+        if n == 3:  # files 1 and 2 were read; the look for the one that fails reads them again
+            from_the_worker(dialog.cancel, "click")
+
+    reads = counted_reads(monkeypatch, stop_in_the_first_read_again)
+    load_selected(qtbot, dialog)
+    assert len(reads) == 3
+    assert dialog.progress.format() == "Loading Mg II k 2796 from 2 raster files failed: the scans differ"
+
+
+def test_closing_the_dialog_drops_the_load(dialog, qtbot, monkeypatch):
+    tick(dialog, "SJI_1400", "Mg II k")
+
+    def close_in_the_first_file(n):
+        if n == 1:
+            from_the_worker(dialog, "reject")
+
+    reads = counted_reads(monkeypatch, close_in_the_first_file)
+    dialog.ok.click()
+    qtbot.waitUntil(lambda: not _RUNNING, timeout=60_000)
+    assert len(reads) == 1
+    assert dialog.result() == QDialog.Rejected
+    assert dialog.datasets == []
+    assert dialog.loaded == []
+    assert dialog.ok.isEnabled()  # ready for another
+    assert dialog.cancel.text() == "Cancel"
+
+
+@pytest.mark.parametrize(("quicklook", "shown"), [(True, ["SJI_1400", "Mg_II_k_2796"]), (False, ["SJI_1400"])])
+def test_colour_limits_of_what_browse_iris_shows_are_counted_in_the_background(qtbot, monkeypatch, iris_tree, quicklook,
+                                                                              shown):
+    from glue_solar.sources.iris import browse_iris
+
+    loaded = []
+
+    def load(dialog):
+        qtbot.addWidget(dialog)
+        _row(dialog, OBS_A[2]).setCheckState(0, Qt.Checked)
+        dialog.quicklook.setChecked(quicklook)
+        load_selected(qtbot, dialog)
+        loaded.extend(dialog.datasets)
+        return QDialog.Rejected  # before browse_iris opens a viewer
+
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
+    monkeypatch.setattr(QtIRISImporter, "exec", load)
+    browse_iris(SimpleNamespace(application=None), None)
+    assert len(loaded) == 6  # the slit-jaw image, scans 0 and 1 of two raster windows, and the AIA cutout
+    # the quicklook's Mg II k scan and slit-jaw image, or the Image viewer's slit-jaw image: no viewer has asked
+    counted = [data.label for data in loaded if data.get_component(data.main_components[0])._counts is not None]
+    assert counted == [f"{name}-{OBS_A[2]}-2025-03-28T22:56:28" + "-scan-0" * name.startswith("Mg") for name in shown]
+
+
+def test_a_failure_after_the_reads_stays_in_the_dialog(qtbot, iris_tree, capsys):
+    def shown(loaded, quicklooks):
+        raise ValueError("no viewer to show")
+
+    dialog = QtIRISImporter(iris_tree, shown=shown)
+    qtbot.addWidget(dialog)
+    tick(dialog, "SJI_1400")
+    load_selected(qtbot, dialog)
+    assert dialog.result() == 0
+    assert dialog.datasets == []
+    assert dialog.progress.format() == "Loading failed: no viewer to show"
+    assert 'raise ValueError("no viewer to show")' in capsys.readouterr().err  # the traceback of the bug
 
 
 def test_deconvolved_sji_is_listed_and_loaded_beside_the_plain_one(qtbot, tmp_path, irispy_test_files):
@@ -133,7 +318,7 @@ def test_deconvolved_sji_is_listed_and_loaded_beside_the_plain_one(qtbot, tmp_pa
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
     dialog.obs_tree.topLevelItem(0).setCheckState(0, Qt.Checked)
-    dialog.finalize()
+    load_selected(qtbot, dialog)
     labels = [data.label for data in dialog.datasets]
     assert labels == [
         "SJI_1400-3620258102-2021-09-05T00:18:33",
@@ -167,7 +352,7 @@ def test_extract_archive_then_lists_its_windows(qtbot, iris_tree, tmp_path):
     assert row.childCount() == 0
     assert row.text(6).startswith("0 — Extract ")
     row.setCheckState(0, Qt.Checked)
-    dlg.finalize()
+    load_selected(qtbot, dlg)
     assert dlg.result() == 0  # stays open
     assert dlg.datasets == []
     assert (tree / f"{MD5}iris_l2_{'_'.join(OBS_C)}_raster").is_dir()
@@ -176,6 +361,40 @@ def test_extract_archive_then_lists_its_windows(qtbot, iris_tree, tmp_path):
         "C II 1336 — 1 raster file(s)",
         "Mg II k 2796 — 1 raster file(s)",
     ]
+
+
+def test_stop_keeps_the_archives_unpacked_in_full(qtbot, iris_tree, tmp_path, monkeypatch):
+    tree = tmp_path / "copy"
+    shutil.copytree(iris_tree, tree)
+    later = tree / f"iris_l2_20140709_000000_{OBS_C[2]}_raster.tar.gz"  # another run of the program
+    shutil.copy2(tree / f"{MD5}iris_l2_{'_'.join(OBS_C)}_raster.tar.gz", later)
+    dlg = QtIRISImporter(tree)
+    qtbot.addWidget(dlg)
+    for row in map(dlg.obs_tree.topLevelItem, range(dlg.obs_tree.topLevelItemCount())):
+        if row.text(6).startswith("0 — Extract "):
+            row.setCheckState(0, Qt.Checked)
+    unpacked = []
+
+    def extract(path):
+        unpacked.append(extract_archive(path))
+        from_the_worker(dlg.cancel, "click")  # Stop, as the first is unpacked
+
+    monkeypatch.setattr("glue_solar.sources.loaders.iris.extract_archive", extract)
+    load_selected(qtbot, dlg)
+    assert unpacked == [tree / f"{MD5}iris_l2_{'_'.join(OBS_C)}_raster"]
+    assert dlg.result() == 0  # stays open, listing what it holds
+    assert dlg.progress.format() == "Extracted 1 archive(s) — now tick what to load"
+    assert [row.text(6) for row in map(dlg.obs_tree.topLevelItem, range(dlg.obs_tree.topLevelItemCount()))
+            if row.text(6).startswith("0 — Extract ")] == [f"0 — Extract {later.name} (0 MB, next to the archive)"]
+
+
+def test_closing_the_dialog_drops_the_unpacking(dialog, qtbot, monkeypatch):
+    _row(dialog, OBS_C[2]).setCheckState(0, Qt.Checked)
+    monkeypatch.setattr("glue_solar.sources.loaders.iris.extract_archive", lambda path: from_the_worker(dialog, "reject"))
+    dialog.ok.click()
+    qtbot.waitUntil(lambda: not _RUNNING, timeout=60_000)
+    assert dialog.result() == QDialog.Rejected
+    assert dialog.progress.format() == "%p%"  # the closed dialog does not list the folder again
 
 
 def test_browser_and_file_open_read_only_the_primary_header_of_a_gzipped_file(tmp_path):
@@ -188,6 +407,16 @@ def test_browser_and_file_open_read_only_the_primary_header_of_a_gzipped_file(tm
     [observation] = scan_directory(tmp_path)
     assert observation.sji == {"SJI_2832": path}
     assert is_iris_fits(str(path))
+
+
+def test_scan_skips_the_hidden_folder_an_archive_is_unpacked_into(tmp_path):
+    d, t, o = OBS_B
+    header = fits.Header({"TELESCOP": "IRIS", "INSTRUME": "SJI", "OBSID": o, "STARTOBS": startobs(d, t),
+                          "TDESC1": "SJI_2832"})
+    unpacking = tmp_path / f".iris_l2_{d}_{t}_{o}_SJI-k2v9x0"  # as extract_archive names it
+    unpacking.mkdir()
+    fits.PrimaryHDU(header=header).writeto(unpacking / f"iris_l2_{d}_{t}_{o}_SJI_2832_t000.fits")
+    assert scan_directory(tmp_path) == []
 
 
 def test_file_open_reads_no_header_from_a_file_that_does_not_start_as_fits(tmp_path):
@@ -569,7 +798,7 @@ def test_duplicate_real_raster_is_listed_and_loaded_once(qtbot, tmp_path, irispy
     assert all("1 raster file(s)" in row.child(i).text(0) for i in range(row.childCount()))
     row.child(0).setCheckState(0, Qt.Checked)
     dialog.stack.setChecked(True)
-    dialog.finalize()
+    load_selected(qtbot, dialog)
     assert len(dialog.datasets) == 1
 
 
@@ -598,11 +827,12 @@ def test_reader_failure_stays_in_dialog(qtbot, tmp_path, name, instrume, band):
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
     dialog.obs_tree.topLevelItem(0).setCheckState(0, Qt.Checked)
-    dialog.finalize()
+    load_selected(qtbot, dialog)
 
     assert dialog.result() == 0
     assert dialog.datasets == []
     assert dialog.progress.format().startswith(f"Loading {band} from {name} failed:")
+    assert dialog.cancel.text() == "Cancel"  # and Load selected is back
 
 
 def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_test_files):
@@ -616,7 +846,7 @@ def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_t
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
     _row(dialog, "3860258481").child(0).setCheckState(0, Qt.Checked)
-    dialog.finalize()
+    load_selected(qtbot, dialog)
 
     assert dialog.result() == 0
     window = dialog.observations[0].windows[0]
@@ -635,7 +865,7 @@ def test_raster_load_failure_of_files_that_load_alone_names_how_many(qtbot, tmp_
     qtbot.addWidget(dialog)
     _row(dialog, "3860258481").child(0).setCheckState(0, Qt.Checked)
     dialog.stack.setChecked(True)
-    dialog.finalize()
+    load_selected(qtbot, dialog)
 
     window = dialog.observations[0].windows[0]
     assert dialog.progress.format() == f"Loading {window} from 2 raster files failed: the scans differ"

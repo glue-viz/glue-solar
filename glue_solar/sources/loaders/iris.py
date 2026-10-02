@@ -1,9 +1,13 @@
+import gzip
+import io
+import itertools
 import os
 import re
 import tarfile
 import threading
+import traceback
 from collections import OrderedDict
-from functools import cached_property
+from functools import cached_property, partial
 from operator import attrgetter
 from pathlib import Path
 
@@ -16,9 +20,10 @@ from glue.core.hub import HubListener
 from glue.core.link_helpers import LinkSame
 from glue.core.message import DataCollectionDeleteMessage
 from glue.core.visual import VisualAttributes
-from glue_qt.utils import get_qapp, load_ui
+from glue_qt.utils import load_ui
+from glue_qt.utils.threading import Worker
 from qtpy import QtWidgets
-from qtpy.QtCore import QSettings, Qt, QTimer
+from qtpy.QtCore import QSettings, Qt, QTimer, Signal
 
 import astropy.units as u
 from astropy.io import fits
@@ -382,20 +387,36 @@ def image_data(path):
     Load an SJI or AIA-cutout file through irispy.
 
     Data stored as int16, as Level 2 files store them, stay in the file and are scaled where glue reads them
-    (`LAZY`); a ``.fits.gz`` file's are held in memory as int16.
+    (`LAZY`); a ``.fits.gz`` file is decompressed once, and its data held in memory as int16.
 
     Returns
     -------
     `~glue.core.data.Data`
     """
     from irispy.io import read_files  # with the first file rather than at glue's launch
+    from irispy.io.sji import read_sji_lvl2
 
-    with fits.open(path, memmap=True, do_not_scale_image_data=True) as hdulist:
-        scaling = _raw_scaling(hdulist[0].header)
-        raw = hdulist[0].data if scaling else None
+    with open(path, "rb") as file:
+        gzipped = file.read(2) == b"\x1f\x8b"
+    if gzipped:  # into memory once: astropy and irispy would each decompress it again, about four times in all
+        with gzip.open(path) as file:
+            content = file.read()
+        with fits.open(io.BytesIO(content), do_not_scale_image_data=True) as hdulist:
+            hdu = hdulist[0]
+            scaling = _raw_scaling(hdu.header)
+            # the raw int16 where they lie in the decompressed bytes, rather than a copy
+            raw = np.ndarray(hdu.shape, ">i2", content, hdu.fileinfo()["datLoc"]) if scaling else None
+    else:
+        with fits.open(path, memmap=True, do_not_scale_image_data=True) as hdulist:
+            scaling = _raw_scaling(hdulist[0].header)
+            raw = hdulist[0].data if scaling else None
     if scaling:
         allow_open_files()
-    return _image_cube_data(read_files(path, memmap=bool(scaling), uncertainty=False), path, raw, scaling)
+    if gzipped:
+        cube = read_sji_lvl2(io.BytesIO(content), memmap=bool(scaling), uncertainty=False)
+    else:
+        cube = read_files(path, memmap=bool(scaling), uncertainty=False)
+    return _image_cube_data(cube, path, raw, scaling)
 
 
 def iris_data(path):
@@ -441,8 +462,12 @@ def raster_data(files, windows=None, stack=False):
     return [data for datasets in _raster_windows_data(files, windows, stack).values() for data in datasets]
 
 
-def _raster_windows_data(files, windows=None, stack=False):
-    """`raster_data` by window name, from one read of ``files`` for every window, which maps each file once."""
+def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None):
+    """
+    `raster_data` by window name, from one read of each file for every window, which maps each file once.
+
+    None once ``stop``, a `threading.Event`, is set between files; ``step()`` is called after each file.
+    """
     scaling = _window_scaling(files[0])
     if any(_window_scaling(path) != scaling for path in files[1:]):
         scaling = None
@@ -450,9 +475,17 @@ def _raster_windows_data(files, windows=None, stack=False):
         allow_open_files()
     from irispy.io import read_files
 
-    collection = read_files(files, spectral_windows=windows, memmap=bool(scaling), uncertainty=False)
-    return {window: _raster_collection_data({window: scans}, stack=stack, scaling=scaling)
-            for window, scans in collection.items()}
+    scans = {}
+    for path in sorted(files):  # as irispy orders them
+        if stop is not None and stop.is_set():
+            return None
+        for window, sequence in read_files([path], spectral_windows=windows, memmap=bool(scaling),
+                                           uncertainty=False).items():
+            scans.setdefault(window, []).extend(sequence)
+        if step is not None:
+            step()
+    return {window: _raster_collection_data({window: cubes}, stack=stack, scaling=scaling)
+            for window, cubes in scans.items()}
 
 
 def link_hpc(data_collection):
@@ -538,19 +571,90 @@ def load_entry(observation, kind, name, stack=False):
     return [image_data(observation.sji[name] if kind == "sji" else observation.sdo[name])]
 
 
-def _failing_file(observation, kind, name, windows):
+def _failing_file(observation, kind, name, windows, stop):
     """
     The name of the file of a browser entry that failed to load: for a raster window, the first raster file that fails
-    on its own, as irispy reads them all at once.
+    on its own, as the error does not name it, looked for until ``stop`` is set.
     """
     if kind != "raster":
         return (observation.sji[name] if kind == "sji" else observation.sdo[name]).name
     for path in observation.rasters:
+        if stop.is_set():
+            break
         try:
             _raster_windows_data([path], windows)
         except Exception:  # noqa: BLE001 - whatever the read of every file raised
             return path.name
-    return f"{len(observation.rasters)} raster files"  # each loads on its own, but not together
+    return f"{len(observation.rasters)} raster files"  # each loads on its own but not together, or Stop ended the look
+
+
+def _load(load, observations, picks, stack, shown, stop, report):
+    """
+    Read the browser's ticked entries on glue-qt's worker thread, until ``stop`` is set: ``report(load, percent)``
+    after each raster, slit-jaw or AIA file, and after the count of the colour limits of the datasets
+    ``shown(loaded)`` gives, unless it is None, which the GUI thread would otherwise count as their first viewers
+    open. What Stop keeps is counted too.
+
+    Returns ``(load, loaded, error)``: the entries read in full, as `QtIRISImporter.loaded` holds them, and the text
+    of a reader error, which loads nothing.
+    """
+    windows, rasters, loaded = {}, {}, []  # each observation's ticked raster windows, read together
+    for i, kind, name in picks:
+        if kind == "raster":
+            windows.setdefault(i, []).append(name)
+    # one step per file, and one for the colour limits
+    files = sum(len(observations[i].rasters) for i in windows) + sum(kind != "raster" for _, kind, _ in picks) + 1
+    done = itertools.count(1)
+
+    def step():
+        report(load, 100 * next(done) // files)
+
+    for i, kind, name in picks:
+        if stop.is_set() and (kind != "raster" or i not in rasters):  # another window of a raster read is read in full
+            break
+        obs = observations[i]
+        try:
+            if kind == "raster":
+                if i not in rasters:
+                    rasters[i] = _raster_windows_data(obs.rasters, windows[i], stack=stack, stop=stop, step=step)
+                if rasters[i] is None:  # stopped between its files
+                    break
+                datasets = rasters[i][name]
+            else:
+                datasets = load_entry(obs, kind, name)
+                step()
+        except Exception as error:  # noqa: BLE001 - third-party reader errors must stay inside the dialog
+            failing = _failing_file(obs, kind, name, windows.get(i), stop)
+            return load, [], f"Loading {name} from {failing} failed: {error}"
+        loaded.append((obs, kind, name, datasets))
+    for data in shown(loaded) if shown else ():
+        component = data.get_component(data.main_components[0])
+        if isinstance(component, RawComponent):
+            component._sample()
+    step()
+    return load, loaded, None
+
+
+def _extract(load, archives, stop, report):
+    """
+    Unpack the browser's ticked archives on glue-qt's worker thread, until ``stop`` is set: ``report(load, percent)``
+    after each.
+
+    Returns ``(load, extracted, error)``: how many were unpacked, and the text of an extraction error.
+    """
+    for n, archive in enumerate(archives):
+        if stop.is_set():
+            return load, n, None
+        try:
+            extract_archive(archive)
+        except (OSError, tarfile.TarError) as error:
+            return load, n, f"Extraction failed: {error}"
+        report(load, 100 * (n + 1) // len(archives))
+    return load, len(archives), None
+
+
+# glue-qt's workers that are still running: Python would delete one that nothing holds, which aborts the process
+_RUNNING = set()
 
 
 def _fmt(value):
@@ -565,13 +669,23 @@ class QtIRISImporter(QtWidgets.QDialog):
     `~glue.core.data.Data` objects and ``first_image`` the first SJI/AIA cube
     (the natural thing to open in an image viewer). ``loaded`` records what each
     ticked entry gave, as ``(observation, kind, name, datasets)``.
+
+    Load selected reads in the background, a file at a time, and the progress bar
+    counts the files. Meanwhile Cancel reads Stop, which closes the dialog with the
+    entries read in full; Esc or closing the dialog drops the load. ``shown``, if
+    given, names the datasets the first viewers will show of what is loaded, as
+    ``shown(loaded, quicklooks)`` with whether Open quicklook is ticked: their
+    colour limits are counted in the background too.
     """
 
-    def __init__(self, directory=None, parent=None):
+    progressed = Signal(int, int)  # (load, percent), from the worker thread
+
+    def __init__(self, directory=None, parent=None, shown=None):
         super().__init__(parent)
         self.ui = load_ui(UI_MAIN, self)
-        self.cancel.clicked.connect(self.reject)
+        self.cancel.clicked.connect(self._cancel)
         self.ok.clicked.connect(self.finalize)
+        self.progressed.connect(self._progressed)
         self.change.clicked.connect(self.choose_directory)
         self.recursive.toggled.connect(lambda _checked: self.set_directory(self.directory.text()))
         self.observations = []
@@ -579,6 +693,8 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.first_image = None
         self.loaded = []
         self._payloads = []
+        self._load, self._stop = 0, threading.Event()  # the latest load, and its stop
+        self.shown = shown
         self.stack.setToolTip(
             "Stack two or more raster scans by detector position into one 4D cube. "
             "Scan 0 supplies the nominal spatial coordinates; exact acquisition times are retained."
@@ -663,44 +779,69 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.progress.setFormat("%p%")
         picks = self.selected()
         archives = [name for _, kind, name in picks if kind == "archive"]
-        if archives:
-            # Unpack, rescan and stay open so the user can pick from what was inside.
-            for n, archive in enumerate(archives):
-                self.progress.setValue(int(100 * n / len(archives)))
-                get_qapp().processEvents()
-                try:
-                    extract_archive(archive)
-                except (OSError, tarfile.TarError) as error:
-                    self.set_directory(self.directory.text())
-                    self.progress.setFormat(f"Extraction failed: {error}")
-                    return
-            self.set_directory(self.directory.text())
-            self.progress.setValue(100)
-            self.progress.setFormat(f"Extracted {len(archives)} archive(s) — now tick what to load")
+        if archives:  # unpack, rescan and stay open so the user can pick from what was inside
+            self._start(self._extracted, _extract, archives)
+        else:
+            shown = self.shown and partial(self.shown, quicklooks=self.quicklook.isChecked())
+            self._start(self._loaded, _load, self.observations, picks, self.stack.isChecked(), shown)
+
+    def _start(self, done, function, *args):
+        """Run ``function(load, *args, stop, report)`` on glue-qt's worker thread, and ``done`` with its result."""
+        self.progress.setValue(0)
+        self._load += 1
+        self._stop = threading.Event()
+        self._busy(True)
+        worker = Worker(function, self._load, *args, self._stop, self.progressed.emit)
+        worker.result.connect(done)
+        worker.error.connect(partial(self._failed, self._load))
+        _RUNNING.add(worker)
+        worker.finished.connect(lambda: _RUNNING.discard(worker))
+        worker.start()
+
+    def _busy(self, busy):
+        """While a load runs, only Stop: the ticks and boxes it was started with stay as they were."""
+        for widget in (self.ok, self.change, self.recursive, self.obs_tree, self.stack, self.quicklook):
+            widget.setEnabled(not busy)
+        self.cancel.setText("Stop" if busy else "Cancel")
+
+    def _cancel(self):
+        if self.ok.isEnabled():
+            self.reject()
+        else:
+            self._stop.set()  # the load ends with what is read in full
+
+    def reject(self):
+        self._load += 1  # its result is dropped
+        self._stop.set()
+        self._busy(False)
+        super().reject()
+
+    def _progressed(self, load, percent):
+        if load == self._load:
+            self.progress.setValue(percent)
+
+    def _failed(self, load, exc_info):
+        traceback.print_exception(*exc_info)  # not a reader error, so a bug: the dialog shows only its text
+        self._loaded((load, [], f"Loading failed: {exc_info[1]}"))
+
+    def _extracted(self, result):
+        load, extracted, error = result
+        if load != self._load:
             return
-        self.datasets, self.first_image, self.loaded = [], None, []
-        windows, rasters = {}, {}  # each observation's ticked raster windows, read at once to map each file once
-        for i, kind, name in picks:
-            if kind == "raster":
-                windows.setdefault(i, []).append(name)
-        for n, (i, kind, name) in enumerate(picks):
-            self.progress.setValue(int(100 * n / len(picks)))
-            get_qapp().processEvents()
-            obs = self.observations[i]
-            try:
-                if kind == "raster":
-                    if i not in rasters:
-                        rasters[i] = _raster_windows_data(obs.rasters, windows[i], stack=self.stack.isChecked())
-                    datasets = rasters[i][name]
-                else:
-                    datasets = load_entry(obs, kind, name)
-            except Exception as error:  # noqa: BLE001 - third-party reader errors must stay inside the dialog
-                self.progress.setFormat(f"Loading {name} from {_failing_file(obs, kind, name, windows.get(i))} "
-                                        f"failed: {error}")
-                return
-            self.loaded.append((obs, kind, name, datasets))
-            self.datasets.extend(datasets)
-            if kind != "raster":
-                self.first_image = self.first_image or datasets[0]
+        self._busy(False)
+        self.set_directory(self.directory.text())
+        self.progress.setFormat(error or f"Extracted {extracted} archive(s) — now tick what to load")
+
+    def _loaded(self, result):
+        load, loaded, error = result
+        if load != self._load:
+            return
+        self._busy(False)
+        if error:
+            self.progress.setFormat(error)
+            return
+        self.loaded = loaded
+        self.datasets = [data for *_, datasets in loaded for data in datasets]
+        self.first_image = next((datasets[0] for _, kind, _, datasets in loaded if kind != "raster"), None)
         self.progress.setValue(100)
         self.accept()
