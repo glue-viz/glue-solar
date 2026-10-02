@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-02
 
-**Resume here.** M0 is done. Main is at e1882ee; glue-solar PRs are marked ready and merged once CI passes. Open: #106 (`wp10-nonblocking-load`, D36, `~/Git/glue-solar-nonblocking-load`), to merge when CI passes and then delete its item. In progress (M1 batch 3, worktrees `~/Git/glue-solar-<item>`): `wp1-m1-sunpy-maps`, `wp1-m1-sji-to-raster`, `wp11-cursor-readout`, `wp12-time-regrid`.
+**Resume here.** M0 is done. Main is at 0e3eb12; glue-solar PRs are marked ready and merged once CI passes. No PR is open. In progress (M1 batch 3, worktrees `~/Git/glue-solar-<item>`): `wp1-m1-sunpy-maps`, `wp1-m1-sji-to-raster`, `wp11-cursor-readout`, `wp12-time-regrid`.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -75,7 +75,7 @@ Settled by the user; reopen only with the user.
 - **D33:** Lazy colour limits come from an exact count of raw codes over up to 512 MiB of planes per window, within 1 % of the eager 99.5 % limits. The < 10 % memory budget is the peak RSS increase over the post-import baseline with no viewer, the absolute peak reported beside it; the per-element memory budgets are tracemalloc figures, and resident memory is `wp10-l-resident-memory`.
 - **D34:** The GitHub wiki stays off rather than refreshed; its history, with the user's 2026-09-22 edit, is `IRIS_PLAN_PROTOTYPES/glue-solar-wiki-20261001.bundle`.
 - **D35:** glue-solar registers only the IRIS and AIA colormaps (since #98) until glue-qt's colormap combo stops re-rendering every icon; the user wants every sunpy colormap back then, through `wp11-l-all-colormaps` or the upstream fix in `wp0-perf-qt` (2026-10-01).
-- **D36:** `wp10-nonblocking-load` covers the quicklook too (colour-limit counts for the datasets it will show on the worker, an event-loop turn between its viewers) and moves archive extraction to the worker; Stop keeps the picks read in full while Esc or closing drops the load; a gzipped SJI is decompressed once; every raster file is read on its own so a stop acts between files (user, 2026-10-02); what Stop keeps is still counted on the worker, a result 0.15-0.2 s later rather than a 0.4 s freeze as its first viewer opens (provisional, 2026-10-02; design and measurements in `IRIS_PLAN_PROTOTYPES/wp10_nonblocking_design_20261002.tar.gz`).
+- **D36:** The observation browser's background load (#106) covers the quicklook too (colour-limit counts for the datasets it will show on the worker, an event-loop turn between its viewers) and moves archive extraction to the worker; Stop keeps the picks read in full while Esc or closing drops the load; a gzipped SJI is decompressed once; every raster file is read on its own so a stop acts between files (user, 2026-10-02); what Stop keeps is still counted on the worker, a result 0.15-0.2 s later rather than a 0.4 s freeze as its first viewer opens (provisional, 2026-10-02; design and measurements in `IRIS_PLAN_PROTOTYPES/wp10_nonblocking_design_20261002.tar.gz`).
 
 ## Milestones
 
@@ -96,7 +96,7 @@ A milestone is done when it has no items left.
 - WP4: `wp4-m1-hover-lock-tool`, `wp4-sji-click-to-raster`, `wp4-m1-spectral-coupling`, `wp4-m1-multi-window`, `wp4-time-controls`, `wp4-raster-overlays`
 - WP5: `wp5-m1-spectral-blink`
 - WP9: `wp9-m1-screenshots`, `wp9-m1-split-guide`
-- WP10: `wp10-nonblocking-load`, `wp10-m1-roi-world-polygon`
+- WP10: `wp10-m1-roi-world-polygon`
 - WP11: `wp11-cursor-readout`, `wp11-selected-point-panel`, `wp11-keyboard-shortcuts`
 - WP12: `wp12-time-regrid`
 
@@ -347,7 +347,7 @@ Covers the observation browser, the header scanner (`scan.py`) and the IRIS read
 
 **L**
 
-- [ ] **L** `wp8-filter-stop` (F005): Run the scan in glue-qt's `Worker` with a working Stop. Done when Stop returns within 0.5 s and the tests pass 20 runs. Depends: wp10-nonblocking-load.
+- [ ] **L** `wp8-filter-stop` (F005): Run the scan in glue-qt's `Worker` with a working Stop. Done when Stop returns within 0.5 s and the tests pass 20 runs; the browser's load (#106, `_start`) shows the pattern.
 - [ ] **L** `wp8-text-filter`: A case-insensitive filter on browser rows. Done when `iris_tree` tests filter by line and date and the filter survives a rescan. Depends: wp8-filter-stop.
 - [ ] **L** `wp8-prescan-search` (F003, F010): Time-window and glob arguments for `scan_directory` that prune by filename, and `find_observation_files`. Done when a 2013-09-02 window reads only 2013-09-01/02 headers. Depends: wp8-filter-stop.
 - [ ] **L** `wp8-search-ui` (F001, F002, F004): Start/Stop time fields, named search locations and recent searches. Done when tests set and restore the scan window. Depends: wp8-prescan-search.
@@ -396,7 +396,6 @@ Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on file
 
 **M1**
 
-- [ ] **M1** `wp10-nonblocking-load` (F201): Run importer reads in glue-qt's `Worker` with a progress bar, a stop between raster files, Data added on the GUI thread and superseded loads dropped. Done when loading 3824262996 Mg II k or 4000255147 keeps GUI gaps ≤ 0.2 s, and a stop in the 3602506433 stack acts within one file and keeps earlier picks.
 - [ ] **M1** `wp10-m1-roi-world-polygon`: Override `apply_roi` on `QuicklookImageViewer` so a raster ROI becomes a lon/lat `PolygonalROI` (edges sampled once per step through `_GlueWCS`), and give raster viewers back their `select:*` tools. Done when on 4000005156 Si IV with deconvolved SJI 2796 frame 5 a raster rectangle selects the same 108,300 SJI pixels as the pixel subset in ≤ 0.5 s per frame, and sit-and-stare matches the pixel result.
 
 **L**
