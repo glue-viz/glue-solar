@@ -22,7 +22,14 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
 from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, OBS_S, find_irispy_test_file, startobs
 from glue_solar.sources.iris import is_iris_fits, read_iris_file
-from glue_solar.sources.loaders.iris import _RUNNING, QtIRISImporter, _raster_windows_data, image_data, raster_data
+from glue_solar.sources.loaders.iris import (
+    _RUNNING,
+    QtIRISImporter,
+    _raster_collection_data,
+    _raster_windows_data,
+    image_data,
+    raster_data,
+)
 from glue_solar.sources.loaders.scan import extract_archive, scan_directory
 from glue_solar.sources.loaders.stack_spectrograms import stack_spectrogram_sequence
 from glue_solar.tests.helpers import load_selected
@@ -175,19 +182,22 @@ def test_load_reads_a_file_at_a_time_off_the_gui_thread(dialog, qtbot, monkeypat
     reads = counted_reads(monkeypatch, lambda n: on_gui.append(threading.current_thread() is threading.main_thread()))
     dialog.accepted.connect(lambda: on_gui.append(threading.current_thread() is threading.main_thread()),
                             Qt.DirectConnection)  # on the thread that accepts
-    progress = []
-    dialog.progress.valueChanged.connect(progress.append)
+    progress = []  # and whether anything that would start or change a load can be used meanwhile
+    widgets = dialog.ok, dialog.change, dialog.recursive, dialog.obs_tree, dialog.stack, dialog.quicklook
+    dialog.progress.valueChanged.connect(lambda value: progress.append((value, any(w.isEnabled() for w in widgets))))
     load_selected(qtbot, dialog)
     assert dialog.result() == QDialog.Accepted
     assert len(reads) == 2
     assert on_gui == [False, False, True]  # the reads, then the result
-    assert progress == [33, 66, 100]  # the slit-jaw file, then each raster file
+    # the slit-jaw file, each raster file, then the colour limits
+    assert progress == [(25, False), (50, False), (75, False), (100, False)]
     assert [data.ndim for data in dialog.datasets] == [3, 4]
 
 
 def test_stop_keeps_the_entries_read_in_full(dialog, qtbot, monkeypatch):
     tick(dialog, "SJI_1400", "Mg II k")
     dialog.stack.setChecked(True)
+    dialog.shown = lambda loaded, quicklooks: [datasets[0] for *_, datasets in loaded]
 
     def stop_in_the_first_file(n):
         if n == 1:  # the user presses Stop while raster file 1 is read
@@ -199,6 +209,45 @@ def test_stop_keeps_the_entries_read_in_full(dialog, qtbot, monkeypatch):
     assert dialog.result() == QDialog.Accepted
     assert [kind for _, kind, _, _ in dialog.loaded] == ["sji"]
     assert [data.label for data in dialog.datasets] == [f"SJI_1400-{OBS_A[2]}-2025-03-28T22:56:28"]
+    [data] = dialog.datasets
+    assert data.get_component(data.main_components[0])._counts is not None  # not left to its first viewer
+
+
+def test_stop_keeps_every_window_of_a_raster_read_in_full(dialog, qtbot, monkeypatch):
+    # both windows of OBS_A come from the same two raster files, read together: Stop during file 2 (the last)
+    tick(dialog, "C II", "Mg II k")
+    dialog.stack.setChecked(True)
+
+    def stop_in_the_last_file(n):
+        if n == 2:
+            from_the_worker(dialog.cancel, "click")
+
+    reads = counted_reads(monkeypatch, stop_in_the_last_file)
+    load_selected(qtbot, dialog)
+    assert len(reads) == 2
+    assert dialog.result() == QDialog.Accepted
+    assert [name for _, _, name, _ in dialog.loaded] == ["C II 1336", "Mg II k 2796"]
+
+
+def test_stop_ends_the_look_for_the_file_that_fails(dialog, qtbot, monkeypatch):
+    tick(dialog, "Mg II k")
+    dialog.stack.setChecked(True)
+
+    def fail(collection, **kwargs):
+        if any(len(cubes) > 1 for cubes in collection.values()):  # the scans together, not one alone
+            raise ValueError("the scans differ")
+        return _raster_collection_data(collection, **kwargs)
+
+    monkeypatch.setattr("glue_solar.sources.loaders.iris._raster_collection_data", fail)
+
+    def stop_in_the_first_read_again(n):
+        if n == 3:  # files 1 and 2 were read; the look for the one that fails reads them again
+            from_the_worker(dialog.cancel, "click")
+
+    reads = counted_reads(monkeypatch, stop_in_the_first_read_again)
+    load_selected(qtbot, dialog)
+    assert len(reads) == 3
+    assert dialog.progress.format() == "Loading Mg II k 2796 from 2 raster files failed: the scans differ"
 
 
 def test_closing_the_dialog_drops_the_load(dialog, qtbot, monkeypatch):
@@ -215,6 +264,8 @@ def test_closing_the_dialog_drops_the_load(dialog, qtbot, monkeypatch):
     assert dialog.result() == QDialog.Rejected
     assert dialog.datasets == []
     assert dialog.loaded == []
+    assert dialog.ok.isEnabled()  # ready for another
+    assert dialog.cancel.text() == "Cancel"
 
 
 @pytest.mark.parametrize(("quicklook", "shown"), [(True, ["SJI_1400", "Mg_II_k_2796"]), (False, ["SJI_1400"])])
@@ -241,7 +292,7 @@ def test_colour_limits_of_what_browse_iris_shows_are_counted_in_the_background(q
     assert counted == [f"{name}-{OBS_A[2]}-2025-03-28T22:56:28" + "-scan-0" * name.startswith("Mg") for name in shown]
 
 
-def test_a_failure_after_the_reads_stays_in_the_dialog(qtbot, iris_tree):
+def test_a_failure_after_the_reads_stays_in_the_dialog(qtbot, iris_tree, capsys):
     def shown(loaded, quicklooks):
         raise ValueError("no viewer to show")
 
@@ -252,6 +303,7 @@ def test_a_failure_after_the_reads_stays_in_the_dialog(qtbot, iris_tree):
     assert dialog.result() == 0
     assert dialog.datasets == []
     assert dialog.progress.format() == "Loading failed: no viewer to show"
+    assert 'raise ValueError("no viewer to show")' in capsys.readouterr().err  # the traceback of the bug
 
 
 def test_deconvolved_sji_is_listed_and_loaded_beside_the_plain_one(qtbot, tmp_path, irispy_test_files):
@@ -355,6 +407,16 @@ def test_browser_and_file_open_read_only_the_primary_header_of_a_gzipped_file(tm
     [observation] = scan_directory(tmp_path)
     assert observation.sji == {"SJI_2832": path}
     assert is_iris_fits(str(path))
+
+
+def test_scan_skips_the_hidden_folder_an_archive_is_unpacked_into(tmp_path):
+    d, t, o = OBS_B
+    header = fits.Header({"TELESCOP": "IRIS", "INSTRUME": "SJI", "OBSID": o, "STARTOBS": startobs(d, t),
+                          "TDESC1": "SJI_2832"})
+    unpacking = tmp_path / f".iris_l2_{d}_{t}_{o}_SJI-k2v9x0"  # as extract_archive names it
+    unpacking.mkdir()
+    fits.PrimaryHDU(header=header).writeto(unpacking / f"iris_l2_{d}_{t}_{o}_SJI_2832_t000.fits")
+    assert scan_directory(tmp_path) == []
 
 
 def test_file_open_reads_no_header_from_a_file_that_does_not_start_as_fits(tmp_path):

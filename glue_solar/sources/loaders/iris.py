@@ -5,6 +5,7 @@ import os
 import re
 import tarfile
 import threading
+import traceback
 from collections import OrderedDict
 from functools import cached_property, partial
 from operator import attrgetter
@@ -570,26 +571,29 @@ def load_entry(observation, kind, name, stack=False):
     return [image_data(observation.sji[name] if kind == "sji" else observation.sdo[name])]
 
 
-def _failing_file(observation, kind, name, windows):
+def _failing_file(observation, kind, name, windows, stop):
     """
     The name of the file of a browser entry that failed to load: for a raster window, the first raster file that fails
-    on its own, as the error does not name it.
+    on its own, as the error does not name it, looked for until ``stop`` is set.
     """
     if kind != "raster":
         return (observation.sji[name] if kind == "sji" else observation.sdo[name]).name
     for path in observation.rasters:
+        if stop.is_set():
+            break
         try:
             _raster_windows_data([path], windows)
         except Exception:  # noqa: BLE001 - whatever the read of every file raised
             return path.name
-    return f"{len(observation.rasters)} raster files"  # each loads on its own, but not together
+    return f"{len(observation.rasters)} raster files"  # each loads on its own but not together, or Stop ended the look
 
 
 def _load(load, observations, picks, stack, shown, stop, report):
     """
     Read the browser's ticked entries on glue-qt's worker thread, until ``stop`` is set: ``report(load, percent)``
-    after each raster, slit-jaw or AIA file. Then count the colour limits of the datasets ``shown(loaded)`` gives,
-    unless it is None, which the GUI thread would otherwise count as their first viewers open.
+    after each raster, slit-jaw or AIA file, and after the count of the colour limits of the datasets
+    ``shown(loaded)`` gives, unless it is None, which the GUI thread would otherwise count as their first viewers
+    open. What Stop keeps is counted too.
 
     Returns ``(load, loaded, error)``: the entries read in full, as `QtIRISImporter.loaded` holds them, and the text
     of a reader error, which loads nothing.
@@ -598,14 +602,15 @@ def _load(load, observations, picks, stack, shown, stop, report):
     for i, kind, name in picks:
         if kind == "raster":
             windows.setdefault(i, []).append(name)
-    files = sum(len(observations[i].rasters) for i in windows) + sum(kind != "raster" for _, kind, _ in picks)
+    # one step per file, and one for the colour limits
+    files = sum(len(observations[i].rasters) for i in windows) + sum(kind != "raster" for _, kind, _ in picks) + 1
     done = itertools.count(1)
 
     def step():
         report(load, 100 * next(done) // files)
 
     for i, kind, name in picks:
-        if stop.is_set():
+        if stop.is_set() and (kind != "raster" or i not in rasters):  # another window of a raster read is read in full
             break
         obs = observations[i]
         try:
@@ -619,14 +624,14 @@ def _load(load, observations, picks, stack, shown, stop, report):
                 datasets = load_entry(obs, kind, name)
                 step()
         except Exception as error:  # noqa: BLE001 - third-party reader errors must stay inside the dialog
-            return load, [], f"Loading {name} from {_failing_file(obs, kind, name, windows.get(i))} failed: {error}"
+            failing = _failing_file(obs, kind, name, windows.get(i), stop)
+            return load, [], f"Loading {name} from {failing} failed: {error}"
         loaded.append((obs, kind, name, datasets))
     for data in shown(loaded) if shown else ():
-        if stop.is_set():
-            break
         component = data.get_component(data.main_components[0])
         if isinstance(component, RawComponent):
             component._sample()
+    step()
     return load, loaded, None
 
 
@@ -794,8 +799,8 @@ class QtIRISImporter(QtWidgets.QDialog):
         worker.start()
 
     def _busy(self, busy):
-        """While a load runs, only Stop."""
-        for widget in (self.ok, self.change, self.recursive):
+        """While a load runs, only Stop: the ticks and boxes it was started with stay as they were."""
+        for widget in (self.ok, self.change, self.recursive, self.obs_tree, self.stack, self.quicklook):
             widget.setEnabled(not busy)
         self.cancel.setText("Stop" if busy else "Cancel")
 
@@ -808,6 +813,7 @@ class QtIRISImporter(QtWidgets.QDialog):
     def reject(self):
         self._load += 1  # its result is dropped
         self._stop.set()
+        self._busy(False)
         super().reject()
 
     def _progressed(self, load, percent):
@@ -815,6 +821,7 @@ class QtIRISImporter(QtWidgets.QDialog):
             self.progress.setValue(percent)
 
     def _failed(self, load, exc_info):
+        traceback.print_exception(*exc_info)  # not a reader error, so a bug: the dialog shows only its text
         self._loaded((load, [], f"Loading failed: {exc_info[1]}"))
 
     def _extracted(self, result):

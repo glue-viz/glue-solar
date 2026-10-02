@@ -39,13 +39,13 @@ and has its tick box on its own row.
 Tick the entries you want (ticking the observation row ticks everything under it); each slit-jaw
 channel and AIA cutout you tick loads as a dataset of its own. Then press "Load selected": the data
 are added to the data collection. glue reads the files in the background, one at a time, and the
-progress bar counts them; meanwhile "Cancel" reads "Stop". "Stop" ends the load once the file being
-read is done and loads the entries read in full, such as a slit-jaw channel read before a raster
-window, or nothing if none was. Pressing Esc or closing the browser drops the load: nothing is
-loaded. With "Open quicklook" ticked, the default, each observation with a raster or slit-jaw image
-opens in a quicklook (see `The quicklook`_). Otherwise the first slit-jaw
-(or AIA) cube opens in an Image Viewer, where its ``Time (Utc)`` slider steps through time; nothing
-opens for rasters alone. If an entry fails to load, the browser stays open and its progress bar names
+progress bar counts them; meanwhile the list and its boxes are locked and "Cancel" reads "Stop".
+"Stop" ends the load once the file being read is done and loads the entries read in full, such as a
+slit-jaw channel read before a raster window, or nothing if none was. Pressing Esc or closing the
+browser drops the load: nothing is loaded. With "Open quicklook" ticked, the default, each
+observation with a raster or slit-jaw image opens in a quicklook (see `The quicklook`_). Otherwise the
+first slit-jaw (or AIA) cube opens in an Image Viewer, where its ``Time (Utc)`` slider steps through
+time; nothing opens for rasters alone. If an entry fails to load, the browser stays open and its progress bar names
 the file and the error; for a raster window, the first raster file that fails to load on its own, or
 how many raster files there are if each loads on its own but not together.
 Tick "Stack sequential raster scans" to place two or more raster scans of a window into a single
@@ -113,7 +113,8 @@ as an "Extract <archive> (<size> MB, next to the archive)" entry. Tick it and pr
 the archive is unpacked into a folder of the same name next to it (the layout irispy and pooch use),
 the list refreshes, and you can then tick the spectral windows or cutouts it contained. Archives are
 unpacked in the background too: "Stop" leaves those not yet started packed. Extraction
-is completed in a temporary sibling directory, so a failure leaves the archive visible for retry.
+is completed in a hidden temporary sibling directory, which the list leaves out, so a failure leaves the
+archive visible for retry.
 Nothing is loaded in that step, and the archive is left in place.
 
 Memory and open files
