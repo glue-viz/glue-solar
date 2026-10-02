@@ -52,6 +52,16 @@ def test_derived_raster_file_is_skipped_and_counted(iris_tree):
     assert [strip_pooch(path.name) for path in skipped] == ["iris_l2_20140910_fexxi_rb_steps.fits.gz"]
 
 
+def test_raster_file_of_another_level_is_skipped(tmp_path):
+    header = fits.Header(
+        {"TELESCOP": "IRIS", "INSTRUME": "SPEC", "DATA_LEV": 3.0, "OBSID": OBS_S, "STARTOBS": "2014-09-10T11:28:25.590"}
+    )
+    fits.PrimaryHDU(header=header).writeto(tmp_path / "level3.fits")
+    skipped = []
+    assert scan_directory(tmp_path, skipped=skipped) == []
+    assert skipped == [tmp_path / "level3.fits"]
+
+
 def test_sparse_header_falls_back_to_obsid_description(tmp_path):
     pytest.importorskip("irispy")
     from irispy.obsid import ObsID

@@ -92,7 +92,6 @@ def _header(instrume, obsid, start, **extra):
     h = fits.Header()
     h["TELESCOP"] = "IRIS"
     h["INSTRUME"] = instrume
-    h["DATA_LEV"] = 2.0
     h["OBSID"] = obsid
     h["STARTOBS"] = start
     h["ENDOBS"] = start
@@ -179,6 +178,7 @@ def _window_hdu(start, twave, xcen, ycen):
 def _write_raster(path, obsid, start):
     primary = fits.PrimaryHDU(header=_header(
         "SPEC", obsid, start,
+        DATA_LEV=2.0,  # raster files are listed only at Level 2; slit-jaw and AIA files need no DATA_LEV
         NWIN=2,
         TDESC1="C II 1336", TDET1="FUV1", TWAVE1=1335.7,
         TDESC2="Mg II k 2796", TDET2="NUV", TWAVE2=2796.4,

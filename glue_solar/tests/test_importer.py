@@ -68,10 +68,12 @@ def test_tree_lists_observations_and_files(dialog):
     assert row.text(6) == "4"
 
 
-def test_derived_raster_file_is_never_a_window_and_counted(dialog):
+def test_derived_raster_file_is_never_a_window_and_counted(dialog, tmp_path):
     tree = dialog.obs_tree
     assert OBS_S not in [tree.topLevelItem(i).text(1) for i in range(tree.topLevelItemCount())]
     assert dialog.progress.text() == "Skipped 1 raster file(s) that are not Level 2"
+    dialog.set_directory(tmp_path)  # nothing left out, so the count goes
+    assert dialog.progress.format() == "%p%"
 
 
 def test_ticking_the_observation_ticks_its_files(dialog):
@@ -565,16 +567,23 @@ def test_duplicate_real_raster_is_listed_and_loaded_once(qtbot, tmp_path, irispy
     assert len(dialog.datasets) == 1
 
 
-def test_reader_failure_stays_in_dialog(qtbot, tmp_path):
-    path = tmp_path / "iris_l2_20240101_000000_1234567890_SJI_1400_t000.fits"
+@pytest.mark.parametrize(
+    ("name", "instrume", "band"),
+    [
+        ("iris_l2_20240101_000000_1234567890_SJI_1400_t000.fits", "SJI", "SJI_1400"),
+        ("aia_l2_20240101_000000_1234567890_171.fits", "AIA_3", "171_THIN"),
+    ],
+)
+def test_reader_failure_stays_in_dialog(qtbot, tmp_path, name, instrume, band):
+    path = tmp_path / name
     fits.PrimaryHDU(
         header=fits.Header(
             {
                 "TELESCOP": "IRIS",
-                "INSTRUME": "SJI",
+                "INSTRUME": instrume,
                 "OBSID": "1234567890",
                 "STARTOBS": "2024-01-01T00:00:00",
-                "TDESC1": "SJI_1400",
+                "TDESC1": band,
                 "TWAVE1": 1400,
             }
         )
@@ -587,7 +596,7 @@ def test_reader_failure_stays_in_dialog(qtbot, tmp_path):
 
     assert dialog.result() == 0
     assert dialog.datasets == []
-    assert dialog.progress.format().startswith(f"Loading SJI_1400 from {path.name} failed:")
+    assert dialog.progress.format().startswith(f"Loading {band} from {name} failed:")
 
 
 def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_test_files):
