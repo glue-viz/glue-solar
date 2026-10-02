@@ -1,0 +1,1 @@
+IRIS raster windows and stacks open in the IRIS FUV or NUV colormap of their detector.

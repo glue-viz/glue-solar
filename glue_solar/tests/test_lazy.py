@@ -371,6 +371,33 @@ def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path
     assert not (tmp_path / "lazy.glu").exists()
 
 
+def test_raster_windows_and_stacks_open_in_their_detectors_colormap(qtbot, monkeypatch, tmp_path, int16_raster,
+                                                                    irispy_test_files):
+    from glue_qt.app.application import GlueApplication
+    from glue_qt.viewers.image import ImageViewer
+
+    from sunpy.visualization.colormaps import cmlist
+
+    # every window of the sit-and-stare raster through File -> Open, and four windows of two scans stacked, lazily
+    # and as before: sunpy's IRIS FUV colormap for the FUV1 and FUV2 windows, its NUV one for the NUV windows
+    fuv, nuv = "irissjiFUV", "irissjiNUV"
+    bands = {"C_II_1336": fuv, "Fe_XII_1349": fuv, "O_I_1356": fuv, "Si_IV_1394": fuv, "Si_IV_1403": fuv,
+             "2832": nuv, "2814": nuv, "Mg_II_k_2796": nuv}
+    sources = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)[:2]
+    scans = [int16_raster_copy(source, tmp_path / source.name) for source in sources]
+    windows = ["C II 1336", "Si IV 1403", "Mg II k 2796", "2832"]
+    loads = (lambda: iris_data(int16_raster), lambda: raster_data(scans, windows, stack=True))
+    datasets = [data for load in loads for results in lazy_and_eager(monkeypatch, load) for data in results]
+    cmaps = [bands[data.label.split("-")[0]] for data in datasets]
+    assert len(datasets) == 2 * (8 + 4)
+    assert [data.style.preferred_cmap.name for data in datasets] == cmaps
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.extend(datasets[-4:])  # the stacks, as before
+    for data, cmap in zip(datasets[-4:], cmaps[-4:]):
+        assert app.new_data_viewer(ImageViewer, data=data).layers[0].state.cmap == cmlist[cmap]
+
+
 @pytest.mark.remote_data
 def test_level_2_rasters_load_lazily_as_before(monkeypatch, irispy_data):
     negative_step = irispy_data("iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz")
