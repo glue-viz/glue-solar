@@ -196,9 +196,10 @@ the Sun's rotation between a map and the IRIS data, or for a map taken far from 
 - A region drawn on a raster map selects the pixels of a sunpy Map inside it, and the other way
   round.
 - A selection on longitude or latitude, for example from a scatter plot, carries over in both
-  directions; with a sunpy Map, only where Glue shows its longitude between -180° and 180°. Glue
-  shows a map's longitudes as astropy gives them: from 0 to 360° when the map's reference
-  longitude is 0 or more, otherwise from -360° to 0.
+  directions. With a sunpy Map, one on longitude carries over only where Glue shows the map's
+  longitude between -180° and 180°. Glue shows a map's longitudes as astropy gives them: from 0 to
+  360° when the map's reference longitude is 0 or more, so that east of longitude 0 they are near
+  360°, otherwise from -360° to 0.
 - A region drawn on a slit-jaw image does not carry over to a raster or a sunpy Map: which frame it
   belongs to would need the time, and time is never linked.
 
@@ -206,7 +207,8 @@ A region drawn on a raster map can be slow to show on a slit-jaw image: glue wor
 for every screen pixel of the slit-jaw viewer each time it draws a frame, and does not respond
 meanwhile. At the default viewer size this takes under a second with a 64-step raster, but 10 to 20
 seconds with a 1600-step sit-and-stare raster, for every frame you step to, and longer in a larger
-viewer.
+viewer. On a sunpy Map it takes about 4 seconds with a 1600-step raster, each time the map's viewer
+draws.
 
 The quicklook
 -------------
