@@ -11,6 +11,7 @@ from qtpy.QtCore import Qt
 
 import astropy.units as u
 from astropy.io import fits
+from astropy.wcs.wcsapi import HighLevelWCSWrapper
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
 from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, find_irispy_test_file
@@ -353,6 +354,33 @@ def test_arcsec_coordinates_read_the_axes_once(irispy_test_files):
                         assert np.asarray(value).tobytes() == np.asarray(expected).tobytes()
         # WCSAxes converts through these dozens of times per draw: the axes are read once, not per call
         assert raw.reads == 2
+
+
+def _same(shown, wrapped):
+    """Whether two high-level world objects are the same position, time or quantity."""
+    if hasattr(shown, "Tx"):
+        return u.allclose(shown.Tx, wrapped.Tx, rtol=0, atol=1e-9 * u.arcsec) and u.allclose(
+            shown.Ty, wrapped.Ty, rtol=0, atol=1e-9 * u.arcsec
+        )
+    if hasattr(shown, "jd"):
+        return abs((shown - wrapped).to_value(u.s)) < 1e-6
+    return u.allclose(shown, wrapped, rtol=1e-15)
+
+
+def test_high_level_objects_agree_with_the_values(irispy_test_files):
+    # glue's WCS link builds SkyCoords and SpectralCoords from the values: they said degrees and metres while the
+    # values were arcsec and Angstrom, which raised (latitude past 90 deg) or gave positions 3600 times too far out
+    obs = "iris_l2_20210905_001833_3620258102_{}.fits"
+    [raster] = raster_data([find_irispy_test_file(irispy_test_files, obs.format("raster_t000_r00000"))], ["Si IV 1403"])
+    sji = image_data(find_irispy_test_file(irispy_test_files, obs.format("SJI_1400_t000")))
+    scans = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
+    [stack] = raster_data(scans, ["C II 1336"], stack=True)
+    for data in (raster, sji, stack):
+        pixel = [n / 2 + 0.25 for n in data.shape[::-1]]
+        shown, wrapped = HighLevelWCSWrapper(data.coords), HighLevelWCSWrapper(data.coords._wcs)
+        objects = shown.pixel_to_world(*pixel)
+        assert all(map(_same, objects, wrapped.pixel_to_world(*pixel)))
+        assert shown.world_to_pixel(*objects) == pytest.approx(wrapped.world_to_pixel(*objects), abs=1e-9)
 
 
 def test_arcsec_coordinates_reuse_identical_conversions(irispy_test_files):

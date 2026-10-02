@@ -1,9 +1,11 @@
+import numbers
 import os
 import re
 import tarfile
 import threading
 from collections import OrderedDict
 from functools import cached_property
+from operator import attrgetter
 from pathlib import Path
 
 import numpy as np
@@ -88,8 +90,16 @@ def _shown_unit(physical_type):
     return None
 
 
+def _plain(value):
+    """Whether ``value`` is a low-level world value: a number or a plain array, not a Quantity."""
+    return isinstance(value, numbers.Number) or type(value) is np.ndarray
+
+
 class _GlueWCS(BaseWCSWrapper):
-    """Present named, signed helioprojective coordinates in arcseconds and wavelengths in Angstrom to Glue."""
+    """
+    Present named, signed helioprojective coordinates in arcseconds and wavelengths in Angstrom to Glue,
+    through its values, units and high-level objects alike.
+    """
 
     # glue's WCS link falls back to astropy FITS-WCS attributes (celestial, wcs.lng, ...) when a
     # WCS says it has celestial axes; this wrapper has none of them, so send glue down its APE-14 path.
@@ -174,6 +184,39 @@ class _GlueWCS(BaseWCSWrapper):
             values[i] = np.asarray(values[i]) * from_shown
         with WCS_LOCK:
             return self._wcs.world_to_pixel_values(*values)
+
+    @cached_property
+    def world_axis_object_components(self):
+        # The wrapped WCS's, with each converted value in its shown unit, so that high-level objects (glue's WCS
+        # link) agree with the values. A SkyCoord gives a helioprojective longitude within +-180 deg already.
+        with WCS_LOCK:  # an astropy WCS reads wcslib for these
+            components = list(self._wcs.world_axis_object_components)
+        for i, to_shown, _, _ in self._converted:
+            key, attr, value = components[i]
+            value = value if callable(value) else attrgetter(value)
+            components[i] = (key, attr, lambda obj, value=value, scale=to_shown: np.asarray(value(obj)) * scale)
+        return components
+
+    @cached_property
+    def world_axis_object_classes(self):
+        # The wrapped WCS's, each built from values in their shown units: back to the wrapped WCS's units first
+        with WCS_LOCK:
+            components, classes = self._wcs.world_axis_object_components, dict(self._wcs.world_axis_object_classes)
+        scales = {}
+        for i, _, from_shown, _ in self._converted:
+            key, attr, _ = components[i]
+            scales.setdefault(key, {})[attr] = from_shown
+        for key, scale in scales.items():
+            klass, args, kwargs, *factory = classes[key]
+
+            def build(*values, _make=factory[0] if factory else klass, _scale=scale, **named):
+                # high-level objects, as world_to_pixel passes them, go through as they are
+                values = [v * _scale[n] if n in _scale and _plain(v) else v for n, v in enumerate(values)]
+                named = {n: v * _scale[n] if n in _scale and _plain(v) else v for n, v in named.items()}
+                return _make(*values, **named)
+
+            classes[key] = (klass, args, kwargs, build)
+        return classes
 
 
 # Per-frame SJI pointing that irispy keeps as extra coordinates; the frame time tool shows it
