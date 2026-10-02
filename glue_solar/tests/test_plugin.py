@@ -354,8 +354,10 @@ def test_only_the_colormaps_data_ask_for_are_listed(qtbot, monkeypatch, irispy_t
     import sunpy.data.test
     from sunpy.visualization.colormaps import cmlist
 
-    # glue's own colormaps only: glue-qt draws every one listed whenever it builds an Image layer's menu
-    monkeypatch.setattr(colormaps, "_members", colormaps.default_members())
+    # glue's own colormaps only, which glue lists on first use: glue-qt draws every one listed whenever it builds
+    # an Image layer's menu
+    monkeypatch.setattr(colormaps, "_members", [])
+    monkeypatch.setattr(colormaps, "_loaded", False)
     glue_solar.setup()
     glue_solar.setup()
     iris_and_aia = [cmlist[name] for name in sorted(cmlist) if name.startswith(("irissji", "sdoaia"))]
@@ -371,7 +373,8 @@ def test_only_the_colormaps_data_ask_for_are_listed(qtbot, monkeypatch, irispy_t
 
 
 def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_path):
-    monkeypatch.setattr(colormaps, "_members", colormaps.default_members())
+    monkeypatch.setattr(colormaps, "_members", [])
+    monkeypatch.setattr(colormaps, "_loaded", False)
     glue_solar.setup()
     app = GlueApplication()
     qtbot.addWidget(app)
