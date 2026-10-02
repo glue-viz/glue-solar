@@ -42,7 +42,8 @@ are added to the data collection. With "Open quicklook" ticked, the default, eac
 raster or slit-jaw image opens in a quicklook (see `The quicklook`_). Otherwise the first slit-jaw
 (or AIA) cube opens in an Image Viewer, where its ``Time (Utc)`` slider steps through time; nothing
 opens for rasters alone. If an entry fails to load, the browser stays open and its progress bar names
-the file and the error; for a raster window, the first raster file that fails to load on its own.
+the file and the error; for a raster window, the first raster file that fails to load on its own, or
+how many raster files there are if each loads on its own but not together.
 Tick "Stack sequential raster scans" to place two or more raster scans of a window into a single
 4D cube without resampling their detector values. Each scan stays in its own file, as a single scan
 does (see `Memory and open files`_); scans stored as floating point, such as irispy's test files,
