@@ -7,13 +7,13 @@ from astropy.visualization import PowerStretch
 
 from sunpy.visualization.colormaps import cmlist
 
-from glue_solar import glue_patches, tools
+from glue_solar import glue_patches, regrid, tools
 from glue_solar.sources import iris, maps
 from glue_solar.sources.maps import _add_colormap
 
 from glue_solar.version import version as __version__
 
-__all__ = ["setup", "__version__", "glue_patches", "iris", "maps", "tools"]
+__all__ = ["setup", "__version__", "glue_patches", "iris", "maps", "regrid", "tools"]
 
 
 @session_patch()

@@ -1,0 +1,1 @@
+"Regrid on time" in the data collection's right-click menu resamples a sit-and-stare raster, a slit-jaw image or a stack of scans at its median time step, leaving NaN where no exposure lies within 0.75 steps; lazy data stay in their files.

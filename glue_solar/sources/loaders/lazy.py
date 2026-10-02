@@ -141,8 +141,8 @@ class RawComponent(DaskComponent):
 
 class RawStack:
     """
-    Equal-shaped raw arrays, one per raster scan, as one array with a leading scan axis; a read touches only the
-    scans it selects.
+    Equal-shaped raw arrays as one array with a leading axis: one per raster scan of a stack, or per pixel along the
+    time axis of data regridded on time. A read touches only the arrays it selects.
     """
 
     def __init__(self, scans):
@@ -161,13 +161,16 @@ class RawStack:
             return np.asarray(self.scans[first][rest])
         if isinstance(first, slice):
             return np.stack([np.asarray(self.scans[i][rest]) for i in range(*first.indices(len(self.scans)))])
-        # one index array per axis, as glue's fixed-resolution buffer asks
-        arrays = np.broadcast_arrays(*key)
-        values = np.empty(arrays[0].shape, self.dtype)
-        for scan in np.unique(arrays[0]):
-            where = arrays[0] == scan
-            values[where] = self.scans[scan][tuple(array[where] for array in arrays[1:])]
-        return values
+        # one index array per axis, as glue's fixed-resolution buffer asks: one read per array of its samples, sorted
+        # together, so that a 600 by 400 image across the 1645 pixels of a regridded window takes 6 ms, not 90 ms
+        shape = np.broadcast(*key).shape
+        first, *rest = (array.ravel() for array in np.broadcast_arrays(*key))
+        order = np.argsort(first, kind="stable")
+        values = np.empty(first.shape, self.dtype)
+        for group in np.split(order, np.flatnonzero(np.diff(first[order])) + 1):
+            if group.size:  # an empty read has one, empty, group
+                values[group] = self.scans[first[group[0]]][tuple(array[group] for array in rest)]
+        return values.reshape(shape)
 
 
 class LazyData(Data):

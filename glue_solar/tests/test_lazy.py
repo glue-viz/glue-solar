@@ -96,14 +96,15 @@ def raw_of(path, hdu):
 
 
 class Reads:
-    """``raw``, counting the values its reads return."""
+    """``raw``, counting its reads and the values they return."""
 
     def __init__(self, raw):
-        self.raw, self.shape, self.ndim, self.dtype, self.read = raw, raw.shape, raw.ndim, raw.dtype, 0
+        self.raw, self.shape, self.ndim, self.dtype, self.read, self.reads = raw, raw.shape, raw.ndim, raw.dtype, 0, 0
 
     def __getitem__(self, key):
         values = self.raw[key]
         self.read += np.size(values)
+        self.reads += 1
         return values
 
 
@@ -226,12 +227,14 @@ def test_a_stack_reads_only_the_scans_it_selects(int16_raster):
     stack, whole = RawStack(scans), np.stack(raws)
     n, ny, nl = raws[0].shape
     index = np.arange(min(ny, nl))
-    keys = [1, (0, 2), (slice(None), 3), (slice(None, None, -1), 1, slice(2, 5)), (index % 2, index % n, index, index)]
+    keys = [1, (0, 2), (slice(None), 3), (slice(None, None, -1), 1, slice(2, 5)), (index % 2, index % n, index, index),
+            (index[:0],) * 4]
     for key in keys:
         for scan in scans:
-            scan.read = 0
+            scan.read = scan.reads = 0
         np.testing.assert_array_equal(stack[key], whole[key])
         assert sum(scan.read for scan in scans) == whole[key].size
+        assert all(scan.reads <= 1 for scan in scans)  # one read a scan, however its samples are spread
     data, cid, _ = lazy_data(stack)
     np.testing.assert_array_equal(data[cid, (1, 2)], expected(int16_raster, WINDOW)[::-1][2])
     with pytest.raises(ValueError, match="same shape"):
