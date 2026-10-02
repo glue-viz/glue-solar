@@ -902,5 +902,5 @@ def test_negative_step_raster_keeps_irispys_orientation(qtbot, irispy_data):
     viewer.state.x_att, viewer.state.y_att = scan.pixel_component_ids[0], scan.pixel_component_ids[1]
     assert viewer.state.x_min < viewer.state.x_max  # unflipped: step, and so longitude, grows to the right
     viewer.figure.canvas.draw()  # WCSAxes only formats positions once drawn
-    assert '−971"' in viewer.axes.format_coord(0, row)
-    assert '−908"' in viewer.axes.format_coord(63, row)
+    assert f'{longitude[0]:.2f}"' in viewer.axes.format_coord(0, row)
+    assert f'{longitude[63]:.2f}"' in viewer.axes.format_coord(63, row)

@@ -193,6 +193,8 @@ def test_frame_time_tool_follows_the_sliders(qtbot, irispy_test_files):
     app.data_collection.append(still)
     other = app.new_data_viewer(ImageViewer, data=still)
     assert other.toolbar.tools["solar:frame_time"].label.text() == "2020-01-01T12:00:00.000 UTC"
+    other.figure.canvas.draw()  # WCSAxes only formats positions once drawn
+    assert other.axes.format_coord(1, 1).endswith(" (world) · 2020-01-01T12:00:00.000 UTC")  # the mouse-over readout
 
 
 def test_frame_time_tool_survives_an_empty_collapse(qtbot):
@@ -301,7 +303,7 @@ def test_hide_axes(qtbot, monkeypatch, irispy_test_files):
         placed.clear()
         assert hidden.axes.format_coord(10, 20) == shown.axes.format_coord(10, 20)
         assert hidden.axes.format_coord(11, 21) == shown.axes.format_coord(11, 21)
-        assert shown.axes.format_coord(10, 20).endswith("\" (world)")  # arcsec
+        assert '" (world) · ' in shown.axes.format_coord(10, 20)  # arcsec, then the frame's time
         assert placed[hidden.axes] == 3  # longitude, latitude and the hidden time
 
     # the button repaints the viewer and leaves its mouse mode on, which glue-qt ends for a plain button
@@ -322,12 +324,12 @@ def test_hide_axes(qtbot, monkeypatch, irispy_test_files):
     assert [(s.start, s.stop) for s in group.subset_state.slices] == [(None, None), (20, 21), (10, 11)]
     for viewer in (shown, hidden):
         viewer.state.slices = (6, 0, 0)  # a readout between a step and its draw, as during playback
-        assert viewer.axes.format_coord(10, 20).endswith("\" (world)")
+        assert '" (world) · ' in viewer.axes.format_coord(10, 20)
     full = shown.axes.format_coord(10.3, 20.7)
     for viewer in (shown, hidden):
         viewer.state.x_min, viewer.state.x_max, viewer.state.y_min, viewer.state.y_max = 10, 11, 20, 21
         viewer.figure.canvas.draw()
-    assert hidden.axes.format_coord(10.3, 20.7) == shown.axes.format_coord(10.3, 20.7) != full  # finer, zoomed in
+    assert hidden.axes.format_coord(10.3, 20.7) == shown.axes.format_coord(10.3, 20.7) == full  # whatever the zoom
 
 
 def test_sessions_keep_each_viewers_axes(qtbot, monkeypatch, tmp_path):

@@ -50,7 +50,9 @@ def test_scripting_recipe(qtbot, irispy_test_files):
     assert [s.start for s in point.slices[:2]] == [step, slit]
     viewer.figure.canvas.draw()
     readout = viewer.axes.format_coord(step, slit)
-    assert arcsec(readout) == [round(latitude), round(longitude)]  # WCS order: latitude first
+    # a sit-and-stare raster, whose steps are exposures: the latitude along the slit, and the exposure's time
+    assert arcsec(readout) == [round(latitude, 2)]
+    assert f" · {np.datetime_as_string(raster['Time'][step, 0, 0], unit='ms')} UTC" in readout
     assert 1390 < wavelength < 1410  # Si IV 1403, in Angstrom
     assert raster.coords.world_axis_units[0] == "Angstrom"
     assert (latitude * u.arcsec).unit == u.arcsec
