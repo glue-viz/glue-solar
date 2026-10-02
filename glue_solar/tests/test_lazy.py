@@ -361,11 +361,13 @@ def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path
     histogram = app.new_data_viewer(HistogramViewer, data=data)
     histogram.state.x_att = data.main_components[0]
     assert [histogram.state.hist_x_min, histogram.state.hist_x_max] == [np.nanmin(oracle), np.nanmax(oracle)]
-    # a session cannot hold lazy data yet (WP3): glue reports it and writes nothing
+    # a session cannot hold lazy data yet (WP3): glue reports it and writes nothing. irispy's Quantity metadata fails
+    # first, lazy or not, so it goes
     errors = []
-    monkeypatch.setattr(app, "report_error", lambda message, detail: errors.append(message))
+    monkeypatch.setattr(app, "report_error", lambda message, detail: errors.append(detail))
+    data.meta.clear()
     app.save_session(str(tmp_path / "lazy.glu"))
-    assert errors[0].startswith("Failed to save session")
+    assert "serialize dask.array" in errors[0]
     assert not (tmp_path / "lazy.glu").exists()
 
 
