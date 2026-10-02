@@ -257,10 +257,14 @@ def test_raster_pixels_reach_a_sunpy_map_whose_longitudes_run_from_0_to_360(sns)
     y, x = np.indices(aia.shape)
     sky = aia.coords.pixel_to_world(x, y)
     wavelength = np.full(x.shape, raster.coords.pixel_to_world_values(0, 0, 0)[0])
-    _, slit, step = raster.coords.world_to_pixel_values(wavelength, sky.Ty.to_value(u.arcsec), sky.Tx.to_value(u.arcsec))
+    lon, lat = sky.Tx.to_value(u.arcsec), sky.Ty.to_value(u.arcsec)
+    _, slit, step = raster.coords.world_to_pixel_values(wavelength, lat, lon)
     assert np.isfinite(step).sum() > 1000
     np.testing.assert_allclose(aia[raster.pixel_component_ids[0]], step, rtol=0, atol=0.05)
     np.testing.assert_allclose(aia[raster.pixel_component_ids[1]], slit, rtol=0, atol=0.05)
+    # the same a turn lower, as a map whose reference longitude is negative gives longitudes from -360 to 0 degrees
+    turned = raster.coords.world_to_pixel_values(wavelength, lat, lon - (360 * u.deg).to_value(u.arcsec))
+    np.testing.assert_allclose(turned[1:], [slit, step], rtol=0, atol=1e-6)
 
 
 @pytest.mark.parametrize("frame", [0, -1])
