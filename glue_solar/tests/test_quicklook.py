@@ -18,7 +18,7 @@ from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from matplotlib.text import Text
 from qtpy import QtWidgets
-from qtpy.QtCore import Qt
+from qtpy.QtCore import Qt, QTimer
 
 import astropy.units as u
 from astropy.io import fits
@@ -1197,6 +1197,24 @@ def test_time_sync_on_a_negative_step_raster(bare_app, qtbot, irispy_data):
 def sit_and_stare(irispy_test_files):
     [raster] = raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))], ["Si IV 1403"])
     return raster, image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+
+
+def test_glue_draws_between_the_viewers_of_a_quicklook(bare_app, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    events = []
+    timer = QTimer()
+    timer.setInterval(0)
+    timer.timeout.connect(lambda: events.append("turn"))
+    new_data_viewer = bare_app.new_data_viewer
+    monkeypatch.setattr(bare_app, "new_data_viewer", lambda *args, **kwargs: (
+        events.append("viewer") or new_data_viewer(*args, **kwargs)
+    ))
+    timer.start()
+    quicklook(bare_app, [raster, sji])
+    timer.stop()
+    viewers = [i for i, event in enumerate(events) if event == "viewer"]
+    assert len(viewers) == 5
+    assert all(i > 0 and events[i - 1] == "turn" for i in viewers)  # the event loop turned before each viewer
 
 
 def test_time_sync_without_a_raster_point(bare_app, qtbot, irispy_test_files):

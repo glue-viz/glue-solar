@@ -8,7 +8,7 @@ from glue.config import data_factory, layer_artist_maker, menubar_plugin, startu
 from glue.viewers.image.viewer import MatplotlibImageMixin
 from qtpy import QtWidgets
 
-from glue_solar.quicklook import observation_key, quicklook
+from glue_solar.quicklook import _pick_raster, _pick_sjis, _role, observation_key, quicklook
 from glue_solar.sources.loaders.iris import QtIRISImporter, iris_data, keep_hpc_linked, last_directory
 from glue_solar.sources.loaders.scan import _primary_header
 
@@ -61,30 +61,50 @@ def browse_iris(session, data_collection):
     )
     if not directory:
         return
-    dialog = QtIRISImporter(directory, parent=app)
+    dialog = QtIRISImporter(directory, parent=app, shown=_shown)
     if dialog.exec() != QtWidgets.QDialog.Accepted or not dialog.datasets:
         return
     # not app.add_datasets: its autolinker would ask about WCS links in a dialog before the quicklook
     # opens (with glue-viz/glue#2595), and keep_hpc_linked links IRIS datasets
     data_collection.extend(dialog.datasets)
     keep_hpc_linked(data_collection)
-    if dialog.quicklook.isChecked():
-        observations = {}  # observation -> (its datasets, its ticked raster windows)
-        for observation, kind, name, datasets in dialog.loaded:
-            loaded, windows = observations.get(id(observation), ([], []))
-            observations[id(observation)] = (loaded + datasets, windows + [name] * (kind == "raster"))
-        opened = False
-        for datasets, windows in observations.values():
-            if any(data.meta.get("INSTRUME") in ("SPEC", "SJI") for data in datasets):
-                # one ticked window is the one to show; with several the quicklook's default applies
-                quicklook(app, datasets, window=windows[0] if len(windows) == 1 else None)
-                opened = True
-        if opened:
-            return
-    if dialog.first_image is not None:
+    quicklooks = _quicklooks(dialog.loaded) if dialog.quicklook.isChecked() else []
+    for datasets, window in quicklooks:
+        quicklook(app, datasets, window=window)
+    if not quicklooks and dialog.first_image is not None:
         from glue_qt.viewers.image import ImageViewer
 
         app.new_data_viewer(ImageViewer, data=dialog.first_image)
+
+
+def _quicklooks(loaded):
+    """The ``(datasets, window)`` of each quicklook `browse_iris` opens of the observation browser's ``loaded``."""
+    observations = {}  # observation -> (its datasets, its ticked raster windows)
+    for observation, kind, name, datasets in loaded:
+        got, windows = observations.get(id(observation), ([], []))
+        observations[id(observation)] = (got + datasets, windows + [name] * (kind == "raster"))
+    return [
+        # one ticked window is the one to show; with several the quicklook's default applies
+        (datasets, windows[0] if len(windows) == 1 else None)
+        for datasets, windows in observations.values()
+        if any(data.meta.get("INSTRUME") in ("SPEC", "SJI") for data in datasets)
+    ]
+
+
+def _shown(loaded, quicklooks):
+    """
+    The datasets of the observation browser's ``loaded`` that the first viewers `browse_iris` opens show: the raster
+    and slit-jaw images of each quicklook, with ``quicklooks`` on, else the first image.
+    """
+    quicklooks = _quicklooks(loaded) if quicklooks else []
+    if not quicklooks:
+        return [datasets[0] for _, kind, _, datasets in loaded if kind != "raster"][:1]
+    shown = []
+    for datasets, window in quicklooks:
+        rasters = [data for data in datasets if _role(data) == "raster"]
+        shown += [_pick_raster(rasters, window)] if rasters else []
+        shown += _pick_sjis([data for data in datasets if _role(data) == "sji"])[0]
+    return shown
 
 
 @menubar_plugin("IRIS: link helioprojective coordinates")

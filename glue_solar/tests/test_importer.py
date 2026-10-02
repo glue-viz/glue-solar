@@ -207,6 +207,34 @@ def test_closing_the_dialog_drops_the_load(dialog, qtbot, monkeypatch):
     assert dialog.loaded == []
 
 
+@pytest.mark.parametrize(("quicklook", "shown"), [(True, ["SJI_1400", "Mg_II_k_2796"]), (False, ["SJI_1400"])])
+def test_colour_limits_of_what_browse_iris_shows_are_counted_in_the_background(qtbot, iris_tree, quicklook, shown):
+    from glue_solar.sources.iris import _shown
+
+    dialog = QtIRISImporter(iris_tree, shown=_shown)
+    qtbot.addWidget(dialog)
+    _row(dialog, OBS_A[2]).setCheckState(0, Qt.Checked)
+    dialog.quicklook.setChecked(quicklook)
+    load_selected(qtbot, dialog)
+    assert len(dialog.datasets) == 6  # the slit-jaw image, scans 0 and 1 of two raster windows, and the AIA cutout
+    # the quicklook's Mg II k scan and slit-jaw image, or the Image viewer's slit-jaw image: no viewer has asked
+    counted = [data.label for data in dialog.datasets if data.get_component(data.main_components[0])._counts is not None]
+    assert counted == [f"{name}-{OBS_A[2]}-2025-03-28T22:56:28" + "-scan-0" * name.startswith("Mg") for name in shown]
+
+
+def test_a_failure_after_the_reads_stays_in_the_dialog(qtbot, iris_tree):
+    def shown(loaded, quicklooks):
+        raise ValueError("no viewer to show")
+
+    dialog = QtIRISImporter(iris_tree, shown=shown)
+    qtbot.addWidget(dialog)
+    tick(dialog, "SJI_1400")
+    load_selected(qtbot, dialog)
+    assert dialog.result() == 0
+    assert dialog.datasets == []
+    assert dialog.progress.format() == "Loading failed: no viewer to show"
+
+
 def test_deconvolved_sji_is_listed_and_loaded_beside_the_plain_one(qtbot, tmp_path, irispy_test_files):
     source = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
     plain = tmp_path / "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"

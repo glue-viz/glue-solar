@@ -585,10 +585,11 @@ def _failing_file(observation, kind, name, windows):
     return f"{len(observation.rasters)} raster files"  # each loads on its own, but not together
 
 
-def _load(load, observations, picks, stack, stop, report):
+def _load(load, observations, picks, stack, shown, stop, report):
     """
     Read the browser's ticked entries on glue-qt's worker thread, until ``stop`` is set: ``report(load, percent)``
-    after each raster, slit-jaw or AIA file.
+    after each raster, slit-jaw or AIA file. Then count the colour limits of the datasets ``shown(loaded)`` gives,
+    unless it is None, which the GUI thread would otherwise count as their first viewers open.
 
     Returns ``(load, loaded, error)``: the entries read in full, as `QtIRISImporter.loaded` holds them, and the text
     of a reader error, which loads nothing.
@@ -620,6 +621,12 @@ def _load(load, observations, picks, stack, stop, report):
         except Exception as error:  # noqa: BLE001 - third-party reader errors must stay inside the dialog
             return load, [], f"Loading {name} from {_failing_file(obs, kind, name, windows.get(i))} failed: {error}"
         loaded.append((obs, kind, name, datasets))
+    for data in shown(loaded) if shown else ():
+        if stop.is_set():
+            break
+        component = data.get_component(data.main_components[0])
+        if isinstance(component, RawComponent):
+            component._sample()
     return load, loaded, None
 
 
@@ -660,12 +667,15 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     Load selected reads in the background, a file at a time, and the progress bar
     counts the files. Meanwhile Cancel reads Stop, which closes the dialog with the
-    entries read in full; Esc or closing the dialog drops the load.
+    entries read in full; Esc or closing the dialog drops the load. ``shown``, if
+    given, names the datasets the first viewers will show of what is loaded, as
+    ``shown(loaded, quicklooks)`` with whether Open quicklook is ticked: their
+    colour limits are counted in the background too.
     """
 
     progressed = Signal(int, int)  # (load, percent), from the worker thread
 
-    def __init__(self, directory=None, parent=None):
+    def __init__(self, directory=None, parent=None, shown=None):
         super().__init__(parent)
         self.ui = load_ui(UI_MAIN, self)
         self.cancel.clicked.connect(self._cancel)
@@ -679,6 +689,7 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.loaded = []
         self._payloads = []
         self._load, self._stop = 0, threading.Event()  # the latest load, and its stop
+        self.shown = shown
         self.stack.setToolTip(
             "Stack two or more raster scans by detector position into one 4D cube. "
             "Scan 0 supplies the nominal spatial coordinates; exact acquisition times are retained."
@@ -766,7 +777,8 @@ class QtIRISImporter(QtWidgets.QDialog):
         if archives:  # unpack, rescan and stay open so the user can pick from what was inside
             self._start(self._extracted, _extract, archives)
         else:
-            self._start(self._loaded, _load, self.observations, picks, self.stack.isChecked())
+            shown = self.shown and partial(self.shown, quicklooks=self.quicklook.isChecked())
+            self._start(self._loaded, _load, self.observations, picks, self.stack.isChecked(), shown)
 
     def _start(self, done, function, *args):
         """Run ``function(load, *args, stop, report)`` on glue-qt's worker thread, and ``done`` with its result."""
