@@ -3,6 +3,7 @@ Lazily loaded IRIS data, on int16 copies of irispy's test files: Level 2 files s
 while irispy's test files hold float32.
 """
 
+import gzip
 import warnings
 from itertools import combinations
 
@@ -389,6 +390,27 @@ def test_dn_per_s_is_nan_where_an_exposure_took_0_s(monkeypatch, tmp_path, irisp
         assert lazy_result["Exposure time"][zero].max() == 0
         assert not np.isnan(lazy_result[science, zero]).all()
         assert np.isnan(lazy_result[rate, zero]).all()
+
+
+def test_a_gzipped_slit_jaw_file_is_decompressed_once(monkeypatch, tmp_path, irispy_test_files):
+    source = find_irispy_test_file(irispy_test_files, SJI)
+    plain, gzipped = int16_copy(source, tmp_path / SJI, [0]), int16_copy(source, tmp_path / f"{SJI}.gz", [0])
+    expected = image_data(plain)
+    opened = []
+    init = gzip.GzipFile.__init__
+    monkeypatch.setattr(gzip.GzipFile, "__init__", lambda self, *args, **kwargs: (
+        opened.append(True) or init(self, *args, **kwargs)
+    ))
+    data = image_data(gzipped)
+    assert opened == [True]
+    assert data.label == expected.label
+    # values, mask, times, exposures and every pixel's coordinates
+    assert [cid.label for cid in data.components] == [cid.label for cid in expected.components]
+    for cid, expected_cid in zip(data.components, expected.components):
+        np.testing.assert_array_equal(data[cid], expected[expected_cid])
+    assert data.meta.keys() == expected.meta.keys()
+    for key, value in expected.meta.items():
+        np.testing.assert_equal(data.meta[key], value)
 
 
 def test_scripting_recipe_computes_spectra_of_lazy_data(int16_raster):

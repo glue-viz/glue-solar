@@ -1,3 +1,5 @@
+import gzip
+import io
 import os
 import re
 import tarfile
@@ -382,20 +384,36 @@ def image_data(path):
     Load an SJI or AIA-cutout file through irispy.
 
     Data stored as int16, as Level 2 files store them, stay in the file and are scaled where glue reads them
-    (`LAZY`); a ``.fits.gz`` file's are held in memory as int16.
+    (`LAZY`); a ``.fits.gz`` file is decompressed once, and its data held in memory as int16.
 
     Returns
     -------
     `~glue.core.data.Data`
     """
     from irispy.io import read_files  # with the first file rather than at glue's launch
+    from irispy.io.sji import read_sji_lvl2
 
-    with fits.open(path, memmap=True, do_not_scale_image_data=True) as hdulist:
-        scaling = _raw_scaling(hdulist[0].header)
-        raw = hdulist[0].data if scaling else None
+    with open(path, "rb") as file:
+        gzipped = file.read(2) == b"\x1f\x8b"
+    if gzipped:  # into memory once: astropy and irispy would each decompress it again, about four times in all
+        with gzip.open(path) as file:
+            content = file.read()
+        with fits.open(io.BytesIO(content), do_not_scale_image_data=True) as hdulist:
+            hdu = hdulist[0]
+            scaling = _raw_scaling(hdu.header)
+            # the raw int16 where they lie in the decompressed bytes, rather than a copy
+            raw = np.ndarray(hdu.shape, ">i2", content, hdu.fileinfo()["datLoc"]) if scaling else None
+    else:
+        with fits.open(path, memmap=True, do_not_scale_image_data=True) as hdulist:
+            scaling = _raw_scaling(hdulist[0].header)
+            raw = hdulist[0].data if scaling else None
     if scaling:
         allow_open_files()
-    return _image_cube_data(read_files(path, memmap=bool(scaling), uncertainty=False), path, raw, scaling)
+    if gzipped:
+        cube = read_sji_lvl2(io.BytesIO(content), memmap=bool(scaling), uncertainty=False)
+    else:
+        cube = read_files(path, memmap=bool(scaling), uncertainty=False)
+    return _image_cube_data(cube, path, raw, scaling)
 
 
 def iris_data(path):
