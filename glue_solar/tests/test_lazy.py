@@ -284,6 +284,8 @@ def test_int16_stacks_load_lazily_scan_by_scan(monkeypatch, tmp_path, irispy_tes
     paths = [int16_raster_copy(source, tmp_path / source.name) for source in sources]
     [stack], [eager] = lazy_and_eager(monkeypatch, lambda: raster_data(paths, ["C II 1336"], stack=True))
     assert_loads_as_before(stack, eager)
+    # a value subset, whose mask glue reads with an Ellipsis
+    np.testing.assert_array_equal(*[(data.main_components[0] > 10).to_mask(data) for data in (stack, eager)])
     [science, mask] = stack.main_components[:1] + stack.derived_components
     for i, scan in enumerate(raster_data(paths, ["C II 1336"])):
         np.testing.assert_array_equal(stack[science, (i,)], scan[scan.main_components[0]])

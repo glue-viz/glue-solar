@@ -144,6 +144,8 @@ class RawStack:
 
     def __getitem__(self, key):
         key = key if isinstance(key, tuple) else (key,)
+        if key[0] is Ellipsis:  # as glue reads a value subset's mask
+            key = (slice(None), *key)
         first, rest = key[0], key[1:]
         if isinstance(first, (int, np.integer)):
             return np.asarray(self.scans[first][rest])
