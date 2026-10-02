@@ -27,7 +27,15 @@ from astropy.wcs import WCS
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
-from glue_solar.quicklook import QuicklookImageViewer, coordinator, nearest, observation_key, quicklook, sji_to_raster
+from glue_solar.quicklook import (
+    QuicklookImageViewer,
+    _half_cadence,
+    coordinator,
+    nearest,
+    observation_key,
+    quicklook,
+    sji_to_raster,
+)
 from glue_solar.sources.loaders.iris import image_data, raster_data
 from glue_solar.tests.helpers import count_tick_work, load_selected, mouse, raster_point_on_sji, select_point
 
@@ -968,10 +976,13 @@ def test_nearest():
     assert list(offset / np.timedelta64(1, "s")) == [60, -60]
     index, _ = nearest(seconds(12000, 18000), times[[0, 3]])  # a gap: still the nearest
     assert list(index) == [0, 1]
-    # NaT, a gap of data regridded on time, is never the nearest
-    index, offset = nearest(seconds(4000, 16000), np.insert(times, 1, np.datetime64("NaT", "ns")))
-    assert list(index) == [0, 3]
-    assert list(offset / np.timedelta64(1, "ms")) == [-4000, 4000]
+    # NaT, the gaps of data regridded on time, is never the nearest, even past the last time, and has no cadence
+    gaps = np.insert(times, 1, [np.datetime64("NaT", "ns")] * 3)
+    index, offset = nearest(seconds(4000, 16000, 35000), gaps)
+    assert list(index) == [0, 5, 6]
+    assert list(offset / np.timedelta64(1, "ms")) == [-4000, 4000, -5000]
+    assert list(nearest(seconds(35000), gaps)[0]) == [6]
+    assert _half_cadence(np.append(times, [np.datetime64("NaT", "ns")] * 9)) == np.timedelta64(5, "s")
     for bad in (np.array(["NaT", "NaT"], "datetime64[ns]"), times[:0], times.reshape(2, 2)):
         with pytest.raises(ValueError, match="reference times"):
             nearest(seconds(0), bad)
