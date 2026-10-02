@@ -1,0 +1,1 @@
+``glue_solar.quicklook.sji_to_raster`` gives the raster (or stack) pixel under a slit-jaw pixel, placed with that frame's own pointing: by place on a scanning raster, by the nearest exposure in time on a sit-and-stare raster.
