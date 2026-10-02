@@ -121,7 +121,8 @@ values as NaN, so even every spectral window of a large observation opens in lit
 still read in full as it opens, briefly taking about one and a half times its size. The first image
 of a window takes its colour limits from a count of every stored value (of evenly spaced raster
 steps or frames of a window over 512 MiB), which takes up to about half a second, and the "99.5%"
-and other presets of the layer's style editor use the same count. ``<label> DN/s`` and other derived
+and other presets of the layer's style editor use the same count; "Per-frame limits" (see `Viewer
+tools and windows`_) count every value of the displayed slice. ``<label> DN/s`` and other derived
 attributes take theirs from 10,000 random samples, as glue does for data in memory, so they are
 approximate. Memory still grows as you view a window, since the parts of the file read are kept, and
 a Profile or Histogram of a whole cube, a
@@ -329,6 +330,12 @@ toolbar has:
   of glue's settings file, ``~/.glue/settings.cfg``, or type
   ``from glue.config import settings; settings.SOLAR_SHOW_AXES = False`` in glue's terminal for the
   rest of the session ("OK" in glue's Preferences then saves it to that file).
+- "Per-frame limits", from glue-solar: takes the colour limits of the displayed dataset from the
+  displayed slice, at the layer's percentile (99.5 % on the quicklook panels), so each slice step,
+  such as a wavelength step of a raster map, gets that slice's limits; press it again for the whole
+  cube's limits. Layers of other datasets keep theirs, and the mouse mode, such as Pixel, stays on.
+  The button does not stay pressed: the limits in the layer's style editor change with each step
+  while it is on. A session saved with it on does not open (see `Saving sessions`_).
 - A button with a spectrum icon and no tooltip, which opens a 1D Profile viewer of the image's data.
 - The save menu, with "Save plot to file" and "Save Python script to reproduce plot", and the
   window menu, with "Move to another tab" and "Change viewer title".
@@ -353,4 +360,6 @@ Saving sessions
 Saving a session that contains IRIS data can fail before any file is written. The irispy
 metadata and WCS objects, including SJI gWCS and raster lookup tables, need dedicated serializers,
 and data read from their files as they are viewed cannot be saved in a session yet; save derived
-products separately rather than relying on a Glue session as their only copy.
+products separately rather than relying on a Glue session as their only copy. With glue-core 1.27.0
+a session saved while an Image viewer has "Per-frame limits" on, whatever its data, does not open:
+glue reports "'NoneType' object has no attribute 'add_callback'". Turn them off before saving.

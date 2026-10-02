@@ -38,6 +38,7 @@ def test_setup_registers_hooks():
     assert ImageViewer.tools.count("solar:frame_time") == 1
     assert ImageViewer.tools.count("solar:coordinate") == 1
     assert ImageViewer.tools.count("solar:hide_axes") == 1
+    assert ImageViewer.tools.count("solar:per_frame_limits") == 1
     assert ImageViewer.tools.count("solar:cursor_readout") == (0 if hasattr(ImageViewer, "cursor_status") else 1)
     iris = next(f for f in data_factory if f.label == "IRIS Level 2 FITS")
     for label in ("FITS file", "sunpy Map"):  # both also match IRIS files; ours must win
@@ -342,6 +343,20 @@ def test_sessions_keep_each_viewers_axes(qtbot, monkeypatch, tmp_path):
         (False, False),
         (True, True),
     ]
+
+
+def test_sessions_with_per_frame_limits_fail_to_restore(qtbot, tmp_path):
+    # glue 1.27.0 restores a layer's per-frame limits before it has a viewer (wp0-core-session-reports), as the user
+    # guide says; once a glue release restores them, this fails and the guide changes
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5))
+    app.data_collection.append(cube)
+    app.new_data_viewer(ImageViewer, data=cube).toolbar.actions["solar:per_frame_limits"].trigger()
+    app.save_session(str(tmp_path / "limits.glu"))
+    with pytest.raises(AttributeError, match="add_callback"):
+        GlueApplication.restore_session(str(tmp_path / "limits.glu"))
 
 
 def _cmap_menu(viewer):
