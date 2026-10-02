@@ -17,7 +17,7 @@ from glue.core.component_id import ComponentID
 from glue.core.component_link import ComponentLink
 from glue.core.data import Data
 from glue.core.hub import HubListener
-from glue.core.link_helpers import LinkSame
+from glue.core.link_helpers import LinkSame, LinkSameWithUnits
 from glue.core.message import DataCollectionDeleteMessage
 from glue.core.visual import VisualAttributes
 from glue_qt.utils import load_ui
@@ -177,8 +177,10 @@ class _GlueWCS(BaseWCSWrapper):
 
     def world_to_pixel_values(self, *world_arrays):
         values = list(world_arrays)
-        for i, _, from_shown, _ in self._converted:
+        for i, _, from_shown, full_circle in self._converted:
             values[i] = np.asarray(values[i]) * from_shown
+            if full_circle is not None:  # a longitude in any turn, as a sunpy map's run from 0 to 360 degrees
+                values[i] = (values[i] + full_circle / 2) % full_circle - full_circle / 2
         with WCS_LOCK:
             return self._wcs.world_to_pixel_values(*values)
 
@@ -490,13 +492,15 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None)
 
 def link_hpc(data_collection):
     """
-    Links pairing the helioprojective longitude and latitude of every IRIS dataset with those of the first one.
+    Links pairing the helioprojective longitude and latitude of every IRIS dataset, and of any other dataset such as
+    a sunpy map, with those of the first IRIS dataset.
 
-    Datasets are matched by world axis physical type, not by component name. Only datasets whose coordinates are
-    a glue-solar IRIS WCS take part, since those are all in arcsec; a sunpy map WCS is in degrees and
-    `~glue.core.link_helpers.LinkSame` does not convert. No link involves time, so a slit-jaw image frame is
-    placed with its own pointing. Pairs that are already linked, either way round, are skipped, so calling this
-    again after loading more data is safe. The caller adds the links::
+    Datasets are matched by world axis physical type, not by component name. IRIS datasets are all in arcsec and
+    linked with `~glue.core.link_helpers.LinkSame`; others, such as a sunpy map in degrees, with
+    `~glue.core.link_helpers.LinkSameWithUnits`, which converts. Without IRIS data nothing is linked: glue's own
+    WCS autolinker links sunpy maps to each other. No link involves time, so a slit-jaw image frame is placed with
+    its own pointing. Pairs that are already linked, either way round, are skipped, so calling this again after
+    loading more data is safe. The caller adds the links::
 
         data_collection.add_link(link_hpc(data_collection))
 
@@ -506,19 +510,21 @@ def link_hpc(data_collection):
 
     Returns
     -------
-    list of `~glue.core.link_helpers.LinkSame`
+    list of `~glue.core.link_helpers.LinkSame` and `~glue.core.link_helpers.LinkSameWithUnits`
     """
     linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in data_collection.links}
     anchors, links = {}, []
-    for data in data_collection:
-        if not isinstance(data.coords, _GlueWCS):
-            continue
+    # IRIS datasets first, so that the first of them is the one every dataset links to
+    for data in sorted(data_collection, key=lambda data: not isinstance(data.coords, _GlueWCS)):
+        iris = isinstance(data.coords, _GlueWCS)
         # glue's world components are in numpy order, the reverse of the WCS world axes
-        for physical_type, cid in zip(data.coords.world_axis_physical_types[::-1], data.world_component_ids):
+        physical_types = getattr(data.coords, "world_axis_physical_types", None) or ()
+        for physical_type, cid in zip(physical_types[::-1], data.world_component_ids):
             if physical_type and physical_type.startswith("custom:pos.helioprojective."):
-                anchor = anchors.setdefault(physical_type, cid)
+                # never another dataset: with no IRIS dataset, one is its own anchor and gets no link
+                anchor = anchors.setdefault(physical_type, cid) if iris else anchors.get(physical_type, cid)
                 if anchor is not cid and frozenset((anchor, cid)) not in linked:
-                    links.append(LinkSame(anchor, cid))
+                    links.append((LinkSame if iris else LinkSameWithUnits)(anchor, cid))
     return links
 
 

@@ -181,24 +181,37 @@ Linking
 
 The observation browser links the ``Helioprojective Longitude`` and ``Helioprojective Latitude``
 of every slit-jaw image, raster and aligned AIA cutout it loads, so selections carry over between
-them. For data opened with "File -> Open Data Set", choose "IRIS: link helioprojective
-coordinates" from the "Plugins" menu; it only adds links that are missing, so running it again
-after loading more data is safe. Removing a dataset leaves the others linked.
+them. It links any file loaded as a sunpy Map (see
+:ref:`glue_solar_users_guide_loading_aia_and_hmi_files`) to them too, its degrees converted to
+arcsec, while Glue's own WCS autolinking links maps to each other. For data opened with "File ->
+Open Data Set", choose "IRIS: link helioprojective coordinates" from the "Plugins" menu; it only
+adds links that are missing, so running it again after loading more data is safe. Removing a
+dataset leaves the others linked. The links pair coordinates as they are: they do not allow for
+the Sun's rotation between a map and the IRIS data, or for a map taken far from Earth. Once IRIS
+data are linked, a selection on longitude or latitude values between two maps passes through them
+too, so it ignores those differences between the maps; a region drawn on one map still reaches the
+other through Glue's own link.
 
-- A region drawn on a raster map selects, in every slit-jaw frame, the pixels that lie inside it at
-  that frame's own pointing. For a sit-and-stare raster the selection marks where the slit was on
-  the Sun during the selected exposures: it lies on the slit in the slit-jaw frames taken then, and
-  moves away from it in other frames as the pointing changes.
+- A region drawn on a raster map or a sunpy Map selects, in every slit-jaw frame, the pixels that
+  lie inside it at that frame's own pointing. For a sit-and-stare raster the selection marks where
+  the slit was on the Sun during the selected exposures: it lies on the slit in the slit-jaw frames
+  taken then, and moves away from it in other frames as the pointing changes.
+- A region drawn on a raster map selects the pixels of a sunpy Map inside it, and the other way
+  round.
 - A selection on longitude or latitude, for example from a scatter plot, carries over in both
-  directions.
-- A region drawn on a slit-jaw image does not carry over to a raster: which frame it belongs to
-  would need the time, and time is never linked.
+  directions. With a sunpy Map, one on longitude carries over only where Glue shows the map's
+  longitude between -180° and 180°. Glue shows a map's longitudes as astropy gives them: from 0 to
+  360° when the map's reference longitude is 0 or more, so that east of longitude 0 they are near
+  360°, otherwise from -360° to 0.
+- A region drawn on a slit-jaw image does not carry over to a raster or a sunpy Map: which frame it
+  belongs to would need the time, and time is never linked.
 
 A region drawn on a raster map can be slow to show on a slit-jaw image: glue works out the selection
 for every screen pixel of the slit-jaw viewer each time it draws a frame, and does not respond
 meanwhile. At the default viewer size this takes under a second with a 64-step raster, but 10 to 20
 seconds with a 1600-step sit-and-stare raster, for every frame you step to, and longer in a larger
-viewer.
+viewer. On a sunpy Map it takes about 4 seconds with a 1600-step raster, each time the map's viewer
+draws.
 
 The quicklook
 -------------
