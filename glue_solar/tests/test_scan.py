@@ -16,7 +16,7 @@ def test_strip_pooch():
 
 def test_groups_by_observation_across_directories(iris_tree):
     obs = {o.obsid: o for o in scan_directory(iris_tree)}
-    assert sorted(obs) == sorted([OBS_A[2], OBS_B[2], OBS_C[2], OBS_S])
+    assert sorted(obs) == sorted([OBS_A[2], OBS_B[2], OBS_C[2]])
 
     a = obs[OBS_A[2]]
     assert a.startobs == startobs(*OBS_A[:2])[:19]
@@ -46,11 +46,21 @@ def test_archive_listed_but_not_loadable(iris_tree):
     assert c.startobs == startobs(*OBS_C[:2])[:19]
 
 
-def test_sparse_header_falls_back_to_obsid_description(iris_tree):
+def test_derived_raster_file_is_skipped_and_counted(iris_tree):
+    skipped = []
+    assert OBS_S not in {o.obsid for o in scan_directory(iris_tree, skipped=skipped)}
+    assert [strip_pooch(path.name) for path in skipped] == ["iris_l2_20140910_fexxi_rb_steps.fits.gz"]
+
+
+def test_sparse_header_falls_back_to_obsid_description(tmp_path):
     pytest.importorskip("irispy")
     from irispy.obsid import ObsID
 
-    s = {o.obsid: o for o in scan_directory(iris_tree)}[OBS_S]
+    header = fits.Header(
+        {"TELESCOP": "IRIS", "INSTRUME": "SPEC", "DATA_LEV": 2.0, "OBSID": OBS_S, "STARTOBS": "2014-09-10T11:28:25.590"}
+    )
+    fits.PrimaryHDU(header=header).writeto(tmp_path / "sparse.fits")  # no L2 stem in its name
+    [s] = scan_directory(tmp_path)
     assert s.description == ObsID(int(OBS_S))["raster_fulldesc"]
     assert s.endobs is None
     assert s.xcen is None

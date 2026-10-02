@@ -568,7 +568,9 @@ class QtIRISImporter(QtWidgets.QDialog):
             return
         self.directory.setText(str(directory))
         QSettings(*_SETTINGS).setValue(_LAST_DIR, str(directory))
-        self.observations = scan_directory(directory, recursive=self.recursive.isChecked())
+        skipped = []
+        self.observations = scan_directory(directory, recursive=self.recursive.isChecked(), skipped=skipped)
+        self.progress.setFormat(f"Skipped {len(skipped)} raster file(s) that are not Level 2" if skipped else "%p%")
         self.populate()
 
     def populate(self):

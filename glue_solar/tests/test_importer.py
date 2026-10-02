@@ -17,7 +17,7 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 from astropy.wcs.wcsapi.high_level_api import values_to_high_level_objects
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
-from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, find_irispy_test_file, startobs
+from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, OBS_S, find_irispy_test_file, startobs
 from glue_solar.sources.iris import is_iris_fits, read_iris_file
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
 from glue_solar.sources.loaders.scan import scan_directory
@@ -55,7 +55,7 @@ def test_tests_keep_off_the_users_settings(tmp_path):
 
 
 def test_tree_lists_observations_and_files(dialog):
-    assert dialog.obs_tree.topLevelItemCount() == 4
+    assert dialog.obs_tree.topLevelItemCount() == 3
     row = _row(dialog, OBS_A[2])
     children = [row.child(i).text(0) for i in range(row.childCount())]
     assert children == [
@@ -66,6 +66,12 @@ def test_tree_lists_observations_and_files(dialog):
     ]
     assert row.text(2) == "Test raster 1x2 3s"
     assert row.text(6) == "4"
+
+
+def test_derived_raster_file_is_never_a_window_and_counted(dialog):
+    tree = dialog.obs_tree
+    assert OBS_S not in [tree.topLevelItem(i).text(1) for i in range(tree.topLevelItemCount())]
+    assert dialog.progress.text() == "Skipped 1 raster file(s) that are not Level 2"
 
 
 def test_ticking_the_observation_ticks_its_files(dialog):
