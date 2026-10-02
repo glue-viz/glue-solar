@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-02
 
-**Resume here.** M0 is done. Main has #107-#110; glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp9-m1-split-guide` alone (every open PR edits that guide), then M1 batch 4. Checking glue-solar against irispy main (57813b8, with #205 and #206) is in progress.
+**Resume here.** M0 is done. Main is at 6a9ca47 (#107-#111; the IRIS guide is now three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`); glue-solar PRs are marked ready and merged once CI passes. No PR is open. In progress (M1 batch 4, worktrees `~/Git/glue-solar-<item>`): `wp4-sji-click-to-raster`, `wp4-time-controls`, `wp10-m1-roi-world-polygon`, `wp11-selected-point-panel`. Checking glue-solar against irispy main (57813b8, with #205 and #206) is in progress.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -67,7 +67,6 @@ Settled by the user; reopen only with the user.
 - **D25:** Sessions are Later: the Profile display-unit restore patch (`wp0-core-profile-restore-priority`) goes with them, and sessions re-read IRIS files through glue's load log.
 - **D26:** The Hinode/SOT reader is its own Later item (`wp8-sot-cubes`); `wp1-m3-multi-instrument` is Other missions with Level-3 input.
 - **D27:** The Later time marker is glue's own range subset (`wp12-time-marker`).
-- **D28:** The IRIS loading guide is split into topic pages in M1 (`wp9-m1-split-guide`).
 - **D29:** Every Image viewer of a sit-and-stare raster shows the exposure label and integer exposure ticks only, with no helioprojective ticks on the far edge.
 - **D30:** 'Hide axes' hides the whole axes, with no pixel-coordinate ticks instead, since the mouse-over readout keeps world coordinates. On rolled views each axis label stays with its own coordinate's ticks (glue-solar's label patch), not glue's spine-based labels.
 - **D31:** IRIS world values reach glue in Å and arcsec, high-level objects included; their texts keep glue's and WCSAxes' precision (the mouse-over readout gives IRIS Å and arcsec at a fixed precision, #109); -TAB round trips hold to the wrapped WCS's own error (1.3-2.7e-6 px); a longitude or latitude beside a non-angle coordinate that barely changes across a panel loses its tick labels, while an image of the two angles alone keeps both (user, 2026-10-01).
@@ -95,7 +94,7 @@ A milestone is done when it has no items left.
 - WP0: `wp0-release-tracking`, `wp0-irispy-requests`
 - WP4: `wp4-m1-hover-lock-tool`, `wp4-sji-click-to-raster`, `wp4-m1-spectral-coupling`, `wp4-m1-multi-window`, `wp4-time-controls`, `wp4-raster-overlays`
 - WP5: `wp5-m1-spectral-blink`
-- WP9: `wp9-m1-screenshots`, `wp9-m1-split-guide`
+- WP9: `wp9-m1-screenshots`
 - WP10: `wp10-m1-roi-world-polygon`
 - WP11: `wp11-selected-point-panel`, `wp11-keyboard-shortcuts`
 
@@ -367,7 +366,6 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 **M1**
 
 - [ ] **M1** `wp9-m1-screenshots`: Restore `docs/make_screenshots.py` from commit 93d05f05 (unpushed `backup/iris-observation-browser-pre-rebase`) or record dropping it. Done when it regenerates `docs/user_guide/images/` with HOME isolated.
-- [ ] **M1** `wp9-m1-split-guide`: Split the IRIS loading guide into short topic pages (loading IRIS data, the quicklook, viewer tools and windows) with no new text (user, 2026-09-30). Done when the docs build with `-W` and no section is lost.
 
 **M3**
 
