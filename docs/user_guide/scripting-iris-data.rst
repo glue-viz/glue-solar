@@ -46,8 +46,8 @@ raster step or slit-jaw frame::
 ``sji_to_raster`` finds the raster pixel under a slit-jaw pixel, placed with that frame's own pointing:
 ``(step, slit)``, on a stack ``(scan, step, slit)``, or None outside the raster. A scanning raster's
 step is the one at that place; a sit-and-stare raster's exposure, and a stack's scan, are the ones
-nearest the frame's time, and on a sit-and-stare raster the slit row is the one level with the pixel,
-even beside the slit::
+nearest the frame's time (a sit-and-stare exposure only within half its cadence, else None), and on a
+sit-and-stare raster the slit row is the one level with the pixel, even beside the slit::
 
     from glue_solar.quicklook import sji_to_raster
 

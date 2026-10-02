@@ -130,8 +130,9 @@ def sji_to_raster(sji, frame, x, y, raster):
     frame's own pointing.
 
     A scanning raster's step and slit row are those nearest that place. A sit-and-stare raster's exposure is the one
-    nearest the frame's time, as its slit stays in place, and its slit row the one level with the pixel, beside the
-    slit too. A stack's scan is the one nearest the frame's time at that step, however far from it.
+    nearest the frame's time, as its slit stays in place, if within half its cadence (D7), and its slit row the one
+    level with the pixel, beside the slit too. A stack's scan is the one nearest the frame's time at that step, however
+    far from it.
 
     Parameters
     ----------
@@ -146,14 +147,17 @@ def sji_to_raster(sji, frame, x, y, raster):
     -------
     tuple of int, or None
         ``(step, slit)``, a stack's ``(scan, step, slit)``, or None outside the raster: past its first or last step
-        or either end of its slit.
+        or either end of its slit, or for a sit-and-stare more than half a cadence from its exposures.
     """
     lon, lat = _lon_lat(sji, (frame, y, x))
     when = _times(sji, None)[frame]
     steps, rows = raster.shape[-3:-1]
     if raster.ndim == 3 and _is_sit_and_stare(raster):
         # the slit row from the slit's ends: the raster's world-to-pixel is slow here, and ambiguous along time
-        [step], _ = nearest([when], _times(raster, None))
+        times = _times(raster, None)
+        [step], [offset] = nearest([when], times)
+        if abs(offset) > _half_cadence(times):
+            return None
         lons, lats = _lon_lat(raster, (np.full(2, step), [0, rows - 1], np.zeros(2)))
         along = np.array([lons[1] - lons[0], lats[1] - lats[0]]) / (rows - 1)  # one slit pixel
         slit = np.dot([lon - lons[0], lat - lats[0]], along) / np.dot(along, along)

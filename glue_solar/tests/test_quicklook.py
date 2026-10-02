@@ -1502,6 +1502,10 @@ def test_sji_to_raster_on_a_sit_and_stare(tmp_path, irispy_test_files):
             for end, inner in ((0, 1), (top, top - 1)):  # past either end of the slit: outside the raster
                 pixel = past(raster, sji, (exposure, end), (exposure, inner), frame)
                 assert sji_to_raster(sji, frame, *pixel, raster) is None
+    # a day later: no exposure within half a cadence
+    x, y = raster_point_on_sji(bundled, sji, 0, 9, 0)
+    sji.update_components({sji.id["Time"]: sji[sji.id["Time"]] + np.timedelta64(1, "D")})
+    assert sji_to_raster(sji, 0, x, y, bundled) is None
 
 
 def test_sji_to_raster_on_a_scanning_raster_and_a_stack(tmp_path, irispy_test_files):
