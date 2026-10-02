@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-01
 
-**Resume here.** M0 is done. Main has #104; glue-solar PRs are marked ready and merged once CI passes. Open: #102 (`wp11-histo-opt-scaling`, rebased after #104), #103 (`wp11-physical-aspect`), each in `~/Git/glue-solar-<branch>`. In progress: `wp10-nonblocking-load` (D36). Separately, at the user's request (2026-10-02): 17 few-line upstream performance fixes from `GLUE_SPEED.md` on branches `perf-*` in worktrees `~/Git/glue-perf-*`, `~/Git/glue-qt-perf-*` and `~/Git/astropy-perf-*`, to be pushed to the user's forks for review, no PRs.
+**Resume here.** M0 is done. Main has #102 and #104; glue-solar PRs are marked ready and merged once CI passes. Open: #102 (rebased after #104), #103 (`wp11-physical-aspect`), each in `~/Git/glue-solar-<branch>`. In progress: `wp10-nonblocking-load` (D36). Separately, at the user's request (2026-10-02): 17 few-line upstream performance fixes from `GLUE_SPEED.md` on branches `perf-*` in worktrees `~/Git/glue-perf-*`, `~/Git/glue-qt-perf-*` and `~/Git/astropy-perf-*`, to be pushed to the user's forks for review, no PRs.
 
 **Next.** M1 continues with `wp10-nonblocking-load`, `wp1-m1-sunpy-maps` and `wp1-m1-sji-to-raster`. The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -97,7 +97,7 @@ A milestone is done when it has no items left.
 - WP5: `wp5-m1-spectral-blink`
 - WP9: `wp9-m1-screenshots`, `wp9-m1-split-guide`
 - WP10: `wp10-nonblocking-load`, `wp10-m1-roi-world-polygon`
-- WP11: `wp11-cursor-readout`, `wp11-selected-point-panel`, `wp11-histo-opt-scaling`, `wp11-physical-aspect`, `wp11-keyboard-shortcuts`
+- WP11: `wp11-cursor-readout`, `wp11-selected-point-panel`, `wp11-physical-aspect`, `wp11-keyboard-shortcuts`
 - WP12: `wp12-time-regrid`
 
 **M2**
@@ -410,7 +410,6 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 
 - [ ] **M1** `wp11-cursor-readout` (F100, F101, F113): `solar:frame_time` adds the hovered pixel's `Time`, exposure and Doppler km/s to the readout. Done when step s of the 4000005156 Si IV map shows its UTC (within 1 ms) and exposure.
 - [ ] **M1** `wp11-selected-point-panel` (F099, F191): A read-only quicklook dock lists the Pixel point's indices, coordinates, time, exposure and value per dataset, plus the time master and SJI–raster offset. Done when on 3860258481 (3D and 4D) each field equals a direct read and the unrelated 3880012095 SJI shows 'no match'.
-- [ ] **M1** `wp11-histo-opt-scaling` (F061, F064): A checkable 'Per-frame limits' tool toggles each layer's `ImageLayerState.stretch_global`. Done when on 3610108077 a wavelength step gives that slice's 99.5-percentile limits when on and whole-cube limits when off. Sessions saved with per-frame limits fail to restore on glue 1.27.0 (`wp0-core-session-reports`).
 - [ ] **M1** `wp11-physical-aspect` (F193): `solar:physical_aspect` scales glue's aspect by the arcsec-per-pixel ratio. Done when a 10″×10″ square renders square within 5% on 4000005156 (about 12:1) and 3400109360 (about 3:1) after resize and zoom.
 - [ ] **M1** `wp11-keyboard-shortcuts` (F197): Register D/F (frame), A/S (wavelength), Space (play) and quicklook Tab/Backspace via `glue_qt.config.keyboard_shortcut`. Done when `QTest.keyClick` on glue-qt 0.4.2 steps with wrap and plays, and quicklook D/F move the time master and A/S only wavelength.
 
