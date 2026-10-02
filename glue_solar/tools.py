@@ -30,7 +30,7 @@ _PIXEL_COORDS = {"type": ("scalar", "scalar"), "wrap": (None, None), "unit": (u.
 _SLIDER_REBUILDS = ("reference_data", "x_att", "y_att")
 # A dragged slice slider applies its position at most this often, and on release
 _DRAG_INTERVAL_MS = 100
-# A helioprojective coordinate that changes by less than this fraction of the other across a panel has no tick labels
+# Beside another coordinate, an angle changing by less than this fraction of the other across a panel has no tick labels
 _FLAT = 0.05
 
 
@@ -115,10 +115,12 @@ def _index_ticks(axes, index, shown):
 
 def _hide_flat_angles(axes, shape):
     """
-    Hide the tick labels of a helioprojective coordinate of the WCSAxes ``axes`` that barely changes across the
-    displayed array of ``shape`` (x, y), such as the latitude along a raster's steps: pointing jitter takes it
-    back and forth across each tick value, and WCSAxes labels every crossing, one over another. Decided on the
-    array's edges, so zooming keeps it.
+    Hide the tick labels of a longitude or latitude, of any celestial frame, of the WCSAxes ``axes`` that barely
+    changes across the displayed array of ``shape`` (x, y) while another coordinate, such as wavelength or time, is
+    shown beside the two, as the latitude along a raster's steps does: pointing jitter takes it back and forth across
+    each tick value, and WCSAxes labels every crossing, one over another. An image of the two angles alone, such as
+    a map or a slit-jaw image, keeps both. Decided on the array's edges, so zooming keeps it, with a longitude across
+    0° unwrapped rather than 360° wide.
     """
     shown = [coord for coord in axes.coords if coord.coord_index is not None]  # the others are not on these axes
     angles = [coord for coord in shown if coord.coord_type in ("longitude", "latitude")]
@@ -157,8 +159,9 @@ class FrameTimeTool(Tool, HubListener):
     The tool exists for every Image viewer, so it also throttles the viewer's slice sliders, labels
     a displayed sit-and-stare exposure axis 'Exposure (acquisition order)' with the UTC range of its
     exposures, in glue's own axis label, with integer exposure ticks instead of the helioprojective
-    coordinates glue would show along it, and hides the tick labels of a helioprojective coordinate
-    that barely changes across the image (`_hide_flat_angles`). glue resets these whenever it resets
+    coordinates glue would show along it, and hides the tick labels of a longitude or latitude that
+    barely changes across an image showing another coordinate beside the two, such as the latitude on
+    a raster's wavelength-against-step panel (`_hide_flat_angles`). glue resets these whenever it resets
     the axes (an axis or data change, or a slice the displayed coordinates depend on, such as the slit
     on the wavelength panel), and the tool applies them again; a label typed in the viewer's axes
     options is kept until then, as glue's own labels are.
@@ -189,7 +192,7 @@ class FrameTimeTool(Tool, HubListener):
         for prop in _SLIDER_REBUILDS:
             viewer.state.add_callback(prop, self._throttle_sliders)
         self._exposure_ticks = (None, None)  # the WCSAxes coordinates they were added to, and their helper
-        self._flat_checked = None  # the WCSAxes coordinates whose flat helioprojective labels were hidden
+        self._flat_checked = None  # the WCSAxes coordinates last checked for a flat angle
         for prop in _LABELS:
             viewer.state.add_callback(prop, self._label_exposures)
         # glue's Preferences restyle only the WCS coordinates
@@ -213,7 +216,7 @@ class FrameTimeTool(Tool, HubListener):
 
     def _label_exposures(self, *_):
         """
-        Hide flat helioprojective tick labels, and label a displayed sit-and-stare exposure axis and give it
+        Hide the tick labels of a flat angle, and label a displayed sit-and-stare exposure axis and give it
         exposure ticks (see the class).
         """
         state = self.viewer.state

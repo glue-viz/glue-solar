@@ -225,10 +225,12 @@ and an x or y axis label typed in the axes options names the coordinate of that 
 ticks are; glue-core 1.27.0 alone labels the bottom and left ticks after the x and y axes, whichever
 coordinate they show.
 
-A helioprojective coordinate that changes by less than 5 % of the other across the image, such as
-the latitude along a raster's steps on the wavelength-against-step panel or the longitude along the
-slit on the spectrogram, has no tick labels, also after glue resets the axes: WCSAxes would label it
-wherever pointing jitter takes it across a tick value, one label over another or off the panel.
+On an image that shows another coordinate, such as wavelength or time, beside longitude and
+latitude, an angle that changes by less than 5 % of the other across the image has no tick labels,
+also after glue resets the axes: the latitude along a raster's steps on the wavelength-against-step
+panel, or the longitude along the slit on the spectrogram. WCSAxes would label it wherever pointing
+jitter takes it across a tick value, one label over another or off the panel. An image of the two
+angles alone, such as the map, a slit-jaw image or any other celestial map, keeps both.
 
 The map shows the wavelength nearest the window's reference wavelength, and the panels use
 99.5 % limits. A point, the edit subset "Point", starts at the centre of the map with the Pixel
