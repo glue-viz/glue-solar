@@ -18,7 +18,14 @@ from astropy.coordinates import angular_separation
 
 from glue_solar.quicklook import _is_sit_and_stare, _role, coordinator
 
-__all__ = ["CoordinateTool", "CursorReadoutTool", "FrameTimeTool", "HideAxesTool", "PerFrameLimitsTool", "PhysicalAspectTool"]
+__all__ = [
+    "CoordinateTool",
+    "CursorReadoutTool",
+    "FrameTimeTool",
+    "HideAxesTool",
+    "PerFrameLimitsTool",
+    "PhysicalAspectTool",
+]
 
 # Whether a new Image viewer shows its axes; the user guide says how to change it
 settings.add("SOLAR_SHOW_AXES", True, validator=bool)
