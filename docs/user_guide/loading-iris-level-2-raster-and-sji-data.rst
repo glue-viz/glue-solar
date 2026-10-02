@@ -261,9 +261,9 @@ A sit-and-stare raster's exposure axis, in the quicklook or any Image viewer, is
 are exposure numbers: it is an index axis, so exposures are evenly spaced whatever their cadence
 (`Regridding on time`_ places them in time). The other axis shows only its own coordinate, and so
 does the mouse-over readout, followed by the time and exposure of the exposure under the mouse,
-rather than where the slit was then. The label and ticks come back whenever glue resets
-the axes, after an axis change or, on the wavelength panel, a slit move; a label typed in the
-viewer's axes options is kept until that reset, as glue's own labels are.
+rather than where the slit was then. The label and ticks come back whenever glue resets the axes,
+after an axis change or, on the wavelength panel, a slit move; a label typed in the viewer's axes
+options is kept until that reset, as glue's own labels are.
 
 In every Image viewer, each world coordinate's ticks are labelled with that coordinate's name.
 WCSAxes can put a coordinate's ticks on another side than the axis it belongs to: latitude can run
@@ -355,9 +355,10 @@ NaN, with ``Time`` NaT, ``Exposure time`` NaN and the missing-data mask 1. The 1
   no time, so its "Frame time" readout is empty, the other datasets keep their frames and show "NO
   MATCH", and a slit-jaw time master never moves it into a gap. "IRIS: quicklook…" shows the
   original; for a quicklook of the regridded raster, type
-  ``quicklook(application, [regridded, sji])`` in glue's terminal, after
-  ``from glue_solar.quicklook import quicklook``. ``glue_solar.regrid.regrid_on_time(data)`` regrids
-  a dataset there too.
+  ``from glue_solar.quicklook import quicklook`` in glue's terminal, then
+  ``quicklook(application, [dc["<raster label> regridded"], dc["<slit-jaw label>"]])`` with the
+  labels the data collection shows. ``glue_solar.regrid.regrid_on_time(data)`` regrids a dataset
+  there too.
 
 Viewer tools and windows
 ------------------------
