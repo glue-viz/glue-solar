@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-02
 
-**Resume here.** M0 is done. Main is at 6e27ec5 (#107-#121; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`); glue-solar PRs are marked ready and merged once CI passes. M1 batch 5 and `wp10-m1-canvas-teardown` (#121) are merged. In progress: `wp9-m1-screenshots` in worktree `~/Git/glue-solar-wp9-m1-screenshots` (branch `wp9-m1-screenshots` off origin/main 6e27ec5); no PR opened yet. Next after it: batch 6 (`wp4-raster-overlays`, `wp4-m1-multi-window`, then `wp5-m1-spectral-blink`).
+**Resume here.** M0 is done. Main is at 013a839 (#107-#122; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open; M1 batch 5, `wp10-m1-canvas-teardown` (#121) and `wp9-m1-screenshots` (#122) are merged. Next: batch 6 (`wp4-raster-overlays`, `wp4-m1-multi-window`, then `wp5-m1-spectral-blink`).
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -96,7 +96,6 @@ A milestone is done when it has no items left.
 - WP0: `wp0-release-tracking`, `wp0-irispy-requests`
 - WP4: `wp4-m1-multi-window`, `wp4-raster-overlays`
 - WP5: `wp5-m1-spectral-blink`
-- WP9: `wp9-m1-screenshots`
 
 **M2**
 - WP2: `wp2-m2-moment-maps`, `wp2-m2-line-definition`, `wp2-m2-input-quality`, `wp2-m2-tests-docs`
@@ -357,10 +356,6 @@ Notes:
 ### WP9: Documentation and tutorials
 
 Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides and recipes.
-
-**M1**
-
-- [ ] **M1** `wp9-m1-screenshots`: Restore `docs/make_screenshots.py` from commit 93d05f05 (unpushed `backup/iris-observation-browser-pre-rebase`) or record dropping it. Done when it regenerates `docs/user_guide/images/` with HOME isolated.
 
 **M3**
 
