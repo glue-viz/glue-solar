@@ -48,6 +48,7 @@ from glue_solar.tests.helpers import (
     inversions,
     load_selected,
     mouse,
+    press,
     raster_point_on_sji,
     select_point,
 )
@@ -2871,6 +2872,158 @@ def test_closing_the_master_stops_its_playback(bare_app, qtbot, irispy_test_file
     played = len(shown)
     qtbot.wait(20)
     assert len(shown) == played
+
+
+def test_what_the_keys_move_on_a_sit_and_stare(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    label = raster.label
+    times, frames = (data[data.id["Time"]][:, 0, 0] for data in (raster, sji))
+    start, slit, wavelength = expected_start(raster)
+    last, waves = raster.shape[0] - 1, raster.shape[2]
+    f1400 = [nearest_frame(sji, when) for when in times]
+
+    def key(viewer, pressed):
+        return changes(bare_app, qtbot, viewers, lambda: press(viewer, pressed))
+
+    # F and D move the raster master's exposure, pressed on any panel, the spectrum's too: the point and the slit-jaw
+    # image follow, as for the exposure slider
+    assert f1400[start] is None
+    assert key(viewers["map"], Qt.Key_F) == {
+        "point": (label, (start + 1, slit, None)),
+        "spectrogram": (start + 1, None, None),
+        "sji0": (f1400[start + 1], None, None),
+    }
+    assert key(sji_viewer, Qt.Key_D) == {"point": (label, (start, slit, None)), "spectrogram": (start, None, None)}
+    assert key(viewers["spectrum"], Qt.Key_D) == {
+        "point": (label, (start - 1, slit, None)),
+        "spectrogram": (start - 1, None, None),
+        "sji0": (f1400[start - 1], None, None),
+    }
+    # round from either end
+    slide(viewers["spectrogram"], 0, last)
+    for pressed, exposure in ((Qt.Key_F, 0), (Qt.Key_D, last)):
+        assert key(viewers["wavelength"], pressed) == {
+            "point": (label, (exposure, slit, None)),
+            "spectrogram": (exposure, None, None),
+            "sji0": (f1400[exposure], None, None),
+        }
+    # A and S step the map's wavelength only, pressed on any panel, round from either end
+    for viewer, pressed, index in (
+        (viewers["map"], Qt.Key_S, wavelength + 1),
+        (viewers["spectrogram"], Qt.Key_A, wavelength),
+        (sji_viewer, Qt.Key_A, wavelength - 1),
+        (viewers["spectrum"], Qt.Key_S, wavelength),
+    ):
+        assert key(viewer, pressed) == {"map": (None, None, index)}
+    slide(viewers["map"], 2, 0)
+    assert key(viewers["wavelength"], Qt.Key_A) == {"map": (None, None, waves - 1)}
+    assert key(viewers["wavelength"], Qt.Key_S) == {"map": (None, None, 0)}
+    # under a slit-jaw master F and D move its frame, round from either end, and the raster follows
+    menu_action(sji_viewer, "Time master").trigger()
+    qtbot.wait(20)
+    for pressed, frame in ((Qt.Key_F, 0), (Qt.Key_D, sji.shape[0] - 1)):
+        exposure = expected_nearest(frames[frame], times)
+        assert key(viewers["map"], pressed) == {
+            "sji0": (frame, None, None),
+            "point": (label, (exposure, slit, None)),
+            "spectrogram": (exposure, None, None),
+        }
+
+
+def test_what_the_keys_move_on_a_scanning_raster_and_a_stack(bare_app, qtbot, scans):
+    scan, stack = scans
+    times = scan[scan.id["Time"]][:, 0, 0]
+    frames = times[0] + (np.arange(24) - 2) * ((times[-1] - times[0]) / 19)  # about three per step
+    viewers = first = quicklook(bare_app, [scan, slit_jaw(frames, scan)])
+    step, slit, _ = expected_start(scan)
+    # a scanning raster's step, which moves the point, and the slit-jaw image follows it
+    assert changes(bare_app, qtbot, viewers, lambda: press(viewers["map"], Qt.Key_F)) == {
+        "point": (scan.label, (step + 1, slit, None)),
+        "spectrogram": (step + 1, None, None),
+        "sji0": (expected_nearest(times[step + 1], frames), None, None),
+    }
+    # a stack's scan, at the point's step, round from the first to the last
+    scan_times = stack[stack.id["Time"]][:, :, 0, 0]
+    _, step, slit, wavelength = expected_start(stack)
+    last = stack.shape[0] - 1
+    frames = np.sort(scan_times, axis=None)
+    viewers = quicklook(bare_app, [stack, slit_jaw(frames, stack)])
+    assert changes(bare_app, qtbot, viewers, lambda: press(viewers["spectrogram"], Qt.Key_D)) == {
+        "point": (stack.label, (last, step, slit, None)),
+        "map": (last, None, None, wavelength),
+        "spectrogram": (last, step, None, None),
+        "sji0": (expected_nearest(scan_times[last, step], frames), None, None),
+    }
+    # A and S in a quicklook's tab step its own map's wavelength, not an earlier quicklook's; outside a quicklook's tab,
+    # the viewer's own only
+    first_map = first["map"].state.slices
+    assert changes(bare_app, qtbot, viewers, lambda: press(viewers["spectrogram"], Qt.Key_S)) == {
+        "map": (last, None, None, wavelength + 1)
+    }
+    bare_app.new_tab()
+    plain = image(bare_app, stack, 1, 2)
+    qtbot.wait(20)
+    index = plain.state.slices[3]
+    assert changes(bare_app, qtbot, viewers, lambda: press(plain, Qt.Key_A)) == {}
+    assert plain.state.slices[3] == (index - 1) % stack.shape[3]
+    assert first["map"].state.slices == first_map
+
+
+def test_space_plays_the_time_master_round_its_loop(bare_app, qtbot, monkeypatch, irispy_test_files, scans):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+
+    def space(viewer, played, frames):
+        """Press Space on ``viewer``, see ``frames`` of the ``played`` viewer's first slider, and press Space again."""
+        slider = played.options_widget().slice_helper._sliders[0]
+        shown = []
+
+        def record(slices):
+            shown.append(slices[0])
+
+        played.state.add_callback("slices", record)
+        press(viewer, Qt.Key_Space)
+        assert slider._play_timer.isActive()
+        slider._play_timer.setInterval(1)
+        qtbot.waitUntil(lambda: len(shown) >= frames)
+        press(viewer, Qt.Key_Space)
+        played.state.remove_callback("slices", record)
+        assert not slider._play_timer.isActive()
+        return shown
+
+    # pressed on the map, which shows the exposures, Space plays the raster master's exposure slider, round its loop
+    type_in_dialog(monkeypatch, "150 153")
+    menu_action(viewers["spectrogram"], "Loop…").trigger()
+    shown = space(viewers["map"], viewers["spectrogram"], 6)
+    assert shown == [150 + i % 4 for i in range(len(shown))]
+    # under a slit-jaw master, its frames, pressed on the spectrum panel; the raster follows
+    menu_action(sji_viewer, "Time master").trigger()
+    qtbot.wait(20)
+    frame = sji_viewer.state.slices[0]
+    shown = space(viewers["spectrum"], sji_viewer, 3)
+    assert shown == list(range(frame + 1, frame + 1 + len(shown)))
+    frames = sji[sji.id["Time"]][:, 0, 0]
+    assert check_follower(bare_app, qtbot, frames[shown[-1]], raster, viewers["spectrogram"])
+    # and pressed on the spectrogram, whose own exposure slider has the loop
+    frame = sji_viewer.state.slices[0]
+    shown = space(viewers["spectrogram"], sji_viewer, 3)
+    assert shown == [(frame + 1 + i) % sji.shape[0] for i in range(len(shown))]
+    # a stack's map and spectrogram both have its scan slider: pressed on the map, Space plays the one with a loop
+    viewers = quicklook(bare_app, [scans[1]])
+    type_in_dialog(monkeypatch, "3 5")
+    menu_action(viewers["spectrogram"], "Loop…").trigger()
+    shown = space(viewers["map"], viewers["spectrogram"], 4)
+    assert shown == [3 + i % 3 for i in range(len(shown))]
+
+
+def test_backspace_closes_a_quicklook_raster_panel(bare_app, irispy_test_files):
+    viewers = quicklook(bare_app, list(sit_and_stare(irispy_test_files)))
+    press(viewers["wavelength"], Qt.Key_Backspace)  # glue-qt's own, which asks first outside tests
+    assert [viewers[role]._closed for role in RASTER_PANELS] == [False, False, True]
+    assert viewers["wavelength"] not in coordinator(bare_app.data_collection)._viewers
 
 
 def test_what_a_region_moves(bare_app, qtbot, scans, irispy_test_files):

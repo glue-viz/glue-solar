@@ -1,0 +1,1 @@
+Image and Profile viewers get keys: D and F step the frame or the time master, A and S the wavelength, and Space plays; quicklook panels also get glue-qt's Backspace, and matplotlib's full-screen and save keys no longer act on glue's viewers.

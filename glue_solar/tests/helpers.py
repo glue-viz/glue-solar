@@ -5,8 +5,9 @@ Helpers that drive glue's viewers the way a user does, and read the expected ans
 from collections import Counter
 
 from matplotlib.backend_bases import MouseEvent
+from qtpy.QtTest import QTest
 
-__all__ = ["count_tick_work", "inversions", "load_selected", "mouse", "raster_point_on_sji", "select_point"]
+__all__ = ["count_tick_work", "inversions", "load_selected", "mouse", "press", "raster_point_on_sji", "select_point"]
 
 
 def count_tick_work(monkeypatch, axes):
@@ -61,6 +62,13 @@ def select_point(viewer, x, y):
     viewer.toolbar.active_tool = "image:point_selection"
     mouse(viewer, "button_press_event", x, y)
     mouse(viewer, "button_release_event", x, y)
+
+
+def press(viewer, key):
+    """Press ``key`` over the viewer's image, as after a click on it, which makes its window the active one."""
+    window = viewer.parent()
+    window.mdiArea().setActiveSubWindow(window)
+    QTest.keyClick(viewer.figure.canvas, key)
 
 
 def raster_point_on_sji(raster, sji, step, slit, frame=0):

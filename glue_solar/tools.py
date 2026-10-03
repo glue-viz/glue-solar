@@ -2,6 +2,8 @@
 Toolbar tools for glue's viewers.
 """
 
+from functools import partial
+
 import numpy as np
 from echo import delay_callback
 from glue.config import settings, viewer_tool
@@ -15,6 +17,7 @@ from glue.viewers.common.tool import SimpleToolMenu, Tool
 from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.utils.decorators import messagebox_on_error
+from glue_qt.viewers.image import ImageViewer
 from matplotlib.backend_bases import MouseButton
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
@@ -28,6 +31,7 @@ from glue_solar.quicklook import (
     _is_sit_and_stare,
     _role,
     _seconds_text,
+    _spectral_axes,
     _sync_text,
     _time_text,
     _timed,
@@ -923,6 +927,81 @@ class _LoopEntry(_CoordinateEntry):
         if not 0 <= lo <= hi <= last:
             raise ValueError(f"'{text}' is not two indices from 0 to {last}, the first not after the last.")
         _loop(slider, lo, hi)
+
+
+def _pressed(session):
+    """
+    The viewer of the current tab's active window, which glue-qt gives a key, the coordinator, and the time master of
+    the viewer's observation, as Go to UTC moves it, or None.
+    """
+    viewer = session.application.current_tab.activeSubWindow().widget()
+    data, sync = viewer.state.reference_data, coordinator(session.data_collection)
+    return viewer, sync, sync._master(observation_key(data)) if _timed(data) else None
+
+
+def _step(slider, delta):
+    """Step a glue-qt slice slider, or None, by ``delta``, round from either end as its own step buttons do."""
+    if slider is not None:
+        box = slider.value_slice_center
+        box.setValue((box.value() + delta) % (box.maximum() + 1))
+
+
+def _frame_key(delta, session):
+    """
+    D and F: move the time master of the active viewer's observation a frame, exposure, step or scan back or on, round
+    from either end, as Go to UTC moves it, and the others follow; without one, the viewer's own first slider.
+    """
+    viewer, sync, master = _pressed(session)
+    if master is not None:
+        index, _ = sync._timing(master)
+        sync.move_master(master, (index + delta) % master.shape[0])
+    elif isinstance(viewer, ImageViewer):
+        _step(_first_slider(viewer), delta)
+
+
+def _wavelength_key(delta, session):
+    """
+    A and S: step the active Image viewer's wavelength slider back or on, round from either end, and in a quicklook's
+    tab, pressed on any of its viewers, that of each of its panels; nothing else moves.
+    """
+    viewer, sync, _ = _pressed(session)
+    app = session.application
+    group = getattr(app, "_solar_points", {}).get(app.current_tab)
+    for each in dict.fromkeys([viewer, *sync._owners.get(group, ())]):
+        data = each.state.reference_data
+        if isinstance(each, ImageViewer) and data is not None:
+            sliders = each.options_widget().slice_helper._sliders
+            for axis in _spectral_axes(data):
+                _step(sliders[axis] if axis < len(sliders) else None, delta)
+
+
+def _play_key(session):
+    """
+    Space: play the time forwards, as glue-qt's play button does, or pause it. The time is the first slider of a viewer
+    of the time master of the active viewer's observation, one with a loop (Loop…), which it goes round, before the
+    active viewer's own, or without a time master, the active Image viewer's own. Space pauses any of these playing,
+    the active viewer's own too.
+    """
+    viewer, sync, master = _pressed(session)
+    viewers = dict.fromkeys([viewer, *([] if master is None else sync._viewers_of(master))])
+    sliders = {each: _first_slider(each) for each in viewers if isinstance(each, ImageViewer)}
+    sliders = {each: slider for each, slider in sliders.items() if slider is not None}
+    playing = [slider for slider in sliders.values() if slider._play_timer.isActive()]
+    for slider in playing:
+        slider.button_stop.click()
+    time = [slider for each, slider in sliders.items() if master is None or each.state.reference_data is master]
+    if time and not playing:
+        next((slider for slider in time if hasattr(slider, "_solar_loop")), time[0]).button_forw.click()
+
+
+# The keys glue-solar gives viewers (`glue_solar.setup`), as glue-qt's keyboard shortcuts: functions of the session
+KEYS = {
+    QtCore.Qt.Key_D: partial(_frame_key, -1),
+    QtCore.Qt.Key_F: partial(_frame_key, 1),
+    QtCore.Qt.Key_A: partial(_wavelength_key, -1),
+    QtCore.Qt.Key_S: partial(_wavelength_key, 1),
+    QtCore.Qt.Key_Space: _play_key,
+}
 
 
 @viewer_tool

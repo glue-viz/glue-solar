@@ -76,11 +76,30 @@ toolbar has:
 Each viewer is a window in the current tab, with its own minimise, maximise and close buttons. The
 "Canvas" menu has "New Data Viewer" (Ctrl+N), "New Tab" (Ctrl+T), "Gather Windows" (Ctrl+G), which
 places the tab's viewers side by side, and "Rename Tab" (Ctrl+R); on macOS these use Cmd. Backspace
-closes the active viewer after asking "Do you want to close this window?" if it is one of glue's own
-Image, Scatter or Histogram viewers. It does nothing in a Profile or Table viewer, or in the
-quicklook's map, spectrogram and wavelength panels. In the data collection, though, Backspace is
-"Delete Layer": it removes the selected datasets and subsets at once, without asking and without
-undo.
+closes the active viewer after asking "Do you want to close this window?" if it is an Image viewer,
+quicklook panels included, or one of glue's Scatter or Histogram viewers. It does nothing in a
+Profile or Table viewer. In the data collection, though, Backspace is "Delete Layer": it removes the
+selected datasets and subsets at once, without asking and without undo. glue-qt also gives those
+viewers Tab, to go to the tab's next window, but Qt takes Tab first to move the keyboard focus, so it
+never does.
+
+glue-solar gives Image and Profile viewers, quicklook panels included, these keys. A key acts on the
+active viewer, the one last clicked, unless you are typing in a box or the data collection has the
+keyboard focus; glue-qt ignores Shift and Ctrl with them.
+
+- D and F go a frame, exposure, step or scan back and on, round from the last to the first and back.
+  On IRIS data with a time master (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`),
+  they move the time master, as "Go to UTC…" does, whichever viewer of its observation you press them
+  in, and the others follow. Otherwise they move the viewer's own slider of the data's first axis.
+- A and S go a wavelength back and on, round from either end: the viewer's own wavelength slider, and
+  in a quicklook's tab, pressed on any of its viewers, the map's. Nothing else moves.
+- Space plays the time forwards, as the play button of the time master's frame, exposure, step or
+  scan slider does, round its loop if "Loop…" gave it one, and pressed again pauses it. Without a time
+  master it plays the viewer's own slider of the data's first axis.
+
+glue-qt's viewers also have matplotlib's own keys, such as G for a Profile viewer's grid with the
+mouse over its plot; with glue-solar, F and S no longer show an empty window full screen or open
+matplotlib's save dialog. The save menu saves the plot.
 
 The stretch menu in the Image Viewer's layer options lists glue-solar's "Gamma 0.4", "Gamma 0.75",
 "Gamma 1.5" and "Gamma 2.2" after Glue's own stretches. Each raises the values between the limits to

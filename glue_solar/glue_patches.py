@@ -23,6 +23,9 @@ from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
+from glue_qt.viewers.matplotlib.widget import MplCanvas
+from matplotlib import rcParams
+from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
@@ -31,6 +34,7 @@ from astropy.visualization.wcsaxes import WCSAxes
 from astropy.wcs import WCS
 
 __all__ = [
+    "canvas_init",
     "close_event",
     "export_fits",
     "needs_axis_label_workaround",
@@ -475,3 +479,32 @@ def close_event(self, *args):
 
 
 ImageViewer.closeEvent = close_event
+
+
+_original_canvas_init = MplCanvas.__init__
+
+
+def _matplotlib_keys(event):
+    """matplotlib's own key bindings, but for full screen and save, F and S alone or with Ctrl by default."""
+    if event.key not in rcParams["keymap.fullscreen"] + rcParams["keymap.save"]:
+        key_press_handler(event)
+
+
+def canvas_init(self, *args, **kwargs):
+    """
+    glue-qt's ``MplCanvas.__init__``, leaving F and S over a viewer to glue-solar's frame and wavelength keys
+    (`glue_solar.tools.KEYS`), which glue-qt gives them whatever the modifiers.
+
+    glue-qt 0.4.2 gives each canvas a matplotlib figure manager, which connects matplotlib's own key bindings: F shows
+    the manager's empty window full screen and S opens matplotlib's save dialog. The others, such as G for the grid,
+    stay. Each canvas probes for the manager's bindings, so this changes nothing once glue-qt connects none. Retired
+    by glue-qt dropping matplotlib's bindings from its canvases (report candidate).
+    """
+    _original_canvas_init(self, *args, **kwargs)
+    manager = getattr(self, "manager", None)
+    if getattr(manager, "key_press_handler_id", None) is not None:
+        self.mpl_disconnect(manager.key_press_handler_id)
+        manager.key_press_handler_id = self.mpl_connect("key_press_event", _matplotlib_keys)
+
+
+MplCanvas.__init__ = canvas_init

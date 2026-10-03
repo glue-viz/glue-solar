@@ -207,9 +207,12 @@ Windows, tabs and shortcuts
 
 32. Ctrl+N ("New Data Viewer"), Ctrl+T ("New Tab"), Ctrl+G ("Gather Windows") and Ctrl+R ("Rename
     Tab") work, with Cmd in place of Ctrl on macOS. Click SJI 1400 and press Backspace (⌫ on a Mac
-    keyboard): glue asks "Do you want to close this window?", with "Cancel" as the default. Click the
-    map, the spectrogram or the wavelength panel and press Backspace: nothing happens. Do not press
-    Backspace in the data collection, which removes the selected datasets without asking.
+    keyboard): glue asks "Do you want to close this window?", with "Cancel" as the default; so does
+    Backspace on the map, the spectrogram or the wavelength panel. Do not press Backspace in the data
+    collection, which removes the selected datasets without asking. Click the map and press F, then D:
+    the raster's exposure, the point and the slit-jaw viewers move as with the spectrogram's exposure
+    slider, and no empty window appears. Click SJI 2832 and press S, then A: only the map's wavelength
+    moves, and no save dialog opens. Press Space: the exposures play; press it again: they stop.
 
 33. Close a quicklook tab with its tab's close button. glue asks "Are you sure you want to close this
     tab?", with "Cancel" as the default. "Cancel" keeps the tab; "OK" closes it without a traceback,
