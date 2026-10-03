@@ -220,7 +220,8 @@ other through Glue's own link.
 A region drawn on the map of a quicklook (see :ref:`glue_solar_users_guide_iris_quicklook`) reaches
 the other data by its outline in longitude and latitude, traced through the raster's own
 coordinates with a corner at every raster step: on the raster it selects exactly the pixels inside
-it, and elsewhere the pixels inside the outline, the same ones glue's own selection gives. This
+it, and elsewhere the pixels inside the outline, the same ones glue's own selection gives, but for a
+few along the edge of a circle, whose outline is glue's 100-sided polygon of it. This
 takes a fraction of a second per slit-jaw frame, for example 0.23 s for a full 1506 by 771 frame of
 OBSID 4000005156's deconvolved SJI 2796 under a Si IV raster region, which glue takes 11 s over. It
 reaches a sunpy Map whose longitudes run from 0 to 360° too.
