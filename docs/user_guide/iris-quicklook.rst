@@ -167,6 +167,17 @@ time" readout says "outside SJI FOV", when the point is off the image; neither i
 viewer shows the frame axis. A slit-jaw frame taken a raster step earlier or later than the point
 shows the slit a step away from the cross.
 
+"Raster overlays" in the "Coordinate" menu of any viewer of an observation shows or hides the
+raster's steps on all its viewers, and moves nothing. Each slit-jaw image draws the slit of every
+raster step or exposure as a thin white line, placed with the pointing of the frame nearest that
+step's time, whichever frame is shown; on a stack, the steps of the scan its panels show. Each map
+of the raster (steps or exposures against slit) draws a dashed white line at the step or exposure,
+in the scan it shows, nearest the time master's time, hidden when none is within half its time step
+("NO MATCH"); under a slit-jaw master it marks the step taken at the time of the frame shown. Like
+the other lines they show in "Save plot to file", but not in a saved session or "Save Python script
+to reproduce plot". A stack's slits are placed with its first scan's pointing, a few slit-jaw pixels
+off on a later scan; open that scan on its own to place them exactly.
+
 A click with the Pixel tool on a slit-jaw viewer of the quicklook moves the point to the raster
 pixel there, placed with the displayed frame's own pointing (``sji_to_raster``, see
 :ref:`Scripting with IRIS data <glue_solar_users_guide_scripting_iris_data>`): on a scanning raster

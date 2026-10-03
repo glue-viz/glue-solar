@@ -303,6 +303,8 @@ class Coordinator(HubListener):
         self._shows = {}  # registered viewer -> the reference data its sliders were last set for
         self._owners = {}  # a quicklook's point group -> the viewers it drives
         self._placed = (None, None)  # point_on's last (raster, pixel, slit-jaw, frame) and answer
+        self.overlays = set()  # the observation keys whose raster overlays show (`footprint_on`, `step_on`)
+        self._footprint = (None, None)  # footprint_on's last (raster, scan, slit-jaw) and answer
         self._before = {}  # point group -> its last state other than a slit-jaw point (see _to_raster)
         self._kept = (None, None)  # a slit-jaw image clicked, and the point its click set or left (see _to_raster)
         self._outside = (None, None)  # a slit-jaw viewer clicked outside the raster, and the point its click left
@@ -400,6 +402,12 @@ class Coordinator(HubListener):
         if key is not None:
             self.masters[key] = data
             self._timer.start()
+
+    def toggle_overlays(self, key):
+        """Show or hide the raster overlays of observation ``key`` (`footprint_on`, `step_on`)."""
+        if key is not None:
+            self.overlays ^= {key}
+            self._timer.start()  # the sync redraws them
 
     def add_listener(self, listener):
         """Call ``listener(key, time, exposure)`` whenever the time master of observation ``key`` moves."""
@@ -585,6 +593,15 @@ class Coordinator(HubListener):
             return point.reference_data
         return next((data for data in datasets if _role(data) == "raster"), None)
 
+    def master_time(self, key):
+        """The time of observation ``key``'s time master now, as the coming time sync takes it, or None."""
+        master = self._master(key)
+        if master is None:
+            return None
+        index, step = self._timing(master)
+        times = _times(master, step)
+        return times[min(max(index, 0), len(times) - 1)]
+
     def _timing(self, data):
         """
         The index of ``data``'s time along its first axis and, for rasters, the timing step.
@@ -713,6 +730,54 @@ class Coordinator(HubListener):
             x, y = _sji_pixels(sji, frame, lon, lat)
             self._placed = (key, (float(x), float(y)))
         return self._placed[1]
+
+    def footprint_on(self, viewer):
+        """
+        With the raster overlays of ``viewer``'s slit-jaw image's observation on: the slit of each step or exposure of
+        its raster, a stack's at its timing scan, placed through the slit-jaw frame nearest that step's time, as x and y
+        pixels of each slit's ends, the slits split by NaN; else None.
+        """
+        sji = viewer.state.reference_data
+        key = observation_key(sji) if sji is not None else None
+        if key not in self.overlays or _role(sji) != "sji" or _sji_frame(viewer.state) is None or not _placeable(sji):
+            return None
+        raster = self._master(key)
+        if _role(raster) != "raster":
+            raster = next((data for data in self._datasets(key) if _role(data) == "raster"), None)
+        if raster is None:
+            return None
+        scan = self._timing(raster)[0] if raster.ndim == 4 else None
+        if self._footprint[0] != (raster, scan, sji):  # the same at every frame step
+            steps, rows = raster.shape[-3:-1]
+            lead = () if scan is None else (scan,)
+            times = raster[raster.find_component_id("Time"), (*lead, slice(None), 0, 0)]
+            frames, _ = nearest(times, _times(sji, None))
+            n = 2 * steps  # each slit's two ends
+            ends = (*(np.full(n, i) for i in lead), np.arange(n) // 2, np.tile([-0.5, rows - 0.5], steps), np.zeros(n))
+            x, y = _sji_pixels(sji, np.repeat(frames, 2), *_lon_lat(raster, ends))
+            gaps = np.full((steps, 1), np.nan)
+            xy = tuple(np.hstack([v.reshape(steps, 2), gaps]).ravel() for v in (x, y))
+            self._footprint = ((raster, scan, sji), xy)
+        return self._footprint[1]
+
+    def step_on(self, viewer):
+        """
+        With the raster overlays of ``viewer``'s raster's observation on, while ``viewer`` shows its steps or exposures
+        against slit: the step or exposure, of a stack at the scan shown, nearest the time master's time, or None beyond
+        half their cadence (NO MATCH); else None.
+        """
+        state, data = viewer.state, viewer.state.reference_data
+        key = observation_key(data) if data is not None else None
+        if key not in self.overlays or _role(data) != "raster" or len(state.slices) != data.ndim:
+            return None
+        axis = data.ndim - 3
+        when = self.master_time(key)
+        if _shown(state) != {axis, axis + 1} or when is None:
+            return None
+        lead = (int(getattr(state.slices[0], "center", state.slices[0])),) if axis else ()
+        times = data[data.find_component_id("Time"), (*lead, slice(None), 0, 0)]
+        [index], [offset] = nearest([when], times)
+        return int(index) if abs(offset) <= _half_cadence(times) else None
 
     @staticmethod
     def slit_on(viewer):
@@ -1331,13 +1396,10 @@ class _SpectralLines(QObject):
 
     def _time_index(self):
         """The raster's step, exposure or scan nearest the time master's time, or None beyond half its cadence."""
-        master = self.coordinator._master(self.key)
-        if master is None:
-            return None
         # the master's time now, as the coming time sync takes it: a step moves the lines in glue's own redraw
-        index, step = self.coordinator._timing(master)
-        times = _times(master, step)
-        when = times[min(max(index, 0), len(times) - 1)]
+        when = self.coordinator.master_time(self.key)
+        if when is None:
+            return None
         times = _times(self.data, self.coordinator._timing(self.data)[1])
         [index], [offset] = nearest([when], times)
         return int(index) if abs(offset) <= _half_cadence(times) else None  # NaT, a gap, is never within
