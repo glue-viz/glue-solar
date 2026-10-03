@@ -1,0 +1,1 @@
+A Pixel click on a quicklook's slit-jaw image moves the point to the raster pixel there, placed with that frame's own pointing, and the spectrum and other panels follow; a click outside the raster reads "outside raster FOV".
