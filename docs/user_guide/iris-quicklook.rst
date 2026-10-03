@@ -116,18 +116,19 @@ pixel there, placed with the displayed frame's own pointing (``sji_to_raster``, 
 :ref:`Scripting with IRIS data <glue_solar_users_guide_scripting_iris_data>`): on a scanning raster
 the nearest step and slit position, on a stack also the scan nearest the frame's time at that step,
 and on a sit-and-stare raster the exposure nearest the frame's time and the slit position level with
-the click, however far beside the slit: the slit is about one slit-jaw pixel wide, less than a
-screen pixel at the quicklook's zoom. The other panels and the spectrum follow, as after a map
-click, and the red cross marks the point. The viewer keeps the frame clicked until the point moves
-again, with its offset from the raster's time, NO MATCH and greyed when the raster took that place
-more than half a frame interval away, as it often did on a scanning raster; under a slit-jaw time
-master the master rules, and the exposure and the viewer clicked follow its frame. One Undo ("Edit"
-menu, Ctrl+Z, Cmd+Z on macOS) takes the point back. A click outside the raster, past its first or
-last step or either end of its slit, or on a sit-and-stare raster in a frame with no exposure within
-half its cadence, leaves the point where it was, and the viewer's "Frame time" readout says "outside
-raster FOV" until the point moves; it still adds an Undo step, which changes nothing. A click on a
-slit-jaw viewer showing its frame axis, which is no place on the Sun, is marked only there, and the
-spectrum panel is empty until the next raster click.
+the click, however far beside the slit: the slit, 0.33″ or about two slit-jaw pixels wide, is about
+a screen pixel wide at the quicklook's zoom. The other panels and the spectrum follow, as after a
+map click, and the red cross marks the point. The viewer keeps the frame clicked, also after a click
+outside the raster (below), until the point moves again, with its offset from the raster's time, NO
+MATCH and greyed when the raster took that place more than half a frame interval away, as it often
+did on a scanning raster; under a slit-jaw time master the master rules, and the exposure or scan
+and the viewer clicked follow its frame. One Undo ("Edit" menu, Ctrl+Z, Cmd+Z on macOS) takes the
+point back. A click outside the raster, past its first or last step or either end of its slit, or on
+a sit-and-stare raster in a frame with no exposure within half its cadence, leaves the point where
+it was, and the viewer's "Frame time" readout says "outside raster FOV" until the point moves; it
+still adds an Undo step, which changes nothing. A click on a slit-jaw viewer showing its frame axis,
+which is no place on the Sun, is marked only there, and the spectrum panel is empty until the next
+raster click.
 
 Below the panels, which keep their size (scroll the tab down on a small screen), the read-only
 "Point" window gives the point in each dataset the quicklook shows, one row each, as the readouts
