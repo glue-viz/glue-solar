@@ -214,6 +214,7 @@ def test_frame_time_tool_survives_an_empty_collapse(qtbot):
     tool = viewer.toolbar.tools["solar:frame_time"]
     viewer.state.slices = (AggregateSlice(slice(2, 2), 2, np.nanmean), 0, 0)
     assert tool.label.text() == ""
+    viewer.state.slices = (2, 0, 0)  # glue's image raises on drawing an empty Collapse range, as queued here
 
 
 def test_readout_gives_arcsec_only_where_wcsaxes_shows_arcsec(qtbot):
