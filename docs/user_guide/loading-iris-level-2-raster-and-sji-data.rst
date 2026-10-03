@@ -217,9 +217,17 @@ other through Glue's own link.
 - A region drawn on a slit-jaw image does not carry over to a raster or a sunpy Map: which frame it
   belongs to would need the time, and time is never linked.
 
-A region drawn on a raster map can be slow to show on a slit-jaw image: glue works out the selection
-for every screen pixel of the slit-jaw viewer each time it draws a frame, and does not respond
-meanwhile. At the default viewer size this takes under a second with a 64-step raster, but 10 to 20
-seconds with a 1600-step sit-and-stare raster, for every frame you step to, and longer in a larger
-viewer. On a sunpy Map it takes about 4 seconds with a 1600-step raster, each time the map's viewer
-draws.
+A region drawn on the map of a quicklook (see :ref:`glue_solar_users_guide_iris_quicklook`) reaches
+the other data by its outline in longitude and latitude, traced through the raster's own
+coordinates with a corner at every raster step: on the raster it selects exactly the pixels inside
+it, and elsewhere the pixels inside the outline, the same ones glue's own selection gives. This
+takes a fraction of a second per slit-jaw frame, for example 0.23 s for a full 1506 by 771 frame of
+OBSID 4000005156's deconvolved SJI 2796 under a Si IV raster region, which glue takes 11 s over. It
+reaches a sunpy Map whose longitudes run from 0 to 360° too.
+
+A region drawn on a raster in any other Image Viewer is glue's own, and can be slow to show on a
+slit-jaw image: glue works out the selection for every screen pixel of the slit-jaw viewer each
+time it draws a frame, and does not respond meanwhile. At the default viewer size this takes under
+a second with a 64-step raster, but 10 to 20 seconds with a 1600-step sit-and-stare raster, for
+every frame you step to, and longer in a larger viewer. On a sunpy Map it takes about 4 seconds
+with a 1600-step raster, each time the map's viewer draws.

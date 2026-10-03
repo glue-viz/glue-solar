@@ -6,20 +6,23 @@ import sys
 import weakref
 from contextlib import contextmanager
 from functools import partial
+from itertools import pairwise
 
 import numpy as np
 from echo import delay_callback
 from glue.config import layer_artist_maker
 from glue.core.hub import HubListener
 from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, SubsetDeleteMessage, SubsetUpdateMessage
-from glue.core.subset import SubsetState
-from glue.viewers.common.utils import get_viewer_tools
+from glue.core.roi import PolygonalROI
+from glue.core.subset import RoiSubsetState, SubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.profile.state import ProfileLayerState
 from glue_qt.utils import process_events
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from matplotlib.path import Path
+from matplotlib.transforms import Bbox
 from qtpy.QtCore import QEventLoop, Qt, QTimer
 from qtpy.QtWidgets import (
     QAbstractItemView,
@@ -763,24 +766,80 @@ class Coordinator(HubListener):
             self._set_slices(viewer, fixed)
 
 
+def _within_half_turn(lon, lat):
+    """Longitudes (arcsec) within ±180°, as glue-solar gives IRIS data's: a sunpy map's can run from 0 to 360°."""
+    return (lon + 648000) % 1296000 - 648000, lat
+
+
+def _outline_region(raster, roi, x_axis, y_axis, slices):
+    """
+    ``roi``, drawn on the pixel axes ``x_axis`` and ``y_axis`` of ``raster`` at ``slices``, as a region of
+    helioprojective longitude and latitude.
+
+    Its outline runs within the raster's first and last pixel centres, past which glue's inverse of its coordinates
+    places nothing, and has a corner wherever it crosses a whole step: between steps those coordinates are linear.
+    """
+    margin = 1e-6  # so that pixel centres on the edge, such as another window's of the raster, are inside
+    box = Bbox([[-margin, -margin], [raster.shape[x_axis] - 1 + margin, raster.shape[y_axis] - 1 + margin]])
+    vertices = np.column_stack(roi.to_polygon())
+    clipped = Path(np.vstack([vertices, vertices[:1]]), closed=True).clip_to_bbox(box).to_polygons()
+    along = int(y_axis == raster.ndim - 3)  # the outline's coordinate along the steps
+    points = []
+    for start, end in pairwise(clipped[0] if clipped else ()):
+        low, high = sorted((start[along], end[along]))
+        crossings = (np.arange(np.floor(low) + 1, np.ceil(high)) - start[along]) / (end[along] - start[along])
+        points += [start, *(start + np.sort(crossings)[:, None] * (end - start))]
+    x, y = np.reshape(points, (-1, 2)).T
+    pixel = [np.full(len(x), getattr(s, "center", s)) for s in slices]
+    pixel[x_axis], pixel[y_axis] = x, y
+    lon, lat = _lon_lat(raster, pixel)
+    types = list(raster.coords.world_axis_physical_types)
+    lon_id, lat_id = (
+        raster.world_component_ids[raster.ndim - 1 - types.index(f"custom:pos.helioprojective.{angle}")]
+        for angle in ("lon", "lat")
+    )
+    return RoiSubsetState(lon_id, lat_id, PolygonalROI(lon, lat), pretransform=_within_half_turn)
+
+
+class _RasterRoiSubsetState(RoiSubsetState):
+    """
+    A region drawn on a raster map: the raster's pixels inside it, as glue's own region, and on other data
+    ``world``, the region inside its outline (`_outline_region`), which glue places without inverting the raster's
+    coordinates at each of their pixels.
+    """
+
+    def __init__(self, xatt, yatt, roi, world):
+        super().__init__(xatt, yatt, roi)
+        self.world = world
+
+    def to_mask(self, data, view=None):
+        if self.xatt in data.pixel_component_ids:
+            return super().to_mask(data, view)
+        return self.world.to_mask(data, view)
+
+    def copy(self):  # glue applies a copy
+        return _RasterRoiSubsetState(self.xatt, self.yatt, self.roi, self.world)
+
+
 class QuicklookImageViewer(ImageViewer):
     """
-    An Image viewer without glue's region selection tools, used for IRIS rasters in the quicklook.
+    An Image viewer used for IRIS rasters in the quicklook, whose map regions reach other data by their outline.
 
-    A region drawn on a raster map is recomputed on every linked slit-jaw viewer for each screen pixel
-    at every draw, which takes seconds per frame. The Pixel tool stays: glue gives its point an empty
-    mask on any dataset that is not pixel-aligned with the one it was drawn on.
+    glue would place a region drawn on a raster map in a linked slit-jaw image by inverting the raster's coordinates
+    at each screen pixel, which takes seconds per frame. Here the region selects the raster's pixels inside it, and
+    on other data, such as each slit-jaw frame at its own pointing, what lies inside its outline in helioprojective
+    longitude and latitude. A region on any other panel is glue's own.
     """
 
-    inherit_tools = False
-    tools, subtools = [], {}
-
-    def initialize_toolbar(self):
-        # Read when a viewer is made: glue_solar.setup() and glue-qt's plugins add tools after import
-        tools, subtools = get_viewer_tools(ImageViewer)
-        type(self).tools = [tool for tool in tools if not tool.startswith("select:")]
-        type(self).subtools = subtools
-        super().initialize_toolbar()
+    def apply_roi(self, roi, override_mode=None):
+        state = self.state
+        data = state.reference_data
+        if _role(data) != "raster" or _shown(state) != {data.ndim - 3, data.ndim - 2}:
+            return super().apply_roi(roi, override_mode=override_mode)
+        self.redraw()  # as glue's own does, which clears the drawn region
+        world = _outline_region(data, roi, state.x_att.axis, state.y_att.axis, state.slices)
+        region = _RasterRoiSubsetState(state.x_att, state.y_att, roi, world)
+        self.apply_subset_state(region, override_mode=override_mode)
 
 
 def _role(data):

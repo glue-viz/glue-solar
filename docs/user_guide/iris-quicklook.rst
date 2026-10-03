@@ -78,9 +78,13 @@ stack the point stays on the map's scan. A Profile's collapse of an axis is left
 slit-jaw viewers keep following the exposure slider of a sit-and-stare raster and the scan slider of
 a stack's map, on a scanning raster the time stays at the last point's raster step, and a slit-jaw
 time master (see below) still moves the others. A click on a slit-jaw viewer moves the point to the
-raster there (see below). The raster panels have no region selection tools, because a region drawn on a
-raster map is recomputed on every slit-jaw viewer for each screen pixel at every frame (see
-:ref:`Linking <glue_solar_users_guide_iris_linking>`). Each quicklook has its own point,
+raster there (see below). The raster panels have glue's region selection tools. A region drawn on
+the map selects the raster's pixels inside it, and reaches each slit-jaw frame, at that frame's own
+pointing, and other linked data by its outline in longitude and latitude, in a fraction of a second
+per frame (see :ref:`Linking <glue_solar_users_guide_iris_linking>`); one drawn on the spectrogram
+or the wavelength panel selects on that raster only. A region replaces the edit subset, ``Point``,
+unless you first select the dataset in the data collection or choose "None/Create New" as the
+toolbar's "Active Subset". Each quicklook has its own point,
 shown only in its own panels, edited while its tab is
 shown and moved only by that tab's sliders. Where a point does not show, it is not in the viewer's
 layer list either, since glue would still redraw a hidden layer at every move: drag the subset onto
