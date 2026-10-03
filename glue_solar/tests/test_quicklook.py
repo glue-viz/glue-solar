@@ -7,6 +7,7 @@ from glue.config import settings
 from glue.core import Data
 from glue.core.component import DateTimeComponent
 from glue.core.edit_subset_mode import OrMode
+from glue.core.exceptions import IncompatibleAttribute
 from glue.core.hub import HubListener
 from glue.core.link_manager import LinkManager
 from glue.core.message import SettingsChangeMessage, SubsetUpdateMessage
@@ -1726,14 +1727,18 @@ def test_a_raster_region_edits_only_a_region_picked_to_edit(bare_app, irispy_tes
 
 
 def inside_in_frame(raster, sji, frame, roi):
-    """Whether each raster pixel lies inside ``roi`` on slit-jaw frame ``frame``, from the datasets' coordinates."""
+    """
+    Whether each raster pixel lies inside ``roi`` within slit-jaw frame ``frame``, between its first and last pixel
+    centres, from the datasets' coordinates.
+    """
     step, slit = np.indices(raster.shape[:2])
-    inside = roi.contains(*raster_point_on_sji(raster, sji, step, slit, frame))
+    x, y = raster_point_on_sji(raster, sji, step, slit, frame)
+    inside = roi.contains(x, y) & (0 <= x) & (x <= sji.shape[2] - 1) & (0 <= y) & (y <= sji.shape[1] - 1)
     return np.repeat(inside[..., None], raster.shape[2], axis=2)
 
 
 @pytest.mark.parametrize("step", [0.0, 0.3], ids=["sit-and-stare", "scanning"])
-def test_a_slit_jaw_region_is_a_new_subset(bare_app, tmp_path, irispy_test_files, step):
+def test_a_slit_jaw_region_is_a_new_subset(bare_app, monkeypatch, tmp_path, irispy_test_files, step):
     raster, sji = sit_and_stare(irispy_test_files)
     if step:  # a copy stepping west at each exposure
         path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step)
@@ -1765,10 +1770,14 @@ def test_a_slit_jaw_region_is_a_new_subset(bare_app, tmp_path, irispy_test_files
     # glue's own region on the slit-jaw image's pixels, in every frame
     pixels = roi_to_subset_state(roi, x_att=sji.pixel_component_ids[2], y_att=sji.pixel_component_ids[1])
     np.testing.assert_array_equal(sji.get_mask(region.subset_state), sji.get_mask(pixels))
-    # and the raster's pixels inside it at the pointing of the frame it was drawn on
+    # and the raster's pixels inside it at the pointing of the frame it was drawn on, each placed once rather than at
+    # every wavelength, which made a full raster's spectrum take seconds
     expected = inside_in_frame(raster, sji, frame, roi)
     assert expected.sum() >= 20 * raster.shape[2]
+    placed, contains = [], PolygonalROI.contains
+    monkeypatch.setattr(PolygonalROI, "contains", lambda self, x, y: placed.append(np.size(x)) or contains(self, x, y))
     np.testing.assert_array_equal(raster.get_mask(region.subset_state), expected)
+    assert placed == [raster.shape[0] * raster.shape[1]]
     # a Pixel click on the slit-jaw image still moves the point to the raster there, and leaves the region
     drawn = region.subset_state
     index = sji_to_raster(sji, frame, 15, 15, raster)
@@ -1784,7 +1793,7 @@ def test_a_slit_jaw_region_edits_only_a_region_picked_to_edit(bare_app, irispy_t
     viewers = quicklook(bare_app, [raster, sji])
     [sji_viewer] = viewers["sji"]
     collection, mode = bare_app.data_collection, bare_app.session.edit_subset_mode
-    first, second = RectangularROI(8.3, 14.6, 5.4, 15.7), RectangularROI(16.3, 24.6, 20.4, 30.7)
+    first, second = RectangularROI(26.3, 32.6, 5.4, 15.7), RectangularROI(16.3, 24.6, 20.4, 30.7)
     # while the point is the edit subset a region is a new subset, whatever glue's selection mode
     mode.mode = OrMode
     sji_viewer.apply_roi(first)
@@ -1794,12 +1803,38 @@ def test_a_slit_jaw_region_edits_only_a_region_picked_to_edit(bare_app, irispy_t
     mode.edit_subset = [region]
     sji_viewer.apply_roi(second)
     assert collection.subset_groups == (point, region)
-    expected = inside_in_frame(raster, sji, 0, first) | inside_in_frame(raster, sji, 0, second)
-    np.testing.assert_array_equal(raster.get_mask(region.subset_state), expected)
+    expected = [inside_in_frame(raster, sji, 0, roi) for roi in (first, second)]
+    assert all(mask.any() for mask in expected)  # each on the raster, so that replacing one with the other shows
+    np.testing.assert_array_equal(raster.get_mask(region.subset_state), expected[0] | expected[1])
     # and the Pixel tool replaces it with the slit-jaw pixel clicked, as on the raster panels, leaving the point
     select_point(sji_viewer, 15, 15)
     assert region.subset_state.reference_data is sji
     assert [s.start for s in region.subset_state.slices] == [None, 15, 15]
+    assert point.subset_state is state
+
+
+def test_a_slit_jaw_range_or_frame_axis_region(bare_app, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    collection = bare_app.data_collection
+    [point] = collection.subset_groups
+    state = point.subset_state
+    # a range across the slit-jaw frame reaches the raster within the frame, which the raster runs past here
+    frame = sji_viewer.state.slices[0]
+    for roi in (XRangeROI(16.3, 24.6), YRangeROI(10.2, 20.7)):
+        expected = inside_in_frame(raster, sji, frame, roi)
+        assert expected.sum() >= 20 * raster.shape[2]
+        np.testing.assert_array_equal(raster.get_mask(draw_region(bare_app, sji_viewer, roi)), expected)
+    # on a slit-jaw viewer showing the frame axis, a region is glue's own, on that image only
+    sji_viewer.state.x_att = sji.pixel_component_ids[0]
+    roi = RectangularROI(10.3, 40.6, 5.4, 25.7)
+    region = draw_region(bare_app, sji_viewer, roi)
+    pixels = roi_to_subset_state(roi, x_att=sji.pixel_component_ids[0], y_att=sji.pixel_component_ids[1])
+    np.testing.assert_array_equal(sji.get_mask(region), sji.get_mask(pixels))
+    with pytest.raises(IncompatibleAttribute):
+        raster.get_mask(region)
+    assert len(collection.subset_groups) == 4
     assert point.subset_state is state
 
 
