@@ -27,8 +27,10 @@ import astropy.units as u
 from astropy.coordinates import Angle, angular_separation
 
 from glue_solar.quicklook import (
+    _across,
     _half_cadence,
     _is_sit_and_stare,
+    _place,
     _role,
     _seconds_text,
     _spectral_axes,
@@ -816,6 +818,23 @@ class _TimeMasterEntry(_CoordinateEntry):
         coordinator.set_master(self.viewer.state.reference_data)
 
 
+class _OverlaysEntry(_CoordinateEntry):
+    """
+    Show or hide the raster overlays of the viewer's observation on all its viewers: on each slit-jaw image the slit of
+    each raster step or exposure, a stack's at the scan its panels show, placed through the frame nearest that step's
+    time, and on each map of the raster, its steps or exposures against slit, a dashed line at the one nearest the time
+    master's time, hidden beyond half their cadence. Plain matplotlib lines: 'Save plot' shows them, and sessions and
+    Python scripts leave them out.
+    """
+
+    tool_id = "solar:raster_overlays"
+    action_text = "Raster overlays"
+    tool_tip = "Show or hide each raster step's slit on the slit-jaw images and the step at the master's time on maps"
+
+    def run(self, coordinator):
+        coordinator.toggle_overlays(observation_key(self.viewer.state.reference_data))
+
+
 class _ClearPointEntry(_CoordinateEntry):
     tool_id = "solar:clear_point"
     action_text = "Clear point"
@@ -1013,9 +1032,9 @@ class CoordinateTool(SimpleToolMenu):
     `~glue_solar.quicklook.Coordinator`, which keeps the viewers on the point selected with the
     Pixel tool, and unregisters it when the viewer closes. Its menu makes the displayed dataset the
     time master of its observation, clears the point, moves the time master to a typed UTC time, or
-    makes the frame, exposure, step or scan slider's playback loop over a range. On a slit-jaw image it
-    draws the displayed frame's slit, and the point of a raster of the same observation placed with
-    that frame's coordinates while it is on the image.
+    makes the frame, exposure, step or scan slider's playback loop over a range, or shows the raster
+    overlays. On a slit-jaw image it draws the displayed frame's slit, and the point of a raster of the
+    same observation placed with that frame's coordinates while it is on the image.
     """
 
     icon = "glue_link"
@@ -1024,7 +1043,7 @@ class CoordinateTool(SimpleToolMenu):
     tool_tip = "Coordinate this viewer with the others of its IRIS observation"
 
     def __init__(self, viewer, subtools=None):
-        entries = (_TimeMasterEntry, _ClearPointEntry, _GoToUTCEntry, _LoopEntry)
+        entries = (_TimeMasterEntry, _ClearPointEntry, _GoToUTCEntry, _LoopEntry, _OverlaysEntry)
         super().__init__(viewer, subtools=subtools or [entry(viewer, self) for entry in entries])
         self.coordinator = coordinator(viewer._data)
         self.coordinator.register(viewer)
@@ -1037,6 +1056,13 @@ class CoordinateTool(SimpleToolMenu):
         # the style of glue's crosshair, but not glue's single crosshair artist, which the PV slicer moves and hides
         self._marker = viewer.axes.add_line(
             Line2D([], [], marker="+", ms=12, mfc="none", mec="#d32d26", mew=1, ls="", zorder=100, visible=False)
+        )
+        # the raster overlays: each step's slit on a slit-jaw image, the step at the master's time on a map
+        self._footprint = viewer.axes.add_line(
+            Line2D([], [], gid="solar:footprint", color="white", lw=0.5, alpha=0.6, zorder=98, visible=False)
+        )
+        self._step = viewer.axes.add_line(
+            Line2D([], [], gid="solar:step", color="white", lw=0.8, ls="--", zorder=99, visible=False)
         )
         self.coordinator.add_listener(self._synced)
         for prop in _WATCHED:
@@ -1061,10 +1087,11 @@ class CoordinateTool(SimpleToolMenu):
         self._draw()
 
     def _draw(self, *_):
-        """Draw the slit and the raster point on a slit-jaw image, or hide them."""
-        viewer = self.viewer
+        """Draw the slit, the raster point and the raster overlays on a slit-jaw image, or hide them; and on a map."""
+        viewer, coordinator = self.viewer, self.coordinator
         state = viewer.state
-        slit, point = self.coordinator.slit_on(viewer), self.coordinator.point_on(viewer)
+        slit, point = coordinator.slit_on(viewer), coordinator.point_on(viewer)
+        footprint, step = coordinator.footprint_on(viewer), coordinator.step_on(viewer)
         line = None
         if state.reference_data is None or state.reference_data.ndim != 3:
             slit = point = None
@@ -1074,15 +1101,10 @@ class CoordinateTool(SimpleToolMenu):
                 point = None
             if slit is not None:
                 line = ([slit, slit], [-0.5, ny - 0.5])
-            if state.x_att.axis != 2:  # the image is shown transposed
-                line = line[::-1] if line is not None else None
-                point = point[::-1] if point is not None else None
-        changed = False
-        for artist, xy in ((self._slit, line), (self._marker, None if point is None else ([point[0]], [point[1]]))):
-            before = (artist.get_visible(), artist.get_xydata().tolist())
-            if xy is not None:
-                artist.set_data(*xy)
-            artist.set_visible(xy is not None)
-            changed |= (artist.get_visible(), artist.get_xydata().tolist()) != before
-        if changed:  # each sync calls this: redraw only for a move
+        if state.x_att is not None and state.x_att.axis != 2:  # a slit-jaw image shown transposed
+            line, point, footprint = (None if xy is None else xy[::-1] for xy in (line, point, footprint))
+        marker = None if point is None else ([point[0]], [point[1]])
+        step = None if step is None else _across(state, state.reference_data.ndim - 3, [step])
+        drawn = ((self._slit, line), (self._marker, marker), (self._footprint, footprint), (self._step, step))
+        if any([_place(artist, xy) for artist, xy in drawn]):  # each sync calls this: redraw only for a move
             viewer.figure.canvas.draw_idle()

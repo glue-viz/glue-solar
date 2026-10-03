@@ -71,10 +71,10 @@ def press(viewer, key):
     QTest.keyClick(viewer.figure.canvas, key)
 
 
-def raster_point_on_sji(raster, sji, step, slit, frame=0):
-    """Raster pixel ``step, slit`` (at a stack's scan 0) in slit-jaw frame ``frame``, from the datasets' coordinates."""
+def raster_point_on_sji(raster, sji, step, slit, frame=0, scan=0):
+    """Raster pixel ``step, slit`` (at a stack's scan ``scan``) in slit-jaw frame ``frame``, from their coordinates."""
     raster_types, types = list(raster.coords.world_axis_physical_types), list(sji.coords.world_axis_physical_types)
-    raster_world, world = raster.coords.pixel_to_world_values(0, slit, step, *[0] * (raster.ndim - 3)), [None] * 3
+    raster_world, world = raster.coords.pixel_to_world_values(0, slit, step, *[scan] * (raster.ndim - 3)), [None] * 3
     for kind in ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat"):
         world[types.index(kind)] = raster_world[raster_types.index(kind)]
     world[types.index("time")] = sji.coords.pixel_to_world_values(0, 0, frame)[types.index("time")]
