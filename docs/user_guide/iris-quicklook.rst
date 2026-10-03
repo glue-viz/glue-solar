@@ -111,6 +111,27 @@ time" readout says "outside SJI FOV", when the point is off the image; neither i
 viewer shows the frame axis. A slit-jaw frame taken a raster step earlier or later than the point
 shows the slit a step away from the cross.
 
+Below the panels, which keep their size (scroll the tab down on a small screen), the read-only
+"Point" window gives the point in each dataset the quicklook shows, one row each, as the readouts
+give it:
+
+- Pixel: the point's indices in the dataset: step (exposure on a sit-and-stare raster, scan and step
+  on a stack), slit and wavelength pixel (λ, the one the map shows) on the raster; frame, y and x
+  on a slit-jaw image, where the point is placed in the displayed frame, as its red cross is;
+- Position: the helioprojective longitude and latitude of that pixel, and on the raster its
+  wavelength, in arcsec to 0.01″ and Å to 0.001 Å, as the mouse-over readout gives them;
+- Time and Exposure: that pixel's ``Time`` in UTC, to the millisecond, and its ``Exposure time``;
+- Value: the value there of the component the dataset's panel shows;
+- Time sync: what its "Frame time" readout says: "time master" (with the timing raster step), the
+  offset Δt of its time from the master's, such as each slit-jaw frame's from the point's raster
+  step or exposure, or "NO MATCH".
+
+A point clicked on a slit-jaw image fills its own row only, as the raster panels do not follow it;
+a point off a slit-jaw image gives "outside SJI FOV" there, and a dataset of another observation
+"no match". After "Clear point" only the time sync is left. The window refreshes once for each
+click, slider step or time sync, and only while its tab is shown. Move or resize it like a panel;
+closing the tab closes it, and one closed by hand stays closed.
+
 Regridding on time
 ------------------
 

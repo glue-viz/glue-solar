@@ -26,8 +26,9 @@ from astropy.visualization.wcsaxes.ticklabels import TickLabels
 from astropy.wcs import WCS
 
 import glue_solar
-from glue_solar.conftest import find_irispy_test_file
+from glue_solar.conftest import MD5, OBS_B, find_irispy_test_file
 from glue_solar.quicklook import (
+    Coordinator,
     QuicklookImageViewer,
     _half_cadence,
     coordinator,
@@ -2242,3 +2243,175 @@ def test_the_exposure_axis_after_the_combo_hidden_axes_and_another_dataset(bare_
     raster_map.state.reference_data = raster  # and back, with exposure on x again
     raster_map.state.x_att = raster.pixel_component_ids[0]
     check_exposure_axis(raster_map, "x", label, exposures)
+
+
+# The Point window
+
+
+def point_window(app, tab=None):
+    """The Point window of the quicklook in tab ``tab``, the current one by default."""
+    [window] = [sub.widget() for sub in app.tab(tab).subWindowList() if isinstance(sub.widget(), QtWidgets.QTableView)]
+    return window
+
+
+def settle(qtbot, *windows):
+    """Let Qt run the coordinator's deferred work, then the windows' refresh, which follows it."""
+    qtbot.wait(20)
+    qtbot.waitUntil(lambda: not any(window._timer.isActive() for window in windows))
+
+
+def rows(window):
+    columns = range(window.columnCount())
+    return [[window.item(row, column).text() for column in columns] for row in range(window.rowCount())]
+
+
+def read_at(data, names, pixel, sync):
+    """The Point window's row for ``data`` at ``pixel``, whose axes are ``names``, as read from the data."""
+    world = data.coords.pixel_to_world_values(*pixel[::-1])
+    units = data.coords.world_axis_units
+    # helioprojective angles in arcsec and wavelengths in Angstrom, as IRIS data give them; time has its own column
+    position = [f'{value:.2f}"' if unit == "arcsec" else f"{value:.3f} Å" for value, unit in zip(world, units)
+                if unit in ("arcsec", "Angstrom")]
+    return [
+        data.label,
+        ", ".join(f"{name} {index}" for name, index in zip(names, pixel)),
+        " ".join(position),
+        f"{np.datetime_as_string(data[data.id['Time'], pixel], unit='ms')} UTC",
+        f"{data[data.id['Exposure time'], pixel]:.4g} s",
+        f"{data[data.id[data.label], pixel]:.6g}",
+        sync,
+    ]
+
+
+def unpointed(data, sync):
+    return [data.label, "", "", "", "", "", sync]
+
+
+@pytest.mark.parametrize("stacked", [False, True], ids=["scan", "stack"])
+def test_the_point_window_reads_the_raster_at_the_point(bare_app, qtbot, scans, iris_tree, stacked):
+    data = scans[stacked]
+    d, t, o = OBS_B
+    other = image_data(iris_tree / f"{MD5}iris_l2_{d}_{t}_{o}_SJI_2832_t000.fits.gz")  # another observation
+    viewers = quicklook(bare_app, [data, other])
+    window = point_window(bare_app)
+    assert window.parentWidget().windowTitle() == "Point"
+    header = [window.horizontalHeaderItem(column).text() for column in range(window.columnCount())]
+    assert header == ["Dataset", "Pixel", "Position", "Time", "Exposure", "Value", "Time sync"]
+    # below the panels, overlapping none
+    place = window.parentWidget().geometry()
+    assert not [viewer for viewer in bare_app.viewers[-1] if viewer.parentWidget().geometry().intersects(place)]
+    names = ("scan", "step", "slit", "λ")[-data.ndim :]
+    no_match = [other.label, "no match", "", "", "", "", ""]
+
+    def event(action, pixel):
+        action()
+        settle(qtbot, window)
+        assert rows(window) == [read_at(data, names, pixel, f"time master, step {pixel[-3]}"), no_match]
+
+    # it opens at the map's centre and wavelength, and follows map clicks, the map's wavelength slider, and a
+    # spectrogram click, which moves the map to its wavelength
+    start = expected_start(data)
+    event(lambda: None, start)
+    scan = (0,) * (data.ndim - 3)
+    event(lambda: select_point(viewers["map"], 3, 50), (*scan, 3, 50, start[-1]))
+    event(lambda: slide(viewers["map"], data.ndim - 1, 9), (*scan, 3, 50, 9))
+    if stacked:
+        event(lambda: slide(viewers["map"], 0, 4), (4, 3, 50, 9))
+        scan = (4,)
+    event(lambda: select_point(viewers["spectrogram"], 5, 40), (*scan, 3, 40, 5))
+    # Clear point leaves the time sync only
+    menu_action(viewers["map"], "Clear point").trigger()
+    settle(qtbot, window)
+    assert rows(window) == [unpointed(data, "time master, step 3"), no_match]
+
+
+def test_the_point_window_places_the_point_on_each_slit_jaw_image(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    sjis = [sji, image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_2796_t000")))]
+    viewers = quicklook(bare_app, [raster, *sjis])
+    window = point_window(bare_app)
+    shows = [(raster, viewers["map"]), *zip(sjis, viewers["sji"])]
+
+    def sync(viewer):
+        """The time sync as the viewer's Frame time readout gives it."""
+        return readout(viewer).rsplit(" · ", 1)[1]
+
+    def expected(exposure, slit):
+        wavelength = viewers["map"].state.slices[2]
+        found = [read_at(raster, ("exposure", "slit", "λ"), (exposure, slit, wavelength), sync(viewers["map"]))]
+        for data, viewer in shows[1:]:
+            frame = viewer.state.slices[0]
+            x, y = raster_point_on_sji(raster, data, exposure, slit, frame)
+            found.append(read_at(data, ("frame", "y", "x"), (frame, round(y), round(x)), sync(viewer)))
+        return found
+
+    # exposure 78 has a frame of SJI 1400 near it but not of SJI 2796, which keeps frame 0 (NO MATCH)
+    select_point(viewers["map"], 78, 10)
+    settle(qtbot, window)
+    assert [sync(viewer) for viewer in viewers["sji"]][1].startswith("NO MATCH")
+    assert rows(window) == expected(78, 10)
+    # a slit-jaw frame moved by hand, and a wavelength step
+    slide(viewers["sji"][1], 0, 5)
+    slide(viewers["map"], 2, 7)
+    settle(qtbot, window)
+    assert rows(window) == expected(78, 10)
+    # off a slit-jaw image, as the Frame time readout says
+
+    def off_the_image(self, viewer, point_on=Coordinator.point_on):
+        return (-5.0, 3.0) if viewer is viewers["sji"][1] else point_on(self, viewer)
+
+    monkeypatch.setattr(Coordinator, "point_on", off_the_image)
+    slide(viewers["sji"][1], 0, 6)
+    settle(qtbot, window)
+    off = [sjis[1].label, "outside SJI FOV", "", "", "", "", sync(viewers["sji"][1])]
+    assert "outside SJI FOV" in readout(viewers["sji"][1])
+    assert rows(window)[1:] == [expected(78, 10)[1], off]
+    monkeypatch.undo()
+    # a point clicked on a slit-jaw image fills its own row only
+    select_point(viewers["sji"][0], 10, 20)
+    settle(qtbot, window)
+    frame = viewers["sji"][0].state.slices[0]
+    assert rows(window) == [
+        unpointed(raster, sync(viewers["map"])),
+        read_at(sji, ("frame", "y", "x"), (frame, 20, 10), sync(viewers["sji"][0])),
+        unpointed(sjis[1], sync(viewers["sji"][1])),
+    ]
+    menu_action(viewers["map"], "Clear point").trigger()
+    settle(qtbot, window)
+    assert rows(window) == [unpointed(data, sync(viewer)) for data, viewer in shows]
+
+
+def test_each_quicklook_has_its_own_point_window(bare_app, qtbot, monkeypatch, scans):
+    scan, stack = scans
+    refreshed = []
+    cls = glue_solar.quicklook._PointWindow
+    monkeypatch.setattr(cls, "refresh", lambda self, refresh=cls.refresh: refreshed.append(self) or refresh(self))
+    first = quicklook(bare_app, [scan])
+    quicklook(bare_app, [stack])
+    tabs = (bare_app.tab_count - 2, bare_app.tab_count - 1)
+    windows = [point_window(bare_app, tab) for tab in tabs]
+    settle(qtbot, *windows)
+    before = rows(windows[0])
+
+    def refreshes(action):
+        refreshed.clear()
+        action()
+        settle(qtbot, *windows)
+        return refreshed
+
+    # each move refreshes the shown tab's window once, and a hidden one not at all
+    second = bare_app.viewers[-1]
+    assert refreshes(lambda: select_point(second[0], 2, 30)) == [windows[1]]
+    assert refreshes(lambda: slide(second[0], 3, 9)) == [windows[1]]
+    assert refreshes(lambda: menu_action(second[0], "Clear point").trigger()) == [windows[1]]
+    assert rows(windows[0]) == before
+    # shown again, a window follows its own point
+    assert refreshes(lambda: bare_app.tab_widget.setCurrentIndex(tabs[0])) == [windows[0]]
+    assert refreshes(lambda: select_point(first["map"], 6, 20)) == [windows[0]]
+    assert rows(windows[0])[0][1] == f"step 6, slit 20, λ {first['map'].state.slices[2]}"
+    # closing its tab removes it, and it stops listening
+    closed = windows.pop()
+    with qtbot.waitSignal(closed.destroyed):
+        bare_app.close_tab(tabs[1], warn=False)
+    assert not [f for f in coordinator(bare_app.data_collection)._listeners if getattr(f, "__self__", 0) is closed]
+    assert refreshes(lambda: select_point(first["map"], 7, 20)) == [windows[0]]
