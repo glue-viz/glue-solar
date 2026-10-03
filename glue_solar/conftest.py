@@ -53,6 +53,25 @@ def _canvas_errors_fail(monkeypatch):
         pytest.fail(f"an idle draw raised {errors[0]!r}")
 
 
+@pytest.fixture(autouse=True)
+def _widgets_outlive_the_test(monkeypatch):
+    """
+    Keep each widget given to ``qtbot.addWidget`` until pytest-qt closes it. pytest-qt holds it weakly and
+    processes events between the test and closing it: a draw queued on an application that only garbage
+    collection still had to free could run while a collection deletes its canvas mid-draw.
+    """
+    from pytestqt.qtbot import QtBot
+
+    widgets = []  # held by the patched method until monkeypatch restores it, after pytest-qt closes them
+    add_widget = QtBot.addWidget
+
+    def keep(self, widget, **kwargs):
+        widgets.append(widget)
+        add_widget(self, widget, **kwargs)
+
+    monkeypatch.setattr(QtBot, "addWidget", keep)
+
+
 class IsolatedQSettings(QSettings):
     """``QSettings(organization, application)`` kept in an INI file in one test's ``tmp_path``."""
 
