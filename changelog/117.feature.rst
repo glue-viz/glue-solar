@@ -1,0 +1,1 @@
+A region drawn on a quicklook's slit-jaw image is now a new subset that leaves the point and reaches the raster panels and spectrum, placed with the pointing of the frame shown.
