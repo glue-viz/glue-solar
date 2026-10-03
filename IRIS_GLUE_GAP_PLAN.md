@@ -175,6 +175,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
   - core dask percentile sampling reads only chunk corners.
   - glue-qt ignores Fit constraints; its playback timer outlives the viewer, and keeps running when the sliders are rebuilt for new data or axes.
   - irispy's `SJICube.apply_dust_mask` skips `check_scaled`: on a memory-mapped SJI it finds no dust (`sji.py:127`; 0 % against 0.096 % of non-fill pixels in frames 0-2 of 4000255147 SJI 1400 read scaled).
+  - Minor irispy notes on main (0ee8fad): `read_files` opens each file up to 4 times (3 header-only: `io/utils.py:102`, `:218`, `:256`); a lazy memmap mask follows later in-place edits of the copy-on-write data, as irispy's example 02 makes (line 121), and that example treats only -32768 as fill.
   - glue-qt keyboard shortcuts: Tab never cycles windows (Qt focus takes it), keys are looked up by exact viewer class (subclasses such as `QuicklookImageViewer` get none), Table viewer keys are registered on `DataTableModel`; the Image viewer's profile button has no tooltip.
   - glue-qt Profile Navigate and Collapse compare display-unit x with native values; Collapse drops the range's last sample, and an empty `AggregateSlice` raises when drawn.
   - glue's FITS subset-mask importer refuses unsigned integer masks.
