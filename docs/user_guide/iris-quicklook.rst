@@ -112,8 +112,9 @@ are timed at the point's raster step), as moving the slider by hand does: on the
 viewer the other panels follow, while a follower keeps it only until the panels next follow the
 time, and a raster under a slit-jaw master snaps back. A time more than half the dataset's time
 step from the nearest moves nothing, and glue says why. "Loop…" asks for the first and last index
-to play, such as ``100 120``, starting from the whole range: the slider's play buttons then go round
-those, both included, from the first forwards or the last backwards when the slider is outside them.
+to play, such as ``100 120``, starting from the current loop or else the whole range: the slider's
+play buttons then go round those, both included, from the first forwards or the last backwards when
+the slider is outside them.
 Give the whole range to play everything again; the loop also ends when glue rebuilds the slider, for
 other data or axes. Playing the time master's slider moves the other panels at each step, so to play
 a slit-jaw viewer with the raster following, make it the time master first. Closing a viewer stops
