@@ -12,9 +12,13 @@ from glue.core import Data
 from glue.core.data_factories import load_data
 from glue.viewers.image.state import AggregateSlice
 from glue_qt.app.application import GlueApplication
+from glue_qt.config import keyboard_shortcut
 from glue_qt.viewers.image import ImageViewer
+from glue_qt.viewers.profile import ProfileViewer
 from irispy.io import read_files
 from matplotlib.backend_bases import MouseEvent
+from matplotlib.backends.backend_qt import NavigationToolbar2QT
+from qtpy.QtCore import Qt
 
 import astropy.units as u
 from astropy.io import fits
@@ -24,10 +28,11 @@ from astropy.wcs import WCS
 import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
+from glue_solar.quicklook import QuicklookImageViewer
 from glue_solar.sources.iris import iris_quicklook, is_iris_fits, link_iris, quicklook_iris
 from glue_solar.sources.loaders.iris import image_data, raster_data
 from glue_solar.sources.maps import read_sunpy_map
-from glue_solar.tests.helpers import count_tick_work
+from glue_solar.tests.helpers import count_tick_work, press
 
 
 def test_setup_registers_hooks():
@@ -733,6 +738,62 @@ def test_slice_sliders_follow_a_drag_with_its_latest_position(qtbot):
     viewer.state.x_att = cube.pixel_component_ids[0]  # glue-qt rebuilds the sliders
     assert sliders()
     assert not any(slider.hasTracking() for slider in sliders())
+
+
+def test_keys_step_frames_and_wavelengths_round_and_play(qtbot, monkeypatch, irispy_test_files):
+    glue_solar.setup()
+    glue_solar.setup()  # nothing registered twice
+    keys = keyboard_shortcut.members
+    for cls in (ImageViewer, QuicklookImageViewer, ProfileViewer):
+        assert {Qt.Key_D, Qt.Key_F, Qt.Key_A, Qt.Key_S, Qt.Key_Space} <= set(keys[cls])
+    # glue-qt finds a viewer's keys by its exact class: the quicklook's raster panels take the Image viewer's, glue-qt's
+    # own Tab and Backspace too
+    assert keys[QuicklookImageViewer] == keys[ImageViewer]
+    sji = image_data(find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"))
+    scan = find_irispy_test_file(irispy_test_files, "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits")
+    [raster] = raster_data([scan], ["C II 1336"])  # of another observation
+    cube = Data(label="cube", flux=np.zeros((3, 4, 5)))
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.extend([sji, raster, cube])
+    saved = []
+    monkeypatch.setattr(NavigationToolbar2QT, "save_figure", lambda *args: saved.append(args))
+    frames = app.new_data_viewer(ImageViewer, data=sji)
+    last = sji.shape[0] - 1
+    # F and D step the frame, round from either end; a slit-jaw image has no wavelength for A and S
+    frames.state.slices = (last, 0, 0)
+    for key, frame in ((Qt.Key_F, 0), (Qt.Key_D, last), (Qt.Key_D, last - 1)):
+        press(frames, key)
+        assert frames.state.slices == (frame, 0, 0)
+    press(frames, Qt.Key_A)
+    press(frames, Qt.Key_S)
+    assert frames.state.slices == (last - 1, 0, 0)
+    # matplotlib's own F and S, which glue-qt's canvases have too, neither show its empty figure window full screen nor
+    # open its save dialog
+    assert not frames.figure.canvas.manager.window.isVisible()
+    assert saved == []
+    # Space plays the frames, round as glue-qt's play button does, and pauses them
+    slider = frames.options_widget().slice_helper._sliders[0]
+    shown = []
+    frames.state.add_callback("slices", lambda slices: shown.append(slices[0]))
+    press(frames, Qt.Key_Space)
+    slider._play_timer.setInterval(1)
+    qtbot.waitUntil(lambda: len(shown) >= 3)
+    press(frames, Qt.Key_Space)
+    assert not slider._play_timer.isActive()
+    assert shown[:3] == [last, 0, 1]
+    # A and S step a raster map's wavelength only, round from either end
+    waves = app.new_data_viewer(ImageViewer, data=raster)
+    waves.state.x_att, waves.state.y_att = raster.pixel_component_ids[0], raster.pixel_component_ids[1]
+    waves.state.slices = (0, 0, 0)
+    for key, wavelength in ((Qt.Key_A, raster.shape[2] - 1), (Qt.Key_S, 0), (Qt.Key_S, 1)):
+        press(waves, key)
+        assert waves.state.slices == (0, 0, wavelength)
+    # a Profile viewer of other data takes the keys and moves nothing
+    profile = app.new_data_viewer(ProfileViewer, data=cube)
+    for key in (Qt.Key_D, Qt.Key_F, Qt.Key_A, Qt.Key_S, Qt.Key_Space, Qt.Key_Space):
+        press(profile, key)
+    assert (frames.state.slices, waves.state.slices) == ((shown[-1], 0, 0), (0, 0, 1))
 
 
 
