@@ -6,7 +6,7 @@ from collections import Counter
 
 from matplotlib.backend_bases import MouseEvent
 
-__all__ = ["count_tick_work", "load_selected", "mouse", "raster_point_on_sji", "select_point"]
+__all__ = ["count_tick_work", "inversions", "load_selected", "mouse", "raster_point_on_sji", "select_point"]
 
 
 def count_tick_work(monkeypatch, axes):
@@ -29,6 +29,13 @@ def count_tick_work(monkeypatch, axes):
         return update_ticks(self)
 
     monkeypatch.setattr(CoordinateHelper, "_update_ticks", counted)
+    return calls
+
+
+def inversions(monkeypatch, data):
+    """A list that grows by one at each inversion of ``data``'s coordinates, world to pixel, from now on."""
+    calls, inverse = [], data.coords.world_to_pixel_values
+    monkeypatch.setattr(data.coords, "world_to_pixel_values", lambda *world: calls.append(1) or inverse(*world))
     return calls
 
 

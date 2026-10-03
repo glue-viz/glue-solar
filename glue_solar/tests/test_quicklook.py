@@ -6,10 +6,12 @@ import pytest
 from glue.config import settings
 from glue.core import Data
 from glue.core.component import DateTimeComponent
+from glue.core.edit_subset_mode import OrMode
 from glue.core.hub import HubListener
 from glue.core.link_manager import LinkManager
 from glue.core.message import SettingsChangeMessage, SubsetUpdateMessage
-from glue.core.subset import SubsetState
+from glue.core.roi import CircularROI, PolygonalROI, RectangularROI, XRangeROI, YRangeROI
+from glue.core.subset import SubsetState, roi_to_subset_state
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue_qt.app.application import GlueApplication
@@ -38,7 +40,14 @@ from glue_solar.quicklook import (
     sji_to_raster,
 )
 from glue_solar.sources.loaders.iris import image_data, raster_data
-from glue_solar.tests.helpers import count_tick_work, load_selected, mouse, raster_point_on_sji, select_point
+from glue_solar.tests.helpers import (
+    count_tick_work,
+    inversions,
+    load_selected,
+    mouse,
+    raster_point_on_sji,
+    select_point,
+)
 
 SCAN = "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"
 
@@ -220,6 +229,8 @@ def test_a_second_observation_is_never_coupled(app, scans, irispy_test_files):
 
 
 SNS = "iris_l2_20210905_001833_3620258102_{}.fits"
+# glue's region selection tools, as an Image viewer has them
+SELECT_TOOLS = ["select:rectangle", "select:xrange", "select:yrange", "select:circle", "select:polygon"]
 
 
 @pytest.fixture
@@ -266,7 +277,7 @@ def check_panels(app, viewers, data, rows):
         assert state.aspect == "auto"
         assert (state.x_min, state.x_max) == (-0.5, data.shape[x] - 0.5)  # the whole axis, not glue's padding
         assert isinstance(viewers[role], QuicklookImageViewer)
-        assert not [tool for tool in viewers[role].toolbar.tools if tool.startswith("select:")]
+        assert [tool for tool in viewers[role].toolbar.tools if tool.startswith("select:")] == SELECT_TOOLS
     assert coordinator(app.data_collection).point is point
     assert viewers["map"].toolbar.active_tool.tool_id == "image:point_selection"
     for viewer in [viewers[role] for role in rows] + viewers["sji"]:
@@ -1579,6 +1590,141 @@ def test_sji_to_raster_on_a_scanning_raster_and_a_stack(tmp_path, irispy_test_fi
     assert sji_to_raster(sji, 0, x, y, raster) == (0, 9)
 
 
+def draw_region(app, viewer, roi):
+    """Draw ``roi`` on ``viewer``, which makes a new subset, and return the region's subset state."""
+    viewer.apply_roi(roi)
+    return app.data_collection.subset_groups[-1].subset_state
+
+
+def check_outline(monkeypatch, raster, sji, region, pixels):
+    """Check that ``region`` selects what glue's ``pixels`` does on ``raster`` and in ``sji``'s frames."""
+    # glue's own region on the raster's pixels: the raster's own pixels inside it, exactly
+    np.testing.assert_array_equal(raster.get_mask(region), raster.get_mask(pixels))
+    frames = (0, sji.shape[0] // 2, sji.shape[0] - 1)
+    expected = [sji.get_mask(pixels, view=(frame,)) for frame in frames]
+    assert np.sum(expected) >= 20
+    # and in each slit-jaw frame the same pixels, without inverting the raster's coordinates
+    inverted = inversions(monkeypatch, raster)
+    for frame, mask in zip(frames, expected):
+        np.testing.assert_array_equal(sji.get_mask(region, view=(frame,)), mask)
+    assert not inverted
+
+
+@pytest.mark.parametrize("step", [0.0, 0.3], ids=["sit-and-stare", "scanning"])
+@pytest.mark.parametrize(
+    "roi",
+    [
+        RectangularROI(80.3, 100.6, 10.3, 19.8),
+        RectangularROI(-20.5, 30.2, -3.7, 25.4),  # past the first step and slit row
+        XRangeROI(20.5, 60.2),
+        YRangeROI(3.3, 30.1),
+        CircularROI(90.2, 20.4, 8.5),
+        PolygonalROI([30.2, 150.7, 90.4], [2.3, 15.6, 45.2]),
+    ],
+    ids=lambda roi: type(roi).__name__,
+)
+def test_a_map_region_reaches_a_slit_jaw_image_by_its_outline(
+    bare_app, monkeypatch, tmp_path, irispy_test_files, roi, step
+):
+    raster, sji = sit_and_stare(irispy_test_files)
+    if step:  # a copy stepping west at each exposure
+        path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step)
+        [raster] = raster_data([path], ["Si IV 1403"])
+    viewers = quicklook(bare_app, [raster, sji])
+    region = draw_region(bare_app, viewers["map"], roi)
+    pixels = roi_to_subset_state(roi, x_att=raster.pixel_component_ids[0], y_att=raster.pixel_component_ids[1])
+    check_outline(monkeypatch, raster, sji, region, pixels)
+
+
+def test_a_region_on_a_map_with_its_axes_swapped(bare_app, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    state = viewers["map"].state
+    state.x_att, state.y_att = raster.pixel_component_ids[1], raster.pixel_component_ids[0]  # slit across, exposures up
+    # the outline still has a corner at every exposure, past the first exposure and slit row too
+    roi = RectangularROI(-3.7, 25.4, -20.5, 30.2)
+    region = draw_region(bare_app, viewers["map"], roi)
+    pixels = roi_to_subset_state(roi, x_att=raster.pixel_component_ids[1], y_att=raster.pixel_component_ids[0])
+    check_outline(monkeypatch, raster, sji, region, pixels)
+
+
+def test_a_stack_map_region_reaches_another_window_by_its_outline(bare_app, monkeypatch, scans):
+    scan, stack = scans
+    viewers = quicklook(bare_app, [stack, scan])
+    viewers["map"].state.slices = (5, *viewers["map"].state.slices[1:])
+    # glue's own region on the stack's pixels selects its steps and slit rows in every scan, and in scan 0, which
+    # stands in for another window of the same raster, the pixel at each of them, the first step and last slit row too
+    for roi, edge in ((XRangeROI(2.5, 5.5), (3, -1)), (RectangularROI(-3.4, 2.6, 10.3, 50.7), (0, 11))):
+        region = draw_region(bare_app, viewers["map"], roi)
+        pixels = roi_to_subset_state(roi, x_att=stack.pixel_component_ids[1], y_att=stack.pixel_component_ids[2])
+        np.testing.assert_array_equal(stack.get_mask(region), stack.get_mask(pixels))
+        expected = scan.get_mask(pixels)
+        assert expected[edge].all()
+        with monkeypatch.context() as patch:
+            inverted = inversions(patch, stack)
+            np.testing.assert_array_equal(scan.get_mask(region), expected)
+        assert not inverted
+
+
+def test_a_raster_region_is_a_new_subset(bare_app, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    collection, mode = bare_app.data_collection, bare_app.session.edit_subset_mode
+    [point] = mode.edit_subset
+    state = point.subset_state
+    roi = RectangularROI(80.3, 100.6, 10.3, 19.8)
+    # the point stays as it was, and the edit subset; one undo removes the region
+    viewers["map"].apply_roi(roi)
+    assert len(collection.subset_groups) == 2
+    assert point.subset_state is state
+    assert mode.edit_subset == [point]
+    bare_app.session.command_stack.undo()
+    assert collection.subset_groups == (point,)
+    assert point.subset_state is state
+    assert mode.edit_subset == [point]
+    bare_app.session.command_stack.redo()
+    [_, region] = collection.subset_groups
+    assert mode.edit_subset == [point]
+    # a subset like any other: on the raster panels, the slit-jaw images and the spectrum
+    for viewer in [viewers[role] for role in RASTER_PANELS] + viewers["sji"] + [viewers["spectrum"]]:
+        [layer] = [layer for layer in viewer.state.layers if getattr(layer.layer, "group", None) is region]
+        assert layer.visible
+    pixels = roi_to_subset_state(roi, x_att=raster.pixel_component_ids[0], y_att=raster.pixel_component_ids[1])
+    check_outline(monkeypatch, raster, sji, region.subset_state, pixels)
+    # the Pixel tool still moves the point, and Clear point leaves the region
+    drawn = region.subset_state
+    select_point(viewers["map"], 30, 2)
+    assert [s.start for s in point.subset_state.slices[:2]] == [30, 2]
+    menu_action(viewers["map"], "Clear point").trigger()
+    assert coordinator(collection).point is None
+    assert collection.subset_groups == (point, region)
+    assert region.subset_state is drawn
+
+
+def test_a_raster_region_edits_only_a_region_picked_to_edit(bare_app, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    collection, mode = bare_app.data_collection, bare_app.session.edit_subset_mode
+    first, second = RectangularROI(10.5, 20.5, 2.5, 5.5), RectangularROI(30.5, 40.5, 2.5, 5.5)
+    # while the point is the edit subset a region is a new subset, whatever glue's selection mode
+    mode.mode = OrMode
+    viewers["map"].apply_roi(first)
+    [point, region] = collection.subset_groups
+    # a region picked to edit, as in the data collection, takes glue's selection mode
+    mode.edit_subset = [region]
+    viewers["map"].apply_roi(second)
+    assert collection.subset_groups == (point, region)
+    step, slit = raster.pixel_component_ids[:2]
+    expected = roi_to_subset_state(first, x_att=step, y_att=slit) | roi_to_subset_state(second, x_att=step, y_att=slit)
+    np.testing.assert_array_equal(raster.get_mask(region.subset_state), raster.get_mask(expected))
+    np.testing.assert_array_equal(sji.get_mask(region.subset_state, view=(0,)), sji.get_mask(expected, view=(0,)))
+    # undoing both leaves no removed subset to edit
+    bare_app.session.command_stack.undo()
+    bare_app.session.command_stack.undo()
+    assert collection.subset_groups == (point,)
+    assert mode.edit_subset == []
+
+
 @pytest.mark.remote_data
 def test_the_slit_on_a_full_slit_jaw_image(bare_app, irispy_data):
     sji = image_data(irispy_data("iris_l2_20130902_163935_4000255147_SJI_1400_t000_f050.fits.gz"))
@@ -2376,6 +2522,80 @@ def test_closing_the_master_stops_its_playback(bare_app, qtbot, irispy_test_file
     played = len(shown)
     qtbot.wait(20)
     assert len(shown) == played
+
+
+def test_what_a_region_moves(bare_app, qtbot, scans, irispy_test_files):
+    scan, stack = scans
+    for data, sji in (
+        (scan, slit_jaw(scan[scan.id["Time"]][:, 0, 0], scan)),
+        (stack, slit_jaw(np.sort(stack[stack.id["Time"]][:, :, 0, 0], axis=None), stack)),
+        sit_and_stare(irispy_test_files),
+    ):
+        viewers = quicklook(bare_app, [data, sji])
+        [point] = bare_app.session.edit_subset_mode.edit_subset
+        # a region on any raster panel is a new subset: the point, still the edit subset, and every slider stay
+        roi = RectangularROI(1.5, 3.5, 5.5, 9.5)
+        for role in RASTER_PANELS:
+            groups = len(bare_app.data_collection.subset_groups)
+            assert changes(bare_app, qtbot, viewers, lambda role=role: viewers[role].apply_roi(roi)) == {}
+            assert len(bare_app.data_collection.subset_groups) == groups + 1
+            assert bare_app.session.edit_subset_mode.edit_subset == [point]
+
+
+def test_regions_leave_a_slit_jaw_click_the_point_window_and_the_time_controls(
+    bare_app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
+    path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
+    [raster] = raster_data([path], ["Si IV 1403"])
+    _, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    window = point_window(bare_app)
+    collection, mode = bare_app.data_collection, bare_app.session.edit_subset_mode
+    [point] = mode.edit_subset
+    times = raster[raster.id["Time"]][:, 0, 0]
+    type_in_dialog(monkeypatch, "150 153")
+    menu_action(viewers["spectrogram"], "Loop…").trigger()
+    qtbot.wait(20)
+    # a slit-jaw click moves the point to the raster there and keeps the frame clicked (NO MATCH); then a click outside
+    # the raster leaves the point
+    frame = sji_viewer.state.slices[0]
+    (x, y), (step, slit) = clicked(sji_viewer, raster, 30, 25)
+    select_point(sji_viewer, x, y)
+    select_point(sji_viewer, *np.round(past(raster, sji, (0, slit), (20, slit), frame)))
+    settle(qtbot, window)
+    text, before = readout(sji_viewer), rows(window)
+    assert "NO MATCH" in text
+    assert "outside raster FOV" in text
+    assert before[0][1] == f"step {step}, slit {slit}, λ {viewers['map'].state.slices[2]}"
+    # a region on each raster panel moves nothing: the point, the frame clicked, the readout and the Point window,
+    # which gives the point, not a region, stay
+    roi = RectangularROI(20.5, 40.5, 10.5, 30.5)
+    for role in RASTER_PANELS:
+        assert changes(bare_app, qtbot, viewers, lambda role=role: viewers[role].apply_roi(roi)) == {}
+        settle(qtbot, window)
+        assert (readout(sji_viewer), rows(window)) == (text, before)
+    regions = collection.subset_groups[1:]
+    drawn = [group.subset_state for group in regions]
+    assert len(regions) == 3
+    assert mode.edit_subset == [point]
+    # one Undo takes back the last region only
+    assert changes(bare_app, qtbot, viewers, bare_app.session.command_stack.undo) == {}
+    assert collection.subset_groups == (point, *regions[:2])
+    assert readout(sji_viewer) == text
+    # Go to UTC moves the raster master, the point and the slit-jaw image as without regions, and leaves them
+    assert nearest_frame(sji, times[150]) != frame
+    type_in_dialog(monkeypatch, utc(times[150]))
+    assert changes(bare_app, qtbot, viewers, menu_action(sji_viewer, "Go to UTC…").trigger) == {
+        "point": (raster.label, (150, slit, None)),
+        "spectrogram": (150, None, None),
+        "sji0": (nearest_frame(sji, times[150]), None, None),
+    }
+    assert [group.subset_state for group in collection.subset_groups[1:]] == drawn[:2]
+    # and the loop set before the regions still plays only its steps
+    shown = play(qtbot, viewers["spectrogram"], "button_forw", 6)
+    assert shown == [150 + (1 + i) % 4 for i in range(len(shown))]
+    assert [group.subset_state for group in collection.subset_groups[1:]] == drawn[:2]
 
 
 @pytest.mark.remote_data

@@ -30,7 +30,7 @@ from glue_solar import glue_patches
 from glue_solar.quicklook import coordinator, nearest, quicklook
 from glue_solar.sources.iris import browse_iris, link_iris
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, keep_hpc_linked, link_hpc, raster_data
-from glue_solar.tests.helpers import load_selected, raster_point_on_sji, select_point
+from glue_solar.tests.helpers import inversions, load_selected, raster_point_on_sji, select_point
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
 RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
@@ -265,6 +265,26 @@ def test_raster_pixels_reach_a_sunpy_map_whose_longitudes_run_from_0_to_360(sns)
     # the same a turn lower, as a map whose reference longitude is negative gives longitudes from -360 to 0 degrees
     turned = raster.coords.world_to_pixel_values(wavelength, lat, lon - (360 * u.deg).to_value(u.arcsec))
     np.testing.assert_allclose(turned[1:], [slit, step], rtol=0, atol=1e-6)
+
+
+def test_a_raster_map_region_reaches_a_sunpy_map_whose_longitudes_run_from_0_to_360(qtbot, monkeypatch, sns):
+    # a region drawn on a quicklook's raster map reaches the map by its outline in longitude and latitude, where it
+    # lies near 360 degrees: the same pixels as glue's own region on the raster's pixels
+    sji, raster = sns
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    aia = _sunpy_map(10, -430, 0.5, (60, 240), "aia")
+    app.data_collection.append(aia)
+    viewers = quicklook(app, [raster, sji])  # which links the map too
+    roi = RectangularROI(80.5, 100.5, 2.3, 9.7)
+    viewers["map"].apply_roi(roi)
+    group = app.data_collection.subset_groups[-1]  # a new subset
+    expected = aia.get_mask(RoiSubsetState(raster.pixel_component_ids[0], raster.pixel_component_ids[1], roi))
+    assert expected.sum() >= 50
+    inverted = inversions(monkeypatch, raster)
+    np.testing.assert_array_equal(aia.get_mask(group.subset_state), expected)
+    assert not inverted
 
 
 def test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair(qtbot, sns):
