@@ -146,9 +146,9 @@ give it:
   offset Δt of its time from the master's, such as each slit-jaw frame's from the point's raster
   step or exposure, or "NO MATCH".
 
-A point clicked on a slit-jaw image fills its own row only, as the raster panels do not follow it;
-a point off a slit-jaw image gives "outside SJI FOV" there, and a dataset of another observation
-"no match". After "Clear point" only the time sync is left. The window refreshes once for each
+A point clicked on a slit-jaw viewer showing its frame axis fills its own row only, as the raster
+panels do not follow it; a point off a slit-jaw image gives "outside SJI FOV" there, and a dataset
+of another observation "no match". After "Clear point" only the time sync is left. The window refreshes once for each
 click, slider step, time sync or change to a panel's layers, such as the component it shows, and
 only while its tab is shown. Move or resize it like a panel; closing the tab closes it, and one
 closed by hand stays closed.
