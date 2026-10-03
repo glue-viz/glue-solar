@@ -2296,6 +2296,22 @@ def test_go_to_utc_on_a_scanning_raster_moves_its_step(bare_app, qtbot, monkeypa
     assert "time master, step 6" in readout(viewers["spectrogram"])
 
 
+def test_go_to_utc_without_an_exposure_slider(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    times = raster[raster.id["Time"]][:, 0, 0]
+    # the map and the wavelength panel show the exposures: without the spectrogram and the point, no slider holds
+    # the raster's exposure, which goes all the same, and the slit-jaw image follows it
+    viewers["spectrogram"].close(warn=False)
+    menu_action(viewers["map"], "Clear point").trigger()
+    type_in_dialog(monkeypatch, utc(times[100]))
+    assert changes(bare_app, qtbot, viewers, menu_action(sji_viewer, "Go to UTC…").trigger) == {
+        "sji0": (nearest_frame(sji, times[100]), None, None)
+    }
+    assert "time master, step 100" in readout(viewers["map"])
+
+
 def play(qtbot, viewer, button, frames):
     """Press the play ``button`` of the viewer's first slider with a 1 ms timer; return at least ``frames`` shown."""
     slider = viewer.options_widget().slice_helper._sliders[0]

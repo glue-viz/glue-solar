@@ -414,8 +414,8 @@ class Coordinator(HubListener):
         Move ``data``, the time master of its observation, to ``index`` along its first axis: its frame, exposure,
         step or scan, on the point if it holds one. The others follow it, as after a move of its slider.
         """
-        if _time_axis(data) is None:
-            self._steps[data] = index  # a scanning raster's time is its timing step, which no slider moves
+        if _role(data) == "raster" and data.ndim == 3:
+            self._steps[data] = index  # its time without a point, unless a sit-and-stare's exposure slider gives it
         with self._writing():
             self._move_in_time(data, 0, index)
         self._timer.start()
