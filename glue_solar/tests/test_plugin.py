@@ -772,6 +772,11 @@ def test_keys_step_frames_and_wavelengths_round_and_play(qtbot, monkeypatch, iri
     # open its save dialog
     assert not frames.figure.canvas.manager.window.isVisible()
     assert saved == []
+    # its others, such as G for the grid, stay
+    handled = []
+    monkeypatch.setattr(glue_patches, "key_press_handler", lambda event: handled.append(event.key))
+    press(frames, Qt.Key_G)
+    assert handled == ["g"]
     # Space plays the frames, round as glue-qt's play button does, and pauses them
     slider = frames.options_widget().slice_helper._sliders[0]
     shown = []

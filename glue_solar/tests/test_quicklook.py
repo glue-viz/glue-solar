@@ -2932,11 +2932,11 @@ def test_what_the_keys_move_on_a_sit_and_stare(bare_app, qtbot, irispy_test_file
         }
 
 
-def test_f_and_d_move_a_scanning_raster_and_a_stack(bare_app, qtbot, scans):
+def test_what_the_keys_move_on_a_scanning_raster_and_a_stack(bare_app, qtbot, scans):
     scan, stack = scans
     times = scan[scan.id["Time"]][:, 0, 0]
     frames = times[0] + (np.arange(24) - 2) * ((times[-1] - times[0]) / 19)  # about three per step
-    viewers = quicklook(bare_app, [scan, slit_jaw(frames, scan)])
+    viewers = first = quicklook(bare_app, [scan, slit_jaw(frames, scan)])
     step, slit, _ = expected_start(scan)
     # a scanning raster's step, which moves the point, and the slit-jaw image follows it
     assert changes(bare_app, qtbot, viewers, lambda: press(viewers["map"], Qt.Key_F)) == {
@@ -2956,9 +2956,22 @@ def test_f_and_d_move_a_scanning_raster_and_a_stack(bare_app, qtbot, scans):
         "spectrogram": (last, step, None, None),
         "sji0": (expected_nearest(scan_times[last, step], frames), None, None),
     }
+    # A and S in a quicklook's tab step its own map's wavelength, not an earlier quicklook's; outside a quicklook's tab,
+    # the viewer's own only
+    first_map = first["map"].state.slices
+    assert changes(bare_app, qtbot, viewers, lambda: press(viewers["spectrogram"], Qt.Key_S)) == {
+        "map": (last, None, None, wavelength + 1)
+    }
+    bare_app.new_tab()
+    plain = image(bare_app, stack, 1, 2)
+    qtbot.wait(20)
+    index = plain.state.slices[3]
+    assert changes(bare_app, qtbot, viewers, lambda: press(plain, Qt.Key_A)) == {}
+    assert plain.state.slices[3] == (index - 1) % stack.shape[3]
+    assert first["map"].state.slices == first_map
 
 
-def test_space_plays_the_time_master_round_its_loop(bare_app, qtbot, monkeypatch, irispy_test_files):
+def test_space_plays_the_time_master_round_its_loop(bare_app, qtbot, monkeypatch, irispy_test_files, scans):
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
     [sji_viewer] = viewers["sji"]
@@ -2973,6 +2986,7 @@ def test_space_plays_the_time_master_round_its_loop(bare_app, qtbot, monkeypatch
 
         played.state.add_callback("slices", record)
         press(viewer, Qt.Key_Space)
+        assert slider._play_timer.isActive()
         slider._play_timer.setInterval(1)
         qtbot.waitUntil(lambda: len(shown) >= frames)
         press(viewer, Qt.Key_Space)
@@ -2993,6 +3007,16 @@ def test_space_plays_the_time_master_round_its_loop(bare_app, qtbot, monkeypatch
     assert shown == list(range(frame + 1, frame + 1 + len(shown)))
     frames = sji[sji.id["Time"]][:, 0, 0]
     assert check_follower(bare_app, qtbot, frames[shown[-1]], raster, viewers["spectrogram"])
+    # and pressed on the spectrogram, whose own exposure slider has the loop
+    frame = sji_viewer.state.slices[0]
+    shown = space(viewers["spectrogram"], sji_viewer, 3)
+    assert shown == [(frame + 1 + i) % sji.shape[0] for i in range(len(shown))]
+    # a stack's map and spectrogram both have its scan slider: pressed on the map, Space plays the one with a loop
+    viewers = quicklook(bare_app, [scans[1]])
+    type_in_dialog(monkeypatch, "3 5")
+    menu_action(viewers["spectrogram"], "Loop…").trigger()
+    shown = space(viewers["map"], viewers["spectrogram"], 4)
+    assert shown == [3 + i % 3 for i in range(len(shown))]
 
 
 def test_backspace_closes_a_quicklook_raster_panel(bare_app, irispy_test_files):
