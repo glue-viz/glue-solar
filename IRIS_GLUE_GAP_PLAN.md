@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-02
 
-**Resume here.** M0 is done. Main is at 013a839 (#107-#122; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open; M1 batch 5, `wp10-m1-canvas-teardown` (#121) and `wp9-m1-screenshots` (#122) are merged. In progress: `wp4-raster-overlays` in worktree `~/Git/glue-solar-wp4-raster-overlays` on branch `wp4-raster-overlays`. Then batch 6 continues with `wp4-m1-multi-window`, then `wp5-m1-spectral-blink`.
+**Resume here.** M0 is done. Main is at deddd86 (#107-#123; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open; `wp4-raster-overlays` (#123) is merged. Next: batch 6 continues with `wp4-m1-multi-window`, then `wp5-m1-spectral-blink`, whose interaction needs designing with the user first.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -74,6 +74,7 @@ Settled by the user; reopen only with the user.
 - **D33:** Lazy colour limits come from an exact count of raw codes over up to 512 MiB of planes per window, within 1 % of the eager 99.5 % limits. The < 10 % memory budget is the peak RSS increase over the post-import baseline with no viewer, the absolute peak reported beside it; the per-element memory budgets are tracemalloc figures, and resident memory is `wp10-l-resident-memory`.
 - **D34:** The GitHub wiki stays off rather than refreshed; its history, with the user's 2026-09-22 edit, is `IRIS_PLAN_PROTOTYPES/glue-solar-wiki-20261001.bundle`.
 - **D35:** glue-solar registers only the IRIS and AIA colormaps (since #98) until glue-qt's colormap combo stops re-rendering every icon; the user wants every sunpy colormap back then, through `wp11-l-all-colormaps` or the upstream fix in `wp0-perf-qt` (2026-10-01).
+- **D40:** Provisional (2026-10-03, batch 6): 'Raster overlays' is one Coordinate-menu entry toggling the observation's overlays on all its viewers, off by default and never saved; a slit-jaw image draws every raster step's or exposure's slit (a stack's at its timing scan, a sit-and-stare's every exposure, one column) as a thin white line placed through the frame nearest its time, with no half-cadence limit, the same in every frame shown; the dashed map line goes on any viewer of a raster's steps or exposures against slit, at the scan it shows. A stack's slits use scan 0's coordinates until `wp1-stack-per-scan-wcs` (3.7 SJI px off on 4000005156 scan 1; each scan alone 0.04 px), documented. 3860258481 has no SJI file, so its slits are tested on a generated scanning raster and its map line on the bundled scans with a generated slit-jaw time series.
 - **D39:** Provisional (2026-10-02, batch 5): a region on a quicklook's slit-jaw image reaches other data at the pointing of the frame shown when it was drawn, not each exposure's nearest frame, clipped to that frame's pixel centres; on the slit-jaw image itself, and on a view showing the frame axis, it is glue's own region; a Pixel click on a picked region replaces it. The quicklook's wavelength, time and point lines go on its own panels only (a stack's wavelength-against-step panel gets only the point's); the time line snaps to the nearest step, exposure or scan; the spectrum panel's x range goes one way, to the wavelength panel; a Collapse is marked at its centre; a map wavelength step redraws the wavelength and spectrum panels, with no blitting. Follow/lock is on every Image viewer, with Pixel still the quicklook's default (D6); its lock belongs to the point group, so the mouse over another viewer leaves it, an Undo of the lock click unlocks it, and Clear point leaves it locked. D/F move the time master from any viewer of its observation, wrap, ignore a Loop and do not stop playback; A/S step only the current quicklook tab's wavelength sliders, or else the viewer's own; Space plays the time master's looped slider first; Profile viewers get the keys; modifiers are ignored; quicklook panels get glue-qt's Tab and Backspace; matplotlib's G stays, its WCSAxes traceback a report line.
 - **D38:** User (2026-10-02, batch 4): 'Go to UTC' moves the observation's time master, whichever viewer it is typed in, and the followers follow; region tools on any quicklook panel, raster or slit-jaw, make a new subset and leave the Point as it was; the Point window sits inside the quicklook tab under its panels; a slit-jaw click beside a sit-and-stare slit takes the level row at any distance, and one click is one undoable assignment; Redo after Undo of a slit-jaw click is documented until `wp4-l-redo-sji-click`.
 - **D37:** Provisional (2026-10-02, batch 3): `link_hpc` anchors on the first IRIS dataset and links helioprojective maps to it with `LinkSameWithUnits` (IRIS pairs keep `LinkSame`), so value selections between two maps pass through IRIS and ignore their observers, documented; `_GlueWCS` wraps a map's 0-360° longitudes back to the raster's; `sji_to_raster` applies D7's half-cadence limit on sit-and-stare rasters only, never to a stack's scans; the readout gives fixed precision only for IRIS Å and helioprojective arcsec, and drops the angle along a sit-and-stare exposure axis; 'Regrid on time' regrids a stack by scans timed at their middle step, keeps real exposure times in `Time`, and includes exactly 0.75 steps.
@@ -94,7 +95,7 @@ A milestone is done when it has no items left.
 
 **M1**
 - WP0: `wp0-release-tracking`, `wp0-irispy-requests`
-- WP4: `wp4-m1-multi-window`, `wp4-raster-overlays`
+- WP4: `wp4-m1-multi-window`
 - WP5: `wp5-m1-spectral-blink`
 
 **M2**
@@ -202,7 +203,7 @@ The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links be
 
 **M3**
 
-- [ ] **M3** `wp1-stack-per-scan-wcs` (F115): Per-scan spatial coordinates with an inverse for 4D stacks. Done when scan-k pixel→world matches scan k's WCS to 1e-6″ on the 3400109360 and 3602506433 stacks and round-trips.
+- [ ] **M3** `wp1-stack-per-scan-wcs` (F115): Per-scan spatial coordinates with an inverse for 4D stacks. Done when scan-k pixel→world matches scan k's WCS to 1e-6″ on the 3400109360 and 3602506433 stacks and round-trips, and the raster overlays' slits on scan 1 of the 4000005156 stack lie within 1 SJI px of its header slit positions (3.7 px off before).
 - [ ] **M3** `wp1-nexp-prp` (F116): Warn once that world→pixel on NEXP_PRP > 1 rasters returns the first exposure per position. Done when a synthetic NEXP_PRP=2 raster warns once and sit-and-stare data do not.
 - [ ] **M3** `wp1-m3-pointing-offset` (F051, F052): An optional arcsec pointing offset set from a 'Shift pointing…' layer action, plus a co-alignment recipe. Done when (+2″, −1″) on 4000005156 SJI 2796 shifts its readout by that.
 
@@ -274,7 +275,6 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 **M1**
 
 - [ ] **M1** `wp4-m1-multi-window` (F072, F073, F074, F108): For each ticked window of one file, open a Profile and any λ–t panel, and link step, exposure, scan and slit pixels with idempotent glue `LinkSame` links. Done when on 4000005156 scan 0 with three windows a point at (s, y) gives each Profile cube_w[s, y, :] and each map a crosshair, rerunning adds 0 links, and on 4000255147 all windows share one exposure.
-- [ ] **M1** `wp4-raster-overlays` (F125, F126): A toggle draws each raster step's slit on SJIs, in the SJI frame nearest that exposure, and a dashed map line at the step nearest the master time (hidden on NO MATCH). Done when on 4000005156 and 3860258481 each slit lies within 1 SJI px, and on 4000005156 SJI frames 0-15 mark scan 0 steps 3, 7, …, 63 and frames 16-31 scan 1.
 
 **M3**
 
