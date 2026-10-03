@@ -97,9 +97,9 @@ keyboard focus; glue-qt ignores Shift and Ctrl with them.
   scan slider does, round its loop if "Loop…" gave it one, and pressed again pauses it. Without a time
   master it plays the viewer's own slider of the data's first axis.
 
-glue-qt's viewers also have matplotlib's own keys, such as G for the grid; with glue-solar, F and S
-no longer show an empty window full screen or open matplotlib's save dialog. The save menu saves the
-plot.
+glue-qt's viewers also have matplotlib's own keys, such as G for a Profile viewer's grid with the
+mouse over its plot; with glue-solar, F and S no longer show an empty window full screen or open
+matplotlib's save dialog. The save menu saves the plot.
 
 The stretch menu in the Image Viewer's layer options lists glue-solar's "Gamma 0.4", "Gamma 0.75",
 "Gamma 1.5" and "Gamma 2.2" after Glue's own stretches. Each raises the values between the limits to
