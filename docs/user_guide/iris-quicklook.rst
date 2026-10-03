@@ -32,6 +32,8 @@ For those used to CRISPEX:
      - Not needed: the wavelength panel shows wavelength against step, exposure or scan
    * - ``dt`` and non-equidistant timing
      - "Regrid on time" (see `Regridding on time`_)
+   * - The cursor following the mouse, locked and unlocked with a click
+     - The "Follow/lock" tool, in place of Pixel (see below)
 
 It shows one spectral window: Mg II k 2796 when loaded, otherwise the first (pass
 ``window="Si IV 1403"`` to choose). The raster opens as three panels, plus one viewer per slit-jaw
@@ -67,7 +69,11 @@ angles alone, such as the map, a slit-jaw image or any other celestial map, keep
 
 The map shows the wavelength nearest the window's reference wavelength, and the panels use
 99.5 % limits. A point, the edit subset "Point", starts at the centre of the map with the Pixel
-tool active: drag it on the map, and the spectrum panel shows its spectrum. The point is a detector
+tool active: drag it on the map, and the spectrum panel shows its spectrum. With "Follow/lock" chosen
+in a panel's toolbar instead, the point follows the mouse over that panel, and on a slit-jaw viewer
+moves to the raster pixel under the mouse, as a click there does (below), until a left click locks
+it; a right click or Esc unlocks it (see :ref:`Viewer tools and windows
+<glue_solar_users_guide_viewer_tools_and_windows>`). The point is a detector
 pixel (a step or exposure, and a slit position) at every wavelength, and the other panels follow
 it: the spectrogram moves to its step and the wavelength panel to its slit. Its crosshair shows
 only on the map; the spectrogram and the wavelength panel highlight its row instead, with a thin red
