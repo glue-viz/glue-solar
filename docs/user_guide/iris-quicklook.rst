@@ -78,16 +78,23 @@ stack the point stays on the map's scan. A Profile's collapse of an axis is left
 slit-jaw viewers keep following the exposure slider of a sit-and-stare raster and the scan slider of
 a stack's map, on a scanning raster the time stays at the last point's raster step, and a slit-jaw
 time master (see below) still moves the others. A click on a slit-jaw viewer moves the point to the
-raster there (see below). The raster panels have glue's region selection tools. A region drawn on
+raster there (see below). The raster panels and the slit-jaw viewers have glue's region selection
+tools. A region drawn on
 the map selects the raster's pixels inside it, and reaches each slit-jaw frame, at that frame's own
 pointing, and other linked data by its outline in longitude and latitude, in a fraction of a second
 per frame (see :ref:`Linking <glue_solar_users_guide_iris_linking>`); one drawn on the spectrogram
-or the wavelength panel selects on that raster only. Each region is a new subset, shown on the
+or the wavelength panel selects on that raster only. A region drawn on a slit-jaw image selects the
+image's pixels inside it in every frame, and reaches the raster and other linked data by its outline
+at the pointing of the frame shown as you draw it, as a click does: on the raster, the pixels whose
+centres lie inside it in that frame; one drawn on a slit-jaw viewer showing the frame axis selects
+on that image only. Each region, on any panel, is a new subset, shown on the
 raster panels, the slit-jaw images and, as its mean spectrum, in the spectrum panel, and one Undo
 removes it. The point stays as it was and stays the edit subset, so the Pixel tool keeps moving it,
-and "Clear point" leaves regions alone. To change a region with the toolbar's selection "Mode", such
+on a slit-jaw image too, and "Clear point" leaves regions alone.
+To change a region with the toolbar's selection "Mode", such
 as adding to it, first pick it in the data collection or as the toolbar's "Active Subset", then
-draw; the Pixel tool then replaces that region with the clicked pixel, until "Point" is picked again
+draw; the Pixel tool then replaces that region with the clicked pixel, on a slit-jaw image the
+image's own rather than the raster's, until "Point" is picked again
 or the tab is shown again. Each quicklook has its own point,
 shown only in its own panels, edited while its tab is
 shown and moved only by that tab's sliders. Where a point does not show, it is not in the viewer's

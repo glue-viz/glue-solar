@@ -215,7 +215,8 @@ other through Glue's own link.
   360° when the map's reference longitude is 0 or more, so that east of longitude 0 they are near
   360°, otherwise from -360° to 0.
 - A region drawn on a slit-jaw image does not carry over to a raster or a sunpy Map: which frame it
-  belongs to would need the time, and time is never linked.
+  belongs to would need the time, and time is never linked. On a quicklook's slit-jaw image it does,
+  as below.
 
 A region drawn on the map of a quicklook (see :ref:`glue_solar_users_guide_iris_quicklook`) reaches
 the other data by its outline in longitude and latitude, traced through the raster's own
@@ -224,7 +225,11 @@ it, and elsewhere the pixels inside the outline, the same ones glue's own select
 few along the edge of a circle, whose outline is glue's 100-sided polygon of it. This
 takes a fraction of a second per slit-jaw frame, for example 0.23 s for a full 1506 by 771 frame of
 OBSID 4000005156's deconvolved SJI 2796 under a Si IV raster region, which glue takes 11 s over. It
-reaches a sunpy Map whose longitudes run from 0 to 360° too.
+reaches a sunpy Map whose longitudes run from 0 to 360° too. One drawn on a quicklook's slit-jaw
+image reaches the raster and the other data by its outline too, placed at the pointing of the frame
+shown as it was drawn: the raster pixels whose centres lie inside it in that frame, again but for a
+few along the edge of a circle. This takes under 50 ms per raster panel, the longest for the 1600
+exposures by 417 slit pixels of OBSID 4000255147's Si IV under a region on its SJI 1400.
 
 A region drawn on a raster in any other Image Viewer is glue's own, and can be slow to show on a
 slit-jaw image: glue works out the selection for every screen pixel of the slit-jaw viewer each
