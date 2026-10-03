@@ -2542,6 +2542,62 @@ def test_what_a_region_moves(bare_app, qtbot, scans, irispy_test_files):
             assert bare_app.session.edit_subset_mode.edit_subset == [point]
 
 
+def test_regions_leave_a_slit_jaw_click_the_point_window_and_the_time_controls(
+    bare_app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
+    path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
+    [raster] = raster_data([path], ["Si IV 1403"])
+    _, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    window = point_window(bare_app)
+    collection, mode = bare_app.data_collection, bare_app.session.edit_subset_mode
+    [point] = mode.edit_subset
+    times = raster[raster.id["Time"]][:, 0, 0]
+    type_in_dialog(monkeypatch, "150 153")
+    menu_action(viewers["spectrogram"], "Loop…").trigger()
+    qtbot.wait(20)
+    # a slit-jaw click moves the point to the raster there and keeps the frame clicked (NO MATCH); then a click outside
+    # the raster leaves the point
+    frame = sji_viewer.state.slices[0]
+    (x, y), (step, slit) = clicked(sji_viewer, raster, 30, 25)
+    select_point(sji_viewer, x, y)
+    select_point(sji_viewer, *np.round(past(raster, sji, (0, slit), (20, slit), frame)))
+    settle(qtbot, window)
+    text, before = readout(sji_viewer), rows(window)
+    assert "NO MATCH" in text
+    assert "outside raster FOV" in text
+    assert before[0][1] == f"step {step}, slit {slit}, λ {viewers['map'].state.slices[2]}"
+    # a region on each raster panel moves nothing: the point, the frame clicked, the readout and the Point window,
+    # which gives the point, not a region, stay
+    roi = RectangularROI(20.5, 40.5, 10.5, 30.5)
+    for role in RASTER_PANELS:
+        assert changes(bare_app, qtbot, viewers, lambda role=role: viewers[role].apply_roi(roi)) == {}
+        settle(qtbot, window)
+        assert (readout(sji_viewer), rows(window)) == (text, before)
+    regions = collection.subset_groups[1:]
+    drawn = [group.subset_state for group in regions]
+    assert len(regions) == 3
+    assert mode.edit_subset == [point]
+    # one Undo takes back the last region only
+    assert changes(bare_app, qtbot, viewers, bare_app.session.command_stack.undo) == {}
+    assert collection.subset_groups == (point, *regions[:2])
+    assert readout(sji_viewer) == text
+    # Go to UTC moves the raster master, the point and the slit-jaw image as without regions, and leaves them
+    assert nearest_frame(sji, times[150]) != frame
+    type_in_dialog(monkeypatch, utc(times[150]))
+    assert changes(bare_app, qtbot, viewers, menu_action(sji_viewer, "Go to UTC…").trigger) == {
+        "point": (raster.label, (150, slit, None)),
+        "spectrogram": (150, None, None),
+        "sji0": (nearest_frame(sji, times[150]), None, None),
+    }
+    assert [group.subset_state for group in collection.subset_groups[1:]] == drawn[:2]
+    # and the loop set before the regions still plays only its steps
+    shown = play(qtbot, viewers["spectrogram"], "button_forw", 6)
+    assert shown == [150 + (1 + i) % 4 for i in range(len(shown))]
+    assert [group.subset_state for group in collection.subset_groups[1:]] == drawn[:2]
+
+
 @pytest.mark.remote_data
 def test_what_moves_on_a_negative_step_raster(bare_app, qtbot, irispy_data):
     # 3400109360: STEPS_AV -0.998, so Time runs backwards along the step axis
