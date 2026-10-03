@@ -170,6 +170,15 @@ def test_menu_entries_keep_the_pixel_tool(app, scans):
         menu_action(raster_map, "Time master").trigger()
 
 
+def test_a_slit_jaw_click_outside_a_quicklook_stays_a_slit_jaw_point(app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    app.data_collection.extend([raster, sji])
+    image(app, raster, 0, 1)
+    select_point(image(app, sji, 2, 1), 10, 20)
+    qtbot.wait(20)
+    assert app.data_collection.subset_groups[0].subset_state.reference_data is sji
+
+
 def check_axis_swap(app, data):
     """Swap a map to wavelength against slit: its step slider goes to the point, no wavelength slider moves."""
     app.data_collection.append(data)
@@ -802,7 +811,9 @@ def test_an_sji_point_moves_no_raster_panel(bare_app, qtbot, irispy_test_files):
     viewers["sji"][0].state.slices = (7, 0, 0)
     qtbot.wait(20)
     assert group.subset_state.slices == point
-    # a click on the slit-jaw image showing its frame axis, which is no place on the Sun, stays a slit-jaw point
+    # a click on the slit-jaw image showing its frame axis, which is no place on the Sun, stays a slit-jaw point, also
+    # beside another viewer of the image showing a frame
+    image(bare_app, sji, 2, 1)
     viewers["sji"][0].state.x_att = sji.pixel_component_ids[0]
     select_point(viewers["sji"][0], 10, 20)
     qtbot.wait(20)
@@ -1923,6 +1934,9 @@ def test_what_moves_on_a_stack(bare_app, qtbot, scans):
         "wavelength": (None, 3, 20, None),
         "sji0": (frame(12, 3), None, None),
     }
+    # a click on a slit-jaw image without coordinates, which places nothing, stays a slit-jaw point
+    sji = sji_viewer.state.reference_data
+    assert event(lambda: select_point(sji_viewer, 2, 1)) == {"point": (sji.label, (None, 1, 2))}
 
 
 def test_a_click_on_another_scan_snaps_back_to_a_slit_jaw_master(bare_app, qtbot, scans):
@@ -2203,6 +2217,7 @@ def test_what_a_slit_jaw_click_moves_on_a_scanning_raster(bare_app, qtbot, tmp_p
         "wavelength": (None, slit, None),
     }
     assert "NO MATCH" in readout(sji_viewer)
+    assert "outside raster FOV" not in readout(sji_viewer)
     assert overlays(sji_viewer)[1] == pytest.approx(raster_point_on_sji(raster, sji, step, slit, frame))
     # a click 20 steps before the first leaves the point and the panels as they were, and the readout says so
     outside = np.round(past(raster, sji, (0, slit), (20, slit), frame))
@@ -2215,6 +2230,10 @@ def test_what_a_slit_jaw_click_moves_on_a_scanning_raster(bare_app, qtbot, tmp_p
         "sji0": (nearest_frame(sji, times[150]), None, None),
     }
     assert "outside raster FOV" not in readout(sji_viewer)
+    # a slit-jaw image moved back by hand keeps its frame through a click outside the raster
+    assert event(lambda: slide(sji_viewer, 0, frame)) == {"sji0": (frame, None, None)}
+    assert event(lambda: select_point(sji_viewer, *outside)) == {}
+    assert "outside raster FOV" in readout(sji_viewer)
 
 
 def test_what_a_slit_jaw_click_moves_on_a_stack(bare_app, qtbot, tmp_path, irispy_test_files):
