@@ -1,0 +1,1 @@
+A new Follow/lock tool on Image viewers moves the point with the mouse, with no Undo step, until a left click locks it; a right click or Esc unlocks it.
