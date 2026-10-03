@@ -2129,6 +2129,255 @@ def test_closing_the_slit_jaw_master_makes_the_raster_master_again(bare_app, qtb
     assert "time master, step 186" in readout(viewers["spectrogram"])
 
 
+def type_in_dialog(monkeypatch, typed):
+    """Make each text dialog return ``typed``, as if typed and confirmed; returns the texts the dialogs opened with."""
+    opened = []
+    monkeypatch.setattr(
+        QtWidgets.QInputDialog, "getText", lambda *args, text="", **kwargs: opened.append(text) or (typed, True)
+    )
+    return opened
+
+
+def utc(when):
+    return np.datetime_as_string(when, unit="ms")
+
+
+def refusals(monkeypatch):
+    """The texts of glue's error boxes from now on, which glue would raise instead while testing."""
+    shown = []
+    monkeypatch.setenv("GLUE_TESTING", "False")
+    monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
+    return shown
+
+
+def test_what_moves_on_go_to_utc(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    label = raster.label
+    times, frames = (data[data.id["Time"]][:, 0, 0] for data in (raster, sji))
+    _, slit, _ = expected_start(raster)
+
+    def go_to(viewer, text):
+        opened = type_in_dialog(monkeypatch, text)
+        return changes(bare_app, qtbot, viewers, lambda: menu_action(viewer, "Go to UTC…").trigger()), opened
+
+    # under the raster master the spectrogram's exposure slider goes to the exposure nearest the typed time, from the
+    # displayed exposure's, and the point and the slit-jaw image follow, as for the slider
+    when = times[150] + (times[151] - times[150]) * 0.45
+    shown = viewers["spectrogram"].state.slices[0]
+    assert go_to(viewers["spectrogram"], utc(when)) == (
+        {
+            "point": (label, (150, slit, None)),
+            "spectrogram": (150, None, None),
+            "sji0": (nearest_frame(sji, times[150]), None, None),
+        },
+        [utc(times[shown])],
+    )
+    # typed in the slit-jaw viewer, or in the map, which shows the exposures, the raster goes all the same, from the
+    # master's time, and the slit-jaw image follows it
+    shown = 150
+    for viewer, when in ((sji_viewer, frames[20] + np.timedelta64(40, "s")), (viewers["map"], times[100])):
+        exposure = expected_nearest(when, times)
+        assert go_to(viewer, utc(when)) == (
+            {
+                "point": (label, (exposure, slit, None)),
+                "spectrogram": (exposure, None, None),
+                "sji0": (nearest_frame(sji, times[exposure]), None, None),
+            },
+            [utc(times[shown])],
+        )
+        shown = exposure
+    # a slit-jaw image of an observation without a time master, here outside any quicklook, moves itself
+    other = image_data(
+        find_irispy_test_file(irispy_test_files, "iris_l2_20230408_110821_3880012095_SJI_1400_t000.fits")
+    )
+    bare_app.data_collection.append(other)
+    alone = bare_app.new_data_viewer(ImageViewer, data=other)
+    alone_times = other[other.id["Time"]][:, 0, 0]
+    assert go_to(alone, utc(alone_times[1])) == ({}, [utc(alone_times[0])])
+    assert alone.state.slices[0] == 1
+    # nothing within half the master's cadence, typed in the slit-jaw viewer, whose last frame is within half its own;
+    # an unreadable time; a viewer of data without IRIS times, even of the observation, as an AIA cutout: nothing
+    # moves, and glue says why
+    assert times[-1] + np.timedelta64(60, "s") - frames[-1] <= _half_cadence(frames)
+    plain = Data(label="plain", x=np.zeros((3, 4, 5)))
+    plain.meta.update(OBSID=raster.meta["OBSID"], STARTOBS=raster.meta["STARTOBS"])
+    bare_app.data_collection.append(plain)
+    shown = refusals(monkeypatch)
+    for viewer, text, message in (
+        (sji_viewer, utc(times[-1] + np.timedelta64(60, "s")), f"Nothing in {label} is within half a cadence"),
+        (viewers["spectrogram"], "noon", "'noon' is not a UTC time"),
+        (bare_app.new_data_viewer(ImageViewer, data=plain), utc(when), "slider of IRIS data"),
+    ):
+        assert go_to(viewer, text)[0] == {}
+        assert shown[-1].startswith("Could not go to UTC\n")
+        assert message in shown[-1]
+    assert len(shown) == 3
+
+    # SJI 1400 as time master goes to the frame nearest the typed time, here the later one, and the raster follows
+    menu_action(sji_viewer, "Time master").trigger()
+    qtbot.wait(20)
+    exposure = nearest_frame(raster, frames[30])
+    assert exposure is not None
+    assert go_to(sji_viewer, utc(frames[30] - np.timedelta64(60, "s")))[0] == {
+        "sji0": (30, None, None),
+        "point": (label, (exposure, slit, None)),
+        "spectrogram": (exposure, None, None),
+    }
+    assert "time master" in readout(sji_viewer)
+    # and typed in the spectrogram, the slit-jaw image goes, from its time, and the raster follows it
+    frame = expected_nearest(times[10], frames)
+    exposure = nearest_frame(raster, frames[frame])
+    assert go_to(viewers["spectrogram"], utc(times[10])) == (
+        {
+            "sji0": (frame, None, None),
+            "point": (label, (exposure, slit, None)),
+            "spectrogram": (exposure, None, None),
+        },
+        [utc(frames[30])],
+    )
+
+
+def test_go_to_utc_on_a_stack_takes_the_scan_at_the_points_step(bare_app, qtbot, monkeypatch, scans):
+    _, stack = scans
+    _, step, slit, wavelength = expected_start(stack)
+    times = stack[stack.id["Time"]][:, :, 0, 0]
+    sji = slit_jaw(times[0, step] + np.arange(40) * (times[-1, step] - times[0, step]) / 39, stack)
+    viewers = quicklook(bare_app, [stack, sji])
+    [sji_viewer] = viewers["sji"]
+    when = times[7, step] + (times[8, step] - times[7, step]) * 0.45
+    assert expected_nearest(when, times[:, 0]) == 8  # at the first step, another scan
+    # typed in the map or in the slit-jaw viewer, the stack goes to the scan nearest at the point's step, from the
+    # master's time, and the slit-jaw image follows it
+    for viewer, when, scan, shown in ((viewers["map"], when, 7, 0), (sji_viewer, times[3, step], 3, 7)):
+        opened = type_in_dialog(monkeypatch, utc(when))
+        assert changes(bare_app, qtbot, viewers, menu_action(viewer, "Go to UTC…").trigger) == {
+            "point": (stack.label, (scan, step, slit, None)),
+            "map": (scan, None, None, wavelength),
+            "spectrogram": (scan, step, None, None),
+            "sji0": (nearest_frame(sji, times[scan, step]), None, None),
+        }
+        assert opened == [utc(times[shown, step])]
+    # without a point too: the scan sliders move, and the time stays at the step the point left
+    menu_action(viewers["map"], "Clear point").trigger()
+    opened = type_in_dialog(monkeypatch, utc(times[5, step]))
+    assert changes(bare_app, qtbot, viewers, menu_action(sji_viewer, "Go to UTC…").trigger) == {
+        "map": (5, None, None, wavelength),
+        "spectrogram": (5, step, None, None),
+        "sji0": (nearest_frame(sji, times[5, step]), None, None),
+    }
+    assert opened == [utc(times[3, step])]
+    assert f"time master, step {step}" in readout(viewers["spectrogram"])
+
+
+def test_go_to_utc_on_a_scanning_raster_moves_its_step(bare_app, qtbot, monkeypatch, scans):
+    scan, _ = scans
+    times = scan[scan.id["Time"]][:, 0, 0]
+    frames = times[0] + (np.arange(24) - 2) * ((times[-1] - times[0]) / 19)  # about three per step
+    viewers = quicklook(bare_app, [scan, slit_jaw(frames, scan)])
+    [sji_viewer] = viewers["sji"]
+    _, slit, _ = expected_start(scan)
+
+    def go_to(when):
+        type_in_dialog(monkeypatch, utc(when))
+        return changes(bare_app, qtbot, viewers, lambda: menu_action(sji_viewer, "Go to UTC…").trigger())
+
+    # typed in the slit-jaw viewer, the raster goes to the step nearest the typed time, which moves the point, and
+    # the slit-jaw image follows it
+    assert go_to(times[2]) == {
+        "point": (scan.label, (2, slit, None)),
+        "spectrogram": (2, None, None),
+        "sji0": (expected_nearest(times[2], frames), None, None),
+    }
+    # without a point too, though its step slider no longer moves the time
+    menu_action(viewers["map"], "Clear point").trigger()
+    assert go_to(times[6]) == {"spectrogram": (6, None, None), "sji0": (expected_nearest(times[6], frames), None, None)}
+    assert "time master, step 6" in readout(viewers["spectrogram"])
+
+
+def test_go_to_utc_without_an_exposure_slider(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    times = raster[raster.id["Time"]][:, 0, 0]
+    # the map and the wavelength panel show the exposures: without the spectrogram and the point, no slider holds
+    # the raster's exposure, which goes all the same, and the slit-jaw image follows it
+    viewers["spectrogram"].close(warn=False)
+    menu_action(viewers["map"], "Clear point").trigger()
+    type_in_dialog(monkeypatch, utc(times[100]))
+    assert changes(bare_app, qtbot, viewers, menu_action(sji_viewer, "Go to UTC…").trigger) == {
+        "sji0": (nearest_frame(sji, times[100]), None, None)
+    }
+    assert "time master, step 100" in readout(viewers["map"])
+
+
+def play(qtbot, viewer, button, frames):
+    """Press the play ``button`` of the viewer's first slider with a 1 ms timer; return at least ``frames`` shown."""
+    slider = viewer.options_widget().slice_helper._sliders[0]
+    shown = []
+
+    def record(slices):
+        shown.append(slices[0])
+
+    viewer.state.add_callback("slices", record)
+    getattr(slider, button).click()
+    slider._play_timer.setInterval(1)
+    qtbot.waitUntil(lambda: len(shown) >= frames)
+    slider.button_stop.click()
+    viewer.state.remove_callback("slices", record)
+    return shown
+
+
+def test_a_loop_plays_only_its_frames(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    menu_action(sji_viewer, "Time master").trigger()
+    sji_viewer.state.slices = (0, 0, 0)
+    opened = type_in_dialog(monkeypatch, "20 25")
+    menu_action(sji_viewer, "Loop…").trigger()
+    assert opened == ["0 61"]  # the whole range
+    # forwards from frame 0: from the first, round and round; then backwards from where it stopped
+    shown = play(qtbot, sji_viewer, "button_forw", 14)
+    assert shown == [20 + i % 6 for i in range(len(shown))]
+    back = play(qtbot, sji_viewer, "button_back", 8)
+    assert back == [20 + (shown[-1] - 21 - i) % 6 for i in range(len(back))]
+    # the raster followed
+    frames = sji[sji.id["Time"]][:, 0, 0]
+    assert check_follower(bare_app, qtbot, frames[back[-1]], raster, viewers["spectrogram"])
+    # a range out of order, past the last frame or of one index keeps the loop, which the next dialog opens on
+    shown = refusals(monkeypatch)
+    for text in ("25 20", "20 62", "20"):
+        opened = type_in_dialog(monkeypatch, text)
+        menu_action(sji_viewer, "Loop…").trigger()
+        assert opened == ["20 25"]
+        assert shown[-1] == f"Could not loop\n'{text}' is not two indices from 0 to 61, the first not after the last."
+    # the whole range plays as glue does
+    type_in_dialog(monkeypatch, "0 61")
+    menu_action(sji_viewer, "Loop…").trigger()
+    sji_viewer.state.slices = (59, 0, 0)
+    assert play(qtbot, sji_viewer, "button_forw", 4)[:4] == [60, 61, 0, 1]
+
+
+def test_closing_the_master_stops_its_playback(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    menu_action(sji_viewer, "Time master").trigger()
+    slider = sji_viewer.options_widget().slice_helper._sliders[0]
+    shown = []
+    sji_viewer.state.add_callback("slices", lambda slices: shown.append(slices[0]))
+    slider.button_forw.click()
+    slider._play_timer.setInterval(1)
+    qtbot.waitUntil(lambda: len(shown) >= 3)
+    sji_viewer.close(warn=False)
+    assert not slider._play_timer.isActive()
+    played = len(shown)
+    qtbot.wait(20)
+    assert len(shown) == played
+
+
 @pytest.mark.remote_data
 def test_what_moves_on_a_negative_step_raster(bare_app, qtbot, irispy_data):
     # 3400109360: STEPS_AV -0.998, so Time runs backwards along the step axis
