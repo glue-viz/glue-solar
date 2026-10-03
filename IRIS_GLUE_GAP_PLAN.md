@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-02
 
-**Resume here.** M0 is done. Main is at 78fff28 (#107-#120; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`); glue-solar PRs are marked ready and merged once CI passes. No PR is open; M1 batch 5 is merged. Next: `wp10-m1-canvas-teardown`, then batch 6 (`wp4-m1-multi-window`, `wp4-raster-overlays`, `wp9-m1-screenshots`, then `wp5-m1-spectral-blink`).
+**Resume here.** M0 is done. Main is at 6e27ec5 (#107-#121; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`); glue-solar PRs are marked ready and merged once CI passes. No PR is open; M1 batch 5 and `wp10-m1-canvas-teardown` (#121) are merged. Next: batch 6 (`wp4-m1-multi-window`, `wp4-raster-overlays`, `wp9-m1-screenshots`, then `wp5-m1-spectral-blink`).
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -97,7 +97,6 @@ A milestone is done when it has no items left.
 - WP4: `wp4-m1-multi-window`, `wp4-raster-overlays`
 - WP5: `wp5-m1-spectral-blink`
 - WP9: `wp9-m1-screenshots`
-- WP10: `wp10-m1-canvas-teardown`
 
 **M2**
 - WP2: `wp2-m2-moment-maps`, `wp2-m2-line-definition`, `wp2-m2-input-quality`, `wp2-m2-tests-docs`
@@ -286,6 +285,7 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 
 - [ ] **L** `wp4-l-redo-sji-click`: Redo after Undo of a slit-jaw click repeats the click in the frame shown then, so it can land on another exposure or scan; store the raster point on glue's undo command (a probe-gated workaround in `glue_patches.py`). Done when Undo then Redo of a sit-and-stare slit-jaw click gives the same exposure after the frame has moved.
 - [ ] **L** `wp4-profile-aggregation`: A band light curve at the point: a glue `SliceSubsetState` over the Profile's Collapse range that follows the point. Done when it equals the band nanmean on 4000255147.
+- [ ] **L** `wp4-empty-collapse-draw`: A Profile Collapse range narrower than one sample gives an empty `AggregateSlice`, and glue's image then raises in every draw (`compute_fixed_resolution_buffer`: "Number of steps in bounds should be >=1"). Found in #121, whose fixture let the queued draw run; `test_frame_time_tool_survives_an_empty_collapse` now ends on a drawable slice. Report candidate for glue. Done when such a range draws without raising.
 
 Notes:
 - Whisker polish (F143) and CRISPEX entry keywords (F020) are Later.
@@ -383,10 +383,6 @@ Notes:
 ### WP10: Loader robustness and performance
 
 Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on files up to 20 GB.
-
-**M1**
-
-- [ ] **M1** `wp10-m1-canvas-teardown`: An idle draw on a deleted `MplCanvas` intermittently fails `test_linking.py::test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair` at teardown (2 of 8 full `iris-plan` runs on the region branch, once on the regrid branch; the conftest's `_canvas_errors_fail` turns it into an error). Find the canvas whose draw outlives its viewer and stop it at close. Done when 20 full runs in each env pass.
 
 **L**
 
