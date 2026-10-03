@@ -732,8 +732,8 @@ class FollowLockTool(PixelSelectionTool):
     quicklook's panels and spectrum follow, and on a quicklook's slit-jaw image the point moves to the raster pixel
     there (`~glue_solar.quicklook.sji_to_raster`). A left click moves it there and locks it, in one Undo step, which
     unlocks it too; a right click, or Esc once a click has given the image the keyboard, unlocks it. A locked point
-    stays as the mouse moves over any viewer, and stays locked as sliders or Pixel clicks move it. The mouse alone
-    never moves a region being edited; a click replaces it, as a Pixel click does.
+    stays as the mouse moves over any viewer, and stays locked as sliders or Pixel clicks move it or Clear point
+    empties it. The mouse alone never moves a region being edited; a click replaces it, as a Pixel click does.
     """
 
     icon = "glue_point"
