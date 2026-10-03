@@ -780,7 +780,7 @@ def _outline_region(raster, roi, x_axis, y_axis, slices):
     Its outline runs within the raster's first and last pixel centres, past which glue's inverse of its coordinates
     places nothing, and has a corner wherever it crosses a whole step: between steps those coordinates are linear.
     ``raster`` can also be a slit-jaw image, at the frame in ``slices``: across a frame its coordinates are linear to
-    1e-4 pixel, so the outline has no other corners.
+    1.3e-4 pixel, so the outline has no other corners.
     """
     margin = 1e-6  # so that pixel centres on the edge, such as another window's of the raster, are inside
     box = Bbox([[-margin, -margin], [raster.shape[x_axis] - 1 + margin, raster.shape[y_axis] - 1 + margin]])
