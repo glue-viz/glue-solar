@@ -796,6 +796,29 @@ def test_keys_step_frames_and_wavelengths_round_and_play(qtbot, monkeypatch, iri
     assert (frames.state.slices, waves.state.slices) == ((shown[-1], 0, 0), (0, 0, 1))
 
 
+_GLUE_START = """
+from qtpy.QtCore import Qt
+
+import glue_solar
+
+glue_solar.setup()  # before glue-qt's application loads, as at glue's start
+
+from glue_qt.app import GlueApplication
+from glue_qt.config import keyboard_shortcut
+
+from glue_solar.quicklook import QuicklookImageViewer
+
+print(*(key in keyboard_shortcut.members[QuicklookImageViewer] for key in (Qt.Key_Tab, Qt.Key_Backspace)))
+"""
+
+
+def test_quicklook_panels_take_glue_qts_tab_and_backspace_at_glues_start():
+    # in a process of its own, since the other tests load glue-qt's application, which registers them, first
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)}
+    result = subprocess.run([sys.executable, "-c", _GLUE_START], env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr[-2000:]
+    assert result.stdout.split() == ["True", "True"]
+
 
 # glue-qt 0.4.2's PV slice window sets its colormap through glue's deprecated 'color' key, and its pvextractor
 # imports spectral-cube, which uses astropy's deprecated COPY_IF_NEEDED where spectral-cube is installed

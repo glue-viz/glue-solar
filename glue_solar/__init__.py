@@ -62,7 +62,10 @@ def setup():
         if tool.tool_id not in ImageViewer.tools:
             ImageViewer.tools.append(tool.tool_id)
     # Keys for the viewer of the active window (`tools.KEYS`). glue-qt finds a viewer's keys by its exact class, so the
-    # quicklook's raster panels take every key of the Image viewer, glue-qt's own Tab and Backspace too
+    # quicklook's raster panels take every key of the Image viewer, glue-qt's own Tab and Backspace too, which its
+    # application module registers: glue loads plugins before it
+    from glue_qt.app import keyboard_shortcuts  # noqa: F401
+
     for viewer in (ImageViewer, ProfileViewer):
         _add_keys(viewer, tools.KEYS)
     _add_keys(QuicklookImageViewer, keyboard_shortcut.members[ImageViewer])
