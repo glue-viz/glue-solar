@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-02
 
-**Resume here.** M0 is done. Main is at 6a9ca47 (#107-#111; the IRIS guide is now three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`); glue-solar PRs are marked ready and merged once CI passes. No PR is open. In progress (M1 batch 4, worktrees `~/Git/glue-solar-<item>`): `wp4-sji-click-to-raster`, `wp4-time-controls`, `wp10-m1-roi-world-polygon`, `wp11-selected-point-panel`. Checking glue-solar against irispy main (57813b8, with #205 and #206) is in progress.
+**Resume here.** M0 is done. Main is at 3c51da5 (#107-#114; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`); glue-solar PRs are marked ready and merged once CI passes. No PR is open. In progress (M1 batch 4, worktrees `~/Git/glue-solar-<item>`): `wp4-time-controls` and `wp10-m1-roi-world-polygon`, being changed to D38. Verifying irispy main 0ee8fad (#207) for glue-solar is in progress.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -58,7 +58,7 @@ Settled by the user; reopen only with the user.
 - **D16:** Doppler is red minus blue, I(λ0 + Δ) − I(λ0 − Δ), positive for redshift, in `meta['doppler_sign']`.
 - **D17:** Missing data are NaN; no sentinel values.
 - **D18:** Do not re-implement glue: configure, default, document or call glue's API first.
-- **D19:** Each quicklook tab has its own Point group, and its point drives only its own panels; an SJI point leaves the spectrum empty until the next raster click (until `wp4-sji-click-to-raster`).
+- **D19:** Each quicklook tab has its own Point group, and its point drives only its own panels; a Pixel click on its slit-jaw image moves the point to the raster pixel there (#114), and only a click on a viewer showing the frame axis stays a slit-jaw point.
 - **D20:** `link_hpc` links every dataset to the first (a star); 'Open quicklook' starts ticked and the browser skips glue's autolinker.
 - **D21:** A NO MATCH readout gives the nearest frame's offset; a follower moved by hand shows its own, greyed beyond half a cadence.
 - **D22:** After Clear point a scanning raster's time stays at the last point's step, while a sit-and-stare's exposure slider and a stack map's scan slider keep driving the time. Under a slit-jaw master the master rules: while there is a point, a hand-moved raster exposure or scan, or a click on another, snaps back, and a hand-moved slit-jaw follower keeps its frame until the next sync.
@@ -93,11 +93,11 @@ A milestone is done when it has no items left.
 
 **M1**
 - WP0: `wp0-release-tracking`, `wp0-irispy-requests`
-- WP4: `wp4-m1-hover-lock-tool`, `wp4-sji-click-to-raster`, `wp4-m1-spectral-coupling`, `wp4-m1-multi-window`, `wp4-time-controls`, `wp4-raster-overlays`
+- WP4: `wp4-m1-hover-lock-tool`, `wp4-m1-spectral-coupling`, `wp4-m1-multi-window`, `wp4-time-controls`, `wp4-raster-overlays`
 - WP5: `wp5-m1-spectral-blink`
 - WP9: `wp9-m1-screenshots`
 - WP10: `wp10-m1-roi-world-polygon`
-- WP11: `wp11-selected-point-panel`, `wp11-keyboard-shortcuts`
+- WP11: `wp11-keyboard-shortcuts`
 
 **M2**
 - WP2: `wp2-m2-moment-maps`, `wp2-m2-line-definition`, `wp2-m2-input-quality`, `wp2-m2-tests-docs`
@@ -278,7 +278,6 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 **M1**
 
 - [ ] **M1** `wp4-m1-hover-lock-tool` (F094, F095): A 'Follow/lock' `PixelSelectionTool` subclass: hover moves the point (50 ms throttle, no undo entry), a left click locks it with one undoable `ApplySubsetState`, a right click or Esc unlocks. Done when on 3860258481, 3824262996 and 4000255147 hover updates the spectrum within 0.35 s, 100 motion events give ≤ 1 update per 50 ms, and the lock survives scan and exposure steps.
-- [ ] **M1** `wp4-sji-click-to-raster` (F049): Map an SJI Pixel point to the raster point with `sji_to_raster()` (Replace mode, re-entrancy guard, one undo entry); off-FOV points show 'outside raster FOV'. Done when, through the UI, (step 32, slit 385) round-trips through 4000005156 SJI 2796 frame 7 within 0.5 px, 4000255147 SJI 1400 frames 0, 200, 399 give exposures 1, 801, 1597, and one click makes one assignment that one undo reverts. `sji_to_raster` (#108) gives None past the centre of the first or last step or of either end slit pixel, and on a sit-and-stare more than half a cadence from its exposures; it takes the row level with a click at any distance beside a sit-and-stare slit: decide whether the click must lie within about one SJI pixel of the slit.
 - [ ] **M1** `wp4-m1-spectral-coupling` (F068, F075): Add what glue's Navigate lacks: Image wavelengths as Profile lines, wavelength and master-time lines on λ–t panels, a thin line at the point's slit on the spectrogram and at its exposure on λ–t (user, 2026-09-30), and the Profile x-range copied to λ–t x-limits. Done when on 4000005156 scan 0 and 4000255147 slider index k marks λ[k] in Å and nm, λ–t lines follow axis swaps, Navigate to λ[j] moves the map to j (a Profile unit other than the data's, such as nm, needs Qt #70), and markers update in < 5 ms.
 - [ ] **M1** `wp4-m1-multi-window` (F072, F073, F074, F108): For each ticked window of one file, open a Profile and any λ–t panel, and link step, exposure, scan and slit pixels with idempotent glue `LinkSame` links. Done when on 4000005156 scan 0 with three windows a point at (s, y) gives each Profile cube_w[s, y, :] and each map a crosshair, rerunning adds 0 links, and on 4000255147 all windows share one exposure.
 - [ ] **M1** `wp4-time-controls` (F088, F091): Add 'Go to UTC' and a [lo, hi] loop to glue's slider playback, and stop the play timer when its viewer closes. Done when on 4000255147 SJI 1400 'Go to 2013-09-02T17:00:00' picks the nearest exposure and the raster follows, a [100, 120] loop visits only frames 100-120, and closing the master stops playback.
@@ -410,7 +409,6 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 
 **M1**
 
-- [ ] **M1** `wp11-selected-point-panel` (F099, F191): A read-only quicklook dock lists the Pixel point's indices, coordinates, time, exposure and value per dataset, plus the time master and SJI–raster offset. Done when on 3860258481 (3D and 4D) each field equals a direct read and the unrelated 3880012095 SJI shows 'no match'.
 - [ ] **M1** `wp11-keyboard-shortcuts` (F197): Register D/F (frame), A/S (wavelength), Space (play) and quicklook Tab/Backspace via `glue_qt.config.keyboard_shortcut`. Done when `QTest.keyClick` on glue-qt 0.4.2 steps with wrap and plays, and quicklook D/F move the time master and A/S only wavelength.
 
 **M2**
