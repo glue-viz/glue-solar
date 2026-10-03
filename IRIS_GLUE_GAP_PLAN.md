@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-02
 
-**Resume here.** M0 is done. Main is at 896041d (#107-#119; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`); glue-solar PRs are marked ready and merged once CI passes. M1 batch 5's last PR, #120 (`wp11-keyboard-shortcuts`, worktree `~/Git/glue-solar-wp11-keyboard-shortcuts`), is open, to merge once CI passes. Next: `wp10-m1-canvas-teardown`, then batch 6 (`wp4-m1-multi-window`, `wp4-raster-overlays`, `wp9-m1-screenshots`, then `wp5-m1-spectral-blink`).
+**Resume here.** M0 is done. Main is at 78fff28 (#107-#120; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`); glue-solar PRs are marked ready and merged once CI passes. No PR is open; M1 batch 5 is merged. Next: `wp10-m1-canvas-teardown`, then batch 6 (`wp4-m1-multi-window`, `wp4-raster-overlays`, `wp9-m1-screenshots`, then `wp5-m1-spectral-blink`).
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -74,7 +74,7 @@ Settled by the user; reopen only with the user.
 - **D33:** Lazy colour limits come from an exact count of raw codes over up to 512 MiB of planes per window, within 1 % of the eager 99.5 % limits. The < 10 % memory budget is the peak RSS increase over the post-import baseline with no viewer, the absolute peak reported beside it; the per-element memory budgets are tracemalloc figures, and resident memory is `wp10-l-resident-memory`.
 - **D34:** The GitHub wiki stays off rather than refreshed; its history, with the user's 2026-09-22 edit, is `IRIS_PLAN_PROTOTYPES/glue-solar-wiki-20261001.bundle`.
 - **D35:** glue-solar registers only the IRIS and AIA colormaps (since #98) until glue-qt's colormap combo stops re-rendering every icon; the user wants every sunpy colormap back then, through `wp11-l-all-colormaps` or the upstream fix in `wp0-perf-qt` (2026-10-01).
-- **D39:** Provisional (2026-10-02, batch 5): a region on a quicklook's slit-jaw image reaches other data at the pointing of the frame shown when it was drawn, not each exposure's nearest frame, clipped to that frame's pixel centres; on the slit-jaw image itself, and on a view showing the frame axis, it is glue's own region; a Pixel click on a picked region replaces it. The quicklook's wavelength, time and point lines go on its own panels only (a stack's wavelength-against-step panel gets only the point's); the time line snaps to the nearest step, exposure or scan; the spectrum panel's x range goes one way, to the wavelength panel; a Collapse is marked at its centre; a map wavelength step redraws the wavelength and spectrum panels, with no blitting. Follow/lock is on every Image viewer, with Pixel still the quicklook's default (D6); its lock belongs to the point group, so the mouse over another viewer leaves it, an Undo of the lock click unlocks it, and Clear point leaves it locked.
+- **D39:** Provisional (2026-10-02, batch 5): a region on a quicklook's slit-jaw image reaches other data at the pointing of the frame shown when it was drawn, not each exposure's nearest frame, clipped to that frame's pixel centres; on the slit-jaw image itself, and on a view showing the frame axis, it is glue's own region; a Pixel click on a picked region replaces it. The quicklook's wavelength, time and point lines go on its own panels only (a stack's wavelength-against-step panel gets only the point's); the time line snaps to the nearest step, exposure or scan; the spectrum panel's x range goes one way, to the wavelength panel; a Collapse is marked at its centre; a map wavelength step redraws the wavelength and spectrum panels, with no blitting. Follow/lock is on every Image viewer, with Pixel still the quicklook's default (D6); its lock belongs to the point group, so the mouse over another viewer leaves it, an Undo of the lock click unlocks it, and Clear point leaves it locked. D/F move the time master from any viewer of its observation, wrap, ignore a Loop and do not stop playback; A/S step only the current quicklook tab's wavelength sliders, or else the viewer's own; Space plays the time master's looped slider first; Profile viewers get the keys; modifiers are ignored; quicklook panels get glue-qt's Tab and Backspace; matplotlib's G stays, its WCSAxes traceback a report line.
 - **D38:** User (2026-10-02, batch 4): 'Go to UTC' moves the observation's time master, whichever viewer it is typed in, and the followers follow; region tools on any quicklook panel, raster or slit-jaw, make a new subset and leave the Point as it was; the Point window sits inside the quicklook tab under its panels; a slit-jaw click beside a sit-and-stare slit takes the level row at any distance, and one click is one undoable assignment; Redo after Undo of a slit-jaw click is documented until `wp4-l-redo-sji-click`.
 - **D37:** Provisional (2026-10-02, batch 3): `link_hpc` anchors on the first IRIS dataset and links helioprojective maps to it with `LinkSameWithUnits` (IRIS pairs keep `LinkSame`), so value selections between two maps pass through IRIS and ignore their observers, documented; `_GlueWCS` wraps a map's 0-360° longitudes back to the raster's; `sji_to_raster` applies D7's half-cadence limit on sit-and-stare rasters only, never to a stack's scans; the readout gives fixed precision only for IRIS Å and helioprojective arcsec, and drops the angle along a sit-and-stare exposure axis; 'Regrid on time' regrids a stack by scans timed at their middle step, keeps real exposure times in `Time`, and includes exactly 0.75 steps.
 - **D36:** The observation browser's background load (#106) covers the quicklook too (colour-limit counts for the datasets it will show on the worker, an event-loop turn between its viewers) and moves archive extraction to the worker; Stop keeps the picks read in full while Esc or closing drops the load; a gzipped SJI is decompressed once; every raster file is read on its own so a stop acts between files (user, 2026-10-02); what Stop keeps is still counted on the worker, a result 0.15-0.2 s later rather than a 0.4 s freeze as its first viewer opens (provisional, 2026-10-02; design and measurements in `IRIS_PLAN_PROTOTYPES/wp10_nonblocking_design_20261002.tar.gz`).
@@ -98,7 +98,6 @@ A milestone is done when it has no items left.
 - WP5: `wp5-m1-spectral-blink`
 - WP9: `wp9-m1-screenshots`
 - WP10: `wp10-m1-canvas-teardown`
-- WP11: `wp11-keyboard-shortcuts`
 
 **M2**
 - WP2: `wp2-m2-moment-maps`, `wp2-m2-line-definition`, `wp2-m2-input-quality`, `wp2-m2-tests-docs`
@@ -177,7 +176,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
   - glue-qt ignores Fit constraints; its playback timer outlives the viewer, and keeps running when the sliders are rebuilt for new data or axes.
   - irispy's `SJICube.apply_dust_mask` skips `check_scaled`: on a memory-mapped SJI it finds no dust (`sji.py:127`; 0 % against 0.096 % of non-fill pixels in frames 0-2 of 4000255147 SJI 1400 read scaled).
   - Minor irispy notes on main (0ee8fad): `read_files` opens each file up to 4 times (3 header-only: `io/utils.py:102`, `:218`, `:256`); a lazy memmap mask follows later in-place edits of the copy-on-write data, as irispy's example 02 makes (line 121), and that example treats only -32768 as fill.
-  - glue-qt keyboard shortcuts: Tab never cycles windows (Qt focus takes it), keys are looked up by exact viewer class (subclasses such as `QuicklookImageViewer` get none), Table viewer keys are registered on `DataTableModel`; the Image viewer's profile button has no tooltip.
+  - glue-qt keyboard shortcuts: Tab never cycles windows (Qt focus takes it), keys are looked up by exact viewer class (subclasses such as `QuicklookImageViewer` get none), Table viewer keys are registered on `DataTableModel`; its canvases keep matplotlib's default keys (F full screen on an empty window, S a save dialog, O and P zoom and pan modes, L and K log scales; G over WCSAxes raises `NotImplementedError`); the Image viewer's profile button has no tooltip.
   - glue-qt Profile Navigate and Collapse compare display-unit x with native values; Collapse drops the range's last sample, and an empty `AggregateSlice` raises when drawn.
   - glue's FITS subset-mask importer refuses unsigned integer masks.
   - glue-core 1.27.0's FITS exporter fails on any uint8 component in a subset export (`UnboundLocalError` on `blank`, `data_exporters/gridded_fits.py`), so a subset export of IRIS data with its uint8 mask crashes on main; it also writes no dask array. glue-solar's `export_fits` replaces the exporter behind a probe.
@@ -367,7 +366,7 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 
 - [ ] **M3** `wp9-m3-saturation-recipe` (F170): A 'Was it saturated?' recipe: NSATPIX/TSATPXn in View metadata, then an `np.isinf` subset. Done when checked on 4000005156 Si IV (NSATPIX 0).
 - [ ] **M3** `wp9-m3-spectral-recipes` (F080, F084): Recipes for an average spectrum over scans, photospheric context and per-window flux × k. Done when each reproduces on 3602506433, 3660259102 and 3640107442.
-- [ ] **M3** `wp9-m3-shortcuts-help` (F198, F199): A table of keys glue's tooltips omit and an 'IRIS: user guide and issues' `menubar_plugin` entry. Done when a test covers every shortcut and both URLs. Depends: wp11-keyboard-shortcuts, wp12-path-slicer.
+- [ ] **M3** `wp9-m3-shortcuts-help` (F198, F199): A table of keys glue's tooltips omit and an 'IRIS: user guide and issues' `menubar_plugin` entry. Done when a test covers every shortcut and both URLs. Depends: wp12-path-slicer.
 
 **L**
 
@@ -405,7 +404,6 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 
 **M1**
 
-- [ ] **M1** `wp11-keyboard-shortcuts` (F197): Register D/F (frame), A/S (wavelength), Space (play) and quicklook Tab/Backspace via `glue_qt.config.keyboard_shortcut`. Done when `QTest.keyClick` on glue-qt 0.4.2 steps with wrap and plays, and quicklook D/F move the time master and A/S only wavelength.
 
 **M2**
 
@@ -424,7 +422,7 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 - [ ] **L** `wp11-scaling-extras` (F066, F067): Per-band default stretches in the preset; glue's controls adjust them. Done when each IRIS band opens with its default.
 
 Notes:
-- glue-qt already takes B, C, G, H, K, M, P, R, W, X, Y, Z, Tab, Backspace and L, and dispatches keys by exact viewer type.
+- glue-qt already takes B, C, G, H, K, M, P, R, W, X, Y, Z, Tab, Backspace and L, and dispatches keys by exact viewer type; matplotlib's own keys (F, S, O, P, L, K, G, Q, V) also reach its canvases, F and S dropped since #120; glue-solar takes D, F, A, S and Space.
 - Not planned: zoom ×2/÷2, centring and a percentile menu (glue has them), or a CRISPEX control-panel clone.
 
 ### WP12: Export and derived diagrams
@@ -492,6 +490,7 @@ Gated workarounds on main. Raw-WCS readers hold `WCS_LOCK` or use a deep copy; n
 | Pixel crosshair of a linked layer placed from the reference data (`ImageSubsetLayerArtist._update_data`, #107) | `needs_reference_crosshair_workaround()` | `wp0-core-image-artist-bugs`'s fix |
 | Axis labels set on the WCSAxes coordinate without placing ticks (`ImageViewer.update_x/y_axislabel`, #90) | `needs_axis_label_workaround()` | glue's `_set_wcs` label fix (`wp0-perf-core-draw`; the user's fork branch `perf-g1a-wcs-labels`) |
 | Slice playback stopped when its viewer closes (`ImageViewer.closeEvent`, #115) | Per close: a slider still playing after glue-qt's own close | glue-qt stopping play timers on close (report candidate) |
+| matplotlib's full-screen and save keys dropped from glue-qt's canvases (`MplCanvas.__init__`, `canvas_init`, #120) | Per canvas: a figure manager connecting matplotlib's key handler | glue-qt dropping matplotlib's key bindings from its canvases (report candidate) |
 
 Planned workarounds are named in their items.
 
