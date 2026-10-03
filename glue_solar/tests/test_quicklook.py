@@ -2174,25 +2174,28 @@ def test_what_moves_on_go_to_utc(bare_app, qtbot, monkeypatch, irispy_test_files
         },
         [utc(times[shown])],
     )
-    # nothing within half a cadence, an unreadable time, or a viewer showing the exposures: nothing moves, and glue
-    # says why
+    # nothing within half a cadence, an unreadable time, a viewer showing the exposures or of data without IRIS times:
+    # nothing moves, and glue says why
+    plain = Data(label="plain", x=np.zeros((3, 4, 5)))
+    bare_app.data_collection.append(plain)
     shown = refusals(monkeypatch)
     for viewer, text, message in (
         (viewers["spectrogram"], utc(times[-1] + np.timedelta64(60, "s")), "Nothing is within half a cadence"),
         (viewers["spectrogram"], "noon", "'noon' is not a UTC time"),
         (viewers["map"], utc(when), "no frame, exposure, step or scan slider"),
+        (bare_app.new_data_viewer(ImageViewer, data=plain), utc(when), "slider of IRIS data"),
     ):
         assert go_to(viewer, text)[0] == {}
         assert shown[-1].startswith("Could not go to UTC\n")
         assert message in shown[-1]
-    assert len(shown) == 3
+    assert len(shown) == 4
 
-    # SJI 1400 as time master goes to the frame nearest the typed time, and the raster follows
+    # SJI 1400 as time master goes to the frame nearest the typed time, here the later one, and the raster follows
     menu_action(sji_viewer, "Time master").trigger()
     qtbot.wait(20)
     exposure = nearest_frame(raster, frames[30])
     assert exposure is not None
-    assert go_to(sji_viewer, utc(frames[30] + np.timedelta64(60, "s")))[0] == {
+    assert go_to(sji_viewer, utc(frames[30] - np.timedelta64(60, "s")))[0] == {
         "sji0": (30, None, None),
         "point": (label, (exposure, slit, None)),
         "spectrogram": (exposure, None, None),
