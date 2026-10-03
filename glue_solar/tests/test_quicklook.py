@@ -2289,6 +2289,9 @@ def unpointed(data, sync):
 @pytest.mark.parametrize("stacked", [False, True], ids=["scan", "stack"])
 def test_the_point_window_reads_the_raster_at_the_point(bare_app, qtbot, scans, iris_tree, stacked):
     data = scans[stacked]
+    # exposure times that differ from step to step in the 4 significant figures the window gives
+    exposure = data.id["Exposure time"]
+    data.update_components({exposure: data[exposure] * (1 + np.arange(data.shape[-3]).reshape(-1, 1, 1) / 100)})
     d, t, o = OBS_B
     other = image_data(iris_tree / f"{MD5}iris_l2_{d}_{t}_{o}_SJI_2832_t000.fits.gz")  # another observation
     viewers = quicklook(bare_app, [data, other])
@@ -2322,8 +2325,8 @@ def test_the_point_window_reads_the_raster_at_the_point(bare_app, qtbot, scans, 
     [layer] = [layer for layer in viewers["map"].state.layers if layer.layer is data]
     layer.attribute = data.id[f"{data.label} DN/s"]
     settle(qtbot, window)
-    found = rows(window)[0]
-    assert found[5] == f"{data[layer.attribute, (*scan, 3, 40, 5)]:.6g}" != read_at(data, names, (*scan, 3, 40, 5), "")[5]
+    pixel = (*scan, 3, 40, 5)
+    assert rows(window)[0][5] == f"{data[layer.attribute, pixel]:.6g}" != read_at(data, names, pixel, "")[5]
     # Clear point leaves the time sync only
     menu_action(viewers["map"], "Clear point").trigger()
     settle(qtbot, window)
@@ -2336,6 +2339,8 @@ def test_the_point_window_places_the_point_on_each_slit_jaw_image(bare_app, qtbo
     viewers = quicklook(bare_app, [raster, *sjis])
     window = point_window(bare_app)
     shows = [(raster, viewers["map"]), *zip(sjis, viewers["sji"])]
+    settle(qtbot, window)
+    assert window.parentWidget().height() >= window.parentWidget().sizeHint().height()  # as tall as its rows
 
     def sync(viewer):
         """The time sync as the viewer's Frame time readout gives it."""
@@ -2384,6 +2389,10 @@ def test_the_point_window_places_the_point_on_each_slit_jaw_image(bare_app, qtbo
     menu_action(viewers["map"], "Clear point").trigger()
     settle(qtbot, window)
     assert rows(window) == [unpointed(data, sync(viewer)) for data, viewer in shows]
+    # a closed panel's dataset leaves the window
+    viewers["sji"][1].close(warn=False)
+    settle(qtbot, window)
+    assert rows(window) == [unpointed(data, sync(viewer)) for data, viewer in shows[:2]]
 
 
 def test_each_quicklook_has_its_own_point_window(bare_app, qtbot, monkeypatch, scans):
