@@ -2267,11 +2267,10 @@ def rows(window):
 
 def read_at(data, names, pixel, sync):
     """The Point window's row for ``data`` at ``pixel``, whose axes are ``names``, as read from the data."""
-    world = data.coords.pixel_to_world_values(*pixel[::-1])
-    units = data.coords.world_axis_units
-    # helioprojective angles in arcsec and wavelengths in Angstrom, as IRIS data give them; time has its own column
-    position = [f'{value:.2f}"' if unit == "arcsec" else f"{value:.3f} Å" for value, unit in zip(world, units)
-                if unit in ("arcsec", "Angstrom")]
+    world = dict(zip(data.coords.world_axis_physical_types, data.coords.pixel_to_world_values(*pixel[::-1])))
+    # longitude and latitude in arcsec, then any wavelength in Angstrom, as IRIS data give them; time has its own column
+    position = [f'{world[f"custom:pos.helioprojective.{name}"]:.2f}"' for name in ("lon", "lat")]
+    position += [f"{world['em.wl']:.3f} Å"] if "em.wl" in world else []
     return [
         data.label,
         ", ".join(f"{name} {index}" for name, index in zip(names, pixel)),
