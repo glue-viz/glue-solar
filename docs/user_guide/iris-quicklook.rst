@@ -123,7 +123,8 @@ outside the raster (below), until the point moves again, with its offset from th
 MATCH and greyed when the raster took that place more than half a frame interval away, as it often
 did on a scanning raster; under a slit-jaw time master the master rules, and the exposure or scan
 and the viewer clicked follow its frame. One Undo ("Edit" menu, Ctrl+Z, Cmd+Z on macOS) takes the
-point back. A click outside the raster, past its first or last step or either end of its slit, or on
+point back. Redo repeats the click in the frame the viewer shows then, so after the frame has moved
+it can land on another exposure or scan than the first time. A click outside the raster, past its first or last step or either end of its slit, or on
 a sit-and-stare raster in a frame with no exposure within half its cadence, leaves the point where
 it was, and the viewer's "Frame time" readout says "outside raster FOV" until the point moves; it
 still adds an Undo step, which changes nothing. A click on a slit-jaw viewer showing its frame axis,
