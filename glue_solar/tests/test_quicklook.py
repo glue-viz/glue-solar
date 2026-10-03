@@ -1570,7 +1570,7 @@ def lines(viewer):
     return {name: drawn(viewer, name) for name in ("point", "wavelength", "time")}
 
 
-def test_lines_on_the_spectrogram_and_the_wavelength_panel(bare_app, qtbot, irispy_test_files):
+def test_lines_on_the_spectrogram_and_the_wavelength_panel(bare_app, qtbot, monkeypatch, irispy_test_files):
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
     spectrogram, panel = viewers["spectrogram"], viewers["wavelength"]
@@ -1585,8 +1585,21 @@ def test_lines_on_the_spectrogram_and_the_wavelength_panel(bare_app, qtbot, iris
     qtbot.wait(20)
     assert lines(spectrogram)["point"] == ("y", [10])
     assert lines(panel) == {"point": ("y", [78]), "wavelength": ("x", [wavelength]), "time": ("y", [78])}
+    draws = Counter()
+    for role in ("wavelength", "spectrum"):
+        canvas = viewers[role].figure.canvas
+        monkeypatch.setattr(canvas, "draw", lambda draw=canvas.draw, role=role: draws.update([role]) or draw())
     slide(viewers["map"], 2, 5)
+    qtbot.wait(20)
     assert lines(panel)["wavelength"] == ("x", [5])
+    assert draws == {"wavelength": 1, "spectrum": 1}  # for their lines alone
+    menu_action(viewers["map"], "Time master").trigger()  # a time sync that moves nothing: no draw
+    qtbot.wait(20)
+    assert draws == {"wavelength": 1, "spectrum": 1}
+    # a Profile's collapse of the map's wavelengths, at its centre
+    viewers["map"].state.slices = (*viewers["map"].state.slices[:2], AggregateSlice(slice(3, 8), 5, np.nansum))
+    assert lines(panel)["wavelength"] == ("x", [5])
+    assert drawn(viewers["spectrum"], "wavelength") == ("x", [pytest.approx(wavelengths(raster)[5])])
     # axes swapped, the lines turn with them
     panel.state.x_att = raster.pixel_component_ids[0]
     assert lines(panel) == {"point": ("x", [78]), "wavelength": ("y", [5]), "time": ("x", [78])}
@@ -1605,6 +1618,12 @@ def test_lines_on_the_spectrogram_and_the_wavelength_panel(bare_app, qtbot, iris
     qtbot.wait(20)
     assert lines(spectrogram)["point"] is None
     assert lines(panel) == {"point": None, "wavelength": ("y", [5]), "time": ("x", [120])}
+    # a slit-jaw point, clicked on an image showing its frames, has no line on the raster panels
+    viewers["sji"][0].state.x_att = sji.pixel_component_ids[0]
+    select_point(viewers["sji"][0], 3, 2)
+    qtbot.wait(20)
+    assert coordinator(bare_app.data_collection).point.reference_data is sji
+    assert lines(spectrogram)["point"] is lines(panel)["point"] is None
     panel.state.y_att = raster.pixel_component_ids[1]  # exposure against slit: no wavelength, no lines
     assert lines(panel) == {"point": None, "wavelength": None, "time": None}
 
@@ -1688,7 +1707,7 @@ def test_navigate_moves_the_map_and_its_lines(bare_app, qtbot, scans, unit):
         assert drawn(viewers["wavelength"], "wavelength") == ("x", [j])
 
 
-def test_the_lines_leave_closed_panels_and_go_with_their_tab(bare_app, qtbot, irispy_test_files):
+def test_the_lines_leave_closed_panels_and_go_with_their_tab(bare_app, qtbot, monkeypatch, irispy_test_files):
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
     coord = coordinator(bare_app.data_collection)
@@ -1698,13 +1717,20 @@ def test_the_lines_leave_closed_panels_and_go_with_their_tab(bare_app, qtbot, ir
         return [listener for listener in coord._listeners if isinstance(getattr(listener, "__self__", None), kind)]
 
     assert len(kept()) == 1
+    closed = Counter()
     for role in ("spectrum", "wavelength"):
         viewers[role].close(warn=False)
+        monkeypatch.setattr(viewers[role].figure.canvas, "draw_idle", lambda role=role: closed.update([role]))
     qtbot.wait(20)
-    slide(viewers["map"], 2, 5)  # no idle draw on a closed panel, which would fail the test
+    slide(viewers["map"], 2, 5)
     select_point(viewers["map"], 30, 12)
     qtbot.wait(20)
     assert lines(viewers["spectrogram"])["point"] == ("y", [12])
+    assert closed == {}  # the closed panels are never drawn again
+    # the Point group deleted, its line goes
+    bare_app.data_collection.remove_subset_group(bare_app.session.edit_subset_mode.edit_subset[0])
+    qtbot.wait(20)
+    assert lines(viewers["spectrogram"])["point"] is None
     bare_app.close_tab(bare_app.tab_count - 1, warn=False)
     qtbot.wait(20)
     assert kept() == []
