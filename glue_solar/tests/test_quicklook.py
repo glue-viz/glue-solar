@@ -1,4 +1,5 @@
 import shutil
+import time
 from collections import Counter
 
 import numpy as np
@@ -19,6 +20,7 @@ from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.text import Text
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt, QTimer
@@ -3142,6 +3144,199 @@ def test_one_undo_reverts_a_slit_jaw_click(bare_app, qtbot, irispy_test_files):
     qtbot.wait(20)
     assert sliders(bare_app, viewers) == before
     assert not undo.isEnabled()
+
+
+def follow(viewer):
+    """Make Follow/lock the viewer's mouse mode."""
+    viewer.toolbar.active_tool = "solar:follow_lock"
+
+
+def hover(qtbot, viewer, x, y):
+    """Move the mouse, no button down, to data position ``x, y`` of the viewer, and let Follow/lock's throttle run."""
+    mouse(viewer, "motion_notify_event", x, y, button=None)
+    qtbot.waitUntil(lambda: not viewer.toolbar.tools["solar:follow_lock"]._timer.isActive())
+
+
+def click(viewer, x, y, button=1):
+    """Press and release the mouse ``button`` (3 is the right one) at data position ``x, y`` of the viewer."""
+    mouse(viewer, "button_press_event", x, y, button)
+    mouse(viewer, "button_release_event", x, y, button)
+
+
+def key(viewer, name):
+    """Press the key ``name``, such as 'escape', on the viewer's image, which has the keyboard after a click there."""
+    canvas = viewer.figure.canvas
+    canvas.callbacks.process("key_press_event", KeyEvent("key_press_event", canvas, name))
+
+
+def test_what_moves_on_hover_and_lock(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    label = raster.label
+    times = raster[raster.id["Time"]][:, 0, 0]
+    f1400 = [nearest_frame(sji, when) for when in times]
+    undo = bare_app._actions["undo"]
+
+    def event(action):
+        return changes(bare_app, qtbot, viewers, action)
+
+    qtbot.wait(20)
+    # Follow/lock on the map: the mouse moving over it moves the point as a Pixel click there does, with no Undo step
+    assert event(lambda: follow(viewers["map"])) == {}
+    assert event(lambda: hover(qtbot, viewers["map"], 78, 10)) == {
+        "point": (label, (78, 10, None)),
+        "spectrogram": (78, None, None),
+        "wavelength": (None, 10, None),
+        "sji0": (f1400[78], None, None),
+    }
+    np.testing.assert_array_equal(spectrum(viewers), cube(raster)[78, 10])
+    assert not undo.isEnabled()
+    # a left click moves the point there and locks it, in one Undo step
+    assert event(lambda: click(viewers["map"], 100, 20)) == {
+        "point": (label, (100, 20, None)),
+        "spectrogram": (100, None, None),
+        "wavelength": (None, 20, None),
+        "sji0": (f1400[100], None, None),
+    }
+    assert undo.text() == "Undo lock point"
+    # a locked point stays as the mouse moves, over any viewer in Follow/lock, and stays locked through exposure steps,
+    # which move it as before
+    follow(sji_viewer)
+    assert event(lambda: hover(qtbot, viewers["map"], 130, 30)) == {}
+    assert event(lambda: hover(qtbot, sji_viewer, 10, 20)) == {}
+    for move, exposure in ((slide, 130), (type_index, 61)):
+        assert event(lambda move=move, exposure=exposure: move(viewers["spectrogram"], 0, exposure)) == {
+            "point": (label, (exposure, 20, None)),
+            "spectrogram": (exposure, None, None),
+            "sji0": (f1400[exposure], None, None),
+        }
+        assert event(lambda: hover(qtbot, viewers["map"], 3, 12)) == {}
+    # Esc unlocks it: on a slit-jaw image the point follows the mouse to the raster pixel there, as a click there moves
+    # it, and the frame stays
+    assert event(lambda: key(viewers["map"], "escape")) == {}
+    assert event(lambda: slide(sji_viewer, 0, 40)) == {"sji0": (40, None, None)}
+    exposure = expected_nearest(sji[sji.id["Time"]][40, 0, 0], times)
+    (x, y), index = clicked(sji_viewer, raster, exposure, 30)
+    assert index == (exposure, 30)
+    assert event(lambda: hover(qtbot, sji_viewer, x, y)) == {
+        "point": (label, (exposure, 30, None)),
+        "spectrogram": (exposure, None, None),
+        "wavelength": (None, 30, None),
+    }
+    # a left click there locks it at the slit row level with the click, and a right click on any viewer unlocks it
+    assert event(lambda: click(sji_viewer, x - 5, y - 5)) == {
+        "point": (label, (exposure, 25, None)),
+        "wavelength": (None, 25, None),
+    }
+    assert event(lambda: hover(qtbot, viewers["map"], 3, 12)) == {}
+    assert event(lambda: click(viewers["map"], 3, 12, button=3)) == {}
+    assert event(lambda: hover(qtbot, viewers["map"], 3, 12)) == {
+        "point": (label, (3, 12, None)),
+        "spectrogram": (3, None, None),
+        "wavelength": (None, 12, None),
+        "sji0": (f1400[3], None, None),
+    }
+    # a click locks it again; Pixel stays, and its click moves a locked point, which stays locked
+    assert event(lambda: click(viewers["map"], 78, 10)) == {
+        "point": (label, (78, 10, None)),
+        "spectrogram": (78, None, None),
+        "wavelength": (None, 10, None),
+        "sji0": (f1400[78], None, None),
+    }
+    assert event(lambda: select_point(viewers["map"], 100, 20)) == {
+        "point": (label, (100, 20, None)),
+        "spectrogram": (100, None, None),
+        "wavelength": (None, 20, None),
+        "sji0": (f1400[100], None, None),
+    }
+    follow(viewers["map"])
+    assert event(lambda: hover(qtbot, viewers["map"], 3, 12)) == {}
+
+
+def test_one_undo_takes_back_a_lock_which_survives_scan_steps(bare_app, qtbot, scans):
+    _, stack = scans
+    viewers = quicklook(bare_app, [stack])
+    label = stack.label
+    wave = expected_start(stack)[-1]  # the map's wavelength
+    undo, redo = bare_app._actions["undo"], bare_app._actions["redo"]
+
+    def event(action):
+        return changes(bare_app, qtbot, viewers, action)
+
+    # the mouse over a stack's map moves the point at the map's scan, as a click does
+    follow(viewers["map"])
+    assert event(lambda: hover(qtbot, viewers["map"], 1, 30)) == {
+        "point": (label, (0, 1, 30, None)),
+        "spectrogram": (0, 1, None, None),
+        "wavelength": (None, 1, 30, None),
+    }
+    hovered = sliders(bare_app, viewers)
+    locked = {
+        "point": (label, (0, 5, 40, None)),
+        "spectrogram": (0, 5, None, None),
+        "wavelength": (None, 5, 40, None),
+    }
+    assert event(lambda: click(viewers["map"], 5, 40)) == locked
+    # one Undo takes the point back to where the mouse had moved it, and unlocks it
+    undo.trigger()
+    qtbot.wait(20)
+    assert sliders(bare_app, viewers) == hovered
+    assert not undo.isEnabled()
+    assert event(lambda: hover(qtbot, viewers["map"], 2, 60)) == {
+        "point": (label, (0, 2, 60, None)),
+        "spectrogram": (0, 2, None, None),
+        "wavelength": (None, 2, 60, None),
+    }
+    # Redo locks it again where it was clicked
+    assert event(redo.trigger) == locked
+    assert event(lambda: hover(qtbot, viewers["map"], 1, 30)) == {}
+    # the lock survives scan steps, which move the point as before
+    assert event(lambda: slide(viewers["map"], 0, 4)) == {
+        "point": (label, (4, 5, 40, None)),
+        "map": (4, None, None, wave),
+        "spectrogram": (4, 5, None, None),
+    }
+    assert event(lambda: hover(qtbot, viewers["map"], 1, 30)) == {}
+
+
+def test_the_point_follows_the_mouse_at_most_once_in_50_ms(bare_app, qtbot, scans):
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    viewer = viewers["map"]
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    steps, slits = scan.shape[:2]
+    follow(viewer)
+    viewer.figure.canvas.draw()
+    updates = SubsetUpdates(bare_app.data_collection.hub)
+
+    def move(n):
+        x, y = viewer.axes.transData.transform((n % steps, n % slits))
+        canvas = viewer.figure.canvas
+        canvas.callbacks.process("motion_notify_event", MouseEvent("motion_notify_event", canvas, x, y))
+
+    # 100 moves at once: the point moves once, to the last, when the throttle runs
+    for n in range(100):
+        move(n)
+    assert updates.counts == {}
+    qtbot.waitUntil(lambda: updates.counts == {scan.label: 1})
+    qtbot.wait(100)
+    assert updates.counts == {scan.label: 1}
+    assert group.subset_state.slices[:2] == [slice(99 % steps, 99 % steps + 1), slice(99 % slits, 99 % slits + 1)]
+    # 100 moves 2 ms apart: at most one move in each 50 ms
+    updates.counts.clear()
+    start = time.monotonic()
+    for n in range(100):
+        move(n)
+        qtbot.wait(2)
+    qtbot.wait(100)
+    assert 1 < updates.counts[scan.label] <= (time.monotonic() - start) / 0.05 + 1
+    # off the image, here zoomed out, or off the axes, the point stays
+    viewer.state.x_min = -5
+    updates.counts.clear()
+    for x, y in ((-3, 50), (2, -1000)):
+        hover(qtbot, viewer, x, y)
+    assert updates.counts == {}
 
 
 def exposure_labels(viewer):

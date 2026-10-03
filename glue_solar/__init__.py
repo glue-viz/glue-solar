@@ -38,6 +38,7 @@ def setup():
             stretch = type("GammaStretch", (PowerStretch,), {"__init__": partialmethod(PowerStretch.__init__, gamma)})
             stretches.add(f"gamma_{gamma}", stretch, display=f"Gamma {gamma}")
     wanted = [
+        tools.FollowLockTool,
         tools.FrameTimeTool,
         tools.CoordinateTool,
         tools.HideAxesTool,
