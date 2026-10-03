@@ -1,0 +1,1 @@
+The quicklook marks the map's wavelength on the spectrum and wavelength panels, the time master's time on the wavelength panel and the point on the spectrogram and wavelength panel, and a zoom on the spectrum panel sets the wavelength panel's range.

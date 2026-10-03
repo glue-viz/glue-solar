@@ -1505,6 +1505,240 @@ def test_no_raster_point_on_another_observation(bare_app, qtbot, irispy_test_fil
     assert overlays(viewer)[1] is None
 
 
+def wavelengths(data):
+    """The wavelength of each pixel along the last axis of ``data``, in Å, from its own coordinates."""
+    wave = data[data.world_component_ids[-1], (0,) * (data.ndim - 1)] * u.Unit(data.coords.world_axis_units[0])
+    return wave.to_value(u.AA)
+
+
+def drawn(viewer, name):
+    """
+    Where the quicklook's ``name`` lines ('point', 'wavelength' or 'time') are on ``viewer``: ('x', positions) for
+    lines at x positions, across the whole image or plot, ('y', positions) for lines at y positions, or None while
+    they are hidden.
+    """
+    [line] = [line for line in viewer.axes.lines if line.get_gid() == f"solar:{name}"]
+    if not line.get_visible():
+        return None
+    xy = line.get_xydata()
+    ends = xy[~np.isnan(xy).any(axis=1)].reshape(-1, 2, 2)  # each line's two ends
+    vertical = bool((ends[:, 0, 0] == ends[:, 1, 0]).all())
+    if hasattr(viewer.state, "slices"):  # an image, crossed from edge to edge
+        state = viewer.state
+        other = (state.y_att if vertical else state.x_att).axis
+        assert (np.sort(ends[:, :, int(vertical)]) == [-0.5, state.reference_data.shape[other] - 0.5]).all()
+    else:  # the spectrum panel, from bottom to top
+        assert vertical
+        assert line.get_transform() == viewer.axes.get_xaxis_transform()
+        assert (ends[:, :, 1] == [0, 1]).all()
+    return ("x", list(ends[:, 0, 0])) if vertical else ("y", list(ends[:, 0, 1]))
+
+
+def check_wavelength_lines(app, data):
+    """The spectrum panel marks the wavelength of each raster panel with a wavelength slider, in its x unit."""
+    viewers = quicklook(app, [data])
+    spectrum, wave, axis = viewers["spectrum"], wavelengths(data), data.ndim - 1
+    start = expected_start(data)[-1]
+    assert drawn(spectrum, "wavelength") == ("x", [pytest.approx(wave[start])])
+    slide(viewers["map"], axis, 3)
+    assert drawn(spectrum, "wavelength") == ("x", [pytest.approx(wave[3])])
+    spectrum.state.x_display_unit = "nm"
+    assert drawn(spectrum, "wavelength") == ("x", [pytest.approx(wave[3] / 10)])
+    slide(viewers["map"], axis, 14)
+    assert drawn(spectrum, "wavelength") == ("x", [pytest.approx(wave[14] / 10)])
+    # the spectrogram turned to step (or exposure) against slit: its wavelength slider, where it was, marks too
+    viewers["spectrogram"].state.x_att = data.pixel_component_ids[data.ndim - 3]
+    assert drawn(spectrum, "wavelength") == ("x", pytest.approx(sorted(wave[[start, 14]] / 10)))
+    spectrum.state.x_att = data.pixel_component_ids[axis]  # against wavelength pixels: at the pixels
+    assert drawn(spectrum, "wavelength") == ("x", sorted([start, 14]))
+    spectrum.state.x_att = data.world_component_ids[0]  # against another axis: none
+    assert drawn(spectrum, "wavelength") is None
+
+
+def test_the_spectrum_panel_marks_the_map_wavelength(bare_app, scans):
+    for data in scans:
+        check_wavelength_lines(bare_app, data)
+
+
+@pytest.mark.remote_data
+def test_the_spectrum_panel_marks_the_map_wavelength_of_a_full_raster(bare_app, irispy_data):
+    [data] = raster_data([irispy_data("iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz")])
+    check_wavelength_lines(bare_app, data)
+
+
+def lines(viewer):
+    return {name: drawn(viewer, name) for name in ("point", "wavelength", "time")}
+
+
+def test_lines_on_the_spectrogram_and_the_wavelength_panel(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    spectrogram, panel = viewers["spectrogram"], viewers["wavelength"]
+    exposure, slit, wavelength = expected_start(raster)
+    qtbot.wait(20)
+    # the point's slit on the spectrogram; its exposure, the map's wavelength and the time master's exposure on the
+    # λ–time panel
+    assert lines(spectrogram) == {"point": ("y", [slit]), "wavelength": None, "time": None}
+    assert lines(panel) == {"point": ("y", [exposure]), "wavelength": ("x", [wavelength]), "time": ("y", [exposure])}
+    assert lines(viewers["map"]) == {"point": None, "wavelength": None, "time": None}  # glue's crosshair only
+    select_point(viewers["map"], 78, 10)
+    qtbot.wait(20)
+    assert lines(spectrogram)["point"] == ("y", [10])
+    assert lines(panel) == {"point": ("y", [78]), "wavelength": ("x", [wavelength]), "time": ("y", [78])}
+    slide(spectrogram, 0, 80)  # the lines move with the point, before the time sync: glue draws the panel once
+    assert lines(panel) == {"point": ("y", [80]), "wavelength": ("x", [wavelength]), "time": ("y", [80])}
+    qtbot.wait(20)
+    draws = Counter()
+    for role in ("wavelength", "spectrum"):
+        canvas = viewers[role].figure.canvas
+        monkeypatch.setattr(canvas, "draw", lambda draw=canvas.draw, role=role: draws.update([role]) or draw())
+    slide(viewers["map"], 2, 5)
+    qtbot.wait(20)
+    assert lines(panel)["wavelength"] == ("x", [5])
+    assert draws == {"wavelength": 1, "spectrum": 1}  # for their lines alone
+    menu_action(viewers["map"], "Time master").trigger()  # a time sync that moves nothing: no draw
+    qtbot.wait(20)
+    assert draws == {"wavelength": 1, "spectrum": 1}
+    # a Profile's collapse of the map's wavelengths, at its centre
+    viewers["map"].state.slices = (*viewers["map"].state.slices[:2], AggregateSlice(slice(3, 8), 5, np.nansum))
+    assert lines(panel)["wavelength"] == ("x", [5])
+    assert drawn(viewers["spectrum"], "wavelength") == ("x", [pytest.approx(wavelengths(raster)[5])])
+    # axes swapped, the lines turn with them
+    panel.state.x_att = raster.pixel_component_ids[0]
+    assert lines(panel) == {"point": ("x", [80]), "wavelength": ("y", [5]), "time": ("x", [80])}
+    spectrogram.state.x_att = raster.pixel_component_ids[1]
+    assert lines(spectrogram)["point"] == ("x", [10])
+    # under a slit-jaw master the raster's exposure follows its frame, and both lines with it
+    menu_action(viewers["sji"][0], "Time master").trigger()
+    slide(viewers["sji"][0], 0, 5)
+    qtbot.wait(20)
+    exposure = expected_nearest(sji[sji.id["Time"]][5, 0, 0], raster[raster.id["Time"]][:, 0, 0])
+    assert lines(panel) == {"point": ("x", [exposure]), "wavelength": ("y", [5]), "time": ("x", [exposure])}
+    # after Clear point only the time line, following the exposure slider of the raster master
+    menu_action(viewers["map"], "Time master").trigger()
+    menu_action(viewers["map"], "Clear point").trigger()
+    slide(spectrogram, 0, 120)
+    qtbot.wait(20)
+    assert lines(spectrogram)["point"] is None
+    assert lines(panel) == {"point": None, "wavelength": ("y", [5]), "time": ("x", [120])}
+    # a slit-jaw point, clicked on an image showing its frames, has no line on the raster panels
+    viewers["sji"][0].state.x_att = sji.pixel_component_ids[0]
+    select_point(viewers["sji"][0], 3, 2)
+    qtbot.wait(20)
+    assert coordinator(bare_app.data_collection).point.reference_data is sji
+    assert lines(spectrogram)["point"] is lines(panel)["point"] is None
+    panel.state.y_att = raster.pixel_component_ids[1]  # exposure against slit: no wavelength, no lines
+    assert lines(panel) == {"point": None, "wavelength": None, "time": None}
+
+
+def test_the_time_line_follows_a_slit_jaw_master(bare_app, qtbot, scans):
+    scan, stack = scans
+    # a stack's λ–scan panel marks the point's scan
+    viewers = quicklook(bare_app, [stack])
+    qtbot.wait(20)
+    assert lines(viewers["wavelength"])["time"] == lines(viewers["wavelength"])["point"] == ("y", [0])
+    slide(viewers["map"], 0, 4)
+    qtbot.wait(20)
+    assert lines(viewers["wavelength"])["time"] == lines(viewers["wavelength"])["point"] == ("y", [4])
+    times = scan[scan.id["Time"]][:, 0, 0]
+    frames = times[0] + (np.arange(24) - 2) * ((times[-1] - times[0]) / 19)  # about three per step
+    viewers = quicklook(bare_app, [scan, slit_jaw(frames, scan)])
+    [sji_viewer] = viewers["sji"]
+    select_point(viewers["map"], 1, 30)
+    qtbot.wait(20)
+    assert lines(viewers["wavelength"])["time"] == ("y", [1])
+    # a slit-jaw master moves nothing on a scanning raster: the line marks the step nearest its frame, hidden beyond
+    # half a step's time
+    menu_action(sji_viewer, "Time master").trigger()
+    for frame in (10, 0, 23, 4):
+        slide(sji_viewer, 0, frame)
+        qtbot.wait(20)
+        step = nearest_frame(scan, frames[frame])
+        assert lines(viewers["wavelength"])["time"] == (None if step is None else ("y", [step]))
+        assert lines(viewers["wavelength"])["point"] == ("y", [1])
+    assert nearest_frame(scan, frames[0]) is None
+
+
+def test_the_spectrum_range_is_the_wavelength_panels(bare_app, qtbot, irispy_test_files):
+    raster, _ = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster])
+    spectrum, panel, spectrogram = (viewers[role].state for role in ("spectrum", "wavelength", "spectrogram"))
+    wave = wavelengths(raster)
+    exposures, wavelengths_shown = (panel.y_min, panel.y_max), (spectrogram.x_min, spectrogram.x_max)
+
+    def show(low, high):
+        spectrum.x_min, spectrum.x_max = low, high
+
+    # a zoom on the spectrum panel moves no slider and gives the λ–time panel its wavelengths
+    assert changes(bare_app, qtbot, viewers, lambda: show(wave[4], wave[9])) == {}
+    assert (panel.x_min, panel.x_max) == (pytest.approx(4), pytest.approx(9))
+    spectrum.x_display_unit = "nm"  # glue converts the range, the same wavelengths
+    assert (panel.x_min, panel.x_max) == (pytest.approx(4), pytest.approx(9))
+    show(wave[2] / 10, wave[12] / 10)
+    assert (panel.x_min, panel.x_max) == (pytest.approx(2), pytest.approx(12))
+    show(wave[0] / 10 - 0.1, wave[-1] / 10)  # past the window's first wavelength
+    assert (panel.x_min, panel.x_max) == (pytest.approx(-0.1 / (wave[1] - wave[0]) * 10), pytest.approx(len(wave) - 1))
+    assert (panel.y_min, panel.y_max) == exposures
+    assert (spectrogram.x_min, spectrogram.x_max) == wavelengths_shown  # only the λ–time panel takes it
+    # with wavelength up, the panel's y range
+    panel.x_att = raster.pixel_component_ids[0]
+    show(wave[5] / 10, wave[6] / 10)
+    assert (panel.y_min, panel.y_max) == (pytest.approx(5), pytest.approx(6))
+
+
+@pytest.mark.parametrize("unit", ["Angstrom", "nm"])
+def test_navigate_moves_the_map_and_its_lines(bare_app, qtbot, scans, unit):
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    spectrum = viewers["spectrum"]
+    wave = (wavelengths(scan) * u.AA).to_value(unit)
+    spectrum.state.x_display_unit = unit
+    tools = spectrum.toolbar.tools["profile-analysis"]
+    # behaviour probe: glue-qt 0.4.2 compares Navigate's position with the data's own unit, Å (glue-qt #70 converts)
+    if tools._profile_tools._get_axis_and_pixel_slice(scan, wave[3])[1] != 3:
+        pytest.skip("glue-qt's Navigate takes positions in the data's own unit only")
+    tools.activate()  # glue's profile tools open on Navigate
+    y = (spectrum.state.y_min + spectrum.state.y_max) / 2
+
+    def navigate(x):
+        mouse(spectrum, "button_press_event", x, y)
+        mouse(spectrum, "button_release_event", x, y)
+
+    for j in (7, 3):
+        assert changes(bare_app, qtbot, viewers, lambda j=j: navigate(wave[j])) == {"map": (None, None, j)}
+        assert drawn(spectrum, "wavelength") == ("x", [pytest.approx(wave[j])])
+        assert drawn(viewers["wavelength"], "wavelength") == ("x", [j])
+
+
+def test_the_lines_leave_closed_panels_and_go_with_their_tab(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    coord = coordinator(bare_app.data_collection)
+
+    def kept():
+        kind = glue_solar.quicklook._SpectralLines
+        return [listener for listener in coord._listeners if isinstance(getattr(listener, "__self__", None), kind)]
+
+    assert len(kept()) == 1
+    closed = Counter()
+    for role in ("spectrum", "wavelength"):
+        viewers[role].close(warn=False)
+        monkeypatch.setattr(viewers[role].figure.canvas, "draw_idle", lambda role=role: closed.update([role]))
+    qtbot.wait(20)
+    slide(viewers["map"], 2, 5)
+    select_point(viewers["map"], 30, 12)
+    qtbot.wait(20)
+    assert lines(viewers["spectrogram"])["point"] == ("y", [12])
+    assert closed == {}  # the closed panels are never drawn again
+    # the Point group deleted, its line goes
+    bare_app.data_collection.remove_subset_group(bare_app.session.edit_subset_mode.edit_subset[0])
+    qtbot.wait(20)
+    assert lines(viewers["spectrogram"])["point"] is None
+    bare_app.close_tab(bare_app.tab_count - 1, warn=False)
+    qtbot.wait(20)
+    assert kept() == []
+
+
 def past(raster, sji, end, inner, frame):
     """The slit-jaw pixel one raster pixel past ``end``, away from ``inner``, both (step, slit) pixels."""
     end, inner = (np.array(raster_point_on_sji(raster, sji, *pixel, frame)) for pixel in (end, inner))

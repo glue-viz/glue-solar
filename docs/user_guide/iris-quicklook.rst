@@ -70,7 +70,8 @@ The map shows the wavelength nearest the window's reference wavelength, and the 
 tool active: drag it on the map, and the spectrum panel shows its spectrum. The point is a detector
 pixel (a step or exposure, and a slit position) at every wavelength, and the other panels follow
 it: the spectrogram moves to its step and the wavelength panel to its slit. Its crosshair shows
-only on the map; the spectrogram and the wavelength panel highlight its row instead. Clicking the
+only on the map; the spectrogram and the wavelength panel highlight its row instead, with a thin red
+line along it. Clicking the
 spectrogram or the wavelength panel moves the point there and the map to the clicked wavelength;
 no other wavelength slider moves. Moving a step, exposure or scan slider moves the point, so on a
 stack the point stays on the map's scan. A Profile's collapse of an axis is left in place. After
@@ -117,6 +118,22 @@ half its own time step of the master's time (for a
 scanning raster, one that does not cover it) keeps its frame and is greyed. The "Frame time" readout
 says which dataset is the time master, how far each matched dataset's time is from the master's
 (Δt) and "NO MATCH" with that offset for the others. Wavelength and slit sliders are never moved.
+
+Lines mark the wavelength and the time. The wavelength panel has a dashed white line at the map's
+wavelength and a dotted white line at the step, exposure or scan nearest the time master's time,
+hidden when none is within half its time step; under a slit-jaw master, which leaves a scanning
+raster's step alone, it marks the step taken at the time of the frame shown. The spectrum panel has
+a dashed grey line at the map's wavelength, in its "x unit" (Å, or nm when chosen in its plot
+options), while its x axis is the raster's wavelength or wavelength pixel. A raster panel turned to
+show another axis than wavelength, such as the spectrogram turned into a map, adds a line at its own
+wavelength to both, and one turned to show wavelength against the wavelength panel's step, exposure
+or scan axis has its lines; on a stack, wavelength against step has only the point's. The lines
+follow the sliders, the point, the time master, axis changes and the x unit; they show in "Save plot
+to file", but not in a saved session or "Save Python script to reproduce plot". Zooming, panning or
+typing limits on the spectrum panel's x axis gives the wavelength panel the same wavelength range.
+On the "Navigate" tab of the spectrum panel's "Options" (see :ref:`the 1D Profile guide
+<glue_solar_user_guide_1dprofile_viewer_for_iris_data>`), a click on the spectrum moves the map, and
+its lines, to the nearest wavelength; with glue-qt 0.4.2 only while the x unit is Å, the data's own.
 
 The "Coordinate" menu of every Image viewer also has "Go to UTC…" and "Loop…". "Go to UTC…" asks for
 a UTC time, such as ``2013-09-02T17:00:00``, starting from the time master's, and moves the time

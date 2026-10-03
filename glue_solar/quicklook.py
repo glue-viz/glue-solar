@@ -16,15 +16,17 @@ from glue.core.hub import HubListener
 from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, SubsetDeleteMessage, SubsetUpdateMessage
 from glue.core.roi import PolygonalROI
 from glue.core.subset import RoiSubsetState, SubsetState
+from glue.core.units import UnitConverter
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.profile.state import ProfileLayerState
 from glue_qt.utils import process_events
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from matplotlib.lines import Line2D
 from matplotlib.path import Path
 from matplotlib.transforms import Bbox
-from qtpy.QtCore import QEventLoop, Qt, QTimer
+from qtpy.QtCore import QEventLoop, QObject, Qt, QTimer
 from qtpy.QtWidgets import (
     QAbstractItemView,
     QAbstractScrollArea,
@@ -1066,7 +1068,9 @@ def quicklook(app, datasets, window=None):
     showing the mean spectrum of the point. The point starts at the centre of the map, in a new
     subset group 'Point' that is the edit subset while the tab is shown, with the Pixel tool active
     on the map. A read-only 'Point' window below the panels gives the point's pixel, position, time,
-    exposure, value and time sync in each dataset they show.
+    exposure, value and time sync in each dataset they show. Lines on the spectrogram, the wavelength
+    panel and the spectrum panel mark the point, the map's wavelength and the time master's time, and
+    a zoom on the spectrum panel is the wavelength panel's too (`_SpectralLines`).
 
     Parameters
     ----------
@@ -1122,6 +1126,7 @@ def quicklook(app, datasets, window=None):
         _show_point(app, group, [viewers[role] for role in ("map", "spectrogram", "wavelength", "spectrum")])
         _fit_spectrum(viewers["spectrum"], group)
         _point_window(app, tab, group, key, own)
+        _SpectralLines(coordinator(collection), group, key, own[:3], viewers["spectrum"], app.tab(tab))
     app.statusBar().showMessage(" ".join(notes))
     process_events()  # let the tab take its final size
     _arrange(app, tab, viewers)
@@ -1224,6 +1229,167 @@ def _fit_spectrum(viewer, group):
     if data.size > _THREADED_SIZE:
         [subset] = [subset for subset in group.subsets if subset.data is data]
         viewer._solar_fit = _FitOnceComputed(viewer, subset)  # the hub holds its listeners weakly
+
+
+# the raster panels' lines, the last on top: the point's thin, in the colour of glue's crosshair, the others as a
+# slit-jaw image's slit
+_LINES = {
+    "wavelength": dict(color="white", lw=0.8, ls="--"),
+    "time": dict(color="white", lw=0.8, ls=":"),
+    "point": dict(color="#d32d26", lw=0.8),
+}
+
+
+def _segments(at, ends):
+    """Lines at each of ``at``, from ``ends[0]`` to ``ends[1]`` across, as one artist's positions along and across."""
+    along = np.repeat(np.asarray(at, dtype=float), 3)
+    along[2::3] = np.nan  # between two lines
+    return along, np.tile([*ends, np.nan], len(along) // 3)
+
+
+def _across(state, axis, at):
+    """Lines across the image of an Image viewer's ``state`` at ``at`` along its shown array axis ``axis``, as x, y."""
+    shown = [state.x_att.axis, state.y_att.axis]
+    along, across = _segments(at, (-0.5, state.reference_data.shape[shown[shown.index(axis) - 1]] - 0.5))
+    return (along, across) if axis == shown[0] else (across, along)
+
+
+def _place(artist, xy):
+    """Draw ``artist`` at ``xy``, or hide it for None; whether what it shows changed."""
+    before = artist.get_xydata() if artist.get_visible() else None
+    if xy is not None:
+        artist.set_data(*xy)
+    artist.set_visible(xy is not None)
+    if before is None or xy is None:
+        return (before is None) != (xy is None)
+    return not np.array_equal(before, artist.get_xydata(), equal_nan=True)
+
+
+class _SpectralLines(QObject):
+    """
+    A quicklook's lines on its raster and spectrum panels, and its spectrum panel's wavelength range on the wavelength
+    panel.
+
+    A raster panel showing wavelength against another axis has a thin red line at the point there: its slit on the
+    spectrogram, its step, exposure or scan on the wavelength panel. One showing wavelength against step, exposure or
+    scan, the wavelength panel, also has a dashed white line at the wavelength of each raster panel with a wavelength
+    slider, the map, and a dotted white line at the step, exposure or scan nearest the time master's time, hidden when
+    none is within half its cadence. The spectrum panel has a dashed grey line at each of those wavelengths, in its x
+    unit, while its x axis is the raster's wavelength or wavelength pixel; whenever its x range changes, the wavelength
+    panel takes it. The lines follow the point, the time master, the sliders, axis changes and the x unit, and are
+    plain matplotlib lines: 'Save plot' shows them, and sessions and Python scripts leave them out.
+    """
+
+    def __init__(self, coordinator, group, key, panels, spectrum, tab):
+        super().__init__(tab)  # kept, and deleted, with the tab
+        self.coordinator, self.group, self.key, self.panels, self.spectrum = coordinator, group, key, panels, spectrum
+        self.data = panels[0].state.reference_data
+        [self.axis] = _spectral_axes(self.data)
+        self.lines = {
+            viewer: {
+                name: viewer.axes.add_line(Line2D([], [], gid=f"solar:{name}", zorder=99, visible=False, **style))
+                for name, style in _LINES.items()
+            }
+            for viewer in panels
+        }
+        axes = spectrum.axes
+        self.marks = axes.add_line(Line2D([], [], gid="solar:wavelength", color="0.5", lw=0.8, ls="--", visible=False))
+        self.marks.set_transform(axes.get_xaxis_transform())  # from bottom to top
+        coordinator.add_listener(self._synced)
+        self.destroyed.connect(partial(coordinator.remove_listener, self._synced))  # with its tab
+        for viewer in panels:
+            for prop in ("reference_data", "x_att", "y_att", "slices"):
+                # after the coordinator's own, which moves the point: the lines move before glue redraws the panel
+                viewer.state.add_callback(prop, self.refresh, priority=-1)
+        for prop in ("reference_data", "x_att", "x_display_unit"):
+            spectrum.state.add_callback(prop, self.refresh)
+        for prop in ("x_min", "x_max"):
+            spectrum.state.add_callback(prop, self._copy_range)
+        self.refresh()
+
+    def _synced(self, key, time, exposure):
+        if key == self.key:
+            self.refresh()
+
+    def _raster_panels(self):
+        """The open panels showing the raster on two axes."""
+        return [
+            viewer for viewer in self.panels
+            if not viewer._closed and viewer.state.reference_data is self.data and len(_shown(viewer.state)) == 2
+        ]
+
+    def _spectrum_x(self):
+        """The spectrum panel's x at each wavelength of the raster, in the data's unit, or None for another x axis."""
+        state, data = self.spectrum.state, self.data
+        if self.spectrum._closed or state.reference_data is not data:
+            return None
+        if state.x_att_pixel is not data.pixel_component_ids[self.axis]:
+            return None
+        view = [0] * data.ndim
+        view[self.axis] = slice(None)
+        return data[state.x_att, tuple(view)]  # as glue's profile takes its x
+
+    def _time_index(self):
+        """The raster's step, exposure or scan nearest the time master's time, or None beyond half its cadence."""
+        master = self.coordinator._master(self.key)
+        if master is None:
+            return None
+        # the master's time now, as the coming time sync takes it: a step moves the lines in glue's own redraw
+        index, step = self.coordinator._timing(master)
+        times = _times(master, step)
+        when = times[min(max(index, 0), len(times) - 1)]
+        times = _times(self.data, self.coordinator._timing(self.data)[1])
+        [index], [offset] = nearest([when], times)
+        return int(index) if abs(offset) <= _half_cadence(times) else None  # NaT, a gap, is never within
+
+    def refresh(self, *_):
+        """Move the lines (see the class)."""
+        panels, axis = self._raster_panels(), self.axis
+        wavelengths = sorted({
+            int(getattr(viewer.state.slices[axis], "center", viewer.state.slices[axis]))
+            for viewer in panels if axis not in _shown(viewer.state)
+        })
+        point = self.group.subset_state if self.group in self.coordinator.data_collection.subset_groups else None
+        if not isinstance(point, PixelSubsetState) or point.reference_data is not self.data:
+            point = None
+        time = self._time_index()
+        for viewer, lines in self.lines.items():
+            if viewer._closed:
+                continue
+            state, xy = viewer.state, dict.fromkeys(lines)  # None: hidden
+            if viewer in panels and axis in _shown(state):
+                [other] = _shown(state) - {axis}
+                if point is not None and point.slices[other].start is not None:
+                    xy["point"] = _across(state, other, [point.slices[other].start])
+                if other == 0 and wavelengths:
+                    xy["wavelength"] = _across(state, axis, wavelengths)
+                if other == 0 and time is not None:
+                    xy["time"] = _across(state, other, [time])
+            if any([_place(lines[name], xy[name]) for name in lines]):  # every line, not up to the first changed
+                viewer.figure.canvas.draw_idle()
+        values, state = self._spectrum_x(), self.spectrum.state
+        marks = None
+        if values is not None and wavelengths:
+            x = UnitConverter().to_unit(self.data, state.x_att, values[wavelengths], state.x_display_unit)
+            marks = _segments(x, (0, 1))
+        if _place(self.marks, marks) and not self.spectrum._closed:
+            self.spectrum.figure.canvas.draw_idle()
+
+    def _copy_range(self, *_):
+        """Give each open panel showing wavelength against step, exposure or scan the spectrum panel's x range."""
+        values, state = self._spectrum_x(), self.spectrum.state
+        if values is None or None in (state.x_min, state.x_max):
+            return
+        ends = np.array([state.x_min, state.x_max])
+        ends = UnitConverter().to_native(self.data, state.x_att, ends, state.x_display_unit)
+        ends = (ends - values[0]) / (values[-1] - values[0]) * (len(values) - 1)  # IRIS wavelengths are linear in pixel
+        for viewer in self._raster_panels():
+            panel = viewer.state
+            if _shown(panel) == {self.axis, 0}:
+                xy = "x" if panel.x_att.axis == self.axis else "y"
+                with delay_callback(panel, f"{xy}_min", f"{xy}_max"):
+                    setattr(panel, f"{xy}_min", ends[0])
+                    setattr(panel, f"{xy}_max", ends[1])
 
 
 def _arrange(app, tab, viewers):
