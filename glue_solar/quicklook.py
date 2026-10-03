@@ -779,6 +779,8 @@ def _outline_region(raster, roi, x_axis, y_axis, slices):
 
     Its outline runs within the raster's first and last pixel centres, past which glue's inverse of its coordinates
     places nothing, and has a corner wherever it crosses a whole step: between steps those coordinates are linear.
+    ``raster`` can also be a slit-jaw image, at the frame in ``slices``: across a frame its coordinates are linear to
+    1.3e-4 pixel, so the outline has no other corners.
     """
     margin = 1e-6  # so that pixel centres on the edge, such as another window's of the raster, are inside
     box = Bbox([[-margin, -margin], [raster.shape[x_axis] - 1 + margin, raster.shape[y_axis] - 1 + margin]])
@@ -787,6 +789,9 @@ def _outline_region(raster, roi, x_axis, y_axis, slices):
     along = int(y_axis == raster.ndim - 3)  # the outline's coordinate along the steps
     points = []
     for start, end in pairwise(clipped[0] if clipped else ()):
+        if _role(raster) != "raster":  # a slit-jaw frame, which has no steps
+            points.append(start)
+            continue
         low, high = sorted((start[along], end[along]))
         crossings = (np.arange(np.floor(low) + 1, np.ceil(high)) - start[along]) / (end[along] - start[along])
         points += [start, *(start + np.sort(crossings)[:, None] * (end - start))]
@@ -804,9 +809,10 @@ def _outline_region(raster, roi, x_axis, y_axis, slices):
 
 class _RasterRoiSubsetState(RoiSubsetState):
     """
-    A region drawn on a raster map: the raster's pixels inside it, as glue's own region, and on other data
-    ``world``, the region inside its outline (`_outline_region`), which glue places without inverting the raster's
-    coordinates at each of their pixels.
+    A region drawn on a raster map or a slit-jaw frame: that dataset's pixels inside it, as glue's own region, and on
+    other data ``world``, the region inside its outline (`_outline_region`). glue places that without inverting the
+    raster's coordinates at each of their pixels, and would place a slit-jaw image's own region nowhere else, as time
+    is not linked.
     """
 
     def __init__(self, xatt, yatt, roi, world):
@@ -816,7 +822,18 @@ class _RasterRoiSubsetState(RoiSubsetState):
     def to_mask(self, data, view=None):
         if self.xatt in data.pixel_component_ids:
             return super().to_mask(data, view)
-        return self.world.to_mask(data, view)
+        view = (slice(None),) * data.ndim if view is None else view
+        types = getattr(data.coords, "world_axis_physical_types", None) or ()
+        hpc = ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat")
+        angles = [i for i, kind in enumerate(types) if kind in hpc]
+        if len(angles) != 2 or len(view) != data.ndim or not all(isinstance(s, slice) for s in view):
+            return self.world.to_mask(data, view)
+        # as glue does for a region of pixels, place one plane along the axes on which longitude and latitude do not
+        # depend, such as a raster's wavelength, and spread it along them: a spectrum over every pixel takes seconds
+        flat = ~data.coords.axis_correlation_matrix[angles].any(axis=0)[::-1]
+        ranges = [range(*s.indices(n)) for s, n in zip(view, data.shape)]
+        plane = tuple(slice(r.start, r.start + 1) if f else s for f, r, s in zip(flat, ranges, view))
+        return np.broadcast_to(self.world.to_mask(data, plane), [len(r) for r in ranges])
 
     def copy(self):  # glue applies a copy
         return _RasterRoiSubsetState(self.xatt, self.yatt, self.roi, self.world)
@@ -846,14 +863,16 @@ class _NewSubset(Command):
 
 class QuicklookImageViewer(ImageViewer):
     """
-    An Image viewer used for IRIS rasters in the quicklook, whose map regions reach other data by their outline.
+    The quicklook's Image viewer, whose regions on a raster map or a slit-jaw frame reach other data by their outline.
 
     glue would place a region drawn on a raster map in a linked slit-jaw image by inverting the raster's coordinates
-    at each screen pixel, which takes seconds per frame. Here the region selects the raster's pixels inside it, and
-    on other data, such as each slit-jaw frame at its own pointing, what lies inside its outline in helioprojective
-    longitude and latitude. A region on any other panel is glue's own. While a quicklook's point is the edit subset, a
-    region on any panel is a new subset and the point stays the edit subset, so the Pixel tool keeps moving it; a
-    region picked to edit takes glue's selection mode.
+    at each screen pixel, which takes seconds per frame, and one drawn on a slit-jaw image nowhere else, as time is
+    not linked. Here the region selects the raster's pixels inside it, and on other data, such as each slit-jaw frame
+    at its own pointing, what lies inside its outline in helioprojective longitude and latitude. One on a slit-jaw
+    image selects its pixels inside it in every frame, as glue's own does, and on other data, such as the raster, what
+    lies inside its outline at the pointing of the frame it was drawn on. A region on any other panel is glue's own.
+    While a quicklook's point is the edit subset, a region on any panel is a new subset and the point stays the edit
+    subset, so the Pixel tool keeps moving it; a region picked to edit takes glue's selection mode.
     """
 
     def apply_subset_state(self, subset_state, override_mode=None):
@@ -867,7 +886,9 @@ class QuicklookImageViewer(ImageViewer):
     def apply_roi(self, roi, override_mode=None):
         state = self.state
         data = state.reference_data
-        if _role(data) != "raster" or _shown(state) != {data.ndim - 3, data.ndim - 2}:
+        on_map = _role(data) == "raster" and _shown(state) == {data.ndim - 3, data.ndim - 2}
+        on_frame = _role(data) == "sji" and _sji_frame(state) is not None and _placeable(data)
+        if not (on_map or on_frame):
             return super().apply_roi(roi, override_mode=override_mode)
         self.redraw()  # as glue's own does, which clears the drawn region
         world = _outline_region(data, roi, state.x_att.axis, state.y_att.axis, state.slices)
@@ -1087,7 +1108,9 @@ def quicklook(app, datasets, window=None):
         notes.append(note)
     for sji in sjis:
         frame = (0,) * sji.ndim
-        viewers["sji"].append(_image(app, ImageViewer, sji, sji.ndim - 1, sji.ndim - 2, frame, _sji_title(sji), "equal"))
+        viewers["sji"].append(
+            _image(app, QuicklookImageViewer, sji, sji.ndim - 1, sji.ndim - 2, frame, _sji_title(sji), "equal")
+        )
     notes += [f"{data.label} is loaded too: drag it onto a slit-jaw viewer to see it." for data in offered]
 
     QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # and after the last (see _image)
