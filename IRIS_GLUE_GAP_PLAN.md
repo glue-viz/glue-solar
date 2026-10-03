@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-02
 
-**Resume here.** M0 is done. Main is at 3c51da5 (#107-#114; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`); glue-solar PRs are marked ready and merged once CI passes. No PR is open. In progress (M1 batch 4, worktrees `~/Git/glue-solar-<item>`): `wp4-time-controls` and `wp10-m1-roi-world-polygon`, being changed to D38. Verifying irispy main 0ee8fad (#207) for glue-solar is in progress.
+**Resume here.** M0 is done. Main is at aafc4ba (#107-#115; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`); glue-solar PRs are marked ready and merged once CI passes. No PR is open. In progress: `wp10-m1-roi-world-polygon` (worktree `~/Git/glue-solar-wp10-m1-roi-world-polygon`, D38's new-subset regions), being rebased onto #115. Verifying irispy main 0ee8fad (#207) for glue-solar is in progress.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -93,10 +93,10 @@ A milestone is done when it has no items left.
 
 **M1**
 - WP0: `wp0-release-tracking`, `wp0-irispy-requests`
-- WP4: `wp4-m1-hover-lock-tool`, `wp4-m1-spectral-coupling`, `wp4-m1-multi-window`, `wp4-time-controls`, `wp4-raster-overlays`
+- WP4: `wp4-m1-hover-lock-tool`, `wp4-m1-spectral-coupling`, `wp4-m1-multi-window`, `wp4-raster-overlays`
 - WP5: `wp5-m1-spectral-blink`
 - WP9: `wp9-m1-screenshots`
-- WP10: `wp10-m1-roi-world-polygon`
+- WP10: `wp10-m1-roi-world-polygon`, `wp10-m1-canvas-teardown`
 - WP11: `wp11-keyboard-shortcuts`
 
 **M2**
@@ -173,7 +173,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 - [ ] **M4** `wp0-report-candidates`: Other reports, filed only on the user's direction. Done when each is filed or declined.
   - core `PathSlicedData` crashes on IRIS data (`world_axis_names` per kept pixel axis) and has generic gaps: 3-D-only enable, zeros not NaN, datetime cast, no session saver.
   - core dask percentile sampling reads only chunk corners.
-  - glue-qt ignores Fit constraints; its playback timer outlives the viewer.
+  - glue-qt ignores Fit constraints; its playback timer outlives the viewer, and keeps running when the sliders are rebuilt for new data or axes.
   - Still open on irispy main (57813b8): `verify("silentfix")` on every HDU (`io/sji.py:216`, `io/spectrograph.py:163`, `:190`; each raster file is opened twice, 198 calls for 99 files): the 99-file stack reads 0.7 s faster without it.
   - irispy's `remove_dust` and `radiometric_calibration` skip `check_scaled` (on raw int16 input `remove_dust` returns raw codes, `radiometric_calibration` −2.2e7), and `check_scaled` trusts `meta["scaled"]` over the dtype.
   - irispy's readers and burst finders treat -199 as fill, but the dust mask (`utils/utils.py:157`), `calculate_mg_features` (`mg_features.py:109`) and the wobble trim (`wobble.py:102`) still test -200 only. -199 is SolarSoft's convention, not ITN 26's (D12).
@@ -280,7 +280,6 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 - [ ] **M1** `wp4-m1-hover-lock-tool` (F094, F095): A 'Follow/lock' `PixelSelectionTool` subclass: hover moves the point (50 ms throttle, no undo entry), a left click locks it with one undoable `ApplySubsetState`, a right click or Esc unlocks. Done when on 3860258481, 3824262996 and 4000255147 hover updates the spectrum within 0.35 s, 100 motion events give ≤ 1 update per 50 ms, and the lock survives scan and exposure steps.
 - [ ] **M1** `wp4-m1-spectral-coupling` (F068, F075): Add what glue's Navigate lacks: Image wavelengths as Profile lines, wavelength and master-time lines on λ–t panels, a thin line at the point's slit on the spectrogram and at its exposure on λ–t (user, 2026-09-30), and the Profile x-range copied to λ–t x-limits. Done when on 4000005156 scan 0 and 4000255147 slider index k marks λ[k] in Å and nm, λ–t lines follow axis swaps, Navigate to λ[j] moves the map to j (a Profile unit other than the data's, such as nm, needs Qt #70), and markers update in < 5 ms.
 - [ ] **M1** `wp4-m1-multi-window` (F072, F073, F074, F108): For each ticked window of one file, open a Profile and any λ–t panel, and link step, exposure, scan and slit pixels with idempotent glue `LinkSame` links. Done when on 4000005156 scan 0 with three windows a point at (s, y) gives each Profile cube_w[s, y, :] and each map a crosshair, rerunning adds 0 links, and on 4000255147 all windows share one exposure.
-- [ ] **M1** `wp4-time-controls` (F088, F091): Add 'Go to UTC' and a [lo, hi] loop to glue's slider playback, and stop the play timer when its viewer closes. Done when on 4000255147 SJI 1400 'Go to 2013-09-02T17:00:00' picks the nearest exposure and the raster follows, a [100, 120] loop visits only frames 100-120, and closing the master stops playback.
 - [ ] **M1** `wp4-raster-overlays` (F125, F126): A toggle draws each raster step's slit on SJIs, in the SJI frame nearest that exposure, and a dashed map line at the step nearest the master time (hidden on NO MATCH). Done when on 4000005156 and 3860258481 each slit lies within 1 SJI px, and on 4000005156 SJI frames 0-15 mark scan 0 steps 3, 7, …, 63 and frames 16-31 scan 1.
 
 **M3**
@@ -392,6 +391,7 @@ Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on file
 **M1**
 
 - [ ] **M1** `wp10-m1-roi-world-polygon`: Override `apply_roi` on `QuicklookImageViewer` so a raster ROI becomes a lon/lat `PolygonalROI` (edges sampled once per step through `_GlueWCS`), and give raster viewers back their `select:*` tools. Done when on 4000005156 Si IV with deconvolved SJI 2796 frame 5 a raster rectangle selects the same 108,300 SJI pixels as the pixel subset in ≤ 0.5 s per frame, and sit-and-stare matches the pixel result.
+- [ ] **M1** `wp10-m1-canvas-teardown`: An idle draw on a deleted `MplCanvas` intermittently fails `test_linking.py::test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair` at teardown (2 of 8 full `iris-plan` runs on the region branch, once on the regrid branch; the conftest's `_canvas_errors_fail` turns it into an error). Find the canvas whose draw outlives its viewer and stop it at close. Done when 20 full runs in each env pass.
 
 **L**
 
@@ -494,6 +494,8 @@ Gated workarounds on main. Raw-WCS readers hold `WCS_LOCK` or use a deep copy; n
 | FITS export of lazy data and of uint8 components in a subset (`export_fits`, #96) | `needs_fits_export_dask_workaround()` | glue-core's exporter writing dask arrays and uint8 subsets (report candidate) |
 | No (0,0) Pixel crosshair (`ImageSubsetLayerArtist._update_visual_attributes`, #87) | `needs_crosshair_workaround()` | `wp0-core-image-artist-bugs`'s fix |
 | Pixel crosshair of a linked layer placed from the reference data (`ImageSubsetLayerArtist._update_data`, #107) | `needs_reference_crosshair_workaround()` | `wp0-core-image-artist-bugs`'s fix |
+| Axis labels set on the WCSAxes coordinate without placing ticks (`ImageViewer.update_x/y_axislabel`, #90) | `needs_axis_label_workaround()` | glue's `_set_wcs` label fix (`wp0-perf-core-draw`; the user's fork branch `perf-g1a-wcs-labels`) |
+| Slice playback stopped when its viewer closes (`ImageViewer.closeEvent`, #115) | Per close: a slider still playing after glue-qt's own close | glue-qt stopping play timers on close (report candidate) |
 
 Planned workarounds are named in their items.
 
