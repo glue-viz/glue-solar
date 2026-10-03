@@ -1,0 +1,1 @@
+A garbage collection during an idle draw no longer deletes a test's canvas under it: the test suite keeps each widget given to qtbot.addWidget until pytest-qt closes it.
