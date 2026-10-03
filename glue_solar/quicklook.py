@@ -1190,14 +1190,17 @@ class _PointWindow(QTableWidget):
             names = ("exposure", "slit", "λ")
         else:
             names = ("scan", "step", "slit", "λ")[-data.ndim :]
-        world = data.coords.pixel_to_world_values(*pixel[::-1])
-        units = [u.Unit(unit) for unit in data.coords.world_axis_units]
-        types = list(data.coords.world_axis_physical_types)
+        position = []
+        if data.coords is not None:  # a slit-jaw image without coordinates has no position
+            world = data.coords.pixel_to_world_values(*pixel[::-1])
+            units = [u.Unit(unit) for unit in data.coords.world_axis_units]
+            types = list(data.coords.world_axis_physical_types)
+            position = [_world_text(world[types.index(t)] * units[types.index(t)]) for t in _POSITION if t in types]
         time, exposure = data.find_component_id("Time"), data.find_component_id("Exposure time")
         layer = next((layer for layer in viewer.state.layers if layer.layer is data), None)
         return [
             ", ".join(f"{name} {index}" for name, index in zip(names, pixel)),
-            " ".join(_world_text(world[types.index(t)] * units[types.index(t)]) for t in _POSITION if t in types),
+            " ".join(position),
             "" if time is None else _time_text(data[time, pixel]),
             "" if exposure is None else _seconds_text(data[exposure, pixel]),
             "" if layer is None else _value_text(data[layer.attribute, pixel]),
