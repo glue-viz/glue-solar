@@ -2319,6 +2319,12 @@ def test_the_point_window_reads_the_raster_at_the_point(bare_app, qtbot, scans, 
         event(lambda: slide(viewers["map"], 0, 4), (4, 3, 50, 9))
         scan = (4,)
     event(lambda: select_point(viewers["spectrogram"], 5, 40), (*scan, 3, 40, 5))
+    # the value is that of the component the map shows
+    [layer] = [layer for layer in viewers["map"].state.layers if layer.layer is data]
+    layer.attribute = data.id[f"{data.label} DN/s"]
+    settle(qtbot, window)
+    found = rows(window)[0]
+    assert found[5] == f"{data[layer.attribute, (*scan, 3, 40, 5)]:.6g}" != read_at(data, names, (*scan, 3, 40, 5), "")[5]
     # Clear point leaves the time sync only
     menu_action(viewers["map"], "Clear point").trigger()
     settle(qtbot, window)

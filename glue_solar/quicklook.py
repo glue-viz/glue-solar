@@ -1127,7 +1127,7 @@ class _PointWindow(QTableWidget):
     On the point's own dataset, the axes the point leaves free, the wavelength, are those of the first panel that does
     not show them, the map; on a slit-jaw image the point of a raster is placed in the displayed frame, as its cross
     is (`Coordinator.point_on`). A dataset of another observation shows 'no match'. The window refreshes once for
-    each change of the point, the time sync or its panels' sliders, only while its tab is shown.
+    each change of the point, the time sync or its panels' sliders or layers, only while its tab is shown.
     """
 
     def __init__(self, coordinator, group, key, viewers):
@@ -1149,7 +1149,7 @@ class _PointWindow(QTableWidget):
         coordinator.add_listener(self._schedule)
         self.destroyed.connect(partial(coordinator.remove_listener, self._schedule))
         for viewer in viewers:
-            for prop in ("reference_data", "x_att", "y_att", "slices"):
+            for prop in ("reference_data", "x_att", "y_att", "slices", "layers"):  # layers: such as the shown component
                 # after the coordinator's own, which may start its sync
                 viewer.state.add_callback(prop, self._schedule, priority=-1)
 
