@@ -11,6 +11,7 @@ from itertools import pairwise
 import numpy as np
 from echo import delay_callback
 from glue.config import layer_artist_maker
+from glue.core.command import Command
 from glue.core.hub import HubListener
 from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, SubsetDeleteMessage, SubsetUpdateMessage
 from glue.core.roi import PolygonalROI
@@ -821,6 +822,28 @@ class _RasterRoiSubsetState(RoiSubsetState):
         return _RasterRoiSubsetState(self.xatt, self.yatt, self.roi, self.world)
 
 
+class _NewSubset(Command):
+    """
+    A new subset group of ``subset_state``, leaving the edit subset as it is; undo removes the group.
+
+    glue-qt's data collection selects every new group, which makes it the edit subset, and empties the edit subset
+    when a group is removed; glue's undo of a new subset leaves its emptied group there.
+    """
+
+    kwargs = ["data_collection", "subset_state"]
+    label = "new subset"
+
+    def do(self, session):
+        edit = session.edit_subset_mode.edit_subset
+        self.group = self.data_collection.new_subset_group(subset_state=self.subset_state.copy())
+        session.edit_subset_mode.edit_subset = edit
+
+    def undo(self, session):
+        edit = session.edit_subset_mode.edit_subset
+        self.data_collection.remove_subset_group(self.group)
+        session.edit_subset_mode.edit_subset = [group for group in edit if group is not self.group]
+
+
 class QuicklookImageViewer(ImageViewer):
     """
     An Image viewer used for IRIS rasters in the quicklook, whose map regions reach other data by their outline.
@@ -828,8 +851,18 @@ class QuicklookImageViewer(ImageViewer):
     glue would place a region drawn on a raster map in a linked slit-jaw image by inverting the raster's coordinates
     at each screen pixel, which takes seconds per frame. Here the region selects the raster's pixels inside it, and
     on other data, such as each slit-jaw frame at its own pointing, what lies inside its outline in helioprojective
-    longitude and latitude. A region on any other panel is glue's own.
+    longitude and latitude. A region on any other panel is glue's own. While a quicklook's point is the edit subset, a
+    region on any panel is a new subset and the point stays the edit subset, so the Pixel tool keeps moving it; a
+    region picked to edit takes glue's selection mode.
     """
+
+    def apply_subset_state(self, subset_state, override_mode=None):
+        session = self.session
+        points = coordinator(session.data_collection)._owners
+        if any(group in points for group in session.edit_subset_mode.edit_subset):
+            session.command_stack.do(_NewSubset(data_collection=session.data_collection, subset_state=subset_state))
+        else:
+            super().apply_subset_state(subset_state, override_mode=override_mode)
 
     def apply_roi(self, roi, override_mode=None):
         state = self.state

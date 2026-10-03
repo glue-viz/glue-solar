@@ -278,9 +278,8 @@ def test_a_raster_map_region_reaches_a_sunpy_map_whose_longitudes_run_from_0_to_
     app.data_collection.append(aia)
     viewers = quicklook(app, [raster, sji])  # which links the map too
     roi = RectangularROI(80.5, 100.5, 2.3, 9.7)
-    app.session.edit_subset_mode.edit_subset = []
     viewers["map"].apply_roi(roi)
-    [group] = app.session.edit_subset_mode.edit_subset
+    group = app.data_collection.subset_groups[-1]  # a new subset
     expected = aia.get_mask(RoiSubsetState(raster.pixel_component_ids[0], raster.pixel_component_ids[1], roi))
     assert expected.sum() >= 50
     inverted = inversions(monkeypatch, raster)

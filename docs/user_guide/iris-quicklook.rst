@@ -82,11 +82,12 @@ raster there (see below). The raster panels have glue's region selection tools. 
 the map selects the raster's pixels inside it, and reaches each slit-jaw frame, at that frame's own
 pointing, and other linked data by its outline in longitude and latitude, in a fraction of a second
 per frame (see :ref:`Linking <glue_solar_users_guide_iris_linking>`); one drawn on the spectrogram
-or the wavelength panel selects on that raster only. A region replaces the edit subset, ``Point``,
-and then shows only where the point does: on the raster panels, and as its mean spectrum in the
-spectrum panel, but not on the slit-jaw images; "Clear point" leaves it. To draw it as a new subset,
-which the slit-jaw images show too, first select the dataset in the data collection or choose
-"None/Create New" as the toolbar's "Active Subset". Each quicklook has its own point,
+or the wavelength panel selects on that raster only. Each region is a new subset, shown on the
+raster panels, the slit-jaw images and, as its mean spectrum, in the spectrum panel, and one Undo
+removes it. The point stays as it was and stays the edit subset, so the Pixel tool keeps moving it,
+and "Clear point" leaves regions alone. To change a region with the toolbar's selection "Mode", such
+as adding to it, first pick it in the data collection or as the toolbar's "Active Subset", then
+draw. Each quicklook has its own point,
 shown only in its own panels, edited while its tab is
 shown and moved only by that tab's sliders. Where a point does not show, it is not in the viewer's
 layer list either, since glue would still redraw a hidden layer at every move: drag the subset onto
