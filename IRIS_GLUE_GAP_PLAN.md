@@ -118,7 +118,7 @@ A milestone is done when it has no items left.
 - WP0: `wp0-core-profile-restore-priority`, `wp0-qt68-macos-pass`
 - WP2: `wp2-burst-detection`
 - WP3: `wp3-style-cmap`, `wp3-wcs-saver`, `wp3-quantity-meta`, `wp3-file-references`, `wp3-session-budget`, `wp3-coordination-reattach`, `wp3-app-session-acceptance`, `wp3-last-session`
-- WP4: `wp4-profile-aggregation`
+- WP4: `wp4-l-redo-sji-click`, `wp4-profile-aggregation`
 - WP5: `wp5-m1-line-list`, `wp5-m1-rest-wavelength-policy`, `wp5-m1-velocity-axis`, `wp5-m1-doppler-image`
 - WP8: `wp8-filter-stop`, `wp8-text-filter`, `wp8-prescan-search`, `wp8-search-ui`, `wp8-browser-conveniences`, `wp8-browser-metadata`, `wp8-sot-cubes`
 - WP9: `wp9-l-deferred-recipes`
