@@ -5,6 +5,7 @@ The IRIS quicklook: a preset of glue viewers for one observation, kept on one se
 import sys
 import weakref
 from contextlib import contextmanager
+from functools import partial
 
 import numpy as np
 from echo import delay_callback
@@ -19,8 +20,16 @@ from glue.viewers.profile.state import ProfileLayerState
 from glue_qt.utils import process_events
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
-from qtpy.QtCore import QEventLoop, QTimer
-from qtpy.QtWidgets import QApplication
+from qtpy.QtCore import QEventLoop, Qt, QTimer
+from qtpy.QtWidgets import (
+    QAbstractItemView,
+    QAbstractScrollArea,
+    QApplication,
+    QHeaderView,
+    QMdiSubWindow,
+    QTableWidget,
+    QTableWidgetItem,
+)
 
 import astropy.units as u
 
@@ -889,7 +898,8 @@ def quicklook(app, datasets, window=None):
     against step, exposure or scan), each slit-jaw channel in its own viewer, and a spectrum panel
     showing the mean spectrum of the point. The point starts at the centre of the map, in a new
     subset group 'Point' that is the edit subset while the tab is shown, with the Pixel tool active
-    on the map.
+    on the map. A read-only 'Point' window below the panels gives the point's pixel, position, time,
+    exposure, value and time sync in each dataset they show.
 
     Parameters
     ----------
@@ -942,6 +952,7 @@ def quicklook(app, datasets, window=None):
         _edit_in_tab(app, tab, group)
         _show_point(app, group, [viewers[role] for role in ("map", "spectrogram", "wavelength", "spectrum")])
         _fit_spectrum(viewers["spectrum"], group)
+        _point_window(app, tab, group, key, own)
     app.statusBar().showMessage(" ".join(notes))
     process_events()  # let the tab take its final size
     _arrange(app, tab, viewers)
@@ -1047,9 +1058,16 @@ def _fit_spectrum(viewer, group):
 
 
 def _arrange(app, tab, viewers):
-    """Raster panels in a top row, slit-jaw viewers and the spectrum in a bottom row."""
+    """
+    Raster panels in a top row, slit-jaw viewers and the spectrum in a bottom row, at least 800 pixels tall together,
+    and the Point window below them, as tall as its rows.
+    """
     size = app.tab(tab).viewport().size()
     width, height = max(size.width(), 1200), max(size.height(), 800)
+    for window in app.tab(tab).subWindowList():
+        if isinstance(window.widget(), _PointWindow):
+            height = max(size.height() - window.sizeHint().height(), 800)
+            window.setGeometry(0, height, width, window.sizeHint().height())
     rows = [
         [viewers[role] for role in ("map", "spectrogram", "wavelength") if role in viewers],
         viewers["sji"] + [viewers[role] for role in ("spectrum",) if role in viewers],
@@ -1059,3 +1077,157 @@ def _arrange(app, tab, viewers):
         for c, viewer in enumerate(row):
             viewer.move(c * width // len(row), r * height // len(rows))
             viewer.viewer_size = (width // len(row), height // len(rows))
+
+
+def _time_text(time):
+    """A time as the readouts give it: in UTC to the millisecond."""
+    return f"{np.datetime_as_string(time, unit='ms')} UTC"
+
+
+def _seconds_text(seconds):
+    """An exposure time as the readouts give it: in seconds to 4 significant figures."""
+    return f"{seconds:.4g} s"
+
+
+def _world_text(value):
+    """A helioprojective angle or a wavelength as the readouts give it: in arcsec to 0.01", or in Å to 0.001 Å."""
+    if value.unit.physical_type == "angle":
+        return f'{value.to_value(u.arcsec):.2f}"'
+    return f"{value.to_value(u.AA):.3f} Å"
+
+
+def _value_text(value):
+    """A data value as the readouts give it: to 6 significant figures, or as it is for a datetime or a string."""
+    try:
+        return f"{float(value):.6g}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _sync_text(status):
+    """A `Coordinator.time_status` as the Frame time readout gives it."""
+    kind, value = status
+    if kind == "master":
+        return "time master" + (f", step {value}" if value is not None else "")
+    if kind == "match":
+        return f"Δt {value / np.timedelta64(1, 's'):+.1f} s"
+    # a master in a gap of data regridded on time has no time, so no offset
+    return "NO MATCH" + ("" if np.isnat(value) else f" Δt = {value / np.timedelta64(1, 's'):+.1f} s")
+
+
+_POINT_COLUMNS = ("Dataset", "Pixel", "Position", "Time", "Exposure", "Value", "Time sync")
+# the Position column's coordinates, in this order whatever the dataset's own
+_POSITION = ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat", "em.wl")
+
+
+class _PointWindow(QTableWidget):
+    """
+    A quicklook's read-only 'Point' window: a row for each dataset its Image panels show, with the point's pixel in
+    that dataset, the pixel's helioprojective position and wavelength, time, exposure time and value (of the panel's
+    displayed component), and the dataset's time sync, as the readouts give them.
+
+    On the point's own dataset, the axes the point leaves free, the wavelength, are those of the first panel that does
+    not show them, the map; on a slit-jaw image the point of a raster is placed in the displayed frame, as its cross
+    is (`Coordinator.point_on`). A dataset of another observation shows 'no match'. The window refreshes once for
+    each change of the point, the time sync or its panels' sliders or layers, only while its tab is shown.
+    """
+
+    def __init__(self, coordinator, group, key, viewers):
+        super().__init__(0, len(_POINT_COLUMNS))
+        self.coordinator, self.group, self.key, self.viewers = coordinator, group, key, viewers
+        self.setHorizontalHeaderLabels(_POINT_COLUMNS)
+        self.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.verticalHeader().hide()
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)  # the width left, labels elided
+        self.setTextElideMode(Qt.ElideMiddle)  # on one line, keeping their ends, such as '-scan-0' or '-stack'
+        self.setWordWrap(False)
+        self.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+        # a click or a slider step changes several panels, then syncs the time: one refresh for all
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(0)
+        self._timer.timeout.connect(self.refresh)
+        coordinator.add_listener(self._schedule)
+        self.destroyed.connect(partial(coordinator.remove_listener, self._schedule))
+        for viewer in viewers:
+            for prop in ("reference_data", "x_att", "y_att", "slices", "layers"):  # layers: such as the shown component
+                # after the coordinator's own, which may start its sync
+                viewer.state.add_callback(prop, self._schedule, priority=-1)
+
+    def _schedule(self, *_):
+        # not in a hidden tab, nor before the coordinator's pending sync, which moves the panels: both call this again
+        if self.isVisibleTo(self.window()) and not self.coordinator._timer.isActive():
+            self._timer.start()
+
+    def refresh(self):
+        """Fill the rows (see the class)."""
+        point = self.coordinator.point if self.coordinator.group is self.group else None
+        shows = {}  # each dataset the open panels show, and those panels
+        for viewer in self.viewers:
+            if viewer in self.coordinator._viewers and viewer.state.reference_data is not None:
+                shows.setdefault(viewer.state.reference_data, []).append(viewer)
+        self.setRowCount(len(shows))
+        for row, (data, viewers) in enumerate(shows.items()):
+            for column, text in enumerate([data.label, *self._cells(point, data, viewers)]):
+                self.setItem(row, column, QTableWidgetItem(text))
+
+    def _cells(self, point, data, viewers):
+        """The point's pixel, position, time, exposure and value in ``data``, and its time sync."""
+        if observation_key(data) != self.key:
+            return ["no match", "", "", "", "", ""]
+        viewer = next((v for v in viewers if not _spectral_axes(data) & _shown(v.state)), viewers[0])
+        status = self.coordinator.time_status(viewer)
+        sync = "" if status is None else _sync_text(status)
+        pixel = None if point is None else self._pixel(point, data, viewer)
+        if pixel is None:
+            return ["", "", "", "", "", sync]
+        if not all(0 <= index < n for index, n in zip(pixel, data.shape)):
+            return ["outside SJI FOV", "", "", "", "", sync]
+        if _role(data) == "sji":
+            names = ("frame", "y", "x")
+        elif data.ndim == 3 and _is_sit_and_stare(data):
+            names = ("exposure", "slit", "λ")
+        else:
+            names = ("scan", "step", "slit", "λ")[-data.ndim :]
+        position = []
+        if data.coords is not None:  # a slit-jaw image without coordinates has no position
+            world = data.coords.pixel_to_world_values(*pixel[::-1])
+            units = [u.Unit(unit) for unit in data.coords.world_axis_units]
+            types = list(data.coords.world_axis_physical_types)
+            position = [_world_text(world[types.index(t)] * units[types.index(t)]) for t in _POSITION if t in types]
+        time, exposure = data.find_component_id("Time"), data.find_component_id("Exposure time")
+        layer = next((layer for layer in viewer.state.layers if layer.layer is data), None)
+        return [
+            ", ".join(f"{name} {index}" for name, index in zip(names, pixel)),
+            " ".join(position),
+            "" if time is None else _time_text(data[time, pixel]),
+            "" if exposure is None else _seconds_text(data[exposure, pixel]),
+            "" if layer is None else _value_text(data[layer.attribute, pixel]),
+            sync,
+        ]
+
+    def _pixel(self, point, data, viewer):
+        """The point's pixel in ``data``, shown by ``viewer`` (see the class), or None."""
+        slices = viewer.state.slices
+        if len(slices) != data.ndim:
+            return None  # mid-way through an axis change
+        if point.reference_data is data:
+            return tuple(
+                s.start if s.start is not None else int(getattr(index, "center", index))
+                for s, index in zip(point.slices, slices)
+            )
+        where = self.coordinator.point_on(viewer)
+        return None if where is None else (_sji_frame(viewer.state), round(where[1]), round(where[0]))
+
+
+def _point_window(app, tab, group, key, viewers):
+    """Add the Point window (`_PointWindow`) of the quicklook of observation ``key`` to its tab, filled."""
+    window = _PointWindow(coordinator(app.data_collection), group, key, viewers)
+    sub = QMdiSubWindow()
+    sub.setWidget(window)
+    sub.setAttribute(Qt.WA_DeleteOnClose)  # with its tab too, as glue closes every window of a tab it closes
+    sub.setWindowTitle("Point")
+    app.tab(tab).addSubWindow(sub)
+    sub.show()
+    window.refresh()  # its rows, before the quicklook makes it as tall as they are

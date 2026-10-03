@@ -16,7 +16,16 @@ from qtpy import QtCore, QtWidgets
 import astropy.units as u
 from astropy.coordinates import Angle, angular_separation
 
-from glue_solar.quicklook import _is_sit_and_stare, _role, coordinator
+from glue_solar.quicklook import (
+    _is_sit_and_stare,
+    _role,
+    _seconds_text,
+    _sync_text,
+    _time_text,
+    _value_text,
+    _world_text,
+    coordinator,
+)
 
 __all__ = [
     "CoordinateTool",
@@ -121,9 +130,9 @@ def _world_position(axes, x, y, keep=None):
         value = world[coord.coord_index] * coord.coord_unit
         if coord.get_format_unit() == u.arcsec:
             angle = Angle(value) if coord.coord_wrap is None else Angle(value).wrap_at(coord.coord_wrap)
-            texts.append(f'{angle.to_value(u.arcsec):.2f}"')
+            texts.append(_world_text(angle))
         elif coord.get_format_unit() == u.AA:
-            texts.append(f"{value.to_value(u.AA):.3f} Å")
+            texts.append(_world_text(value))
         else:
             texts.append(coord.format_coord(world[coord.coord_index], format="ascii"))
     return " ".join(texts) + " (world)"
@@ -301,9 +310,9 @@ class FrameTimeTool(Tool, HubListener):
             return text
         cid, exposure = _time_component(data), data.find_component_id("Exposure time")
         if cid is not None:
-            text += f" · {np.datetime_as_string(data[cid, pixel], unit='ms')} UTC"
+            text += f" · {_time_text(data[cid, pixel])}"
         if exposure is not None:
-            text += f" · exp {data[exposure, pixel]:.4g} s"
+            text += f" · exp {_seconds_text(data[exposure, pixel])}"
         return text
 
     def _label_exposures(self, *_):
@@ -385,13 +394,7 @@ class FrameTimeTool(Tool, HubListener):
             if not (-0.5 <= where[0] <= nx - 0.5 and -0.5 <= where[1] <= ny - 0.5):
                 text += " · outside SJI FOV"
         if status is not None:
-            kind, value = status
-            if kind == "master":
-                text += " · time master" + (f", step {value}" if value is not None else "")
-            elif kind == "match":
-                text += f" · Δt {value / np.timedelta64(1, 's'):+.1f} s"
-            else:  # a master in a gap of data regridded on time has no time, so no offset
-                text += " · NO MATCH" + ("" if np.isnat(value) else f" Δt = {value / np.timedelta64(1, 's'):+.1f} s")
+            text += f" · {_sync_text(status)}"
         self.label.setText(text)
         self.label.setToolTip(_pointing(data.meta, view[0]))
 
@@ -451,11 +454,7 @@ class CursorReadoutTool(Tool):
         layer = next((ls for ls in state.layers if ls.layer is data and ls.visible), None)
         if layer is None or view is None:
             return text
-        value = data[layer.attribute, view]
-        try:
-            value = f"{float(value):.6g}"
-        except (TypeError, ValueError):  # datetime or string components
-            value = str(value)
+        value = _value_text(data[layer.attribute, view])
         # IRIS components are named after their dataset; say 'value' rather than repeat it
         name = "value" if layer.attribute.label == data.label else layer.attribute.label
         return f"{text} | {name} = {value}"

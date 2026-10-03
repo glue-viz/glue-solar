@@ -1,0 +1,1 @@
+Each quicklook has a read-only "Point" window listing, for every dataset it shows, the point's pixel, position, time, exposure, value and time sync.
