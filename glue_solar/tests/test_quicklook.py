@@ -1718,6 +1718,11 @@ def test_a_raster_region_edits_only_a_region_picked_to_edit(bare_app, irispy_tes
     expected = roi_to_subset_state(first, x_att=step, y_att=slit) | roi_to_subset_state(second, x_att=step, y_att=slit)
     np.testing.assert_array_equal(raster.get_mask(region.subset_state), raster.get_mask(expected))
     np.testing.assert_array_equal(sji.get_mask(region.subset_state, view=(0,)), sji.get_mask(expected, view=(0,)))
+    # undoing both leaves no removed subset to edit
+    bare_app.session.command_stack.undo()
+    bare_app.session.command_stack.undo()
+    assert collection.subset_groups == (point,)
+    assert mode.edit_subset == []
 
 
 @pytest.mark.remote_data
