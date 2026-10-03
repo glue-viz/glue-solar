@@ -2221,7 +2221,7 @@ def test_go_to_utc_on_a_stack_takes_the_scan_at_the_points_step(bare_app, qtbot,
 
 
 def play(qtbot, viewer, button, frames):
-    """Press the play ``button`` of the viewer's first slider, with a 1 ms timer, and return at least ``frames`` shown."""
+    """Press the play ``button`` of the viewer's first slider with a 1 ms timer; return at least ``frames`` shown."""
     slider = viewer.options_widget().slice_helper._sliders[0]
     shown = []
 

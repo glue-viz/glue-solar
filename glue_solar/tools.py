@@ -759,7 +759,9 @@ class _GoToUTCEntry(_CoordinateEntry):
         [index], [offset] = nearest([when], times)
         if abs(offset) > _half_cadence(times):
             seconds = offset / np.timedelta64(1, "s")
-            raise ValueError(f"Nothing is within half a cadence of {text}: the nearest, {index}, is {seconds:+.1f} s off.")
+            raise ValueError(
+                f"Nothing is within half a cadence of {text}: the nearest, {index}, is {seconds:+.1f} s off."
+            )
         state.slices = (int(index), *state.slices[1:])
 
 
@@ -794,7 +796,9 @@ class _LoopEntry(_CoordinateEntry):
             raise ValueError("The viewer has no frame, exposure, step or scan slider.")
         last = slider.value_slice_center.maximum()
         lo, hi = getattr(slider, "_solar_loop", (0, last))
-        text, ok = QtWidgets.QInputDialog.getText(viewer, "Loop", f"First and last index (0–{last}):", text=f"{lo} {hi}")
+        text, ok = QtWidgets.QInputDialog.getText(
+            viewer, "Loop", f"First and last index (0–{last}):", text=f"{lo} {hi}"
+        )
         if not ok:
             return
         try:
