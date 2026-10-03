@@ -822,7 +822,18 @@ class _RasterRoiSubsetState(RoiSubsetState):
     def to_mask(self, data, view=None):
         if self.xatt in data.pixel_component_ids:
             return super().to_mask(data, view)
-        return self.world.to_mask(data, view)
+        view = (slice(None),) * data.ndim if view is None else view
+        types = getattr(data.coords, "world_axis_physical_types", None) or ()
+        hpc = ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat")
+        angles = [i for i, kind in enumerate(types) if kind in hpc]
+        if len(angles) != 2 or len(view) != data.ndim or not all(isinstance(s, slice) for s in view):
+            return self.world.to_mask(data, view)
+        # as glue does for a region of pixels, place one plane along the axes on which longitude and latitude do not
+        # depend, such as a raster's wavelength, and spread it along them: a spectrum over every pixel takes seconds
+        flat = ~data.coords.axis_correlation_matrix[angles].any(axis=0)[::-1]
+        ranges = [range(*s.indices(n)) for s, n in zip(view, data.shape)]
+        plane = tuple(slice(r.start, r.start + 1) if f else s for f, r, s in zip(flat, ranges, view))
+        return np.broadcast_to(self.world.to_mask(data, plane), [len(r) for r in ranges])
 
     def copy(self):  # glue applies a copy
         return _RasterRoiSubsetState(self.xatt, self.yatt, self.roi, self.world)
