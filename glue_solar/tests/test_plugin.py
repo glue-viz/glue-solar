@@ -1,3 +1,4 @@
+import gc
 import os
 import shutil
 import subprocess
@@ -1041,3 +1042,14 @@ def test_axis_labels_on_their_coordinates_draw_as_glues(qtbot, tmp_path, irispy_
             qtbot.addWidget(sessions[-1])
         glues, ours = (session.viewers[0][0] for session in sessions)  # swapped and styled
         assert drawn_labels(ours) == drawn_labels(glues)
+
+
+def test_a_draw_queued_as_the_test_returns_runs_on_a_live_application(qtbot):
+    # pytest-qt processes events between a test and closing its widgets: had the conftest not kept this
+    # application, a garbage collection in the queued draw would delete the canvas under it
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.itself = app  # a reference cycle, as a quicklook's leaves: only garbage collection frees it
+    canvas = app.new_data_viewer(ImageViewer).figure.canvas
+    canvas.mpl_connect("draw_event", lambda event: gc.collect())
+    canvas.draw_idle()
