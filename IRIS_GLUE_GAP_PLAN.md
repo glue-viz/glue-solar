@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-02
 
-**Resume here.** M0 is done. Main is at aafc4ba (#107-#115; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`); glue-solar PRs are marked ready and merged once CI passes. No PR is open. In progress: `wp10-m1-roi-world-polygon` (worktree `~/Git/glue-solar-wp10-m1-roi-world-polygon`, D38's new-subset regions), being rebased onto #115.
+**Resume here.** M0 is done. Main is at 6199b76 (#107-#116; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: M1 batch 5 (`wp4-m1-sji-regions`, `wp4-m1-hover-lock-tool`, `wp4-m1-spectral-coupling`, `wp11-keyboard-shortcuts`, `wp10-m1-canvas-teardown`).
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -96,7 +96,7 @@ A milestone is done when it has no items left.
 - WP4: `wp4-m1-hover-lock-tool`, `wp4-m1-sji-regions`, `wp4-m1-spectral-coupling`, `wp4-m1-multi-window`, `wp4-raster-overlays`
 - WP5: `wp5-m1-spectral-blink`
 - WP9: `wp9-m1-screenshots`
-- WP10: `wp10-m1-roi-world-polygon`, `wp10-m1-canvas-teardown`
+- WP10: `wp10-m1-canvas-teardown`
 - WP11: `wp11-keyboard-shortcuts`
 
 **M2**
@@ -276,7 +276,7 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 **M1**
 
 - [ ] **M1** `wp4-m1-hover-lock-tool` (F094, F095): A 'Follow/lock' `PixelSelectionTool` subclass: hover moves the point (50 ms throttle, no undo entry), a left click locks it with one undoable `ApplySubsetState`, a right click or Esc unlocks. Done when on 3860258481, 3824262996 and 4000255147 hover updates the spectrum within 0.35 s, 100 motion events give ≤ 1 update per 50 ms, and the lock survives scan and exposure steps.
-- [ ] **M1** `wp4-m1-sji-regions`: A region drawn on a quicklook's slit-jaw image makes a new subset and leaves the Point, as on the raster panels since #116 (D38); today it replaces the Point. Done when a rectangle on the slit-jaw viewer adds one subset group that one Undo removes, the Point and the Pixel tool are unchanged, and the raster panels show the region. Depends: #116.
+- [ ] **M1** `wp4-m1-sji-regions`: A region drawn on a quicklook's slit-jaw image makes a new subset and leaves the Point, as on the raster panels since #116 (D38); today it replaces the Point. Done when a rectangle on the slit-jaw viewer adds one subset group that one Undo removes, the Point and the Pixel tool are unchanged, and the raster panels show the region.
 - [ ] **M1** `wp4-m1-spectral-coupling` (F068, F075): Add what glue's Navigate lacks: Image wavelengths as Profile lines, wavelength and master-time lines on λ–t panels, a thin line at the point's slit on the spectrogram and at its exposure on λ–t (user, 2026-09-30), and the Profile x-range copied to λ–t x-limits. Done when on 4000005156 scan 0 and 4000255147 slider index k marks λ[k] in Å and nm, λ–t lines follow axis swaps, Navigate to λ[j] moves the map to j (a Profile unit other than the data's, such as nm, needs Qt #70), and markers update in < 5 ms.
 - [ ] **M1** `wp4-m1-multi-window` (F072, F073, F074, F108): For each ticked window of one file, open a Profile and any λ–t panel, and link step, exposure, scan and slit pixels with idempotent glue `LinkSame` links. Done when on 4000005156 scan 0 with three windows a point at (s, y) gives each Profile cube_w[s, y, :] and each map a crosshair, rerunning adds 0 links, and on 4000255147 all windows share one exposure.
 - [ ] **M1** `wp4-raster-overlays` (F125, F126): A toggle draws each raster step's slit on SJIs, in the SJI frame nearest that exposure, and a dashed map line at the step nearest the master time (hidden on NO MATCH). Done when on 4000005156 and 3860258481 each slit lies within 1 SJI px, and on 4000005156 SJI frames 0-15 mark scan 0 steps 3, 7, …, 63 and frames 16-31 scan 1.
@@ -389,7 +389,6 @@ Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on file
 
 **M1**
 
-- [ ] **M1** `wp10-m1-roi-world-polygon`: Override `apply_roi` on `QuicklookImageViewer` so a raster ROI becomes a lon/lat `PolygonalROI` (edges sampled once per step through `_GlueWCS`), and give raster viewers back their `select:*` tools. Done when on 4000005156 Si IV with deconvolved SJI 2796 frame 5 a raster rectangle selects the same 108,300 SJI pixels as the pixel subset in ≤ 0.5 s per frame, and sit-and-stare matches the pixel result.
 - [ ] **M1** `wp10-m1-canvas-teardown`: An idle draw on a deleted `MplCanvas` intermittently fails `test_linking.py::test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair` at teardown (2 of 8 full `iris-plan` runs on the region branch, once on the regrid branch; the conftest's `_canvas_errors_fail` turns it into an error). Find the canvas whose draw outlives its viewer and stop it at close. Done when 20 full runs in each env pass.
 
 **L**
