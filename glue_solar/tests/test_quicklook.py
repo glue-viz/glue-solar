@@ -3252,6 +3252,22 @@ def test_what_moves_on_hover_and_lock(bare_app, qtbot, irispy_test_files):
     }
     follow(viewers["map"])
     assert event(lambda: hover(qtbot, viewers["map"], 3, 12)) == {}
+    # the mouse alone leaves a region picked to edit
+    [point] = bare_app.session.edit_subset_mode.edit_subset
+    region = bare_app.data_collection.new_subset_group(label="region", subset_state=raster.pixel_component_ids[1] > 5)
+    bare_app.session.edit_subset_mode.edit_subset = [region]
+    assert event(lambda: hover(qtbot, viewers["map"], 40, 20)) == {}
+    # Clear point empties the point and leaves it locked and Follow/lock on; once unlocked, the mouse moves it again
+    bare_app.session.edit_subset_mode.edit_subset = [point]
+    assert event(lambda: menu_action(viewers["map"], "Clear point").trigger()) == {"point": None}
+    assert event(lambda: hover(qtbot, viewers["map"], 3, 12)) == {}
+    assert event(lambda: key(viewers["map"], "escape")) == {}
+    assert event(lambda: hover(qtbot, viewers["map"], 3, 12)) == {
+        "point": (label, (3, 12, None)),
+        "spectrogram": (3, None, None),
+        "wavelength": (None, 12, None),
+        "sji0": (f1400[3], None, None),
+    }
 
 
 def test_one_undo_takes_back_a_lock_which_survives_scan_steps(bare_app, qtbot, scans):
@@ -3315,7 +3331,15 @@ def test_the_point_follows_the_mouse_at_most_once_in_50_ms(bare_app, qtbot, scan
         canvas = viewer.figure.canvas
         canvas.callbacks.process("motion_notify_event", MouseEvent("motion_notify_event", canvas, x, y))
 
+    # a move moves the point 50 ms later
+    fired = []
+    viewer.toolbar.tools["solar:follow_lock"]._timer.timeout.connect(lambda: fired.append(time.monotonic()))
+    start = time.monotonic()
+    move(0)
+    qtbot.waitUntil(lambda: updates.counts == {scan.label: 1})
+    assert fired[0] - start >= 0.045  # Qt's coarse timers may fire up to 5 % early
     # 100 moves at once: the point moves once, to the last, when the throttle runs
+    updates.counts.clear()
     for n in range(100):
         move(n)
     assert updates.counts == {}
@@ -3331,12 +3355,27 @@ def test_the_point_follows_the_mouse_at_most_once_in_50_ms(bare_app, qtbot, scan
         qtbot.wait(2)
     qtbot.wait(100)
     assert 1 < updates.counts[scan.label] <= (time.monotonic() - start) / 0.05 + 1
-    # off the image, here zoomed out, or off the axes, the point stays
+    # off the image, here zoomed out, or off the axes, the point stays, as after a move just before another mouse mode
+    # is chosen
     viewer.state.x_min = -5
     updates.counts.clear()
     for x, y in ((-3, 50), (2, -1000)):
         hover(qtbot, viewer, x, y)
+    move(1)
+    viewer.toolbar.active_tool = "image:point_selection"
+    qtbot.wait(100)
     assert updates.counts == {}
+
+
+def test_the_mouse_over_a_stack_map_pins_its_own_scan(app, qtbot, scans):
+    _, stack = scans
+    app.data_collection.append(stack)
+    image(app, stack, 1, 2, (5, 0, 0, 8))
+    stack_map = image(app, stack, 1, 2, (9, 0, 0, 8))
+    follow(stack_map)
+    hover(qtbot, stack_map, 2, 40)
+    point = app.data_collection.subset_groups[0].subset_state
+    assert point.slices == [slice(9, 10), slice(2, 3), slice(40, 41), slice(None)]
 
 
 def exposure_labels(viewer):
