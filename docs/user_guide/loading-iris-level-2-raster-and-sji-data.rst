@@ -228,8 +228,12 @@ OBSID 4000005156's deconvolved SJI 2796 under a Si IV raster region, which glue 
 reaches a sunpy Map whose longitudes run from 0 to 360° too. One drawn on a quicklook's slit-jaw
 image reaches the raster and the other data by its outline too, placed at the pointing of the frame
 shown as it was drawn: the raster pixels whose centres lie inside it in that frame, again but for a
-few along the edge of a circle. This takes under 50 ms per raster panel, the longest for the 1600
-exposures by 417 slit pixels of OBSID 4000255147's Si IV under a region on its SJI 1400.
+few along the edge of a circle. On a sit-and-stare raster these are the exposures whose slit lay
+inside it at that frame's pointing: as the pointing changes, the slit moves out of it in exposures
+taken long before or after, although it stays on the same slit-jaw pixels. A box 47 pixels wide
+around the slit on frame 200 of OBSID 4000255147's SJI 1400 selects 952 of its 1600 exposures. This
+takes under 50 ms per raster panel, the longest for the 1600 exposures by 417 slit pixels of OBSID
+4000255147's Si IV under a region on its SJI 1400, and under a second for its mean spectrum.
 
 A region drawn on a raster in any other Image Viewer is glue's own, and can be slow to show on a
 slit-jaw image: glue works out the selection for every screen pixel of the slit-jaw viewer each
