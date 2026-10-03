@@ -1258,6 +1258,10 @@ def test_time_sync_without_a_raster_point(bare_app, qtbot, irispy_test_files):
     qtbot.wait(20)
     assert sji_viewer.state.slices[0] == 0
     menu_action(viewers["map"], "Clear point").trigger()  # and the exposure slider still leads
+    top = raster.shape[1] - 1  # also after a slit-jaw click past the slit's end, which leaves no point
+    select_point(sji_viewer, *np.round(past(raster, sji, (1, top), (1, top - 1), 0)))
+    qtbot.wait(20)
+    assert coord.point is None
     viewers["spectrogram"].state.slices = (186, *viewers["spectrogram"].state.slices[1:])
     expected = expected_nearest(raster_time(raster, (186,)), sji[sji.id["Time"]][:, 0, 0])
     qtbot.waitUntil(lambda: sji_viewer.state.slices[0] == expected)

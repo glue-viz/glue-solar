@@ -509,7 +509,7 @@ class Coordinator(HubListener):
                 self.group.subset_state = self._before.get(self.group, SubsetState())
             else:
                 self.group.subset_state = PixelSubsetState(raster, [slice(i, i + 1) for i in index] + [slice(None)])
-        self._kept = (sji, self.group.subset_state)
+        self._kept = (sji, self.point)  # without a point the sliders keep driving the time
         self._outside = (viewer if index is None else None, self.group.subset_state)
 
     def outside_raster(self, viewer):
