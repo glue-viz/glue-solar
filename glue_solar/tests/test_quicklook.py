@@ -2539,15 +2539,11 @@ def test_the_point_window_places_the_point_on_each_slit_jaw_image(bare_app, qtbo
     assert "outside SJI FOV" in readout(viewers["sji"][1])
     assert rows(window)[1:] == [expected(78, 10)[1], off]
     monkeypatch.undo()
-    # a point clicked on a slit-jaw image fills its own row only
-    select_point(viewers["sji"][0], 10, 20)
+    # a click on a slit-jaw image moves the point to the raster pixel there
+    (x, y), (exposure, slit) = clicked(viewers["sji"][0], raster, 78, 30)
+    select_point(viewers["sji"][0], x, y)
     settle(qtbot, window)
-    frame = viewers["sji"][0].state.slices[0]
-    assert rows(window) == [
-        unpointed(raster, sync(viewers["map"])),
-        read_at(sji, ("frame", "y", "x"), (frame, 20, 10), sync(viewers["sji"][0])),
-        unpointed(sjis[1], sync(viewers["sji"][1])),
-    ]
+    assert rows(window) == expected(exposure, slit)
     menu_action(viewers["map"], "Clear point").trigger()
     settle(qtbot, window)
     assert rows(window) == [unpointed(data, sync(viewer)) for data, viewer in shows]
