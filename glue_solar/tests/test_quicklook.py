@@ -1585,6 +1585,9 @@ def test_lines_on_the_spectrogram_and_the_wavelength_panel(bare_app, qtbot, monk
     qtbot.wait(20)
     assert lines(spectrogram)["point"] == ("y", [10])
     assert lines(panel) == {"point": ("y", [78]), "wavelength": ("x", [wavelength]), "time": ("y", [78])}
+    slide(spectrogram, 0, 80)  # the lines move with the point, before the time sync: glue draws the panel once
+    assert lines(panel) == {"point": ("y", [80]), "wavelength": ("x", [wavelength]), "time": ("y", [80])}
+    qtbot.wait(20)
     draws = Counter()
     for role in ("wavelength", "spectrum"):
         canvas = viewers[role].figure.canvas
@@ -1602,7 +1605,7 @@ def test_lines_on_the_spectrogram_and_the_wavelength_panel(bare_app, qtbot, monk
     assert drawn(viewers["spectrum"], "wavelength") == ("x", [pytest.approx(wavelengths(raster)[5])])
     # axes swapped, the lines turn with them
     panel.state.x_att = raster.pixel_component_ids[0]
-    assert lines(panel) == {"point": ("x", [78]), "wavelength": ("y", [5]), "time": ("x", [78])}
+    assert lines(panel) == {"point": ("x", [80]), "wavelength": ("y", [5]), "time": ("x", [80])}
     spectrogram.state.x_att = raster.pixel_component_ids[1]
     assert lines(spectrogram)["point"] == ("x", [10])
     # under a slit-jaw master the raster's exposure follows its frame, and both lines with it

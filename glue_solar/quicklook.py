@@ -1285,7 +1285,6 @@ class _SpectralLines(QObject):
         self.coordinator, self.group, self.key, self.panels, self.spectrum = coordinator, group, key, panels, spectrum
         self.data = panels[0].state.reference_data
         [self.axis] = _spectral_axes(self.data)
-        self.when = None  # the time master's time at the last sync
         self.lines = {
             viewer: {
                 name: viewer.axes.add_line(Line2D([], [], gid=f"solar:{name}", zorder=99, visible=False, **style))
@@ -1300,7 +1299,8 @@ class _SpectralLines(QObject):
         self.destroyed.connect(partial(coordinator.remove_listener, self._synced))  # with its tab
         for viewer in panels:
             for prop in ("reference_data", "x_att", "y_att", "slices"):
-                viewer.state.add_callback(prop, self.refresh)
+                # after the coordinator's own, which moves the point: the lines move before glue redraws the panel
+                viewer.state.add_callback(prop, self.refresh, priority=-1)
         for prop in ("reference_data", "x_att", "x_display_unit"):
             spectrum.state.add_callback(prop, self.refresh)
         for prop in ("x_min", "x_max"):
@@ -1309,7 +1309,6 @@ class _SpectralLines(QObject):
 
     def _synced(self, key, time, exposure):
         if key == self.key:
-            self.when = time
             self.refresh()
 
     def _raster_panels(self):
@@ -1332,10 +1331,15 @@ class _SpectralLines(QObject):
 
     def _time_index(self):
         """The raster's step, exposure or scan nearest the time master's time, or None beyond half its cadence."""
-        if self.when is None:
+        master = self.coordinator._master(self.key)
+        if master is None:
             return None
+        # the master's time now, as the coming time sync takes it: a step moves the lines in glue's own redraw
+        index, step = self.coordinator._timing(master)
+        times = _times(master, step)
+        when = times[min(max(index, 0), len(times) - 1)]
         times = _times(self.data, self.coordinator._timing(self.data)[1])
-        [index], [offset] = nearest([self.when], times)
+        [index], [offset] = nearest([when], times)
         return int(index) if abs(offset) <= _half_cadence(times) else None  # NaT, a gap, is never within
 
     def refresh(self, *_):
