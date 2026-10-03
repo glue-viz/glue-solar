@@ -5,11 +5,17 @@ Toolbar tools for glue's viewers.
 import numpy as np
 from echo import delay_callback
 from glue.config import settings, viewer_tool
+from glue.core.command import ApplySubsetState
 from glue.core.component import DateTimeComponent
+from glue.core.edit_subset_mode import ReplaceMode
 from glue.core.hub import HubListener
 from glue.core.message import SettingsChangeMessage
+from glue.core.subset import SubsetState
 from glue.viewers.common.tool import SimpleToolMenu, Tool
+from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
+from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.utils.decorators import messagebox_on_error
+from matplotlib.backend_bases import MouseButton
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from qtpy import QtCore, QtWidgets
@@ -36,6 +42,7 @@ from glue_solar.quicklook import (
 __all__ = [
     "CoordinateTool",
     "CursorReadoutTool",
+    "FollowLockTool",
     "FrameTimeTool",
     "HideAxesTool",
     "PerFrameLimitsTool",
@@ -686,6 +693,102 @@ class PhysicalAspectTool(Tool):
         state = self.viewer.state
         state._axes_aspect_ratio = self.viewer.axes_ratio / (self.ratio or 1)
         state.reset_limits() if whole else state._adjust_limits_aspect()
+
+
+def _follows_mouse(group):
+    """Whether the mouse may move the subset group ``group`` in Follow/lock: an unlocked point, or an empty group."""
+    state = group.subset_state
+    return not getattr(group, "_solar_locked", False) and (
+        isinstance(state, PixelSubsetState) or type(state) is SubsetState
+    )
+
+
+class _LockPoint(ApplySubsetState):
+    """glue's ``ApplySubsetState`` of a Pixel click, also locking the edit subset in Follow/lock; undo unlocks it."""
+
+    label = "lock point"
+
+    def do(self, session):
+        super().do(session)
+        # the edit subset after, which glue has made a new group if there was none
+        edit = session.edit_subset_mode.edit_subset
+        self.locked = [group for group in edit if not getattr(group, "_solar_locked", False)]
+        for group in self.locked:
+            group._solar_locked = True
+
+    def undo(self, session):
+        super().undo(session)
+        for group in self.locked:
+            group._solar_locked = False
+
+
+@viewer_tool
+class FollowLockTool(PixelSelectionTool):
+    """
+    Move the point with the mouse, as CRISPEX's cursor does, and lock it with a click.
+
+    While the edit subset is an unlocked point, or empty, the mouse moving over the image moves it to the pixel under
+    the mouse, as a Pixel click there would, with no Undo step and at most once in 50 ms, to the latest position: a
+    quicklook's panels and spectrum follow, and on a quicklook's slit-jaw image the point moves to the raster pixel
+    there (`~glue_solar.quicklook.sji_to_raster`). A left click moves it there and locks it, in one Undo step, which
+    unlocks it too; a right click, or Esc once a click has given the image the keyboard, unlocks it. A locked point
+    stays as the mouse moves over any viewer, and stays locked as sliders or Pixel clicks move it or Clear point
+    empties it. The mouse alone never moves a region being edited; a click replaces it, as a Pixel click does.
+    """
+
+    icon = "glue_point"
+    tool_id = "solar:follow_lock"
+    action_text = "Follow/lock"
+    tool_tip = "Move the point with the mouse; click to lock it there, right-click or press Esc to unlock it"
+    status_tip = "MOVE the mouse to move the point, CLICK to lock it there, RIGHT-CLICK or ESC to unlock it"
+
+    def __init__(self, viewer):
+        super().__init__(viewer)
+        # each move asks for the point at the latest position, unless a move is already waiting for the throttle; the
+        # timer is the viewer's, so that it goes with it
+        self._timer = QtCore.QTimer(viewer)
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(50)
+        self._timer.timeout.connect(self._follow)
+        self._move_callback = lambda mode: self._timer.isActive() or self._timer.start()
+
+    def deactivate(self):
+        self._timer.stop()  # no move once the tool is off
+        super().deactivate()
+
+    def press(self, event):
+        self._log_position(event)
+        if event.button == MouseButton.RIGHT:
+            self._unlock()
+            return
+        state = self._pixel()
+        if event.button == MouseButton.LEFT and state is not None:
+            command = _LockPoint(data_collection=self.viewer._data, subset_state=state, override_mode=ReplaceMode)
+            self.viewer.session.command_stack.do(command)
+
+    def key(self, event):
+        if event.key == "escape":
+            self._unlock()
+
+    def _unlock(self):
+        for group in self.viewer.session.edit_subset_mode.edit_subset:
+            group._solar_locked = False
+
+    def _pixel(self):
+        """The Pixel selection a Pixel click at the mouse's position would make, or None off the image."""
+        state, x, y = self.viewer.state, self._event_xdata, self._event_ydata
+        if x is None or y is None or _hovered(state, x, y) is None:
+            return None
+        slices = [slice(None)] * state.reference_data.ndim
+        for att, index in ((state.x_att, round(x)), (state.y_att, round(y))):
+            slices[att.axis] = slice(index, index + 1)
+        return PixelSubsetState(state.reference_data, slices)
+
+    def _follow(self):
+        """Move the edit subset to the pixel under the mouse, unless it is locked or a region (see the class)."""
+        mode, state = self.viewer.session.edit_subset_mode, self._pixel()
+        if state is not None and all(_follows_mouse(group) for group in mode.edit_subset):
+            mode.update(self.viewer._data, state, override_mode=ReplaceMode)
 
 
 class _CoordinateEntry(Tool):

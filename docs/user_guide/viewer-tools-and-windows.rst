@@ -15,6 +15,15 @@ toolbar has:
 - "Pixel" ("Select a single pixel based on mouse location"): click or drag to select one pixel.
   On IRIS data this is the point the other viewers follow
   (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`).
+- "Follow/lock", from glue-solar ("Move the point with the mouse; click to lock it there, right-click
+  or press Esc to unlock it"): the point follows the mouse over the image, as CRISPEX's cursor does,
+  moving as a Pixel click there would move it, at most once every 50 ms and with no Undo step. A left
+  click moves it there and locks it, in one Undo step, which also unlocks it; a right click, or Esc
+  once a click has given the image the keyboard, unlocks it. A locked point stays as the mouse moves
+  over any viewer, and stays locked as sliders or Pixel clicks move it or "Clear point" empties it.
+  The mouse alone never moves a region picked to edit, which a click replaces, as with Pixel. As
+  with every mouse mode, it stays on only in the viewer last clicked: choose it in the viewer the
+  mouse will move over.
 - "Contrast/Bias": drag on the image, left and right for the bias, up and down for the contrast.
   The "Reset" button next to the layer's contrast/bias sliders undoes it.
 - "Slice Extraction" (P): draw a path and press Enter to see the data along it in a new window.

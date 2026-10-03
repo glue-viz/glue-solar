@@ -17,6 +17,7 @@ from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, Subs
 from glue.core.roi import PolygonalROI
 from glue.core.subset import RoiSubsetState, SubsetState
 from glue.core.units import UnitConverter
+from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.profile.state import ProfileLayerState
@@ -253,8 +254,7 @@ def _spectral_axes(data):
 
 
 def _pixel_tool_on(viewer):
-    tool = viewer.toolbar.active_tool
-    return tool is not None and tool.tool_id == "image:point_selection"
+    return isinstance(viewer.toolbar.active_tool, PixelSelectionTool)  # Pixel, or glue-solar's Follow/lock
 
 
 def _shown(state):

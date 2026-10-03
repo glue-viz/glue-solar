@@ -42,6 +42,7 @@ def test_setup_registers_hooks():
     assert ImageViewer.tools.count("solar:hide_axes") == 1
     assert ImageViewer.tools.count("solar:per_frame_limits") == 1
     assert ImageViewer.tools.count("solar:physical_aspect") == 1
+    assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
     assert ImageViewer.tools.count("solar:cursor_readout") == (0 if hasattr(ImageViewer, "cursor_status") else 1)
     iris = next(f for f in data_factory if f.label == "IRIS Level 2 FITS")
     for label in ("FITS file", "sunpy Map"):  # both also match IRIS files; ours must win
