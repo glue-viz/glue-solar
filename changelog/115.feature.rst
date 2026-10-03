@@ -1,0 +1,1 @@
+Each viewer's Coordinate menu has "Go to UTC…", which moves the observation's time master to the exposure nearest a typed time with every panel following, and "Loop…", which keeps slider playback within a frame range; playback stops when its viewer closes.
