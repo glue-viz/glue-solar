@@ -2174,21 +2174,46 @@ def test_what_moves_on_go_to_utc(bare_app, qtbot, monkeypatch, irispy_test_files
         },
         [utc(times[shown])],
     )
-    # nothing within half a cadence, an unreadable time, a viewer showing the exposures or of data without IRIS times:
-    # nothing moves, and glue says why
+    # typed in the slit-jaw viewer, or in the map, which shows the exposures, the raster goes all the same, from the
+    # master's time, and the slit-jaw image follows it
+    shown = 150
+    for viewer, when in ((sji_viewer, frames[20] + np.timedelta64(40, "s")), (viewers["map"], times[100])):
+        exposure = expected_nearest(when, times)
+        assert go_to(viewer, utc(when)) == (
+            {
+                "point": (label, (exposure, slit, None)),
+                "spectrogram": (exposure, None, None),
+                "sji0": (nearest_frame(sji, times[exposure]), None, None),
+            },
+            [utc(times[shown])],
+        )
+        shown = exposure
+    # a slit-jaw image of an observation without a time master, here outside any quicklook, moves itself
+    other = image_data(
+        find_irispy_test_file(irispy_test_files, "iris_l2_20230408_110821_3880012095_SJI_1400_t000.fits")
+    )
+    bare_app.data_collection.append(other)
+    alone = bare_app.new_data_viewer(ImageViewer, data=other)
+    alone_times = other[other.id["Time"]][:, 0, 0]
+    assert go_to(alone, utc(alone_times[1])) == ({}, [utc(alone_times[0])])
+    assert alone.state.slices[0] == 1
+    # nothing within half the master's cadence, typed in the slit-jaw viewer, whose last frame is within half its own;
+    # an unreadable time; a viewer of data without IRIS times, even of the observation, as an AIA cutout: nothing
+    # moves, and glue says why
+    assert times[-1] + np.timedelta64(60, "s") - frames[-1] <= _half_cadence(frames)
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
+    plain.meta.update(OBSID=raster.meta["OBSID"], STARTOBS=raster.meta["STARTOBS"])
     bare_app.data_collection.append(plain)
     shown = refusals(monkeypatch)
     for viewer, text, message in (
-        (viewers["spectrogram"], utc(times[-1] + np.timedelta64(60, "s")), "Nothing is within half a cadence"),
+        (sji_viewer, utc(times[-1] + np.timedelta64(60, "s")), f"Nothing in {label} is within half a cadence"),
         (viewers["spectrogram"], "noon", "'noon' is not a UTC time"),
-        (viewers["map"], utc(when), "no frame, exposure, step or scan slider"),
         (bare_app.new_data_viewer(ImageViewer, data=plain), utc(when), "slider of IRIS data"),
     ):
         assert go_to(viewer, text)[0] == {}
         assert shown[-1].startswith("Could not go to UTC\n")
         assert message in shown[-1]
-    assert len(shown) == 4
+    assert len(shown) == 3
 
     # SJI 1400 as time master goes to the frame nearest the typed time, here the later one, and the raster follows
     menu_action(sji_viewer, "Time master").trigger()
@@ -2201,23 +2226,64 @@ def test_what_moves_on_go_to_utc(bare_app, qtbot, monkeypatch, irispy_test_files
         "spectrogram": (exposure, None, None),
     }
     assert "time master" in readout(sji_viewer)
-    # and the master rules: the raster sent elsewhere snaps back
-    assert go_to(viewers["spectrogram"], utc(times[10]))[0] == {}
+    # and typed in the spectrogram, the slit-jaw image goes, from its time, and the raster follows it
+    frame = expected_nearest(times[10], frames)
+    exposure = nearest_frame(raster, frames[frame])
+    assert go_to(viewers["spectrogram"], utc(times[10])) == (
+        {
+            "sji0": (frame, None, None),
+            "point": (label, (exposure, slit, None)),
+            "spectrogram": (exposure, None, None),
+        },
+        [utc(frames[30])],
+    )
 
 
 def test_go_to_utc_on_a_stack_takes_the_scan_at_the_points_step(bare_app, qtbot, monkeypatch, scans):
     _, stack = scans
-    viewers = quicklook(bare_app, [stack])
     _, step, slit, wavelength = expected_start(stack)
     times = stack[stack.id["Time"]][:, :, 0, 0]
+    sji = slit_jaw(times[0, step] + np.arange(40) * (times[-1, step] - times[0, step]) / 39, stack)
+    viewers = quicklook(bare_app, [stack, sji])
+    [sji_viewer] = viewers["sji"]
     when = times[7, step] + (times[8, step] - times[7, step]) * 0.45
     assert expected_nearest(when, times[:, 0]) == 8  # at the first step, another scan
-    type_in_dialog(monkeypatch, utc(when))
-    assert changes(bare_app, qtbot, viewers, lambda: menu_action(viewers["map"], "Go to UTC…").trigger()) == {
-        "point": (stack.label, (7, step, slit, None)),
-        "map": (7, None, None, wavelength),
-        "spectrogram": (7, step, None, None),
+    # typed in the map or in the slit-jaw viewer, the stack goes to the scan nearest at the point's step, from the
+    # master's time, and the slit-jaw image follows it
+    for viewer, when, scan, shown in ((viewers["map"], when, 7, 0), (sji_viewer, times[3, step], 3, 7)):
+        opened = type_in_dialog(monkeypatch, utc(when))
+        assert changes(bare_app, qtbot, viewers, menu_action(viewer, "Go to UTC…").trigger) == {
+            "point": (stack.label, (scan, step, slit, None)),
+            "map": (scan, None, None, wavelength),
+            "spectrogram": (scan, step, None, None),
+            "sji0": (nearest_frame(sji, times[scan, step]), None, None),
+        }
+        assert opened == [utc(times[shown, step])]
+
+
+def test_go_to_utc_on_a_scanning_raster_moves_its_step(bare_app, qtbot, monkeypatch, scans):
+    scan, _ = scans
+    times = scan[scan.id["Time"]][:, 0, 0]
+    frames = times[0] + (np.arange(24) - 2) * ((times[-1] - times[0]) / 19)  # about three per step
+    viewers = quicklook(bare_app, [scan, slit_jaw(frames, scan)])
+    [sji_viewer] = viewers["sji"]
+    _, slit, _ = expected_start(scan)
+
+    def go_to(when):
+        type_in_dialog(monkeypatch, utc(when))
+        return changes(bare_app, qtbot, viewers, lambda: menu_action(sji_viewer, "Go to UTC…").trigger())
+
+    # typed in the slit-jaw viewer, the raster goes to the step nearest the typed time, which moves the point, and
+    # the slit-jaw image follows it
+    assert go_to(times[2]) == {
+        "point": (scan.label, (2, slit, None)),
+        "spectrogram": (2, None, None),
+        "sji0": (expected_nearest(times[2], frames), None, None),
     }
+    # without a point too, though its step slider no longer moves the time
+    menu_action(viewers["map"], "Clear point").trigger()
+    assert go_to(times[6]) == {"spectrogram": (6, None, None), "sji0": (expected_nearest(times[6], frames), None, None)}
+    assert "time master, step 6" in readout(viewers["spectrogram"])
 
 
 def play(qtbot, viewer, button, frames):

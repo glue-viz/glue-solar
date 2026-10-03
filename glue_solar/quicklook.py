@@ -409,6 +409,17 @@ class Coordinator(HubListener):
             self.group.subset_state = SubsetState()
             self._timer.start()  # time sync continues from the sliders
 
+    def move_master(self, data, index):
+        """
+        Move ``data``, the time master of its observation, to ``index`` along its first axis: its frame, exposure,
+        step or scan, on the point if it holds one. The others follow it, as after a move of its slider.
+        """
+        if _time_axis(data) is None:
+            self._steps[data] = index  # a scanning raster's time is its timing step, which no slider moves
+        with self._writing():
+            self._move_in_time(data, 0, index)
+        self._timer.start()
+
     @contextmanager
     def _writing(self):
         self._busy = True

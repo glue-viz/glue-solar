@@ -103,15 +103,16 @@ scanning raster, one that does not cover it) keeps its frame and is greyed. The 
 says which dataset is the time master, how far each matched dataset's time is from the master's
 (Δt) and "NO MATCH" with that offset for the others. Wavelength and slit sliders are never moved.
 
-The "Coordinate" menu of every Image viewer also has "Go to UTC…" and "Loop…", for the slider of the
-data's first axis: a slit-jaw image's frames, a sit-and-stare raster's exposures, a scanning
-raster's steps or a stack's scans (a viewer showing that axis has no such slider). "Go to UTC…"
-asks for a UTC time, such as ``2013-09-02T17:00:00``, starting from the displayed one, and moves the
-slider to the frame, exposure, step or scan nearest it (the earlier of two as near; a stack's scans
-are timed at the point's raster step), as moving the slider by hand does: on the time master's
-viewer the other panels follow, while a follower keeps it only until the panels next follow the
-time, and a raster under a slit-jaw master snaps back. A time more than half the dataset's time
-step from the nearest moves nothing, and glue says why. "Loop…" asks for the first and last index
+The "Coordinate" menu of every Image viewer also has "Go to UTC…" and "Loop…". "Go to UTC…" asks for
+a UTC time, such as ``2013-09-02T17:00:00``, starting from the time master's, and moves the time
+master, from whichever viewer of its observation you ask, to its frame, exposure, step or scan
+nearest it (the earlier of two as near; a stack's scans are timed at the point's raster step, and a
+scanning raster's step moves the point): the other panels follow, as when the master's slider
+moves. A time more than half the master's time step from its nearest moves nothing, and glue says
+why. A viewer of an observation without a time master, such as a slit-jaw image whose raster is not
+open, moves its own frame slider instead. "Loop…" is for the slider of the data's first axis: a
+slit-jaw image's frames, a sit-and-stare raster's exposures, a scanning raster's steps or a stack's
+scans (a viewer showing that axis has no such slider). It asks for the first and last index
 to play, such as ``100 120``, starting from the current loop or else the whole range: the slider's
 play buttons then go round those, both included, from the first forwards or the last backwards when
 the slider is outside them.

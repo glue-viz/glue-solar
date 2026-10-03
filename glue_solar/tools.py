@@ -30,6 +30,7 @@ from glue_solar.quicklook import (
     _world_text,
     coordinator,
     nearest,
+    observation_key,
 )
 
 __all__ = [
@@ -728,25 +729,32 @@ def _first_slider(viewer):
 
 class _GoToUTCEntry(_CoordinateEntry):
     """
-    Move the viewer's frame, exposure, step or scan slider to the one nearest a typed UTC time, the earlier of two as
-    near, as a move of the slider does: the observation follows if the dataset is its time master. A stack's scans
-    are timed at the point's step. The dialog opens on the displayed time; a time more than half a cadence from the
-    nearest moves nothing (D7), and glue says why, as for a viewer without such a slider.
+    Move the time master of the viewer's observation, typed in any of its viewers, to its frame, exposure, step or
+    scan nearest a typed UTC time, the earlier of two as near: the others follow it, as after a move of its slider. A
+    stack's scans are timed at the point's step. A viewer of an observation without a time master moves its own
+    frame, exposure, step or scan slider instead. The dialog opens on the time master's time, or the viewer's own; a
+    time more than half the master's cadence from its nearest moves nothing (D7), and glue says why, as for a viewer
+    with neither a time master nor such a slider.
     """
 
     tool_id = "solar:go_to_utc"
     action_text = "Go to UTC…"
-    tool_tip = "Move the frame, exposure, step or scan slider to the one nearest a UTC time"
+    tool_tip = "Move the time master to its frame, exposure, step or scan nearest a UTC time"
 
     @messagebox_on_error("Could not go to UTC")
     def run(self, coordinator):
         viewer = self.viewer
         state = viewer.state
         data = state.reference_data
-        if _first_slider(viewer) is None or not _timed(data):
+        master = coordinator._master(observation_key(data)) if _timed(data) else None
+        if master is None and (_first_slider(viewer) is None or not _timed(data)):
             raise ValueError("The viewer has no frame, exposure, step or scan slider of IRIS data.")
-        times = _times(data, coordinator._timing(data)[1])
-        shown = np.datetime_as_string(times[getattr(state.slices[0], "center", state.slices[0])], unit="ms")
+        moved = data if master is None else master
+        index, step = coordinator._timing(moved)
+        if master is None:
+            index = getattr(state.slices[0], "center", state.slices[0])
+        times = _times(moved, step)
+        shown = np.datetime_as_string(times[index], unit="ms")
         text, ok = QtWidgets.QInputDialog.getText(viewer, "Go to UTC", "UTC time:", text=shown)
         if not ok:
             return
@@ -760,9 +768,13 @@ class _GoToUTCEntry(_CoordinateEntry):
         if abs(offset) > _half_cadence(times):
             seconds = offset / np.timedelta64(1, "s")
             raise ValueError(
-                f"Nothing is within half a cadence of {text}: the nearest, {index}, is {seconds:+.1f} s off."
+                f"Nothing in {moved.label} is within half a cadence of {text}: the nearest, {index}, is "
+                f"{seconds:+.1f} s off."
             )
-        state.slices = (int(index), *state.slices[1:])
+        if master is None:
+            state.slices = (int(index), *state.slices[1:])
+        else:
+            coordinator.move_master(master, int(index))
 
 
 def _loop(slider, lo, hi):
@@ -818,8 +830,8 @@ class CoordinateTool(SimpleToolMenu):
     The tool registers its viewer with the data collection's
     `~glue_solar.quicklook.Coordinator`, which keeps the viewers on the point selected with the
     Pixel tool, and unregisters it when the viewer closes. Its menu makes the displayed dataset the
-    time master of its observation, clears the point, moves the frame, exposure, step or scan slider
-    to a typed UTC time, or makes that slider's playback loop over a range. On a slit-jaw image it
+    time master of its observation, clears the point, moves the time master to a typed UTC time, or
+    makes the frame, exposure, step or scan slider's playback loop over a range. On a slit-jaw image it
     draws the displayed frame's slit, and the point of a raster of the same observation placed with
     that frame's coordinates while it is on the image.
     """
