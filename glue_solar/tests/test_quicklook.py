@@ -1597,6 +1597,20 @@ def draw_region(app, viewer, roi):
     return group.subset_state
 
 
+def check_outline(monkeypatch, raster, sji, region, pixels):
+    """Check that ``region`` selects what glue's ``pixels`` does on ``raster`` and in ``sji``'s frames."""
+    # glue's own region on the raster's pixels: the raster's own pixels inside it, exactly
+    np.testing.assert_array_equal(raster.get_mask(region), raster.get_mask(pixels))
+    frames = (0, sji.shape[0] // 2, sji.shape[0] - 1)
+    expected = [sji.get_mask(pixels, view=(frame,)) for frame in frames]
+    assert np.sum(expected) >= 20
+    # and in each slit-jaw frame the same pixels, without inverting the raster's coordinates
+    inverted = inversions(monkeypatch, raster)
+    for frame, mask in zip(frames, expected):
+        np.testing.assert_array_equal(sji.get_mask(region, view=(frame,)), mask)
+    assert not inverted
+
+
 @pytest.mark.parametrize("step", [0.0, 0.3], ids=["sit-and-stare", "scanning"])
 @pytest.mark.parametrize(
     "roi",
@@ -1619,17 +1633,20 @@ def test_a_map_region_reaches_a_slit_jaw_image_by_its_outline(
         [raster] = raster_data([path], ["Si IV 1403"])
     viewers = quicklook(bare_app, [raster, sji])
     region = draw_region(bare_app, viewers["map"], roi)
-    # glue's own region on the raster's pixels: the raster's own pixels inside it, exactly
     pixels = roi_to_subset_state(roi, x_att=raster.pixel_component_ids[0], y_att=raster.pixel_component_ids[1])
-    np.testing.assert_array_equal(raster.get_mask(region), raster.get_mask(pixels))
-    frames = (0, sji.shape[0] // 2, sji.shape[0] - 1)
-    expected = [sji.get_mask(pixels, view=(frame,)) for frame in frames]
-    assert np.sum(expected) >= 20
-    # and in each slit-jaw frame the same pixels, without inverting the raster's coordinates
-    inverted = inversions(monkeypatch, raster)
-    for frame, mask in zip(frames, expected):
-        np.testing.assert_array_equal(sji.get_mask(region, view=(frame,)), mask)
-    assert not inverted
+    check_outline(monkeypatch, raster, sji, region, pixels)
+
+
+def test_a_region_on_a_map_with_its_axes_swapped(bare_app, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    state = viewers["map"].state
+    state.x_att, state.y_att = raster.pixel_component_ids[1], raster.pixel_component_ids[0]  # slit across, exposures up
+    # the outline still has a corner at every exposure, past the first exposure and slit row too
+    roi = RectangularROI(-3.7, 25.4, -20.5, 30.2)
+    region = draw_region(bare_app, viewers["map"], roi)
+    pixels = roi_to_subset_state(roi, x_att=raster.pixel_component_ids[1], y_att=raster.pixel_component_ids[0])
+    check_outline(monkeypatch, raster, sji, region, pixels)
 
 
 def test_a_stack_map_region_reaches_another_window_by_its_outline(bare_app, monkeypatch, scans):
@@ -2460,6 +2477,7 @@ def test_what_a_region_moves(bare_app, qtbot, scans, irispy_test_files):
         # a region replaces the point, which is the edit subset, and moves no slider, on any raster panel
         roi = RectangularROI(1.5, 3.5, 5.5, 9.5)
         assert changes(bare_app, qtbot, viewers, lambda: viewers["map"].apply_roi(roi)) == {"point": None}
+        assert [group.label for group in bare_app.session.edit_subset_mode.edit_subset] == ["Point"]
         for role in ("spectrogram", "wavelength"):
             assert changes(bare_app, qtbot, viewers, lambda role=role: viewers[role].apply_roi(roi)) == {}
 
