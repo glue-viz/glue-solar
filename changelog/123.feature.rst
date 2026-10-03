@@ -1,0 +1,1 @@
+"Raster overlays" in the Coordinate menu draws each raster step's slit on the slit-jaw images, placed through the frame nearest its time, and a dashed line on raster maps at the step nearest the time master's time.
