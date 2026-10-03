@@ -2259,6 +2259,16 @@ def test_go_to_utc_on_a_stack_takes_the_scan_at_the_points_step(bare_app, qtbot,
             "sji0": (nearest_frame(sji, times[scan, step]), None, None),
         }
         assert opened == [utc(times[shown, step])]
+    # without a point too: the scan sliders move, and the time stays at the step the point left
+    menu_action(viewers["map"], "Clear point").trigger()
+    opened = type_in_dialog(monkeypatch, utc(times[5, step]))
+    assert changes(bare_app, qtbot, viewers, menu_action(sji_viewer, "Go to UTC…").trigger) == {
+        "map": (5, None, None, wavelength),
+        "spectrogram": (5, step, None, None),
+        "sji0": (nearest_frame(sji, times[5, step]), None, None),
+    }
+    assert opened == [utc(times[3, step])]
+    assert f"time master, step {step}" in readout(viewers["spectrogram"])
 
 
 def test_go_to_utc_on_a_scanning_raster_moves_its_step(bare_app, qtbot, monkeypatch, scans):
