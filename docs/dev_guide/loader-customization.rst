@@ -37,8 +37,8 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
 
 ``irispy`` remains responsible for instrument detection, FITS interpretation, metadata
 normalization, units, and each input cube's WCS and exposure times. The Glue adapter keeps
-those and changes only missing data: the IRIS fill values -200 and -199 (only -200 in aligned
-AIA cutouts) become NaN. Each dataset's ``<label> mask`` component is ``isnan(data)`` as
+those and changes only missing data: the IRIS fill values -200 and -199 become NaN, in aligned
+AIA cutouts too. Each dataset's ``<label> mask`` component is ``isnan(data)`` as
 ``uint8``, since Glue would store a boolean component as ``int64``, so saturated samples,
 which are +Inf, stay unmasked; for int16 data it is a glue derived component of the data
 (``lazy.fill_mask``). Raster times are a separate ``Time`` component.

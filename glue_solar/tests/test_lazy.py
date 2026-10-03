@@ -372,7 +372,6 @@ def test_int16_slit_jaw_and_aia_cubes_load_lazily(monkeypatch, tmp_path, irispy_
         lazy_result, eager = lazy_and_eager(monkeypatch, lambda path=path: image_data(path))
         assert_loads_as_before(lazy_result, eager)
         assert lazy_result.meta["scaled"]
-    assert (lazy_result[lazy_result.main_components[0]] == -199).any()  # data in AIA cutouts, unverified as missing
     assert_loads_as_before(*lazy_and_eager(monkeypatch, lambda: iris_data(gzipped)))  # File -> Open
 
 

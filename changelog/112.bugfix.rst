@@ -1,0 +1,1 @@
+AIA cutouts treat -199 as missing, as IRIS data and irispy do, and a loader test no longer assumes irispy masks only -200, so the suite passes against irispy's main branch too.

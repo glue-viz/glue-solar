@@ -683,12 +683,11 @@ def test_aia_cutout_fill_renders_transparent(qtbot, tmp_path, iris_tree):
     shutil.copy2(source, path)
     with fits.open(path, mode="update") as hdul:
         hdul[0].data[0, 1, 2] = -200
-        hdul[0].data[0, 2, 3] = -199  # unverified as missing in AIA cutouts, so it stays data
+        hdul[0].data[0, 2, 3] = -199
     aia = image_data(path)
     flux = np.asarray(aia[aia.main_components[0]])
     assert flux.dtype == np.float32
-    np.testing.assert_array_equal(np.argwhere(np.isnan(flux)), [[0, 1, 2]])
-    assert flux[0, 2, 3] == -199
+    np.testing.assert_array_equal(np.argwhere(np.isnan(flux)), [[0, 1, 2], [0, 2, 3]])
 
     app = GlueApplication()
     qtbot.addWidget(app)

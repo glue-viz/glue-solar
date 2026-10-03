@@ -762,8 +762,7 @@ def test_raster_coordinates_are_thread_safe(irispy_test_files):
 
 
 def test_negative_step_raster_fill_follows_the_flipped_data(tmp_path, irispy_test_files):
-    # The fill must follow irispy's flip of STEPS_AV < -0.01 rasters and cover -199, which irispy's mask,
-    # -200 only, leaves out
+    # The fill must follow irispy's flip of STEPS_AV < -0.01 rasters and cover -199
     source = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits")
     path = tmp_path / source.name
     shutil.copy2(source, path)
@@ -774,9 +773,6 @@ def test_negative_step_raster_fill_follows_the_flipped_data(tmp_path, irispy_tes
         first[tuple(np.argwhere(first != -200)[0])] = -199  # the fixtures hold no -199
     with fits.open(path) as hdul:
         fill = np.flip(np.isin(hdul[window].data, (-200, -199)), axis=0)
-    cube = read_files(path, spectral_windows=["Si IV 1403"], memmap=False, uncertainty=False)["Si IV 1403"][0]
-    assert not np.array_equal(cube.mask, fill)
-
     scan = raster_data([path], ["Si IV 1403"])[0]
     np.testing.assert_array_equal(np.isnan(scan[scan.main_components[0]]), fill)
     np.testing.assert_array_equal(scan[f"{scan.label} mask"], fill)
