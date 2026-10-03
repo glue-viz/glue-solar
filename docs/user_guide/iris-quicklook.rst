@@ -87,7 +87,8 @@ raster panels, the slit-jaw images and, as its mean spectrum, in the spectrum pa
 removes it. The point stays as it was and stays the edit subset, so the Pixel tool keeps moving it,
 and "Clear point" leaves regions alone. To change a region with the toolbar's selection "Mode", such
 as adding to it, first pick it in the data collection or as the toolbar's "Active Subset", then
-draw. Each quicklook has its own point,
+draw; the Pixel tool then replaces that region with the clicked pixel, until "Point" is picked again
+or the tab is shown again. Each quicklook has its own point,
 shown only in its own panels, edited while its tab is
 shown and moved only by that tab's sliders. Where a point does not show, it is not in the viewer's
 layer list either, since glue would still redraw a hidden layer at every move: drag the subset onto
