@@ -77,8 +77,8 @@ stack the point stays on the map's scan. A Profile's collapse of an axis is left
 "Clear point" the panels stop following each other until the next click, except in time: the
 slit-jaw viewers keep following the exposure slider of a sit-and-stare raster and the scan slider of
 a stack's map, on a scanning raster the time stays at the last point's raster step, and a slit-jaw
-time master (see below) still moves the others. A point clicked on a slit-jaw image is
-marked only there, and the spectrum panel is empty until the next raster click. The raster panels have no region selection tools, because a region drawn on a
+time master (see below) still moves the others. A click on a slit-jaw viewer moves the point to the
+raster there (see below). The raster panels have no region selection tools, because a region drawn on a
 raster map is recomputed on every slit-jaw viewer for each screen pixel at every frame (see
 :ref:`Linking <glue_solar_users_guide_iris_linking>`). Each quicklook has its own point,
 shown only in its own panels, edited while its tab is
@@ -111,6 +111,26 @@ time" readout says "outside SJI FOV", when the point is off the image; neither i
 viewer shows the frame axis. A slit-jaw frame taken a raster step earlier or later than the point
 shows the slit a step away from the cross.
 
+A click with the Pixel tool on a slit-jaw viewer of the quicklook moves the point to the raster
+pixel there, placed with the displayed frame's own pointing (``sji_to_raster``, see
+:ref:`Scripting with IRIS data <glue_solar_users_guide_scripting_iris_data>`): on a scanning raster
+the nearest step and slit position, on a stack also the scan nearest the frame's time at that step,
+and on a sit-and-stare raster the exposure nearest the frame's time and the slit position level with
+the click, however far beside the slit: the slit, 0.33″ or about two slit-jaw pixels wide, is about
+a screen pixel wide at the quicklook's zoom. The other panels and the spectrum follow, as after a
+map click, and the red cross marks the point. The viewer keeps the frame clicked, also after a click
+outside the raster (below), until the point moves again, with its offset from the raster's time, NO
+MATCH and greyed when the raster took that place more than half a frame interval away, as it often
+did on a scanning raster; under a slit-jaw time master the master rules, and the exposure or scan
+and the viewer clicked follow its frame. One Undo ("Edit" menu, Ctrl+Z, Cmd+Z on macOS) takes the
+point back. Redo repeats the click in the frame the viewer shows then, so after the frame has moved
+it can land on another exposure or scan than the first time. A click outside the raster, past its first or last step or either end of its slit, or on
+a sit-and-stare raster in a frame with no exposure within half its cadence, leaves the point where
+it was, and the viewer's "Frame time" readout says "outside raster FOV" until the point moves; it
+still adds an Undo step, which changes nothing. A click on a slit-jaw viewer showing its frame axis,
+which is no place on the Sun, is marked only there, and the spectrum panel is empty until the next
+raster click.
+
 Below the panels, which keep their size (scroll the tab down on a small screen), the read-only
 "Point" window gives the point in each dataset the quicklook shows, one row each, as the readouts
 give it:
@@ -126,9 +146,9 @@ give it:
   offset Δt of its time from the master's, such as each slit-jaw frame's from the point's raster
   step or exposure, or "NO MATCH".
 
-A point clicked on a slit-jaw image fills its own row only, as the raster panels do not follow it;
-a point off a slit-jaw image gives "outside SJI FOV" there, and a dataset of another observation
-"no match". After "Clear point" only the time sync is left. The window refreshes once for each
+A point clicked on a slit-jaw viewer showing its frame axis fills its own row only, as the raster
+panels do not follow it; a point off a slit-jaw image gives "outside SJI FOV" there, and a dataset
+of another observation "no match". After "Clear point" only the time sync is left. The window refreshes once for each
 click, slider step, time sync or change to a panel's layers, such as the component it shows, and
 only while its tab is shown. Move or resize it like a panel; closing the tab closes it, and one
 closed by hand stays closed.
