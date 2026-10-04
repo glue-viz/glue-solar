@@ -357,7 +357,7 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 
 **M3**
 
-- [ ] **M3** `wp9-m3-saturation-recipe` (F170): A 'Was it saturated?' recipe: NSATPIX/TSATPXn in View metadata, then an `np.isinf` subset. Done when checked on 4000005156 Si IV (NSATPIX 0).
+- [ ] **M3** `wp9-m3-saturation-recipe` (F170): A 'Was it saturated?' recipe: NSATPIX/TSATPXn in View metadata, then an `np.isinf` subset. Done when checked on 4000005156 Si IV (NSATPIX 0). Open (2026-10-04): Level 2 files are int16 and neither the lazy loader nor irispy maps a code to +Inf, so `np.isinf` finds nothing on them; no local raster or slit-jaw `.fits` under ~/DATA/IRIS has NSATPIX > 0 to show how saturation is stored (perhaps raw 32767, 16183.75 DN), so the recipe's subset needs a saturated file or a user decision.
 - [ ] **M3** `wp9-m3-spectral-recipes` (F080, F084): Recipes for an average spectrum over scans, photospheric context and per-window flux × k. Done when each reproduces on 3602506433, 3660259102 and 3640107442.
 - [ ] **M3** `wp9-m3-shortcuts-help` (F198, F199): A table of keys glue's tooltips omit and an 'IRIS: user guide and issues' `menubar_plugin` entry. Done when a test covers every shortcut and both URLs. Depends: wp12-path-slicer.
 
