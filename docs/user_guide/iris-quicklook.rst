@@ -68,7 +68,9 @@ jitter takes it across a tick value, one label over another or off the panel. An
 angles alone, such as the map, a slit-jaw image or any other celestial map, keeps both.
 
 The map shows the wavelength nearest the window's reference wavelength, and the panels use
-99.5 % limits. A point, the edit subset "Point", starts at the centre of the map with the Pixel
+99.5 % limits and their band's stretch: log in the FUV (slit-jaw 1330 and 1400, C II, Si IV and the
+other FUV windows), sqrt about Mg II k and h (slit-jaw 2796 and those windows), linear for slit-jaw
+2832 and the other NUV windows; glue's layer controls change either. A point, the edit subset "Point", starts at the centre of the map with the Pixel
 tool active: drag it on the map, and the spectrum panel shows its spectrum. With "Follow/lock" chosen
 in a panel's toolbar instead, the point follows the mouse over that panel, and on a slit-jaw viewer
 moves to the raster pixel under the mouse, as a click there does (below), until a left click locks

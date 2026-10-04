@@ -4150,3 +4150,16 @@ def test_the_browser_shows_each_ticked_window(qtbot, monkeypatch, tmp_path, iris
         "C II 1336 λ–time",
         "C II 1336 spectrum",
     ]
+
+
+def test_each_band_opens_with_its_stretch(bare_app, irispy_test_files):
+    rasters = windows_of(irispy_test_files, "sit-and-stare")
+    sjis = [image_data(find_irispy_test_file(irispy_test_files, SNS.format(f"SJI_{band}_t000")))
+            for band in (1330, 1400, 2796, 2832)]
+    viewers = quicklook(bare_app, [*rasters, *sjis], window=THREE)
+    # D43: log in the FUV, sqrt about Mg II k and h, linear for slit-jaw 2832; glue's controls change them
+    stretches = {role: viewers[role].state.layers[0].stretch for role in ("map", "spectrogram", "wavelength")}
+    assert stretches == dict.fromkeys(stretches, "sqrt")  # Mg II k 2796
+    assert [panels["wavelength"].state.layers[0].stretch for panels in viewers["windows"]] == ["log", "log"]
+    assert {str(v.state.reference_data.meta["TDESC1"]): v.state.layers[0].stretch for v in viewers["sji"]} == {
+        "SJI_1330": "log", "SJI_1400": "log", "SJI_2796": "sqrt", "SJI_2832": "linear"}
