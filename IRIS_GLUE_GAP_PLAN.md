@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-03
 
-**Resume here.** M0 is done. Main is at 3266f00 (#129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#129; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp5-m1-spectral-blink` (designed: D41); the other M1 items wait on irispy 0.10.0 and astropy 8.0.2.
+**Resume here.** M0 is done. Main is at fb37025 (#131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#131; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp5-m1-spectral-blink` (designed: D41); the other M1 items wait on irispy 0.10.0 and astropy 8.0.2.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -120,7 +120,7 @@ A milestone is done when it has no items left.
 - WP3: `wp3-style-cmap`, `wp3-wcs-saver`, `wp3-quantity-meta`, `wp3-file-references`, `wp3-session-budget`, `wp3-coordination-reattach`, `wp3-app-session-acceptance`, `wp3-last-session`
 - WP4: `wp4-l-redo-sji-click`, `wp4-profile-aggregation`, `wp4-empty-collapse-draw`
 - WP5: `wp5-m1-line-list`, `wp5-m1-rest-wavelength-policy`, `wp5-m1-velocity-axis`, `wp5-m1-doppler-image`
-- WP8: `wp8-filter-stop`, `wp8-text-filter`, `wp8-prescan-search`, `wp8-search-ui`, `wp8-browser-conveniences`, `wp8-browser-metadata`, `wp8-sot-cubes`
+- WP8: `wp8-filter-stop`, `wp8-text-filter`, `wp8-prescan-search`, `wp8-search-ui`, `wp8-browser-conveniences`, `wp8-sot-cubes`
 - WP9: `wp9-l-deferred-recipes`
 - WP10: `wp10-m3-sit-stare-chunks`, `wp10-l-resident-memory`
 - WP11: `wp11-l-all-colormaps`, `wp11-scaling-extras`
@@ -341,7 +341,6 @@ Covers the observation browser, the header scanner (`scan.py`) and the IRIS read
 - [ ] **L** `wp8-prescan-search` (F003, F010): Time-window and glob arguments for `scan_directory` that prune by filename, and `find_observation_files`. Done when a 2013-09-02 window reads only 2013-09-01/02 headers. Depends: wp8-filter-stop.
 - [ ] **L** `wp8-search-ui` (F001, F002, F004): Start/Stop time fields, named search locations and recent searches. Done when tests set and restore the scan window. Depends: wp8-prescan-search.
 - [ ] **L** `wp8-browser-conveniences` (F006, F007, F014): Persist browser options, an editable Folder field and double-click to load. Done when tests restore the settings and a typed path rescans. Depends: wp8-text-filter, wp3-file-references.
-- [ ] **L** `wp8-browser-metadata` (F039, F040): Row tooltips from headers `scan.py` already reads. Done when the 20140329 C II tooltip shows its wavelength range and detector, with header reads unchanged.
 - [ ] **L** `wp8-sot-cubes` (F106): Read Hinode/SOT cubes in IRIS SJI format (ITN 32) after porting the reader to irispy main (prototype: `IRIS_PLAN_PROTOTYPES/itn32_sot/`). Done when an ITN 32 cube opens with `Time` and pointing that `link_hpc` reaches. Depends: wp8-m3-context-cubes.
 
 **OM**
