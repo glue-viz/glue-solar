@@ -4,6 +4,7 @@ A reader for `sunpy.map.Map`.
 import sys
 from abc import ABC
 
+import matplotlib
 from glue.config import colormaps, data_factory, qglue_parser
 from glue.core.component import Component
 from glue.core.data import Data
@@ -29,12 +30,16 @@ class _GenericMap(ABC):
 
 def _add_colormap(name):
     """
-    List sunpy's colormap ``name``, if sunpy has one, in glue's colormap menus. glue-qt draws every colormap listed
-    each time it builds an Image layer's menu, so only those that data ask for are listed.
+    List sunpy's colormap ``name``, its key or its own name (which glue saves and maps give), if sunpy has one, in
+    glue's colormap menus. glue-qt draws every colormap listed each time it builds an Image layer's menu, so only those
+    that data ask for are listed.
     """
-    ctable = cmlist.get(name)
+    ctable = cmlist.get(name) or next((cmap for cmap in cmlist.values() if cmap.name == name), None)
     if ctable is not None and all(ctable is not cmap for _, cmap in colormaps.members):
         colormaps.add(ctable.name, ctable)
+    if ctable is not None and ctable.name not in matplotlib.colormaps:
+        # glue restores a session's colormap from matplotlib's, where sunpy lists most under their key only
+        matplotlib.colormaps.register(ctable, name=ctable.name)
 
 
 @qglue_parser(_GenericMap)

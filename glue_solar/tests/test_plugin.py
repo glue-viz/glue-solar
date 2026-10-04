@@ -627,6 +627,8 @@ def test_only_the_colormaps_data_ask_for_are_listed(qtbot, monkeypatch, irispy_t
 
 
 def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_path):
+    from sunpy.visualization.colormaps import cmlist
+
     monkeypatch.setattr(colormaps, "_members", [])
     monkeypatch.setattr(colormaps, "_loaded", False)
     glue_solar.setup()
@@ -638,10 +640,14 @@ def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_pa
     app.save_session(str(tmp_path / "cmap.glu"))
     session = (tmp_path / "cmap.glu").read_text()
     # glue restores a colormap by its name, here one that setup() does not list
-    (tmp_path / "cmap.glu").write_text(session.replace('"cmap": "gray"', '"cmap": "rhessi"'))
-    restored = GlueApplication.restore_session(str(tmp_path / "cmap.glu"))
-    qtbot.addWidget(restored)
-    assert _cmap_menu(restored.viewers[0][0]).currentText() == "rhessi"
+    # rhessi's name is its sunpy key; the HMI magnetogram's, as most are, is not
+    for name in ("rhessi", cmlist["hmimag"].name):
+        glue_solar._add_session_colormaps({"layer": {"cmap": name}})  # which the restore below would hang without
+        assert name in [label for label, _ in colormaps.members]
+        (tmp_path / "cmap.glu").write_text(session.replace('"cmap": "gray"', f'"cmap": "{name}"'))
+        restored = GlueApplication.restore_session(str(tmp_path / "cmap.glu"))
+        qtbot.addWidget(restored)
+        assert _cmap_menu(restored.viewers[0][0]).currentText() == name
 
 
 def test_gamma_stretches_are_listed_and_restored(qtbot, tmp_path):
