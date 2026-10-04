@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-03
 
-**Resume here.** M0 is done. Main is at fb37025 (#131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#131; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp5-m1-spectral-blink` (designed: D41); the other M1 items wait on irispy 0.10.0 and astropy 8.0.2.
+**Resume here.** M0 is done. Main is at 1269da4 (#132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#132; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp5-m1-spectral-blink` (designed: D41); the other M1 items wait on irispy 0.10.0 and astropy 8.0.2.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -118,7 +118,7 @@ A milestone is done when it has no items left.
 - WP0: `wp0-core-profile-restore-priority`, `wp0-qt68-macos-pass`
 - WP2: `wp2-burst-detection`
 - WP3: `wp3-style-cmap`, `wp3-wcs-saver`, `wp3-quantity-meta`, `wp3-file-references`, `wp3-session-budget`, `wp3-coordination-reattach`, `wp3-app-session-acceptance`, `wp3-last-session`
-- WP4: `wp4-l-redo-sji-click`, `wp4-profile-aggregation`, `wp4-empty-collapse-draw`
+- WP4: `wp4-l-redo-sji-click`, `wp4-profile-aggregation`
 - WP5: `wp5-m1-line-list`, `wp5-m1-rest-wavelength-policy`, `wp5-m1-velocity-axis`, `wp5-m1-doppler-image`
 - WP8: `wp8-filter-stop`, `wp8-text-filter`, `wp8-prescan-search`, `wp8-search-ui`, `wp8-browser-conveniences`, `wp8-sot-cubes`
 - WP9: `wp9-l-deferred-recipes`
@@ -283,7 +283,6 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 
 - [ ] **L** `wp4-l-redo-sji-click`: Redo after Undo of a slit-jaw click repeats the click in the frame shown then, so it can land on another exposure or scan; store the raster point on glue's undo command (a probe-gated workaround in `glue_patches.py`). Done when Undo then Redo of a sit-and-stare slit-jaw click gives the same exposure after the frame has moved.
 - [ ] **L** `wp4-profile-aggregation`: A band light curve at the point: a glue `SliceSubsetState` over the Profile's Collapse range that follows the point. Done when it equals the band nanmean on 4000255147.
-- [ ] **L** `wp4-empty-collapse-draw`: A Profile Collapse range narrower than one sample gives an empty `AggregateSlice`, and glue's image then raises in every draw (`compute_fixed_resolution_buffer`: "Number of steps in bounds should be >=1"). Found in #121, whose fixture let the queued draw run; `test_frame_time_tool_survives_an_empty_collapse` now ends on a drawable slice. Report candidate for glue. Done when such a range draws without raising.
 
 Notes:
 - Whisker polish (F143) and CRISPEX entry keywords (F020) are Later.
@@ -467,6 +466,7 @@ Gated workarounds on main. Raw-WCS readers hold `WCS_LOCK` or use a deep copy; n
 | --- | --- | --- |
 | Correlated-axis `world2pixel_single_axis` (#71) | `needs_inverse_workaround()` | glue #2598 |
 | Date epoch in `datetime64_to_mpl` and `mpl_to_datetime64` (#128) | `needs_date_epoch_workaround()` | glue #2599 |
+| An empty `AggregateSlice` range as its first sample (#132) | `needs_empty_collapse_workaround()` | A glue fix, not yet reported |
 | `_GlueWCS` `WCS_LOCK` (#60) | Always on (not safely probeable) | astropy#19174's fix, once 20 unlocked race runs give 0 crashes |
 | `_GlueWCS.has_celestial = False` (#66) | Always on | glue #2595 |
 | Generic `solar:cursor_readout` | `not hasattr(ImageViewer, 'cursor_status')` | glue-qt #74 |
