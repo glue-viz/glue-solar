@@ -1,0 +1,1 @@
+Sunpy colormaps whose own name differs from their sunpy key, such as the HMI, SUVI and EIT maps', are listed when a map asks for them and restored when a session names them.
