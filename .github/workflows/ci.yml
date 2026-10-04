@@ -38,6 +38,7 @@ jobs:
       submodules: false
       coverage: codecov-oidc
       toxdeps: tox-pypi-filter
+      posargs: -n auto
       libraries: |
         apt:
           - '^libxcb.*-dev'
@@ -50,7 +51,7 @@ jobs:
           - libxkbcommon-x11-dev
           - libxrender-dev
       envs: |
-        - linux: py312
+        - linux: py314
 
   sdist_verify:
     runs-on: ubuntu-latest
@@ -88,7 +89,6 @@ jobs:
           - libxkbcommon-x11-dev
           - libxrender-dev
       envs: |
-        - linux: py314
         - linux: py313-online
 
   docs:
