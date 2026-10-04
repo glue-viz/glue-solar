@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
 import dask.array as da
+import glue.utils.matplotlib
 import numpy as np
 from glue.config import data_exporter
 from glue.core import Data, DataCollection, Subset, component_link, coordinate_helpers
@@ -18,13 +19,18 @@ from glue.core.coordinate_helpers import unbroadcast
 from glue.core.data_exporters import gridded_fits
 from glue.core.exceptions import IncompatibleAttribute
 from glue.utils import defer_draw
+from glue.viewers.histogram import state as histogram_state
+from glue.viewers.histogram import viewer as histogram_viewer
 from glue.viewers.image.layer_artist import ImageSubsetLayerArtist
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
+from glue.viewers.matplotlib import viewer as matplotlib_viewer
+from glue.viewers.scatter import layer_artist as scatter_layer_artist
+from glue.viewers.scatter import viewer as scatter_viewer
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.matplotlib.widget import MplCanvas
-from matplotlib import rcParams
+from matplotlib import dates, rcParams
 from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
@@ -36,9 +42,12 @@ from astropy.wcs import WCS
 __all__ = [
     "canvas_init",
     "close_event",
+    "datetime64_to_mpl",
     "export_fits",
+    "mpl_to_datetime64",
     "needs_axis_label_workaround",
     "needs_crosshair_workaround",
+    "needs_date_epoch_workaround",
     "needs_fits_export_dask_workaround",
     "needs_inverse_workaround",
     "needs_pixel_point_workaround",
@@ -458,6 +467,37 @@ def needs_axis_label_workaround(updates=_original_update_axislabels):
 
 if needs_axis_label_workaround():
     ImageViewer.update_x_axislabel, ImageViewer.update_y_axislabel = update_x_axislabel, update_y_axislabel
+
+
+# glue-core #2599: glue 1.27.0 counts dates in days from 0001-01-01, matplotlib's epoch before 3.3, so a Scatter or
+# Histogram of 2021 times ticks in year 3990. The modules that import the conversions by name, glue.utils first.
+_DATE_MODULES = (glue.utils, glue.utils.matplotlib, scatter_viewer, scatter_layer_artist, matplotlib_viewer,
+                 histogram_viewer, histogram_state)
+_original_datetime64_to_mpl = glue.utils.datetime64_to_mpl
+
+
+def datetime64_to_mpl(d):
+    """`numpy.datetime64` values as days since `matplotlib.dates.get_epoch`, as matplotlib's date ticks read them."""
+    return dates.date2num(d)
+
+
+def mpl_to_datetime64(dt):
+    """Days since `matplotlib.dates.get_epoch` as `numpy.datetime64` values, to the nanosecond."""
+    ns = np.round(np.asarray(dt, np.float64) * 86400e9).astype(np.int64)
+    return np.datetime64(dates.get_epoch(), "ns") + ns.astype("timedelta64[ns]")
+
+
+def needs_date_epoch_workaround(func=_original_datetime64_to_mpl):
+    """Whether ``func`` gives a date other than matplotlib's own number for it."""
+    when = np.datetime64("2021-09-05T00:00:00")
+    return float(func(when)) != dates.date2num(when)
+
+
+if needs_date_epoch_workaround():
+    for module in _DATE_MODULES:
+        for name, function in (("datetime64_to_mpl", datetime64_to_mpl), ("mpl_to_datetime64", mpl_to_datetime64)):
+            if hasattr(module, name):
+                setattr(module, name, function)
 
 
 _original_close_event = ImageViewer.closeEvent

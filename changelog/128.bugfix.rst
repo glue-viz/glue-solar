@@ -1,0 +1,1 @@
+Scatter and Histogram viewers of dates tick in the right year: glue-core 1.27.0 counts dates from matplotlib's old epoch, 0001-01-01, so 2021 showed as 3990 (glue-core #2599 fixes it upstream).
