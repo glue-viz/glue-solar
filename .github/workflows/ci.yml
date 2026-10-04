@@ -30,28 +30,6 @@ concurrency:
 permissions: {}
 
 jobs:
-  core:
-    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@22ddf09dfabb443adddfb9f861b7d41a787d6b1a  # v3.0.3
-    permissions:
-      id-token: write
-    with:
-      submodules: false
-      coverage: codecov-oidc
-      toxdeps: tox-pypi-filter
-      libraries: |
-        apt:
-          - '^libxcb.*-dev'
-          - libegl-dev
-          - libglu1-mesa-dev
-          - libx11-xcb-dev
-          - libxcb-xinerama0
-          - libxi-dev
-          - libxkbcommon-dev
-          - libxkbcommon-x11-dev
-          - libxrender-dev
-      envs: |
-        - linux: py312
-
   sdist_verify:
     runs-on: ubuntu-latest
     steps:
@@ -67,7 +45,6 @@ jobs:
       - run: python -m twine check dist/*
 
   test:
-    needs: [core, sdist_verify]
     uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@22ddf09dfabb443adddfb9f861b7d41a787d6b1a  # v3.0.3
     permissions:
       id-token: write
@@ -88,11 +65,9 @@ jobs:
           - libxkbcommon-x11-dev
           - libxrender-dev
       envs: |
-        - linux: py314
         - linux: py313-online
 
   docs:
-    needs: [core]
     uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@22ddf09dfabb443adddfb9f861b7d41a787d6b1a  # v3.0.3
     with:
       default_python: '3.13'
@@ -119,7 +94,7 @@ jobs:
     with:
       python-version: '3.13'
       test_extras: 'tests,qt'
-      test_command: 'pytest -p no:warnings --doctest-rst --pyargs glue_solar'
+      test_command: 'pytest -n auto -p no:warnings --doctest-rst --pyargs glue_solar'
       submodules: false
       save_artifacts: true
       upload_to_pypi: false
