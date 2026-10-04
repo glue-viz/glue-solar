@@ -207,6 +207,7 @@ def test_frame_time_tool_follows_the_sliders(qtbot, irispy_test_files):
     assert other.axes.format_coord(1, 1).endswith(" (world) · 2020-01-01T12:00:00.000 UTC")  # the mouse-over readout
 
 
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")  # glue's Collapse of the NaN beside the image
 def test_frame_time_tool_survives_an_empty_collapse(qtbot):
     glue_solar.setup()
     cube = Data(label="cube", flux=np.zeros((4, 5, 6)), obs_date=np.full((4, 5, 6), np.datetime64("2020-01-01T12:00:00")))
@@ -215,9 +216,23 @@ def test_frame_time_tool_survives_an_empty_collapse(qtbot):
     app.data_collection.append(cube)
     viewer = app.new_data_viewer(ImageViewer, data=cube)
     tool = viewer.toolbar.tools["solar:frame_time"]
-    viewer.state.slices = (AggregateSlice(slice(2, 2), 2, np.nanmean), 0, 0)
-    assert tool.label.text() == ""
-    viewer.state.slices = (2, 0, 0)  # glue's image raises on drawing an empty Collapse range, as queued here
+    viewer.state.slices = (AggregateSlice(slice(2, 2), 2, np.nanmean), 0, 0)  # sample 2 (`glue_patches`)
+    assert tool.label.text() == "2020-01-01T12:00:00.000 UTC"
+
+
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")  # glue's Collapse of the NaN beside the image
+def test_an_empty_collapse_range_draws(qtbot):
+    installed = AggregateSlice.__init__ is glue_patches.aggregate_slice_init
+    assert installed == glue_patches.needs_empty_collapse_workaround()  # probes glue's own image buffer
+    glue_solar.setup()
+    cube = Data(label="cube", flux=np.arange(120.0).reshape(4, 5, 6))
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(cube)
+    viewer = app.new_data_viewer(ImageViewer, data=cube)
+    viewer.state.slices = (AggregateSlice(slice(2, 2), 2, np.nanmean), 0, 0)  # a Profile Collapse inside sample 2
+    viewer.figure.canvas.draw()  # glue 1.27.0 alone raises here, and in every later draw
+    assert viewer.state.slices[0].slice == slice(2, 3)
 
 
 def test_readout_gives_arcsec_only_where_wcsaxes_shows_arcsec(qtbot):
