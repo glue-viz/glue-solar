@@ -1119,8 +1119,20 @@ def _image(app, cls, data, x, y, slices, title, aspect):
     state.aspect = aspect
     state.reset_limits()  # glue pads the limits of a new viewer
     state.title = title
+    state.layers[0].stretch = _stretch(data)
     state.layers[0].percentile = PERCENTILE
     return viewer
+
+
+def _stretch(data):
+    """
+    The default stretch of the band of ``data``, a raster window or a slit-jaw image (D43): log in the FUV, sqrt about
+    Mg II k and h, linear for the other NUV windows and slit-jaw 2832, and for anything else.
+    """
+    twave = _window(data)[1] if _role(data) == "raster" else data.meta.get("TWAVE1") if _role(data) == "sji" else None
+    if twave is None:
+        return "linear"
+    return "log" if float(twave) < 2000 else "sqrt" if abs(float(twave) - 2800) <= 10 else "linear"
 
 
 def _raster_panels(app, raster, window, roles=("map", "spectrogram", "wavelength")):
