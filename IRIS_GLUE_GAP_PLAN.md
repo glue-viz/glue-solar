@@ -4,7 +4,7 @@ This plan drives glue-solar, with the irispy and glue work it needs, toward an I
 
 ## How to use this plan
 
-- Start at [Current state](#current-state-2026-10-01) and refresh PR states with `gh`.
+- Start at [Current state](#current-state-2026-10-03) and refresh PR states with `gh`.
 - Pick an open item in the earliest open milestone; read its done-when and Depends.
 - Trace the code on `main` before writing or porting a prototype; this plan overrides prototypes.
 - Stage named files only.
@@ -26,7 +26,7 @@ Out of scope:
 - PostScript, IDL and legacy CRISPEX formats (F189): images export in normal formats, derived data as FITS or ASDF.
 - SST-only inputs (F023, F028, F029, F129) and IDL details Glue replaces.
 
-## Current state, 2026-10-02
+## Current state, 2026-10-03
 
 **Resume here.** M0 is done. Main is at ea2e662 (#125 shows the other ticked windows of a raster file in its quicklook) (#107-#125; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp5-m1-spectral-blink` (designed: D41); the other M1 items wait on irispy 0.10.0 and astropy 8.0.2.
 
@@ -97,6 +97,7 @@ A milestone is done when it has no items left.
 
 **M1**
 - WP0: `wp0-release-tracking`, `wp0-irispy-requests`
+- WP4: `wp4-m1-review-fixes`
 - WP5: `wp5-m1-spectral-blink`
 
 **M2**
@@ -118,7 +119,7 @@ A milestone is done when it has no items left.
 - WP0: `wp0-core-profile-restore-priority`, `wp0-qt68-macos-pass`
 - WP2: `wp2-burst-detection`
 - WP3: `wp3-style-cmap`, `wp3-wcs-saver`, `wp3-quantity-meta`, `wp3-file-references`, `wp3-session-budget`, `wp3-coordination-reattach`, `wp3-app-session-acceptance`, `wp3-last-session`
-- WP4: `wp4-l-redo-sji-click`, `wp4-profile-aggregation`
+- WP4: `wp4-l-redo-sji-click`, `wp4-profile-aggregation`, `wp4-empty-collapse-draw`
 - WP5: `wp5-m1-line-list`, `wp5-m1-rest-wavelength-policy`, `wp5-m1-velocity-axis`, `wp5-m1-doppler-image`
 - WP8: `wp8-filter-stop`, `wp8-text-filter`, `wp8-prescan-search`, `wp8-search-ui`, `wp8-browser-conveniences`, `wp8-browser-metadata`, `wp8-sot-cubes`
 - WP9: `wp9-l-deferred-recipes`
@@ -155,7 +156,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 
 **M4**
 
-- [ ] **M4** `wp0-core-image-artist-bugs`: Core PR: a hidden Pixel crosshair reappears at (0, 0), and `translate_pixel` raises a bare `Exception`. Done when both reproducers pass on a release.
+- [ ] **M4** `wp0-core-image-artist-bugs`: Core PR: a hidden Pixel crosshair reappears at (0, 0), `translate_pixel` raises a bare `Exception`, and a linked-layer Pixel crosshair uses its own dataset instead of the viewer's reference data (#107). Done when all three reproducers pass on a release.
 - [ ] **M4** `wp0-qt-large-data-cancel`: glue-qt report: cancelling the 'Add large data set?' modal breaks later viewers. Done when filed or declined.
 - [ ] **M4** `wp0-astropy-19174`: Add the IRIS -TAB WCS thread crash to astropy#19174. Done when reproduced without `WCS_LOCK` and posted or declined.
 - [ ] **M4** `wp0-stack-validation`: Merge the upstream heads (core #2595, #2597-#2599, #2601; Qt #70, #74, #75) and run the Qt and `glue_solar` suites. They are the user's drafts: core #2595 WCS autolink, #2597 session cmap and meta, #2598 correlated-axis inverse, #2599 datetime epoch (fix its codestyle), #2601 Profile WCSAxes (contains #2596, Slice profile); Qt #70 Profile sliders and km/s axis, #74 cursor readout, #75 time slider labels. Done when pass counts are recorded.
@@ -273,9 +274,13 @@ Notes:
 
 Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_solar/quicklook.py`.
 
+**M1**
+
+- [ ] **M1** `wp4-m1-review-fixes`: Fix what the 2026-10-03 review of #92-#123 verified (reproducers in `IRIS_PLAN_PROTOTYPES/review_20261003.tar.gz`, `test_review.py`, `stack_index_probe.py`): (1) closing the Point window alone leaves its viewer-state callbacks, so the next raster click raises "wrapped C/C++ object of type _PointWindow has been deleted" (`quicklook.py`, the window's destroy handler); (2) `RawStack` reads an index array of scans with a wavelength slice as an object array (`lazy.py`): `stack[cid, (np.array([0, 98]), 0, 100, slice(None))]` raises IndexError on 3602506433; (3) Clear point in a stack tab can make a hidden tab's raster the time master, so the stack's scan slider stops driving its SJI (`quicklook.py`'s default master; D22); (4) #115's close wrapper stops playback even when the close is cancelled (`glue_patches.py`: return when `event.isAccepted()` is false); (5) the lazy FITS-export test does not pin the mask HDU (assert its presence, uint8 dtype and values). Done when each reproducer passes as a regression test in both envs. #124 and #125 were not reviewed.
+
 **M3**
 
-- [ ] **M3** `wp4-playback-extras` (F086, F087, F119): Add frame increment, bounce, 'N frames around current' and temporal blink (via `wp5-m1-spectral-blink`) to the `wp4-time-controls` loop. Done when each works on 4000255147 SJI 1400. Depends: wp4-time-controls, wp5-m1-spectral-blink.
+- [ ] **M3** `wp4-playback-extras` (F086, F087, F119): Add frame increment, bounce, 'N frames around current' and temporal blink (via `wp5-m1-spectral-blink`) to the Coordinate menu's Loop. Done when each works on 4000255147 SJI 1400. Depends: wp5-m1-spectral-blink.
 
 **L**
 
@@ -422,7 +427,7 @@ Frame, movie and data export plus path diagrams, built on glue's 'save' subtools
 
 **M2**
 
-- [ ] **M2** `wp12-sequence-export` (F178, F179): `solar:save_sequence` saves PNG frames or a movie (`FFMpegWriter`, else GIF) along one slice axis at fixed colour limits. Done when 4000255147 SJI 1400 frames 0-9 give 10 PNGs equal to `mpl:save`, a 10-frame GIF, and Cancel keeps partial output. Depends: wp4-time-controls.
+- [ ] **M2** `wp12-sequence-export` (F178, F179): `solar:save_sequence` saves PNG frames or a movie (`FFMpegWriter`, else GIF) along one slice axis at fixed colour limits. Done when 4000255147 SJI 1400 frames 0-9 give 10 PNGs equal to `mpl:save`, a 10-frame GIF, and Cancel keeps partial output.
 - [ ] **M2** `wp12-path-slicer` (F135, F137): `solar:path` and a crosshair mode subclass core's path slicer for 3D and 4D data. Done when on 4000255147 a 3-vertex path gives (400, N) SJI 1400 and (λ, N) raster diagrams, a 4-scan 3602506433 stack gives (scan, λ, N), and traces agree within 0.5 px. Depends: wp11-distance-measure.
 
 **M3**
