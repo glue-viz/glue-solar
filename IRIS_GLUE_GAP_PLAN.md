@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-03
 
-**Resume here.** M0 is done. Main is at ea2e662 (#125 shows the other ticked windows of a raster file in its quicklook) (#107-#125; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp5-m1-spectral-blink` (designed: D41); the other M1 items wait on irispy 0.10.0 and astropy 8.0.2.
+**Resume here.** M0 is done. Main is at ea2e662 (#125 shows the other ticked windows of a raster file in its quicklook) (#107-#125; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. In progress: `wp4-m1-review-fixes` in worktree `~/Git/glue-solar-wp4-m1-review-fixes`, branch `wp4-m1-review-fixes` (from origin/main ea2e662); no PR open yet. Then: `wp5-m1-spectral-blink` (designed: D41); the other M1 items wait on irispy 0.10.0 and astropy 8.0.2.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
