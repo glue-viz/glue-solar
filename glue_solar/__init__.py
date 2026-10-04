@@ -22,8 +22,8 @@ __all__ = ["setup", "__version__", "glue_patches", "iris", "maps", "regrid", "to
 @session_patch()
 def _add_session_colormaps(session):
     """
-    List the sunpy colormaps a session names by sunpy key, the name glue restores a colormap by, before it restores
-    them. glue saves a colormap's own name, which is its key only for rhessi, std_gamma_2 and the SUIT maps.
+    List the sunpy colormaps a session names before glue restores them: glue saves a colormap's own name, which is its
+    sunpy key only for rhessi, std_gamma_2 and the SUIT maps, and restores it by that name (`maps._add_colormap`).
     """
     for record in session.values():
         if isinstance(record, dict) and isinstance(record.get("cmap"), str):
