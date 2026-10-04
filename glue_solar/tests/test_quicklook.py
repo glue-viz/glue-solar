@@ -4101,6 +4101,42 @@ def test_what_moves_with_other_windows_of_a_stack(bare_app, qtbot, irispy_test_f
     assert [drawn(viewer, "time") for viewer in (viewers["wavelength"], c2_panel)] == [("y", [4])] * 2
 
 
+def test_a_stack_of_other_scans_is_not_a_window_of_the_stack(bare_app, irispy_test_files):
+    # scans 0 and 1 against 0 and 2: the same first scan, shape and DATE_OBS
+    files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
+    [c2] = raster_data(files[:2], ["C II 1336"], stack=True)
+    [si4] = raster_data([files[0], files[2]], ["Si IV 1403"], stack=True)
+    assert quicklook(bare_app, [c2, si4], window=THREE[:2])["windows"] == []
+
+
+@pytest.mark.parametrize("chosen", [True, False])
+def test_time_moves_a_point_on_another_window(bare_app, qtbot, monkeypatch, irispy_test_files, chosen):
+    c2, _, mg = windows_of(irispy_test_files, "sit-and-stare")
+    viewers = quicklook(bare_app, [c2, mg], window=THREE[::2])
+    c2_panel = viewers["windows"][0]["wavelength"]
+    if chosen:
+        menu_action(viewers["map"], "Time master").trigger()
+    select_point(c2_panel, 3, 50)
+    qtbot.wait(20)
+    slit = sliders(bare_app, viewers)["point"][1][1]
+    if not chosen:  # the time master is then the shown window again
+        c2_panel.close(warn=False)
+
+    def event(action):
+        return changes(bare_app, qtbot, viewers, action)
+
+    # F and Go to UTC move the time master's exposure, and the point, on its other window, goes with it
+    assert event(lambda: press(viewers["map"], Qt.Key_F)) == {
+        "point": (c2.label, (51, slit, None)),
+        "spectrogram": (51, None, None),
+    }
+    type_in_dialog(monkeypatch, utc(mg[mg.id["Time"]][100, 0, 0]))
+    assert event(lambda: menu_action(viewers["map"], "Go to UTC…").trigger()) == {
+        "point": (c2.label, (100, slit, None)),
+        "spectrogram": (100, None, None),
+    }
+
+
 def test_the_browser_shows_each_ticked_window(qtbot, monkeypatch, tmp_path, irispy_test_files):
     path = find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))
     app = bare_app_for(qtbot, monkeypatch)
