@@ -29,7 +29,8 @@ Expand an observation to see what can be loaded:
 - one entry per slit-jaw band (``SJI_1330``, ``SJI_1400``, ``SJI_2796``, ``SJI_2832``), and a
   separate one for each deconvolved slit-jaw file (``SJI_2796 (deconvolved)``),
 - one entry per raster spectral window (for example ``Mg II k 2796 — 8 raster file(s)``): every
-  raster scan of the observation is loaded for that window,
+  raster scan of the observation is loaded for that window, and its tooltip gives the window's detector and
+  wavelength range (``NUV, 2790.5–2806.6 Å``),
 - one entry per co-aligned SDO/AIA cutout (``aia_l2_*.fits``), for example ``AIA 1700``. Cutouts
   are recognised by file name and header, so they need no ``_SDO`` directory.
 

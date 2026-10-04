@@ -903,3 +903,20 @@ def test_negative_step_raster_keeps_irispys_orientation(qtbot, irispy_data):
     viewer.figure.canvas.draw()  # WCSAxes only formats positions once drawn
     assert f'{longitude[0]:.2f}"' in viewer.axes.format_coord(0, row)
     assert f'{longitude[63]:.2f}"' in viewer.axes.format_coord(63, row)
+
+
+def test_raster_rows_show_their_detector_and_wavelength_range(qtbot, monkeypatch, tmp_path, irispy_test_files):
+    from glue_solar.sources.loaders import scan
+
+    shutil.copy(find_irispy_test_file(irispy_test_files, "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"),
+                tmp_path)
+    reads = []
+    read = scan._primary_header
+    monkeypatch.setattr(scan, "_primary_header", lambda path: reads.append(path) or read(path))
+    dlg = QtIRISImporter(tmp_path)
+    qtbot.addWidget(dlg)
+    top = dlg.obs_tree.topLevelItem(0)
+    tips = {top.child(i).text(0).split(" — ")[0]: top.child(i).toolTip(0) for i in range(top.childCount())}
+    assert tips["C II 1336"] == "FUV1, 1332.7–1337.2 Å"
+    assert tips["Mg II k 2796"] == "NUV, 2790.5–2806.6 Å"
+    assert len(reads) == 1  # from the header the scan reads anyway

@@ -1,0 +1,1 @@
+Each raster window row of the observation browser has a tooltip with the window's detector and wavelength range.
