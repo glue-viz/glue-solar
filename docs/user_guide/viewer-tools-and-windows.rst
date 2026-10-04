@@ -73,6 +73,12 @@ toolbar has:
 - The save menu, with "Save plot to file" and "Save Python script to reproduce plot", and the
   window menu, with "Move to another tab" and "Change viewer title".
 
+A Profile viewer, the quicklook's spectrum panels included, gets an "IRIS lines" button: where its x
+axis is the wavelength of IRIS data, a thin marker and a label mark each main IRIS line in the
+plotted range (Mg II k, h and the triplet, C II, Si IV, O I, Fe XII and Fe XXI, at NIST vacuum
+wavelengths), in the axis's unit, with lines too close to tell apart sharing a label. They start on,
+and the button hides or shows them.
+
 Each viewer is a window in the current tab, with its own minimise, maximise and close buttons. The
 "Canvas" menu has "New Data Viewer" (Ctrl+N), "New Tab" (Ctrl+T), "Gather Windows" (Ctrl+G), which
 places the tab's viewers side by side, and "Rename Tab" (Ctrl+R); on macOS these use Cmd. Backspace
