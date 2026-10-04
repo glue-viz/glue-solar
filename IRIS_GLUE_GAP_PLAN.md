@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-03
 
-**Resume here.** M0 is done. Main is at 757ed61 (#128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#128; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp5-m1-spectral-blink` (designed: D41); the other M1 items wait on irispy 0.10.0 and astropy 8.0.2.
+**Resume here.** M0 is done. Main is at 3266f00 (#129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#129; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp5-m1-spectral-blink` (designed: D41); the other M1 items wait on irispy 0.10.0 and astropy 8.0.2.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -256,7 +256,7 @@ Makes Save and Open Session work for the quicklook and every glue-solar dataset 
 
 **L**
 
-- [ ] **L** `wp3-style-cmap`: Register sunpy colormaps under their `.name` so sessions restore them by name. Done when an AIA map session restores cmap `sdoaia171`.
+- [ ] **L** `wp3-style-cmap`: Save a sunpy map's session: glue's style saver writes its `preferred_cmap`, a `Colormap`, raw, so saving fails ('LinearSegmentedColormap is not JSON serializable'); glue-core #2597 fixes it, else a gated saver within D13 (#129 already lists and restores sunpy colormaps by their own names). Done when an AIA map session restores cmap `sdoaia171` ('SDO AIA 171.0 Angstrom').
 - [ ] **L** `wp3-wcs-saver`: Save `_GlueWCS` for embedded and derived data; file-referenced data take coords from glue's reload. Done when SJI, raster, stack and moments round-trip twice within 1e-9.
 - [ ] **L** `wp3-quantity-meta`: Save Quantity meta and make SJI `frame_wcs_headers` session-safe. Done when a raster's exposure time and an SJI session restore.
 - [ ] **L** `wp3-file-references`: Load browser data through path-first factories so LoadLog references the files, which dask data need. Done when sessions save under 100 KB and restore after the files move.
