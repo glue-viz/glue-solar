@@ -463,16 +463,18 @@ if needs_axis_label_workaround():
 _original_close_event = ImageViewer.closeEvent
 
 
-def close_event(self, *args):
+def close_event(self, event):
     """
-    glue-qt's ``ImageViewer.closeEvent``, stopping the playback of the viewer's slice sliders.
+    glue-qt's ``ImageViewer.closeEvent``, stopping the playback of the viewer's slice sliders once it closes.
 
     glue-qt 0.4.2 leaves a slider's play timer running when its viewer closes: the viewer's options, sliders
     included, stay in the application's options panel, and the timer goes on stepping the closed viewer. Each close
     probes for a slider still playing after glue-qt's own close, so this stops nothing once glue-qt does. Retired by
     a glue-qt fix (report candidate).
     """
-    _original_close_event(self, *args)
+    _original_close_event(self, event)
+    if not event.isAccepted():
+        return  # cancelled at glue-qt's confirmation: the viewer stays, playing
     for slider in self.options_widget().findChildren(SliceWidget):
         if slider._play_timer.isActive():
             slider._adjust_play("stop")  # glue-qt's Stop button

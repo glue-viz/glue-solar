@@ -582,7 +582,10 @@ class Coordinator(HubListener):
         return list(seen.values())
 
     def _master(self, key):
-        """The time master of observation ``key``: the chosen one, else the point's raster, else the first raster."""
+        """
+        The time master of observation ``key``: the chosen one, else the point's raster, else the first raster the
+        followed point's viewers show, else the first raster.
+        """
         if key is None:
             return None
         datasets = self._datasets(key)
@@ -592,7 +595,10 @@ class Coordinator(HubListener):
         point = self.point
         if point is not None and point.reference_data in datasets and _role(point.reference_data) == "raster":
             return point.reference_data
-        return next((data for data in datasets if _role(data) == "raster"), None)
+        # else a raster of the followed point's viewers, as after Clear point, not one of a hidden tab
+        rasters = [data for data in datasets if _role(data) == "raster"]
+        followed = {id(viewer.state.reference_data) for viewer in self._viewers if self._follows(viewer)}
+        return next((data for data in rasters if id(data) in followed), next(iter(rasters), None))
 
     def master_time(self, key):
         """The time of observation ``key``'s time master now, as the coming time sync takes it, or None."""
@@ -1623,11 +1629,22 @@ class _PointWindow(QTableWidget):
         self._timer.setInterval(0)
         self._timer.timeout.connect(self.refresh)
         coordinator.add_listener(self._schedule)
-        self.destroyed.connect(partial(coordinator.remove_listener, self._schedule))
         for viewer in viewers:
-            for prop in ("reference_data", "x_att", "y_att", "slices", "layers"):  # layers: such as the shown component
+            for prop in self._PROPS:
                 # after the coordinator's own, which may start its sync
                 viewer.state.add_callback(prop, self._schedule, priority=-1)
+        # closed alone or with its tab; a partial, which Qt keeps, as it would not a function
+        self.destroyed.connect(partial(self._detach, coordinator, viewers, self._schedule))
+
+    _PROPS = ("reference_data", "x_att", "y_att", "slices", "layers")  # layers: such as the shown component
+
+    @staticmethod
+    def _detach(coordinator, viewers, schedule):
+        """Stop ``schedule`` listening to the coordinator and the viewers, which may stay open."""
+        coordinator.remove_listener(schedule)
+        for viewer in viewers:
+            for prop in _PointWindow._PROPS:
+                viewer.state.remove_callback(prop, schedule)
 
     def _schedule(self, *_):
         # not in a hidden tab, nor before the coordinator's pending sync, which moves the panels: both call this again

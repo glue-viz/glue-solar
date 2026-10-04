@@ -1138,6 +1138,23 @@ def test_a_stack_master_moves_the_slit_jaw_image_by_scan_and_step(bare_app, qtbo
         assert heard[-1][2] == stack[stack.id["Exposure time"]][scan, step, 0, 0]
 
 
+def test_after_clear_point_a_stacks_scan_slider_still_moves_the_slit_jaw_image(bare_app, qtbot, scans):
+    scan, stack = scans
+    quicklook(bare_app, [scan])  # in a tab now hidden: its raster is not the stack's master
+    times = stack[stack.id["Time"]][:, :, 0, 0]
+    frames = np.sort(times, axis=None)  # a frame at each step of each scan
+    viewers = quicklook(bare_app, [stack, slit_jaw(frames, stack)])
+    [sji_viewer] = viewers["sji"]
+    [group] = bare_app.session.edit_subset_mode.edit_subset
+    step = group.subset_state.slices[1].start  # the timing step, kept after Clear point
+    menu_action(viewers["map"], "Clear point").trigger()
+    qtbot.wait(20)
+    for index in (4, 9):
+        slide(viewers["map"], 0, index)
+        frame = np.searchsorted(frames, times[index, step])
+        qtbot.waitUntil(lambda frame=frame: sji_viewer.state.slices[0] == frame)
+
+
 def test_a_slit_jaw_master_over_a_scanning_raster(bare_app, qtbot, scans):
     scan, _ = scans
     times = scan[scan.id["Time"]][:, 0, 0]
@@ -2986,7 +3003,7 @@ def test_a_loop_plays_only_its_frames(bare_app, qtbot, monkeypatch, irispy_test_
     assert play(qtbot, sji_viewer, "button_forw", 4)[:4] == [60, 61, 0, 1]
 
 
-def test_closing_the_master_stops_its_playback(bare_app, qtbot, irispy_test_files):
+def test_closing_the_master_stops_its_playback(bare_app, qtbot, monkeypatch, irispy_test_files):
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
     [sji_viewer] = viewers["sji"]
@@ -2997,6 +3014,11 @@ def test_closing_the_master_stops_its_playback(bare_app, qtbot, irispy_test_file
     slider.button_forw.click()
     slider._play_timer.setInterval(1)
     qtbot.waitUntil(lambda: len(shown) >= 3)
+    # a close cancelled at glue-qt's confirmation leaves it playing
+    sji_viewer._warn_close = True
+    monkeypatch.setattr(sji_viewer, "_confirm_close", lambda: False)
+    assert not sji_viewer._mdi_wrapper.close()
+    assert slider._play_timer.isActive()
     sji_viewer.close(warn=False)
     assert not slider._play_timer.isActive()
     played = len(shown)
@@ -3921,6 +3943,19 @@ def test_each_quicklook_has_its_own_point_window(bare_app, qtbot, monkeypatch, s
         bare_app.close_tab(tabs[1], warn=False)
     assert not [f for f in coordinator(bare_app.data_collection)._listeners if getattr(f, "__self__", 0) is closed]
     assert refreshes(lambda: select_point(first["map"], 7, 20)) == [windows[0]]
+
+
+def test_a_point_window_closed_alone_stops_listening(bare_app, qtbot, scans):
+    viewers = quicklook(bare_app, [scans[0]])
+    window = point_window(bare_app)
+    settle(qtbot, window)
+    with qtbot.waitSignal(window.destroyed):
+        window.parentWidget().close()
+    # its panels' next click and slider step reach no deleted window
+    select_point(viewers["map"], 3, 40)
+    slide(viewers["spectrogram"], 0, 5)
+    qtbot.wait(20)
+    assert not [f for f in coordinator(bare_app.data_collection)._listeners if getattr(f, "__self__", 0) is window]
 
 
 # Several windows of one raster file in one quicklook

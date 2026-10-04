@@ -1,0 +1,1 @@
+Closing the Point window on its own no longer breaks the next click, a stack reads an array of scans with slices as NumPy does, Clear point keeps a stack's scan slider driving its slit-jaw image when another quicklook tab is open, and a cancelled viewer close keeps its playback.
