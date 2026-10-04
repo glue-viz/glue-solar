@@ -22,13 +22,13 @@ Out of scope:
 
 - Level-3 FITS writing (F188), EIS (F019, F048), the detector mosaic (F123, needs Level 1), and OBS XML and pipeline-log viewers (F042, F043).
 - The IRIS-9 tutorial and its event-finding workflow (F093), and online context and search (GOES, AIA, HMI, SWPC, HCR, IRIS search: F016-F018, F041, F044-F047).
-- AIA reference panels, reference spectra and AIA blink (F103, F107; second IRIS windows are `wp4-m1-multi-window`): AIA and Hinode cubes are imaging only, like SJIs.
+- AIA reference panels, reference spectra and AIA blink (F103, F107; second IRIS windows are on main, D42): AIA and Hinode cubes are imaging only, like SJIs.
 - PostScript, IDL and legacy CRISPEX formats (F189): images export in normal formats, derived data as FITS or ASDF.
 - SST-only inputs (F023, F028, F029, F129) and IDL details Glue replaces.
 
 ## Current state, 2026-10-02
 
-**Resume here.** M0 is done. Main is at cb46b6e (#124 removed unused guide images) (#107-#123; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. `wp4-m1-multi-window` is in progress in the worktree `~/Git/glue-solar-wp4-m1-multi-window` on branch `wp4-m1-multi-window` (from cb46b6e; no PR yet). Next after it: `wp5-m1-spectral-blink` (designed: D41).
+**Resume here.** M0 is done. Main is at ea2e662 (#125 shows the other ticked windows of a raster file in its quicklook) (#107-#125; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp5-m1-spectral-blink` (designed: D41); the other M1 items wait on irispy 0.10.0 and astropy 8.0.2.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -75,6 +75,7 @@ Settled by the user; reopen only with the user.
 - **D34:** The GitHub wiki stays off rather than refreshed; its history, with the user's 2026-09-22 edit, is `IRIS_PLAN_PROTOTYPES/glue-solar-wiki-20261001.bundle`.
 - **D35:** glue-solar registers only the IRIS and AIA colormaps (since #98) until glue-qt's colormap combo stops re-rendering every icon; the user wants every sunpy colormap back then, through `wp11-l-all-colormaps` or the upstream fix in `wp0-perf-qt` (2026-10-01).
 - **D41:** User (2026-10-03), spectral blink: position A is what the viewer shows, and a Coordinate-menu entry 'Set blink partner here' stores the current position as B; a 'Blink' toggle in the Coordinate menu starts and stops it, with an interval submenu (0.25, 0.5, 1, 2 s; default 0.5 s); Pixel mode, the point, the other sliders and time sync stay put; B is a full slider position (dataset and every slice), so two frames blink by the same mechanism and `wp4-playback-extras`' temporal blink reuses it.
+- **D42:** Provisional (2026-10-03, batch 6), several windows (#125): the quicklook shows the raster windows ticked in the browser (`quicklook`'s `window` takes a list), Mg II k 2796 if ticked, else the first, with the full panels, and each other window of the same file or stack (`_same_file`: one observation, the same shape but wavelength, the same DATE_OBS) a spectrum panel and, on a sit-and-stare raster or a stack, its own λ–time or λ–scan panel, in rows of four below; a single scanning raster's steps are places, not times, so its other windows get no λ–step panel; the 'Plugins' menu entry and the command line still open one window. The quicklook links each other window's scan, step or exposure and slit pixels to the shown window's with `LinkSame`, skipping pairs already linked (D8's one exception; a file's windows share their spatial WCS, so these paths and `link_hpc`'s agree). The coordinator treats a file's windows as one cube: their sliders follow the point and moving one moves it, a Pixel click on another window's panel moves the point to that window, and without a point time sync moves them by time (FUV and NUV differ by 0.06 s at a 2.9 s cadence on 4000255147). The Point window lists the shown window and the slit-jaw images only.
 - **D40:** Provisional (2026-10-03, batch 6): 'Raster overlays' is one Coordinate-menu entry toggling the observation's overlays on all its viewers, off by default and never saved; a slit-jaw image draws every raster step's or exposure's slit (a stack's at its timing scan, a sit-and-stare's every exposure, one column) as a thin white line placed through the frame nearest its time, with no half-cadence limit, the same in every frame shown; the dashed map line goes on any viewer of a raster's steps or exposures against slit, at the scan it shows. A stack's slits use scan 0's coordinates until `wp1-stack-per-scan-wcs` (3.7 SJI px off on 4000005156 scan 1; each scan alone 0.04 px), documented. 3860258481 has no SJI file, so its slits are tested on a generated scanning raster and its map line on the bundled scans with a generated slit-jaw time series.
 - **D39:** Provisional (2026-10-02, batch 5): a region on a quicklook's slit-jaw image reaches other data at the pointing of the frame shown when it was drawn, not each exposure's nearest frame, clipped to that frame's pixel centres; on the slit-jaw image itself, and on a view showing the frame axis, it is glue's own region; a Pixel click on a picked region replaces it. The quicklook's wavelength, time and point lines go on its own panels only (a stack's wavelength-against-step panel gets only the point's); the time line snaps to the nearest step, exposure or scan; the spectrum panel's x range goes one way, to the wavelength panel; a Collapse is marked at its centre; a map wavelength step redraws the wavelength and spectrum panels, with no blitting. Follow/lock is on every Image viewer, with Pixel still the quicklook's default (D6); its lock belongs to the point group, so the mouse over another viewer leaves it, an Undo of the lock click unlocks it, and Clear point leaves it locked. D/F move the time master from any viewer of its observation, wrap, ignore a Loop and do not stop playback; A/S step only the current quicklook tab's wavelength sliders, or else the viewer's own; Space plays the time master's looped slider first; Profile viewers get the keys; modifiers are ignored; quicklook panels get glue-qt's Tab and Backspace; matplotlib's G stays, its WCSAxes traceback a report line.
 - **D38:** User (2026-10-02, batch 4): 'Go to UTC' moves the observation's time master, whichever viewer it is typed in, and the followers follow; region tools on any quicklook panel, raster or slit-jaw, make a new subset and leave the Point as it was; the Point window sits inside the quicklook tab under its panels; a slit-jaw click beside a sit-and-stare slit takes the level row at any distance, and one click is one undoable assignment; Redo after Undo of a slit-jaw click is documented until `wp4-l-redo-sji-click`.
@@ -96,7 +97,6 @@ A milestone is done when it has no items left.
 
 **M1**
 - WP0: `wp0-release-tracking`, `wp0-irispy-requests`
-- WP4: `wp4-m1-multi-window`
 - WP5: `wp5-m1-spectral-blink`
 
 **M2**
@@ -273,10 +273,6 @@ Notes:
 
 Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_solar/quicklook.py`.
 
-**M1**
-
-- [ ] **M1** `wp4-m1-multi-window` (F072, F073, F074, F108): For each ticked window of one file, open a Profile and any λ–t panel, and link step, exposure, scan and slit pixels with idempotent glue `LinkSame` links. Done when on 4000005156 scan 0 with three windows a point at (s, y) gives each Profile cube_w[s, y, :] and each map a crosshair, rerunning adds 0 links, and on 4000255147 all windows share one exposure.
-
 **M3**
 
 - [ ] **M3** `wp4-playback-extras` (F086, F087, F119): Add frame increment, bounce, 'N frames around current' and temporal blink (via `wp5-m1-spectral-blink`) to the `wp4-time-controls` loop. Done when each works on 4000255147 SJI 1400. Depends: wp4-time-controls, wp5-m1-spectral-blink.
@@ -298,7 +294,7 @@ Blink and wavelength calibration now; line list, rest wavelength, km/s and Doppl
 
 **M1**
 
-- [ ] **M1** `wp5-m1-spectral-blink` (F076): An Image tool alternates two (dataset, wavelength) positions in one viewer; as D41 designs it. Done when on 4000005156 Mg II k against Si IV 1403 flips exactly, ≤ 0.25 s each. Depends: wp4-m1-multi-window.
+- [ ] **M1** `wp5-m1-spectral-blink` (F076): An Image tool alternates two (dataset, wavelength) positions in one viewer; as D41 designs it. Done when on 4000005156 Mg II k against Si IV 1403 flips exactly, ≤ 0.25 s each.
 
 **M3**
 
