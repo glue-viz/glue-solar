@@ -5,6 +5,8 @@ import subprocess
 import sys
 from collections import Counter
 
+import glue.utils.matplotlib
+import matplotlib.dates as mdates
 import numpy as np
 import pytest
 from echo import delay_callback
@@ -16,6 +18,7 @@ from glue_qt.app.application import GlueApplication
 from glue_qt.config import keyboard_shortcut
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from glue_qt.viewers.scatter import ScatterViewer
 from irispy.io import read_files
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
@@ -891,6 +894,22 @@ def test_axis_label_workaround_installs_only_where_glue_needs_it(qtbot, monkeypa
     assert viewer.axes.coords[0].get_axislabel() == "typed"
     app.data_collection.remove(sji)  # glue keeps x_att without its reference data
     viewer.state.x_axislabel, viewer.state.y_axislabel_weight = "empty", "bold"
+
+
+def test_a_2021_scatter_ticks_in_2021(qtbot):
+    installed = glue.utils.matplotlib.datetime64_to_mpl is glue_patches.datetime64_to_mpl
+    assert installed == glue_patches.needs_date_epoch_workaround()  # probes glue's own conversion
+    assert not glue_patches.needs_date_epoch_workaround(glue_patches.datetime64_to_mpl)
+    when = np.array(["2021-09-05T00:00", "2021-09-06T00:00"], "datetime64[ns]")
+    np.testing.assert_array_equal(glue_patches.mpl_to_datetime64(glue_patches.datetime64_to_mpl(when)), when)
+    data = Data(time=when, value=[1.0, 2.0], label="dates")
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ScatterViewer, data=data)
+    viewer.state.x_att = data.id["time"]
+    viewer.figure.canvas.draw()
+    assert {date.year for date in mdates.num2date(viewer.axes.get_xlim())} == {2021}  # glue 1.27.0 alone: 3990
 
 
 def test_a_slit_jaw_redraw_reuses_its_coordinates(qtbot, monkeypatch, irispy_test_files):
