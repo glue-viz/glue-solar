@@ -1,1 +1,0 @@
-CI's core job runs on Python 3.14 with pytest-xdist, as every other test job now does.
