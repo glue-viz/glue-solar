@@ -8,7 +8,7 @@ from glue.config import data_factory, layer_artist_maker, menubar_plugin, startu
 from glue.viewers.image.viewer import MatplotlibImageMixin
 from qtpy import QtWidgets
 
-from glue_solar.quicklook import _pick_raster, _pick_sjis, _role, observation_key, quicklook
+from glue_solar.quicklook import _pick_sjis, _pick_windows, _role, _time_axis, observation_key, quicklook
 from glue_solar.sources.loaders.iris import QtIRISImporter, iris_data, keep_hpc_linked, last_directory
 from glue_solar.sources.loaders.scan import _primary_header
 
@@ -51,9 +51,9 @@ def browse_iris(session, data_collection):
     """
     Browse a folder by observation, load the selection and link its helioprojective coordinates.
 
-    With "Open quicklook" ticked, each loaded observation opens as a quicklook, of the raster window
-    ticked when only one was; otherwise, or with no raster or slit-jaw image loaded, the first image
-    opens in an Image Viewer.
+    With "Open quicklook" ticked, each loaded observation opens as a quicklook of its ticked raster
+    windows: Mg II k 2796 if ticked, else the first, with the others beside it; otherwise, or with no
+    raster or slit-jaw image loaded, the first image opens in an Image Viewer.
     """
     app = session.application
     directory = QtWidgets.QFileDialog.getExistingDirectory(
@@ -84,8 +84,7 @@ def _quicklooks(loaded):
         got, windows = observations.get(id(observation), ([], []))
         observations[id(observation)] = (got + datasets, windows + [name] * (kind == "raster"))
     return [
-        # one ticked window is the one to show; with several the quicklook's default applies
-        (datasets, windows[0] if len(windows) == 1 else None)
+        (datasets, windows or None)
         for datasets, windows in observations.values()
         if any(data.meta.get("INSTRUME") in ("SPEC", "SJI") for data in datasets)
     ]
@@ -93,8 +92,9 @@ def _quicklooks(loaded):
 
 def _shown(loaded, quicklooks):
     """
-    The datasets of the observation browser's ``loaded`` that the first viewers `browse_iris` opens show: the raster
-    and slit-jaw images of each quicklook, with ``quicklooks`` on, else the first image.
+    The datasets of the observation browser's ``loaded`` that the first viewers `browse_iris` opens show: the raster,
+    the other windows with a wavelength panel and the slit-jaw images of each quicklook, with ``quicklooks`` on, else
+    the first image.
     """
     quicklooks = _quicklooks(loaded) if quicklooks else []
     if not quicklooks:
@@ -102,7 +102,9 @@ def _shown(loaded, quicklooks):
     shown = []
     for datasets, window in quicklooks:
         rasters = [data for data in datasets if _role(data) == "raster"]
-        shown += [_pick_raster(rasters, window)] if rasters else []
+        if rasters:
+            raster, others = _pick_windows(rasters, window)
+            shown += [raster] + [data for data in others if _time_axis(data) is not None]
         shown += _pick_sjis([data for data in datasets if _role(data) == "sji"])[0]
     return shown
 

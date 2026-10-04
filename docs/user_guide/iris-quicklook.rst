@@ -7,7 +7,7 @@ The quicklook
 The quicklook is a CRISPEX-style set of viewers for one observation, in a new tab. Open it
 
 - from the observation browser, with "Open quicklook" ticked (the default): each observation you
-  load opens in its own quicklook, showing the raster window you ticked if you ticked one;
+  load opens in its own quicklook, showing the raster windows you ticked (see `Several windows`_);
 - for data already loaded, with "IRIS: quicklook…" in the "Plugins" menu, which asks which
   observation when several are loaded;
 - from the command line, with ``glue --startup=iris_quicklook`` followed by the files. Files given
@@ -36,8 +36,8 @@ For those used to CRISPEX:
      - The "Follow/lock" tool, in place of Pixel (see below)
 
 It shows one spectral window: Mg II k 2796 when loaded, otherwise the first (pass
-``window="Si IV 1403"`` to choose). The raster opens as three panels, plus one viewer per slit-jaw
-channel and a spectrum panel:
+``window="Si IV 1403"`` to choose, or see `Several windows`_). The raster opens as three panels,
+plus one viewer per slit-jaw channel and a spectrum panel:
 
 - a raster: the map (step against slit), the spectrogram (wavelength against slit) and wavelength
   against step;
@@ -219,6 +219,23 @@ of another observation "no match". After "Clear point" only the time sync is lef
 click, slider step, time sync or change to a panel's layers, such as the component it shows, and
 only while its tab is shown. Move or resize it like a panel; closing the tab closes it, and one
 closed by hand stays closed.
+
+Several windows
+---------------
+
+Tick several raster windows of an observation in the browser, or pass a list such as
+``window=["C II 1336", "Si IV 1403", "Mg II k 2796"]``, and the others join the quicklook of the
+first (Mg II k 2796 when among them) in rows below, four viewers to a row: each gets a spectrum
+panel and, on a sit-and-stare raster or a stack, its own wavelength against time or scan. A single
+scanning raster's other windows get a spectrum panel only, as their steps are places, not times.
+Each window's scan, step or exposure and slit pixels are linked to the shown window's with glue
+identity links, added once however often the quicklook opens, so the point is the same pixel in
+every window: each spectrum panel shows its own window's spectrum there, a map of any of the
+windows shows the point's crosshair, and their wavelength panels follow the point's slit (and a
+stack's step), share its exposure or scan, and move it when you move their sliders. A Pixel click
+on another window's wavelength panel moves the point to that window, and the others follow. The
+Point window lists the window shown first only. The "Plugins" menu entry and the command line open
+one window.
 
 Regridding on time
 ------------------

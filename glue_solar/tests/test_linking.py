@@ -27,7 +27,7 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 import glue_solar
 from glue_solar import glue_patches
-from glue_solar.quicklook import coordinator, nearest, quicklook
+from glue_solar.quicklook import _role, coordinator, nearest, quicklook
 from glue_solar.sources.iris import browse_iris, link_iris
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.tests.helpers import inversions, load_selected, raster_point_on_sji, select_point
@@ -367,11 +367,14 @@ def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, mon
     assert on_gui
     assert all(on_gui)  # glue's hub has no locks: the datasets are added on the GUI thread
     assert len(dc) > 3  # two SJIs and every raster window
-    assert len(dc.external_links) == 2 * (len(dc) - 1)  # longitude and latitude of each to the first
-    assert {cid.label for link in dc.external_links for cid in (*link.cids1, *link.cids2)} == set(HPC)
+    # longitude and latitude of each to the first, and the quicklook's exposure and slit pixels of each other raster
+    # window to the one it shows
+    windows = 2 * (sum(_role(data) == "raster" for data in dc) - 1)
+    hpc = [link for link in dc.external_links if {cid.label for cid in (*link.cids1, *link.cids2)} <= set(HPC)]
+    assert (len(hpc), len(dc.external_links) - len(hpc)) == (2 * (len(dc) - 1), windows)
     dc.append(image_data(_real(irispy_test_files, SJI.replace("1400", "1330"))))  # loaded later
     link_iris(app.session, dc)
-    assert len(dc.external_links) == 2 * (len(dc) - 1)
+    assert len(dc.external_links) == 2 * (len(dc) - 1) + windows
 
 
 def _autolink(data_collection):

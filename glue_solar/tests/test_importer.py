@@ -268,7 +268,9 @@ def test_closing_the_dialog_drops_the_load(dialog, qtbot, monkeypatch):
     assert dialog.cancel.text() == "Cancel"
 
 
-@pytest.mark.parametrize(("quicklook", "shown"), [(True, ["SJI_1400", "Mg_II_k_2796"]), (False, ["SJI_1400"])])
+@pytest.mark.parametrize(
+    ("quicklook", "shown"), [(True, ["SJI_1400", "C_II_1336", "Mg_II_k_2796"]), (False, ["SJI_1400"])]
+)
 def test_colour_limits_of_what_browse_iris_shows_are_counted_in_the_background(qtbot, monkeypatch, iris_tree, quicklook,
                                                                               shown):
     from glue_solar.sources.iris import browse_iris
@@ -287,9 +289,10 @@ def test_colour_limits_of_what_browse_iris_shows_are_counted_in_the_background(q
     monkeypatch.setattr(QtIRISImporter, "exec", load)
     browse_iris(SimpleNamespace(application=None), None)
     assert len(loaded) == 6  # the slit-jaw image, scans 0 and 1 of two raster windows, and the AIA cutout
-    # the quicklook's Mg II k scan and slit-jaw image, or the Image viewer's slit-jaw image: no viewer has asked
+    # the quicklook's slit-jaw image and scan 0 of each window, which has a λ–time panel, or the Image viewer's
+    # slit-jaw image: no viewer has asked
     counted = [data.label for data in loaded if data.get_component(data.main_components[0])._counts is not None]
-    assert counted == [f"{name}-{OBS_A[2]}-2025-03-28T22:56:28" + "-scan-0" * name.startswith("Mg") for name in shown]
+    assert counted == [f"{name}-{OBS_A[2]}-2025-03-28T22:56:28" + "-scan-0" * (name != "SJI_1400") for name in shown]
 
 
 def test_a_failure_after_the_reads_stays_in_the_dialog(qtbot, iris_tree, capsys):
