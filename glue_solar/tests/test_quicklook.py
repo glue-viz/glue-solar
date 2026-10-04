@@ -1,3 +1,4 @@
+import itertools
 import shutil
 import time
 from collections import Counter
@@ -688,7 +689,8 @@ def test_a_flat_latitude_beside_corners_off_the_sky_has_no_tick_labels(bare_app)
 def test_quicklook_without_a_raster(bare_app, irispy_test_files):
     sjis = [image_data(find_irispy_test_file(irispy_test_files, SNS.format(f"SJI_{c}_t000"))) for c in (1400, 2796)]
     viewers = quicklook(bare_app, sjis)
-    assert set(viewers) == {"sji"}
+    assert viewers.keys() == {"sji", "windows"}
+    assert viewers["windows"] == []
     assert [viewer.state.reference_data for viewer in viewers["sji"]] == sjis
 
 
@@ -2225,8 +2227,11 @@ def copy_files(folder, paths):
     return folder
 
 
-def browse(qtbot, app, monkeypatch, folder, rows):
-    """Load observation ``rows`` of ``folder`` through the observation browser, with its quicklook box as is."""
+def browse(qtbot, app, monkeypatch, folder, rows, only=None):
+    """
+    Load observation ``rows`` of ``folder`` through the observation browser, with its quicklook box as is: every
+    entry, or with ``only`` those whose names start with any of it.
+    """
     from glue_solar.sources.iris import browse_iris
     from glue_solar.sources.loaders.iris import QtIRISImporter
 
@@ -2234,7 +2239,10 @@ def browse(qtbot, app, monkeypatch, folder, rows):
 
     def tick_and_load(dialog):
         for row in rows:
-            dialog.obs_tree.topLevelItem(row).setCheckState(0, Qt.Checked)
+            item = dialog.obs_tree.topLevelItem(row)
+            item.setCheckState(0, Qt.Checked)
+            for entry in map(item.child, range(item.childCount()) if only else ()):
+                entry.setCheckState(0, Qt.Checked if entry.text(0).startswith(only) else Qt.Unchecked)
         load_selected(qtbot, dialog)
         return QtWidgets.QDialog.Accepted
 
@@ -2252,8 +2260,8 @@ def test_the_three_entry_points_open_the_same_quicklook(qtbot, monkeypatch, tmp_
     rows = []
     for path in ("browser", "menu", "startup"):
         app = bare_app_for(qtbot, monkeypatch)
-        if path == "browser":
-            browse(qtbot, app, monkeypatch, folder, [0])
+        if path == "browser":  # one raster window ticked: the others would join its quicklook
+            browse(qtbot, app, monkeypatch, folder, [0], only=("Mg II k", "SJI"))
         else:
             # glue loads command-line files with add_datasets, whose autolinker has nothing to suggest for
             # IRIS data on glue-core 1.27.0 (with glue-viz/glue#2595 it asks, before any startup action)
@@ -2339,6 +2347,9 @@ def sliders(app, viewers):
     """
     found = {}
     panels = [(role, viewers[role]) for role in RASTER_PANELS] + [(f"sji{n}", v) for n, v in enumerate(viewers["sji"])]
+    # another window's λ–time or λ–scan panel: 'wavelength1', 'wavelength2', ...
+    others = [panels["wavelength"] for panels in viewers.get("windows", []) if "wavelength" in panels]
+    panels += [(f"wavelength{n}", viewer) for n, viewer in enumerate(others, 1)]
     for key, viewer in panels:
         shown = {viewer.state.x_att.axis, viewer.state.y_att.axis}
         found[key] = tuple(None if axis in shown else index for axis, index in enumerate(viewer.state.slices))
@@ -3910,3 +3921,161 @@ def test_each_quicklook_has_its_own_point_window(bare_app, qtbot, monkeypatch, s
         bare_app.close_tab(tabs[1], warn=False)
     assert not [f for f in coordinator(bare_app.data_collection)._listeners if getattr(f, "__self__", 0) is closed]
     assert refreshes(lambda: select_point(first["map"], 7, 20)) == [windows[0]]
+
+
+# Several windows of one raster file in one quicklook
+
+THREE = ["C II 1336", "Si IV 1403", "Mg II k 2796"]
+
+
+def windows_of(irispy_test_files, kind):
+    """C II 1336, Si IV 1403 and Mg II k 2796 of the bundled sit-and-stare, or of 3860258481's scan 0 or stack."""
+    if kind == "sit-and-stare":
+        return raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))], THREE)
+    files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
+    return raster_data(files[:1] if kind == "scan" else files, THREE, stack=kind == "stack")
+
+
+@pytest.mark.parametrize("kind", ["scan", "sit-and-stare", "stack"])
+def test_each_window_of_the_file_joins_the_quicklook(bare_app, qtbot, irispy_test_files, kind):
+    rasters = windows_of(irispy_test_files, kind)
+    others, mg = rasters[:2], rasters[2]
+    viewers = quicklook(bare_app, rasters, window=THREE)
+    collection = bare_app.data_collection
+    assert viewers["map"].state.reference_data is mg
+    # a spectrum for each other window, and a λ–time or λ–scan panel where it has a time axis, laid out apart
+    title = {"scan": None, "sit-and-stare": "λ–time", "stack": "λ–scan"}[kind]
+    for data, panels in zip(others, viewers["windows"], strict=True):
+        name = data.label.split("-")[0].replace("_", " ")
+        assert panels["spectrum"].state.title == f"{name} spectrum"
+        assert set(panels) == ({"spectrum"} if title is None else {"spectrum", "wavelength"})
+        if title is not None:
+            state = panels["wavelength"].state
+            assert (state.reference_data, state.title) == (data, f"{name} {title}")
+            assert (state.x_att, state.y_att) == (data.pixel_component_ids[-1], data.pixel_component_ids[0])
+    windows = bare_app.tab(bare_app.tab_count - 1).subWindowList()
+    assert len(windows) == 5 + 2 * (1 + (title is not None))  # with the Point window
+    assert not any(a.geometry().intersects(b.geometry()) for a, b in itertools.combinations(windows, 2))
+    # a map of each window, as a user opens one, and a point at (scan,) step or exposure s, slit y
+    maps = [image(bare_app, data, data.ndim - 3, data.ndim - 2) for data in others]
+    lead = (3,) * (kind == "stack")
+    if lead:
+        viewers["map"].state.slices = (*lead, *viewers["map"].state.slices[1:])
+    select_point(viewers["map"], 5, 20)
+    qtbot.waitUntil(lambda: viewers["spectrogram"].state.slices[mg.ndim - 3] == 5)
+    # every window at the same (scan,) step or exposure and slit: its own spectrum there, and a crosshair on its map
+    for data, panels in zip(rasters, [*viewers["windows"], viewers]):
+        [layer] = [layer for layer in panels["spectrum"].state.layers if layer.visible]
+        np.testing.assert_array_equal(layer.profile[1], cube(data)[(*lead, 5, 20)])
+    for viewer in [*maps, viewers["map"]]:
+        assert viewer.state.slices[: len(lead)] == lead
+        assert crosshair(viewer) == (5, 20)
+    # a second quicklook of the same windows adds no link
+    links = len(collection.external_links)
+    quicklook(bare_app, rasters, window=THREE)
+    assert len(collection.external_links) == links
+
+
+def test_what_moves_with_other_windows_of_a_sit_and_stare(bare_app, qtbot, irispy_test_files):
+    c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
+    viewers = quicklook(bare_app, [c2, si4, mg], window=THREE)
+    c2_panel = viewers["windows"][0]["wavelength"]
+
+    def event(action):
+        return changes(bare_app, qtbot, viewers, action)
+
+    # a map click moves every λ–time panel to the slit
+    assert event(lambda: select_point(viewers["map"], 78, 10)) == {
+        "point": (mg.label, (78, 10, None)),
+        "spectrogram": (78, None, None),
+        "wavelength": (None, 10, None),
+        "wavelength1": (None, 10, None),
+        "wavelength2": (None, 10, None),
+    }
+    # the slit slider of another window's panel moves the point
+    assert event(lambda: slide(c2_panel, 1, 20)) == {
+        "point": (mg.label, (78, 20, None)),
+        "wavelength": (None, 20, None),
+        "wavelength1": (None, 20, None),
+        "wavelength2": (None, 20, None),
+    }
+    # a click on it moves the point to that window's exposure there, and every window's panels follow
+    assert event(lambda: select_point(c2_panel, 3, 50)) == {
+        "point": (c2.label, (50, 20, None)),
+        "spectrogram": (50, None, None),
+    }
+    # the shown window's map has its crosshair, every λ–time panel its line, and the Point window reads it there
+    assert crosshair(viewers["map"]) == (50, 20)
+    for viewer in [viewers["wavelength"], *(panels["wavelength"] for panels in viewers["windows"])]:
+        assert drawn(viewer, "point") == ("y", [50])
+    window = point_window(bare_app)
+    settle(qtbot, window)
+    assert rows(window)[0][1].startswith("exposure 50, slit 20, λ ")
+    for data, panels in zip([c2, si4, mg], [*viewers["windows"], viewers]):
+        [layer] = [layer for layer in panels["spectrum"].state.layers if layer.visible]
+        np.testing.assert_array_equal(layer.profile[1], cube(data)[50, 20])
+    assert event(lambda: select_point(viewers["map"], 60, 5)) == {
+        "point": (mg.label, (60, 5, None)),
+        "spectrogram": (60, None, None),
+        "wavelength": (None, 5, None),
+        "wavelength1": (None, 5, None),
+        "wavelength2": (None, 5, None),
+    }
+
+
+def test_what_moves_with_other_windows_of_a_stack(bare_app, qtbot, irispy_test_files):
+    c2, si4, mg = windows_of(irispy_test_files, "stack")
+    viewers = quicklook(bare_app, [c2, si4, mg], window=THREE)
+    wave = expected_start(mg)[-1]
+
+    def event(action):
+        return changes(bare_app, qtbot, viewers, action)
+
+    # a map click moves every λ–scan panel to the step and slit
+    assert event(lambda: select_point(viewers["map"], 2, 30)) == {
+        "point": (mg.label, (0, 2, 30, None)),
+        "spectrogram": (0, 2, None, None),
+        "wavelength": (None, 2, 30, None),
+        "wavelength1": (None, 2, 30, None),
+        "wavelength2": (None, 2, 30, None),
+    }
+    # the map's scan moves the point, whose scan the λ–scan panels show
+    assert event(lambda: slide(viewers["map"], 0, 4)) == {
+        "point": (mg.label, (4, 2, 30, None)),
+        "map": (4, None, None, wave),
+        "spectrogram": (4, 2, None, None),
+    }
+    # the step slider of another window's panel moves the point
+    assert event(lambda: slide(viewers["windows"][1]["wavelength"], 1, 5)) == {
+        "point": (mg.label, (4, 5, 30, None)),
+        "spectrogram": (4, 5, None, None),
+        "wavelength": (None, 5, 30, None),
+        "wavelength1": (None, 5, 30, None),
+        "wavelength2": (None, 5, 30, None),
+    }
+    # a click on another window's panel moves the point to that window, and the time of every window follows its step
+    c2_panel = viewers["windows"][0]["wavelength"]
+    assert event(lambda: select_point(c2_panel, 10, 4)) == {"point": (c2.label, (4, 5, 30, None))}
+    assert event(lambda: slide(c2_panel, 1, 0)) == {
+        "point": (c2.label, (4, 0, 30, None)),
+        "spectrogram": (4, 0, None, None),
+        "wavelength": (None, 0, 30, None),
+        "wavelength1": (None, 0, 30, None),
+        "wavelength2": (None, 0, 30, None),
+    }
+    assert [drawn(viewer, "time") for viewer in (viewers["wavelength"], c2_panel)] == [("y", [4])] * 2
+
+
+def test_the_browser_shows_each_ticked_window(qtbot, monkeypatch, tmp_path, irispy_test_files):
+    path = find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))
+    app = bare_app_for(qtbot, monkeypatch)
+    browse(qtbot, app, monkeypatch, copy_files(tmp_path / "sns", [path]), [0], only=("C II", "Mg II k"))
+    titles = [row[1] for row in viewer_rows(app)]
+    assert titles == [
+        "Mg II k 2796 slit vs time",
+        "Mg II k 2796 spectrogram",
+        "Mg II k 2796 λ–time",
+        "Mg II k 2796 spectrum",
+        "C II 1336 λ–time",
+        "C II 1336 spectrum",
+    ]

@@ -1,0 +1,1 @@
+The quicklook shows every raster window ticked in the observation browser: each other window of the file gets a spectrum panel, and a λ–time or λ–scan panel on a sit-and-stare raster or a stack, all linked pixel for pixel to the shown window so that one point drives them.

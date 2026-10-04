@@ -13,6 +13,7 @@ from echo import delay_callback
 from glue.config import layer_artist_maker
 from glue.core.command import Command
 from glue.core.hub import HubListener
+from glue.core.link_helpers import LinkSame
 from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, SubsetDeleteMessage, SubsetUpdateMessage
 from glue.core.roi import PolygonalROI
 from glue.core.subset import RoiSubsetState, SubsetState
@@ -281,14 +282,14 @@ class Coordinator(HubListener):
     spectral cube the point is a detector pixel at every wavelength: a click takes the axes the
     clicked viewer does not show, such as a stack's scan, from its sliders. A click on a panel that
     shows wavelength moves the cube's maps to the clicked wavelength instead of fixing it. Every
-    other viewer of the cube then shows the point's step, exposure, scan and slit, after a drag
-    only its last position, and editing one of those sliders moves the point. No other wavelength
-    slider is moved, and a Profile's collapse is left in place. A viewer whose sliders glue resets for
-    new data joins the point. A quicklook's point drives only the viewers it `owns`, and shows only
-    on those of its own dataset; viewers no quicklook owns follow whichever point is followed. A click
-    on a quicklook's slit-jaw image moves its point to the raster there (`_to_raster`). Each
-    data collection has one coordinator (`coordinator`), and the ``solar:coordinate`` tool
-    registers every Image viewer with it.
+    other viewer of the cube, or of another window of its file (`_same_file`), then shows the point's
+    step, exposure, scan and slit, after a drag only its last position, and editing one of those
+    sliders moves the point. No other wavelength slider is moved, and a Profile's collapse is left in
+    place. A viewer whose sliders glue resets for new data joins the point. A quicklook's point drives
+    only the viewers it `owns`, and shows only on those of its own file's windows; viewers no
+    quicklook owns follow whichever point is followed. A click on a quicklook's slit-jaw image moves
+    its point to the raster there (`_to_raster`). Each data collection has one coordinator
+    (`coordinator`), and the ``solar:coordinate`` tool registers every Image viewer with it.
     """
 
     def __init__(self, data_collection):
@@ -567,10 +568,10 @@ class Coordinator(HubListener):
             return
         for viewer in list(self._viewers):
             self._apply_point(viewer)
-        # among its quicklook's viewers, the point shows on those of its own dataset: glue 1.27.0 would
+        # among its quicklook's viewers, the point shows on those of its own file's windows: glue 1.27.0 would
         # draw a slit-jaw point's crosshair on the raster panels, and a raster point's on the slit-jaw
         for viewer in self._owners.get(self.group, ()):
-            _show(viewer, self.group, viewer.state.reference_data is point.reference_data)
+            _show(viewer, self.group, _same_file(viewer.state.reference_data, point.reference_data))
 
     def _datasets(self, key):
         seen = {}
@@ -615,7 +616,7 @@ class Coordinator(HubListener):
             return self._slider(data, 0), None
         step_axis = data.ndim - 3
         # a click is the point before _pin gives it the axes it was not clicked on
-        on_data = point is not None and point.reference_data is data
+        on_data = point is not None and _same_file(point.reference_data, data)
         if on_data and point.slices[0].start is not None and point.slices[step_axis].start is not None:
             step = self._steps[data] = point.slices[step_axis].start
             scan = point.slices[0].start
@@ -804,7 +805,7 @@ class Coordinator(HubListener):
         """Move the point along the axes whose sliders the user moved in ``viewer``."""
         point = self.point
         state = viewer.state
-        if self._busy or point is None or state.reference_data is not point.reference_data:
+        if self._busy or point is None or not _same_file(state.reference_data, point.reference_data):
             return
         if len(state.slices) != point.reference_data.ndim or not self._follows(viewer):
             return
@@ -820,11 +821,11 @@ class Coordinator(HubListener):
             self._timer.start()
 
     def _apply_point(self, viewer):
-        """Move the viewer's sliders along the point's fixed axes to the point, wavelength aside."""
+        """Move the sliders of a viewer of the point's file along the point's fixed axes, wavelength aside."""
         state, point = viewer.state, self.point
         data, shown = state.reference_data, _shown(state)
         # mid-way through an axis change a viewer can show fewer than two axes
-        if self._busy or point is None or data is not point.reference_data or len(shown) < 2:
+        if self._busy or point is None or not _same_file(data, point.reference_data) or len(shown) < 2:
             return
         if not self._follows(viewer):
             return
@@ -969,6 +970,22 @@ def _role(data):
     return {"SPEC": "raster", "SJI": "sji"}.get(instrument)
 
 
+def _same_file(data, other):
+    """
+    Whether ``data`` and ``other`` are windows of one raster file, or of one stack of scans, which share their scans,
+    steps or exposures and slit pixels: rasters of one observation, shaped alike but for wavelength, from the same
+    DATE_OBS. A dataset is a window of its own file.
+    """
+    if data is other:
+        return data is not None
+    return (
+        _role(data) == _role(other) == "raster"
+        and observation_key(data) == observation_key(other)
+        and data.shape[:-1] == other.shape[:-1]
+        and data.meta.get("DATE_OBS") == other.meta.get("DATE_OBS")
+    )
+
+
 def _wavelengths(data):
     """The wavelength of each pixel along the spectral axis of ``data``, in Angstrom, and that axis."""
     [axis] = _spectral_axes(data)
@@ -1007,6 +1024,35 @@ def _pick_raster(rasters, window):
         if chosen:
             return next((data for data in chosen if data.ndim == 4), chosen[0])
     return rasters[0]
+
+
+def _pick_windows(rasters, window):
+    """
+    The raster to show (`_pick_raster`) of ``window``, a window name or a list of them, and of each other window of
+    the list a dataset of the same file or stack (`_same_file`), in the order of ``rasters``.
+    """
+    names = [window] if isinstance(window, str) else list(window or ())
+    named = [data for data in rasters if _window(data)[0] in names]
+    raster = _pick_raster(named or rasters, None)
+    others = {}
+    for data in named:
+        name = _window(data)[0]
+        if name != _window(raster)[0] and _same_file(data, raster):
+            others.setdefault(name, data)
+    return raster, list(others.values())
+
+
+def _link_windows(collection, raster, others):
+    """
+    Link the scan, step or exposure, and slit pixels of each of ``others`` to those of ``raster``, a window of the
+    same file, with `~glue.core.link_helpers.LinkSame`, skipping pairs already linked.
+    """
+    linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in collection.links}
+    pairs = [(raster.pixel_component_ids[axis], data.pixel_component_ids[axis])
+             for data in others for axis in range(raster.ndim - 1)]
+    links = [LinkSame(*pair) for pair in pairs if frozenset(pair) not in linked]
+    if links:  # glue rediscovers every dataset's links on each add_link, even an empty one
+        collection.add_link(links)
 
 
 def _sji_title(data):
@@ -1067,8 +1113,11 @@ def _image(app, cls, data, x, y, slices, title, aspect):
     return viewer
 
 
-def _raster_panels(app, raster, window):
-    """The map, spectrogram and wavelength panels of the table in the plan, with the point at the map centre."""
+def _raster_panels(app, raster, window, roles=("map", "spectrogram", "wavelength")):
+    """
+    The map, spectrogram and wavelength panels of the table in the plan, or those of ``roles``, with the point at the
+    map centre.
+    """
     wave, spectral = _wavelengths(raster)
     _, twave = _window(raster)
     # the pixel nearest TWAVE, or mid-window; never index 0, which is a window edge
@@ -1088,6 +1137,7 @@ def _raster_panels(app, raster, window):
     viewers = {
         role: _image(app, QuicklookImageViewer, raster, x, y, point, f"{window} {names[role]}", "auto")
         for role, (x, y) in axes.items()
+        if role in roles
     }
     slices = [slice(i, i + 1) for i in point]
     slices[spectral] = slice(None)
@@ -1137,19 +1187,26 @@ def quicklook(app, datasets, window=None):
     panel and the spectrum panel mark the point, the map's wavelength and the time master's time, and
     a zoom on the spectrum panel is the wavelength panel's too (`_SpectralLines`).
 
+    Each other window named in ``window`` adds the spectrum of the point and, on a sit-and-stare raster
+    or a stack, its own wavelength panel (λ–time or λ–scan), to a row below. Its scan, step or exposure,
+    and slit pixels are linked to the shown window's with `~glue.core.link_helpers.LinkSame` (once,
+    however often the quicklook opens), so the point is the same pixel in every window.
+
     Parameters
     ----------
     app : `~glue_qt.app.GlueApplication`
     datasets : list of `~glue.core.data.Data`
         IRIS datasets of one observation. Those not yet in the data collection are added and linked.
-    window : str, optional
+    window : str or list of str, optional
         The spectral window to show, by its ``TDESC`` name. By default Mg II k 2796, else the first.
+        Of several, Mg II k 2796 if named, else the first, and the others of the same raster file or
+        stack beside it.
 
     Returns
     -------
     dict
-        The viewers: ``map``, ``spectrogram``, ``wavelength``, ``spectrum`` (absent without a raster)
-        and ``sji``, a list.
+        The viewers: ``map``, ``spectrogram``, ``wavelength``, ``spectrum`` (absent without a raster),
+        ``sji``, a list, and ``windows``, a list of each other window's ``spectrum`` and any ``wavelength``.
     """
     collection = app.data_collection
     new = [data for data in datasets if data not in collection]
@@ -1167,14 +1224,23 @@ def quicklook(app, datasets, window=None):
     app.tab_names = names
     coordinator(collection)  # before the point, so it follows it
 
-    viewers, notes = {"sji": []}, []
+    viewers, notes = {"sji": [], "windows": []}, []
     if rasters:
-        raster = _pick_raster(rasters, window)
+        raster, others = _pick_windows(rasters, window)
+        _link_windows(collection, raster, others)
         window = _window(raster)[0] or raster.label
         panels, point = _raster_panels(app, raster, window)
         viewers.update(panels)
         viewers["spectrum"], note = _profile(app, raster, window)
         notes.append(note)
+        for other in others:
+            name = _window(other)[0]
+            # a scanning raster's steps are places, not times: no λ–t panel
+            roles = ("wavelength",) if _time_axis(other) is not None else ()
+            panels = _raster_panels(app, other, name, roles)[0]
+            panels["spectrum"], note = _profile(app, other, name)
+            viewers["windows"].append(panels)
+            notes.append(note)
     for sji in sjis:
         frame = (0,) * sji.ndim
         viewers["sji"].append(
@@ -1186,12 +1252,19 @@ def quicklook(app, datasets, window=None):
     if rasters:
         group = collection.new_subset_group(label="Point", subset_state=point)
         own = [viewers[role] for role in ("map", "spectrogram", "wavelength")] + viewers["sji"]
-        coordinator(collection).own(group, own)
+        lambda_t = [panels["wavelength"] for panels in viewers["windows"] if "wavelength" in panels]
+        coordinator(collection).own(group, own + lambda_t)
         _edit_in_tab(app, tab, group)
-        _show_point(app, group, [viewers[role] for role in ("map", "spectrogram", "wavelength", "spectrum")])
-        _fit_spectrum(viewers["spectrum"], group)
+        spectra = [viewers["spectrum"]] + [panels["spectrum"] for panels in viewers["windows"]]
+        _show_point(app, group, own[:3] + lambda_t + spectra)
+        for spectrum in spectra:
+            _fit_spectrum(spectrum, group)
         _point_window(app, tab, group, key, own)
         _SpectralLines(coordinator(collection), group, key, own[:3], viewers["spectrum"], app.tab(tab))
+        for panels in viewers["windows"]:
+            if "wavelength" in panels:
+                _SpectralLines(coordinator(collection), group, key, [panels["wavelength"]], panels["spectrum"],
+                               app.tab(tab))
     app.statusBar().showMessage(" ".join(notes))
     process_events()  # let the tab take its final size
     _arrange(app, tab, viewers)
@@ -1412,7 +1485,7 @@ class _SpectralLines(QObject):
             for viewer in panels if axis not in _shown(viewer.state)
         })
         point = self.group.subset_state if self.group in self.coordinator.data_collection.subset_groups else None
-        if not isinstance(point, PixelSubsetState) or point.reference_data is not self.data:
+        if not isinstance(point, PixelSubsetState) or not _same_file(point.reference_data, self.data):
             point = None
         time = self._time_index()
         for viewer, lines in self.lines.items():
@@ -1456,20 +1529,24 @@ class _SpectralLines(QObject):
 
 def _arrange(app, tab, viewers):
     """
-    Raster panels in a top row, slit-jaw viewers and the spectrum in a bottom row, at least 800 pixels tall together,
-    and the Point window below them, as tall as its rows.
+    Raster panels in a top row, slit-jaw viewers and the spectrum in a second row, each other window's wavelength
+    panel and spectrum in rows of four below, at least 400 pixels tall each and 800 together, and the Point window
+    below them, as tall as its rows.
     """
-    size = app.tab(tab).viewport().size()
-    width, height = max(size.width(), 1200), max(size.height(), 800)
-    for window in app.tab(tab).subWindowList():
-        if isinstance(window.widget(), _PointWindow):
-            height = max(size.height() - window.sizeHint().height(), 800)
-            window.setGeometry(0, height, width, window.sizeHint().height())
+    others = [viewer for panels in viewers["windows"] for viewer in panels.values()]
     rows = [
         [viewers[role] for role in ("map", "spectrogram", "wavelength") if role in viewers],
         viewers["sji"] + [viewers[role] for role in ("spectrum",) if role in viewers],
+        *(others[i : i + 4] for i in range(0, len(others), 4)),
     ]
     rows = [row for row in rows if row]
+    size = app.tab(tab).viewport().size()
+    least = 400 * max(len(rows), 2)
+    width, height = max(size.width(), 1200), max(size.height(), least)
+    for window in app.tab(tab).subWindowList():
+        if isinstance(window.widget(), _PointWindow):
+            height = max(size.height() - window.sizeHint().height(), least)
+            window.setGeometry(0, height, width, window.sizeHint().height())
     for r, row in enumerate(rows):
         for c, viewer in enumerate(row):
             viewer.move(c * width // len(row), r * height // len(rows))
@@ -1609,7 +1686,7 @@ class _PointWindow(QTableWidget):
         slices = viewer.state.slices
         if len(slices) != data.ndim:
             return None  # mid-way through an axis change
-        if point.reference_data is data:
+        if _same_file(point.reference_data, data):
             return tuple(
                 s.start if s.start is not None else int(getattr(index, "center", index))
                 for s, index in zip(point.slices, slices)
