@@ -30,29 +30,6 @@ concurrency:
 permissions: {}
 
 jobs:
-  core:
-    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@22ddf09dfabb443adddfb9f861b7d41a787d6b1a  # v3.0.3
-    permissions:
-      id-token: write
-    with:
-      submodules: false
-      coverage: codecov-oidc
-      toxdeps: tox-pypi-filter
-      posargs: -n auto
-      libraries: |
-        apt:
-          - '^libxcb.*-dev'
-          - libegl-dev
-          - libglu1-mesa-dev
-          - libx11-xcb-dev
-          - libxcb-xinerama0
-          - libxi-dev
-          - libxkbcommon-dev
-          - libxkbcommon-x11-dev
-          - libxrender-dev
-      envs: |
-        - linux: py314
-
   sdist_verify:
     runs-on: ubuntu-latest
     steps:
@@ -68,7 +45,6 @@ jobs:
       - run: python -m twine check dist/*
 
   test:
-    needs: [core, sdist_verify]
     uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@22ddf09dfabb443adddfb9f861b7d41a787d6b1a  # v3.0.3
     permissions:
       id-token: write
@@ -92,7 +68,6 @@ jobs:
         - linux: py313-online
 
   docs:
-    needs: [core]
     uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@22ddf09dfabb443adddfb9f861b7d41a787d6b1a  # v3.0.3
     with:
       default_python: '3.13'
