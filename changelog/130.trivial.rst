@@ -1,1 +1,1 @@
-CI runs its core job on Python 3.14 and every test job across all runner cores, so a run takes about a third of the time.
+CI's core job runs on Python 3.14 with pytest-xdist, as every other test job now does.
