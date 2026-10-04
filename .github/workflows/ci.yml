@@ -119,7 +119,7 @@ jobs:
     with:
       python-version: '3.13'
       test_extras: 'tests,qt'
-      test_command: 'pytest -p no:warnings --doctest-rst --pyargs glue_solar'
+      test_command: 'pytest -n auto -p no:warnings --doctest-rst --pyargs glue_solar'
       submodules: false
       save_artifacts: true
       upload_to_pypi: false
