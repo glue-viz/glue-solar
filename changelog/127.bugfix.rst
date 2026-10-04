@@ -1,0 +1,1 @@
+A quicklook no longer pairs a stack with a stack of other scans of the same observation, and D, F and Go to UTC move a point clicked on another window of the file.

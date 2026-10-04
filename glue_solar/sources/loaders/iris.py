@@ -348,8 +348,9 @@ def _raster_collection_data(collection, windows=None, stack=False, scaling=None)
                 # the stack already holds NaN
                 data = _dataset(cube.wcs.low_level_wcs, cube.meta, cube.unit, cube.data, label, color="#7A617C",
                                 cmap=cmap, missing=())
-            # its meta is scan 0's, so exposure times come per scan
+            # its meta is scan 0's, so exposure times and raster files come per scan
             _add_exposure(data, np.stack([scan.exposure_time.to_value(u.s) for scan in sequence]))
+            data.meta["raster files"] = tuple(name for scan in sequence for name in scan.meta.get("raster files", ()))
             data.add_component(_per_frame(times, data.shape), "Time")
             datasets.append(data)
             continue
@@ -482,6 +483,8 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None)
             return None
         for window, sequence in read_files([path], spectral_windows=windows, memmap=bool(scaling),
                                            uncertainty=False).items():
+            for scan in sequence:
+                scan.meta["raster files"] = (Path(path).name,)  # which tell the files of an observation apart
             scans.setdefault(window, []).extend(sequence)
         if step is not None:
             step()

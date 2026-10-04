@@ -797,13 +797,16 @@ class Coordinator(HubListener):
         return None if x == 0 or np.isnan(x) else x - 1  # irispy gives the header's 1-based pixel
 
     def _move_in_time(self, data, axis, frame):
-        """Put ``data`` at ``frame`` along its time axis: on the point if it holds one, and on its viewers."""
+        """
+        Put ``data`` at ``frame`` along its time axis: on its viewers, and on the point if it is on any window of
+        ``data``'s file (`_same_file`), which stays the point's window.
+        """
         point = self.point
-        if point is not None and point.reference_data is data and point.slices[axis].start is not None:
+        if point is not None and _same_file(point.reference_data, data) and point.slices[axis].start is not None:
             slices = list(point.slices)
             if slices[axis].start != frame:
                 slices[axis] = slice(frame, frame + 1)
-                self.group.subset_state = PixelSubsetState(data, slices)
+                self.group.subset_state = PixelSubsetState(point.reference_data, slices)
         for viewer in self._viewers_of(data):
             self._set_slices(viewer, {axis: frame})
 
@@ -978,9 +981,10 @@ def _role(data):
 
 def _same_file(data, other):
     """
-    Whether ``data`` and ``other`` are windows of one raster file, or of one stack of scans, which share their scans,
-    steps or exposures and slit pixels: rasters of one observation, shaped alike but for wavelength, from the same
-    DATE_OBS. A dataset is a window of its own file.
+    Whether ``data`` and ``other`` are windows of one raster file, or of one stack of the same scans, which share their
+    scans, steps or exposures and slit pixels: rasters of one observation, shaped alike but for wavelength, from the
+    same DATE_OBS and the same raster files in the same order (the loader's ``meta['raster files']``). A dataset is a
+    window of its own file.
     """
     if data is other:
         return data is not None
@@ -988,7 +992,7 @@ def _same_file(data, other):
         _role(data) == _role(other) == "raster"
         and observation_key(data) == observation_key(other)
         and data.shape[:-1] == other.shape[:-1]
-        and data.meta.get("DATE_OBS") == other.meta.get("DATE_OBS")
+        and all(data.meta.get(key) == other.meta.get(key) for key in ("DATE_OBS", "raster files"))
     )
 
 

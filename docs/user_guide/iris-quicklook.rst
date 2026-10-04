@@ -228,14 +228,15 @@ Tick several raster windows of an observation in the browser, or pass a list suc
 first (Mg II k 2796 when among them) in rows below, four viewers to a row: each gets a spectrum
 panel and, on a sit-and-stare raster or a stack, its own wavelength against time or scan. A single
 scanning raster's other windows get a spectrum panel only, as their steps are places, not times.
-Each window's scan, step or exposure and slit pixels are linked to the shown window's with glue
-identity links, added once however often the quicklook opens, so the point is the same pixel in
-every window: each spectrum panel shows its own window's spectrum there, a map of any of the
-windows shows the point's crosshair, and their wavelength panels follow the point's slit (and a
-stack's step), share its exposure or scan, and move it when you move their sliders. A Pixel click
-on another window's wavelength panel moves the point to that window, and the others follow. The
-Point window lists the window shown first only. The "Plugins" menu entry and the command line open
-one window.
+Only windows of the same raster files join, so a stack of other scans gets no panels. Each window's
+scan, step or exposure and slit pixels are linked to the shown window's with glue identity links,
+added once however often the quicklook opens, so the point is the same pixel in every window: each
+spectrum panel shows its own window's spectrum there, a map of any of the windows shows the point's
+crosshair, and their wavelength panels follow the point's slit (and a stack's step), share its
+exposure or scan, and move it when you move their sliders. A Pixel click on another window's
+wavelength panel moves the point to that window, and the others follow; D, F and "Go to UTC" still
+move it with the time master. The Point window lists the window shown first only. The "Plugins"
+menu entry and the command line open one window.
 
 Regridding on time
 ------------------
