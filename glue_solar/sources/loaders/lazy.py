@@ -161,6 +161,11 @@ class RawStack:
             return np.asarray(self.scans[first][rest])
         if isinstance(first, slice):
             return np.stack([np.asarray(self.scans[i][rest]) for i in range(*first.indices(len(self.scans)))])
+        if not any(np.ndim(index) for index in rest):
+            # an index array of scans with basic indices, such as a spectrum's slice: each scan selected read once,
+            # its axis first, as NumPy places it
+            scans, inverse = np.unique(first, return_inverse=True)
+            return np.stack([np.asarray(self.scans[i][rest]) for i in scans])[inverse.reshape(np.shape(first))]
         # one index array per axis, as glue's fixed-resolution buffer asks: one read per array of its samples, sorted
         # together, so that a 600 by 400 image across the 1645 pixels of a regridded window takes 6 ms, not 90 ms
         shape = np.broadcast(*key).shape

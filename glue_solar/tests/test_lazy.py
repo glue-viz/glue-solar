@@ -228,7 +228,7 @@ def test_a_stack_reads_only_the_scans_it_selects(int16_raster):
     n, ny, nl = raws[0].shape
     index = np.arange(min(ny, nl))
     keys = [1, (0, 2), (slice(None), 3), (slice(None, None, -1), 1, slice(2, 5)), (index % 2, index % n, index, index),
-            (index[:0],) * 4]
+            (index[:0],) * 4, (np.array([1, 0]), 2, slice(None)), (np.array([[1], [0]]), slice(1, 3), 4)]
     for key in keys:
         for scan in scans:
             scan.read = scan.reads = 0
@@ -237,6 +237,7 @@ def test_a_stack_reads_only_the_scans_it_selects(int16_raster):
         assert all(scan.reads <= 1 for scan in scans)  # one read a scan, however its samples are spread
     data, cid, _ = lazy_data(stack)
     np.testing.assert_array_equal(data[cid, (1, 2)], expected(int16_raster, WINDOW)[::-1][2])
+    assert data[cid, (np.array([0, 1]), 0, 2, slice(None))].shape == (2, nl)  # a spectrum of two scans
     with pytest.raises(ValueError, match="same shape"):
         RawStack([raws[0], raws[1][:-1]])
 
@@ -698,3 +699,7 @@ def test_pv_slices_and_subset_exports_of_lazy_data(monkeypatch, tmp_path, int16_
     values = np.full(oracle.shape, np.nan, np.float32)
     values[2, 5] = oracle[2, 5]
     np.testing.assert_array_equal(fits.getdata(tmp_path / "point.fits", lazy_result.main_components[0].label), values)
+    # and its mask, unsigned, whole
+    mask = fits.getdata(tmp_path / "point.fits", lazy_result.derived_components[0].label)
+    assert mask.dtype == np.uint8
+    np.testing.assert_array_equal(mask, np.isnan(oracle))
