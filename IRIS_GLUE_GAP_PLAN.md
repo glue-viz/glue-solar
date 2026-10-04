@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-03
 
-**Resume here.** M0 is done. Main is at ea2e662 (#125 shows the other ticked windows of a raster file in its quicklook) (#107-#125; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. In progress: `wp4-m1-review-fixes` in worktree `~/Git/glue-solar-wp4-m1-review-fixes`, branch `wp4-m1-review-fixes` (from origin/main ea2e662); no PR open yet. Then: `wp5-m1-spectral-blink` (designed: D41); the other M1 items wait on irispy 0.10.0 and astropy 8.0.2.
+**Resume here.** M0 is done. Main is at 6e5c0f4 (#126 fixes the four bugs and the test gap of the 2026-10-03 review) (#107-#126; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp5-m1-spectral-blink` (designed: D41); the other M1 items wait on irispy 0.10.0 and astropy 8.0.2.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -97,7 +97,6 @@ A milestone is done when it has no items left.
 
 **M1**
 - WP0: `wp0-release-tracking`, `wp0-irispy-requests`
-- WP4: `wp4-m1-review-fixes`
 - WP5: `wp5-m1-spectral-blink`
 
 **M2**
@@ -274,9 +273,6 @@ Notes:
 
 Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_solar/quicklook.py`.
 
-**M1**
-
-- [ ] **M1** `wp4-m1-review-fixes`: Fix what the 2026-10-03 review of #92-#123 verified (reproducers in `IRIS_PLAN_PROTOTYPES/review_20261003.tar.gz`, `test_review.py`, `stack_index_probe.py`): (1) closing the Point window alone leaves its viewer-state callbacks, so the next raster click raises "wrapped C/C++ object of type _PointWindow has been deleted" (`quicklook.py`, the window's destroy handler); (2) `RawStack` reads an index array of scans with a wavelength slice as an object array (`lazy.py`): `stack[cid, (np.array([0, 98]), 0, 100, slice(None))]` raises IndexError on 3602506433; (3) Clear point in a stack tab can make a hidden tab's raster the time master, so the stack's scan slider stops driving its SJI (`quicklook.py`'s default master; D22); (4) #115's close wrapper stops playback even when the close is cancelled (`glue_patches.py`: return when `event.isAccepted()` is false); (5) the lazy FITS-export test does not pin the mask HDU (assert its presence, uint8 dtype and values). Done when each reproducer passes as a regression test in both envs. #124 and #125 were not reviewed.
 
 **M3**
 
