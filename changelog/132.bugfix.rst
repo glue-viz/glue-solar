@@ -1,0 +1,1 @@
+An Image viewer collapsed over a Profile range narrower than one sample shows that sample instead of failing to draw.

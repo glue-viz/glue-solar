@@ -4,6 +4,7 @@ Gated fixes for glue-core and glue-qt bugs that IRIS data hits.
 Each fix installs, or acts, only when a probe finds the bug, and names the upstream change that retires it.
 """
 
+import builtins
 import os
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -23,6 +24,7 @@ from glue.viewers.histogram import state as histogram_state
 from glue.viewers.histogram import viewer as histogram_viewer
 from glue.viewers.image.layer_artist import ImageSubsetLayerArtist
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
+from glue.viewers.image.state import AggregateSlice
 from glue.viewers.matplotlib import viewer as matplotlib_viewer
 from glue.viewers.scatter import layer_artist as scatter_layer_artist
 from glue.viewers.scatter import viewer as scatter_viewer
@@ -40,6 +42,7 @@ from astropy.visualization.wcsaxes import WCSAxes
 from astropy.wcs import WCS
 
 __all__ = [
+    "aggregate_slice_init",
     "canvas_init",
     "close_event",
     "datetime64_to_mpl",
@@ -48,6 +51,7 @@ __all__ = [
     "needs_axis_label_workaround",
     "needs_crosshair_workaround",
     "needs_date_epoch_workaround",
+    "needs_empty_collapse_workaround",
     "needs_fits_export_dask_workaround",
     "needs_inverse_workaround",
     "needs_pixel_point_workaround",
@@ -498,6 +502,33 @@ if needs_date_epoch_workaround():
         for name, function in (("datetime64_to_mpl", datetime64_to_mpl), ("mpl_to_datetime64", mpl_to_datetime64)):
             if hasattr(module, name):
                 setattr(module, name, function)
+
+
+# A Profile Collapse range inside one sample gives glue-qt's `AggregateSlice` an empty range, which glue 1.27.0's image
+# refuses to draw ("Number of steps in bounds should be >=1") in every redraw. Report candidate for glue.
+_original_aggregate_init = AggregateSlice.__init__
+
+
+def aggregate_slice_init(self, slice=None, center=None, function=None):  # glue's keywords, which sessions use
+    """glue's `AggregateSlice`, with an empty range as its first sample, which glue can draw."""
+    if isinstance(slice, builtins.slice) and slice.step is None and None not in (slice.start, slice.stop):
+        if slice.stop <= slice.start:
+            slice = builtins.slice(slice.start, slice.start + 1)
+    _original_aggregate_init(self, slice, center, function)
+
+
+def needs_empty_collapse_workaround():
+    """Whether glue's image buffer refuses a range of no samples, as an empty Collapse range gives it."""
+    data = Data(label="probe", values=np.zeros((2, 2)))
+    try:
+        data.compute_fixed_resolution_buffer([(0, 0, 0), (0, 1, 2)], target_cid=data.id["values"])
+    except ValueError:
+        return True
+    return False
+
+
+if needs_empty_collapse_workaround():
+    AggregateSlice.__init__ = aggregate_slice_init
 
 
 _original_close_event = ImageViewer.closeEvent
