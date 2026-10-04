@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-03
 
-**Resume here.** M0 is done. Main is at 1269da4 (#132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#132; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp5-m1-spectral-blink` (designed: D41); the other M1 items wait on irispy 0.10.0 and astropy 8.0.2.
+**Resume here.** M0 is done. Main is at f154ee8 (#133 opens each quicklook panel with its band's stretch, D43; #132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#133; the IRIS guide is three pages: loading, `iris-quicklook`, `viewer-tools-and-windows`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp5-m1-spectral-blink` (designed: D41); the other M1 items wait on irispy 0.10.0 and astropy 8.0.2.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -124,7 +124,7 @@ A milestone is done when it has no items left.
 - WP8: `wp8-filter-stop`, `wp8-text-filter`, `wp8-prescan-search`, `wp8-search-ui`, `wp8-browser-conveniences`, `wp8-sot-cubes`
 - WP9: `wp9-l-deferred-recipes`
 - WP10: `wp10-m3-sit-stare-chunks`, `wp10-l-resident-memory`
-- WP11: `wp11-l-all-colormaps`, `wp11-scaling-extras`
+- WP11: `wp11-l-all-colormaps`
 - WP12: `wp12-derived-data-export`, `wp12-time-marker`, `wp12-point-light-curves`, `wp12-path-persist`, `wp12-saved-path-reuse`, `wp12-profile-values-export`, `wp12-export-options`
 
 **M4**
@@ -408,7 +408,6 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 **L**
 
 - [ ] **L** `wp11-l-all-colormaps`: Register every sunpy colormap again, with glue-qt's colormap icons cached by a probe-gated patch (`glue_patches.py`) until glue-qt caches them itself (`wp0-perf-qt`, D35). Done when every sunpy colormap is in the Image viewer's combo and building a combo stays within 2 ms of the IRIS-and-AIA-only time.
-- [ ] **L** `wp11-scaling-extras` (F066, F067): Per-band default stretches in the preset; glue's controls adjust them. Done when each IRIS band opens with its default.
 
 Notes:
 - glue-qt already takes B, C, G, H, K, M, P, R, W, X, Y, Z, Tab, Backspace and L, and dispatches keys by exact viewer type; matplotlib's own keys (F, S, O, P, L, K, G, Q, V) also reach its canvases, F and S dropped since #120; glue-solar takes D, F, A, S and Space.
