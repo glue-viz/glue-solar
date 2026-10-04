@@ -770,6 +770,8 @@ class QtIRISImporter(QtWidgets.QDialog):
         item.setCheckState(0, Qt.Unchecked)
         item.setData(0, Qt.UserRole, len(self._payloads))
         self._payloads.append(payload)
+        if payload[1] == "raster":
+            item.setToolTip(0, self.observations[payload[0]].window_tips.get(payload[2], ""))
         return item
 
     def selected(self):

@@ -82,6 +82,7 @@ class Observation:
     sji: dict[str, Path] = field(default_factory=dict)  # "SJI_1400" -> file
     rasters: list[Path] = field(default_factory=list)  # sorted by raster index
     windows: list[str] = field(default_factory=list)  # TDESC1..NWIN of the first raster
+    window_tips: dict[str, str] = field(default_factory=dict)  # each window's detector and wavelength range
     sdo: dict[str, Path] = field(default_factory=dict)  # "171_THIN" -> AIA cutout
     archives: list[Path] = field(default_factory=list)  # un-extracted *.tar.gz, listed only
 
@@ -122,6 +123,13 @@ def _fill(obs, header):
     for attr, key in (("xcen", "XCEN"), ("ycen", "YCEN"), ("sat_rot", "SAT_ROT")):
         if getattr(obs, attr) is None and header.get(key) is not None:
             setattr(obs, attr, float(header[key]))
+
+
+def _window_tip(header, i):
+    """Raster window ``i``'s detector and wavelength range, from the primary header: 'FUV1, 1332.7–1337.2 Å'."""
+    tip = str(header.get(f"TDET{i}", ""))
+    low, high = header.get(f"TWMIN{i}"), header.get(f"TWMAX{i}")
+    return tip if low is None or high is None else f"{tip}, {low:.1f}–{high:.1f} Å"
 
 
 def _sji_key(header, name):
@@ -203,6 +211,7 @@ def scan_directory(root, recursive=True, skipped=None):
             obs.rasters.append(path)
             if not obs.windows:
                 obs.windows = [header[f"TDESC{i}"] for i in range(1, header.get("NWIN", 0) + 1)]
+                obs.window_tips = {header[f"TDESC{i}"]: _window_tip(header, i) for i in range(1, len(obs.windows) + 1)}
         elif instrume.startswith("AIA"):
             obs.sdo[header.get("TDESC1", name)] = path
     for obs in found.values():
