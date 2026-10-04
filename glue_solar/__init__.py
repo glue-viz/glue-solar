@@ -9,14 +9,14 @@ from astropy.visualization import PowerStretch
 
 from sunpy.visualization.colormaps import cmlist
 
-from glue_solar import glue_patches, regrid, tools
+from glue_solar import glue_patches, lines, regrid, tools
 from glue_solar.quicklook import QuicklookImageViewer
 from glue_solar.sources import iris, maps
 from glue_solar.sources.maps import _add_colormap
 
 from glue_solar.version import version as __version__
 
-__all__ = ["setup", "__version__", "glue_patches", "iris", "maps", "regrid", "tools"]
+__all__ = ["setup", "__version__", "glue_patches", "iris", "lines", "maps", "regrid", "tools"]
 
 
 @session_patch()
@@ -61,6 +61,8 @@ def setup():
     for tool in wanted:
         if tool.tool_id not in ImageViewer.tools:
             ImageViewer.tools.append(tool.tool_id)
+    if lines.LineTool.tool_id not in ProfileViewer.tools:
+        ProfileViewer.tools.append(lines.LineTool.tool_id)
     # Keys for the viewer of the active window (`tools.KEYS`). glue-qt finds a viewer's keys by its exact class, so the
     # quicklook's raster panels take every key of the Image viewer, glue-qt's own Tab and Backspace too, which its
     # application module registers: glue loads plugins before it

@@ -1094,3 +1094,28 @@ def test_a_draw_queued_as_the_test_returns_runs_on_a_live_application(qtbot):
     canvas = app.new_data_viewer(ImageViewer).figure.canvas
     canvas.mpl_connect("draw_event", lambda event: gc.collect())
     canvas.draw_idle()
+
+
+def test_profiles_label_the_main_iris_lines(qtbot, irispy_test_files):
+    glue_solar.setup()
+    files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
+    [mg] = raster_data(files[:1], ["Mg II k 2796"])
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(mg)
+    viewer = app.new_data_viewer(ProfileViewer, data=mg)
+    viewer.state.x_att = mg.world_component_ids[mg.ndim - 1]  # wavelength
+    tool = viewer.toolbar.tools["solar:lines"]
+
+    def labels():
+        return [(text.get_text(), text.get_position()[0]) for text in viewer.axes.texts if text in tool.artists]
+
+    # the window's lines at their vacuum wavelengths; 2798.754 and 2798.823 Å share a label between them
+    assert [name for name, _ in labels()] == ["Mg II", "Mg II k", "Mg II", "Mg II h"]
+    assert [x for _, x in labels()] == pytest.approx([2791.599, 2796.352, 2798.7885, 2803.530])
+    viewer.state.x_display_unit = "nm"
+    assert dict(labels())["Mg II k"] == pytest.approx(279.6352)
+    tool.activate()  # off
+    assert labels() == []
+    tool.activate()
+    assert len(labels()) == 4

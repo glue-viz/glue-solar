@@ -4163,3 +4163,9 @@ def test_each_band_opens_with_its_stretch(bare_app, irispy_test_files):
     assert [panels["wavelength"].state.layers[0].stretch for panels in viewers["windows"]] == ["log", "log"]
     assert {str(v.state.reference_data.meta["TDESC1"]): v.state.layers[0].stretch for v in viewers["sji"]} == {
         "SJI_1330": "log", "SJI_1400": "log", "SJI_2796": "sqrt", "SJI_2832": "linear"}
+
+
+def test_the_spectrum_panel_labels_the_main_lines(bare_app, scans):
+    viewers = quicklook(bare_app, [scans[0]])  # C II 1336
+    tool = viewers["spectrum"].toolbar.tools["solar:lines"]
+    assert sorted(x for _, xs in tool.positions() for x in xs) == pytest.approx([1334.5323, 1335.6628, 1335.7079])
