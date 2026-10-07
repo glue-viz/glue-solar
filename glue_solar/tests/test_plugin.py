@@ -10,7 +10,7 @@ import matplotlib.dates as mdates
 import numpy as np
 import pytest
 from echo import delay_callback
-from glue.config import colormaps, data_factory, menubar_plugin, settings, startup_action
+from glue.config import colormaps, data_factory, layer_action, menubar_plugin, settings, startup_action
 from glue.core import Data
 from glue.core.data_factories import load_data
 from glue.viewers.image.state import AggregateSlice
@@ -36,6 +36,7 @@ from glue_solar.quicklook import QuicklookImageViewer
 from glue_solar.sources.iris import iris_quicklook, is_iris_fits, link_iris, quicklook_iris
 from glue_solar.sources.loaders.iris import image_data, raster_data
 from glue_solar.sources.maps import read_sunpy_map
+from glue_solar.sources.moments import moments_iris
 from glue_solar.tests.helpers import count_tick_work, press
 
 
@@ -46,6 +47,7 @@ def test_setup_registers_hooks():
     assert ("IRIS: link helioprojective coordinates", link_iris) in list(menubar_plugin)
     assert ("IRIS: quicklook…", quicklook_iris) in list(menubar_plugin)
     assert startup_action.members["iris_quicklook"] is iris_quicklook
+    assert ("IRIS: line moments…", moments_iris) in [(action.label, action.callback) for action in layer_action]
     assert ImageViewer.tools.count("solar:frame_time") == 1
     assert ImageViewer.tools.count("solar:coordinate") == 1
     assert ImageViewer.tools.count("solar:hide_axes") == 1
