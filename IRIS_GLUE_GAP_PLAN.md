@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-07
 
-**Resume here.** M0 is done. Main is at 2a2e73a (#135 blinks a viewer between two positions, D41; #134 labels the main IRIS lines on Profile viewers, D44; #133 opens each quicklook panel with its band's stretch, D43; #132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#135; the IRIS user guide is five pages: loading, `iris-quicklook`, `viewer-tools-and-windows`, the Profile guide and `scripting-iris-data`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. M1's two items wait on irispy 0.10.0 and astropy 8.0.2, neither out on 2026-10-07; next: M2, starting with `wp2-m2-moment-maps`, which the other WP2 items depend on.
+**Resume here.** M0 is done. Main is at c36b843 (#136 adds IRIS line moment maps as a layer action, D45, D46; #135 blinks a viewer between two positions, D41; #134 labels the main IRIS lines on Profile viewers, D44; #133 opens each quicklook panel with its band's stretch, D43; #132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#136; the IRIS user guide is five pages: loading, `iris-quicklook`, `viewer-tools-and-windows`, the Profile guide and `scripting-iris-data`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. M1's two items wait on irispy 0.10.0 and astropy 8.0.2, neither out on 2026-10-07; next: M2's `wp2-m2-line-definition` (the continuum window), `wp2-m2-input-quality` and `wp2-m2-tests-docs`, then WP11 and WP12.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -83,7 +83,8 @@ Settled by the user; reopen only with the user.
 - **D42:** Provisional (2026-10-03, batch 6), several windows (#125): the quicklook shows the raster windows ticked in the browser (`quicklook`'s `window` takes a list), Mg II k 2796 if ticked, else the first, with the full panels, and each other window of the same file or stack (`_same_file`: one observation, the same shape but wavelength, the same DATE_OBS and the same raster files in scan order, `meta['raster files']`, #127) a spectrum panel and, on a sit-and-stare raster or a stack, its own λ–time or λ–scan panel, in rows of four below; a single scanning raster's steps are places, not times, so its other windows get no λ–step panel; the 'Plugins' menu entry and the command line still open one window. The quicklook links each other window's scan, step or exposure and slit pixels to the shown window's with `LinkSame`, skipping pairs already linked (D8's one exception; a file's windows share their spatial WCS, so these paths and `link_hpc`'s agree). The coordinator treats a file's windows as one cube: their sliders follow the point and moving one moves it, a Pixel click on another window's panel moves the point to that window, and without a point time sync moves them by time (FUV and NUV differ by 0.06 s at a 2.9 s cadence on 4000255147). The Point window lists the shown window and the slit-jaw images only.
 - **D43:** User (2026-10-04), default stretches on the quicklook's panels (#133): log for slit-jaw 1330 and 1400, sqrt for slit-jaw 2796, linear for slit-jaw 2832; raster windows follow their band: FUV windows (TWAVE < 2000 Å) log, Mg II k and h (within 10 Å of 2800 Å) sqrt, the other NUV windows linear; colour limits stay 99.5 %; glue's layer controls change either.
 - **D44:** User (2026-10-04), line list: the main lines ship first as a small glue-solar table at NIST ASD vacuum wavelengths (#134), shown on the quicklook's spectrum panels and on any Profile viewer of IRIS data, each with a toggle; a larger database goes to irispy later (`wp5-irispy-line-database`): fresh NIST queries by a generation script, fiasco (CHIANTI) strengths for the quiet Sun, an active region, a flare and a sunspot, unpredicted lines listed unranked; optional groups (`wp5-l-line-groups`) and 'lines in this range' (`wp5-l-lines-in-range`) are lower priority. iris_lmsalpy's `branch_ASD` GUI labels the NIST line nearest the cursor from per-passband joblib tables of NIST lab intensities.
-- **D45:** User (2026-10-07), moments dialog: `wp2-m2-moment-maps`' dialog takes the required line centre in Å and the wings (default ±0.5 Å), so its blocking and memory limits hold (without wings they fail: 3 s and 6-7× the window on 4000255147 Si IV); `wp2-m2-line-definition` keeps only the optional continuum window.
+- **D45:** User (2026-10-07), moments dialog: the line moments dialog (#136) takes the required line centre in Å and the wings (default ±0.5 Å), so its blocking and memory limits hold (without wings they fail: 3 s and 6-7× the window on 4000255147 Si IV); `wp2-m2-line-definition` keeps only the optional continuum window.
+- **D46:** Provisional (2026-10-07, #136), line moments: only a single-scan raster window (raster step, slit, wavelength) is accepted; stacks, slit-jaw images and other data are refused with a message (per-scan moments of stacks are `wp2-m3-moments-extensions`). The map is `<label> moments <centre>`, its meta OBSID, STARTOBS, `moments_centre` and `moments_wings`, never INSTRUME or `Time`, so it groups with its observation but is no quicklook raster window and takes no part in time sync. irispy's `calculate_moments` runs on glue-qt's `Worker` on the wavelengths within the wings only, at most 2**21 samples per call; a pixel missing at every wavelength within the wings is NaN in every map, other missing and negative samples count as irispy's 0; no progress feedback.
 
 ## Milestones
 
@@ -102,7 +103,7 @@ A milestone is done when it has no items left.
 - WP0: `wp0-release-tracking`, `wp0-irispy-requests`
 
 **M2**
-- WP2: `wp2-m2-moment-maps`, `wp2-m2-line-definition`, `wp2-m2-input-quality`, `wp2-m2-tests-docs`
+- WP2: `wp2-m2-line-definition`, `wp2-m2-input-quality`, `wp2-m2-tests-docs`
 - WP11: `wp11-colourbar`, `wp11-distance-measure`, `wp11-zoom-steps`
 - WP12: `wp12-sequence-export`, `wp12-path-slicer`
 
@@ -225,23 +226,22 @@ Products from IRIS spectra, as dataset `layer_action`s that add linked Data and 
 
 **M2**
 
-- [ ] **M2** `wp2-m2-moment-maps` (F152, F153): 'IRIS: line moments…' adds irispy's `calculate_moments` maps of a per-scan window as one linked Data, with no viewer. Done when 4000005156 C II intensity is NaN over fill and 4000255147 Si IV blocks the GUI ≤ 0.5 s at peak RSS ≤ 3× the float32 window.
-- [ ] **M2** `wp2-m2-line-definition` (F154, F155): The moments dialog gains an optional continuum window; its required centre in Å (never TWAVE) and wings (default ±0.5 Å) come with `wp2-m2-moment-maps` (D45). Done when on 3610108077 Mg II k 2796.352 Å a continuum window is recorded in the map's meta and a blank one changes nothing. Depends: wp2-m2-moment-maps.
-- [ ] **M2** `wp2-m2-input-quality` (F165, F170): Moments use '<flux> DN/s' when present, mask NaN and -Inf, NaN a pixel on +Inf or saturation, and warn on NSATPIX or TSATPXn > 0. Done when the 3610108077 Si IV DN/s intensity equals DN intensity / exposure time. Depends: wp2-m2-moment-maps.
+- [ ] **M2** `wp2-m2-line-definition` (F154, F155): The moments dialog gains an optional continuum window; its required centre in Å (never TWAVE) and wings (default ±0.5 Å) are on main (#136, D45). Done when on 3610108077 Mg II k 2796.352 Å a continuum window is recorded in the map's meta and a blank one changes nothing.
+- [ ] **M2** `wp2-m2-input-quality` (F165, F170): Moments use '<flux> DN/s' when present, mask NaN and -Inf, NaN a pixel on +Inf or saturation, and warn on NSATPIX or TSATPXn > 0. Done when the 3610108077 Si IV DN/s intensity equals DN intensity / exposure time.
 - [ ] **M2** `wp2-m2-tests-docs` (F153, F155, F156): Test against direct `calculate_moments` calls on a synthetic cube and irispy-data's remote 3400109360 cutout; add a guide page (FWHM ≈ 2.355 σ, optically thick lines). Done when `test_moments.py` passes and Sphinx builds with `-W`. Depends: wp2-m2-line-definition, wp2-m2-input-quality.
 
 **M3**
 
 - [ ] **M3** `wp2-m3-moments-extensions` (F153, F154): Moments on 4-D stacks, and a Profile range tool (glue-qt's `RangeMouseMode`) giving the wings. Done when a stack's scan 0 equals the per-scan maps. Depends: wp2-m2-line-definition.
-- [ ] **M3** `wp2-m3-window-data` (F160): Opt-in uncertainties, moment error maps (irispy #201) and 'Rebin…' via `NDCube.rebin`. Done when 3610108077 Si IV 1403 errors equal irispy's and a 2×2 rebin keeps the finite mean. Depends: wp2-m2-moment-maps.
-- [ ] **M3** `wp2-irispy-calibration-actions` (F166, F169): 'Remove dust' adds `SJICube.remove_dust` output as Data; radiometric calibration is a glue derived component on '<flux> DN/s' (D4). Done when both equal direct irispy calls (rtol 1e-6). Depends: wp2-m2-moment-maps.
-- [ ] **M3** `wp2-m3-mg-features` (F162): 'IRIS: Mg II features…' wraps irispy's `calculate_mg_features` (#199) into k and h feature velocity and intensity maps. Done when they equal a direct irispy call on 3824262996. Depends: wp2-m2-moment-maps.
-- [ ] **M3** `wp2-m3-density-temperature` (F163): Add a log n_e or T map from two same-grid intensity maps via irispy's `density_diagnostic` or `map_ratio_to_quantity` (fiasco optional). Done when a synthetic ratio matches irispy. Depends: wp2-m2-moment-maps.
-- [ ] **M3** `wp2-m3-red-blue` (F158): 'Red-blue asymmetry…' wraps irispy's `calculate_red_blue_asymmetry` with a required rest and an iris_xfiles preset. Done when on 3610108077 Mg II k it equals a direct irispy call. Depends: wp2-m2-moment-maps.
+- [ ] **M3** `wp2-m3-window-data` (F160): Opt-in uncertainties, moment error maps (irispy #201) and 'Rebin…' via `NDCube.rebin`. Done when 3610108077 Si IV 1403 errors equal irispy's and a 2×2 rebin keeps the finite mean.
+- [ ] **M3** `wp2-irispy-calibration-actions` (F166, F169): 'Remove dust' adds `SJICube.remove_dust` output as Data; radiometric calibration is a glue derived component on '<flux> DN/s' (D4). Done when both equal direct irispy calls (rtol 1e-6).
+- [ ] **M3** `wp2-m3-mg-features` (F162): 'IRIS: Mg II features…' wraps irispy's `calculate_mg_features` (#199) into k and h feature velocity and intensity maps. Done when they equal a direct irispy call on 3824262996.
+- [ ] **M3** `wp2-m3-density-temperature` (F163): Add a log n_e or T map from two same-grid intensity maps via irispy's `density_diagnostic` or `map_ratio_to_quantity` (fiasco optional). Done when a synthetic ratio matches irispy.
+- [ ] **M3** `wp2-m3-red-blue` (F158): 'Red-blue asymmetry…' wraps irispy's `calculate_red_blue_asymmetry` with a required rest and an iris_xfiles preset. Done when on 3610108077 Mg II k it equals a direct irispy call.
 
 **L**
 
-- [ ] **L** `wp2-burst-detection` (F130): 'IRIS: detect UV bursts' wraps irispy's burst finders (#197). Done when its labels equal irispy's. Depends: wp2-m2-moment-maps.
+- [ ] **L** `wp2-burst-detection` (F130): 'IRIS: detect UV bursts' wraps irispy's burst finders (#197). Done when its labels equal irispy's.
 
 Notes:
 - Prototype: `IRIS_PLAN_PROTOTYPES/chk_wp2/` (a moments module and its tests).
@@ -304,7 +304,7 @@ Blink is on main (#135); the fitted rest wavelength, reference blink and mean-sp
 - [ ] **L** `wp5-irispy-line-database`: irispy ships an IRIS line database as ECSV with a query function: NIST ASD vacuum wavelengths for the IRIS passbands from a generation script (astroquery), cross-checked against iris_lmsalpy's `branch_ASD` extracts, and fiasco (CHIANTI) intensities for the quiet Sun, an active region, a flare and a sunspot; lines CHIANTI cannot predict (photospheric, molecular) are listed unranked (D44). The NIST query keeps forbidden and Ritz-only lines and the full passbands (iris_lmsalpy's FUV 1 table spans only 1350-1357 Å and lacks Fe XII 1349.40 and Mg II 2798.754). The user's draft irispy #209 (branch `line-database`, worktree `~/Git/irispy-line-database`, aed7854) has it: `irispy/data/iris_lines.ecsv` from `tools/make_line_database.py` and `irispy.utils.lines.get_lines` (strengths for the quiet Sun, an active region and a flare; no sunspot yet); glue-solar's `lines.py` (#134) then reads it. Done when a release has it.
 - [ ] **L** `wp5-m1-rest-wavelength-policy` (F146): One rest-wavelength source (never TWAVE), from the main lines (`glue_solar/lines.py`, #134) or typed. Done when Mg II k pre-selects 2796.352 Å.
 - [ ] **L** `wp5-m1-velocity-axis` (F147, F150): 'km / s' in glue's `unit_converter` registry and a velocity top axis on Profiles. Done when Mg II k reads 0 km/s at rest. Depends: wp5-m1-rest-wavelength-policy.
-- [ ] **L** `wp5-m1-doppler-image` (F148, F149): 'Doppler image…' adds red-minus-blue wing planes as linked Data. Done when a symmetric synthetic line gives zero. Depends: wp5-m1-rest-wavelength-policy, wp2-m2-moment-maps.
+- [ ] **L** `wp5-m1-doppler-image` (F148, F149): 'Doppler image…' adds red-minus-blue wing planes as linked Data. Done when a symmetric synthetic line gives zero. Depends: wp5-m1-rest-wavelength-policy.
 
 Notes:
 - km/s as a Profile x unit waits for glue-qt #70; glue #2603 / glue-qt #73 line layers could draw the line list.
@@ -423,7 +423,7 @@ Frame, movie and data export plus path diagrams, built on glue's 'save' subtools
 
 **L**
 
-- [ ] **L** `wp12-derived-data-export` (F182, F187): Export derived data as FITS (or ASDF) with IRIS coordinates and `Time`, never IDL save files. Done when moment and sliced maps round-trip their coordinates. Depends: wp2-m2-moment-maps.
+- [ ] **L** `wp12-derived-data-export` (F182, F187): Export derived data as FITS (or ASDF) with IRIS coordinates and `Time`, never IDL save files. Done when moment and sliced maps round-trip their coordinates.
 - [ ] **L** `wp12-time-marker`: The master exposure shows as a glue time-range subset on datetime Scatter plots, moved with the master. Done when it follows the master and survives a session reopen. Depends: wp3-app-session-acceptance.
 - [ ] **L** `wp12-point-light-curves` (F140, F141): 'Light curves at this point' adds time series per raster window and SJI. Done when raster curves equal `cube[:, y, k]` and ECSV keeps `Time`. Depends: wp12-time-marker.
 - [ ] **L** `wp12-path-persist` (F185, F186): Save paths in sessions and as ECSV. Done when a reopened path reloads the same diagram. Depends: wp12-path-slicer, wp3-wcs-saver.
