@@ -17,7 +17,7 @@
       "changelog_url": "https://glue-solar.readthedocs.io/en/latest/changelog.html",
       "issue_tracker_url": "https://github.com/glue-viz/glue-solar/issues/",
       "license": "BSD 3-Clause",
-      "minimum_python_version": "3.12",
+      "minimum_python_version": "3.13",
       "use_compiled_extensions": "n",
       "enable_dynamic_dev_versions": "n",
       "include_example_code": "n",

@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "glue-solar"
 description = "Solar Physics plugin for GlueViz"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 readme = { file = "README.rst", content-type = "text/x-rst" }
 license-files = ["licenses/LICENSE.rst"]
 authors = [
@@ -20,7 +20,8 @@ dependencies = [
   "glue-core>=1.27.0",
   "glue-qt[qt]>=0.4.2",
   "sunpy[map,net]>=6.0.0",
-  "irispy-lmsal>=0.9.1",
+  # irispy main until glue-solar is released
+  "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git",
   "ndcube>=2.0",
 ]
 dynamic = ["version"]
@@ -33,7 +34,6 @@ classifiers = [
   "Operating System :: OS Independent",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "Topic :: Scientific/Engineering :: Physics",

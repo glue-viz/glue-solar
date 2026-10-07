@@ -81,9 +81,9 @@ def app(qtbot):
 
 @pytest.fixture
 def scans(irispy_test_files):
-    """The C II 1336 window of the 13 fixture scans of 3860258481, as scan 0 and as a stack."""
+    """The C II 1336 window of the 3 fixture scans of 3860258481, as scan 0 and as a stack."""
     files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
-    assert len(files) == 13
+    assert len(files) == 3
     [scan] = raster_data(files[:1], ["C II 1336"])
     [stack] = raster_data(files, ["C II 1336"], stack=True)
     return scan, stack
@@ -154,17 +154,17 @@ def test_map_click_on_a_stack_pins_the_scan(app, scans):
     scan, stack = scans
     app.data_collection.extend([scan, stack])
     updates = SubsetUpdates(app.data_collection.hub)
-    stack_map = image(app, stack, 1, 2, (5, 0, 0, 8))
+    stack_map = image(app, stack, 1, 2, (1, 0, 0, 8))
     select_point(stack_map, 2, 40)
     # the Pixel tool's assignment and one by the coordinator, which does not answer its own
     assert updates.counts == {scan.label: 2, stack.label: 2}
     assert app.data_collection.subset_groups[0].subset_state.slices == [
-        slice(5, 6),
+        slice(1, 2),
         slice(2, 3),
         slice(40, 41),
         slice(None),
     ]
-    assert stack_map.state.slices == (5, 0, 0, 8)
+    assert stack_map.state.slices == (1, 0, 0, 8)
 
 
 def test_menu_entries_keep_the_pixel_tool(app, scans):
@@ -757,9 +757,10 @@ def test_a_map_click_moves_the_other_panels(bare_app, qtbot, scans):
         assert [viewers[role].state.slices[-1] for role in RASTER_PANELS] == wavelengths
         np.testing.assert_array_equal(spectrum(viewers), cube(data)[(2,) * (data.ndim == 4) + (1, 30)])
         if data.ndim == 4:  # the point follows the map's scan, at the same step and slit
-            viewers["map"].state.slices = (4, *viewers["map"].state.slices[1:])
-            qtbot.waitUntil(lambda viewers=viewers: viewers["spectrogram"].state.slices[0] == 4)
-            np.testing.assert_array_equal(spectrum(viewers), cube(data)[4, 1, 30])
+            assert viewers["spectrogram"].state.slices[0] == 2
+            viewers["map"].state.slices = (0, *viewers["map"].state.slices[1:])
+            qtbot.waitUntil(lambda viewers=viewers: viewers["spectrogram"].state.slices[0] == 0)
+            np.testing.assert_array_equal(spectrum(viewers), cube(data)[0, 1, 30])
             assert viewers["wavelength"].state.slices[1:3] == (1, 30)
 
 
@@ -904,7 +905,7 @@ def test_a_new_viewer_of_the_cube_joins_the_point(bare_app, qtbot, scans):
     scan, stack = scans
     viewers = quicklook(bare_app, [scan, stack])
     stack_map = viewers["map"]
-    stack_map.state.slices = (5, *stack_map.state.slices[1:])
+    stack_map.state.slices = (2, *stack_map.state.slices[1:])
     select_point(stack_map, 3, 70)
     qtbot.wait(20)
     [group] = bare_app.session.edit_subset_mode.edit_subset
@@ -912,13 +913,13 @@ def test_a_new_viewer_of_the_cube_joins_the_point(bare_app, qtbot, scans):
     viewer = bare_app.new_data_viewer(ImageViewer, data=stack)  # glue resets its sliders to 0
     qtbot.wait(20)
     assert group.subset_state.slices == point
-    assert viewer.state.slices[:2] == (5, 3)  # it shows wavelength against slit at the point's scan and step
+    assert viewer.state.slices[:2] == (2, 3)  # it shows wavelength against slit at the point's scan and step
     other = bare_app.new_data_viewer(ImageViewer, data=scan)
     other.add_data(stack)
     other.state.reference_data = stack
     qtbot.wait(20)
     assert group.subset_state.slices == point
-    assert other.state.slices[0] == 5
+    assert other.state.slices[0] == 2
 
 
 def test_each_tab_moves_its_own_point(bare_app, qtbot, scans):
@@ -1133,7 +1134,7 @@ def test_a_stack_master_moves_the_slit_jaw_image_by_scan_and_step(bare_app, qtbo
     [sji_viewer] = viewers["sji"]
     heard = []
     coordinator(bare_app.data_collection).add_listener(lambda *args: heard.append(args))
-    for scan, step in ((6, 4), (6, 0), (6, 7), (12, 7), (0, 0)):
+    for scan, step in ((1, 4), (1, 0), (1, 7), (2, 7), (0, 0)):
         viewers["spectrogram"].state.slices = (scan, step, *viewers["spectrogram"].state.slices[2:])
         assert check_follower(bare_app, qtbot, raster_time(stack, (scan, step)), sji, sji_viewer)
         qtbot.waitUntil(lambda step=step: f"time master, step {step}" in readout(viewers["map"]))
@@ -1151,7 +1152,7 @@ def test_after_clear_point_a_stacks_scan_slider_still_moves_the_slit_jaw_image(b
     step = group.subset_state.slices[1].start  # the timing step, kept after Clear point
     menu_action(viewers["map"], "Clear point").trigger()
     qtbot.wait(20)
-    for index in (4, 9):
+    for index in (1, 2):
         slide(viewers["map"], 0, index)
         frame = np.searchsorted(frames, times[index, step])
         qtbot.waitUntil(lambda frame=frame: sji_viewer.state.slices[0] == frame)
@@ -1661,9 +1662,9 @@ def test_the_time_line_follows_a_slit_jaw_master(bare_app, qtbot, scans):
     viewers = quicklook(bare_app, [stack])
     qtbot.wait(20)
     assert lines(viewers["wavelength"])["time"] == lines(viewers["wavelength"])["point"] == ("y", [0])
-    slide(viewers["map"], 0, 4)
+    slide(viewers["map"], 0, 2)
     qtbot.wait(20)
-    assert lines(viewers["wavelength"])["time"] == lines(viewers["wavelength"])["point"] == ("y", [4])
+    assert lines(viewers["wavelength"])["time"] == lines(viewers["wavelength"])["point"] == ("y", [2])
     times = scan[scan.id["Time"]][:, 0, 0]
     frames = times[0] + (np.arange(24) - 2) * ((times[-1] - times[0]) / 19)  # about three per step
     viewers = quicklook(bare_app, [scan, slit_jaw(frames, scan)])
@@ -1791,7 +1792,7 @@ def test_the_map_line_marks_the_step_at_the_master_time(bare_app, qtbot, scans):
     overlays_toggled(bare_app, qtbot, viewers, viewers["map"])
     menu_action(sji_viewer, "Time master").trigger()
     shown_scans = set()
-    for frame in (0, 40, 41, 150, 250, len(frames) - 1):
+    for frame in (0, 40, 41, 47, 55, 65, len(frames) - 1):
         slide(sji_viewer, 0, frame)
         qtbot.wait(20)
         shown = viewers["map"].state.slices[0]
@@ -2029,7 +2030,7 @@ def test_a_region_on_a_map_with_its_axes_swapped(bare_app, monkeypatch, irispy_t
 def test_a_stack_map_region_reaches_another_window_by_its_outline(bare_app, monkeypatch, scans):
     scan, stack = scans
     viewers = quicklook(bare_app, [stack, scan])
-    viewers["map"].state.slices = (5, *viewers["map"].state.slices[1:])
+    viewers["map"].state.slices = (2, *viewers["map"].state.slices[1:])
     # glue's own region on the stack's pixels selects its steps and slit rows in every scan, and in scan 0, which
     # stands in for another window of the same raster, the pixel at each of them, the first step and last slit row too
     for roi, edge in ((XRangeROI(2.5, 5.5), (3, -1)), (RectangularROI(-3.4, 2.6, 10.3, 50.7), (0, 11))):
@@ -2329,7 +2330,7 @@ def test_startup_shows_the_first_raster_file(qtbot, monkeypatch, irispy_test_fil
     app = bare_app_for(qtbot, monkeypatch)
     app.data_collection.extend([data for path in files for data in load_data(path)])
     labels = [data.label for data in app.data_collection]
-    assert len(set(labels)) == len(labels) == 13 * 9  # each file's windows are labelled by its raster number
+    assert len(set(labels)) == len(labels) == 3 * 9  # each file's windows are labelled by its raster number
     iris_quicklook(app.session, app.data_collection)
     shown = app.viewers[-1][0].state.reference_data
     assert shown.ndim == 3
@@ -2511,55 +2512,55 @@ def test_what_moves_on_a_stack(bare_app, qtbot, scans):
         "sji0": (frame(0, 2), None, None),
     }
     # the scan slider of the map or of the spectrogram moves the point, the other's scan and the time
-    assert event(lambda: slide(viewers["map"], 0, 4)) == {
-        "point": (label, (4, 2, 30, None)),
-        "map": (4, None, None, wave),
-        "spectrogram": (4, 2, None, None),
-        "sji0": (frame(4, 2), None, None),
+    assert event(lambda: slide(viewers["map"], 0, 1)) == {
+        "point": (label, (1, 2, 30, None)),
+        "map": (1, None, None, wave),
+        "spectrogram": (1, 2, None, None),
+        "sji0": (frame(1, 2), None, None),
     }
-    assert event(lambda: slide(viewers["spectrogram"], 0, 8)) == {
-        "point": (label, (8, 2, 30, None)),
-        "map": (8, None, None, wave),
-        "spectrogram": (8, 2, None, None),
-        "sji0": (frame(8, 2), None, None),
+    assert event(lambda: slide(viewers["spectrogram"], 0, 2)) == {
+        "point": (label, (2, 2, 30, None)),
+        "map": (2, None, None, wave),
+        "spectrogram": (2, 2, None, None),
+        "sji0": (frame(2, 2), None, None),
     }
     # a typed step moves the point, the λ panel's step and the time
     assert event(lambda: type_index(viewers["spectrogram"], 1, 6)) == {
-        "point": (label, (8, 6, 30, None)),
-        "spectrogram": (8, 6, None, None),
+        "point": (label, (2, 6, 30, None)),
+        "spectrogram": (2, 6, None, None),
         "wavelength": (None, 6, 30, None),
-        "sji0": (frame(8, 6), None, None),
+        "sji0": (frame(2, 6), None, None),
     }
-    # a λ–scan click (wavelength 9, scan 3) moves the map to its scan and wavelength; step and slit stay
-    assert event(lambda: select_point(viewers["wavelength"], 9, 3)) == {
-        "point": (label, (3, 6, 30, None)),
-        "map": (3, None, None, 9),
-        "spectrogram": (3, 6, None, None),
-        "sji0": (frame(3, 6), None, None),
+    # a λ–scan click (wavelength 9, scan 0) moves the map to its scan and wavelength; step and slit stay
+    assert event(lambda: select_point(viewers["wavelength"], 9, 0)) == {
+        "point": (label, (0, 6, 30, None)),
+        "map": (0, None, None, 9),
+        "spectrogram": (0, 6, None, None),
+        "sji0": (frame(0, 6), None, None),
     }
     # a slit-jaw follower moved by hand keeps its frame through a wavelength step, until the next sync
     assert event(lambda: slide(sji_viewer, 0, 40)) == {"sji0": (40, None, None)}
-    assert event(lambda: slide(viewers["map"], 3, 14)) == {"map": (3, None, None, 14)}
+    assert event(lambda: slide(viewers["map"], 3, 14)) == {"map": (0, None, None, 14)}
     assert event(lambda: slide(viewers["wavelength"], 2, 70)) == {
-        "point": (label, (3, 6, 70, None)),
+        "point": (label, (0, 6, 70, None)),
         "wavelength": (None, 6, 70, None),
-        "sji0": (frame(3, 6), None, None),
+        "sji0": (frame(0, 6), None, None),
     }
     # a slit-jaw master moves the point to the scan nearest its frame at the point's step; step and slit stay
-    assert event(lambda: slide(sji_viewer, 0, 250)) == {"sji0": (250, None, None)}
-    scan = scan_at(250, 6)
+    assert event(lambda: slide(sji_viewer, 0, 60)) == {"sji0": (60, None, None)}
+    scan = scan_at(60, 6)
     assert event(lambda: menu_action(sji_viewer, "Time master").trigger()) == {
         "point": (label, (scan, 6, 70, None)),
         "map": (scan, None, None, 14),
         "spectrogram": (scan, 6, None, None),
     }
     assert "time master" in readout(sji_viewer)
-    scan = scan_at(150, 6)
-    assert event(lambda: slide(sji_viewer, 0, 150)) == {
+    scan = scan_at(36, 6)
+    assert event(lambda: slide(sji_viewer, 0, 36)) == {
         "point": (label, (scan, 6, 70, None)),
         "map": (scan, None, None, 14),
         "spectrogram": (scan, 6, None, None),
-        "sji0": (150, None, None),
+        "sji0": (36, None, None),
     }
     # the master rules: the map's scan slider moved by hand snaps back
     shown = []
@@ -2569,19 +2570,19 @@ def test_what_moves_on_a_stack(bare_app, qtbot, scans):
     assert event(lambda: menu_action(viewers["map"], "Time master").trigger()) == {"sji0": (frame(scan, 6), None, None)}
     # after Clear point the time follows the map's scan slider at the last point's step, and nothing else
     assert event(lambda: menu_action(viewers["map"], "Clear point").trigger()) == {"point": None}
-    assert event(lambda: slide(viewers["spectrogram"], 0, 1)) == {"spectrogram": (1, 6, None, None)}
-    assert event(lambda: type_index(viewers["spectrogram"], 1, 0)) == {"spectrogram": (1, 0, None, None)}
-    assert event(lambda: slide(viewers["map"], 0, 12)) == {
-        "map": (12, None, None, 14),
-        "sji0": (frame(12, 6), None, None),
+    assert event(lambda: slide(viewers["spectrogram"], 0, 0)) == {"spectrogram": (0, 6, None, None)}
+    assert event(lambda: type_index(viewers["spectrogram"], 1, 0)) == {"spectrogram": (0, 0, None, None)}
+    assert event(lambda: slide(viewers["map"], 0, 2)) == {
+        "map": (2, None, None, 14),
+        "sji0": (frame(2, 6), None, None),
     }
     assert "time master, step 6" in readout(viewers["map"])
     # until the next click, at the map's scan
     assert event(lambda: select_point(viewers["map"], 3, 20)) == {
-        "point": (label, (12, 3, 20, None)),
-        "spectrogram": (12, 3, None, None),
+        "point": (label, (2, 3, 20, None)),
+        "spectrogram": (2, 3, None, None),
         "wavelength": (None, 3, 20, None),
-        "sji0": (frame(12, 3), None, None),
+        "sji0": (frame(2, 3), None, None),
     }
     # a click on a slit-jaw image without coordinates, which places nothing, stays a slit-jaw point
     sji = sji_viewer.state.reference_data
@@ -2891,11 +2892,11 @@ def test_go_to_utc_on_a_stack_takes_the_scan_at_the_points_step(bare_app, qtbot,
     sji = slit_jaw(times[0, step] + np.arange(40) * (times[-1, step] - times[0, step]) / 39, stack)
     viewers = quicklook(bare_app, [stack, sji])
     [sji_viewer] = viewers["sji"]
-    when = times[7, step] + (times[8, step] - times[7, step]) * 0.45
-    assert expected_nearest(when, times[:, 0]) == 8  # at the first step, another scan
+    when = times[1, step] + (times[2, step] - times[1, step]) * 0.45
+    assert expected_nearest(when, times[:, 0]) == 2  # at the first step, another scan
     # typed in the map or in the slit-jaw viewer, the stack goes to the scan nearest at the point's step, from the
     # master's time, and the slit-jaw image follows it
-    for viewer, when, scan, shown in ((viewers["map"], when, 7, 0), (sji_viewer, times[3, step], 3, 7)):
+    for viewer, when, scan, shown in ((viewers["map"], when, 1, 0), (sji_viewer, times[0, step], 0, 1)):
         opened = type_in_dialog(monkeypatch, utc(when))
         assert changes(bare_app, qtbot, viewers, menu_action(viewer, "Go to UTC…").trigger) == {
             "point": (stack.label, (scan, step, slit, None)),
@@ -2906,13 +2907,13 @@ def test_go_to_utc_on_a_stack_takes_the_scan_at_the_points_step(bare_app, qtbot,
         assert opened == [utc(times[shown, step])]
     # without a point too: the scan sliders move, and the time stays at the step the point left
     menu_action(viewers["map"], "Clear point").trigger()
-    opened = type_in_dialog(monkeypatch, utc(times[5, step]))
+    opened = type_in_dialog(monkeypatch, utc(times[2, step]))
     assert changes(bare_app, qtbot, viewers, menu_action(sji_viewer, "Go to UTC…").trigger) == {
-        "map": (5, None, None, wavelength),
-        "spectrogram": (5, step, None, None),
-        "sji0": (nearest_frame(sji, times[5, step]), None, None),
+        "map": (2, None, None, wavelength),
+        "spectrogram": (2, step, None, None),
+        "sji0": (nearest_frame(sji, times[2, step]), None, None),
     }
-    assert opened == [utc(times[3, step])]
+    assert opened == [utc(times[0, step])]
     assert f"time master, step {step}" in readout(viewers["spectrogram"])
 
 
@@ -3167,10 +3168,12 @@ def test_space_plays_the_time_master_round_its_loop(bare_app, qtbot, monkeypatch
     assert shown == [(frame + 1 + i) % sji.shape[0] for i in range(len(shown))]
     # a stack's map and spectrogram both have its scan slider: pressed on the map, Space plays the one with a loop
     viewers = quicklook(bare_app, [scans[1]])
-    type_in_dialog(monkeypatch, "3 5")
+    type_in_dialog(monkeypatch, "1 2")
     menu_action(viewers["spectrogram"], "Loop…").trigger()
+    slide(viewers["map"], 0, 2)  # from outside the loop, played on from its first scan
+    qtbot.wait(20)
     shown = space(viewers["map"], viewers["spectrogram"], 4)
-    assert shown == [3 + i % 3 for i in range(len(shown))]
+    assert shown == [1 + i % 2 for i in range(len(shown))]
 
 
 def test_backspace_closes_a_quicklook_raster_panel(bare_app, irispy_test_files):
@@ -3615,10 +3618,10 @@ def test_one_undo_takes_back_a_lock_which_survives_scan_steps(bare_app, qtbot, s
     assert event(redo.trigger) == locked
     assert event(lambda: hover(qtbot, viewers["map"], 1, 30)) == {}
     # the lock survives scan steps, which move the point as before
-    assert event(lambda: slide(viewers["map"], 0, 4)) == {
-        "point": (label, (4, 5, 40, None)),
-        "map": (4, None, None, wave),
-        "spectrogram": (4, 5, None, None),
+    assert event(lambda: slide(viewers["map"], 0, 2)) == {
+        "point": (label, (2, 5, 40, None)),
+        "map": (2, None, None, wave),
+        "spectrogram": (2, 5, None, None),
     }
     assert event(lambda: hover(qtbot, viewers["map"], 1, 30)) == {}
 
@@ -3677,12 +3680,12 @@ def test_the_point_follows_the_mouse_at_most_once_in_50_ms(bare_app, qtbot, scan
 def test_the_mouse_over_a_stack_map_pins_its_own_scan(app, qtbot, scans):
     _, stack = scans
     app.data_collection.append(stack)
-    image(app, stack, 1, 2, (5, 0, 0, 8))
-    stack_map = image(app, stack, 1, 2, (9, 0, 0, 8))
+    image(app, stack, 1, 2, (2, 0, 0, 8))
+    stack_map = image(app, stack, 1, 2, (1, 0, 0, 8))
     follow(stack_map)
     hover(qtbot, stack_map, 2, 40)
     point = app.data_collection.subset_groups[0].subset_state
-    assert point.slices == [slice(9, 10), slice(2, 3), slice(40, 41), slice(None)]
+    assert point.slices == [slice(1, 2), slice(2, 3), slice(40, 41), slice(None)]
 
 
 def exposure_labels(viewer):
@@ -3838,8 +3841,8 @@ def test_the_point_window_reads_the_raster_at_the_point(bare_app, qtbot, scans, 
     event(lambda: select_point(viewers["map"], 3, 50), (*scan, 3, 50, start[-1]))
     event(lambda: slide(viewers["map"], data.ndim - 1, 9), (*scan, 3, 50, 9))
     if stacked:
-        event(lambda: slide(viewers["map"], 0, 4), (4, 3, 50, 9))
-        scan = (4,)
+        event(lambda: slide(viewers["map"], 0, 2), (2, 3, 50, 9))
+        scan = (2,)
     event(lambda: select_point(viewers["spectrogram"], 5, 40), (*scan, 3, 40, 5))
     # the value is that of the component the map shows
     [layer] = [layer for layer in viewers["map"].state.layers if layer.layer is data]
@@ -3995,7 +3998,7 @@ def test_each_window_of_the_file_joins_the_quicklook(bare_app, qtbot, irispy_tes
     assert not any(a.geometry().intersects(b.geometry()) for a, b in itertools.combinations(windows, 2))
     # a map of each window, as a user opens one, and a point at (scan,) step or exposure s, slit y
     maps = [image(bare_app, data, data.ndim - 3, data.ndim - 2) for data in others]
-    lead = (3,) * (kind == "stack")
+    lead = (2,) * (kind == "stack")
     if lead:
         viewers["map"].state.slices = (*lead, *viewers["map"].state.slices[1:])
     select_point(viewers["map"], 5, 20)
@@ -4077,30 +4080,30 @@ def test_what_moves_with_other_windows_of_a_stack(bare_app, qtbot, irispy_test_f
         "wavelength2": (None, 2, 30, None),
     }
     # the map's scan moves the point, whose scan the λ–scan panels show
-    assert event(lambda: slide(viewers["map"], 0, 4)) == {
-        "point": (mg.label, (4, 2, 30, None)),
-        "map": (4, None, None, wave),
-        "spectrogram": (4, 2, None, None),
+    assert event(lambda: slide(viewers["map"], 0, 2)) == {
+        "point": (mg.label, (2, 2, 30, None)),
+        "map": (2, None, None, wave),
+        "spectrogram": (2, 2, None, None),
     }
     # the step slider of another window's panel moves the point
     assert event(lambda: slide(viewers["windows"][1]["wavelength"], 1, 5)) == {
-        "point": (mg.label, (4, 5, 30, None)),
-        "spectrogram": (4, 5, None, None),
+        "point": (mg.label, (2, 5, 30, None)),
+        "spectrogram": (2, 5, None, None),
         "wavelength": (None, 5, 30, None),
         "wavelength1": (None, 5, 30, None),
         "wavelength2": (None, 5, 30, None),
     }
     # a click on another window's panel moves the point to that window, and the time of every window follows its step
     c2_panel = viewers["windows"][0]["wavelength"]
-    assert event(lambda: select_point(c2_panel, 10, 4)) == {"point": (c2.label, (4, 5, 30, None))}
+    assert event(lambda: select_point(c2_panel, 10, 2)) == {"point": (c2.label, (2, 5, 30, None))}
     assert event(lambda: slide(c2_panel, 1, 0)) == {
-        "point": (c2.label, (4, 0, 30, None)),
-        "spectrogram": (4, 0, None, None),
+        "point": (c2.label, (2, 0, 30, None)),
+        "spectrogram": (2, 0, None, None),
         "wavelength": (None, 0, 30, None),
         "wavelength1": (None, 0, 30, None),
         "wavelength2": (None, 0, 30, None),
     }
-    assert [drawn(viewer, "time") for viewer in (viewers["wavelength"], c2_panel)] == [("y", [4])] * 2
+    assert [drawn(viewer, "time") for viewer in (viewers["wavelength"], c2_panel)] == [("y", [2])] * 2
 
 
 def test_a_stack_of_other_scans_is_not_a_window_of_the_stack(bare_app, irispy_test_files):
