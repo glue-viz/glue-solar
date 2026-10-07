@@ -69,6 +69,7 @@ def run(app, qtbot, data):
     count = len(collection)
     tree.ui.layerTree.set_selected_layers([data])
     tree._actions[ACTION].trigger()
+    assert iris._RUNNING  # on glue-qt's worker
     qtbot.waitUntil(lambda: len(collection) == count + 1 and not iris._RUNNING)
     return collection[-1]
 
@@ -180,7 +181,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
 def test_lazy_data_give_the_moments_of_data_in_memory(monkeypatch, scan_path):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     lazy = line_moments(raster, 1402.77)
-    monkeypatch.setattr(moments, "SLAB", 3)  # irispy given steps 0-2, 3-5 and 6-7
+    monkeypatch.setattr(moments, "SLAB", 3 * 109 * 4)  # irispy given steps 0-2, 3-5 and 6-7
     monkeypatch.setattr(iris, "LAZY", False)
     [eager] = raster_data([scan_path], ["Si IV 1403"])
     assert type(eager) is Data

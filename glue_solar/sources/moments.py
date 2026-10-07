@@ -22,8 +22,8 @@ __all__ = ["line_moments", "moments_iris"]
 
 # The wavelengths the dialog takes at first, in Angstrom below and above the line centre
 WINGS = (0.5, 0.5)
-# Raster steps per irispy call, which copies its input about seven times as float64
-SLAB = 256
+# Samples per irispy call, which copies its input about seven times as float64
+SLAB = 2**21
 # irispy picks the wavelengths within the wings again, rounding its own way: a crop wider by this many Angstrom keeps
 # every one it picks
 _HAIR = 1e-6
@@ -66,8 +66,9 @@ def _moments(data, centre, wings, crop, unit):
     from irispy.utils.moments import calculate_moments
 
     cid, maps = data.main_components[0], {}
-    for start in range(0, data.shape[0], SLAB):
-        view = (slice(start, start + SLAB), slice(None), crop)
+    steps = max(1, SLAB // (data.shape[1] * (crop.stop - crop.start)))
+    for start in range(0, data.shape[0], steps):
+        view = (slice(start, start + steps), slice(None), crop)
         values = data[cid, view]  # scaled float32 of these steps and wavelengths only, NaN where missing
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
             cube = SpectrogramCube(values, SlicedLowLevelWCS(data.coords._wcs, view), unit=unit, mask=np.isnan(values))
