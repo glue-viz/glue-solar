@@ -4244,6 +4244,12 @@ def test_blink_alternates_two_windows_exactly(bare_app, qtbot, irispy_test_files
     # each layer keeps its stretch and limits, and both windows' layers show again
     assert styles() == before
     assert position(raster_map)[-1] == {si4.label, mg.label}
+    assert raster_map.toolbar.active_tool.tool_id == "image:point_selection"
+    # a new partner mid-blink stops it, showing the window left
+    blink.trigger()
+    menu_action(raster_map, "Set blink partner here").trigger()
+    assert not tool._blink.isActive()
+    assert position(raster_map)[-1] == {si4.label, mg.label}
 
 
 def test_what_moves_on_a_blink(bare_app, qtbot, irispy_test_files):

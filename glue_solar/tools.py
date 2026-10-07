@@ -991,6 +991,8 @@ class _PartnerEntry(_CoordinateEntry):
     tool_tip = "Keep the displayed dataset and slider position as the one to blink against"
 
     def run(self, coordinator):
+        if self.menu._blink.isActive():
+            self.menu.blink(False)  # else the partner left would stay hidden
         self.menu.partner = _position(self.viewer)
 
 
