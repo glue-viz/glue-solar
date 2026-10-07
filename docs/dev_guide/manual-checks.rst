@@ -24,7 +24,7 @@ Before you start
 2. Find irispy's bundled test files with
    ``python -c "import irispy.data.test as t; print(t.ROOTDIR)"``; ``$T`` below stands for that
    folder. ``$T/sns`` holds the sit-and-stare raster of OBSID 3620258102 with its SJI 1330, 1400,
-   2796 and 2832 files, and ``$T/raster/iris_l2_20140329_140938_3860258481_raster`` holds 13 scans
+   2796 and 2832 files, and ``$T/raster/iris_l2_20140329_140938_3860258481_raster`` holds 3 scans
    of the 8-step raster of OBSID 3860258481, without slit-jaw images.
 
 3. Download two files of `LM-SAL/irispy-data <https://github.com/LM-SAL/irispy-data/releases/tag/v1>`__
@@ -56,7 +56,7 @@ write down whether it does, and close it with either button.
    any warning it prints, such as a font alias warning on macOS.
 
 6. Run ``glue --startup=iris_quicklook $T/raster/iris_l2_20140329_140938_3860258481_raster/*.fits``.
-   The 13 files load one by one and the quicklook shows the first scan: the map (step against slit),
+   The 3 files load one by one and the quicklook shows the first scan: the map (step against slit),
    the spectrogram, wavelength against step and the spectrum panel, with no slit-jaw viewer. The
    status bar ends with "Only the first raster file is shown: stacks of scans need Plugins → IRIS:
    browse observations…".

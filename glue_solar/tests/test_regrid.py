@@ -148,10 +148,12 @@ def test_a_slit_jaw_image_regrids_on_its_frame_times(tmp_path, irispy_test_files
 def test_a_stack_regrids_its_scans(tmp_path, irispy_test_files):
     sources = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
     paths = []
-    # scan 2 left out, and scan 4 2 s late at its middle step, which times it, in shorter steps than the others
-    for scan, start, step in ((0, 0, 5.0), (1, 60, 5.0), (3, 180, 5.0), (4, 246, 4.0)):
-        paths.append(with_times(int16_raster_copy(sources[scan], tmp_path / sources[scan].name),
-                                start + step * np.arange(8)))
+    # scan 2 left out, and scan 4 2 s late at its middle step, which times it, in shorter steps than the others; the
+    # fixture's 3 scans, the first again for scan 4, in folders that sort in scan order, give the 4 a median cadence
+    # that the gap leaves out
+    for scan, source, start, step in ((0, 0, 0, 5.0), (1, 1, 60, 5.0), (3, 2, 180, 5.0), (4, 0, 246, 4.0)):
+        path = tmp_path / f"scan{scan}" / sources[source].name
+        paths.append(with_times(int16_raster_copy(sources[source], path), start + step * np.arange(8)))
     [stack] = raster_data(paths, ["C II 1336"], stack=True)
     regridded = regrid_on_time(stack)
     assert list(check_regrid(stack, regridded)) == [2]
