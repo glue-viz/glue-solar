@@ -948,6 +948,62 @@ class _LoopEntry(_CoordinateEntry):
         _loop(slider, lo, hi)
 
 
+def _position(viewer):
+    """The Image viewer's position, D41's A or B: its reference data and slider position."""
+    return viewer.state.reference_data, tuple(viewer.state.slices)
+
+
+def _layers_of(state, data):
+    """The viewer's layers of ``data`` and of its subsets."""
+    return [layer for layer in state.layers if layer.layer.data is data]
+
+
+def _show_position(viewer, coordinator, data, slices):
+    """
+    Show ``data`` at ``slices`` in the Image viewer as a blink flip: the shown axes, by pixel axis, the zoom, the point
+    and the time sync stay. For another dataset glue resets the axes, slices and limits, so they are set again after
+    it, x before y; the dataset left is hidden, since glue would retry its disabled layer at every draw through the
+    helioprojective link, about a second on a full raster.
+    """
+    state = viewer.state
+    shown = state.reference_data
+    with coordinator.showing(viewer, data):
+        if data is shown:
+            state.slices = slices
+            return
+        for layer in _layers_of(state, data):
+            layer.visible = True
+        x, y = state.x_att.axis, state.y_att.axis
+        limits = state.x_min, state.x_max, state.y_min, state.y_max
+        state.reference_data = data
+        state.x_att = data.pixel_component_ids[x]
+        state.y_att = data.pixel_component_ids[y]
+        state.slices = slices
+        with delay_callback(state, "x_min", "x_max", "y_min", "y_max"):
+            state.x_min, state.x_max, state.y_min, state.y_max = limits
+        for layer in _layers_of(state, shown):
+            layer.visible = False
+
+
+class _PartnerEntry(_CoordinateEntry):
+    tool_id = "solar:blink_partner"
+    action_text = "Set blink partner here"
+    tool_tip = "Keep the displayed dataset and slider position as the one to blink against"
+
+    def run(self, coordinator):
+        self.menu.partner = _position(self.viewer)
+
+
+class _BlinkEntry(_CoordinateEntry):
+    tool_id = "solar:blink"
+    action_text = "Blink"
+    tool_tip = "Alternate the viewer between its position and its blink partner, or stop"
+
+    @messagebox_on_error("Could not blink")
+    def run(self, coordinator):
+        self.menu.blink(not self.menu._blink.isActive())
+
+
 def _pressed(session):
     """
     The viewer of the current tab's active window, which glue-qt gives a key, the coordinator, and the time master of
@@ -1033,8 +1089,9 @@ class CoordinateTool(SimpleToolMenu):
     Pixel tool, and unregisters it when the viewer closes. Its menu makes the displayed dataset the
     time master of its observation, clears the point, moves the time master to a typed UTC time, or
     makes the frame, exposure, step or scan slider's playback loop over a range, or shows the raster
-    overlays. On a slit-jaw image it draws the displayed frame's slit, and the point of a raster of the
-    same observation placed with that frame's coordinates while it is on the image.
+    overlays, or blinks the viewer between its position and a stored partner. On a slit-jaw image it
+    draws the displayed frame's slit, and the point of a raster of the same observation placed with that
+    frame's coordinates while it is on the image.
     """
 
     icon = "glue_link"
@@ -1043,11 +1100,24 @@ class CoordinateTool(SimpleToolMenu):
     tool_tip = "Coordinate this viewer with the others of its IRIS observation"
 
     def __init__(self, viewer, subtools=None):
-        entries = (_TimeMasterEntry, _ClearPointEntry, _GoToUTCEntry, _LoopEntry, _OverlaysEntry)
+        entries = (
+            _TimeMasterEntry,
+            _ClearPointEntry,
+            _GoToUTCEntry,
+            _LoopEntry,
+            _OverlaysEntry,
+            _PartnerEntry,
+            _BlinkEntry,
+        )
         super().__init__(viewer, subtools=subtools or [entry(viewer, self) for entry in entries])
         self.coordinator = coordinator(viewer._data)
         self.coordinator.register(viewer)
         viewer.destroyed.connect(self._forget)
+        self.partner = None  # the position the viewer does not show, which the blink shows next (D41)
+        self._blink = QtCore.QTimer(viewer)
+        self._blink.setInterval(500)
+        self._blink.timeout.connect(self._flip)
+        viewer.toolbar_added.connect(self._add_blink_menu)
         self.toolbar = viewer.toolbar
         self.mode = self.toolbar.active_tool
         self.toolbar.tool_activated.connect(self._remember_mode)
@@ -1070,10 +1140,75 @@ class CoordinateTool(SimpleToolMenu):
         self._draw()
 
     def close(self):
+        self._blink.stop()
         self._forget()
         for prop in _WATCHED:
             self.viewer.state.remove_callback(prop, self._draw)
         super().close()
+
+    def _add_blink_menu(self):
+        """
+        Make "Blink" a checkable entry and add the "Blink interval" submenu, neither of which glue-qt 0.4.2's tool
+        menus can hold, once glue-qt has built the menu, as its own Profile viewer tools edit theirs.
+        """
+        menu = self.toolbar.widgetForAction(self.toolbar.actions[self.tool_id]).menu()
+        self._action = next(action for action in menu.actions() if action.text() == _BlinkEntry.action_text)
+        self._action.setCheckable(True)
+        intervals = menu.addMenu("Blink interval")
+        group = QtWidgets.QActionGroup(intervals)
+        for seconds in (0.25, 0.5, 1, 2):
+            action = group.addAction(f"{seconds:g} s")
+            action.setCheckable(True)
+            action.setChecked(seconds * 1000 == self._blink.interval())
+            action.setData(seconds)
+            intervals.addAction(action)
+        # not through glue-qt's toolbar, so the mouse mode stays
+        group.triggered.connect(lambda action: self._blink.setInterval(round(action.data() * 1000)))
+
+    def blink(self, on):
+        """
+        Start alternating the viewer between its position and ``partner``, with a flip now, or stop, showing the
+        partner's layers again; the "Blink" entry is checked while it runs.
+        """
+        try:
+            if not on:
+                self._blink.stop()
+                if self.partner is not None:
+                    for layer in _layers_of(self.viewer.state, self.partner[0]):
+                        layer.visible = True
+            elif not self._valid():
+                raise ValueError("Choose 'Set blink partner here' first, at the position to blink against.")
+            else:
+                self._flip()
+                self._blink.start()
+        finally:
+            self._action.setChecked(self._blink.isActive())
+
+    def _valid(self):
+        """
+        Whether the viewer can blink: its partner's dataset is still one of its layers, with as many axes as the shown
+        one, and the shown one is not hidden, as it is once glue falls back to the partner's for a removed one.
+        """
+        state = self.viewer.state
+        shown = state.reference_data
+        if self.partner is None or shown is None:
+            return False
+        data = self.partner[0]
+        return (
+            any(layer.layer is data for layer in state.layers)
+            and data.ndim == shown.ndim
+            and any(layer.visible for layer in _layers_of(state, shown))
+        )
+
+    def _flip(self):
+        """Show ``partner``, which the position left becomes; once it cannot, stop the blink and forget the partner."""
+        if not self._valid():
+            self.blink(False)
+            self.partner = None
+            return
+        shown = _position(self.viewer)
+        _show_position(self.viewer, self.coordinator, *self.partner)
+        self.partner = shown
 
     def _forget(self, *_):
         # also for a viewer torn down without closing its tools

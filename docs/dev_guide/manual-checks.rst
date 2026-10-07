@@ -224,3 +224,17 @@ Responsiveness
 34. In the quicklook of item 11, whose raster has 13 million samples, glue computes the spectrum on a
     worker thread. Once the first spectrum is computed, the spectrum panel shows it, scaled to fit.
     Click a new point on the map: while the spectrum is computed, menus open and sliders move.
+
+35. Download ``iris_l2_20130902_182935_4000005156_cutout_raster.tar.gz`` from the release of item 3
+    into ``$D``: a full-size 64-step raster with C II 1336, Si IV 1403 and Mg II k 2796. Open the
+    browser on ``$D``, extract it as in item 11, tick its Mg II k 2796 and Si IV 1403 windows and
+    press "Load selected". Drag Si IV 1403 from the data collection onto the map; in the map's "Plot
+    Options" choose it as the reference data, set the axes back to the map's, and move the
+    ``Wavelength`` slider to about 1402.8 Å. Choose "Set blink partner here" in the "Coordinate"
+    menu. Choose Mg II k 2796 again the same way, at about 2796.4 Å, zoom in with "Zoom" (Z) and
+    click a point with the Pixel tool. Choose "0.25 s" under "Blink interval", then "Blink": the map
+    alternates between the two windows four times a second without skipping or lagging, at the same
+    zoom and with the crosshair in place; the other panels' sliders and the Pixel button stay, and
+    "Blink" shows a check mark. Choose "Blink" again: the blink stops and both windows are ticked in
+    the layer list. Start it again and close the map while it blinks: the terminal shows no
+    traceback.

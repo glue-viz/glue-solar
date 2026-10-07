@@ -161,6 +161,21 @@ other data or axes. Playing the time master's slider moves the other panels at e
 a slit-jaw viewer with the raster following, make it the time master first. Closing a viewer stops
 its playback, which glue-qt 0.4.2 would leave running.
 
+"Set blink partner here" and "Blink" in the "Coordinate" menu alternate a viewer between two
+positions, such as the map at Mg II k and at Si IV 1403, or at two wavelengths of one window. Show
+the position to blink against and choose "Set blink partner here": for another window, drag it from
+the data collection onto the viewer, choose it as the reference data with the same axes in the
+viewer's options, and move its sliders. Go back to the position to show and choose "Blink": the
+viewer shows each in turn every 0.5 s, or as chosen under "Blink interval" (0.25, 0.5, 1 or 2 s),
+until "Blink" is chosen again, the viewer closes or the other window leaves the viewer. Nothing else
+moves: the point, the other panels, the time master and the Pixel tool stay, and the zoom stays in
+pixels, the same pixels on the maps of one file's windows. A slider moved while a position shows
+stays part of it. The window not shown is hidden in the layer list until the blink stops; with
+"Per-frame limits" on, it takes its whole cube's colour limits again, as after any change of the
+reference data, and a window dragged in has glue's linear stretch until you change it. Sessions and
+"Save Python script to reproduce plot" leave the blink out; stop it before saving a session, which
+keeps hidden layers hidden.
+
 Each slit-jaw viewer is titled with its channel ("SJI 1400", "SJI 2796 (deconvolved)") and opens on
 the raster's field of view with a margin. Every slit-jaw viewer, in a quicklook or not, draws the
 displayed frame's slit as a dashed line (from the frame's slit position in the file) and the raster
