@@ -1,0 +1,1 @@
+glue-solar now requires Python 3.13 or newer and installs irispy from its git main branch (``irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git``) instead of a PyPI release.
