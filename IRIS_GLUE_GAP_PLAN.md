@@ -28,11 +28,11 @@ Out of scope:
 
 ## Current state, 2026-10-07
 
-**Resume here.** M0 is done. Main is at c36b843 (#136 adds IRIS line moment maps as a layer action, D45, D46; #135 blinks a viewer between two positions, D41; #134 labels the main IRIS lines on Profile viewers, D44; #133 opens each quicklook panel with its band's stretch, D43; #132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#136; the IRIS user guide is five pages: loading, `iris-quicklook`, `viewer-tools-and-windows`, the Profile guide and `scripting-iris-data`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. M1's two items wait on irispy 0.10.0 and astropy 8.0.2, neither out on 2026-10-07; next: M2's `wp2-m2-line-definition` (the continuum window), `wp2-m2-input-quality` and `wp2-m2-tests-docs`, then WP11 and WP12.
+**Resume here.** M0 is done. Main is at 70b0522 (#137 installs irispy's git main and needs Python 3.13, D47; #136 adds IRIS line moment maps as a layer action, D45, D46; #135 blinks a viewer between two positions, D41; #134 labels the main IRIS lines on Profile viewers, D44; #133 opens each quicklook panel with its band's stretch, D43; #132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#137; the IRIS user guide is five pages: loading, `iris-quicklook`, `viewer-tools-and-windows`, the Profile guide and `scripting-iris-data`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp2-m2-line-definition` (the continuum window, through irispy main's `subtract_background`; worktree `~/Git/glue-solar-wp2-m2-line-definition`), then M1's `wp10-m1-irispy-main-reads`, then `wp2-m2-input-quality`, `wp2-m2-tests-docs`, WP11 and WP12; `wp0-release-tracking` waits on astropy 8.0.2.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
-**Releases.** glue-core 1.27.0, glue-qt 0.4.2, irispy-lmsal 0.9.1 (all fixes glue-solar needs). irispy main (b204036, unreleased) has #197 (UV bursts), #198 (wavelength drift), #199 (Mg II features), #201 (moment uncertainties) and #205-#207 (-200 and -199 are fill everywhere; memmap reads keep the raw fill under a lazy mask; one gunzip; no FITS verify; analysis helpers reject raw data; `sunpy.map` only for maps), and since 0ee8fad #208 (Python ≥ 3.13, `wp0-irispy-requests`), #210 (the 3860258481 test raster cut to 3 scans), #214-#216 (radiation temperature, heliocentric mu in the meta, full-disk mosaics), #218 (fiducial marks) and #220-#222 (Si IV and Mg II starting models, `maps_from_fit`, `subtract_background`; WP6 notes); the user's drafts #209 (line database, `wp5-irispy-line-database`) and #223 (`average_window`) are open. glue-solar passed against 0ee8fad in both envs, its lazy raster opens cost what they do on 0.9.1 and its SJI and AIA opens no longer read the file (`wp0-irispy-requests`); b204036 is unchecked. Awaited: astropy 8.0.2, with a WCSAxes tick-crossing fix for rolled views (`wp0-release-tracking`).
+**Releases.** glue-core 1.27.0 and glue-qt 0.4.2 (all fixes glue-solar needs); irispy from git main since #137 (D47), its last release being 0.9.1. irispy main (b204036, unreleased) has #197 (UV bursts), #198 (wavelength drift), #199 (Mg II features), #201 (moment uncertainties) and #205-#207 (-200 and -199 are fill everywhere; memmap reads keep the raw fill under a lazy mask; one gunzip; no FITS verify; analysis helpers reject raw data; `sunpy.map` only for maps), and since 0ee8fad #208 (Python ≥ 3.13, `wp0-irispy-requests`), #210 (the 3860258481 test raster cut to 3 scans), #214-#216 (radiation temperature, heliocentric mu in the meta, full-disk mosaics), #218 (fiducial marks) and #220-#222 (Si IV and Mg II starting models, `maps_from_fit`, `subtract_background`; WP6 notes); the user's drafts #209 (line database, `wp5-irispy-line-database`) and #223 (`average_window`) are open. glue-solar passes against b204036 in both envs (#137); on 0ee8fad its lazy raster opens cost what they do on 0.9.1 and its SJI and AIA opens no longer read the file. Awaited: astropy 8.0.2, with a WCSAxes tick-crossing fix for rolled views (`wp0-release-tracking`).
 
 **Worktrees.** `~/Git/glue-solar` (this plan); the other glue-solar worktrees are gone, so a long probe gets its own detached main checkout as its `TREE` (`git -C ~/Git/glue-solar worktree add --detach <dir> origin/main`). irispy: `~/Git/irispy-line-database` (`line-database`, draft #209); the port worktrees are gone, and `~/Git/irispy` is the user's (on `integrate-window`, draft #223). Upstream speed fixes are branches `perf-g*` of `~/Git/glue` and `perf-q*` of `~/Git/glue-qt`, pushed to the user's forks, and astropy's `perf-a1-wcsaxes-pytest-import`, on the user's fork only (WP0 notes); no worktrees. WCSAxes core: on the user's astropy fork only (`wcsaxes-layout-core`, `-core-demos`, `-core-minimal`, `wcsaxes-layout-model`; GLUE_SPEED.md 'Matplotlib-free core prototype'); the `~/Git/astropy-wcsaxes-core` clone and `~/Git/wcsaxes-core-demos` are gone. The `glue-solar`, `irispy-ports` and `astropy-wcsaxes-core` envs are editable installs of removed checkouts (`~/Git/glue-solar-main`, `~/Git/irispy-bursts`, `~/Git/astropy-wcsaxes-core`); reinstall before use. Never touch `~/Git/astropy`, the user's own checkout.
 
@@ -44,7 +44,7 @@ Settled by the user; reopen only with the user.
 - **D2:** Build in glue-solar and irispy first via glue's public registries; nothing waits for an upstream release; upstream work is M4, on the user's direction. Workarounds switch on a behaviour probe, never a version.
 - **D3:** Arcsec and Angstrom on `_GlueWCS` IRIS data. sunpy Maps keep glue's plain astropy WCS, so glue autolinks and saves them; `link_hpc` links them to IRIS data.
 - **D4:** Analysis products are dataset `layer_action`s adding Data and links without a viewer; derived maps use `_GlueWCS(SlicedLowLevelWCS(raw_wcs, slices))`. A product that is a per-sample expression of one dataset (DN/s, radiometric calibration) is a glue derived component instead (user, 2026-09-30).
-- **D5:** Baseline: released glue-core 1.27.0, glue-qt 0.4.2, irispy-lmsal 0.9.1.
+- **D5:** Baseline: released glue-core 1.27.0 and glue-qt 0.4.2, and irispy's git main (D47).
 - **D6:** Selection is the stock Pixel tool plus Clear point; M1 adds hover-follow with click-to-lock.
 - **D7:** The point is a fixed detector pixel; time is an index axis with timestamp readouts. Nearest exposure, ties earlier; no match (greyed, never clamped) past half the partner's median cadence or outside its coverage. The raster is the default time master.
 - **D8:** The coordinator moves sliders from 1-D nearest-index arrays and adds no glue links: no pixel-component, `JoinLink`, lambda or closure links.
@@ -85,6 +85,7 @@ Settled by the user; reopen only with the user.
 - **D44:** User (2026-10-04), line list: the main lines ship first as a small glue-solar table at NIST ASD vacuum wavelengths (#134), shown on the quicklook's spectrum panels and on any Profile viewer of IRIS data, each with a toggle; a larger database goes to irispy later (`wp5-irispy-line-database`): fresh NIST queries by a generation script, fiasco (CHIANTI) strengths for the quiet Sun, an active region, a flare and a sunspot, unpredicted lines listed unranked; optional groups (`wp5-l-line-groups`) and 'lines in this range' (`wp5-l-lines-in-range`) are lower priority. iris_lmsalpy's `branch_ASD` GUI labels the NIST line nearest the cursor from per-passband joblib tables of NIST lab intensities.
 - **D45:** User (2026-10-07), moments dialog: the line moments dialog (#136) takes the required line centre in Å and the wings (default ±0.5 Å), so its blocking and memory limits hold (without wings they fail: 3 s and 6-7× the window on 4000255147 Si IV); `wp2-m2-line-definition` keeps only the optional continuum window.
 - **D46:** Provisional (2026-10-07, #136), line moments: only a single-scan raster window (raster step, slit, wavelength) is accepted; stacks, slit-jaw images and other data are refused with a message (per-scan moments of stacks are `wp2-m3-moments-extensions`). The map is `<label> moments <centre>`, its meta OBSID, STARTOBS, `moments_centre` and `moments_wings`, never INSTRUME or `Time`, so it groups with its observation but is no quicklook raster window and takes no part in time sync. irispy's `calculate_moments` runs on glue-qt's `Worker` on the wavelengths within the wings only, at most 2**21 samples per call; a pixel missing at every wavelength within the wings is NaN in every map, other missing and negative samples count as irispy's 0; no progress feedback.
+- **D47:** User (2026-10-07): the git repositories are the versions that count. glue-solar depends on irispy's git main (`irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git`, Python ≥ 3.13 since irispy #208; #137) and calls its API directly, with no probe for what main has; PyPI releases of glue-solar and irispy wait until the changes are settled and the upstream fixes are in (M4).
 
 ## Milestones
 
@@ -100,7 +101,8 @@ A milestone is done when it has no items left.
 ### Checklist by milestone
 
 **M1**
-- WP0: `wp0-release-tracking`, `wp0-irispy-requests`
+- WP0: `wp0-release-tracking`
+- WP10: `wp10-m1-irispy-main-reads`
 
 **M2**
 - WP2: `wp2-m2-line-definition`, `wp2-m2-input-quality`, `wp2-m2-tests-docs`
@@ -130,7 +132,7 @@ A milestone is done when it has no items left.
 - WP12: `wp12-derived-data-export`, `wp12-time-marker`, `wp12-point-light-curves`, `wp12-path-persist`, `wp12-saved-path-reuse`, `wp12-profile-values-export`, `wp12-export-options`
 
 **M4**
-- WP0: `wp0-restore-full-ci`, `wp0-core-image-artist-bugs`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-track-line-layers`, `wp0-qt-aggregate-slice`, `wp0-track-qt66`, `wp0-core-datetime-export`, `wp0-qt68-cocoa`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-optional-proposals`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`
+- WP0: `wp0-irispy-requests`, `wp0-restore-full-ci`, `wp0-core-image-artist-bugs`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-track-line-layers`, `wp0-qt-aggregate-slice`, `wp0-track-qt66`, `wp0-core-datetime-export`, `wp0-qt68-cocoa`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-optional-proposals`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`
 - WP1: `wp1-m4-autolink-matrix`
 - WP6: `wp6-glue-fit-tool`
 - WP9: `wp9-m4-release-updates`
@@ -148,8 +150,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 
 **M1**
 
-- [ ] **M1** `wp0-release-tracking`: After each glue-core, glue-qt, irispy or astropy release past 1.27.0/0.4.2/0.9.1, raise floors and retire workarounds. astropy 8.0.2 carries the backport of a WCSAxes fix (merged on main 2026-09-11) for a wrong value at a second tick crossing of an arcsec longitude on one spine, which rolled IRIS views can show on 8.0.1: on its release, move D5's baseline and the `iris-plan` envs to it and check a rolled SJI. At the irispy release with #206 and #207, `image_data` takes an SJI's raw int16 from irispy's cube (`cube.data`; a `.fits.gz` passed to `read_sji_lvl2` as its gunzipped bytes, −0.26 GB peak RSS on 4000255147 SJI 1400) instead of its own astropy read, and the comments and docs on 0.9.1's mask, SJI zeroing and repeated gunzips change (`sources/loaders/iris.py`'s "irispy masks only -200", "about four times in all" and `_image_cube_data` docstring, `stack_spectrograms.py`, `test_importer.py`'s "irispy masks only -200", `docs/dev_guide/loader-customization.rst`, and the loading guide's "A slit-jaw or AIA file is still read in full as it opens"; `docs/dev_guide/manual-checks.rst`'s 13 scans of 3860258481, 3 since irispy #210); re-run the benches in `IRIS_PLAN_PROTOTYPES/irispy_main_check_20261002.tar.gz` against the release. Done when each release has a line here naming its PRs, floors and retired workarounds.
-- [ ] **M1** `wp0-irispy-requests`: Get irispy's merged #197-#199, #201 and #205-#207 released (0.10.0; changelog fragments in place; it also carries #208, Python ≥ 3.13, so its floor raises glue-solar's `requires-python` to 3.13) and settle the irispy-side checks (exposure times, rolled-SJI gWCS, binned `slit x position`, per-step pointing). Done when a release has them and each check has a test or user decision.
+- [ ] **M1** `wp0-release-tracking`: After each glue-core, glue-qt or astropy release past 1.27.0/0.4.2/8.0.1, raise floors and retire workarounds. astropy 8.0.2 carries the backport of a WCSAxes fix (merged on main 2026-09-11) for a wrong value at a second tick crossing of an arcsec longitude on one spine, which rolled IRIS views can show on 8.0.1: on its release, move D5's baseline and the `iris-plan-main` envs to it and check a rolled SJI. Done when each release has a line here naming its PRs, floors and retired workarounds.
 
 **L**
 
@@ -158,7 +159,8 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 
 **M4**
 
-- [ ] **M4** `wp0-restore-full-ci`: #130 cut CI to one test job (py313-online, `-n auto`) beside `build_docs` while the work only needs to show it works (user, 2026-10-04). Restore the full matrix before the release: a core job at the `requires-python` floor (py312, py313 once the irispy floor is 0.10.0: irispy #208) that the test (py314, py313-online) and docs jobs wait for, all with `-n auto`. Done when CI runs every job again.
+- [ ] **M4** `wp0-irispy-requests`: Get irispy's merged #197-#199, #201 and #205-#207 released (0.10.0; changelog fragments in place; at M4, D47) and settle the irispy-side checks (exposure times, rolled-SJI gWCS, binned `slit x position`, per-step pointing). Done when a release has them and each check has a test or user decision.
+- [ ] **M4** `wp0-restore-full-ci`: #130 cut CI to one test job (py313-online, `-n auto`) beside `build_docs` while the work only needs to show it works (user, 2026-10-04). Restore the full matrix before the release: a core job at the `requires-python` floor (py313 since #137, irispy #208) that the test (py314, py313-online) and docs jobs wait for, all with `-n auto`. Done when CI runs every job again.
 - [ ] **M4** `wp0-core-image-artist-bugs`: Core PR: a hidden Pixel crosshair reappears at (0, 0), `translate_pixel` raises a bare `Exception`, and a linked-layer Pixel crosshair uses its own dataset instead of the viewer's reference data (#107). Done when all three reproducers pass on a release.
 - [ ] **M4** `wp0-qt-large-data-cancel`: glue-qt report: cancelling the 'Add large data set?' modal breaks later viewers. Done when filed or declined.
 - [ ] **M4** `wp0-astropy-19174`: Add the IRIS -TAB WCS thread crash to astropy#19174. Done when reproduced without `WCS_LOCK` and posted or declined.
@@ -373,13 +375,17 @@ Notes:
 
 Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on files up to 20 GB.
 
+**M1**
+
+- [ ] **M1** `wp10-m1-irispy-main-reads`: With irispy main the baseline (D47), `image_data` takes an SJI's raw int16 from irispy's cube (`cube.data`; a `.fits.gz` passed to `read_sji_lvl2` as its gunzipped bytes, −0.26 GB peak RSS on 4000255147 SJI 1400) instead of its own astropy read, and the comments and docs on 0.9.1's mask, SJI zeroing and repeated gunzips change (`sources/loaders/iris.py`'s "irispy masks only -200", "about four times in all" and `_image_cube_data` docstring, `stack_spectrograms.py`, `test_importer.py`'s "irispy masks only -200", `docs/dev_guide/loader-customization.rst`, and the loading guide's "A slit-jaw or AIA file is still read in full as it opens"); re-run the benches in `IRIS_PLAN_PROTOTYPES/irispy_main_check_20261002.tar.gz`. Done when a gzipped SJI opens with one decompression, through irispy, and no text describes irispy 0.9.1's reads.
+
 **L**
 
 - [ ] **L** `wp10-l-resident-memory`: Bring resident memory within the M0 budgets too: by RSS, 4000005156 scan 0 keeps 8.8 and peaks at 12.3 B/element with the quicklook open (tracemalloc: 5.15 and 9.53; 2026-10-01, `acceptance_20261001.tar.gz`). Since #96 (lazy loading) the RSS increase at open with the quicklook is 1.9 B/element on 4000005156 scan 0, within both; what remains is viewing, which brings a whole map's pages into resident memory (+0.5-0.8 GB on a Mg II k map). Done when the acceptance probe's RSS figures stay ≤ 6 and ≤ 10 B/element after viewing every panel.
 - [ ] **L** `wp10-m3-sit-stare-chunks` (F036): Benchmark lazy sit-and-stare; add an exposure-range load only if it passes 12 GB or 0.15 s per slit step. Done when benchmarked and, if built, ranges match the full load.
 
 Notes:
-- IRIS Level 2 image HDUs are int16 (BSCALE 0.25, BZERO 7992; fill is raw -32768/-32764). irispy 0.9.1's `memmap=True` zeroes SJI fill, so SJIs keep glue-solar's own astropy read and `.fits.gz` SJIs an eager int16 read; irispy main's keeps the raw fill under a lazy mask (`wp0-release-tracking`).
+- IRIS Level 2 image HDUs are int16 (BSCALE 0.25, BZERO 7992; fill is raw -32768/-32764). irispy 0.9.1's `memmap=True` zeroes SJI fill, so SJIs keep glue-solar's own astropy read and `.fits.gz` SJIs an eager int16 read; irispy main's keeps the raw fill under a lazy mask (`wp10-m1-irispy-main-reads`).
 - Raster world→pixel is slow (31 µs/pt at 400 steps, 7 ms/pt on sit-and-stare), so bulk SJI→raster mapping needs an analytic inverse.
 - The lazy-loading RSS and eager-equality probes (`open_rss.py`, `mem.py`, `sji_mem.py` for the irispy SJI fill report) are in `IRIS_PLAN_PROTOTYPES/wp10_lazy_probe_20261001.tar.gz`, for `wp10-l-resident-memory` and `wp10-m3-sit-stare-chunks`.
 
@@ -478,9 +484,10 @@ Planned workarounds are named in their items.
 
 Run all Python in a micromamba env, never a `.venv`; create a new env rather than change one.
 
-- `iris-plan`: the D5 baseline (Python 3.13, PyQt5, astropy 8.0.1, sunpy 8.0.0, editable glue-solar).
-- `iris-plan-floor`: the dependency floors (astropy 8.0.0, ndcube 2.4.0); every PR passes in both.
-- `iris-plan-docs`: `iris-plan` plus Sphinx.
+- `iris-plan-main`: the D5 baseline (Python 3.13, PyQt5, astropy 8.0.1, sunpy 8.0.0, irispy git main installed `--no-deps` with its `filelock`, editable glue-solar); reinstall irispy from git to follow main.
+- `iris-plan-floor-main`: the dependency floors (astropy 8.0.0, ndcube 2.4.0) with irispy git main; every PR passes in both.
+- `iris-plan` and `iris-plan-floor`: the same on irispy 0.9.1, before D47.
+- `iris-plan-docs`: `iris-plan` plus Sphinx (irispy 0.9.1; enough for the docs build).
 - `ruff-0161`: glue-solar's pinned Ruff.
 - `irispy-ports`: irispy development; its editable irispy points at the removed `~/Git/irispy-bursts`, so always run with `PYTHONPATH=<worktree>` from a neutral cwd, never from `~/Git/irispy`.
 
@@ -491,7 +498,7 @@ Headless runs use a scratch `HOME` (glue rewrites `~/.glue/settings.cfg`), offsc
 ```sh
 P=~/Git/glue-solar/IRIS_PLAN_PROTOTYPES
 env HOME="$(mktemp -d)" PYTHONPATH=$P \
-  ~/mamba/envs/iris-plan/bin/python -B $P/run_checks.py \
+  ~/mamba/envs/iris-plan-main/bin/python -B $P/run_checks.py \
   "$PWD:$P" glue_solar --remote-data=any
 ```
 
