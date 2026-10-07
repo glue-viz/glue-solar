@@ -1,6 +1,6 @@
 # Glue speed
 
-A to-do list of performance problems in glue-core 1.27.0, glue-qt 0.4.2 and the libraries under them (astropy, matplotlib, irispy), and in glue-solar itself, found by a profiling survey of real IRIS quicklook workflows on 2026-10-01. Nothing was patched: every item is a measured cost with a cause and a candidate fix, to be re-verified and then fixed (upstream on the user's direction, as M4 work in `IRIS_GLUE_GAP_PLAN.md`; glue-solar's own items are `wp10-m0-quicklook-speed` and `wp10-m1-startup-io-speed` there).
+A to-do list of performance problems in glue-core 1.27.0, glue-qt 0.4.2 and the libraries under them (astropy, matplotlib, irispy), and in glue-solar itself, found by a profiling survey of real IRIS quicklook workflows on 2026-10-01. Nothing was patched: every item is a measured cost with a cause and a candidate fix, to be re-verified and then fixed (upstream on the user's direction, as M4 work in `IRIS_GLUE_GAP_PLAN.md`; glue-solar's own items were M0 work, merged as #90, #95 and #98).
 
 **How it was measured.** Offscreen Qt with Agg on macOS (24 GB), app 1600x1000, device pixel ratio 1 and an emulated 2 (`QT_SCALE_FACTOR=2`), in the `iris-plan` env (glue-core 1.27.0, glue-qt 0.4.2, irispy 0.9.1, astropy 8.0.1, matplotlib 3.11.2, numpy 2.5.3), glue-solar at main 2fdb847 with key results re-run at 5eae565. Data from `~/DATA/IRIS`: 4000255147 (sit-and-stare Si IV 1403, 1600x417x262, and SJI 1400), 4000005156 (two-scan stack, deconvolved SJI 2796), 3602506433 (99 scans), 3824262996. Timings are medians of repeated steps after warm-up, taken with `perf_counter` wrappers at code boundaries (cProfile only for structure; it inflates times about 4.6x). Seven areas were profiled by one agent each, and a second agent re-measured each area's top findings. Offscreen Agg differs from a real screen; real-screen and Wayland numbers were not taken.
 
@@ -1095,7 +1095,7 @@ About 0.28 s for non-Qt users; nothing for IRIS Qt users.
 
 ## glue-solar's own costs
 
-These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` and `wp10-m1-startup-io-speed`.
+These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 
 ### S1. Exposure labels from #87 slow slider steps on origin/main 5eae565 (confirmed by the draw and events verifiers on a git-archive copy).
 
@@ -1129,7 +1129,7 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 ### S4. Plugin load imports irispy and sunpy.map, which pull in reproject, dask, scipy.signal/stats, dkist and aiohttp (confirmed, startup#1 plus the verifier's ndcube correction).
 
 - [ ] Re-verified
-- [ ] Fixed in glue-solar
+- [x] Fixed in glue-solar (#98, 2026-10-02)
 
 - A second chain: stack_spectrograms.py:7-8 imports ndcube, which imports gwcs and through it scipy.optimize.
 - Cost: 0.51-0.56 s of a 2.45 s launch. The fix applied in memory gave 2.446 -> 1.934 s, 596 fewer modules and 49 MB less RSS. Deferring ndcube saves another 0.075 s.
@@ -1139,7 +1139,7 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 ### S5. Header reads decompress whole .fits.gz files (confirmed, startup#3 and io-model#4).
 
 - [ ] Re-verified
-- [ ] Fixed in glue-solar
+- [x] Fixed in glue-solar (#98, 2026-10-02)
 
 - Code: scan_directory (sources/loaders/scan.py:154, fits.getheader) and is_iris_fits (sources/iris.py:19-21).
 - Cost: opening the IRIS browser on /Users/nabil/DATA/IRIS takes 0.98 s, of which the 7 gz files take 0.89 s, on every open and rescan. File > Open identification takes 0.39 s (SJI 1400 of 4000255147) and 0.16 s (SJI 2796 deconvolved).
@@ -1149,7 +1149,7 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 ### S6. Slider drag throttle (confirmed, hidpi-many#2).
 
 - [ ] Re-verified
-- [ ] Fixed in glue-solar
+- [x] Fixed in glue-solar (#98, 2026-10-02)
 
 - Code: tools.py:21-44 at 2fdb847 (29-52 on main). It waits a fixed 100 ms after the first sliderMoved, so the period is 100 ms plus the tick cost.
 - Cost: SJI 5 draws/s at 108-113 ms lag; Si IV 6 draws/s at 64-73 ms lag.
@@ -1189,7 +1189,7 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 ### S10. setup() registers all 87 sunpy colormaps (confirmed, startup#5; events#4's numbers were inflated by a double setup() in its harness).
 
 - [ ] Re-verified
-- [ ] Fixed in glue-solar
+- [x] Fixed in glue-solar (#98, 2026-10-02)
 
 - Code: __init__.py:14-17, 102 colormaps in total.
 - Cost: each QColormapCombo build or resize takes 28-30 ms, against 4.3 ms with glue's 15. That is 57 ms against 8.5 ms per new image viewer, and 0.24 s at quicklook open.
@@ -1214,7 +1214,7 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 ### S13. The quicklook adds the raster to the spectrum panel and then hides it (confirmed, profile-stats#2).
 
 - [ ] Re-verified
-- [ ] Fixed in glue-solar
+- [x] Fixed in glue-solar (#95, 2026-10-01)
 
 - glue's _reset_y_limits computes the hidden layer's whole-cube profile on the main thread first: 368-400 ms of quicklook open on the sit-and-stare cube, 119 ms on the stack.
 - No glue-solar workaround was tested; the fix is glue-core rank 14.
@@ -1227,7 +1227,7 @@ These are glue-solar code; the plan carries them as `wp10-m0-quicklook-speed` an
 - Code: WCSAxes.draw_wcsaxes returns at once when `axison` is False (astropy main core.py:585-587). Hiding a coordinate's ticks and labels saves nothing: `_update_tick_and_label_positions` (core.py:555-582) still updates every coordinate, and astropy #20499 only keeps hidden coordinates off the spines. glue-core has a `show_axes` state on Matplotlib viewers (glue/viewers/matplotlib/state.py:135) that glue-qt never connects.
 - Cost measured: the quicklook on 4000255147 (Si IV 1403 and SJI 1400), offscreen 640x480 canvases, axes on and off alternated in one process while two other jobs ran (ratios hold, absolute times are inflated). One panel's redraw: map 25.5 -> 10.6 ms, spectrogram 29.3 -> 10.8, λ-t 35.0 -> 11.2, SJI 30.6 -> 7.7 (−58 to −75 %). A step with every panel's axes off and every panel redrawn: map wavelength 168 -> 73 ms (−56 %), spectrogram raster step 392 -> 233 (−41 %), λ-t slit 353 -> 189 (−46 %), SJI frame 229 -> 124 (−46 %).
 - What remains with the axes off: 12-28 CoordinateHelper._update_ticks calls per step, from glue's _set_wcs label round trip (WCSAxes.set_xlabel and set_ylabel place ticks eagerly and do not check `axison`, core.py:596-615 in 8.0.1). Ranked item R1 (glue) or a lazy set_xlabel (astropy) removes them.
-- Fix: an opt-in 'Hide axes' in glue-solar, connecting `show_axes` to `set_axis_off`/`set_axis_on` (`wp10-m0-quicklook-speed`); upstream, an axes-options checkbox in glue-qt (`wp0-perf-qt`).
+- Fix: an opt-in 'Hide axes' in glue-solar, connecting `show_axes` to `set_axis_off`/`set_axis_on` (#90); upstream, an axes-options checkbox in glue-qt (`wp0-perf-qt`).
 - Scripts: wcsaxes_study_20261001.tar.gz, `axesoff/ab.py` (one panel at a time) and `axesoff/ab_all.py` (all panels).
 
 ## Decoupling WCSAxes from matplotlib
@@ -1414,6 +1414,7 @@ Built 2026-10-01 as a starting point for in-person discussion. It does step 3 of
 - [ ] Proposed upstream
 
 **Where things are.**
+- 2026-10-07: the fork's heads have moved past the tips below (`wcsaxes-layout-core` b8cef6ea98, `-core-demos` 58d0fb37ec), beside the user's `wcsaxes-layout-core-minimal` and `wcsaxes-layout-model`; the local clone, the demos repository and the env's editable astropy below are gone, so re-clone the fork before any WCSAxes work.
 - Branches on the user's fork nabobalis/astropy: `wcsaxes-layout-core` (4 move commits plus 5 review commits, tip 7f4e1cb774, on upstream main c55a2b2067 of 2026-09-30) and `wcsaxes-layout-core-demos` (the same plus the demos under `demos/wcsaxes_core/`, tip c685829d4a). Pushed 2026-10-01; no PR and no upstream notice. Local clone: `/Users/nabil/Git/astropy-wcsaxes-core`, with a `fork` remote and origin's push URL disabled. `/Users/nabil/Git/astropy` was only read.
 - Demos: `demos/wcsaxes_core/` on the demos branch (`qt/`, `bqplot/`, `check_move.py`, `README.md`), copied from the local repository `/Users/nabil/Git/wcsaxes-core-demos` where they were written (no remote).
 - Env: micromamba `astropy-wcsaxes-core` (Python 3.13.15, numpy 2.5.3, matplotlib 3.11.2, PyQt5 5.15.11, bqplot 0.13.1, pytest-mpl 0.19.0). astropy 8.1.0.dev676 is an editable install of the clone. The linters match astropy's pre-commit pins: ruff 0.15.20, codespell 2.4.3 and numpydoc 1.10.0.
