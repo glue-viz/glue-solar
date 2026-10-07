@@ -290,3 +290,27 @@ NaN, with ``Time`` NaT, ``Exposure time`` NaN and the missing-data mask 1. The 1
   ``quicklook(application, [dc["<raster label> regridded"], dc["<slit-jaw label>"]])`` with the
   labels the data collection shows. ``glue_solar.regrid.regrid_on_time(data)`` regrids a dataset
   there too.
+
+Line moments
+------------
+
+To map a spectral line, select a raster window of one scan in the data collection and choose "IRIS:
+line moments…" from its right-click menu. Type the line centre in Å, the rest wavelength of the
+velocities (the window's reference wavelength is never assumed), and the wings, the wavelengths
+taken below and above it, ±0.5 Å unless changed; a blank centre adds nothing. irispy's
+``calculate_moments`` computes the maps in the background from the wavelengths within the wings
+alone, and adds ``<label> moments <centre>`` on the window's raster steps and slit pixels, with
+their helioprojective coordinates in arcsec:
+
+- ``intensity``, the sum of the samples, in the window's unit;
+- ``centroid`` and ``width``, the line's mean wavelength and standard deviation, in Å;
+- ``velocity`` and ``velocity_width``, the same as Doppler velocities from the centre, in km/s.
+
+A pixel whose every sample within the wings is missing is NaN in every map; irispy counts other
+missing and negative samples as 0. Velocities are relative to the uncorrected Level 2 wavelength
+scale, which can be off by about 5-10 km/s. The new dataset's helioprojective coordinates are
+linked with the other IRIS datasets, its ``meta`` holds ``moments_centre`` and ``moments_wings``,
+and no viewer opens: drag it onto an Image viewer and pick a map as its attribute. A stack of scans
+is refused: its scans load one by one without "Stack sequential raster scans" in the observation
+browser. ``glue_solar.sources.moments.line_moments(data, centre, wings)`` computes the dataset in
+glue's terminal too.

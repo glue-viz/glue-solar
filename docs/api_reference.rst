@@ -19,3 +19,6 @@ API Reference
 
 .. automodapi:: glue_solar.regrid
    :no-inheritance-diagram:
+
+.. automodapi:: glue_solar.sources.moments
+   :no-inheritance-diagram:
