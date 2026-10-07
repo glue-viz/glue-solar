@@ -137,7 +137,9 @@ def _ask(data):
     buttons.accepted.connect(dialog.accept)
     buttons.rejected.connect(dialog.reject)
     form.addRow(buttons)
-    text = centre.text().strip() if dialog.exec() == QtWidgets.QDialog.Accepted else ""
+    accepted = dialog.exec() == QtWidgets.QDialog.Accepted
+    dialog.deleteLater()  # else each run keeps a hidden dialog under the main window
+    text = centre.text().strip() if accepted else ""
     if not text:
         return None
     try:
