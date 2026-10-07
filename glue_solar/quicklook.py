@@ -443,6 +443,13 @@ class Coordinator(HubListener):
         finally:
             self._busy = False
 
+    @contextmanager
+    def showing(self, viewer, data):
+        """Let ``viewer`` turn to ``data`` and its slices as a blink flip: the point and the time master stay (D41)."""
+        self._shows[viewer] = data  # not new data for register's slices_changed to join the point on
+        with self._writing():
+            yield
+
     def _subset_changed(self, message):
         subset = message.subset
         state = subset.subset_state

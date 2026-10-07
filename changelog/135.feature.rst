@@ -1,0 +1,1 @@
+"Set blink partner here" and "Blink" in the Image viewer's "Coordinate" menu alternate a viewer between two positions, such as the quicklook map at Mg II k and at Si IV 1403, every 0.25, 0.5, 1 or 2 s ("Blink interval"); the point, the other panels, the time master and the Pixel tool stay.

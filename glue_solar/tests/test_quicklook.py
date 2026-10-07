@@ -5,6 +5,7 @@ from collections import Counter
 
 import numpy as np
 import pytest
+from echo import delay_callback
 from glue.config import settings
 from glue.core import Data
 from glue.core.component import DateTimeComponent
@@ -175,13 +176,14 @@ def test_menu_entries_keep_the_pixel_tool(app, scans):
 
     menu_action(raster_map, "Time master").trigger()
     assert coord.masters == {observation_key(scan): scan}
-    menu_action(raster_map, "Clear point").trigger()
-    assert coord.point is None
-    assert not app.data_collection.subset_groups[0].subset_state.to_mask(scan).any()
-    for _ in range(2):
+    entries = ["Clear point", "Time master", "Set blink partner here", "Blink", "Blink"]
+    intervals = menu_action(raster_map, "Blink interval").menu().actions()
+    for action in [*(menu_action(raster_map, text) for text in entries), *intervals]:
+        action.trigger()
         assert raster_map.toolbar.active_tool.tool_id == "image:point_selection"
         assert raster_map.toolbar.actions["image:point_selection"].isChecked()
-        menu_action(raster_map, "Time master").trigger()
+    assert coord.point is None
+    assert not app.data_collection.subset_groups[0].subset_state.to_mask(scan).any()
 
 
 def test_a_slit_jaw_click_outside_a_quicklook_stays_a_slit_jaw_point(app, qtbot, irispy_test_files):
@@ -4169,3 +4171,197 @@ def test_the_spectrum_panel_labels_the_main_lines(bare_app, scans):
     viewers = quicklook(bare_app, [scans[0]])  # C II 1336
     tool = viewers["spectrum"].toolbar.tools["solar:lines"]
     assert sorted(x for _, xs in tool.positions() for x in xs) == pytest.approx([1334.5323, 1335.6628, 1335.7079])
+
+
+# Blink (D41): one viewer alternating two positions, each a dataset and its slider position
+
+
+def show(viewer, data, slices):
+    """Show ``data`` at ``slices`` on the viewer's axes, as its options' reference data and axes and its sliders do."""
+    state = viewer.state
+    x, y = state.x_att.axis, state.y_att.axis
+    state.reference_data = data
+    state.x_att, state.y_att = data.pixel_component_ids[x], data.pixel_component_ids[y]
+    state.slices = slices
+
+
+def position(viewer):
+    """The viewer's dataset, slices, shown axes, limits and the datasets whose layers are visible."""
+    state = viewer.state
+    visible = {layer.layer.data.label for layer in state.layers if layer.visible}
+    limits = (state.x_min, state.x_max, state.y_min, state.y_max)
+    return state.reference_data, tuple(state.slices), state.x_att.axis, state.y_att.axis, limits, visible
+
+
+def blink_windows(app, qtbot, irispy_test_files):
+    """
+    The quicklook of 3860258481's scan 0 and its three windows, with Si IV 1403 added to the Mg II k map and set as
+    its blink partner at wavelength 20; the map is back on Mg II k, zoomed in.
+    """
+    c2, si4, mg = windows_of(irispy_test_files, "scan")
+    viewers = quicklook(app, [c2, si4, mg], window=THREE)
+    raster_map = viewers["map"]
+    slices = raster_map.state.slices
+    raster_map.add_data(si4)
+    show(raster_map, si4, (0, 0, 20))
+    menu_action(raster_map, "Set blink partner here").trigger()
+    show(raster_map, mg, slices)
+    state = raster_map.state
+    with delay_callback(state, "x_min", "x_max", "y_min", "y_max"):
+        state.x_min, state.x_max, state.y_min, state.y_max = 0.5, 5.5, 20.5, 80.5
+    qtbot.wait(20)
+    return viewers, (c2, si4, mg)
+
+
+def test_blink_alternates_two_windows_exactly(bare_app, qtbot, irispy_test_files):
+    viewers, (_, si4, mg) = blink_windows(bare_app, qtbot, irispy_test_files)
+    raster_map = viewers["map"]
+    state = raster_map.state
+    tool, blink = raster_map.toolbar.tools["solar:coordinate"], menu_action(raster_map, "Blink")
+
+    def styles():
+        return [
+            (layer.stretch, layer.percentile, layer.v_min, layer.v_max)
+            for layer in state.layers
+            if hasattr(layer, "stretch")
+        ]
+
+    before = styles()
+    zoom = (state.x_min, state.x_max, state.y_min, state.y_max)
+    a = (mg, tuple(state.slices), 0, 1, zoom, {mg.label})  # Si IV 1403 hidden while Mg II k shows
+    b = (si4, (0, 0, 20), 0, 1, zoom, {si4.label})
+    shown = []
+    tool._blink.timeout.connect(lambda: shown.append(position(raster_map)))
+    blink.trigger()
+    shown.insert(0, position(raster_map))  # the first flip, at once
+    assert blink.isChecked()
+    tool._blink.setInterval(1)
+    qtbot.waitUntil(lambda: len(shown) >= 6)
+    blink.trigger()
+    assert not tool._blink.isActive()
+    assert not blink.isChecked()
+    assert shown == [(b, a)[i % 2] for i in range(len(shown))]
+    # each layer keeps its stretch and limits, and both windows' layers show again
+    assert styles() == before
+    assert position(raster_map)[-1] == {si4.label, mg.label}
+    assert raster_map.toolbar.active_tool.tool_id == "image:point_selection"
+    # a new partner mid-blink stops it, showing the window left
+    blink.trigger()
+    menu_action(raster_map, "Set blink partner here").trigger()
+    assert not tool._blink.isActive()
+    assert position(raster_map)[-1] == {si4.label, mg.label}
+
+
+def test_what_moves_on_a_blink(bare_app, qtbot, irispy_test_files):
+    viewers, (_, si4, mg) = blink_windows(bare_app, qtbot, irispy_test_files)
+    raster_map = viewers["map"]
+    tool, coord = raster_map.toolbar.tools["solar:coordinate"], coordinator(bare_app.data_collection)
+    wavelength = raster_map.state.slices[2]
+    master = coord._master(observation_key(mg))
+
+    def flip():
+        tool._flip()
+        assert not coord._timer.isActive()  # no time sync, and the map does not join the point
+
+    # the map alone, on the partner's window and wavelength and back; the point, the panels and the master stay
+    assert changes(bare_app, qtbot, viewers, flip) == {"map": (None, None, 20)}
+    assert raster_map.state.reference_data is si4
+    assert changes(bare_app, qtbot, viewers, flip) == {"map": (None, None, wavelength)}
+    assert raster_map.state.reference_data is mg
+    assert coord._master(observation_key(mg)) is master
+
+
+def test_blink_in_one_cube(bare_app, qtbot, irispy_test_files):
+    *_, mg = windows_of(irispy_test_files, "scan")
+    viewers = quicklook(bare_app, [mg])
+    raster_map, spectrogram = viewers["map"], viewers["spectrogram"]
+    state = raster_map.state
+    wavelength = state.slices[2]
+    slide(raster_map, 2, 10)
+    menu_action(raster_map, "Set blink partner here").trigger()
+    slide(raster_map, 2, wavelength)
+    limits = (state.x_min, state.x_max, state.y_min, state.y_max)
+    slider = raster_map.options_widget().slice_helper._sliders[2]
+    tool = raster_map.toolbar.tools["solar:coordinate"]
+    # the wavelength slider alone, the same widget, as a frame slider would in a blink in time
+    assert changes(bare_app, qtbot, viewers, menu_action(raster_map, "Blink").trigger) == {"map": (None, None, 10)}
+    assert changes(bare_app, qtbot, viewers, tool._flip) == {"map": (None, None, wavelength)}
+    assert raster_map.options_widget().slice_helper._sliders[2] is slider
+    assert (state.x_min, state.x_max, state.y_min, state.y_max) == limits
+    menu_action(raster_map, "Blink").trigger()
+    # a blink of the spectrogram's step leaves the point, which its slider would move
+    tool = spectrogram.toolbar.tools["solar:coordinate"]
+    assert spectrogram.state.slices[0] != 2
+    tool.partner = (mg, (2, *spectrogram.state.slices[1:]))
+    assert changes(bare_app, qtbot, viewers, tool._flip) == {"spectrogram": (2, None, None)}
+
+
+def test_blink_interval(app, scans):
+    scan, _ = scans
+    app.data_collection.append(scan)
+    raster_map = image(app, scan, 0, 1)
+    tool = raster_map.toolbar.tools["solar:coordinate"]
+    intervals = menu_action(raster_map, "Blink interval").menu().actions()
+    assert [action.text() for action in intervals] == ["0.25 s", "0.5 s", "1 s", "2 s"]
+    assert [action.isChecked() for action in intervals] == [False, True, False, False]
+    assert tool._blink.interval() == 500
+    menu_action(raster_map, "Set blink partner here").trigger()
+    menu_action(raster_map, "Blink").trigger()
+    intervals[0].trigger()  # while it blinks
+    assert (tool._blink.interval(), tool._blink.isActive()) == (250, True)
+    assert [action.isChecked() for action in intervals] == [True, False, False, False]
+    intervals[3].trigger()
+    assert tool._blink.interval() == 2000
+    assert [action.isChecked() for action in intervals] == [False, False, False, True]
+
+
+def test_blink_stops_when_its_viewer_closes(bare_app, qtbot, monkeypatch, irispy_test_files):
+    viewers, _ = blink_windows(bare_app, qtbot, irispy_test_files)
+    raster_map = viewers["map"]
+    tool = raster_map.toolbar.tools["solar:coordinate"]
+    flips = []
+    tool._blink.timeout.connect(lambda: flips.append(1))
+    menu_action(raster_map, "Blink").trigger()
+    tool._blink.setInterval(1)
+    qtbot.waitUntil(lambda: len(flips) >= 2)
+    # a close cancelled at glue-qt's confirmation leaves it blinking
+    raster_map._warn_close = True
+    monkeypatch.setattr(raster_map, "_confirm_close", lambda: False)
+    assert not raster_map._mdi_wrapper.close()
+    assert tool._blink.isActive()
+    raster_map.close(warn=False)
+    assert not tool._blink.isActive()
+    flipped = len(flips)
+    qtbot.wait(20)
+    assert len(flips) == flipped
+
+
+def test_blink_stops_when_the_partner_goes(bare_app, qtbot, monkeypatch, irispy_test_files):
+    viewers, (c2, si4, mg) = blink_windows(bare_app, qtbot, irispy_test_files)
+    raster_map = viewers["map"]
+    tool, blink = raster_map.toolbar.tools["solar:coordinate"], menu_action(raster_map, "Blink")
+    a = position(raster_map)[:-1]
+    blink.trigger()
+    tool._flip()  # Mg II k again, against Si IV 1403
+    bare_app.data_collection.remove(si4)
+    tool._blink.setInterval(1)
+    qtbot.waitUntil(lambda: not tool._blink.isActive())
+    assert not blink.isChecked()
+    assert position(raster_map) == (*a, {mg.label})
+    # Blink with no partner says why
+    shown = refusals(monkeypatch)
+    blink.trigger()
+    assert shown == ["Could not blink\nChoose 'Set blink partner here' first, at the position to blink against."]
+    assert not blink.isChecked()
+    # a shown window removed: glue shows the partner's, which the blink had hidden, and the blink stops showing it
+    raster_map.add_data(c2)
+    show(raster_map, c2, (0, 0, 5))
+    menu_action(raster_map, "Set blink partner here").trigger()
+    show(raster_map, mg, a[1])
+    blink.trigger()
+    assert raster_map.state.reference_data is c2
+    bare_app.data_collection.remove(c2)
+    qtbot.waitUntil(lambda: not tool._blink.isActive())
+    assert not blink.isChecked()
+    assert raster_map.state.reference_data is mg
+    assert all(layer.visible for layer in raster_map.state.layers)

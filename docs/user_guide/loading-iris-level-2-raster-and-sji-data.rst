@@ -110,8 +110,9 @@ step or exposure; on a stack it stays on the scan that was displayed when you cl
 swap the axes of a viewer of that dataset, for example turning the raster map into wavelength
 against slit, the viewer's new step slider moves to the point. Wavelength sliders are never moved.
 The "Coordinate" menu in the Image Viewer toolbar has "Time master", which records the displayed
-dataset as the time reference of its observation (same OBSID and STARTOBS), "Clear point", and
-"Go to UTC…", which moves the time master, and "Loop…" for the frame, exposure, step or scan slider (see
+dataset as the time reference of its observation (same OBSID and STARTOBS), "Clear point",
+"Go to UTC…", which moves the time master, "Loop…" for the frame, exposure, step or scan slider, and
+"Set blink partner here" and "Blink", which alternate the viewer between two positions (see
 :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). The Pixel tool stays active after
 each entry.
 
