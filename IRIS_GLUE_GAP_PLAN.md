@@ -28,13 +28,13 @@ Out of scope:
 
 ## Current state, 2026-10-07
 
-**Resume here.** M0 is done. Main is at 390f6f7 (#134 labels the main IRIS lines on Profile viewers, D44; #133 opens each quicklook panel with its band's stretch, D43; #132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#134; the IRIS user guide is five pages: loading, `iris-quicklook`, `viewer-tools-and-windows`, the Profile guide and `scripting-iris-data`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: `wp5-m1-spectral-blink` (designed: D41), in progress since 2026-10-07 in `~/Git/glue-solar-wp5-m1-spectral-blink`; the other M1 items wait on irispy 0.10.0 and astropy 8.0.2, neither out on 2026-10-07.
+**Resume here.** M0 is done. Main is at 2a2e73a (#135 blinks a viewer between two positions, D41; #134 labels the main IRIS lines on Profile viewers, D44; #133 opens each quicklook panel with its band's stretch, D43; #132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#135; the IRIS user guide is five pages: loading, `iris-quicklook`, `viewer-tools-and-windows`, the Profile guide and `scripting-iris-data`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. M1's two items wait on irispy 0.10.0 and astropy 8.0.2, neither out on 2026-10-07; next: M2, starting with `wp2-m2-moment-maps`, which the other WP2 items depend on.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
 **Releases.** glue-core 1.27.0, glue-qt 0.4.2, irispy-lmsal 0.9.1 (all fixes glue-solar needs). irispy main (b204036, unreleased) has #197 (UV bursts), #198 (wavelength drift), #199 (Mg II features), #201 (moment uncertainties) and #205-#207 (-200 and -199 are fill everywhere; memmap reads keep the raw fill under a lazy mask; one gunzip; no FITS verify; analysis helpers reject raw data; `sunpy.map` only for maps), and since 0ee8fad #208 (Python ≥ 3.13, `wp0-irispy-requests`), #210 (the 3860258481 test raster cut to 3 scans), #214-#216 (radiation temperature, heliocentric mu in the meta, full-disk mosaics), #218 (fiducial marks) and #220-#222 (Si IV and Mg II starting models, `maps_from_fit`, `subtract_background`; WP6 notes); the user's drafts #209 (line database, `wp5-irispy-line-database`) and #223 (`average_window`) are open. glue-solar passed against 0ee8fad in both envs, its lazy raster opens cost what they do on 0.9.1 and its SJI and AIA opens no longer read the file (`wp0-irispy-requests`); b204036 is unchecked. Awaited: astropy 8.0.2, with a WCSAxes tick-crossing fix for rolled views (`wp0-release-tracking`).
 
-**Worktrees.** `~/Git/glue-solar` (this plan) and `~/Git/glue-solar-wp5-m1-spectral-blink` (`wp5-m1-spectral-blink`); the other glue-solar worktrees are gone, so a long probe gets its own detached main checkout as its `TREE` (`git -C ~/Git/glue-solar worktree add --detach <dir> origin/main`). irispy: `~/Git/irispy-line-database` (`line-database`, draft #209); the port worktrees are gone, and `~/Git/irispy` is the user's (on `integrate-window`, draft #223). Upstream speed fixes are branches `perf-g*` of `~/Git/glue` and `perf-q*` of `~/Git/glue-qt`, pushed to the user's forks, and astropy's `perf-a1-wcsaxes-pytest-import`, on the user's fork only (WP0 notes); no worktrees. WCSAxes core: on the user's astropy fork only (`wcsaxes-layout-core`, `-core-demos`, `-core-minimal`, `wcsaxes-layout-model`; GLUE_SPEED.md 'Matplotlib-free core prototype'); the `~/Git/astropy-wcsaxes-core` clone and `~/Git/wcsaxes-core-demos` are gone. The `glue-solar`, `irispy-ports` and `astropy-wcsaxes-core` envs are editable installs of removed checkouts (`~/Git/glue-solar-main`, `~/Git/irispy-bursts`, `~/Git/astropy-wcsaxes-core`); reinstall before use. Never touch `~/Git/astropy`, the user's own checkout.
+**Worktrees.** `~/Git/glue-solar` (this plan); the other glue-solar worktrees are gone, so a long probe gets its own detached main checkout as its `TREE` (`git -C ~/Git/glue-solar worktree add --detach <dir> origin/main`). irispy: `~/Git/irispy-line-database` (`line-database`, draft #209); the port worktrees are gone, and `~/Git/irispy` is the user's (on `integrate-window`, draft #223). Upstream speed fixes are branches `perf-g*` of `~/Git/glue` and `perf-q*` of `~/Git/glue-qt`, pushed to the user's forks, and astropy's `perf-a1-wcsaxes-pytest-import`, on the user's fork only (WP0 notes); no worktrees. WCSAxes core: on the user's astropy fork only (`wcsaxes-layout-core`, `-core-demos`, `-core-minimal`, `wcsaxes-layout-model`; GLUE_SPEED.md 'Matplotlib-free core prototype'); the `~/Git/astropy-wcsaxes-core` clone and `~/Git/wcsaxes-core-demos` are gone. The `glue-solar`, `irispy-ports` and `astropy-wcsaxes-core` envs are editable installs of removed checkouts (`~/Git/glue-solar-main`, `~/Git/irispy-bursts`, `~/Git/astropy-wcsaxes-core`); reinstall before use. Never touch `~/Git/astropy`, the user's own checkout.
 
 ## Decisions
 
@@ -99,7 +99,6 @@ A milestone is done when it has no items left.
 
 **M1**
 - WP0: `wp0-release-tracking`, `wp0-irispy-requests`
-- WP5: `wp5-m1-spectral-blink`
 
 **M2**
 - WP2: `wp2-m2-moment-maps`, `wp2-m2-line-definition`, `wp2-m2-input-quality`, `wp2-m2-tests-docs`
@@ -275,7 +274,7 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 
 **M3**
 
-- [ ] **M3** `wp4-playback-extras` (F086, F087, F119): Add frame increment, bounce, 'N frames around current' and temporal blink (via `wp5-m1-spectral-blink`) to the Coordinate menu's Loop. Done when each works on 4000255147 SJI 1400. Depends: wp5-m1-spectral-blink.
+- [ ] **M3** `wp4-playback-extras` (F086, F087, F119): Add frame increment, bounce, 'N frames around current' and temporal blink (#135's same-dataset flip: `CoordinateTool.partner` and `blink`) to the Coordinate menu's Loop. Done when each works on 4000255147 SJI 1400.
 
 **L**
 
@@ -289,16 +288,12 @@ Notes:
 
 ### WP5: Spectral units, rest wavelength, line list, blink and Doppler
 
-Blink now; the fitted rest wavelength in M3; the irispy line database, line groups, rest wavelength, km/s and Doppler images later; in `glue_solar/lines.py` (the main lines, #134) and `glue_solar/tools.py`.
-
-**M1**
-
-- [ ] **M1** `wp5-m1-spectral-blink` (F076): An Image tool alternates two (dataset, wavelength) positions in one viewer; as D41 designs it. Done when on 4000005156 Mg II k against Si IV 1403 flips exactly, ≤ 0.25 s each.
+Blink is on main (#135); the fitted rest wavelength, reference blink and mean-spectrum comparison in M3; the irispy line database, line groups, rest wavelength, km/s and Doppler images later; in `glue_solar/lines.py` (the main lines, #134) and `glue_solar/tools.py`.
 
 **M3**
 
 - [ ] **M3** `wp5-m3-rest-from-measurement` (F167, F168): A Gaussian + constant Profile Fit fitter (`fit_plugin`) and a recipe shifting the moments centre by a fitted photospheric line (drift: irispy #198). Done when the fitted O I 1355.598 centre equals a direct astropy fit. Depends: wp2-m2-line-definition.
-- [ ] **M3** `wp5-m3-reference-blink` (F110): With the interaction designed for `wp5-m1-spectral-blink`, Blink two SJI channels in playback, each with its own limits, paired by the time sync. Done when on the 20210905 fixture SJI 1400 and 2796 align within 1 pixel. Depends: wp5-m1-spectral-blink.
+- [ ] **M3** `wp5-m3-reference-blink` (F110): With #135's blink, blink two SJI channels in playback, each with its own limits, paired by the time sync. Done when on the 20210905 fixture SJI 1400 and 2796 align within 1 pixel.
 - [ ] **M3** `wp5-m3-mean-spectrum-compare` (F079): 'Subtract mean spectrum' adds flux minus the fill-excluded nanmean spectrum as a derived component. Done when a Pixel-subset Profile equals spectrum minus nanmean within 1e-6 on 4000005156 Si IV 1403 and a 4-D stack.
 
 **L**
