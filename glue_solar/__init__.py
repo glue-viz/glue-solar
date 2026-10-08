@@ -50,6 +50,7 @@ def setup():
             stretches.add(f"gamma_{gamma}", stretch, display=f"Gamma {gamma}")
     wanted = [
         tools.FollowLockTool,
+        tools.MeasureTool,
         tools.FrameTimeTool,
         tools.CoordinateTool,
         tools.HideAxesTool,

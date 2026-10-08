@@ -21,6 +21,7 @@ from glue.viewers.image.layer_artist import ImageLayerArtist
 from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.matplotlib.mpl_axes import update_appearance_from_settings
+from glue.viewers.matplotlib.toolbar_mode import ToolbarModeBase
 from glue_qt.utils.decorators import messagebox_on_error
 from glue_qt.viewers.image import ImageViewer
 from matplotlib import animation, rcParams
@@ -60,9 +61,11 @@ __all__ = [
     "FollowLockTool",
     "FrameTimeTool",
     "HideAxesTool",
+    "MeasureTool",
     "PerFrameLimitsTool",
     "PhysicalAspectTool",
     "SaveSequenceTool",
+    "sky_length",
 ]
 
 # Whether a new Image viewer shows its axes; the user guide says how to change it
@@ -594,25 +597,36 @@ class PerFrameLimitsTool(Tool):
             if layer.layer is not reference_data and not getattr(layer, "stretch_global", True):
                 layer.stretch_global = True
 
-def _arcsec_ratio(viewer):
+
+def _sky_coords(viewer):
     """
-    The angle a pixel spans along the viewer's y axis over the angle it spans along x, on average across the image
-    through the view centre, or None unless the displayed axes show a longitude and a latitude alone, of any celestial
-    frame, and neither is the exposures of a sit-and-stare raster, which the pointing and the solar rotation move by
-    a fraction of a slit pixel. Averaged between the outer pixel centres, since -TAB rasters have no coordinates past
-    them and their steps differ by up to 15 % from one to the next.
+    The WCSAxes longitude and latitude, of any celestial frame, of the Image viewer's displayed axes, or None unless
+    the axes show these two alone and neither is the exposures of a sit-and-stare raster, which the pointing and the
+    solar rotation move by a fraction of a slit pixel.
     """
     state = viewer.state
     data = state.reference_data
-    if data is None or None in (state.x_att, state.y_att, state.x_min, state.y_min):
+    if data is None or None in (state.x_att, state.y_att):
         return None
     if _is_sit_and_stare(data) and 0 in (state.x_att.axis, state.y_att.axis):  # an index, as its ticks show
         return None
     angles = {coord.coord_type: coord for coord in viewer.axes.coords if coord.coord_index is not None}
     if sorted(angles) != ["latitude", "longitude"]:  # also no wavelength or time beside them
         return None
-    lon, lat = angles["longitude"], angles["latitude"]
-    nx, ny = (data.shape[att.axis] - 1 for att in (state.x_att, state.y_att))
+    return angles["longitude"], angles["latitude"]
+
+
+def _arcsec_ratio(viewer):
+    """
+    The angle a pixel spans along the viewer's y axis over the angle it spans along x, on average across the image
+    through the view centre, or None off the sky (`_sky_coords`). Averaged between the outer pixel centres, since -TAB
+    rasters have no coordinates past them and their steps differ by up to 15 % from one to the next.
+    """
+    state, angles = viewer.state, _sky_coords(viewer)
+    if angles is None or None in (state.x_min, state.y_min):
+        return None
+    lon, lat = angles
+    nx, ny = (state.reference_data.shape[att.axis] - 1 for att in (state.x_att, state.y_att))
     x, y = np.clip((state.x_min + state.x_max) / 2, 0, nx), np.clip((state.y_min + state.y_max) / 2, 0, ny)
     world = lon.transform.transform(np.array([[0, y], [nx, y], [x, 0], [x, ny]]))
     lons, lats = (u.Quantity(world[:, coord.coord_index], coord.coord_unit) for coord in (lon, lat))
@@ -793,6 +807,108 @@ class ColourBarTool(Tool):
         canvas = self.viewer.figure.canvas  # glue places the axes and fits their aspect at a resize
         canvas.callbacks.process("resize_event", ResizeEvent("resize_event", canvas))
         _keep_mouse_mode(self.viewer)
+
+
+def sky_length(viewer, x, y):
+    """
+    The length of the line through the points ``x``, ``y`` (two or more) of the Image viewer's displayed axes, as
+    ``(pixels, arcsec, km)``: in data pixels; on the sky, the great-circle angles between the world coordinates at the
+    ends of its segments, added up; and on the Sun, that angle in radians times the reference data's ``DSUN_OBS``, the
+    observer's distance from the Sun's centre: a length in the plane of the sky through the Sun's centre, with no
+    correction for foreshortening. The arcsec are None off the sky (`_sky_coords`) or past the outer steps of a -TAB
+    raster, which has no coordinates there; the km also without ``DSUN_OBS``.
+    """
+    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    pixels = float(np.hypot(np.diff(x), np.diff(y)).sum())
+    angles = _sky_coords(viewer)
+    if angles is None:
+        return pixels, None, None
+    world = angles[0].transform.transform(np.column_stack([x, y]))
+    lon, lat = (u.Quantity(world[:, coord.coord_index], coord.coord_unit) for coord in angles)
+    arcsec = angular_separation(lon[:-1], lat[:-1], lon[1:], lat[1:]).sum().to_value(u.arcsec)
+    if not np.isfinite(arcsec):
+        return pixels, None, None
+    distance = viewer.state.reference_data.meta.get("DSUN_OBS")  # in m, as FITS gives it
+    return pixels, float(arcsec), float((arcsec * u.arcsec).to_value(u.rad) * distance / 1000) if distance else None
+
+
+@viewer_tool
+class MeasureTool(ToolbarModeBase):
+    """
+    Measure a line dragged on the Image viewer's image: its length in data pixels, on the sky in arcsec and on the Sun
+    in km (`sky_length`), in the status bar beside the mouse-over readout, which each mouse move replaces. Where the
+    displayed axes are not a longitude and a latitude alone, such as a spectrogram, a slit-jaw image's x against time
+    or a sit-and-stare raster's exposures against its slit, in pixels only. The line and its length stay until the
+    next drag, or until other axes or reference data are shown, which they would not describe; another mouse mode
+    hides them while it is on.
+    """
+
+    icon = "pencil"
+    tool_id = "solar:measure"
+    action_text = "Measure"
+    tool_tip = "Drag a line to measure its length in pixels, arcsec and km"
+    status_tip = "DRAG a line to measure its length in pixels, arcsec and km"
+
+    def __init__(self, viewer, **kwargs):
+        super().__init__(viewer, **kwargs)
+        self._start = None  # the position the drag started at
+        self._line = viewer.axes.add_line(Line2D([], [], color="#669dff", lw=1.5, zorder=100, visible=False))
+        self.label = QtWidgets.QLabel()
+        viewer.statusBar().insertPermanentWidget(0, self.label)
+        self.label.hide()
+        for prop in ("reference_data", "x_att", "y_att"):
+            viewer.state.add_callback(prop, self._clear)
+
+    def activate(self):
+        # the last line again, as after glue-solar's buttons, which glue-qt ends the mode for
+        self.label.show()
+        self._line.set_visible(len(self._line.get_xdata()) > 0)
+        self.viewer.figure.canvas.draw_idle()
+        super().activate()
+
+    def close(self):
+        for prop in ("reference_data", "x_att", "y_att"):
+            self.viewer.state.remove_callback(prop, self._clear)
+        super().close()
+
+    def _clear(self, *_):
+        self._start = None
+        self._line.set_data([], [])
+        self._line.set_visible(False)
+        self.label.setText("")
+        self.viewer.figure.canvas.draw_idle()
+
+    def deactivate(self):
+        self._start = None
+        self.label.hide()
+        if self.viewer is not None:  # None as the viewer closes
+            self._line.set_visible(False)
+            self.viewer.figure.canvas.draw_idle()
+        super().deactivate()
+
+    def press(self, event):
+        if event.button == MouseButton.LEFT and event.inaxes is self.viewer.axes:
+            self._start = event.xdata, event.ydata
+            self.move(event)
+
+    def move(self, event):
+        if self._start is None or event.inaxes is not self.viewer.axes:
+            return
+        x, y = (self._start[0], event.xdata), (self._start[1], event.ydata)
+        self._line.set_data(x, y)
+        self._line.set_visible(True)
+        pixels, arcsec, km = sky_length(self.viewer, x, y)
+        text = f"Length {pixels:.1f} px"
+        if arcsec is None:
+            text += " (no sky length here)"
+        else:
+            text += f" · {_world_text(arcsec * u.arcsec)}" + ("" if km is None else f" · {km:,.0f} km")
+        self.label.setText(text)
+        self.viewer.figure.canvas.draw_idle()
+
+    def release(self, event):
+        self.move(event)
+        self._start = None
 
 
 def _follows_mouse(group):
