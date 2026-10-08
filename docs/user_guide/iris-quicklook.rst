@@ -137,8 +137,9 @@ show another axis than wavelength, such as the spectrogram turned into a map, ad
 wavelength to both, and one turned to show wavelength against the wavelength panel's step, exposure
 or scan axis has its lines; on a stack, wavelength against step has only the point's. The lines
 follow the sliders, the point, the time master, axis changes and the x unit; they show in "Save plot
-to file", but not in a saved session or "Save Python script to reproduce plot". Zooming, panning or
-typing limits on the spectrum panel's x axis gives the wavelength panel the same wavelength range.
+to file" and "Save frames or movie…", but not in a saved session or "Save Python script to reproduce
+plot". Zooming, panning or typing limits on the spectrum panel's x axis gives the wavelength panel
+the same wavelength range.
 On the "Navigate" tab of the spectrum panel's "Options" (see :ref:`the 1D Profile guide
 <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`), a click on the spectrum moves the map, and
 its lines, to the nearest wavelength; with glue-qt 0.4.2 only while the x unit is Å, the data's own.
@@ -191,9 +192,9 @@ step's time, whichever frame is shown; on a stack, the steps of the scan its pan
 of the raster (steps or exposures against slit) draws a dashed white line at the step or exposure,
 in the scan it shows, nearest the time master's time, hidden when none is within half its time step
 ("NO MATCH"); under a slit-jaw master it marks the step taken at the time of the frame shown. Like
-the other lines they show in "Save plot to file", but not in a saved session or "Save Python script
-to reproduce plot". A stack's slits are placed with its first scan's pointing, a few slit-jaw pixels
-off on a later scan; open that scan on its own to place them exactly.
+the other lines they show in "Save plot to file" and "Save frames or movie…", but not in a saved
+session or "Save Python script to reproduce plot". A stack's slits are placed with its first scan's
+pointing, a few slit-jaw pixels off on a later scan; open that scan on its own to place them exactly.
 
 A click with the Pixel tool on a slit-jaw viewer of the quicklook moves the point to the raster
 pixel there, placed with the displayed frame's own pointing (``sji_to_raster``, see

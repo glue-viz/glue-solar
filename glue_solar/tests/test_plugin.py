@@ -56,6 +56,8 @@ def test_setup_registers_hooks():
     assert ImageViewer.tools.count("solar:colour_bar") == 1
     assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
     assert ImageViewer.tools.count("solar:cursor_readout") == (0 if hasattr(ImageViewer, "cursor_status") else 1)
+    assert ImageViewer.subtools["save"].count("solar:save_sequence") == 1
+    assert "solar:save_sequence" not in ProfileViewer.subtools["save"]  # glue's Matplotlib viewers share one list
     iris = next(f for f in data_factory if f.label == "IRIS Level 2 FITS")
     for label in ("FITS file", "sunpy Map"):  # both also match IRIS files; ours must win
         other = next(f for f in data_factory if f.label == label)

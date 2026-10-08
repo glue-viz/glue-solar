@@ -78,8 +78,21 @@ toolbar has:
   image. "Save Python script to reproduce plot" and saved sessions leave it out. The bar and its
   ticks stay when "Hide axes" is on.
 - A button with a spectrum icon and no tooltip, which opens a 1D Profile viewer of the image's data.
-- The save menu, with "Save plot to file" and "Save Python script to reproduce plot", and the
-  window menu, with "Move to another tab" and "Change viewer title".
+- The save menu, with "Save plot to file", glue-solar's "Save frames or movie…" and "Save Python
+  script to reproduce plot", and the window menu, with "Move to another tab" and "Change viewer
+  title". "Save frames or movie…" saves the image at each index of a slider, from a first to a last,
+  as "Save plot to file" would save it there: as PNG files named after the file chosen with the index
+  added (``sji.png`` gives ``sji_0000.png``, ``sji_0001.png``, …), or as a movie at 10 frames per
+  second, an MP4 where ffmpeg is installed or else a GIF. A GIF is kept in memory until it is
+  written, about 1.4 MB a frame of 800 × 600 pixels, so save long sequences as an MP4 or as PNG
+  files. Of several sliders it asks which, offering first that of the data's first axis (a slit-jaw
+  image's frames, a sit-and-stare raster's exposures, a scanning raster's steps or a stack's scans),
+  then for the first and last index, as "Loop…" does, starting from the slider's loop or else its
+  whole range. Playback of the slider, or of the time master, stops; the slider moves as when it
+  plays, so the other viewers follow, and the slit, the point and the raster overlays are drawn as
+  they then show. Every frame has the same colour limits:
+  with "Per-frame limits" on, the whole cube's. "Cancel" in its progress dialog keeps the frames
+  saved so far, a movie of them too, and the viewer goes back to its slice and limits.
 
 A Profile viewer, the quicklook's spectrum panels included, gets an "IRIS lines" button: where its x
 axis is the wavelength of IRIS data, a thin marker and a label mark each main IRIS line in the

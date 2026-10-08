@@ -1,3 +1,4 @@
+from copy import deepcopy
 from functools import partialmethod
 
 from glue.config import session_patch, stretches
@@ -62,6 +63,10 @@ def setup():
     for tool in wanted:
         if tool.tool_id not in ImageViewer.tools:
             ImageViewer.tools.append(tool.tool_id)
+    if tools.SaveSequenceTool.tool_id not in ImageViewer.subtools["save"]:
+        # a copy, as glue makes for its own entry: the Matplotlib viewers share the list
+        ImageViewer.subtools = deepcopy(ImageViewer.subtools)
+        ImageViewer.subtools["save"].append(tools.SaveSequenceTool.tool_id)
     if lines.LineTool.tool_id not in ProfileViewer.tools:
         ProfileViewer.tools.append(lines.LineTool.tool_id)
     # Keys for the viewer of the active window (`tools.KEYS`). glue-qt finds a viewer's keys by its exact class, so the
