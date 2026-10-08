@@ -784,6 +784,30 @@ def test_negative_step_raster_fill_follows_the_flipped_data(tmp_path, irispy_tes
         np.testing.assert_array_equal(np.isnan(values), fill)
 
 
+def test_raster_of_several_exposures_per_position_warns_once(qtbot, tmp_path, irispy_test_files):
+    # NEXP_PRP > 1 repeats each raster position along the steps, and world to pixel gives the first exposure at each
+    source = find_irispy_test_file(irispy_test_files, "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits")
+    path = tmp_path / source.name
+    shutil.copy2(source, path)
+    with fits.open(path, mode="update") as hdul:
+        hdul[0].header["NEXP_PRP"] = 2
+    expected = "3860258481-2014-03-29T14:09:38 takes 2 exposures at each raster position"
+    with pytest.warns(UserWarning, match=expected) as record:
+        assert len(raster_data([path])) == 9  # once for all its windows
+    assert len(record) == 1
+    dialog = QtIRISImporter(tmp_path)
+    qtbot.addWidget(dialog)
+    dialog.obs_tree.topLevelItem(0).setCheckState(0, Qt.Checked)
+    with pytest.warns(UserWarning, match=expected) as record:  # and from the browser, on the GUI thread
+        load_selected(qtbot, dialog)
+    assert len(dialog.datasets) == 9
+    assert len(record) == 1
+    # A sit-and-stare raster's one position takes every exposure (NRASTERP 1, NEXP_PRP 1872): no warning, which the
+    # suite would raise
+    sit_and_stare = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
+    raster_data([find_irispy_test_file(irispy_test_files, sit_and_stare)])
+
+
 def test_duplicate_real_raster_is_listed_and_loaded_once(qtbot, tmp_path, irispy_test_files):
     source = find_irispy_test_file(irispy_test_files, "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits")
     for directory in (tmp_path / "download", tmp_path / "extracted"):
