@@ -404,15 +404,16 @@ def test_a_full_mg_ii_k_window_gives_irispys_maps(irispy_data):
 @pytest.mark.parametrize("which", ["window", "stack", pytest.param("4000005156", marks=pytest.mark.remote_data)])
 def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanmean(app, monkeypatch, request, which):
     """
-    On a raster window, lazy, a stack of 3860258481's three scans in memory, or 4000005156's full Si IV 1403, three
-    steps a slab: a Pixel subset's Profile of ``<label> minus mean spectrum`` is the pixel's spectrum less numpy's
-    nanmean over every step, slit pixel and scan, within 1e-6 of its peak, as float32 values allow.
+    On a raster window or a stack of 3860258481's three scans, both lazy, or 4000005156's full Si IV 1403, three steps
+    a slab: a Pixel subset's Profile of ``<label> minus mean spectrum`` is the pixel's spectrum less numpy's nanmean
+    over every step, slit pixel and scan, within 1e-6.
     """
     if which == "window":
         [data] = raster_data([request.getfixturevalue("scan_path")], ["Si IV 1403"])
     elif which == "stack":
         files = sorted(p for p in request.getfixturevalue("irispy_test_files") if "3860258481_raster" in p.name)
-        [data] = raster_data(files, ["Si IV 1403"], stack=True)
+        tmp_path = request.getfixturevalue("tmp_path")
+        [data] = raster_data([int16_raster_copy(p, tmp_path / p.name) for p in files], ["Si IV 1403"], stack=True)
     else:
         name = "iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz"
         [data] = raster_data([request.getfixturevalue("irispy_data")(name)])
@@ -443,7 +444,7 @@ def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanm
     _, values = layer.profile
     spectrum = np.asarray(data[cid][index], dtype=float)
     assert np.isnan(spectrum).any()  # missing samples stay missing
-    np.testing.assert_allclose(values, spectrum - nanmean, rtol=0, atol=1e-6 * np.nanmax(np.abs(spectrum)))
+    np.testing.assert_allclose(values, spectrum - nanmean, rtol=0, atol=1e-6)
 
 
 def test_subtracting_the_mean_spectrum_refuses_other_data_and_a_second_run(

@@ -330,8 +330,8 @@ def moments_iris(data, data_collection):
 
 def _mean_spectrum(data, cid):
     """
-    The nanmean of ``cid`` over every axis of ``data`` but wavelength, its last, in float32, NaN where every sample is
-    missing; summed in float64 a slab of `SLAB` samples at a time.
+    The nanmean of ``cid`` over every axis of ``data`` but wavelength, its last, NaN where every sample is missing;
+    summed in float64 a slab of `SLAB` samples at a time.
     """
     total, count = np.zeros(data.shape[-1]), np.zeros(data.shape[-1])
     steps = max(1, SLAB // (data.shape[-2] * data.shape[-1]))
@@ -342,7 +342,7 @@ def _mean_spectrum(data, cid):
             total += values.sum((0, 1), dtype=float, where=valid)
             count += valid.sum((0, 1))
     with np.errstate(invalid="ignore"):  # 0 / 0
-        return (total / count).astype(np.float32)
+        return total / count
 
 
 def subtract_mean_spectrum(data):
