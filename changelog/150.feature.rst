@@ -1,0 +1,1 @@
+"IRIS: red-blue asymmetry…" in a raster window's right-click menu adds irispy's red-blue asymmetry and its quality flags as one linked dataset, with iris_xfiles' wing velocities as defaults.
