@@ -562,7 +562,7 @@ def test_the_spectrum_panel_never_profiles_the_whole_cube(bare_app, qtbot, monke
 
 
 @pytest.mark.remote_data
-def test_quicklook_gives_aia_cutouts_no_role(bare_app, tmp_path, irispy_data, irispy_test_files):
+def test_quicklook_gives_aia_cutouts_no_panel(bare_app, tmp_path, irispy_data, irispy_test_files):
     # A real AIA cutout claiming the fixture observation loads as a slit-jaw cube, but INSTRUME says AIA
     [path] = [p for p in irispy_data("iris_l2_20250519_165924_3640107442_cutout_SDO.tar.gz") if p.endswith("_171.fits")]
     copy = tmp_path / "aia_l2_20210905_001833_3620258102_171.fits"
@@ -1109,6 +1109,26 @@ def test_a_slit_jaw_master_moves_the_raster_exposure(bare_app, qtbot, irispy_tes
         qtbot.waitUntil(lambda exposure=exposure: viewers["spectrogram"].state.slices[0] == exposure)
         assert [viewers[role].state.slices[-1] for role in RASTER_PANELS] == wavelengths
         assert "time master" in readout(sji_viewer)
+
+
+def test_an_aia_cutout_follows_the_time_master_and_can_be_it(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    aia = slit_jaw(raster_time(raster, (0,)) + np.arange(150) * np.timedelta64(24, "s"), raster, "1700")  # an hour
+    aia.meta["INSTRUME"] = "AIA_3"
+    viewers = quicklook(bare_app, [raster, sji, aia])
+    assert viewers["sji"][0].state.reference_data is sji  # the cutout gets no panel
+    aia_viewer = bare_app.new_data_viewer(ImageViewer, data=aia)
+    matched = []
+    for step in (20, 1, 100):  # the cutout ends before step 100
+        viewers["spectrogram"].state.slices = (step, *viewers["spectrogram"].state.slices[1:])
+        matched.append(check_follower(bare_app, qtbot, raster_time(raster, (step,)), aia, aia_viewer))
+    assert matched == [True, True, False]
+    menu_action(aia_viewer, "Time master").trigger()
+    for frame in (40, 7):
+        aia_viewer.state.slices = (frame, 0, 0)
+        [exposure], _ = nearest([aia[aia.id["Time"]][frame, 0, 0]], raster[raster.id["Time"]][:, 0, 0])
+        qtbot.waitUntil(lambda exposure=exposure: viewers["spectrogram"].state.slices[0] == exposure)
+        assert "time master" in readout(aia_viewer)
 
 
 def test_an_unmatched_slit_jaw_keeps_its_frame(bare_app, qtbot, scans):

@@ -198,17 +198,17 @@ def _time_axis(data):
     """
     The axis along which ``data`` steps through time, or None for a scanning raster, which has none.
 
-    A slit-jaw image steps through frames, a sit-and-stare raster through exposures and a stack
-    through scans; a scanning raster's steps are places on the Sun.
+    A slit-jaw image or AIA cutout steps through frames, a sit-and-stare raster through exposures and
+    a stack through scans; a scanning raster's steps are places on the Sun.
     """
     role = _role(data)
-    if role == "sji" or (role == "raster" and (data.ndim == 4 or _is_sit_and_stare(data))):
+    if role in ("sji", "aia") or (role == "raster" and (data.ndim == 4 or _is_sit_and_stare(data))):
         return 0
     return None
 
 
 def _timed(data):
-    """Whether ``data`` takes part in time sync: an IRIS dataset with times."""
+    """Whether ``data`` takes part in time sync: an IRIS dataset or aligned AIA cutout with times."""
     return bool(_role(data)) and data.find_component_id("Time") is not None
 
 
@@ -981,9 +981,12 @@ class QuicklookImageViewer(ImageViewer):
 
 
 def _role(data):
-    """'raster', 'sji' or None, from the INSTRUME keyword: AIA cutouts load as slit-jaw cubes but are neither."""
+    """
+    'raster', 'sji', 'aia' or None, from the INSTRUME keyword: AIA cutouts load as slit-jaw cubes and follow the time
+    as they do, without their quicklook panel, raster point or overlays.
+    """
     instrument = str((getattr(data, "meta", None) or {}).get("INSTRUME", ""))
-    return {"SPEC": "raster", "SJI": "sji"}.get(instrument)
+    return "aia" if instrument.startswith("AIA") else {"SPEC": "raster", "SJI": "sji"}.get(instrument)
 
 
 def _same_file(data, other):
