@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-07
 
-**Resume here.** M0 is done. Main is at c55ffea (#139 says in the status bar while line moments are computed, D46; #138 takes continuum windows in the line moments dialog, D48; #137 installs irispy's git main and needs Python 3.13, D47; #136 adds IRIS line moment maps as a layer action, D45, D46; #135 blinks a viewer between two positions, D41; #134 labels the main IRIS lines on Profile viewers, D44; #133 opens each quicklook panel with its band's stretch, D43; #132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#139; the IRIS user guide is five pages: loading, `iris-quicklook`, `viewer-tools-and-windows`, the Profile guide and `scripting-iris-data`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. Next: M1's `wp10-m1-irispy-main-reads`, then `wp2-m2-input-quality`, `wp2-m2-tests-docs`, WP11 and WP12; `wp0-release-tracking` waits on astropy 8.0.2.
+**Resume here.** M0 is done. Main is at ccd7d66 (#140 reads slit-jaw images and AIA cutouts through irispy main, a gzipped one decompressed once; #139 says in the status bar while line moments are computed, D46; #138 takes continuum windows in the line moments dialog, D48; #137 installs irispy's git main and needs Python 3.13, D47; #136 adds IRIS line moment maps as a layer action, D45, D46; #135 blinks a viewer between two positions, D41; #134 labels the main IRIS lines on Profile viewers, D44; #133 opens each quicklook panel with its band's stretch, D43; #132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#140; the IRIS user guide is five pages: loading, `iris-quicklook`, `viewer-tools-and-windows`, the Profile guide and `scripting-iris-data`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; next: M2's `wp2-m2-input-quality`, `wp2-m2-tests-docs`, then WP11 and WP12.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -103,7 +103,6 @@ A milestone is done when it has no items left.
 
 **M1**
 - WP0: `wp0-release-tracking`
-- WP10: `wp10-m1-irispy-main-reads`
 
 **M2**
 - WP2: `wp2-m2-input-quality`, `wp2-m2-tests-docs`
@@ -375,17 +374,13 @@ Notes:
 
 Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on files up to 20 GB.
 
-**M1**
-
-- [ ] **M1** `wp10-m1-irispy-main-reads`: With irispy main the baseline (D47), `image_data` takes an SJI's raw int16 from irispy's cube (`cube.data`; a `.fits.gz` passed to `read_sji_lvl2` as its gunzipped bytes, −0.26 GB peak RSS on 4000255147 SJI 1400) instead of its own astropy read, and the comments and docs on 0.9.1's mask, SJI zeroing and repeated gunzips change (`sources/loaders/iris.py`'s "irispy masks only -200", "about four times in all" and `_image_cube_data` docstring, `stack_spectrograms.py`, `test_importer.py`'s "irispy masks only -200", `docs/dev_guide/loader-customization.rst`, and the loading guide's "A slit-jaw or AIA file is still read in full as it opens"); re-run the benches in `IRIS_PLAN_PROTOTYPES/irispy_main_check_20261002.tar.gz`. Done when a gzipped SJI opens with one decompression, through irispy, and no text describes irispy 0.9.1's reads.
-
 **L**
 
 - [ ] **L** `wp10-l-resident-memory`: Bring resident memory within the M0 budgets too: by RSS, 4000005156 scan 0 keeps 8.8 and peaks at 12.3 B/element with the quicklook open (tracemalloc: 5.15 and 9.53; 2026-10-01, `acceptance_20261001.tar.gz`). Since #96 (lazy loading) the RSS increase at open with the quicklook is 1.9 B/element on 4000005156 scan 0, within both; what remains is viewing, which brings a whole map's pages into resident memory (+0.5-0.8 GB on a Mg II k map). Done when the acceptance probe's RSS figures stay ≤ 6 and ≤ 10 B/element after viewing every panel.
 - [ ] **L** `wp10-m3-sit-stare-chunks` (F036): Benchmark lazy sit-and-stare; add an exposure-range load only if it passes 12 GB or 0.15 s per slit step. Done when benchmarked and, if built, ranges match the full load.
 
 Notes:
-- IRIS Level 2 image HDUs are int16 (BSCALE 0.25, BZERO 7992; fill is raw -32768/-32764). irispy 0.9.1's `memmap=True` zeroes SJI fill, so SJIs keep glue-solar's own astropy read and `.fits.gz` SJIs an eager int16 read; irispy main's keeps the raw fill under a lazy mask (`wp10-m1-irispy-main-reads`).
+- IRIS Level 2 image HDUs are int16 (BSCALE 0.25, BZERO 7992; fill is raw -32768/-32764). glue-solar reads SJIs and AIA cutouts through irispy main's `read_sji_lvl2(memmap=True)`, whose raw int16 keeps the fill under a lazy mask; a `.fits.gz` is decompressed once into bytes that irispy views (#140).
 - Raster world→pixel is slow (31 µs/pt at 400 steps, 7 ms/pt on sit-and-stare), so bulk SJI→raster mapping needs an analytic inverse.
 - The lazy-loading RSS and eager-equality probes (`open_rss.py`, `mem.py`, `sji_mem.py` for the irispy SJI fill report) are in `IRIS_PLAN_PROTOTYPES/wp10_lazy_probe_20261001.tar.gz`, for `wp10-l-resident-memory` and `wp10-m3-sit-stare-chunks`.
 
