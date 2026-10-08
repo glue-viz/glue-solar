@@ -19,7 +19,7 @@ __all__ = ["red_blue_asymmetry", "red_blue_iris"]
 # all it is given, which in a Mg II k window can be Mg II h
 WAVELENGTHS = (1.0, 1.0)
 # iris_xfiles' red-blue settings, in km/s: its double Gaussian fit averages red minus blue over 5 km/s from each of 30,
-# 35, ... 50 km/s, so from 30 to 55 km/s (SolarSoft iris/idl/uio/objects/iris_moment__dgf.pro, lines 48-53, and
+# 35, ... 50 km/s, so from 30 to 55 km/s (SolarSoft iris/idl/uio/objects/iris_moment__dgf.pro, lines 49-53, and
 # uio/utils/iris_gen_rb_profile.pro, lines 7-11)
 VELOCITIES = (30.0, 55.0)
 STEP = 5.0
@@ -119,7 +119,8 @@ def _ask(data):
         ("to", "Wing velocities to:", VELOCITIES[1], "km/s"),
         ("step", "Velocity step:", STEP, "km/s"),
     ):
-        box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, maximum=1000, suffix=f" {unit}")
+        step = 0.1 if unit == "Å" else 1  # as the moments dialog steps its wings
+        box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, maximum=1000, singleStep=step, suffix=f" {unit}")
         box.setValue(value)
         form.addRow(label, box)
         boxes.append(box)
