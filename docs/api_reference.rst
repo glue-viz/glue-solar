@@ -25,3 +25,6 @@ API Reference
 
 .. automodapi:: glue_solar.sources.red_blue
    :no-inheritance-diagram:
+
+.. automodapi:: glue_solar.sources.mg_features
+   :no-inheritance-diagram:

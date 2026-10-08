@@ -1,0 +1,161 @@
+"""
+'IRIS: Mg II features…': irispy's line centres and emission peaks of Mg II k and h in a raster window, as a new dataset.
+"""
+
+import gc
+
+import numpy as np
+from glue.config import layer_action
+from glue.core.component import Component
+from glue_qt.utils.decorators import messagebox_on_error
+from qtpy import QtWidgets
+
+import astropy.units as u
+
+from glue_solar.quicklook import _wavelengths
+from glue_solar.sources.loaders.iris import WCS_LOCK
+from glue_solar.sources.moments import SLAB, _accepted, _check, _cube, _dataset, _read, _start, _unit
+
+__all__ = ["mg_features", "mg_features_iris"]
+
+# irispy's defaults: the Doppler velocities searched, in km/s from each line's rest wavelength, and the lines measured
+VELOCITIES = (-40.0, 40.0)
+LINES = ("k", "h")
+_WHAT = "Mg II feature maps"
+
+
+def _crop(data, velocities, lines):
+    """
+    Those of ``lines`` that ``data`` covers over ``velocities``, as irispy finds them, and the wavelength pixels it
+    takes of them, a pixel wider at either end, so it finds the same within them; raises why for none.
+    """
+    from irispy.utils.mg_features import _REST_WAVELENGTH
+
+    low, high = velocities
+    if not low < high:
+        raise ValueError(f"The velocities, from {low} to {high} km/s, do not increase.")
+    wavelengths, _ = _wavelengths(data)
+    covered, starts, stops = [], [], []
+    for line in lines:
+        velocity = (wavelengths * u.AA).to_value(u.km / u.s, equivalencies=u.doppler_optical(_REST_WAVELENGTH[line]))
+        if velocity[0] <= low and high <= velocity[-1]:  # irispy skips a line otherwise
+            covered.append(line)
+            # irispy's, within 3 km/s of the velocities
+            starts.append(np.searchsorted(velocity, low - 3, "right") - 1)
+            stops.append(np.searchsorted(velocity, high + 3) + 1)
+    if not covered:
+        raise ValueError(
+            f"{data.label} ({wavelengths[0]:.2f} to {wavelengths[-1]:.2f} Å) does not cover Mg II "
+            f"{' or '.join(lines)} from {low} to {high} km/s."
+        )
+    return tuple(covered), slice(max(min(starts), 0), min(max(stops), wavelengths.size))
+
+
+def _mg_features(data, velocities, lines, crop, unit):
+    """
+    `mg_features` of ``lines`` given ``crop`` of the wavelength pixels and ``unit`` the unit of the values irispy is
+    given; on any thread.
+    """
+    from irispy.utils.mg_features import calculate_mg_features
+
+    maps = {}
+    # irispy measures each step on its own, so a slab of steps gives what the whole window would
+    steps = max(1, SLAB // (data.shape[1] * (crop.stop - crop.start)))
+    for start in range(0, data.shape[0], steps):
+        rows = (slice(start, start + steps), slice(None))
+        values, _ = _read(data, rows, crop)
+        with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
+            slab = calculate_mg_features(
+                _cube(data, values, rows, crop, unit), velocity_range=velocities * u.km / u.s, lines=lines
+            )
+        for name, feature in slab.items():
+            maps.setdefault(name, []).append((feature.data, feature.unit))
+        gc.collect(0)  # ndcube's cubes are reference cycles, and irispy's hold the slab's values
+    features = _dataset(data, f"{data.label} Mg II features")
+    features.meta.update(mg_features_velocities=tuple(velocities), mg_features_lines=lines)
+    for name, parts in maps.items():
+        features.add_component(Component(np.concatenate([part for part, _ in parts]), units=str(parts[0][1])), name)
+    return features
+
+
+def mg_features(data, velocities=VELOCITIES, lines=LINES):
+    """
+    irispy's line centres and emission peaks of Mg II ``lines`` in ``data``, an IRIS raster window of one scan, within
+    ``velocities`` of each line's rest wavelength, as one dataset on the window's raster steps and slit pixels.
+
+    irispy is given the window's ``<label> DN/s`` where it has one, else its values, a slab of steps at a time, and
+    only the wavelengths it searches; it skips a line the window does not cover over ``velocities``. For each line,
+    ``k`` (2796.35 Å) and ``h`` (2803.53 Å), its components are irispy's: ``k2v``, ``k3`` and ``k2r`` (``h2v``,
+    ``h3``, ``h2r``), the blue peak, line centre and red peak, each as ``<feature>_velocity`` in km / s and
+    ``<feature>_intensity`` in the window's unit; NaN where irispy finds none, or a sample it searches is missing.
+    irispy does not detect saturation: a profile clipped at 16182 DN is measured as it is. ``meta`` holds the
+    observation's ``OBSID`` and ``STARTOBS``, ``mg_features_velocities`` and ``mg_features_lines``, those measured.
+
+    Parameters
+    ----------
+    data : `~glue.core.data.Data`
+        An IRIS raster window of one scan, (raster step, slit, wavelength).
+    velocities : tuple of float
+        The Doppler velocities searched, from and to, in km / s from each line's rest wavelength.
+    lines : tuple of str
+        The lines measured, ``"k"``, ``"h"`` or both.
+
+    Raises
+    ------
+    ValueError
+        For other data than an IRIS raster window of one scan, velocities that do not increase, or a window that
+        covers none of ``lines`` over them.
+    """
+    _check(data, _WHAT)
+    return _mg_features(data, velocities, *_crop(data, velocities, lines), _unit(data))
+
+
+def _ask(data, lines):
+    """
+    The velocities typed for ``data``, from and to, in km/s, and the lines ticked, at first ``lines``; or None for
+    none ticked or Cancel.
+    """
+    dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
+    dialog.setWindowTitle(f"IRIS: Mg II features of {data.label}")
+    form = QtWidgets.QFormLayout(dialog)
+    boxes = []
+    for name, value in zip(("from", "to"), VELOCITIES):
+        box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, minimum=-1000, maximum=1000, suffix=" km/s")
+        box.setValue(value)
+        form.addRow(f"Velocities {name}:", box)
+        boxes.append(box)
+    ticks = [QtWidgets.QCheckBox(f"Mg II {line}", objectName=line, checked=line in lines) for line in LINES]
+    for tick in ticks:
+        form.addRow(tick)
+    if not _accepted(dialog, form):
+        return None
+    lines = tuple(line for line, tick in zip(LINES, ticks) if tick.isChecked())
+    return (tuple(box.value() for box in boxes), lines) if lines else None
+
+
+@messagebox_on_error("Could not compute Mg II features")
+def _failed(exc_info):
+    raise exc_info[1]
+
+
+@layer_action(
+    "IRIS: Mg II features…",
+    single=True,
+    data=True,
+    tooltip="Add irispy's Mg II k and h line centre and emission peak maps of this raster window",
+)
+@messagebox_on_error("Could not compute Mg II features")
+def mg_features_iris(data, data_collection):
+    """
+    Add the `mg_features` of ``data`` within typed velocities, of the lines ticked, at first those it covers, to the
+    data collection, with its helioprojective coordinates linked, and no viewer; glue shows why for data that has
+    none. irispy computes them in the background, while glue's status bar says so.
+    """
+    _check(data, _WHAT)  # before asking
+    covered, _ = _crop(data, VELOCITIES, LINES)
+    chosen = _ask(data, covered)
+    if chosen is None:
+        return
+    velocities, lines = chosen
+    text = f"Computing Mg II features of {data.label}…"
+    _start(data_collection, text, _failed, _mg_features, data, velocities, *_crop(data, velocities, lines), _unit(data))

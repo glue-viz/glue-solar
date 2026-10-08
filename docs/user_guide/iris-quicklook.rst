@@ -299,3 +299,5 @@ Line moments
 velocity of a line: see :ref:`Line moments <glue_solar_users_guide_iris_line_moments>`.
 "IRIS: red-blue asymmetry…" compares its red and blue wings: see
 :ref:`Red-blue asymmetry <glue_solar_users_guide_iris_red_blue>`.
+"IRIS: Mg II features…" maps the line centres and emission peaks of Mg II k and h: see
+:ref:`Mg II features <glue_solar_users_guide_iris_mg_features>`.

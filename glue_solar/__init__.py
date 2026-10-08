@@ -12,12 +12,24 @@ from sunpy.visualization.colormaps import cmlist
 
 from glue_solar import glue_patches, lines, regrid, tools
 from glue_solar.quicklook import QuicklookImageViewer
-from glue_solar.sources import iris, maps, moments, red_blue
+from glue_solar.sources import iris, maps, mg_features, moments, red_blue
 from glue_solar.sources.maps import _add_colormap
 
 from glue_solar.version import version as __version__
 
-__all__ = ["setup", "__version__", "glue_patches", "iris", "lines", "maps", "moments", "red_blue", "regrid", "tools"]
+__all__ = [
+    "setup",
+    "__version__",
+    "glue_patches",
+    "iris",
+    "lines",
+    "maps",
+    "mg_features",
+    "moments",
+    "red_blue",
+    "regrid",
+    "tools",
+]
 
 
 @session_patch()
