@@ -82,9 +82,10 @@ def _moments(data, centre, wings, continuum, crop, inner, unit):
     from irispy.utils.spectrograph import subtract_background
 
     cid, maps = data.main_components[0], {}
-    # a slab takes about 100 bytes per sample, 150 with a continuum: half the steps then
+    # a slab takes about 100 bytes per sample, 150 with a continuum: half the steps then, generously, keeps a small
+    # window's cold peak under 3x
     steps = max(1, SLAB // (data.shape[1] * (crop.stop - crop.start) * (2 if continuum else 1)))
-    degree = min(len(continuum or ()) - 1, 1)  # a constant for one continuum window, a straight line for more
+    degree = 1 if len(continuum or ()) > 1 else 0  # a constant for one continuum window, a straight line for more
     for start in range(0, data.shape[0], steps):
         rows = (slice(start, start + steps), slice(None))
         values = data[cid, (*rows, crop)]  # scaled float32 of these steps and wavelengths only, NaN where missing
@@ -185,7 +186,9 @@ def _ask(data):
     if not text:
         return *line, None
     try:
-        return *line, [(float(low), float(high)) for low, high in (part.split("-") for part in text.split(","))]
+        return *line, [
+            tuple(sorted((float(low), float(high)))) for low, high in (part.split("-") for part in text.split(","))
+        ]
     except ValueError:
         raise ValueError(
             f"'{text}' is not a list of continuum windows in Angstrom, such as 1401.5-1402, 1404-1405."
