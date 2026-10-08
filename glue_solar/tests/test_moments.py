@@ -77,7 +77,9 @@ def run(app, qtbot, data):
     tree.ui.layerTree.set_selected_layers([data])
     tree._actions[ACTION].trigger()
     assert iris._RUNNING  # on glue-qt's worker
+    assert app.statusBar().currentMessage() == f"Computing line moments of {data.label}…"
     qtbot.waitUntil(lambda: len(collection) == count + 1 and not iris._RUNNING)
+    assert app.statusBar().currentMessage() == ""
     return collection[-1]
 
 
@@ -191,6 +193,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
     action.trigger()
     qtbot.waitUntil(lambda: len(shown) == 10 and not iris._RUNNING)
     assert shown[-1] == "Could not compute line moments\nirispy failed"
+    assert app.statusBar().currentMessage() == ""
     assert len(collection) == 4
     tree.ui.layerTree.set_selected_layers([raster, sji])  # one dataset at a time
     assert not action.isVisible()

@@ -302,8 +302,9 @@ optional: line-free wavelength ranges outside the wings, such as ``1401.6-1402.1
 to which irispy's ``subtract_background`` fits the background of each spectrum, a constant to one
 window or a straight line to more, and subtracts it; left blank, nothing is subtracted. irispy's
 ``calculate_moments`` computes the maps on a worker thread from the wavelengths within the wings
-alone, and adds ``<label> moments <centre>`` on the window's raster steps and slit pixels, with
-their helioprojective coordinates in arcsec:
+alone, while glue's status bar says "Computing line moments of <label>…", and adds ``<label>
+moments <centre>`` on the window's raster steps and slit pixels, with their helioprojective
+coordinates in arcsec:
 
 - ``intensity``, the sum of the samples, in the window's unit;
 - ``centroid`` and ``width``, the line's mean wavelength and standard deviation, in Å;

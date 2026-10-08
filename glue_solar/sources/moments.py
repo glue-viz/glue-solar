@@ -205,6 +205,18 @@ def _add(data_collection, moments):
     keep_hpc_linked(data_collection)
 
 
+def _status_bar(data_collection):
+    """The status bar of the glue window of ``data_collection``, or None."""
+    windows = QtWidgets.QApplication.topLevelWidgets()
+    app = next((window for window in windows if getattr(window, "data_collection", None) is data_collection), None)
+    return None if app is None else app.statusBar()
+
+
+def _clear(status, text):
+    if status.currentMessage() == text:  # unless something else has said more since
+        status.clearMessage()
+
+
 @layer_action(
     "IRIS: line moments…",
     single=True,
@@ -216,7 +228,7 @@ def moments_iris(data, data_collection):
     """
     Add the `line_moments` of ``data`` about a typed line centre, within typed wings, less any background fitted to
     typed continuum windows, to the data collection, with its helioprojective coordinates linked, and no viewer; glue
-    shows why for data that has none. irispy computes them in the background.
+    shows why for data that has none. irispy computes them in the background, while glue's status bar says so.
     """
     _check(data)  # before asking
     line = _ask(data)
@@ -227,4 +239,8 @@ def moments_iris(data, data_collection):
     worker.error.connect(_failed)
     _RUNNING.add(worker)
     worker.finished.connect(lambda: _RUNNING.discard(worker))
+    status, text = _status_bar(data_collection), f"Computing line moments of {data.label}…"
+    if status is not None:  # until the dataset is added or the error shown (D46)
+        status.showMessage(text)
+        worker.finished.connect(partial(_clear, status, text))
     worker.start()
