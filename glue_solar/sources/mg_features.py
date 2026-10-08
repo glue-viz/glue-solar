@@ -31,6 +31,8 @@ def _crop(data, velocities, lines):
     """
     from irispy.utils.mg_features import _REST_WAVELENGTH
 
+    if not lines or not set(lines) <= set(_REST_WAVELENGTH):
+        raise ValueError(f"lines must be 'k', 'h' or both, not {lines!r}")
     low, high = velocities
     if not low < high:
         raise ValueError(f"The velocities, from {low} to {high} km/s, do not increase.")
@@ -103,8 +105,8 @@ def mg_features(data, velocities=VELOCITIES, lines=LINES):
     Raises
     ------
     ValueError
-        For other data than an IRIS raster window of one scan, velocities that do not increase, or a window that
-        covers none of ``lines`` over them.
+        For other data than an IRIS raster window of one scan, other ``lines``, velocities that do not increase, or a
+        window that covers none of ``lines`` over them.
     """
     _check(data, _WHAT)
     return _mg_features(data, velocities, *_crop(data, velocities, lines), _unit(data))

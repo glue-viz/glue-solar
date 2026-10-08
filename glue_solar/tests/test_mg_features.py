@@ -15,6 +15,7 @@ import astropy.units as u
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
+from glue_solar.sources import mg_features
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.tests.test_lazy import SJI, int16_copy, int16_raster_copy
@@ -95,6 +96,7 @@ def test_the_action_adds_irispys_maps_as_one_linked_dataset_and_no_viewer(
     collection.extend([sji, raster])
     keep_hpc_linked(collection)
     opened = answer(monkeypatch)
+    monkeypatch.setattr(mg_features, "SLAB", 3 * 109 * 33)  # slabs of 3 steps on the crop of both lines
     maps = run(app, qtbot, raster)
     assert opened == [(-40.0, 40.0, True, True)]  # irispy's defaults
     assert maps.label == f"{raster.label} Mg II features"
@@ -114,6 +116,7 @@ def test_the_action_adds_irispys_maps_as_one_linked_dataset_and_no_viewer(
     linked = {cid for link in collection.links for cid in (link.get_to_id(), *link.get_from_ids())}
     assert set(maps.world_component_ids) <= linked
     assert_irispys(maps, raster)
+    assert_irispys(mg_features.mg_features(raster), raster)  # the same in glue's terminal
 
 
 def test_the_lines_ticked_at_first_are_those_covered_and_the_typed_values(app, qtbot, monkeypatch, irispy_test_files):
