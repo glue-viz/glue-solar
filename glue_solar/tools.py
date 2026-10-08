@@ -14,13 +14,18 @@ from glue.core.hub import HubListener
 from glue.core.message import SettingsChangeMessage
 from glue.core.subset import SubsetState
 from glue.viewers.common.tool import SimpleToolMenu, Tool
+from glue.viewers.image.composite_array import CompositeArray
+from glue.viewers.image.layer_artist import ImageLayerArtist
 from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
+from glue.viewers.matplotlib.mpl_axes import update_appearance_from_settings
 from glue_qt.utils.decorators import messagebox_on_error
 from glue_qt.viewers.image import ImageViewer
-from matplotlib.backend_bases import MouseButton
+from matplotlib.axes import Axes
+from matplotlib.backend_bases import MouseButton, ResizeEvent
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
+from matplotlib.transforms import ScaledTranslation, blended_transform_factory
 from qtpy import QtCore, QtWidgets
 
 import astropy.units as u
@@ -46,6 +51,7 @@ from glue_solar.quicklook import (
 )
 
 __all__ = [
+    "ColourBarTool",
     "CoordinateTool",
     "CursorReadoutTool",
     "FollowLockTool",
@@ -699,6 +705,87 @@ class PhysicalAspectTool(Tool):
         state = self.viewer.state
         state._axes_aspect_ratio = self.viewer.axes_ratio / (self.ratio or 1)
         state.reset_limits() if whole else state._adjust_limits_aspect()
+
+
+# A colour bar's gap from the Image viewer's axes and width, and the room it takes with its ticks, in inches
+_BAR = (0.1, 0.15)
+_BAR_ROOM = 0.9
+
+
+class _ColourBarAxes(Axes):
+    """
+    The axes of a colour bar, which take the colours of the viewer's reference data from glue's own image as they draw:
+    whatever glue draws the image with, they draw the bar with.
+    """
+
+    viewer = None
+
+    def draw(self, renderer):
+        if not self.get_visible():  # its parent draws it hidden too
+            return
+        state = self.viewer.state
+        artist = next(
+            (a for a in self.viewer.layers if isinstance(a, ImageLayerArtist) and a.layer is state.reference_data), None
+        )
+        layer = None if artist is None else artist.composite.layers.get(artist.uuid)
+        if layer is None:
+            return
+        # glue's limits, contrast and bias, stretch and colormap, or colour, on the values from one limit to the other
+        bar = CompositeArray()
+        bar.mode, bar.cmap_bad = artist.composite.mode, artist.composite.cmap_bad
+        bar.allocate("bar")
+        bar.set("bar", **{**layer, "array": np.linspace(*layer["clim"], 256)[:, np.newaxis]})
+        rgba = bar()
+        if rgba is None:  # a hidden layer
+            return
+        [image] = self.images
+        image.set_data(rgba)
+        image.set_extent((0, 1, artist.state.v_min, artist.state.v_max))
+        self.tick_params(labelsize=state.y_ticklabel_size)
+        super().draw(renderer)
+
+
+@viewer_tool
+class ColourBarTool(Tool):
+    """
+    Show or hide a colour bar right of the Image viewer's image: the colours of its reference data from one colour
+    limit to the other, with their values.
+
+    The bar takes glue's own colouring of the reference data's layer as it draws (`_ColourBarAxes`), so it follows
+    the limits, per frame too, the stretch, contrast and bias, the colormap, or the colour in 'One color per layer'
+    mode, and the slices; it is part of the figure, so saved plots show it. Its room comes from the axes, as from a
+    resize, so 'Square Pixels' and 'Physical aspect' keep their proportions. A plain button, as 'Hide axes' is, which
+    leaves the mouse mode on.
+    """
+
+    icon = "glue_yrange_select"
+    tool_id = "solar:colour_bar"
+    action_text = "Colour bar"
+    tool_tip = "Show or hide a colour bar of the displayed data's colours"
+
+    def __init__(self, viewer):
+        super().__init__(viewer)
+        self.bar = None  # made at the first press
+
+    def activate(self):
+        axes = self.viewer.axes
+        if self.bar is None:
+            right = axes.figure.dpi_scale_trans + ScaledTranslation(1, 0, axes.transAxes)  # inches right of the axes
+            gap, width = _BAR
+            where = blended_transform_factory(right, axes.transAxes)
+            self.bar = axes.inset_axes([gap, 0, width, 1], transform=where, axes_class=_ColourBarAxes, visible=False)
+            self.bar.viewer = self.viewer
+            self.bar.imshow(np.zeros((1, 1, 4)), origin="lower", aspect="auto", interpolation="nearest")
+            self.bar.set_xticks([])
+            self.bar.yaxis.tick_right()
+            update_appearance_from_settings(self.bar)  # glue's colours for its axes
+        shown = not self.bar.get_visible()
+        self.bar.set_visible(shown)
+        left, right, bottom, top = axes.resizer.margins  # glue's, in inches
+        axes.resizer.margins = [left, right + (_BAR_ROOM if shown else -_BAR_ROOM), bottom, top]
+        canvas = self.viewer.figure.canvas  # glue places the axes and fits their aspect at a resize
+        canvas.callbacks.process("resize_event", ResizeEvent("resize_event", canvas))
+        _keep_mouse_mode(self.viewer)
 
 
 def _follows_mouse(group):

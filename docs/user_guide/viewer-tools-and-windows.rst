@@ -69,6 +69,13 @@ toolbar has:
   against time. Choosing "Automatic" in the viewer's options switches it off too. Pressed again on
   a quicklook raster panel, whose aspect is "Automatic", the image fills the panel again, keeping a
   zoom. A saved session restores the viewer with "Square Pixels".
+- "Colour bar", from glue-solar: shows a colour bar right of the image, from one colour limit of the
+  displayed dataset (the viewer's reference data) to the other, with their values, and pressed again
+  hides it; the mouse mode stays on. Its colours are glue's own for that dataset's layer, so it
+  follows the limits, "Per-frame limits" included, the stretch, the contrast and bias, the colormap,
+  or the colour in "One color per layer" mode, and the sliders. The image narrows to make room for
+  it, keeping "Square Pixels" and "Physical aspect", and "Save plot to file" saves the bar with the
+  image. "Save Python script to reproduce plot" and saved sessions leave it out.
 - A button with a spectrum icon and no tooltip, which opens a 1D Profile viewer of the image's data.
 - The save menu, with "Save plot to file" and "Save Python script to reproduce plot", and the
   window menu, with "Move to another tab" and "Change viewer title".
