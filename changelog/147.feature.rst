@@ -1,0 +1,1 @@
+A "Measure" mode on Image viewers gives the length of a dragged line in pixels, arcsec and km on the Sun.
