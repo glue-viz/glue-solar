@@ -1019,9 +1019,10 @@ def _placed(viewer, data, x, y):
 class PathTool(BasePathSlicerMode):
     """
     glue-core's path slicer, for 3D and 4D data: draw a path on the Image viewer's image and press Enter for a dataset
-    of the values along it, of each dataset shown, opened in a new Image viewer; a slit-jaw image gives frames against
-    the path, a raster window wavelength against the path, a stack scans and wavelength against the path. The path is
-    sampled once a pixel of the reference data and placed in each other dataset through glue's links, such as
+    of the values along it, of each dataset shown, the reference data's opened in a new Image viewer and the others' in
+    the data collection, as glue cannot show them on its axes; a slit-jaw image gives frames against the path, a raster
+    window wavelength against the path, a stack scans and wavelength against the path. The path is sampled once a pixel
+    of the reference data and placed in each other dataset through glue's links, such as
     `~glue_solar.sources.loaders.iris.link_hpc`'s, at the frame shown, so a time-synced viewer samples them at the time
     master's exposure; a dataset glue cannot place from the reference data, as a slit-jaw image on a raster's axes, has
     no diagram. Each Enter makes a new set of diagrams, in a new viewer.
@@ -1034,8 +1035,9 @@ class PathTool(BasePathSlicerMode):
     slice_viewer_cls = ImageViewer
 
     def _on_reference_data_change(self, *args):
-        if self.viewer is not None and self.viewer.state.reference_data is not None:
-            self.enabled = self.viewer.state.reference_data.ndim >= 3
+        # Data only: a stack's diagram is 3D too, but a PathData, which _open_or_update has nothing to sample in
+        if self.viewer is not None and (reference := self.viewer.state.reference_data) is not None:
+            self.enabled = isinstance(reference, Data) and reference.ndim >= 3
 
     def _finish_roi(self, event):
         # glue-core 1.27.0's path ROI blits the patch it has just removed, None, if it cached a background, which raises
@@ -1069,7 +1071,9 @@ class PathTool(BasePathSlicerMode):
             trace.append(path)
         self._traces.append(trace)
         self._target_trace = trace  # drawn as the active path
-        self._slice_viewer = open_slice_viewer_for(self.viewer, self.slice_viewer_cls, trace)
+        # the reference data's only: glue cannot show the others on its axes, such as a raster window's wavelength
+        # on a slit-jaw image's frames, and lists them disabled
+        self._slice_viewer = open_slice_viewer_for(self.viewer, self.slice_viewer_cls, trace[:1])
         self._slice_viewers.append(self._slice_viewer)
         self._refresh_overlays()
 

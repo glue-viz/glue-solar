@@ -869,9 +869,10 @@ def test_path_diagrams_of_a_slit_jaw_image_and_a_raster_on_it(qtbot, irispy_test
     viewer = app.new_data_viewer(ImageViewer, data=sji)
     viewer.add_data(raster)
     viewer.state.slices = (5, 0, 0)
+    assert viewer.toolbar.tools["solar:path"].enabled
     path, on_raster = _draw_path(viewer, [5, 18, 30], [3, 20, 35])
     diagrams = viewer.toolbar.tools["solar:path"]._slice_viewer
-    assert diagrams.state.reference_data is path
+    assert [layer.layer for layer in diagrams.layers] == [path]  # the raster's, on frames, would be disabled
     assert {path, on_raster} <= set(app.data_collection)
     # frames against the path, and wavelength against the same samples
     n = len(path.x)
@@ -914,6 +915,7 @@ def test_path_diagram_of_a_stack(qtbot, irispy_test_files):
     viewer = app.new_data_viewer(ImageViewer, data=stack)
     viewer.state.x_att, viewer.state.y_att = stack.pixel_component_ids[1], stack.pixel_component_ids[2]  # step, slit
     viewer.state.slices = (1, 0, 0, 12)
+    assert viewer.toolbar.tools["solar:path"].enabled  # 4D, which glue-core's is not
     [path] = _draw_path(viewer, [0.5, 3, 6.5], [10, 60, 100])
     # scans and wavelength against the path, with the stack's own wavelengths and scans
     assert path.shape == (stack.shape[0], stack.shape[3], len(path.x))
@@ -926,6 +928,7 @@ def test_path_diagram_of_a_stack(qtbot, irispy_test_files):
 
     # the crosshair moves the wavelength only, which the diagram's y axis shows
     diagrams = viewer.toolbar.tools["solar:path"]._slice_viewer
+    assert not diagrams.toolbar.tools["solar:path"].enabled  # a diagram, 3D too, is not a dataset to draw on
     diagrams.toolbar.active_tool = "solar:path_crosshair"
     mouse(diagrams, "button_press_event", 2, 3)
     mouse(diagrams, "motion_notify_event", 2, 7)
