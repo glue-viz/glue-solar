@@ -81,8 +81,9 @@ on.
 Slit-jaw, raster and AIA values are floating point. The IRIS fill values -200 and -199 become NaN,
 in AIA cutouts too. glue-solar leaves
 +Inf samples (the ITN 26 saturation code) unchanged and outside the mask; Level 2 files stored as
-16-bit integers cannot hold +Inf, so their saturated samples keep the largest value the file can
-store. ``<label> mask`` is a uint8 array that is 1 where the data are NaN and 0 elsewhere.
+16-bit integers cannot hold +Inf, so their saturated samples are clipped to 16182 DN (see
+`Was it saturated?`_). ``<label> mask`` is a uint8 array that is 1 where the data are NaN and 0
+elsewhere.
 
 Slit-jaw images open in sunpy's IRIS colormap of their channel, raster windows and stacks in its
 FUV or NUV colormap by their detector (``TDETn``), and AIA cutouts in sunpy's AIA colormap of their
@@ -186,6 +187,44 @@ the data collection, which in a quicklook is ``Point``, so select the dataset it
 
 The first two leave the new subset selected, and "Pixel" would replace it, so select ``Point`` in
 the data collection before moving a quicklook's point again.
+
+.. _glue_solar_users_guide_iris_saturation:
+
+Was it saturated?
+-----------------
+
+Level 2 files flag no saturated sample: the Level 2 pipeline clips every sample to -199 to 16182
+DN, so a sample saturated in Level 1, at or above 16000 DN, is stored as 16182 DN, and so is any
+other sample calibrated past it. ``NSATPIX`` and ``TSATPXn`` are 0 in every Level 2 file; ignore
+them.
+
+- The header's ``HISTORY`` line from iris_prep, ``Set N saturated pixels to Inf``, says the
+  observation saturated somewhere. "View metadata/header" (Ctrl+I) in the data collection's
+  right-click menu lists only the last ``HISTORY`` line, so type
+  ``[line for line in raster.meta.fits_header["HISTORY"] if "saturated" in line]`` in glue's
+  terminal, with ``raster`` the dataset, such as ``data_collection[0]``. N counts a batch of up to
+  100 Level 1 files, often the whole observation, and the line is left out when the first batch
+  had none, so its absence says nothing.
+- A subset shows the samples at 16182 DN: select the dataset in the data collection, choose
+  "Create faceted subsets" in the "Data Manager" menu, pick the data's own attribute, named after
+  the dataset, and set the range from 16182 to 16182 and the number of subsets to 1. Every Image
+  viewer of the dataset draws the subset, ``16182.0<=<label><=16182.0``: a spectrogram at the line
+  core of the slit positions that saturated, a map at the wavelength shown (A and S step through
+  them). As with the mask, select ``Point`` before moving a quicklook's point again. In glue's
+  terminal::
+
+      from irispy.utils.constants import SATURATION_LIMIT
+
+      cid = raster.main_components[0]
+      data_collection.new_subset_group("saturated", raster.id[cid] >= SATURATION_LIMIT.value)
+
+A sample at 16182 DN is saturated or merely bright, as Level 2 cannot tell them apart, although
+in two saturated flares checked against their Level 1 frames 99.88 % of them lay within a pixel of
+a saturated sample. :ref:`Line moments <glue_solar_users_guide_iris_line_moments>` are NaN where a
+sample within the wings is at 16182 DN. On OBSID 3860258481's raster r00173, of the X1 flare of
+2014-03-29, whose header has no such ``HISTORY`` line, the Si IV 1403 subset holds 13,760 samples:
+plateaus about the line core at 1402.8 Å in 428 pixels of every raster step, a few across most of
+the window.
 
 .. _glue_solar_users_guide_iris_linking:
 
