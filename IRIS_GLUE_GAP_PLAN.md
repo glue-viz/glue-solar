@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-07
 
-**Resume here.** M0 is done. Main is at 1226f70 (#150 adds irispy's red-blue asymmetry as a layer action; #149 warns once on rasters with several exposures per position; #148 adds a Zoom 1:1 button; #147 adds a Measure mode giving a dragged line's length in pixels, arcsec and km; #146 adds a 'Was it saturated?' recipe; #145 saves PNG frames or a movie along an Image viewer's slider; #144 adds a Colour bar button drawn with glue's normalisation; #143 tests line moments on Gaussian lines and the 3400109360 cutout and gives them their own guide page; #142 leaves saturated pixels out of line moments and counts them, D49; #141 makes line moments use DN/s and leave -Inf out, D49; #140 reads slit-jaw images and AIA cutouts through irispy main, a gzipped one decompressed once; #139 says in the status bar while line moments are computed, D46; #138 takes continuum windows in the line moments dialog, D48; #137 installs irispy's git main and needs Python 3.13, D47; #136 adds IRIS line moment maps as a layer action, D45, D46; #135 blinks a viewer between two positions, D41; #134 labels the main IRIS lines on Profile viewers, D44; #133 opens each quicklook panel with its band's stretch, D43; #132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#150; the IRIS user guide is five pages: loading, `iris-quicklook`, `viewer-tools-and-windows`, the Profile guide and `scripting-iris-data`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; next: M2's WP11 and WP12.
+**Resume here.** M0 is done. Main is at 9ef2997 (#151 adds a Path diagram mode extracting 3D and 4D data along a drawn path; #150 adds irispy's red-blue asymmetry as a layer action; #149 warns once on rasters with several exposures per position; #148 adds a Zoom 1:1 button; #147 adds a Measure mode giving a dragged line's length in pixels, arcsec and km; #146 adds a 'Was it saturated?' recipe; #145 saves PNG frames or a movie along an Image viewer's slider; #144 adds a Colour bar button drawn with glue's normalisation; #143 tests line moments on Gaussian lines and the 3400109360 cutout and gives them their own guide page; #142 leaves saturated pixels out of line moments and counts them, D49; #141 makes line moments use DN/s and leave -Inf out, D49; #140 reads slit-jaw images and AIA cutouts through irispy main, a gzipped one decompressed once; #139 says in the status bar while line moments are computed, D46; #138 takes continuum windows in the line moments dialog, D48; #137 installs irispy's git main and needs Python 3.13, D47; #136 adds IRIS line moment maps as a layer action, D45, D46; #135 blinks a viewer between two positions, D41; #134 labels the main IRIS lines on Profile viewers, D44; #133 opens each quicklook panel with its band's stretch, D43; #132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#151; the IRIS user guide is five pages: loading, `iris-quicklook`, `viewer-tools-and-windows`, the Profile guide and `scripting-iris-data`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; next: M2's WP11 and WP12.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -106,9 +106,6 @@ A milestone is done when it has no items left.
 **M1**
 - WP0: `wp0-release-tracking`
 
-**M2**
-- WP12: `wp12-path-slicer`
-
 **M3**
 - WP1: `wp1-stack-per-scan-wcs`, `wp1-m3-pointing-offset`
 - WP2: `wp2-m3-moments-extensions`, `wp2-m3-window-data`, `wp2-irispy-calibration-actions`, `wp2-m3-mg-features`, `wp2-m3-density-temperature`
@@ -177,7 +174,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 - [ ] **M4** `wp0-core-session-reports`: Report the 1.27.0 session-restore failures (`stretch_global=False`, lost `stretch_parameters`, sunpy colormap names, object-array meta, `LinkSameWithUnits`). Done when each is filed or declined.
 - [ ] **M4** `wp0-astropy-wcsaxes-bugs`: astropy WCSAxes bugs the 2026-10-01 WCSAxes study met on 8.0.1, unchanged by every prototype (GLUE_SPEED.md 'Stock astropy problems found on the way'): `format_coord` raises on a 1-D WCSAxes; line grids, `plot_coord` and `scatter_coord` fail on three-coordinate views such as both Si IV panels; automatic ('#') label positions raise with a sliced-out coordinate; `simplify_labels` raises on a swapped cube; an off-view tickable gridline raises; zero-size axes raise on draw; a WCSAxes figure cannot be unpickled. Check whether glue-solar hits any (a minimised quicklook panel may reach zero size) and work around those here; re-check the rest on astropy main and report on the user's direction. Done when each is worked around, filed or declined.
 - [ ] **M4** `wp0-report-candidates`: Other reports, filed only on the user's direction. Done when each is filed or declined.
-  - core `PathSlicedData` crashes on IRIS data (`world_axis_names` per kept pixel axis) and has generic gaps: 3-D-only enable, zeros not NaN, datetime cast, no session saver.
+  - core's path slicer, worked around in #151's `PathTool`/`PathData`: `PathSlicedCoordinates` names one world axis per kept pixel axis (IndexError in `axis_label` on slit-jaw images); `PathSlicedData` gives 0 off the data, casts `Time` to float, returns a (1, 1) array for one pixel, sends its own world components to the parent (a Profile viewer of a diagram raises) and has no session saver; `BasePathSlicerMode` is enabled for 3-D data only and, with `persistent = False`, Enter redraws a removed patch (`draw_artist(None)`, AttributeError before anything is extracted); `create_trace` slices every layer along the reference's pixel axes; later Enters update only the first path and every pair of paths is linked; the crosshair's `drive_parent_slice` moves every off-screen slider on 4-D data.
   - core dask percentile sampling reads only chunk corners.
   - glue-qt ignores Fit constraints; its playback timer outlives the viewer, and keeps running when the sliders are rebuilt for new data or axes.
   - irispy's `SJICube.apply_dust_mask` skips `check_scaled`: on a memory-mapped SJI it finds no dust (`sji.py:127`; 0 % against 0.096 % of non-fill pixels in frames 0-2 of 4000255147 SJI 1400 read scaled).
@@ -348,7 +345,7 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 **M3**
 
 - [ ] **M3** `wp9-m3-spectral-recipes` (F080, F084): Recipes for an average spectrum over scans, photospheric context and per-window flux × k. Done when each reproduces on 3602506433, 3660259102 and 3640107442.
-- [ ] **M3** `wp9-m3-shortcuts-help` (F198, F199): A table of keys glue's tooltips omit and an 'IRIS: user guide and issues' `menubar_plugin` entry. Done when a test covers every shortcut and both URLs. Depends: wp12-path-slicer.
+- [ ] **M3** `wp9-m3-shortcuts-help` (F198, F199): A table of keys glue's tooltips omit and an 'IRIS: user guide and issues' `menubar_plugin` entry. Done when a test covers every shortcut and both URLs.
 
 **L**
 
@@ -397,28 +394,24 @@ Notes:
 
 Frame, movie and data export plus path diagrams, built on glue's 'save' subtools, exporters and core's path slicer.
 
-**M2**
-
-- [ ] **M2** `wp12-path-slicer` (F135, F137): `solar:path` and a crosshair mode subclass core's path slicer for 3D and 4D data. Done when on 4000255147 a 3-vertex path gives (400, N) SJI 1400 and (λ, N) raster diagrams, a 4-scan 3602506433 stack gives (scan, λ, N), and traces agree within 0.5 px.
-
 **M3**
 
 - [ ] **M3** `wp12-export-annotations` (F133): Add a UTC timestamp option to `solar:save_sequence`. Done when each 4000255147 SJI 1400 frame's text equals its `Time` to 0.01 s.
-- [ ] **M3** `wp12-path-overlays-slopes` (F132): A two-click slope readout on distance-time diagrams gives speed (km/s) and acceleration as Table rows. Done when an injected feature is recovered within 1% and 2%. Depends: wp12-path-slicer.
-- [ ] **M3** `wp12-path-batch` (F138): Add 'nearest' and 'linear' path sampling beside core's truncation. Done when both match references to 1e-6 on a synthetic ramp. Depends: wp12-path-slicer.
+- [ ] **M3** `wp12-path-overlays-slopes` (F132): A two-click slope readout on distance-time diagrams gives speed (km/s) and acceleration as Table rows. Done when an injected feature is recovered within 1% and 2%.
+- [ ] **M3** `wp12-path-batch` (F138): Add 'nearest' and 'linear' path sampling beside core's truncation. Done when both match references to 1e-6 on a synthetic ramp.
 
 **L**
 
 - [ ] **L** `wp12-derived-data-export` (F182, F187): Export derived data as FITS (or ASDF) with IRIS coordinates and `Time`, never IDL save files. Done when moment and sliced maps round-trip their coordinates.
 - [ ] **L** `wp12-time-marker`: The master exposure shows as a glue time-range subset on datetime Scatter plots, moved with the master. Done when it follows the master and survives a session reopen. Depends: wp3-app-session-acceptance.
 - [ ] **L** `wp12-point-light-curves` (F140, F141): 'Light curves at this point' adds time series per raster window and SJI. Done when raster curves equal `cube[:, y, k]` and ECSV keeps `Time`. Depends: wp12-time-marker.
-- [ ] **L** `wp12-path-persist` (F185, F186): Save paths in sessions and as ECSV. Done when a reopened path reloads the same diagram. Depends: wp12-path-slicer, wp3-wcs-saver.
+- [ ] **L** `wp12-path-persist` (F185, F186): Save paths in sessions and as ECSV. Done when a reopened path reloads the same diagram. Depends: wp3-wcs-saver.
 - [ ] **L** `wp12-saved-path-reuse` (F127, F139): Saved paths redraw on every viewer of their parent and re-extract on other datasets. Done when each ticked window gets one product. Depends: wp12-path-persist.
 - [ ] **L** `wp12-profile-values-export` (F184): `solar:save_profile` writes the visible profiles to one ECSV file. Done when re-read values equal the viewer's arrays. Depends: wp12-point-light-curves.
 - [ ] **L** `wp12-export-options` (F181, F183): Simple sequence export options: scale bar, frame numbers, default name. Done when a 10″ bar spans 10″ ±1 px.
 
 Notes:
-- Paths and curves sample at the master's exposure; stack paths use the scan-0 WCS until `wp1-stack-per-scan-wcs`. Core's `PathSlicedData` crashes on IRIS data, so `solar:path` overrides four of its methods until the WP0 reports are fixed.
+- Paths and curves sample at the master's exposure; stack paths use the scan-0 WCS until `wp1-stack-per-scan-wcs`. Core's path slicer fails on IRIS data, so #151's `solar:path` overrides seven methods (`wp0-report-candidates`) until core fixes them.
 - glue's CSV writes `Time` as int64 (`wp0-core-datetime-export`). Not rebuilt: phi-slit sliders, path width, PostScript, IDL save files.
 
 ### WP13: Other missions
