@@ -139,8 +139,13 @@ toolbar has:
   whole range. Playback of the slider, or of the time master, stops; the slider moves as when it
   plays, so the other viewers follow, and the slit, the point and the raster overlays are drawn as
   they then show. Every frame has the same colour limits:
-  with "Per-frame limits" on, the whole cube's. "Cancel" in its progress dialog keeps the frames
-  saved so far, a movie of them too, and the viewer goes back to its slice and limits.
+  with "Per-frame limits" on, the whole cube's. Ticking "UTC time on each frame", under the indices,
+  draws each frame's time at the lower left of the plot, in white edged in black, the "Frame time"
+  readout's time, to 0.01 s (``2013-09-02T16:39:39.66 UTC``): a raster step's or
+  exposure's, or the first and last of a frame showing several, such as a stack's scan. It is drawn
+  only while saving, so "Save plot to file" and the viewer stay without it. "Cancel" in its
+  progress dialog keeps the frames saved so far, a movie of them too, and the viewer goes back to
+  its slice and limits.
 
 A Profile viewer, the quicklook's spectrum panels included, gets an "IRIS lines" button: where its x
 axis is the wavelength of IRIS data, a thin marker and a label mark each main IRIS line in the
