@@ -208,9 +208,6 @@ master, which the other cutouts and the IRIS data follow (see :ref:`the quickloo
 <glue_solar_users_guide_iris_quicklook>`). The cutouts of an observation share one pixel grid, so at
 the same time a pixel is the same place in each, but a region or point on one does not reach the
 other, as time is not linked (see :ref:`Linking <glue_solar_users_guide_iris_linking>`).
-In glue's terminal, the frame of the dataset ``aia_304`` nearest frame 100 of ``aia_1700`` is::
-
-    frame = int(abs(aia_304["Time"][:, 0, 0] - aia_1700["Time"][100, 0, 0]).argmin())
 
 **Scaling a window.** CRISPEX's per-window multiplier lets a faint window show beside Mg II on one
 plot; here each window's spectrum panel has its own y range anyway. To compare two on one
