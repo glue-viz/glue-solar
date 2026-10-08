@@ -9,7 +9,12 @@ import numpy as np
 import pytest
 from glue.core import Data
 from glue_qt.app.application import GlueApplication
+from irispy.spectrograph import SpectrogramCube
+from irispy.utils.constants import DN_UNIT
+from irispy.utils.spectrograph import subtract_background
 from qtpy import QtWidgets
+
+import astropy.units as u
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
@@ -38,17 +43,19 @@ def scan_path(tmp_path, irispy_test_files):
     return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
 
 
-def answer(monkeypatch, centre, wings=(), accept=True):
+def answer(monkeypatch, centre, wings=(), continuum="", accept=True):
     """
-    Make each line dialog return as if ``centre`` and any ``wings`` were typed and OK, or Cancel, pressed; returns the
-    wings each dialog opened with.
+    Make each line dialog return as if ``centre``, any ``wings`` and ``continuum`` were typed and OK, or Cancel,
+    pressed; returns the wings and continuum each dialog opened with.
     """
     opened = []
 
     def exec_(dialog):
         boxes = [dialog.findChild(QtWidgets.QDoubleSpinBox, side) for side in ("below", "above")]
-        opened.append(tuple(box.value() for box in boxes))
+        windows = dialog.findChild(QtWidgets.QLineEdit, "continuum")
+        opened.append((*(box.value() for box in boxes), windows.text()))
         dialog.findChild(QtWidgets.QLineEdit, "centre").setText(centre)
+        windows.setText(continuum)
         for box, wing in zip(boxes, wings):
             box.setValue(wing)
         return QtWidgets.QDialog.Accepted if accept else QtWidgets.QDialog.Rejected
@@ -84,7 +91,7 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     keep_hpc_linked(collection)
     opened = answer(monkeypatch, "1402.77")
     maps = run(app, qtbot, raster)
-    assert opened == [(0.5, 0.5)]
+    assert opened == [(0.5, 0.5, "")]
     assert maps.label == f"{raster.label} moments 1402.77"
     assert maps.shape == raster.shape[:2]
     assert [(cid.label, maps.get_component(cid).units) for cid in maps.main_components] == [
@@ -153,8 +160,15 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
         tree.ui.layerTree.set_selected_layers([data])
         action.trigger()
     assert opened == []  # refused before asking
-    for centre in ("3000", "Si IV"):
-        answer(monkeypatch, centre)
+    for centre, continuum in (
+        ("3000", ""),
+        ("Si IV", ""),
+        ("1402.77", "1401.5"),
+        ("1402.77", "1401.5-1402,"),
+        ("1402.77", "1401.5-1402, 1402-1402.5"),
+        ("1402.77", "1300-1301"),
+    ):
+        answer(monkeypatch, centre, continuum=continuum)
         tree.ui.layerTree.set_selected_layers([raster])
         action.trigger()
     assert all(text.startswith("Could not compute line moments\n") for text in shown)
@@ -165,26 +179,76 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
         "plain is not an IRIS raster window.",
         f"No wavelength of {raster.label} (1398.63 to 1405.75 Å) lies within 0.5 Å below and 0.5 Å above 3000.0 Å.",
         "'Si IV' is not a wavelength in Angstrom, such as 1402.77.",
+        "'1401.5' is not a list of continuum windows in Angstrom, such as 1401.5-1402, 1404-1405.",
+        "'1401.5-1402,' is not a list of continuum windows in Angstrom, such as 1401.5-1402, 1404-1405.",
+        "The continuum window 1402.0-1402.5 Å overlaps the wings, 0.5 Å below and 0.5 Å above 1402.77 Å.",
+        f"No wavelength of {raster.label} (1398.63 to 1405.75 Å) lies within the continuum window 1300.0-1301.0 Å.",
     ]
     assert len(collection) == 4
     # and an error of irispy's, on the thread
     monkeypatch.setattr(irispy.utils.moments, "calculate_moments", Mock(side_effect=RuntimeError("irispy failed")))
     answer(monkeypatch, "1402.77")
     action.trigger()
-    qtbot.waitUntil(lambda: len(shown) == 6 and not iris._RUNNING)
+    qtbot.waitUntil(lambda: len(shown) == 10 and not iris._RUNNING)
     assert shown[-1] == "Could not compute line moments\nirispy failed"
     assert len(collection) == 4
     tree.ui.layerTree.set_selected_layers([raster, sji])  # one dataset at a time
     assert not action.isVisible()
 
 
-def test_lazy_data_give_the_moments_of_data_in_memory(monkeypatch, scan_path):
+def test_a_continuum_window_is_irispys_background(app, qtbot, monkeypatch, scan_path):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
-    lazy = line_moments(raster, 1402.77)
-    monkeypatch.setattr(moments, "SLAB", 3 * 109 * 4)  # irispy given steps 0-2, 3-5 and 6-7
+    app.data_collection.append(raster)
+    plain = line_moments(raster, 1402.77)
+    # irispy's own on the whole scaled window, its mask the window's NaN
+    cid = raster.main_components[0]
+    window = np.asarray(raster[cid])
+    cube = SpectrogramCube(window, raster.coords._wcs, unit=DN_UNIT["FUV"], mask=np.isnan(window))
+    wavelengths, _ = _wavelengths(raster)
+    wings = (wavelengths >= 1402.27) & (wavelengths <= 1403.27)
+    # the second fits no background to 8 pixels missing from 1403.46 Å on but not within the wings
+    for typed, windows, degree, nan in (
+        ("1401.5-1402, 1403.5 - 1404", ((1401.5, 1402.0), (1403.5, 1404.0)), 1, 24),
+        (" 1403.5-1404 ", ((1403.5, 1404.0),), 0, 32),
+    ):
+        answer(monkeypatch, "1402.77", continuum=typed)
+        maps = run(app, qtbot, raster)
+        assert maps.meta == {
+            **plain.meta,
+            "moments_continuum": windows,
+            "moments_continuum_degree": degree,
+        }
+        background = subtract_background(cube, windows * u.AA, degree=degree)
+        direct = irispy.utils.moments.calculate_moments(background, rest_wavelength=1402.77 * u.AA, wings=0.5 * u.AA)
+        # NaN too where every sample within the wings is missing, or no background is fitted
+        fill = np.isnan(background.data[..., wings]).all(-1)
+        assert fill.sum() == nan
+        # a straight line fitted to a constant spectrum leaves 2e-13, not 0, on the slab or the whole window alike:
+        # what irispy's roundoff gives such a non-line, a centroid or not, is not compared
+        line = (direct["intensity"].data > 1e-9) | fill
+        for name, moment in direct.items():
+            expected = np.where(fill | moment.mask, np.nan, moment.data)
+            if moment.unit.is_equivalent(u.AA):
+                expected = moment.unit.to(u.AA, expected)
+            compared = Ellipsis if name == "intensity" else line
+            np.testing.assert_allclose(maps[name][compared], expected[compared], rtol=1e-9, atol=1e-9)
+            assert not np.allclose(maps[name], plain[name], equal_nan=True)
+    # a blank one changes nothing
+    answer(monkeypatch, "1402.77", continuum=" ")
+    maps = run(app, qtbot, raster)
+    assert maps.meta == plain.meta
+    for cid in plain.main_components:
+        np.testing.assert_array_equal(maps[cid.label], plain[cid])
+
+
+@pytest.mark.parametrize("continuum", [None, [(1401.5, 1402.0), (1403.5, 1404.0)]])
+def test_lazy_data_give_the_moments_of_data_in_memory(monkeypatch, scan_path, continuum):
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    lazy = line_moments(raster, 1402.77, continuum=continuum)
+    monkeypatch.setattr(moments, "SLAB", 3 * 109 * 4)  # steps 0-2, 3-5 and 6-7, or one at a time on the crop of both
     monkeypatch.setattr(iris, "LAZY", False)
     [eager] = raster_data([scan_path], ["Si IV 1403"])
     assert type(eager) is Data
-    slabs = line_moments(eager, 1402.77)
+    slabs = line_moments(eager, 1402.77, continuum=continuum)
     for cid in lazy.main_components:
         np.testing.assert_array_equal(slabs[cid.label], lazy[cid])
