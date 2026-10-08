@@ -418,6 +418,11 @@ class Coordinator(HubListener):
         if listener in self._listeners:
             self._listeners.remove(listener)
 
+    def place_again(self):
+        """Place the point and the raster overlays again, as after a dataset's pointing changed ('Shift pointing…')."""
+        self._placed = self._footprint = (None, None)
+        self._timer.start()  # the sync redraws them
+
     def clear_point(self):
         """Empty the followed group, which hides its crosshairs."""
         if self.point is not None:

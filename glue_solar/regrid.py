@@ -56,9 +56,10 @@ def regrid_on_time(data):
     Pixel ``i`` along that axis is ``i`` steps after the first time, up to the first pixel at or past the last, and
     holds the exposure, frame or scan nearest its time (the earlier of two as near) within 0.75 steps, else NaN, as
     do its ``Time`` (NaT then) and ``Exposure time``; a scan is timed by its middle raster step. The other axes are
-    those of ``data``, and so are the coordinates, along this axis those at each pixel's time (at the last time for
-    a last pixel past it), so that a slit-jaw image's time coordinate is regular. ``meta['time_step']`` is the step
-    in seconds. Data stored as int16 are read from their file as they are viewed, as ``data`` is.
+    those of ``data``, and so are the pointing offset and the coordinates, along this axis those at each pixel's time
+    (at the last time for a last pixel past it), so that a slit-jaw image's time coordinate is regular.
+    ``meta['time_step']`` is the step in seconds. Data stored as int16 are read from their file as they are viewed, as
+    ``data`` is.
 
     Raises
     ------
@@ -97,6 +98,7 @@ def regrid_on_time(data):
     regridded = _dataset(_Regridded(data.coords._wcs, positions), meta, component.units, values,
                          f"{data.label} regridded", color=data.style.color, cmap=data.style.preferred_cmap,
                          scaling=scaling)
+    regridded.coords.pointing_offset = data.coords.pointing_offset
     lead = (slice(None),) * (data.ndim - 2) + (0, 0)  # one value per exposure, frame, or scan and step
     regridded.add_component(_per_frame(_gather(data[data.id["Time"], lead], index, np.datetime64("NaT", "ns")),
                                        regridded.shape), "Time")

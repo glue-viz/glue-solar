@@ -5,9 +5,19 @@ Helpers that drive glue's viewers the way a user does, and read the expected ans
 from collections import Counter
 
 from matplotlib.backend_bases import MouseEvent
+from qtpy import QtWidgets
 from qtpy.QtTest import QTest
 
-__all__ = ["count_tick_work", "inversions", "load_selected", "mouse", "press", "raster_point_on_sji", "select_point"]
+__all__ = [
+    "count_tick_work",
+    "inversions",
+    "load_selected",
+    "mouse",
+    "press",
+    "raster_point_on_sji",
+    "select_point",
+    "shift",
+]
 
 
 def count_tick_work(monkeypatch, axes):
@@ -80,3 +90,21 @@ def raster_point_on_sji(raster, sji, step, slit, frame=0, scan=0):
     world[types.index("time")] = sji.coords.pixel_to_world_values(0, 0, frame)[types.index("time")]
     x, y, _ = sji.coords.world_to_pixel_values(*world)
     return x, y
+
+
+def shift(monkeypatch, data, collection, offset):
+    """Choose 'Shift pointing…' on ``data`` and type ``offset``, in arcsec; returns the offset its dialog opened with."""
+    from glue_solar.sources.iris import shift_pointing_iris
+
+    opened = []
+
+    def exec_(dialog):
+        boxes = [dialog.findChild(QtWidgets.QDoubleSpinBox, name) for name in ("dx", "dy")]
+        opened.append(tuple(box.value() for box in boxes))
+        for box, value in zip(boxes, offset):
+            box.setValue(value)
+        return QtWidgets.QDialog.Accepted
+
+    monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
+    shift_pointing_iris(data, collection)
+    return opened[0]

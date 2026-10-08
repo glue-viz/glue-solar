@@ -62,6 +62,7 @@ _AXIS_NAMES = {
     "custom:pos.helioprojective.lon": "Helioprojective Longitude",
     "custom:pos.helioprojective.lat": "Helioprojective Latitude",
 }
+_HPC = ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat")
 
 
 # wcslib is not thread-safe (astropy/astropy#19174), and Glue computes profiles and histograms in
@@ -103,6 +104,9 @@ class _GlueWCS(BaseWCSWrapper):
     # WCS says it has celestial axes; this wrapper has none of them, so send glue down its APE-14 path.
     # Always on, and harmless once glue checks for an astropy WCS instead (glue-viz/glue#2595, draft).
     has_celestial = False
+    # Arcsec added to the wrapped WCS's helioprojective longitude and latitude ('Shift pointing…'): a shift in the
+    # plane of the sky, small enough to add to both. Set it whole, never in place: the memo keys on it.
+    pointing_offset = (0.0, 0.0)
 
     def __init__(self, wcs):
         super().__init__(wcs)
@@ -133,8 +137,9 @@ class _GlueWCS(BaseWCSWrapper):
     @cached_property
     def _converted(self):
         """
-        Each world axis shown in another unit: its index, its unit's scale to the shown unit and back, and for the
-        longitude the full circle in its unit; worked out once, since WCSAxes converts every draw.
+        Each world axis shown in another unit: its index, its unit's scale to the shown unit and back, for the
+        longitude the full circle in its unit, and for an angle its place in `pointing_offset`; worked out once, since
+        WCSAxes converts every draw.
         """
         axes = []
         for i, (unit, physical_type) in enumerate(zip(self._wcs.world_axis_units, self.world_axis_physical_types)):
@@ -142,19 +147,20 @@ class _GlueWCS(BaseWCSWrapper):
             if shown is not None:
                 unit = u.Unit(unit)
                 full_circle = (360 * u.deg).to_value(unit) if physical_type.endswith(".lon") else None
+                angle = _HPC.index(physical_type) if physical_type in _HPC else None
                 # the scales a Quantity conversion multiplies by
-                axes.append((i, unit.to(shown), shown.to(unit), full_circle))
+                axes.append((i, unit.to(shown), shown.to(unit), full_circle, angle))
         return axes
 
     def pixel_to_world_values(self, *pixel_arrays):
         # The same inputs give the same values: the wrapped WCS is never changed once loaded (glue-solar
         # changes none, and WCSAxes calls wcs.set() only on an astropy WCS it is given, never through this
         # wrapper). So identical inputs reuse the values, each caller with its own copy. Identical means
-        # the same type (a scalar and a 0-d array can come back differently), dtype, shape and bytes.
+        # the same type (a scalar and a 0-d array can come back differently), dtype, shape and bytes, at one offset.
         arrays = [np.asarray(pixel) for pixel in pixel_arrays]
-        key = None
+        key, offset = None, self.pointing_offset
         if all(array.dtype.kind in "biuf" and array.size <= _MEMO_SAMPLES for array in arrays):
-            key = tuple((type(p), a.dtype.str, a.shape, a.tobytes()) for p, a in zip(pixel_arrays, arrays))
+            key = (offset, *((type(p), a.dtype.str, a.shape, a.tobytes()) for p, a in zip(pixel_arrays, arrays)))
             with self._memo_lock:
                 kept = self._memo.get(key)
                 if kept is not None:
@@ -163,11 +169,13 @@ class _GlueWCS(BaseWCSWrapper):
                 return _copies(kept)
         with WCS_LOCK:
             values = list(self._wcs.pixel_to_world_values(*pixel_arrays))
-        for i, to_shown, _, full_circle in self._converted:
+        for i, to_shown, _, full_circle, angle in self._converted:
             values[i] = np.asarray(values[i])
             if full_circle is not None:
                 values[i] = (values[i] + full_circle / 2) % full_circle - full_circle / 2
             values[i] = values[i] * to_shown
+            if angle is not None and offset[angle]:
+                values[i] = values[i] + offset[angle]
         if key is not None and all(np.size(value) <= _MEMO_SAMPLES for value in values):  # inputs can broadcast
             kept = _copies(values)
             with self._memo_lock:
@@ -177,9 +185,12 @@ class _GlueWCS(BaseWCSWrapper):
         return tuple(values)
 
     def world_to_pixel_values(self, *world_arrays):
-        values = list(world_arrays)
-        for i, _, from_shown, full_circle in self._converted:
-            values[i] = np.asarray(values[i]) * from_shown
+        values, offset = list(world_arrays), self.pointing_offset
+        for i, _, from_shown, full_circle, angle in self._converted:
+            values[i] = np.asarray(values[i])
+            if angle is not None and offset[angle]:
+                values[i] = values[i] - offset[angle]
+            values[i] = values[i] * from_shown
             if full_circle is not None:  # a longitude in any turn, as a sunpy map's run from 0 to 360 degrees
                 values[i] = (values[i] + full_circle / 2) % full_circle - full_circle / 2
         with WCS_LOCK:
@@ -191,7 +202,7 @@ class _GlueWCS(BaseWCSWrapper):
         # link) agree with the values. A SkyCoord gives a helioprojective longitude within +-180 deg already.
         with WCS_LOCK:  # an astropy WCS reads wcslib for these
             components = list(self._wcs.world_axis_object_components)
-        for i, to_shown, _, _ in self._converted:
+        for i, to_shown, *_ in self._converted:
             key, attr, value = components[i]
             value = value if callable(value) else attrgetter(value)
             components[i] = (key, attr, lambda obj, value=value, scale=to_shown: np.asarray(value(obj)) * scale)
@@ -203,7 +214,7 @@ class _GlueWCS(BaseWCSWrapper):
         with WCS_LOCK:
             components, classes = self._wcs.world_axis_object_components, dict(self._wcs.world_axis_object_classes)
         scales = {}
-        for i, _, from_shown, _ in self._converted:
+        for i, _, from_shown, *_ in self._converted:
             key, attr, _ = components[i]
             scales.setdefault(key, {})[attr] = from_shown
         for key, scale in scales.items():

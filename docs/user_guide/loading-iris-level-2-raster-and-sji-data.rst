@@ -244,10 +244,11 @@ arcsec, while Glue's own WCS autolinking links maps to each other. For data open
 Open Data Set", choose "IRIS: link helioprojective coordinates" from the "Plugins" menu; it only
 adds links that are missing, so running it again after loading more data is safe. Removing a
 dataset leaves the others linked. The links pair coordinates as they are: they do not allow for
-the Sun's rotation between a map and the IRIS data, or for a map taken far from Earth. Once IRIS
-data are linked, a selection on longitude or latitude values between two maps passes through them
-too, so it ignores those differences between the maps; a region drawn on one map still reaches the
-other through Glue's own link.
+the Sun's rotation between a map and the IRIS data, or for a map taken far from Earth; an IRIS
+dataset's own pointing can be corrected with "Shift pointing…" (see
+:ref:`glue_solar_users_guide_iris_pointing`). Once IRIS data are linked, a selection on longitude
+or latitude values between two maps passes through them too, so it ignores those differences
+between the maps; a region drawn on one map still reaches the other through Glue's own link.
 
 - A region drawn on a raster map or a sunpy Map selects, in every slit-jaw frame, the pixels that
   lie inside it at that frame's own pointing. For a sit-and-stare raster the selection marks where
