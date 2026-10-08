@@ -85,15 +85,19 @@ attributes, such as ``dc["<label>"].id["intensity"]``, on arrays in glue's termi
 In place of a table, tick "O IV 1399.8/1401.2 (CHIANTI, fiasco)" to map ``log n_e`` from the ratio
 of the O IV 1399.8 Å line, the numerator, to the 1401.2 Å line, the denominator: irispy's
 ``density_diagnostic`` interpolates it, linearly in the electron density, on CHIANTI's ratio, which
-fiasco computes for 10⁸ to 10¹³ cm⁻³ at O IV's formation temperature, log T 5.15. The new dataset is
-as from a table, with ``ratio_preset`` in its ``meta`` in place of ``ratio_table``, and
-``glue_solar.sources.line_ratio.o_iv_density(numerator, denominator)`` maps it in glue's terminal
-too. The preset needs fiasco from its git main, glue-solar's ``density`` extra (see :ref:`installing
-<glue-solar-index>`); without it, it is greyed out, and its tooltip says so. On its first use fiasco
-downloads the CHIANTI database, 3.5 GB unpacked, and builds its own 2.2 GB copy of it, in
-``~/.fiasco`` or where ``~/.fiasco/fiascorc`` says: 3 minutes on a fast connection, while glue's
-status bar says so; a later map takes a few seconds, also in the background. Should glue quit while
-fiasco builds it, delete the unfinished ``chianti_dbase.h5`` before the next use.
+fiasco computes for 10⁸ to 10¹³ cm⁻³ at O IV's formation temperature, log T 5.15. Compute both
+moments with narrow wings and a continuum (see above): with the default wings and none, the weak
+1399.8 Å line's ratio lies above CHIANTI's, 0.17 to 0.42, at nearly every pixel, which the map
+leaves NaN. The new dataset is as from a table, with ``ratio_preset`` in its ``meta`` in place of
+``ratio_table``, and ``glue_solar.sources.line_ratio.o_iv_density(numerator, denominator)`` maps it
+in glue's terminal too. The preset needs fiasco from its git main, glue-solar's ``density`` extra
+(see :ref:`installing <glue-solar-index>`); without it, it is greyed out, and its tooltip says so.
+On its first use fiasco downloads the CHIANTI database, 3.5 GB unpacked, and builds its own 2.2 GB
+copy of it, in ``~/.fiasco`` or where ``~/.fiasco/fiascorc`` says, a path without ``em`` or ``ip``
+in it, as in a folder named emily or Temp, or the build finds no ions: 3 minutes on a fast
+connection, while glue's status bar says so; a later map takes a few seconds, also in the
+background. Should glue quit while fiasco builds it, delete the unfinished ``chianti_dbase.h5``
+before the next use.
 
 Glue says why, and adds nothing, for fewer than two attributes of 2-D maps selected, maps of
 different shapes or coordinates or in different units, and a table that cannot be read, has fewer
