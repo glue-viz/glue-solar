@@ -305,6 +305,7 @@ def test_saturated_pixels_within_the_wings_are_nan_and_counted(app, qtbot, monke
     how many; one outside the wings, here in a continuum window, is not.
     """
     monkeypatch.setattr(iris, "LAZY", False)
+    monkeypatch.setattr(moments, "SLAB", 3 * 109 * 4)  # slabs of 3 steps, or of 1 with a continuum
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)
     cid, (wavelengths, _) = raster.main_components[0], _wavelengths(raster)
