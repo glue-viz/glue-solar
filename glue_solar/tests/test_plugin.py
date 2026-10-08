@@ -342,7 +342,9 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot):
     assert len(QToolBar.actions(toolbar)) <= 21  # of 26 buttons before, which needed a viewer 1200 px wide
     menus = {}
     for menu in ("solar:modes", "solar:view"):
-        menus[menu] = toolbar.widgetForAction(toolbar.actions[menu]).menu()
+        button = toolbar.widgetForAction(toolbar.actions[menu])
+        assert button.toolTip() == toolbar.tools[menu].tool_tip  # on hover, as a button's
+        menus[menu] = button.menu()
         # each tool's entry, by its id as for a button
         assert menus[menu].actions() == [toolbar.actions[tool] for tool in ImageViewer.subtools[menu]]
 
@@ -373,6 +375,15 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot):
             assert toolbar.active_tool is pixel
             if entry.isCheckable():
                 assert entry.isChecked() == tool.checked != was
+
+    # no L while Path diagram is off, as on a 2D image
+    still = Data(label="still", flux=np.ones((4, 5)))
+    app.data_collection.append(still)
+    viewer.add_data(still)
+    viewer.state.reference_data = still
+    assert not toolbar.actions["solar:path"].isEnabled()
+    QTest.keyClick(toolbar, Qt.Key_L)
+    assert toolbar.active_tool is pixel
 
 
 def margins(viewer):

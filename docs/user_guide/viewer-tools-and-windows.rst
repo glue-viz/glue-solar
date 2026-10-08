@@ -9,14 +9,14 @@ describes its viewers and tools; this section names those IRIS work uses most, a
 labels them. A toolbar button's tooltip gives the tool's single-key shortcut if it has one, for
 example "Zoom to rectangle [shortcut: Z]".
 
-glue-solar keeps its Image Viewer tools in three menus, so that the toolbar fits a viewer 700
-pixels wide; a narrower viewer moves the last buttons behind the toolbar's » button. The pencil
-icon holds glue-solar's mouse modes, "Measure", "Path diagram" and "Show position on original
-path", with the one on checked; the link icon is the "Coordinate" menu; and the gear icon is the
-View menu, with "Frame time", "Hide axes", "Per-frame limits", "Physical aspect", "Zoom 1:1",
-"Colour bar" and "Cursor readout", each but "Zoom 1:1" checked while it is on. After a View entry
-the mouse mode, such as Pixel, stays on. A menu shows an entry's single-key shortcut beside it,
-which works while the toolbar has the keyboard, as a button's does.
+glue-solar keeps its Image Viewer tools, all but Follow/lock, in three menus, so that the toolbar
+fits a viewer 700 pixels wide; a narrower viewer moves the last buttons behind the toolbar's »
+button. The pencil icon holds glue-solar's mouse modes, "Measure", "Path diagram" and "Show
+position on original path", with the one on checked; the link icon is the "Coordinate" menu; and
+the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Physical
+aspect", "Zoom 1:1", "Colour bar" and "Cursor readout", each but "Zoom 1:1" checked while it is on.
+After a View entry the mouse mode, such as Pixel, stays on. A menu shows an entry's single-key
+shortcut beside it, which works while the toolbar has the keyboard, as a button's does.
 
 Besides glue's "Home" (H), "Pan" (M), "Zoom" (Z) and region selection tools, the Image Viewer
 toolbar has:

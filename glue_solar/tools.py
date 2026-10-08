@@ -1702,7 +1702,9 @@ class CoordinateTool(SimpleToolMenu):
         Make "Blink" a checkable entry and add the "Blink interval" submenu, neither of which glue-qt 0.4.2's tool
         menus can hold, once glue-qt has built the menu, as its own Profile viewer tools edit theirs.
         """
-        menu = self.toolbar.widgetForAction(self.toolbar.actions[self.tool_id]).menu()
+        button = self.toolbar.widgetForAction(self.toolbar.actions[self.tool_id])
+        button.setToolTip(self.tool_tip)  # glue-qt 0.4.2 sets it on the button's action, which shows none
+        menu = button.menu()
         self._action = next(action for action in menu.actions() if action.text() == _BlinkEntry.action_text)
         self._action.setCheckable(True)
         intervals = menu.addMenu("Blink interval")
@@ -1812,7 +1814,9 @@ class _ToolMenu(SimpleToolMenu):
 
     def _add_entries(self):
         toolbar = self.viewer.toolbar
-        menu = toolbar.widgetForAction(toolbar.actions[self.tool_id]).menu()
+        button = toolbar.widgetForAction(toolbar.actions[self.tool_id])
+        button.setToolTip(self.tool_tip)  # glue-qt 0.4.2 sets it on the button's action, which shows none
+        menu = button.menu()
         for tool, action in zip(self.subtools, menu.actions(), strict=True):
             toolbar.tools[tool.tool_id], toolbar.actions[tool.tool_id] = tool, action
 
@@ -1827,7 +1831,7 @@ class _ToolMenu(SimpleToolMenu):
             if not action.shortcut().isEmpty():  # glue-qt's, on the entry, needs the menu's button focused
                 key = QtWidgets.QShortcut(action.shortcut(), toolbar)
                 key.setContext(QtCore.Qt.WidgetShortcut)
-                key.activated.connect(action.trigger)
+                key.activated.connect(lambda action=action: action.isEnabled() and action.trigger())
         menu.aboutToShow.connect(self._check)
 
     def _check(self):
