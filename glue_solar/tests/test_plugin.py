@@ -474,11 +474,17 @@ def test_colour_bar_draws_glues_colours_and_is_saved(qtbot, monkeypatch, tmp_pat
         assert (np.array_equal(colours, image), limits) == (True, (0, top))
     layer.v_min, layer.v_max = 20, 80
     assert drawn()[2] == (20, 80)
+    layer.v_min = 80  # a constant frame's limits
+    assert drawn()[2] == (76, 84)
+    layer.v_min = 20
 
     save.trigger()
     off, on = (imread(tmp_path / name) for name in ("off.png", "on.png"))
     assert off.shape == on.shape
-    assert not np.array_equal(off, on)
+    # the bar's colours at its place in the file, whose pixels are the window's at the figure's dpi
+    x0, y0, x1, y1 = tool.bar.get_window_extent().extents
+    saved = on[int(on.shape[0] - y1) + 2 : int(on.shape[0] - y0) - 2, int(x0) + 1 : int(x1) - 1]
+    assert len(np.unique(saved.reshape(-1, 4), axis=0)) > 100
     button.trigger()
     assert not tool.bar.get_visible()
     assert viewer.axes.get_window_extent().width > beside

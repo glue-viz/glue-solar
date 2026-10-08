@@ -740,7 +740,10 @@ class _ColourBarAxes(Axes):
             return
         [image] = self.images
         image.set_data(rgba)
-        image.set_extent((0, 1, artist.state.v_min, artist.state.v_max))
+        low, high = artist.state.v_min, artist.state.v_max
+        if low == high:  # a constant frame's, widened as matplotlib widens them, without its warning at each draw
+            low, high = self.yaxis.get_major_locator().nonsingular(low, high)
+        image.set_extent((0, 1, low, high))
         self.tick_params(labelsize=state.y_ticklabel_size)
         super().draw(renderer)
 
@@ -749,7 +752,7 @@ class _ColourBarAxes(Axes):
 class ColourBarTool(Tool):
     """
     Show or hide a colour bar right of the Image viewer's image: the colours of its reference data from one colour
-    limit to the other, with their values.
+    limit to the other, with value ticks.
 
     The bar takes glue's own colouring of the reference data's layer as it draws (`_ColourBarAxes`), so it follows
     the limits, per frame too, the stretch, contrast and bias, the colormap, or the colour in 'One color per layer'
