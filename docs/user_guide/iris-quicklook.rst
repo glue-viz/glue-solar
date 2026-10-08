@@ -306,18 +306,21 @@ alone, while glue's status bar says "Computing line moments of <label>…", and 
 moments <centre>`` on the window's raster steps and slit pixels, with their helioprojective
 coordinates in arcsec:
 
-- ``intensity``, the sum of the samples, in the window's unit;
+- ``intensity``, the sum of the samples, in DN/s: those of the window's ``<label> DN/s``, its DN over
+  each raster step's exposure time (NaN at a step whose exposure time is 0 s), or of the window's
+  own values, in their unit, for data without one;
 - ``centroid`` and ``width``, the line's mean wavelength and standard deviation, in Å;
 - ``velocity`` and ``velocity_width``, the same as Doppler velocities from the centre, in km/s.
 
-A pixel whose every sample within the wings is missing, or with too few samples in the continuum
-windows to fit its background, is NaN in every map; irispy counts other missing and negative
-samples, after any background is subtracted, as 0. Velocities are relative to the uncorrected Level
-2 wavelength scale, which can be off by about 5-10 km/s. The new dataset's helioprojective
-coordinates are linked with the other IRIS datasets, its ``meta`` holds ``moments_centre`` and
-``moments_wings``, with a continuum also ``moments_continuum``, the windows, and
-``moments_continuum_degree``, the degree of the background, and no viewer opens: drag it onto an
-Image viewer and pick a map as its attribute. A stack of scans is refused: its scans load one by one
-without "Stack sequential raster scans" in the observation browser.
+A pixel whose every sample within the wings is missing (NaN or -Inf), or with too few samples in the
+continuum windows to fit its background, is NaN in every map; irispy counts other missing and
+negative samples, after any background is subtracted, as 0. Saturated samples are not yet treated:
+they count as any other. Velocities are relative to the uncorrected Level 2 wavelength scale, which
+can be off by about 5-10 km/s. The new dataset's helioprojective coordinates are linked with the
+other IRIS datasets, its ``meta`` holds ``moments_centre`` and ``moments_wings``, with a continuum
+also ``moments_continuum``, the windows, and ``moments_continuum_degree``, the degree of the
+background, and no viewer opens: drag it onto an Image viewer and pick a map as its attribute. A
+stack of scans is refused: its scans load one by one without "Stack sequential raster scans" in the
+observation browser.
 ``glue_solar.sources.moments.line_moments(data, centre, wings, continuum)`` computes the dataset in
 glue's terminal too, ``continuum`` a list of ``(lower, upper)`` wavelengths in Å.

@@ -16,7 +16,7 @@ import astropy.units as u
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
 from glue_solar.quicklook import _role, _spectral_axes, _wavelengths
-from glue_solar.sources.loaders.iris import _RUNNING, WCS_LOCK, _GlueWCS, keep_hpc_linked
+from glue_solar.sources.loaders.iris import _RUNNING, WCS_LOCK, _GlueWCS, keep_hpc_linked, per_second
 
 __all__ = ["line_moments", "moments_iris"]
 
@@ -82,6 +82,11 @@ def _moments(data, centre, wings, continuum, crop, inner, unit):
     from irispy.utils.spectrograph import subtract_background
 
     cid, maps = data.main_components[0], {}
+    # the loader's DN/s, its DN over each step's exposure time (D4), from the DN read here: glue's derived component
+    # reads them again
+    rate = data.find_component_id(f"{cid.label} DN/s") is not None
+    if rate:
+        unit = unit / u.s
     # a slab takes about 100 bytes per sample, 150 with a continuum: half the steps then, generously, keeps a small
     # window's cold peak under 3x
     steps = max(1, SLAB // (data.shape[1] * (crop.stop - crop.start) * (2 if continuum else 1)))
@@ -89,18 +94,20 @@ def _moments(data, centre, wings, continuum, crop, inner, unit):
     for start in range(0, data.shape[0], steps):
         rows = (slice(start, start + steps), slice(None))
         values = data[cid, (*rows, crop)]  # scaled float32 of these steps and wavelengths only, NaN where missing
+        if rate:
+            values = per_second(values, data["Exposure time", (rows[0], slice(0, 1), slice(0, 1))])
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
             if continuum:
                 view = SlicedLowLevelWCS(data.coords._wcs, (*rows, crop))
-                cube = SpectrogramCube(values, view, unit=unit, mask=np.isnan(values))
+                cube = SpectrogramCube(values, view, unit=unit, mask=np.isnan(values) | np.isneginf(values))
                 values = subtract_background(cube, continuum * u.AA, degree=degree).data
                 # NaN where irispy fits no background: missing at every wavelength within the wings, NaN maps
                 values = values[..., inner.start - crop.start : inner.stop - crop.start]
             view = SlicedLowLevelWCS(data.coords._wcs, (*rows, inner))
-            cube = SpectrogramCube(values, view, unit=unit, mask=np.isnan(values))
+            cube = SpectrogramCube(values, view, unit=unit, mask=np.isnan(values) | np.isneginf(values))
             slab = calculate_moments(cube, rest_wavelength=centre * u.AA, wings=wings * u.AA)
         for name, moment in slab.items():
-            # irispy sums masked samples as 0, and masks a pixel masked at every wavelength: NaN there (D17)
+            # irispy sums masked samples, NaN and -Inf, as 0, and masks a pixel masked at every wavelength: NaN there (D17)
             maps.setdefault(name, []).append((np.where(moment.mask, np.nan, moment.data), moment.unit))
     moments = Data(label=f"{data.label} moments {centre}")
     with WCS_LOCK:
@@ -125,12 +132,13 @@ def line_moments(data, centre, wings=WINGS, continuum=None):
     one dataset on the window's raster steps and slit pixels; with ``continuum`` windows, of the line less irispy's
     background fitted to them: a constant to one window, a straight line to more.
 
-    Its components are irispy's: ``intensity`` in the window's unit, ``centroid`` and ``width`` in Angstrom, and
-    ``velocity`` and ``velocity_width`` in km / s, relative to ``centre``; all are NaN where every sample within the
-    wings is missing, or no background could be fitted. ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``,
-    ``moments_centre`` and ``moments_wings``, and with a continuum ``moments_continuum`` and
-    ``moments_continuum_degree``, the degree of the background. irispy is given only the wavelengths from the first
-    to the last within the wings or a continuum window, a slab of steps at a time.
+    irispy is given the window's ``<label> DN/s`` where it has one, else its values, with NaN and -Inf masked. Its
+    components are irispy's: ``intensity`` in that unit, ``centroid`` and ``width`` in Angstrom, and ``velocity`` and
+    ``velocity_width`` in km / s, relative to ``centre``; all are NaN where every sample within the wings is missing,
+    or no background could be fitted. ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``, ``moments_centre``
+    and ``moments_wings``, and with a continuum ``moments_continuum`` and ``moments_continuum_degree``, the degree of
+    the background. irispy is given only the wavelengths from the first to the last within the wings or a continuum
+    window, a slab of steps at a time.
 
     Parameters
     ----------

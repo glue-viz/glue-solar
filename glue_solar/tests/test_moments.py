@@ -23,7 +23,7 @@ from glue_solar.sources import moments
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.moments import line_moments
-from glue_solar.tests.test_lazy import SJI, int16_copy, int16_raster_copy
+from glue_solar.tests.test_lazy import SJI, int16_copy, int16_raster_copy, zero_exposure
 from glue_solar.tests.test_quicklook import SCAN
 
 ACTION = "IRIS: line moments…"
@@ -97,7 +97,7 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     assert maps.label == f"{raster.label} moments 1402.77"
     assert maps.shape == raster.shape[:2]
     assert [(cid.label, maps.get_component(cid).units) for cid in maps.main_components] == [
-        ("intensity", "DN_IRIS_FUV"),
+        ("intensity", "DN_IRIS_FUV / s"),  # of the window's DN/s
         ("centroid", "Angstrom"),
         ("width", "Angstrom"),
         ("velocity", "km / s"),
@@ -203,10 +203,9 @@ def test_a_continuum_window_is_irispys_background(app, qtbot, monkeypatch, scan_
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)
     plain = line_moments(raster, 1402.77)
-    # irispy's own on the whole scaled window, its mask the window's NaN
-    cid = raster.main_components[0]
-    window = np.asarray(raster[cid])
-    cube = SpectrogramCube(window, raster.coords._wcs, unit=DN_UNIT["FUV"], mask=np.isnan(window))
+    # irispy's own on the window's whole DN/s, its mask the window's NaN
+    window = np.asarray(raster[f"{raster.label} DN/s"])
+    cube = SpectrogramCube(window, raster.coords._wcs, unit=DN_UNIT["FUV"] / u.s, mask=np.isnan(window))
     wavelengths, _ = _wavelengths(raster)
     wings = (wavelengths >= 1402.27) & (wavelengths <= 1403.27)
     # the second fits no background to 8 pixels missing from 1403.46 Å on but not within the wings
@@ -255,3 +254,42 @@ def test_lazy_data_give_the_moments_of_data_in_memory(monkeypatch, scan_path, co
     slabs = line_moments(eager, 1402.77, continuum=continuum)
     for cid in lazy.main_components:
         np.testing.assert_array_equal(slabs[cid.label], lazy[cid])
+
+
+def test_the_dn_per_second_of_a_window_that_has_it(scan_path):
+    """The maps of the window's DN/s are those of its DN over each step's exposure time, NaN at a step of 0 s."""
+    [raster] = raster_data([zero_exposure(scan_path, 3)], ["Si IV 1403"])
+    maps = line_moments(raster, 1402.77)
+    seconds = raster["Exposure time"][:, :1, 0]
+    raster.remove_component(raster.id[f"{raster.label} DN/s"])
+    dn = line_moments(raster, 1402.77)
+    assert maps.get_component("intensity").units == "DN_IRIS_FUV / s"
+    assert dn.get_component("intensity").units == "DN_IRIS_FUV"
+    assert seconds[3] == 0
+    assert (np.delete(seconds, 3, 0) > 0).all()
+    assert not np.isnan(dn["intensity"][3]).all()
+    for cid in maps.main_components:
+        assert np.isnan(maps[cid][3]).all()
+        expected = dn[cid.label] / (seconds if cid.label == "intensity" else 1)
+        np.testing.assert_allclose(np.delete(maps[cid], 3, 0), np.delete(expected, 3, 0), rtol=1e-6, atol=1e-5)
+
+
+def test_minus_infinity_is_missing(monkeypatch, scan_path):
+    """A sample at -Inf, which only data stored as floating point can hold, is missing, as NaN is."""
+    monkeypatch.setattr(iris, "LAZY", False)
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    cid, (wavelengths, _) = raster.main_components[0], _wavelengths(raster)
+    inside = np.flatnonzero((wavelengths >= 1402.27) & (wavelengths <= 1403.27))
+    assert np.isfinite(line_moments(raster, 1402.77)["intensity"][2:4, 10]).all()
+    values = np.array(raster[cid])
+    values[2, 10, inside[1]] = -np.inf
+    values[3, 10, inside] = -np.inf
+    raster.update_components({cid: values})
+    maps = line_moments(raster, 1402.77)
+    values[np.isneginf(values)] = np.nan
+    raster.update_components({cid: values})
+    missing = line_moments(raster, 1402.77)
+    for cid in maps.main_components:
+        assert np.isnan(maps[cid][3, 10])
+        assert np.isfinite(maps[cid][2, 10])
+        np.testing.assert_array_equal(maps[cid], missing[cid.label])
