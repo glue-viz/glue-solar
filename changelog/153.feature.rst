@@ -1,0 +1,1 @@
+"IRIS: Mg II features…" in a raster window's right-click menu adds irispy's Mg II k and h feature velocity and intensity maps (k2v, k3, k2r, h2v, h3, h2r) as one linked dataset.
