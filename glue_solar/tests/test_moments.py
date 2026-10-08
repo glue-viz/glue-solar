@@ -1,5 +1,6 @@
 """
-'IRIS: line moments…', on int16 copies of irispy's test files: what glue gets of irispy's maps, not irispy's numbers.
+'IRIS: line moments…', on int16 copies of irispy's test files, Gaussian lines and one irispy-data cutout: what glue
+gets of irispy's maps.
 """
 
 from unittest.mock import Mock
@@ -207,9 +208,7 @@ def test_a_continuum_window_is_irispys_background(app, qtbot, monkeypatch, scan_
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)
     plain = line_moments(raster, 1402.77)
-    # irispy's own on the window's whole DN/s, in float64 as it is given them, its mask the window's NaN
-    window = iris.per_second(np.asarray(raster[raster.main_components[0]], dtype=float), raster["Exposure time"])
-    cube = SpectrogramCube(window, raster.coords._wcs, unit=DN_UNIT["FUV"] / u.s, mask=np.isnan(window))
+    cube = dn_per_second_cube(raster, DN_UNIT["FUV"])
     wavelengths, _ = _wavelengths(raster)
     wings = (wavelengths >= 1402.27) & (wavelengths <= 1403.27)
     # the second fits no background to 8 pixels missing from 1403.46 Å on but not within the wings
@@ -343,13 +342,18 @@ def test_a_dn_per_second_window_saturates_at_each_steps_exposure_time(monkeypatc
     assert np.isfinite(maps["intensity"][1, 10])
 
 
+def dn_per_second_cube(raster, unit):
+    """The whole of ``raster``'s DN/s in ``unit`` / s for irispy, in float64 as it is given them, its mask their NaN."""
+    window = iris.per_second(np.asarray(raster[raster.main_components[0]], dtype=float), raster["Exposure time"])
+    return SpectrogramCube(window, raster.coords._wcs, unit=unit / u.s, mask=np.isnan(window))
+
+
 def assert_irispys(maps, raster, centre, wings, unit):
     """
-    ``maps`` are irispy's own on the whole of ``raster``'s DN/s in ``unit`` / s, in float64 as it is given them, its
-    mask the window's NaN, but NaN where every sample within the wings is missing.
+    ``maps`` are irispy's own on ``raster``'s DN/s in ``unit`` / s, but NaN where every sample within the wings is
+    missing.
     """
-    window = iris.per_second(np.asarray(raster[raster.main_components[0]], dtype=float), raster["Exposure time"])
-    cube = SpectrogramCube(window, raster.coords._wcs, unit=unit / u.s, mask=np.isnan(window))
+    cube = dn_per_second_cube(raster, unit)
     direct = irispy.utils.moments.calculate_moments(cube, rest_wavelength=centre * u.AA, wings=wings * u.AA)
     fill = missing(raster, centre - wings, centre + wings)
     assert [cid.label for cid in maps.main_components] == list(direct)
