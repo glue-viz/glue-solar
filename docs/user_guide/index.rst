@@ -13,6 +13,7 @@ User Guide
    iris-line-moments
    iris-red-blue-asymmetry
    iris-mg-features
+   iris-calibration
    viewer-tools-and-windows
    guide-to-glue-1dprofile-viewer-for-iris-data
    scripting-iris-data

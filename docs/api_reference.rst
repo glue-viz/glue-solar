@@ -29,3 +29,6 @@ API Reference
 .. automodapi:: glue_solar.sources.mg_features
 .. automodapi:: glue_solar.sources.line_ratio
    :no-inheritance-diagram:
+
+.. automodapi:: glue_solar.sources.calibration
+   :no-inheritance-diagram:
