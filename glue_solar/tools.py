@@ -2,6 +2,8 @@
 Toolbar tools for glue's viewers.
 """
 
+import os
+from contextlib import nullcontext
 from functools import partial
 
 import numpy as np
@@ -21,6 +23,7 @@ from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.matplotlib.mpl_axes import update_appearance_from_settings
 from glue_qt.utils.decorators import messagebox_on_error
 from glue_qt.viewers.image import ImageViewer
+from matplotlib import animation, rcParams
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import MouseButton, ResizeEvent
 from matplotlib.lines import Line2D
@@ -59,6 +62,7 @@ __all__ = [
     "HideAxesTool",
     "PerFrameLimitsTool",
     "PhysicalAspectTool",
+    "SaveSequenceTool",
 ]
 
 # Whether a new Image viewer shows its axes; the user guide says how to change it
@@ -1019,23 +1023,127 @@ class _LoopEntry(_CoordinateEntry):
 
     @messagebox_on_error("Could not loop")
     def run(self, coordinator):
-        viewer, slider = self.viewer, _first_slider(self.viewer)
+        slider = _first_slider(self.viewer)
         if slider is None:
             raise ValueError("The viewer has no frame, exposure, step or scan slider.")
-        last = slider.value_slice_center.maximum()
-        lo, hi = getattr(slider, "_solar_loop", (0, last))
-        text, ok = QtWidgets.QInputDialog.getText(
-            viewer, "Loop", f"First and last index (0–{last}):", text=f"{lo} {hi}"
-        )
-        if not ok:
-            return
+        picked = _ask_range(self.viewer, "Loop", slider)
+        if picked is not None:
+            _loop(slider, *picked)
+
+
+def _ask_range(viewer, title, slider):
+    """
+    The first and last index of ``slider``, a glue-qt slice slider, typed in a dialog that opens on its loop (Loop…)
+    or else its whole range, or None if the dialog is cancelled.
+    """
+    last = slider.value_slice_center.maximum()
+    lo, hi = getattr(slider, "_solar_loop", (0, last))
+    text, ok = QtWidgets.QInputDialog.getText(viewer, title, f"First and last index (0–{last}):", text=f"{lo} {hi}")
+    if not ok:
+        return None
+    try:
+        lo, hi = (int(value) for value in text.replace(",", " ").split())
+    except ValueError:
+        lo = hi = -1
+    if not 0 <= lo <= hi <= last:
+        raise ValueError(f"'{text}' is not two indices from 0 to {last}, the first not after the last.")
+    return lo, hi
+
+
+# What `SaveSequenceTool` writes, by file name suffix; MP4 only where matplotlib finds ffmpeg
+_SEQUENCE_FILTERS = {".png": "PNG frames (*.png)", ".mp4": "MP4 movie (*.mp4)", ".gif": "GIF movie (*.gif)"}
+_MOVIE_FPS = 10
+
+
+@viewer_tool
+class SaveSequenceTool(Tool):
+    """
+    Save the Image viewer's figure at each index of one slider, from a first to a last, as PNG files or a movie.
+
+    An entry of glue's save menu. Each PNG frame is what 'Save plot to file' writes at that index, named after the file
+    chosen with the index added (``sji_0007.png`` for ``sji.png``); a movie is an MP4 through matplotlib's
+    ``FFMpegWriter``, offered where ffmpeg is installed, or a GIF through its ``PillowWriter``, at 10 frames per
+    second. Of several sliders one is picked, the first (an IRIS dataset's frames, exposures, steps or scans) offered
+    first, and the indices are typed as for Loop…, whose range the dialog opens on. The slider moves as in playback, on
+    the GUI thread, and each frame is saved once Qt has run the time sync, so the other viewers follow and the overlays
+    are drawn; per-frame limits are off during the run, so every frame has the same colour limits. Cancel keeps the
+    frames saved so far, a movie of them too, and the viewer returns to its slice and limits.
+    """
+
+    icon = "glue_filesave"
+    tool_id = "solar:save_sequence"
+    action_text = "Save frames or movie…"
+    tool_tip = "Save the image at each index of a slider as PNG files or a movie"
+
+    @messagebox_on_error("Could not save the frames or movie")
+    def activate(self):
         try:
-            lo, hi = (int(value) for value in text.replace(",", " ").split())
-        except ValueError:
-            lo = hi = -1
-        if not 0 <= lo <= hi <= last:
-            raise ValueError(f"'{text}' is not two indices from 0 to {last}, the first not after the last.")
-        _loop(slider, lo, hi)
+            self._save()
+        finally:
+            _keep_mouse_mode(self.viewer)
+
+    def _save(self):
+        viewer = self.viewer
+        state, figure = viewer.state, viewer.figure
+        sliders = [(axis, s) for axis, s in enumerate(viewer.options_widget().slice_helper._sliders) if s is not None]
+        if not sliders:
+            raise ValueError("The viewer has no slider.")
+        labels = [slider.state.label for _, slider in sliders]
+        label = labels[0]
+        if len(sliders) > 1:
+            label, ok = QtWidgets.QInputDialog.getItem(viewer, "Save frames or movie", "Slider:", labels, 0, False)
+            if not ok:
+                return
+        axis, slider = sliders[labels.index(label)]
+        picked = _ask_range(viewer, "Save frames or movie", slider)
+        if picked is None:
+            return
+        ffmpeg = animation.writers.is_available("ffmpeg")
+        filters = [text for suffix, text in _SEQUENCE_FILTERS.items() if suffix != ".mp4" or ffmpeg]
+        start = os.path.expanduser(rcParams["savefig.directory"])
+        path, chosen = QtWidgets.QFileDialog.getSaveFileName(viewer, "Save frames or movie", start, ";;".join(filters))
+        if not path:
+            return
+        stem, suffix = os.path.splitext(path)
+        if suffix.lower() not in _SEQUENCE_FILTERS:  # none typed: the chosen filter's
+            stem, suffix = path, next((s for s, text in _SEQUENCE_FILTERS.items() if text == chosen), ".png")
+        # ponytail: PillowWriter holds every GIF frame in memory until the end (+0.7 GiB for 400 frames of 788 × 597),
+        # where an MP4 streams to ffmpeg; stream the frames to Pillow if long GIFs matter
+        movie = {".mp4": animation.FFMpegWriter, ".gif": animation.PillowWriter}.get(suffix.lower())
+        indices = range(picked[0], picked[1] + 1)
+        canvas = figure.canvas
+        slices, size, manager = state.slices, figure.get_size_inches(), canvas.manager
+        data = state.reference_data
+        per_frame = [ls for ls in state.layers if ls.layer is data and not getattr(ls, "stretch_global", True)]
+        progress = QtWidgets.QProgressDialog("Saving frames…", "Cancel", 0, len(indices), viewer)
+        progress.setWindowModality(QtCore.Qt.WindowModal)
+        progress.show()  # at once, keeping input from the viewer's window while the events below run
+        try:
+            # FFMpegWriter evens out an odd frame size through the canvas' manager, which would resize the canvas, and
+            # glue would zoom to it: without one only the figure changes, until the end
+            canvas.manager = None
+            for layer in per_frame:
+                layer.stretch_global = True
+            saving = nullcontext() if movie is None else movie(fps=_MOVIE_FPS).saving(figure, stem + suffix, None)
+            with saving as writer:
+                for count, index in enumerate(indices, 1):
+                    state.slices = tuple(index if i == axis else s for i, s in enumerate(state.slices))
+                    QtWidgets.QApplication.processEvents()  # the time sync, its overlays and Cancel, as in playback
+                    if writer is None:
+                        figure.savefig(f"{stem}_{index:04d}.png")  # as 'Save plot to file' does
+                    else:
+                        writer.grab_frame()
+                    progress.setValue(count)
+                    if progress.wasCanceled():
+                        break
+        finally:
+            progress.deleteLater()
+            state.slices = slices
+            for layer in per_frame:
+                layer.stretch_global = False
+            canvas.manager = manager
+            figure.set_size_inches(size, forward=False)
+            canvas.draw_idle()
 
 
 def _position(viewer):
