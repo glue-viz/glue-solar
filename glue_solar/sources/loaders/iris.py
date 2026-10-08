@@ -6,6 +6,7 @@ import re
 import tarfile
 import threading
 import traceback
+import warnings
 from collections import OrderedDict
 from functools import cached_property, partial
 from operator import attrgetter
@@ -309,6 +310,25 @@ def _observation_label(meta):
     return "-".join(filter(None, (obsid, str(meta.get("STARTOBS", ""))[:19])))
 
 
+def _warn_repeated_positions(datasets):
+    """
+    Warn once per observation of ``datasets`` whose rasters take several exposures at each of several positions
+    (``NEXP_PRP`` and ``NRASTERP`` over 1), which world to pixel cannot tell apart; a sit-and-stare raster, whose one
+    position takes them all (``NRASTERP`` 1), steps through time instead.
+    """
+    repeated = {}
+    for data in datasets:
+        meta = data.meta
+        if meta.get("INSTRUME") == "SPEC" and int(meta.get("NEXP_PRP") or 1) > 1 and int(meta.get("NRASTERP") or 1) > 1:
+            repeated[_observation_label(meta)] = int(meta["NEXP_PRP"])
+    for observation, exposures in repeated.items():
+        warnings.warn(
+            f"{observation} takes {exposures} exposures at each raster position (NEXP_PRP), which world to pixel "
+            "cannot tell apart: a click on a quicklook's slit-jaw image lands on one of them.",
+            stacklevel=3,
+        )
+
+
 def _raw_scaling(header):
     """
     ``(BSCALE, BZERO)`` of an image HDU of int16, as Level 2 files store their data, which then loads lazily; None
@@ -448,8 +468,15 @@ def raster_data(files, windows=None, stack=False):
         One per scan and window, or one per window when ``stack`` is set. Windows stored as int16, as Level 2
         files store them, stay in their files and are scaled where glue reads them (`LAZY`), if every file stores
         them alike.
+
+    Warns
+    -----
+    UserWarning
+        If the rasters take several exposures at each position (``NEXP_PRP``), as world to pixel gives the first.
     """
-    return [data for datasets in _raster_windows_data(files, windows, stack).values() for data in datasets]
+    datasets = [data for datasets in _raster_windows_data(files, windows, stack).values() for data in datasets]
+    _warn_repeated_positions(datasets)
+    return datasets
 
 
 def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None):
@@ -840,6 +867,7 @@ class QtIRISImporter(QtWidgets.QDialog):
             return
         self.loaded = loaded
         self.datasets = [data for *_, datasets in loaded for data in datasets]
+        _warn_repeated_positions(self.datasets)  # here, on the GUI thread, which glue's Error Console must be used from
         self.first_image = next((datasets[0] for _, kind, _, datasets in loaded if kind != "raster"), None)
         self.progress.setValue(100)
         self.accept()

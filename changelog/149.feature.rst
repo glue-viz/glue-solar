@@ -1,0 +1,1 @@
+Loading a raster that takes several exposures at each position (NEXP_PRP > 1) warns once that world to pixel along its steps gives the first exposure at a position.
