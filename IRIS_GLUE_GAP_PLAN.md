@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state, 2026-10-07
 
-**Resume here.** M0 is done. Main is at 308ea99 (#143 tests line moments on Gaussian lines and the 3400109360 cutout and gives them their own guide page; #142 leaves saturated pixels out of line moments and counts them, D49; #141 makes line moments use DN/s and leave -Inf out, D49; #140 reads slit-jaw images and AIA cutouts through irispy main, a gzipped one decompressed once; #139 says in the status bar while line moments are computed, D46; #138 takes continuum windows in the line moments dialog, D48; #137 installs irispy's git main and needs Python 3.13, D47; #136 adds IRIS line moment maps as a layer action, D45, D46; #135 blinks a viewer between two positions, D41; #134 labels the main IRIS lines on Profile viewers, D44; #133 opens each quicklook panel with its band's stretch, D43; #132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#143; the IRIS user guide is five pages: loading, `iris-quicklook`, `viewer-tools-and-windows`, the Profile guide and `scripting-iris-data`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; next: M2's WP11 and WP12.
+**Resume here.** M0 is done. Main is at 7e86145 (#144 adds a Colour bar button drawn with glue's normalisation; #143 tests line moments on Gaussian lines and the 3400109360 cutout and gives them their own guide page; #142 leaves saturated pixels out of line moments and counts them, D49; #141 makes line moments use DN/s and leave -Inf out, D49; #140 reads slit-jaw images and AIA cutouts through irispy main, a gzipped one decompressed once; #139 says in the status bar while line moments are computed, D46; #138 takes continuum windows in the line moments dialog, D48; #137 installs irispy's git main and needs Python 3.13, D47; #136 adds IRIS line moment maps as a layer action, D45, D46; #135 blinks a viewer between two positions, D41; #134 labels the main IRIS lines on Profile viewers, D44; #133 opens each quicklook panel with its band's stretch, D43; #132 draws a Profile Collapse range inside one sample as that sample; #131 gives each raster window row of the browser its detector and wavelength range; #130 cuts CI to the online test job beside the docs build, see `wp0-restore-full-ci`; #129 lists and restores sunpy colormaps by their own names; #128 counts Scatter and Histogram dates from matplotlib's epoch until glue #2599; #127 tells stacks of other scans apart and moves a point on another window in time) (#107-#144; the IRIS user guide is five pages: loading, `iris-quicklook`, `viewer-tools-and-windows`, the Profile guide and `scripting-iris-data`; `docs/make_screenshots.py` regenerates its three IRIS images); glue-solar PRs are marked ready and merged once CI passes. No PR is open. M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; next: M2's WP11 and WP12.
 
 **Next.** The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
@@ -106,7 +106,7 @@ A milestone is done when it has no items left.
 - WP0: `wp0-release-tracking`
 
 **M2**
-- WP11: `wp11-colourbar`, `wp11-distance-measure`, `wp11-zoom-steps`
+- WP11: `wp11-distance-measure`, `wp11-zoom-steps`
 - WP12: `wp12-sequence-export`, `wp12-path-slicer`
 
 **M3**
@@ -385,7 +385,6 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 
 **M2**
 
-- [ ] **M2** `wp11-colourbar` (F060): A checkable 'Colour bar' tool draws the reference layer's bar with glue's normalisation. Done when it follows limits, stretch, cmap, Contrast/Bias and slices and shows in `mpl:save` PNGs.
 - [ ] **M2** `wp11-distance-measure` (F131): A `solar:measure` mode (glue's `ToolbarModeBase`) reports a dragged line in pixels, arcsec and km. Done when a 100-pixel line on 4000255147 SJI 1400 reads 16.6″ (within 0.01″ of WCS) and 12,172 km (within 0.1%).
 - [ ] **M2** `wp11-zoom-steps` (F097): A 'Zoom 1:1' action makes one data pixel one screen pixel about the view centre. Done when the axes width in screen pixels equals x_max − x_min on an irispy raster.
 
