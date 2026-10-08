@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 from collections import Counter
+from pathlib import Path
 from types import SimpleNamespace
 
 import glue.utils.matplotlib
@@ -1277,7 +1278,8 @@ def test_quicklook_panels_take_glue_qts_tab_and_backspace_at_glues_start():
 
 def test_the_key_table_lists_every_key_of_glue_solars_viewers_and_tools(request):
     # docs/user_guide/viewer-tools-and-windows.rst: the keys glue-solar gives viewers, its tools' shortcuts, and the
-    # keys of its mouse modes, the glue modes they extend and the WCSAxes readout, once each
+    # keys of its mouse modes, the glue modes they extend and the WCSAxes readout, and the Qt keys its modules name,
+    # once each
     glue_solar.setup()
     keys = [
         key
@@ -1290,6 +1292,10 @@ def test_the_key_table_lists_every_key_of_glue_solars_viewers_and_tools(request)
     handlers = [vars(cls)["key"] for tool in tools for cls in tool.__mro__ if "key" in vars(cls)]
     for handler in [*handlers, WCSAxes._set_cursor_prefs]:
         keys += re.findall(r"event\.key == ['\"](\w+)", inspect.getsource(handler))
+    package = Path(glue_solar.__file__).parent
+    for module in package.rglob("*.py"):
+        if module.relative_to(package).parts[0] != "tests":
+            keys += re.findall(r"Qt\.Key_(\w+)", module.read_text())
     guide = request.config.rootpath / "docs" / "user_guide" / "viewer-tools-and-windows.rst"
     if not guide.exists():
         pytest.skip("the package is installed without its docs")
