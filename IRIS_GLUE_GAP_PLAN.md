@@ -227,7 +227,7 @@ Products from IRIS spectra, as dataset `layer_action`s that add linked Data and 
 - [ ] **M3** `wp2-m3-moments-extensions` (F153, F154): Moments on 4-D stacks, and a Profile range tool (glue-qt's `RangeMouseMode`) giving the wings. Done when a stack's scan 0 equals the per-scan maps.
 - [ ] **M3** `wp2-m3-window-data` (F160): Opt-in uncertainties, moment error maps (irispy #201) and 'Rebin…' via `NDCube.rebin`. Done when 3610108077 Si IV 1403 errors equal irispy's and a 2×2 rebin keeps the finite mean.
 - [ ] **M3** `wp2-fiasco-density-preset`: Add the `density` extra installing fiasco from git main (D51) and offer irispy's `density_diagnostic` O IV 1399.8/1401.2 density preset in the line ratio dialog beside typed tables. Done when the preset's map equals a direct `density_diagnostic` call on two moment maps.
-- [ ] **M3** `wp2-mg-features-saturation`: Once irispy's `calculate_mg_features` takes `saturation_limit` (D51), pass `SATURATION_LIMIT` and count the pixels it blanks in the status bar, as moments do (#142). Done when a clipped sample blanks only its line's features at its pixel.
+- [ ] **M3** `wp2-mg-features-saturation`: Once irispy's `calculate_mg_features` takes `saturation_limit` (D51; draft irispy #227, branch `mg-features-saturation`, worktree `~/Git/irispy-mg-saturation`, which also returns `"{line}_saturated"` maps), pass `SATURATION_LIMIT` and count the pixels it blanks in the status bar from those maps, as moments do (#142). Done when a clipped sample blanks only its line's features at its pixel.
 
 **L**
 
