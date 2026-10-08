@@ -1,0 +1,1 @@
+Line moments have their own user guide page, which says what each map means, including that the width is a standard deviation and that Mg II and C II are optically thick.
