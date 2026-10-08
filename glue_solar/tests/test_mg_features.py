@@ -63,8 +63,11 @@ def answer(monkeypatch, velocities=None, ticks=None, accept=True):
     return opened
 
 
-def run(app, qtbot, data):
-    """Trigger the action on ``data`` and wait for the dataset it adds and for its thread to end."""
+def run(app, qtbot, data, message=""):
+    """
+    Trigger the action on ``data`` and wait for the dataset it adds and for its thread to end, the status bar then
+    saying ``message``.
+    """
     collection, tree = app.data_collection, app._layer_widget
     count = len(collection)
     tree.ui.layerTree.set_selected_layers([data])
@@ -72,7 +75,7 @@ def run(app, qtbot, data):
     assert iris._RUNNING  # on glue-qt's worker
     assert app.statusBar().currentMessage() == f"Computing Mg II features of {data.label}…"
     qtbot.waitUntil(lambda: len(collection) == count + 1 and not iris._RUNNING)
-    assert app.statusBar().currentMessage() == ""
+    assert app.statusBar().currentMessage() == message
     return collection[-1]
 
 
@@ -117,6 +120,35 @@ def test_the_action_adds_irispys_maps_as_one_linked_dataset_and_no_viewer(
     assert set(maps.world_component_ids) <= linked
     assert_irispys(maps, raster)
     assert_irispys(mg_features.mg_features(raster), raster)  # the same in glue's terminal
+
+
+def test_a_saturated_sample_blanks_its_lines_features_at_its_pixel(app, qtbot, monkeypatch, scan_path):
+    """
+    A sample at 16182 DN, irispy's limit, among those searched for a line makes that line's features NaN at its pixel,
+    and leaves the rest as irispy finds them without the limit; the status bar says how many pixels.
+    """
+    monkeypatch.setattr(iris, "LAZY", False)
+    monkeypatch.setattr(mg_features, "SLAB", 3 * 109 * 33)  # slabs of 3 steps on the crop of both lines
+    [raster] = raster_data([scan_path], ["Mg II k 2796"])
+    app.data_collection.append(raster)
+    cid = raster.main_components[0]
+    values = np.array(raster[cid])
+    values[:, 10, 51] = 16182  # h's core, at -6 km/s, at every step: in DN/s, over each step's own exposure time
+    values[0, 30, 23] = 16182  # k's core, at -0.6 km/s
+    raster.update_components({cid: values})
+    answer(monkeypatch)
+    message = "the k features at 1 saturated pixel and the h features at 8 saturated pixels are NaN"
+    maps = run(app, qtbot, raster, f"{raster.label} Mg II features: {message}")
+    assert maps.meta["mg_features_saturated"] == {"k": 1, "h": 8}
+    direct = calculate_mg_features(dn_per_second_cube(raster, DN_UNIT["NUV"]))
+    assert [cid.label for cid in maps.main_components] == list(direct)  # the saturated maps only counted
+    assert np.isfinite(direct["h2v_velocity"].data[:, 10]).all()  # found without the limit
+    assert np.isfinite(direct["k3_velocity"].data[0, 30])
+    blanked = {"k": (0, 30), "h": (slice(None), 10)}
+    for name, cube in direct.items():
+        expected = cube.data.copy()
+        expected[blanked[name[0]]] = np.nan
+        np.testing.assert_array_equal(maps[name], expected)
 
 
 def test_the_lines_ticked_at_first_are_those_covered_and_the_typed_values(app, qtbot, monkeypatch, irispy_test_files):

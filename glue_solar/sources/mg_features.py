@@ -58,23 +58,32 @@ def _mg_features(data, velocities, lines, crop, unit):
     `mg_features` of ``lines`` given ``crop`` of the wavelength pixels and ``unit`` the unit of the values irispy is
     given; on any thread.
     """
+    from irispy.utils.constants import SATURATION_LIMIT
     from irispy.utils.mg_features import calculate_mg_features
 
-    maps = {}
+    maps, saturated = {}, dict.fromkeys(lines, 0)
     # irispy measures each step on its own, so a slab of steps gives what the whole window would
     steps = max(1, SLAB // (data.shape[1] * (crop.stop - crop.start)))
     for start in range(0, data.shape[0], steps):
         rows = (slice(start, start + steps), slice(None))
-        values, _ = _read(data, rows, crop)
+        values, seconds = _read(data, rows, crop)
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
+            # a line's features are NaN where a sample it searches is saturated
             slab = calculate_mg_features(
-                _cube(data, values, rows, crop, unit), velocity_range=velocities * u.km / u.s, lines=lines
+                _cube(data, values, rows, crop, unit, seconds),
+                velocity_range=velocities * u.km / u.s,
+                lines=lines,
+                saturation_limit=SATURATION_LIMIT,
             )
+        for line in lines:
+            saturated[line] += int(slab.pop(f"{line}_saturated").data.sum())
         for name, feature in slab.items():
             maps.setdefault(name, []).append((feature.data, feature.unit))
         gc.collect(0)  # ndcube's cubes are reference cycles, and irispy's hold the slab's values
     features = _dataset(data, f"{data.label} Mg II features")
     features.meta.update(mg_features_velocities=tuple(velocities), mg_features_lines=lines)
+    if any(saturated.values()):  # for the status bar and scripts, as line moments'
+        features.meta["mg_features_saturated"] = {line: count for line, count in saturated.items() if count}
     for name, parts in maps.items():
         features.add_component(Component(np.concatenate([part for part, _ in parts]), units=str(parts[0][1])), name)
     return features
@@ -89,9 +98,10 @@ def mg_features(data, velocities=VELOCITIES, lines=LINES):
     only the wavelengths it searches; it skips a line the window does not cover over ``velocities``. For each line,
     ``k`` (2796.35 Å) and ``h`` (2803.53 Å), its components are irispy's: ``k2v``, ``k3`` and ``k2r`` (``h2v``,
     ``h3``, ``h2r``), the blue peak, line centre and red peak, each as ``<feature>_velocity`` in km / s and
-    ``<feature>_intensity`` in the window's unit; NaN where irispy finds none, or a sample it searches is missing.
-    irispy does not detect saturation: a profile clipped at 16182 DN is measured as it is. ``meta`` holds the
-    observation's ``OBSID`` and ``STARTOBS``, ``mg_features_velocities`` and ``mg_features_lines``, those measured.
+    ``<feature>_intensity`` in the window's unit; NaN where irispy finds none, or a sample it searches for the line is
+    missing or saturated: at or above its ``SATURATION_LIMIT``, 16182 DN. ``meta`` holds the observation's ``OBSID``
+    and ``STARTOBS``, ``mg_features_velocities`` and ``mg_features_lines``, those measured, and with saturated pixels
+    ``mg_features_saturated``, how many of each line's.
 
     Parameters
     ----------
@@ -140,6 +150,17 @@ def _failed(exc_info):
     raise exc_info[1]
 
 
+def _saturated(features):
+    """What glue's status bar says of the saturated pixels of ``features``, or None for none."""
+    counts = features.meta.get("mg_features_saturated")
+    if not counts:
+        return None
+    parts = [
+        f"the {line} features at {count} saturated pixel{'s' if count > 1 else ''}" for line, count in counts.items()
+    ]
+    return f"{features.label}: {' and '.join(parts)} are NaN"
+
+
 @layer_action(
     "IRIS: Mg II features…",
     single=True,
@@ -151,7 +172,8 @@ def mg_features_iris(data, data_collection):
     """
     Add the `mg_features` of ``data`` within typed velocities, of the lines ticked, at first those it covers, to the
     data collection, with its helioprojective coordinates linked, and no viewer; glue shows why for data that has
-    none. irispy computes them in the background, while glue's status bar says so.
+    none. irispy computes them in the background, while glue's status bar says so, and then how many pixels
+    saturated, if any.
     """
     _check(data, _WHAT)  # before asking
     covered, _ = _crop(data, VELOCITIES, LINES)
@@ -160,4 +182,5 @@ def mg_features_iris(data, data_collection):
         return
     velocities, lines = chosen
     text = f"Computing Mg II features of {data.label}…"
-    _start(data_collection, text, _failed, _mg_features, data, velocities, *_crop(data, velocities, lines), _unit(data))
+    lines, crop = _crop(data, velocities, lines)
+    _start(data_collection, text, _failed, _mg_features, data, velocities, lines, crop, _unit(data), said=_saturated)

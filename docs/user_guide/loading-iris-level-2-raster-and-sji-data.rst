@@ -226,10 +226,12 @@ them.
 A sample at 16182 DN is saturated or merely bright, as Level 2 cannot tell them apart, although
 in two saturated flares checked against their Level 1 frames 99.88 % of them lay within a pixel of
 a saturated sample. :ref:`Line moments <glue_solar_users_guide_iris_line_moments>` are NaN where a
-sample within the wings is at 16182 DN. On OBSID 3860258481's raster r00173, of the X1 flare of
-2014-03-29, whose header has no such ``HISTORY`` line, the Si IV 1403 subset holds 13,760 samples:
-plateaus about the line core at 1402.8 Å in 428 pixels, 28 to 82 at each raster step, a few
-across most of the window.
+sample within the wings is at 16182 DN, and
+:ref:`Mg II features <glue_solar_users_guide_iris_mg_features>` where one within the velocities
+searched for their line is. On OBSID 3860258481's raster r00173, of the X1 flare of 2014-03-29,
+whose header has no such ``HISTORY`` line, the Si IV 1403 subset holds 13,760 samples: plateaus
+about the line core at 1402.8 Å in 428 pixels, 28 to 82 at each raster step, a few across most of
+the window.
 
 .. _glue_solar_users_guide_iris_linking:
 
