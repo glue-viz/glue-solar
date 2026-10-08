@@ -19,6 +19,7 @@ from glue.core.parse import ParsedCommand, ParsedComponentLink
 from glue.core.subset import RangeSubsetState, SliceSubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
+from irispy.io.sji import read_sji_lvl2
 from matplotlib.backend_bases import KeyEvent
 
 from astropy.io import fits
@@ -406,8 +407,13 @@ def test_a_gzipped_slit_jaw_file_is_decompressed_once(monkeypatch, tmp_path, iri
     monkeypatch.setattr(gzip.GzipFile, "__init__", lambda self, *args, **kwargs: (
         opened.append(True) or init(self, *args, **kwargs)
     ))
+    cubes = []
+    monkeypatch.setattr(
+        "irispy.io.sji.read_sji_lvl2", lambda *args, **kwargs: cubes.append(read_sji_lvl2(*args, **kwargs)) or cubes[0]
+    )
     data = image_data(gzipped)
     assert opened == [True]
+    assert data.get_component(data.main_components[0])._source.raw is cubes[0].data  # irispy's raw int16, uncopied
     assert data.label == expected.label
     # values, mask, times, exposures and every pixel's coordinates
     assert [cid.label for cid in data.components] == [cid.label for cid in expected.components]

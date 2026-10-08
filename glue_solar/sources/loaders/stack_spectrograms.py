@@ -52,7 +52,7 @@ def stack_spectrogram_sequence(cube_sequence, memmap=True):
     for i, cube in enumerate(cube_sequence):
         scan = output[i]
         scan[...] = cube.data
-        # From the values, not cube.mask: irispy masks only -200, and nothing in memory-mapped cubes.
+        # irispy's eager read leaves the missing codes in a raster's values
         scan[np.isin(scan, MISSING_VALUES)] = np.nan
 
     cube = NDCube(output, stack_wcs(target_wcs), meta=dict(cube_sequence[0].meta), unit=cube_sequence[0].unit)
