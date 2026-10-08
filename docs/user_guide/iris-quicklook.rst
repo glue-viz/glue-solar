@@ -294,34 +294,5 @@ NaN, with ``Time`` NaT, ``Exposure time`` NaN and the missing-data mask 1. The 1
 Line moments
 ------------
 
-To map a spectral line, select a raster window of one scan in the data collection and choose "IRIS:
-line moments…" from its right-click menu. Type the line centre in Å, the rest wavelength of the
-velocities (the window's reference wavelength is never assumed), and the wings, the wavelengths
-taken below and above it, ±0.5 Å unless changed; a blank centre adds nothing. Continuum windows are
-optional: line-free wavelength ranges outside the wings, such as ``1401.6-1402.1, 1403.5-1404.3``,
-to which irispy's ``subtract_background`` fits the background of each spectrum, a constant to one
-window or a straight line to more, and subtracts it; left blank, nothing is subtracted. irispy's
-``calculate_moments`` computes the maps on a worker thread from the wavelengths within the wings
-alone, while glue's status bar says "Computing line moments of <label>…", and adds ``<label>
-moments <centre>`` on the window's raster steps and slit pixels, with their helioprojective
-coordinates in arcsec:
-
-- ``intensity``, the sum of the samples, in DN/s: those of the window's ``<label> DN/s``, its DN over
-  each raster step's exposure time (NaN at a step whose exposure time is 0 s), or of the window's
-  own values, in their unit, for data without one;
-- ``centroid`` and ``width``, the line's mean wavelength and standard deviation, in Å;
-- ``velocity`` and ``velocity_width``, the same as Doppler velocities from the centre, in km/s.
-
-A pixel whose every sample within the wings is missing (NaN or -Inf), or with too few samples in the
-continuum windows to fit its background, is NaN in every map; irispy counts other missing and
-negative samples, after any background is subtracted, as 0. A pixel with a sample within the wings
-at 16182 DN, the Level 2 ceiling saturated samples are clipped to, is NaN in every map too; the
-status bar and ``moments_saturated`` in ``meta`` say how many. Velocities are relative to the
-uncorrected Level 2 wavelength scale, which can be off by about 5-10 km/s. The new dataset's
-helioprojective coordinates are linked with the other IRIS datasets, its ``meta`` holds
-``moments_centre`` and ``moments_wings``, with a continuum also ``moments_continuum``, the windows,
-and ``moments_continuum_degree``, the degree of the background, and no viewer opens: drag it onto an
-Image viewer and pick a map as its attribute. A stack of scans is refused: its scans load one by one
-without "Stack sequential raster scans" in the observation browser.
-``glue_solar.sources.moments.line_moments(data, centre, wings, continuum)`` computes the dataset in
-glue's terminal too, ``continuum`` a list of ``(lower, upper)`` wavelengths in Å.
+"IRIS: line moments…" in a raster window's right-click menu maps the intensity, centroid, width and
+velocity of a line: see :ref:`Line moments <glue_solar_users_guide_iris_line_moments>`.
