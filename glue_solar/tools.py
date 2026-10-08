@@ -749,11 +749,10 @@ class ZoomOneToOneTool(Tool):
         state, box = self.viewer.state, self.viewer.axes.bbox  # in device pixels
         if None not in (state.x_min, state.x_max, state.y_min, state.y_max):
             # under 'Square Pixels' glue fits y to x by this ratio, which 'Physical aspect' scales
-            ratio = state._axes_aspect_ratio if state.aspect == "equal" else None
-            width, height = box.width, box.width * ratio if ratio else box.height
+            height = box.width * state._axes_aspect_ratio if state.aspect == "equal" else box.height
             x, y = (state.x_min + state.x_max) / 2, (state.y_min + state.y_max) / 2
             with delay_callback(state, "x_min", "x_max", "y_min", "y_max"):
-                state.x_min, state.x_max = x - width / 2, x + width / 2
+                state.x_min, state.x_max = x - box.width / 2, x + box.width / 2
                 state.y_min, state.y_max = y - height / 2, y + height / 2
         _keep_mouse_mode(self.viewer)
 

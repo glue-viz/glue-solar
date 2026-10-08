@@ -822,6 +822,11 @@ def test_zoom_1_1_gives_a_data_pixel_a_screen_pixel(qtbot, irispy_test_files):
     for _ in range(2):
         button.trigger()
         assert (state.x_max - state.x_min, state.y_max - state.y_min) == pytest.approx((box.width, box.height / ratio))
+    # a screen pixel is a device pixel: on a HiDPI screen the view spans twice the data pixels
+    width = box.width
+    viewer.figure.canvas._set_device_pixel_ratio(2)
+    button.trigger()
+    assert state.x_max - state.x_min == pytest.approx(box.width) == pytest.approx(2 * width)
 
 
 def _cmap_menu(viewer):
