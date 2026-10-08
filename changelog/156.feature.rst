@@ -1,0 +1,1 @@
+Image viewers group glue-solar's display tools in a "View" menu and its mouse modes (Measure, Path diagram and its crosshair) in a menu of their own, so narrow viewers no longer hide tools behind the toolbar's overflow button.
