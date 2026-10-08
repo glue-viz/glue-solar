@@ -2795,12 +2795,26 @@ def test_closing_the_slit_jaw_master_makes_the_raster_master_again(bare_app, qtb
     assert "time master, step 186" in readout(viewers["spectrogram"])
 
 
-def type_in_dialog(monkeypatch, typed):
-    """Make each text dialog return ``typed``, as if typed and confirmed; returns the texts the dialogs opened with."""
+def type_in_dialog(monkeypatch, typed, tick=False):
+    """
+    Make each text or range dialog return ``typed``, as if typed and confirmed, with its box, unticked at first, ticked
+    if ``tick``; returns the texts the dialogs opened with.
+    """
     opened = []
     monkeypatch.setattr(
         QtWidgets.QInputDialog, "getText", lambda *args, text="", **kwargs: opened.append(text) or (typed, True)
     )
+
+    def exec_(dialog):
+        line = dialog.findChild(QtWidgets.QLineEdit)
+        opened.append(line.text())
+        line.setText(typed)
+        for box in dialog.findChildren(QtWidgets.QCheckBox):
+            assert not box.isChecked()
+            box.setChecked(tick)
+        return QtWidgets.QDialog.Accepted
+
+    monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
     return opened
 
 
@@ -3072,8 +3086,8 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
 
     sji_viewer.state.add_callback("slices", cancel)
 
-    def save(entry, name, typed="0 9"):
-        type_in_dialog(monkeypatch, typed)
+    def save(entry, name, typed="0 9", tick=False):
+        type_in_dialog(monkeypatch, typed, tick)
         monkeypatch.setattr(QtWidgets.QFileDialog, "getSaveFileName", lambda *args: (str(tmp_path / name), ""))
         entries[entry].trigger()
 
@@ -3098,6 +3112,16 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
         save("Save plot to file", "plot.png")
         np.testing.assert_array_equal(imread(tmp_path / f"sji_{frame:04d}.png"), imread(tmp_path / "plot.png"))
     assert sorted(path.name for path in tmp_path.glob("sji_*.png")) == [f"sji_{frame:04d}.png" for frame in range(10)]
+    # ticked, each frame has its time to 0.01 s, drawn during the export only
+    figure, drawn = sji_viewer.figure, []
+    savefig = figure.savefig
+    monkeypatch.setattr(
+        figure, "savefig", lambda *args: drawn.append([text.get_text() for text in figure.texts]) or savefig(*args)
+    )
+    save("Save frames or movie…", "utc.png", tick=True)
+    assert drawn == [[f"{utc(when)[:-1]} UTC"] for when in times[:10]]
+    assert (figure.texts, sji_viewer.state.slices) == ([], (9, 0, 0))
+    monkeypatch.setattr(figure, "savefig", savefig)
     save("Save frames or movie…", "sji.gif")
     with Image.open(tmp_path / "sji.gif") as gif:
         assert gif.n_frames == 10

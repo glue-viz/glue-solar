@@ -38,6 +38,7 @@ from matplotlib.axes import Axes
 from matplotlib.backend_bases import MouseButton, ResizeEvent
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
+from matplotlib.patheffects import withStroke
 from matplotlib.transforms import ScaledTranslation, blended_transform_factory
 from qtpy import QtCore, QtWidgets
 
@@ -62,6 +63,7 @@ from glue_solar.quicklook import (
     nearest,
     observation_key,
 )
+from glue_solar.sources.moments import _accepted
 
 __all__ = [
     "ColourBarTool",
@@ -258,6 +260,33 @@ def _hide_flat_angles(axes, shape):
             coord.set_ticklabel_position("")
 
 
+def _shown_slice(state):
+    """The index of the Image viewer's displayed slice of its reference data, or None while it shows none."""
+    data = state.reference_data
+    if data is None or state.x_att is None or state.y_att is None or len(state.slices) != data.ndim:
+        return None
+    shown = (state.x_att.axis, state.y_att.axis)
+    # an aggregated slider range carries its slice on the AggregateSlice object
+    return tuple(slice(None) if i in shown else getattr(s, "slice", s) for i, s in enumerate(state.slices))
+
+
+def _frame_time(data, view, decimals=3):
+    """
+    The time of ``view``, a `_shown_slice`, of ``data`` from its first datetime component, in UTC to ``decimals`` of a
+    second, or the first and last of several; '' without one.
+    """
+    cid = None if view is None else _time_component(data)
+    if cid is None:
+        return ""
+    times = data[cid, view]
+    times = times[~np.isnat(times)]  # NaT: a gap of data regridded on time
+    if times.size == 0:  # a Collapse range narrower than one sample, or a gap
+        return ""
+    # 'YYYY-MM-DDThh:mm:ss.' and the decimals
+    first, last = (np.datetime_as_string(t, unit="ms")[: 20 + decimals] for t in (times.min(), times.max()))
+    return f"{first} UTC" if first == last else f"{first} – {last} UTC"
+
+
 @viewer_tool
 class FrameTimeTool(Tool, HubListener):
     """
@@ -415,26 +444,17 @@ class FrameTimeTool(Tool, HubListener):
     def _refresh(self, *_):
         state = self.viewer.state
         data = state.reference_data
-        cid = _time_component(data) if data is not None else None
         status = self.coordinator.time_status(self.viewer)
         unmatched = status is not None and status[0] == "no match"
         if self._grey.get_visible() != unmatched:
             self._grey.set_visible(unmatched)
             self.viewer.figure.canvas.draw_idle()
         self.label.setStyleSheet("color: gray" if unmatched else "")
-        if cid is None or state.x_att is None or state.y_att is None or len(state.slices) != data.ndim:
+        view = _shown_slice(state)
+        text = _frame_time(data, view)
+        if not text:
             self.label.setText("")
             return
-        shown = (state.x_att.axis, state.y_att.axis)
-        # an aggregated slider range carries its slice on the AggregateSlice object
-        view = tuple(slice(None) if i in shown else getattr(s, "slice", s) for i, s in enumerate(state.slices))
-        times = data[cid, view]
-        times = times[~np.isnat(times)]  # NaT: a gap of data regridded on time
-        if times.size == 0:  # a Collapse range narrower than one sample, or a gap
-            self.label.setText("")
-            return
-        first, last = (np.datetime_as_string(t, unit="ms") for t in (times.min(), times.max()))
-        text = f"{first} UTC" if first == last else f"{first} – {last} UTC"
         exposure = data.find_component_id("Exposure time")
         if exposure is not None:
             seconds = data[exposure, view]
@@ -1373,23 +1393,31 @@ class _LoopEntry(_CoordinateEntry):
             _loop(slider, *picked)
 
 
-def _ask_range(viewer, title, slider):
+def _ask_range(viewer, title, slider, tick=None):
     """
     The first and last index of ``slider``, a glue-qt slice slider, typed in a dialog that opens on its loop (Loop…)
-    or else its whole range, or None if the dialog is cancelled.
+    or else its whole range, or None if the dialog is cancelled. Given ``tick``, the text of a box below, unticked at
+    first, whether it was ticked follows the indices.
     """
     last = slider.value_slice_center.maximum()
     lo, hi = getattr(slider, "_solar_loop", (0, last))
-    text, ok = QtWidgets.QInputDialog.getText(viewer, title, f"First and last index (0–{last}):", text=f"{lo} {hi}")
-    if not ok:
+    dialog = QtWidgets.QDialog(viewer, windowTitle=title)
+    form = QtWidgets.QFormLayout(dialog)
+    line = QtWidgets.QLineEdit(f"{lo} {hi}")
+    form.addRow(f"First and last index (0–{last}):", line)
+    if tick is not None:
+        box = QtWidgets.QCheckBox(tick)
+        form.addRow(box)
+    if not _accepted(dialog, form):
         return None
+    text = line.text()
     try:
         lo, hi = (int(value) for value in text.replace(",", " ").split())
     except ValueError:
         lo = hi = -1
     if not 0 <= lo <= hi <= last:
         raise ValueError(f"'{text}' is not two indices from 0 to {last}, the first not after the last.")
-    return lo, hi
+    return (lo, hi) if tick is None else (lo, hi, box.isChecked())
 
 
 # What `SaveSequenceTool` writes, by file name suffix; MP4 only where matplotlib finds ffmpeg
@@ -1409,8 +1437,9 @@ class SaveSequenceTool(Tool):
     first, and the indices are typed as for Loop…, whose range the dialog opens on. Its playback, and the time
     master's, stops; the slider moves as in playback, on the GUI thread, and each frame is saved once Qt has run the
     time sync, so the other viewers follow and the overlays are drawn; per-frame limits are off during the run, so
-    every frame has the same colour limits. Cancel keeps the frames saved so far, a movie of them too, and the viewer
-    returns to its slice and limits.
+    every frame has the same colour limits. Ticked in the range dialog, 'UTC time on each frame' draws the frame's
+    time (`_frame_time`, to 0.01 s) at the image's lower left during the run only. Cancel keeps the frames saved so
+    far, a movie of them too, and the viewer returns to its slice and limits.
     """
 
     icon = "glue_filesave"
@@ -1438,9 +1467,10 @@ class SaveSequenceTool(Tool):
             if not ok:
                 return
         axis, slider = sliders[labels.index(label)]
-        picked = _ask_range(viewer, "Save frames or movie", slider)
+        picked = _ask_range(viewer, "Save frames or movie", slider, "UTC time on each frame")
         if picked is None:
             return
+        first, last, timed = picked
         ffmpeg = animation.writers.is_available("ffmpeg")
         filters = [text for suffix, text in _SEQUENCE_FILTERS.items() if suffix != ".mp4" or ffmpeg]
         start = os.path.expanduser(rcParams["savefig.directory"])
@@ -1454,7 +1484,7 @@ class SaveSequenceTool(Tool):
         # ponytail: PillowWriter holds every GIF frame in memory until the end (+0.7 GiB for 400 frames of 788 × 597),
         # where an MP4 streams to ffmpeg; stream the frames to Pillow if long GIFs matter
         movie = {".mp4": animation.FFMpegWriter, ".gif": animation.PillowWriter}.get(suffix.lower())
-        indices = range(picked[0], picked[1] + 1)
+        indices = range(first, last + 1)
         canvas = figure.canvas
         slices, size, manager = state.slices, figure.get_size_inches(), canvas.manager
         data = state.reference_data
@@ -1469,6 +1499,9 @@ class SaveSequenceTool(Tool):
         progress = QtWidgets.QProgressDialog("Saving frames…", "Cancel", 0, len(indices), viewer)
         progress.setWindowModality(QtCore.Qt.WindowModal)
         progress.show()  # at once, keeping input from the viewer's window while the events below run
+        # white edged in black, to read on any colormap
+        style = {"color": "white", "path_effects": [withStroke(linewidth=2, foreground="black")]}
+        stamp = figure.text(0.01, 0.01, "", transform=viewer.axes.transAxes, **style) if timed else None
         try:
             # FFMpegWriter evens out an odd frame size through the canvas' manager, which would resize the canvas, and
             # glue would zoom to it: without one only the figure changes, until the end
@@ -1480,6 +1513,8 @@ class SaveSequenceTool(Tool):
                 for count, index in enumerate(indices, 1):
                     state.slices = tuple(index if i == axis else s for i, s in enumerate(state.slices))
                     QtWidgets.QApplication.processEvents()  # the time sync, its overlays and Cancel, as in playback
+                    if stamp is not None:
+                        stamp.set_text(_frame_time(data, _shown_slice(state), 2))
                     if writer is None:
                         figure.savefig(f"{stem}_{index:04d}.png")  # as 'Save plot to file' does
                     else:
@@ -1489,6 +1524,8 @@ class SaveSequenceTool(Tool):
                         break
         finally:
             progress.deleteLater()
+            if stamp is not None:
+                stamp.remove()
             state.slices = slices
             for layer in per_frame:
                 layer.stretch_global = False
