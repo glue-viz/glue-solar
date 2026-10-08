@@ -1,0 +1,1 @@
+"IRIS: subtract mean spectrum" in a raster window's or stack's right-click menu adds its mean spectrum and each spectrum minus it, so a Profile shows how a pixel differs from the average.
