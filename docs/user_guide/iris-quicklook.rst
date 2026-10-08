@@ -301,3 +301,5 @@ velocity of a line: see :ref:`Line moments <glue_solar_users_guide_iris_line_mom
 :ref:`Red-blue asymmetry <glue_solar_users_guide_iris_red_blue>`.
 "IRIS: Mg II features…" maps the line centres and emission peaks of Mg II k and h: see
 :ref:`Mg II features <glue_solar_users_guide_iris_mg_features>`.
+"IRIS: line ratio diagnostic…" maps the electron density or the temperature from two lines' maps:
+see :ref:`Line moments <glue_solar_users_guide_iris_line_moments>`.

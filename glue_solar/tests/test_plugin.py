@@ -36,6 +36,7 @@ from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.quicklook import QuicklookImageViewer
 from glue_solar.sources.iris import iris_quicklook, is_iris_fits, link_iris, quicklook_iris
+from glue_solar.sources.line_ratio import line_ratio_iris
 from glue_solar.sources.loaders.iris import image_data, link_hpc, raster_data
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.mg_features import mg_features_iris
@@ -55,6 +56,9 @@ def test_setup_registers_hooks():
     assert ("IRIS: line moments…", moments_iris) in [(action.label, action.callback) for action in layer_action]
     assert ("IRIS: red-blue asymmetry…", red_blue_iris) in [(action.label, action.callback) for action in layer_action]
     assert ("IRIS: Mg II features…", mg_features_iris) in [(action.label, action.callback) for action in layer_action]
+    assert ("IRIS: line ratio diagnostic…", line_ratio_iris) in [
+        (action.label, action.callback) for action in layer_action
+    ]
     assert ImageViewer.tools.count("solar:frame_time") == 1
     assert ImageViewer.tools.count("solar:coordinate") == 1
     assert ImageViewer.tools.count("solar:hide_axes") == 1

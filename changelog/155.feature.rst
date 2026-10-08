@@ -1,0 +1,1 @@
+"IRIS: line ratio diagnostic…" in the data collection's right-click menu turns the ratio of two maps on the same grid into a log n_e or log T map, through irispy and a theoretical ratio table.
