@@ -57,6 +57,7 @@ def test_setup_registers_hooks():
     assert ImageViewer.tools.count("solar:per_frame_limits") == 1
     assert ImageViewer.tools.count("solar:physical_aspect") == 1
     assert ImageViewer.tools.count("solar:colour_bar") == 1
+    assert ImageViewer.tools.count("solar:zoom_1_1") == 1
     assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
     assert ImageViewer.tools.count("solar:measure") == 1
     assert ImageViewer.tools.count("solar:cursor_readout") == (0 if hasattr(ImageViewer, "cursor_status") else 1)
@@ -787,6 +788,40 @@ def test_measure_on_a_full_size_slit_jaw_image(qtbot, irispy_data):
     assert arcsec == pytest.approx(16.635, abs=0.01)
     assert km == pytest.approx(12172, rel=1e-3)
     assert tool.label.text() == f'Length 100.0 px · {arcsec:.2f}" · 12,172 km'
+
+
+def test_zoom_1_1_gives_a_data_pixel_a_screen_pixel(qtbot, irispy_test_files):
+    data = raster_data([find_irispy_test_file(irispy_test_files, SCANNING)])[0]
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    app.show()  # for the resize to reach the canvas
+    viewer.viewer_size = (600, 400)
+    box = viewer.axes.bbox  # in screen pixels
+    qtbot.waitUntil(lambda: box.width > box.height)
+    state, button = viewer.state, viewer.toolbar.actions["solar:zoom_1_1"]
+    viewer.toolbar.active_tool = "image:point_selection"
+    pixel = viewer.toolbar.active_tool
+    # step against slit, slit against step, and wavelength against slit; 'Automatic' and 'Square Pixels'
+    for x, y, aspect in ((0, 1, "auto"), (1, 0, "equal"), (2, 1, "equal")):
+        state.x_att, state.y_att = data.pixel_component_ids[x], data.pixel_component_ids[y]
+        state.aspect = aspect
+        centre = ((state.x_min + state.x_max) / 2, (state.y_min + state.y_max) / 2)
+        for _ in range(2):  # and again, at 1:1 already
+            button.trigger()
+            assert viewer.toolbar.active_tool is pixel
+            assert (state.x_max - state.x_min, state.y_max - state.y_min) == pytest.approx((box.width, box.height))
+            assert ((state.x_min + state.x_max) / 2, (state.y_min + state.y_max) / 2) == pytest.approx(centre)
+    # with 'Physical aspect', a y pixel spans the sky's proportion of an x pixel
+    state.x_att, state.y_att = data.pixel_component_ids[0], data.pixel_component_ids[1]
+    viewer.toolbar.actions["solar:physical_aspect"].trigger()
+    ratio = viewer.toolbar.tools["solar:physical_aspect"].ratio
+    assert ratio != pytest.approx(1)
+    for _ in range(2):
+        button.trigger()
+        assert (state.x_max - state.x_min, state.y_max - state.y_min) == pytest.approx((box.width, box.height / ratio))
 
 
 def _cmap_menu(viewer):
