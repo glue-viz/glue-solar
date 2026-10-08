@@ -150,4 +150,6 @@ the data's own (``Angstrom`` for IRIS wavelengths), so leave it unchanged for th
 path drawn on the image and, on Enter, shows the data along the path against the slider's axis in a
 new window, for example along a path across a slit-jaw frame against time. The window is not a
 dataset, and the tool is not offered for stacks; see glue's
-`slice extraction <http://docs.glueviz.org/en/stable/gui_guide/slice.html>`__.
+`slice extraction <http://docs.glueviz.org/en/stable/gui_guide/slice.html>`__. glue-solar's "Path
+diagram" (L) makes datasets of the data along a path instead, the spectra along a path across a
+raster map too, and takes stacks (see :ref:`glue_solar_users_guide_viewer_tools_and_windows`).

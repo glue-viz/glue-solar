@@ -9,12 +9,21 @@ from functools import partial
 import numpy as np
 from echo import delay_callback
 from glue.config import settings, viewer_tool
+from glue.core import Data
 from glue.core.command import ApplySubsetState
-from glue.core.component import DateTimeComponent
+from glue.core.data import BaseCartesianData
 from glue.core.edit_subset_mode import ReplaceMode
+from glue.core.fixed_resolution_buffer import invalidate_cache, translate_pixel
 from glue.core.hub import HubListener
-from glue.core.message import SettingsChangeMessage
+from glue.core.message import NumericalDataChangedMessage, SettingsChangeMessage
 from glue.core.subset import SubsetState
+from glue.plugins.tools.path_slicer.common import open_slice_viewer_for
+from glue.plugins.tools.path_slicer.matplotlib_mode import BasePathSlicerCrosshairMode, BasePathSlicerMode
+from glue.plugins.tools.path_slicer.path_sliced_data import PathSlicedData, sample_points
+from glue.plugins.tools.path_slicer.path_sliced_data_links import (
+    link_path_sliced_pair_paths,
+    link_path_sliced_to_parent,
+)
 from glue.viewers.common.tool import SimpleToolMenu, Tool
 from glue.viewers.image.composite_array import CompositeArray
 from glue.viewers.image.layer_artist import ImageLayerArtist
@@ -62,6 +71,9 @@ __all__ = [
     "FrameTimeTool",
     "HideAxesTool",
     "MeasureTool",
+    "PathCrosshairTool",
+    "PathData",
+    "PathTool",
     "PerFrameLimitsTool",
     "PhysicalAspectTool",
     "SaveSequenceTool",
@@ -119,7 +131,7 @@ def _keep_mouse_mode(viewer):
 
 def _time_component(data):
     """The first datetime component of ``data``, or None."""
-    return next((cid for cid in data.main_components if isinstance(data.get_component(cid), DateTimeComponent)), None)
+    return next((cid for cid in data.main_components if data.get_kind(cid) == "datetime"), None)
 
 
 def _sit_and_stare_raster(data):
@@ -941,6 +953,150 @@ class MeasureTool(ToolbarModeBase):
     def release(self, event):
         self.move(event)
         self._start = None
+
+
+class PathData(PathSlicedData):
+    """
+    glue-core's `~glue.plugins.tools.path_slicer.path_sliced_data.PathSlicedData`, a dataset's values along a path, for
+    IRIS data: NaN where the path leaves the data, and ``Time`` as times, NaT there, where glue-core 1.27.0 gives 0 and
+    casts times to float; its own world coordinates, which glue-core asks the parent for; a scalar for one pixel. The
+    positions given are the path's samples, which `PathTool` places in each dataset's own pixels, not vertices to
+    sample. A slit-jaw image's longitude and latitude depend on its frame, so its diagram, with more world axes than
+    pixel axes, on which glue-core's coordinates fail, has pixel coordinates only; a raster's keeps its wavelength, and
+    a stack's its scan too.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self._coords is not None and self._coords.world_n_dim != self._coords.pixel_n_dim:
+            self._coords = None
+
+    def set_xy(self, x, y, spacing=1):
+        # the samples as they are, which glue-core would sample again as vertices; the rest is glue-core's
+        self.x, self.y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+        invalidate_cache(self)
+        if getattr(self.original_data, "hub", None) is not None:
+            self.original_data.hub.broadcast(NumericalDataChangedMessage(self))
+
+    def get_data(self, cid, view=None):
+        if cid in self.pixel_component_ids or cid in self.world_component_ids:
+            return BaseCartesianData.get_data(self, cid, view)
+        pixel, keep, shape = self._get_pix_coords(view=view)
+        values = np.asarray(self.original_data.get_data(cid, view=tuple(pixel)))
+        if values.dtype.kind == "M":
+            result = np.full(shape, "NaT", values.dtype)
+        else:
+            result = np.full(shape, np.nan, np.result_type(values.dtype, np.float32))
+        result[keep] = values
+        if isinstance(view, tuple) and any(np.isscalar(index) for index in view):  # glue-core keeps their axes
+            result = result.reshape(np.broadcast_to(0, self.shape)[view].shape)
+        return result[()]
+
+
+def _placed(viewer, data, x, y):
+    """
+    The two pixel components of ``data`` along which the path of samples ``x, y`` on the Image viewer's displayed axes
+    runs, each with the path's positions along it (NaN where the path leaves ``data``), through glue's links from the
+    reference data at the viewer's slices; None if glue cannot place them from the reference data.
+    """
+    state = viewer.state
+    if data is state.reference_data:
+        return [(state.x_att, x), (state.y_att, y)]
+    pixel = [np.full(x.shape, float(getattr(s, "center", s))) for s in state.slices]
+    pixel[state.x_att.axis], pixel[state.y_att.axis] = x, y
+    placed = []
+    for cid in data.pixel_component_ids:
+        try:
+            values, axes = translate_pixel(state.reference_data, pixel, cid)
+        except Exception:  # noqa: BLE001 - IncompatibleAttribute, or glue's bare Exception for other components
+            continue
+        if {state.x_att.axis, state.y_att.axis} & set(axes):
+            placed.append((cid, np.broadcast_to(values, x.shape).astype(float)))
+    return placed if len(placed) == 2 else None
+
+
+@viewer_tool
+class PathTool(BasePathSlicerMode):
+    """
+    glue-core's path slicer, for 3D and 4D data: draw a path on the Image viewer's image and press Enter for a dataset
+    of the values along it, of each dataset shown, opened in a new Image viewer; a slit-jaw image gives frames against
+    the path, a raster window wavelength against the path, a stack scans and wavelength against the path. The path is
+    sampled once a pixel of the reference data and placed in each other dataset through glue's links, such as
+    `~glue_solar.sources.loaders.iris.link_hpc`'s, at the frame shown, so a time-synced viewer samples them at the time
+    master's exposure; a dataset glue cannot place from the reference data, as a slit-jaw image on a raster's axes, has
+    no diagram. Each Enter makes a new set of diagrams, in a new viewer.
+    """
+
+    tool_id = "solar:path"
+    action_text = "Path diagram"
+    tool_tip = "Draw a path, then press Enter for the data along it (Esc clears the path)"
+    shortcut = "L"
+    slice_viewer_cls = ImageViewer
+
+    def _on_reference_data_change(self, *args):
+        if self.viewer is not None and self.viewer.state.reference_data is not None:
+            self.enabled = self.viewer.state.reference_data.ndim >= 3
+
+    def _finish_roi(self, event):
+        # glue-core 1.27.0's path ROI blits the patch it has just removed, None, if it cached a background, which raises
+        # before the path is extracted; without one it redraws
+        self._roi_tool._background_cache = None
+        super()._finish_roi(event)
+
+    def _open_or_update(self, vx, vy):
+        # glue-core's create_trace, of PathData placed in each dataset. Every Enter makes a new set: glue-qt 0.4.2 has
+        # no menu to pick a path to update instead (glue-viz/glue-qt#66, draft, adds one)
+        try:
+            x, y = sample_points(vx, vy)
+        except ValueError:  # fewer than two vertices, or under a pixel long
+            return
+        state, collection = self.viewer.state, self.viewer.session.data_collection
+        datasets = [layer.layer for layer in state.layers if isinstance(layer.layer, Data)]
+        trace = []
+        # the reference data's first, whose path glue-core draws on the image
+        for data in sorted(datasets, key=lambda data: data is not state.reference_data):
+            placed = _placed(self.viewer, data, x, y)
+            if placed is None:
+                continue
+            (cid_x, px), (cid_y, py) = placed
+            count = sum(path.original_data is data for old in self._traces for path in old)
+            path = PathData(data, cid_x, px, cid_y, py, label=f"{data.label} [slice {count + 1}]")
+            path.parent_viewer = self.viewer if data is state.reference_data else None  # the crosshair's
+            collection.append(path)
+            link_path_sliced_to_parent(collection, path)
+            for other in trace:  # sample by sample
+                link_path_sliced_pair_paths(collection, path, other)
+            trace.append(path)
+        self._traces.append(trace)
+        self._target_trace = trace  # drawn as the active path
+        self._slice_viewer = open_slice_viewer_for(self.viewer, self.slice_viewer_cls, trace)
+        self._slice_viewers.append(self._slice_viewer)
+        self._refresh_overlays()
+
+
+@viewer_tool
+class PathCrosshairTool(BasePathSlicerCrosshairMode):
+    """
+    glue-core's crosshair of a `PathTool` diagram: drag along the diagram to mark the point on the path in the viewer
+    it was drawn in, which moves that viewer's slider of the axis the diagram's y axis shows, and only that one.
+    """
+
+    tool_id = "solar:path_crosshair"
+
+    def _on_move(self, mode):
+        x, y, path = self._event_xdata, self._event_ydata, self.data
+        if not self._active or path is None or x is None or y is None:
+            return
+        index = round(np.clip(x, 0, path.shape[-1] - 1))
+        self._crosshair.set_data([path.x[index]], [path.y[index]])
+        source = path.parent_viewer.state
+        kept = [axis for axis in range(path.original_data.ndim) if axis not in path.sliced_dims]
+        if source.reference_data is path.original_data and self.viewer.state.y_att.axis < len(kept):
+            axis = kept[self.viewer.state.y_att.axis]
+            slices = list(source.slices)
+            slices[axis] = int(np.clip(np.round(y), 0, path.original_data.shape[axis] - 1))
+            source.slices = tuple(slices)
+        path.parent_viewer.figure.canvas.draw_idle()
 
 
 def _follows_mouse(group):
