@@ -40,6 +40,10 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+density = [
+  # fiasco main until a release has line_ratio, which irispy's density_diagnostic needs
+  "fiasco @ git+https://github.com/wtbarnes/fiasco.git",
+]
 tests = [
   "pytest",
   "pytest-qt",

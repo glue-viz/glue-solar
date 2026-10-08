@@ -34,6 +34,12 @@ Finally, do the following while at the root (highest level) of the glue-solar di
 
     $ pip install -e .
 
+The O IV density preset of the line ratio diagnostic needs fiasco from its git main, in the ``density`` extra::
+
+    $ pip install -e ".[density]"
+
+fiasco downloads and builds the CHIANTI atomic database, a few GB, on its first use.
+
 Starting up Glue
 ^^^^^^^^^^^^^^^^
 
