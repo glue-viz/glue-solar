@@ -49,7 +49,7 @@ nuanced colormap so the emission lines stand out.
 To turn the slice into a map with celestial axes, change the x-axis to
 ``Helioprojective Longitude`` while keeping the y-axis as ``Helioprojective Latitude``.
 The sliders are then ``Scan`` and ``Wavelength``. Set the aspect to "Automatic" so the narrow
-raster field fills the plot, or press "Physical aspect" in the toolbar to see it in its
+raster field fills the plot, or choose "Physical aspect" in the toolbar's View menu to see it in its
 proportions on the sky, then move the ``Wavelength`` slider onto the line core until structure
 appears in the map.
 

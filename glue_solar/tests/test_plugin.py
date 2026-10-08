@@ -24,6 +24,8 @@ from irispy.io import read_files
 from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from qtpy.QtCore import Qt
+from qtpy.QtTest import QTest
+from qtpy.QtWidgets import QToolBar
 
 import astropy.units as u
 from astropy.coordinates import angular_separation
@@ -59,19 +61,18 @@ def test_setup_registers_hooks():
     assert ("IRIS: line ratio diagnostic…", line_ratio_iris) in [
         (action.label, action.callback) for action in layer_action
     ]
-    assert ImageViewer.tools.count("solar:frame_time") == 1
-    assert ImageViewer.tools.count("solar:coordinate") == 1
-    assert ImageViewer.tools.count("solar:hide_axes") == 1
-    assert ImageViewer.tools.count("solar:per_frame_limits") == 1
-    assert ImageViewer.tools.count("solar:physical_aspect") == 1
-    assert ImageViewer.tools.count("solar:colour_bar") == 1
-    assert ImageViewer.tools.count("solar:zoom_1_1") == 1
+    for tool in ("solar:coordinate", "solar:modes", "solar:view"):
+        assert ImageViewer.tools.count(tool) == 1
     assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
-    assert ImageViewer.tools.count("solar:measure") == 1
-    assert ImageViewer.tools.count("solar:path") == ImageViewer.tools.count("solar:path_crosshair") == 1
-    shortcuts = [viewer_tool.members[tool].shortcut for tool in ImageViewer.tools]
+    assert ImageViewer.subtools["solar:modes"] == ["solar:measure", "solar:path", "solar:path_crosshair"]
+    view = ["solar:frame_time", "solar:hide_axes", "solar:per_frame_limits", "solar:physical_aspect"]
+    view += ["solar:zoom_1_1", "solar:colour_bar"]
+    if not hasattr(ImageViewer, "cursor_status"):
+        view.append("solar:cursor_readout")
+    assert ImageViewer.subtools["solar:view"] == view
+    shown = ImageViewer.tools + [tool for tools in ImageViewer.subtools.values() for tool in tools]
+    shortcuts = [viewer_tool.members[tool].shortcut for tool in shown]
     assert len(set(shortcuts) - {None}) == len(shortcuts) - shortcuts.count(None)  # glue-qt drops a repeated one
-    assert ImageViewer.tools.count("solar:cursor_readout") == (0 if hasattr(ImageViewer, "cursor_status") else 1)
     assert ImageViewer.subtools["save"].count("solar:save_sequence") == 1
     assert "solar:save_sequence" not in ProfileViewer.subtools["save"]  # glue's Matplotlib viewers share one list
     iris = next(f for f in data_factory if f.label == "IRIS Level 2 FITS")
@@ -328,6 +329,61 @@ def test_cursor_readout_shows_position_and_value(qtbot, irispy_test_files):
     app.data_collection.append(still)
     other = app.new_data_viewer(ImageViewer, data=still)
     assert other.toolbar.tools["solar:cursor_readout"].describe(1, 1).endswith(" | flux = 3.5")
+
+
+def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot):
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5))
+    app.data_collection.append(cube)
+    viewer = app.new_data_viewer(ImageViewer, data=cube)
+    toolbar = viewer.toolbar
+    assert len(QToolBar.actions(toolbar)) <= 21  # of 26 buttons before, which needed a viewer 1200 px wide
+    menus = {}
+    for menu in ("solar:modes", "solar:view"):
+        button = toolbar.widgetForAction(toolbar.actions[menu])
+        assert button.toolTip() == toolbar.tools[menu].tool_tip  # on hover, as a button's
+        menus[menu] = button.menu()
+        # each tool's entry, by its id as for a button
+        assert menus[menu].actions() == [toolbar.actions[tool] for tool in ImageViewer.subtools[menu]]
+
+    # the mouse modes, checked while on, the crosshair on a path diagram only, and Path diagram's L
+    assert [entry.isVisible() for entry in menus["solar:modes"].actions()] == [True, True, False]
+    toolbar.active_tool = "image:point_selection"
+    measure = toolbar.actions["solar:measure"]
+    measure.trigger()
+    assert (toolbar.active_tool, measure.isChecked()) == (toolbar.tools["solar:measure"], True)
+    toolbar.active_tool = "image:point_selection"
+    assert not measure.isChecked()
+    app.show()
+    toolbar.setFocus()
+    qtbot.waitUntil(toolbar.hasFocus)  # as a button's key, while the toolbar has the keyboard
+    QTest.keyClick(toolbar, Qt.Key_L)
+    assert (toolbar.active_tool, toolbar.actions["solar:path"].isChecked()) == (toolbar.tools["solar:path"], True)
+
+    # the display tools, checked while on, leaving the mouse mode on
+    toolbar.active_tool = "image:point_selection"
+    pixel = toolbar.active_tool
+    for tool_id in ImageViewer.subtools["solar:view"]:
+        tool, entry = toolbar.tools[tool_id], toolbar.actions[tool_id]
+        assert entry.isCheckable() == (tool_id != "solar:zoom_1_1")
+        for _ in range(2):
+            was = getattr(tool, "checked", None)
+            entry.trigger()
+            menus["solar:view"].aboutToShow.emit()
+            assert toolbar.active_tool is pixel
+            if entry.isCheckable():
+                assert entry.isChecked() == tool.checked != was
+
+    # no L while Path diagram is off, as on a 2D image
+    still = Data(label="still", flux=np.ones((4, 5)))
+    app.data_collection.append(still)
+    viewer.add_data(still)
+    viewer.state.reference_data = still
+    assert not toolbar.actions["solar:path"].isEnabled()
+    QTest.keyClick(toolbar, Qt.Key_L)
+    assert toolbar.active_tool is pixel
 
 
 def margins(viewer):
