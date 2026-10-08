@@ -1059,6 +1059,10 @@ def test_path_diagram_sampling_on_a_ramp(qtbot):
             assert path.x[-1] > 15
             ramp_values = np.where(path.x <= 15, 0.7 * path.x - 1.3 * path.y + 2.5 + 10 * frames, np.nan)
             np.testing.assert_allclose(path[flux], ramp_values, atol=1e-6)
+        # the drawn diagram, which glue asks for by index arrays
+        view = [(0, 1, 2), (0, len(path.x) - 1, len(path.x))]
+        drawn = path.compute_fixed_resolution_buffer(view, target_data=path, target_cid=flux)
+        np.testing.assert_array_equal(drawn, path[flux])
         for xs, ys in ((path.x, path.y), ([0.5, 1.5, 2.5, 3.5], [2.5] * 4)):  # then halfway, which rounds up
             path.set_xy(xs, ys)
             frames = np.broadcast_to(np.arange(2.0)[:, None], (2, len(path.x)))
