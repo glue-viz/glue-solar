@@ -1404,6 +1404,7 @@ def _ask_range(viewer, title, slider, tick=None):
     dialog = QtWidgets.QDialog(viewer, windowTitle=title)
     form = QtWidgets.QFormLayout(dialog)
     line = QtWidgets.QLineEdit(f"{lo} {hi}")
+    line.selectAll()  # as QInputDialog does, so typing replaces it
     form.addRow(f"First and last index (0–{last}):", line)
     if tick is not None:
         box = QtWidgets.QCheckBox(tick)

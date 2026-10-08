@@ -2808,6 +2808,7 @@ def type_in_dialog(monkeypatch, typed, tick=False):
     def exec_(dialog):
         line = dialog.findChild(QtWidgets.QLineEdit)
         opened.append(line.text())
+        assert line.selectedText() == line.text()
         line.setText(typed)
         for box in dialog.findChildren(QtWidgets.QCheckBox):
             assert not box.isChecked()
