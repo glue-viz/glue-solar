@@ -69,11 +69,10 @@ slit-jaw frame or AIA frame (per scan and step for stacks). ``Exposure time`` is
 value per raster step or frame (per scan and step for stacks). ``<label> DN/s`` is the data divided
 by the exposure time, with the unit DN/s (the 1D Profile viewer's "y_unit" menu labels its axis
 with it), and NaN where an exposure took 0 s, as step 157 of OBSID 3610108077's Si IV windows did.
-The "Frame time" tool in the Image Viewer toolbar shows the displayed frame's time and exposure in
-the status bar, as a range when the image spans several frames; for a single slit-jaw frame its
-tooltip gives that
-frame's pointing (PZT offset, field-of-view centre and slit position), which glue-solar keeps in
-the dataset's metadata. The mouse-over readout (see "Cursor readout" in
+The "Frame time" tool, in the Image Viewer toolbar's View menu, shows the displayed frame's time
+and exposure in the status bar, as a range when the image spans several frames; for a single
+slit-jaw frame its tooltip gives that frame's pointing (PZT offset, field-of-view centre and slit
+position), which glue-solar keeps in the dataset's metadata. The mouse-over readout (see "Cursor readout" in
 :ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`)
 gives the time and exposure of the pixel under the mouse: on a raster map those of the step it is
 on.
@@ -116,9 +115,9 @@ The point you select with the Pixel tool on a raster or stack is one slit positi
 step or exposure; on a stack it stays on the scan that was displayed when you clicked. If you then
 swap the axes of a viewer of that dataset, for example turning the raster map into wavelength
 against slit, the viewer's new step slider moves to the point. Wavelength sliders are never moved.
-The "Coordinate" menu in the Image Viewer toolbar has "Time master", which records the displayed
-dataset as the time reference of its observation (same OBSID and STARTOBS), "Clear point",
-"Go to UTC…", which moves the time master, "Loop…" for the frame, exposure, step or scan slider, and
+The "Coordinate" menu (the link icon) in the Image Viewer toolbar has "Time master", which records
+the displayed dataset as the time reference of its observation (same OBSID and STARTOBS), "Clear
+point", "Go to UTC…", which moves the time master, "Loop…" for the frame, exposure, step or scan slider, and
 "Set blink partner here" and "Blink", which alternate the viewer between two positions (see
 :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). The Pixel tool stays active after
 each entry.

@@ -61,29 +61,30 @@ def setup():
         if f"gamma_{gamma}" not in stretches.members:
             stretch = type("GammaStretch", (PowerStretch,), {"__init__": partialmethod(PowerStretch.__init__, gamma)})
             stretches.add(f"gamma_{gamma}", stretch, display=f"Gamma {gamma}")
-    wanted = [
-        tools.FollowLockTool,
-        tools.MeasureTool,
-        tools.PathTool,
-        tools.PathCrosshairTool,
-        tools.FrameTimeTool,
-        tools.CoordinateTool,
-        tools.HideAxesTool,
-        tools.PerFrameLimitsTool,
-        tools.PhysicalAspectTool,
-        tools.ZoomOneToOneTool,
-        tools.ColourBarTool,
-    ]
+    # The mouse modes and the display tools in menus of their own, so that the toolbar fits a viewer 700 px wide
+    menus = {
+        tools.ModesTool: [tools.MeasureTool, tools.PathTool, tools.PathCrosshairTool],
+        tools.ViewTool: [
+            tools.FrameTimeTool,
+            tools.HideAxesTool,
+            tools.PerFrameLimitsTool,
+            tools.PhysicalAspectTool,
+            tools.ZoomOneToOneTool,
+            tools.ColourBarTool,
+        ],
+    }
     # glue-qt with its own readout (glue-viz/glue-qt#74, draft) does not need ours
     if not hasattr(ImageViewer, "cursor_status"):
-        wanted.append(tools.CursorReadoutTool)
-    for tool in wanted:
+        menus[tools.ViewTool].append(tools.CursorReadoutTool)
+    for tool in (tools.FollowLockTool, tools.ModesTool, tools.CoordinateTool, tools.ViewTool):
         if tool.tool_id not in ImageViewer.tools:
             ImageViewer.tools.append(tool.tool_id)
     if tools.SaveSequenceTool.tool_id not in ImageViewer.subtools["save"]:
         # a copy, as glue makes for its own entry: the Matplotlib viewers share the list
         ImageViewer.subtools = deepcopy(ImageViewer.subtools)
         ImageViewer.subtools["save"].append(tools.SaveSequenceTool.tool_id)
+    for menu, entries in menus.items():
+        ImageViewer.subtools[menu.tool_id] = [tool.tool_id for tool in entries]
     if lines.LineTool.tool_id not in ProfileViewer.tools:
         ProfileViewer.tools.append(lines.LineTool.tool_id)
     # Keys for the viewer of the active window (`tools.KEYS`). glue-qt finds a viewer's keys by its exact class, so the

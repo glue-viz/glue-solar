@@ -7,7 +7,7 @@ from contextlib import nullcontext
 from functools import partial
 
 import numpy as np
-from echo import delay_callback
+from echo import add_callback, delay_callback
 from glue.config import settings, viewer_tool
 from glue.core import Data
 from glue.core.command import ApplySubsetState
@@ -71,12 +71,14 @@ __all__ = [
     "FrameTimeTool",
     "HideAxesTool",
     "MeasureTool",
+    "ModesTool",
     "PathCrosshairTool",
     "PathData",
     "PathTool",
     "PerFrameLimitsTool",
     "PhysicalAspectTool",
     "SaveSequenceTool",
+    "ViewTool",
     "ZoomOneToOneTool",
     "sky_length",
 ]
@@ -263,7 +265,7 @@ class FrameTimeTool(Tool, HubListener):
 
     The readout follows the sliders and reads the first datetime component of the reference
     data, whichever loader attached it (the IRIS loaders add ``Time``, one per SJI exposure or
-    raster step); the toolbar button hides and shows it. A frame spanning several exposures,
+    raster step); its entry of the View menu (`ViewTool`) hides and shows it. A frame spanning several exposures,
     such as a raster shown as step against slit, shows the range. Data with an ``Exposure time``
     component also show it, and an SJI frame's pointing is in the tooltip. For an IRIS observation
     the readout also says which dataset is the time master (with its timing step for a raster), the
@@ -286,7 +288,7 @@ class FrameTimeTool(Tool, HubListener):
     exposure's. Its position has fixed precision (`_world_position`), and on a displayed sit-and-stare
     exposure axis reads only the coordinate along the other axis, as the ticks do, with the time and
     exposure in place of the slit's position along the exposures. Doppler velocities wait for a rest
-    wavelength (``wp5-m1-rest-wavelength-policy``). The toolbar button hides the frame time only.
+    wavelength (``wp5-m1-rest-wavelength-policy``). The View menu entry hides the frame time only.
     """
 
     icon = "window_tab"
@@ -323,6 +325,11 @@ class FrameTimeTool(Tool, HubListener):
         self._label_exposures()
         self._format_coord = viewer.axes.format_coord  # WCSAxes' world readout, set on the axes
         viewer.axes.format_coord = self._readout
+
+    @property
+    def checked(self):
+        """Whether the frame time shows, as its View menu entry's check mark says."""
+        return not self.label.isHidden()
 
     def activate(self):
         self.label.setHidden(not self.label.isHidden())
@@ -466,7 +473,7 @@ class CursorReadoutTool(Tool):
     position, wavelength, ...), as the viewer's WCSAxes reads it out, with the time and exposure the
     Frame time tool adds; the value is the reference layer's displayed attribute at that pixel of the
     current slice. Pressing ``w`` over the image switches WCSAxes between world and pixel positions.
-    The toolbar button hides and shows the readout.
+    Its View menu entry hides and shows the readout.
     """
 
     icon = "glue_cross"
@@ -478,6 +485,11 @@ class CursorReadoutTool(Tool):
         super().__init__(viewer)
         self.shown = True
         self._motion = viewer.axes.figure.canvas.mpl_connect("motion_notify_event", self._on_move)
+
+    @property
+    def checked(self):
+        """Whether the readout shows, as its View menu entry's check mark says."""
+        return self.shown
 
     def activate(self):
         self.shown = not self.shown
@@ -512,13 +524,13 @@ class HideAxesTool(Tool):
     """
     Hide or show the Image viewer's axes: their ticks, tick labels, axis labels and frame.
 
-    The button switches glue's own ``show_axes`` viewer state, which glue-qt 0.4.2 has no control for
+    Its entry switches glue's own ``show_axes`` viewer state, which glue-qt 0.4.2 has no control for
     and sessions save; a new viewer starts from the ``SOLAR_SHOW_AXES`` glue setting. Without its axes
     WCSAxes places no ticks when the viewer draws, so slice steps and redraws are faster. The image,
     subsets, links and the readouts are unchanged; the mouse-over position stays in world coordinates.
-    A plain button, since a checkable glue tool is a mouse mode, which would end Pixel; glue-qt ends the
-    mouse mode before running a plain button too, so the button switches it back on, as glue-solar's
-    other buttons do.
+    A plain tool, since a checkable glue tool is a mouse mode, which would end Pixel; glue-qt ends the
+    mouse mode before running a plain tool too, so the tool switches it back on, as glue-solar's
+    other tools do.
     """
 
     icon = "glue_image"
@@ -535,6 +547,11 @@ class HideAxesTool(Tool):
         self._placed = None  # the WCSAxes coordinates, view and size for which the readout placed the ticks
         self._format_coord = viewer.axes.format_coord  # WCSAxes' world readout, set on the axes
         viewer.axes.format_coord = self._readout
+
+    @property
+    def checked(self):
+        """Whether the axes are hidden, as the View menu entry's check mark says."""
+        return not self.viewer.state.show_axes
 
     def activate(self):
         self.viewer.state.show_axes = not self.viewer.state.show_axes
@@ -572,12 +589,12 @@ class PerFrameLimitsTool(Tool):
     Take the colour limits of the Image viewer's reference data from the displayed slice, so each slice step, such as
     a wavelength step of a raster map, gives that slice's limits, or again from the whole cube.
 
-    The button switches glue's own ``stretch_global`` of each layer of the reference data, which glue-qt 0.4.2 has no
+    Its entry switches glue's own ``stretch_global`` of each layer of the reference data, which glue-qt 0.4.2 has no
     control for: to per frame for every layer unless all already are. The layer's percentile, such as 99.5%, applies
     to the slice, and on lazily loaded IRIS data the limits count every value of it (`LazyData`). A layer of another
     dataset keeps its limits, and one of the previous reference data takes its whole cube's again, since glue would
     take them from its values at the reference data's slice indices: the wrong slice, or an IndexError for a cube of
-    another shape. A plain button, as Hide axes is, since a checkable glue tool is a mouse mode, which would end
+    another shape. A plain tool, as Hide axes is, since a checkable glue tool is a mouse mode, which would end
     Pixel; it leaves the mouse mode on. glue-core 1.27.0 fails to restore a session saved with per-frame limits on
     (``wp0-core-session-reports``).
     """
@@ -591,6 +608,13 @@ class PerFrameLimitsTool(Tool):
         super().__init__(viewer)
         # before glue sets the sliders of the new reference data
         viewer.state.add_callback("reference_data", self._whole_cube_again, priority=10000)
+
+    @property
+    def checked(self):
+        """Whether every layer of the reference data is per frame, as the View menu entry's check mark says."""
+        state = self.viewer.state
+        layers = [layer for layer in state.layers if layer.layer is state.reference_data]
+        return bool(layers) and not any(layer.stretch_global for layer in layers)
 
     def activate(self):
         state = self.viewer.state
@@ -656,14 +680,14 @@ class PhysicalAspectTool(Tool):
     """
     Show the Image viewer's image in its proportions on the sky: an arcsecond as long on screen along x as along y.
 
-    The button switches glue's 'Square Pixels' aspect on, scaled by the angle a pixel spans along y over the angle
+    Its entry switches glue's 'Square Pixels' aspect on, scaled by the angle a pixel spans along y over the angle
     along x (`_arcsec_ratio`), so that a raster map of 2″ steps along a slit of 0.17″ pixels shows each step 12 times
     as wide as a slit pixel. glue keeps these proportions as it keeps square pixels, through resizes, zooms, pans and
     slices; the ratio is taken again when the displayed axes change, as glue shows the whole image again. On axes
     other than a longitude and a latitude alone, such as a spectrogram's or a sit-and-stare raster's exposures against
     its slit, the pixels are square. Pressed again, or with 'Automatic' chosen in the viewer's options, the viewer
-    returns to the aspect it had; back to 'Automatic' from the button, the image fills the axes again, keeping a
-    zoom. A plain button, as 'Hide axes' is, which leaves the mouse mode on.
+    returns to the aspect it had; back to 'Automatic' from the entry, the image fills the axes again, keeping a
+    zoom. A plain tool, as 'Hide axes' is, which leaves the mouse mode on.
     """
 
     icon = "glue_move_x"
@@ -676,7 +700,7 @@ class PhysicalAspectTool(Tool):
         self.ratio = None  # `_arcsec_ratio`, or 1, while on
         self._aspect = None  # glue's aspect before
         state = viewer.state
-        # glue's private aspect hooks this scales; a glue without them gets a button that does nothing, not no viewer
+        # glue's private aspect hooks this scales; a glue without them gets an entry that does nothing, not no viewer
         self._hooked = all(hasattr(state, name) for name in _ASPECT_HOOKS) and hasattr(viewer, "axes_ratio")
         if not self._hooked:
             return
@@ -687,6 +711,11 @@ class PhysicalAspectTool(Tool):
         for prop in ("x_att", "y_att"):
             state.add_callback(prop, self._update)
         state.add_callback("aspect", self._aspect_changed)
+
+    @property
+    def checked(self):
+        """Whether the image shows in its proportions on the sky, as the View menu entry's check mark says."""
+        return self.ratio is not None
 
     def activate(self):
         state = self.viewer.state
@@ -749,7 +778,7 @@ class ZoomOneToOneTool(Tool):
     unless 'Physical aspect' is on, which keeps the sky's proportions: there it spans the angle it covers over that of
     an x pixel, such as 1/12 of a screen pixel on a raster map of 2″ steps along a slit of 0.17″ pixels. glue draws
     the image through a buffer of 72 dots per inch, so at 1:1 it skips data pixels, 28 in 100 on a figure of 100 dots
-    per inch (``wp0-perf-core-draw``). A plain button, as 'Hide axes' is, which leaves the mouse mode on.
+    per inch (``wp0-perf-core-draw``). A plain tool, as 'Hide axes' is, which leaves the mouse mode on.
     """
 
     icon = "glue_zoom_to_rect"
@@ -819,7 +848,7 @@ class ColourBarTool(Tool):
     The bar takes glue's own colouring of the reference data's layer as it draws (`_ColourBarAxes`), so it follows
     the limits, per frame too, the stretch, contrast and bias, the colormap, or the colour in 'One color per layer'
     mode, and the slices; it is part of the figure, so saved plots show it. Its room comes from the axes, as from a
-    resize, so 'Square Pixels' and 'Physical aspect' keep their proportions. A plain button, as 'Hide axes' is, which
+    resize, so 'Square Pixels' and 'Physical aspect' keep their proportions. A plain tool, as 'Hide axes' is, which
     leaves the mouse mode on.
     """
 
@@ -831,6 +860,11 @@ class ColourBarTool(Tool):
     def __init__(self, viewer):
         super().__init__(viewer)
         self.bar = None  # made at the first press
+
+    @property
+    def checked(self):
+        """Whether the colour bar shows, as the View menu entry's check mark says."""
+        return self.bar is not None and self.bar.get_visible()
 
     def activate(self):
         axes = self.viewer.axes
@@ -904,7 +938,7 @@ class MeasureTool(ToolbarModeBase):
             viewer.state.add_callback(prop, self._clear)
 
     def activate(self):
-        # the last line again, as after glue-solar's buttons, which glue-qt ends the mode for
+        # the last line again, as after glue-solar's plain tools, which glue-qt ends the mode for
         self.label.show()
         self._line.set_visible(len(self._line.get_xdata()) > 0)
         self.viewer.figure.canvas.draw_idle()
@@ -1613,7 +1647,7 @@ class CoordinateTool(SimpleToolMenu):
 
     icon = "glue_link"
     tool_id = "solar:coordinate"
-    action_text = "Coordinate"
+    # no action_text, which glue-qt would show beside the icon, so that the toolbar fits a viewer 700 px wide
     tool_tip = "Coordinate this viewer with the others of its IRIS observation"
 
     def __init__(self, viewer, subtools=None):
@@ -1760,3 +1794,63 @@ class CoordinateTool(SimpleToolMenu):
         drawn = ((self._slit, line), (self._marker, marker), (self._footprint, footprint), (self._step, step))
         if any([_place(artist, xy) for artist, xy in drawn]):  # each sync calls this: redraw only for a move
             viewer.figure.canvas.draw_idle()
+
+
+class _ToolMenu(SimpleToolMenu):
+    """
+    A toolbar menu of glue-solar tools, glue's own kind of menu: the viewer's ``subtools`` name its tools, which
+    glue-qt 0.4.2 makes its entries. Once glue-qt has built it, each tool is also in the toolbar's ``tools`` and
+    ``actions`` with its entry, as a button's would be, so glue-qt switches a mouse mode of the menu on and off and
+    scripts find a tool by its id as before. An entry shows only while its tool is ``enabled``, which glue-qt does for
+    buttons only (glue-viz/glue-qt#72, draft, adds it), has a check mark for a tool with a ``checked`` state, and takes
+    its tool's key while the toolbar has the keyboard, as a button does.
+    """
+
+    def __init__(self, viewer, subtools=None):
+        super().__init__(viewer, subtools=subtools)
+        viewer.toolbar_added.connect(self._add_entries)
+
+    def _add_entries(self):
+        toolbar = self.viewer.toolbar
+        menu = toolbar.widgetForAction(toolbar.actions[self.tool_id]).menu()
+        for tool, action in zip(self.subtools, menu.actions(), strict=True):
+            toolbar.tools[tool.tool_id], toolbar.actions[tool.tool_id] = tool, action
+
+            def show(enabled, action=action):
+                action.setVisible(enabled)
+                action.setEnabled(enabled)
+
+            add_callback(tool, "enabled", show)
+            show(tool.enabled)
+            if hasattr(tool, "checked"):
+                action.setCheckable(True)
+            if not action.shortcut().isEmpty():  # glue-qt's, on the entry, needs the menu's button focused
+                key = QtWidgets.QShortcut(action.shortcut(), toolbar)
+                key.setContext(QtCore.Qt.WidgetShortcut)
+                key.activated.connect(action.trigger)
+        menu.aboutToShow.connect(self._check)
+
+    def _check(self):
+        for tool in self.subtools:
+            if hasattr(tool, "checked"):
+                self.viewer.toolbar.actions[tool.tool_id].setChecked(tool.checked)
+
+
+@viewer_tool
+class ModesTool(_ToolMenu):
+    """The Image viewer's menu of glue-solar's mouse modes: Measure, Path diagram and its crosshair."""
+
+    icon = "pencil"
+    tool_id = "solar:modes"
+    tool_tip = "Mouse modes: measure a line, or draw a path for the data along it"
+
+
+@viewer_tool
+class ViewTool(_ToolMenu):
+    """
+    The Image viewer's View menu: glue-solar's display tools, which leave the mouse mode on, each checked while on.
+    """
+
+    icon = "glue_settings"
+    tool_id = "solar:view"
+    tool_tip = "View: frame time, axes, colour limits, aspect, zoom, colour bar and cursor readout"
