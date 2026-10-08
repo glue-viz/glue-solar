@@ -1,0 +1,1 @@
+A "Zoom 1:1" button on Image viewers sets the view so one data pixel spans one screen pixel about its centre.

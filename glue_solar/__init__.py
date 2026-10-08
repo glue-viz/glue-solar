@@ -56,6 +56,7 @@ def setup():
         tools.HideAxesTool,
         tools.PerFrameLimitsTool,
         tools.PhysicalAspectTool,
+        tools.ZoomOneToOneTool,
         tools.ColourBarTool,
     ]
     # glue-qt with its own readout (glue-viz/glue-qt#74, draft) does not need ours

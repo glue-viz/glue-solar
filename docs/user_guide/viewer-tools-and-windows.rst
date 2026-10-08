@@ -81,6 +81,14 @@ toolbar has:
   against time. Choosing "Automatic" in the viewer's options switches it off too. Pressed again on
   a quicklook raster panel, whose aspect is "Automatic", the image fills the panel again, keeping a
   zoom. A saved session restores the viewer with "Square Pixels".
+- "Zoom 1:1", from glue-solar: zooms about the centre of the view so that one pixel of the displayed
+  dataset spans one pixel of the screen, along whichever axes are shown, wavelength included; the
+  mouse mode stays on, and "Home" (H) shows the whole image again. A screen pixel is a physical
+  one, so on a HiDPI (Retina) screen the image shows at half the size it would in the screen's
+  points. With "Physical aspect" on, x is at 1:1 and y keeps the proportions on the sky: on a map
+  of 2″ steps along a slit of 0.17″ pixels, 12 slit pixels share each screen pixel. glue draws an
+  image through a buffer of 72 dots per inch, so at 1:1 it shows only some of the rows and columns,
+  72 of every 100 at matplotlib's 100 dots per inch and 36 on a HiDPI screen.
 - "Colour bar", from glue-solar: shows a colour bar right of the image, from one colour limit of the
   displayed dataset (the viewer's reference data) to the other, with value ticks, and pressed again
   hides it; the mouse mode stays on. Its colours are glue's own for that dataset's layer, so it

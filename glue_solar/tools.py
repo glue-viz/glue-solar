@@ -65,6 +65,7 @@ __all__ = [
     "PerFrameLimitsTool",
     "PhysicalAspectTool",
     "SaveSequenceTool",
+    "ZoomOneToOneTool",
     "sky_length",
 ]
 
@@ -723,6 +724,37 @@ class PhysicalAspectTool(Tool):
         state = self.viewer.state
         state._axes_aspect_ratio = self.viewer.axes_ratio / (self.ratio or 1)
         state.reset_limits() if whole else state._adjust_limits_aspect()
+
+
+@viewer_tool
+class ZoomOneToOneTool(Tool):
+    """
+    Zoom the Image viewer about the view centre so that one pixel of its reference data along x spans one screen pixel.
+
+    A screen pixel is a device pixel, as matplotlib's display coordinates are: on a HiDPI screen, with a device pixel
+    ratio of 2, the image shows at half its size in Qt's logical pixels. glue's x and y limits are in the pixels of
+    whichever axes are shown, so a wavelength or swapped axis zooms the same way. A y pixel also spans one screen pixel,
+    unless 'Physical aspect' is on, which keeps the sky's proportions: there it spans the angle it covers over that of
+    an x pixel, such as 1/12 of a screen pixel on a raster map of 2″ steps along a slit of 0.17″ pixels. glue draws
+    the image through a buffer of 72 dots per inch, so at 1:1 it skips data pixels, 28 in 100 on a figure of 100 dots
+    per inch (``wp0-perf-core-draw``). A plain button, as 'Hide axes' is, which leaves the mouse mode on.
+    """
+
+    icon = "glue_zoom_to_rect"
+    tool_id = "solar:zoom_1_1"
+    action_text = "Zoom 1:1"
+    tool_tip = "Zoom about the view centre to one data pixel per screen pixel"
+
+    def activate(self):
+        state, box = self.viewer.state, self.viewer.axes.bbox  # in device pixels
+        if None not in (state.x_min, state.x_max, state.y_min, state.y_max):
+            # under 'Square Pixels' glue fits y to x by this ratio, which 'Physical aspect' scales
+            height = box.width * state._axes_aspect_ratio if state.aspect == "equal" else box.height
+            x, y = (state.x_min + state.x_max) / 2, (state.y_min + state.y_max) / 2
+            with delay_callback(state, "x_min", "x_max", "y_min", "y_max"):
+                state.x_min, state.x_max = x - box.width / 2, x + box.width / 2
+                state.y_min, state.y_max = y - height / 2, y + height / 2
+        _keep_mouse_mode(self.viewer)
 
 
 # A colour bar's gap from the Image viewer's axes and width, and the room it takes with its ticks, in inches
