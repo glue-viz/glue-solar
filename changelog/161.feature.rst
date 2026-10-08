@@ -1,0 +1,1 @@
+"Shift pointing…" gives an IRIS dataset an arcsec offset in helioprojective longitude and latitude, followed by its readout, links and the quicklook, with a co-alignment recipe in the guide.
