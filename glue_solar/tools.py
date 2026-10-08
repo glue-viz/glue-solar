@@ -839,7 +839,8 @@ class MeasureTool(ToolbarModeBase):
     in km (`sky_length`), in the status bar beside the mouse-over readout, which each mouse move replaces. Where the
     displayed axes are not a longitude and a latitude alone, such as a spectrogram, a slit-jaw image's x against time
     or a sit-and-stare raster's exposures against its slit, in pixels only. The line and its length stay until the
-    next drag, or until another mouse mode, or a plain button, ends the mode.
+    next drag, or until other axes or reference data are shown, which they would not describe; another mouse mode
+    hides them while it is on.
     """
 
     icon = "pencil"
@@ -855,11 +856,27 @@ class MeasureTool(ToolbarModeBase):
         self.label = QtWidgets.QLabel()
         viewer.statusBar().insertPermanentWidget(0, self.label)
         self.label.hide()
+        for prop in ("reference_data", "x_att", "y_att"):
+            viewer.state.add_callback(prop, self._clear)
 
     def activate(self):
-        self.label.setText("")
+        # the last line again, as after glue-solar's buttons, which glue-qt ends the mode for
         self.label.show()
+        self._line.set_visible(len(self._line.get_xdata()) > 0)
+        self.viewer.figure.canvas.draw_idle()
         super().activate()
+
+    def close(self):
+        for prop in ("reference_data", "x_att", "y_att"):
+            self.viewer.state.remove_callback(prop, self._clear)
+        super().close()
+
+    def _clear(self, *_):
+        self._start = None
+        self._line.set_data([], [])
+        self._line.set_visible(False)
+        self.label.setText("")
+        self.viewer.figure.canvas.draw_idle()
 
     def deactivate(self):
         self._start = None

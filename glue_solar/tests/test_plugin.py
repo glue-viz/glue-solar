@@ -722,8 +722,14 @@ def test_measure_reports_a_dragged_line(qtbot, irispy_test_files):
     assert tool.label.text() == text
     mouse(viewer, "motion_notify_event", 10, 10)  # the line stays until the next drag
     assert tool.label.text() == text
+    viewer.toolbar.actions["solar:hide_axes"].trigger()  # and through glue-solar's buttons
+    assert viewer.toolbar.active_tool is tool
+    assert tool._line.get_visible()
+    assert tool.label.text() == text
 
-    viewer.state.y_att = data.pixel_component_ids[0]  # x against time: pixels only
+    viewer.state.y_att = data.pixel_component_ids[0]  # x against time: not the line's axes, then pixels only
+    assert not tool._line.get_visible()
+    assert tool.label.text() == ""
     mouse(viewer, "button_press_event", 3, 1)
     mouse(viewer, "button_release_event", 30, 20)
     (x0, x1), (y0, y1) = tool._line.get_data()
@@ -746,6 +752,20 @@ def test_sky_length_of_a_map_in_degrees_without_an_observer_distance(qtbot):
     lon, lat = data.coords.pixel_to_world_values(x, y)
     expected = sum(_separation(lon[i : i + 2], lat[i : i + 2], u.deg) for i in (0, 1))
     assert (pixels, arcsec, km) == (pytest.approx(np.hypot(23, 270) + 180), pytest.approx(expected), None)
+
+
+def test_sky_length_on_a_raster_map(qtbot, irispy_test_files):
+    data = raster_data([find_irispy_test_file(irispy_test_files, SCANNING)])[0]
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    viewer.state.x_att, viewer.state.y_att = data.pixel_component_ids[0], data.pixel_component_ids[1]  # step, slit
+    _, lat, lon = data.coords.pixel_to_world_values([0, 0], [10, 90], [0, 7])  # IRIS rasters: wavelength, lat, lon
+    assert sky_length(viewer, [0, 7], [10, 90])[1] == pytest.approx(_separation(lon, lat, u.arcsec))
+    # a -TAB raster has no coordinates past its outer steps
+    assert sky_length(viewer, [-1, 3], [10, 90])[1:] == (None, None)
 
 
 @pytest.mark.remote_data
