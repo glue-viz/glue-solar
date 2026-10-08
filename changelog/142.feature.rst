@@ -1,0 +1,1 @@
+Line moments leave pixels with a saturated sample within the wings (16182 DN, the level 2 clipping ceiling) out of every map, and the status bar says how many.
