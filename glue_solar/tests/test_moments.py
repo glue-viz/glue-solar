@@ -15,6 +15,7 @@ from irispy.utils.spectrograph import subtract_background
 from qtpy import QtWidgets
 
 import astropy.units as u
+from astropy import constants
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
@@ -340,3 +341,52 @@ def test_a_dn_per_second_window_saturates_at_each_steps_exposure_time(monkeypatc
     assert maps.meta["moments_saturated"] == 1
     assert np.isnan(maps["intensity"][0, 10])
     assert np.isfinite(maps["intensity"][1, 10])
+
+
+def assert_irispys(maps, raster, centre, wings, unit):
+    """
+    ``maps`` are irispy's own on the whole of ``raster``'s DN/s in ``unit`` / s, in float64 as it is given them, its
+    mask the window's NaN, but NaN where every sample within the wings is missing.
+    """
+    window = iris.per_second(np.asarray(raster[raster.main_components[0]], dtype=float), raster["Exposure time"])
+    cube = SpectrogramCube(window, raster.coords._wcs, unit=unit / u.s, mask=np.isnan(window))
+    direct = irispy.utils.moments.calculate_moments(cube, rest_wavelength=centre * u.AA, wings=wings * u.AA)
+    fill = missing(raster, centre - wings, centre + wings)
+    assert [cid.label for cid in maps.main_components] == list(direct)
+    for name, moment in direct.items():
+        expected = np.where(fill | moment.mask, np.nan, moment.data)
+        if moment.unit.is_equivalent(u.AA):
+            expected = moment.unit.to(u.AA, expected)
+        np.testing.assert_allclose(maps[name], expected, rtol=1e-9, atol=1e-9)
+
+
+def test_gaussian_lines_give_irispys_maps_their_width_a_standard_deviation(monkeypatch, scan_path):
+    """
+    Gaussian lines of known Doppler shift and FWHM, a step a slab, give irispy's maps, ``width`` their standard
+    deviation: the FWHM over 2√(2 ln 2), about 2.355.
+    """
+    monkeypatch.setattr(iris, "LAZY", False)
+    monkeypatch.setattr(moments, "SLAB", 1)
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    wavelengths, _ = _wavelengths(raster)
+    velocity = np.linspace(-20, 20, raster.shape[0])[:, None]  # km/s, by step
+    fwhm = np.linspace(0.6, 0.9, raster.shape[1])  # Å, by slit pixel: sampled by the window's 0.25 Å, within ±2.5 Å
+    centre = 1402.77 * (1 + velocity / constants.c.to_value(u.km / u.s))
+    sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
+    gaussians = 1000 * np.exp(-0.5 * ((wavelengths - centre[..., None]) / sigma[:, None]) ** 2)
+    raster.update_components({raster.main_components[0]: gaussians.astype(np.float32)})
+    maps = line_moments(raster, 1402.77, wings=(2.5, 2.5))
+    assert_irispys(maps, raster, 1402.77, 2.5, DN_UNIT["FUV"])
+    np.testing.assert_allclose(maps["width"], np.broadcast_to(sigma, maps.shape), rtol=1e-6)
+    np.testing.assert_allclose(maps["velocity"], np.broadcast_to(velocity, maps.shape), atol=1e-4)
+
+
+@pytest.mark.remote_data
+def test_a_full_mg_ii_k_window_gives_irispys_maps(irispy_data):
+    """3400109360's Mg II k, at full resolution, read lazily and its steps negative, gives irispy's maps."""
+    [path] = irispy_data("iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz")
+    [raster] = raster_data([path], ["Mg II k 2796"])
+    maps = line_moments(raster, 2796.352)
+    assert maps.get_component("intensity").units == "DN_IRIS_NUV / s"
+    assert missing(raster, 2795.852, 2796.852).sum() == 1600  # the slit's last 25 pixels, at every step
+    assert_irispys(maps, raster, 2796.352, 0.5, DN_UNIT["NUV"])
