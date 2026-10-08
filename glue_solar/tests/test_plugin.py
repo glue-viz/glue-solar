@@ -39,6 +39,7 @@ from glue_solar.sources.iris import iris_quicklook, is_iris_fits, link_iris, qui
 from glue_solar.sources.loaders.iris import image_data, raster_data
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import moments_iris
+from glue_solar.sources.red_blue import red_blue_iris
 from glue_solar.tests.helpers import count_tick_work, mouse, press
 from glue_solar.tools import sky_length
 
@@ -51,6 +52,7 @@ def test_setup_registers_hooks():
     assert ("IRIS: quicklook…", quicklook_iris) in list(menubar_plugin)
     assert startup_action.members["iris_quicklook"] is iris_quicklook
     assert ("IRIS: line moments…", moments_iris) in [(action.label, action.callback) for action in layer_action]
+    assert ("IRIS: red-blue asymmetry…", red_blue_iris) in [(action.label, action.callback) for action in layer_action]
     assert ImageViewer.tools.count("solar:frame_time") == 1
     assert ImageViewer.tools.count("solar:coordinate") == 1
     assert ImageViewer.tools.count("solar:hide_axes") == 1

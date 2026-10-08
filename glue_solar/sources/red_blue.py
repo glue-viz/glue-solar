@@ -1,0 +1,158 @@
+"""
+'IRIS: red-blue asymmetry…': irispy's red-blue asymmetry of a line in a raster window, as a new dataset.
+"""
+
+import numpy as np
+from glue.config import layer_action
+from glue.core.component import Component
+from glue_qt.utils.decorators import messagebox_on_error
+from qtpy import QtWidgets
+
+import astropy.units as u
+
+from glue_solar.sources.loaders.iris import WCS_LOCK, per_second
+from glue_solar.sources.moments import _accepted, _check, _cube, _dataset, _read, _start, _wavelength, _window
+
+__all__ = ["red_blue_asymmetry", "red_blue_iris"]
+
+# The wavelengths the dialog takes at first, in Angstrom below and above the rest wavelength: irispy takes the peak of
+# all it is given, which in a Mg II k window can be Mg II h
+WAVELENGTHS = (1.0, 1.0)
+# iris_xfiles' red-blue settings, in km/s: its double Gaussian fit averages red minus blue over 5 km/s from each of 30,
+# 35, ... 50 km/s, so from 30 to 55 km/s (SolarSoft iris/idl/uio/objects/iris_moment__dgf.pro, lines 49-53, and
+# uio/utils/iris_gen_rb_profile.pro, lines 7-11)
+VELOCITIES = (30.0, 55.0)
+STEP = 5.0
+_WHAT = "red-blue asymmetry maps"
+
+
+def _red_blue(data, rest, wavelengths, velocities, step, crop, unit):
+    """
+    `red_blue_asymmetry` given ``crop`` of the wavelength pixels and ``unit`` the unit of the values irispy is given;
+    on any thread.
+    """
+    from irispy.utils.constants import SATURATION_LIMIT
+    from irispy.utils.red_blue import calculate_red_blue_asymmetry
+
+    maps = {}
+    for start in range(data.shape[0]):  # a step at a time: irispy's saturation limit is one value in the cube's unit
+        rows = (slice(start, start + 1), slice(None))
+        values, seconds = _read(data, rows, crop)
+        limit = np.float64(SATURATION_LIMIT.value)
+        if seconds is not None:  # over the step's exposure time, as the values
+            limit = per_second(limit, seconds).item()
+        with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
+            slab = calculate_red_blue_asymmetry(
+                _cube(data, values, rows, crop, unit),
+                rest_wavelength=rest * u.AA,
+                velocity_range=velocities * u.km / u.s,
+                dv=step * u.km / u.s,
+                saturation_limit=np.nextafter(limit, 0),  # irispy flags a peak above it: here one at 16182 DN
+                return_profiles=False,
+            )
+        for name, part in slab.items():
+            maps.setdefault(name, []).append(part.data)
+    asymmetry = _dataset(data, f"{data.label} red-blue asymmetry {rest}")
+    asymmetry.meta.update(
+        red_blue_rest=rest,
+        red_blue_wavelengths=tuple(wavelengths),
+        red_blue_velocities=tuple(velocities),
+        red_blue_step=step,
+    )
+    for name, parts in maps.items():
+        asymmetry.add_component(Component(np.concatenate(parts)), name)
+    return asymmetry
+
+
+def red_blue_asymmetry(data, rest, wavelengths=WAVELENGTHS, velocities=VELOCITIES, step=STEP):
+    """
+    irispy's red-blue asymmetry of a line in ``data``, an IRIS raster window of one scan, from its wavelengths within
+    ``wavelengths`` of ``rest``, as one dataset on the window's raster steps and slit pixels.
+
+    irispy is given the window's ``<label> DN/s`` where it has one, else its values, NaN, -Inf and negative samples
+    left out, a raster step at a time. For each pixel it interpolates the profile about its peak every ``step`` and
+    divides the mean red wing, from ``velocities[0]`` to ``velocities[1]`` above the peak, less the mean blue wing,
+    as far below it, by the peak. Its components are irispy's: ``red_blue_asymmetry``, NaN where it is not computed,
+    and ``quality``, an `~irispy.utils.red_blue.RBAQualityFlag` code, 0 where it is; a pixel with a sample at
+    16182 DN, irispy's ``SATURATION_LIMIT``, is flagged saturated. ``meta`` holds the observation's ``OBSID`` and
+    ``STARTOBS``, ``red_blue_rest``, ``red_blue_wavelengths``, ``red_blue_velocities`` and ``red_blue_step``.
+
+    Parameters
+    ----------
+    data : `~glue.core.data.Data`
+        An IRIS raster window of one scan, (raster step, slit, wavelength).
+    rest : float
+        The rest wavelength of the line, in Angstrom.
+    wavelengths : tuple of float
+        The wavelengths taken, in Angstrom below and above ``rest``; irispy takes the peak of them all.
+    velocities : tuple of float
+        The wing velocities, from and to, in km / s from the peak.
+    step : float
+        The velocity step of the interpolated profile, in km / s.
+
+    Raises
+    ------
+    ValueError
+        For other data than an IRIS raster window of one scan, or one with no wavelength within ``wavelengths`` of
+        ``rest``.
+    """
+    _check(data, _WHAT)
+    _, crop, unit = _window(data, rest, wavelengths)
+    return _red_blue(data, rest, wavelengths, velocities, step, crop, unit)
+
+
+def _ask(data):
+    """
+    The rest wavelength typed for ``data`` and the wavelengths taken below and above it, in Angstrom, and the wing
+    velocities and the velocity step, in km/s; or None for a blank rest wavelength or Cancel.
+    """
+    dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
+    dialog.setWindowTitle(f"IRIS: red-blue asymmetry of {data.label}")
+    form = QtWidgets.QFormLayout(dialog)
+    rest = QtWidgets.QLineEdit(objectName="rest")  # D24: typed, never the window's TWAVE
+    form.addRow("Rest wavelength [Å]:", rest)
+    boxes = []
+    for name, label, value, unit in (
+        ("below", "Taken below the rest:", WAVELENGTHS[0], "Å"),
+        ("above", "Taken above the rest:", WAVELENGTHS[1], "Å"),
+        ("from", "Wing velocities from:", VELOCITIES[0], "km/s"),
+        ("to", "Wing velocities to:", VELOCITIES[1], "km/s"),
+        ("step", "Velocity step:", STEP, "km/s"),
+    ):
+        step = 0.1 if unit == "Å" else 1  # as the moments dialog steps its wings
+        box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, maximum=1000, singleStep=step, suffix=f" {unit}")
+        box.setValue(value)
+        form.addRow(label, box)
+        boxes.append(box)
+    text = rest.text().strip() if _accepted(dialog, form) else ""
+    if not text:
+        return None
+    below, above, low, high, step = (box.value() for box in boxes)
+    return _wavelength(text), (below, above), (low, high), step
+
+
+@messagebox_on_error("Could not compute red-blue asymmetry")
+def _failed(exc_info):
+    raise exc_info[1]
+
+
+@layer_action(
+    "IRIS: red-blue asymmetry…",
+    single=True,
+    data=True,
+    tooltip="Add irispy's red-blue asymmetry map of a line in this raster window",
+)
+@messagebox_on_error("Could not compute red-blue asymmetry")
+def red_blue_iris(data, data_collection):
+    """
+    Add the `red_blue_asymmetry` of ``data`` about a typed rest wavelength, with typed wing velocities, to the data
+    collection, with its helioprojective coordinates linked, and no viewer; glue shows why for data that has none.
+    irispy computes it in the background, while glue's status bar says so.
+    """
+    _check(data, _WHAT)  # before asking
+    line = _ask(data)
+    if line is None:
+        return
+    _, crop, unit = _window(data, *line[:2])
+    text = f"Computing red-blue asymmetry of {data.label}…"
+    _start(data_collection, text, _failed, _red_blue, data, *line, crop, unit)
