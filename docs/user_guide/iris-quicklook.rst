@@ -315,7 +315,9 @@ position. On OBSID 4000005156's deconvolved SJI 2796, (+2, −1) turns the reado
 - Only IRIS data can be shifted: a sunpy Map is refused with a message, so shift the IRIS data
   against it instead.
 - Datasets made from a shifted one afterwards, by "Regrid on time", line moments, red-blue asymmetry
-  or Mg II features, take its offset; shift them on their own after a later shift.
+  or Mg II features, take its offset; shift them on their own, and alike, after a later shift: a line
+  ratio between maps shifted differently is refused as not on the same grid. A line ratio shares its
+  numerator's coordinates and shifts with it.
 - A region drawn on a quicklook's map or slit-jaw image keeps the outline it had in longitude and
   latitude, so draw it again after shifting the dataset it was drawn on.
 - The "Frame time" tooltip keeps the file's pointing, and sessions do not keep the offset (see

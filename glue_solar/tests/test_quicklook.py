@@ -46,6 +46,7 @@ from glue_solar.quicklook import (
     sji_to_raster,
 )
 from glue_solar.regrid import regrid_on_time
+from glue_solar.sources import moments
 from glue_solar.sources.iris import shift_pointing_iris
 from glue_solar.sources.loaders.iris import image_data, raster_data
 from glue_solar.tests.helpers import (
@@ -3634,6 +3635,7 @@ def test_shift_pointing_moves_the_readout_and_what_the_raster_meets(
     # a raster window shifts with the other windows of its file
     assert shift(monkeypatch, window, collection, (0.5, 0.25)) == (0, 0)
     assert raster.coords.pointing_offset == window.coords.pointing_offset == (0.5, 0.25)
+    assert moments._dataset(window, "x").coords.pointing_offset == (0.5, 0.25)
     # the dialog opens at the offset, and 0, 0 takes it away
     assert shift(monkeypatch, sji, collection, (0, 0)) == (2, -1)
     assert sji.coords.pixel_to_world_values(x, y, frame)[:2] == (lon, lat)
