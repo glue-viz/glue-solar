@@ -70,8 +70,11 @@ def missing(raster, low, high):
     return np.isnan(raster[raster.main_components[0]][..., (wavelengths >= low) & (wavelengths <= high)]).all(-1)
 
 
-def run(app, qtbot, data):
-    """Trigger the action on ``data`` and wait for the dataset it adds and for its thread to end."""
+def run(app, qtbot, data, message=""):
+    """
+    Trigger the action on ``data`` and wait for the dataset it adds and for its thread to end, the status bar then
+    saying ``message``.
+    """
     collection, tree = app.data_collection, app._layer_widget
     count = len(collection)
     tree.ui.layerTree.set_selected_layers([data])
@@ -79,7 +82,7 @@ def run(app, qtbot, data):
     assert iris._RUNNING  # on glue-qt's worker
     assert app.statusBar().currentMessage() == f"Computing line moments of {data.label}…"
     qtbot.waitUntil(lambda: len(collection) == count + 1 and not iris._RUNNING)
-    assert app.statusBar().currentMessage() == ""
+    assert app.statusBar().currentMessage() == message
     return collection[-1]
 
 
@@ -203,8 +206,8 @@ def test_a_continuum_window_is_irispys_background(app, qtbot, monkeypatch, scan_
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)
     plain = line_moments(raster, 1402.77)
-    # irispy's own on the window's whole DN/s, its mask the window's NaN
-    window = np.asarray(raster[f"{raster.label} DN/s"])
+    # irispy's own on the window's whole DN/s, in float64 as it is given them, its mask the window's NaN
+    window = iris.per_second(np.asarray(raster[raster.main_components[0]], dtype=float), raster["Exposure time"])
     cube = SpectrogramCube(window, raster.coords._wcs, unit=DN_UNIT["FUV"] / u.s, mask=np.isnan(window))
     wavelengths, _ = _wavelengths(raster)
     wings = (wavelengths >= 1402.27) & (wavelengths <= 1403.27)
@@ -293,3 +296,47 @@ def test_minus_infinity_is_missing(monkeypatch, scan_path):
         assert np.isnan(maps[cid][3, 10])
         assert np.isfinite(maps[cid][2, 10])
         np.testing.assert_array_equal(maps[cid], missing[cid.label])
+
+
+@pytest.mark.parametrize("continuum", ["", "1401.5-1402, 1403.5-1404"])
+def test_saturated_pixels_within_the_wings_are_nan_and_counted(app, qtbot, monkeypatch, scan_path, continuum):
+    """
+    A pixel with a sample at 16182 DN within the wings, irispy's limit, is NaN in every map, and the status bar says
+    how many; one outside the wings, here in a continuum window, is not.
+    """
+    monkeypatch.setattr(iris, "LAZY", False)
+    monkeypatch.setattr(moments, "SLAB", 3 * 109 * 4)  # slabs of 3 steps, or of 1 with a continuum
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    app.data_collection.append(raster)
+    cid, (wavelengths, _) = raster.main_components[0], _wavelengths(raster)
+    inside = np.flatnonzero((wavelengths >= 1402.27) & (wavelengths <= 1403.27))
+    outside = np.flatnonzero((wavelengths >= 1403.5) & (wavelengths <= 1404))
+    assert not missing(raster, 1402.27, 1403.27)[:, [10, 20]].any()
+    values = np.array(raster[cid])
+    # at every step: in float32 DN/s, 16182 DN over 6 of their 8 exposure times rounds below irispy's limit
+    values[:, 10, inside[1]] = 16182
+    values[:, 20, outside] = 16182
+    raster.update_components({cid: values})
+    answer(monkeypatch, "1402.77", continuum=continuum)
+    maps = run(app, qtbot, raster, f"{raster.label} moments 1402.77: 8 pixels saturated within the wings are NaN")
+    assert maps.meta["moments_saturated"] == 8
+    for cid in maps.main_components:
+        assert np.isnan(maps[cid][:, 10]).all()
+    assert np.isfinite(maps["intensity"][:, 20]).all()
+
+
+def test_a_dn_per_second_window_saturates_at_each_steps_exposure_time(monkeypatch, scan_path):
+    """irispy is given each step's exposure time: the same DN/s is 16182 DN in an 8 s step, saturated, not in a 4 s one."""
+    monkeypatch.setattr(iris, "LAZY", False)
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    cid, (wavelengths, _) = raster.main_components[0], _wavelengths(raster)
+    inside = np.flatnonzero((wavelengths >= 1402.27) & (wavelengths <= 1403.27))
+    values, seconds = np.array(raster[cid]), np.array(raster["Exposure time"])
+    seconds[:2] = [[[8]], [[4]]]
+    values[:2, 10, inside[1]] = [16182, 16182 / 2]
+    raster.update_components({cid: values, raster.id["Exposure time"]: seconds})
+    maps = line_moments(raster, 1402.77)
+    assert maps.get_component("intensity").units == "DN_IRIS_FUV / s"
+    assert maps.meta["moments_saturated"] == 1
+    assert np.isnan(maps["intensity"][0, 10])
+    assert np.isfinite(maps["intensity"][1, 10])
