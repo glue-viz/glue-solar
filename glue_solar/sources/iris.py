@@ -7,13 +7,21 @@ from pathlib import Path
 
 from glue.config import data_factory, layer_artist_maker, menubar_plugin, startup_action
 from glue.viewers.image.viewer import MatplotlibImageMixin
-from qtpy import QtWidgets
+from qtpy import QtCore, QtGui, QtWidgets
 
 from glue_solar.quicklook import _pick_sjis, _pick_windows, _role, _time_axis, observation_key, quicklook
 from glue_solar.sources.loaders.iris import QtIRISImporter, iris_data, keep_hpc_linked, last_directory
 from glue_solar.sources.loaders.scan import _is_supported_file, _primary_header, strip_pooch
 
-__all__ = ["browse_iris", "iris_image_layer", "iris_quicklook", "link_iris", "quicklook_iris", "read_iris_file"]
+__all__ = [
+    "browse_iris",
+    "help_iris",
+    "iris_image_layer",
+    "iris_quicklook",
+    "link_iris",
+    "quicklook_iris",
+    "read_iris_file",
+]
 
 
 def is_iris_fits(filename, **_kwargs):
@@ -152,6 +160,18 @@ def quicklook_iris(session, data_collection):
             return
         keys = [keys[labels.index(label)]]
     quicklook(app, observations[keys[0]])
+
+
+@menubar_plugin("IRIS: user guide and issues")
+def help_iris(session, data_collection):
+    """
+    Open glue-solar's user guide and its issues on GitHub, to report a problem, in the web browser.
+    """
+    for url in (
+        "https://glue-solar.readthedocs.io/en/latest/user_guide/index.html",
+        "https://github.com/glue-viz/glue-solar/issues",
+    ):
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl(url))
 
 
 @startup_action("iris_quicklook")

@@ -4,6 +4,9 @@
 User Guide
 ==========
 
+In glue, "IRIS: user guide and issues" in the "Plugins" menu opens this guide, and glue-solar's
+issues on GitHub to report a problem, in the web browser.
+
 .. toctree::
    :maxdepth: 2
 

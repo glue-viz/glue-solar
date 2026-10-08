@@ -1,5 +1,7 @@
 import gc
+import inspect
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -24,6 +26,7 @@ from irispy.io import read_files
 from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from qtpy.QtCore import Qt
+from qtpy.QtGui import QDesktopServices, QKeySequence
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import QToolBar
 
@@ -31,6 +34,7 @@ import astropy.units as u
 from astropy.coordinates import angular_separation
 from astropy.io import fits
 from astropy.visualization import PowerStretch
+from astropy.visualization.wcsaxes import WCSAxes
 from astropy.wcs import WCS
 
 import glue_solar
@@ -38,7 +42,7 @@ from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.quicklook import QuicklookImageViewer, _role
 from glue_solar.regrid import regrid_on_time
-from glue_solar.sources.iris import iris_quicklook, is_iris_fits, link_iris, quicklook_iris
+from glue_solar.sources.iris import help_iris, iris_quicklook, is_iris_fits, link_iris, quicklook_iris
 from glue_solar.sources.line_ratio import line_ratio_iris
 from glue_solar.sources.loaders.iris import _GlueWCS, image_data, link_hpc, raster_data
 from glue_solar.sources.maps import read_sunpy_map
@@ -55,6 +59,7 @@ def test_setup_registers_hooks():
     assert "IRIS: browse observations…" in [label for label, _ in menubar_plugin]
     assert ("IRIS: link helioprojective coordinates", link_iris) in list(menubar_plugin)
     assert ("IRIS: quicklook…", quicklook_iris) in list(menubar_plugin)
+    assert ("IRIS: user guide and issues", help_iris) in list(menubar_plugin)
     assert startup_action.members["iris_quicklook"] is iris_quicklook
     assert ("IRIS: line moments…", moments_iris) in [(action.label, action.callback) for action in layer_action]
     assert ("IRIS: red-blue asymmetry…", red_blue_iris) in [(action.label, action.callback) for action in layer_action]
@@ -1268,6 +1273,39 @@ def test_quicklook_panels_take_glue_qts_tab_and_backspace_at_glues_start():
     result = subprocess.run([sys.executable, "-c", _GLUE_START], env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr[-2000:]
     assert result.stdout.split() == ["True", "True"]
+
+
+def test_the_key_table_lists_every_key_of_glue_solars_viewers_and_tools(request):
+    # docs/user_guide/viewer-tools-and-windows.rst: the keys glue-solar gives viewers, its tools' shortcuts, and the
+    # keys of its mouse modes, the glue modes they extend and the WCSAxes readout, once each
+    glue_solar.setup()
+    keys = [
+        key
+        for keys in keyboard_shortcut.members.values()
+        for key, function in keys.items()
+        if getattr(function, "func", function).__module__.startswith("glue_solar")
+    ]
+    tools = [tool for tool in viewer_tool.members.values() if tool.__module__.startswith("glue_solar")]
+    keys += [tool.shortcut for tool in tools if tool.shortcut]
+    handlers = [vars(cls)["key"] for tool in tools for cls in tool.__mro__ if "key" in vars(cls)]
+    for handler in [*handlers, WCSAxes._set_cursor_prefs]:
+        keys += re.findall(r"event\.key == ['\"](\w+)", inspect.getsource(handler))
+    guide = request.config.rootpath / "docs" / "user_guide" / "viewer-tools-and-windows.rst"
+    if not guide.exists():
+        pytest.skip("the package is installed without its docs")
+    table = re.search(r"\.\. list-table:: Keys\n((?:\n| .*\n)*)", guide.read_text())[1]
+    listed = re.findall(r":kbd:`([^`]+)`", table)
+    assert sorted(listed) == sorted({QKeySequence(key).toString() for key in keys})
+
+
+def test_help_opens_the_user_guide_and_the_issues(monkeypatch):
+    opened = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url.toString()))
+    help_iris(None, None)
+    assert opened == [
+        "https://glue-solar.readthedocs.io/en/latest/user_guide/index.html",
+        "https://github.com/glue-viz/glue-solar/issues",
+    ]
 
 
 # glue-qt 0.4.2's PV slice window sets its colormap through glue's deprecated 'color' key, and its pvextractor
