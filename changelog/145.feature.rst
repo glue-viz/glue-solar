@@ -1,0 +1,1 @@
+"Save frames or movie…" in the Image viewer's Save menu saves PNG frames, a GIF or an MP4 (where ffmpeg is installed) along one of its sliders, at fixed colour limits.
