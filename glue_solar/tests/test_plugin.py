@@ -36,10 +36,11 @@ from astropy.wcs import WCS
 import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
-from glue_solar.quicklook import QuicklookImageViewer
+from glue_solar.quicklook import QuicklookImageViewer, _role
+from glue_solar.regrid import regrid_on_time
 from glue_solar.sources.iris import iris_quicklook, is_iris_fits, link_iris, quicklook_iris
 from glue_solar.sources.line_ratio import line_ratio_iris
-from glue_solar.sources.loaders.iris import image_data, link_hpc, raster_data
+from glue_solar.sources.loaders.iris import _GlueWCS, image_data, link_hpc, raster_data
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.mg_features import mg_features_iris
 from glue_solar.sources.moments import moments_iris
@@ -106,12 +107,15 @@ def test_plugin_load_leaves_the_readers_libraries_to_the_first_read():
     assert result.stdout.splitlines()[:2] == ["|", "aia-AIA 171.0 Angstrom 2011-02-15 00:00:00"]
 
 
-def test_data_factory_claims_only_iris_files(iris_tree):
+def test_data_factory_claims_only_iris_files_and_aligned_aia_cutouts(iris_tree):
+    import sunpy.data.test
+
     d, t, o = OBS_A
     sji = iris_tree / f"{MD5}iris_l2_{d}_{t}_{o}_SJI_1400_t000.fits.gz"
     aia = iris_tree / f"{MD5}iris_l2_{d}_{t}_{o}_SDO" / f"aia_l2_{d}_{t}_{o}_171.fits"
     assert is_iris_fits(str(sji))
-    assert not is_iris_fits(str(aia))  # TELESCOP is blank on the cutouts
+    assert is_iris_fits(str(aia))  # by name and INSTRUME, as the browser takes them: TELESCOP is blank
+    assert not is_iris_fits(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))  # a sunpy Map
     assert not is_iris_fits(str(iris_tree / "notes.txt"))
 
 
@@ -125,6 +129,20 @@ def test_open_real_sji_through_load_data(irispy_test_files):
     expected_times = read_files(str(path), memmap=False, uncertainty=False).axis_world_coords("time")[0]
     np.testing.assert_array_equal(data["Time"][:, 0, 0], expected_times.utc.to_value("datetime64"))
     np.testing.assert_array_equal(data["Time"][:, -1, -1], expected_times.utc.to_value("datetime64"))
+
+
+@pytest.mark.remote_data
+def test_open_real_aia_cutout_through_load_data(irispy_data):
+    [path] = [
+        p for p in irispy_data("iris_l2_20250519_165924_3640107442_cutout_SDO.tar.gz") if p.endswith("_1700.fits")
+    ]
+    data, browser = load_data(path), image_data(path)  # File -> Open gives what the observation browser loads
+    assert isinstance(data.coords, _GlueWCS)
+    assert data.label == browser.label == "1700-3640107442-2025-05-19T16:59:24"
+    assert [cid.label for cid in data.components] == [cid.label for cid in browser.components]
+    np.testing.assert_array_equal(data[data.id["Time"]], browser[browser.id["Time"]])
+    assert _role(data) == "aia"
+    assert regrid_on_time(data).meta["time_step"] == pytest.approx(24, abs=0.01)  # as it times a slit-jaw image
 
 
 def test_open_real_raster_through_load_data(irispy_test_files):

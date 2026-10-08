@@ -162,11 +162,11 @@ browser's archive extraction never overwrites a file.
 Opening a single file
 ---------------------
 
-"File -> Open Data Set" also understands IRIS Level 2 files directly: a slit-jaw file loads as one
-cube, and a raster file loads one dataset per spectral window, labelled with the file's raster number
-(``…-r00003``). Files opened this way, or given on the ``glue`` command line, load one by one with
-every spectral window and cannot be stacked, so use the observation browser for large or multi-scan
-observations.
+"File -> Open Data Set" also understands IRIS Level 2 files directly: a slit-jaw file or an aligned
+AIA cutout (``aia_l2_*.fits``) loads as one cube, as the observation browser loads it, and a raster
+file loads one dataset per spectral window, labelled with the file's raster number (``…-r00003``).
+Files opened this way, or given on the ``glue`` command line, load one by one with every spectral
+window and cannot be stacked, so use the observation browser for large or multi-scan observations.
 
 Overlaying the missing-data mask
 --------------------------------

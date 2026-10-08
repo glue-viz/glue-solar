@@ -3,6 +3,7 @@ IRIS Level 2 support: a file reader for File -> Open, and the observation browse
 """
 
 import re
+from pathlib import Path
 
 from glue.config import data_factory, layer_artist_maker, menubar_plugin, startup_action
 from glue.viewers.image.viewer import MatplotlibImageMixin
@@ -10,22 +11,24 @@ from qtpy import QtWidgets
 
 from glue_solar.quicklook import _pick_sjis, _pick_windows, _role, _time_axis, observation_key, quicklook
 from glue_solar.sources.loaders.iris import QtIRISImporter, iris_data, keep_hpc_linked, last_directory
-from glue_solar.sources.loaders.scan import _primary_header
+from glue_solar.sources.loaders.scan import _is_supported_file, _primary_header, strip_pooch
 
 __all__ = ["browse_iris", "iris_image_layer", "iris_quicklook", "link_iris", "quicklook_iris", "read_iris_file"]
 
 
 def is_iris_fits(filename, **_kwargs):
+    """An IRIS file, or an aligned AIA cutout as the observation browser takes it, whose TELESCOP is blank."""
     try:
-        return _primary_header(filename).get("TELESCOP") == "IRIS"
+        header = _primary_header(filename)
     except (OSError, ValueError, EOFError):  # not a FITS file
         return False
+    return header.get("TELESCOP") == "IRIS" or _is_supported_file(strip_pooch(Path(filename).name), header)
 
 
 @data_factory("IRIS Level 2 FITS", is_iris_fits, priority=200)  # glue's own "FITS file" is 100
 def read_iris_file(file_path):
     """
-    Read one IRIS Level 2 file: an SJI cube, or every spectral window of a raster file.
+    Read one IRIS Level 2 file: an SJI cube, an aligned AIA cutout, or every spectral window of a raster file.
     """
     return iris_data(file_path)
 

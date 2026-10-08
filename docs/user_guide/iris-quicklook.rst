@@ -117,11 +117,13 @@ The panels also follow one time. The raster is the time master: the slit-jaw vie
 nearest the time of the point's exposure or raster step (mid-raster before there is a point). Choose
 "Time master" in the "Coordinate" menu of a slit-jaw viewer to make it the master instead; the
 raster then moves to the exposure, or on a stack the scan, nearest each frame, keeping the slit and
-the raster step. The master rules: while there is a point, moving the raster's exposure or scan
-slider by hand, or clicking another exposure or scan, snaps the raster back to the one matching
-the master's frame (after "Clear point" it keeps a hand-moved exposure or scan, as below), while a
-slit-jaw follower moved by hand keeps its frame until the panels next follow the time, on a click, a
-move of the point or of the master, or when its tab is shown again. A dataset with nothing within
+the raster step. An Image viewer of an aligned AIA cutout of the observation, which the quicklook
+gives no panel, follows the time and can be its master as a slit-jaw viewer does. The master rules:
+while there is a point, moving the raster's exposure or scan slider by hand, or clicking another
+exposure or scan, snaps the raster back to the one matching the master's frame (after "Clear
+point" it keeps a hand-moved exposure or scan, as below), while a slit-jaw follower moved by hand
+keeps its frame until the panels next follow the time, on a click, a move of the point or of the
+master, or when its tab is shown again. A dataset with nothing within
 half its own time step of the master's time (for a
 scanning raster, one that does not cover it) keeps its frame and is greyed. The "Frame time" readout
 says which dataset is the time master, how far each matched dataset's time is from the master's
@@ -259,11 +261,12 @@ menu entry and the command line open one window.
 Regridding on time
 ------------------
 
-Every axis of glue's viewers is an index axis, so a sit-and-stare raster's exposures, a slit-jaw
-image's frames and a stack's scans show evenly spaced whatever their timing: the cadence of OBSID
-4000255147's Si IV varies from 2.71 to 3.29 s, and an observation can have gaps. To see them in
-time, select one such dataset in the data collection and choose "Regrid on time" from its
-right-click menu. This adds ``<label> regridded``, resampled at the median step between their times:
+Every axis of glue's viewers is an index axis, so a sit-and-stare raster's exposures, the frames of
+a slit-jaw image or aligned AIA cutout and a stack's scans show evenly spaced whatever their timing:
+the cadence of OBSID 4000255147's Si IV varies from 2.71 to 3.29 s, and an observation can have
+gaps. To see them in time, select one such dataset in the data collection and choose "Regrid on
+time" from its right-click menu. This adds ``<label> regridded``, resampled at the median step
+between their times:
 each pixel along that axis is one step after the previous one, from the first time up to the first
 pixel at or past the last, and holds the exposure, frame or scan nearest its time within 0.75 steps
 (the earlier of two as near), so one exposure can fill two pixels. A pixel with none, in a gap, is

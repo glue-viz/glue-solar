@@ -50,8 +50,8 @@ def _gather(values, index, gap):
 
 def regrid_on_time(data):
     """
-    A sit-and-stare raster, slit-jaw image or stack of raster scans resampled along its exposures, frames or scans
-    at the median step between their times.
+    A sit-and-stare raster, slit-jaw image, aligned AIA cutout or stack of raster scans resampled along its exposures,
+    frames or scans at the median step between their times.
 
     Pixel ``i`` along that axis is ``i`` steps after the first time, up to the first pixel at or past the last, and
     holds the exposure, frame or scan nearest its time (the earlier of two as near) within 0.75 steps, else NaN, as
@@ -64,7 +64,7 @@ def regrid_on_time(data):
     ------
     ValueError
         For a scanning raster, whose steps are places on the Sun, and for other data than an IRIS sit-and-stare
-        raster, slit-jaw image or stack, or one with fewer than two different times.
+        raster, slit-jaw image, AIA cutout or stack, or one with fewer than two different times.
     """
     if not _timed(data) or _time_axis(data) is None:  # which is the first axis of the others
         if _role(data) == "raster":
