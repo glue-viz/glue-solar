@@ -51,7 +51,7 @@ Settled by the user; reopen only with the user.
 - **D9:** One `Coordinator` per DataCollection behind the registered `solar:coordinate` tool; restored viewers re-register; never wrap `app.new_data_viewer`; menus use `SimpleToolMenu`.
 - **D10:** Negative-step rasters keep irispy's orientation; `revert_v34=True` is the documented alternative.
 - **D11:** Rest wavelength: explicit override, else the packaged vacuum line list, else none (none for multi-line windows, no km/s for continuum, never TWAVE); float Å in `meta['rest_wavelength']`, read through the WP5 helper.
-- **D12:** -200 and -199 are missing, in AIA cutouts too (as irispy main reads them; real cutouts hold neither, user 2026-10-02), +Inf is saturation, negatives are data; stored masks are uint8. -200 and Inf are documented (ITN 45, ITN 26); -199 is IRIS SolarSoft's convention only (`iris_make_fits_level3` v1.29 NaNs values < -198.5, `iris_raster_browser` has `missing=[-200.,-199.]`), seen in the files as raw -32764 (1905 samples in 4000255147 SJI 1400), with no header keyword naming it.
+- **D12:** -200 and -199 are missing, in AIA cutouts too (as irispy main reads them; real cutouts hold neither, user 2026-10-02), +Inf is saturation in float-stored data, while Level 2's int16 clips saturated and brighter samples to its top raw code 32760 = 16182 DN (D49), negatives are data; stored masks are uint8. -200 and Inf are documented (ITN 45, ITN 26); -199 is IRIS SolarSoft's convention only (`iris_make_fits_level3` v1.29 NaNs values < -198.5, `iris_raster_browser` has `missing=[-200.,-199.]`), seen in the files as raw -32764 (1905 samples in 4000255147 SJI 1400), with no header keyword naming it.
 - **D13:** Sessions add the Quantity saver only if none exists, save `_GlueWCS` via `__gluestate__`, never replace glue's `VisualAttributes` serialization globally, and save added components as 1-D vectors.
 - **D14:** irispy work targets LM-SAL `main`; the gWCS raster work (irispy #182) is the user's to direct.
 - **D15:** The quicklook is an MDI tab with explicit viewer geometry.
@@ -87,6 +87,7 @@ Settled by the user; reopen only with the user.
 - **D46:** User (2026-10-07, #136), line moments: only a single-scan raster window (raster step, slit, wavelength) is accepted; stacks, slit-jaw images and other data are refused with a message (per-scan moments of stacks are `wp2-m3-moments-extensions`). The map is `<label> moments <centre>`, its meta OBSID, STARTOBS, `moments_centre` and `moments_wings`, never INSTRUME or `Time`, so it groups with its observation but is no quicklook raster window and takes no part in time sync. irispy's `calculate_moments` runs on glue-qt's `Worker` on the wavelengths within the wings only, at most 2**21 samples per call; a pixel missing at every wavelength within the wings is NaN in every map, other missing and negative samples count as irispy's 0; glue's status bar says the moments are being computed while they run (#139).
 - **D47:** User (2026-10-07): the git repositories are the versions that count. glue-solar depends on irispy's git main (`irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git`, Python ≥ 3.13 since irispy #208; #137) and calls its API directly, with no probe for what main has; PyPI releases of glue-solar and irispy wait until the changes are settled and the upstream fixes are in (M4).
 - **D48:** User (2026-10-07, #138), continuum windows: typed as Å ranges in one optional field (`1401.6-1402.1, 1403.5-1404.3`, either end first); irispy's `subtract_background` fits a constant to one window and a straight line to more, so one window's slope is never extrapolated across the line; a pixel with too few continuum samples to fit is NaN in every map, not irispy's intensity 0; the map's meta gets `moments_continuum` and `moments_continuum_degree` only when a continuum is given.
+- **D49:** User (2026-10-08), saturation: Level 2 never holds +Inf (iris_prep's +Inf and anything brighter are clipped to 16182 DN, raw 32760) and NSATPIX and TSATPXn are 0 in every known file, even when HISTORY says pixels were set to Inf. irispy detects saturation, not glue-solar: `calculate_moments`' `saturation_limit` stays one value in DN, which irispy converts per step on a per-second cube, catching +Inf and samples at or above the limit before it zeroes non-finite samples, and records the saturated pixels in its result (`wp2-irispy-saturation-limit`, a draft PR on LM-SAL/irispy for the user). glue-solar then passes 16182 DN, checks the wings only, and says in the status bar when the data have saturated pixels, beside the header counts (`wp2-m2-saturation`). Line moments use DN/s through the loader's `per_second` on the DN slab already read, about 0.11 s faster on 4000255147 Si IV than reading glue's derived component (`wp2-m2-input-quality`).
 
 ## Milestones
 
@@ -105,7 +106,7 @@ A milestone is done when it has no items left.
 - WP0: `wp0-release-tracking`
 
 **M2**
-- WP2: `wp2-m2-input-quality`, `wp2-m2-tests-docs`
+- WP2: `wp2-m2-input-quality`, `wp2-irispy-saturation-limit`, `wp2-m2-saturation`, `wp2-m2-tests-docs`
 - WP11: `wp11-colourbar`, `wp11-distance-measure`, `wp11-zoom-steps`
 - WP12: `wp12-sequence-export`, `wp12-path-slicer`
 
@@ -228,7 +229,9 @@ Products from IRIS spectra, as dataset `layer_action`s that add linked Data and 
 
 **M2**
 
-- [ ] **M2** `wp2-m2-input-quality` (F165, F170): Moments use '<flux> DN/s' when present, mask NaN and -Inf, NaN a pixel on +Inf or saturation, and warn on NSATPIX or TSATPXn > 0. Done when the 3610108077 Si IV DN/s intensity equals DN intensity / exposure time.
+- [ ] **M2** `wp2-m2-input-quality` (F165): Moments use '<flux> DN/s' when present (D49) and mask NaN and -Inf. Done when the 3610108077 Si IV DN/s intensity equals DN intensity / exposure time.
+- [ ] **M2** `wp2-irispy-saturation-limit` (F170): irispy main's `calculate_moments` takes `saturation_limit` in DN, converts it per step on a per-second cube, catches +Inf and samples at or above it before zeroing non-finite samples, and records the saturated pixels in its result (D49); a draft PR on LM-SAL/irispy, merged by the user. Done when it is on irispy main.
+- [ ] **M2** `wp2-m2-saturation` (F170): Line moments pass 16182 DN as irispy's `saturation_limit` and say in the status bar when the data have saturated pixels within the wings, beside NSATPIX and TSATPXn (D49). Done when a saturated sample within the wings on 3610108077 Si IV 1394 (step 99, slit 200) NaNs that pixel and the message counts it. Depends: wp2-irispy-saturation-limit, wp2-m2-input-quality.
 - [ ] **M2** `wp2-m2-tests-docs` (F153, F155, F156): Test against direct `calculate_moments` calls on a synthetic cube and irispy-data's remote 3400109360 cutout; add a guide page (FWHM ≈ 2.355 σ, optically thick lines). Done when `test_moments.py` passes and Sphinx builds with `-W`. Depends: wp2-m2-input-quality.
 
 **M3**
@@ -354,7 +357,7 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 
 **M3**
 
-- [ ] **M3** `wp9-m3-saturation-recipe` (F170): A 'Was it saturated?' recipe: NSATPIX/TSATPXn in View metadata, then an `np.isinf` subset. Done when checked on 4000005156 Si IV (NSATPIX 0). Open (2026-10-04): Level 2 files are int16 and neither the lazy loader nor irispy maps a code to +Inf, so `np.isinf` finds nothing on them; no local raster or slit-jaw `.fits` under ~/DATA/IRIS has NSATPIX > 0 to show how saturation is stored (perhaps raw 32767, 16183.75 DN), so the recipe's subset needs a saturated file or a user decision.
+- [ ] **M3** `wp9-m3-saturation-recipe` (F170): A 'Was it saturated?' recipe: the header's HISTORY line 'iris_prep Set N saturated pixels to Inf' in View metadata (NSATPIX and TSATPXn are 0 in every known file), then a subset of the samples at 16182 DN, Level 2's clipped top code (D49). Done when checked on 3610108077 Si IV 1403 (14 samples at 16182 DN).
 - [ ] **M3** `wp9-m3-spectral-recipes` (F080, F084): Recipes for an average spectrum over scans, photospheric context and per-window flux × k. Done when each reproduces on 3602506433, 3660259102 and 3640107442.
 - [ ] **M3** `wp9-m3-shortcuts-help` (F198, F199): A table of keys glue's tooltips omit and an 'IRIS: user guide and issues' `menubar_plugin` entry. Done when a test covers every shortcut and both URLs. Depends: wp12-path-slicer.
 
