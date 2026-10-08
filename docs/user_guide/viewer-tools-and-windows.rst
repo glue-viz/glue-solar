@@ -24,6 +24,17 @@ toolbar has:
   The mouse alone never moves a region picked to edit, which a click replaces, as with Pixel. As
   with every mouse mode, it stays on only in the viewer last clicked: choose it in the viewer the
   mouse will move over.
+- "Measure", from glue-solar ("Drag a line to measure its length in pixels, arcsec and km"): drag a
+  line on the image, and the status bar gives its length in data pixels, on the sky in arcsec, the
+  great-circle angle between the world coordinates at its ends, and in km, that angle at the
+  observer's distance from the Sun's centre, the data's ``DSUN_OBS``. The km are a length in the
+  plane of the sky through the Sun's centre, 713 to 738 km per arcsec through the year, with no
+  correction for foreshortening on the disk. For example, a 100-pixel line on a slit-jaw image of
+  OBSID 4000255147 reads ``Length 100.0 px · 16.64" · 12,172 km``. On axes other than a longitude
+  and a latitude alone, such as a spectrogram, a slit-jaw image's x against time or a sit-and-stare
+  raster's exposures against its slit, it gives pixels only; data without ``DSUN_OBS``, such as
+  line-moment maps, get no km. The line and its length stay until the next drag, or until another
+  mouse mode or a toolbar button ends the mode.
 - "Contrast/Bias": drag on the image, left and right for the bias, up and down for the contrast.
   The "Reset" button next to the layer's contrast/bias sliders undoes it.
 - "Slice Extraction" (P): draw a path and press Enter to see the data along it in a new window.

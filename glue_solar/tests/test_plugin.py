@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 from collections import Counter
+from types import SimpleNamespace
 
 import glue.utils.matplotlib
 import matplotlib.dates as mdates
@@ -20,11 +21,12 @@ from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from glue_qt.viewers.scatter import ScatterViewer
 from irispy.io import read_files
-from matplotlib.backend_bases import MouseEvent
+from matplotlib.backend_bases import MouseButton, MouseEvent
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from qtpy.QtCore import Qt
 
 import astropy.units as u
+from astropy.coordinates import angular_separation
 from astropy.io import fits
 from astropy.visualization import PowerStretch
 from astropy.wcs import WCS
@@ -37,7 +39,8 @@ from glue_solar.sources.iris import iris_quicklook, is_iris_fits, link_iris, qui
 from glue_solar.sources.loaders.iris import image_data, raster_data
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import moments_iris
-from glue_solar.tests.helpers import count_tick_work, press
+from glue_solar.tests.helpers import count_tick_work, mouse, press
+from glue_solar.tools import sky_length
 
 
 def test_setup_registers_hooks():
@@ -55,6 +58,7 @@ def test_setup_registers_hooks():
     assert ImageViewer.tools.count("solar:physical_aspect") == 1
     assert ImageViewer.tools.count("solar:colour_bar") == 1
     assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
+    assert ImageViewer.tools.count("solar:measure") == 1
     assert ImageViewer.tools.count("solar:cursor_readout") == (0 if hasattr(ImageViewer, "cursor_status") else 1)
     assert ImageViewer.subtools["save"].count("solar:save_sequence") == 1
     assert "solar:save_sequence" not in ProfileViewer.subtools["save"]  # glue's Matplotlib viewers share one list
@@ -688,6 +692,81 @@ def test_physical_aspect_gives_square_pixels_off_the_sky(qtbot, irispy_test_file
     viewer.toolbar.actions["solar:physical_aspect"].trigger()
     assert state.aspect == "equal"
     assert (state.y_max - state.y_min) / (state.x_max - state.x_min) == pytest.approx(viewer.axes_ratio, rel=1e-3)
+
+
+def _separation(lon, lat, unit):
+    """The great-circle angle in arcsec between two world positions, longitudes ``lon`` and latitudes ``lat``."""
+    return angular_separation(lon[0] * unit, lat[0] * unit, lon[1] * unit, lat[1] * unit).to_value(u.arcsec)
+
+
+def test_measure_reports_a_dragged_line(qtbot, irispy_test_files):
+    data = image_data(find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("SJI_1400_t000")))
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    viewer.state.slices = (5, 0, 0)
+    viewer.toolbar.active_tool = "solar:measure"
+    tool = viewer.toolbar.tools["solar:measure"]
+    mouse(viewer, "button_press_event", 3, 4)
+    mouse(viewer, "motion_notify_event", 30, 35)
+    assert tool._line.get_visible()  # drawn while dragging
+    mouse(viewer, "button_release_event", 30, 35)
+    (x0, x1), (y0, y1) = tool._line.get_data()  # the ends, at the screen pixels the mouse was on
+    # the oracle: the dataset's own coordinates at both ends, in frame 5, at the observer's distance
+    lon, lat, _ = data.coords.pixel_to_world_values([x0, x1], [y0, y1], [5, 5])
+    arcsec = _separation(lon, lat, u.arcsec)
+    km = (arcsec * u.arcsec).to_value(u.rad) * data.meta["DSUN_OBS"] / 1000
+    text = f'Length {np.hypot(x1 - x0, y1 - y0):.1f} px · {arcsec:.2f}" · {km:,.0f} km'
+    assert tool.label.text() == text
+    mouse(viewer, "motion_notify_event", 10, 10)  # the line stays until the next drag
+    assert tool.label.text() == text
+
+    viewer.state.y_att = data.pixel_component_ids[0]  # x against time: pixels only
+    mouse(viewer, "button_press_event", 3, 1)
+    mouse(viewer, "button_release_event", 30, 20)
+    (x0, x1), (y0, y1) = tool._line.get_data()
+    assert tool.label.text() == f"Length {np.hypot(x1 - x0, y1 - y0):.1f} px (no sky length here)"
+
+    viewer.toolbar.active_tool = None  # another mouse mode, or none, ends it
+    assert not tool._line.get_visible()
+    assert tool.label.isHidden()
+
+
+def test_sky_length_of_a_map_in_degrees_without_an_observer_distance(qtbot):
+    data = generated_map()  # an astropy WCS gives degrees; no DSUN_OBS
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    x, y = [2, 25, 25], [10, 280, 100]
+    pixels, arcsec, km = sky_length(viewer, x, y)
+    lon, lat = data.coords.pixel_to_world_values(x, y)
+    expected = sum(_separation(lon[i : i + 2], lat[i : i + 2], u.deg) for i in (0, 1))
+    assert (pixels, arcsec, km) == (pytest.approx(np.hypot(23, 270) + 180), pytest.approx(expected), None)
+
+
+@pytest.mark.remote_data
+def test_measure_on_a_full_size_slit_jaw_image(qtbot, irispy_data):
+    # 4000255147 SJI 1400: 0.16635" pixels, seen from 1.50921e11 m
+    data = image_data(irispy_data("iris_l2_20130902_163935_4000255147_SJI_1400_t000_f050.fits.gz"))
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    viewer.toolbar.active_tool = "solar:measure"
+    tool = viewer.toolbar.tools["solar:measure"]
+    for name, x in (("press", 100), ("release", 200)):  # a line of exactly 100 pixels
+        getattr(tool, name)(SimpleNamespace(button=MouseButton.LEFT, inaxes=viewer.axes, xdata=x, ydata=200))
+    pixels, arcsec, km = sky_length(viewer, [100, 200], [200, 200])
+    lon, lat, _ = data.coords.pixel_to_world_values([100, 200], [200, 200], [0, 0])
+    assert abs(arcsec - _separation(lon, lat, u.arcsec)) < 0.01
+    assert arcsec == pytest.approx(16.635, abs=0.01)
+    assert km == pytest.approx(12172, rel=1e-3)
+    assert tool.label.text() == f'Length 100.0 px · {arcsec:.2f}" · 12,172 km'
 
 
 def _cmap_menu(viewer):
