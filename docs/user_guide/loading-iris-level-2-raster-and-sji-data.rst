@@ -202,9 +202,9 @@ them.
   observation saturated somewhere. "View metadata/header" (Ctrl+I) in the data collection's
   right-click menu lists only the last ``HISTORY`` line, so type
   ``[line for line in raster.meta.fits_header["HISTORY"] if "saturated" in line]`` in glue's
-  terminal, with ``raster`` the dataset, such as ``data_collection[0]``. N counts a batch of up to
-  100 Level 1 files, often the whole observation, and the line is left out when the first batch
-  had none, so its absence says nothing.
+  terminal, with ``raster`` a scan's dataset, such as ``data_collection[0]`` (a stack's ``meta``
+  keeps no header). N counts a batch of up to 100 Level 1 files, often the whole observation, and
+  the line is left out when the first batch had none, so its absence says nothing.
 - A subset shows the samples at 16182 DN: select the dataset in the data collection, choose
   "Create faceted subsets" in the "Data Manager" menu, pick the data's own attribute, named after
   the dataset, and set the range from 16182 to 16182 and the number of subsets to 1. Every Image
@@ -223,8 +223,8 @@ in two saturated flares checked against their Level 1 frames 99.88 % of them lay
 a saturated sample. :ref:`Line moments <glue_solar_users_guide_iris_line_moments>` are NaN where a
 sample within the wings is at 16182 DN. On OBSID 3860258481's raster r00173, of the X1 flare of
 2014-03-29, whose header has no such ``HISTORY`` line, the Si IV 1403 subset holds 13,760 samples:
-plateaus about the line core at 1402.8 Å in 428 pixels of every raster step, a few across most of
-the window.
+plateaus about the line core at 1402.8 Å in 428 pixels, 28 to 82 at each raster step, a few
+across most of the window.
 
 .. _glue_solar_users_guide_iris_linking:
 
