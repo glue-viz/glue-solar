@@ -22,3 +22,6 @@ API Reference
 
 .. automodapi:: glue_solar.sources.moments
    :no-inheritance-diagram:
+
+.. automodapi:: glue_solar.sources.red_blue
+   :no-inheritance-diagram:

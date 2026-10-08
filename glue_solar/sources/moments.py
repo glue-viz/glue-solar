@@ -30,11 +30,11 @@ SLAB = 2**21
 _HAIR = 1e-6
 
 
-def _check(data):
-    """Raise why ``data`` is not an IRIS raster window of one scan, (raster step, slit, wavelength)."""
+def _check(data, what="line moments"):
+    """Raise why ``data`` is not an IRIS raster window of one scan, (raster step, slit, wavelength), for ``what``."""
     if _role(data) == "raster" and data.ndim == 4:
         raise ValueError(
-            f"{data.label} is a stack of raster scans: line moments take one scan, as the observation "
+            f"{data.label} is a stack of raster scans: {what} take one scan, as the observation "
             "browser loads them without 'Stack sequential raster scans'."
         )
     if _role(data) != "raster" or data.ndim != 3 or _spectral_axes(data) != {2}:
@@ -44,8 +44,8 @@ def _check(data):
 def _window(data, centre, wings, continuum=None):
     """
     The wavelength pixels of ``data`` from the first to the last within ``wings`` of ``centre`` or a ``continuum``
-    window, those within the wings, both `_HAIR` wider, and the unit of its values; raises why for data that has none
-    within the wings, or a continuum window that overlaps them or has none.
+    window, those within the wings, both `_HAIR` wider, and the unit of the values irispy is given (`_read`); raises
+    why for data that has none within the wings, or a continuum window that overlaps them or has none.
     """
     _check(data)
     wavelengths, _ = _wavelengths(data)
@@ -68,62 +68,89 @@ def _window(data, centre, wings, continuum=None):
         ends += [window[0], window[-1]]
     from irispy.utils.constants import DN_UNIT  # with the first use rather than at glue's launch
 
+    cid = data.main_components[0]
     with u.add_enabled_units(DN_UNIT.values()):  # astropy's registry, global: on the calling thread
-        unit = u.Unit(data.get_component(data.main_components[0]).units)
+        unit = u.Unit(data.get_component(cid).units)
+    if data.find_component_id(f"{cid.label} DN/s") is not None:
+        unit = unit / u.s
     return slice(min(ends), max(ends) + 1), slice(inside[0], inside[-1] + 1), unit
+
+
+def _read(data, rows, wavelengths):
+    """
+    The values of ``data`` at ``rows`` and ``wavelengths`` that irispy is given, and each step's exposure time in s:
+    of a window with the loader's ``<label> DN/s``, its DN over each step's exposure time (D4), from the DN read here,
+    in float64, else its scaled float32 and None; NaN where missing, on any thread.
+    """
+    cid = data.main_components[0]
+    values = data[cid, (*rows, wavelengths)]  # scaled float32 of these steps and wavelengths only, NaN where missing
+    if data.find_component_id(f"{cid.label} DN/s") is None:
+        return values, None
+    # glue's derived component reads them again; irispy's limit is 16182 DN over the exposure times given it, in
+    # float64: in float32, as the loader's, a sample at 16182 DN can round below it
+    seconds = data["Exposure time", (rows[0], slice(0, 1), slice(0, 1))].astype(np.float32)
+    return per_second(values.astype(float), seconds), seconds
+
+
+def _cube(data, values, rows, wavelengths, unit, meta=None):
+    """irispy's cube of ``values`` in ``unit``, of ``data`` at ``rows`` and ``wavelengths``, NaN and -Inf masked."""
+    from irispy.spectrograph import SpectrogramCube
+
+    view = SlicedLowLevelWCS(data.coords._wcs, (*rows, wavelengths))
+    return SpectrogramCube(values, view, unit=unit, mask=np.isnan(values) | np.isneginf(values), meta=meta)
+
+
+def _dataset(data, label):
+    """A new dataset ``label`` on the raster steps and slit pixels of ``data``, with its observation's meta."""
+    maps = Data(label=label)
+    with WCS_LOCK:
+        # the raster's own steps and slit pixels: its wavelength does not move them
+        maps.coords = _GlueWCS(SlicedLowLevelWCS(data.coords._wcs, (slice(None), slice(None), 0)))
+    # the observation's, for the quicklook's grouping and transparent NaN, without INSTRUME, which makes a raster
+    maps.meta = {key: data.meta[key] for key in ("OBSID", "STARTOBS") if key in data.meta}
+    return maps
 
 
 def _moments(data, centre, wings, continuum, crop, inner, unit):
     """
     `line_moments` given ``crop`` of the wavelength pixels, ``inner`` those within the wings, and ``unit`` the unit of
-    the values; on any thread.
+    the values irispy is given; on any thread.
     """
-    from irispy.spectrograph import SpectrogramCube
     from irispy.utils.constants import SATURATION_LIMIT
     from irispy.utils.moments import calculate_moments
     from irispy.utils.spectrograph import subtract_background
     from ndcube.meta import NDMeta
 
-    cid, maps, saturated = data.main_components[0], {}, 0
-    # the loader's DN/s, its DN over each step's exposure time (D4), from the DN read here: glue's derived component
-    # reads them again
-    rate = data.find_component_id(f"{cid.label} DN/s") is not None
-    if rate:
-        unit = unit / u.s
+    maps, saturated = {}, 0
     # a slab takes about 100 bytes per sample, 150 with a continuum: half the steps then, generously, keeps a small
     # window's cold peak under 3x
     steps = max(1, SLAB // (data.shape[1] * (crop.stop - crop.start) * (2 if continuum else 1)))
     degree = 1 if len(continuum or ()) > 1 else 0  # a constant for one continuum window, a straight line for more
     inside = slice(inner.start - crop.start, inner.stop - crop.start)  # inner, within the crop
-
-    def cube(values, rows, wavelengths, meta=None):
-        view = SlicedLowLevelWCS(data.coords._wcs, (*rows, wavelengths))
-        return SpectrogramCube(values, view, unit=unit, mask=np.isnan(values) | np.isneginf(values), meta=meta)
-
     for start in range(0, data.shape[0], steps):
         rows = (slice(start, start + steps), slice(None))
-        values = data[cid, (*rows, crop)]  # scaled float32 of these steps and wavelengths only, NaN where missing
+        values, seconds = _read(data, rows, crop)
         meta = NDMeta()
-        if rate:
-            # irispy's limit is 16182 DN over the exposure times given it, in float64: in float32, as the loader's,
-            # a sample at 16182 DN can round below it
-            seconds = data["Exposure time", (rows[0], slice(0, 1), slice(0, 1))].astype(np.float32)
-            values = per_second(values.astype(float), seconds)
+        if seconds is not None:
             meta.add("exposure time", seconds.ravel() * u.s, None, 0)
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
             # saturated within the wings, before any background is subtracted: NaN in every map
             slab = calculate_moments(
-                cube(values[..., inside], rows, inner, meta),
+                _cube(data, values[..., inside], rows, inner, unit, meta),
                 rest_wavelength=centre * u.AA,
                 wings=wings * u.AA,
                 saturation_limit=SATURATION_LIMIT,
             )
             reached = slab.pop("saturated").data
             if continuum:  # the moments of the line less the background, in which irispy would miss saturation
-                values = subtract_background(cube(values, rows, crop), continuum * u.AA, degree=degree).data
+                values = subtract_background(
+                    _cube(data, values, rows, crop, unit), continuum * u.AA, degree=degree
+                ).data
                 # NaN where irispy fits no background: missing at every wavelength within the wings, NaN maps
                 slab = calculate_moments(
-                    cube(values[..., inside], rows, inner), rest_wavelength=centre * u.AA, wings=wings * u.AA
+                    _cube(data, values[..., inside], rows, inner, unit),
+                    rest_wavelength=centre * u.AA,
+                    wings=wings * u.AA,
                 )
         saturated += int(reached.sum())
         for name, moment in slab.items():
@@ -132,12 +159,7 @@ def _moments(data, centre, wings, continuum, crop, inner, unit):
         # ndcube's cubes are reference cycles, and irispy's hold the slab's values: else every slab's stay until
         # Python's collector runs
         gc.collect(0)
-    moments = Data(label=f"{data.label} moments {centre}")
-    with WCS_LOCK:
-        # the raster's own steps and slit pixels: its wavelength does not move them
-        moments.coords = _GlueWCS(SlicedLowLevelWCS(data.coords._wcs, (slice(None), slice(None), 0)))
-    # the observation's, for the quicklook's grouping and transparent NaN, without INSTRUME, which makes a raster
-    moments.meta = {key: data.meta[key] for key in ("OBSID", "STARTOBS") if key in data.meta}
+    moments = _dataset(data, f"{data.label} moments {centre}")
     moments.meta.update(moments_centre=centre, moments_wings=tuple(wings))
     if continuum:
         moments.meta.update(moments_continuum=tuple(map(tuple, continuum)), moments_continuum_degree=degree)
@@ -187,6 +209,25 @@ def line_moments(data, centre, wings=WINGS, continuum=None):
     return _moments(data, centre, wings, continuum, *_window(data, centre, wings, continuum))
 
 
+def _accepted(dialog, form):
+    """Add OK and Cancel to ``form``, run ``dialog`` and say whether OK was pressed."""
+    buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+    buttons.accepted.connect(dialog.accept)
+    buttons.rejected.connect(dialog.reject)
+    form.addRow(buttons)
+    accepted = dialog.exec() == QtWidgets.QDialog.Accepted
+    dialog.deleteLater()  # else each run keeps a hidden dialog under the main window
+    return accepted
+
+
+def _wavelength(text):
+    """``text``, typed in Angstrom, as a float."""
+    try:
+        return float(text)
+    except ValueError:
+        raise ValueError(f"'{text}' is not a wavelength in Angstrom, such as 1402.77.") from None
+
+
 def _ask(data):
     """
     The line centre typed for ``data``, the wings below and above it, and the continuum windows, or None for none, in
@@ -204,19 +245,10 @@ def _ask(data):
         wings.append(box)
     continuum = QtWidgets.QLineEdit(objectName="continuum", placeholderText="none, or such as 1401.5-1402, 1404-1405")
     form.addRow("Continuum windows [Å]:", continuum)
-    buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
-    buttons.accepted.connect(dialog.accept)
-    buttons.rejected.connect(dialog.reject)
-    form.addRow(buttons)
-    accepted = dialog.exec() == QtWidgets.QDialog.Accepted
-    dialog.deleteLater()  # else each run keeps a hidden dialog under the main window
-    text = centre.text().strip() if accepted else ""
+    text = centre.text().strip() if _accepted(dialog, form) else ""
     if not text:
         return None
-    try:
-        line = float(text), tuple(box.value() for box in wings)
-    except ValueError:
-        raise ValueError(f"'{text}' is not a wavelength in Angstrom, such as 1402.77.") from None
+    line = _wavelength(text), tuple(box.value() for box in wings)
     text = continuum.text().strip()
     if not text:
         return *line, None
@@ -256,6 +288,23 @@ def _clear(status, text):
         status.clearMessage()
 
 
+def _start(data_collection, text, failed, function, *args):
+    """
+    Compute ``function(*args)``, a dataset, on glue-qt's `Worker`, while glue's status bar says ``text``, and add it to
+    ``data_collection``, or show its error with ``failed``.
+    """
+    worker = Worker(function, *args)
+    status = _status_bar(data_collection)
+    worker.result.connect(partial(_add, data_collection, status))
+    worker.error.connect(failed)
+    _RUNNING.add(worker)
+    worker.finished.connect(lambda: _RUNNING.discard(worker))
+    if status is not None:  # until the dataset is added or the error shown (D46)
+        status.showMessage(text)
+        worker.finished.connect(partial(_clear, status, text))
+    worker.start()
+
+
 @layer_action(
     "IRIS: line moments…",
     single=True,
@@ -274,13 +323,5 @@ def moments_iris(data, data_collection):
     line = _ask(data)
     if line is None:
         return
-    worker = Worker(_moments, data, *line, *_window(data, *line))
-    status, text = _status_bar(data_collection), f"Computing line moments of {data.label}…"
-    worker.result.connect(partial(_add, data_collection, status))
-    worker.error.connect(_failed)
-    _RUNNING.add(worker)
-    worker.finished.connect(lambda: _RUNNING.discard(worker))
-    if status is not None:  # until the dataset is added or the error shown (D46)
-        status.showMessage(text)
-        worker.finished.connect(partial(_clear, status, text))
-    worker.start()
+    text = f"Computing line moments of {data.label}…"
+    _start(data_collection, text, _failed, _moments, data, *line, *_window(data, *line))

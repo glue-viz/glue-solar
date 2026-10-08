@@ -297,3 +297,5 @@ Line moments
 
 "IRIS: line moments…" in a raster window's right-click menu maps the intensity, centroid, width and
 velocity of a line: see :ref:`Line moments <glue_solar_users_guide_iris_line_moments>`.
+"IRIS: red-blue asymmetry…" compares its red and blue wings: see
+:ref:`Red-blue asymmetry <glue_solar_users_guide_iris_red_blue>`.
