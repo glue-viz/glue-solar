@@ -1,0 +1,1 @@
+The Profile guide has recipes for an average spectrum over scans, photospheric context beside a chromospheric window, and scaling a window's flux.
