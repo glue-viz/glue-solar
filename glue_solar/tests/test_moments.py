@@ -1,8 +1,9 @@
 """
 'IRIS: line moments…', on int16 copies of irispy's test files, Gaussian lines and one irispy-data cutout: what glue
-gets of irispy's maps.
+gets of irispy's maps; and 'IRIS: subtract mean spectrum', as a Profile shows it.
 """
 
+import warnings
 from unittest.mock import Mock
 
 import irispy.utils.moments
@@ -10,6 +11,8 @@ import numpy as np
 import pytest
 from glue.core import Data
 from glue_qt.app.application import GlueApplication
+from glue_qt.viewers.image import ImageViewer
+from glue_qt.viewers.profile import ProfileViewer
 from irispy.spectrograph import SpectrogramCube
 from irispy.utils.constants import DN_UNIT
 from irispy.utils.spectrograph import subtract_background
@@ -25,10 +28,12 @@ from glue_solar.sources import moments
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.moments import line_moments
+from glue_solar.tests.helpers import select_point
 from glue_solar.tests.test_lazy import SJI, int16_copy, int16_raster_copy, zero_exposure
 from glue_solar.tests.test_quicklook import SCAN
 
 ACTION = "IRIS: line moments…"
+MEAN = "IRIS: subtract mean spectrum"
 
 
 @pytest.fixture
@@ -394,3 +399,74 @@ def test_a_full_mg_ii_k_window_gives_irispys_maps(irispy_data):
     assert maps.get_component("intensity").units == "DN_IRIS_NUV / s"
     assert missing(raster, 2795.852, 2796.852).sum() == 1600  # the slit's last 25 pixels, at every step
     assert_irispys(maps, raster, 2796.352, 0.5, DN_UNIT["NUV"])
+
+
+@pytest.mark.parametrize("which", ["window", "stack", pytest.param("4000005156", marks=pytest.mark.remote_data)])
+def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanmean(app, monkeypatch, request, which):
+    """
+    On a raster window, lazy, a stack of 3860258481's three scans in memory, or 4000005156's full Si IV 1403, three
+    steps a slab: a Pixel subset's Profile of ``<label> minus mean spectrum`` is the pixel's spectrum less numpy's
+    nanmean over every step, slit pixel and scan, within 1e-6 of its peak, as float32 values allow.
+    """
+    if which == "window":
+        [data] = raster_data([request.getfixturevalue("scan_path")], ["Si IV 1403"])
+    elif which == "stack":
+        files = sorted(p for p in request.getfixturevalue("irispy_test_files") if "3860258481_raster" in p.name)
+        [data] = raster_data(files, ["Si IV 1403"], stack=True)
+    else:
+        name = "iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz"
+        [data] = raster_data([request.getfixturevalue("irispy_data")(name)])
+    monkeypatch.setattr(moments, "SLAB", 3 * data.shape[-2] * data.shape[-1])
+    cid = data.main_components[0]
+    with warnings.catch_warnings():  # before any viewer, whose threads would reset the filters
+        warnings.simplefilter("ignore", RuntimeWarning)  # wavelengths with no valid sample give NaN
+        nanmean = np.nanmean(np.asarray(data[cid], dtype=float), axis=tuple(range(data.ndim - 1)))
+    collection, tree = app.data_collection, app._layer_widget
+    collection.append(data)
+    tree.ui.layerTree.set_selected_layers([data])
+    tree._actions[MEAN].trigger()
+    mean, difference = data.id[f"{cid.label} mean spectrum"], data.id[f"{cid.label} minus mean spectrum"]
+    assert [data.get_component(c).units for c in (cid, mean, difference)] == [data.get_component(cid).units] * 3
+    assert not any(data.get_component(mean).data.strides[:-1])  # one spectrum held
+    # a Pixel click on the map of the scan shown, and the Profile of its subset
+    image = app.new_data_viewer(ImageViewer, data=data)
+    image.state.x_att, image.state.y_att = data.pixel_component_ids[-3], data.pixel_component_ids[-2]
+    index = (data.shape[0] - 1,) * (data.ndim - 3) + (data.shape[-3] // 2, data.shape[-2] // 2)
+    image.state.slices = (*index[:-2], *image.state.slices[data.ndim - 3 :])
+    select_point(image, *index[-2:])
+    point = collection.subset_groups[-1]
+    assert [s.start for s in point.subset_state.slices[:-1]] == list(index)
+    profile = app.new_data_viewer(ProfileViewer, data=data)
+    profile.state.x_att, profile.state.function = data.world_component_ids[-1], "mean"
+    [layer] = [layer for layer in profile.state.layers if layer.layer is point.subsets[0]]
+    layer.attribute = difference
+    _, values = layer.profile
+    spectrum = np.asarray(data[cid][index], dtype=float)
+    assert np.isnan(spectrum).any()  # missing samples stay missing
+    np.testing.assert_allclose(values, spectrum - nanmean, rtol=0, atol=1e-6 * np.nanmax(np.abs(spectrum)))
+
+
+def test_subtracting_the_mean_spectrum_refuses_other_data_and_a_second_run(
+    app, monkeypatch, scan_path, irispy_test_files
+):
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
+    plain = Data(label="plain", x=np.zeros((3, 4, 5)))
+    app.data_collection.extend([raster, sji, plain])
+    shown = []
+    monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
+    monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
+    tree = app._layer_widget
+    for data in (sji, plain, raster, raster):
+        tree.ui.layerTree.set_selected_layers([data])
+        tree._actions[MEAN].trigger()
+    assert shown == [
+        f"Could not subtract the mean spectrum\n{sji.label} is not an IRIS raster window.",
+        "Could not subtract the mean spectrum\nplain is not an IRIS raster window.",
+        f"Could not subtract the mean spectrum\n{raster.label} has its mean spectrum subtracted already.",
+    ]
+    label = raster.main_components[0].label
+    assert [cid.label for cid in raster.components if "mean" in cid.label] == [
+        f"{label} mean spectrum",
+        f"{label} minus mean spectrum",
+    ]

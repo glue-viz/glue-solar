@@ -85,6 +85,29 @@ component supplies the exact acquisition timestamp for individual pixels, but it
 scan number and raster position and is therefore not a single Glue profile axis. The ``Subset 1``
 profile updates as you move the pixel selection in the image viewer.
 
+Comparing a spectrum with the mean spectrum
+-------------------------------------------
+
+Select the raster window or stack in the "Data Collection" and choose "IRIS: subtract mean
+spectrum" from its right-click menu. It adds two attributes to the dataset:
+
+- ``<label> mean spectrum``, the mean of its values at each wavelength over every raster step or
+  exposure, slit position and, for a stack, every scan, with the -200 and -199 fill left out (NaN
+  at a wavelength where every sample is fill);
+- ``<label> minus mean spectrum``, its values less the mean spectrum, in their unit.
+
+In the 1D Profile viewer, select the ``Subset 1`` layer in the viewer's layer list and set its
+"attribute" to ``<label> minus mean spectrum``: the profile is then the selected pixel's spectrum
+less the mean spectrum, and follows the pixel as you move it. As an Image viewer's attribute, it
+maps where each wavelength is brighter or fainter than the mean.
+
+The mean spectrum is computed once, a few raster steps at a time, and held as one spectrum; glue
+computes the difference only where it is shown. Glue's arithmetic attribute editor makes other
+comparisons from the two attributes, such as the values over the mean spectrum. A dataset that has
+them already, or other data than a raster window or stack, is refused. In glue's terminal,
+``glue_solar.sources.moments.subtract_mean_spectrum(data)`` adds them and returns the difference's
+attribute.
+
 Recipes
 -------
 
