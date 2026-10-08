@@ -1,5 +1,6 @@
 """
-'IRIS: line moments…': irispy's moment maps of a line in a raster window, as a new dataset.
+'IRIS: line moments…': irispy's moment maps of a line in a raster window, as a new dataset; and 'IRIS: subtract mean
+spectrum': a raster window's values less its mean spectrum, as a glue derived component.
 """
 
 import gc
@@ -19,11 +20,11 @@ from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 from glue_solar.quicklook import _role, _spectral_axes, _wavelengths
 from glue_solar.sources.loaders.iris import _RUNNING, WCS_LOCK, _GlueWCS, keep_hpc_linked, per_second
 
-__all__ = ["line_moments", "moments_iris"]
+__all__ = ["line_moments", "mean_spectrum_iris", "moments_iris", "subtract_mean_spectrum"]
 
 # The wavelengths the dialog takes at first, in Angstrom below and above the line centre
 WINGS = (0.5, 0.5)
-# Samples per irispy call, which copies its input about seven times as float64
+# Samples per irispy call, which copies its input about seven times as float64, and per read of a mean spectrum
 SLAB = 2**21
 # irispy picks the wavelengths within the wings again, rounding its own way: a crop wider by this many Angstrom keeps
 # every one it picks
@@ -325,3 +326,62 @@ def moments_iris(data, data_collection):
         return
     text = f"Computing line moments of {data.label}…"
     _start(data_collection, text, _failed, _moments, data, *line, *_window(data, *line))
+
+
+def _mean_spectrum(data, cid):
+    """
+    The nanmean of ``cid`` over every axis of ``data`` but wavelength, its last, NaN where every sample is missing;
+    summed in float64 a slab of `SLAB` samples at a time.
+    """
+    total, count = np.zeros(data.shape[-1]), np.zeros(data.shape[-1])
+    steps = max(1, SLAB // (data.shape[-2] * data.shape[-1]))
+    for scan in np.ndindex(data.shape[:-3]):  # each scan of a stack
+        for start in range(0, data.shape[-3], steps):
+            values = data[cid, (*scan, slice(start, start + steps))]
+            valid = ~np.isnan(values)
+            total += values.sum((0, 1), dtype=float, where=valid)
+            count += valid.sum((0, 1))
+    with np.errstate(invalid="ignore"):  # 0 / 0
+        return total / count
+
+
+def subtract_mean_spectrum(data):
+    """
+    Add ``<label> mean spectrum`` to ``data``, an IRIS raster window or a stack of its scans: the nanmean of its values
+    at each wavelength over every raster step or exposure, slit pixel and scan, missing data left out, NaN where every
+    sample is missing; and ``<label> minus mean spectrum``, the values less it, a glue derived component. The mean is
+    computed once, a slab of steps at a time, and held as one spectrum.
+
+    Returns
+    -------
+    `~glue.core.component_id.ComponentID`
+        The derived component's.
+
+    Raises
+    ------
+    ValueError
+        For other data than an IRIS raster window or stack, or one that has the components already.
+    """
+    if _role(data) != "raster" or _spectral_axes(data) != {data.ndim - 1}:
+        raise ValueError(f"{data.label} is not an IRIS raster window.")
+    cid = data.main_components[0]
+    label = f"{cid.label} minus mean spectrum"
+    if data.find_component_id(label) is not None:
+        raise ValueError(f"{data.label} has its mean spectrum subtracted already.")
+    units = data.get_component(cid).units
+    mean = np.broadcast_to(_mean_spectrum(data, cid), data.shape)  # a view: one spectrum held
+    difference = cid - data.add_component(Component(mean, units=units), f"{cid.label} mean spectrum")
+    data.add_component_link(difference, label).units = units
+    return difference.get_to_id()
+
+
+@layer_action(
+    "IRIS: subtract mean spectrum",
+    single=True,
+    data=True,
+    tooltip="Add this raster window's values less its mean spectrum over every pixel and scan",
+)
+@messagebox_on_error("Could not subtract the mean spectrum")
+def mean_spectrum_iris(data, data_collection):
+    """Add the `subtract_mean_spectrum` components to ``data``; glue shows why for other data or a second run."""
+    subtract_mean_spectrum(data)
