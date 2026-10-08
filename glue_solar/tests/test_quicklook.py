@@ -3057,23 +3057,16 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
         monkeypatch.setattr(QtWidgets.QFileDialog, "getSaveFileName", lambda *args: (str(tmp_path / name), ""))
         entries[entry].trigger()
 
-    # an MP4 where ffmpeg is installed, which CI may lack, of an odd frame height, which matplotlib evens out: the
-    # viewer keeps its size and zoom
-    if animation.writers.is_available("ffmpeg"):
-        bare_app.show()  # for resizes to reach the canvas
-        canvas, state = sji_viewer.figure.canvas, sji_viewer.state
-        sji_viewer.viewer_size = (400, 301)
-        qtbot.waitUntil(lambda: canvas.get_width_height(physical=True)[1] % 2 == 1)
-        before = canvas.get_width_height(), (state.x_min, state.x_max, state.y_min, state.y_max)
-        save("Save frames or movie…", "sji.mp4", "0 2")
-        assert (tmp_path / "sji.mp4").stat().st_size > 0
-        assert (canvas.get_width_height(), (state.x_min, state.x_max, state.y_min, state.y_max)) == before
     # frames 0 to 9, with the raster following
     QtWidgets.QApplication.processEvents()  # the time sync of frame 20
     times = sji[sji.id["Time"]][:, 0, 0]
     exposures = []
     viewers["spectrogram"].state.add_callback("slices", lambda slices: exposures.append(slices[0]))
+    slider = sji_viewer.options_widget().slice_helper._sliders[0]
+    slider.button_forw.click()  # playing, which the export stops
+    slider._play_timer.setInterval(1)
     save("Save frames or movie…", "sji.png")
+    assert not slider._play_timer.isActive()
     assert exposures == [nearest_frame(raster, when) for when in times[:10]]
     # the viewer returns to its frame and per-frame limits
     assert (sji_viewer.state.slices, layer.stretch_global) == ((20, 0, 0), False)
@@ -3096,6 +3089,20 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
     with Image.open(tmp_path / "cut.gif") as gif:
         assert gif.n_frames == 4
     assert sji_viewer.state.slices == (9, 0, 0)
+    # an MP4 where ffmpeg is installed, which CI may lack, of an odd frame height, which matplotlib evens out: the
+    # viewer keeps its size and zoom
+    if animation.writers.is_available("ffmpeg"):
+        bare_app.show()  # for resizes to reach the canvas
+        canvas, state = sji_viewer.figure.canvas, sji_viewer.state
+        for height in (301, 302):  # one gives the canvas an odd height, whatever the viewer's toolbar and status bar
+            sji_viewer.viewer_size = (400, height)
+            QtWidgets.QApplication.processEvents()
+            if canvas.get_width_height(physical=True)[1] % 2:
+                break
+        before = canvas.get_width_height(), (state.x_min, state.x_max, state.y_min, state.y_max)
+        save("Save frames or movie…", "sji.mp4", "0 2")
+        assert (tmp_path / "sji.mp4").stat().st_size > 0
+        assert (canvas.get_width_height(), (state.x_min, state.x_max, state.y_min, state.y_max)) == before
 
 
 def test_what_the_keys_move_on_a_sit_and_stare(bare_app, qtbot, irispy_test_files):

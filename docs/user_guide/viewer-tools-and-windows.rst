@@ -88,8 +88,9 @@ toolbar has:
   files. Of several sliders it asks which, offering first that of the data's first axis (a slit-jaw
   image's frames, a sit-and-stare raster's exposures, a scanning raster's steps or a stack's scans),
   then for the first and last index, as "Loop…" does, starting from the slider's loop or else its
-  whole range. The slider moves as when it plays, so the other viewers follow, and the slit, the
-  point and the raster overlays are drawn as they then show. Every frame has the same colour limits:
+  whole range. Playback of the slider, or of the time master, stops; the slider moves as when it
+  plays, so the other viewers follow, and the slit, the point and the raster overlays are drawn as
+  they then show. Every frame has the same colour limits:
   with "Per-frame limits" on, the whole cube's. "Cancel" in its progress dialog keeps the frames
   saved so far, a movie of them too, and the viewer goes back to its slice and limits.
 

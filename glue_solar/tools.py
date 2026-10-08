@@ -1064,10 +1064,11 @@ class SaveSequenceTool(Tool):
     chosen with the index added (``sji_0007.png`` for ``sji.png``); a movie is an MP4 through matplotlib's
     ``FFMpegWriter``, offered where ffmpeg is installed, or a GIF through its ``PillowWriter``, at 10 frames per
     second. Of several sliders one is picked, the first (an IRIS dataset's frames, exposures, steps or scans) offered
-    first, and the indices are typed as for Loop…, whose range the dialog opens on. The slider moves as in playback, on
-    the GUI thread, and each frame is saved once Qt has run the time sync, so the other viewers follow and the overlays
-    are drawn; per-frame limits are off during the run, so every frame has the same colour limits. Cancel keeps the
-    frames saved so far, a movie of them too, and the viewer returns to its slice and limits.
+    first, and the indices are typed as for Loop…, whose range the dialog opens on. Its playback, and the time
+    master's, stops; the slider moves as in playback, on the GUI thread, and each frame is saved once Qt has run the
+    time sync, so the other viewers follow and the overlays are drawn; per-frame limits are off during the run, so
+    every frame has the same colour limits. Cancel keeps the frames saved so far, a movie of them too, and the viewer
+    returns to its slice and limits.
     """
 
     icon = "glue_filesave"
@@ -1114,6 +1115,13 @@ class SaveSequenceTool(Tool):
         canvas = figure.canvas
         slices, size, manager = state.slices, figure.get_size_inches(), canvas.manager
         data = state.reference_data
+        # playback, of the slider or of the time master it follows, would move the frame between a move and its save
+        sync = coordinator(viewer._data)
+        master = sync._master(observation_key(data)) if _timed(data) else None
+        masters = [] if master is None else sync._viewers_of(master)
+        for each in [s for _, s in sliders] + [_first_slider(v) for v in masters if isinstance(v, ImageViewer)]:
+            if each is not None and each._play_timer.isActive():
+                each.button_stop.click()
         per_frame = [ls for ls in state.layers if ls.layer is data and not getattr(ls, "stretch_global", True)]
         progress = QtWidgets.QProgressDialog("Saving frames…", "Cancel", 0, len(indices), viewer)
         progress.setWindowModality(QtCore.Qt.WindowModal)
