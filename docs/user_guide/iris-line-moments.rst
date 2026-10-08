@@ -40,7 +40,8 @@ continuum windows to fit its background, is NaN in every map; irispy counts othe
 negative samples, after any background is subtracted, as 0. A pixel with a sample within the wings
 at 16182 DN, the Level 2 ceiling saturated samples are clipped to (a sample merely that bright
 counts too, as Level 2 cannot tell them apart), is NaN in every map too; the status bar and
-``moments_saturated`` in ``meta`` say how many.
+``moments_saturated`` in ``meta`` say how many, and
+:ref:`Was it saturated? <glue_solar_users_guide_iris_saturation>` shows where the samples are.
 
 The new dataset's ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``, ``moments_centre``
 and ``moments_wings``, and with a continuum also ``moments_continuum``, the windows, and
