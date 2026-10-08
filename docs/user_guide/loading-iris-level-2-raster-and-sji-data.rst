@@ -133,8 +133,8 @@ Memory and open files
 Level 2 files store their data as 16-bit integers with a scale and an offset. glue-solar leaves
 those integers in the file and scales only what a viewer, readout or profile reads, with the fill
 values as NaN, so even every spectral window of a large observation opens in little memory; a
-``.fits.gz`` file is decompressed into memory, at two bytes a sample. A slit-jaw or AIA file is
-still read in full as it opens, briefly taking about one and a half times its size. The first image
+``.fits.gz`` file is decompressed into memory once, at two bytes a sample, briefly twice that as it
+opens. The first image
 of a window takes its colour limits from a count of every stored value (of evenly spaced raster
 steps or frames of a window over 512 MiB), which takes up to about half a second, and the "99.5%"
 and other presets of the layer's style editor use the same count; "Per-frame limits" (see

@@ -260,7 +260,7 @@ def _dataset(wcs, meta, unit, values, label, *, color=None, cmap=None, missing=M
         # a glue derived component, computed from the values glue reads
         data.add_component_link(ComponentLink([cid], ComponentID(f"{label} mask", parent=data), using=fill_mask))
         return data
-    # From the values, not cube.mask: irispy masks only -200, and nothing in memory-mapped cubes.
+    # From the values: irispy's eager reads leave the missing codes in raster windows and -200 in integer AIA cutouts
     fill = np.isin(values, missing) if missing else None
     if fill is not None and fill.any():
         # In place for float data: this writes into irispy's cube, which the loader discards.
@@ -360,10 +360,10 @@ def _raster_collection_data(collection, windows=None, stack=False, scaling=None)
     return datasets
 
 
-def _image_cube_data(cube, path, raw=None, scaling=None):
+def _image_cube_data(cube, path, scaling=None):
     """
-    A Glue dataset of irispy's SJI or AIA cube, or with ``scaling`` of the file's ``raw`` int16 instead: irispy's
-    memory-mapped cube writes 0, a valid value, over the fill, and so supplies only the coordinates and metadata.
+    A Glue dataset of irispy's SJI or AIA cube; ``scaling`` is the ``(BSCALE, BZERO)`` of a cube irispy read with
+    ``memmap=True``, whose data are the file's raw int16, fill included.
     """
     desc = str(cube.meta["TDESC1"])
     if "_deconvolved." in Path(path).name:  # the header does not say, the filename does
@@ -376,7 +376,7 @@ def _image_cube_data(cube, path, raw=None, scaling=None):
     from irispy.utils.constants import DN_UNIT
 
     cube.meta["scaled"] = True  # the values glue reads are; irispy's unit for the raw values says otherwise
-    return _cube_data(cube, label, values=raw, unit=DN_UNIT["SJI"], cmap=cmap, scaling=scaling)
+    return _cube_data(cube, label, unit=DN_UNIT["SJI"], cmap=cmap, scaling=scaling)
 
 
 def last_directory():
@@ -395,30 +395,18 @@ def image_data(path):
     -------
     `~glue.core.data.Data`
     """
-    from irispy.io import read_files  # with the first file rather than at glue's launch
-    from irispy.io.sji import read_sji_lvl2
+    from irispy.io.sji import read_sji_lvl2  # with the first file rather than at glue's launch
 
     with open(path, "rb") as file:
         gzipped = file.read(2) == b"\x1f\x8b"
-    if gzipped:  # into memory once: astropy and irispy would each decompress it again, about four times in all
+    if gzipped:  # as bytes, whose raw int16 irispy's memmap=True read views rather than copies
         with gzip.open(path) as file:
             content = file.read()
-        with fits.open(io.BytesIO(content), do_not_scale_image_data=True) as hdulist:
-            hdu = hdulist[0]
-            scaling = _raw_scaling(hdu.header)
-            # the raw int16 where they lie in the decompressed bytes, rather than a copy
-            raw = np.ndarray(hdu.shape, ">i2", content, hdu.fileinfo()["datLoc"]) if scaling else None
-    else:
-        with fits.open(path, memmap=True, do_not_scale_image_data=True) as hdulist:
-            scaling = _raw_scaling(hdulist[0].header)
-            raw = hdulist[0].data if scaling else None
+    scaling = _raw_scaling(fits.Header.fromfile(io.BytesIO(content) if gzipped else path))
     if scaling:
         allow_open_files()
-    if gzipped:
-        cube = read_sji_lvl2(io.BytesIO(content), memmap=bool(scaling), uncertainty=False)
-    else:
-        cube = read_files(path, memmap=bool(scaling), uncertainty=False)
-    return _image_cube_data(cube, path, raw, scaling)
+    cube = read_sji_lvl2(content if gzipped else path, memmap=bool(scaling), uncertainty=False)
+    return _image_cube_data(cube, path, scaling)
 
 
 def iris_data(path):

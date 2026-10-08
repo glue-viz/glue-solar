@@ -19,6 +19,7 @@ from glue.core.parse import ParsedCommand, ParsedComponentLink
 from glue.core.subset import RangeSubsetState, SliceSubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
+from irispy.io.sji import read_sji_lvl2
 from matplotlib.backend_bases import KeyEvent
 
 from astropy.io import fits
@@ -400,7 +401,13 @@ def test_dn_per_s_is_nan_where_an_exposure_took_0_s(monkeypatch, tmp_path, irisp
 def test_a_gzipped_slit_jaw_file_is_decompressed_once(monkeypatch, tmp_path, irispy_test_files):
     source = find_irispy_test_file(irispy_test_files, SJI)
     plain, gzipped = int16_copy(source, tmp_path / SJI, [0]), int16_copy(source, tmp_path / f"{SJI}.gz", [0])
+    reads = []
+    monkeypatch.setattr(
+        "irispy.io.sji.read_sji_lvl2",
+        lambda file, **kwargs: reads.append((file, read_sji_lvl2(file, **kwargs))) or reads[-1][1],
+    )
     expected = image_data(plain)
+    assert expected.get_component(expected.main_components[0])._source.raw is reads[0][1].data  # irispy's memmap
     opened = []
     init = gzip.GzipFile.__init__
     monkeypatch.setattr(gzip.GzipFile, "__init__", lambda self, *args, **kwargs: (
@@ -408,6 +415,9 @@ def test_a_gzipped_slit_jaw_file_is_decompressed_once(monkeypatch, tmp_path, iri
     ))
     data = image_data(gzipped)
     assert opened == [True]
+    raw, [content, cube] = data.get_component(data.main_components[0])._source.raw, reads[1]
+    assert raw is cube.data
+    assert np.shares_memory(raw, np.frombuffer(content, np.uint8))  # a view of the decompressed bytes, uncopied
     assert data.label == expected.label
     # values, mask, times, exposures and every pixel's coordinates
     assert [cid.label for cid in data.components] == [cid.label for cid in expected.components]

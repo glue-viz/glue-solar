@@ -1,0 +1,1 @@
+Slit-jaw images and AIA cutouts are read through irispy's own reader; a gzipped slit-jaw file is decompressed once, roughly halving its peak memory as it opens.
