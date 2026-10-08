@@ -33,7 +33,7 @@ toolbar has:
   The mouse alone never moves a region picked to edit, which a click replaces, as with Pixel. As
   with every mouse mode, it stays on only in the viewer last clicked: choose it in the viewer the
   mouse will move over.
-- "Measure", a glue-solar mode ("Drag a line to measure its length in pixels, arcsec and km"): drag a
+- "Measure", a glue-solar mode (:kbd:`U`, "Drag a line to measure its length in pixels, arcsec and km"): drag a
   line on the image, and the status bar gives its length in data pixels, on the sky in arcsec, the
   great-circle angle between the world coordinates at its ends, and in km, that angle at the
   observer's distance from the Sun's centre, the data's ``DSUN_OBS``. The km are a length in the
@@ -196,9 +196,9 @@ in the image or toolbar that has the keyboard, the one last clicked.
      - Plays the time forwards, as the play button of the time master's frame, exposure, step or
        scan slider does, round its loop if "Loop…" gave it one, and pressed again pauses it. Without
        a time master it plays the viewer's own slider of the data's first axis.
-   * - :kbd:`L`
-     - "Path diagram", from the pencil menu, which shows the key beside the entry; it works while the
-       toolbar has the keyboard, as a button's key does.
+   * - :kbd:`U`, :kbd:`L`
+     - "Measure" and "Path diagram", from the pencil menu, which shows each key beside its entry; they
+       work while the toolbar has the keyboard, as a button's key does.
    * - :kbd:`Enter`
      - In "Path diagram", makes the diagrams of the path drawn.
    * - :kbd:`Esc`
