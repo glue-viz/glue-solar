@@ -314,13 +314,14 @@ coordinates in arcsec:
 
 A pixel whose every sample within the wings is missing (NaN or -Inf), or with too few samples in the
 continuum windows to fit its background, is NaN in every map; irispy counts other missing and
-negative samples, after any background is subtracted, as 0. Saturated samples are not yet treated:
-they count as any other. Velocities are relative to the uncorrected Level 2 wavelength scale, which
-can be off by about 5-10 km/s. The new dataset's helioprojective coordinates are linked with the
-other IRIS datasets, its ``meta`` holds ``moments_centre`` and ``moments_wings``, with a continuum
-also ``moments_continuum``, the windows, and ``moments_continuum_degree``, the degree of the
-background, and no viewer opens: drag it onto an Image viewer and pick a map as its attribute. A
-stack of scans is refused: its scans load one by one without "Stack sequential raster scans" in the
-observation browser.
+negative samples, after any background is subtracted, as 0. A pixel with a sample within the wings
+at 16182 DN, the Level 2 ceiling saturated samples are clipped to, is NaN in every map too; the
+status bar and ``moments_saturated`` in ``meta`` say how many. Velocities are relative to the
+uncorrected Level 2 wavelength scale, which can be off by about 5-10 km/s. The new dataset's
+helioprojective coordinates are linked with the other IRIS datasets, its ``meta`` holds
+``moments_centre`` and ``moments_wings``, with a continuum also ``moments_continuum``, the windows,
+and ``moments_continuum_degree``, the degree of the background, and no viewer opens: drag it onto an
+Image viewer and pick a map as its attribute. A stack of scans is refused: its scans load one by one
+without "Stack sequential raster scans" in the observation browser.
 ``glue_solar.sources.moments.line_moments(data, centre, wings, continuum)`` computes the dataset in
 glue's terminal too, ``continuum`` a list of ``(lower, upper)`` wavelengths in Å.

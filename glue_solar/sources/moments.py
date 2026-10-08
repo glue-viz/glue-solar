@@ -2,6 +2,7 @@
 'IRIS: line moments…': irispy's moment maps of a line in a raster window, as a new dataset.
 """
 
+import gc
 from functools import partial
 
 import numpy as np
@@ -78,10 +79,12 @@ def _moments(data, centre, wings, continuum, crop, inner, unit):
     the values; on any thread.
     """
     from irispy.spectrograph import SpectrogramCube
+    from irispy.utils.constants import SATURATION_LIMIT
     from irispy.utils.moments import calculate_moments
     from irispy.utils.spectrograph import subtract_background
+    from ndcube.meta import NDMeta
 
-    cid, maps = data.main_components[0], {}
+    cid, maps, saturated = data.main_components[0], {}, 0
     # the loader's DN/s, its DN over each step's exposure time (D4), from the DN read here: glue's derived component
     # reads them again
     rate = data.find_component_id(f"{cid.label} DN/s") is not None
@@ -91,24 +94,44 @@ def _moments(data, centre, wings, continuum, crop, inner, unit):
     # window's cold peak under 3x
     steps = max(1, SLAB // (data.shape[1] * (crop.stop - crop.start) * (2 if continuum else 1)))
     degree = 1 if len(continuum or ()) > 1 else 0  # a constant for one continuum window, a straight line for more
+    inside = slice(inner.start - crop.start, inner.stop - crop.start)  # inner, within the crop
+
+    def cube(values, rows, wavelengths, meta=None):
+        view = SlicedLowLevelWCS(data.coords._wcs, (*rows, wavelengths))
+        return SpectrogramCube(values, view, unit=unit, mask=np.isnan(values) | np.isneginf(values), meta=meta)
+
     for start in range(0, data.shape[0], steps):
         rows = (slice(start, start + steps), slice(None))
         values = data[cid, (*rows, crop)]  # scaled float32 of these steps and wavelengths only, NaN where missing
+        meta = NDMeta()
         if rate:
-            values = per_second(values, data["Exposure time", (rows[0], slice(0, 1), slice(0, 1))])
+            # irispy's limit is 16182 DN over the exposure times given it, in float64: in float32, as the loader's,
+            # a sample at 16182 DN can round below it
+            seconds = data["Exposure time", (rows[0], slice(0, 1), slice(0, 1))].astype(np.float32)
+            values = per_second(values.astype(float), seconds)
+            meta.add("exposure time", seconds.ravel() * u.s, None, 0)
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
-            if continuum:
-                view = SlicedLowLevelWCS(data.coords._wcs, (*rows, crop))
-                cube = SpectrogramCube(values, view, unit=unit, mask=np.isnan(values) | np.isneginf(values))
-                values = subtract_background(cube, continuum * u.AA, degree=degree).data
+            # saturated within the wings, before any background is subtracted: NaN in every map
+            slab = calculate_moments(
+                cube(values[..., inside], rows, inner, meta),
+                rest_wavelength=centre * u.AA,
+                wings=wings * u.AA,
+                saturation_limit=SATURATION_LIMIT,
+            )
+            reached = slab.pop("saturated").data
+            if continuum:  # the moments of the line less the background, in which irispy would miss saturation
+                values = subtract_background(cube(values, rows, crop), continuum * u.AA, degree=degree).data
                 # NaN where irispy fits no background: missing at every wavelength within the wings, NaN maps
-                values = values[..., inner.start - crop.start : inner.stop - crop.start]
-            view = SlicedLowLevelWCS(data.coords._wcs, (*rows, inner))
-            cube = SpectrogramCube(values, view, unit=unit, mask=np.isnan(values) | np.isneginf(values))
-            slab = calculate_moments(cube, rest_wavelength=centre * u.AA, wings=wings * u.AA)
+                slab = calculate_moments(
+                    cube(values[..., inside], rows, inner), rest_wavelength=centre * u.AA, wings=wings * u.AA
+                )
+        saturated += int(reached.sum())
         for name, moment in slab.items():
             # irispy sums masked samples, NaN and -Inf, as 0, and masks a pixel masked at every wavelength: NaN there (D17)
-            maps.setdefault(name, []).append((np.where(moment.mask, np.nan, moment.data), moment.unit))
+            maps.setdefault(name, []).append((np.where(moment.mask | reached, np.nan, moment.data), moment.unit))
+        # ndcube's cubes are reference cycles, and irispy's hold the slab's values: else every slab's stay until
+        # Python's collector runs
+        gc.collect(0)
     moments = Data(label=f"{data.label} moments {centre}")
     with WCS_LOCK:
         # the raster's own steps and slit pixels: its wavelength does not move them
@@ -118,6 +141,8 @@ def _moments(data, centre, wings, continuum, crop, inner, unit):
     moments.meta.update(moments_centre=centre, moments_wings=tuple(wings))
     if continuum:
         moments.meta.update(moments_continuum=tuple(map(tuple, continuum)), moments_continuum_degree=degree)
+    if saturated:  # for the status bar and scripts; maps without keep the meta they had
+        moments.meta["moments_saturated"] = saturated
     for name, parts in maps.items():
         values, unit = np.concatenate([values for values, _ in parts]), parts[0][1]
         if unit.is_equivalent(u.AA):  # irispy's centroid and width are in nm
@@ -135,9 +160,11 @@ def line_moments(data, centre, wings=WINGS, continuum=None):
     irispy is given the window's ``<label> DN/s`` where it has one, else its values, with NaN and -Inf masked. Its
     components are irispy's: ``intensity`` in that unit, ``centroid`` and ``width`` in Angstrom, and ``velocity`` and
     ``velocity_width`` in km / s, relative to ``centre``; all are NaN where every sample within the wings is missing,
-    or no background could be fitted. ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``, ``moments_centre``
-    and ``moments_wings``, and with a continuum ``moments_continuum`` and ``moments_continuum_degree``, the degree of
-    the background. irispy is given only the wavelengths from the first to the last within the wings or a continuum
+    no background could be fitted, or irispy finds a sample within the wings saturated: at or above its
+    ``SATURATION_LIMIT``, 16182 DN, before any background is subtracted. ``meta`` holds the observation's ``OBSID`` and
+    ``STARTOBS``, ``moments_centre`` and ``moments_wings``, with a continuum ``moments_continuum`` and
+    ``moments_continuum_degree``, the degree of the background, and with saturated pixels ``moments_saturated``, how
+    many. irispy is given only the wavelengths from the first to the last within the wings or a continuum
     window, a slab of steps at a time.
 
     Parameters
@@ -208,9 +235,13 @@ def _failed(exc_info):
     raise exc_info[1]
 
 
-def _add(data_collection, moments):
+def _add(data_collection, status, moments):
     data_collection.append(moments)
     keep_hpc_linked(data_collection)
+    count = moments.meta.get("moments_saturated")
+    if count and status is not None:  # in place of what it says while they are computed
+        pixels = f"{count} pixels" if count > 1 else "1 pixel"
+        status.showMessage(f"{moments.label}: {pixels} saturated within the wings {'are' if count > 1 else 'is'} NaN")
 
 
 def _status_bar(data_collection):
@@ -236,18 +267,19 @@ def moments_iris(data, data_collection):
     """
     Add the `line_moments` of ``data`` about a typed line centre, within typed wings, less any background fitted to
     typed continuum windows, to the data collection, with its helioprojective coordinates linked, and no viewer; glue
-    shows why for data that has none. irispy computes them in the background, while glue's status bar says so.
+    shows why for data that has none. irispy computes them in the background, while glue's status bar says so, and then
+    how many pixels saturated, if any.
     """
     _check(data)  # before asking
     line = _ask(data)
     if line is None:
         return
     worker = Worker(_moments, data, *line, *_window(data, *line))
-    worker.result.connect(partial(_add, data_collection))
+    status, text = _status_bar(data_collection), f"Computing line moments of {data.label}…"
+    worker.result.connect(partial(_add, data_collection, status))
     worker.error.connect(_failed)
     _RUNNING.add(worker)
     worker.finished.connect(lambda: _RUNNING.discard(worker))
-    status, text = _status_bar(data_collection), f"Computing line moments of {data.label}…"
     if status is not None:  # until the dataset is added or the error shown (D46)
         status.showMessage(text)
         worker.finished.connect(partial(_clear, status, text))
