@@ -53,6 +53,7 @@ def test_setup_registers_hooks():
     assert ImageViewer.tools.count("solar:hide_axes") == 1
     assert ImageViewer.tools.count("solar:per_frame_limits") == 1
     assert ImageViewer.tools.count("solar:physical_aspect") == 1
+    assert ImageViewer.tools.count("solar:colour_bar") == 1
     assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
     assert ImageViewer.tools.count("solar:cursor_readout") == (0 if hasattr(ImageViewer, "cursor_status") else 1)
     iris = next(f for f in data_factory if f.label == "IRIS Level 2 FITS")
@@ -415,6 +416,79 @@ def test_sessions_with_per_frame_limits_fail_to_restore(qtbot, tmp_path):
     app.save_session(str(tmp_path / "limits.glu"))
     with pytest.raises(AttributeError, match="add_callback"):
         GlueApplication.restore_session(str(tmp_path / "limits.glu"))
+
+
+def test_colour_bar_draws_glues_colours_and_is_saved(qtbot, monkeypatch, tmp_path):
+    import matplotlib
+    from matplotlib.backends.qt_compat import QtWidgets
+    from matplotlib.image import imread
+
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    # every row of the first frame runs from 0 to 100 in the 256 steps of the bar, of the second from 0 to 200
+    ramp = np.linspace(0, 100, 256)
+    cube = Data(label="cube", flux=np.stack([np.tile(ramp, (4, 1)), np.tile(2 * ramp, (4, 1))]))
+    app.data_collection.append(cube)
+    viewer = app.new_data_viewer(ImageViewer, data=cube)
+    layer = viewer.state.layers[0]
+    layer.v_min, layer.v_max = 0, 100
+    paths = iter(tmp_path / name for name in ("off.png", "on.png"))
+    monkeypatch.setattr(QtWidgets.QFileDialog, "getSaveFileName", lambda *args: (str(next(paths)), ""))
+    monkeypatch.setitem(matplotlib.rcParams, "savefig.directory", str(tmp_path))  # which saving changes
+    menu = viewer.toolbar.widgetForAction(viewer.toolbar.actions["save"]).menu()
+    [save] = [action for action in menu.actions() if action.text() == "Save plot to file"]  # mpl:save
+    save.trigger()
+
+    viewer.toolbar.active_tool = "image:point_selection"
+    pixel, button = viewer.toolbar.active_tool, viewer.toolbar.actions["solar:colour_bar"]
+    tool, width = viewer.toolbar.tools["solar:colour_bar"], viewer.axes.get_window_extent().width
+    button.trigger()
+    assert viewer.toolbar.active_tool is pixel
+    beside = viewer.axes.get_window_extent().width
+    assert beside < width  # the bar's room
+
+    def drawn():
+        """The bar's colours, glue's colours of a row of the image, and the bar's value limits."""
+        viewer.figure.canvas.draw()
+        return np.asarray(tool.bar.images[0].get_array())[:, 0], viewer.axes._composite()[0], tool.bar.get_ylim()
+
+    bar = drawn()[0]
+    layer.contrast, layer.bias, layer.cmap = 1.5, 0.3, matplotlib.colormaps["viridis"]
+    for stretch in ("linear", "log", "sqrt", "arcsinh", "gamma_2.2"):
+        layer.stretch = stretch
+        colours, image, limits = drawn()
+        assert (np.array_equal(colours, image), limits) == (True, (0, 100))
+        assert not np.array_equal(colours, bar)  # changed with the stretch, contrast and bias or colormap
+        bar = colours
+    viewer.state.color_mode = "One color per layer"
+    colours, image, limits = drawn()
+    assert (np.array_equal(colours, image), limits) == (True, (0, 100))
+    viewer.state.color_mode = "Colormaps"
+    # the limits of each frame, from glue's per-frame limits
+    viewer.toolbar.actions["solar:per_frame_limits"].trigger()
+    layer.percentile = 100
+    for frame, top in ((1, 200), (0, 100)):
+        viewer.state.slices = (frame, 0, 0)
+        colours, image, limits = drawn()
+        assert (np.array_equal(colours, image), limits) == (True, (0, top))
+    layer.v_min, layer.v_max = 20, 80
+    assert drawn()[2] == (20, 80)
+    layer.v_min = 80  # a constant frame's limits
+    assert drawn()[2] == (76, 84)
+    layer.v_min = 20
+
+    save.trigger()
+    off, on = (imread(tmp_path / name) for name in ("off.png", "on.png"))
+    assert off.shape == on.shape
+    # the bar's colours at its place in the file, whose pixels are the window's at the figure's dpi
+    x0, y0, x1, y1 = tool.bar.get_window_extent().extents
+    saved = on[int(on.shape[0] - y1) + 2 : int(on.shape[0] - y0) - 2, int(x0) + 1 : int(x1) - 1]
+    assert len(np.unique(saved.reshape(-1, 4), axis=0)) > 100
+    button.trigger()
+    assert not tool.bar.get_visible()
+    assert viewer.axes.get_window_extent().width > beside
+
 
 def generated_map():
     """A raster map of 30 steps of 2″ along a slit of 300 pixels of 0.33″, rolled by 10°."""

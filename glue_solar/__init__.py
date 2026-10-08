@@ -54,6 +54,7 @@ def setup():
         tools.HideAxesTool,
         tools.PerFrameLimitsTool,
         tools.PhysicalAspectTool,
+        tools.ColourBarTool,
     ]
     # glue-qt with its own readout (glue-viz/glue-qt#74, draft) does not need ours
     if not hasattr(ImageViewer, "cursor_status"):
