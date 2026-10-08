@@ -1,0 +1,1 @@
+The line moments dialog takes optional continuum windows in Å, such as ``1401.5-1402, 1404-1405``, whose background, fitted by irispy (a constant for one window, a straight line for more), is subtracted before the moments; the map's ``meta`` records them as ``moments_continuum`` and ``moments_continuum_degree``.
