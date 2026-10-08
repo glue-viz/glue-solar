@@ -4286,6 +4286,7 @@ def test_blink_in_one_cube(bare_app, qtbot, irispy_test_files):
     limits = (state.x_min, state.x_max, state.y_min, state.y_max)
     slider = raster_map.options_widget().slice_helper._sliders[2]
     tool = raster_map.toolbar.tools["solar:coordinate"]
+    tool._blink.setInterval(60_000)  # no tick of its own between the flips by hand, however slow the machine
     # the wavelength slider alone, the same widget, as a frame slider would in a blink in time
     assert changes(bare_app, qtbot, viewers, menu_action(raster_map, "Blink").trigger) == {"map": (None, None, 10)}
     assert changes(bare_app, qtbot, viewers, tool._flip) == {"map": (None, None, wavelength)}

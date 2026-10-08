@@ -1,0 +1,1 @@
+While "IRIS: line moments…" runs, glue's status bar says "Computing line moments of <window>…".
