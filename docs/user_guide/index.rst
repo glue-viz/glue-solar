@@ -12,6 +12,7 @@ User Guide
    iris-quicklook
    iris-line-moments
    iris-red-blue-asymmetry
+   iris-mg-features
    viewer-tools-and-windows
    guide-to-glue-1dprofile-viewer-for-iris-data
    scripting-iris-data

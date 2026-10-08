@@ -67,6 +67,11 @@ def _window(data, centre, wings, continuum=None):
         if not window.size:
             raise ValueError(f"No wavelength of {span} lies within the continuum window {low}-{high} Å.")
         ends += [window[0], window[-1]]
+    return slice(min(ends), max(ends) + 1), slice(inside[0], inside[-1] + 1), _unit(data)
+
+
+def _unit(data):
+    """The unit of the values of ``data`` that irispy is given (`_read`)."""
     from irispy.utils.constants import DN_UNIT  # with the first use rather than at glue's launch
 
     cid = data.main_components[0]
@@ -74,7 +79,7 @@ def _window(data, centre, wings, continuum=None):
         unit = u.Unit(data.get_component(cid).units)
     if data.find_component_id(f"{cid.label} DN/s") is not None:
         unit = unit / u.s
-    return slice(min(ends), max(ends) + 1), slice(inside[0], inside[-1] + 1), unit
+    return unit
 
 
 def _read(data, rows, wavelengths):
@@ -298,11 +303,11 @@ def _start(data_collection, text, failed, function, *args):
     status = _status_bar(data_collection)
     worker.result.connect(partial(_add, data_collection, status))
     worker.error.connect(failed)
-    _RUNNING.add(worker)
-    worker.finished.connect(lambda: _RUNNING.discard(worker))
     if status is not None:  # until the dataset is added or the error shown (D46)
         status.showMessage(text)
         worker.finished.connect(partial(_clear, status, text))
+    _RUNNING.add(worker)
+    worker.finished.connect(lambda: _RUNNING.discard(worker))  # last: queued, so the message is cleared by then
     worker.start()
 
 
