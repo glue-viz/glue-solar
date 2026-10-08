@@ -1,0 +1,1 @@
+A "Was it saturated?" recipe in the loading guide shows how to find saturated samples (clipped to 16182 DN in Level 2 files) with a subset, and why NSATPIX and TSATPXn cannot tell.
