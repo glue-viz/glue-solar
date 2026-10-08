@@ -210,8 +210,8 @@ In glue's terminal, the frame of the dataset ``aia_304`` nearest frame 100 of ``
 
     frame = int(abs(aia_304["Time"][:, 0, 0] - aia_1700["Time"][100, 0, 0]).argmin())
 
-**Scaling a window.** CRISPEX's "Multiply <window> by <value>" lets a faint window show beside Mg II
-on one plot; here each window's spectrum panel has its own y range anyway. To compare two on one
+**Scaling a window.** CRISPEX's per-window multiplier lets a faint window show beside Mg II on one
+plot; here each window's spectrum panel has its own y range anyway. To compare two on one
 scale, for example Si IV 1394 with twice Si IV 1403, which it equals where the emission is optically
 thin, press "Arithmetic attributes", choose the Si IV 1403 window as the dataset and add a "New
 arithmetic attribute" ``Si IV 1403 x2`` with the expression ``{<label>} * 2``, where "Insert" puts in
@@ -221,4 +221,5 @@ press "Link Data", pick the two windows, select ``Wavelength`` in both lists and
 attributes"; then drag the Si IV 1403 window onto the Si IV 1394 spectrum panel, which adds its point
 at its own wavelengths and its mean spectrum, give that point ``Si IV 1403 x2`` too, and type x limits
 covering both windows in the panel's options. The wavelength panel takes that range; "Home" there
-shows its window again.
+shows its window again. To compare only their shapes, tick "normalize" in the panel's options
+instead, which draws each layer on 0 to 1.
