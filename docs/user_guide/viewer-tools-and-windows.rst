@@ -12,7 +12,8 @@ example "Zoom to rectangle [shortcut: Z]".
 glue-solar keeps its Image Viewer tools, all but Follow/lock, in three menus, so that the toolbar
 fits a viewer 700 pixels wide; a narrower viewer moves the last buttons behind the toolbar's »
 button. The pencil icon holds glue-solar's mouse modes, "Measure", "Path diagram" and "Show
-position on original path", with the one on checked; the link icon is the "Coordinate" menu; and
+position on original path", with the one on checked, and the "Path sampling" submenu, described
+with "Path diagram" below; the link icon is the "Coordinate" menu; and
 the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Physical
 aspect", "Zoom 1:1", "Colour bar" and "Cursor readout", each but "Zoom 1:1" checked while it is on.
 After a View entry the mouse mode, such as Pixel, stays on. A menu shows an entry's single-key
@@ -56,11 +57,23 @@ toolbar has:
   dataset's other axes kept: a slit-jaw image gives its frames against the path (400 rows on OBSID
   4000255147's SJI 1400), a raster window its wavelengths against the path, a stack its wavelengths
   against the path with a scan slider. The path is sampled once a pixel of the image, each sample
-  taking the value of the pixel whose index it rounds down to (glue's own sampling), and NaN where
-  the path leaves the data. Other datasets shown, such as a raster window added to a slit-jaw
-  image's viewer, are sampled at the same places on the Sun through glue's links ("IRIS: link
-  helioprojective coordinates"), with the pointing of the frame shown, so a viewer that follows the
-  time master samples them at its exposure; a stack is placed with its first scan's coordinates. A
+  taking the value the pencil menu's "Path sampling" submenu chooses for the viewer's next Enter:
+
+  - "Truncate", glue's own sampling and the default: the pixel whose index the sample rounds down
+    to, NaN where the path leaves the data.
+  - "Nearest": the nearest pixel, a sample halfway between two taking the higher, as
+    ``scipy.ndimage.map_coordinates`` with ``order=0`` rounds, not as NumPy's ``round``, which takes
+    the even one; NaN beyond the outer pixels' edges.
+  - "Linear": bilinear between the four pixels around the sample, as ``map_coordinates`` with
+    ``order=1`` and ``mode="constant"``, exact where the data change linearly across the image; NaN
+    where any of the four is NaN or off the data, so beyond the outer pixels' centres. ``Time`` is
+    the nearest pixel's: times are never interpolated.
+
+  A diagram sampled "Nearest" or "Linear" says so in its name, such as ``... [slice 2, linear]``.
+  Other datasets shown, such as a raster window added to a slit-jaw image's viewer, are sampled at
+  the same places on the Sun through glue's links ("IRIS: link helioprojective coordinates"), with
+  the pointing of the frame shown, so a viewer that follows the time master samples them at its
+  exposure; a stack is placed with its first scan's coordinates. A
   sit-and-stare raster placed this way gives each place the exposure in which its slit lay there, as
   its coordinates say, not the frame's. These other diagrams, which the image's axes cannot show,
   are in the data collection to open in viewers of their own. A dataset glue cannot place from the
