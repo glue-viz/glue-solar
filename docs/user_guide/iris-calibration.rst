@@ -16,10 +16,10 @@ thread, a slab of frames at a time, while glue's status bar says "Removing dust 
 adds ``<label> dust removed``: the slit-jaw image's values in float32, with its coordinates,
 per-frame pointing, ``Time``, ``Exposure time`` and ``<label> dust removed DN/s``, so that the time
 sync and the helioprojective links reach it. Missing data stay NaN, and so does dust irispy finds no
-replacement for. No viewer opens: drag it onto an Image viewer. The new dataset is held in memory:
-about 250 MB for the 400 frames of 417 by 388 pixels of OBSID 4000255147's SJI 1400, cleaned in
-17 s. ``glue_solar.sources.calibration.remove_dust(data)`` computes the dataset in glue's terminal
-too.
+replacement for. No viewer opens: drag it onto an Image viewer. The new dataset is held in memory,
+its values and their mask: about 310 MiB for the 400 frames of 417 by 388 pixels of OBSID
+4000255147's SJI 1400, cleaned in 17 s. ``glue_solar.sources.calibration.remove_dust(data)``
+computes the dataset in glue's terminal too.
 
 Radiance
 --------
@@ -29,9 +29,10 @@ calibration" from its right-click menu. It adds two components to the window:
 ``<label> radiance per DN/s``, irispy's factor from DN/s to radiance at each wavelength, held as one
 spectrum, and ``<label> radiance``, the window's ``<label> DN/s`` times it, which glue computes as
 it reads it, in erg / (Å cm2 s sr). The factor is that of irispy's ``radiometric_calibration``
-(``calculate_dn_to_radiance_factor``): the photon energy at each wavelength over the effective area
-of irispy's latest response at the window's ``DATE_OBS``, the spectral dispersion and the solid
-angle of a pixel, the slit width by a pixel's length along the slit. Unlike SolarSoft's
+(``calculate_dn_to_radiance_factor``): the detector's photons per DN, 4 in the FUV and 18 in the
+NUV (irispy's ``DN_UNIT``), times the photon energy at each wavelength over the effective area of
+irispy's latest response at the window's ``DATE_OBS``, the spectral dispersion and the solid angle
+of a pixel, the slit width by a pixel's length along the slit. Unlike SolarSoft's
 ``iris_calib``, it is per Å, and it is NaN at wavelengths the response does not cover.
 ``glue_solar.sources.calibration.radiometric_calibration(data)`` adds them in glue's terminal too.
 
