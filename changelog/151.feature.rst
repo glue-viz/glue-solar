@@ -1,0 +1,1 @@
+A "Path diagram" mode (key L) on Image viewers extracts slit-jaw images, rasters and stacks along a drawn path into new datasets, with a crosshair that follows the path on the source image.

@@ -51,6 +51,8 @@ def setup():
     wanted = [
         tools.FollowLockTool,
         tools.MeasureTool,
+        tools.PathTool,
+        tools.PathCrosshairTool,
         tools.FrameTimeTool,
         tools.CoordinateTool,
         tools.HideAxesTool,

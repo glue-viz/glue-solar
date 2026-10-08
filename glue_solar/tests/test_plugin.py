@@ -11,7 +11,7 @@ import matplotlib.dates as mdates
 import numpy as np
 import pytest
 from echo import delay_callback
-from glue.config import colormaps, data_factory, layer_action, menubar_plugin, settings, startup_action
+from glue.config import colormaps, data_factory, layer_action, menubar_plugin, settings, startup_action, viewer_tool
 from glue.core import Data
 from glue.core.data_factories import load_data
 from glue.viewers.image.state import AggregateSlice
@@ -21,7 +21,7 @@ from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from glue_qt.viewers.scatter import ScatterViewer
 from irispy.io import read_files
-from matplotlib.backend_bases import MouseButton, MouseEvent
+from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from qtpy.QtCore import Qt
 
@@ -36,11 +36,11 @@ from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.quicklook import QuicklookImageViewer
 from glue_solar.sources.iris import iris_quicklook, is_iris_fits, link_iris, quicklook_iris
-from glue_solar.sources.loaders.iris import image_data, raster_data
+from glue_solar.sources.loaders.iris import image_data, link_hpc, raster_data
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import moments_iris
 from glue_solar.sources.red_blue import red_blue_iris
-from glue_solar.tests.helpers import count_tick_work, mouse, press
+from glue_solar.tests.helpers import count_tick_work, mouse, press, raster_point_on_sji
 from glue_solar.tools import sky_length
 
 
@@ -62,6 +62,9 @@ def test_setup_registers_hooks():
     assert ImageViewer.tools.count("solar:zoom_1_1") == 1
     assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
     assert ImageViewer.tools.count("solar:measure") == 1
+    assert ImageViewer.tools.count("solar:path") == ImageViewer.tools.count("solar:path_crosshair") == 1
+    shortcuts = [viewer_tool.members[tool].shortcut for tool in ImageViewer.tools]
+    assert len(set(shortcuts) - {None}) == len(shortcuts) - shortcuts.count(None)  # glue-qt drops a repeated one
     assert ImageViewer.tools.count("solar:cursor_readout") == (0 if hasattr(ImageViewer, "cursor_status") else 1)
     assert ImageViewer.subtools["save"].count("solar:save_sequence") == 1
     assert "solar:save_sequence" not in ProfileViewer.subtools["save"]  # glue's Matplotlib viewers share one list
@@ -829,6 +832,123 @@ def test_zoom_1_1_gives_a_data_pixel_a_screen_pixel(qtbot, irispy_test_files):
     viewer.figure.canvas._set_device_pixel_ratio(2)
     button.trigger()
     assert state.x_max - state.x_min == pytest.approx(box.width) == pytest.approx(2 * width)
+
+
+def _draw_path(viewer, x, y):
+    """Click the vertices ``x, y`` with the Path diagram tool and press Enter; the diagrams it makes."""
+    viewer.toolbar.active_tool = "solar:path"
+    for vx, vy in zip(x, y):
+        mouse(viewer, "button_press_event", vx, vy)
+        mouse(viewer, "button_release_event", vx, vy)
+    canvas = viewer.figure.canvas
+    canvas.callbacks.process("key_press_event", KeyEvent("key_press_event", canvas, "enter"))
+    return viewer.toolbar.tools["solar:path"]._traces[-1]
+
+
+def _along(data, cid, path, on=slice(None)):
+    """
+    ``data``'s ``cid`` at the pixels glue-core samples the samples ``on`` of ``path`` at, its other axes kept in order,
+    the path's last.
+    """
+    index = [slice(None)] * data.ndim
+    columns = []
+    for index[path.cid_x.axis], index[path.cid_y.axis] in zip(path.x[on].astype(int), path.y[on].astype(int)):
+        columns.append(data[cid, tuple(index)])
+    return np.stack(columns, axis=-1)
+
+
+def test_path_diagrams_of_a_slit_jaw_image_and_a_raster_on_it(qtbot, irispy_test_files):
+    sji = image_data(find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("SJI_1400_t000")))
+    raster_file = find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("raster_t000_r00000"))
+    [raster] = raster_data([raster_file], ["Si IV 1403"])
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.extend([sji, raster])
+    app.data_collection.add_link(link_hpc(app.data_collection))
+    viewer = app.new_data_viewer(ImageViewer, data=sji)
+    viewer.add_data(raster)
+    viewer.state.slices = (5, 0, 0)
+    assert viewer.toolbar.tools["solar:path"].enabled
+    path, on_raster = _draw_path(viewer, [5, 18, 30], [3, 20, 35])
+    diagrams = viewer.toolbar.tools["solar:path"]._slice_viewer
+    assert [layer.layer for layer in diagrams.layers] == [path]  # the raster's, on frames, would be disabled
+    assert {path, on_raster} <= set(app.data_collection)
+    # frames against the path, and wavelength against the same samples
+    n = len(path.x)
+    assert path.shape == (sji.shape[0], n)
+    assert on_raster.shape == (raster.shape[2], n)
+    for cid in (sji.main_components[0], sji.id["Time"]):
+        np.testing.assert_array_equal(path[cid], _along(sji, cid, path))
+    assert path[sji.id["Time"]].dtype.kind == "M"
+
+    # the raster samples lie where the path's do, through the raster's coordinates and frame 5's, and are NaN off it
+    on = np.isfinite(on_raster.x)
+    assert 0 < on.sum() < n
+    position = {on_raster.cid_x.axis: on_raster.x[on], on_raster.cid_y.axis: on_raster.y[on]}  # exposure, slit
+    x, y = raster_point_on_sji(raster, sji, position[0], position[1], frame=5)
+    assert np.hypot(x - path.x[on], y - path.y[on]).max() < 0.5
+    flux = raster.main_components[0]
+    np.testing.assert_array_equal(on_raster[flux][:, on], _along(raster, flux, on_raster, on))
+    assert np.isnan(on_raster[flux][:, ~on]).all()
+
+    # the crosshair: along the diagram it marks the path and moves the slit-jaw image to the frame
+    diagrams.toolbar.active_tool = "solar:path_crosshair"
+    mouse(diagrams, "button_press_event", 3, 10)
+    mouse(diagrams, "motion_notify_event", 10, 40)
+    assert viewer.state.slices[0] == 40
+    crosshair = diagrams.toolbar.tools["solar:path_crosshair"]._crosshair
+    assert crosshair.get_data() == ([path.x[10]], [path.y[10]])
+    mouse(diagrams, "button_release_event", 10, 40)
+    # the diagram's readout gives the frame's time
+    when = sji[sji.id["Time"], (40, int(path.y[10]), int(path.x[10]))]
+    assert np.datetime_as_string(when, unit="ms") in diagrams.axes.format_coord(10, 40)
+
+
+def test_path_diagram_of_a_stack(qtbot, irispy_test_files):
+    files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
+    [stack] = raster_data(files, ["Si IV 1403"], stack=True)
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(stack)
+    viewer = app.new_data_viewer(ImageViewer, data=stack)
+    viewer.state.x_att, viewer.state.y_att = stack.pixel_component_ids[1], stack.pixel_component_ids[2]  # step, slit
+    viewer.state.slices = (1, 0, 0, 12)
+    assert viewer.toolbar.tools["solar:path"].enabled  # 4D, which glue-core's is not
+    [path] = _draw_path(viewer, [0.5, 3, 6.5], [10, 60, 100])
+    # scans and wavelength against the path, with the stack's own wavelengths and scans
+    assert path.shape == (stack.shape[0], stack.shape[3], len(path.x))
+    flux = stack.main_components[0]
+    np.testing.assert_array_equal(path[flux], _along(stack, flux, path))
+    assert path.coords.world_axis_names == ["Offset", "Wavelength", "Scan"]
+    wavelength = path.world_component_ids[1]
+    np.testing.assert_allclose(path[wavelength][0, :, 0], stack[stack.world_component_ids[3]][0, 0, 0, :])
+    app.new_data_viewer(ProfileViewer, data=path).figure.canvas.draw()  # its profile, along its own wavelengths
+
+    # the crosshair moves the wavelength only, which the diagram's y axis shows
+    diagrams = viewer.toolbar.tools["solar:path"]._slice_viewer
+    assert not diagrams.toolbar.tools["solar:path"].enabled  # a diagram, 3D too, is not a dataset to draw on
+    diagrams.toolbar.active_tool = "solar:path_crosshair"
+    mouse(diagrams, "button_press_event", 2, 3)
+    mouse(diagrams, "motion_notify_event", 2, 7)
+    assert viewer.state.slices == (1, 0, 0, 7)
+
+
+@pytest.mark.remote_data
+def test_path_diagram_of_a_full_size_slit_jaw_image(qtbot, irispy_data):
+    # 4000255147 SJI 1400, read lazily, whose diagram is its 50 frames against the path
+    data = image_data(irispy_data("iris_l2_20130902_163935_4000255147_SJI_1400_t000_f050.fits.gz"))
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    [path] = _draw_path(viewer, [60, 200, 330], [80, 300, 150])
+    assert path.shape == (50, len(path.x))
+    flux = data.main_components[0]
+    np.testing.assert_array_equal(path[flux], _along(data, flux, path))
+    viewer.toolbar.tools["solar:path"]._slice_viewer.figure.canvas.draw()
 
 
 def _cmap_menu(viewer):
