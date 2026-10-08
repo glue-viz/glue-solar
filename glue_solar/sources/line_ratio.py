@@ -27,6 +27,8 @@ def _same_grid(a, b):
         return False
     if a.coords is None or b.coords is None:
         return a.coords is b.coords
+    if a.coords.world_n_dim != b.coords.world_n_dim:
+        return False
     pixels = np.indices(a.shape)  # in numpy order, as given to both
     return np.allclose(a.coords.pixel_to_world_values(*pixels), b.coords.pixel_to_world_values(*pixels), equal_nan=True)
 
