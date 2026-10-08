@@ -1,0 +1,1 @@
+File → Open reads aligned aia_l2_* cutouts as the observation browser does, and AIA cutout viewers follow and can lead the time sync like slit-jaw images.
