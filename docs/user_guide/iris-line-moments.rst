@@ -60,3 +60,28 @@ Glue says why, and adds nothing, for:
 - a centre or continuum window that is not a wavelength, or a list of ranges, in Å;
 - a centre with no wavelength of the window within the wings, a continuum window with none, or one
   that overlaps the wings.
+
+Line ratios
+-----------
+
+To map the electron density or the temperature from the ratio of two lines, such as O IV 1399.77
+and 1401.16 Å, compute the line moments of each, select both maps in the data collection (Ctrl- or
+⌘-click) and choose "IRIS: line ratio diagnostic…" from the right-click menu. Pick the numerator and
+the denominator among the maps' attributes, their ``intensity`` unless changed, a text table of the
+theoretical ratio, typed or with Browse…, and the quantity's name, ``log n_e``, ``log T`` or one
+typed; a blank table or name adds nothing. The table's first two columns, separated by spaces or
+commas, after an optional header line and ``#`` comments, are the quantity, such as log10 of the
+electron density in cm⁻³, and the ratio of the numerator's line to the denominator's there,
+monotonic in it, such as one computed with CHIANTI. irispy's ``map_ratio_to_quantity`` interpolates
+the maps' ratio on it, linearly in the quantity, and glue adds ``<numerator> / <denominator> <name>``
+on the maps' grid, with their helioprojective coordinates linked with the other IRIS datasets, and
+no viewer. Its maps are ``ratio``, the numerator over the denominator, NaN where the denominator is
+0, and the quantity, NaN where the ratio is missing or outside the table's. Its ``meta`` holds the
+numerator's ``OBSID`` and ``STARTOBS``, ``ratio_numerator`` and ``ratio_denominator``, each
+``<label>: <attribute>``, and ``ratio_table``, the table's path.
+``glue_solar.sources.line_ratio.line_ratio(numerator, denominator, quantity, ratio, name)`` maps two
+attributes, such as ``dc["<label>"].id["intensity"]``, on arrays in glue's terminal too.
+
+Glue says why, and adds nothing, for fewer than two attributes of 2-D maps selected, maps of
+different shapes or coordinates or in different units, and a table that cannot be read, has fewer
+than two columns, or holds a ratio irispy cannot map from, such as one that is not monotonic.
