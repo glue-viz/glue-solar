@@ -1105,6 +1105,7 @@ class SaveSequenceTool(Tool):
         path, chosen = QtWidgets.QFileDialog.getSaveFileName(viewer, "Save frames or movie", start, ";;".join(filters))
         if not path:
             return
+        rcParams["savefig.directory"] = os.path.dirname(path)  # as glue's "Save plot to file" remembers it
         stem, suffix = os.path.splitext(path)
         if suffix.lower() not in _SEQUENCE_FILTERS:  # none typed: the chosen filter's
             stem, suffix = path, next((s for s, text in _SEQUENCE_FILTERS.items() if text == chosen), ".png")
