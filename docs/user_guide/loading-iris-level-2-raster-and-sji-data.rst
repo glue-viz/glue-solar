@@ -103,8 +103,8 @@ along it. The documented alternative is irispy's ``revert_v34=True`` option
 which keeps the file order; glue-solar does not use it.
 
 A raster that takes several exposures at each of its positions (``NEXP_PRP`` and ``NRASTERP`` above 1) has each
-position on as many raster steps. A place on the Sun, such as a click on a quicklook's slit-jaw image, then gives the
-first exposure at its position, so glue-solar warns once per observation as such a raster loads: glue's "Error
+position on as many raster steps. A place on the Sun, such as a click on a quicklook's slit-jaw image, then lands on
+one of the exposures at its position, so glue-solar warns once per observation as such a raster loads: glue's "Error
 Console" button turns red and shows the warning. A sit-and-stare raster, which takes every exposure at its one
 position (``NRASTERP`` 1), steps through time instead and gives no warning.
 

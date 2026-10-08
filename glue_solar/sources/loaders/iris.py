@@ -323,8 +323,8 @@ def _warn_repeated_positions(datasets):
             repeated[_observation_label(meta)] = int(meta["NEXP_PRP"])
     for observation, exposures in repeated.items():
         warnings.warn(
-            f"{observation} takes {exposures} exposures at each raster position (NEXP_PRP): world to pixel, "
-            "as a click on a quicklook's slit-jaw image uses, gives the first exposure at each position.",
+            f"{observation} takes {exposures} exposures at each raster position (NEXP_PRP), which world to pixel "
+            "cannot tell apart: a click on a quicklook's slit-jaw image lands on one of them.",
             stacklevel=3,
         )
 

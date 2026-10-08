@@ -785,22 +785,27 @@ def test_negative_step_raster_fill_follows_the_flipped_data(tmp_path, irispy_tes
 
 
 def test_raster_of_several_exposures_per_position_warns_once(qtbot, tmp_path, irispy_test_files):
-    # NEXP_PRP > 1 repeats each raster position along the steps, and world to pixel gives the first exposure at each
+    # NEXP_PRP > 1 repeats each raster position along the steps, which world to pixel cannot tell apart
     source = find_irispy_test_file(irispy_test_files, "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits")
     path = tmp_path / source.name
     shutil.copy2(source, path)
     with fits.open(path, mode="update") as hdul:
         hdul[0].header["NEXP_PRP"] = 2
+    sji = find_irispy_test_file(irispy_test_files, "iris_l2_20230408_110821_3880012095_SJI_1400_t000.fits")
+    shutil.copy2(sji, tmp_path / sji.name)
+    with fits.open(tmp_path / sji.name, mode="update") as hdul:
+        hdul[0].header["NEXP_PRP"] = 2  # a slit-jaw image of a 16-position raster, as 4000005156 SJI 2796: not a raster
     expected = "3860258481-2014-03-29T14:09:38 takes 2 exposures at each raster position"
     with pytest.warns(UserWarning, match=expected) as record:
         assert len(raster_data([path])) == 9  # once for all its windows
     assert len(record) == 1
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
-    dialog.obs_tree.topLevelItem(0).setCheckState(0, Qt.Checked)
+    for obsid in ("3860258481", "3880012095"):
+        _row(dialog, obsid).setCheckState(0, Qt.Checked)
     with pytest.warns(UserWarning, match=expected) as record:  # and from the browser, on the GUI thread
         load_selected(qtbot, dialog)
-    assert len(dialog.datasets) == 9
+    assert len(dialog.datasets) == 10
     assert len(record) == 1
     # A sit-and-stare raster's one position takes every exposure (NRASTERP 1, NEXP_PRP 1872): no warning, which the
     # suite would raise
