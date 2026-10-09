@@ -40,6 +40,12 @@ Expand an observation to see what can be loaded:
 An observation with only one entry shows it in its "Files" column (for example ``1 — AIA 1700``)
 and has its tick box on its own row.
 
+Type in "Filter" to list only the observations whose row or entries contain the text, in any case:
+a line such as ``mg ii`` or ``Si IV 1403``, a start date as STARTOBS shows it (``2013-09-02``), or
+an OBSID. An observation it lists shows all its entries, and the filter stays as the folder is
+searched again. Ticks stay as the filter changes, and "Load selected" loads every tick, listed or
+not.
+
 Tick the entries you want (ticking the observation row ticks everything under it); each slit-jaw
 channel and AIA cutout you tick loads as a dataset of its own. Then press "Load selected": the data
 are added to the data collection. glue reads the files in the background, one at a time, and the

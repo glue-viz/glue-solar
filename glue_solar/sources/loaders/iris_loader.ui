@@ -35,6 +35,9 @@
        <property name="text">
         <string>Change…</string>
        </property>
+       <property name="autoDefault">
+        <bool>false</bool>
+       </property>
       </widget>
      </item>
      <item>
@@ -43,6 +46,27 @@
         <string>Search subfolders</string>
        </property>
        <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="filterLayout">
+     <item>
+      <widget class="QLabel" name="filterLabel">
+       <property name="text">
+        <string>Filter:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="filter">
+       <property name="placeholderText">
+        <string>Show the observations whose row or entries contain this text, in any case, e.g. mg ii or 2014-03</string>
+       </property>
+       <property name="clearButtonEnabled">
         <bool>true</bool>
        </property>
       </widget>
@@ -144,6 +168,9 @@
        <property name="text">
         <string>Cancel</string>
        </property>
+       <property name="autoDefault">
+        <bool>false</bool>
+       </property>
       </widget>
      </item>
      <item>
@@ -151,8 +178,8 @@
        <property name="text">
         <string>Load selected</string>
        </property>
-       <property name="default">
-        <bool>true</bool>
+       <property name="autoDefault">
+        <bool>false</bool>
        </property>
       </widget>
      </item>

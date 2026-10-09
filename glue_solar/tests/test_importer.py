@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 from irispy.io import read_files
 from qtpy.QtCore import QMetaObject, Qt
+from qtpy.QtTest import QTest
 from qtpy.QtWidgets import QDialog, QFileDialog
 
 import astropy.units as u
@@ -345,6 +346,47 @@ def test_single_entry_observation_is_ticked_on_its_own_row(dialog):
     assert row.text(6) == "1 — SJI_2832"
     row.setCheckState(0, Qt.Checked)
     assert [(kind, name) for _, kind, name in dialog.selected()] == [("sji", "SJI_2832")]
+
+
+def _listed(dialog):
+    tree = dialog.obs_tree
+    return [row.text(1) for row in map(tree.topLevelItem, range(tree.topLevelItemCount())) if not row.isHidden()]
+
+
+def test_filter_lists_the_observations_whose_row_or_entries_hold_the_text(dialog):
+    dialog.filter.setText("mg II")  # a raster window of OBS_A, in any case
+    assert _listed(dialog) == [OBS_A[2]]
+    dialog.filter.setText("2014-07-08")  # OBS_C's start date
+    assert _listed(dialog) == [OBS_C[2]]
+    dialog.filter.setText("sji_")  # an entry of OBS_A and the one on OBS_B's own row
+    assert _listed(dialog) == [OBS_B[2], OBS_A[2]]
+    dialog.filter.setText("3s 1.5")  # the end of a description and XCEN: never across texts
+    assert _listed(dialog) == []
+    dialog.filter.clear()
+    assert _listed(dialog) == [OBS_C[2], OBS_B[2], OBS_A[2]]
+
+
+def test_ticks_the_filter_hides_still_load(dialog):
+    _row(dialog, OBS_A[2]).setCheckState(0, Qt.Checked)
+    _row(dialog, OBS_B[2]).setCheckState(0, Qt.Checked)
+    dialog.filter.setText("2832")
+    assert _listed(dialog) == [OBS_B[2]]
+    assert len(dialog.selected()) == 5
+
+
+def test_return_in_the_filter_loads_nothing(dialog):
+    dialog.show()
+    QTest.keyClick(dialog.filter, Qt.Key_Return)
+    assert dialog.isVisible()
+    assert dialog.ok.isEnabled()
+
+
+def test_filter_survives_a_rescan(dialog, qtbot):
+    dialog.filter.setText("2025-03-28")
+    dialog.recursive.setChecked(False)
+    scanned(qtbot, dialog)
+    assert _row(dialog, OBS_A[2]).text(6) == "1 — SJI_1400"  # listed anew
+    assert _listed(dialog) == [OBS_A[2]]
 
 
 def test_recursive_toggle_rescans(dialog, qtbot):
