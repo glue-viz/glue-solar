@@ -284,7 +284,6 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 **L**
 
 - [ ] **L** `wp9-l-macos-app`: A macOS app bundle of glue with glue-solar, irispy main and sunpy, from a PyInstaller recipe in glue-solar's repo built on glue-standalone-apps' `glue_app.spec` and hooks (D55): a build script makes `Glue Solar.app` and a .dmg with an Applications shortcut, in a fresh micromamba env. Done when the app, dragged into /Applications, opens an IRIS observation's quicklook on the user's Mac; rebuilt with the M4 releases.
-
 - [ ] **L** `wp9-l-deferred-recipes` (F037, F145): Document Ctrl+I as the FITS header viewer, and row/column cuts once glue's Slice profile ships. Done when both reproduce on 4000005156 Si IV.
 
 **M4**
