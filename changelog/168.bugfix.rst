@@ -1,0 +1,1 @@
+glue-solar no longer imports spectral-cube when it loads (0.3–0.45 s of every launch where spectral-cube is installed): its PV slicer fix checks glue-qt on the first PV slice instead.
