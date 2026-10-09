@@ -64,7 +64,7 @@ which the tables' ``coordinate.Tx`` and ``coordinate.Ty`` include, as the maps' 
 ``glue_solar.sources.bursts.sji_bursts(data, sigma_factor, min_pixels)`` return the two datasets in
 glue's terminal too.
 
-Glue says why, and adds nothing, for stacks of scans, as for :ref:`line moments
-<glue_solar_users_guide_iris_line_moments>`, for slit-jaw images of other bands, other data, a
+Glue says why, and adds nothing, for stacks of scans (unlike :ref:`line moments
+<glue_solar_users_guide_iris_line_moments>`), for slit-jaw images of other bands, other data, a
 window with no wavelength within the velocities of Si IV 1402.77 Å, before asking for ±50 km/s, a
 threshold that is not a number, and irispy's own errors.
