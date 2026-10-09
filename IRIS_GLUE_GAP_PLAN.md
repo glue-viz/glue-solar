@@ -288,7 +288,7 @@ Covers the observation browser, the header scanner (`scan.py`) and the IRIS read
 - [ ] **L** `wp8-prescan-search` (F003, F010): Time-window and glob arguments for `scan_directory` that prune by filename, and `find_observation_files`. Done when a 2013-09-02 window reads only 2013-09-01/02 headers.
 - [ ] **L** `wp8-search-ui` (F001, F002, F004): Start/Stop time fields, named search locations and recent searches. Done when tests set and restore the scan window. Depends: wp8-prescan-search.
 - [ ] **L** `wp8-browser-conveniences` (F006, F007, F014): Persist browser options, an editable Folder field and double-click to load. Done when tests restore the settings and a typed path rescans. Depends: wp3-file-references.
-- [ ] **L** `wp8-sot-cubes` (F106): Read Hinode/SOT cubes in IRIS SJI format (ITN 32) after porting the reader to irispy main (prototype: `IRIS_PLAN_PROTOTYPES/itn32_sot/`; user, 2026-10-09: as a draft irispy PR, branch `sot-cubes`, worktree `~/Git/irispy-sot-cubes`, data under `~/DATA/IRIS/sot`). Done when an ITN 32 cube opens with `Time` and pointing that `link_hpc` reaches.
+- [ ] **L** `wp8-sot-cubes` (F106): Read Hinode/SOT cubes in IRIS SJI format (ITN 32) after porting the reader to irispy main (prototype: `IRIS_PLAN_PROTOTYPES/itn32_sot/`; user, 2026-10-09: as a draft irispy PR: irispy #229, branch `sot-cubes`, worktree `~/Git/irispy-sot-cubes`, data under `~/DATA/IRIS/sot`; glue-solar's side waits for it to merge). Done when an ITN 32 cube opens with `Time` and pointing that `link_hpc` reaches.
 
 **OM**
 
