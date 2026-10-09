@@ -1828,6 +1828,12 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
     tool.activate()
     state.x_min, state.x_max = 2795, 2798
 
+    def velocities(waves, rest):
+        return (np.asarray(waves) / rest - 1) * constants.c.to_value("km/s")
+
+    viewer.figure.canvas.draw()
+    assert tool.axis.get_xlim() == pytest.approx(velocities([2795, 2798], 2796.352))
+
     def zero():
         """Where the top axis has its tick at 0 km/s, in Å."""
         viewer.figure.canvas.draw()
@@ -1837,9 +1843,6 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
     def set_rest(text):
         monkeypatch.setattr(QInputDialog, "getItem", lambda *args: (text, True))
         rest_wavelength_iris(state.reference_data, app.data_collection)
-
-    def velocities(waves, rest):
-        return (np.asarray(waves) / rest - 1) * constants.c.to_value("km/s")
 
     assert zero() == pytest.approx(2796.352, abs=1e-6)
     set_rest("2796.2")
