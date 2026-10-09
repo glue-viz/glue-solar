@@ -11,9 +11,9 @@ example "Zoom to rectangle [shortcut: Z]".
 
 glue-solar keeps its Image Viewer tools, all but Follow/lock, in three menus, so that the toolbar
 fits a viewer 700 pixels wide; a narrower viewer moves the last buttons behind the toolbar's »
-button. The pencil icon holds glue-solar's mouse modes, "Measure", "Path diagram" and "Show
-position on original path", with the one on checked, and the "Path sampling" submenu, described
-with "Path diagram" below; the link icon is the "Coordinate" menu; and
+button. The pencil icon holds glue-solar's mouse modes, "Measure", "Path diagram", "Show
+position on original path" and "Slope", with the one on checked, and the "Path sampling" submenu,
+described with "Path diagram" below; the link icon is the "Coordinate" menu; and
 the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Wavelength
 band…", "Physical aspect", "Zoom 1:1", "Colour bar" and "Cursor readout", each but "Zoom 1:1"
 checked while it is on.
@@ -83,6 +83,21 @@ toolbar has:
   diagram's viewer, "Show position on original path" marks the point of the path under the mouse
   while you drag, and moves the viewer it was drawn in to the frame, wavelength or scan the
   diagram's y axis shows there, only that slider. Sessions do not save the diagrams yet.
+- "Slope", a glue-solar mode in a path diagram's viewer ("Click points along a track on a
+  distance-time diagram, then press Enter for its speed"): on a diagram with one time on each row,
+  a slit-jaw image's frames or a sit-and-stare raster's exposures against the path, click points
+  along a feature's track, or drag along it, and press Enter (Esc clears the points). The status bar
+  gives the speed along the path at the earliest point, in km/s, positive away from the path's start:
+  of the straight line through the distances against time of points at two times, or, with three
+  times or more, of the least-squares parabola through them, which also gives the acceleration in
+  m/s². A distance is the length along the path from its first sample, measured as "Measure"
+  measures, with the data's coordinates at the point's frame and its ``DSUN_OBS``; a time is that of
+  the point's row. Enter adds the measurement as a row of the diagram's table, the dataset
+  ``<diagram> slopes``: the earliest and latest points' times in UTC (``t0``, ``t1``) and distances
+  in km (``d0``, ``d1``), the speed and the acceleration, NaN from two times. The first row adds the
+  table to the data collection and opens it in a Table viewer. A diagram without sky coordinates or
+  ``DSUN_OBS``, or whose times change along the path, as a raster map's do, or points at one time,
+  give "No speed here".
 - "Cursor readout", in the View menu: the world position under the mouse, the ``Time`` (UTC, to the
   millisecond) and ``Exposure time`` of that pixel, and its value, in the status bar, for example
   ``65.13" 109.32" (world) · 2013-09-02T18:31:07.229 UTC · exp 2 s | value = -3`` on a raster map,
@@ -227,9 +242,11 @@ in the image or toolbar that has the keyboard, the one last clicked.
      - "Measure" and "Path diagram", from the pencil menu, which shows each key beside its entry; they
        work while the toolbar has the keyboard, as a button's key does.
    * - :kbd:`Enter`
-     - In "Path diagram", makes the diagrams of the path drawn.
+     - In "Path diagram", makes the diagrams of the path drawn; in "Slope", adds the speed of the
+       points clicked to the diagram's table.
    * - :kbd:`Esc`
-     - In "Path diagram", clears the path; in "Follow/lock", unlocks the point.
+     - In "Path diagram", clears the path; in "Slope", the points; in "Follow/lock", unlocks the
+       point.
    * - :kbd:`W`
      - With the mouse over the image, switches the cursor readout between world and pixel positions.
 
