@@ -287,10 +287,11 @@ hidden.
 Saving sessions
 ---------------
 
-Saving a session that contains IRIS data can fail before any file is written. The irispy
-metadata and WCS objects, including SJI gWCS and raster lookup tables, need dedicated serializers,
-and data read from their files as they are viewed cannot be saved in a session yet, nor can a
-pointing offset set with "Shift pointing…"; save derived products separately rather than relying on
-a Glue session as their only copy. With glue-core 1.27.0 a session saved while an Image viewer has
+Saving a session that contains IRIS data can fail before any file is written. A session keeps the
+coordinates of every IRIS dataset and of those made from them, with any pointing offset set with
+"Shift pointing…", but the irispy metadata and the colormaps of raster windows, slit-jaw images and
+AIA cutouts need dedicated serializers, and data read from their files as they are viewed cannot be
+saved in a session yet; save derived products separately rather than relying on a Glue session as
+their only copy. With glue-core 1.27.0 a session saved while an Image viewer has
 "Per-frame limits" on, whatever its data, does not open: glue reports "'NoneType' object has no
 attribute 'add_callback'". Turn them off before saving.
