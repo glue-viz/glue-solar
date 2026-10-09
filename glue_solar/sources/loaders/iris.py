@@ -914,6 +914,9 @@ class QtIRISImporter(QtWidgets.QDialog):
     def set_directory(self, directory):
         if not directory:
             return
+        if not Path(directory).is_dir():  # a saved or recent folder since removed or unmounted
+            self.progress.setFormat(f"No such folder: {directory}")
+            return
         self.directory.setText(str(directory))
         QSettings(*_SETTINGS).setValue(_LAST_DIR, str(directory))
         self._rescan()
@@ -932,6 +935,7 @@ class QtIRISImporter(QtWidgets.QDialog):
             start, end = _window_time(search[1]), _window_time(search[2], end=True)
         except ValueError as error:
             self.progress.setFormat(f"Start and End take UTC times, such as 2014-03-29T14:00 or 2014-03: {error}")
+            self._busy(False)  # after an archive is unpacked
             return
         self._recent = [search, *(kept for kept in self._recent if kept != search)][:_RECENT_SEARCHES]
         QSettings(*_SETTINGS).setValue(_RECENT, json.dumps(self._recent))

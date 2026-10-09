@@ -397,7 +397,7 @@ def test_recursive_toggle_rescans(dialog, qtbot):
     assert row.text(6) == "1 — SJI_1400"
 
 
-def test_start_and_end_scan_their_window_and_fill_the_next_browser(qtbot, monkeypatch, iris_tree):
+def test_start_and_end_scan_their_window_and_fill_the_next_browser(qtbot, monkeypatch, iris_tree, tmp_path):
     from glue_solar.sources.loaders import scan
 
     reads, read = [], scan._primary_header
@@ -436,6 +436,14 @@ def test_start_and_end_scan_their_window_and_fill_the_next_browser(qtbot, monkey
     scanned(qtbot, again)
     assert (again.start.text(), again.end.text()) == ("2023-02-11", "2023-02")
     assert _listed(again) == [OBS_B[2]]
+    gone = tmp_path / "gone"
+    gone.mkdir()
+    again.set_directory(gone)
+    scanned(qtbot, again)
+    gone.rmdir()  # as a drive is unmounted
+    again.recent.activated.emit(0)
+    assert again.ok.isEnabled()  # no scan
+    assert again.progress.format() == f"No such folder: {gone}"
 
 
 def test_saved_folders_search_their_folder_and_last_until_removed(qtbot, monkeypatch, iris_tree, tmp_path):
@@ -548,6 +556,19 @@ def test_extract_archive_then_lists_its_windows(qtbot, iris_tree, tmp_path):
         "C II 1336 — 1 raster file(s)",
         "Mg II k 2796 — 1 raster file(s)",
     ]
+
+
+def test_extract_with_an_invalid_start_frees_the_browser(qtbot, iris_tree, tmp_path):
+    tree = tmp_path / "copy"
+    shutil.copytree(iris_tree, tree)
+    dlg = QtIRISImporter(tree)
+    qtbot.addWidget(dlg)
+    scanned(qtbot, dlg)
+    dlg.start.setText("2023-02-30")
+    dlg.start.editingFinished.emit()
+    _row(dlg, OBS_C[2]).setCheckState(0, Qt.Checked)
+    load_selected(qtbot, dlg)  # unpacked, then listed again once the time is fixed
+    assert dlg.progress.format().startswith("Start and End take UTC times")
 
 
 def test_stop_keeps_the_archives_unpacked_in_full(qtbot, iris_tree, tmp_path, monkeypatch):
