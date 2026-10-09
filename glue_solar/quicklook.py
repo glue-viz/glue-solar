@@ -742,18 +742,22 @@ class Coordinator(HubListener):
 
     def _mark(self, key, time, seconds):
         """
-        Select the exposure of observation ``key``'s time master, from ``time`` for ``seconds``, on the first datetime
-        Scatter plot while its x axis is that observation's (by OBSID and STARTOBS): as the subset group 'Master
-        exposure', glue's own range on that axis, as a range dragged there gives. The group is a session's, found by
-        its label, or made at the first such sync and removed from the other viewers open then; deleting it stops it.
+        Select the exposure of observation ``key``'s time master, from ``time`` for ``seconds``, on the first open
+        datetime Scatter plot of an observation's data (by OBSID and STARTOBS) while that observation is ``key``: as
+        the subset group 'Master exposure', glue's own range on that axis, as a range dragged there gives. The group
+        is a session's, found by its label, or made at the first such sync and removed from the other viewers open
+        then; deleting it stops it.
         """
         groups = self.data_collection.subset_groups
         if self.marker is not None and self.marker not in groups:
             return  # deleted
         app = next(iter(self._viewers)).session.application
-        plots = [viewer.state for tab in app.viewers for viewer in tab if isinstance(viewer.state, ScatterViewerState)]
-        # ponytail: the first plot's axis only, unlinked times on another stay unmarked; a range per axis if needed
-        x = next((state.x_att for state in plots if state.x_att is not None and "datetime" in state.x_kinds), None)
+        viewers = [viewer for tab in app.viewers for viewer in tab if not viewer._closed]  # glue-qt keeps closed ones
+        plots = [viewer.state for viewer in viewers if isinstance(viewer.state, ScatterViewerState)]
+        # ponytail: the first such plot's axis only, unlinked times on another stay unmarked; a range per axis if needed
+        times = [state.x_att for state in plots if state.x_att is not None and "datetime" in state.x_kinds]
+        # one observation's, or each observation's sync would move the one group in turn
+        x = next((att for att in times if observation_key(att.parent) is not None), None)
         if x is None or observation_key(x.parent) != key:
             return
         end = time + np.timedelta64(int(np.nan_to_num((seconds or 0) * 1e9)), "ns")
@@ -765,7 +769,7 @@ class Coordinator(HubListener):
             edit = mode.edit_subset
             self.marker = self.data_collection.new_subset_group(label="Master exposure", subset_state=state)
             mode.edit_subset = edit  # glue-qt makes a new group the edit subset
-            for viewer in (viewer for tab in app.viewers for viewer in tab):
+            for viewer in viewers:
                 if not isinstance(viewer.state, ScatterViewerState):
                     _show(viewer, self.marker, False)  # as a light curve is: they would update it at each step
         old = self.marker.subset_state

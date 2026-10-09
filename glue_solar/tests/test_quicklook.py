@@ -1440,6 +1440,10 @@ def test_the_master_exposure_shows_on_a_datetime_scatter_plot(bare_app, qtbot, i
     raster, sji = sit_and_stare(irispy_test_files)
     bare_app.data_collection.append(raster)
     mine = bare_app.data_collection.new_subset_group(label="mine", subset_state=raster.pixel_component_ids[0] > 3)
+    goes = Data(label="goes", t=raster[raster.id["Time"]][:, 0, 0], flux=np.arange(raster.shape[0], dtype=float))
+    bare_app.data_collection.append(goes)
+    unrelated = bare_app.new_data_viewer(ScatterViewer, data=goes)  # a time plot of other data, first
+    unrelated.state.x_att, unrelated.state.y_att = goes.id["t"], goes.id["flux"]
     viewers = quicklook(bare_app, [raster, sji])
     [point] = bare_app.session.edit_subset_mode.edit_subset
     scatter = time_series(bare_app, raster)
@@ -1465,12 +1469,20 @@ def test_the_master_exposure_shows_on_a_datetime_scatter_plot(bare_app, qtbot, i
     menu_action(sji_viewer, "Time master").trigger()  # and with a new master
     sji_viewer.state.slices = (3, 0, 0)
     qtbot.waitUntil(lambda: marks(bare_app, sji, 3))
+    scatter.close(warn=False)  # a closed plot is left, a new one marked
+    scatter = time_series(bare_app, raster)
+    sji_viewer.state.slices = (4, 0, 0)
+    qtbot.waitUntil(lambda: marks(bare_app, sji, 4) and group.subset_state.att is scatter.state.x_att)
+    [layer] = [layer for layer in scatter.layers if getattr(layer.layer, "group", None) is group]
+    assert layer.enabled
     synced = []
     coordinator(bare_app.data_collection).add_listener(lambda *args: synced.append(args))
+    lo = group.subset_state.lo
     bare_app.data_collection.remove_subset_group(group)  # deleting it stops it
     sji_viewer.state.slices = (5, 0, 0)
     qtbot.waitUntil(lambda: bool(synced))
     assert markers(bare_app) == []
+    assert group.subset_state.lo == lo
 
 
 def footprint(raster, sji):

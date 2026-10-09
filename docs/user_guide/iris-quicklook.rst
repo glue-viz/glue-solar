@@ -239,8 +239,9 @@ such as a table of burst events, shows the time master's exposure: the subset "M
 glue's own range on that axis from the exposure's start to its end, as glue's x range selection
 makes there, which highlights the points within it. It is made at the first time sync with such a
 plot open and removed from the viewers open then, as a light curve is, and it moves with the master
-at each frame, exposure or scan, on playback, "Go to UTC…" and a new time master. Only the first
-such plot's time axis is marked: on a plot of other data it marks nothing, unless glue links that
+at each frame, exposure or scan, on playback, "Go to UTC…" and a new time master. One time axis
+is marked, that of the first open such plot of any observation, with that observation's time
+master: on a plot of other data, such as a GOES curve, it marks nothing unless glue links that
 data's time to it. Deleting the "Master exposure" group in the layer tree stops it. Adding data
 makes glue-qt 0.4.2 select the last subset group, often this one, as the edit subset: select "Point"
 there again before the next click. With the Si IV 1403 window of OBSID 4000255147, its SJI 1400, a
