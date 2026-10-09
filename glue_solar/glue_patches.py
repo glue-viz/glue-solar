@@ -16,11 +16,14 @@ import numpy as np
 from echo.qt.connect import UserDataWrapper
 from glue.config import data_exporter
 from glue.core import Data, DataCollection, Subset, component_link, coordinate_helpers
+from glue.core.command import ApplySubsetState
 from glue.core.component import DaskComponent
 from glue.core.component_link import ComponentLink
 from glue.core.coordinate_helpers import unbroadcast
 from glue.core.data_exporters import gridded_fits
+from glue.core.edit_subset_mode import EditSubsetMode
 from glue.core.exceptions import IncompatibleAttribute
+from glue.core.subset import SubsetState
 from glue.utils import defer_draw
 from glue.viewers.histogram import state as histogram_state
 from glue.viewers.histogram import viewer as histogram_viewer
@@ -48,6 +51,7 @@ from astropy.wcs import WCS
 
 __all__ = [
     "aggregate_slice_init",
+    "apply_subset_state",
     "canvas_init",
     "close_event",
     "datetime64_to_mpl",
@@ -63,6 +67,7 @@ __all__ = [
     "needs_pixel_point_workaround",
     "needs_pv_dask_workaround",
     "needs_pv_slice_workaround",
+    "needs_redo_workaround",
     "needs_reference_crosshair_workaround",
     "pv_slice_from_path",
     "sync_pv_slice",
@@ -310,6 +315,50 @@ def needs_pixel_point_workaround(method=_original_to_linked_pixel_coords):
 
 if needs_pixel_point_workaround():
     PixelSubsetState._to_linked_pixel_coords = _to_linked_pixel_coords
+
+
+_original_apply_subset_state = ApplySubsetState.do
+
+
+def apply_subset_state(self, session):
+    """
+    glue-core's ``ApplySubsetState.do``, whose Redo puts back the subset states its first run made.
+
+    glue-core 1.27.0 applies the subset state again on Redo, to the edit subset and in the selection mode of then, and
+    listeners rewrite it from the viewers of then: the quicklook places a slit-jaw click on the raster with the frame
+    shown, so Redo after the frame moved gave another exposure or scan. A Redo whose subsets Undo deleted, as those of a
+    new subset group, stays glue's. Retired by glue's ``ApplySubsetState`` keeping the subset states it made (report
+    candidate).
+    """
+    made = getattr(self, "_solar_made", None)
+    if made is None or any(subset not in subset.data.subsets for subset in made):
+        _original_apply_subset_state(self, session)
+        subsets = [subset for data in self.data_collection for subset in data.subsets]
+        self._solar_made = {s: s.subset_state for s in subsets if s.subset_state is not self.old_states.get(s)}
+        return
+    self.old_states = {subset: subset.subset_state for data in self.data_collection for subset in data.subsets}
+    for subset, state in made.items():
+        getattr(subset, "group", subset).subset_state = state  # a group's, as glue's do sets it: one message a subset
+
+
+def needs_redo_workaround(do=_original_apply_subset_state):
+    """Whether ``do``, run again as Redo runs it, applies the subset state to the edit subset of then."""
+    collection = DataCollection([Data(x=np.zeros(2), label="probe")])
+    first, second = collection.new_subset_group(), collection.new_subset_group()
+    mode = EditSubsetMode()
+    mode.data_collection, mode.edit_subset = collection, [first]
+    session = SimpleNamespace(edit_subset_mode=mode)
+    command = ApplySubsetState(data_collection=collection, subset_state=SubsetState(), override_mode=None)
+    do(command, session)
+    made = first.subset_state
+    command.undo(session)
+    mode.edit_subset = [second]
+    do(command, session)
+    return first.subset_state is not made
+
+
+if needs_redo_workaround():
+    ApplySubsetState.do = apply_subset_state
 
 
 _original_update_visual_attributes = ImageSubsetLayerArtist._update_visual_attributes
