@@ -19,6 +19,7 @@ from glue.core.component import Component
 from glue.core.component_id import ComponentID
 from glue.core.component_link import ComponentLink
 from glue.core.data import Data
+from glue.core.data_factories import LoadLog
 from glue.core.hub import HubListener
 from glue.core.link_helpers import LinkSame, LinkSameWithUnits
 from glue.core.message import DataCollectionDeleteMessage
@@ -48,6 +49,7 @@ __all__ = [
     "load_entry",
     "link_hpc",
     "raster_data",
+    "raster_files_data",
 ]
 
 # Load data stored as int16, as Level 2 files store it, lazily: the raw integers stay in the file (in memory for a
@@ -526,6 +528,19 @@ def _image_cube_data(cube, path, scaling=None):
     return _cube_data(cube, label, unit=DN_UNIT["SJI"], cmap=cmap, scaling=scaling)
 
 
+def _logged(datasets, path, factory, **kwargs):
+    """
+    ``datasets`` with the load log glue's ``load_data(path, factory=factory, **kwargs)`` gives them, so that a session
+    refers to their file, and reads them from it again, rather than holding their values.
+    """
+    log = LoadLog(str(path), factory, kwargs)
+    for data in datasets:
+        log.log(data)
+        for cid in data.coordinate_components + data.main_components:  # load_data's order, which a restore reads
+            log.log(data.get_component(cid))
+    return datasets
+
+
 def last_directory():
     """The folder the user browsed last time (home directory if never)."""
     return str(QSettings(*_SETTINGS).value(_LAST_DIR, str(Path.home())))
@@ -536,7 +551,8 @@ def image_data(path):
     Load an SJI or AIA-cutout file through irispy.
 
     Data stored as int16, as Level 2 files store them, stay in the file and are scaled where glue reads them
-    (`LAZY`); a ``.fits.gz`` file is decompressed once, and its data held in memory as int16.
+    (`LAZY`); a ``.fits.gz`` file is decompressed once, and its data held in memory as int16. A glue session refers to
+    the file rather than holding the values.
 
     Returns
     -------
@@ -553,7 +569,7 @@ def image_data(path):
     if scaling:
         allow_open_files()
     cube = read_sji_lvl2(content if gzipped else path, memmap=bool(scaling), uncertainty=False)
-    return _image_cube_data(cube, path, scaling)
+    return _logged([_image_cube_data(cube, path, scaling)], path, image_data)[0]
 
 
 def iris_data(path):
@@ -594,7 +610,8 @@ def raster_data(files, windows=None, stack=False):
     list of `~glue.core.data.Data`
         One per scan and window, or one per window when ``stack`` is set. Windows stored as int16, as Level 2
         files store them, stay in their files and are scaled where glue reads them (`LAZY`), if every file stores
-        them alike.
+        them alike. A glue session refers to the files of each window (`raster_files_data`) rather than holding the
+        values.
 
     Warns
     -----
@@ -604,6 +621,15 @@ def raster_data(files, windows=None, stack=False):
     datasets = [data for datasets in _raster_windows_data(files, windows, stack).values() for data in datasets]
     _warn_repeated_positions(datasets)
     return datasets
+
+
+def raster_files_data(path, files=(), windows=None, stack=False):
+    """
+    `raster_data` as a glue data factory, which a session's load log calls: ``path`` is the first raster file, and
+    ``files`` every one by its path relative to the folder of ``path``, so that a session with relative paths finds
+    them all where it finds ``path``.
+    """
+    return raster_data([Path(path).parent / name for name in files] or [path], windows, stack)
 
 
 def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None):
@@ -630,8 +656,13 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None)
             scans.setdefault(window, []).extend(sequence)
         if step is not None:
             step()
-    return {window: _raster_collection_data({window: cubes}, stack=stack, scaling=scaling)
-            for window, cubes in scans.items()}
+    first = sorted(files)[0]
+    names = [os.path.relpath(path, Path(first).parent) for path in sorted(files)]
+    result = {}
+    for window, cubes in scans.items():  # each with its own log, which a session reads back alone
+        datasets = _raster_collection_data({window: cubes}, stack=stack, scaling=scaling)
+        result[window] = _logged(datasets, first, raster_files_data, files=names, windows=[str(window)], stack=stack)
+    return result
 
 
 def link_hpc(data_collection):

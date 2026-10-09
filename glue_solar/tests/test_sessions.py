@@ -1,7 +1,10 @@
 """
 Sessions keep the coordinates and colormaps of every kind of dataset glue-solar makes from IRIS data, on irispy's test
-files, and the colormap of a sunpy map.
+files, and the colormap of a sunpy map; they refer to the files IRIS data are read from.
 """
+
+import json
+import shutil
 
 import numpy as np
 import pytest
@@ -11,6 +14,7 @@ from glue.viewers.profile.state import ProfileViewerState
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from qtpy.QtCore import Qt
 
 import astropy.units as u
 from astropy.wcs import WCS
@@ -20,11 +24,12 @@ from sunpy.visualization.colormaps import cmlist
 
 import glue_solar
 from glue_solar import glue_patches
-from glue_solar.conftest import find_irispy_test_file
+from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.regrid import north_up, rebin, regrid_on_time
-from glue_solar.sources.loaders.iris import image_data, raster_data
+from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments
+from glue_solar.tests.helpers import load_selected, scanned
 from glue_solar.tests.test_quicklook import SCAN
 from glue_solar.tools import _pointing
 
@@ -146,3 +151,58 @@ def test_a_session_restores_a_profile_along_the_last_axis_in_its_unit(qtbot, mon
     qtbot.addWidget(restored)
     states = [viewer.state for viewer in restored.viewers[0]]
     assert [(s.x_att.label, s.x_display_unit, s.x_min, s.x_max) for s in states] == saved
+
+
+
+
+def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_move(
+    qtbot, monkeypatch, tmp_path, iris_tree
+):
+    shutil.copytree(iris_tree, tmp_path / "first" / "data")
+    dialog = QtIRISImporter(tmp_path / "first" / "data")
+    qtbot.addWidget(dialog)
+    scanned(qtbot, dialog)
+    tree = dialog.obs_tree
+    stem = "iris_l2_{}_{}_{}".format(*OBS_A)
+    row = next(
+        tree.topLevelItem(i) for i in range(tree.topLevelItemCount()) if tree.topLevelItem(i).text(1) == OBS_A[2]
+    )
+    row.setCheckState(0, Qt.Checked)  # its slit-jaw image, AIA cutout and two raster windows
+    dialog.stack.setChecked(True)  # of its two raster files
+    load_selected(qtbot, dialog)
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
+    app.data_collection.extend(dialog.datasets)
+    # with paths relative to the session file, the type glue's Save Session dialog starts with
+    app.save_session(str(tmp_path / "first" / "session.glu"), absolute_paths=False)
+    records = json.loads((tmp_path / "first" / "session.glu").read_text())
+    logs = [(record["path"], dict(*record["kwargs"])) for record in records.values() if "LoadLog" in record["_type"]]
+    files = [f"{stem}_raster_t000_r0000{r}.fits" for r in range(2)]
+    raster = f"data/{MD5}{stem}_raster/{files[0]}"
+    assert sorted(logs, key=str) == sorted(
+        [
+            (f"data/{MD5}{stem}_SJI_1400_t000.fits.gz", {}),
+            (f"data/{MD5}{stem}_SDO/{stem.replace('iris', 'aia')}_171.fits", {}),
+            (raster, {"files": files, "windows": ["C II 1336"], "stack": True}),
+            (raster, {"files": files, "windows": ["Mg II k 2796"], "stack": True}),
+        ],
+        key=str,
+    )
+    # no values in the session: each component is its file's, a pixel or world coordinate, or derived from those
+    components = [records[component] for data in dialog.datasets for _, component in records[data.label]["components"]]
+    assert all(
+        "log" in record or record["_type"].endswith(("CoordinateComponent", "DerivedComponent"))
+        for record in components
+    )
+    (tmp_path / "first").rename(tmp_path / "moved")
+    restored = GlueApplication.restore_session(str(tmp_path / "moved" / "session.glu"), show=False)
+    qtbot.addWidget(restored)
+    for data, expected in zip(restored.data_collection, dialog.datasets, strict=True):
+        assert data.label == expected.label
+        for cid, expected_cid in zip(data.components, expected.components, strict=True):
+            if cid not in data.coordinate_components:
+                np.testing.assert_array_equal(data[cid], expected[expected_cid])
+        assert_same_coordinates(data.coords, expected)
+        assert set(expected.meta) - set(data.meta) <= {"auxiliary times", "exposure FOV center"}
+        assert data.style.preferred_cmap.name == expected.style.preferred_cmap.name

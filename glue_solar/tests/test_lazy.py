@@ -458,6 +458,12 @@ def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path
     layer = viewer.state.layers[0]
     layer.percentile = 99.5
     assert [layer.v_min, layer.v_max] == [np.nanpercentile(oracle, 0.25), np.nanpercentile(oracle, 99.75)]
+    # a session refers to the file, which it reads again, rather than holding the values
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
+    app.save_session(str(tmp_path / "lazy.glu"))
+    restored = GlueApplication.restore_session(str(tmp_path / "lazy.glu"), show=False)
+    qtbot.addWidget(restored)
+    np.testing.assert_array_equal(restored.data_collection[0][data.main_components[0].label], oracle)
     layer.attribute = data.derived_components[0]  # the mask draws too
     viewer.figure.canvas.draw()
     # and DN/s, with colour limits from random points, whose unit labels a profile
@@ -474,14 +480,6 @@ def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path
     histogram = app.new_data_viewer(HistogramViewer, data=data)
     histogram.state.x_att = data.main_components[0]
     assert [histogram.state.hist_x_min, histogram.state.hist_x_max] == [np.nanmin(oracle), np.nanmax(oracle)]
-    # a session cannot hold lazy data yet (WP3): glue reports it and writes nothing. irispy's Quantity metadata fails
-    # first, lazy or not, so it goes
-    errors = []
-    monkeypatch.setattr(app, "report_error", lambda message, detail: errors.append(detail))
-    data.meta.clear()
-    app.save_session(str(tmp_path / "lazy.glu"))
-    assert "serialize dask.array" in errors[0]
-    assert not (tmp_path / "lazy.glu").exists()
 
 
 def test_per_frame_limits_follow_the_wavelength_lazily_and_as_before(qtbot, monkeypatch, int16_raster):
