@@ -13,6 +13,7 @@ from qtpy import QtWidgets
 
 import astropy.units as u
 from astropy import constants
+from astropy.io import fits
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
@@ -190,11 +191,16 @@ def test_a_symmetric_line_gives_zero_a_redshift_a_positive_map_and_a_saturated_s
 
 
 def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
-    """A lazy stack of 3860258481's three scans gives one dataset whose maps at each scan are the scan's alone."""
+    """
+    A lazy stack of 3860258481's three scans, the second's Si IV 1403 a third of a sample redder, gives one dataset
+    whose maps at each scan are the scan's alone.
+    """
     paths = [
         int16_raster_copy(path, tmp_path / path.name)
         for path in sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)
     ]
+    with fits.open(paths[1], mode="update") as hdulist:
+        hdulist[5].header["CRVAL1"] += hdulist[5].header["CDELT1"] / 3
     [stack] = raster_data(paths, ["Si IV 1403"], stack=True)
     collection = app.data_collection
     collection.append(stack)
@@ -234,6 +240,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
         ("3000", None),
         ("Si IV", None),
         ("1402.77", "0, 10"),
+        ("1402.77", "nan"),
         ("1402.77", "10 fast"),
         ("1402.77", ""),
     ):
@@ -245,7 +252,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
     monkeypatch.setattr(doppler, "_read", Mock(side_effect=RuntimeError("unreadable")))
     answer(monkeypatch, "1402.77")
     action.trigger()
-    qtbot.waitUntil(lambda: len(shown) == 9 and not iris._RUNNING)
+    qtbot.waitUntil(lambda: len(shown) == 10 and not iris._RUNNING)
     assert all(text.startswith("Could not compute the Doppler image\n") for text in shown)
     span = f"{raster.label} (1398.63 to 1405.75 Å)"
     assert [text.split("\n", 1)[1] for text in shown] == [
@@ -254,6 +261,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
         f"The wings at ±10, 20, 30, 40, 50 km/s from 3000.0 Å lie outside {span}.",
         "'Si IV' is not a wavelength in Angstrom, such as 1402.77.",
         "The velocities must be positive, not 0, 10 km/s.",
+        "The velocities must be positive, not nan km/s.",
         "'10 fast' is not a list of velocities in km/s, such as 10, 20, 30.",
         "'' is not a list of velocities in km/s, such as 10, 20, 30.",
         f"The wings at ±200, 300 km/s from 1399.0 Å lie outside {span}.",

@@ -28,14 +28,16 @@ def _wings(data, rest, velocities):
     `_check` refuses, a velocity that is not positive or a wing outside the window.
     """
     _check(data)
-    if min(velocities) <= 0:
+    if not (len(velocities) and np.all(np.asarray(velocities, float) > 0)):  # NaN too
         raise ValueError(f"The velocities must be positive, not {', '.join(f'{v:g}' for v in velocities)} km/s.")
     speeds = np.concatenate([velocities, np.negative(velocities)])
     targets = (speeds * u.km / u.s).to_value(u.AA, equivalencies=u.doppler_optical(rest * u.AA))
     unit = u.Unit(data.coords.world_axis_units[0])
     wings = []
     for scan in np.ndindex(data.shape[:-3]):  # each scan of a stack at its own wavelengths
-        wavelengths = (data[data.world_component_ids[-1], (*scan, 0, 0)] * unit).to_value(u.AA)
+        # through the WCS: glue's Wavelength component of a stack, depending on no scan pixel, is scan 0's at each
+        wavelengths = data.coords.pixel_to_world_values(np.arange(data.shape[-1]), 0, 0, *scan)[0]
+        wavelengths = (wavelengths * unit).to_value(u.AA)
         below = np.clip(np.searchsorted(wavelengths, targets, side="right") - 1, 0, wavelengths.size - 2)
         weight = (targets - wavelengths[below]) / np.diff(wavelengths)[below]
         outside = (weight < 0) | (weight > 1)
