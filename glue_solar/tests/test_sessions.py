@@ -5,10 +5,12 @@ files, and the colormap of a sunpy map.
 
 import numpy as np
 import pytest
-from glue.core import DataCollection
+from glue.core import Data, DataCollection
 from glue.core.state import GlueSerializer, GlueUnSerializer
+from glue.viewers.profile.state import ProfileViewerState
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
+from glue_qt.viewers.profile import ProfileViewer
 
 import astropy.units as u
 from astropy.wcs import WCS
@@ -17,6 +19,7 @@ import sunpy.data.test
 from sunpy.visualization.colormaps import cmlist
 
 import glue_solar
+from glue_solar import glue_patches
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.loaders.iris import image_data, raster_data
@@ -116,3 +119,30 @@ def test_an_aia_map_session_restores_its_colormap(qtbot, monkeypatch, tmp_path):
     assert restored.data_collection[0].style.preferred_cmap.name == "sdoaia171"  # glue's restore drops it
     # its colours: glue's menu shows the first sunpy colormap of the same colours, here GOES-R SUVI 171's
     assert restored.viewers[0][0].layers[0].state.cmap == cmlist["sdoaia171"]
+
+
+def test_a_session_restores_a_profile_along_the_last_axis_in_its_unit(qtbot, monkeypatch, tmp_path):
+    installed = ProfileViewerState._update_priority is glue_patches._update_priority
+    assert installed == glue_patches.needs_profile_restore_workaround()  # probes glue's own method
+    assert not glue_patches.needs_profile_restore_workaround(glue_patches._update_priority)
+    wcs = WCS(naxis=3)  # wavelength on the last axis, as an IRIS raster's
+    wcs.wcs.ctype = ["WAVE", "HPLT-TAN", "HPLN-TAN"]
+    wcs.wcs.cunit = ["Angstrom", "arcsec", "arcsec"]
+    wcs.wcs.cdelt = [0.025, 0.33, 2]
+    wcs.wcs.crval = [1335.7, 0, 0]
+    cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5), coords=wcs)
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))
+    app.data_collection.append(cube)
+    saved = []
+    for unit, limits in (("Angstrom", (1335.72, 1335.77)), ("nm", (133.572, 133.577))):
+        state = app.new_data_viewer(ProfileViewer, data=cube).state
+        state.x_att, state.x_display_unit = cube.world_component_ids[2], unit
+        state.x_min, state.x_max = limits
+        saved.append((state.x_att.label, state.x_display_unit, state.x_min, state.x_max))
+    app.save_session(str(tmp_path / "profile.glu"))
+    restored = GlueApplication.restore_session(str(tmp_path / "profile.glu"))  # glue-core 1.27.0 alone raises
+    qtbot.addWidget(restored)
+    states = [viewer.state for viewer in restored.viewers[0]]
+    assert [(s.x_att.label, s.x_display_unit, s.x_min, s.x_max) for s in states] == saved
