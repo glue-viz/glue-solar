@@ -1,7 +1,7 @@
 """
 Sessions keep the coordinates and colormaps of every kind of dataset glue-solar makes from IRIS data, on irispy's test
-files, a stack's scans on other data, and the colormap of a sunpy map; they refer to the files IRIS data are read
-from, so a quicklook's stays small.
+files, a stack's scans on other data, the colormap of a sunpy map, and a quicklook's time master and point; they
+refer to the files IRIS data are read from, so a quicklook's stays small.
 """
 
 import json
@@ -27,15 +27,16 @@ from sunpy.visualization.colormaps import cmlist
 import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
+from glue_solar.quicklook import coordinator, quicklook
 from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.iris import browse_iris
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, link_hpc, raster_data
 from glue_solar.sources.loaders.lazy import LazyData
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments
-from glue_solar.tests.helpers import load_selected, scanned
+from glue_solar.tests.helpers import load_selected, mouse, scanned
 from glue_solar.tests.test_importer import _row
-from glue_solar.tests.test_quicklook import SCAN, SNS, drifting_stack
+from glue_solar.tests.test_quicklook import SCAN, SNS, drifting_stack, menu_action, readout, slit_jaw
 from glue_solar.tools import _pointing
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1330_t000.fits"
@@ -279,3 +280,62 @@ def test_a_quicklook_session_stays_small_and_opens(qtbot, monkeypatch, tmp_path,
     assert [data.label for data in restored.data_collection] == [data.label for data in app.data_collection]
     [point], [expected] = restored.data_collection.subset_groups, app.data_collection.subset_groups
     assert (point.label, point.subset_state.slices) == ("Point", expected.subset_state.slices)
+
+
+def responses(app):
+    """
+    What the coordinator gives the quicklook in ``app``'s last tab: its time master, edit subset and point, and each
+    Image panel's slices and time sync; and the point's place on each slit-jaw image and its spectrum.
+    """
+    coord = coordinator(app.data_collection)
+    [master] = coord.masters.values()
+    given = [master.label, [group.label for group in app.session.edit_subset_mode.edit_subset], coord.point.slices]
+    where = []
+    for viewer in app.viewers[-1]:
+        if isinstance(viewer, ProfileViewer):
+            [layer] = [layer for layer in viewer.layers if layer.state.layer.label == "Point"]
+            where.append(layer.state.profile[1])
+        else:
+            given.append((tuple(viewer.state.slices), coord.time_status(viewer)))  # glue restores a list
+            where.append(coord.point_on(viewer) or ())
+    return given, where
+
+
+SNS_FILES = ("raster_t000_r00000", "SJI_1400_t000", "SJI_2796_t000")
+
+
+@pytest.mark.parametrize("kind", ["sit-and-stare", "scanning"])
+def test_a_restored_quicklook_keeps_its_time_master_and_follows_a_pixel_drag(
+    qtbot, monkeypatch, tmp_path, irispy_test_files, kind
+):
+    if kind == "sit-and-stare":
+        files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES]
+        datasets = [*raster_data(files[:1], ["Si IV 1403"]), *map(image_data, files[1:])]
+    else:  # 3860258481 has no slit-jaw file
+        datasets = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["C II 1336"])
+        times = datasets[0][datasets[0].id["Time"]][:, 0, 0]
+        datasets.append(slit_jaw(times[0] + np.arange(4) * (times[-1] - times[0]) / 3, datasets[0]))
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
+    viewers = quicklook(app, datasets)
+    menu_action(viewers["sji"][0], "Time master").trigger()
+    viewers["sji"][0].state.slices = (2, 0, 0)
+    qtbot.waitUntil(lambda: " · Δt " in readout(viewers["map"]))  # the raster follows
+    app.save_session(str(tmp_path / "quicklook.glu"), absolute_paths=False)
+    restored = GlueApplication.restore_session(str(tmp_path / "quicklook.glu"), show=False)
+    qtbot.addWidget(restored)
+    monkeypatch.setattr(restored, "report_error", lambda message, detail: pytest.fail(detail))
+    for drag in (False, True):
+        if drag:  # with the Pixel tool, on each quicklook's map
+            for application in (app, restored):
+                panel = application.viewers[-1][0]
+                panel.toolbar.active_tool = "image:point_selection"
+                for name, x in [("button_press", 1), ("motion_notify", 2), ("motion_notify", 3), ("button_release", 3)]:
+                    mouse(panel, f"{name}_event", x, 10 + x)
+            assert coordinator(app.data_collection).point.slices[1] == slice(13, 14)
+        # once the restored quicklook's coordinator has synced it
+        qtbot.waitUntil(lambda: responses(restored)[0] == responses(app)[0])
+        for got, expected in zip(responses(restored)[1], responses(app)[1], strict=True):
+            np.testing.assert_allclose(got, expected, rtol=1e-12)

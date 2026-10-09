@@ -278,6 +278,14 @@ click, slider step, time sync or change to a panel's layers, such as the compone
 only while its tab is shown. Move or resize it like a panel; closing the tab closes it, and one
 closed by hand stays closed.
 
+A saved session opens the quicklook again with its point and its time master: its tab makes
+"Point" the edit subset whenever it is shown, the panels follow the time master to the frames they
+showed, with the same Δt, and a click or drag with the Pixel tool moves the other panels, the
+slit-jaw cross and the spectrum as before. Choose the Pixel tool again, as glue restores no
+viewer's mouse mode. The Point window and the lines are not restored, and a light curve stays
+where it was (see "Saving sessions" in :ref:`Viewer tools and windows
+<glue_solar_users_guide_viewer_tools_and_windows>` for what a session keeps of the data).
+
 Several windows
 ---------------
 

@@ -385,8 +385,8 @@ class Coordinator(HubListener):
             self._timer.start()  # the time master may have gone with it
 
     def own(self, group, viewers):
-        """Let the point group ``group`` drive only ``viewers``, and ``viewers`` follow only it."""
-        self._owners[group] = set(viewers)
+        """Let the point group ``group`` drive only the viewers it owns, ``viewers`` too, and those follow only it."""
+        self._owners.setdefault(group, set()).update(viewers)
 
     def follow(self, group):
         """Make ``group`` the followed point, as when its quicklook's tab is shown."""
@@ -999,7 +999,8 @@ class QuicklookImageViewer(ImageViewer):
     image selects its pixels inside it in every frame, as glue's own does, and on other data, such as the raster, what
     lies inside its outline at the pointing of the frame it was drawn on. A region on any other panel is glue's own.
     While a quicklook's point is the edit subset, a region on any panel is a new subset and the point stays the edit
-    subset, so the Pixel tool keeps moving it; a region picked to edit takes glue's selection mode.
+    subset, so the Pixel tool keeps moving it; a region picked to edit takes glue's selection mode. A session saves and
+    restores the viewer with its quicklook's point group and its observation's time master.
     """
 
     def apply_subset_state(self, subset_state, override_mode=None):
@@ -1021,6 +1022,41 @@ class QuicklookImageViewer(ImageViewer):
         world = _outline_region(data, roi, state.x_att.axis, state.y_att.axis, state.slices)
         region = _RasterRoiSubsetState(state.x_att, state.y_att, roi, world)
         self.apply_subset_state(region, override_mode=override_mode)
+
+    def __gluestate__(self, context):
+        """glue's record of the viewer, with its quicklook's point group and its observation's time master."""
+        rec = super().__gluestate__(context)
+        collection, data = self.session.data_collection, self.state.reference_data
+        coord = coordinator(collection)
+        point = next((group for group, viewers in coord._owners.items() if self in viewers), None)
+        master = coord.masters.get(observation_key(data)) if data is not None else None
+        rec["solar_quicklook"] = {
+            "point": context.id(point) if point in collection.subset_groups else None,
+            "master": context.id(master) if master in collection else None,
+        }
+        return rec
+
+    @classmethod
+    def __setgluestate__(cls, rec, context):
+        viewer = super().__setgluestate__(rec, context)
+        saved = rec.get("solar_quicklook", {})
+        viewer._solar_restored = [context.object(saved.get(key)) for key in ("point", "master")]
+        return viewer
+
+    def __setgluestate_callback__(self, context):
+        """
+        Register the restored viewer with the coordinator as `__gluestate__` saved it, once glue has put it in its tab:
+        glue calls this after each object it restores until it passes.
+        """
+        app = self.session.application
+        [tab] = [i for i, viewers in enumerate(app.viewers) if self in viewers]  # ValueError until then
+        point, master = self._solar_restored
+        coord = coordinator(self.session.data_collection)
+        if master is not None:
+            coord.set_master(master)
+        if point is not None:
+            coord.own(point, [self])
+            _edit_in_tab(app, tab, point)
 
 
 def _role(data):
