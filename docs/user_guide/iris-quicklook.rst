@@ -266,9 +266,10 @@ a stack or a scanning raster), so Pixel drags and playback do not wait for them;
 or scan leaves them as they are, and so do "Clear point" and a point on other data. The first
 curve's ``Time`` and ``Value`` are linked to the others' with glue identity links, so that they
 share the plot's axes, and each keeps its observation's OBSID and start time, so the time master's
-exposure ("Master exposure", above) shows on every curve. Choose the entry again for another
-wavelength: it adds new curves and a new plot. Removing a curve's dataset stops it. glue says why
-without a point on a raster. "ECSV (with Time)" saves a curve with its times (see
+exposure ("Master exposure", above) shows on every curve while their plot is the first open time
+plot of an observation's data. Choose the entry again for another wavelength: it adds new curves
+and a new plot. Removing a curve's dataset stops it. glue says why without a point on a raster.
+"ECSV (with Time)" saves a curve with its times (see
 :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`). On OBSID 4000255147,
 with Mg II k 2796 and C II 1336 (1600 exposures) and SJI 1400 (400 frames), the window curves equal
 ``cube[:, y, k]`` and the slit-jaw curve the same placement made frame by frame, recomputing the
