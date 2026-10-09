@@ -314,8 +314,11 @@ Saving a session that contains IRIS data can fail before any file is written. A 
 coordinates of every IRIS dataset and of those made from them, with any pointing offset set with
 "Shift pointing…", the colormap each opens in, and their metadata, but for the time and
 field-of-view centre irispy gives each raster step (``auxiliary times`` and ``exposure FOV
-center``). Data read from their files as they are viewed cannot be saved in a session yet; save
-derived products separately rather than relying on a Glue session as their only copy. With
-glue-core 1.27.0 a session saved while an Image viewer has
+center``). A Profile viewer, such as a quicklook's spectrum panel, opens again with its x axis, "x
+unit" and range; glue-core 1.27.0 alone opens no session whose Profile's x unit is not one of its
+data's first world axis's, such as a raster's wavelength or a light curve's exposure number. Data
+read from their files as they are viewed cannot be saved in a session yet; save derived products
+separately rather than relying on a Glue session as their only copy. With glue-core 1.27.0 a
+session saved while an Image viewer has
 "Per-frame limits" on, whatever its data, does not open: glue reports "'NoneType' object has no
 attribute 'add_callback'". Turn them off before saving.

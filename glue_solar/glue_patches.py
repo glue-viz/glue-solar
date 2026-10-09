@@ -33,6 +33,7 @@ from glue.viewers.image.layer_artist import ImageSubsetLayerArtist
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.matplotlib import viewer as matplotlib_viewer
+from glue.viewers.profile.state import ProfileLayerState, ProfileViewerState
 from glue.viewers.scatter import layer_artist as scatter_layer_artist
 from glue.viewers.scatter import viewer as scatter_viewer
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
@@ -73,6 +74,7 @@ __all__ = [
     "needs_icon_cache_workaround",
     "needs_inverse_workaround",
     "needs_pixel_point_workaround",
+    "needs_profile_restore_workaround",
     "needs_pv_dask_workaround",
     "needs_pv_slice_workaround",
     "needs_redo_workaround",
@@ -627,6 +629,46 @@ def load_quantity(rec, context):
 if u.Quantity not in GlueSerializer.dispatch:
     saver(u.Quantity)(save_quantity)
     loader(u.Quantity)(load_quantity)
+
+
+_original_update_priority = ProfileViewerState._update_priority
+
+
+def _update_priority(self, name):
+    """
+    glue-core's ``ProfileViewerState._update_priority``, restoring the display units after ``x_att``.
+
+    glue-core 1.27.0 restores a Profile viewer's ``x_display_unit`` with its ``x_att``, while the units listed are still
+    those of the reference data's first axis, so a session with a spectrum of an IRIS raster, whose wavelength is its
+    last axis, does not open ("value Angstrom is not in valid choices"). The units now come between ``x_att`` and the
+    limits, as glue's Matplotlib viewer states rank ``_log``. Retired by glue ranking the display units after ``x_att``
+    (``core-profile-restore-priority`` report candidate).
+    """
+    if name.endswith("_display_unit"):
+        return 0.5
+    return _original_update_priority(self, name)
+
+
+def needs_profile_restore_workaround(method=_original_update_priority):
+    """Whether a Profile viewer state ranked by ``method`` fails to restore an x unit not of the first world axis."""
+    wcs = WCS(naxis=2)
+    wcs.wcs.cunit = ["count", ""]  # on the last axis; astropy lists the units equivalent to a count quickly
+    data = Data(x=np.zeros((2, 2)), coords=wcs, label="probe")
+    state = type("ProbeState", (ProfileViewerState,), {"_update_priority": method})
+    try:  # as glue restores a viewer state
+        state(
+            layers=[ProfileLayerState(layer=data)],
+            reference_data=data,
+            x_att=data.world_component_ids[1],
+            x_display_unit="count",
+        )
+    except ValueError:
+        return True
+    return False
+
+
+if needs_profile_restore_workaround():
+    ProfileViewerState._update_priority = _update_priority
 
 
 _original_close_event = ImageViewer.closeEvent

@@ -1,0 +1,1 @@
+Sessions with Profile viewers of IRIS spectra, such as the quicklook's spectrum panels, restore again instead of raising "value Angstrom is not in valid choices".
