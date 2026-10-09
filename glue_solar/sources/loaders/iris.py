@@ -530,6 +530,20 @@ def _image_cube_data(cube, path, scaling=None):
     return _cube_data(cube, label, unit=DN_UNIT["SJI"], cmap=cmap, scaling=scaling)
 
 
+def _irispy_meta(data):
+    """
+    irispy's metadata of ``data``, an IRIS raster window of one scan, as its analyses read it: its own, or irispy's
+    class made again from the dict a glue session restores for data held in memory.
+    """
+    from irispy.meta import SGMeta
+
+    from glue_solar.quicklook import _window  # which imports this module
+
+    if isinstance(data.meta, SGMeta):
+        return data.meta
+    return SGMeta(dict(data.meta), _window(data)[0], data_shape=data.shape)
+
+
 def _logged(datasets, path, factory, **kwargs):
     """
     ``datasets`` with the load log glue's ``load_data(path, factory=factory, **kwargs)`` gives them, so that a session
