@@ -1,4 +1,5 @@
 import tarfile
+import threading
 from pathlib import Path
 
 import pytest
@@ -74,6 +75,19 @@ def test_sparse_header_falls_back_to_obsid_description(tmp_path):
     assert s.description == ObsID(int(OBS_S))["raster_fulldesc"]
     assert s.endobs is None
     assert s.xcen is None
+
+
+def test_stop_ends_the_scan_while_it_lists_the_files(iris_tree, monkeypatch):
+    stop, listed, is_file = threading.Event(), [], Path.is_file
+
+    def stop_at_the_first(path):
+        listed.append(path)
+        stop.set()  # Stop, as the first entry is looked at
+        return is_file(path)
+
+    monkeypatch.setattr(Path, "is_file", stop_at_the_first)
+    assert scan_directory(iris_tree, stop=stop) == []
+    assert len(listed) == 1  # and the rest of the tree is not walked
 
 
 def test_non_recursive_only_sees_top_level(iris_tree):

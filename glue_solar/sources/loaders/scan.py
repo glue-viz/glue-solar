@@ -6,9 +6,11 @@ takes seconds. Files cached by pooch (``<md5>-<name>``) are handled.
 """
 
 import gzip
+import itertools
 import re
 import tarfile
 import tempfile
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -146,7 +148,7 @@ def _is_supported_file(name, header):
     return name.startswith("aia_l2_") and instrume.startswith("AIA")
 
 
-def scan_directory(root, recursive=True, skipped=None):
+def scan_directory(root, recursive=True, skipped=None, stop=None, report=None):
     """
     Group every IRIS Level 2 file below ``root``, outside hidden files and folders, into `Observation` objects.
 
@@ -159,6 +161,10 @@ def scan_directory(root, recursive=True, skipped=None):
     skipped : list, optional
         Gets the path of every IRIS raster file left out because it is not Level 2 (its ``DATA_LEV`` is not 2), such
         as a product derived from rasters.
+    stop : `threading.Event`, optional
+        Once set, ends the scan between files, or while it lists them, with what it found so far.
+    report : callable, optional
+        ``report(percent)`` with the percentage of the files read, before each file.
 
     Returns
     -------
@@ -166,12 +172,18 @@ def scan_directory(root, recursive=True, skipped=None):
     """
     root = Path(root)
     skipped = [] if skipped is None else skipped
-    paths = root.rglob("*") if recursive else root.iterdir()
+    stop = threading.Event() if stop is None else stop
+    paths = itertools.takewhile(lambda _: not stop.is_set(), root.rglob("*") if recursive else root.iterdir())
     found = {}
     headers = []
     # not hidden ones, such as the folder `extract_archive` unpacks into before it renames it
     visible = (p for p in paths if not any(part.startswith(".") for part in p.relative_to(root).parts))
-    for path in sorted(p for p in visible if p.is_file()):
+    files = sorted(p for p in visible if p.is_file())
+    for n, path in enumerate(files):
+        if report is not None:
+            report(100 * n // len(files))
+        if stop.is_set():
+            break
         name = strip_pooch(path.name)
         if name.endswith(".tar.gz"):
             key = _key_from_name(name)

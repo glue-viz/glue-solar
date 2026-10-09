@@ -15,6 +15,7 @@ __all__ = [
     "mouse",
     "press",
     "raster_point_on_sji",
+    "scanned",
     "select_point",
     "shift",
 ]
@@ -50,10 +51,18 @@ def inversions(monkeypatch, data):
     return calls
 
 
+def scanned(qtbot, dialog):
+    """Wait until the observation browser has scanned its folder on its worker thread."""
+    from glue_solar.sources.loaders.iris import _RUNNING
+
+    qtbot.waitUntil(lambda: dialog.ok.isEnabled() and not _RUNNING, timeout=60_000)
+
+
 def load_selected(qtbot, dialog):
     """Press the observation browser's Load selected, and wait until its worker thread is done."""
     from glue_solar.sources.loaders.iris import _RUNNING
 
+    assert dialog.ok.isEnabled()  # not scanning its folder
     dialog.ok.click()
     assert not any(button.isEnabled() for button in (dialog.ok, dialog.change, dialog.recursive))
     assert dialog.cancel.text() == "Stop"

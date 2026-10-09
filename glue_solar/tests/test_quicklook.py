@@ -56,6 +56,7 @@ from glue_solar.tests.helpers import (
     mouse,
     press,
     raster_point_on_sji,
+    scanned,
     select_point,
     shift,
 )
@@ -2320,6 +2321,7 @@ def browse(qtbot, app, monkeypatch, folder, rows, only=None):
     monkeypatch.setattr(QtWidgets.QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(folder))
 
     def tick_and_load(dialog):
+        scanned(qtbot, dialog)
         for row in rows:
             item = dialog.obs_tree.topLevelItem(row)
             item.setCheckState(0, Qt.Checked)
