@@ -12,7 +12,7 @@ import pytest
 from irispy.io import read_files
 from qtpy.QtCore import QMetaObject, Qt
 from qtpy.QtTest import QTest
-from qtpy.QtWidgets import QDialog, QFileDialog
+from qtpy.QtWidgets import QDialog, QFileDialog, QInputDialog
 
 import astropy.units as u
 from astropy.io import fits
@@ -395,6 +395,71 @@ def test_recursive_toggle_rescans(dialog, qtbot):
     row = _row(dialog, OBS_A[2])
     assert row.childCount() == 0  # only the top-level SJI is left, so it collapses onto the row
     assert row.text(6) == "1 — SJI_1400"
+
+
+def test_start_and_end_scan_their_window_and_fill_the_next_browser(qtbot, monkeypatch, iris_tree):
+    from glue_solar.sources.loaders import scan
+
+    reads, read = [], scan._primary_header
+    monkeypatch.setattr(scan, "_primary_header", lambda path: reads.append(scan.strip_pooch(path.name)) or read(path))
+    dialog = QtIRISImporter(iris_tree)
+    qtbot.addWidget(dialog)
+    scanned(qtbot, dialog)
+    reads.clear()
+    dialog.start.setText("2023-02-11")
+    dialog.end.setText("2023-02")  # to the end of February
+    dialog.end.editingFinished.emit()
+    scanned(qtbot, dialog)
+    assert _listed(dialog) == [OBS_B[2]]
+    # the derived raster file, whose name has no time, and its slit-jaw image
+    assert sorted(reads) == [
+        "iris_l2_20140910_fexxi_rb_steps.fits.gz",
+        f"iris_l2_{'_'.join(OBS_B)}_SJI_2832_t000.fits.gz",
+    ]
+    dialog.start.editingFinished.emit()  # as the unchanged field loses focus
+    assert dialog.ok.isEnabled()  # no rescan
+    dialog.start.setText("2023-02-30")
+    dialog.start.editingFinished.emit()
+    assert dialog.ok.isEnabled()
+    assert dialog.progress.format().startswith("Start and End take UTC times")
+
+    again = QtIRISImporter()
+    qtbot.addWidget(again)
+    assert (again.start.text(), again.end.text()) == ("2023-02-11", "2023-02")
+    recent = [again.recent.itemText(i) for i in range(again.recent.count())]
+    assert recent == [f"2023-02-11 to 2023-02 in {iris_tree}", str(iris_tree)]
+    again.recent.activated.emit(1)
+    scanned(qtbot, again)
+    assert (again.directory.text(), again.start.text(), again.end.text()) == (str(iris_tree), "", "")
+    assert _listed(again) == [OBS_C[2], OBS_B[2], OBS_A[2]]
+    again.recent.activated.emit(1)
+    scanned(qtbot, again)
+    assert (again.start.text(), again.end.text()) == ("2023-02-11", "2023-02")
+    assert _listed(again) == [OBS_B[2]]
+
+
+def test_saved_folders_search_their_folder_and_last_until_removed(qtbot, monkeypatch, iris_tree, tmp_path):
+    dialog = QtIRISImporter(iris_tree)
+    qtbot.addWidget(dialog)
+    scanned(qtbot, dialog)
+    monkeypatch.setattr(QInputDialog, "getText", lambda parent, title, label, text: (f"{text} tree", True))
+    dialog.add_place.click()
+    dialog.set_directory(tmp_path)
+    scanned(qtbot, dialog)
+
+    again = QtIRISImporter()
+    qtbot.addWidget(again)
+    assert again.places.itemText(0) == f"{iris_tree.name} tree"
+    assert again.places.itemData(0, Qt.ToolTipRole) == str(iris_tree)
+    again.places.setCurrentIndex(0)  # as picking it does
+    again.places.activated.emit(0)
+    scanned(qtbot, again)
+    assert again.directory.text() == str(iris_tree)
+    assert _listed(again) == [OBS_C[2], OBS_B[2], OBS_A[2]]
+    again.remove_place.click()
+    third = QtIRISImporter()
+    qtbot.addWidget(third)
+    assert third.places.count() == 0
 
 
 def gated_scan(monkeypatch, widget, method, last):

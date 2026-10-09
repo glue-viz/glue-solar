@@ -46,6 +46,17 @@ an OBSID. An observation it lists shows all its entries, and the filter stays as
 searched again. Ticks stay as the filter changes, and "Load selected" loads every tick, listed or
 not.
 
+Type a UTC time in "Start" or "End", such as ``2013-09-02T16:00``, ``2013-09-02`` or ``2013-09``,
+and press Return to search the folder again for the observations that run at some time between
+them; leave one empty for no limit. An "End" that names no second runs to the end of the minute,
+hour, day, month or year it names, so a "Start" and "End" of ``2013-09-02`` list every observation
+running that day. Only the headers of the files whose names are stamped from a day before "Start"
+to "End", or hold no time, are read, so an observation that began more than a day before "Start"
+is not listed. "Recent" lists the last 10 searches, each a folder with its "Start" and "End": pick
+one to search it again. "Add current folder…" saves the folder under a name you give, which
+"Saved" lists: pick it to search that folder, or press "Remove" to forget the one shown. The
+browser keeps them for next time, and opens with the latest search's "Start" and "End".
+
 Tick the entries you want (ticking the observation row ticks everything under it); each slit-jaw
 channel and AIA cutout you tick loads as a dataset of its own. Then press "Load selected": the data
 are added to the data collection. glue reads the files in the background, one at a time, and the

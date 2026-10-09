@@ -53,6 +53,111 @@
     </layout>
    </item>
    <item>
+    <layout class="QHBoxLayout" name="searchesLayout" stretch="0,2,0,0,0,3">
+     <item>
+      <widget class="QLabel" name="placesLabel">
+       <property name="text">
+        <string>Saved:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="places">
+       <property name="toolTip">
+        <string>Search a saved folder</string>
+       </property>
+       <property name="sizeAdjustPolicy">
+        <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+       </property>
+       <property name="minimumContentsLength">
+        <number>10</number>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="add_place">
+       <property name="text">
+        <string>Add current folder…</string>
+       </property>
+       <property name="autoDefault">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="remove_place">
+       <property name="toolTip">
+        <string>Remove the saved folder shown</string>
+       </property>
+       <property name="text">
+        <string>Remove</string>
+       </property>
+       <property name="autoDefault">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="recentLabel">
+       <property name="text">
+        <string>Recent:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="recent">
+       <property name="toolTip">
+        <string>Search a folder from its Start to its End again</string>
+       </property>
+       <property name="sizeAdjustPolicy">
+        <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+       </property>
+       <property name="minimumContentsLength">
+        <number>10</number>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="windowLayout">
+     <item>
+      <widget class="QLabel" name="startLabel">
+       <property name="text">
+        <string>Start:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="start">
+       <property name="toolTip">
+        <string>List only the observations that run at some time from Start to End, in UTC. Press Return to search.</string>
+       </property>
+       <property name="placeholderText">
+        <string>Any time, or a UTC time such as 2014-03-29T14:00 or 2014-03-29</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="endLabel">
+       <property name="text">
+        <string>End:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="end">
+       <property name="toolTip">
+        <string>List only the observations that run at some time from Start to End, in UTC. An End with no seconds, such as 2014-03-29, runs to the end of that minute, hour, day, month or year. Press Return to search.</string>
+       </property>
+       <property name="placeholderText">
+        <string>Any time, or a UTC time such as 2014-03-29 (to its end) or 2014-03</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="filterLayout">
      <item>
       <widget class="QLabel" name="filterLabel">

@@ -2,6 +2,7 @@ import base64
 import gzip
 import io
 import itertools
+import json
 import os
 import re
 import tarfile
@@ -57,6 +58,9 @@ LAZY = True
 UI_MAIN = os.path.join(os.path.dirname(__file__), "iris_loader.ui")
 _SETTINGS = ("glue-solar", "glue-solar")
 _LAST_DIR = "iris/last_dir"
+_RECENT = "iris/recent"  # JSON [[folder, start, end], ...] of the latest searches, newest first
+_PLACES = "iris/places"  # JSON [[name, folder], ...] of the saved folders
+_RECENT_SEARCHES = 10
 # One name per axis type for every IRIS dataset, so Glue lines up SJI and raster axes: FITS-based irispy
 # WCSes carry no axis names (Glue would say "World N") and gWCS ones say "Longitude" and "Latitude".
 # Time keeps its own name, since the loader adds a "Time" component.
@@ -799,14 +803,15 @@ def _extract(load, archives, stop, report):
     return load, len(archives), None
 
 
-def _scan(load, directory, recursive, stop, report):
+def _scan(load, directory, recursive, start, end, stop, report):
     """
-    `scan_directory` on glue-qt's worker thread, until ``stop`` is set: ``report(load, percent)`` before each file.
+    `scan_directory` from ``start`` to ``end`` on glue-qt's worker thread, until ``stop`` is set: ``report(load,
+    percent)`` before each file.
 
     Returns ``(load, observations, skipped)``: what it found, and the raster files that are not Level 2.
     """
     skipped = []
-    return load, scan_directory(directory, recursive, skipped, stop, partial(report, load)), skipped
+    return load, scan_directory(directory, recursive, skipped, stop, partial(report, load), start, end), skipped
 
 
 # glue-qt's workers that are still running: Python would delete one that nothing holds, which aborts the process
@@ -815,6 +820,20 @@ _RUNNING = set()
 
 def _fmt(value):
     return "" if value is None else f"{round(value, 1) + 0.0:.1f}"  # + 0.0 turns -0.0 into 0.0
+
+
+def _window_time(text, end=False):
+    """
+    The UTC time ``text`` names, such as 2014-03-29T14:00, 2014-03-29 or 2014-03, or None if empty; as ``end``, one
+    that names no second runs to the last second of the minute, hour, day, month or year it names.
+    """
+    if not text:
+        return None
+    time = np.datetime64(text)
+    unit = np.datetime_data(time.dtype)[0]
+    if end and unit in ("Y", "M", "D", "h", "m"):
+        time = (time + np.timedelta64(1, unit)).astype("datetime64[s]") - np.timedelta64(1, "s")
+    return time
 
 
 class QtIRISImporter(QtWidgets.QDialog):
@@ -838,6 +857,12 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     The Filter field lists only the observations whose row or entries contain its
     text, in any case, across rescans; Load selected still loads the ticks it hides.
+
+    Start and End list only the observations that run at some time between them:
+    the scan reads the headers only of the files whose names are stamped from a day
+    before Start to End, and of those with no stamp. The saved folders and the last
+    10 searches, each a folder with its Start and End, are kept in the settings, and
+    the latest search's Start and End fill the next browser's.
     """
 
     progressed = Signal(int, int)  # (load, percent), from the worker thread
@@ -851,6 +876,20 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.change.clicked.connect(self.choose_directory)
         self.recursive.toggled.connect(lambda _checked: self.set_directory(self.directory.text()))
         self.filter.textChanged.connect(self._filter)
+        for field in (self.start, self.end):
+            field.editingFinished.connect(self._window_edited)
+        self.places.activated.connect(lambda i: self.set_directory(self._places[i][1]))
+        self.add_place.clicked.connect(self._add_place)
+        self.remove_place.clicked.connect(self._remove_place)
+        self.recent.activated.connect(self._restore)
+        settings = QSettings(*_SETTINGS)
+        self._places = json.loads(settings.value(_PLACES, "[]"))
+        self._recent = json.loads(settings.value(_RECENT, "[]"))
+        self._store_places(-1)
+        self._list_recent()
+        if self._recent:
+            self.start.setText(self._recent[0][1])
+            self.end.setText(self._recent[0][2])
         self.observations = []
         self.datasets = []
         self.first_image = None
@@ -879,10 +918,68 @@ class QtIRISImporter(QtWidgets.QDialog):
         QSettings(*_SETTINGS).setValue(_LAST_DIR, str(directory))
         self._rescan()
 
+    def _search(self):
+        """The folder, Start and End."""
+        return [self.directory.text(), self.start.text().strip(), self.end.text().strip()]
+
     def _rescan(self, note=None):
-        """List the folder's observations in the background; ``note`` then replaces the progress text."""
+        """
+        List the folder's observations from Start to End in the background, as the latest recent search; ``note`` then
+        replaces the progress text.
+        """
+        search = self._search()
+        try:
+            start, end = _window_time(search[1]), _window_time(search[2], end=True)
+        except ValueError as error:
+            self.progress.setFormat(f"Start and End take UTC times, such as 2014-03-29T14:00 or 2014-03: {error}")
+            return
+        self._recent = [search, *(kept for kept in self._recent if kept != search)][:_RECENT_SEARCHES]
+        QSettings(*_SETTINGS).setValue(_RECENT, json.dumps(self._recent))
+        self._list_recent()
         self.progress.setFormat("Scanning the folder: %p%")
-        self._start(partial(self._scanned, note), _scan, self.directory.text(), self.recursive.isChecked())
+        self._start(partial(self._scanned, note), _scan, search[0], self.recursive.isChecked(), start, end)
+
+    def _window_edited(self):
+        if self._recent[:1] != [self._search()]:  # editingFinished also comes as an unchanged field loses focus
+            self.set_directory(self.directory.text())
+
+    def _restore(self, i):
+        """Search the folder of recent search ``i`` from its Start to its End again."""
+        folder, start, end = self._recent[i]
+        self.start.setText(start)
+        self.end.setText(end)
+        self.set_directory(folder)
+
+    def _list_recent(self):
+        self.recent.clear()
+        self.recent.addItems(
+            f"{start or '…'} to {end or '…'} in {folder}" if start or end else folder
+            for folder, start, end in self._recent
+        )
+
+    def _add_place(self):
+        """Save the folder under a name the user gives, in place of a folder saved under that name."""
+        folder = self.directory.text()
+        if not folder:
+            return
+        name, ok = QtWidgets.QInputDialog.getText(self, "Add current folder", "Name:", text=Path(folder).name)
+        if ok and name.strip():
+            self._places = [place for place in self._places if place[0] != name.strip()] + [[name.strip(), folder]]
+            self._store_places(len(self._places) - 1)
+
+    def _remove_place(self):
+        if self.places.currentIndex() >= 0:
+            del self._places[self.places.currentIndex()]
+            self._store_places(-1)
+
+    def _store_places(self, index):
+        """Keep the saved folders in the settings and list them, showing the one at ``index``."""
+        QSettings(*_SETTINGS).setValue(_PLACES, json.dumps(self._places))
+        self.places.clear()
+        for i, (name, folder) in enumerate(self._places):
+            self.places.addItem(name)
+            self.places.setItemData(i, folder, Qt.ToolTipRole)
+        self.places.setCurrentIndex(index)
 
     def _scanned(self, note, result):
         load, observations, skipped = result
@@ -992,7 +1089,8 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     def _busy(self, busy):
         """While a load runs, only Stop: the ticks and boxes it was started with stay as they were."""
-        for widget in (self.ok, self.change, self.recursive, self.obs_tree, self.stack, self.quicklook):
+        searching = self.change, self.recursive, self.start, self.end, self.places, self.recent
+        for widget in (self.ok, *searching, self.obs_tree, self.stack, self.quicklook):
             widget.setEnabled(not busy)
         self.cancel.setText("Stop" if busy else "Cancel")
 
