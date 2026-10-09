@@ -1403,7 +1403,6 @@ def test_a_colormap_menu_names_the_layers_colormap_of_equal_colours(qtbot, tmp_p
     qtbot.addWidget(app)
     app.data_collection.append(aia)
     assert _cmap_menu(app.new_data_viewer(ImageViewer, data=aia)).currentText() == "SDO AIA 171.0 Angstrom"
-    aia.style.preferred_cmap = None  # a Colormap, which glue cannot save yet (wp3-style-cmap)
     app.save_session(str(tmp_path / "aia.glu"))
     restored = GlueApplication.restore_session(str(tmp_path / "aia.glu"))
     qtbot.addWidget(restored)
