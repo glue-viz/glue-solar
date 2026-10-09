@@ -12,8 +12,8 @@ Loading data
 ------------
 
 ``raster_data`` loads chosen spectral windows of one or more raster files of an observation, and
-``image_data`` a slit-jaw file or an aligned AIA cutout; both give the same datasets as the
-observation browser::
+``image_data`` a slit-jaw file, an aligned AIA cutout or a Hinode/SOT cube; both give the same
+datasets as the observation browser::
 
     from glue_solar.sources.loaders.iris import image_data, raster_data
 

@@ -361,7 +361,9 @@ def test_sot_cubes_are_listed_by_observation_and_loaded(qtbot, tmp_path, irispy_
     assert entries == ["SOT 6302A B_LOS", f"SOT 6302A B_LOS ({repeat.stem})", "SOT TF Na I 5896"]
     row.setCheckState(0, Qt.Checked)
     load_selected(qtbot, dialog)
-    assert [data.meta["INSTRUME"] for data in dialog.datasets] == ["SOT-SP", "SOT-SP", "SOT/NB"]
+    # glue tells the SP maps apart by their file's time
+    labels = ["6302A B_LOS 18:50:06", "6302A B_LOS 19:00:00", "TF Na I 5896"]
+    assert [data.label.split("-")[0] for data in dialog.datasets] == labels
     assert dialog.first_image is dialog.datasets[0]
 
 

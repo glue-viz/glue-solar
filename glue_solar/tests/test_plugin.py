@@ -199,18 +199,22 @@ def test_open_real_aia_cutout_through_load_data(irispy_data):
     [
         ("_Gband4305_FG_", "G band 4305-3603259402-2015-08-30T07:09:53", "DN", "hinodesotintensity"),
         ("_TFNaI5896_MG_", "TF Na I 5896-3680100932-2016-01-08T19:12:11", "", "gray"),
-        ("_blapp_index_", "6302A B_LOS-3680100932-2016-01-08T19:12:11", "G", "gray"),
+        ("_blapp_index_", "6302A B_LOS 18:50:06-3680100932-2016-01-08T19:12:11", "G", "gray"),
     ],
 )
-def test_open_sot_cube_through_load_data(irispy_test_files, name, label, units, cmap):
+def test_open_sot_cube_through_load_data(tmp_path, irispy_test_files, name, label, units, cmap):
     # Hinode/SOT cubes of IRIS Technical Note 32 load as AIA cutouts do, in their own unit
-    [path] = [path for path in irispy_test_files if name in path.name]
-    data, cube = load_data(str(path)), read_sji_lvl2(path)
+    [source] = [path for path in irispy_test_files if name in path.name]
+    path = shutil.copy2(source, tmp_path)
+    with fits.open(path, mode="update") as hdul:
+        hdul[0].data[0, 0, 0] = -200  # IRIS's fill code, a value in a SOT cube
+    data, cube = load_data(path), read_sji_lvl2(path)
     assert isinstance(data.coords, _GlueWCS)
     assert (data.label, data.style.preferred_cmap.name) == (label, cmap)
     assert _role(data) == "aia"  # which follows the time as an AIA cutout
     science = data.get_component(data.main_components[0])
     assert science.units == units
+    assert (science.data[0, 0, 0], data[f"{label} mask"][0, 0, 0]) == (-200, 0)
     np.testing.assert_array_equal(science.data, cube.data)  # NaN where missing, and negative fields kept
     assert (data.find_component_id(f"{label} DN/s") is not None) == (units == "DN")
     sky, times = cube.axis_world_coords()  # each frame at its own pointing

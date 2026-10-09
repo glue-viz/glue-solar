@@ -316,7 +316,7 @@ def test_north_up_shows_a_rolled_slit_jaw_image_north_up(app, tmp_path):
         np.testing.assert_allclose(st, frame, atol=1e-9)
         np.testing.assert_array_equal(viewer.state.layers[1].get_sliced_data(), expected)
     for other in (Data(label="plain", x=np.zeros((3, 4, 5))), grid):
-        with pytest.raises(ValueError, match="not a slit-jaw image or aligned AIA cutout"):
+        with pytest.raises(ValueError, match="not a slit-jaw image, AIA cutout or SOT cube"):
             north_up(other)
 
 
@@ -344,7 +344,7 @@ def test_north_up_steps_through_irispys_slit_jaw_image(app, tmp_path, irispy_tes
     linked = [{link.get_to_id(), *link.get_from_ids()} for link in links]
     times = [cids for cids in linked if any(cid.label.startswith("Time") for cid in cids)]
     assert times == [{grid.world_component_ids[0], sji.world_component_ids[0]}]
-    with pytest.raises(ValueError, match="not a slit-jaw image or aligned AIA cutout"):
+    with pytest.raises(ValueError, match="not a slit-jaw image, AIA cutout or SOT cube"):
         north_up(raster)
 
 
@@ -443,7 +443,7 @@ def test_rebin_refuses_other_data_and_bins_that_do_not_fit(tmp_path, irispy_test
     [scan] = raster_data(
         [int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)], ["Si IV 1403"]
     )
-    with pytest.raises(ValueError, match="plain is not an IRIS raster window, slit-jaw image or AIA cutout"):
+    with pytest.raises(ValueError, match="plain is not an IRIS raster window, slit-jaw image, AIA cutout or SOT cube"):
         rebin(Data(label="plain", x=np.zeros((3, 4, 5))), (1, 2, 2))
     for bins in ((2, 2), (0, 2, 1), (9, 2, 1)):
         with pytest.raises(ValueError, match=r"of \(8, 109, 29\) pixels, cannot be binned by"):
@@ -499,7 +499,7 @@ def test_the_rebin_action_adds_a_linked_dataset_that_follows_the_time_sync(
     collection.append(plain)
     tree.ui.layerTree.set_selected_layers([plain])
     tree._actions["Rebin…"].trigger()
-    assert shown == ["Could not rebin\nplain is not an IRIS raster window, slit-jaw image or AIA cutout."]
+    assert shown == ["Could not rebin\nplain is not an IRIS raster window, slit-jaw image, AIA cutout or SOT cube."]
     with pytest.raises(ValueError, match="is rebinned: irispy would give each bin the noise of one sample"):
         line_moments(binned_raster, 1402.77, errors=True)
     assert np.isfinite(line_moments(binned_raster, 1402.77)["intensity"]).any()

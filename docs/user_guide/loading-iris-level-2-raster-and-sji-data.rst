@@ -44,7 +44,8 @@ Expand an observation to see what can be loaded:
   ``_SOTFG`` and ``_SOTSP`` archives; `IRIS Technical Note 32 <https://iris.lmsal.com/itn32/>`__),
   recognised by file name and header too, for example ``SOT G band 4305``, ``SOT TF Na I 5896`` or
   ``SOT 6302A B_LOS``. SP maps, all ``6302A``, are named by what they measure (``BTYPE``), and a
-  second file of the same name has its file name added, as ``irispy.io.read_files`` keys them.
+  second file of the same name has its file name added, as ``irispy.io.read_files`` keys them; each
+  map's dataset is labelled with its file's time too (``6302A B_LOS 08:06:09-3603259402-…``).
 
 An observation with only one entry shows it in its "Files" column (for example ``1 — AIA 1700``)
 and has its tick box on its own row.
