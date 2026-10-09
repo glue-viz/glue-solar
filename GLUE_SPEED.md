@@ -325,7 +325,7 @@ Computing the mask in a box but still returning a full-view array saves only abo
 
 ### R8. irispy's -TAB raster WCS makes world-to-pixel slow everywhere and ill-posed for sit-and-stare rasters
 
-- [ ] Re-verified on current versions
+- [x] Re-verified on current versions (irispy main 3352413, 2026-10-09: 7-13 ms/pt on 4000255147, 13.2 s per SJI 1400 screen inversion; the ambiguity is a plateau of about 6 exposures between 0.05" pointing jumps, not a full overlap; D54's `raster-wcs-inverse` is the fix, design in `IRIS_PLAN_PROTOTYPES/irispy_designs_20261009.tar.gz`)
 - [ ] Fixed upstream
 
 **Repository:** irispy (WCS construction); wcslib via astropy (tabs2x). **Confidence:** High for the cost and cause, medium for the gain.. **Verification:** Confirmed (links#3); the verifier provided the evidence for the cause. irispy main was not checked.
