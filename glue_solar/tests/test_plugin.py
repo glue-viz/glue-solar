@@ -2263,6 +2263,7 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     table = saved()
     np.testing.assert_array_equal(table["time2"].datetime64, times[:, 1, 3, 4])
     np.testing.assert_array_equal(table["time1"].datetime64, times[:, 0, 0, 0])
+    assert app.statusBar().currentMessage() == ""  # the earlier note cleared, as nothing was left out
 
 
 def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot):

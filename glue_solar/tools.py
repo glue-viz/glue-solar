@@ -2267,9 +2267,12 @@ class SaveProfileTool(Tool):
         if not name:
             return
         _write_ecsv(name, table, viewer.state.reference_data.meta)
+        # the application's, which glue-qt's toolbar does not clear after the entry, as it does the viewer's
+        status = viewer.session.application.statusBar()
         if skipped:
-            # the application's, which glue-qt's toolbar does not clear after the entry, as it does the viewer's
-            viewer.session.application.statusBar().showMessage(f"Left out, without a profile: {', '.join(skipped)}")
+            status.showMessage(f"Left out, without a profile: {', '.join(skipped)}")
+        elif status.currentMessage().startswith("Left out, without a profile"):
+            status.clearMessage()  # an earlier save's
 
 
 def _position(viewer):
