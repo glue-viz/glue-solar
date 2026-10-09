@@ -186,17 +186,17 @@ again, the viewer closes or the other window leaves the viewer. Nothing else mov
 other panels, the time master and the Pixel tool stay, and the zoom stays in pixels, the same pixels
 on the maps of one file's windows. A slider moved while a position shows stays part of it, except
 the time: a dataset that follows the time master, such as SJI 2796 dragged onto the SJI 1400 viewer,
-shows at each flip the frame the time sync gives it then (or, past half its cadence, the one it was
-left on), so two slit-jaw channels blink at one time while the time master plays. Keep as time
-master a dataset the blinking viewer does not show, by default the raster, and play it in its own
-viewer, as Space does from any viewer of the observation: glue rebuilds the blinking viewer's
-sliders at each flip, which stops their playback. The slit-jaw channels of one observation share
-their pixels, so the zoom shows the same place in both, and each keeps its own stretch and colour
-limits. The window not shown is hidden in the layer list until the blink stops; with "Per-frame
-limits" on, it takes its whole cube's colour limits again, as after any change of the reference
-data, and a window dragged in has glue's linear stretch until you change it. Sessions and "Save
-Python script to reproduce plot" leave the blink out; stop it before saving a session, which keeps
-hidden layers hidden.
+shows at each flip the frame the time sync gives it then (or, past half its cadence or once clicked
+as below, the one it was left on; a collapse stays), so two slit-jaw channels blink at one time
+while the time master plays. Keep as time master a dataset the blinking viewer does not show, by
+default the raster, and play it in its own viewer, as Space does from any viewer of the observation:
+glue rebuilds the blinking viewer's sliders at each flip, which stops their playback. The slit-jaw
+channels of one observation share their pixels, so the zoom shows the same place in both, and each
+keeps its own stretch and colour limits. The window not shown is hidden in the layer list until the
+blink stops; with "Per-frame limits" on, it takes its whole cube's colour limits again, as after any
+change of the reference data, and a window dragged in has glue's linear stretch until you change it.
+Sessions and "Save Python script to reproduce plot" leave the blink out; stop it before saving a
+session, which keeps hidden layers hidden.
 
 Each slit-jaw viewer is titled with its channel ("SJI 1400", "SJI 2796 (deconvolved)") and opens on
 the raster's field of view with a margin. Every slit-jaw viewer, in a quicklook or not, draws the

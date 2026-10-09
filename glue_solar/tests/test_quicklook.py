@@ -4608,23 +4608,40 @@ def test_blink_two_slit_jaw_channels_in_playback(bare_app, qtbot, irispy_test_fi
     tool._blink.setInterval(60_000)  # no tick of its own between the flips by hand, however slow the machine
     menu_action(sji_viewer, "Blink").trigger()
     zoom, before = (state.x_min, state.x_max, state.y_min, state.y_max), styles()
-    times = raster[raster.id["Time"]][:, 0, 0]
+    times, left = raster[raster.id["Time"]][:, 0, 0], {}
     # a step of the raster's playback, the time master, then a flip each way: SJI 1400 and 2796 at frames 20 and 20,
-    # then 27 and 26, each nearest the master's time rather than where the blink left it
-    for exposure in (60, 81):
+    # each nearest the master's time rather than where the blink left it, still 20 and 20 at exposure 93, past half
+    # the cadence of both, then 27 and 26
+    for exposure in (60, 93, 81):
         slide(viewers["spectrogram"], 0, exposure)
         qtbot.wait(20)
         crosses = []
         for _ in range(2):
             tool._flip()
             data = state.reference_data
-            assert state.slices[0] == expected_nearest(times[exposure], data[data.id["Time"]][:, 0, 0])
+            frames = data[data.id["Time"]][:, 0, 0]
+            nearest = expected_nearest(times[exposure], frames)
+            if abs(frames[nearest] - times[exposure]) <= _half_cadence(frames):
+                left[data] = nearest
+            assert state.slices[0] == left[data]
             assert (state.x_min, state.x_max, state.y_min, state.y_max) == zoom
             crosses.append(tool._marker.get_xydata()[0])
         # the raster point drawn on each channel within a pixel of the other
         assert np.hypot(*np.subtract(*crosses)) < 1
     # each channel keeps its own stretch and colour limits
     assert styles() == before
+    # a collapse over the frames stays, and a partner without times, such as a ratio of the channels, keeps its frame
+    tool.partner = (sji, (AggregateSlice(slice(0, 4), 2, np.nansum), 0, 0))
+    tool._flip()
+    assert isinstance(state.slices[0], AggregateSlice)
+    ratio = Data(ratio=np.ones(sji.shape), coords=sji.coords, label="ratio")
+    ratio.meta.update(OBSID=sji.meta["OBSID"], STARTOBS=sji.meta["STARTOBS"])
+    bare_app.data_collection.append(ratio)
+    sji_viewer.add_data(ratio)
+    tool.partner = (ratio, (5, 0, 0))
+    tool._flip()
+    assert state.reference_data is ratio
+    assert state.slices[0] == 5
 
 
 def test_blink_interval(app, scans):

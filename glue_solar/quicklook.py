@@ -672,8 +672,12 @@ class Coordinator(HubListener):
     def _follow(self, master, index, step, data):
         """
         The index along the time axis of ``data`` nearest the time of ``master`` at ``index`` and timing ``step``, or
-        None past half its cadence (NO MATCH), in a gap of a master regridded on time, or without a time axis.
+        None past half its cadence (NO MATCH), in a gap of a master regridded on time, without a time axis, or for the
+        slit-jaw image clicked while the point is the click's and a raster the master.
         """
+        kept, clicked = self._kept
+        if data is kept and _role(master) == "raster" and getattr(self.group, "subset_state", None) is clicked:
+            return None  # a slit-jaw master rules, and once the point moves the image clicked follows it
         follower_step = self._timing(data)[1]
         nearest_index, offset = (value[index] for value in self._pair(master, data, step, follower_step))
         # NaT, a gap's offset, is never within the cadence
@@ -684,10 +688,11 @@ class Coordinator(HubListener):
     def following(self, data):
         """
         The index along the time axis of ``data`` that the time sync gives it now as a follower of its observation's
-        time master, as a blink flip to it shows (D7), or None: no match, no time axis, or no other time master.
+        time master, as a blink flip to it shows (D7), or None: no match, no times or time axis, no other time master,
+        or the slit-jaw image clicked.
         """
         master = self._master(observation_key(data))
-        if master is None or master is data:
+        if master is None or master is data or not _timed(data):
             return None
         index, step = self._timing(master)
         return self._follow(master, min(max(index, 0), len(_times(master, step)) - 1), step, data)
@@ -702,11 +707,8 @@ class Coordinator(HubListener):
         index = min(max(index, 0), len(times) - 1)
         self._master_times[key] = (master, times[index], step)
         moved = {}
-        kept, clicked = self._kept
-        if _role(master) != "raster" or getattr(self.group, "subset_state", None) is not clicked:
-            kept = None  # a slit-jaw master rules, and once the point moves the image clicked follows it
         for data in self._datasets(key):
-            if data is master or data is kept:
+            if data is master:
                 continue
             frame = self._follow(master, index, step, data)
             if frame is not None:
