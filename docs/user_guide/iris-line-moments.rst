@@ -31,11 +31,13 @@ The maps
   as a velocity, in km/s.
 
 Velocities are relative to the uncorrected Level 2 wavelength scale, which can be off by about
-5-10 km/s; a centre shifted by a fitted O I 1355.5977 Å makes them relative to a line at rest (see
-"Rest wavelength from a measured line" in
-:ref:`the Profile guide <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`). Mg II h and k and C II are optically thick: their profiles, often with two peaks about a
-central reversal, form over a range of heights, so their centroid and width are proxies for the
-motions and broadening of the plasma, not measurements of them.
+5-10 km/s; for a FUV window, a centre shifted by a fitted O I 1355.5977 Å makes them relative to a
+line at rest, and for a NUV window, one shifted by a fitted Ni I 2799.474 Å (see "Rest wavelength
+from a measured line" in
+:ref:`the Profile guide <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`). Mg II h and k and
+C II are optically thick: their profiles, often with two peaks about a central reversal, form over
+a range of heights, so their centroid and width are proxies for the motions and broadening of the
+plasma, not measurements of them.
 
 A pixel whose every sample within the wings is missing (NaN or -Inf), or with too few samples in the
 continuum windows to fit its background, is NaN in every map; irispy counts other missing and

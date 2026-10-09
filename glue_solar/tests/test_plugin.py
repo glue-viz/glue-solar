@@ -1725,3 +1725,5 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot):
     assert tools.text_log.toPlainText().splitlines()[-2:] == ["centre = 1355.620000", "O I 1355.5977 Å: +4.93 km/s"]
     model, _ = GaussianConstantFitter().build_and_fit(x, y)
     assert model.parameters == pytest.approx([3, 40, 1355.62, 0.04])
+    model, _ = GaussianConstantFitter().build_and_fit(x, 50 - y)
+    assert model.parameters == pytest.approx([47, -40, 1355.62, 0.04])  # absorption

@@ -171,19 +171,22 @@ viewer's View menu (see :ref:`glue_solar_users_guide_viewer_tools_and_windows`).
 In glue-qt 0.4.2, Navigate and Collapse pick the wrong wavelengths when the Profile's "x unit" is not
 the data's own (``Angstrom`` for IRIS wavelengths), so leave it unchanged for them.
 
-**Rest wavelength from a measured line.** Level 2 wavelengths can be off by about 5-10 km/s.
-O I 1355.5977 Å, in a window covering it such as ``O I 1356``, forms low enough to be nearly at rest
-and measures the offset. With ``Wavelength`` as the Profile's x axis and "Mean" as its function, for
-the signal of the whole raster, pick "Gaussian + constant (IRIS)" on the "Fit" tab, drag a range over
-the line, about 1355.4 to 1355.8 Å, and press "Fit". It fits astropy's ``Gaussian1D`` on a
-``Const1D`` to the samples in the range, the NaN fill left out, from the constant at their median and
-the line at the sample farthest from it, so an absorption line fits too. The report lists
-``amplitude_0``, the constant, and ``amplitude_1``, ``mean_1`` and ``stddev_1``, the Gaussian's, then
-the centre and, within 0.5 Å of a main IRIS line with the x unit ``Angstrom``, its velocity from that
-line, (centre / rest - 1) c. Type as the :ref:`line moments' <glue_solar_users_guide_iris_line_moments>`
-centre the line's rest wavelength times the fitted centre over 1355.5977, and their velocities are
-from O I's rest: on OBSID 3824262996, whose mean O I fits at 1355.6172 Å, +4.30 km/s, Si IV
-1402.77 Å becomes 1402.790 Å. The offset changes over the orbit; irispy's
+**Rest wavelength from a measured line.** Level 2 wavelengths can be off by about 5-10 km/s, and
+the FUV and NUV detectors drift apart. O I 1355.5977 Å, in a window covering it such as ``O I 1356``,
+forms low enough to be nearly at rest and measures the offset of the FUV windows (C II, Si IV, O I);
+Ni I 2799.474 Å, an absorption line in the ``Mg II k 2796`` window, measures the NUV's (Mg II). With
+``Wavelength`` as the Profile's x axis and "Mean" as its function, for the signal of the whole
+raster, pick "Gaussian + constant (IRIS)" on the "Fit" tab, drag a range over the line, about
+1355.4 to 1355.8 Å for O I or 2799.3 to 2799.65 Å for Ni I, and press "Fit". It fits astropy's
+``Gaussian1D`` on a ``Const1D`` to the samples in the range, the NaN fill left out, from the
+constant at their median and the line at the sample farthest from it, so an absorption line fits
+too. The report lists ``amplitude_0``, the constant, and ``amplitude_1``, ``mean_1`` and
+``stddev_1``, the Gaussian's, then the centre and, within 0.5 Å of a main IRIS line with the x unit
+``Angstrom``, its velocity from that line, (centre / rest - 1) c; Ni I is not one. Add the offset,
+the centre minus the measured line's rest wavelength, to the rest wavelength of a line on the same
+detector and type that as the :ref:`line moments' <glue_solar_users_guide_iris_line_moments>`
+centre: on OBSID 3824262996, whose mean O I fits at 1355.6172 Å, +4.30 km/s, Si IV 1402.77 Å becomes
+1402.789 Å, and Ni I fits at 2799.4729 Å, -0.12 km/s. The offset changes over the orbit; irispy's
 ``irispy.utils.wavelength_drift.calculate_wavelength_drift``, on the raster read with
 ``irispy.io.read_files`` in glue's terminal, fits O I and Ni I 2799.474 Å along the slit in every
 exposure.
