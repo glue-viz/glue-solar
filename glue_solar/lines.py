@@ -1,5 +1,6 @@
 """
-The main IRIS lines, a Profile viewer button that labels them, and the rest wavelength of a spectral window (D11).
+The main IRIS lines, a Profile viewer button that labels them, the rest wavelength of a spectral window (D11) and the
+Doppler velocity from it, as a Profile x unit and top axis.
 
 Wavelengths are NIST ASD vacuum wavelengths in Angstrom: the observed one where NIST gives one, else its Ritz value
 (D44). irispy's line database is to replace this table (`wp5-irispy-line-database` in the plan).
@@ -7,8 +8,12 @@ Wavelengths are NIST ASD vacuum wavelengths in Angstrom: the observed one where 
 
 import numpy as np
 from glue.config import layer_action, viewer_tool
-from glue.core.units import UnitConverter
+from glue.core import Subset
+from glue.core.hub import HubListener
+from glue.core.message import DataUpdateMessage
+from glue.core.units import SimpleAstropyUnitConverter, UnitConverter
 from glue.viewers.common.tool import Tool
+from glue.viewers.profile.state import ProfileViewerState
 from glue_qt.utils.decorators import messagebox_on_error
 from matplotlib.lines import Line2D
 from matplotlib.text import Text
@@ -19,7 +24,7 @@ import astropy.units as u
 
 from glue_solar.quicklook import _spectral_axes, _wavelengths, _window
 
-__all__ = ["MAIN_LINES", "LineTool", "rest_wavelength", "rest_wavelength_iris"]
+__all__ = ["MAIN_LINES", "DopplerConverter", "LineTool", "VelocityTool", "rest_wavelength", "rest_wavelength_iris"]
 
 MAIN_LINES = (
     ("C II", 1334.5323),
@@ -39,6 +44,7 @@ MAIN_LINES = (
 )
 
 MERGE = 0.01  # lines closer than this fraction of the plotted range share a label
+KM_S = u.km / u.s
 
 
 @viewer_tool
@@ -139,6 +145,119 @@ def rest_wavelength(data):
     return within[0] if within else None
 
 
+def _doppler_rest(data, cid):
+    """The `rest_wavelength` of ``data``, or of a subset's data, where ``cid`` is its wavelength, else None."""
+    data = data.data if isinstance(data, Subset) else data
+    axes = _spectral_axes(data)
+    if len(axes) != 1 or cid is not data.world_component_ids[min(axes)]:
+        return None
+    return rest_wavelength(data)
+
+
+class DopplerConverter(SimpleAstropyUnitConverter):
+    """
+    glue's own unit converter, with 'km / s' too for the wavelength of data with a `rest_wavelength`: the optical
+    Doppler velocity from it, c (λ / rest - 1). glue-solar makes it glue's 'default' converter, so a Profile viewer
+    offers it as an x unit, after the lengths; data without a rest wavelength get the lengths only.
+    """
+
+    def equivalent_units(self, data, cid, units):
+        units = list(super().equivalent_units(data, cid, units))
+        return units if _doppler_rest(data, cid) is None else [*units, "km / s"]
+
+    def to_unit(self, data, cid, values, original_units, target_units):
+        try:
+            return super().to_unit(data, cid, values, original_units, target_units)
+        except u.UnitConversionError:  # a wavelength to or from km / s
+            rest = _doppler_rest(data, cid)
+            if rest is None:
+                raise
+            return (values * u.Unit(original_units)).to_value(target_units, u.doppler_optical(rest * u.AA))
+
+
+@viewer_tool
+class VelocityTool(Tool, HubListener):
+    """
+    A top axis of the Doppler velocity, as the x unit 'km / s' gives it (`DopplerConverter`), on a Profile viewer
+    whose x axis is the wavelength of data with a `rest_wavelength`, in a length unit. It follows the x range and unit
+    and glue's x label and tick sizes. 'Set rest wavelength…' moves it and, in every Profile viewer of the data, offers
+    'km / s' or not and redraws the profiles in it. The button switches the axis off and on; it starts off.
+    """
+
+    icon = "glue_forward"
+    tool_id = "solar:velocity"
+    action_text = "Velocity axis"
+    tool_tip = "Show or hide a top axis of the Doppler velocity from the rest wavelength"
+
+    WATCHED = ("reference_data", "x_att", "x_display_unit", "x_axislabel_size", "x_ticklabel_size")
+
+    def __init__(self, viewer):
+        super().__init__(viewer)
+        self.shown = False
+        self.axis = None
+        for prop in self.WATCHED:
+            viewer.state.add_callback(prop, self.refresh)
+        self._hub = viewer.session.hub
+        self._hub.subscribe(self, DataUpdateMessage, handler=self._rest_changed, filter=self._is_reference_meta)
+        viewer.destroyed.connect(self._forget)  # also for a viewer torn down without closing its tools
+
+    def activate(self):
+        self.shown = not self.shown
+        self.refresh()
+
+    def close(self):
+        self._forget()
+        for prop in self.WATCHED:
+            self.viewer.state.remove_callback(prop, self.refresh)
+        super().close()
+
+    def _forget(self, *_):
+        self._hub.unsubscribe_all(self)
+
+    def _is_reference_meta(self, message):
+        return message.attribute == "meta" and message.sender is self.viewer.state.reference_data
+
+    def _rest_changed(self, message):
+        state = self.viewer.state
+        if state.x_att is None:
+            return
+        unit = state.x_display_unit
+        lost = unit == "km / s" and _doppler_rest(state.reference_data, state.x_att) is None
+        if lost:  # glue cannot convert the x range from km / s now
+            state._previous_x_att = None
+        state._update_x_display_unit_choices()  # glue's own, which sets the data's unit
+        if lost:
+            state._reset_x_limits()
+        elif unit in ProfileViewerState.x_display_unit.get_choices(state):
+            state.x_display_unit = unit  # glue converts the x range and redraws the profiles
+        self.refresh()
+
+    def refresh(self, *_):
+        state, axes = self.viewer.state, self.viewer.axes
+        rest = None
+        if self.shown and state.reference_data is not None and state.x_display_unit:
+            if u.Unit(state.x_display_unit).is_equivalent(u.AA):
+                rest = _doppler_rest(state.reference_data, state.x_att)
+        if rest is None and self.axis is None:
+            return
+        if rest is None:
+            self.axis.remove()
+            self.axis = None
+            axes.resizer.margins = self.margins
+        else:
+            unit, doppler = u.Unit(state.x_display_unit), u.doppler_optical(rest * u.AA)
+            functions = (lambda x: (x * unit).to_value(KM_S, doppler), lambda v: (v * KM_S).to_value(unit, doppler))
+            if self.axis is None:
+                self.margins = axes.resizer.margins
+                axes.resizer.margins = [*self.margins[:3], 0.5]  # glue's bottom margin, for the ticks and label
+                self.axis = axes.secondary_xaxis("top", functions=functions)
+            else:
+                self.axis.set_functions(functions)
+            self.axis.set_xlabel(f"Velocity from {rest} Å [km / s]", size=state.x_axislabel_size)
+            self.axis.tick_params(labelsize=state.x_ticklabel_size)
+        axes.resizer.on_resize(None)  # also draws
+
+
 def _wavelength(text):
     """``text``, typed in Angstrom, as a float."""
     try:
@@ -175,3 +294,5 @@ def rest_wavelength_iris(data, data_collection):
         data.meta["rest_wavelength"] = choices[text] if text in choices else _wavelength(text)
     elif ok:
         data.meta.pop("rest_wavelength", None)
+    if ok:
+        data.broadcast("meta")  # for the Profile viewers' velocities (`VelocityTool`)

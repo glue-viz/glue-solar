@@ -1,7 +1,7 @@
 from copy import deepcopy
 from functools import partialmethod
 
-from glue.config import fit_plugin, session_patch, stretches
+from glue.config import fit_plugin, session_patch, stretches, unit_converter
 from glue_qt.config import keyboard_shortcut
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
@@ -87,8 +87,12 @@ def setup():
         ImageViewer.subtools["save"].append(tools.SaveSequenceTool.tool_id)
     for menu, entries in menus.items():
         ImageViewer.subtools[menu.tool_id] = [tool.tool_id for tool in entries]
-    if lines.LineTool.tool_id not in ProfileViewer.tools:
-        ProfileViewer.tools.append(lines.LineTool.tool_id)
+    for tool in (lines.LineTool, lines.VelocityTool):
+        if tool.tool_id not in ProfileViewer.tools:
+            ProfileViewer.tools.append(tool.tool_id)
+    # km / s for the wavelength of data with a rest wavelength, in glue's own converter; a setting naming another
+    # converter would be saved, and glue reads its settings before loading plugins
+    unit_converter.members["default"] = lines.DopplerConverter
     # The Gaussian + constant fitter, which glue loads with the first Profile viewer, leaving astropy.modeling to it
     fit_plugin.lazy_add("glue_solar.fitters")
     # Keys for the viewer of the active window (`tools.KEYS`). glue-qt finds a viewer's keys by its exact class, so the

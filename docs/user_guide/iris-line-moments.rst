@@ -98,7 +98,8 @@ Rest wavelength
 ---------------
 
 The rest wavelength of a spectral window, at which the line centre here and the rest wavelength of
-:ref:`red-blue asymmetry <glue_solar_users_guide_iris_red_blue>` start, is:
+:ref:`red-blue asymmetry <glue_solar_users_guide_iris_red_blue>` start, and from which a Profile viewer
+gives the :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>`, is:
 
 - the one set with "Set rest wavelength…" from the window's right-click menu, which lists the main
   IRIS lines within the window and takes a wavelength typed in Å, a blank one removing it. It is

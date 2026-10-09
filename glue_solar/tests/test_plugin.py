@@ -26,7 +26,9 @@ from glue.config import (
 )
 from glue.core import Data
 from glue.core.data_factories import load_data
+from glue.core.units import UnitConverter
 from glue.viewers.image.state import AggregateSlice
+from glue.viewers.profile.state import ProfileViewerState
 from glue_qt.app.application import GlueApplication
 from glue_qt.config import keyboard_shortcut
 from glue_qt.viewers.image import ImageViewer
@@ -42,6 +44,7 @@ from qtpy.QtTest import QTest
 from qtpy.QtWidgets import QInputDialog, QToolBar
 
 import astropy.units as u
+from astropy import constants
 from astropy.coordinates import angular_separation
 from astropy.io import fits
 from astropy.visualization import PowerStretch
@@ -53,7 +56,7 @@ from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.fitters import GaussianConstantFitter
 from glue_solar.lines import rest_wavelength_iris
-from glue_solar.quicklook import QuicklookImageViewer, _role
+from glue_solar.quicklook import QuicklookImageViewer, _role, _wavelengths
 from glue_solar.regrid import regrid_on_time
 from glue_solar.sources.bursts import bursts_iris
 from glue_solar.sources.iris import help_iris, iris_quicklook, is_iris_fits, link_iris, quicklook_iris
@@ -87,6 +90,7 @@ def test_setup_registers_hooks():
     ]
     for tool in ("solar:coordinate", "solar:modes", "solar:view"):
         assert ImageViewer.tools.count(tool) == 1
+    assert ProfileViewer.tools.count("solar:lines") == ProfileViewer.tools.count("solar:velocity") == 1
     assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
     assert ImageViewer.subtools["solar:modes"] == ["solar:measure", "solar:path", "solar:path_crosshair", "solar:slope"]
     view = ["solar:frame_time", "solar:hide_axes", "solar:per_frame_limits", "solar:band", "solar:physical_aspect"]
@@ -1803,6 +1807,61 @@ def test_profiles_label_the_main_iris_lines(qtbot, irispy_test_files):
     assert labels() == []
     tool.activate()
     assert len(labels()) == 4
+
+
+def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monkeypatch, irispy_test_files):
+    glue_solar.setup()
+    files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
+    [none, mg] = sorted(raster_data(files[:1], ["Mg II k 2796", "2832"]), key=lambda data: data.label)
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.extend([mg, none])
+    viewer = app.new_data_viewer(ProfileViewer, data=mg)
+    viewer.add_data(none)
+    state = viewer.state
+    state.x_att = mg.world_component_ids[mg.ndim - 1]  # wavelength
+    units = ProfileViewerState.x_display_unit.get_choices
+    assert units(state)[-1] == "km / s"  # after the lengths
+    assert UnitConverter().to_unit(mg, state.x_att, 2796.352, "km / s") == pytest.approx(0, abs=1e-9)  # Mg II k
+    tool = viewer.toolbar.tools["solar:velocity"]
+    assert tool.axis is None  # it starts off
+    tool.activate()
+    state.x_min, state.x_max = 2795, 2798
+
+    def zero():
+        """Where the top axis has its tick at 0 km/s, in Å."""
+        viewer.figure.canvas.draw()
+        assert 0 in tool.axis.get_xticks()
+        return viewer.axes.transData.inverted().transform(tool.axis.transData.transform((0, 0)))[0]
+
+    def set_rest(text):
+        monkeypatch.setattr(QInputDialog, "getItem", lambda *args: (text, True))
+        rest_wavelength_iris(state.reference_data, app.data_collection)
+
+    def velocities(waves, rest):
+        return (np.asarray(waves) / rest - 1) * constants.c.to_value("km/s")
+
+    assert zero() == pytest.approx(2796.352, abs=1e-6)
+    set_rest("2796.2")
+    assert zero() == pytest.approx(2796.2, abs=1e-6)
+    state.x_display_unit = "km / s"  # the profile and its range from the rest wavelength, and no top axis
+    assert tool.axis is None
+    assert [state.x_min, state.x_max] == pytest.approx(velocities([2795, 2798], 2796.2))
+    assert viewer.layers[0].state.profile[0] == pytest.approx(velocities(_wavelengths(mg)[0], 2796.2))
+    set_rest("")  # back to Mg II k, still in km / s
+    assert state.x_display_unit == "km / s"
+    assert viewer.layers[0].state.profile[0] == pytest.approx(velocities(_wavelengths(mg)[0], 2796.352))
+    # 2832 has no line: no km / s until a rest wavelength is set, and none after, back in Å
+    state.reference_data = none
+    state.x_att = none.world_component_ids[none.ndim - 1]
+    assert "km / s" not in units(state)
+    set_rest("2832.7")
+    assert units(state)[-1] == "km / s"
+    state.x_display_unit = "km / s"
+    set_rest("")
+    assert "km / s" not in units(state)
+    assert state.x_display_unit == "Angstrom"
+    assert 2830 < state.x_min < state.x_max < 2835
 
 
 def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot):
