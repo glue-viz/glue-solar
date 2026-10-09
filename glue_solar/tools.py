@@ -1722,9 +1722,11 @@ def _layers_of(state, data):
 def _show_position(viewer, coordinator, data, slices):
     """
     Show ``data`` at ``slices`` in the Image viewer as a blink flip: the shown axes, by pixel axis, the zoom, the point
-    and the time sync stay. For another dataset glue resets the axes, slices and limits, so they are set again after
-    it, x before y; the dataset left is hidden, since glue would retry its disabled layer at every draw through the
-    helioprojective link, about a second on a full raster.
+    and the time sync stay. Another dataset that follows the time master shows the frame, exposure or scan the time
+    sync gives it now instead of its own, so two slit-jaw channels blink at one time in playback. For another dataset
+    glue resets the axes, slices and limits, so they are set again after it, x before y; the dataset left is hidden,
+    since glue would retry its disabled layer at every draw through the helioprojective link, about a second on a full
+    raster.
     """
     state = viewer.state
     shown = state.reference_data
@@ -1732,6 +1734,9 @@ def _show_position(viewer, coordinator, data, slices):
         if data is shown:
             state.slices = slices
             return
+        index = coordinator.following(data)
+        if index is not None:
+            slices = (index, *slices[1:])
         for layer in _layers_of(state, data):
             layer.visible = True
         x, y = state.x_att.axis, state.y_att.axis

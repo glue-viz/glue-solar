@@ -4586,6 +4586,47 @@ def test_blink_in_time(bare_app, qtbot, irispy_test_files):
     assert not tool._blink.isActive()
 
 
+def test_blink_two_slit_jaw_channels_in_playback(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    mg = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_2796_t000")))
+    viewers = quicklook(bare_app, [raster, sji, mg])
+    sji_viewer = viewers["sji"][0]
+    sji_viewer.add_data(mg)
+    show(sji_viewer, mg, (0, 0, 0))
+    menu_action(sji_viewer, "Set blink partner here").trigger()
+    show(sji_viewer, sji, (0, 0, 0))
+    qtbot.wait(20)
+    state, tool = sji_viewer.state, sji_viewer.toolbar.tools["solar:coordinate"]
+
+    def styles():
+        return [
+            (layer.layer.label, layer.stretch, layer.v_min, layer.v_max)
+            for layer in state.layers
+            if hasattr(layer, "stretch")
+        ]
+
+    tool._blink.setInterval(60_000)  # no tick of its own between the flips by hand, however slow the machine
+    menu_action(sji_viewer, "Blink").trigger()
+    zoom, before = (state.x_min, state.x_max, state.y_min, state.y_max), styles()
+    times = raster[raster.id["Time"]][:, 0, 0]
+    # a step of the raster's playback, the time master, then a flip each way: SJI 1400 and 2796 at frames 20 and 20,
+    # then 27 and 26, each nearest the master's time rather than where the blink left it
+    for exposure in (60, 81):
+        slide(viewers["spectrogram"], 0, exposure)
+        qtbot.wait(20)
+        crosses = []
+        for _ in range(2):
+            tool._flip()
+            data = state.reference_data
+            assert state.slices[0] == expected_nearest(times[exposure], data[data.id["Time"]][:, 0, 0])
+            assert (state.x_min, state.x_max, state.y_min, state.y_max) == zoom
+            crosses.append(tool._marker.get_xydata()[0])
+        # the raster point drawn on each channel within a pixel of the other
+        assert np.hypot(*np.subtract(*crosses)) < 1
+    # each channel keeps its own stretch and colour limits
+    assert styles() == before
+
+
 def test_blink_interval(app, scans):
     scan, _ = scans
     app.data_collection.append(scan)

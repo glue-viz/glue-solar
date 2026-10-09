@@ -669,6 +669,29 @@ class Coordinator(HubListener):
             self._pairs[key] = nearest(_times(master, master_step), _times(follower, follower_step))
         return self._pairs[key]
 
+    def _follow(self, master, index, step, data):
+        """
+        The index along the time axis of ``data`` nearest the time of ``master`` at ``index`` and timing ``step``, or
+        None past half its cadence (NO MATCH), in a gap of a master regridded on time, or without a time axis.
+        """
+        follower_step = self._timing(data)[1]
+        nearest_index, offset = (value[index] for value in self._pair(master, data, step, follower_step))
+        # NaT, a gap's offset, is never within the cadence
+        if _time_axis(data) is not None and abs(offset) <= _half_cadence(_times(data, follower_step)):
+            return int(nearest_index)
+        return None
+
+    def following(self, data):
+        """
+        The index along the time axis of ``data`` that the time sync gives it now as a follower of its observation's
+        time master, as a blink flip to it shows (D7), or None: no match, no time axis, or no other time master.
+        """
+        master = self._master(observation_key(data))
+        if master is None or master is data:
+            return None
+        index, step = self._timing(master)
+        return self._follow(master, min(max(index, 0), len(_times(master, step)) - 1), step, data)
+
     def _sync(self, key):
         """Move the followers of observation ``key`` to its time master, or mark them NO MATCH."""
         master = self._master(key)
@@ -685,12 +708,9 @@ class Coordinator(HubListener):
         for data in self._datasets(key):
             if data is master or data is kept:
                 continue
-            follower_step = self._timing(data)[1]
-            follower_times = _times(data, follower_step)
-            nearest_index, offset = (value[index] for value in self._pair(master, data, step, follower_step))
-            axis = _time_axis(data)
-            if axis is not None and abs(offset) <= _half_cadence(follower_times):
-                moved[data] = (axis, int(nearest_index))
+            frame = self._follow(master, index, step, data)
+            if frame is not None:
+                moved[data] = (_time_axis(data), frame)
         with self._writing():
             for data, (axis, frame) in moved.items():
                 self._move_in_time(data, axis, frame)
