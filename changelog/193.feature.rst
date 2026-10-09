@@ -1,0 +1,1 @@
+Undo and Redo of a slit-jaw click in the quicklook also move the clicked slit-jaw viewer back to the frame that was clicked.
