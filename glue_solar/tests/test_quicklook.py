@@ -884,8 +884,9 @@ POINT_CURVES = "Light curves at this point (windows, SJI)"
 
 def expected_sji_curve(raster, sji, slit):
     """
-    The slit-jaw image's light curve at slit pixel ``slit`` of a sit-and-stare raster, frame by frame from both datasets'
-    own coordinates: at the exposure nearest each frame's time, NaN past half the raster's cadence or off the frame.
+    The slit-jaw image's light curve at slit pixel ``slit`` of a sit-and-stare raster, frame by frame from both
+    datasets' own coordinates: at the exposure nearest each frame's time, NaN past half the raster's cadence or off the
+    frame.
     """
     times, frames = (data[data.id["Time"]][:, 0, 0] for data in (raster, sji))
     values = sji[sji.main_components[0]]
@@ -967,7 +968,9 @@ def test_light_curves_at_the_point(bare_app, qtbot, tmp_path, irispy_test_files)
     qtbot.waitUntil(lambda: check(10))
     assert Counter(map(id, changes.changed)) == Counter(map(id, curves))  # once each
     # ECSV keeps their times and values
-    assert export_ecsv in [exporter.function for exporter in data_exporter.members if exporter.label == "ECSV (with Time)"]
+    assert export_ecsv in [
+        exporter.function for exporter in data_exporter.members if exporter.label == "ECSV (with Time)"
+    ]
     for curve in curves:
         path = tmp_path / "curve.ecsv"
         export_ecsv(str(path), curve)
