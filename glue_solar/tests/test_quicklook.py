@@ -870,6 +870,9 @@ def test_a_light_curve_follows_the_point_and_the_band(bare_app, qtbot, monkeypat
         "Could not open the light curve\nChoose it on the map of a sit-and-stare raster or a stack, whose wavelength or "
         "band it averages."
     ]
+    # a scripted subset with no group leaves it alone
+    raster.new_subset(label="plain").subset_state = raster.pixel_component_ids[0] > 0
+    check(10, slice(18, 23))
 
 
 def test_clearing_the_point_stops_the_coupling(bare_app, qtbot, scans):

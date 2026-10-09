@@ -1449,7 +1449,7 @@ class _LightCurve(HubListener):
         self.refresh()
 
     def _moved(self, message):
-        return message.subset.group is self.point and message.subset.data is self.data
+        return getattr(message.subset, "group", None) is self.point and message.subset.data is self.data
 
     def refresh(self, *_):
         point, state, data = self.point.subset_state, self.band.state, self.data
@@ -1471,7 +1471,7 @@ def _light_curve(viewer):
     ``viewer``, an Image viewer of a sit-and-stare raster or a stack with a wavelength slider, shows, at the point's
     slit position, and a stack's step, against exposure or scan. The light curve is the new subset group 'Light
     curve', a `~glue.core.subset.SliceSubsetState` that follows the point and the band (`_LightCurve`), shown in that
-    Profile only.
+    Profile and removed from the other viewers open then.
     """
     app, data = viewer.session.application, viewer.state.reference_data
     coord = coordinator(app.data_collection)

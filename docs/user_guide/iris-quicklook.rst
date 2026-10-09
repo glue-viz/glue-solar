@@ -224,11 +224,15 @@ Collapse's function, or a "Wavelength band…", or else the map's wavelength. Th
 new subset "Light curve", glue's selection of those pixels by their indices, which follows the point
 and the map's band: a click, a slider move, a Collapse or a band step moves it, and it stays where it
 was after "Clear point" or while the map shows other data. Its x axis is glue's "Pixel Axis 0", the
-exposure or scan index, as on the raster panels. It shows in its own viewer only, as glue-core 1.27.0
-profiles it with the band's samples alone, which a spectrum panel cannot draw; choose the entry again
-for another. On the Si IV 1403 window of OBSID 4000255147, 1600 exposures by 417 slit pixels by 262
-wavelengths, it equals numpy's ``nanmean`` of the band at the point to float32 precision, and a click
-or band change redraws it in under half a second. On another viewer glue says why it cannot open.
+exposure or scan index, as on the raster panels. It is removed from the viewers open at the time; a
+viewer of the raster opened later gets it, as glue adds every subset, and a Profile viewer with
+wavelength on x cannot draw it with a band wider than one pixel (glue-core 1.27.0 keeps only the
+band's samples): hide or remove it there. Choose the entry again for another. Deleting the "Light
+curve" group in the layer tree stops it; select "Point" there again before the next click, as glue's
+deletion clears the edit subset. On the Si IV 1403 window of OBSID 4000255147, 1600 exposures by
+417 slit pixels by 262 wavelengths, it equals numpy's ``nanmean`` of the band at the point to
+float32 precision, and a click or band change redraws it in under half a second. On another viewer
+glue says why it cannot open.
 
 A click with the Pixel tool on a slit-jaw viewer of the quicklook moves the point to the raster
 pixel there, placed with the displayed frame's own pointing (``sji_to_raster``, see
