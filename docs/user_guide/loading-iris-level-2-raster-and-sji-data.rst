@@ -20,6 +20,10 @@ SAT_ROT, and Files, the number of files:
 
 Open it from the "Plugins" menu with "IRIS: browse observations…". Subfolders are searched by
 default; un-tick "Search subfolders" to look at one folder only. The last folder used is remembered.
+To search another folder, type it in "Folder" and press Return (or leave the field), or pick one with
+"Change…"; a folder that does not exist is not searched, and the progress bar says so. The browser
+opens with its tick boxes, "Search subfolders", "Stack sequential raster scans" and "Open quicklook",
+as you last left them.
 glue reads the folder's headers in the background, and the progress bar counts the files; meanwhile
 "Cancel" reads "Stop". "Stop" ends the search once the file being read is done and lists what it
 found so far, so observations may be missing or show only some of their files, which the progress
@@ -59,8 +63,10 @@ browser keeps them for next time, and opens with the latest search's "Start" and
 
 Tick the entries you want (ticking the observation row ticks everything under it); each slit-jaw
 channel and AIA cutout you tick loads as a dataset of its own. Then press "Load selected": the data
-are added to the data collection. glue reads the files in the background, one at a time, and the
-progress bar counts them; meanwhile the list and its boxes are locked and "Cancel" reads "Stop".
+are added to the data collection. Double-click an entry to load it alone, whatever is ticked; a
+double-click on an observation of several entries expands or collapses it instead. glue reads the
+files in the background, one at a time, and the progress bar counts them; meanwhile the list and its
+boxes are locked and "Cancel" reads "Stop".
 "Stop" ends the load once the file being read is done and loads the entries read in full, such as a
 slit-jaw channel read before a raster window, or nothing if none was. Pressing Esc or closing the
 browser drops the load: nothing is loaded. With "Open quicklook" ticked, the default, each

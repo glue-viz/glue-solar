@@ -63,6 +63,7 @@ _SETTINGS = ("glue-solar", "glue-solar")
 _LAST_DIR = "iris/last_dir"
 _RECENT = "iris/recent"  # JSON [[folder, start, end], ...] of the latest searches, newest first
 _PLACES = "iris/places"  # JSON [[name, folder], ...] of the saved folders
+_OPTIONS = ("recursive", "stack", "quicklook")  # the browser's tick boxes, kept as left under iris/<name>
 _RECENT_SEARCHES = 10
 # One name per axis type for every IRIS dataset, so Glue lines up SJI and raster axes: FITS-based irispy
 # WCSes carry no axis names (Glue would say "World N") and gWCS ones say "Longitude" and "Latitude".
@@ -944,7 +945,12 @@ class QtIRISImporter(QtWidgets.QDialog):
     the scan reads the headers only of the files whose names are stamped from a day
     before Start to End, and of those with no stamp. The saved folders and the last
     10 searches, each a folder with its Start and End, are kept in the settings, and
-    the latest search's Start and End fill the next browser's.
+    the latest search's Start and End fill the next browser's. Its tick boxes open
+    as the last browser left them.
+
+    A folder typed in the Folder field is searched once Return is pressed or the
+    field is left. A double-click on an entry loads it alone, whatever is ticked;
+    on an observation of several entries it expands or collapses the row.
     """
 
     progressed = Signal(int, int)  # (load, percent), from the worker thread
@@ -952,19 +958,24 @@ class QtIRISImporter(QtWidgets.QDialog):
     def __init__(self, directory=None, parent=None, shown=None):
         super().__init__(parent)
         self.ui = load_ui(UI_MAIN, self)
+        settings = QSettings(*_SETTINGS)
+        for name in _OPTIONS:  # before they are connected to a rescan
+            box, key = getattr(self, name), f"iris/{name}"
+            box.setChecked(settings.value(key, box.isChecked(), type=bool))
+            box.toggled.connect(lambda checked, key=key: QSettings(*_SETTINGS).setValue(key, checked))
         self.cancel.clicked.connect(self._cancel)
-        self.ok.clicked.connect(self.finalize)
+        self.ok.clicked.connect(lambda: self.finalize(self.selected()))
+        self.obs_tree.itemDoubleClicked.connect(self._double_clicked)
         self.progressed.connect(self._progressed)
         self.change.clicked.connect(self.choose_directory)
         self.recursive.toggled.connect(lambda _checked: self.set_directory(self.directory.text()))
         self.filter.textChanged.connect(self._filter)
-        for field in (self.start, self.end):
-            field.editingFinished.connect(self._window_edited)
+        for field in (self.directory, self.start, self.end):
+            field.editingFinished.connect(self._search_edited)
         self.places.activated.connect(lambda i: self.set_directory(self._places[i][1]))
         self.add_place.clicked.connect(self._add_place)
         self.remove_place.clicked.connect(self._remove_place)
         self.recent.activated.connect(self._restore)
-        settings = QSettings(*_SETTINGS)
         self._places = json.loads(settings.value(_PLACES, "[]"))
         self._recent = json.loads(settings.value(_RECENT, "[]"))
         self._store_places(-1)
@@ -1025,7 +1036,7 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.progress.setFormat("Scanning the folder: %p%")
         self._start(partial(self._scanned, note), _scan, search[0], self.recursive.isChecked(), start, end)
 
-    def _window_edited(self):
+    def _search_edited(self):
         if self._recent[:1] != [self._search()]:  # editingFinished also comes as an unchanged field loses focus
             self.set_directory(self.directory.text())
 
@@ -1150,9 +1161,13 @@ class QtIRISImporter(QtWidgets.QDialog):
                 picks.append(self._payloads[item.data(0, Qt.UserRole)])
         return picks
 
-    def finalize(self):
+    def _double_clicked(self, item):
+        if item.data(0, Qt.UserRole) is not None:  # an entry, not an observation's row of several
+            self.finalize([self._payloads[item.data(0, Qt.UserRole)]])
+
+    def finalize(self, picks):
+        """Load ``picks``, as `selected` gives them, or unpack the archives among them."""
         self.progress.setFormat("%p%")
-        picks = self.selected()
         archives = [name for _, kind, name in picks if kind == "archive"]
         if archives:  # unpack, rescan and stay open so the user can pick from what was inside
             self._start(self._extracted, _extract, archives)
@@ -1175,7 +1190,7 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     def _busy(self, busy):
         """While a load runs, only Stop: the ticks and boxes it was started with stay as they were."""
-        searching = self.change, self.recursive, self.start, self.end, self.places, self.recent
+        searching = self.directory, self.change, self.recursive, self.start, self.end, self.places, self.recent
         for widget in (self.ok, *searching, self.obs_tree, self.stack, self.quicklook):
             widget.setEnabled(not busy)
         self.cancel.setText("Stop" if busy else "Cancel")

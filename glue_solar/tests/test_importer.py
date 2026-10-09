@@ -470,6 +470,59 @@ def test_saved_folders_search_their_folder_and_last_until_removed(qtbot, monkeyp
     assert third.places.count() == 0
 
 
+def _boxes(dialog):
+    return dialog.recursive.isChecked(), dialog.stack.isChecked(), dialog.quicklook.isChecked()
+
+
+def test_tick_boxes_open_as_the_last_browser_left_them(dialog, qtbot, iris_tree):
+    assert _boxes(dialog) == (True, False, True)
+    dialog.recursive.setChecked(False)
+    scanned(qtbot, dialog)
+    dialog.stack.setChecked(True)
+    dialog.quicklook.setChecked(False)
+
+    again = QtIRISImporter(iris_tree)
+    qtbot.addWidget(again)
+    scanned(qtbot, again)
+    assert _boxes(again) == (False, True, False)
+    assert _row(again, OBS_A[2]).text(6) == "1 — SJI_1400"  # its first scan searches the one folder
+
+
+def test_a_folder_typed_in_the_folder_field_is_searched(dialog, qtbot, iris_tree, tmp_path):
+    dialog.show()
+    dialog.directory.setText(str(next(iris_tree.glob("*_raster"))))  # OBS_A's raster files
+    QTest.keyClick(dialog.directory, Qt.Key_Return)
+    assert dialog.isVisible()  # Return searches, never loads
+    scanned(qtbot, dialog)
+    assert _listed(dialog) == [OBS_A[2]]
+    dialog.directory.editingFinished.emit()  # as the unchanged field loses focus
+    assert dialog.ok.isEnabled()  # no rescan
+    dialog.directory.setText(str(tmp_path / "gone"))
+    dialog.directory.editingFinished.emit()
+    assert dialog.ok.isEnabled()  # no scan
+    assert dialog.progress.format() == f"No such folder: {tmp_path / 'gone'}"
+    assert _listed(dialog) == [OBS_A[2]]
+
+
+def test_double_click_loads_the_entry_alone_and_expands_an_observation(dialog, qtbot):
+    dialog.show()
+    tree, row = dialog.obs_tree, _row(dialog, OBS_A[2])
+    tick(dialog, "Mg II k")
+
+    def double_click(item):  # as Qt sees one: a click, then the double-click
+        for click in (QTest.mouseClick, QTest.mouseDClick):
+            click(tree.viewport(), Qt.LeftButton, pos=tree.visualItemRect(item).center())
+
+    double_click(row)
+    assert row.isExpanded()
+    assert dialog.ok.isEnabled()  # nothing loads
+    double_click(row.child(0))
+    assert dialog.cancel.text() == "Stop"  # in the background, as Load selected
+    scanned(qtbot, dialog)
+    assert dialog.result() == QDialog.Accepted
+    assert [(kind, name) for _, kind, name, _ in dialog.loaded] == [("sji", "SJI_1400")]
+
+
 def gated_scan(monkeypatch, widget, method, last):
     """
     The names of the files whose headers the browser's scan reads, with the user's ``widget.method()`` as the header of
