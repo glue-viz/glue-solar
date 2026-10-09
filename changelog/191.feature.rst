@@ -1,0 +1,1 @@
+Path diagrams save in glue sessions, and "Save path as ECSV…" and "Open path from ECSV…" save a path and reopen it as the same diagrams.

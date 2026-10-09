@@ -26,7 +26,11 @@ from glue.config import (
 )
 from glue.core import Data
 from glue.core.data_factories import load_data
+from glue.core.link_helpers import LinkSame
+from glue.core.roi import RectangularROI
+from glue.core.subset import RoiSubsetState
 from glue.core.units import UnitConverter
+from glue.plugins.tools.path_slicer.path_sliced_data_links import PathRelativeLink
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.profile.state import ProfileViewerState
 from glue_qt.app.application import GlueApplication
@@ -41,12 +45,13 @@ from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QDesktopServices, QKeySequence
 from qtpy.QtTest import QTest
-from qtpy.QtWidgets import QInputDialog, QToolBar
+from qtpy.QtWidgets import QFileDialog, QInputDialog, QToolBar
 
 import astropy.units as u
 from astropy import constants
 from astropy.coordinates import angular_separation
 from astropy.io import fits
+from astropy.table import QTable
 from astropy.visualization import PowerStretch
 from astropy.visualization.wcsaxes import WCSAxes
 from astropy.wcs import WCS
@@ -68,7 +73,7 @@ from glue_solar.sources.mg_features import mg_features_iris
 from glue_solar.sources.moments import moments_iris
 from glue_solar.sources.red_blue import red_blue_iris
 from glue_solar.tests.helpers import count_tick_work, mouse, press, raster_point_on_sji
-from glue_solar.tools import sky_length
+from glue_solar.tools import PathData, sky_length
 
 
 def test_setup_registers_hooks():
@@ -400,14 +405,18 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot, monkeypatch
         button = toolbar.widgetForAction(toolbar.actions[menu])
         assert button.toolTip() == toolbar.tools[menu].tool_tip  # on hover, as a button's
         menus[menu] = button.menu()
-        # each tool's entry, by its id as for a button, and Path diagram's sampling
+        # each tool's entry, by its id as for a button, and Path diagram's ECSV entries and sampling
         entries = [toolbar.actions[tool] for tool in ImageViewer.subtools[menu]]
-        assert menus[menu].actions() == entries + [menus[menu].actions()[-1]] * (menu == "solar:modes")
+        extra = ["Save path as ECSV…", "Open path from ECSV…", "Path sampling"] if menu == "solar:modes" else []
+        assert menus[menu].actions()[: len(entries)] == entries
+        assert [entry.text() for entry in menus[menu].actions()[len(entries) :]] == extra
     sampling = menus["solar:modes"].actions()[-1]
     assert sampling.text() == "Path sampling"
 
-    # the mouse modes, checked while on, the crosshair and Slope on a path diagram only, and Path diagram's L
-    assert [entry.isVisible() for entry in menus["solar:modes"].actions()] == [True, True, False, False, True]
+    # the mouse modes, checked while on, the crosshair, Slope and saving a path on a path diagram only, and Path
+    # diagram's L
+    shown = [entry.isVisible() for entry in menus["solar:modes"].actions()]
+    assert shown == [True, True, False, False, False, True, True]
     toolbar.active_tool = "image:point_selection"
     measure = toolbar.actions["solar:measure"]
     measure.trigger()
@@ -1180,8 +1189,107 @@ def test_slope_recovers_an_injected_features_speed_and_acceleration(qtbot):
     assert (tool.label.text(), tool.roi().to_polygon()) == ("", ([], []))
 
 
+def _modes_entry(viewer, text):
+    """The entry ``text`` of the viewer's pencil menu."""
+    menu = viewer.toolbar.widgetForAction(viewer.toolbar.actions["solar:modes"]).menu()
+    return next(action for action in menu.actions() if action.text() == text)
+
+
+def _assert_same_diagram(got, expected):
+    """The diagram ``got`` has the parent, path, sampling, values and coordinates of ``expected``."""
+    assert (got.original_data.label, got.sampling) == (expected.original_data.label, expected.sampling)
+    np.testing.assert_array_equal(np.stack([got.x, got.y]), np.stack([expected.x, expected.y]))
+    for cid, original in zip(got.components, expected.components, strict=True):
+        assert cid.label == original.label
+        np.testing.assert_array_equal(got[cid], expected[original])
+
+
+def test_a_path_diagram_reopens_from_ecsv_and_from_a_session(qtbot, monkeypatch, tmp_path):
+    # a slit-jaw-like cube of 0.1663" pixels seen from 1 AU, with times, and another dataset on its pixels
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    wcs = WCS(naxis=3)
+    wcs.wcs.ctype = "HPLN-TAN", "HPLT-TAN", ""
+    wcs.wcs.cunit = "arcsec", "arcsec", ""
+    wcs.wcs.cdelt = 0.1663, 0.1663, 1
+    wcs.wcs.crpix, wcs.wcs.crval = (8, 6, 1), (400, -300, 0)
+    rng = np.random.default_rng(0)
+    cube = Data(label="cube", flux=rng.random((3, 12, 16)), coords=wcs)
+    times = np.datetime64("2013-09-02T16:39:35") + np.arange(3) * np.timedelta64(12, "s")
+    cube.add_component(np.broadcast_to(times[:, None, None], cube.shape), "Time")
+    cube.meta["DSUN_OBS"] = 1.496e11
+    other = Data(label="other", flux=rng.random((3, 12, 16)))
+    app.data_collection.extend([cube, other])
+    for cid, same in zip(cube.pixel_component_ids, other.pixel_component_ids, strict=True):
+        app.data_collection.add_link(LinkSame(cid, same))
+    viewer = app.new_data_viewer(ImageViewer, data=cube)
+    viewer.add_data(other)
+    viewer.toolbar.tools["solar:path"].sampling = "linear"
+    path, on_other = _draw_path(viewer, [0.3, 15.3], [4.6, 4.6])  # along x
+    diagram = viewer.toolbar.tools["solar:path"]._slice_viewer
+    entries = ("Save path as ECSV…", "Open path from ECSV…")
+    # saved from a diagram, opened where a path is drawn
+    assert [_modes_entry(shown, text).isVisible() for shown in (diagram, viewer) for text in entries] == [
+        True,
+        False,
+        False,
+        True,
+    ]
+
+    # its samples in the cube's pixels and on the sky, 0.1663" and 120.6 km apart
+    file = str(tmp_path / "path.ecsv")
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (file, ""))
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *args: (file, ""))
+    _modes_entry(diagram, entries[0]).trigger()
+    table = QTable.read(file)
+    assert dict(table.meta) == {"data": "cube", "axes": [2, 1], "sampling": "linear"}
+    np.testing.assert_array_equal(np.stack([table["x"], table["y"]]), np.stack([path.x, path.y]))
+    lon, lat, _ = wcs.pixel_to_world_values(path.x, path.y, 0)
+    np.testing.assert_allclose(table["lon"].to_value(u.arcsec), lon * 3600, rtol=0, atol=1e-6)
+    np.testing.assert_allclose(table["lat"].to_value(u.arcsec), lat * 3600, rtol=0, atol=1e-6)
+    np.testing.assert_allclose(table["distance"].to_value(u.arcsec), 0.1663 * np.arange(len(table)), rtol=1e-6)
+    assert table["distance_km"][1].to_value(u.km) == pytest.approx(120.6143, rel=1e-6)
+    # opened on the cube, it makes the same diagrams again, with the saved sampling
+    viewer.toolbar.tools["solar:path"].sampling = "truncate"
+    _modes_entry(viewer, entries[1]).trigger()
+    again, again_on_other = viewer.toolbar.tools["solar:path"]._traces[-1]
+    assert again.label == "cube [slice 2, linear]"
+    for got, expected in ((again, path), (again_on_other, on_other)):
+        _assert_same_diagram(got, expected)
+
+    # a session, saved and restored twice, gives the diagrams, their viewer, a region on one and the link between
+    # their paths
+    box = RoiSubsetState(path.pixel_component_ids[1], path.pixel_component_ids[0], RectangularROI(2, 9, -1, 1.5))
+    app.data_collection.new_subset_group("box", box)
+    mask = path.subsets[0].to_mask()
+    assert 0 < mask.sum() < mask.size
+    session = str(tmp_path / "path.glu")
+    for _ in range(2):
+        app.save_session(session)
+        app = GlueApplication.restore_session(session)
+        qtbot.addWidget(app)
+        restored = {data.label: data for data in app.data_collection if isinstance(data, PathData)}
+        assert list(restored) == [path.label, on_other.label, again.label, again_on_other.label]
+        for expected in (path, on_other):
+            got = restored[expected.label]
+            _assert_same_diagram(got, expected)
+            assert all(cid.parent is got for cid in got.pixel_component_ids + got.world_component_ids)
+        [shown] = [shown for tab in app.viewers for shown in tab if shown.state.reference_data is restored[path.label]]
+        assert shown.state.x_att is restored[path.label].pixel_component_ids[1]
+        shown.figure.canvas.draw()
+        np.testing.assert_array_equal(restored[path.label].subsets[0].to_mask(), mask)
+        links = [link for link in app.data_collection.external_links if isinstance(link, PathRelativeLink)]
+        pairs = {(link._slice_from, link._slice_to) for link in links}
+        assert (restored[on_other.label], restored[path.label]) in pairs
+    # opened on the restored cube, numbered past its restored diagrams
+    [image] = [shown for tab in app.viewers for shown in tab if shown.state.reference_data.label == "cube"]
+    _modes_entry(image, entries[1]).trigger()
+    assert image.toolbar.tools["solar:path"]._traces[-1][0].label == "cube [slice 3, linear]"
+
+
 @pytest.mark.remote_data
-def test_path_diagram_of_a_full_size_slit_jaw_image(qtbot, irispy_data):
+def test_path_diagram_of_a_full_size_slit_jaw_image(qtbot, monkeypatch, tmp_path, irispy_data):
     # 4000255147 SJI 1400, read lazily, whose diagram is its 50 frames against the path
     data = image_data(irispy_data("iris_l2_20130902_163935_4000255147_SJI_1400_t000_f050.fits.gz"))
     glue_solar.setup()
@@ -1194,6 +1302,15 @@ def test_path_diagram_of_a_full_size_slit_jaw_image(qtbot, irispy_data):
     flux = data.main_components[0]
     np.testing.assert_array_equal(path[flux], _along(data, flux, path))
     viewer.toolbar.tools["solar:path"]._slice_viewer.figure.canvas.draw()
+    # its path saved as ECSV, on the sky of the first frame, and opened again
+    file = str(tmp_path / "path.ecsv")
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (file, ""))
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *args: (file, ""))
+    _modes_entry(viewer.toolbar.tools["solar:path"]._slice_viewer, "Save path as ECSV…").trigger()
+    _modes_entry(viewer, "Open path from ECSV…").trigger()
+    [again] = viewer.toolbar.tools["solar:path"]._traces[-1]
+    _assert_same_diagram(again, path)
+    assert np.isfinite(QTable.read(file)["distance_km"]).all()
 
 
 def _cmap_menu(viewer):
