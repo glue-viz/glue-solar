@@ -1,7 +1,7 @@
 """
 'IRIS: line moments…', on int16 copies of irispy's test files, Gaussian lines and one irispy-data cutout: what glue
-gets of irispy's maps; 'IRIS: subtract mean spectrum', as a Profile shows it; the maps exported with their
-coordinates; and the rest wavelength the line dialogs start at.
+gets of irispy's maps, of a scan or a stack, and the wings a Profile range gives; 'IRIS: subtract mean spectrum', as
+a Profile shows it; the maps exported with their coordinates; and the rest wavelength the line dialogs start at.
 """
 
 import warnings
@@ -57,6 +57,13 @@ def app(qtbot):
 def scan_path(tmp_path, irispy_test_files):
     """Scan 0 of 3860258481, stored as int16: its Si IV 1403 window misses every sample of 24 pixels about 1402.77."""
     return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
+
+
+@pytest.fixture
+def stack_paths(tmp_path, irispy_test_files):
+    """The three scans of 3860258481, stored as int16."""
+    files = sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)
+    return [int16_raster_copy(p, tmp_path / p.name) for p in files]
 
 
 def answer(monkeypatch, centre, wings=(), continuum="", accept=True, errors=False):
@@ -164,22 +171,79 @@ def test_the_typed_wings_and_a_blank_or_cancelled_centre(app, qtbot, monkeypatch
         assert len(collection) == 2
 
 
+def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatch, stack_paths):
+    """
+    A lazy stack of 3860258481's three scans, in slabs of 3 steps, gives one dataset whose maps and coordinates at
+    each scan are those of the scan loaded alone.
+    """
+    monkeypatch.setattr(moments, "SLAB", 3 * 109 * 4)
+    [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
+    collection = app.data_collection
+    collection.append(stack)
+    keep_hpc_linked(collection)
+    answer(monkeypatch, "1402.77")
+    maps = run(app, qtbot, stack)
+    assert maps.shape == stack.shape[:-1]
+    assert not any(app.viewers)
+    assert link_hpc(collection) == []
+    for k, path in enumerate(stack_paths):
+        [scan] = raster_data([path], ["Si IV 1403"])
+        alone = line_moments(scan, 1402.77)
+        assert maps.meta == alone.meta
+        for cid in alone.main_components:
+            np.testing.assert_array_equal(maps[cid.label][k], alone[cid])
+        for cid in alone.world_component_ids:
+            np.testing.assert_allclose(maps[cid.label][k], alone[cid], rtol=0, atol=1e-9)
+
+
+def test_a_stacks_saturated_pixels_are_counted_over_its_scans(app, qtbot, monkeypatch, stack_paths):
+    monkeypatch.setattr(iris, "LAZY", False)
+    [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
+    app.data_collection.append(stack)
+    cid, (wavelengths, _) = stack.main_components[0], _wavelengths(stack)
+    inside = np.flatnonzero((wavelengths >= 1402.27) & (wavelengths <= 1403.27))
+    values = np.array(stack[cid])
+    values[0, :, 10, inside[1]] = values[2, :, 20, inside[1]] = 16182  # at every step of scans 0 and 2
+    stack.update_components({cid: values})
+    answer(monkeypatch, "1402.77")
+    maps = run(app, qtbot, stack, f"{stack.label} moments 1402.77: 16 pixels saturated within the wings are NaN")
+    assert np.isnan(maps["intensity"][[0, 2], :, [10, 20]]).all()
+
+
+def test_a_profile_range_gives_the_wings_from_a_centre_within_it(app, qtbot, monkeypatch, scan_path):
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    app.data_collection.append(raster)
+    profile = app.new_data_viewer(ProfileViewer, data=raster)
+    profile.state.x_att, profile.state.x_display_unit = raster.world_component_ids[-1], "nm"
+    profile.toolbar.active_tool = "profile-analysis"  # its Options
+    tools = profile.toolbar.tools["profile-analysis"]._profile_tools
+    tools.ui.tabs.setCurrentIndex(2)  # Collapse, which shows the range
+    tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 140.33, 140.22  # dragged leftwards, in nm
+    # from the centre the dialog starts at, the window's Si IV 1402.77, or, outside it, the dialog's until one within
+    # it is typed
+    for rest, opens in ((None, ("1402.77", 0.57, 0.53)), (1404, ("1404.0", 0.5, 0.5))):
+        raster.meta["rest_wavelength"] = rest
+        opened = answer(monkeypatch, "1402.77")
+        assert run(app, qtbot, raster).meta["moments_wings"] == pytest.approx((0.57, 0.53))
+        assert opened == [(*opens, "", False)]
+    profile.toolbar.active_tool = "select:xrange"  # which hides the range
+    answer(monkeypatch, "1402.77")
+    assert run(app, qtbot, raster).meta["moments_wings"] == (0.5, 0.5)
+
+
 def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy_test_files):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
-    [stack] = raster_data(
-        sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)[:2], ["Si IV 1403"], stack=True
-    )
     sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
     collection = app.data_collection
-    collection.extend([raster, stack, sji, plain])
+    collection.extend([raster, sji, plain])
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
     action = tree._actions[ACTION]
     opened = answer(monkeypatch, "1402.77")
-    for data in (stack, sji, plain):
+    for data in (sji, plain):
         tree.ui.layerTree.set_selected_layers([data])
         action.trigger()
     assert opened == []  # refused before asking
@@ -196,8 +260,6 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
         action.trigger()
     assert all(text.startswith("Could not compute line moments\n") for text in shown)
     assert [text.split("\n", 1)[1] for text in shown] == [
-        f"{stack.label} is a stack of raster scans: line moments take one scan, as the observation browser loads them "
-        "without 'Stack sequential raster scans'.",
         f"{sji.label} is not an IRIS raster window.",
         "plain is not an IRIS raster window.",
         f"No wavelength of {raster.label} (1398.63 to 1405.75 Å) lies within 0.5 Å below and 0.5 Å above 3000.0 Å.",
@@ -207,15 +269,15 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
         "The continuum window 1402.0-1402.5 Å overlaps the wings, 0.5 Å below and 0.5 Å above 1402.77 Å.",
         f"No wavelength of {raster.label} (1398.63 to 1405.75 Å) lies within the continuum window 1300.0-1301.0 Å.",
     ]
-    assert len(collection) == 4
+    assert len(collection) == 3
     # and an error of irispy's, on the thread
     monkeypatch.setattr(irispy.utils.moments, "calculate_moments", Mock(side_effect=RuntimeError("irispy failed")))
     answer(monkeypatch, "1402.77")
     action.trigger()
-    qtbot.waitUntil(lambda: len(shown) == 10 and not iris._RUNNING)
+    qtbot.waitUntil(lambda: len(shown) == 9 and not iris._RUNNING)
     assert shown[-1] == "Could not compute line moments\nirispy failed"
     assert app.statusBar().currentMessage() == ""
-    assert len(collection) == 4
+    assert len(collection) == 3
     tree.ui.layerTree.set_selected_layers([raster, sji])  # one dataset at a time
     assert not action.isVisible()
 
@@ -473,9 +535,7 @@ def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanm
     if which == "window":
         [data] = raster_data([request.getfixturevalue("scan_path")], ["Si IV 1403"])
     elif which == "stack":
-        files = sorted(p for p in request.getfixturevalue("irispy_test_files") if "3860258481_raster" in p.name)
-        tmp_path = request.getfixturevalue("tmp_path")
-        [data] = raster_data([int16_raster_copy(p, tmp_path / p.name) for p in files], ["Si IV 1403"], stack=True)
+        [data] = raster_data(request.getfixturevalue("stack_paths"), ["Si IV 1403"], stack=True)
     else:
         name = "iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz"
         [data] = raster_data([request.getfixturevalue("irispy_data")(name)])

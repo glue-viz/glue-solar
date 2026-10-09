@@ -1,17 +1,20 @@
 """
-'IRIS: line moments…': irispy's moment maps of a line in a raster window, as a new dataset; and 'IRIS: subtract mean
-spectrum': a raster window's values less its mean spectrum, as a glue derived component.
+'IRIS: line moments…': irispy's moment maps of a line in a raster window or a stack of its scans, as a new dataset;
+and 'IRIS: subtract mean spectrum': a raster window's values less its mean spectrum, as a glue derived component.
 """
 
 import gc
+import itertools
 from functools import partial
 
 import numpy as np
 from glue.config import layer_action
 from glue.core.component import Component
 from glue.core.data import Data
+from glue.core.units import UnitConverter
 from glue_qt.utils.decorators import messagebox_on_error
 from glue_qt.utils.threading import Worker
+from glue_qt.viewers.profile import ProfileViewer
 from qtpy import QtWidgets
 
 import astropy.units as u
@@ -33,14 +36,17 @@ SLAB = 2**21
 _HAIR = 1e-6
 
 
-def _check(data, what="line moments"):
-    """Raise why ``data`` is not an IRIS raster window of one scan, (raster step, slit, wavelength), for ``what``."""
-    if _role(data) == "raster" and data.ndim == 4:
+def _check(data, what=None):
+    """
+    Raise why ``data`` is not an IRIS raster window of one scan, (raster step, slit, wavelength), or, unless for
+    ``what``, which takes one scan, a stack of its scans, (scan, raster step, slit, wavelength).
+    """
+    if _role(data) == "raster" and data.ndim == 4 and what:
         raise ValueError(
             f"{data.label} is a stack of raster scans: {what} take one scan, as the observation "
             "browser loads them without 'Stack sequential raster scans'."
         )
-    if _role(data) != "raster" or data.ndim != 3 or _spectral_axes(data) != {2}:
+    if _role(data) != "raster" or data.ndim not in (3, 4) or _spectral_axes(data) != {data.ndim - 1}:
         raise ValueError(f"{data.label} is not an IRIS raster window.")
 
 
@@ -86,7 +92,8 @@ def _unit(data):
 
 def _read(data, rows, wavelengths):
     """
-    The values of ``data`` at ``rows`` and ``wavelengths`` that irispy is given, and each step's exposure time in s:
+    The values of ``data`` at ``rows``, the scan of a stack, raster steps and slit pixels, and ``wavelengths`` that
+    irispy is given, and each step's exposure time in s:
     of a window with the loader's ``<label> DN/s``, its DN over each step's exposure time (D4), from the DN read here,
     in float64, else its scaled float32 and None; NaN where missing, on any thread.
     """
@@ -96,7 +103,7 @@ def _read(data, rows, wavelengths):
         return values, None
     # glue's derived component reads them again; irispy's limit is 16182 DN over the exposure times given it, in
     # float64: in float32, as the loader's, a sample at 16182 DN can round below it
-    seconds = data["Exposure time", (rows[0], slice(0, 1), slice(0, 1))].astype(np.float32)
+    seconds = data["Exposure time", (*rows[:-1], slice(0, 1), slice(0, 1))].astype(np.float32)
     return per_second(values.astype(float), seconds), seconds
 
 
@@ -135,13 +142,13 @@ def _cube(data, values, rows, wavelengths, unit, seconds=None, sigma=None):
 
 def _dataset(data, label):
     """
-    A new dataset ``label`` on the raster steps and slit pixels of ``data``, at its pointing offset, with its
-    observation's meta.
+    A new dataset ``label`` on the scans of a stack, raster steps and slit pixels of ``data``, at its pointing offset,
+    with its observation's meta.
     """
     maps = Data(label=label)
     with WCS_LOCK:
-        # the raster's own steps and slit pixels: its wavelength does not move them
-        maps.coords = _GlueWCS(SlicedLowLevelWCS(data.coords._wcs, (slice(None), slice(None), 0)))
+        # the raster's own steps and slit pixels, each scan's: its wavelength does not move them
+        maps.coords = _GlueWCS(SlicedLowLevelWCS(data.coords._wcs, (..., 0)))
     maps.coords.pointing_offset = data.coords.pointing_offset
     # the observation's, for the quicklook's grouping and transparent NaN, without INSTRUME, which makes a raster
     maps.meta = {key: data.meta[key] for key in ("OBSID", "STARTOBS") if key in data.meta}
@@ -162,11 +169,12 @@ def _moments(data, centre, wings, continuum, crop, inner, unit, errors=False):
     maps, saturated = {}, 0
     # a slab takes about 100 bytes per sample, 150 with a continuum or errors: half the steps then, generously, keeps
     # a small window's cold peak under 3x
-    steps = max(1, SLAB // (data.shape[1] * (crop.stop - crop.start) * (2 if continuum or errors else 1)))
+    steps = max(1, SLAB // (data.shape[-2] * (crop.stop - crop.start) * (2 if continuum or errors else 1)))
     degree = 1 if len(continuum or ()) > 1 else 0  # a constant for one continuum window, a straight line for more
     inside = slice(inner.start - crop.start, inner.stop - crop.start)  # inner, within the crop
-    for start in range(0, data.shape[0], steps):
-        rows = (slice(start, start + steps), slice(None))
+    # each scan of a stack, as its own WCS and exposure times give it
+    for scan, start in itertools.product(np.ndindex(data.shape[:-3]), range(0, data.shape[-3], steps)):
+        rows = (*scan, slice(start, start + steps), slice(None))
         values, seconds = _read(data, rows, crop)
         # irispy's uncertainty of the values, which its background leaves as they are
         sigma = _sigma(values[..., inside], unit, seconds) if errors else None
@@ -208,7 +216,7 @@ def _moments(data, centre, wings, continuum, crop, inner, unit, errors=False):
     if saturated:  # for the status bar and scripts; maps without keep the meta they had
         moments.meta["moments_saturated"] = saturated
     for name, parts in maps.items():
-        values, unit = np.concatenate([values for values, _ in parts]), parts[0][1]
+        values, unit = np.concatenate([values for values, _ in parts]).reshape(data.shape[:-1]), parts[0][1]
         if unit.is_equivalent(u.AA):  # irispy's centroid and width are in nm
             values, unit = unit.to(u.AA, values), u.AA
         moments.add_component(Component(values, units=str(unit)), name)
@@ -217,9 +225,10 @@ def _moments(data, centre, wings, continuum, crop, inner, unit, errors=False):
 
 def line_moments(data, centre, wings=WINGS, continuum=None, errors=False):
     """
-    irispy's moments of a line in ``data``, an IRIS raster window of one scan, about ``centre`` within ``wings``, as
-    one dataset on the window's raster steps and slit pixels; with ``continuum`` windows, of the line less irispy's
-    background fitted to them: a constant to one window, a straight line to more.
+    irispy's moments of a line in ``data``, an IRIS raster window of one scan or a stack of its scans, about
+    ``centre`` within ``wings``, as one dataset on the window's scans, raster steps and slit pixels, each scan's at its
+    own coordinates; with ``continuum`` windows, of the line less irispy's background fitted to them: a constant to
+    one window, a straight line to more.
 
     irispy is given the window's ``<label> DN/s`` where it has one, else its values, with NaN and -Inf masked. Its
     components are irispy's: ``intensity`` in that unit, ``centroid`` and ``width`` in Angstrom, and ``velocity`` and
@@ -229,7 +238,7 @@ def line_moments(data, centre, wings=WINGS, continuum=None, errors=False):
     ``STARTOBS``, ``moments_centre`` and ``moments_wings``, with a continuum ``moments_continuum`` and
     ``moments_continuum_degree``, the degree of the background, and with saturated pixels ``moments_saturated``, how
     many. irispy is given only the wavelengths from the first to the last within the wings or a continuum
-    window, a slab of steps at a time.
+    window, a slab of steps of one scan at a time.
 
     With ``errors``, each map ``<name>`` has ``<name> error``, irispy's standard deviation of it, in its unit, propagated
     to first order from that of each sample its reader gives with ``uncertainty=True``: the photon and read noise of
@@ -240,7 +249,8 @@ def line_moments(data, centre, wings=WINGS, continuum=None, errors=False):
     Parameters
     ----------
     data : `~glue.core.data.Data`
-        An IRIS raster window of one scan, (raster step, slit, wavelength).
+        An IRIS raster window of one scan, (raster step, slit, wavelength), or a stack of its scans, (scan, raster
+        step, slit, wavelength).
     centre : float
         The line centre, in Angstrom.
     wings : tuple of float
@@ -253,8 +263,8 @@ def line_moments(data, centre, wings=WINGS, continuum=None, errors=False):
     Raises
     ------
     ValueError
-        For other data than an IRIS raster window of one scan, one with no wavelength within the wings, or a
-        continuum window with none or overlapping the wings.
+        For other data than an IRIS raster window or stack, one with no wavelength within the wings, or a continuum
+        window with none or overlapping the wings.
     """
     return _moments(data, centre, wings, continuum, *_window(data, centre, wings, continuum), errors)
 
@@ -281,10 +291,28 @@ def _rest_field(data, name):
     return field
 
 
-def _ask(data):
+def _profile_range(data, data_collection):
+    """
+    The wavelengths, from and to, in Angstrom, of the range shown on a Profile of ``data`` against its wavelength,
+    glue-qt's Fit and Collapse range, or None.
+    """
+    app = _application(data_collection)
+    for viewer in (viewer for tab in getattr(app, "viewers", ()) for viewer in tab):
+        state = viewer.state
+        if not isinstance(viewer, ProfileViewer) or state.reference_data is not data:
+            continue
+        mode = viewer.toolbar.tools["profile-analysis"]._profile_tools.rng_mode
+        if state.x_att is data.world_component_ids[-1] and mode.active and None not in mode.state.x_range:
+            ends = UnitConverter().to_native(data, state.x_att, np.array(mode.state.x_range), state.x_display_unit)
+            return tuple(float(end) for end in sorted(ends))
+    return None
+
+
+def _ask(data, drawn=None):
     """
     The line centre typed for ``data``, at first its `rest_wavelength`, the wings below and above it, and the continuum
     windows, or None for none, in Angstrom, and whether error maps are ticked; or None for a blank centre or Cancel.
+    With ``drawn``, a Profile range, the wings reach its ends from a centre within it, at first or typed.
     """
     dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
     dialog.setWindowTitle(f"IRIS: line moments of {data.label}")
@@ -296,6 +324,21 @@ def _ask(data):
         box = QtWidgets.QDoubleSpinBox(objectName=side, decimals=3, singleStep=0.1, value=wing, suffix=" Å")
         form.addRow(f"Wing {side} the centre:", box)
         wings.append(box)
+    if drawn is not None:
+        low, high = drawn
+        form.addRow("Wings to the Profile range:", QtWidgets.QLabel(f"{low:.3f} to {high:.3f} Å"))
+
+        def reach(text):
+            try:
+                typed = float(text)
+            except ValueError:
+                return
+            if low <= typed <= high:
+                for box, wing in zip(wings, (typed - low, high - typed)):
+                    box.setValue(wing)
+
+        reach(centre.text())  # the rest wavelength it starts at
+        centre.textChanged.connect(reach)
     continuum = QtWidgets.QLineEdit(objectName="continuum", placeholderText="none, or such as 1401.5-1402, 1404-1405")
     form.addRow("Continuum windows [Å]:", continuum)
     errors = QtWidgets.QCheckBox("Error maps", objectName="errors")  # off: irispy then takes about 1.7 times as long
@@ -341,10 +384,15 @@ def _saturated(moments):
     return None
 
 
+def _application(data_collection):
+    """The glue window of ``data_collection``, or None."""
+    windows = QtWidgets.QApplication.topLevelWidgets()
+    return next((window for window in windows if getattr(window, "data_collection", None) is data_collection), None)
+
+
 def _status_bar(data_collection):
     """The status bar of the glue window of ``data_collection``, or None."""
-    windows = QtWidgets.QApplication.topLevelWidgets()
-    app = next((window for window in windows if getattr(window, "data_collection", None) is data_collection), None)
+    app = _application(data_collection)
     return None if app is None else app.statusBar()
 
 
@@ -374,18 +422,19 @@ def _start(data_collection, text, failed, function, *args, said=None):
     "IRIS: line moments…",
     single=True,
     data=True,
-    tooltip="Add irispy's intensity, centroid, width and velocity maps of a line in this raster window",
+    tooltip="Add irispy's intensity, centroid, width and velocity maps of a line in this raster window or stack",
 )
 @messagebox_on_error("Could not compute line moments")
 def moments_iris(data, data_collection):
     """
-    Add the `line_moments` of ``data`` about a typed line centre, within typed wings, less any background fitted to
-    typed continuum windows, with their errors if ticked, to the data collection, with its helioprojective coordinates
-    linked, and no viewer; glue shows why for data that has none. irispy computes them in the background, while glue's
-    status bar says so, and then how many pixels saturated, if any.
+    Add the `line_moments` of ``data`` about a typed line centre, within typed wings, or to the ends of the range shown
+    on a Profile of its wavelength, less any background fitted to typed continuum windows, with their errors if ticked,
+    to the data collection, with its helioprojective coordinates linked, and no viewer; glue shows why for data that
+    has none. irispy computes them in the background, while glue's status bar says so, and then how many pixels
+    saturated, if any.
     """
     _check(data)  # before asking
-    asked = _ask(data)
+    asked = _ask(data, _profile_range(data, data_collection))
     if asked is None:
         return
     *line, errors = asked

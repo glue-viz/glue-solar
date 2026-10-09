@@ -4,20 +4,29 @@
 Line moments
 ============
 
-To map a spectral line, select a raster window of one scan in the data collection and choose "IRIS:
-line moments…" from its right-click menu. The line centre, the rest wavelength of the velocities in
-Å, starts at the window's :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`,
-such as 2796.352 for Mg II k, or blank for a window without one; type another to change it. The
-wings, the wavelengths taken below and above it, are ±0.5 Å unless changed; a blank centre adds
-nothing. Continuum windows are
-optional: line-free wavelength ranges outside the wings, such as ``1401.6-1402.1, 1403.5-1404.3``,
-to which irispy's ``subtract_background`` fits the background of each spectrum, a constant to one
-window or a straight line to more, and subtracts it; left blank, nothing is subtracted, and any
-continuum within the wings adds to every map. irispy's ``calculate_moments`` computes the maps on a
-worker thread from the wavelengths within the wings alone, while glue's status bar says "Computing
-line moments of <label>…", and adds ``<label> moments <centre>`` on the window's raster steps and
-slit pixels, with their helioprojective coordinates in arcsec linked with the other IRIS datasets.
-No viewer opens: drag it onto an Image viewer and pick a map as its attribute.
+To map a spectral line, select a raster window, of one scan or a stack of its scans, in the data
+collection and choose "IRIS: line moments…" from its right-click menu. The line centre, the rest
+wavelength of the velocities in Å, starts at the window's :ref:`rest wavelength
+<glue_solar_users_guide_iris_rest_wavelength>`, such as 2796.352 for Mg II k, or blank for a window
+without one; type another to change it. The wings, the wavelengths taken below and above it, are
+±0.5 Å unless changed; a blank centre adds nothing. Continuum windows are optional: line-free
+wavelength ranges outside the wings, such as ``1401.6-1402.1, 1403.5-1404.3``, to which irispy's
+``subtract_background`` fits the background of each spectrum, a constant to one window or a straight
+line to more, and subtracts it; left blank, nothing is subtracted, and any continuum within the
+wings adds to every map. irispy's ``calculate_moments`` computes the maps on a worker thread from
+the wavelengths within the wings alone, while glue's status bar says "Computing line moments of
+<label>…", and adds ``<label> moments <centre>`` on the window's raster steps and slit pixels, with
+their helioprojective coordinates in arcsec linked with the other IRIS datasets. No viewer opens:
+drag it onto an Image viewer and pick a map as its attribute. A stack's maps are one dataset on its
+scans, raster steps and slit pixels, each scan's as that scan alone gives them, at its own
+coordinates and exposure times; the scan slider picks the scan.
+
+To take the wings from a Profile, drag a range over the line on the "Collapse" or "Fit" tab of the
+"Options" of a Profile viewer of the window against its wavelength, such as a quicklook's spectrum
+panel (see :ref:`the Profile guide <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`). While
+the range shows, the dialog shows it too, and a centre within it, the one the dialog starts at or
+one typed, sets the wings to reach its ends, whatever the Profile's "x unit"; they can still be
+changed afterwards.
 
 The maps
 --------
@@ -77,8 +86,6 @@ What is refused
 
 Glue says why, and adds nothing, for:
 
-- a stack of scans: its scans load one by one without "Stack sequential raster scans" in the
-  observation browser;
 - a slit-jaw image or any other data than an IRIS raster window;
 - a centre or continuum window that is not a wavelength, or a list of ranges, in Å;
 - a centre with no wavelength of the window within the wings, a continuum window with none, or one
