@@ -246,3 +246,12 @@ Responsiveness
     at 10 a second in a movie player or web browser. Save again as ``sji.png`` and press "Cancel"
     halfway: the dialog closes within a frame, the folder holds the PNG frames saved until then, and
     the viewer is back on the frame it showed.
+
+37. In the quicklook of item 5, drag SJI 2796 from the data collection onto the SJI 1400 viewer; in
+    its "Plot Options" choose SJI 2796 as the reference data, set the axes back to the image's and
+    choose "Set blink partner here", then choose SJI 1400 again the same way and "Frame time" in the
+    View menu. Choose "Blink", then press Space: while the raster plays, the viewer alternates
+    between the two channels without skipping, each keeping its own colour limits, the "Frame time"
+    readout gives each a time within 139 s (half its cadence) of the raster's or NO MATCH, and the
+    red cross stays on the same feature in both. Press Space and choose "Blink" again: playback and
+    the blink stop, and both channels are ticked in the layer list.
