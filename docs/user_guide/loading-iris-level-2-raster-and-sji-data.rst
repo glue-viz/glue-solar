@@ -99,9 +99,9 @@ Slit-jaw images open in sunpy's IRIS colormap of their channel, raster windows a
 FUV or NUV colormap by their detector (``TDETn``), and AIA cutouts in sunpy's AIA colormap of their
 wavelength. The colormap menu of an Image Viewer layer lists Glue's own colormaps and every sunpy
 colormap, under sunpy's names for them, such as ``SDO AIA 171.0 Angstrom``, and shows the layer's
-own even where another has the same colours, as the FUV and NUV ones have those of 1330 and 2796
-and AIA 171 those of SUVI 171. To list
-another, add it with ``colormaps.add`` in a ``config.py``, as
+own colormap even where another has the same colours (the FUV and NUV ones have those of 1330 and
+2796, AIA 171 those of SUVI 171). To list another, add it with ``colormaps.add`` in a
+``config.py``, as
 `Glue's customization guide <https://docs.glueviz.org/en/stable/customizing_guide/customization.html>`__
 describes.
 
