@@ -183,6 +183,20 @@ value-range subset, "Slice Extraction" and an export each read every value, as t
 Datasets merged with glue's "Merge datasets" take glue's own colour limits, sampled from a few
 corners of the data, so set those by hand.
 
+On OBSID 4000005156's first raster file (64 steps, nine windows, 119 million values in 0.24 GB) and
+its deconvolved SJI 2796 (37 million values), opened with "File -> Open Data Set", glue grows from
+0.38 to 0.84 GB as they load and the quicklook of Mg II k 2796 opens, and to 1.01 GB once the map
+has been stepped through every wavelength, the spectrogram through every step, the λ–step panel
+through every slit row and the slit-jaw image through every frame: about 4 bytes a value. Of that,
+only 55 MB are the raster file's pages, the Mg II k 2796 window read for its colour limits as the
+quicklook opens. The memory the system reports for glue ("resident" memory) counts such pages;
+most of the rest that Activity Monitor's "Memory" column leaves out (it reads 0.56 GB) is the code
+of glue's libraries and memory glue has freed but the system has not yet taken back, which it
+reclaims, like the file's pages, when memory runs short. With astropy 8.0, whose WCSLIB 8.6 never
+frees the error message of a point it cannot convert, each new slit row shown on the λ–step panel
+(its slider, or a click on the map) adds about 0.1 MB, as WCSAxes places that panel's tick marks
+past the raster's first and last steps; astropy's development version, with WCSLIB 8.9, frees them.
+
 A sit-and-stare raster loads every exposure this way. On OBSID 4000255147 (1600 exposures, a 2.1 GB
 file) and 3660259102 (1020 exposures, 1.5 GB), every window opened with "File -> Open Data Set"
 opens in about 0.6 s with under 0.1 GB more memory, and the quicklook of Mg II k 2796, stepped with
