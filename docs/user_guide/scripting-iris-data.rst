@@ -24,6 +24,17 @@ observation browser::
 Pass ``stack=True`` to ``raster_data`` to stack the scans of each window, as "Stack sequential raster
 scans" does.
 
+``find_observation_files`` finds the files of the observations below a folder that run at some time
+from a start to an end, and a glob on the file names picks which of them; ``scan_directory`` takes
+the same arguments and gives the observations, as the observation browser lists them. Neither reads a
+file whose name is stamped after the end, or more than a day before the start (an observation may run
+into the window from the day before)::
+
+    from glue_solar.sources.loaders.scan import find_observation_files
+
+    files = find_observation_files("/data/IRIS", "2021-09-05T00:30", "2021-09-05T00:30", pattern="*_raster_t*")
+    data_collection.extend(raster_data(files, ["Si IV 1403"]))
+
 Coordinates and times
 ---------------------
 

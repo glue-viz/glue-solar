@@ -7,7 +7,8 @@ import pytest
 from astropy.io import fits
 
 from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, OBS_S, startobs
-from glue_solar.sources.loaders.scan import extract_archive, scan_directory, strip_pooch
+from glue_solar.sources.loaders import scan
+from glue_solar.sources.loaders.scan import extract_archive, find_observation_files, scan_directory, strip_pooch
 
 
 def test_strip_pooch():
@@ -194,3 +195,49 @@ def test_archive_extraction_does_not_overwrite_existing_directory(tmp_path):
         extract_archive(archive)
 
     assert sentinel.read_text() == "user data"
+
+
+@pytest.fixture
+def days_tree(tmp_path):
+    """Slit-jaw files stamped 2013-08-31 to 2013-09-03, the second of 2013-09-01 running into 2013-09-02."""
+    for name, start, end in (
+        ("iris_l2_20130831_120000_4000000001_SJI_1400_t000.fits", "2013-08-31T12:00:00", "2013-08-31T13:00:00"),
+        ("iris_l2_20130901_100000_4000000002_SJI_1400_t000.fits", "2013-09-01T10:00:00", "2013-09-01T11:00:00"),
+        ("iris_l2_20130901_230000_4000000003_SJI_1400_t000.fits", "2013-09-01T23:00:00", "2013-09-02T01:00:00"),
+        ("iris_l2_20130902_163935_4000255147_SJI_1400_t000.fits", "2013-09-02T16:39:35", "2013-09-02T17:58:48"),
+        ("iris_l2_20130903_010000_4000000004_SJI_1400_t000.fits", "2013-09-03T01:00:00", "2013-09-03T02:00:00"),
+        ("sparse.fits", "2013-09-03T12:00:00", "2013-09-03T13:00:00"),  # no stamp in its name
+    ):
+        obsid = name[24:34] or "4000000006"
+        header = {"TELESCOP": "IRIS", "INSTRUME": "SJI", "OBSID": obsid, "STARTOBS": start, "ENDOBS": end}
+        fits.PrimaryHDU(header=fits.Header(header)).writeto(tmp_path / name)
+    (tmp_path / "iris_l2_20130901_050000_4000000005_raster.tar.gz").write_bytes(b"listed without opening")
+    return tmp_path
+
+
+def test_time_window_reads_only_the_headers_stamped_from_a_day_before(days_tree, monkeypatch):
+    read, primary_header = [], scan._primary_header
+    monkeypatch.setattr(scan, "_primary_header", lambda path: read.append(path.name) or primary_header(path))
+    observations = scan_directory(days_tree, start="2013-09-02", end="2013-09-02T23:59:59")
+    assert sorted(name[:16] for name in read) == [
+        "iris_l2_20130901",
+        "iris_l2_20130901",
+        "iris_l2_20130902",
+        "sparse.fits",
+    ]
+    # the archive's end is not known
+    assert [o.startobs for o in observations] == ["2013-09-01T05:00:00", "2013-09-01T23:00:00", "2013-09-02T16:39:35"]
+
+
+def test_pattern_matches_names_without_pooch_prefix(iris_tree):
+    assert [o.obsid for o in scan_directory(iris_tree, pattern="iris_l2_2023*")] == [OBS_B[2]]
+    a = {o.obsid: o for o in scan_directory(iris_tree, pattern="*SJI*")}[OBS_A[2]]
+    assert (list(a.sji), a.rasters, a.sdo) == (["SJI_1400"], [], {})
+
+
+def test_find_observation_files(iris_tree, days_tree):
+    assert find_observation_files(days_tree, "2013-09-02T17:00", "2013-09-02T17:00") == [
+        days_tree / "iris_l2_20130902_163935_4000255147_SJI_1400_t000.fits"
+    ]
+    rasters = find_observation_files(iris_tree, pattern="*_raster_t*")
+    assert [strip_pooch(p.name)[-11:] for p in rasters] == ["r00000.fits", "r00001.fits"]
