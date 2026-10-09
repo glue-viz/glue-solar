@@ -60,17 +60,17 @@ def _crop(data, velocity_range):
     return slice(max(inside[0] - 1, 0), min(inside[-1] + 2, wavelengths.size))
 
 
-def _table(events, label, meta):
+def _table(events, label, meta, offset):
     """
     A dataset of irispy's ``events``, a row each: ``time`` as glue's times, and ``coordinate`` as
-    ``coordinate.Tx`` and ``coordinate.Ty`` in arcsec, as glue reads a FITS table's.
+    ``coordinate.Tx`` and ``coordinate.Ty`` in arcsec, as glue reads a FITS table's, plus the data's pointing ``offset``.
     """
     table = Data(label=label)
     table.meta = meta
     for name, column in events.columns.items():
         if isinstance(column, SkyCoord):
-            for axis in ("Tx", "Ty"):
-                values = getattr(column, axis).to_value(u.arcsec)
+            for axis, shift in zip(("Tx", "Ty"), offset):
+                values = getattr(column, axis).to_value(u.arcsec) + shift
                 table.add_component(Component(values, units="arcsec"), f"{name}.{axis}")
         elif isinstance(column, Time):
             table.add_component(Component.autotyped(column.utc.to_value("datetime64")), name)
@@ -107,7 +107,7 @@ def _si_iv_bursts(data, crop, threshold, velocity_range, median_factor):
         bursts_median_factor=median_factor,
     )
     maps.add_component(Component(labels.data), "label")
-    return [maps, _table(events, f"{data.label} burst events", dict(maps.meta))]
+    return [maps, _table(events, f"{data.label} burst events", dict(maps.meta), data.coords.pointing_offset)]
 
 
 def si_iv_bursts(data, threshold=None, velocity_range=VELOCITY_RANGE, median_factor=MEDIAN_FACTOR):
@@ -149,8 +149,9 @@ def si_iv_bursts(data, threshold=None, velocity_range=VELOCITY_RANGE, median_fac
 
 def sji_bursts(data, sigma_factor=SIGMA_FACTOR, min_pixels=MIN_PIXELS):
     """
-    irispy's UV bursts in ``data``, a 1400 Å slit-jaw image, by ``find_sji_bursts``: a cube of their labels on its
-    coordinates, and a table of them.
+    irispy's UV bursts in ``data``, a 1400 Å slit-jaw image, by ``find_bright_image_events``: ``find_sji_bursts``
+    without its band check, which needs irispy's ``meta``, so that a dust-removed image works too. A cube of their
+    labels on its coordinates, and a table of them.
 
     irispy is given the scaled values, NaN masked, and finds a burst pixel at ``sigma_factor`` standard deviations
     above the median of its frame; pixels that touch within a frame, diagonally too, are one burst, and bursts of
@@ -167,7 +168,7 @@ def sji_bursts(data, sigma_factor=SIGMA_FACTOR, min_pixels=MIN_PIXELS):
         For other data than a 1400 Å slit-jaw image.
     """
     from irispy.sji import SJICube
-    from irispy.utils.bursts import find_sji_bursts
+    from irispy.utils.bursts import find_bright_image_events
     from irispy.utils.constants import DN_UNIT
 
     if not _is_sji(data):
@@ -176,7 +177,7 @@ def sji_bursts(data, sigma_factor=SIGMA_FACTOR, min_pixels=MIN_PIXELS):
     # ponytail: one irispy call on every frame, about 6 times the image's float32 at its peak (1.6 GB for the 400
     # frames of 4000255147's SJI 1400); slabs of frames, their labels offset, if larger images need less
     cube = SJICube(values, data.coords._wcs, unit=DN_UNIT["SJI"], mask=np.isnan(values), meta=data.meta)
-    labels, events = find_sji_bursts(cube, sigma_factor=sigma_factor, min_pixels=min_pixels)
+    labels, events = find_bright_image_events(cube, sigma_factor=sigma_factor, min_pixels=min_pixels)
     parameters = {"bursts_sigma_factor": sigma_factor, "bursts_min_pixels": min_pixels}
     bursts = Data(label=f"{data.label} bursts", coords=_GlueWCS(data.coords._wcs))
     bursts.coords.pointing_offset = data.coords.pointing_offset
@@ -184,7 +185,8 @@ def sji_bursts(data, sigma_factor=SIGMA_FACTOR, min_pixels=MIN_PIXELS):
     bursts.add_component(Component(labels.data), "label")
     bursts.add_component(_per_frame(data[data.id["Time"], (slice(None), 0, 0)], bursts.shape), "Time")
     meta = {key: data.meta[key] for key in ("OBSID", "STARTOBS") if key in data.meta}
-    return [bursts, _table(events, f"{data.label} burst events", {**meta, **parameters})]
+    table = _table(events, f"{data.label} burst events", {**meta, **parameters}, data.coords.pointing_offset)
+    return [bursts, table]
 
 
 def _ask(data, sji):

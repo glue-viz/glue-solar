@@ -44,7 +44,8 @@ pixel at the threshold typed, 10 standard deviations unless changed, above the m
 missing pixels left out; pixels that touch within a frame, diagonally too, are one burst, and
 bursts with fewer pixels than typed, 2 unless changed, are dropped. The 10 standard deviations are a
 quick look: on active-region data they find bursts in every frame, and Young et al. (2018)
-recommend a threshold chosen for each observation.
+recommend a threshold chosen for each observation. A slit-jaw image with its dust removed, by
+:ref:`"IRIS: remove dust" <glue_solar_users_guide_iris_calibration>`, works too.
 
 ``<label> bursts`` is a cube of their labels, 0 outside bursts and 1 to N through the image, on the
 slit-jaw image's coordinates, with its ``Time``, per-frame pointing and ``meta``, so that the time
@@ -56,7 +57,9 @@ the observation's ``OBSID`` and ``STARTOBS`` and the parameters. irispy takes ev
 on the 400 frames of OBSID 4000255147's SJI 1400 it takes 1.3 s and about 1.6 GB more memory at its
 peak.
 
-The labels and tables are irispy's own, as its functions give them on the files read in memory.
+The labels and tables are irispy's own, as its functions give them on the files read in memory,
+but for a pointing shifted by :ref:`"Shift pointing…" <glue_solar_users_guide_iris_pointing>`,
+which the tables' ``coordinate.Tx`` and ``coordinate.Ty`` include, as the maps' coordinates do.
 ``glue_solar.sources.bursts.si_iv_bursts(data, threshold, velocity_range, median_factor)`` and
 ``glue_solar.sources.bursts.sji_bursts(data, sigma_factor, min_pixels)`` return the two datasets in
 glue's terminal too.

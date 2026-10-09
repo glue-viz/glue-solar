@@ -9,6 +9,7 @@ from glue.core import Data
 from glue_qt.app.application import GlueApplication
 from irispy.io.sji import read_sji_lvl2
 from irispy.io.spectrograph import read_spectrograph_lvl2
+from irispy.sji import SJICube
 from irispy.utils.bursts import find_si_iv_bursts, find_sji_bursts
 from qtpy import QtWidgets
 
@@ -17,6 +18,7 @@ import astropy.units as u
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
+from glue_solar.sources.calibration import remove_dust
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.tests.test_lazy import SJI
@@ -100,7 +102,8 @@ def test_a_raster_window_gives_irispys_labels_and_events_linked_and_no_viewer(
     labels, table = run(app, qtbot, raster, 3)
     assert opened == [{"threshold": "", "velocity_range": 50.0, "median_factor": 10.0}]
     assert not any(app.viewers)
-    direct, events = find_si_iv_bursts(read_spectrograph_lvl2(path)["Si IV 1403"][0], threshold=80)
+    cube = read_spectrograph_lvl2(path)["Si IV 1403"][0]
+    direct, events = find_si_iv_bursts(cube, threshold=80)
     assert_irispys(labels, table, direct, events)
     assert (labels.label, table.label) == (f"{raster.label} bursts", f"{raster.label} burst events")
     assert labels.meta == {
@@ -117,14 +120,24 @@ def test_a_raster_window_gives_irispys_labels_and_events_linked_and_no_viewer(
     for cid, raster_cid in zip(labels.world_component_ids, raster.world_component_ids):
         np.testing.assert_allclose(labels[cid], raster[raster_cid, (..., 0)], rtol=0, atol=1e-9)
     assert link_hpc(collection) == []
-    # the median test off, and irispy's default threshold, which finds none here
-    answer(monkeypatch, velocity_range=30.0, median_factor=0.0)
-    labels, table = run(app, qtbot, raster, 0)
+    # the typed velocities and the median test off
+    answer(monkeypatch, threshold="80", velocity_range=30.0, median_factor=0.0)
+    labels, table = run(app, qtbot, raster, 6)
     assert (labels.meta["bursts_velocity_range"], labels.meta["bursts_median_factor"]) == (30.0, None)
-    direct, events = find_si_iv_bursts(
-        read_spectrograph_lvl2(path)["Si IV 1403"][0], velocity_range=30 * u.km / u.s, median_factor=None
-    )
+    direct, events = find_si_iv_bursts(cube, threshold=80, velocity_range=30 * u.km / u.s, median_factor=None)
     assert_irispys(labels, table, direct, events)
+    # 'Shift pointing…' moves the table's coordinates as the map's
+    raster.coords.pointing_offset = (5.0, -3.0)
+    shifted = si_iv_bursts(raster, 80, 30.0, None)[1]
+    np.testing.assert_allclose(shifted["coordinate.Tx"], table["coordinate.Tx"] + 5, rtol=0, atol=1e-9)
+    np.testing.assert_allclose(shifted["coordinate.Ty"], table["coordinate.Ty"] - 3, rtol=0, atol=1e-9)
+    raster.coords.pointing_offset = (0.0, 0.0)
+    # irispy's threshold, left blank, which finds none here
+    answer(monkeypatch)
+    labels, table = run(app, qtbot, raster, 0)
+    direct, events = find_si_iv_bursts(cube)
+    assert_irispys(labels, table, direct, events)
+    assert labels.meta["bursts_threshold"] == events.meta["threshold"].value
 
 
 def test_a_slit_jaw_image_gives_irispys_labels_and_events_on_its_coordinates(
@@ -163,7 +176,16 @@ def test_a_slit_jaw_image_gives_irispys_labels_and_events_on_its_coordinates(
     # the typed threshold and fewest pixels
     answer(monkeypatch, sigma_factor=12.5, min_pixels=1)
     labels, table = run(app, qtbot, sji, 20)
-    assert_irispys(labels, table, *find_sji_bursts(read_sji_lvl2(path), sigma_factor=12.5, min_pixels=1))
+    cube = read_sji_lvl2(path)
+    assert_irispys(labels, table, *find_sji_bursts(cube, sigma_factor=12.5, min_pixels=1))
+    # a dust-removed one, whose meta is no longer irispy's
+    dust = remove_dust(sji)
+    collection.append(dust)
+    answer(monkeypatch)
+    labels, table = run(app, qtbot, dust, 25)
+    values = dust[dust.main_components[0]]
+    clean = SJICube(values, cube.wcs, unit=cube.unit, mask=np.isnan(values), meta=cube.meta)
+    assert_irispys(labels, table, *find_sji_bursts(clean))
 
 
 def test_refusals_and_errors_show_why(app, monkeypatch, irispy_test_files):
