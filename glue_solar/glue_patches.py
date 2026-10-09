@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import dask.array as da
 import glue.utils.matplotlib
 import numpy as np
+from echo.qt.connect import UserDataWrapper
 from glue.config import data_exporter
 from glue.core import Data, DataCollection, Subset, component_link, coordinate_helpers
 from glue.core.component import DaskComponent
@@ -30,13 +31,16 @@ from glue.viewers.matplotlib import viewer as matplotlib_viewer
 from glue.viewers.scatter import layer_artist as scatter_layer_artist
 from glue.viewers.scatter import viewer as scatter_viewer
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
+from glue_qt.utils import colors
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.matplotlib.widget import MplCanvas
 from matplotlib import dates, rcParams
 from matplotlib.backend_bases import key_press_handler
+from matplotlib.colors import ListedColormap
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
+from qtpy import QtCore, QtGui, QtWidgets
 
 from astropy.io import fits
 from astropy.visualization.wcsaxes import WCSAxes
@@ -54,6 +58,7 @@ __all__ = [
     "needs_date_epoch_workaround",
     "needs_empty_collapse_workaround",
     "needs_fits_export_dask_workaround",
+    "needs_icon_cache_workaround",
     "needs_inverse_workaround",
     "needs_pixel_point_workaround",
     "needs_pv_dask_workaround",
@@ -61,6 +66,7 @@ __all__ = [
     "needs_reference_crosshair_workaround",
     "pv_slice_from_path",
     "sync_pv_slice",
+    "update_icons",
     "update_x_axislabel",
     "update_y_axislabel",
     "world2pixel_single_axis",
@@ -594,3 +600,54 @@ def canvas_init(self, *args, **kwargs):
 
 
 MplCanvas.__init__ = canvas_init
+
+
+_original_update_icons = colors.QColormapCombo._update_icons
+_icons = {}  # (id(colormap), width): (colormap, icon), the colormap kept so that its id stays its own
+
+
+def update_icons(self):
+    """
+    glue-qt's ``QColormapCombo._update_icons``, with the icons of each colormap and width shared by every combo.
+
+    glue-qt 0.4.2 draws the icon of every colormap listed whenever it builds or resizes a combo, as for each Image
+    layer's style editor: 0.3 ms a colormap, 30 ms with every sunpy colormap listed. The probe runs at the first combo,
+    which needs Qt's application. Retired by glue-qt caching icons (``wp0-perf-qt``).
+    """
+    if not _icons_need_workaround():
+        return _original_update_icons(self)
+    width = self.width()
+    self.setIconSize(QtCore.QSize(width, 15))
+    for index in range(self.count()):
+        cmap = self.itemData(index).data
+        key = (id(cmap), width)
+        if key not in _icons:
+            if len(_icons) >= 1000:  # forget the oldest
+                del _icons[next(iter(_icons))]
+            _icons[key] = cmap, QtGui.QIcon(colors.cmap2pixmap(cmap, size=(width, 15), steps=200))
+        self.setItemIcon(index, _icons[key][1])
+
+
+def needs_icon_cache_workaround(method=_original_update_icons):
+    """Whether ``method`` draws a colormap's icon again for a second combo of the same width."""
+    drawn, draw = [], colors.cmap2pixmap
+    colors.cmap2pixmap = lambda *args, **kwargs: drawn.append(args) or draw(*args, **kwargs)
+    # a combo that lists only ``cmap``, not the colormaps glue-qt's __init__ lists and draws
+    combo_class = type("ProbeCombo", (colors.QColormapCombo,), {"__init__": QtWidgets.QComboBox.__init__})
+    cmap = ListedColormap(["black", "white"])
+    try:
+        for _ in range(2):
+            combo = combo_class()
+            combo.addItem("probe", userData=UserDataWrapper(cmap))
+            method(combo)
+    finally:
+        colors.cmap2pixmap = draw
+    return len(drawn) > 1
+
+
+@cache
+def _icons_need_workaround():
+    return needs_icon_cache_workaround()
+
+
+colors.QColormapCombo._update_icons = update_icons

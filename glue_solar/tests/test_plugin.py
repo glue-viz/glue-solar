@@ -1193,26 +1193,44 @@ def _cmap_menu(viewer):
 
 # sunpy's RHESSI test image has no observer position
 @pytest.mark.filterwarnings("ignore:Missing metadata for observer")
-def test_only_the_colormaps_data_ask_for_are_listed(qtbot, monkeypatch, irispy_test_files):
+def test_every_sunpy_colormap_is_listed(qtbot, monkeypatch, irispy_test_files):
     import sunpy.data.test
     from sunpy.visualization.colormaps import cmlist
 
-    # glue's own colormaps only, which glue lists on first use: glue-qt draws every one listed whenever it builds
-    # an Image layer's menu
+    # glue's own colormaps only, which glue lists on first use
     monkeypatch.setattr(colormaps, "_members", [])
     monkeypatch.setattr(colormaps, "_loaded", False)
     glue_solar.setup()
     glue_solar.setup()
-    iris_and_aia = [cmlist[name] for name in sorted(cmlist) if name.startswith(("irissji", "sdoaia"))]
-    assert colormaps.members[len(colormaps.default_members()):] == [[cmap.name, cmap] for cmap in iris_and_aia]
+    listed = colormaps.default_members() + [[cmlist[name].name, cmlist[name]] for name in sorted(cmlist)]
+    assert colormaps.members == listed
     sji = load_data(str(find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("SJI_1400_t000"))))
     rhessi = read_sunpy_map(sunpy.data.test.get_test_filepath("hsi_image_20101016_191218.fits"))
-    assert colormaps.members[-1] == [cmlist["rhessi"].name, cmlist["rhessi"]]  # a map lists its own
+    assert colormaps.members == listed  # a map's own already
     app = GlueApplication()
     qtbot.addWidget(app)
     app.data_collection.extend([sji, rhessi])
     for data, cmap in ((sji, cmlist["irissji1400"]), (rhessi, cmlist["rhessi"])):
-        assert _cmap_menu(app.new_data_viewer(ImageViewer, data=data)).currentText() == cmap.name
+        menu = _cmap_menu(app.new_data_viewer(ImageViewer, data=data))
+        assert menu.currentText() == cmap.name
+        assert [[menu.itemText(i), menu.itemData(i).data] for i in range(menu.count())] == listed
+
+
+def test_colormap_icons_are_drawn_once(qtbot, monkeypatch):
+    from glue_qt.utils import colors
+
+    assert colors.QColormapCombo._update_icons is glue_patches.update_icons  # always, probing at the first combo
+    assert glue_patches._icons_need_workaround() == glue_patches.needs_icon_cache_workaround()  # glue-qt's own method
+    assert not glue_patches.needs_icon_cache_workaround(glue_patches.update_icons)
+    first = colors.QColormapCombo()
+    qtbot.addWidget(first)
+    drawn, draw = [], colors.cmap2pixmap
+    monkeypatch.setattr(colors, "cmap2pixmap", lambda *args, **kwargs: drawn.append(args) or draw(*args, **kwargs))
+    second = colors.QColormapCombo()
+    qtbot.addWidget(second)
+    assert second.width() == first.width()
+    assert not drawn
+    assert second.itemIcon(0).cacheKey() == first.itemIcon(0).cacheKey()
 
 
 def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_path):
@@ -1220,7 +1238,6 @@ def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_pa
 
     monkeypatch.setattr(colormaps, "_members", [])
     monkeypatch.setattr(colormaps, "_loaded", False)
-    glue_solar.setup()
     app = GlueApplication()
     qtbot.addWidget(app)
     image = Data(label="image", flux=np.arange(20.0).reshape(4, 5))
@@ -1228,7 +1245,7 @@ def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_pa
     app.new_data_viewer(ImageViewer, data=image)
     app.save_session(str(tmp_path / "cmap.glu"))
     session = (tmp_path / "cmap.glu").read_text()
-    # glue restores a colormap by its name, here one that setup() does not list
+    # glue restores a colormap by its name, here one not listed yet: setup(), not run here, lists every sunpy one
     # rhessi's name is its sunpy key; the HMI magnetogram's, as most are, is not
     for name in ("rhessi", cmlist["hmimag"].name):
         glue_solar._add_session_colormaps({"layer": {"cmap": name}})  # which the restore below would hang without

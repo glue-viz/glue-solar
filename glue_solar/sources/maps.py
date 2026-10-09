@@ -31,8 +31,7 @@ class _GenericMap(ABC):
 def _add_colormap(name):
     """
     List sunpy's colormap ``name``, its key or its own name (which glue saves and maps give), if sunpy has one, in
-    glue's colormap menus. glue-qt draws every colormap listed each time it builds an Image layer's menu, so only those
-    that data ask for are listed.
+    glue's colormap menus.
     """
     ctable = cmlist.get(name) or next((cmap for cmap in cmlist.values() if cmap.name == name), None)
     if ctable is not None and all(ctable is not cmap for _, cmap in colormaps.members):
