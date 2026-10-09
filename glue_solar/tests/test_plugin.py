@@ -1219,9 +1219,11 @@ def test_every_sunpy_colormap_is_listed(qtbot, monkeypatch, irispy_test_files):
 def test_colormap_icons_are_drawn_once(qtbot, monkeypatch):
     from glue_qt.utils import colors
 
+    glue_solar.setup()  # every sunpy colormap listed
     assert colors.QColormapCombo._update_icons is glue_patches.update_icons  # always, probing at the first combo
-    assert glue_patches._icons_need_workaround() == glue_patches.needs_icon_cache_workaround()  # glue-qt's own method
+    glue_patches._icons_need_workaround.cache_clear()  # the patch probes glue-qt's method within this probe
     assert not glue_patches.needs_icon_cache_workaround(glue_patches.update_icons)
+    assert glue_patches._icons_need_workaround() == glue_patches.needs_icon_cache_workaround()  # glue-qt's own method
     first = colors.QColormapCombo()
     qtbot.addWidget(first)
     drawn, draw = [], colors.cmap2pixmap
@@ -1231,6 +1233,9 @@ def test_colormap_icons_are_drawn_once(qtbot, monkeypatch):
     assert second.width() == first.width()
     assert not drawn
     assert second.itemIcon(0).cacheKey() == first.itemIcon(0).cacheKey()
+    # keyed on the colormap, not its name: sunpy has two of each of these
+    i, j = [k for k in range(first.count()) if first.itemText(k) == "SOHO LASCO C2"]
+    assert first.itemIcon(i).cacheKey() != first.itemIcon(j).cacheKey()
 
 
 def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_path):

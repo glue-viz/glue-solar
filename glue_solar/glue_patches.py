@@ -642,7 +642,7 @@ def needs_icon_cache_workaround(method=_original_update_icons):
             method(combo)
     finally:
         colors.cmap2pixmap = draw
-    return len(drawn) > 1
+    return sum(args[0] is cmap for args in drawn) > 1  # not the colormap of a probe ``method`` itself runs
 
 
 @cache
