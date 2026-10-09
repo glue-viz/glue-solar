@@ -25,8 +25,8 @@
      </item>
      <item>
       <widget class="QLineEdit" name="directory">
-       <property name="readOnly">
-        <bool>true</bool>
+       <property name="toolTip">
+        <string>The folder to search. Type one and press Return to search it.</string>
        </property>
       </widget>
      </item>

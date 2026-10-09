@@ -11,8 +11,9 @@ import numpy as np
 import pytest
 from irispy.io import read_files
 from qtpy.QtCore import QMetaObject, Qt
+from qtpy.QtGui import QCursor
 from qtpy.QtTest import QTest
-from qtpy.QtWidgets import QDialog, QFileDialog, QInputDialog
+from qtpy.QtWidgets import QDialog, QFileDialog, QInputDialog, QStyle, QStyleOptionViewItem
 
 import astropy.units as u
 from astropy.io import fits
@@ -468,6 +469,71 @@ def test_saved_folders_search_their_folder_and_last_until_removed(qtbot, monkeyp
     third = QtIRISImporter()
     qtbot.addWidget(third)
     assert third.places.count() == 0
+
+
+def _boxes(dialog):
+    return dialog.recursive.isChecked(), dialog.stack.isChecked(), dialog.quicklook.isChecked()
+
+
+def test_tick_boxes_open_as_the_last_browser_left_them(dialog, qtbot, iris_tree):
+    assert _boxes(dialog) == (True, False, True)
+    dialog.recursive.setChecked(False)
+    scanned(qtbot, dialog)
+    dialog.stack.setChecked(True)
+    dialog.quicklook.setChecked(False)
+
+    again = QtIRISImporter(iris_tree)
+    qtbot.addWidget(again)
+    scanned(qtbot, again)
+    assert _boxes(again) == (False, True, False)
+    assert _row(again, OBS_A[2]).text(6) == "1 — SJI_1400"  # its first scan searches the one folder
+
+
+def test_a_folder_typed_in_the_folder_field_is_searched(dialog, qtbot, iris_tree, tmp_path):
+    dialog.show()
+    folder = next(iris_tree.glob("*_raster"))  # OBS_A's raster files
+    dialog.directory.setText(f"{folder}/ ")
+    QTest.keyClick(dialog.directory, Qt.Key_Return)
+    assert dialog.isVisible()  # Return searches, never loads
+    scanned(qtbot, dialog)
+    assert _listed(dialog) == [OBS_A[2]]
+    assert [search[0] for search in dialog._recent] == [str(folder), str(iris_tree)]  # one spelling
+    dialog.directory.editingFinished.emit()  # as the unchanged field loses focus
+    assert dialog.ok.isEnabled()  # no rescan
+    dialog.directory.setText(str(tmp_path / "gone"))
+    dialog.directory.editingFinished.emit()
+    assert dialog.ok.isEnabled()  # no scan
+    assert dialog.progress.format() == f"No such folder: {tmp_path / 'gone'}"
+    assert _listed(dialog) == [OBS_A[2]]
+
+
+def test_double_click_loads_the_entry_alone_but_not_an_observation(dialog, qtbot, monkeypatch):
+    dialog.show()
+    tree, row = dialog.obs_tree, _row(dialog, OBS_A[2])
+    tick(dialog, "Mg II k")
+
+    def double_click(item, box=False):  # Qt's signal for a double-click there; QTest's do not reach it on every platform
+        rect = tree.visualItemRect(item)
+        if box:  # its tick box, as the style lays it out
+            option = QStyleOptionViewItem()
+            option.initFrom(tree)
+            option.rect, option.features = tree.visualRect(tree.indexFromItem(item)), QStyleOptionViewItem.HasCheckIndicator
+            rect = tree.style().subElementRect(QStyle.SE_ItemViewItemCheckIndicator, option, tree)
+        point = tree.viewport().mapToGlobal(rect.center())
+        monkeypatch.setattr(QCursor, "pos", lambda *args: point)
+        tree.itemDoubleClicked.emit(item, 0)
+
+    double_click(row)
+    assert dialog.ok.isEnabled()  # nothing loads: Qt's own double-click expands the row
+    row.setExpanded(True)
+    double_click(row.child(0), box=True)
+    assert dialog.ok.isEnabled()  # a double-click on the tick box loads nothing
+    assert dialog.cancel.text() != "Stop"
+    double_click(row.child(0))
+    assert dialog.cancel.text() == "Stop"  # in the background, as Load selected
+    scanned(qtbot, dialog)
+    assert dialog.result() == QDialog.Accepted
+    assert [(kind, name) for _, kind, name, _ in dialog.loaded] == [("sji", "SJI_1400")]
 
 
 def gated_scan(monkeypatch, widget, method, last):
