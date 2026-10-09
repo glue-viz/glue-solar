@@ -12,16 +12,21 @@ import tarfile
 import tempfile
 import threading
 from dataclasses import dataclass, field
+from fnmatch import fnmatch
 from pathlib import Path
 
+import astropy.units as u
 from astropy.io import fits
+from astropy.time import Time
 
-__all__ = ["Observation", "extract_archive", "scan_directory", "strip_pooch"]
+__all__ = ["Observation", "extract_archive", "find_observation_files", "scan_directory", "strip_pooch"]
 
 _POOCH = re.compile(r"^[0-9a-f]{32}-")
 # iris_l2_YYYYMMDD_HHMMSS_OBSID_... and the co-aligned aia_l2_... cutouts
 _L2_STEM = re.compile(r"^(?:iris|aia)_l2_(?P<date>\d{8})_(?P<time>\d{6})_(?P<obsid>\d{10})")
 _FITS = (".fits", ".fits.gz")
+# ponytail: how long before a time window an observation stamped in a filename may have begun; longer ones are missed
+_LONGEST = 1 * u.day
 
 
 def _primary_header(path):
@@ -148,9 +153,25 @@ def _is_supported_file(name, header):
     return name.startswith("aia_l2_") and instrume.startswith("AIA")
 
 
-def scan_directory(root, recursive=True, skipped=None, stop=None, report=None):
+def _isot(time):
+    """``time`` in UTC to the second, as the filenames and STARTOBS give it: '2013-09-02T16:39:35'."""
+    return None if time is None else Time(time).utc.isot[:19]
+
+
+def _wanted(name, pattern, earliest, end):
+    """Whether to read the file ``name``: it matches ``pattern`` and, if its name has one, its stamp is in range."""
+    if pattern is not None and not fnmatch(name, pattern):
+        return False
+    key = _key_from_name(name)
+    return key is None or ((earliest is None or key[1] >= earliest) and (end is None or key[1] <= end))
+
+
+def scan_directory(root, recursive=True, skipped=None, stop=None, report=None, start=None, end=None, pattern=None):
     """
     Group every IRIS Level 2 file below ``root``, outside hidden files and folders, into `Observation` objects.
+
+    ``start``, ``end`` and ``pattern`` leave files out by their names, before any header is read: a time window
+    reads only the files whose names are stamped from a day before ``start`` to ``end``, and those with no stamp.
 
     Parameters
     ----------
@@ -165,12 +186,19 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None):
         Once set, ends the scan between files, or while it lists them, with what it found so far.
     report : callable, optional
         ``report(percent)`` with the percentage of the files read, before each file, and 100 once every file is read.
+    start, end : `~astropy.time.Time`, `~datetime.datetime` or str, optional
+        List only the observations that run at some time from ``start`` to ``end``. An archive's observation is
+        listed if it begins within a day before ``start``, as its end is not known until it is extracted.
+    pattern : str, optional
+        A glob, such as ``"*SJI_1400*"``, that the file names, without pooch's prefix, must match.
 
     Returns
     -------
     list of `Observation`, sorted by start time.
     """
     root = Path(root)
+    earliest = None if start is None else _isot(Time(start) - _LONGEST)
+    start, end = _isot(start), _isot(end)
     skipped = [] if skipped is None else skipped
     stop = threading.Event() if stop is None else stop
     report = report or (lambda percent: None)
@@ -179,7 +207,7 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None):
     headers = []
     # not hidden ones, such as the folder `extract_archive` unpacks into before it renames it
     visible = (p for p in paths if not any(part.startswith(".") for part in p.relative_to(root).parts))
-    files = sorted(p for p in visible if p.is_file())
+    files = sorted(p for p in visible if _wanted(strip_pooch(p.name), pattern, earliest, end) and p.is_file())
     for n, path in enumerate(files):
         report(100 * n // len(files))
         if stop.is_set():
@@ -229,7 +257,33 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None):
                 obs.window_tips = {header[f"TDESC{i}"]: _window_tip(header, i) for i in range(1, len(obs.windows) + 1)}
         elif instrume.startswith("AIA"):
             obs.sdo[header.get("TDESC1", name)] = path
-    for obs in found.values():
+    found = [
+        obs
+        for obs in found.values()
+        if (end is None or obs.startobs <= end)
+        and (start is None or obs.endobs is None or str(obs.endobs)[:19] >= start)
+    ]
+    for obs in found:
         obs.rasters.sort(key=lambda p: strip_pooch(p.name))
         obs.description = obs.description or _obsid_description(obs.obsid)
-    return sorted(found.values(), key=lambda o: (o.startobs, o.obsid))
+    return sorted(found, key=lambda o: (o.startobs, o.obsid))
+
+
+def find_observation_files(directory, start=None, end=None, pattern=None, recursive=True):
+    """
+    The files of the observations below ``directory`` that run at some time from ``start`` to ``end``, as
+    `scan_directory` finds them: per observation, by start time, its rasters, slit-jaw images, AIA cutouts and
+    un-extracted archives.
+
+    Pass the same time as ``start`` and ``end`` for the observation running at that time, and a ``pattern`` such
+    as ``"*raster*"`` for only its rasters.
+
+    Returns
+    -------
+    list of `~pathlib.Path`
+    """
+    return [
+        path
+        for obs in scan_directory(directory, recursive, start=start, end=end, pattern=pattern)
+        for path in (*obs.rasters, *obs.sji.values(), *obs.sdo.values(), *obs.archives)
+    ]
