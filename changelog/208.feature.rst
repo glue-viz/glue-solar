@@ -1,0 +1,1 @@
+"Light curves at this point (windows, SJI)" in the Coordinate menu plots the point's light curves of every raster window and slit-jaw image as 1-D datasets that follow it, and "ECSV (with Time)" exports 1-D data with its times.
