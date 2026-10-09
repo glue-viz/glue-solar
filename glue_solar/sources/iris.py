@@ -210,13 +210,14 @@ def export_iris_fits(filename, data, components=None):
     Write ``data``, a 2-D map on helioprojective coordinates, such as line moments, or a subset of one, as glue's
     "FITS (1 component/HDU)" does, each image with the map's coordinates as a FITS-TAB WCS: every pixel's longitude
     and latitude as glue gives them, in degrees, in a ``WCS-TABLE`` extension, and the frame's observer and time. A
-    ``Time`` component is a ``TIME`` image of the same pixels, in seconds since its ``DATEREF``, UTC, NaN where
-    missing; ``OBSID`` and ``STARTOBS`` go in every component's header. glue shows why for other data.
+    ``Time`` component is a ``TIME`` image of the same pixels, every pixel of a subset too, in seconds since its
+    ``DATEREF``, UTC, NaN where missing; ``OBSID`` and ``STARTOBS`` go in every component's header. glue shows why for
+    other data.
     """
     maps = data.data if isinstance(data, Subset) else data
     coords = maps.coords
     types = list(getattr(coords, "world_axis_physical_types", ()))
-    if maps.ndim != 2 or sorted(types) != sorted(_HPC):
+    if maps.ndim != 2 or set(types) != set(_HPC):
         raise ValueError(
             f"{maps.label} is not a 2-D map on helioprojective coordinates: glue's 'FITS (1 component/HDU)' "
             "exports it without them."
@@ -233,7 +234,7 @@ def export_iris_fits(filename, data, components=None):
         header.update({f"PS{i}_0": table.name, f"PS{i}_1": "COORDS", f"PV{i}_3": i})
     extensions = [table]
     time = maps.find_component_id("Time")
-    if time is not None and (components is None or time in components):
+    if time is not None and maps.get_kind(time) == "datetime" and (components is None or time in components):
         times = maps[time]
         start = np.nanmin(times)
         seconds = fits.ImageHDU((times - start) / np.timedelta64(1, "s"), name="TIME")

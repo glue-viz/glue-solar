@@ -25,6 +25,7 @@ import astropy.units as u
 from astropy import constants
 from astropy.io import fits
 from astropy.wcs import WCS
+from astropy.wcs.wcsapi import HighLevelWCSWrapper
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
 import glue_solar
@@ -556,9 +557,13 @@ def test_moment_and_sliced_maps_export_with_their_coordinates_and_time(qtbot, mo
             # every pixel's longitude and latitude, as glue gives them
             y, x = np.indices(data.shape)
             world = dict(zip(data.coords.world_axis_physical_types, data.coords.pixel_to_world_values(x, y)))
-            lon, lat = np.multiply(WCS(hdus[0].header, fobj=hdus).pixel_to_world_values(x, y), 3600)
+            wcs = WCS(hdus[0].header, fobj=hdus)
+            lon, lat = np.multiply(wcs.pixel_to_world_values(x, y), 3600)
             np.testing.assert_allclose((lon + 648000) % 1296000 - 648000, world[_HPC[0]], rtol=0, atol=1e-9)
             np.testing.assert_allclose(lat, world[_HPC[1]], rtol=0, atol=1e-9)
+            got, want = wcs.pixel_to_world(0, 0).frame, HighLevelWCSWrapper(data.coords).pixel_to_world(0, 0).frame
+            assert got.obstime == want.obstime
+            assert want.observer.separation_3d(got.observer) < 1 * u.m
             for cid in data.main_components:
                 if cid.label != "Time":
                     np.testing.assert_array_equal(hdus[cid.label].data, data[cid])
@@ -578,11 +583,15 @@ def test_exporting_other_data_than_a_map_shows_why(qtbot, monkeypatch, tmp_path,
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
-    for data in (raster, Data(label="plain", x=np.zeros((3, 4)))):
+    for data in (
+        raster,
+        Data(label="plain", x=np.zeros((3, 4))),
+        Data(label="image", coords=WCS(naxis=2), x=np.zeros((3, 4))),  # glue's FITS loader, no CTYPE
+    ):
         export(monkeypatch, tmp_path / "refused.fits", data)
     assert shown == [
         f"Could not export the data\n{label} is not a 2-D map on helioprojective coordinates: glue's 'FITS (1 "
         "component/HDU)' exports it without them."
-        for label in (raster.label, "plain")
+        for label in (raster.label, "plain", "image")
     ]
     assert not (tmp_path / "refused.fits").exists()

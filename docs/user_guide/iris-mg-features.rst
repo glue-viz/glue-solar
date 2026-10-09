@@ -37,7 +37,8 @@ where the samples are. A ticked line the window does not cover over the velociti
 The new dataset's ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``,
 ``mg_features_velocities`` and ``mg_features_lines``, the lines measured.
 ``glue_solar.sources.mg_features.mg_features(data, velocities, lines)`` computes the dataset in
-glue's terminal too.
+glue's terminal too. :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`
+saves the maps with their coordinates.
 
 Glue says why, and adds nothing, for stacks of scans, slit-jaw images and other data, as for
 :ref:`line moments <glue_solar_users_guide_iris_line_moments>`, for a window that covers neither

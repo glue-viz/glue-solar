@@ -35,7 +35,8 @@ wavelength sets the wavelengths taken and their velocities. The new dataset's ``
 observation's ``OBSID`` and ``STARTOBS``, ``red_blue_rest``, ``red_blue_wavelengths``,
 ``red_blue_velocities`` and ``red_blue_step``.
 ``glue_solar.sources.red_blue.red_blue_asymmetry(data, rest, wavelengths, velocities, step)``
-computes the dataset in glue's terminal too.
+computes the dataset in glue's terminal too. :ref:`Exporting derived data
+<glue_solar_users_guide_exporting_derived_data>` saves the maps with their coordinates.
 
 Glue says why, and adds nothing, for the data and centres :ref:`line moments
 <glue_solar_users_guide_iris_line_moments>` refuse, and for irispy's own errors, such as wing

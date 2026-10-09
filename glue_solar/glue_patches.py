@@ -213,9 +213,10 @@ def export_fits(filename, data, components=None, data_header=None, extensions=()
 
     glue-core 1.27.0 sets the values outside an exported subset to NaN in place, which a dask array, as a lazily
     loaded IRIS component is, refuses with ``IndexError``. The rest is glue-core's, except that a subset's unsigned
-    components, such as the mask, are exported unmasked where glue-core fails on them. Retired once glue exports a
-    DaskComponent's subset; no upstream fix exists yet. ``data_header`` replaces the data's astropy WCS header, and
-    ``extensions`` are appended, for `glue_solar.sources.iris.export_iris_fits`.
+    components, such as the mask, are exported unmasked where glue-core fails on them. Its registration as glue's
+    exporter is retired once glue exports a DaskComponent's subset, no upstream fix exists yet; the function stays for
+    `glue_solar.sources.iris.export_iris_fits`, with ``data_header`` in place of the data's astropy WCS header and
+    ``extensions`` appended.
     """
     mask = None
     if isinstance(data, Subset):
