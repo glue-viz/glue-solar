@@ -14,7 +14,16 @@ import matplotlib.dates as mdates
 import numpy as np
 import pytest
 from echo import delay_callback
-from glue.config import colormaps, data_factory, layer_action, menubar_plugin, settings, startup_action, viewer_tool
+from glue.config import (
+    colormaps,
+    data_factory,
+    fit_plugin,
+    layer_action,
+    menubar_plugin,
+    settings,
+    startup_action,
+    viewer_tool,
+)
 from glue.core import Data
 from glue.core.data_factories import load_data
 from glue.viewers.image.state import AggregateSlice
@@ -41,6 +50,7 @@ from astropy.wcs import WCS
 import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
+from glue_solar.fitters import GaussianConstantFitter
 from glue_solar.quicklook import QuicklookImageViewer, _role
 from glue_solar.regrid import regrid_on_time
 from glue_solar.sources.iris import help_iris, iris_quicklook, is_iris_fits, link_iris, quicklook_iris
@@ -94,7 +104,11 @@ import sys
 import glue_solar
 
 glue_solar.setup()
-print(*[name for name in ("irispy", "sunpy.map", "ndcube", "fiasco", "spectral_cube") if name in sys.modules], "|")
+# and the Profile fitter's astropy.modeling to the first Profile viewer
+print(
+    *[name for name in ("irispy", "sunpy.map", "ndcube", "fiasco", "spectral_cube", "astropy.modeling") if name in sys.modules],
+    "|",
+)
 
 import sunpy.data.test
 import sunpy.map
@@ -1683,3 +1697,33 @@ def test_profiles_label_the_main_iris_lines(qtbot, irispy_test_files):
     assert labels() == []
     tool.activate()
     assert len(labels()) == 4
+
+
+def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot):
+    glue_solar.setup()
+    glue_solar.setup()
+    assert list(fit_plugin).count(GaussianConstantFitter) == 1
+    wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 1355, "CDELT1": 0.025})
+    x = 1355 + 0.025 * np.arange(49)
+    y = 3 + 40 * np.exp(-0.5 * ((x - 1355.62) / 0.04) ** 2)
+    y[0] = np.nan  # fill
+    data = Data(label="O I", flux=y, coords=wcs)
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ProfileViewer, data=data)
+    viewer.state.x_att = data.world_component_ids[0]
+    viewer.state.x_display_unit = "Angstrom"
+    viewer.toolbar.active_tool = "profile-analysis"
+    tools = viewer.toolbar.tools["profile-analysis"]._profile_tools
+    tools.fit_function = GaussianConstantFitter
+    tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 1354, 1356.5
+    tools.ui.button_fit.click()
+    tools.wait_for_fit()
+    qtbot.waitUntil(lambda: "km/s" in tools.text_log.toPlainText())
+    # the fill left out, its centre and its velocity from O I 1355.5977, (1355.62 / 1355.5977 - 1) c
+    assert tools.text_log.toPlainText().splitlines()[-2:] == ["centre = 1355.620000", "O I 1355.5977 Å: +4.93 km/s"]
+    model, _ = GaussianConstantFitter().build_and_fit(x, y)
+    assert model.parameters == pytest.approx([3, 40, 1355.62, 0.04])
+    model, _ = GaussianConstantFitter().build_and_fit(x, 50 - y)
+    assert model.parameters == pytest.approx([47, -40, 1355.62, 0.04])  # absorption
