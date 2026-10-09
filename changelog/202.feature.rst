@@ -1,0 +1,1 @@
+The observation browser keeps its options for the next browser, searches a folder typed in its Folder field, and loads an entry on a double-click.
