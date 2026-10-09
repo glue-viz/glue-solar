@@ -3748,6 +3748,7 @@ def test_redo_of_a_slit_jaw_click_puts_back_its_raster_pixel(bare_app, qtbot, ir
     undo, redo = bare_app._actions["undo"], bare_app._actions["redo"]
     qtbot.wait(20)
     before = sliders(bare_app, viewers)["point"]
+    start = sji_viewer.state.slices[0]
     (x, y), index = clicked(sji_viewer, raster, 0, 30)
     select_point(sji_viewer, x, y)
     qtbot.wait(20)
@@ -3764,16 +3765,36 @@ def test_redo_of_a_slit_jaw_click_puts_back_its_raster_pixel(bare_app, qtbot, ir
     qtbot.wait(20)
     assert sliders(bare_app, viewers)["point"] == before
     assert sji_viewer.state.slices[0] == frame
-    # Redo puts back the raster pixel the click gave, at once: no slit-jaw point in between; the frame shown stays
+    # Redo puts back the raster pixel the click gave, at once: no slit-jaw point in between; the viewer clicked goes
+    # back to the frame clicked, which matches the raster's time
     updates = SubsetUpdates(bare_app.data_collection.hub)
     redo.trigger()
     qtbot.wait(20)
     assert sliders(bare_app, viewers)["point"] == point
-    assert sji_viewer.state.slices[0] == frame
+    assert sji_viewer.state.slices[0] == start
+    assert "NO MATCH" not in readout(sji_viewer)
     assert updates.counts == {raster.label: 1, sji.label: 1}
+    # so does an Undo back to the click's point, here of a map click, which the image followed
+    select_point(viewers["map"], 10, 20)
+    qtbot.wait(20)
+    assert sji_viewer.state.slices[0] != start
+    undo.trigger()
+    qtbot.wait(20)
+    assert sliders(bare_app, viewers)["point"] == point
+    assert sji_viewer.state.slices[0] == start
     undo.trigger()
     qtbot.wait(20)
     assert sliders(bare_app, viewers)["point"] == before
+    # under a slit-jaw time master the master rules: Redo puts back the click's slit row, and the frame stays
+    menu_action(sji_viewer, "Time master").trigger()
+    press(sji_viewer, Qt.Key_F)
+    qtbot.wait(20)
+    frame = sji_viewer.state.slices[0]
+    assert frame != start
+    redo.trigger()
+    qtbot.wait(20)
+    assert sliders(bare_app, viewers)["point"][1][1] == index[1]
+    assert sji_viewer.state.slices[0] == frame
 
 
 def arcsec_read_out(viewer, x, y):
