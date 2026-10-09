@@ -833,7 +833,7 @@ class QtIRISImporter(QtWidgets.QDialog):
     Stop lists what the scan found so far.
 
     The Filter field lists only the observations whose row or entries contain its
-    text, in any case, across rescans; Load selected leaves out what it hides.
+    text, in any case, across rescans; Load selected still loads the ticks it hides.
     """
 
     progressed = Signal(int, int)  # (load, percent), from the worker thread
@@ -953,10 +953,10 @@ class QtIRISImporter(QtWidgets.QDialog):
         return item
 
     def selected(self):
-        """``(observation index, kind, name)`` for every ticked loadable entry the filter lists."""
+        """``(observation index, kind, name)`` for every ticked loadable entry."""
         picks = []
         root = self.obs_tree.invisibleRootItem()
-        items = [item for item in map(root.child, range(root.childCount())) if not item.isHidden()]
+        items = [root.child(i) for i in range(root.childCount())]
         items += [top.child(j) for top in items for j in range(top.childCount())]
         for item in items:
             if item.data(0, Qt.UserRole) is not None and item.checkState(0) == Qt.Checked:

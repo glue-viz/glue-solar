@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 from irispy.io import read_files
 from qtpy.QtCore import QMetaObject, Qt
+from qtpy.QtTest import QTest
 from qtpy.QtWidgets import QDialog, QFileDialog
 
 import astropy.units as u
@@ -365,13 +366,19 @@ def test_filter_lists_the_observations_whose_row_or_entries_hold_the_text(dialog
     assert _listed(dialog) == [OBS_C[2], OBS_B[2], OBS_A[2]]
 
 
-def test_load_selected_leaves_out_the_ticks_the_filter_hides(dialog):
+def test_ticks_the_filter_hides_still_load(dialog):
     _row(dialog, OBS_A[2]).setCheckState(0, Qt.Checked)
     _row(dialog, OBS_B[2]).setCheckState(0, Qt.Checked)
     dialog.filter.setText("2832")
-    assert [(kind, name) for _, kind, name in dialog.selected()] == [("sji", "SJI_2832")]
-    dialog.filter.clear()  # the hidden ticks stay
+    assert _listed(dialog) == [OBS_B[2]]
     assert len(dialog.selected()) == 5
+
+
+def test_return_in_the_filter_loads_nothing(dialog):
+    dialog.show()
+    QTest.keyClick(dialog.filter, Qt.Key_Return)
+    assert dialog.isVisible()
+    assert dialog.ok.isEnabled()
 
 
 def test_filter_survives_a_rescan(dialog, qtbot):

@@ -43,8 +43,8 @@ and has its tick box on its own row.
 Type in "Filter" to list only the observations whose row or entries contain the text, in any case:
 a line such as ``mg ii`` or ``Si IV 1403``, a start date as STARTOBS shows it (``2013-09-02``), or
 an OBSID. An observation it lists shows all its entries, and the filter stays as the folder is
-searched again. Ticks on the observations it hides stay, but "Load selected" leaves them out until
-the filter lists them again.
+searched again. Ticks stay as the filter changes, and "Load selected" loads every tick, listed or
+not.
 
 Tick the entries you want (ticking the observation row ticks everything under it); each slit-jaw
 channel and AIA cutout you tick loads as a dataset of its own. Then press "Load selected": the data
