@@ -77,10 +77,11 @@ are copied into a temporary file (a NumPy memmap) instead. Its leading ``Scan`` 
 selects the original raster scan, and its ``Time`` component contains the exact acquisition time of
 every pixel. Each scan keeps its own coordinates, so a pixel's helioprojective longitude and
 latitude are those its scan gives it, and placing a stack on other data takes a scan as well: the
-links (see `Linking`_) place it on each other IRIS dataset with the scan nearest the time of each
-frame, exposure or step, each scan timed by its middle raster step, however far. A selected window
-containing one scan loads normally as a 3D dataset and also exposes its exact per-step ``Time``
-values.
+links (see `Linking`_) place it on each slit-jaw image, AIA cutout and raster, not on another stack,
+with the scan nearest the time of each frame, exposure or step, each scan timed by its middle raster
+step, however far; a frame without a time, such as a gap of data regridded on time, gets none. A
+selected window containing one scan loads normally as a 3D dataset and also exposes its exact
+per-step ``Time`` values.
 
 Every raster, stack, slit-jaw and AIA dataset has these components: the data (named after the
 dataset), ``Time`` and ``Exposure time`` (a stack lists ``Exposure time`` before ``Time``),

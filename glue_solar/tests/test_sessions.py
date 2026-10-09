@@ -96,11 +96,15 @@ def test_a_session_restores_a_moments_map_on_its_raster_steps(irispy_test_files)
 
 def test_a_session_restores_the_scans_link_hpc_gives_a_stack(tmp_path, irispy_test_files):
     sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    times = sji[sji.id["Time"]].copy()
+    times[3] = np.datetime64("NaT", "ns")  # a frame without a time, as in the gaps regrid_on_time leaves
+    sji.update_components({sji.id["Time"]: times})
     stack, _ = drifting_stack(tmp_path, irispy_test_files)
     collection = DataCollection([sji, stack])
     collection.add_link(link_hpc(collection))
     scans = sji[stack.id["Scan"]]
-    assert set(np.unique(scans)) == {0, 1}
+    assert set(np.unique(np.delete(scans, 3, axis=0))) == {0, 1}
+    assert np.isnan(scans[3]).all()
     for restored in twice(collection):
         np.testing.assert_array_equal(restored[0][restored[1].id["Scan"]], scans)
         assert link_hpc(restored) == []

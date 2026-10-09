@@ -16,6 +16,7 @@ from glue.core.subset import RoiSubsetState
 from glue.plugins.wcs_autolinking import wcs_autolinking
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
 from glue_qt.app import GlueApplication
+from glue_qt.dialogs.link_editor.state import LinkEditorState
 from glue_qt.viewers.image import ImageViewer
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
@@ -398,6 +399,17 @@ def test_stack_map_roi_selects_the_sji_pixels_inside_it_in_the_nearest_scan(tmp_
     assert edge.sum() <= expected.sum() // 10
     np.testing.assert_array_equal(mask[frame][~edge], expected[~edge])
     assert (_inside(sji, frame, alone[1 - scan], roi)[0] != expected).sum() >= 10  # the other scan's pointing differs
+
+
+def test_the_link_editor_keeps_a_stack_s_scans(tmp_path, irispy_test_files):
+    # glue-qt's Link Data dialog lists the scan link with its one input, and OK keeps it
+    sji = image_data(_real(irispy_test_files, SJI))
+    stack, _ = drifting_stack(tmp_path, irispy_test_files)
+    dc = DataCollection([sji, stack])
+    dc.add_link(link_hpc(dc))
+    scans = sji[stack.id["Scan"]]
+    LinkEditorState(dc).update_links_in_collection()
+    np.testing.assert_array_equal(sji[stack.id["Scan"]], scans)
 
 
 def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, monkeypatch):

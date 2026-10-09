@@ -1,5 +1,6 @@
 import base64
 import gzip
+import inspect
 import io
 import itertools
 import json
@@ -672,9 +673,11 @@ class _ScanAt:
     and NaN off it: ``scans``. Saved in sessions.
     """
 
+    __name__ = "nearest_scan"  # glue's name of a link function, as its own link helpers set it
+    __signature__ = inspect.signature(lambda index: None)  # one input to glue and its link editor, not self too
+
     def __init__(self, scans):
         self.scans = np.asarray(scans, dtype=float)
-        self.__name__ = "nearest_scan"  # glue's name of a link function, as its own link helpers set it
 
     def __call__(self, index):
         index = np.round(np.asarray(index, dtype=float))
@@ -689,17 +692,11 @@ class _ScanAt:
         return cls(rec["scans"])
 
 
-def _first_axis_times(data):
-    """The ``Time`` of ``data`` along its first axis, or None without one."""
-    time = data.find_component_id("Time")
-    return None if time is None else data[time, (slice(None),) + (0,) * (data.ndim - 1)]
-
-
 def link_hpc(data_collection):
     """
     Links pairing the helioprojective longitude and latitude of every IRIS dataset, and of any other dataset such as
     a sunpy map, with those of the first IRIS dataset, and giving every stack of raster scans its ``Scan`` on each
-    other IRIS dataset with a ``Time``.
+    IRIS dataset with a ``Time`` but a stack.
 
     Datasets are matched by world axis physical type, not by component name. IRIS datasets are all in arcsec and
     linked with `~glue.core.link_helpers.LinkSame`; others, such as a sunpy map in degrees, with
@@ -714,17 +711,17 @@ def link_hpc(data_collection):
     takes 0.3 s for the 70 links of 36 datasets but 4 s for the 1260 links of every pair. Removing the first
     dataset drops the links of all the others; `keep_hpc_linked` links them again.
 
-    A stack's pixel at a place depends on its scan, each with its own pointing (`stack_wcs`), so each other IRIS
-    dataset's frames, exposures or steps get the scan nearest their time, however far, scans timed by their middle
-    raster step as the quicklook times them: a `~glue.core.component_link.ComponentLink` from the dataset's first pixel
-    axis to the stack's ``Scan``.
+    A stack's pixel at a place depends on its scan, each with its own pointing (`stack_wcs`), so the frames, exposures
+    or steps of each IRIS dataset with a ``Time`` but a stack get the scan nearest their time, however far, and those
+    without a time none, scans timed by their middle raster step as the quicklook times them: a
+    `~glue.core.component_link.ComponentLink` from the dataset's first pixel axis to the stack's ``Scan``.
 
     Returns
     -------
     list of `~glue.core.link_helpers.LinkSame`, `~glue.core.link_helpers.LinkSameWithUnits` and
     `~glue.core.component_link.ComponentLink`
     """
-    from glue_solar.quicklook import nearest  # which imports this module
+    from glue_solar.quicklook import _times, nearest  # which imports this module
 
     linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in data_collection.links}
     anchors, links = {}, []
@@ -744,16 +741,16 @@ def link_hpc(data_collection):
     # ponytail: a link per stack and other dataset, not a star: 104 for 8 stacks and 13 slit-jaw images add 0.03 s to
     # glue's link rediscovery at each change; fewer if that grows
     for stack, scan in scans.items():
-        middle = (slice(None), stack.shape[1] // 2) + (0,) * (stack.ndim - 2)
-        times = stack.find_component_id("Time")
-        if times is None:  # a stack's line moments
+        if stack.find_component_id("Time") is None:  # a stack's line moments
             continue
-        times, numbers = stack[times, middle], stack[scan, middle]
+        times = _times(stack, stack.shape[1] // 2)  # whose indices are the scan numbers (stack_wcs)
         for data in datasets:
             frame = data.pixel_component_ids[0]
-            if data in scans or frozenset((scan, frame)) in linked or (when := _first_axis_times(data)) is None:
+            if data in scans or frozenset((scan, frame)) in linked or data.find_component_id("Time") is None:
                 continue
-            links.append(ComponentLink([frame], scan, using=_ScanAt(numbers[nearest(when, times)[0]])))
+            when = _times(data, 0)
+            nearby = np.where(np.isnat(when), np.nan, nearest(when, times)[0])  # none for a frame without a time
+            links.append(ComponentLink([frame], scan, using=_ScanAt(nearby)))
     return links
 
 
