@@ -106,7 +106,7 @@ def run(app, qtbot, data, message=""):
     tree._actions[ACTION].trigger()
     assert iris._RUNNING  # on glue-qt's worker
     assert app.statusBar().currentMessage() == f"Computing line moments of {data.label}…"
-    qtbot.waitUntil(lambda: len(collection) == count + 1 and not iris._RUNNING)
+    qtbot.waitUntil(lambda: len(collection) == count + 1 and not iris._RUNNING, timeout=60_000)  # error maps take seconds
     assert app.statusBar().currentMessage() == message
     return collection[-1]
 
