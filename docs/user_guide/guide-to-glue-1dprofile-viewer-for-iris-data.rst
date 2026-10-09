@@ -170,6 +170,20 @@ viewer's View menu (see :ref:`glue_solar_users_guide_viewer_tools_and_windows`).
 In glue-qt 0.4.2, Navigate and Collapse pick the wrong wavelengths when the Profile's "x unit" is not
 the data's own (``Angstrom`` for IRIS wavelengths), so leave it unchanged for them.
 
+.. _glue_solar_users_guide_iris_velocity:
+
+**Doppler velocity.** With ``Wavelength`` as the x axis of a raster window that has a
+:ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`, the Profile's "x unit" lists
+``km / s`` after the lengths: the optical Doppler velocity from the rest wavelength, (λ / rest - 1) c,
+so Mg II k 2796.352 Å is at 0 km/s in ``Mg II k 2796``. A window without one, such as ``2832``, has no
+``km / s``. "Velocity axis" in the Profile's toolbar adds a top axis in km/s from the rest wavelength
+while the x unit is a length, such as Å, and hides it again; it starts hidden. Both follow "Set rest
+wavelength…": the top axis moves, and a Profile in ``km / s`` redraws its spectra over the same
+velocities, or goes back to Å when the window is left without a rest wavelength. A script that sets
+``meta['rest_wavelength']`` calls ``data.broadcast("meta")`` for open Profiles to follow. The
+velocities are on the uncorrected Level 2 wavelength scale (see below), and Navigate and Collapse need
+the x unit in Å (above).
+
 **Rest wavelength from a measured line.** Level 2 wavelengths can be off by about 5-10 km/s, and
 the FUV and NUV detectors drift apart. O I 1355.5977 Å, in a window covering it such as ``O I 1356``,
 forms low enough to be nearly at rest and measures the offset of the FUV windows (C II, Si IV, O I);
