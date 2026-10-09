@@ -14,8 +14,9 @@ fits a viewer 700 pixels wide; a narrower viewer moves the last buttons behind t
 button. The pencil icon holds glue-solar's mouse modes, "Measure", "Path diagram" and "Show
 position on original path", with the one on checked, and the "Path sampling" submenu, described
 with "Path diagram" below; the link icon is the "Coordinate" menu; and
-the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Physical
-aspect", "Zoom 1:1", "Colour bar" and "Cursor readout", each but "Zoom 1:1" checked while it is on.
+the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Wavelength
+band…", "Physical aspect", "Zoom 1:1", "Colour bar" and "Cursor readout", each but "Zoom 1:1"
+checked while it is on.
 After a View entry the mouse mode, such as Pixel, stays on. A menu shows an entry's single-key
 shortcut beside it, which works while the toolbar has the keyboard, as a button's does.
 
@@ -110,6 +111,16 @@ toolbar has:
   viewer's options gives the previous one the whole cube's limits again. The limits in the layer's
   style editor change with each step while it is on. A session saved with it on does not open
   (see `Saving sessions`_).
+- "Wavelength band…", in the View menu: shows a raster map as the mean, NaN left out, of a band of 5,
+  9 or 15 wavelength pixels centred on the wavelength slider, or with 1 the slider's wavelength alone
+  again. The band is the Profile viewer's Collapse with Mean (see :ref:`Band maps
+  <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`), cut at the ends of the window, so 5 pixels
+  at pixel 1 average pixels 0 to 3; the slider shows its centre. Unlike a Collapse it follows the
+  slider: a drag, A and S, scan and step moves and the time sync keep it. A Pixel click on a
+  quicklook's spectrogram or wavelength panel leaves it in place, as it leaves a Collapse. Each step
+  averages the band again: on the Si IV 1403 window of OBSID 4000005156 a step and its redraw take
+  about 31 ms with 5 pixels and 49 ms with 15, against 18 ms with 1. A saved session shows the band
+  where it was, and the next slider move shows a single wavelength.
 - "Physical aspect", in the View menu: shows the image in its proportions on the sky, an arcsecond
   as long on screen along x as along y, and chosen again, with the aspect it had. It sets the
   aspect in the viewer's options to "Square Pixels", scaled by the ratio of

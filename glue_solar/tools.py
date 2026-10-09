@@ -29,6 +29,7 @@ from glue.viewers.image.composite_array import CompositeArray
 from glue.viewers.image.layer_artist import ImageLayerArtist
 from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
+from glue.viewers.image.state import AggregateSlice
 from glue.viewers.matplotlib.mpl_axes import update_appearance_from_settings
 from glue.viewers.matplotlib.toolbar_mode import ToolbarModeBase
 from glue_qt.utils.decorators import messagebox_on_error
@@ -52,6 +53,7 @@ from glue_solar.quicklook import (
     _place,
     _role,
     _seconds_text,
+    _shown,
     _spectral_axes,
     _sync_text,
     _time_text,
@@ -66,6 +68,7 @@ from glue_solar.quicklook import (
 from glue_solar.sources.moments import _accepted
 
 __all__ = [
+    "BandTool",
     "ColourBarTool",
     "CoordinateTool",
     "CursorReadoutTool",
@@ -653,6 +656,72 @@ class PerFrameLimitsTool(Tool):
         for layer in self.viewer.state.layers:
             if layer.layer is not reference_data and not getattr(layer, "stretch_global", True):
                 layer.stretch_global = True
+
+
+@viewer_tool
+class BandTool(Tool):
+    """
+    Show the Image viewer's map as the mean over a band of 5, 9 or 15 wavelength pixels about the wavelength slider, or
+    again at the slider's wavelength alone.
+
+    The band is glue's own ``AggregateSlice`` with ``np.nanmean``, which the Profile viewer's Collapse with Mean sets,
+    on each wavelength axis of the reference data the viewer does not show, cut at the ends of the axis. glue-qt
+    0.4.2 makes it a single wavelength again whenever any slider moves (``wp0-qt-aggregate-slice``), so a validator
+    of the viewer's ``slices`` turns a wavelength index into the band about it: the slider, A and S, scan and step
+    moves and the time sync keep the band. A session saves the band shown, not the choice. A plain tool, as Hide
+    axes is.
+    """
+
+    icon = "glue_xrange_select"
+    tool_id = "solar:band"
+    action_text = "Wavelength band…"
+    tool_tip = "Show the mean over 5, 9 or 15 wavelength pixels about the slider's"
+
+    WIDTHS = (1, 5, 9, 15)
+
+    def __init__(self, viewer):
+        super().__init__(viewer)
+        self.width = 1
+        viewer.state.add_callback("slices", self._band, validator=True)
+
+    @property
+    def checked(self):
+        """Whether a band is on, as the View menu entry's check mark says."""
+        return self.width > 1
+
+    def activate(self):
+        items = [str(width) for width in self.WIDTHS]
+        text, ok = QtWidgets.QInputDialog.getItem(
+            self.viewer, "Wavelength band", "Wavelength pixels:", items, self.WIDTHS.index(self.width), False
+        )
+        if ok:
+            self.width = int(text)
+            state = self.viewer.state
+            axes = self._axes(state.slices)  # the validator makes the band about the slider's index
+            state.slices = tuple(int(getattr(s, "center", s)) if i in axes else s for i, s in enumerate(state.slices))
+        _keep_mouse_mode(self.viewer)
+
+    def close(self):
+        self.viewer.state.remove_callback("slices", self._band)
+        super().close()
+
+    def _axes(self, slices):
+        """The wavelength axes of the reference data that the viewer does not show, for ``slices``."""
+        state = self.viewer.state
+        data = state.reference_data
+        return set() if data is None or len(slices) != data.ndim else _spectral_axes(data) - _shown(state)
+
+    def _band(self, slices):
+        half = self.width // 2
+        if not half:
+            return slices
+        slices = list(slices)
+        for axis in self._axes(slices):
+            index = slices[axis]
+            if not isinstance(index, AggregateSlice):  # a Collapse stays until a slider moves, as in glue-qt
+                band = slice(max(index - half, 0), min(index + half + 1, self.viewer.state.reference_data.shape[axis]))
+                slices[axis] = AggregateSlice(band, index, np.nanmean)
+        return tuple(slices)
 
 
 def _sky_coords(viewer):
@@ -2005,4 +2074,4 @@ class ViewTool(_ToolMenu):
 
     icon = "glue_settings"
     tool_id = "solar:view"
-    tool_tip = "View: frame time, axes, colour limits, aspect, zoom, colour bar and cursor readout"
+    tool_tip = "View: frame time, axes, colour limits, wavelength band, aspect, zoom, colour bar and cursor readout"
