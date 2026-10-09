@@ -210,6 +210,28 @@ def test_a_stacks_saturated_pixels_are_counted_over_its_scans(app, qtbot, monkey
     assert np.isnan(maps["intensity"][[0, 2], :, [10, 20]]).all()
 
 
+def test_a_stacks_error_maps_are_each_scans_own(app, qtbot, monkeypatch, stack_paths):
+    """
+    "Error maps" on a stack, in slabs of 1 step, gives at each scan the error maps of that scan alone, from its own
+    exposure times: scan 1's step 3, of 0 s, is NaN there only.
+    """
+    monkeypatch.setattr(moments, "SLAB", 3 * 109 * 4)
+    zero_exposure(stack_paths[1], 3)
+    [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
+    app.data_collection.append(stack)
+    opened = answer(monkeypatch, "1402.77", errors=True)
+    maps = run(app, qtbot, stack)
+    assert opened == [("1402.77", 0.5, 0.5, "", False)]
+    assert np.isnan(maps["intensity error"][1, 3]).all()
+    assert not np.isnan(maps["intensity error"][[0, 2], 3]).all()
+    for k, path in enumerate(stack_paths):
+        [scan] = raster_data([path], ["Si IV 1403"])
+        alone = line_moments(scan, 1402.77, errors=True)
+        assert [cid.label for cid in maps.main_components] == [cid.label for cid in alone.main_components]
+        for cid in alone.main_components:
+            np.testing.assert_array_equal(maps[cid.label][k], alone[cid], err_msg=cid.label)
+
+
 def test_a_profile_range_gives_the_wings_from_a_centre_within_it(app, qtbot, monkeypatch, scan_path):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)

@@ -79,7 +79,8 @@ wavelength calibration (see irispy's ``calculate_moments``). irispy takes about 
 with them. On 3610108077's full Si IV 1403 window they are irispy's own, from its reader, to 4e-9 or
 better with or without a continuum. A rebinned window's (see :ref:`Rebinning
 <glue_solar_users_guide_iris_rebinning>`) are refused: irispy would give each bin the noise of one
-sample, not of their mean.
+sample, not of their mean. A stack's errors are each scan's, as that scan alone gives them, from its
+own exposure times.
 
 What is refused
 ---------------
