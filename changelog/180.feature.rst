@@ -1,0 +1,1 @@
+Line moments run on stacked rasters, each scan at its own coordinates, and take their wings from a Profile viewer's range.
