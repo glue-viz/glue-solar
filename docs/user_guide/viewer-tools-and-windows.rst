@@ -290,10 +290,10 @@ Saving sessions
 
 Saving a session that contains IRIS data can fail before any file is written. A session keeps the
 coordinates of every IRIS dataset and of those made from them, with any pointing offset set with
-"Shift pointing…", and their metadata, but for the time and field-of-view centre irispy gives each
-raster step (``auxiliary times`` and ``exposure FOV center``). The colormaps of raster windows,
-slit-jaw images and AIA cutouts need dedicated serializers, and data read from their files as they
-are viewed cannot be saved in a session yet; save derived products separately rather than relying
-on a Glue session as their only copy. With glue-core 1.27.0 a session saved while an Image viewer has
+"Shift pointing…", the colormap each opens in, and their metadata, but for the time and
+field-of-view centre irispy gives each raster step (``auxiliary times`` and ``exposure FOV
+center``). Data read from their files as they are viewed cannot be saved in a session yet; save
+derived products separately rather than relying on a Glue session as their only copy. With
+glue-core 1.27.0 a session saved while an Image viewer has
 "Per-frame limits" on, whatever its data, does not open: glue reports "'NoneType' object has no
 attribute 'add_callback'". Turn them off before saving.
