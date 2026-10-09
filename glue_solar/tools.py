@@ -16,11 +16,13 @@ from glue.core.edit_subset_mode import ReplaceMode
 from glue.core.fixed_resolution_buffer import invalidate_cache, translate_pixel
 from glue.core.hub import HubListener
 from glue.core.message import NumericalDataChangedMessage, SettingsChangeMessage
+from glue.core.state import GlueSerializer, loader, saver
 from glue.core.subset import SubsetState
 from glue.plugins.tools.path_slicer.common import open_slice_viewer_for
 from glue.plugins.tools.path_slicer.matplotlib_mode import BasePathSlicerCrosshairMode, BasePathSlicerMode
 from glue.plugins.tools.path_slicer.path_sliced_data import PathSlicedCoordinates, PathSlicedData, sample_points
 from glue.plugins.tools.path_slicer.path_sliced_data_links import (
+    PathRelativeLink,
     link_path_sliced_pair_paths,
     link_path_sliced_to_parent,
 )
@@ -46,6 +48,7 @@ from qtpy import QtCore, QtWidgets
 
 import astropy.units as u
 from astropy.coordinates import Angle, SkyCoord, angular_separation
+from astropy.table import Table
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 from glue_solar.quicklook import (
@@ -1109,6 +1112,9 @@ class PathData(PathSlicedData):
     'nearest', the nearest pixel, halfway up, as `scipy.ndimage.map_coordinates` with ``order=0``, NaN beyond half a
     pixel off the data; 'linear', bilinear between the four pixels around each sample, as ``order=1`` with
     ``mode="constant"``, NaN where any is NaN or off the data, with times and categories the nearest pixel's.
+
+    A session keeps the path, its parent and its sampling, where glue-core 1.27.0 cannot save a diagram, and the
+    restored diagram reads its values from the parent again.
     """
 
     SAMPLINGS = ("truncate", "nearest", "linear")
@@ -1123,6 +1129,43 @@ class PathData(PathSlicedData):
             self._coords = PathSlicedCoordinates(_GlueWCS(stack._wcs), self.sliced_dims)
         if self._coords is not None and self._coords.world_n_dim != self._coords.pixel_n_dim:
             self._coords = None
+
+    def component_ids(self):
+        # glue-core 1.27.0's session saver lists every dataset's, which only Data has: a diagram has none of its own
+        return []
+
+    def __gluestate__(self, context):
+        return {
+            "original_data": context.id(self.original_data),
+            "cids": [context.id(self.cid_x), context.id(self.cid_y)],
+            "x": context.do(self.x),
+            "y": context.do(self.y),
+            "label": self.label,
+            "sampling": self.sampling,
+            "pixel_component_ids": [context.id(cid) for cid in self.pixel_component_ids],
+            "world_component_ids": [context.id(cid) for cid in self.world_component_ids],
+            "subsets": [context.id(subset) for subset in self.subsets],
+        }
+
+    @classmethod
+    def __setgluestate__(cls, rec, context):
+        data = context.object(rec["original_data"])
+        (cid_x, cid_y), x, y = map(context.object, rec["cids"]), context.object(rec["x"]), context.object(rec["y"])
+        path = cls(data, cid_x, x, cid_y, y, label=rec["label"], sampling=rec["sampling"])
+        # its own components as saved, which its links, subsets and viewers name and may have restored first, as
+        # glue's Data loader sets them
+        pixel = [context.object(name) for name in rec["pixel_component_ids"]]
+        world = [context.object(name) for name in rec["world_component_ids"]]
+        for cid in pixel + world:
+            cid.parent = path
+        path._pixel_component_ids = pixel
+        if world:  # in place of those made from the coordinates, with their values
+            made = path.world_component_ids
+            path._world_components = {cid: path._world_components[old] for cid, old in zip(world, made, strict=True)}
+            path._world_component_ids = world
+        for subset in rec["subsets"]:
+            path.add_subset(context.object(subset))
+        return path
 
     def set_xy(self, x, y, spacing=1):
         # the samples as they are, which glue-core would sample again as vertices; the rest is glue-core's
@@ -1200,6 +1243,19 @@ class PathData(PathSlicedData):
         return result[()]
 
 
+# glue-core 1.27.0 saves the link between two diagrams' paths as a ComponentLink through its own methods, which no
+# session opens: save the diagrams it links instead
+if PathRelativeLink not in GlueSerializer.dispatch:
+
+    @saver(PathRelativeLink)
+    def _save_path_link(link, context):
+        return {"paths": [context.id(link._slice_from), context.id(link._slice_to)]}
+
+    @loader(PathRelativeLink)
+    def _load_path_link(rec, context):
+        return PathRelativeLink(*map(context.object, rec["paths"]))
+
+
 def _placed(viewer, data, x, y):
     """
     The two pixel components of ``data`` along which the path of samples ``x, y`` on the Image viewer's displayed axes
@@ -1233,7 +1289,7 @@ class PathTool(BasePathSlicerMode):
     `~glue_solar.sources.loaders.iris.link_hpc`'s, at the frame shown, so a time-synced viewer samples them at the time
     master's exposure; a dataset glue cannot place from the reference data, as a slit-jaw image on a raster's axes, has
     no diagram. Each Enter makes a new set of diagrams, in a new viewer, sampled as `PathData` is with ``sampling``,
-    which the "Path sampling" submenu of `ModesTool` sets.
+    which the "Path sampling" submenu of `ModesTool` sets, as does a path opened from ECSV with its own sampling.
     """
 
     tool_id = "solar:path"
@@ -1255,12 +1311,15 @@ class PathTool(BasePathSlicerMode):
         super()._finish_roi(event)
 
     def _open_or_update(self, vx, vy):
-        # glue-core's create_trace, of PathData placed in each dataset. Every Enter makes a new set: glue-qt 0.4.2 has
-        # no menu to pick a path to update instead (glue-viz/glue-qt#66, draft, adds one)
         try:
             x, y = sample_points(vx, vy)
         except ValueError:  # fewer than two vertices, or under a pixel long
             return
+        self._extract(x, y, self.sampling)
+
+    def _extract(self, x, y, sampling):
+        # glue-core's create_trace, of PathData of the samples x, y placed in each dataset. Every Enter makes a new
+        # set: glue-qt 0.4.2 has no menu to pick a path to update instead (glue-viz/glue-qt#66, draft, adds one)
         state, collection = self.viewer.state, self.viewer.session.data_collection
         datasets = [layer.layer for layer in state.layers if isinstance(layer.layer, Data)]
         trace = []
@@ -1271,8 +1330,8 @@ class PathTool(BasePathSlicerMode):
                 continue
             (cid_x, px), (cid_y, py) = placed
             count = sum(path.original_data is data for old in self._traces for path in old)
-            label = f"{data.label} [slice {count + 1}{'' if self.sampling == 'truncate' else ', ' + self.sampling}]"
-            path = PathData(data, cid_x, px, cid_y, py, label=label, sampling=self.sampling)
+            label = f"{data.label} [slice {count + 1}{'' if sampling == 'truncate' else ', ' + sampling}]"
+            path = PathData(data, cid_x, px, cid_y, py, label=label, sampling=sampling)
             path.parent_viewer = self.viewer if data is state.reference_data else None  # the crosshair's
             collection.append(path)
             link_path_sliced_to_parent(collection, path)
@@ -1313,6 +1372,64 @@ class PathCrosshairTool(BasePathSlicerCrosshairMode):
         path.parent_viewer.figure.canvas.draw_idle()
 
 
+def _path_sky(path, row):
+    """
+    The sky coordinates of the samples of the `PathData` diagram ``path`` on its parent's coordinates at ``row``, an
+    index of each other axis of the diagram and ``slice(None)``; None if they give none.
+    """
+    world = HighLevelWCSWrapper(path.original_data.coords).pixel_to_world(
+        *path._pixels(path._cells(row), path.x, path.y)[::-1]
+    )
+    return next((w for w in (world if isinstance(world, list) else [world]) if isinstance(w, SkyCoord)), None)
+
+
+def _path_table(path):
+    """
+    The samples of the `PathData` diagram ``path`` as a table: ``x`` and ``y``, the parent's pixels along its axes
+    ``meta["axes"]``, and, on the parent's coordinates at the first index of its other axes, such as a slit-jaw
+    image's first frame, ``lon`` and ``lat`` and the ``distance`` along the path from its first sample, in arcsec, as
+    `sky_length` measures it, and with ``DSUN_OBS`` in km, ``distance_km``. Its meta also give the parent's label and
+    the ``sampling``, with which `PathTool` makes the diagram again.
+    """
+    data = path.original_data
+    meta = {"data": data.label, "axes": list(path.sliced_dims), "sampling": path.sampling}
+    table = Table({"x": path.x, "y": path.y}, meta=meta)
+    sky = None if data.coords is None else _path_sky(path, (0,) * (path.ndim - 1) + (slice(None),))
+    if sky is not None:
+        table["lon"] = sky.spherical.lon.wrap_at(180 * u.deg).to(u.arcsec)
+        table["lat"] = sky.spherical.lat.to(u.arcsec)
+        table["distance"] = np.append(0, np.cumsum(sky[:-1].separation(sky[1:]).arcsec)) * u.arcsec
+        if observer := data.meta.get("DSUN_OBS"):  # in m
+            table["distance_km"] = table["distance"].to(u.rad).value * observer / 1000 * u.km
+    return table
+
+
+@messagebox_on_error("Could not save the path")
+def _save_path(viewer):
+    """Save the path of the Image viewer's `PathData` diagram as an ECSV table (`_path_table`)."""
+    start = os.path.expanduser(rcParams["savefig.directory"])
+    name, _ = QtWidgets.QFileDialog.getSaveFileName(viewer, "Save path as ECSV", start, "ECSV table (*.ecsv)")
+    if name:
+        _path_table(viewer.state.reference_data).write(name, format="ascii.ecsv", overwrite=True)
+
+
+@messagebox_on_error("Could not open the path")
+def _open_path(tool):
+    """
+    Open a path `_save_path` saved on the viewer of `PathTool` ``tool``, which shows the dataset it was drawn on, and
+    make its diagrams as Enter does, sampled as before.
+    """
+    start = os.path.expanduser(rcParams["savefig.directory"])
+    name, _ = QtWidgets.QFileDialog.getOpenFileName(tool.viewer, "Open path from ECSV", start, "ECSV table (*.ecsv)")
+    if not name:
+        return
+    table, state = Table.read(name, format="ascii.ecsv"), tool.viewer.state
+    along = dict(zip(table.meta["axes"], (table["x"], table["y"]), strict=True))
+    if {state.x_att.axis, state.y_att.axis} != set(along):
+        raise ValueError(f"The path is on pixel axes {table.meta['axes']} of {table.meta['data']}: show those.")
+    tool._extract(np.asarray(along[state.x_att.axis]), np.asarray(along[state.y_att.axis]), table.meta["sampling"])
+
+
 def _track(viewer, x, y):
     """
     The motion along the path of a feature whose track passes through the points ``x, y`` (two or more) of the Image
@@ -1331,7 +1448,7 @@ def _track(viewer, x, y):
     observer = data.meta.get("DSUN_OBS")  # in m
     if time is None or not observer or data.coords is None:
         return None
-    wcs, rows, times, km = HighLevelWCSWrapper(data.coords), {}, [], []
+    rows, times, km = {}, [], []
     for px, py in zip(x, y, strict=True):
         cell = _hovered(state, px, py)
         if cell is None:
@@ -1340,8 +1457,7 @@ def _track(viewer, x, y):
             row = (*cell[:-1], slice(None))
             at = path[time, row]
             at = at[~np.isnat(at)]
-            world = wcs.pixel_to_world(*path._pixels(path._cells(row), path.x, path.y)[::-1])
-            sky = next((w for w in (world if isinstance(world, list) else [world]) if isinstance(w, SkyCoord)), None)
+            sky = _path_sky(path, row)
             if sky is None or at.size == 0 or at.min() != at.max():  # a raster map's times change along its path
                 return None
             rows[cell[:-1]] = at[0], np.append(0, np.cumsum(sky[:-1].separation(sky[1:]).rad)) * observer / 1000
@@ -2211,8 +2327,9 @@ class _ToolMenu(SimpleToolMenu):
 @viewer_tool
 class ModesTool(_ToolMenu):
     """
-    The Image viewer's menu of glue-solar's mouse modes: Measure, Path diagram, its crosshair and Slope, and the "Path
-    sampling" submenu, which sets `PathTool`'s ``sampling`` for the next Enter.
+    The Image viewer's menu of glue-solar's mouse modes: Measure, Path diagram, its crosshair and Slope; "Save path as
+    ECSV…" on a diagram (`_save_path`) and "Open path from ECSV…" (`_open_path`); and the "Path sampling" submenu,
+    which sets `PathTool`'s ``sampling`` for the next Enter.
     """
 
     icon = "pencil"
@@ -2221,10 +2338,21 @@ class ModesTool(_ToolMenu):
 
     def _add_entries(self):
         super()._add_entries()
-        # a submenu, which glue-qt 0.4.2's tool menus cannot hold, as the Coordinate menu's "Blink interval"
         toolbar = self.viewer.toolbar
         path = toolbar.tools[PathTool.tool_id]
-        menu = toolbar.widgetForAction(toolbar.actions[self.tool_id]).menu().addMenu("Path sampling")
+        modes = toolbar.widgetForAction(toolbar.actions[self.tool_id]).menu()
+        # not through glue-qt's toolbar, so the mouse mode stays: saving on a diagram, as Slope is, opening where Path
+        # diagram is
+        for text, run, shown in (
+            ("Save path as ECSV…", lambda: _save_path(self.viewer), toolbar.tools[SlopeTool.tool_id]),
+            ("Open path from ECSV…", lambda: _open_path(path), path),
+        ):
+            action = modes.addAction(text)
+            action.triggered.connect(run)
+            add_callback(shown, "enabled", action.setVisible)
+            action.setVisible(shown.enabled)
+        # a submenu, which glue-qt 0.4.2's tool menus cannot hold, as the Coordinate menu's "Blink interval"
+        menu = modes.addMenu("Path sampling")
         group = QtWidgets.QActionGroup(menu)
         for sampling in PathData.SAMPLINGS:
             action = group.addAction(sampling.capitalize())

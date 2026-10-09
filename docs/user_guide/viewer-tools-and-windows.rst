@@ -12,8 +12,9 @@ example "Zoom to rectangle [shortcut: Z]".
 glue-solar keeps its Image Viewer tools, all but Follow/lock, in three menus, so that the toolbar
 fits a viewer 700 pixels wide; a narrower viewer moves the last buttons behind the toolbar's »
 button. The pencil icon holds glue-solar's mouse modes, "Measure", "Path diagram", "Show
-position on original path" and "Slope", with the one on checked, and the "Path sampling" submenu,
-described with "Path diagram" below; the link icon is the "Coordinate" menu; and
+position on original path" and "Slope", with the one on checked, and "Save path as ECSV…", "Open
+path from ECSV…" and the "Path sampling" submenu, described with "Path diagram" below; the link
+icon is the "Coordinate" menu; and
 the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Wavelength
 band…", "Physical aspect", "Zoom 1:1", "Colour bar" and "Cursor readout", each but "Zoom 1:1"
 checked while it is on.
@@ -82,7 +83,18 @@ toolbar has:
   keeps its path drawn on the image; closing the viewer it was drawn in closes them. In the
   diagram's viewer, "Show position on original path" marks the point of the path under the mouse
   while you drag, and moves the viewer it was drawn in to the frame, wavelength or scan the
-  diagram's y axis shows there, only that slider. Sessions do not save the diagrams yet.
+  diagram's y axis shows there, only that slider.
+
+  On a diagram, the pencil menu's "Save path as ECSV…" writes its path as an ECSV table, a row a
+  sample: ``x`` and ``y``, the dataset's pixels from 0, and, at its first frame, wavelength or
+  scan, ``lon`` and ``lat`` in arcsec and the ``distance`` along the path from its first sample in
+  arcsec, measured as "Measure" measures, and with ``DSUN_OBS`` in km (``distance_km``). Its
+  metadata give the dataset's name, the two pixel axes the path is on and the sampling. "Open path
+  from ECSV…", in the pencil menu of a viewer showing that dataset on those axes, makes the same
+  diagrams from it, with the saved sampling, as Enter does with a path drawn there. A saved session
+  keeps the diagrams, each as its path, its dataset and its sampling, and they read their values
+  from the dataset again as the session opens (see `Saving sessions`_); the restored path is not
+  drawn on the image, and "Show position on original path" is off on a restored diagram.
 - "Slope", a glue-solar mode in a path diagram's viewer ("Click points along a track on a
   distance-time diagram, then press Enter for its speed"): on a diagram with one time on each row,
   a slit-jaw image's frames or a sit-and-stare raster's exposures against the path, click points
