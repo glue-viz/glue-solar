@@ -17,6 +17,7 @@ from scipy.interpolate import make_interp_spline
 from astropy.io import fits
 
 import glue_solar
+from glue_solar import regrid
 from glue_solar.conftest import OBS_A, _header, _write_image, find_irispy_test_file, startobs
 from glue_solar.quicklook import quicklook
 from glue_solar.regrid import north_up, north_up_iris, rebin, regrid_on_time
@@ -27,6 +28,7 @@ from glue_solar.sources.moments import line_moments
 from glue_solar.tests.helpers import press
 from glue_solar.tests.test_lazy import RASTER, SJI, int16_copy, int16_raster_copy, zero_exposure
 from glue_solar.tests.test_quicklook import SCAN, expected_nearest, menu_action, readout
+from glue_solar.tools import _exposure_label
 
 GAP = 100  # the first exposure of the sit-and-stare raster after the 10 left out
 
@@ -231,6 +233,7 @@ def test_the_quicklook_shows_a_regridded_raster(app, qtbot, tmp_path, irispy_tes
     times = regridded[regridded.id["Time"]][:, 0, 0]
     first, last = (np.datetime_as_string(t, unit="s") for t in (times[0], times[~np.isnat(times)][-1]))
     assert viewers["map"].state.x_axislabel == f"Time (3 s per pixel)\n{first} – {last[11:]} UTC"
+    assert _exposure_label(rebin(regridded, (2, 1, 1))).startswith("Time (6 s per pixel)\n")  # 2 exposures a pixel
     # a pixel in the gap has no time: the slit-jaw image keeps its frame, greyed
     spectrogram = viewers["spectrogram"]
     frame = sji_viewer.state.slices[0]
@@ -364,16 +367,28 @@ def binned(values, bins):
         return np.nanmean(values[cover].reshape(shape), axis=tuple(range(1, len(shape), 2))), values[cover]
 
 
-@pytest.mark.parametrize("kind", ["raster", "sji"])
-def test_rebin_takes_each_bins_mean_of_its_values_and_keeps_the_finite_mean(tmp_path, irispy_test_files, kind):
+@pytest.mark.parametrize("kind", ["raster", "sji", "stack"])
+def test_rebin_takes_each_bins_mean_of_its_values_and_keeps_the_finite_mean(
+    monkeypatch, tmp_path, irispy_test_files, kind
+):
     """
     3 raster steps by 2 slit pixels of 3860258481's Si IV 1403, with missing samples, the steps past the last whole
-    bin left out, and a step of 0 s, or 2 frames by 3 by 3 pixels of 3620258102's SJI 1400.
+    bin left out, and a step of 0 s; 2 frames by 3 by 3 pixels of 3620258102's SJI 1400; or 2 scans by 3 steps by 4
+    wavelengths of a stack of 3860258481's scans, its first again last; a bin's rows a slab.
     """
+    monkeypatch.setattr(regrid, "SLAB", 1)
     if kind == "raster":
         path = int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
         [data] = raster_data([zero_exposure(path, 4)], ["Si IV 1403"])
         bins = (3, 2, 1)
+    elif kind == "stack":  # in folders that sort in scan order
+        sources = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
+        paths = [
+            int16_raster_copy(sources[source], tmp_path / f"scan{scan}" / sources[source].name)
+            for scan, source in enumerate((0, 1, 2, 0))
+        ]
+        [data] = raster_data(paths, ["Si IV 1403"], stack=True)
+        bins = (2, 3, 1, 4)
     else:
         data = image_data(int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0]))
         bins = (2, 3, 3)
@@ -405,20 +420,23 @@ def test_rebin_takes_each_bins_mean_of_its_values_and_keeps_the_finite_mean(tmp_
     np.testing.assert_allclose(
         rebinned.coords.pixel_to_world_values(*pixels), data.coords.pixel_to_world_values(*centres), rtol=1e-12
     )
+    zeros = [0] * (data.ndim - 1)
     np.testing.assert_allclose(  # given pixels that broadcast, as the quicklook gives a slit-jaw image's frames
-        rebinned.coords.pixel_to_world_values(0, 0, np.arange(2)),
-        rebinned.coords.pixel_to_world_values(np.zeros(2), np.zeros(2), np.arange(2)),
+        rebinned.coords.pixel_to_world_values(*zeros, np.arange(2)),
+        rebinned.coords.pixel_to_world_values(*np.zeros((len(zeros), 2)), np.arange(2)),
     )
     # the mean time and exposure time of each bin, NaN where one is 0 s, over which its DN/s are its values
-    times = data[data.id["Time"]][:, 0, 0]
-    start = times[0]
-    mean = start + (binned((times - start) / np.timedelta64(1, "ns"), bins[:1])[0]).astype("timedelta64[ns]")
-    np.testing.assert_array_equal(rebinned[rebinned.id["Time"]][:, 0, 0], mean)
-    seconds = data["Exposure time"][: len(mean) * bins[0], 0, 0]
-    exposure = rebinned["Exposure time"][:, 0, 0]
-    np.testing.assert_allclose(exposure, np.where(seconds > 0, seconds, np.nan).reshape(-1, bins[0]).mean(1), rtol=1e-6)
+    lead, along = (slice(None),) * (data.ndim - 2) + (0, 0), bins[:-2]  # per exposure, frame, or scan and step
+    times = data[data.id["Time"]][lead]
+    start = times.flat[0]
+    mean = start + (binned((times - start) / np.timedelta64(1, "ns"), along)[0]).astype("timedelta64[ns]")
+    np.testing.assert_array_equal(rebinned[rebinned.id["Time"]][lead], mean)
+    seconds = data["Exposure time"][lead]
+    exposure = rebinned["Exposure time"][lead]
+    zero = binned(seconds == 0, along)[0] > 0
+    np.testing.assert_allclose(exposure, np.where(zero, np.nan, binned(seconds, along)[0]), rtol=1e-6)
     assert list(np.flatnonzero(np.isnan(exposure))) == ([1] if kind == "raster" else [])
-    np.testing.assert_allclose(rebinned[f"{label} DN/s"], values / exposure[:, None, None], rtol=1e-6, equal_nan=True)
+    np.testing.assert_allclose(rebinned[f"{label} DN/s"], values / exposure[..., None, None], rtol=1e-6, equal_nan=True)
 
 
 def test_rebin_refuses_other_data_and_bins_that_do_not_fit(tmp_path, irispy_test_files):

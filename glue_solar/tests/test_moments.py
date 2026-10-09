@@ -30,7 +30,7 @@ from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.moments import line_moments
 from glue_solar.tests.helpers import select_point
-from glue_solar.tests.test_lazy import SJI, int16_copy, int16_raster_copy, zero_exposure
+from glue_solar.tests.test_lazy import RASTER, SJI, int16_copy, int16_raster_copy, zero_exposure
 from glue_solar.tests.test_quicklook import SCAN
 
 ACTION = "IRIS: line moments…"
@@ -285,6 +285,24 @@ def test_ticked_error_maps_are_irispys_from_its_readers_uncertainty(app, qtbot, 
             expected = moment.unit.to(u.AA, expected)
         assert np.isfinite(expected[line]).sum() > 600  # of 872
         np.testing.assert_allclose(maps[f"{name} error"][line], expected[line], rtol=1e-6, atol=1e-9, err_msg=name)
+
+
+def test_nuv_error_maps_take_irispys_nuv_noise(tmp_path, irispy_test_files):
+    """3620258102's Mg II k 2796, in DN_IRIS_NUV / s: irispy's NUV gain and read noise, not the FUV's."""
+    path = int16_raster_copy(find_irispy_test_file(irispy_test_files, RASTER), tmp_path / RASTER)
+    [raster] = raster_data([path], ["Mg II k 2796"])
+    maps = line_moments(raster, 2796.35, errors=True)
+    assert maps.get_component("intensity error").units == "DN_IRIS_NUV / s"
+    cube = read_files([path], spectral_windows=["Mg II k 2796"], uncertainty=True)["Mg II k 2796"][0]
+    cube = cube.apply_exposure_time_correction()
+    direct = irispy.utils.moments.calculate_moments(cube, rest_wavelength=2796.35 * u.AA, wings=0.5 * u.AA)
+    fill = np.asarray(missing(raster, 2795.85, 2796.85))
+    for name, moment in direct.items():
+        expected = np.where(fill | moment.mask, np.nan, moment.uncertainty.array)
+        if moment.unit.is_equivalent(u.AA):
+            expected = moment.unit.to(u.AA, expected)
+        assert np.isfinite(expected).any()
+        np.testing.assert_allclose(maps[f"{name} error"], expected, rtol=1e-6, err_msg=name)
 
 
 @pytest.mark.parametrize("continuum", [None, [(1401.5, 1402.0), (1403.5, 1404.0)]])

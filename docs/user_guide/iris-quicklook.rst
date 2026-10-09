@@ -330,11 +330,13 @@ are left out. Its coordinates are at each bin's centre, its ``Time`` is the mean
 and its ``Exposure time`` the mean of the bin's exposure times, NaN where one is 0 s, over which
 ``<label> DN/s`` is its mean DN. It has the original's units, colormap, pointing offset and
 metadata, ``meta['rebinned']`` adding the bins, but not a slit-jaw image's per-frame pointing, so a
-quicklook draws no slit on it and its "Frame time" tooltip gives none. Its helioprojective
-coordinates are linked with the other IRIS datasets, it follows and leads the time sync as its
-original does, and no viewer opens. Its values are held in memory, in float32, and read from the
-original a slab at a time: a 2 by 2 rebin of 3610108077's full Si IV 1403 window, 320 steps by 548
-slit pixels by 337 wavelengths, takes 0.3 to 0.5 s.
+quicklook draws no slit on it and its "Frame time" tooltip gives none; a dataset regridded on time
+has its ``meta['time_step']``, the seconds per pixel of its axis label, multiplied by the bin along
+time. Its helioprojective coordinates are linked with the other IRIS datasets, it follows and leads
+the time sync as its original does, and no viewer opens. Its values are held in memory, in float32,
+and read from the original a slab at a time, a stack's a bin of scans at a time: a 2 by 2 rebin
+of 3610108077's full Si IV 1403 window, 320 steps by 548 slit pixels by 337 wavelengths, takes 0.3
+to 0.5 s.
 
 - A rebinned raster window's line moments are those of each bin's mean: a saturated sample is missed
   unless its whole bin is, and error maps are refused, as irispy would give each bin the noise of one

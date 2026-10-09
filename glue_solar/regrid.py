@@ -4,6 +4,7 @@ shown north up, on a new dataset's helioprojective grid; and 'Rebin…': an IRIS
 """
 
 import gc
+import math
 import warnings
 
 import numpy as np
@@ -264,12 +265,13 @@ def rebin(data, bins):
     ``data``, an IRIS dataset, binned by ``bins`` pixels along each axis, as a new dataset ``<label> rebinned <bins>``.
 
     Each pixel is the nanmean of the values in its bin, by ndcube's ``NDCube.rebin``, NaN where every one is missing,
-    in float32 in memory; ``data`` is read a slab at a time, and pixels past its last whole bin along an axis are left
-    out. Its coordinates are ndcube's ``ResampledLowLevelWCS`` of those of ``data``, so a pixel is at its bin's centre;
-    its ``Time`` is the mean of its bin's times, and its ``Exposure time`` the mean of its bin's exposure times, NaN
-    where one is 0 s, so that ``<label> DN/s`` is its mean DN over it. The units, colormap, pointing offset and
-    metadata are those of ``data``, without a slit-jaw image's per-frame pointing, ``meta['rebinned']`` adding
-    ``bins``.
+    in float32 in memory; ``data`` is read a slab at a time, a stack a bin of scans at a time, and pixels past its last
+    whole bin along an axis are left out. Its coordinates are ndcube's ``ResampledLowLevelWCS`` of those of ``data``,
+    so a pixel is at its bin's centre; its ``Time`` is the mean of its bin's times, and its ``Exposure time`` the mean
+    of its bin's exposure times, NaN where one is 0 s, so that ``<label> DN/s`` is its mean DN over it. The units,
+    colormap, pointing offset and metadata are those of ``data``, without a slit-jaw image's per-frame pointing,
+    ``meta['rebinned']`` adding ``bins``, and the ``meta['time_step']`` of data regridded on time multiplied by the bin
+    along time.
 
     Raises
     ------
@@ -284,16 +286,21 @@ def rebin(data, bins):
     if len(bins) != data.ndim or not all(1 <= n <= length for n, length in zip(bins, data.shape)):
         raise ValueError(f"{data.label}, of {data.shape} pixels, cannot be binned by {bins}.")
     covered = tuple(slice(0, length // n * n) for n, length in zip(bins, data.shape))
-    cid, end = data.main_components[0], covered[0].stop
-    rows = bins[0] * max(1, SLAB // (bins[0] * np.prod([part.stop for part in covered[1:]])))  # whole bins a slab
-    values = [
-        _rebinned(data, view, data[cid, view], bins)
-        for view in ((slice(start, min(start + rows, end)), *covered[1:]) for start in range(0, end, rows))
-    ]
+    # slabs of whole bins along the first axis, or a stack's raster steps, a bin of scans at a time
+    axis, cid = data.ndim - 3, data.main_components[0]
+    end = covered[axis].stop
+    rows = bins[axis] * max(1, SLAB // (math.prod(bins[: axis + 1]) * math.prod(p.stop for p in covered[axis + 1 :])))
+    groups = [(slice(scan, scan + bins[0]),) for scan in range(0, covered[0].stop, bins[0])] if axis else [()]
+    values = []
+    for group in groups:
+        views = ((*group, slice(start, min(start + rows, end)), *covered[axis + 1 :]) for start in range(0, end, rows))
+        values.append(np.concatenate([_rebinned(data, view, data[cid, view], bins) for view in views], axis=axis))
     with WCS_LOCK:
         wcs = _Broadcast(ResampledLowLevelWCS(SlicedLowLevelWCS(data.coords._wcs, covered), bins[::-1]))
     meta = {key: value for key, value in data.meta.items() if key not in _SJI_POINTING}
     meta["rebinned"] = bins
+    if "time_step" in meta:  # 'Regrid on time': along the first axis
+        meta["time_step"] *= bins[0]
     rebinned = _dataset(
         wcs,
         meta,
