@@ -55,14 +55,14 @@ def twice(obj):
         yield obj
 
 
-def assert_same_coordinates(coords, data):
-    """``coords`` give those of ``data`` at and between its pixels and back, within 1e-9, and keep its offset."""
+def assert_same_coordinates(coords, data, stride=1):
+    """``coords`` give those of ``data`` at and between its pixels and back (every ``stride``-th), within 1e-9, and keep its offset."""
     grid = np.meshgrid(*[np.arange(n) for n in data.shape[::-1]], indexing="ij")
     for fraction in (0, 0.37):
         pixels = [axis + fraction for axis in grid]
         for got, expected in zip(coords.pixel_to_world_values(*pixels), data.coords.pixel_to_world_values(*pixels)):
             np.testing.assert_allclose(got, expected, rtol=0, atol=1e-9)
-    world = data.coords.pixel_to_world_values(*grid)
+    world = data.coords.pixel_to_world_values(*[axis[(slice(None, None, stride),) * axis.ndim] for axis in grid])
     for got, expected in zip(coords.world_to_pixel_values(*world), data.coords.world_to_pixel_values(*world)):
         np.testing.assert_allclose(got, expected, rtol=0, atol=1e-9)
     assert coords.world_axis_names == data.coords.world_axis_names
@@ -440,7 +440,7 @@ def test_two_quicklooks_restore_twice_from_their_files(qtbot, monkeypatch, tmp_p
         assert opened.tab_names == app.tab_names
         for data, expected in zip(opened.data_collection, app.data_collection, strict=True):
             assert data.label == expected.label
-            assert_same_coordinates(data.coords, expected)
+            assert_same_coordinates(data.coords, expected, stride=7)  # inverting every pixel takes 25 s
             assert [data.get_component(cid).units for cid in data.main_components] == [
                 expected.get_component(cid).units for cid in expected.main_components
             ]
