@@ -1,0 +1,1 @@
+glue sessions refer to the IRIS files they were read from, rather than holding their values, and open again after the files move with the session.

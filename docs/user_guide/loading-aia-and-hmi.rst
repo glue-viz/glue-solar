@@ -56,4 +56,4 @@ Saving sessions
 ---------------
 
 A saved session keeps each map and the colormap it opens in.
-A session that also holds IRIS data can still fail to save (see "Saving sessions" in :ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`).
+For a session that also holds IRIS data, see "Saving sessions" in :ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`.
