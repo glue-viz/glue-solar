@@ -946,6 +946,7 @@ class MeasureTool(ToolbarModeBase):
     action_text = "Measure"
     tool_tip = "Drag a line to measure its length in pixels, arcsec and km"
     status_tip = "DRAG a line to measure its length in pixels, arcsec and km"
+    shortcut = "U"
 
     def __init__(self, viewer, **kwargs):
         super().__init__(viewer, **kwargs)
