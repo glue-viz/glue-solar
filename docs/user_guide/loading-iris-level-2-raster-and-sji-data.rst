@@ -55,10 +55,12 @@ Tick "Stack sequential raster scans" to place two or more raster scans of a wind
 does (see `Memory and open files`_); scans stored as floating point, such as irispy's test files,
 are copied into a temporary file (a NumPy memmap) instead. Its leading ``Scan`` coordinate
 selects the original raster scan, and its ``Time`` component contains the exact acquisition time of
-every pixel. Scan 0 supplies the stack's nominal helioprojective WCS; later scans remain aligned by
-raster and detector index rather than carrying their distinct absolute pointings. Load scans
-separately when those per-scan absolute coordinates are required. A selected window containing one
-scan loads normally as a 3D dataset and also exposes its exact per-step ``Time`` values.
+every pixel. Each scan keeps its own coordinates, so a pixel's helioprojective longitude and
+latitude are those its scan gives it, and the place of a pixel needs its scan as well: glue cannot
+find a stack's pixels from another dataset's longitude and latitude alone, so a region glue makes on
+a stack's own pixels shows on no other dataset (the quicklook's regions reach them by their
+outline). A selected window containing one scan loads normally as a 3D dataset and also exposes its
+exact per-step ``Time`` values.
 
 Every raster, stack, slit-jaw and AIA dataset has these components: the data (named after the
 dataset), ``Time`` and ``Exposure time`` (a stack lists ``Exposure time`` before ``Time``),

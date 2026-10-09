@@ -29,9 +29,8 @@ of the same observing program distinct.
 
 The stacked cube has a leading ``Scan`` coordinate rather than pretending that a complete raster
 was acquired at one instant. Its separate ``Time`` component records the exact acquisition time
-of every pixel. Scan 0 supplies the nominal helioprojective WCS for the whole stack; subsequent
-scans keep their original raster and detector indices, not their distinct absolute pointings.
-Load the original per-scan datasets when those per-scan absolute coordinates are required.
+of every pixel. Each scan keeps its original raster and detector indices and its own absolute
+pointing: a pixel's helioprojective coordinates are those of its scan.
 
 Using ``glue``'s 2D image viewer to pick a pixel
 ------------------------------------------------

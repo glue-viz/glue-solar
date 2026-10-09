@@ -371,7 +371,8 @@ def _raster_collection_data(collection, windows=None, stack=False, scaling=None)
             label = f"{name}-{_observation_label(sequence[0].meta)}-stack"
             if scaling:
                 raw = RawStack([scan.data for scan in sequence])
-                data = _dataset(stack_wcs(sequence[0].wcs), dict(sequence[0].meta), sequence[0].unit, raw, label,
+                wcs = stack_wcs([scan.wcs for scan in sequence])
+                data = _dataset(wcs, dict(sequence[0].meta), sequence[0].unit, raw, label,
                                 color="#7A617C", cmap=cmap, scaling=scaling[window])
                 times = stack_times(sequence)
             else:
@@ -469,7 +470,7 @@ def raster_data(files, windows=None, stack=False):
         ``TDESC`` names of the spectral windows to load; all of them if omitted.
     stack : bool
         Stack two or more scans of each window without resampling and return a single 4D cube
-        with a leading ``Scan`` axis. Scan 0 supplies the nominal spatial WCS and exact
+        with a leading ``Scan`` axis. Each scan keeps its own coordinates (`stack_wcs`) and exact
         acquisition times are stored in the ``Time`` component. A window containing one scan
         loads normally as a 3D dataset.
 
@@ -731,7 +732,7 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.shown = shown
         self.stack.setToolTip(
             "Stack two or more raster scans by detector position into one 4D cube. "
-            "Scan 0 supplies the nominal spatial coordinates; exact acquisition times are retained."
+            "Each scan keeps its own spatial coordinates and exact acquisition times."
         )
         if directory:
             self.set_directory(directory)

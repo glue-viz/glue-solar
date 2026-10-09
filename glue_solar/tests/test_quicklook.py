@@ -641,7 +641,7 @@ def tick_label_sides(viewer):
 
 def test_flat_helioprojective_coordinates_have_no_tick_labels(bare_app, scans):
     # latitude along the steps jitters back and forth across each tick value, and WCSAxes labels every crossing
-    scan, _ = scans
+    scan, stack = scans
     viewers = quicklook(bare_app, [scan])
     sides = tick_label_sides(viewers["wavelength"])
     assert sides == {"Helioprojective Latitude": [], "Helioprojective Longitude": ["l", "#"]}
@@ -649,6 +649,10 @@ def test_flat_helioprojective_coordinates_have_no_tick_labels(bare_app, scans):
     assert [] not in tick_label_sides(viewers["map"]).values()
     viewers["wavelength"].state.slices = (0, 3, 0)  # a slit step resets the axes
     assert tick_label_sides(viewers["wavelength"])["Helioprojective Latitude"] == []
+    # a stack's λ–scan panel: each scan's pointing moves both angles, which leave the scan its own axis
+    viewers = quicklook(bare_app, [stack])
+    assert tick_label_sides(viewers["wavelength"]) == {"Helioprojective Latitude": [], "Helioprojective Longitude": []}
+    assert [] not in tick_label_sides(viewers["map"]).values()
 
 
 @pytest.mark.parametrize(
@@ -1777,11 +1781,14 @@ def test_raster_overlays_on_slit_jaw_images(bare_app, qtbot, monkeypatch, tmp_pa
         slide(sji_viewer, 0, frame)
     assert len(calls) == 3  # the raster point's, one per frame
 
-    # a stack: the slits of the scan its panels show
-    [stack] = raster_data([path, path], ["Si IV 1403"], stack=True)
+    # a stack: the slits of the scan its panels show, placed with that scan's own pointing, here drifting north
+    later = repointed(tmp_path / SNS.format("raster_t000_r00001"), irispy_test_files, step=0.3, drift=0.01)
+    [stack] = raster_data([path, later], ["Si IV 1403"], stack=True)
+    [alone] = raster_data([later], ["Si IV 1403"])
     times = stack[stack.id["Time"]].copy()
     times[1] += times.max() - times.min()
     stack.update_components({stack.id["Time"]: times})
+    alone.update_components({alone.id["Time"]: times[1]})
     _, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [stack, sji])
     [sji_viewer] = viewers["sji"]
@@ -1789,8 +1796,8 @@ def test_raster_overlays_on_slit_jaw_images(bare_app, qtbot, monkeypatch, tmp_pa
     assert slits(sji_viewer) == pytest.approx(expected_slits(stack, sji, 0), abs=0.01)
     slide(viewers["map"], 0, 1)
     qtbot.wait(20)
-    assert slits(sji_viewer) == pytest.approx(expected_slits(stack, sji, 1), abs=0.01)
-    assert not np.allclose(expected_slits(stack, sji, 0), expected_slits(stack, sji, 1), atol=0.01)
+    assert slits(sji_viewer) == pytest.approx(expected_slits(alone, sji), abs=0.01)
+    assert not np.allclose(expected_slits(stack, sji, 0), expected_slits(alone, sji), atol=0.01)
 
 
 def test_the_map_line_marks_the_step_at_the_master_time(bare_app, qtbot, scans):
@@ -1982,8 +1989,11 @@ def test_sji_to_raster_on_a_scanning_raster_and_a_stack(tmp_path, irispy_test_fi
         for end, inner in ((0, 1), (last, last - 1)):  # past the first or last step: outside the raster
             assert sji_to_raster(sji, frame, *past(raster, sji, (end, 9), (inner, 9), frame), raster) is None
 
-    # a stack of the scan and a copy right after it: the scan nearest the frame's time at the step
-    [stack] = raster_data([path, path], ["Si IV 1403"], stack=True)
+    # a stack of the scan and a copy right after it drifting north: the scan nearest the frame's time at the step, and
+    # the slit row in that scan's own pointing
+    later = repointed(tmp_path / SNS.format("raster_t000_r00001"), irispy_test_files, step=0.3, drift=0.01)
+    [stack] = raster_data([path, later], ["Si IV 1403"], stack=True)
+    alone = [raster, *raster_data([later], ["Si IV 1403"])]
     times = stack[stack.id["Time"]].copy()
     times[1] += times.max() - times.min()
     stack.update_components({stack.id["Time"]: times})
@@ -1992,13 +2002,14 @@ def test_sji_to_raster_on_a_scanning_raster_and_a_stack(tmp_path, irispy_test_fi
     for frame in (0, len(frames) - 1):
         for step in (0, last):
             scans.append(expected_nearest(frames[frame], times[:, step, 0, 0]))
-            x, y = raster_point_on_sji(stack, sji, step, 9, frame)
+            x, y = raster_point_on_sji(alone[scans[-1]], sji, step, 9, frame)
             assert sji_to_raster(sji, frame, x, y, stack) == (scans[-1], step, 9)
     assert set(scans) == {0, 1}
     # a day later: the later scan, however far; a scan's steps are places
     sji.update_components({sji.id["Time"]: sji[sji.id["Time"]] + np.timedelta64(1, "D")})
-    x, y = raster_point_on_sji(raster, sji, 0, 9, 0)
+    x, y = raster_point_on_sji(alone[1], sji, 0, 9, 0)
     assert sji_to_raster(sji, 0, x, y, stack) == (1, 0, 9)
+    x, y = raster_point_on_sji(raster, sji, 0, 9, 0)
     assert sji_to_raster(sji, 0, x, y, raster) == (0, 9)
 
 
@@ -2060,17 +2071,23 @@ def test_a_region_on_a_map_with_its_axes_swapped(bare_app, monkeypatch, irispy_t
     check_outline(monkeypatch, raster, sji, region, pixels)
 
 
-def test_a_stack_map_region_reaches_another_window_by_its_outline(bare_app, monkeypatch, scans):
-    scan, stack = scans
+def test_a_stack_map_region_reaches_another_window_by_its_outline(bare_app, monkeypatch, irispy_test_files):
+    files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
+    [stack] = raster_data(files, ["C II 1336"], stack=True)
+    [scan] = raster_data(files[2:], ["C II 1336"])
     viewers = quicklook(bare_app, [stack, scan])
     viewers["map"].state.slices = (2, *viewers["map"].state.slices[1:])
-    # glue's own region on the stack's pixels selects its steps and slit rows in every scan, and in scan 0, which
-    # stands in for another window of the same raster, the pixel at each of them, the first step and last slit row too
+    # glue's own region on the stack's pixels selects its steps and slit rows in every scan; its outline, in the
+    # pointing of scan 2, those of scan 2 through glue's world coordinates of each scan, and in scan 2 on its own,
+    # which stands in for another window of that scan, the pixel at each of them, the first step and last slit row too
     for roi, edge in ((XRangeROI(2.5, 5.5), (3, -1)), (RectangularROI(-3.4, 2.6, 10.3, 50.7), (0, 11))):
         region = draw_region(bare_app, viewers["map"], roi)
         pixels = roi_to_subset_state(roi, x_att=stack.pixel_component_ids[1], y_att=stack.pixel_component_ids[2])
         np.testing.assert_array_equal(stack.get_mask(region), stack.get_mask(pixels))
-        expected = scan.get_mask(pixels)
+        np.testing.assert_array_equal(stack.get_mask(region.world)[2], stack.get_mask(pixels)[2])
+        expected = scan.get_mask(
+            roi_to_subset_state(roi, x_att=scan.pixel_component_ids[0], y_att=scan.pixel_component_ids[1])
+        )
         assert expected[edge].all()
         with monkeypatch.context() as patch:
             inverted = inversions(patch, stack)
