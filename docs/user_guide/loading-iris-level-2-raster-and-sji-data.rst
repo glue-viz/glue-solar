@@ -20,9 +20,12 @@ SAT_ROT, and Files, the number of files:
 
 Open it from the "Plugins" menu with "IRIS: browse observations…". Subfolders are searched by
 default; un-tick "Search subfolders" to look at one folder only. The last folder used is remembered.
-A raster file that is not Level 2 (its ``DATA_LEV`` is not 2), such as a product derived from
-rasters, is left out, and the progress bar says how many were, for example "Skipped 1 raster file(s)
-that are not Level 2".
+glue reads the folder's headers in the background, and the progress bar counts the files; meanwhile
+"Cancel" reads "Stop". "Stop" ends the search once the file being read is done and lists what it
+found so far, so observations may be missing or show only some of their files, which the progress
+bar says; pressing Esc or closing the browser drops the search. A raster file that is not Level 2
+(its ``DATA_LEV`` is not 2), such as a product derived from rasters, is left out, and the progress
+bar says how many were, for example "Skipped 1 raster file(s) that are not Level 2".
 
 Expand an observation to see what can be loaded:
 

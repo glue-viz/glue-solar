@@ -32,7 +32,7 @@ from glue_solar.sources.loaders.iris import (
 )
 from glue_solar.sources.loaders.scan import extract_archive, scan_directory
 from glue_solar.sources.loaders.stack_spectrograms import stack_spectrogram_sequence
-from glue_solar.tests.helpers import load_selected
+from glue_solar.tests.helpers import load_selected, scanned
 
 # The unit glue is shown each world axis in, by physical type; time, scan and the others keep their own
 SHOWN = {"em.wl": u.AA, "custom:pos.helioprojective.lat": u.arcsec, "custom:pos.helioprojective.lon": u.arcsec}
@@ -42,6 +42,7 @@ SHOWN = {"em.wl": u.AA, "custom:pos.helioprojective.lat": u.arcsec, "custom:pos.
 def dialog(qtbot, iris_tree):
     dlg = QtIRISImporter(iris_tree)
     qtbot.addWidget(dlg)
+    scanned(qtbot, dlg)
     return dlg
 
 
@@ -75,15 +76,17 @@ def test_tree_lists_observations_and_files(dialog):
         "Mg II k 2796 — 2 raster file(s)",
         "AIA 171_THIN",
     ]
+    assert all(row.child(i).isFirstColumnSpanned() for i in range(row.childCount()))
     assert row.text(2) == "Test raster 1x2 3s"
     assert row.text(6) == "4"
 
 
-def test_derived_raster_file_is_never_a_window_and_counted(dialog, tmp_path):
+def test_derived_raster_file_is_never_a_window_and_counted(dialog, qtbot, tmp_path):
     tree = dialog.obs_tree
     assert OBS_S not in [tree.topLevelItem(i).text(1) for i in range(tree.topLevelItemCount())]
     assert dialog.progress.text() == "Skipped 1 raster file(s) that are not Level 2"
     dialog.set_directory(tmp_path)  # nothing left out, so the count goes
+    scanned(qtbot, dialog)
     assert dialog.progress.format() == "%p%"
 
 
@@ -98,6 +101,7 @@ def test_load_selected_real_sji(qtbot, tmp_path, irispy_test_files):
     shutil.copy2(source, tmp_path / source.name)
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
+    scanned(qtbot, dialog)
     dialog.obs_tree.topLevelItem(0).setCheckState(0, Qt.Checked)
     load_selected(qtbot, dialog)
     assert len(dialog.datasets) == 1
@@ -133,6 +137,7 @@ def test_ticked_raster_windows_of_an_observation_are_read_together_file_by_file(
     scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
     dialog = QtIRISImporter(scans[0].parent)
     qtbot.addWidget(dialog)
+    scanned(qtbot, dialog)
     row = _row(dialog, "3860258481")
     entries = [row.child(i) for i in range(row.childCount()) if "raster file(s)" in row.child(i).text(0)][:2]
     for entry in entries:
@@ -189,8 +194,8 @@ def test_load_reads_a_file_at_a_time_off_the_gui_thread(dialog, qtbot, monkeypat
     assert dialog.result() == QDialog.Accepted
     assert len(reads) == 2
     assert on_gui == [False, False, True]  # the reads, then the result
-    # the slit-jaw file, each raster file, then the colour limits
-    assert progress == [(25, False), (50, False), (75, False), (100, False)]
+    # from the scan's 100%, the slit-jaw file, each raster file, then the colour limits
+    assert progress == [(0, False), (25, False), (50, False), (75, False), (100, False)]
     assert [data.ndim for data in dialog.datasets] == [3, 4]
 
 
@@ -279,6 +284,7 @@ def test_colour_limits_of_what_browse_iris_shows_are_counted_in_the_background(q
 
     def load(dialog):
         qtbot.addWidget(dialog)
+        scanned(qtbot, dialog)
         _row(dialog, OBS_A[2]).setCheckState(0, Qt.Checked)
         dialog.quicklook.setChecked(quicklook)
         load_selected(qtbot, dialog)
@@ -301,6 +307,7 @@ def test_a_failure_after_the_reads_stays_in_the_dialog(qtbot, iris_tree, capsys)
 
     dialog = QtIRISImporter(iris_tree, shown=shown)
     qtbot.addWidget(dialog)
+    scanned(qtbot, dialog)
     tick(dialog, "SJI_1400")
     load_selected(qtbot, dialog)
     assert dialog.result() == 0
@@ -320,6 +327,7 @@ def test_deconvolved_sji_is_listed_and_loaded_beside_the_plain_one(qtbot, tmp_pa
 
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
+    scanned(qtbot, dialog)
     dialog.obs_tree.topLevelItem(0).setCheckState(0, Qt.Checked)
     load_selected(qtbot, dialog)
     labels = [data.label for data in dialog.datasets]
@@ -339,11 +347,79 @@ def test_single_entry_observation_is_ticked_on_its_own_row(dialog):
     assert [(kind, name) for _, kind, name in dialog.selected()] == [("sji", "SJI_2832")]
 
 
-def test_recursive_toggle_rescans(dialog):
+def test_recursive_toggle_rescans(dialog, qtbot):
     dialog.recursive.setChecked(False)
+    scanned(qtbot, dialog)
     row = _row(dialog, OBS_A[2])
     assert row.childCount() == 0  # only the top-level SJI is left, so it collapses onto the row
     assert row.text(6) == "1 — SJI_1400"
+
+
+def gated_scan(monkeypatch, widget, method, last):
+    """
+    The names of the files whose headers the browser's scan reads, with the user's ``widget.method()`` as the header of
+    the one whose name ends with ``last`` is read.
+    """
+    from glue_solar.sources.loaders import scan
+
+    reads, read = [], scan._primary_header
+
+    def gated(path):
+        reads.append(path.name)
+        if path.name.endswith(last):
+            from_the_worker(widget, method)
+        return read(path)
+
+    monkeypatch.setattr(scan, "_primary_header", gated)
+    return reads
+
+
+def test_stop_lists_what_the_scan_found_so_far(qtbot, monkeypatch, iris_tree):
+    dialog = QtIRISImporter()
+    qtbot.addWidget(dialog)
+    reads = gated_scan(monkeypatch, dialog.cancel, "click", "_SJI_1400_t000.fits.gz")  # OBS_A's, before its rasters
+    dialog.set_directory(iris_tree)
+    assert dialog.cancel.text() == "Stop"
+    assert not dialog.change.isEnabled()
+    scanned(qtbot, dialog)
+    assert reads[-1].endswith("_SJI_1400_t000.fits.gz")  # no header is read after it
+    tree = dialog.obs_tree
+    assert [tree.topLevelItem(i).text(1) for i in range(tree.topLevelItemCount())] == [OBS_C[2], OBS_B[2], OBS_A[2]]
+    assert _row(dialog, OBS_A[2]).text(6) == "2"  # its slit-jaw image and AIA cutout, not its rasters
+    assert dialog.progress.value() == 100 * 5 // 9  # 5 of the folder's 9 files were read
+    assert dialog.progress.format().startswith("Scan stopped at %p% of the files")
+    assert dialog.cancel.text() == "Cancel"
+
+
+def test_stop_once_every_header_is_read_lists_the_whole_folder(qtbot, monkeypatch, iris_tree):
+    from glue_solar.sources.loaders import scan
+
+    dialog = QtIRISImporter()
+    qtbot.addWidget(dialog)
+    describe = scan._obsid_description
+
+    def stop_then_describe(obsid):  # OBS_C's archive has no header to describe it, so after the last one is read
+        from_the_worker(dialog.cancel, "click")
+        return describe(obsid)
+
+    monkeypatch.setattr(scan, "_obsid_description", stop_then_describe)
+    dialog.set_directory(iris_tree)
+    scanned(qtbot, dialog)
+    assert dialog.obs_tree.topLevelItemCount() == 3
+    assert dialog.progress.value() == 100
+    assert dialog.progress.format() == "Skipped 1 raster file(s) that are not Level 2"
+
+
+def test_closing_the_dialog_drops_the_scan(qtbot, monkeypatch, iris_tree):
+    dialog = QtIRISImporter()
+    qtbot.addWidget(dialog)
+    reads = gated_scan(monkeypatch, dialog, "reject", "_SJI_2832_t000.fits.gz")
+    dialog.set_directory(iris_tree)
+    qtbot.waitUntil(lambda: not _RUNNING, timeout=60_000)
+    assert reads[-1].endswith("_SJI_2832_t000.fits.gz")
+    assert dialog.result() == QDialog.Rejected
+    assert dialog.observations == []
+    assert dialog.obs_tree.topLevelItemCount() == 0
 
 
 def test_extract_archive_then_lists_its_windows(qtbot, iris_tree, tmp_path):
@@ -351,6 +427,7 @@ def test_extract_archive_then_lists_its_windows(qtbot, iris_tree, tmp_path):
     shutil.copytree(iris_tree, tree)  # extraction writes next to the archive; keep the shared fixture pristine
     dlg = QtIRISImporter(tree)
     qtbot.addWidget(dlg)
+    scanned(qtbot, dlg)
     row = _row(dlg, OBS_C[2])
     assert row.childCount() == 0
     assert row.text(6).startswith("0 — Extract ")
@@ -373,6 +450,7 @@ def test_stop_keeps_the_archives_unpacked_in_full(qtbot, iris_tree, tmp_path, mo
     shutil.copy2(tree / f"{MD5}iris_l2_{'_'.join(OBS_C)}_raster.tar.gz", later)
     dlg = QtIRISImporter(tree)
     qtbot.addWidget(dlg)
+    scanned(qtbot, dlg)
     for row in map(dlg.obs_tree.topLevelItem, range(dlg.obs_tree.topLevelItemCount())):
         if row.text(6).startswith("0 — Extract "):
             row.setCheckState(0, Qt.Checked)
@@ -803,6 +881,7 @@ def test_raster_of_several_exposures_per_position_warns_once(qtbot, tmp_path, ir
     assert len(record) == 1
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
+    scanned(qtbot, dialog)
     for obsid in ("3860258481", "3880012095"):
         _row(dialog, obsid).setCheckState(0, Qt.Checked)
     with pytest.warns(UserWarning, match=expected) as record:  # and from the browser, on the GUI thread
@@ -823,6 +902,7 @@ def test_duplicate_real_raster_is_listed_and_loaded_once(qtbot, tmp_path, irispy
 
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
+    scanned(qtbot, dialog)
     row = dialog.obs_tree.topLevelItem(0)
     assert row.text(6) == "1"
     assert all("1 raster file(s)" in row.child(i).text(0) for i in range(row.childCount()))
@@ -856,6 +936,7 @@ def test_reader_failure_stays_in_dialog(qtbot, tmp_path, name, instrume, band):
 
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
+    scanned(qtbot, dialog)
     dialog.obs_tree.topLevelItem(0).setCheckState(0, Qt.Checked)
     load_selected(qtbot, dialog)
 
@@ -875,6 +956,7 @@ def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_t
 
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
+    scanned(qtbot, dialog)
     _row(dialog, "3860258481").child(0).setCheckState(0, Qt.Checked)
     load_selected(qtbot, dialog)
 
@@ -893,6 +975,7 @@ def test_raster_load_failure_of_files_that_load_alone_names_how_many(qtbot, tmp_
 
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
+    scanned(qtbot, dialog)
     _row(dialog, "3860258481").child(0).setCheckState(0, Qt.Checked)
     dialog.stack.setChecked(True)
     load_selected(qtbot, dialog)
@@ -946,6 +1029,7 @@ def test_raster_rows_show_their_detector_and_wavelength_range(qtbot, monkeypatch
     monkeypatch.setattr(scan, "_primary_header", lambda path: reads.append(path) or read(path))
     dlg = QtIRISImporter(tmp_path)
     qtbot.addWidget(dlg)
+    scanned(qtbot, dlg)
     top = dlg.obs_tree.topLevelItem(0)
     tips = {top.child(i).text(0).split(" — ")[0]: top.child(i).toolTip(0) for i in range(top.childCount())}
     assert tips["C II 1336"] == "FUV1, 1332.7–1337.2 Å"

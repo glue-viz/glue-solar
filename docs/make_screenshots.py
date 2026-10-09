@@ -78,6 +78,7 @@ def main(folder):
 
     # 1. the browser listing every observation of the folder
     dialog = QtIRISImporter(folder)
+    wait(lambda: dialog.ok.isEnabled() and not iris._RUNNING)  # the folder is scanned in the background
     observation(dialog)[-1].setCheckState(0, Qt.Checked)
     dialog.resize(1400, 640)
     dialog.show()
@@ -86,6 +87,7 @@ def main(folder):
 
     # 2. two spectral windows of one observation, stacked
     dialog = QtIRISImporter(next(Path(folder).glob(f"*_{OBSID}_raster")))
+    wait(lambda: dialog.ok.isEnabled() and not iris._RUNNING)
     for item in observation(dialog):
         item.setCheckState(0, Qt.Checked)
     dialog.stack.setChecked(True)

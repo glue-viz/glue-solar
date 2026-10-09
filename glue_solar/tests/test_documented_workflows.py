@@ -18,7 +18,7 @@ import glue_solar
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.quicklook import sji_to_raster
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
-from glue_solar.tests.helpers import load_selected, raster_point_on_sji, select_point
+from glue_solar.tests.helpers import load_selected, raster_point_on_sji, scanned, select_point
 
 SNS = "iris_l2_20210905_001833_3620258102_{}.fits"
 
@@ -87,6 +87,7 @@ def test_browser_stacks_scans_into_4d_data_with_per_pixel_time(qtbot, irispy_tes
     scans = [path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name]
     dialog = QtIRISImporter(scans[0].parent)
     qtbot.addWidget(dialog)
+    scanned(qtbot, dialog)
     tree = dialog.obs_tree
     observation = next(
         item for item in map(tree.topLevelItem, range(tree.topLevelItemCount())) if item.text(1) == "3860258481"

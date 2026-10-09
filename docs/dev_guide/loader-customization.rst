@@ -33,8 +33,9 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
    times (``stack_times``), and stacks floating-point scans without resampling into a
    memory-mapped temporary file of dtype ``np.result_type(first scan, float32)``.
 5. ``iris_loader.ui`` and ``QtIRISImporter`` present the observation and spectral-window
-   selection dialog, which reads the selection on glue-qt's worker thread: the datasets are
-   built there without a hub, and ``browse_iris`` adds them on the GUI thread.
+   selection dialog, which scans the folder and reads the selection on glue-qt's worker
+   thread: the datasets are built there without a hub, and ``browse_iris`` adds them on the
+   GUI thread.
 
 ``irispy`` remains responsible for instrument detection, FITS interpretation, metadata
 normalization, units, and each input cube's WCS and exposure times. The Glue adapter keeps

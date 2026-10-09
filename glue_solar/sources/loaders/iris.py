@@ -688,6 +688,16 @@ def _extract(load, archives, stop, report):
     return load, len(archives), None
 
 
+def _scan(load, directory, recursive, stop, report):
+    """
+    `scan_directory` on glue-qt's worker thread, until ``stop`` is set: ``report(load, percent)`` before each file.
+
+    Returns ``(load, observations, skipped)``: what it found, and the raster files that are not Level 2.
+    """
+    skipped = []
+    return load, scan_directory(directory, recursive, skipped, stop, partial(report, load)), skipped
+
+
 # glue-qt's workers that are still running: Python would delete one that nothing holds, which aborts the process
 _RUNNING = set()
 
@@ -711,6 +721,9 @@ class QtIRISImporter(QtWidgets.QDialog):
     given, names the datasets the first viewers will show of what is loaded, as
     ``shown(loaded, quicklooks)`` with whether Open quicklook is ticked: their
     colour limits are counted in the background too.
+
+    The folder is scanned in the background as well, a header at a time, where
+    Stop lists what the scan found so far.
     """
 
     progressed = Signal(int, int)  # (load, percent), from the worker thread
@@ -749,14 +762,30 @@ class QtIRISImporter(QtWidgets.QDialog):
             return
         self.directory.setText(str(directory))
         QSettings(*_SETTINGS).setValue(_LAST_DIR, str(directory))
-        skipped = []
-        self.observations = scan_directory(directory, recursive=self.recursive.isChecked(), skipped=skipped)
-        self.progress.setFormat(f"Skipped {len(skipped)} raster file(s) that are not Level 2" if skipped else "%p%")
+        self._rescan()
+
+    def _rescan(self, note=None):
+        """List the folder's observations in the background; ``note`` then replaces the progress text."""
+        self.progress.setFormat("Scanning the folder: %p%")
+        self._start(partial(self._scanned, note), _scan, self.directory.text(), self.recursive.isChecked())
+
+    def _scanned(self, note, result):
+        load, observations, skipped = result
+        if load != self._load:
+            return
+        self._busy(False)
+        self.observations = observations
         self.populate()
+        if self.progress.value() < 100:  # Stop broke the scan off before it read every file
+            self.progress.setFormat("Scan stopped at %p% of the files: observations may be missing or incomplete")
+            return
+        if skipped and not note:
+            note = f"Skipped {len(skipped)} raster file(s) that are not Level 2"
+        self.progress.setFormat(note or "%p%")
 
     def populate(self):
         self.obs_tree.clear()
-        self._payloads = []
+        self._payloads, children = [], []
         for i, obs in enumerate(self.observations):
             top = QtWidgets.QTreeWidgetItem(
                 self.obs_tree,
@@ -787,8 +816,11 @@ class QtIRISImporter(QtWidgets.QDialog):
                 # ticking the observation ticks everything under it
                 top.setFlags(top.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsAutoTristate)
                 for text, payload in entries:
-                    child = self._make_checkable(QtWidgets.QTreeWidgetItem(top, [text]), payload)
-                    child.setFirstColumnSpanned(True)  # don't squeeze the label into the STARTOBS column
+                    children.append(self._make_checkable(QtWidgets.QTreeWidgetItem(top, [text]), payload))
+        # don't squeeze their labels into the STARTOBS column; once every row is in, as Qt moves every spanned row at
+        # each row added after it (2 s for the 15000 rows of 5000 observations, against 0.05 s)
+        for child in children:
+            child.setFirstColumnSpanned(True)
         for column in range(self.obs_tree.columnCount()):
             self.obs_tree.resizeColumnToContents(column)
 
@@ -824,10 +856,10 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     def _start(self, done, function, *args):
         """Run ``function(load, *args, stop, report)`` on glue-qt's worker thread, and ``done`` with its result."""
+        self._busy(True)
         self.progress.setValue(0)
         self._load += 1
         self._stop = threading.Event()
-        self._busy(True)
         worker = Worker(function, self._load, *args, self._stop, self.progressed.emit)
         worker.result.connect(done)
         worker.error.connect(partial(self._failed, self._load))
@@ -863,11 +895,8 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     def _extracted(self, result):
         load, extracted, error = result
-        if load != self._load:
-            return
-        self._busy(False)
-        self.set_directory(self.directory.text())
-        self.progress.setFormat(error or f"Extracted {extracted} archive(s) — now tick what to load")
+        if load == self._load:
+            self._rescan(error or f"Extracted {extracted} archive(s) — now tick what to load")
 
     def _loaded(self, result):
         load, loaded, error = result
