@@ -17,12 +17,13 @@ from glue.core.link_helpers import LinkSame
 from glue.core.link_manager import is_equivalent_cid
 from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, SubsetDeleteMessage, SubsetUpdateMessage
 from glue.core.roi import PolygonalROI
-from glue.core.subset import RoiSubsetState, SliceSubsetState, SubsetState
+from glue.core.subset import RangeSubsetState, RoiSubsetState, SliceSubsetState, SubsetState
 from glue.core.units import UnitConverter
 from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.profile.state import ProfileLayerState
+from glue.viewers.scatter.state import ScatterViewerState
 from glue_qt.utils import process_events
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
@@ -290,8 +291,9 @@ class Coordinator(HubListener):
     place. A viewer whose sliders glue resets for new data joins the point. A quicklook's point drives
     only the viewers it `owns`, and shows only on those of its own file's windows; viewers no
     quicklook owns follow whichever point is followed. A click on a quicklook's slit-jaw image moves
-    its point to the raster there (`_to_raster`). Each data collection has one coordinator
-    (`coordinator`), and the ``solar:coordinate`` tool registers every Image viewer with it.
+    its point to the raster there (`_to_raster`). A datetime Scatter plot shows the time master's
+    exposure (`_mark`). Each data collection has one coordinator (`coordinator`), and the
+    ``solar:coordinate`` tool registers every Image viewer with it.
     """
 
     def __init__(self, data_collection):
@@ -313,6 +315,7 @@ class Coordinator(HubListener):
         self._kept = (None, None, None, None)
         self._outside = (None, None)  # a slit-jaw viewer clicked outside the raster, and the point its click left
         self._busy = False
+        self.marker = None  # the 'Master exposure' subset group (`_mark`), once made
         self._drag = None  # while a mouse button is down on a viewer: whether a point was clicked
         # a drag moves the point at every mouse event: show only its latest position
         self._timer = QTimer()
@@ -733,8 +736,45 @@ class Coordinator(HubListener):
             if master.ndim == 4:
                 view[1] = step
             seconds = float(master[exposure, tuple(view)])
+        self._mark(key, times[index], seconds)
         for listener in list(self._listeners):
             listener(key, times[index], seconds)
+
+    def _mark(self, key, time, seconds):
+        """
+        Select the exposure of observation ``key``'s time master, from ``time`` for ``seconds``, on the first open
+        datetime Scatter plot of an observation's data (by OBSID and STARTOBS) while that observation is ``key``: as
+        the subset group 'Master exposure', glue's own range on that axis, as a range dragged there gives. The group
+        is a session's, found by its label, or made at the first such sync and removed from the other viewers open
+        then; deleting it stops it.
+        """
+        groups = self.data_collection.subset_groups
+        if self.marker is not None and self.marker not in groups:
+            return  # deleted
+        app = next(iter(self._viewers)).session.application
+        viewers = [viewer for tab in app.viewers for viewer in tab if not viewer._closed]  # glue-qt keeps closed ones
+        plots = [viewer.state for viewer in viewers if isinstance(viewer.state, ScatterViewerState)]
+        # ponytail: the first such plot's axis only, unlinked times on another stay unmarked; a range per axis if needed
+        times = [state.x_att for state in plots if state.x_att is not None and "datetime" in state.x_kinds]
+        # one observation's, or each observation's sync would move the one group in turn
+        x = next((att for att in times if observation_key(att.parent) is not None), None)
+        if x is None or observation_key(x.parent) != key:
+            return
+        end = time + np.timedelta64(int(np.nan_to_num((seconds or 0) * 1e9)), "ns")
+        state = RangeSubsetState(time, end, x)
+        if self.marker is None:
+            self.marker = next((group for group in groups if group.label == "Master exposure"), None)
+        if self.marker is None:
+            mode = app.session.edit_subset_mode
+            edit = mode.edit_subset
+            self.marker = self.data_collection.new_subset_group(label="Master exposure", subset_state=state)
+            mode.edit_subset = edit  # glue-qt makes a new group the edit subset
+            for viewer in viewers:
+                if not isinstance(viewer.state, ScatterViewerState):
+                    _show(viewer, self.marker, False)  # as a light curve is: they would update it at each step
+        old = self.marker.subset_state
+        if not (isinstance(old, RangeSubsetState) and old.att is x and old.lo == time and old.hi == end):
+            self.marker.subset_state = state
 
     def time_status(self, viewer):
         """

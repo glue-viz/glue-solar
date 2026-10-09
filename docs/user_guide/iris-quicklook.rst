@@ -234,6 +234,20 @@ deletion clears the edit subset. On the Si IV 1403 window of OBSID 4000255147, 1
 float32 precision, and a click or band change redraws it in under half a second. On another viewer
 glue says why it cannot open.
 
+A Scatter viewer with time on its x axis, of data of the observation (by its OBSID and start time)
+such as a table of burst events, shows the time master's exposure: the subset "Master exposure",
+glue's own range on that axis from the exposure's start to its end, as glue's x range selection
+makes there, which highlights the points within it. It is made at the first time sync with such a
+plot open and removed from the viewers open then, as a light curve is, and it moves with the master
+at each frame, exposure or scan, on playback, "Go to UTC…" and a new time master. One time axis
+is marked, that of the first open such plot of any observation, with that observation's time
+master: on a plot of other data, such as a GOES curve, it marks nothing unless glue links that
+data's time to it. Deleting the "Master exposure" group in the layer tree stops it. Adding data
+makes glue-qt 0.4.2 select the last subset group, often this one, as the edit subset: select "Point"
+there again before the next click. With the Si IV 1403 window of OBSID 4000255147, its SJI 1400, a
+light curve and a Scatter plot of its 1600 exposure times open, playback runs as fast with it as
+without, 7 frames a second.
+
 A click with the Pixel tool on a slit-jaw viewer of the quicklook moves the point to the raster
 pixel there, placed with the displayed frame's own pointing (``sji_to_raster``, see
 :ref:`Scripting with IRIS data <glue_solar_users_guide_scripting_iris_data>`): on a scanning raster
@@ -283,8 +297,9 @@ A saved session opens the quicklook again with its point and its time master: it
 showed, with the same Δt, and a click or drag with the Pixel tool moves the other panels, the
 slit-jaw cross and the spectrum as before. Choose the Pixel tool again, as glue restores no
 viewer's mouse mode. The Point window and the lines are not restored, and a light curve stays
-where it was (see "Saving sessions" in :ref:`Viewer tools and windows
-<glue_solar_users_guide_viewer_tools_and_windows>` for what a session keeps of the data).
+where it was; "Master exposure" follows the time master again, and one deleted before saving comes
+back at the first time sync with its Scatter plot open (see "Saving sessions" in :ref:`Viewer tools
+and windows <glue_solar_users_guide_viewer_tools_and_windows>` for what a session keeps of the data).
 
 Several windows
 ---------------

@@ -46,7 +46,16 @@ from glue_solar.sources.moments import line_moments
 from glue_solar.tests.helpers import load_selected, mouse, scanned, shift
 from glue_solar.tests.test_bursts import SI_IV
 from glue_solar.tests.test_importer import _row
-from glue_solar.tests.test_quicklook import SCAN, SNS, drifting_stack, menu_action, readout, slit_jaw
+from glue_solar.tests.test_quicklook import (
+    SCAN,
+    SNS,
+    drifting_stack,
+    marks,
+    menu_action,
+    readout,
+    slit_jaw,
+    time_series,
+)
 from glue_solar.tools import _pointing
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1330_t000.fits"
@@ -368,6 +377,30 @@ def test_a_restored_quicklook_keeps_its_time_master_and_follows_a_pixel_drag(
         qtbot.waitUntil(lambda: responses(restored)[0] == responses(app)[0])
         for got, expected in zip(responses(restored)[1], responses(app)[1], strict=True):
             np.testing.assert_allclose(got, expected, rtol=1e-12)
+
+
+def test_a_restored_quicklook_marks_its_master_exposure_again(qtbot, monkeypatch, tmp_path, irispy_test_files):
+    files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
+    viewers = quicklook(app, [*raster_data(files[:1], ["Si IV 1403"]), image_data(files[1])])
+    raster = viewers["map"].state.reference_data
+    time_series(app, raster)
+    viewers["spectrogram"].state.slices = (7, *viewers["spectrogram"].state.slices[1:])
+    qtbot.waitUntil(lambda: marks(app, raster, 7))
+    session = tmp_path / "quicklook.glu"
+    app.save_session(str(session), absolute_paths=False)
+    for step in (100, 50):  # opened, and that saved and opened again: one group, which follows the master
+        opened = GlueApplication.restore_session(str(session), show=False)
+        qtbot.addWidget(opened)
+        monkeypatch.setattr(opened, "report_error", lambda message, detail: pytest.fail(detail))
+        spectrogram = opened.viewers[-1][1]  # the quicklook's
+        raster = spectrogram.state.reference_data
+        spectrogram.state.slices = (step, *spectrogram.state.slices[1:])
+        qtbot.waitUntil(lambda: marks(opened, raster, step))
+        opened.save_session(str(session), absolute_paths=False)
 
 
 def links(collection):
