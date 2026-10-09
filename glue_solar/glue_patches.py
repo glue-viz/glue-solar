@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import dask.array as da
 import glue.utils.matplotlib
 import numpy as np
+from echo.qt import connect
 from echo.qt.connect import UserDataWrapper
 from glue.config import data_exporter
 from glue.core import Data, DataCollection, Subset, component_link, coordinate_helpers
@@ -39,9 +40,9 @@ from glue_qt.utils import colors
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.matplotlib.widget import MplCanvas
-from matplotlib import dates, rcParams
+from matplotlib import colormaps, dates, rcParams
 from matplotlib.backend_bases import key_press_handler
-from matplotlib.colors import ListedColormap
+from matplotlib.colors import Colormap, ListedColormap
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from qtpy import QtCore, QtGui, QtWidgets
@@ -51,6 +52,8 @@ from astropy.io import fits
 from astropy.visualization.wcsaxes import WCSAxes
 from astropy.wcs import WCS
 
+from sunpy.visualization.colormaps import cmlist
+
 __all__ = [
     "aggregate_slice_init",
     "apply_subset_state",
@@ -59,8 +62,10 @@ __all__ = [
     "datetime64_to_mpl",
     "export_fits",
     "load_quantity",
+    "find_combo_data",
     "mpl_to_datetime64",
     "needs_axis_label_workaround",
+    "needs_combo_match_workaround",
     "needs_crosshair_workaround",
     "needs_date_epoch_workaround",
     "needs_empty_collapse_workaround",
@@ -725,3 +730,38 @@ def _icons_need_workaround():
 
 
 colors.QColormapCombo._update_icons = update_icons
+
+
+_original_find_combo_data = connect._find_combo_data
+
+
+def find_combo_data(widget, value):
+    """
+    echo's ``_find_combo_data``, matching a colormap to the entry that is it, then to one of its name or of the sunpy
+    colormap of that key, before an earlier entry of equal colours.
+
+    sunpy has colormaps of equal colours, such as AIA 171, SUVI 171 and EUI 174, and echo 0.15 matches the first
+    listed: an AIA 171 map's menu showed SUVI 171, and picking AIA 171 gave SUVI 171 back. A sunpy map's colormap and
+    the one glue restores from a session are matplotlib's copies, named by sunpy's key or by the saved name. Retired by
+    echo matching the entry that is the value first (report candidate), once the readers and glue's restore give the
+    listed colormap rather than a copy.
+    """
+    index = _original_find_combo_data(widget, value)
+    if isinstance(value, Colormap):
+        data = [widget.itemData(i) for i in range(widget.count())]
+        data = [item.data if isinstance(item, UserDataWrapper) else item for item in data]
+        names = value.name, cmlist.get(value.name, value).name
+        equal = [i for i in range(index, len(data)) if data[i] is value or (data[i] == value) is True]
+        index = min(equal, key=lambda i: (data[i] is not value, data[i].name not in names))
+    return index
+
+
+def needs_combo_match_workaround(find=_original_find_combo_data):
+    """Whether ``find`` matches a sunpy map's AIA 171 colormap to SUVI 171 listed before AIA 171."""
+    listed = [UserDataWrapper(cmlist[key]) for key in ("goes-rsuvi171", "sdoaia171")]
+    combo = SimpleNamespace(count=lambda: len(listed), itemData=listed.__getitem__)
+    return find(combo, colormaps["sdoaia171"]) == 0
+
+
+if needs_combo_match_workaround():
+    connect._find_combo_data = find_combo_data

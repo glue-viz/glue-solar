@@ -1,0 +1,1 @@
+The Image viewer's colormap menu names a layer's own colormap again, such as "SDO AIA 171.0 Angstrom", where sunpy lists others of the same colours.
