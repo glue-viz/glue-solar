@@ -115,6 +115,7 @@ A milestone is done when it has no items left.
 - WP8: `wp8-prescan-search`, `wp8-search-ui`, `wp8-browser-conveniences`, `wp8-sot-cubes`
 - WP9: `wp9-l-deferred-recipes`
 - WP10: `wp10-l-resident-memory`
+- WP11: `wp11-cmap-combo-names`
 - WP12: `wp12-time-marker`, `wp12-point-light-curves`, `wp12-path-persist`, `wp12-saved-path-reuse`, `wp12-profile-values-export`, `wp12-export-options`
 
 **M4**
@@ -339,6 +340,7 @@ Frame, movie and data export plus path diagrams, built on glue's 'save' subtools
 
 **L**
 
+- [ ] **L** `wp11-cmap-combo-names`: Since #177 lists every sunpy colormap, echo's combo picks the first entry with equal colours, so an AIA 171 layer's menu reads 'GOES-R SUVI 171.0 Angstrom' (also AIA 94/131/193/304/335 and other equal pairs). List the IRIS and AIA colormaps first, or prefer the same object, then name, in the match. Done when an AIA 171 map's layer shows 'SDO AIA 171.0 Angstrom' before and after a session restore.
 - [ ] **L** `wp12-time-marker`: The master exposure shows as a glue time-range subset on datetime Scatter plots, moved with the master. Done when it follows the master and survives a session reopen. Depends: wp3-app-session-acceptance.
 - [ ] **L** `wp12-point-light-curves` (F140, F141): 'Light curves at this point' adds time series per raster window and SJI. Done when raster curves equal `cube[:, y, k]` and ECSV keeps `Time`. Depends: wp12-time-marker.
 - [ ] **L** `wp12-path-persist` (F185, F186): Save paths in sessions and as ECSV. Done when a reopened path reloads the same diagram.
