@@ -23,6 +23,7 @@ from glue.core.coordinate_helpers import unbroadcast
 from glue.core.data_exporters import gridded_fits
 from glue.core.edit_subset_mode import EditSubsetMode
 from glue.core.exceptions import IncompatibleAttribute
+from glue.core.state import GlueSerializer, loader, saver
 from glue.core.subset import SubsetState
 from glue.utils import defer_draw
 from glue.viewers.histogram import state as histogram_state
@@ -45,6 +46,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from qtpy import QtCore, QtGui, QtWidgets
 
+import astropy.units as u
 from astropy.io import fits
 from astropy.visualization.wcsaxes import WCSAxes
 from astropy.wcs import WCS
@@ -56,6 +58,7 @@ __all__ = [
     "close_event",
     "datetime64_to_mpl",
     "export_fits",
+    "load_quantity",
     "mpl_to_datetime64",
     "needs_axis_label_workaround",
     "needs_crosshair_workaround",
@@ -70,6 +73,7 @@ __all__ = [
     "needs_redo_workaround",
     "needs_reference_crosshair_workaround",
     "pv_slice_from_path",
+    "save_quantity",
     "sync_pv_slice",
     "update_icons",
     "update_x_axislabel",
@@ -597,6 +601,27 @@ def needs_empty_collapse_workaround():
 
 if needs_empty_collapse_workaround():
     AggregateSlice.__init__ = aggregate_slice_init
+
+
+# glue 1.27.0 saves an astropy Quantity, such as the exposure times in irispy's metadata, as the ndarray it subclasses,
+# which numpy.save refuses, so no session with an IRIS raster saves. Saved as its values and unit instead, a record for
+# glue's own loader to take over (report candidate for glue), only while glue has no saver of its own.
+def save_quantity(quantity, context):
+    """
+    A session's record of ``quantity``: its values, as nested lists, and its unit as glue saves one, which raises
+    `GlueSerializeError` for a unit glue cannot read back (glue then leaves the value out of a dataset's meta).
+    """
+    return {"value": quantity.value.tolist(), "unit": context.do(quantity.unit)["unit_base"]}
+
+
+def load_quantity(rec, context):
+    """The Quantity of a `save_quantity` record."""
+    return u.Quantity(rec["value"], rec["unit"])
+
+
+if u.Quantity not in GlueSerializer.dispatch:
+    saver(u.Quantity)(save_quantity)
+    loader(u.Quantity)(load_quantity)
 
 
 _original_close_event = ImageViewer.closeEvent
