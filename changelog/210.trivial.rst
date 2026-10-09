@@ -1,0 +1,1 @@
+Lazy raster windows take their DN unit from their detector, as slit-jaw images do, so they keep it when irispy labels memory-mapped raw data as unscaled.
