@@ -1,0 +1,1 @@
+"North up" shows a slit-jaw image or AIA cutout on a north-up helioprojective grid, drawn by glue through links.

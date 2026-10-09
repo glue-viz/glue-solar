@@ -237,6 +237,36 @@ glue-qt's viewers also have matplotlib's own keys, such as G for a Profile viewe
 mouse over its plot; with glue-solar, F and S no longer show an empty window full screen or open
 matplotlib's save dialog. The save menu saves the plot.
 
+North up
+--------
+
+A slit-jaw image or aligned AIA cutout of a rolled observation shows solar north at the roll angle:
+45.6° from the top for OBSID 3860608353, whose ``SAT_ROT`` is 45. To see one north up, select it in
+the data collection and choose "North up" from its right-click menu. This adds ``<label> north
+up``, a grid with no values of its own (its ``empty`` component is NaN): square pixels as wide as
+the image's (``CDELT1``) on a gnomonic projection, helioprojective latitude up and longitude along
+x, covering every frame where its pointing places it, with the image's frames and ``Time``. An
+Image viewer of the grid opens showing the image, which glue resamples onto it as it draws, through
+its links, as it shows any dataset on another's axes: each screen pixel takes the nearest sample of
+the frame shown, placed with that frame's own pointing, and no copy is made. The grid's own layer is
+hidden.
+
+- The slider steps through the image's frames, as D, F and Space do, and "Frame time" gives each
+  frame's time, without its exposure. The grid is fixed on the sky, so the image moves across it as
+  IRIS follows the solar rotation: 12″ west over the 65 frames of 3860608353's SJI 2832, whose grid
+  is 570 by 533 pixels for its 364 by 387.
+- A frame step costs about twice a native one, as glue places the frame through its coordinates
+  at each step: 0.13 s against 0.06 s for that SJI 2832 in a viewer 800 pixels square.
+- The grid's helioprojective coordinates are linked with the other IRIS datasets (see
+  :ref:`Linking <glue_solar_users_guide_iris_linking>`), and its time and frames with the image's
+  only, which glue needs to place each frame.
+- The grid belongs to no observation, so time sync, the point and the raster overlays leave its
+  viewer alone. "Per-frame limits" and "Colour bar", which take the viewer's reference data, act on
+  the hidden grid rather than the image, and "Cursor readout" gives no value: set the image's
+  limits in its layer's style editor.
+- In glue's terminal, ``glue_solar.regrid.north_up_iris(data, dc)`` does the same, and
+  ``glue_solar.regrid.north_up(data)`` gives the grid alone.
+
 Saving sessions
 ---------------
 

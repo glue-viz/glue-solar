@@ -1,19 +1,33 @@
 """
-'Regrid on time': an IRIS dataset resampled at a regular time step, as a new dataset.
+'Regrid on time': an IRIS dataset resampled at a regular time step, as a new dataset; and 'North up': a slit-jaw image
+shown north up, on a new dataset's helioprojective grid.
 """
 
 import numpy as np
 from glue.config import layer_action
+from glue.core import Data
+from glue.core.link_helpers import LinkSame
+from glue.utils import unbroadcast
 from glue_qt.utils.decorators import messagebox_on_error
+from glue_qt.viewers.image import ImageViewer
+from qtpy import QtWidgets
 from scipy.interpolate import make_interp_spline
 
+from astropy.wcs import WCS
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
-from glue_solar.quicklook import _cadence, _role, _time_axis, _timed, _times, nearest
-from glue_solar.sources.loaders.iris import _SJI_POINTING, _add_exposure, _dataset, _per_frame, keep_hpc_linked
+from glue_solar.quicklook import _cadence, _placeable, _role, _time_axis, _timed, _times, nearest
+from glue_solar.sources.loaders.iris import (
+    _SJI_POINTING,
+    _add_exposure,
+    _dataset,
+    _GlueWCS,
+    _per_frame,
+    keep_hpc_linked,
+)
 from glue_solar.sources.loaders.lazy import RawComponent, RawStack
 
-__all__ = ["regrid_iris", "regrid_on_time"]
+__all__ = ["north_up", "north_up_iris", "regrid_iris", "regrid_on_time"]
 
 # A pixel takes the exposure, frame or scan nearest its time within this many time steps, else it is a gap
 REACH = 0.75
@@ -118,3 +132,96 @@ def regrid_iris(data, data_collection):
     """
     data_collection.append(regrid_on_time(data))
     keep_hpc_linked(data_collection)
+
+
+class _NorthUp(BaseWCSWrapper):
+    """
+    ``wcs``, a slit-jaw image's in arcsec and seconds, with its longitude and latitude those of ``tan``, a 2-D WCS in
+    degrees, and its time ``times[t]`` at pixel ``t`` along its last pixel axis, linearly in between.
+    """
+
+    pixel_shape = pixel_bounds = None  # the wrapped WCS's are the image's
+
+    def __init__(self, wcs, tan, times):
+        super().__init__(wcs)
+        self._tan, self._times, self._frames = tan, times, np.arange(len(times))
+
+    @property
+    def axis_correlation_matrix(self):
+        return np.array([[True, True, False], [True, True, False], [False, False, True]])
+
+    def pixel_to_world_values(self, x, y, t):
+        x, y, t = np.broadcast_arrays(x, y, t)
+        lon, lat = self._tan.pixel_to_world_values(x, y)
+        time = np.interp(unbroadcast(t), self._frames, self._times, left=np.nan, right=np.nan)
+        return np.asarray(lon) * 3600, np.asarray(lat) * 3600, np.broadcast_to(time, t.shape)
+
+    def world_to_pixel_values(self, lon, lat, time):
+        lon, lat, time = np.broadcast_arrays(lon, lat, time)
+        x, y = self._tan.world_to_pixel_values(lon / 3600, lat / 3600)
+        t = np.interp(unbroadcast(time), self._times, self._frames, left=np.nan, right=np.nan)
+        return x, y, np.broadcast_to(t, time.shape)
+
+
+def north_up(data):
+    """
+    A north-up helioprojective grid for ``data``, a slit-jaw image or aligned AIA cutout, as a new dataset
+    ``<label> north up`` with no values, its ``empty`` NaN, and ``data``'s ``Time``: square pixels of ``data``'s
+    ``CDELT1`` on a gnomonic (TAN) projection with latitude up its y axis, covering every frame as its own pointing
+    places it, and along its first axis ``data``'s frames and times. Glue shows ``data`` on it through the links
+    `north_up_iris` adds.
+
+    Raises
+    ------
+    ValueError
+        For data without a helioprojective longitude and latitude and a time for each frame, such as a raster, or
+        without a pixel scale, such as a north-up grid.
+    """
+    if data.ndim != 3 or not _placeable(data) or "CDELT1" not in data.meta:
+        raise ValueError(f"{data.label} is not a slit-jaw image or aligned AIA cutout, whose frames have a pointing.")
+    nt, ny, nx = data.shape
+    # the corners of every frame: its edges are great circles, which a gnomonic projection keeps straight
+    lon, lat, _ = data.coords.pixel_to_world_values(*np.meshgrid([-0.5, nx - 0.5], [-0.5, ny - 0.5], np.arange(nt)))
+    tan = WCS(naxis=2)
+    tan.wcs.ctype = ["HPLN-TAN", "HPLT-TAN"]
+    tan.wcs.cdelt = [abs(data.meta["CDELT1"]) / 3600] * 2
+    tan.wcs.crval = [np.mean(lon) / 3600, np.mean(lat) / 3600]
+    tan.wcs.crpix = [1, 1]
+    x, y = tan.world_to_pixel_values(lon / 3600, lat / 3600)
+    first = np.round([x.min(), y.min()])
+    tan.wcs.crpix = 1 - first
+    grid = Data(label=f"{data.label} north up")
+    grid.coords = _GlueWCS(_NorthUp(data.coords, tan, data.coords.pixel_to_world_values(0, 0, np.arange(nt))[2]))
+    grid.meta["DSUN_OBS"] = data.meta.get("DSUN_OBS")  # for Measure's km
+    shape = (nt, *(np.round([y.max(), x.max()]) - first[::-1] + 1).astype(int))
+    grid.add_component(np.broadcast_to(np.float32(np.nan), shape), "empty")  # for glue's layer: a time cannot show
+    grid.add_component(_per_frame(data[data.id["Time"], (slice(None), 0, 0)], shape), "Time")
+    return grid
+
+
+@layer_action(
+    "North up", single=True, data=True, tooltip="Show this slit-jaw image or AIA cutout north up, in a new Image viewer"
+)
+@messagebox_on_error("Could not show north up")
+def north_up_iris(data, data_collection):
+    """
+    Add the `north_up` grid of ``data`` to the data collection, its helioprojective coordinates linked with the others'
+    and its time and frames with ``data``'s, and open an Image viewer of it showing ``data``, its own layer hidden;
+    glue shows why for data that has no grid.
+    """
+    grid = north_up(data)
+    data_collection.append(grid)
+    keep_hpc_linked(data_collection)
+    # glue places each frame with its own pointing at its time; the frames save it inverting data's at each step
+    data_collection.add_link(
+        [
+            LinkSame(grid.world_component_ids[0], data.world_component_ids[0]),
+            LinkSame(grid.pixel_component_ids[0], data.pixel_component_ids[0]),
+        ]
+    )
+    windows = QtWidgets.QApplication.topLevelWidgets()
+    app = next((window for window in windows if getattr(window, "data_collection", None) is data_collection), None)
+    if app is not None:
+        viewer = app.new_data_viewer(ImageViewer, data=grid)
+        viewer.add_data(data)
+        viewer.state.layers[0].visible = False
