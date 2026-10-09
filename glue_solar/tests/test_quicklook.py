@@ -3258,8 +3258,8 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
 
     def record(*args):
         [bar], [label] = [line for line in axes.lines if line not in lines], [t for t in axes.texts if t not in texts]
-        y = (axes.transAxes + axes.transData.inverted()).transform((0, 0.05))[1]
-        arcsec = sky_length(sji_viewer, bar.get_xdata(), [y, y])[1]
+        ends = axes.transData.inverted().transform(bar.get_transform().transform(np.column_stack(bar.get_data())))
+        arcsec = sky_length(sji_viewer, *ends.T)[1]
         drawn.append(([text.get_text() for text in figure.texts], label.get_text(), arcsec))
         savefig(*args)
 
