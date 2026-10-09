@@ -1,6 +1,6 @@
 """
-IRIS Level 2 support: a file reader for File -> Open, the observation browser, 'Shift pointing…', and an exporter of
-derived maps with their coordinates.
+IRIS Level 2 support: a file reader for File -> Open, the observation browser, 'Shift pointing…', an exporter of
+derived maps with their coordinates, and one of 1-D data, such as light curves, with their times.
 """
 
 import re
@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 from glue.config import data_exporter, data_factory, layer_action, layer_artist_maker, menubar_plugin, startup_action
 from glue.core import Subset
+from glue.core.data_exporters.astropy_table import data_to_astropy_table
 from glue.core.message import ExternallyDerivableComponentsChangedMessage
 from glue.viewers.image.viewer import MatplotlibImageMixin
 from glue_qt.utils.decorators import messagebox_on_error
@@ -16,6 +17,7 @@ from qtpy import QtCore, QtGui, QtWidgets
 
 import astropy.units as u
 from astropy.io import fits
+from astropy.time import Time
 from astropy.wcs.utils import celestial_frame_to_wcs
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
@@ -43,6 +45,7 @@ from glue_solar.sources.moments import _accepted
 
 __all__ = [
     "browse_iris",
+    "export_ecsv",
     "export_iris_fits",
     "help_iris",
     "iris_image_layer",
@@ -242,6 +245,30 @@ def export_iris_fits(filename, data, components=None):
         seconds.header.update(BUNIT="s", TIMESYS="UTC", DATEREF=np.datetime_as_string(start))
         extensions.insert(0, seconds)
     export_fits(filename, data, components, header, extensions)
+
+
+@data_exporter("ECSV (with Time)", extension=["ecsv"])
+@messagebox_on_error("Could not export the data")
+def export_ecsv(filename, data, components=None):
+    """
+    Write ``data``, 1-D data such as the light curves at a point, or a subset of it, as an ECSV table: glue's table of
+    its attributes, as glue's "Comma-separated table" writes it, with each attribute's unit, a datetime attribute such
+    as ``Time`` as UTC times to the nanosecond, which astropy reads back as `~astropy.time.Time`, and ``OBSID`` and
+    ``STARTOBS`` in its meta. glue shows why for other data.
+    """
+    whole = data.data if isinstance(data, Subset) else data
+    if whole.ndim != 1:
+        raise ValueError(f"{whole.label} is not 1-D: glue's 'Comma-separated table' exports it.")
+    table = data_to_astropy_table(data, components)
+    for cid in whole.main_components + whole.derived_components:
+        if cid.label not in table.colnames:
+            continue
+        if whole.get_kind(cid) == "datetime":
+            table[cid.label] = Time(np.asarray(table[cid.label]), scale="utc")
+        elif whole.get_component(cid).units:
+            table[cid.label].unit = whole.get_component(cid).units
+    table.meta.update({key: str(whole.meta[key]) for key in ("OBSID", "STARTOBS") if key in whole.meta})
+    table.write(filename, format="ascii.ecsv", overwrite=True)
 
 
 def _observations(data_collection):

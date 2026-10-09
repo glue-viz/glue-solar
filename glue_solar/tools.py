@@ -69,6 +69,7 @@ from glue_solar.quicklook import (
     _is_sit_and_stare,
     _light_curve,
     _place,
+    _point_curves,
     _role,
     _seconds_text,
     _shown,
@@ -1862,6 +1863,16 @@ class _LightCurveEntry(_CoordinateEntry):
         _light_curve(self.viewer)
 
 
+class _PointCurvesEntry(_CoordinateEntry):
+    tool_id = "solar:point_curves"
+    action_text = "Light curves at this point (windows, SJI)"
+    tool_tip = "Plot each raster window and slit-jaw image at the point against time, as new datasets that follow it"
+
+    @messagebox_on_error("Could not add the light curves")
+    def run(self, coordinator):
+        _point_curves(self.viewer)
+
+
 def _first_slider(viewer):
     """
     glue-qt's slice slider of the Image viewer's first array axis (an IRIS dataset's frames, exposures, steps or
@@ -2313,9 +2324,10 @@ class CoordinateTool(SimpleToolMenu):
     Pixel tool, and unregisters it when the viewer closes. Its menu makes the displayed dataset the
     time master of its observation, clears the point, moves the time master to a typed UTC time, or
     makes the frame, exposure, step or scan slider's playback loop over a range, or shows the raster
-    overlays, or opens the light curve at the point, or blinks the viewer between its position and a
-    stored partner. On a slit-jaw image it draws the displayed frame's slit, and the point of a raster of
-    the same observation placed with that frame's coordinates while it is on the image.
+    overlays, or opens the light curve at the point, or plots the light curves of every window and
+    slit-jaw image at the point, or blinks the viewer between its position and a stored partner. On a
+    slit-jaw image it draws the displayed frame's slit, and the point of a raster of the same
+    observation placed with that frame's coordinates while it is on the image.
     """
 
     icon = "glue_link"
@@ -2331,6 +2343,7 @@ class CoordinateTool(SimpleToolMenu):
             _LoopEntry,
             _OverlaysEntry,
             _LightCurveEntry,
+            _PointCurvesEntry,
             _PartnerEntry,
             _BlinkEntry,
         )

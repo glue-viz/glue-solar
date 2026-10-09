@@ -11,6 +11,7 @@ from itertools import pairwise
 import numpy as np
 from echo import delay_callback
 from glue.config import layer_artist_maker
+from glue.core import Data
 from glue.core.command import Command
 from glue.core.hub import HubListener
 from glue.core.link_helpers import LinkSame
@@ -27,6 +28,8 @@ from glue.viewers.scatter.state import ScatterViewerState
 from glue_qt.utils import process_events
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from glue_qt.viewers.scatter import ScatterViewer
+from matplotlib.colors import to_hex
 from matplotlib.lines import Line2D
 from matplotlib.path import Path
 from matplotlib.transforms import Bbox
@@ -1150,6 +1153,13 @@ def _window(data):
     return None, None
 
 
+def _line_core(raster):
+    """The wavelength pixel of ``raster`` nearest its window's TWAVE, or mid-window; never 0, a window edge."""
+    wave, _ = _wavelengths(raster)
+    _, twave = _window(raster)
+    return int(np.nanargmin(np.abs(wave - twave))) if twave is not None else len(wave) // 2
+
+
 def _is_sit_and_stare(data):
     meta = data.meta
     return float(meta.get("STEPS_AV", -1) or 0) == 0 and int(meta.get("NRASTERP", 0) or 0) == 1
@@ -1269,10 +1279,8 @@ def _raster_panels(app, raster, window, roles=("map", "spectrogram", "wavelength
     The map, spectrogram and wavelength panels of the table in the plan, or those of ``roles``, with the point at the
     map centre.
     """
-    wave, spectral = _wavelengths(raster)
-    _, twave = _window(raster)
-    # the pixel nearest TWAVE, or mid-window; never index 0, which is a window edge
-    wl0 = int(np.nanargmin(np.abs(wave - twave))) if twave is not None else len(wave) // 2
+    _, spectral = _wavelengths(raster)
+    wl0 = _line_core(raster)
     shape = raster.shape
     if raster.ndim == 4:  # scan, step, slit, wavelength
         point = (0, shape[1] // 2, shape[2] // 2, wl0)
@@ -1582,6 +1590,135 @@ def _light_curve(viewer):
     profile.state.title = f"{_window(data)[0] or data.label} light curve"
     _fit_spectrum(profile, group)
     return profile
+
+
+def _curve(source, raster, pixel, wavelength):
+    """
+    The times and values of ``source`` at ``pixel``, a pixel of ``raster`` but its wavelength: a raster window's along
+    its first axis at the pixel's slit position, and a stack's step, and at wavelength pixel ``wavelength``; a slit-jaw
+    image's in each frame at the place of the raster's pixel at the exposure, or a stack's scan at that step, nearest
+    the frame's time, placed with the frame's own pointing, NaN past half the raster's cadence (D7) or off the frame. A
+    scanning raster's pixel is one place at every frame.
+    """
+    main = source.main_components[0]
+    if _role(source) == "raster":
+        view = (slice(None), *pixel[1:], wavelength)
+        return source[source.id["Time"], view], source[main, view]
+    frames = np.arange(source.shape[0])
+    times, lead, match = _times(source, None), list(pixel), True
+    if _time_axis(raster) == 0:
+        exposures = _times(raster, pixel[1] if raster.ndim == 4 else None)
+        lead[0], offset = nearest(times, exposures)
+        match = abs(offset) <= _half_cadence(exposures)  # NaT, a gap, never is
+    lon, lat = _lon_lat(raster, [np.broadcast_to(index, frames.shape) for index in (*lead, 0)])
+    x, y = (np.round(xy) for xy in _sji_pixels(source, frames, lon, lat))
+    inside = match & (0 <= y) & (y < source.shape[1]) & (0 <= x) & (x < source.shape[2])  # NaN never is
+    values = np.full(frames.shape, np.nan)
+    values[inside] = source[main, (frames[inside], y[inside].astype(int), x[inside].astype(int))]
+    return times, values
+
+
+class _PointCurves(QObject):
+    """
+    Keep the light curves at the point (`_point_curves`) at the point of ``group`` while it is a Pixel selection on
+    ``raster``'s file: a moment after the point moves to another slit position, or a stack's step, or a scanning
+    raster's step, so that a drag or playback does not wait for them. They stop once they leave the data collection.
+    """
+
+    def __init__(self, coordinator, group, raster):
+        super().__init__()
+        self.coordinator, self.group, self.raster = coordinator, group, raster
+        self.curves, self.pixel = [], None  # (curve, its dataset, its wavelength pixel), and the pixel they show
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(250)
+        self._timer.timeout.connect(self.refresh)
+
+    def point(self):
+        """The point's pixel on the raster's file, its wavelength left out and, along time, 0: what `_curve` takes."""
+        state = self.group.subset_state
+        if not isinstance(state, PixelSubsetState) or not _same_file(state.reference_data, self.raster):
+            return None
+        pixel = tuple(s.start for s in state.slices[:-1])  # IRIS wavelengths are the last axis
+        if None in pixel:
+            return None  # a click before the coordinator gives it the axes it was not clicked on (`Coordinator._pin`)
+        return (0, *pixel[1:]) if _time_axis(self.raster) == 0 else pixel
+
+    def _synced(self, *_):
+        self.curves = [entry for entry in self.curves if entry[0] in self.coordinator.data_collection]
+        if not self.curves:
+            self.coordinator.remove_listener(self._synced)
+        elif self.point() not in (None, self.pixel):
+            self._timer.start()
+
+    def refresh(self):
+        pixel = self.point()
+        if pixel in (None, self.pixel):
+            return
+        self.pixel = pixel
+        for curve, source, wavelength in self.curves:
+            times, values = _curve(source, self.raster, pixel, wavelength)
+            curve.update_components({curve.id["Time"]: times, curve.id["Value"]: values})
+
+
+def _point_curves(viewer):
+    """
+    Add the light curves at the point, a raster pixel, as 1-D datasets of ``Time`` and ``Value`` (`_curve`), and plot
+    them against time in a new Scatter viewer: one of each window of the point's raster file with exposures or scans,
+    at the wavelength the map shows or else nearest its TWAVE, and one of each slit-jaw channel of its observation.
+    Each takes its dataset's OBSID and STARTOBS, so that the time master's exposure marks them (`Coordinator._mark`),
+    and the first's ``Time`` and ``Value`` are the others' through `~glue.core.link_helpers.LinkSame`. They follow
+    the point (`_PointCurves`); ``viewer`` is any Image viewer of the data collection.
+    """
+    app = viewer.session.application
+    collection = app.data_collection
+    coord = coordinator(collection)
+    raster = getattr(coord.point, "reference_data", None)
+    follower = _PointCurves(coord, coord.group, raster)
+    pixel = follower.point() if _role(raster) == "raster" else None
+    if pixel is None:
+        raise ValueError("Select a point on a raster first.")
+    key = observation_key(raster)
+    sources = [data for data in collection if _same_file(data, raster) and _time_axis(data) == 0]
+    sjis = [data for data in collection if _role(data) == "sji" and observation_key(data) == key and _placeable(data)]
+    sources += _pick_sjis(sjis)[0]
+    for i, source in enumerate(sources):
+        if _role(source) == "raster":
+            [axis] = _spectral_axes(source)
+            wavelength = coord._slider(source, axis, _line_core(source))
+            label = f"{_window(source)[0] or source.label} {_wavelengths(source)[0][wavelength]:.2f} Å light curve"
+        else:
+            wavelength, label = None, f"{_sji_title(source)} light curve"
+        times, values = _curve(source, raster, pixel, wavelength)
+        curve = Data(label=label, Time=times, Value=values)
+        curve.get_component("Value").units = source.get_component(source.main_components[0]).units
+        curve.meta = {name: source.meta[name] for name in ("OBSID", "STARTOBS")}
+        curve.style.color = to_hex(f"C{i % 10}")  # glue gives every dataset the same grey
+        follower.curves.append((curve, source, wavelength))
+    follower.pixel = pixel
+    if not follower.curves:
+        raise ValueError(f"{raster.label} has no exposures or scans, and its observation no slit-jaw image loaded.")
+    curves = [curve for curve, *_ in follower.curves]
+    mode = app.session.edit_subset_mode
+    edit = mode.edit_subset
+    collection.extend(curves)
+    links = [LinkSame(curves[0].id[name], curve.id[name]) for curve in curves[1:] for name in ("Time", "Value")]
+    if links:
+        collection.add_link(links)
+    plot = app.new_data_viewer(ScatterViewer, data=curves[0])
+    plot.state.x_att, plot.state.y_att = curves[0].id["Time"], curves[0].id["Value"]  # before the others join
+    for curve in curves[1:]:
+        plot.add_data(curve)
+    mode.edit_subset = edit  # glue-qt makes the last subset group the edit subset as data are added
+    plot.state.title = "Light curves at the point"
+    for layer in plot.state.layers:
+        if isinstance(layer.layer, Data):
+            layer.markers_visible, layer.line_visible = False, True
+    for group in coord._owners:
+        _show(plot, group, False)  # the quicklooks' points, which move at every click (`_show_point`)
+    coord.add_listener(follower._synced)  # which keeps it
+    coord._timer.start()  # the time master's exposure, at once
+    return plot
 
 
 # the raster panels' lines, the last on top: the point's thin, in the colour of glue's crosshair, the others as a

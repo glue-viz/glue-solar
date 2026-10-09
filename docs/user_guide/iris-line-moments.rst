@@ -191,3 +191,19 @@ with sunpy imported gives positions in the observer's helioprojective frame::
 Only 2-D maps on helioprojective coordinates export so: glue says why for a raster window, a
 slit-jaw image or other data, which glue's "FITS (1 component/HDU)" writes without their IRIS
 coordinates.
+
+1-D data, such as the light curves at a point (see :ref:`The quicklook
+<glue_solar_users_guide_iris_quicklook>`), export with "ECSV (with Time)" as an ECSV table: a
+column for each attribute, as glue's "Comma-separated table" writes them, with its unit, a time
+such as ``Time`` as UTC times to the nanosecond, which astropy reads back as a
+`~astropy.time.Time` (glue's "Comma-separated table" writes nanoseconds since 1970), and the
+observation's ``OBSID`` and ``STARTOBS`` in its header::
+
+    from astropy.table import Table
+
+    curve = Table.read("curve.ecsv")
+    curve["Time"]  # an astropy Time, UTC
+    curve["Value"]  # in the data's unit
+
+``glue_solar.sources.iris.export_ecsv(filename, data)`` writes the file in glue's terminal too, and
+glue says why for data that are not 1-D.

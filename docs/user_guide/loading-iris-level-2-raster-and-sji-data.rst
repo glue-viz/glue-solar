@@ -147,10 +147,11 @@ against slit, the viewer's new step slider moves to the point. Wavelength slider
 The "Coordinate" menu (the link icon) in the Image Viewer toolbar has "Time master", which records
 the displayed dataset as the time reference of its observation (same OBSID and STARTOBS), "Clear
 point", "Go to UTC…", which moves the time master, "Loop…" for the frame, exposure, step or scan slider,
-"Light curve at the point", which opens the point's light curve over the map's wavelength or band, and
-"Set blink partner here" and "Blink", which alternate the viewer between two positions (see
-:ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). The Pixel tool stays active after
-each entry.
+"Light curve at the point", which opens the point's light curve over the map's wavelength or band,
+"Light curves at this point (windows, SJI)", which plots each raster window and slit-jaw image at
+the point against time, and "Set blink partner here" and "Blink", which alternate the viewer between
+two positions (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). The Pixel tool
+stays active after each entry.
 
 Downloads that are still packed (``*_raster.tar.gz``, ``*_SDO.tar.gz``) show up under their observation
 as an "Extract <archive> (<size> MB, next to the archive)" entry. Tick it and press "Load selected":

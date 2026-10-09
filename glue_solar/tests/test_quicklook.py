@@ -7,14 +7,14 @@ from collections import Counter
 import numpy as np
 import pytest
 from echo import delay_callback
-from glue.config import settings
+from glue.config import data_exporter, settings
 from glue.core import Data
 from glue.core.component import DateTimeComponent
 from glue.core.edit_subset_mode import OrMode
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.hub import HubListener
 from glue.core.link_manager import LinkManager
-from glue.core.message import SettingsChangeMessage, SubsetUpdateMessage
+from glue.core.message import NumericalDataChangedMessage, SettingsChangeMessage, SubsetUpdateMessage
 from glue.core.roi import CircularROI, PolygonalROI, RectangularROI, XRangeROI, YRangeROI
 from glue.core.subset import RangeSubsetState, SubsetState, roi_to_subset_state
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
@@ -31,6 +31,8 @@ from qtpy.QtCore import Qt, QTimer
 
 import astropy.units as u
 from astropy.io import fits
+from astropy.table import Table
+from astropy.time import Time
 from astropy.visualization.wcsaxes.ticklabels import TickLabels
 from astropy.wcs import WCS
 
@@ -48,7 +50,7 @@ from glue_solar.quicklook import (
 )
 from glue_solar.regrid import regrid_on_time
 from glue_solar.sources import moments
-from glue_solar.sources.iris import shift_pointing_iris
+from glue_solar.sources.iris import export_ecsv, shift_pointing_iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, raster_data
 from glue_solar.tests.helpers import (
     count_tick_work,
@@ -875,6 +877,136 @@ def test_a_light_curve_follows_the_point_and_the_band(bare_app, qtbot, monkeypat
     # a scripted subset with no group leaves it alone
     raster.new_subset(label="plain").subset_state = raster.pixel_component_ids[0] > 0
     check(10, slice(18, 23))
+
+
+POINT_CURVES = "Light curves at this point (windows, SJI)"
+
+
+def expected_sji_curve(raster, sji, slit):
+    """
+    The slit-jaw image's light curve at slit pixel ``slit`` of a sit-and-stare raster, frame by frame from both datasets'
+    own coordinates: at the exposure nearest each frame's time, NaN past half the raster's cadence or off the frame.
+    """
+    times, frames = (data[data.id["Time"]][:, 0, 0] for data in (raster, sji))
+    values = sji[sji.main_components[0]]
+    expected = np.full(len(frames), np.nan)
+    for frame, when in enumerate(frames):
+        exposure = expected_nearest(when, times)
+        if abs(times[exposure] - when) > np.median(np.diff(np.sort(times))) / 2:
+            continue
+        x, y = np.round(raster_point_on_sji(raster, sji, exposure, slit, frame))
+        if 0 <= y < sji.shape[1] and 0 <= x < sji.shape[2]:
+            expected[frame] = values[frame, int(y), int(x)]
+    return expected
+
+
+class NumericalChanges(HubListener):
+    """The datasets whose values change."""
+
+    def __init__(self, hub):
+        self.changed = []
+        hub.subscribe(self, NumericalDataChangedMessage, handler=lambda message: self.changed.append(message.data))
+
+
+def test_light_curves_at_the_point(bare_app, qtbot, tmp_path, irispy_test_files):
+    file = find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))
+    c_ii, mg_ii = raster_data([file], ["C II 1336", "Mg II k 2796"])
+    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    viewers = quicklook(bare_app, [c_ii, mg_ii, sji])  # Mg II k, with C II loaded beside it
+    raster_map, spectrogram = viewers["map"], viewers["spectrogram"]
+    [point] = bare_app.session.edit_subset_mode.edit_subset
+    k = expected_start(mg_ii)[-1] + 3
+    raster_map.state.slices = (*raster_map.state.slices[:2], k)  # Mg II k's at the map's wavelength
+    menu_action(raster_map, POINT_CURVES).trigger()
+    assert bare_app.session.edit_subset_mode.edit_subset == [point]
+    assert raster_map.toolbar.active_tool.tool_id == "image:point_selection"
+    plot = bare_app.viewers[-1][-1]
+    assert isinstance(plot, ScatterViewer)
+    layers = [layer for layer in plot.state.layers if isinstance(layer.layer, Data)]
+    curves = [layer.layer for layer in layers]
+    wavelength = mg_ii[mg_ii.world_component_ids[-1], (0, 0, k)] * u.Unit(mg_ii.coords.world_axis_units[0])
+    assert [curve.label for curve in curves][1:] == [
+        f"Mg II k 2796 {wavelength.to_value(u.AA):.2f} Å light curve",
+        "SJI 1400 light curve",
+    ]
+    assert curves[0].label.startswith("C II 1336 ")  # nearest its TWAVE
+    assert all(layer.line_visible and not layer.markers_visible for layer in layers)
+    assert len({layer.color for layer in layers}) == 3
+    assert (plot.state.x_att, plot.state.y_att) == (curves[0].id["Time"], curves[0].id["Value"])
+    assert all(curve.meta == {key: mg_ii.meta[key] for key in ("OBSID", "STARTOBS")} for curve in curves)
+    assert point not in [getattr(layer.layer, "group", None) for layer in plot.state.layers]
+    c_ii_core = expected_start(c_ii)[-1]
+
+    def check(slit, which=(0, 1, 2)):
+        for i, data, index in ((0, c_ii, c_ii_core), (1, mg_ii, k)):
+            view = (slice(None), slit, index)
+            if i in which:
+                np.testing.assert_array_equal(curves[i][curves[i].id["Value"]], data[data.main_components[0], view])
+                np.testing.assert_array_equal(curves[i][curves[i].id["Time"]], data[data.id["Time"], view])
+        if 2 in which:
+            np.testing.assert_array_equal(curves[2][curves[2].id["Value"]], expected_sji_curve(mg_ii, sji, slit))
+            np.testing.assert_array_equal(curves[2][curves[2].id["Time"]], sji[sji.id["Time"]][:, 0, 0])
+
+    _, slit, _ = expected_start(mg_ii)
+    check(slit)
+    assert np.isfinite(curves[2][curves[2].id["Value"]]).any()
+    # the time master's exposure marks every curve
+    spectrogram.state.slices = (7, *spectrogram.state.slices[1:])
+    qtbot.waitUntil(lambda: marks(bare_app, mg_ii, 7))
+    [marker] = markers(bare_app)
+    assert marker.subset_state.att is curves[0].id["Time"]
+    for curve in curves[:2]:
+        np.testing.assert_array_equal(np.flatnonzero(next(s for s in marker.subsets if s.data is curve).to_mask()), [7])
+    # another exposure leaves them, another slit position moves them, a moment later
+    changes = NumericalChanges(bare_app.data_collection.hub)
+    spectrogram.state.slices = (12, *spectrogram.state.slices[1:])
+    qtbot.waitUntil(lambda: marks(bare_app, mg_ii, 12))
+    qtbot.wait(400)
+    assert changes.changed == []
+    select_point(raster_map, 5, 10)
+    qtbot.waitUntil(lambda: check(10))
+    assert Counter(map(id, changes.changed)) == Counter(map(id, curves))  # once each
+    # ECSV keeps their times and values
+    assert export_ecsv in [exporter.function for exporter in data_exporter.members if exporter.label == "ECSV (with Time)"]
+    for curve in curves:
+        path = tmp_path / "curve.ecsv"
+        export_ecsv(str(path), curve)
+        table = Table.read(path, format="ascii.ecsv")
+        assert isinstance(table["Time"], Time)
+        np.testing.assert_array_equal(table["Time"].datetime64, curve[curve.id["Time"]])
+        np.testing.assert_array_equal(table["Value"], curve[curve.id["Value"]])
+        assert table["Value"].unit == curve.get_component("Value").units
+        assert table.meta == curve.meta
+    with pytest.raises(ValueError, match="is not 1-D"):
+        export_ecsv(str(tmp_path / "cube.ecsv"), mg_ii)
+    # one removed stays, the others move
+    bare_app.data_collection.remove(curves[0])
+    bare_app.session.edit_subset_mode.edit_subset = [point]  # which glue-qt empties
+    select_point(raster_map, 5, 11)
+    qtbot.waitUntil(lambda: check(11, (1, 2)))
+    check(10, (0,))
+
+
+def test_light_curves_at_a_stack_point(bare_app, qtbot, monkeypatch, scans):
+    _, stack = scans
+    viewers = quicklook(bare_app, [stack])
+    raster_map = viewers["map"]
+    menu_action(raster_map, POINT_CURVES).trigger()
+    [curve] = [layer.layer for layer in bare_app.viewers[-1][-1].state.layers if isinstance(layer.layer, Data)]
+
+    def check(step, slit):
+        view = (slice(None), step, slit, expected_start(stack)[-1])
+        np.testing.assert_array_equal(curve[curve.id["Value"]], stack[stack.main_components[0], view])
+        np.testing.assert_array_equal(curve[curve.id["Time"]], stack[stack.id["Time"], view])
+
+    _, step, slit, _ = expected_start(stack)
+    check(step, slit)
+    select_point(raster_map, 2, 3)  # at its own step's times
+    qtbot.waitUntil(lambda: check(2, 3))
+    shown = refusals(monkeypatch)
+    menu_action(raster_map, "Clear point").trigger()
+    menu_action(raster_map, POINT_CURVES).trigger()
+    assert shown == ["Could not add the light curves\nSelect a point on a raster first."]
 
 
 def test_clearing_the_point_stops_the_coupling(bare_app, qtbot, scans):

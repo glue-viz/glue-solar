@@ -25,6 +25,7 @@ from glue.config import (
     viewer_tool,
 )
 from glue.core import Data
+from glue.core.component import DerivedComponent
 from glue.core.data_factories import load_data
 from glue.core.link_helpers import LinkSame
 from glue.core.roi import RectangularROI
@@ -1915,6 +1916,22 @@ def test_a_2021_scatter_ticks_in_2021(qtbot):
     viewer.state.x_att = data.id["time"]
     viewer.figure.canvas.draw()
     assert {date.year for date in mdates.num2date(viewer.axes.get_xlim())} == {2021}  # glue 1.27.0 alone: 3990
+
+
+def test_a_scatter_plot_of_linked_times(qtbot):
+    installed = DerivedComponent.datetime.fget is glue_patches.derived_datetime
+    assert installed == glue_patches.needs_derived_datetime_workaround()  # probes glue's own property
+    assert not glue_patches.needs_derived_datetime_workaround(DerivedComponent.datetime)
+    when = np.array(["2021-09-05T00:00", "2021-09-06T00:00"], "datetime64[ns]")
+    first, second = (Data(time=when, value=[1.0, 2.0], label=label) for label in ("first", "second"))
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.extend([first, second])
+    app.data_collection.add_link([LinkSame(first.id[name], second.id[name]) for name in ("time", "value")])
+    viewer = app.new_data_viewer(ScatterViewer, data=first)
+    viewer.state.x_att = first.id["time"]
+    viewer.add_data(second)  # glue 1.27.0 alone: "Unknown data kind"
+    assert all(layer.enabled for layer in viewer.layers)
 
 
 def test_a_slit_jaw_redraw_reuses_its_coordinates(qtbot, monkeypatch, irispy_test_files):

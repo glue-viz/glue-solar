@@ -43,10 +43,11 @@ from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, link_hpc
 from glue_solar.sources.loaders.lazy import LazyData
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments
-from glue_solar.tests.helpers import load_selected, mouse, scanned, shift
+from glue_solar.tests.helpers import load_selected, mouse, scanned, select_point, shift
 from glue_solar.tests.test_bursts import SI_IV
 from glue_solar.tests.test_importer import _row
 from glue_solar.tests.test_quicklook import (
+    POINT_CURVES,
     SCAN,
     SNS,
     drifting_stack,
@@ -401,6 +402,54 @@ def test_a_restored_quicklook_marks_its_master_exposure_again(qtbot, monkeypatch
         spectrogram.state.slices = (step, *spectrogram.state.slices[1:])
         qtbot.waitUntil(lambda: marks(opened, raster, step))
         opened.save_session(str(session), absolute_paths=False)
+
+
+def test_a_restored_quicklook_keeps_its_light_curves_where_they_were(qtbot, monkeypatch, tmp_path, irispy_test_files):
+    files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
+    viewers = quicklook(app, [*raster_data(files[:1], ["Si IV 1403"]), image_data(files[1])])
+    menu_action(viewers["map"], POINT_CURVES).trigger()
+
+    def curves(app):
+        return {
+            data.label: (data[data.id["Time"]], data[data.id["Value"]], data.get_component("Value").units, data.meta)
+            for data in app.data_collection
+            if data.ndim == 1
+        }
+
+    saved = curves(app)
+    assert len(saved) == 2
+    session = tmp_path / "curves.glu"
+    app.save_session(str(session), absolute_paths=False)
+    opened = GlueApplication.restore_session(str(session), show=False)
+    qtbot.addWidget(opened)
+    monkeypatch.setattr(opened, "report_error", lambda message, detail: pytest.fail(detail))
+    restored = curves(opened)
+    assert restored.keys() == saved.keys()
+    for label, (times, values, units, meta) in restored.items():
+        np.testing.assert_array_equal(times, saved[label][0])
+        np.testing.assert_array_equal(values, saved[label][1])
+        assert (units, meta) == saved[label][2:]
+    plot = opened.viewers[-1][-1]
+    layers = [layer for layer in plot.layers if layer.layer.label in saved]
+    assert len(layers) == 2
+    assert all(layer.enabled and layer.state.line_visible for layer in layers)
+    # the time master's exposure marks them again, and a click leaves them where they were
+    spectrogram, raster_map = opened.viewers[-1][1], opened.viewers[-1][0]
+    raster = spectrogram.state.reference_data
+    spectrogram.state.slices = (7, *spectrogram.state.slices[1:])
+    qtbot.waitUntil(lambda: marks(opened, raster, 7))
+    [marker] = [group for group in opened.data_collection.subset_groups if group.label == "Master exposure"]
+    assert marker.subset_state.att.parent.label in saved
+    select_point(raster_map, 5, 3)
+    [point] = opened.session.edit_subset_mode.edit_subset
+    assert point.subset_state.slices[1] == slice(3, 4)
+    qtbot.wait(400)
+    for label, (_, values, *_) in curves(opened).items():
+        np.testing.assert_array_equal(values, saved[label][1])
 
 
 def links(collection):
