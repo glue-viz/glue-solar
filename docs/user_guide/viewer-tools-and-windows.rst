@@ -148,10 +148,11 @@ toolbar has:
   written, about 1.4 MB a frame of 800 × 600 pixels, so save long sequences as an MP4 or as PNG
   files. Of several sliders it asks which, offering first that of the data's first axis (a slit-jaw
   image's frames, a sit-and-stare raster's exposures, a scanning raster's steps or a stack's scans),
-  then for the first and last index, as "Loop…" does, starting from the slider's loop or else its
-  whole range. Playback of the slider, or of the time master, stops; the slider moves as when it
-  plays, so the other viewers follow, and the slit, the point and the raster overlays are drawn as
-  they then show. Every frame has the same colour limits:
+  then for the first and last index, or ±N around the current one, as "Loop…" does, starting from
+  the slider's loop or else its whole range, and saves every index between them. Playback of the
+  slider, or of the time master, stops; the slider moves as when it plays, so the other viewers
+  follow, and the slit, the point and the raster overlays are drawn as they then show. Every frame
+  has the same colour limits:
   with "Per-frame limits" on, the whole cube's. Ticking "UTC time on each frame", under the indices,
   draws each frame's time at the lower left of the plot, in white edged in black, the "Frame time"
   readout's time, to 0.01 s (``2013-09-02T16:39:39.66 UTC``): a raster step's or
@@ -207,8 +208,9 @@ in the image or toolbar that has the keyboard, the one last clicked.
        quicklook's tab, pressed on any of its viewers, the map's. Nothing else moves.
    * - :kbd:`Space`
      - Plays the time forwards, as the play button of the time master's frame, exposure, step or
-       scan slider does, round its loop if "Loop…" gave it one, and pressed again pauses it. Without
-       a time master it plays the viewer's own slider of the data's first axis.
+       scan slider does, round or back and forth along its loop if "Loop…" gave it one, and pressed
+       again pauses it. Without a time master it plays the viewer's own slider of the data's first
+       axis.
    * - :kbd:`U`, :kbd:`L`
      - "Measure" and "Path diagram", from the pencil menu, which shows each key beside its entry; they
        work while the toolbar has the keyboard, as a button's key does.

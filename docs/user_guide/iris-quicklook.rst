@@ -156,22 +156,28 @@ why. A viewer of an observation without a time master, such as a slit-jaw image 
 open, moves its own frame slider instead. "Loop…" is for the slider of the data's first axis: a
 slit-jaw image's frames, a sit-and-stare raster's exposures, a scanning raster's steps or a stack's
 scans (a viewer showing that axis has no such slider). It asks for the first and last index
-to play, such as ``100 120``, starting from the current loop or else the whole range: the slider's
+to play, such as ``100 120``, or ``±10`` (or ``+-10``) for the 10 either side of the current one,
+cut to the data's range, starting from the current loop or else the whole range: the slider's
 play buttons then go round those, both included, from the first forwards or the last backwards when
-the slider is outside them.
-Give the whole range to play everything again; the loop also ends when glue rebuilds the slider, for
-other data or axes. Playing the time master's slider moves the other panels at each step, so to play
-a slit-jaw viewer with the raster following, make it the time master first. Closing a viewer stops
-its playback, which glue-qt 0.4.2 would leave running.
+the slider is outside them. "Play every Nth index" plays every Nth on from the current one, and from
+the first again past the end, such as 100, 103, … 118 for 3, then 100 again; ticking "Bounce" plays
+back and forth instead, turning at the last index it reaches at either end
+(118, 115, … 100, 103, …), each played once. Clicked again while it plays, glue's play button plays
+faster: a step every 0.5 s, 0.25 s, 0.17 s and so on (with Bounce, in its backward half the forward
+button turns it forward instead). Give the whole range, every index and no bounce to play everything
+again; the loop also ends when glue rebuilds the slider, for other data or axes. Playing the time
+master's slider moves the other panels at each step, so to play a slit-jaw viewer with the raster
+following, make it the time master first.
+Closing a viewer stops its playback, which glue-qt 0.4.2 would leave running.
 
 "Set blink partner here" and "Blink" in the "Coordinate" menu alternate a viewer between two
-positions, such as the map at Mg II k and at Si IV 1403, or at two wavelengths of one window. Show
-the position to blink against and choose "Set blink partner here": for another window, drag it from
-the data collection onto the viewer, choose it as the reference data with the same axes in the
-viewer's options, and move its sliders. Go back to the position to show and choose "Blink": the
-viewer shows each in turn every 0.5 s, or as chosen under "Blink interval" (0.25, 0.5, 1 or 2 s),
-until "Blink" or "Set blink partner here" is chosen again, the viewer closes or the other window
-leaves the viewer. Nothing else moves: the point, the other panels, the time master and the Pixel
+positions, such as the map at Mg II k and at Si IV 1403, at two wavelengths of one window, or a
+slit-jaw image at two frames. Show the position to blink against and choose "Set blink partner
+here": for another window, drag it from the data collection onto the viewer, choose it as the
+reference data with the same axes in the viewer's options, and move its sliders. Go back to the
+position to show and choose "Blink": the viewer shows each in turn every 0.5 s, or as chosen under
+"Blink interval" (0.25, 0.5, 1 or 2 s), until "Blink" or "Set blink partner here" is chosen again,
+the viewer closes or the other window leaves the viewer. Nothing else moves: the point, the other panels, the time master and the Pixel
 tool stay, and the zoom stays in pixels, the same pixels on the maps of one file's windows. A slider
 moved while a position shows stays part of it. The window not shown is hidden in the layer list
 until the blink stops; with "Per-frame limits" on, it takes its whole cube's colour limits again, as

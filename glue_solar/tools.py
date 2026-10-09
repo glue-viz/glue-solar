@@ -1427,24 +1427,34 @@ class _GoToUTCEntry(_CoordinateEntry):
             coordinator.move_master(master, int(index))
 
 
-def _loop(slider, lo, hi):
+def _loop(slider, lo, hi, every=1, bounce=False):
     """
-    Make the playback of ``slider``, a glue-qt slice slider, go round ``lo`` to ``hi`` only, both included, either way;
-    from outside them it starts at ``lo`` forwards and ``hi`` backwards. glue-qt's play timer steps through the
-    slider's ``_browse_slice``, which this replaces; its buttons keep the method they were connected to.
+    Make the playback of ``slider``, a glue-qt slice slider, go round ``lo`` to ``hi`` only, both included, either way,
+    ``every`` indices a step: past an end it starts again at ``lo`` forwards and ``hi`` backwards, or with ``bounce``
+    turns back at the last index it reaches; from outside them it starts at ``lo`` forwards and ``hi`` backwards.
+    glue-qt's play timer steps through the slider's ``_browse_slice``, which this replaces; its buttons keep the method
+    they were connected to.
     """
 
     def step(action, play=True):
-        value = slider.value_slice_center.value() + (1 if action == "next" else -1)
-        slider.value_slice_center.setValue(value if lo <= value <= hi else lo if action == "next" else hi)
+        box = slider.value_slice_center
+        value, by = box.value(), every if action == "next" else -every
+        if lo <= value + by <= hi:
+            box.setValue(value + by)
+        elif bounce and lo <= value <= hi:
+            slider._play_speed *= -1  # glue-qt's direction, so its timer plays the other way from now on
+            box.setValue(min(max(value - by, lo), hi))
+        else:
+            box.setValue(lo if by > 0 else hi)
 
-    slider._browse_slice, slider._solar_loop = step, (lo, hi)
+    slider._browse_slice, slider._solar_loop = step, (lo, hi, every, bounce)
 
 
 class _LoopEntry(_CoordinateEntry):
     """
     Make glue-qt's playback of the viewer's frame, exposure, step or scan slider loop over a typed range of indices,
-    until glue-qt rebuilds the slider for other data or axes. The dialog opens on the current range.
+    every Nth index, going round or back and forth (bounce), until glue-qt rebuilds the slider for other data or axes.
+    The dialog opens on the current loop.
     """
 
     tool_id = "solar:loop"
@@ -1456,37 +1466,47 @@ class _LoopEntry(_CoordinateEntry):
         slider = _first_slider(self.viewer)
         if slider is None:
             raise ValueError("The viewer has no frame, exposure, step or scan slider.")
-        picked = _ask_range(self.viewer, "Loop", slider)
+        _, _, every, bounce = getattr(slider, "_solar_loop", (0, 0, 1, False))
+        step = QtWidgets.QSpinBox()
+        step.setRange(1, slider.value_slice_center.maximum())
+        step.setValue(every)
+        back = QtWidgets.QCheckBox("Bounce: play back and forth, not round")
+        back.setChecked(bounce)
+        picked = _ask_range(self.viewer, "Loop", slider, ("Play every Nth index:", step), (back,))
         if picked is not None:
-            _loop(slider, *picked)
+            _loop(slider, *picked, step.value(), back.isChecked())
 
 
-def _ask_range(viewer, title, slider, tick=None):
+def _ask_range(viewer, title, slider, *rows):
     """
     The first and last index of ``slider``, a glue-qt slice slider, typed in a dialog that opens on its loop (Loop…)
-    or else its whole range, or None if the dialog is cancelled. Given ``tick``, the text of a box below, unticked at
-    first, whether it was ticked follows the indices.
+    or else its whole range, or None if the dialog is cancelled; ``±N`` (or ``+-N``) types the N indices either side
+    of the current one, cut to 0 and the last. ``rows``, each the arguments of a ``QFormLayout.addRow``, go below; read
+    their widgets as soon as this returns.
     """
-    last = slider.value_slice_center.maximum()
-    lo, hi = getattr(slider, "_solar_loop", (0, last))
+    last, current = slider.value_slice_center.maximum(), slider.value_slice_center.value()
+    lo, hi = getattr(slider, "_solar_loop", (0, last))[:2]
     dialog = QtWidgets.QDialog(viewer, windowTitle=title)
     form = QtWidgets.QFormLayout(dialog)
     line = QtWidgets.QLineEdit(f"{lo} {hi}")
     line.selectAll()  # as QInputDialog does, so typing replaces it
-    form.addRow(f"First and last index (0–{last}):", line)
-    if tick is not None:
-        box = QtWidgets.QCheckBox(tick)
-        form.addRow(box)
+    form.addRow(f"First and last index (0–{last}), or ±N around {current}:", line)
+    for row in rows:
+        form.addRow(*row)
     if not _accepted(dialog, form):
         return None
     text = line.text()
     try:
-        lo, hi = (int(value) for value in text.replace(",", " ").split())
+        if text.strip().startswith(("±", "+-")):
+            around = int(text.strip().removeprefix("±").removeprefix("+-"))
+            lo, hi = max(current - around, 0), min(current + around, last)
+        else:
+            lo, hi = (int(value) for value in text.replace(",", " ").split())
     except ValueError:
         lo = hi = -1
     if not 0 <= lo <= hi <= last:
-        raise ValueError(f"'{text}' is not two indices from 0 to {last}, the first not after the last.")
-    return (lo, hi) if tick is None else (lo, hi, box.isChecked())
+        raise ValueError(f"'{text}' is not two indices from 0 to {last}, the first not after the last, or ±N.")
+    return lo, hi
 
 
 # What `SaveSequenceTool` writes, by file name suffix; MP4 only where matplotlib finds ffmpeg
@@ -1536,10 +1556,11 @@ class SaveSequenceTool(Tool):
             if not ok:
                 return
         axis, slider = sliders[labels.index(label)]
-        picked = _ask_range(viewer, "Save frames or movie", slider, "UTC time on each frame")
+        timed = QtWidgets.QCheckBox("UTC time on each frame")
+        picked = _ask_range(viewer, "Save frames or movie", slider, (timed,))
         if picked is None:
             return
-        first, last, timed = picked
+        (first, last), timed = picked, timed.isChecked()
         ffmpeg = animation.writers.is_available("ffmpeg")
         filters = [text for suffix, text in _SEQUENCE_FILTERS.items() if suffix != ".mp4" or ffmpeg]
         start = os.path.expanduser(rcParams["savefig.directory"])
