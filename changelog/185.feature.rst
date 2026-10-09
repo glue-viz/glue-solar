@@ -1,0 +1,1 @@
+The observation browser has a case-insensitive filter on its observations, kept across rescans.
