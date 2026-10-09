@@ -1373,6 +1373,13 @@ def test_a_path_is_drawn_on_every_viewer_of_its_image_and_placed_on_other_data(q
         assert bright
         _modes_entry(shown, reuse.text()).parent().aboutToShow.emit()
         assert _modes_entry(shown, reuse.text()).isVisible()
+    # redrawn as a viewer's axes change, and not drawn off the image's axes
+    third.state.x_att, third.state.y_att = sji.pixel_component_ids[1], sji.pixel_component_ids[2]
+    [(drawn_x, drawn_y, _)] = _paths_drawn(third)
+    np.testing.assert_array_equal(np.stack([drawn_x, drawn_y]), np.stack([path.y, path.x]))
+    third.state.x_att = sji.pixel_component_ids[0]
+    assert _paths_drawn(third) == []
+    third.state.x_att = sji.pixel_component_ids[1]
 
     # placed on the datasets ticked of those it lies on, from its diagram's viewer: one diagram each, in a new viewer
     offered = []

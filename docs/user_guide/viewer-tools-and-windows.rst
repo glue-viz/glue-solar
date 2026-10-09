@@ -108,8 +108,8 @@ toolbar has:
   pixel axes, along which nothing else varies, such as the other raster windows, the slit-jaw images
   and AIA cutouts of an observation, and OK makes one diagram on each dataset ticked, opened in a new
   viewer, with the path's sampling and linked to it sample by sample. The path is placed by its
-  ``lon`` and ``lat``, as "Save path as ECSV…" writes them, in the dataset's own pixels, at its
-  first wavelength, and, where its pointing changes with its frame or scan, at the frame or scan
+  ``lon`` and ``lat``, as "Save path as ECSV…" writes them, in the dataset's own pixels and, where
+  its pointing changes with its frame or scan, at the frame or scan
   whose ``Time`` (a stack's at its first step) is nearest that of the path's first sample on the
   data there; a sit-and-stare raster's exposures place it as Enter does. Each diagram is the one the
   same path drawn on the dataset's own viewer gives; on OBSID 4000005156, an SJI 2796 path placed on
