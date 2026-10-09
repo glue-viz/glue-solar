@@ -121,7 +121,8 @@ swap the axes of a viewer of that dataset, for example turning the raster map in
 against slit, the viewer's new step slider moves to the point. Wavelength sliders are never moved.
 The "Coordinate" menu (the link icon) in the Image Viewer toolbar has "Time master", which records
 the displayed dataset as the time reference of its observation (same OBSID and STARTOBS), "Clear
-point", "Go to UTC…", which moves the time master, "Loop…" for the frame, exposure, step or scan slider, and
+point", "Go to UTC…", which moves the time master, "Loop…" for the frame, exposure, step or scan slider,
+"Light curve at the point", which opens the point's light curve over the map's wavelength or band, and
 "Set blink partner here" and "Blink", which alternate the viewer between two positions (see
 :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). The Pixel tool stays active after
 each entry.
