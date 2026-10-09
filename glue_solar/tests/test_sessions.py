@@ -526,7 +526,7 @@ def test_a_quicklook_kept_as_glue_quits_restores_from_the_menu(qtbot, monkeypatc
     assert [data.label for data in restored.data_collection] == labels
 
 
-@pytest.mark.parametrize("kind", ["empty", "over 1 MB", "unserializable", "unwritable"])
+@pytest.mark.parametrize("kind", ["empty", "values over 1 MB", "over 1 MB", "unserializable", "unwritable"])
 def test_a_session_glue_cannot_keep_leaves_the_last_one(qtbot, monkeypatch, tmp_path, caplog, kind):
     monkeypatch.setattr(glue.config, "CFG_DIR", str(tmp_path))
     last = tmp_path / "glue-solar-last-session.glu"
@@ -535,7 +535,8 @@ def test_a_session_glue_cannot_keep_leaves_the_last_one(qtbot, monkeypatch, tmp_
     app = GlueApplication()
     qtbot.addWidget(app)
     values = {
-        "over 1 MB": np.random.default_rng(0).random(150_000),  # saved with its values
+        "values over 1 MB": np.random.default_rng(0).random(150_000),  # 1.2 MB of values, not encoded
+        "over 1 MB": np.random.default_rng(0).random(100_000),  # 0.8 MB of values, 1.07 MB encoded
         "unserializable": da.ones(3),  # as data regridded on time from data read as they are viewed
         "unwritable": np.ones(3),
     }
@@ -553,5 +554,10 @@ def test_a_session_glue_cannot_keep_leaves_the_last_one(qtbot, monkeypatch, tmp_
     assert last.read_text() == "the session before"
     logged = [record.getMessage() for record in caplog.records if "last session" in record.getMessage()]
     assert len(logged) == (kind != "empty")
-    reasons = {"over 1 MB": "MB, over 1 MB", "unserializable": "serialize dask.array", "unwritable": "read-only"}
+    reasons = {
+        "values over 1 MB": "MB of values, over 1 MB",
+        "over 1 MB": "MB, over 1 MB",
+        "unserializable": "serialize dask.array",
+        "unwritable": "read-only",
+    }
     assert all(reasons[kind] in message for message in logged)

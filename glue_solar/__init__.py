@@ -68,6 +68,14 @@ def _save_last_session(app):
     if not app.isVisible() or not len(app.data_collection):
         return
     try:
+        held = sum(  # the values glue would save, not their files: less than the session, measured before encoding
+            component.data.nbytes
+            for data in app.data_collection
+            for component in map(data.get_component, data.main_components)
+            if not hasattr(component, "_load_log")
+        )
+        if held > 1e6:
+            raise ValueError(f"its data hold {held / 1e6:.1f} MB of values, over 1 MB")
         state = GlueSerializer(app, absolute_paths=True).dumps(indent=2)
         if len(state) > 1e6:  # data saved with their values, not their files
             raise ValueError(f"the session is {len(state) / 1e6:.1f} MB, over 1 MB")

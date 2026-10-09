@@ -355,11 +355,12 @@ relying on a Glue session as their only copy.
 As glue's window closes with data loaded, on quit and when Open Session or Reset Session replaces
 the session, glue-solar keeps it as a "Glue Session with absolute paths to data" in glue's settings
 folder (``~/.glue/glue-solar-last-session.glu``), and Plugins → "Restore last session" opens it as
-File → Open Session does. The 4000255147 quicklook above is kept in under 0.01 s and restored from
-the menu in about 2 s; if its files have moved, glue says which it cannot find. A session glue
-cannot save, or of over 1 MB, such as one with those line moments, is not kept: the one kept
-before stays, and the terminal glue started from says why ("glue-solar kept no last session: the
-session is 35.7 MB, over 1 MB").
+File → Open Session does, so restoring from a session with data keeps that one in its place. The
+4000255147 quicklook above is kept in under 0.01 s and restored from the menu in about 2 s; if its
+files have moved, glue says which it cannot find. A session glue cannot save, or of over 1 MB, such
+as one with those line moments, is not kept: the one kept before stays, and the terminal glue
+started from says why ("glue-solar kept no last session: its data hold 26.7 MB of values, over 1 MB"),
+without delaying the quit, as the values are counted before glue saves them.
 
 Not saved yet:
 
