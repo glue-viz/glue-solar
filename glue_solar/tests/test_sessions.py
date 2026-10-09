@@ -284,12 +284,14 @@ def test_a_quicklook_session_stays_small_and_opens(qtbot, monkeypatch, tmp_path,
 
 def responses(app):
     """
-    What the coordinator gives the quicklook in ``app``'s last tab: its time master, edit subset and point, and each
-    Image panel's slices and time sync; and the point's place on each slit-jaw image and its spectrum.
+    What the coordinator gives the quicklook in ``app``'s last tab: its time master, edit subset and point, the panels
+    the point drives, and each Image panel's slices and time sync; and the point's place on each slit-jaw image and its
+    spectrum.
     """
     coord = coordinator(app.data_collection)
     [master] = coord.masters.values()
     given = [master.label, [group.label for group in app.session.edit_subset_mode.edit_subset], coord.point.slices]
+    given.append([i for i, viewer in enumerate(app.viewers[-1]) if viewer in coord._owners.get(coord.group, ())])
     where = []
     for viewer in app.viewers[-1]:
         if isinstance(viewer, ProfileViewer):
@@ -334,7 +336,7 @@ def test_a_restored_quicklook_keeps_its_time_master_and_follows_a_pixel_drag(
                 panel.toolbar.active_tool = "image:point_selection"
                 for name, x in [("button_press", 1), ("motion_notify", 2), ("motion_notify", 3), ("button_release", 3)]:
                     mouse(panel, f"{name}_event", x, 10 + x)
-            assert coordinator(app.data_collection).point.slices[1] == slice(13, 14)
+            qtbot.waitUntil(lambda: app.viewers[-1][2].state.slices[1] == 13)  # the drag's end reaches the panels
         # once the restored quicklook's coordinator has synced it
         qtbot.waitUntil(lambda: responses(restored)[0] == responses(app)[0])
         for got, expected in zip(responses(restored)[1], responses(app)[1], strict=True):
