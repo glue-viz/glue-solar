@@ -186,6 +186,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
   - astropy WCSAxes `auto_assign_coord_positions` raises `TypeError` when no consistent tick-label placement exists.
   - wcslib's -TAB inverse stops at 1e-10° (`tab.c`), so IRIS raster pixel→world→pixel holds only to about 1.3e-6 px.
   - fiasco main: `get_chianti_catalog` skips every ion file when the database path contains `em`, `ip`, `dem` and other skip names as a substring (`fiasco/util/util.py`, `sd not in root` on `os.walk` roots), so a home such as /Users/emily builds no ions; its progress bar fails off the main thread ('signal only works in main thread'), so glue-solar's O IV preset passes `show_progress=False`.
+  - glue-qt computes a Profile layer over 1e7 samples on a thread, and changing `x_att` while the first profile is still computing can cache a profile along the old axis (met by the fitter's probe, 2026-10-08).
   - irispy's `get_latest_response` raises ERFA's 'dubious year' warning (its response file has calibration times past ERFA's leap-second table), which #158's `pytest.ini` ignores.
   - with glue #2595, raster pixel ROIs in an SJI take #2595's frame-0 WCSLink instead of `link_hpc`'s per-frame path (shorter link chain); amend #2595 or document it.
 - [ ] **M4** `wp0-optional-proposals`: Non-blocking proposals: core Profile x-label units, percentiles and interpolation; glue-qt gamma slider and playback modes; irispy NaN float rasters; astropy fitter reuse after `parallel_fit_dask`. Done when each is filed or declined.
