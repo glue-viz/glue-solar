@@ -1104,11 +1104,11 @@ class QuicklookImageViewer(ImageViewer):
 
 def _role(data):
     """
-    'raster', 'sji', 'aia' or None, from the INSTRUME keyword: AIA cutouts load as slit-jaw cubes and follow the time
-    as they do, without their quicklook panel, raster point or overlays.
+    'raster', 'sji', 'aia' or None, from the INSTRUME keyword: AIA cutouts and Hinode/SOT cubes load as slit-jaw cubes
+    and follow the time as they do, without their quicklook panel, raster point or overlays.
     """
     instrument = str((getattr(data, "meta", None) or {}).get("INSTRUME", ""))
-    return "aia" if instrument.startswith("AIA") else {"SPEC": "raster", "SJI": "sji"}.get(instrument)
+    return "aia" if instrument.startswith(("AIA", "SOT")) else {"SPEC": "raster", "SJI": "sji"}.get(instrument)
 
 
 def _same_file(data, other):

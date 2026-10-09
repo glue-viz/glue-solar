@@ -43,6 +43,7 @@ from glue_qt.viewers.profile import ProfileViewer
 from glue_qt.viewers.scatter import ScatterViewer
 from glue_qt.viewers.table import TableViewer
 from irispy.io import read_files
+from irispy.io.sji import read_sji_lvl2
 from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from qtpy.QtCore import Qt
@@ -191,6 +192,31 @@ def test_open_real_aia_cutout_through_load_data(irispy_data):
     np.testing.assert_array_equal(data[data.id["Time"]], browser[browser.id["Time"]])
     assert _role(data) == "aia"
     assert regrid_on_time(data).meta["time_step"] == pytest.approx(24, abs=0.01)  # as it times a slit-jaw image
+
+
+@pytest.mark.parametrize(
+    ("name", "label", "units", "cmap"),
+    [
+        ("_Gband4305_FG_", "G band 4305-3603259402-2015-08-30T07:09:53", "DN", "hinodesotintensity"),
+        ("_TFNaI5896_MG_", "TF Na I 5896-3680100932-2016-01-08T19:12:11", "", "gray"),
+        ("_blapp_index_", "6302A B_LOS-3680100932-2016-01-08T19:12:11", "G", "gray"),
+    ],
+)
+def test_open_sot_cube_through_load_data(irispy_test_files, name, label, units, cmap):
+    # Hinode/SOT cubes of IRIS Technical Note 32 load as AIA cutouts do, in their own unit
+    [path] = [path for path in irispy_test_files if name in path.name]
+    data, cube = load_data(str(path)), read_sji_lvl2(path)
+    assert isinstance(data.coords, _GlueWCS)
+    assert (data.label, data.style.preferred_cmap.name) == (label, cmap)
+    assert _role(data) == "aia"  # which follows the time as an AIA cutout
+    science = data.get_component(data.main_components[0])
+    assert science.units == units
+    np.testing.assert_array_equal(science.data, cube.data)  # NaN where missing, and negative fields kept
+    assert (data.find_component_id(f"{label} DN/s") is not None) == (units == "DN")
+    sky, times = cube.axis_world_coords()  # each frame at its own pointing
+    np.testing.assert_array_equal(data["Time"][:, 0, 0], times.utc.to_value("datetime64"))
+    for axis, expected in (("Longitude", sky.Tx), ("Latitude", sky.Ty)):
+        np.testing.assert_allclose(data[f"Helioprojective {axis}"], expected.to_value(u.arcsec), rtol=0, atol=1e-9)
 
 
 def test_open_real_raster_through_load_data(irispy_test_files):

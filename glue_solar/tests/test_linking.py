@@ -198,6 +198,23 @@ def test_link_hpc_links_every_iris_dataset_to_the_first(qtbot, sns, irispy_test_
     assert not dc.external_links
 
 
+def test_link_hpc_reaches_each_frame_of_a_sot_cube(sns, irispy_test_files):
+    # a Hinode/SOT cube's longitude and latitude, each frame at its own pointing, as IRIS data read them
+    sji, _ = sns
+    [path] = [path for path in irispy_test_files if "_Gband4305_FG_" in path.name]
+    sot = image_data(path)
+    dc = DataCollection([sji, sot])
+    links = link_hpc(dc)
+    assert [(type(link), link.cids1[0], link.cids2[0]) for link in links] == [
+        (LinkSame, _cid(sji, label), _cid(sot, label)) for label in HPC[::-1]
+    ]
+    dc.add_link(links)
+    for label in HPC:
+        np.testing.assert_array_equal(sot[_cid(sji, label)], sot[_cid(sot, label)])
+    lon = _cid(sji, HPC[0])
+    assert 0 < sot.get_mask(lon > float(np.nanmedian(sot[lon]))).sum() < sot.size
+
+
 def _sunpy_map(lon, lat, scale, shape, label, rotation=0, obstime="2021-09-05T00:30"):
     """A map of ``shape`` pixels of ``scale``″ around (``lon``, ``lat``)″ seen from Earth, as glue-solar loads one."""
     import sunpy.map

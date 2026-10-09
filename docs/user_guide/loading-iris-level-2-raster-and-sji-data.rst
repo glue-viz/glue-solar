@@ -40,6 +40,11 @@ Expand an observation to see what can be loaded:
   wavelength range (``NUV, 2790.5–2806.6 Å``),
 - one entry per co-aligned SDO/AIA cutout (``aia_l2_*.fits``), for example ``AIA 1700``. Cutouts
   are recognised by file name and header, so they need no ``_SDO`` directory.
+- one entry per co-aligned Hinode/SOT cube (``sot_l2_*.fits`` and ``sotsp_l2_*.fits``, from the
+  ``_SOTFG`` and ``_SOTSP`` archives; `IRIS Technical Note 32 <https://iris.lmsal.com/itn32/>`__),
+  recognised by file name and header too, for example ``SOT G band 4305``, ``SOT TF Na I 5896`` or
+  ``SOT 6302A B_LOS``. SP maps, all ``6302A``, are named by what they measure (``BTYPE``), and a
+  second file of the same name has its file name added, as ``irispy.io.read_files`` keys them.
 
 An observation with only one entry shows it in its "Files" column (for example ``1 — AIA 1700``)
 and has its tick box on its own row.
@@ -62,8 +67,9 @@ one to search it again. "Add current folder…" saves the folder under a name yo
 browser keeps them for next time, and opens with the latest search's "Start" and "End".
 
 Tick the entries you want (ticking the observation row ticks everything under it); each slit-jaw
-channel and AIA cutout you tick loads as a dataset of its own. Then press "Load selected": the data
-are added to the data collection. Double-click an entry to load it alone, whatever is ticked (a
+channel, AIA cutout and SOT cube you tick loads as a dataset of its own. Then press "Load
+selected": the data are added to the data collection. Double-click an entry to load it alone,
+whatever is ticked (a
 double-click on its tick box only ticks and un-ticks it); a double-click on an observation of several
 entries expands or collapses it instead. glue reads the files in the background, one at a time, and
 the progress bar counts them; meanwhile the list and its boxes are locked and "Cancel" reads "Stop".
@@ -94,7 +100,7 @@ dataset), ``Time`` and ``Exposure time`` (a stack lists ``Exposure time`` before
 ``<label> mask``, which Glue computes from the data as it reads them and so lists under "Derived
 components" (files stored as floating point keep it in memory, listed second), and ``<label> DN/s``,
 also derived. ``Time`` is the UTC acquisition time as a datetime64, one value per raster step,
-slit-jaw frame or AIA frame (per scan and step for stacks). ``Exposure time`` is in seconds, one
+slit-jaw, AIA or SOT frame (per scan and step for stacks). ``Exposure time`` is in seconds, one
 value per raster step or frame (per scan and step for stacks). ``<label> DN/s`` is the data divided
 by the exposure time, with the unit DN/s (the 1D Profile viewer's "y_unit" menu labels its axis
 with it), and NaN where an exposure took 0 s, as step 157 of OBSID 3610108077's Si IV windows did.
@@ -113,9 +119,18 @@ in AIA cutouts too. glue-solar leaves
 `Was it saturated?`_). ``<label> mask`` is a uint8 array that is 1 where the data are NaN and 0
 elsewhere.
 
+Hinode/SOT cubes load as AIA cutouts do, each frame with its own time and pointing, in the unit
+irispy reads from their ``BUNIT``: DN for filtergrams and the SP continuum, dimensionless for
+narrowband magnetograms (Stokes V/I × 4096), and G, km/s, degrees or dimensionless for the other SP
+maps, which have no ``<label> DN/s``. Their values are float32, NaN where missing, and no other
+value is fill, as negative fields are data. The quicklook gives them no panel; an Image viewer of
+one follows its observation's time and can be its master, as one of an AIA cutout does (see
+:ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`).
+
 Slit-jaw images open in sunpy's IRIS colormap of their channel, raster windows and stacks in its
-FUV or NUV colormap by their detector (``TDETn``), and AIA cutouts in sunpy's AIA colormap of their
-wavelength. The colormap menu of an Image Viewer layer lists Glue's own colormaps and every sunpy
+FUV or NUV colormap by their detector (``TDETn``), AIA cutouts in sunpy's AIA colormap of their
+wavelength, and SOT cubes in DN in sunpy's Hinode SOT intensity colormap, other SOT cubes in gray.
+The colormap menu of an Image Viewer layer lists Glue's own colormaps and every sunpy
 colormap, under sunpy's names for them, such as ``SDO AIA 171.0 Angstrom``, and shows the layer's
 own colormap even where another has the same colours (the FUV and NUV ones have those of 1330 and
 2796, AIA 171 those of SUVI 171). To list another, add it with ``colormaps.add`` in a
@@ -153,11 +168,12 @@ the point against time, and "Set blink partner here" and "Blink", which alternat
 two positions (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). The Pixel tool
 stays active after each entry.
 
-Downloads that are still packed (``*_raster.tar.gz``, ``*_SDO.tar.gz``) show up under their observation
-as an "Extract <archive> (<size> MB, next to the archive)" entry. Tick it and press "Load selected":
+Downloads that are still packed (``*_raster.tar.gz``, ``*_SDO.tar.gz``, ``*_SOTFG.tar.gz``,
+``*_SOTSP.tar.gz``) show up under their observation as an "Extract <archive> (<size> MB, next to
+the archive)" entry. Tick it and press "Load selected":
 the archive is unpacked into a folder of the same name next to it (the layout irispy and pooch use),
-the list refreshes, and you can then tick the spectral windows or cutouts it contained. Archives are
-unpacked in the background too: "Stop" leaves those not yet started packed. Extraction
+the list refreshes, and you can then tick the spectral windows, cutouts or SOT cubes it contained.
+Archives are unpacked in the background too: "Stop" leaves those not yet started packed. Extraction
 is completed in a hidden temporary sibling directory, which the list leaves out, so a failure leaves the
 archive visible for retry.
 Nothing is loaded in that step, and the archive is left in place.
@@ -216,8 +232,9 @@ browser's archive extraction never overwrites a file.
 Opening a single file
 ---------------------
 
-"File -> Open Data Set" also understands IRIS Level 2 files directly: a slit-jaw file or an aligned
-AIA cutout (``aia_l2_*.fits``) loads as one cube, as the observation browser loads it, and a raster
+"File -> Open Data Set" also understands IRIS Level 2 files directly: a slit-jaw file, an aligned
+AIA cutout (``aia_l2_*.fits``) or a Hinode/SOT cube (``sot_l2_*.fits``, ``sotsp_l2_*.fits``) loads
+as one cube, as the observation browser loads it, and a raster
 file loads one dataset per spectral window, labelled with the file's raster number (``…-r00003``).
 Files opened this way, or given on the ``glue`` command line, load one by one with every spectral
 window and cannot be stacked, so use the observation browser for large or multi-scan observations.
@@ -294,8 +311,8 @@ Linking
 -------
 
 The observation browser links the ``Helioprojective Longitude`` and ``Helioprojective Latitude``
-of every slit-jaw image, raster and aligned AIA cutout it loads, so selections carry over between
-them. It links any file loaded as a sunpy Map (see
+of every slit-jaw image, raster, aligned AIA cutout and SOT cube it loads, so selections carry
+over between them. It links any file loaded as a sunpy Map (see
 :ref:`glue_solar_users_guide_loading_aia_and_hmi_files`) to them too, its degrees converted to
 arcsec, while Glue's own WCS autolinking links maps to each other. For data opened with "File ->
 Open Data Set", choose "IRIS: link helioprojective coordinates" from the "Plugins" menu; it only

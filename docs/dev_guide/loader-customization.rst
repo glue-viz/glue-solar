@@ -17,8 +17,8 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
 1. ``scan.py`` reads primary headers to group standard IRIS filenames by observation.
    It does not load science arrays while browsing.
 2. ``iris.py`` asks ``irispy.io.read_files`` to decode raster files, a file at a time, and
-   ``irispy.io.sji.read_sji_lvl2`` SJI and aligned AIA files, then converts the returned cubes
-   into :class:`glue.core.data.Data` objects. A ``.fits.gz`` slit-jaw or AIA file is
+   ``irispy.io.sji.read_sji_lvl2`` SJI and aligned AIA and Hinode/SOT files, then converts the
+   returned cubes into :class:`glue.core.data.Data` objects. A ``.fits.gz`` slit-jaw or AIA file is
    decompressed once, and irispy reads its bytes.
 3. ``lazy.py`` holds data stored as int16, as Level 2 files store it, without scaling it
    in memory. ``RawComponent``, a glue ``DaskComponent``, keeps the raw integers (a
@@ -40,7 +40,8 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
 ``irispy`` remains responsible for instrument detection, FITS interpretation, metadata
 normalization, units, and each input cube's WCS and exposure times. The Glue adapter keeps
 those and changes only missing data: the IRIS fill values -200 and -199 become NaN, in aligned
-AIA cutouts too. Each dataset's ``<label> mask`` component is ``isnan(data)`` as
+AIA cutouts too, while Hinode/SOT cubes keep every value, NaN where missing. Each dataset's
+``<label> mask`` component is ``isnan(data)`` as
 ``uint8``, since Glue would store a boolean component as ``int64``, so saturated samples,
 which are +Inf, stay unmasked; for int16 data it is a glue derived component of the data
 (``lazy.fill_mask``). Raster times are a separate ``Time`` component.

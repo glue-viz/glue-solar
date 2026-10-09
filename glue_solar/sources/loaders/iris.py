@@ -363,10 +363,12 @@ def per_second(flux, exposure):
 def _add_exposure(data, exposure):
     """
     Add ``Exposure time``, ``exposure`` in seconds over the leading axes, and ``<label> DN/s``, the data over it as a
-    glue derived component.
+    glue derived component, unless they are not in DN, as a Hinode/SOT magnetogram.
     """
     seconds = data.add_component(Component(_per_frame(exposure, data.shape), units="s"), "Exposure time")
     flux = data.main_components[0]
+    if not data.get_component(flux).units.startswith("DN"):
+        return
     rate = ComponentLink([flux, seconds], ComponentID(f"{flux.label} DN/s", parent=data), using=per_second)
     data.add_component_link(rate).units = "DN/s"
 
@@ -514,12 +516,14 @@ def _raster_collection_data(collection, windows=None, stack=False, scaling=None)
 
 def _image_cube_data(cube, path, scaling=None):
     """
-    A Glue dataset of irispy's SJI or AIA cube; ``scaling`` is the ``(BSCALE, BZERO)`` of a cube irispy read with
-    ``memmap=True``, whose data are the file's raw int16, fill included.
+    A Glue dataset of irispy's SJI, AIA or Hinode/SOT cube; ``scaling`` is the ``(BSCALE, BZERO)`` of a cube irispy
+    read with ``memmap=True``, whose data are the file's raw int16, fill included.
     """
-    desc = str(cube.meta["TDESC1"])
+    desc, instrument = str(cube.meta["TDESC1"]), str(cube.meta["INSTRUME"])
     if "_deconvolved." in Path(path).name:  # the header does not say, the filename does
         desc += "_deconvolved"
+    if instrument == "SOT-SP":  # every SP map's TDESC1 is 6302A
+        desc += f" {cube.meta['BTYPE']}"
     wave = int(cube.meta["TWAVE1"])
     label = f"{desc}-{_observation_label(cube.meta)}"
     cmap = f"irissji{wave}" if desc.startswith("SJI") else f"sdoaia{wave}"
@@ -527,6 +531,9 @@ def _image_cube_data(cube, path, scaling=None):
     # ponytail: a session restores each header as a dict, not irispy's MetaDict, so irispy's fits_wcs of one frame of a
     # cube rebuilt from restored meta fails (glue-solar never does); a glue loader(MetaDict) if that is ever needed.
     cube.meta["frame_wcs_headers"] = tuple(cube.meta["frame_wcs_headers"])
+    if instrument.startswith("SOT"):  # float32 in its own unit, NaN where missing: negative fields are data
+        cmap = "hinodesotintensity" if cube.unit == u.DN else "gray"  # gray for fields, as Hinode's archive shows them
+        return _cube_data(cube, label, cmap=cmap, missing=())
     if scaling is None:
         return _cube_data(cube, label, cmap=cmap)
     from irispy.utils.constants import DN_UNIT
@@ -570,7 +577,7 @@ def last_directory():
 
 def image_data(path):
     """
-    Load an SJI or AIA-cutout file through irispy.
+    Load an SJI, AIA-cutout or Hinode/SOT file through irispy.
 
     Data stored as int16, as Level 2 files store them, stay in the file and are scaled where glue reads them
     (`LAZY`); a ``.fits.gz`` file is decompressed once, and its data held in memory as int16. A glue session refers to
@@ -811,7 +818,8 @@ def keep_hpc_linked(data_collection):
 
 def load_entry(observation, kind, name, stack=False):
     """
-    Load one entry of the observation browser: a slit-jaw channel, an AIA cutout, or a raster window.
+    Load one entry of the observation browser: a slit-jaw channel, an AIA cutout, a Hinode/SOT cube, or a raster
+    window.
 
     Returns
     -------
@@ -820,7 +828,7 @@ def load_entry(observation, kind, name, stack=False):
     """
     if kind == "raster":
         return raster_data(observation.rasters, [name], stack=stack)
-    return [image_data(observation.sji[name] if kind == "sji" else observation.sdo[name])]
+    return [image_data(getattr(observation, kind)[name])]  # its sji, sdo or sot
 
 
 def _failing_file(observation, kind, name, windows, stop):
@@ -829,7 +837,7 @@ def _failing_file(observation, kind, name, windows, stop):
     on its own, as the error does not name it, looked for until ``stop`` is set.
     """
     if kind != "raster":
-        return (observation.sji[name] if kind == "sji" else observation.sdo[name]).name
+        return getattr(observation, kind)[name].name
     for path in observation.rasters:
         if stop.is_set():
             break
@@ -1133,6 +1141,7 @@ class QtIRISImporter(QtWidgets.QDialog):
             entries = [(band, (i, "sji", band)) for band in sorted(obs.sji)]
             entries += [(f"{w} — {len(obs.rasters)} raster file(s)", (i, "raster", w)) for w in obs.windows]
             entries += [(f"AIA {band}", (i, "sdo", band)) for band in sorted(obs.sdo)]
+            entries += [(f"SOT {band}", (i, "sot", band)) for band in sorted(obs.sot)]
             entries += [
                 (f"Extract {a.name} ({a.stat().st_size / 1e6:.0f} MB, next to the archive)", (i, "archive", a))
                 for a in obs.archives

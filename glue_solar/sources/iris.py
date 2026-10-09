@@ -58,7 +58,10 @@ __all__ = [
 
 
 def is_iris_fits(filename, **_kwargs):
-    """An IRIS file, or an aligned AIA cutout as the observation browser takes it, whose TELESCOP is blank."""
+    """
+    An IRIS file, or an aligned AIA cutout, whose TELESCOP is blank, or Hinode/SOT cube, as the observation browser
+    takes it.
+    """
     try:
         header = _primary_header(filename)
     except (OSError, ValueError, EOFError):  # not a FITS file
@@ -69,7 +72,8 @@ def is_iris_fits(filename, **_kwargs):
 @data_factory("IRIS Level 2 FITS", is_iris_fits, priority=200)  # glue's own "FITS file" is 100
 def read_iris_file(file_path):
     """
-    Read one IRIS Level 2 file: an SJI cube, an aligned AIA cutout, or every spectral window of a raster file.
+    Read one IRIS Level 2 file: an SJI cube, an aligned AIA cutout or Hinode/SOT cube, or every spectral window of a
+    raster file.
     """
     return iris_data(file_path)
 
@@ -159,7 +163,7 @@ def link_iris(session, data_collection):
     Link the helioprojective longitude and latitude of every loaded IRIS dataset and sunpy map, and the scans of each
     stack to the other IRIS data by time.
 
-    Selections then carry over between slit-jaw images, rasters, aligned AIA cutouts and sunpy maps
+    Selections then carry over between slit-jaw images, rasters, aligned AIA cutouts, Hinode/SOT cubes and sunpy maps
     through their world coordinates. The observation browser does this when it loads data, and the
     links are kept when a dataset is removed.
     """
