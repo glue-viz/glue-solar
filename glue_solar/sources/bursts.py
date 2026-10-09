@@ -16,7 +16,7 @@ from astropy.time import Time
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
 from glue_solar.quicklook import _role, _wavelengths
-from glue_solar.sources.loaders.iris import WCS_LOCK, _GlueWCS, _per_frame
+from glue_solar.sources.loaders.iris import WCS_LOCK, _GlueWCS, _irispy_meta, _per_frame
 from glue_solar.sources.moments import _accepted, _check, _dataset, _start
 
 __all__ = ["bursts_iris", "si_iv_bursts", "sji_bursts"]
@@ -89,12 +89,13 @@ def _si_iv_bursts(data, crop, threshold, velocity_range, median_factor):
     values = data[data.main_components[0], rows]  # scaled float32 DN, NaN where missing
     times = Time(data[data.id["Time"], (slice(None), 0, 0)], scale="utc")
     with WCS_LOCK:  # irispy reads the wavelengths and positions through the raster's astropy WCS
+        meta = _irispy_meta(data)
         cube = SpectrogramCube(
             values,
             SlicedLowLevelWCS(data.coords._wcs, rows),
-            unit=DN_UNIT[data.meta.detector_band],
+            unit=DN_UNIT[meta.detector_band],
             mask=np.isnan(values),
-            meta=data.meta.slice[rows],  # irispy's, with each step's exposure time
+            meta=meta.slice[rows],  # irispy's, with each step's exposure time
         )
         cube.extra_coords.add("time", 0, times, physical_types="time")
         labels, events = find_si_iv_bursts(

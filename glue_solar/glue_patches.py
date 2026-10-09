@@ -24,7 +24,8 @@ from glue.core.coordinate_helpers import unbroadcast
 from glue.core.data_exporters import gridded_fits
 from glue.core.edit_subset_mode import EditSubsetMode
 from glue.core.exceptions import IncompatibleAttribute
-from glue.core.state import GlueSerializer, loader, saver
+from glue.core.link_helpers import LinkSameWithUnits
+from glue.core.state import GlueSerializeError, GlueSerializer, GlueUnSerializer, loader, saver
 from glue.core.subset import SubsetState
 from glue.utils import defer_draw
 from glue.viewers.histogram import state as histogram_state
@@ -62,6 +63,7 @@ __all__ = [
     "close_event",
     "datetime64_to_mpl",
     "export_fits",
+    "load_link_with_units",
     "load_quantity",
     "find_combo_data",
     "mpl_to_datetime64",
@@ -73,6 +75,7 @@ __all__ = [
     "needs_fits_export_dask_workaround",
     "needs_icon_cache_workaround",
     "needs_inverse_workaround",
+    "needs_link_restore_workaround",
     "needs_pixel_point_workaround",
     "needs_profile_restore_workaround",
     "needs_pv_dask_workaround",
@@ -80,6 +83,7 @@ __all__ = [
     "needs_redo_workaround",
     "needs_reference_crosshair_workaround",
     "pv_slice_from_path",
+    "save_link_with_units",
     "save_quantity",
     "sync_pv_slice",
     "update_icons",
@@ -629,6 +633,36 @@ def load_quantity(rec, context):
 if u.Quantity not in GlueSerializer.dispatch:
     saver(u.Quantity)(save_quantity)
     loader(u.Quantity)(load_quantity)
+
+
+# glue 1.27.0 saves a `LinkSameWithUnits`, such as `link_hpc` gives a sunpy map, with its conversions, methods of the
+# link itself, so no session holding one opens ("Circular Reference detected"). Saved by its two components instead,
+# as glue saves a `LinkSame` (report candidate for glue, ``wp0-core-session-reports``).
+def save_link_with_units(self, context):
+    """A session's record of a `LinkSameWithUnits`: its two components, from which it makes its conversions again."""
+    return {"cid1": context.id(self._cid1), "cid2": context.id(self._cid2)}
+
+
+def load_link_with_units(cls, rec, context):
+    """The `LinkSameWithUnits` of a `save_link_with_units` record."""
+    return cls(context.object(rec["cid1"]), context.object(rec["cid2"]))
+
+
+def needs_link_restore_workaround():
+    """Whether a session holding a `LinkSameWithUnits` fails to open."""
+    first, second = Data(x=np.zeros(1), label="first"), Data(y=np.zeros(1), label="second")
+    collection = DataCollection([first, second])
+    collection.add_link(LinkSameWithUnits(first.id["x"], second.id["y"]))
+    try:
+        GlueUnSerializer.loads(GlueSerializer(collection).dumps()).object("__main__")
+    except GlueSerializeError:
+        return True
+    return False
+
+
+if needs_link_restore_workaround():
+    LinkSameWithUnits.__gluestate__ = save_link_with_units
+    LinkSameWithUnits.__setgluestate__ = classmethod(load_link_with_units)
 
 
 _original_update_priority = ProfileViewerState._update_priority

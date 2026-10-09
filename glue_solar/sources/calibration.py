@@ -14,7 +14,7 @@ import astropy.units as u
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
 from glue_solar.quicklook import _role
-from glue_solar.sources.loaders.iris import WCS_LOCK, _add_exposure, _dataset, _per_frame
+from glue_solar.sources.loaders.iris import WCS_LOCK, _add_exposure, _dataset, _irispy_meta, _per_frame
 from glue_solar.sources.moments import _check, _start, _unit
 
 __all__ = ["radiometric_calibration", "radiometric_calibration_iris", "remove_dust", "remove_dust_iris"]
@@ -135,7 +135,7 @@ def radiometric_calibration(data):
         raise ValueError(f"{data.label} has its radiance already.")
     rate, unit = data.id[f"{cid.label} DN/s"], _unit(data)
     with WCS_LOCK:  # irispy reads the window's astropy WCS
-        cube = SpectrogramCube(np.broadcast_to(np.float32(0), data.shape), data.coords._wcs, meta=data.meta)
+        cube = SpectrogramCube(np.broadcast_to(np.float32(0), data.shape), data.coords._wcs, meta=_irispy_meta(data))
         factor = calculate_dn_to_radiance_factor(
             iris_response=get_latest_response(cube.meta.date_reference),
             wavelength=cube.axis_world_coords(cube.wavelength_axis)[0],

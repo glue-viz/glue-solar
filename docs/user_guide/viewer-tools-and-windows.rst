@@ -336,18 +336,29 @@ Save Session dialog starts with, to move it and the files together: it opens whe
 keep their place relative to it. "Glue Session including data" holds the values instead, and fails
 on data read from their files as they are viewed. A session keeps the coordinates of every IRIS
 dataset and of those made from them, with any pointing offset set with "Shift pointing…", the
-colormap each opens in, and their metadata. Data read from their files as they are viewed take
-their coordinates and metadata from the files again, so the session holds little more than their
-offset; the others lose the time and field-of-view centre irispy gives each raster step
-(``auxiliary times`` and ``exposure FOV center``). A Profile viewer, such as a quicklook's spectrum
-panel, opens again with its x axis, "x unit" and range; glue-core 1.27.0 alone opens no session
-whose Profile's x unit is not one of its data's first world axis's, such as a raster's wavelength
-or a light curve's exposure number. A quicklook adds its viewers, point and links: one of
-4000255147's Si IV 1403 window and slit-jaw image, read as they are viewed, saves a 33 kB session
-(151 kB with all nine windows) in under 0.1 s. Datasets made from IRIS data, such as line moments or
+colormap each opens in, their metadata, and the helioprojective links of the observation browser
+and "IRIS: link helioprojective coordinates", a stack's scans and sunpy maps included. Data read
+from their files as they are viewed take their coordinates and metadata from the files again, so
+the session holds little more than their offset; the others lose the time and field-of-view centre
+irispy gives each raster step (``auxiliary times`` and ``exposure FOV center``), which neither UV
+bursts nor the radiometric calibration need. Each viewer opens again with its slices, a wavelength
+band included, and its colormaps, and a Profile viewer, such as a quicklook's spectrum panel, with
+its x axis, "x unit" (km/s too) and range. Each quicklook adds its viewers, point and time master:
+one of 4000255147's Si IV 1403 window and slit-jaw image, read as they are viewed, saves a 33 kB
+session (151 kB with all nine windows) in under 0.1 s, and with a stack of the eight scans of
+3400109360's Si IV 1403 window in a second quicklook, 85 kB, which opens in about 3 s and, saved
+and opened again, gives the same quicklooks. Datasets made from IRIS data, such as line moments or
 rebinned and north-up data, are saved with their values, which can make a session large (36 MB
-with line moments of that Si IV 1403 window), and one regridded on time from data read as they are
-viewed cannot be saved yet: save derived products separately rather than relying on a Glue session
-as their only copy. With glue-core 1.27.0 a session saved while an Image viewer has "Per-frame
-limits" on, whatever its data, does not open: glue reports
-"'NoneType' object has no attribute 'add_callback'". Turn them off before saving.
+with line moments of that Si IV 1403 window): save derived products separately rather than
+relying on a Glue session as their only copy.
+
+Not saved yet:
+
+- A quicklook's Point window, its lines and the raster overlays (see :ref:`the IRIS quicklook
+  <glue_solar_users_guide_iris_quicklook>`), a blink and its partner, and each viewer's mouse mode:
+  choose the Pixel tool again.
+- Data regridded on time from data read as they are viewed: a session holding them does not save
+  ("Don't know how to serialize dask.array").
+- "Per-frame limits", with glue-core 1.27.0: a session saved while an Image viewer has them on,
+  whatever its data, does not open, and glue reports "'NoneType' object has no attribute
+  'add_callback'". Turn them off before saving.

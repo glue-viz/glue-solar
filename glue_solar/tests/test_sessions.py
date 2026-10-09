@@ -1,7 +1,7 @@
 """
 Sessions keep the coordinates and colormaps of every kind of dataset glue-solar makes from IRIS data, on irispy's test
-files, a stack's scans on other data, the colormap of a sunpy map, and a quicklook's time master and point; they
-refer to the files IRIS data are read from, so a quicklook's stays small.
+files, the links `link_hpc` gives, the colormap of a sunpy map, and a quicklook's time master and point; they refer to
+the files IRIS data are read from, so a quicklook's stays small, and two quicklooks restore twice alike.
 """
 
 import json
@@ -10,13 +10,16 @@ import shutil
 import numpy as np
 import pytest
 from glue.core import Data, DataCollection
+from glue.core.link_helpers import LinkCollection
 from glue.core.state import GlueSerializer, GlueUnSerializer
+from glue.viewers.image.state import AggregateSlice
 from glue.viewers.profile.state import ProfileViewerState
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from matplotlib import colormaps
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QDialog, QFileDialog
+from qtpy.QtWidgets import QDialog, QFileDialog, QInputDialog
 
 import astropy.units as u
 from astropy.wcs import WCS
@@ -29,12 +32,15 @@ from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.quicklook import coordinator, quicklook
 from glue_solar.regrid import north_up, rebin, regrid_on_time
+from glue_solar.sources.bursts import si_iv_bursts
+from glue_solar.sources.calibration import radiometric_calibration
 from glue_solar.sources.iris import browse_iris
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, link_hpc, raster_data
 from glue_solar.sources.loaders.lazy import LazyData
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments
-from glue_solar.tests.helpers import load_selected, mouse, scanned
+from glue_solar.tests.helpers import load_selected, mouse, scanned, shift
+from glue_solar.tests.test_bursts import SI_IV
 from glue_solar.tests.test_importer import _row
 from glue_solar.tests.test_quicklook import SCAN, SNS, drifting_stack, menu_action, readout, slit_jaw
 from glue_solar.tools import _pointing
@@ -52,8 +58,8 @@ def twice(obj):
 def assert_same_coordinates(coords, data):
     """``coords`` give those of ``data`` at and between its pixels and back, within 1e-9, and keep its offset."""
     grid = np.meshgrid(*[np.arange(n) for n in data.shape[::-1]], indexing="ij")
-    for shift in (0, 0.37):
-        pixels = [axis + shift for axis in grid]
+    for fraction in (0, 0.37):
+        pixels = [axis + fraction for axis in grid]
         for got, expected in zip(coords.pixel_to_world_values(*pixels), data.coords.pixel_to_world_values(*pixels)):
             np.testing.assert_allclose(got, expected, rtol=0, atol=1e-9)
     world = data.coords.pixel_to_world_values(*grid)
@@ -99,14 +105,16 @@ def test_a_session_restores_a_moments_map_on_its_raster_steps(irispy_test_files)
             np.testing.assert_allclose(restored[cid], maps[expected], rtol=0, atol=1e-9)
 
 
-def test_a_session_restores_the_scans_link_hpc_gives_a_stack(tmp_path, irispy_test_files):
+def test_a_session_restores_the_links_link_hpc_gives_a_stack_and_a_map(tmp_path, irispy_test_files):
     sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
     times = sji[sji.id["Time"]].copy()
     times[3] = np.datetime64("NaT", "ns")  # a frame without a time, as in the gaps regrid_on_time leaves
     sji.update_components({sji.id["Time"]: times})
     stack, _ = drifting_stack(tmp_path, irispy_test_files)
-    collection = DataCollection([sji, stack])
+    aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))  # linked with its units
+    collection = DataCollection([sji, stack, aia])
     collection.add_link(link_hpc(collection))
+    assert not glue_patches.needs_link_restore_workaround()  # glue-core 1.27.0 alone opens no such session
     scans = sji[stack.id["Scan"]]
     assert set(np.unique(np.delete(scans, 3, axis=0))) == {0, 1}
     assert np.isnan(scans[3]).all()
@@ -130,6 +138,18 @@ def test_a_session_restores_the_metadata_of_a_raster_and_a_slit_jaw_image(irispy
         headers = restored[1].meta["frame_wcs_headers"]
         assert WCS(headers[5]).to_header_string() == WCS(sji.meta["frame_wcs_headers"][5]).to_header_string()
         assert _pointing(restored[1].meta, 5) == _pointing(sji.meta, 5)  # the Frame time tooltip
+
+
+def test_a_raster_held_in_memory_gives_its_bursts_and_radiance_once_restored(monkeypatch, irispy_test_files):
+    monkeypatch.setattr("glue_solar.sources.loaders.iris.LAZY", False)  # its metadata restored as glue's dict
+    [raster] = raster_data([find_irispy_test_file(irispy_test_files, SI_IV)])
+    restored = [collection[0] for collection in twice(DataCollection([raster]))]
+    assert type(restored[0].meta) is not type(raster.meta)
+    labels = si_iv_bursts(raster, threshold=80)[0]["label"]
+    radiance = raster[radiometric_calibration(raster)]
+    for data in restored:
+        np.testing.assert_array_equal(si_iv_bursts(data, threshold=80)[0]["label"], labels)
+        np.testing.assert_array_equal(data[radiometric_calibration(data)], radiance)
 
 
 def test_an_aia_map_session_restores_its_colormap(qtbot, monkeypatch, tmp_path):
@@ -173,8 +193,6 @@ def test_a_session_restores_a_profile_along_the_last_axis_in_its_unit(qtbot, mon
     qtbot.addWidget(restored)
     states = [viewer.state for viewer in restored.viewers[0]]
     assert [(s.x_att.label, s.x_display_unit, s.x_min, s.x_max) for s in states] == saved
-
-
 
 
 def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_move(
@@ -282,23 +300,28 @@ def test_a_quicklook_session_stays_small_and_opens(qtbot, monkeypatch, tmp_path,
     assert (point.label, point.subset_state.slices) == ("Point", expected.subset_state.slices)
 
 
-def responses(app):
+def slices(state):
+    """An Image viewer's slices, a band (`AggregateSlice`) as its range, centre and function."""
+    return [(s.slice, s.center, s.function.__name__) if isinstance(s, AggregateSlice) else s for s in state.slices]
+
+
+def responses(app, tab=-1):
     """
-    What the coordinator gives the quicklook in ``app``'s last tab: its time master, edit subset and point, the panels
-    the point drives, and each Image panel's slices and time sync; and the point's place on each slit-jaw image and its
-    spectrum.
+    What the coordinator gives the quicklook in ``app``'s tab ``tab``, shown: its time master, edit subset and point,
+    the panels the point drives, and each Image panel's slices and time sync; and the point's place on each slit-jaw
+    image and its spectrum.
     """
     coord = coordinator(app.data_collection)
     [master] = coord.masters.values()
     given = [master.label, [group.label for group in app.session.edit_subset_mode.edit_subset], coord.point.slices]
-    given.append([i for i, viewer in enumerate(app.viewers[-1]) if viewer in coord._owners.get(coord.group, ())])
+    given.append([i for i, viewer in enumerate(app.viewers[tab]) if viewer in coord._owners.get(coord.group, ())])
     where = []
-    for viewer in app.viewers[-1]:
+    for viewer in app.viewers[tab]:
         if isinstance(viewer, ProfileViewer):
             [layer] = [layer for layer in viewer.layers if layer.state.layer.label == "Point"]
             where.append(layer.state.profile[1])
         else:
-            given.append((tuple(viewer.state.slices), coord.time_status(viewer)))  # glue restores a list
+            given.append((slices(viewer.state), coord.time_status(viewer)))
             where.append(coord.point_on(viewer) or ())
     return given, where
 
@@ -341,3 +364,113 @@ def test_a_restored_quicklook_keeps_its_time_master_and_follows_a_pixel_drag(
         qtbot.waitUntil(lambda: responses(restored)[0] == responses(app)[0])
         for got, expected in zip(responses(restored)[1], responses(app)[1], strict=True):
             np.testing.assert_allclose(got, expected, rtol=1e-12)
+
+
+def links(collection):
+    """``collection``'s links, each as its datasets' and components' labels, its function and a `_ScanAt`'s scans."""
+    found = set()
+    for link in collection.external_links:
+        for member in link if isinstance(link, LinkCollection) else [link]:
+            using = member.get_using()
+            ids = [(cid.parent.label, cid.label) for cid in (*member.get_from_ids(), member.get_to_id())]
+            found.add((type(link).__name__, *ids, using.__name__, tuple(getattr(using, "scans", ()))))
+    return found
+
+
+def shown(app):
+    """Each viewer of each tab of ``app``: its slices, every layer's colormap and a Profile's axis, units and range."""
+    given = []
+    for tab in app.viewers:
+        for viewer in tab:
+            state = viewer.state
+            if isinstance(viewer, ProfileViewer):
+                given.append((state.x_att.label, state.x_display_unit, state.y_display_unit, state.x_min, state.x_max))
+                continue
+            cmaps = [getattr(layer.state, "cmap", None) for layer in viewer.layers]
+            given.append((slices(state), [(cmap.name, cmap) for cmap in cmaps if cmap is not None]))
+    return given
+
+
+# glue averages the band over the NaN fill too, which numpy warns about
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
+def test_two_quicklooks_restore_twice_from_their_files(qtbot, monkeypatch, tmp_path, irispy_test_files, iris_tree):
+    def load(dialog):
+        qtbot.addWidget(dialog)
+        scanned(qtbot, dialog)
+        _row(dialog, OBS_A[2]).setCheckState(0, Qt.Checked)
+        dialog.stack.setChecked(True)
+        load_selected(qtbot, dialog)
+        return QDialog.Accepted
+
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
+    # a sit-and-stare raster and two slit-jaw images, held in memory, and a stack and slit-jaw image of the
+    # observation browser, read from their files as they are viewed
+    files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES]
+    sns = quicklook(app, [*raster_data(files[:1], ["Si IV 1403"]), *map(image_data, files[1:])])
+    menu_action(sns["sji"][0], "Time master").trigger()
+    sns["sji"][0].state.slices = (2, 0, 0)
+    qtbot.waitUntil(lambda: " · Δt " in readout(sns["map"]))  # the raster follows
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
+    monkeypatch.setattr(QtIRISImporter, "exec", load)
+    browse_iris(app.session, app.data_collection)
+    stack = app.viewers[-1]
+    shift(monkeypatch, sns["map"].state.reference_data, app.data_collection, (1.5, -2.25))
+    shift(monkeypatch, stack[0].state.reference_data, app.data_collection, (-0.5, 0.75))
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *args: ("5", True))
+    sns["map"].toolbar.tools["solar:band"].activate()  # a band of five wavelengths
+    sns["sji"][1].layers[0].state.cmap = cmlist["irissji1400"]
+    stack[0].layers[0].state.cmap = colormaps["viridis"]
+    sns["spectrum"].state.x_display_unit = "km / s"
+    [spectrum, *_] = [viewer for viewer in stack if isinstance(viewer, ProfileViewer)]
+    spectrum.state.x_display_unit = "nm"
+    session = tmp_path / "first.glu"
+    app.save_session(str(session), absolute_paths=False)
+    restored = []
+    for name in ("again.glu", "third.glu"):
+        opened = GlueApplication.restore_session(str(session), show=False)
+        qtbot.addWidget(opened)
+        monkeypatch.setattr(opened, "report_error", lambda message, detail: pytest.fail(detail))
+        restored.append(opened)
+        session = tmp_path / name
+        opened.save_session(str(session), absolute_paths=False)
+    for opened in restored:
+        assert opened.tab_names == app.tab_names
+        for data, expected in zip(opened.data_collection, app.data_collection, strict=True):
+            assert data.label == expected.label
+            assert_same_coordinates(data.coords, expected)
+            assert [data.get_component(cid).units for cid in data.main_components] == [
+                expected.get_component(cid).units for cid in expected.main_components
+            ]
+            assert data.style.preferred_cmap.name == expected.style.preferred_cmap.name
+            missing = set(expected.meta) - set(data.meta)
+            if isinstance(expected, LazyData):  # irispy's, which its files give again
+                assert type(data.meta) is type(expected.meta)
+                assert not missing
+            else:  # glue's dict, without irispy's Time and SkyCoord, of which bursts and calibration make irispy's
+                assert missing <= {"auxiliary times", "exposure FOV center"}
+            for key, value in data.meta.items():
+                if isinstance(expected.meta[key], u.Quantity):
+                    assert value.unit == expected.meta[key].unit
+                np.testing.assert_array_equal(value, expected.meta[key])
+        assert links(opened.data_collection) == links(app.data_collection)
+        assert link_hpc(opened.data_collection) == []
+        assert shown(opened) == shown(app)
+    for tab in (1, 2):  # each quicklook, shown, and then dragged on with the Pixel tool on its map
+        for application in (app, *restored):
+            application.tab_widget.setCurrentIndex(tab)
+        for drag in (False, True):
+            if drag:
+                before = responses(app, tab)[0]
+                for application in (app, *restored):
+                    panel = application.viewers[tab][0]
+                    panel.toolbar.active_tool = "image:point_selection"
+                    for name, x in [("button_press", 0), ("motion_notify", 1), ("button_release", 2)]:
+                        mouse(panel, f"{name}_event", x, 1 + x)
+                qtbot.waitUntil(lambda: responses(app, tab)[0] != before)  # the drag reaches the panels
+            for opened in restored:  # once its coordinator has synced it
+                qtbot.waitUntil(lambda: responses(opened, tab)[0] == responses(app, tab)[0])
+                for got, expected in zip(responses(opened, tab)[1], responses(app, tab)[1], strict=True):
+                    np.testing.assert_allclose(got, expected, rtol=1e-12)
