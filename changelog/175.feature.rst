@@ -1,0 +1,1 @@
+A "Slope" mode gives a track's speed and acceleration on a path diagram as rows of a table.
