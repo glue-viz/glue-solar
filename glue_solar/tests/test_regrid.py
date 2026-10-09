@@ -1,7 +1,9 @@
 """
 'Regrid on time', on int16 copies of irispy's test files whose exposures, frames and scans are taken at known times;
-and 'North up', on a rolled slit-jaw image and irispy's.
+'North up', on a rolled slit-jaw image and irispy's; and 'Rebin…', on int16 copies of irispy's test files.
 """
+
+import warnings
 
 import numpy as np
 import pytest
@@ -17,13 +19,14 @@ from astropy.io import fits
 import glue_solar
 from glue_solar.conftest import OBS_A, _header, _write_image, find_irispy_test_file, startobs
 from glue_solar.quicklook import quicklook
-from glue_solar.regrid import north_up, north_up_iris, regrid_on_time
+from glue_solar.regrid import north_up, north_up_iris, rebin, regrid_on_time
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import _SJI_POINTING, image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.loaders.lazy import LazyData, RawComponent
+from glue_solar.sources.moments import line_moments
 from glue_solar.tests.helpers import press
-from glue_solar.tests.test_lazy import RASTER, SJI, int16_copy, int16_raster_copy
-from glue_solar.tests.test_quicklook import SCAN, menu_action, readout
+from glue_solar.tests.test_lazy import RASTER, SJI, int16_copy, int16_raster_copy, zero_exposure
+from glue_solar.tests.test_quicklook import SCAN, expected_nearest, menu_action, readout
 
 GAP = 100  # the first exposure of the sit-and-stare raster after the 10 left out
 
@@ -349,3 +352,136 @@ def test_north_up_shows_an_aia_cutout_north_up(irispy_data):
     grid = north_up(aia)
     assert grid.shape[0] == aia.shape[0]
     assert abs(north_angle(aia, grid, 0)[0]) < 0.001
+
+
+def binned(values, bins):
+    """The nanmean of ``values`` over each bin of ``bins`` along its leading axes, the remainder left out, in float64."""
+    values = np.asarray(values, dtype=float)
+    cover = tuple(slice(0, length // n * n) for n, length in zip(bins, values.shape))
+    shape = [part for n, length in zip(bins, values[cover].shape) for part in (length // n, n)]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # a bin with every value missing: NaN
+        return np.nanmean(values[cover].reshape(shape), axis=tuple(range(1, len(shape), 2))), values[cover]
+
+
+@pytest.mark.parametrize("kind", ["raster", "sji"])
+def test_rebin_takes_each_bins_mean_of_its_values_and_keeps_the_finite_mean(tmp_path, irispy_test_files, kind):
+    """
+    3 raster steps by 2 slit pixels of 3860258481's Si IV 1403, with missing samples, the steps past the last whole
+    bin left out, and a step of 0 s, or 2 frames by 3 by 3 pixels of 3620258102's SJI 1400.
+    """
+    if kind == "raster":
+        path = int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
+        [data] = raster_data([zero_exposure(path, 4)], ["Si IV 1403"])
+        bins = (3, 2, 1)
+    else:
+        data = image_data(int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0]))
+        bins = (2, 3, 3)
+    data.coords.pointing_offset = (1.5, -0.5)  # 'Shift pointing…'
+    rebinned = rebin(data, bins)
+    cid = data.main_components[0]
+    label = f"{data.label} rebinned {'x'.join(map(str, bins))}"
+    expected, covered = binned(data[cid], bins)
+    assert rebinned.label == label
+    assert rebinned.shape == expected.shape == tuple(length // n for n, length in zip(bins, data.shape))
+    assert rebinned.get_component(label).units == data.get_component(cid).units
+    assert rebinned.style.preferred_cmap == data.style.preferred_cmap
+    assert rebinned.meta["rebinned"] == bins
+    assert rebinned.meta["INSTRUME"] == data.meta["INSTRUME"]
+    assert not set(_SJI_POINTING) & set(rebinned.meta)
+    assert rebinned.coords.pointing_offset == (1.5, -0.5)
+    values = rebinned[label]
+    assert values.dtype == np.float32
+    assert np.isnan(expected).any()  # where every value is missing
+    np.testing.assert_allclose(values, expected, rtol=1e-6, equal_nan=True)
+    np.testing.assert_array_equal(rebinned[f"{label} mask"], np.isnan(expected))
+    # the mean of the values, missing ones left out: the bins' means, each weighted by how many values it holds
+    counts = binned(np.isfinite(covered), bins)[0] * np.prod(bins)
+    assert np.nansum(values * counts) / counts.sum() == pytest.approx(np.nanmean(covered), rel=1e-6)
+    # a pixel at its bin's centre
+    pixels = [np.arange(length) for length in rebinned.shape[::-1]]
+    pixels = np.meshgrid(*pixels, indexing="ij")
+    centres = [(pixel + 0.5) * n - 0.5 for pixel, n in zip(pixels, bins[::-1])]
+    np.testing.assert_allclose(
+        rebinned.coords.pixel_to_world_values(*pixels), data.coords.pixel_to_world_values(*centres), rtol=1e-12
+    )
+    np.testing.assert_allclose(  # given pixels that broadcast, as the quicklook gives a slit-jaw image's frames
+        rebinned.coords.pixel_to_world_values(0, 0, np.arange(2)),
+        rebinned.coords.pixel_to_world_values(np.zeros(2), np.zeros(2), np.arange(2)),
+    )
+    # the mean time and exposure time of each bin, NaN where one is 0 s, over which its DN/s are its values
+    times = data[data.id["Time"]][:, 0, 0]
+    start = times[0]
+    mean = start + (binned((times - start) / np.timedelta64(1, "ns"), bins[:1])[0]).astype("timedelta64[ns]")
+    np.testing.assert_array_equal(rebinned[rebinned.id["Time"]][:, 0, 0], mean)
+    seconds = data["Exposure time"][: len(mean) * bins[0], 0, 0]
+    exposure = rebinned["Exposure time"][:, 0, 0]
+    np.testing.assert_allclose(exposure, np.where(seconds > 0, seconds, np.nan).reshape(-1, bins[0]).mean(1), rtol=1e-6)
+    assert list(np.flatnonzero(np.isnan(exposure))) == ([1] if kind == "raster" else [])
+    np.testing.assert_allclose(rebinned[f"{label} DN/s"], values / exposure[:, None, None], rtol=1e-6, equal_nan=True)
+
+
+def test_rebin_refuses_other_data_and_bins_that_do_not_fit(tmp_path, irispy_test_files):
+    [scan] = raster_data(
+        [int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)], ["Si IV 1403"]
+    )
+    with pytest.raises(ValueError, match="plain is not an IRIS raster window, slit-jaw image or AIA cutout"):
+        rebin(Data(label="plain", x=np.zeros((3, 4, 5))), (1, 2, 2))
+    for bins in ((2, 2), (0, 2, 1), (9, 2, 1)):
+        with pytest.raises(ValueError, match=r"of \(8, 109, 29\) pixels, cannot be binned by"):
+            rebin(scan, bins)
+
+
+def test_the_rebin_action_adds_a_linked_dataset_that_follows_the_time_sync(
+    app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
+    """
+    The dialog opens at 2 by 2 pixels of the map or image; the dataset added, in the background, is linked, opens no
+    viewer, and in a quicklook leads the time sync; its error maps are refused.
+    """
+    raster = sit_and_stare(tmp_path, irispy_test_files)
+    sji = image_data(int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0]))
+    collection, tree = app.data_collection, app._layer_widget
+    collection.extend([raster, sji])
+    keep_hpc_linked(collection)
+    opened = []
+
+    def exec_(dialog):
+        opened.append([dialog.findChild(QtWidgets.QSpinBox, f"axis {axis}").value() for axis in range(3)])
+        return QtWidgets.QDialog.Accepted
+
+    monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
+    for data in (raster, sji):
+        tree.ui.layerTree.set_selected_layers([data])
+        tree._actions["Rebin…"].trigger()
+        assert app.statusBar().currentMessage() == f"Rebinning {data.label}…"
+        qtbot.waitUntil(lambda: not iris._RUNNING)
+    assert opened == [[2, 2, 1], [1, 2, 2]]  # exposures and slit pixels; y and x
+    binned_raster, binned_sji = collection[-2:]
+    assert binned_raster.shape == (raster.shape[0] // 2, raster.shape[1] // 2, raster.shape[2])
+    assert binned_sji.shape == (sji.shape[0], sji.shape[1] // 2, sji.shape[2] // 2)
+    assert app.statusBar().currentMessage() == ""
+    assert not any(app.viewers)
+    assert link_hpc(collection) == []
+    linked = {cid for link in collection.links for cid in (link.get_to_id(), *link.get_from_ids())}
+    assert set(binned_raster.world_component_ids[1:]) | set(binned_sji.world_component_ids[1:]) <= linked
+    # the slit-jaw image follows the rebinned exposure's time
+    viewers = quicklook(app, [binned_raster, binned_sji])
+    [sji_viewer] = viewers["sji"]
+    exposures, frames = (data[data.id["Time"]][:, 0, 0] for data in (binned_raster, binned_sji))
+    assert [expected_nearest(exposures[exposure], frames) for exposure in (0, 30, 90)] == [0, 1, 2]
+    for exposure in (30, 90):
+        viewers["spectrogram"].state.slices = (exposure, *viewers["spectrogram"].state.slices[1:])
+        qtbot.waitUntil(lambda e=exposure: sji_viewer.state.slices[0] == expected_nearest(exposures[e], frames))
+    # other data are refused, and glue shows why
+    shown = []
+    monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
+    monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
+    plain = Data(label="plain", x=np.zeros((3, 4, 5)))
+    collection.append(plain)
+    tree.ui.layerTree.set_selected_layers([plain])
+    tree._actions["Rebin…"].trigger()
+    assert shown == ["Could not rebin\nplain is not an IRIS raster window, slit-jaw image or AIA cutout."]
+    with pytest.raises(ValueError, match="is rebinned: irispy would give each bin the noise of one sample"):
+        line_moments(binned_raster, 1402.77, errors=True)
+    assert np.isfinite(line_moments(binned_raster, 1402.77)["intensity"]).any()

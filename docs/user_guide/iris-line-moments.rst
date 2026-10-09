@@ -50,8 +50,25 @@ counts too, as Level 2 cannot tell them apart), is NaN in every map too; the sta
 The new dataset's ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``, ``moments_centre``
 and ``moments_wings``, and with a continuum also ``moments_continuum``, the windows, and
 ``moments_continuum_degree``, the degree of the background.
-``glue_solar.sources.moments.line_moments(data, centre, wings, continuum)`` computes the dataset in
-glue's terminal too, ``continuum`` a list of ``(lower, upper)`` wavelengths in Å.
+``glue_solar.sources.moments.line_moments(data, centre, wings, continuum, errors)`` computes the
+dataset in glue's terminal too, ``continuum`` a list of ``(lower, upper)`` wavelengths in Å.
+
+Error maps
+----------
+
+Tick "Error maps" in the dialog, unticked at first, to add each map's error, ``<map> error`` in the
+map's unit: irispy's standard deviation of it, which ``calculate_moments`` propagates to first order
+from that of each sample its reader gives with ``uncertainty=True``, the photon noise of its DN,
+through the detector's gain and yield, and the read noise, over the raster step's exposure time for
+DN/s. Samples are taken as independent, and a fitted background's own error is left out. An error is
+NaN where its map is, and where irispy leaves it undefined: the intensity's where no sample is left,
+the centroid's and the velocity's where fewer than two are, and the widths' where the width is 0. The
+errors are statistical only, unreliable below a signal-to-noise ratio of about 5, and leave out the
+wavelength calibration (see irispy's ``calculate_moments``). irispy takes about 1.7 times as long
+with them. On 3610108077's full Si IV 1403 window they are irispy's own, from its reader, to 4e-9 or
+better with or without a continuum. A rebinned window's (see :ref:`Rebinning
+<glue_solar_users_guide_iris_rebinning>`) are refused: irispy would give each bin the noise of one
+sample, not of their mean.
 
 What is refused
 ---------------

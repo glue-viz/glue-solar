@@ -1,7 +1,10 @@
 """
-'Regrid on time': an IRIS dataset resampled at a regular time step, as a new dataset; and 'North up': a slit-jaw image
-shown north up, on a new dataset's helioprojective grid.
+'Regrid on time': an IRIS dataset resampled at a regular time step, as a new dataset; 'North up': a slit-jaw image
+shown north up, on a new dataset's helioprojective grid; and 'Rebin…': an IRIS dataset binned, as a new dataset.
 """
+
+import gc
+import warnings
 
 import numpy as np
 from glue.config import layer_action
@@ -14,11 +17,12 @@ from qtpy import QtWidgets
 from scipy.interpolate import make_interp_spline
 
 from astropy.wcs import WCS
-from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
+from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper, SlicedLowLevelWCS
 
-from glue_solar.quicklook import _cadence, _placeable, _role, _time_axis, _timed, _times, nearest
+from glue_solar.quicklook import _cadence, _placeable, _role, _spectral_axes, _time_axis, _timed, _times, nearest
 from glue_solar.sources.loaders.iris import (
     _SJI_POINTING,
+    WCS_LOCK,
     _add_exposure,
     _dataset,
     _GlueWCS,
@@ -26,8 +30,9 @@ from glue_solar.sources.loaders.iris import (
     keep_hpc_linked,
 )
 from glue_solar.sources.loaders.lazy import RawComponent, RawStack
+from glue_solar.sources.moments import SLAB, _accepted, _start
 
-__all__ = ["north_up", "north_up_iris", "regrid_iris", "regrid_on_time"]
+__all__ = ["north_up", "north_up_iris", "rebin", "rebin_iris", "regrid_iris", "regrid_on_time"]
 
 # A pixel takes the exposure, frame or scan nearest its time within this many time steps, else it is a gap
 REACH = 0.75
@@ -54,6 +59,16 @@ class _Regridded(BaseWCSWrapper):
     def world_to_pixel_values(self, *world_arrays):
         *pixel, position = self._wcs.world_to_pixel_values(*world_arrays)
         return (*pixel, self._from_source(position))
+
+
+class _Broadcast(BaseWCSWrapper):
+    """``wcs`` given its pixel arrays broadcast to one shape: ndcube's ``ResampledLowLevelWCS`` takes no others."""
+
+    def pixel_to_world_values(self, *pixel_arrays):
+        return self._wcs.pixel_to_world_values(*np.broadcast_arrays(*pixel_arrays))
+
+    def world_to_pixel_values(self, *world_arrays):
+        return self._wcs.world_to_pixel_values(*world_arrays)
 
 
 def _gather(values, index, gap):
@@ -225,3 +240,119 @@ def north_up_iris(data, data_collection):
         viewer = app.new_data_viewer(ImageViewer, data=grid)
         viewer.add_data(data)
         viewer.state.layers[0].visible = False
+
+
+def _check(data):
+    """Raise why ``data`` is not an IRIS dataset, which can be rebinned."""
+    if not _timed(data) or not isinstance(data.coords, _GlueWCS):
+        raise ValueError(f"{data.label} is not an IRIS raster window, slit-jaw image or AIA cutout.")
+
+
+def _rebinned(data, view, values, bins, operation=np.nanmean):
+    """``values``, of ``data`` at ``view``, binned by ndcube's ``NDCube.rebin`` with ``operation``."""
+    from ndcube import NDCube
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # a bin with every value missing: NaN
+        binned = NDCube(values, SlicedLowLevelWCS(data.coords, view)).rebin(bins, operation=operation).data
+    gc.collect(0)  # ndcube's cubes are reference cycles, which hold ``values`` until Python's collector runs
+    return binned
+
+
+def rebin(data, bins):
+    """
+    ``data``, an IRIS dataset, binned by ``bins`` pixels along each axis, as a new dataset ``<label> rebinned <bins>``.
+
+    Each pixel is the nanmean of the values in its bin, by ndcube's ``NDCube.rebin``, NaN where every one is missing,
+    in float32 in memory; ``data`` is read a slab at a time, and pixels past its last whole bin along an axis are left
+    out. Its coordinates are ndcube's ``ResampledLowLevelWCS`` of those of ``data``, so a pixel is at its bin's centre;
+    its ``Time`` is the mean of its bin's times, and its ``Exposure time`` the mean of its bin's exposure times, NaN
+    where one is 0 s, so that ``<label> DN/s`` is its mean DN over it. The units, colormap, pointing offset and
+    metadata are those of ``data``, without a slit-jaw image's per-frame pointing, ``meta['rebinned']`` adding
+    ``bins``.
+
+    Raises
+    ------
+    ValueError
+        For other data than an IRIS dataset, or ``bins`` that are not a whole number of pixels from 1 to the length
+        of each axis.
+    """
+    from ndcube.wcs.wrappers import ResampledLowLevelWCS
+
+    _check(data)
+    bins = tuple(int(n) for n in bins)
+    if len(bins) != data.ndim or not all(1 <= n <= length for n, length in zip(bins, data.shape)):
+        raise ValueError(f"{data.label}, of {data.shape} pixels, cannot be binned by {bins}.")
+    covered = tuple(slice(0, length // n * n) for n, length in zip(bins, data.shape))
+    cid, end = data.main_components[0], covered[0].stop
+    rows = bins[0] * max(1, SLAB // (bins[0] * np.prod([part.stop for part in covered[1:]])))  # whole bins a slab
+    values = [
+        _rebinned(data, view, data[cid, view], bins)
+        for view in ((slice(start, min(start + rows, end)), *covered[1:]) for start in range(0, end, rows))
+    ]
+    with WCS_LOCK:
+        wcs = _Broadcast(ResampledLowLevelWCS(SlicedLowLevelWCS(data.coords._wcs, covered), bins[::-1]))
+    meta = {key: value for key, value in data.meta.items() if key not in _SJI_POINTING}
+    meta["rebinned"] = bins
+    rebinned = _dataset(
+        wcs,
+        meta,
+        data.get_component(cid).units,
+        np.concatenate(values),
+        f"{data.label} rebinned {'x'.join(map(str, bins))}",
+        color=data.style.color,
+        cmap=data.style.preferred_cmap,
+        missing=(),
+    )
+    rebinned.coords.pointing_offset = data.coords.pointing_offset
+    lead, along = (*covered[:-2], 0, 0), bins[:-2]  # one value per exposure, frame, or scan and step
+    times = data[data.id["Time"], lead]
+    offsets = _rebinned(data, lead, (times - times.flat[0]) / np.timedelta64(1, "ns"), along)
+    rebinned.add_component(_per_frame(times.flat[0] + offsets.astype("timedelta64[ns]"), rebinned.shape), "Time")
+    exposure = data.find_component_id("Exposure time")
+    if exposure is not None:
+        seconds = data[exposure, lead]
+        _add_exposure(rebinned, _rebinned(data, lead, np.where(seconds > 0, seconds, np.nan), along, np.mean))
+    return rebinned
+
+
+def _ask(data):
+    """
+    The pixels per bin typed for each axis of ``data``, at first 2 along its last two axes but wavelength, the map or
+    image, and 1 along the others; or None for Cancel.
+    """
+    dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
+    dialog.setWindowTitle(f"Rebin {data.label}")
+    form = QtWidgets.QFormLayout(dialog)
+    image = sorted(set(range(data.ndim)) - _spectral_axes(data))[-2:]
+    boxes = []
+    for axis, (cid, length) in enumerate(zip(data.world_component_ids, data.shape)):
+        box = QtWidgets.QSpinBox(objectName=f"axis {axis}", minimum=1, maximum=length)
+        box.setValue(2 if axis in image else 1)
+        form.addRow(f"{cid.label} ({length} pixels):", box)
+        boxes.append(box)
+    return tuple(box.value() for box in boxes) if _accepted(dialog, form) else None
+
+
+@messagebox_on_error("Could not rebin")
+def _failed(exc_info):
+    raise exc_info[1]
+
+
+@layer_action(
+    "Rebin…",
+    single=True,
+    data=True,
+    tooltip="Add the dataset binned: the mean of so many pixels along each axis, missing data left out",
+)
+@messagebox_on_error("Could not rebin")
+def rebin_iris(data, data_collection):
+    """
+    Add ``data`` binned by the pixels typed for each axis (`rebin`) to the data collection, with its helioprojective
+    coordinates linked, and no viewer; glue shows why for other data. It is binned in the background, while glue's
+    status bar says so.
+    """
+    _check(data)  # before asking
+    bins = _ask(data)
+    if bins is not None:
+        _start(data_collection, f"Rebinning {data.label}…", _failed, rebin, data, bins)

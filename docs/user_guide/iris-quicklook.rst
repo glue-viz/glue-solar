@@ -314,6 +314,37 @@ NaN, with ``Time`` NaT, ``Exposure time`` NaN and the missing-data mask 1. The 1
   labels the data collection shows. ``glue_solar.regrid.regrid_on_time(data)`` regrids a dataset
   there too.
 
+.. _glue_solar_users_guide_iris_rebinning:
+
+Rebinning
+---------
+
+To trade resolution for signal, select a raster window, stack, slit-jaw image or AIA cutout in the
+data collection and choose "Rebin…" from its right-click menu. Type the pixels in a bin along each
+axis, named as glue names its coordinates: 2 by 2 pixels of the map or image at first, raster steps
+or exposures and slit pixels, or y and x, and 1 along wavelength, frames and scans. This adds
+``<label> rebinned <bins>``, such as ``… rebinned 2x2x1``, while glue's status bar says "Rebinning
+<label>…". Each pixel is the mean of the values in its bin, by ndcube's ``NDCube.rebin``, missing
+samples left out, and NaN where every one is missing; pixels past the last whole bin along an axis
+are left out. Its coordinates are at each bin's centre, its ``Time`` is the mean of the bin's times,
+and its ``Exposure time`` the mean of the bin's exposure times, NaN where one is 0 s, over which
+``<label> DN/s`` is its mean DN. It has the original's units, colormap, pointing offset and
+metadata, ``meta['rebinned']`` adding the bins, but not a slit-jaw image's per-frame pointing, so a
+quicklook draws no slit on it and its "Frame time" tooltip gives none. Its helioprojective
+coordinates are linked with the other IRIS datasets, it follows and leads the time sync as its
+original does, and no viewer opens. Its values are held in memory, in float32, and read from the
+original a slab at a time: a 2 by 2 rebin of 3610108077's full Si IV 1403 window, 320 steps by 548
+slit pixels by 337 wavelengths, takes 0.3 to 0.5 s.
+
+- A rebinned raster window's line moments are those of each bin's mean: a saturated sample is missed
+  unless its whole bin is, and error maps are refused, as irispy would give each bin the noise of one
+  sample.
+- A bin with missing samples counts as much as a full one, so the rebinned data's mean can differ
+  from the original's: by 0.2 % on 3610108077's Si IV 1403, whose 1 % of bins partly missing lie at
+  the edges of the missing data. Weighted by their samples, the bins' means give the original's.
+- ``glue_solar.regrid.rebin(data, bins)`` rebins a dataset in glue's terminal too, ``bins`` one
+  whole number per axis, in numpy's order.
+
 .. _glue_solar_users_guide_iris_pointing:
 
 Shifting the pointing
@@ -333,10 +364,10 @@ position. On OBSID 4000005156's deconvolved SJI 2796, (+2, −1) turns the reado
 
 - Only IRIS data can be shifted: a sunpy Map is refused with a message, so shift the IRIS data
   against it instead.
-- Datasets made from a shifted one afterwards, by "Regrid on time", line moments, red-blue asymmetry
-  or Mg II features, take its offset; shift them on their own, and alike, after a later shift: a line
-  ratio between maps shifted differently is refused as not on the same grid. A line ratio shares its
-  numerator's coordinates and shifts with it.
+- Datasets made from a shifted one afterwards, by "Regrid on time", "Rebin…", line moments, red-blue
+  asymmetry or Mg II features, take its offset; shift them on their own, and alike, after a later
+  shift: a line ratio between maps shifted differently is refused as not on the same grid. A line
+  ratio shares its numerator's coordinates and shifts with it.
 - A region drawn on a quicklook's map or slit-jaw image keeps the outline it had in longitude and
   latitude, so draw it again after shifting the dataset it was drawn on.
 - The "Frame time" tooltip keeps the file's pointing, and sessions do not keep the offset (see

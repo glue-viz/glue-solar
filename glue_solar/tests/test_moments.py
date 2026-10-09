@@ -13,6 +13,7 @@ from glue.core import Data
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from irispy.io import read_files
 from irispy.spectrograph import SpectrogramCube
 from irispy.utils.constants import DN_UNIT
 from irispy.utils.spectrograph import subtract_background
@@ -50,19 +51,21 @@ def scan_path(tmp_path, irispy_test_files):
     return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
 
 
-def answer(monkeypatch, centre, wings=(), continuum="", accept=True):
+def answer(monkeypatch, centre, wings=(), continuum="", accept=True, errors=False):
     """
-    Make each line dialog return as if ``centre``, any ``wings`` and ``continuum`` were typed and OK, or Cancel,
-    pressed; returns the wings and continuum each dialog opened with.
+    Make each line dialog return as if ``centre``, any ``wings`` and ``continuum`` were typed, "Error maps" ticked with
+    ``errors``, and OK, or Cancel, pressed; returns the wings, continuum and tick each dialog opened with.
     """
     opened = []
 
     def exec_(dialog):
         boxes = [dialog.findChild(QtWidgets.QDoubleSpinBox, side) for side in ("below", "above")]
         windows = dialog.findChild(QtWidgets.QLineEdit, "continuum")
-        opened.append((*(box.value() for box in boxes), windows.text()))
+        tick = dialog.findChild(QtWidgets.QCheckBox, "errors")
+        opened.append((*(box.value() for box in boxes), windows.text(), tick.isChecked()))
         dialog.findChild(QtWidgets.QLineEdit, "centre").setText(centre)
         windows.setText(continuum)
+        tick.setChecked(errors)
         for box, wing in zip(boxes, wings):
             box.setValue(wing)
         return QtWidgets.QDialog.Accepted if accept else QtWidgets.QDialog.Rejected
@@ -103,7 +106,7 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     keep_hpc_linked(collection)
     opened = answer(monkeypatch, "1402.77")
     maps = run(app, qtbot, raster)
-    assert opened == [(0.5, 0.5, "")]
+    assert opened == [(0.5, 0.5, "", False)]
     assert maps.label == f"{raster.label} moments 1402.77"
     assert maps.shape == raster.shape[:2]
     assert [(cid.label, maps.get_component(cid).units) for cid in maps.main_components] == [
@@ -249,6 +252,39 @@ def test_a_continuum_window_is_irispys_background(app, qtbot, monkeypatch, scan_
     assert maps.meta == plain.meta
     for cid in plain.main_components:
         np.testing.assert_array_equal(maps[cid.label], plain[cid])
+
+
+@pytest.mark.parametrize("continuum", ["", "1401.5-1402, 1403.5-1404"])
+def test_ticked_error_maps_are_irispys_from_its_readers_uncertainty(app, qtbot, monkeypatch, scan_path, continuum):
+    """
+    "Error maps", unticked at first, adds each map's error, a slab of steps at a time: irispy's own, of the window read
+    with its ``uncertainty=True``, in DN/s, less any background, but NaN where every sample within the wings is
+    missing.
+    """
+    monkeypatch.setattr(moments, "SLAB", 3 * 109 * 4)  # slabs of 1 step: halved with errors
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    app.data_collection.append(raster)
+    opened = answer(monkeypatch, "1402.77", continuum=continuum, errors=True)
+    maps = run(app, qtbot, raster)
+    assert opened == [(0.5, 0.5, "", False)]
+    cube = read_files([scan_path], spectral_windows=["Si IV 1403"], uncertainty=True)["Si IV 1403"][0]
+    cube = cube.apply_exposure_time_correction()
+    if continuum:
+        cube = subtract_background(cube, [(1401.5, 1402.0), (1403.5, 1404.0)] * u.AA, degree=1)
+    direct = irispy.utils.moments.calculate_moments(cube, rest_wavelength=1402.77 * u.AA, wings=0.5 * u.AA)
+    fill = np.asarray(missing(raster, 1402.27, 1403.27))
+    assert [cid.label for cid in maps.main_components] == [
+        label for name in direct for label in (name, f"{name} error")
+    ]
+    # which samples a pixel with no line keeps, less a background, is roundoff (see above): not compared
+    line = (direct["intensity"].data > 1e-9) | fill
+    for name, moment in direct.items():
+        assert maps.get_component(f"{name} error").units == maps.get_component(name).units
+        expected = np.where(fill | moment.mask, np.nan, moment.uncertainty.array)
+        if moment.unit.is_equivalent(u.AA):
+            expected = moment.unit.to(u.AA, expected)
+        assert np.isfinite(expected[line]).sum() > 600  # of 872
+        np.testing.assert_allclose(maps[f"{name} error"][line], expected[line], rtol=1e-6, atol=1e-9, err_msg=name)
 
 
 @pytest.mark.parametrize("continuum", [None, [(1401.5, 1402.0), (1403.5, 1404.0)]])
