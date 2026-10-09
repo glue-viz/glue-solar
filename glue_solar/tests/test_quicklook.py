@@ -2800,10 +2800,10 @@ def test_closing_the_slit_jaw_master_makes_the_raster_master_again(bare_app, qtb
     assert "time master, step 186" in readout(viewers["spectrogram"])
 
 
-def type_in_dialog(monkeypatch, typed, tick=False):
+def type_in_dialog(monkeypatch, typed, tick=False, every=1):
     """
-    Make each text or range dialog return ``typed``, as if typed and confirmed, with its box, unticked at first, ticked
-    if ``tick``; returns the texts the dialogs opened with.
+    Make each text or range dialog return ``typed``, as if typed and confirmed, with its box ticked if ``tick`` and
+    Loop's every Nth index at ``every``; returns the texts the dialogs opened with, for Loop with that index and box.
     """
     opened = []
     monkeypatch.setattr(
@@ -2812,11 +2812,17 @@ def type_in_dialog(monkeypatch, typed, tick=False):
 
     def exec_(dialog):
         line = dialog.findChild(QtWidgets.QLineEdit)
-        opened.append(line.text())
         assert line.selectedText() == line.text()
+        spins, boxes = dialog.findChildren(QtWidgets.QSpinBox), dialog.findChildren(QtWidgets.QCheckBox)
+        if spins:  # Loop's
+            opened.append((line.text(), *[spin.value() for spin in spins], *[box.isChecked() for box in boxes]))
+        else:
+            opened.append(line.text())
+            assert not any(box.isChecked() for box in boxes)
         line.setText(typed)
-        for box in dialog.findChildren(QtWidgets.QCheckBox):
-            assert not box.isChecked()
+        for spin in spins:
+            spin.setValue(every)
+        for box in boxes:
             box.setChecked(tick)
         return QtWidgets.QDialog.Accepted
 
@@ -3023,7 +3029,7 @@ def test_a_loop_plays_only_its_frames(bare_app, qtbot, monkeypatch, irispy_test_
     sji_viewer.state.slices = (0, 0, 0)
     opened = type_in_dialog(monkeypatch, "20 25")
     menu_action(sji_viewer, "Loop…").trigger()
-    assert opened == ["0 61"]  # the whole range
+    assert opened == [("0 61", 1, False)]  # the whole range, every frame, round
     # forwards from frame 0: from the first, round and round; then backwards from where it stopped
     shown = play(qtbot, sji_viewer, "button_forw", 14)
     assert shown == [20 + i % 6 for i in range(len(shown))]
@@ -3037,13 +3043,46 @@ def test_a_loop_plays_only_its_frames(bare_app, qtbot, monkeypatch, irispy_test_
     for text in ("25 20", "20 62", "20"):
         opened = type_in_dialog(monkeypatch, text)
         menu_action(sji_viewer, "Loop…").trigger()
-        assert opened == ["20 25"]
-        assert shown[-1] == f"Could not loop\n'{text}' is not two indices from 0 to 61, the first not after the last."
+        assert opened == [("20 25", 1, False)]
+        assert shown[-1] == (
+            f"Could not loop\n'{text}' is not two indices from 0 to 61, the first not after the last, or ±N."
+        )
     # the whole range plays as glue does
     type_in_dialog(monkeypatch, "0 61")
     menu_action(sji_viewer, "Loop…").trigger()
     sji_viewer.state.slices = (59, 0, 0)
     assert play(qtbot, sji_viewer, "button_forw", 4)[:4] == [60, 61, 0, 1]
+
+
+def test_a_loop_plays_every_nth_frame_round_or_back_and_forth(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    menu_action(sji_viewer, "Time master").trigger()
+    sji_viewer.state.slices = (30, 0, 0)
+    # every 3rd of the 5 frames either side of frame 30: on from 30, then round from 25
+    type_in_dialog(monkeypatch, "±5", every=3)
+    menu_action(sji_viewer, "Loop…").trigger()
+    assert play(qtbot, sji_viewer, "button_forw", 9)[:9] == [33, 25, 28, 31, 34, 25, 28, 31, 34]
+    # bouncing, back from the last frame played, 34, and on again from 25, each played once; the raster follows
+    opened = type_in_dialog(monkeypatch, "25 35", tick=True, every=3)
+    menu_action(sji_viewer, "Loop…").trigger()
+    assert opened == [("25 35", 3, False)]
+    sji_viewer.state.slices = (25, 0, 0)
+    shown = play(qtbot, sji_viewer, "button_forw", 10)
+    assert shown[:10] == [28, 31, 34, 31, 28, 25, 28, 31, 34, 31]
+    frames = sji[sji.id["Time"]][:, 0, 0]
+    assert check_follower(bare_app, qtbot, frames[shown[-1]], raster, viewers["spectrogram"])
+    # +- for ±, cut to the first frame; the dialog opens on the loop, which a refusal keeps
+    opened = type_in_dialog(monkeypatch, "+-5")
+    sji_viewer.state.slices = (2, 0, 0)
+    menu_action(sji_viewer, "Loop…").trigger()
+    assert opened == [("25 35", 3, True)]
+    shown = refusals(monkeypatch)
+    opened = type_in_dialog(monkeypatch, "±-1")
+    menu_action(sji_viewer, "Loop…").trigger()
+    assert opened == [("0 7", 1, False)]
+    assert shown == ["Could not loop\n'±-1' is not two indices from 0 to 61, the first not after the last, or ±N."]
 
 
 def test_closing_the_master_stops_its_playback(bare_app, qtbot, monkeypatch, irispy_test_files):
@@ -4488,6 +4527,25 @@ def test_blink_in_one_cube(bare_app, qtbot, irispy_test_files):
     assert spectrogram.state.slices[0] != 2
     tool.partner = (mg, (2, *spectrogram.state.slices[1:]))
     assert changes(bare_app, qtbot, viewers, tool._flip) == {"spectrogram": (2, None, None)}
+
+
+def test_blink_in_time(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    menu_action(sji_viewer, "Time master").trigger()
+    sji_viewer.state.slices = (10, 0, 0)
+    menu_action(sji_viewer, "Set blink partner here").trigger()
+    sji_viewer.state.slices = (40, 0, 0)
+    qtbot.wait(20)
+    tool = sji_viewer.toolbar.tools["solar:coordinate"]
+    tool._blink.setInterval(60_000)  # no tick of its own between the flips by hand, however slow the machine
+    # two frames of the time master: its frame alone, the raster staying at frame 40's time (D41)
+    assert changes(bare_app, qtbot, viewers, menu_action(sji_viewer, "Blink").trigger) == {"sji0": (10, None, None)}
+    assert changes(bare_app, qtbot, viewers, tool._flip) == {"sji0": (40, None, None)}
+    assert changes(bare_app, qtbot, viewers, tool._flip) == {"sji0": (10, None, None)}
+    menu_action(sji_viewer, "Blink").trigger()
+    assert not tool._blink.isActive()
 
 
 def test_blink_interval(app, scans):
