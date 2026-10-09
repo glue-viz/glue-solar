@@ -1,0 +1,1 @@
+glue sessions now keep the coordinates of IRIS datasets and of the datasets made from them, pointing offsets included.

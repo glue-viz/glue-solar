@@ -372,8 +372,9 @@ position. On OBSID 4000005156's deconvolved SJI 2796, (+2, −1) turns the reado
   ratio shares its numerator's coordinates and shifts with it.
 - A region drawn on a quicklook's map or slit-jaw image keeps the outline it had in longitude and
   latitude, so draw it again after shifting the dataset it was drawn on.
-- The "Frame time" tooltip keeps the file's pointing, and sessions do not keep the offset (see
-  "Saving sessions" in :ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`).
+- The "Frame time" tooltip keeps the file's pointing. A saved session keeps the offset, but cannot
+  save every IRIS dataset yet (see "Saving sessions" in
+  :ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`).
 
 To co-align a slit-jaw image with its raster, click a small, distinct feature on the raster map: the
 red cross marks where the raster places it on the slit-jaw image. Read the feature's position in

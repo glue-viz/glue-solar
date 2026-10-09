@@ -49,6 +49,7 @@ class _Regridded(BaseWCSWrapper):
 
     def __init__(self, wcs, positions):
         super().__init__(wcs)
+        self._positions = positions  # for a session
         pixels = np.arange(len(positions))
         self._to_source = make_interp_spline(pixels, positions, k=1)
         self._from_source = make_interp_spline(positions, pixels, k=1)

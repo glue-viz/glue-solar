@@ -1,3 +1,4 @@
+import base64
 import gzip
 import io
 import itertools
@@ -20,6 +21,7 @@ from glue.core.data import Data
 from glue.core.hub import HubListener
 from glue.core.link_helpers import LinkSame, LinkSameWithUnits
 from glue.core.message import DataCollectionDeleteMessage
+from glue.core.state import GlueSerializeError
 from glue.core.visual import VisualAttributes
 from glue_qt.utils import load_ui
 from glue_qt.utils.threading import Worker
@@ -28,11 +30,12 @@ from qtpy.QtCore import QSettings, Qt, QTimer, Signal
 
 import astropy.units as u
 from astropy.io import fits
-from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
+from astropy.wcs import WCS, WCSHDO_P17, WCSHDO_all
+from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper, SlicedLowLevelWCS
 
 from .lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask
 from .scan import _primary_header, extract_archive, scan_directory
-from .stack_spectrograms import MISSING_VALUES, stack_spectrogram_sequence, stack_times, stack_wcs
+from .stack_spectrograms import MISSING_VALUES, _PerScanWCS, stack_spectrogram_sequence, stack_times, stack_wcs
 
 __all__ = [
     "WCS_LOCK",
@@ -228,6 +231,110 @@ class _GlueWCS(BaseWCSWrapper):
 
             classes[key] = (klass, args, kwargs, build)
         return classes
+
+    # glue saves a dataset's coordinates in its session, those of data it reloads from a file too
+    def __gluestate__(self, context):
+        with WCS_LOCK:  # astropy writes a FITS WCS's header through wcslib
+            wcs = _wcs_state(self._wcs)
+        return {"wcs": wcs, "pointing_offset": [float(offset) for offset in self.pointing_offset]}
+
+    @classmethod
+    def __setgluestate__(cls, rec, context):
+        wcs = cls(_wcs_from_state(rec["wcs"]))
+        wcs.pointing_offset = tuple(rec["pointing_offset"])
+        return wcs
+
+
+def _lookup_table(wcs, header):
+    """
+    The lookup table of ``wcs``, an irispy raster's FITS-TAB WCS of FITS ``header``, as a FITS file: astropy reads the
+    table of a WCS but cannot write it.
+    """
+    # ponytail: irispy's layout (irispy.io.spectrograph._create_tabular_wcs): one table, an identity PC matrix, and an
+    # index vector, where an axis has one, linear from its first pixel to its last, since astropy gives a table's
+    # coordinates but not its index vectors; the session tests fail if irispy's layout changes.
+    (table,) = wcs.wcs.tab
+    columns = {header[f"PS{table.map[0] + 1}_1"]: table.coord}
+    for m, i in enumerate(table.map):
+        if f"PS{i + 1}_2" in header:
+            psi = wcs.wcs.crval[i] + wcs.wcs.cdelt[i] * (np.array([1, wcs.pixel_shape[i]]) - wcs.wcs.crpix[i])
+            columns[header[f"PS{i + 1}_2"]] = np.linspace(*psi, table.K[m])
+    row = np.array([tuple(columns.values())], dtype=[(name, float, value.shape) for name, value in columns.items()])
+    buffer = io.BytesIO()
+    fits.HDUList([fits.PrimaryHDU(), fits.BinTableHDU(row, name=header[f"PS{table.map[0] + 1}_0"])]).writeto(buffer)
+    return buffer.getvalue()
+
+
+def _wcs_state(wcs):
+    """
+    A JSON record of ``wcs``, the low-level WCS of any dataset glue-solar makes, for a session: each wrapper with what
+    it wraps, a gWCS in ASDF, its own format, and a FITS WCS as its header and lookup table.
+    """
+    from ndcube.wcs.wrappers import ResampledLowLevelWCS
+
+    from gwcs import WCS as GWCS
+
+    from glue_solar.regrid import _Broadcast, _NorthUp, _Regridded  # which imports this module
+
+    if isinstance(wcs, GWCS):  # a slit-jaw image's
+        import asdf
+
+        buffer = io.BytesIO()
+        asdf.AsdfFile({"wcs": wcs}).write_to(buffer)
+        return {"type": "gwcs", "asdf": base64.b64encode(buffer.getvalue()).decode()}
+    if isinstance(wcs, WCS):
+        header = wcs.to_header_string(relax=WCSHDO_all | WCSHDO_P17)  # every keyword, every digit
+        table = _lookup_table(wcs, fits.Header.fromstring(header)) if wcs.wcs.tab else b""  # a raster's
+        return {"type": "fits", "header": header, "shape": wcs.pixel_shape, "table": base64.b64encode(table).decode()}
+    if isinstance(wcs, _GlueWCS):  # a north-up grid's
+        return {"type": "_GlueWCS", **wcs.__gluestate__(None)}
+    if isinstance(wcs, _PerScanWCS):  # `stack_wcs` of its scans'
+        return {"type": "_PerScanWCS", "scans": [_wcs_state(scan) for scan in wcs._wcses]}
+    if not isinstance(wcs, (SlicedLowLevelWCS, ResampledLowLevelWCS, _Regridded, _NorthUp, _Broadcast)):
+        raise GlueSerializeError(f"A session cannot save coordinates of type {type(wcs).__name__}")
+    state = {"type": type(wcs).__name__, "wcs": _wcs_state(wcs._wcs)}
+    if isinstance(wcs, SlicedLowLevelWCS):
+        state["slices"] = [[s.start, s.stop, s.step] if isinstance(s, slice) else int(s) for s in wcs._slices_array]
+    elif isinstance(wcs, ResampledLowLevelWCS):
+        state.update(factor=wcs._factor.tolist(), offset=wcs._offset.tolist())
+    elif isinstance(wcs, _Regridded):
+        state["positions"] = wcs._positions.tolist()
+    elif isinstance(wcs, _NorthUp):
+        state.update(tan=_wcs_state(wcs._tan), times=np.asarray(wcs._times).tolist())
+    return state
+
+
+def _wcs_from_state(state):
+    """The low-level WCS of a `_wcs_state` record."""
+    from ndcube.wcs.wrappers import ResampledLowLevelWCS
+
+    from glue_solar.regrid import _Broadcast, _NorthUp, _Regridded
+
+    kind = state["type"]
+    if kind == "gwcs":
+        import asdf
+
+        with asdf.open(io.BytesIO(base64.b64decode(state["asdf"])), lazy_load=False, memmap=False) as file:
+            return file["wcs"]
+    if kind == "fits":
+        table = base64.b64decode(state["table"])
+        wcs = WCS(fits.Header.fromstring(state["header"]), fits.open(io.BytesIO(table)) if table else None)
+        wcs.pixel_shape = state["shape"]  # which a header leaves out
+        return wcs
+    if kind == "_GlueWCS":
+        return _GlueWCS.__setgluestate__(state, None)
+    if kind == "_PerScanWCS":
+        return stack_wcs([_wcs_from_state(scan) for scan in state["scans"]])
+    wcs = _wcs_from_state(state["wcs"])
+    if kind == "SlicedLowLevelWCS":
+        return SlicedLowLevelWCS(wcs, [slice(*s) if isinstance(s, list) else s for s in state["slices"]])
+    if kind == "ResampledLowLevelWCS":
+        return ResampledLowLevelWCS(wcs, state["factor"], state["offset"])
+    if kind == "_Regridded":
+        return _Regridded(wcs, np.array(state["positions"]))
+    if kind == "_NorthUp":
+        return _NorthUp(wcs, _wcs_from_state(state["tan"]), np.array(state["times"]))
+    return _Broadcast(wcs)
 
 
 # Per-frame SJI pointing that irispy keeps as extra coordinates; the frame time tool shows it
