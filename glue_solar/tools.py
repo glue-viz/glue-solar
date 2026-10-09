@@ -19,7 +19,7 @@ from glue.core.message import NumericalDataChangedMessage, SettingsChangeMessage
 from glue.core.subset import SubsetState
 from glue.plugins.tools.path_slicer.common import open_slice_viewer_for
 from glue.plugins.tools.path_slicer.matplotlib_mode import BasePathSlicerCrosshairMode, BasePathSlicerMode
-from glue.plugins.tools.path_slicer.path_sliced_data import PathSlicedData, sample_points
+from glue.plugins.tools.path_slicer.path_sliced_data import PathSlicedCoordinates, PathSlicedData, sample_points
 from glue.plugins.tools.path_slicer.path_sliced_data_links import (
     link_path_sliced_pair_paths,
     link_path_sliced_to_parent,
@@ -65,6 +65,8 @@ from glue_solar.quicklook import (
     nearest,
     observation_key,
 )
+from glue_solar.sources.loaders.iris import _GlueWCS
+from glue_solar.sources.loaders.stack_spectrograms import _PerScanWCS
 from glue_solar.sources.moments import _accepted
 
 __all__ = [
@@ -1096,9 +1098,9 @@ class PathData(PathSlicedData):
     IRIS data: NaN where the path leaves the data, and ``Time`` as times, NaT there, where glue-core 1.27.0 gives 0 and
     casts times to float; its own world coordinates, which glue-core asks the parent for; a scalar for one pixel. The
     positions given are the path's samples, which `PathTool` places in each dataset's own pixels, not vertices to
-    sample. A slit-jaw image's longitude and latitude depend on its frame, and a stack's on its scan, so their
-    diagrams, with more world axes than pixel axes, on which glue-core's coordinates fail, have pixel coordinates only;
-    a raster's keeps its wavelength.
+    sample. A slit-jaw image's longitude and latitude depend on its frame, so its diagram, with more world axes than
+    pixel axes, on which glue-core's coordinates fail, has pixel coordinates only; a raster's keeps its wavelength, and
+    a stack's its scan too, from scan 0's WCS, as its longitude and latitude depend on its scan.
 
     ``sampling`` is one of `SAMPLINGS`: 'truncate', glue-core's, the pixel whose index each position rounds down to;
     'nearest', the nearest pixel, halfway up, as `scipy.ndimage.map_coordinates` with ``order=0``, NaN beyond half a
@@ -1113,6 +1115,9 @@ class PathData(PathSlicedData):
             raise ValueError(f"sampling must be one of {self.SAMPLINGS}, not {sampling!r}")
         self.sampling = sampling
         super().__init__(*args, **kwargs)
+        stack = getattr(self.original_data.coords, "_wcs", None)
+        if isinstance(stack, _PerScanWCS):  # scan 0's WCS with its Scan axis, which leaves no angles here
+            self._coords = PathSlicedCoordinates(_GlueWCS(stack._wcs), self.sliced_dims)
         if self._coords is not None and self._coords.world_n_dim != self._coords.pixel_n_dim:
             self._coords = None
 

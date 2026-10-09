@@ -14,6 +14,7 @@ from glue.config import layer_artist_maker
 from glue.core.command import Command
 from glue.core.hub import HubListener
 from glue.core.link_helpers import LinkSame
+from glue.core.link_manager import is_equivalent_cid
 from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, SubsetDeleteMessage, SubsetUpdateMessage
 from glue.core.roi import PolygonalROI
 from glue.core.subset import RoiSubsetState, SubsetState
@@ -904,10 +905,10 @@ def _outline_region(raster, roi, x_axis, y_axis, slices):
 
 class _RasterRoiSubsetState(RoiSubsetState):
     """
-    A region drawn on a raster map or a slit-jaw frame: that dataset's pixels inside it, as glue's own region, and on
-    other data ``world``, the region inside its outline (`_outline_region`). glue places that without inverting the
-    raster's coordinates at each of their pixels, and would place a slit-jaw image's own region nowhere else, as time
-    is not linked.
+    A region drawn on a raster map or a slit-jaw frame: that dataset's pixels inside it, as glue's own region, also in
+    data whose pixels glue links to them as the same (`_link_windows`), and on other data ``world``, the region inside
+    its outline (`_outline_region`). glue places that without inverting the raster's coordinates at each of their
+    pixels, and would place a slit-jaw image's own region nowhere else, as time is not linked.
     """
 
     def __init__(self, xatt, yatt, roi, world):
@@ -915,7 +916,7 @@ class _RasterRoiSubsetState(RoiSubsetState):
         self.world = world
 
     def to_mask(self, data, view=None):
-        if self.xatt in data.pixel_component_ids:
+        if any(is_equivalent_cid(data, self.xatt, cid) for cid in data.pixel_component_ids):
             return super().to_mask(data, view)
         view = (slice(None),) * data.ndim if view is None else view
         types = getattr(data.coords, "world_axis_physical_types", None) or ()

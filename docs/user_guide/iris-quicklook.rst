@@ -93,8 +93,9 @@ a stack's map, on a scanning raster the time stays at the last point's raster st
 time master (see below) still moves the others. A click on a slit-jaw viewer moves the point to the
 raster there (see below). The raster panels and the slit-jaw viewers have glue's region selection
 tools. A region drawn on
-the map selects the raster's pixels inside it, and reaches each slit-jaw frame, at that frame's own
-pointing, and other linked data by its outline in longitude and latitude, in a fraction of a second
+the map selects the raster's pixels inside it, the same pixels in its other windows, and reaches
+each slit-jaw frame, at that frame's own pointing, and other linked data by its outline in
+longitude and latitude, in a fraction of a second
 per frame (see :ref:`Linking <glue_solar_users_guide_iris_linking>`); one drawn on the spectrogram
 or the wavelength panel selects on that raster only. A region drawn on a slit-jaw image selects the
 image's pixels inside it in every frame, and reaches the raster and other linked data by its outline

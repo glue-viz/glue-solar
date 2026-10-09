@@ -1026,12 +1026,14 @@ def test_path_diagram_of_a_stack(qtbot, irispy_test_files):
     viewer.state.slices = (1, 0, 0, 12)
     assert viewer.toolbar.tools["solar:path"].enabled  # 4D, which glue-core's is not
     [path] = _draw_path(viewer, [0.5, 3, 6.5], [10, 60, 100])
-    # scans and wavelength against the path, in pixels only, as each scan has its own longitude and latitude
+    # scans and wavelength against the path, with the stack's own wavelengths and scans
     assert path.shape == (stack.shape[0], stack.shape[3], len(path.x))
     flux = stack.main_components[0]
     np.testing.assert_array_equal(path[flux], _along(stack, flux, path))
-    assert path.coords is None
-    app.new_data_viewer(ProfileViewer, data=path).figure.canvas.draw()  # its profile
+    assert path.coords.world_axis_names == ["Offset", "Wavelength", "Scan"]
+    wavelength = path.world_component_ids[1]
+    np.testing.assert_allclose(path[wavelength][0, :, 0], stack[stack.world_component_ids[3]][0, 0, 0, :])
+    app.new_data_viewer(ProfileViewer, data=path).figure.canvas.draw()  # its profile, along its own wavelengths
 
     # the crosshair moves the wavelength only, which the diagram's y axis shows
     diagrams = viewer.toolbar.tools["solar:path"]._slice_viewer

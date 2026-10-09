@@ -48,7 +48,7 @@ from glue_solar.quicklook import (
 from glue_solar.regrid import regrid_on_time
 from glue_solar.sources import moments
 from glue_solar.sources.iris import shift_pointing_iris
-from glue_solar.sources.loaders.iris import image_data, raster_data
+from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, raster_data
 from glue_solar.tests.helpers import (
     count_tick_work,
     inversions,
@@ -1782,9 +1782,9 @@ def test_raster_overlays_on_slit_jaw_images(bare_app, qtbot, monkeypatch, tmp_pa
     assert len(calls) == 3  # the raster point's, one per frame
 
     # a stack: the slits of the scan its panels show, placed with that scan's own pointing, here drifting north
-    later = repointed(tmp_path / SNS.format("raster_t000_r00001"), irispy_test_files, step=0.3, drift=0.01)
+    later = repointed(tmp_path / SNS.format("raster_t000_r00001"), irispy_test_files, step=0.3, drift=0.1)
     [stack] = raster_data([path, later], ["Si IV 1403"], stack=True)
-    [alone] = raster_data([later], ["Si IV 1403"])
+    [first], [alone] = raster_data([path], ["Si IV 1403"]), raster_data([later], ["Si IV 1403"])
     times = stack[stack.id["Time"]].copy()
     times[1] += times.max() - times.min()
     stack.update_components({stack.id["Time"]: times})
@@ -1798,6 +1798,16 @@ def test_raster_overlays_on_slit_jaw_images(bare_app, qtbot, monkeypatch, tmp_pa
     qtbot.wait(20)
     assert slits(sji_viewer) == pytest.approx(expected_slits(alone, sji), abs=0.01)
     assert not np.allclose(expected_slits(stack, sji, 0), expected_slits(alone, sji), atol=0.01)
+    # and a region on the slit-jaw image reaches each scan of the stack through link_hpc in that scan's own pointing,
+    # as it does that scan alone
+    bare_app.data_collection.extend([first, alone])
+    keep_hpc_linked(bare_app.data_collection)
+    (x0, y0), (x1, y1) = slits(sji_viewer)[[0, -1], [0, 1]]
+    region = draw_region(bare_app, sji_viewer, RectangularROI(x0 - 1, x1 + 1, (y0 + y1) / 2, y1 - 5))
+    mask = stack.get_mask(region)
+    np.testing.assert_array_equal(mask[0], first.get_mask(region))
+    np.testing.assert_array_equal(mask[1], alone.get_mask(region))
+    assert (mask[0] != mask[1]).any()
 
 
 def test_the_map_line_marks_the_step_at_the_master_time(bare_app, qtbot, scans):
@@ -2073,17 +2083,19 @@ def test_a_region_on_a_map_with_its_axes_swapped(bare_app, monkeypatch, irispy_t
 
 def test_a_stack_map_region_reaches_another_window_by_its_outline(bare_app, monkeypatch, irispy_test_files):
     files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
-    [stack] = raster_data(files, ["C II 1336"], stack=True)
+    stack, other = raster_data(files, ["C II 1336", "1343"], stack=True)
     [scan] = raster_data(files[2:], ["C II 1336"])
-    viewers = quicklook(bare_app, [stack, scan])
+    viewers = quicklook(bare_app, [stack, other, scan], ["C II 1336", "1343"])
     viewers["map"].state.slices = (2, *viewers["map"].state.slices[1:])
-    # glue's own region on the stack's pixels selects its steps and slit rows in every scan; its outline, in the
-    # pointing of scan 2, those of scan 2 through glue's world coordinates of each scan, and in scan 2 on its own,
-    # which stands in for another window of that scan, the pixel at each of them, the first step and last slit row too
+    # glue's own region on the stack's pixels selects its steps and slit rows in every scan, also in the stack's other
+    # window; its outline, in the pointing of scan 2, those of scan 2 through glue's world coordinates of each scan, and
+    # in scan 2 on its own, which stands in for another window of that scan alone, the pixel at each of them, the first
+    # step and last slit row too
     for roi, edge in ((XRangeROI(2.5, 5.5), (3, -1)), (RectangularROI(-3.4, 2.6, 10.3, 50.7), (0, 11))):
         region = draw_region(bare_app, viewers["map"], roi)
         pixels = roi_to_subset_state(roi, x_att=stack.pixel_component_ids[1], y_att=stack.pixel_component_ids[2])
         np.testing.assert_array_equal(stack.get_mask(region), stack.get_mask(pixels))
+        np.testing.assert_array_equal(other.get_mask(region)[..., 0], stack.get_mask(pixels)[..., 0])
         np.testing.assert_array_equal(stack.get_mask(region.world)[2], stack.get_mask(pixels)[2])
         expected = scan.get_mask(
             roi_to_subset_state(roi, x_att=scan.pixel_component_ids[0], y_att=scan.pixel_component_ids[1])

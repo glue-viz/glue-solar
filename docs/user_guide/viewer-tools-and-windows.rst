@@ -57,9 +57,8 @@ toolbar has:
   collection, and that of the image opens in a new Image viewer, with the path along x and the
   dataset's other axes kept: a slit-jaw image gives its frames against the path (400 rows on OBSID
   4000255147's SJI 1400), a raster window its wavelengths against the path, a stack its wavelengths
-  against the path with a scan slider, in pixels, as each scan has its own pointing. The path is
-  sampled once a pixel of the image, each sample taking the value the pencil menu's "Path sampling"
-  submenu chooses for the viewer's next Enter:
+  against the path with a scan slider. The path is sampled once a pixel of the image, each sample
+  taking the value the pencil menu's "Path sampling" submenu chooses for the viewer's next Enter:
 
   - "Truncate", glue's own sampling and the default: the pixel whose index the sample rounds down
     to, NaN where the path leaves the data.
