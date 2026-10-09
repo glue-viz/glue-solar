@@ -16,11 +16,22 @@ from glue.core.data import BaseCartesianData
 from glue.core.edit_subset_mode import ReplaceMode
 from glue.core.fixed_resolution_buffer import invalidate_cache, translate_pixel
 from glue.core.hub import HubListener
-from glue.core.message import NumericalDataChangedMessage, SettingsChangeMessage
+from glue.core.message import (
+    DataCollectionAddMessage,
+    DataCollectionDeleteMessage,
+    NumericalDataChangedMessage,
+    SettingsChangeMessage,
+)
 from glue.core.state import GlueSerializer, loader, saver
 from glue.core.subset import SubsetState
 from glue.plugins.tools.path_slicer.common import open_slice_viewer_for
-from glue.plugins.tools.path_slicer.matplotlib_mode import BasePathSlicerCrosshairMode, BasePathSlicerMode
+from glue.plugins.tools.path_slicer.matplotlib_mode import (
+    _PATH_ALPHA_ACTIVE,
+    _PATH_ALPHA_INACTIVE,
+    _PATH_COLOR,
+    BasePathSlicerCrosshairMode,
+    BasePathSlicerMode,
+)
 from glue.plugins.tools.path_slicer.path_sliced_data import PathSlicedCoordinates, PathSlicedData, sample_points
 from glue.plugins.tools.path_slicer.path_sliced_data_links import (
     PathRelativeLink,
@@ -1282,8 +1293,38 @@ def _placed(viewer, data, x, y):
     return placed if len(placed) == 2 else None
 
 
+def _diagrams(collection, placed, sampling, made=()):
+    """
+    glue-core's create_trace, of samples: a `PathData` diagram, sampled with ``sampling``, of each dataset of
+    ``placed`` with its two pixel components and the positions along them (`_placed`), added to ``collection`` and
+    linked to its parent and sample by sample to the others. Each is numbered past its parent's diagrams in the
+    collection, such as a restored session's or another viewer's, and ``made``, kept or deleted.
+    """
+    trace = []
+    for data, ((cid_x, x), (cid_y, y)) in placed:
+        count = sum(path.original_data is data for path in {*made, *(d for d in collection if isinstance(d, PathData))})
+        label = f"{data.label} [slice {count + 1}{'' if sampling == 'truncate' else ', ' + sampling}]"
+        path = PathData(data, cid_x, x, cid_y, y, label=label, sampling=sampling)
+        collection.append(path)
+        link_path_sliced_to_parent(collection, path)
+        for other in trace:  # sample by sample
+            link_path_sliced_pair_paths(collection, path, other)
+        trace.append(path)
+    return trace
+
+
+def _drawn(state, collection):
+    """The `PathData` diagrams in ``collection`` of the Image viewer's reference data on the axes it shows, oldest first."""
+    shown = {getattr(state.x_att, "axis", None), getattr(state.y_att, "axis", None)}
+    return [
+        data
+        for data in collection
+        if isinstance(data, PathData) and data.original_data is state.reference_data and set(data.sliced_dims) == shown
+    ]
+
+
 @viewer_tool
-class PathTool(BasePathSlicerMode):
+class PathTool(BasePathSlicerMode, HubListener):
     """
     glue-core's path slicer, for 3D and 4D data: draw a path on the Image viewer's image and press Enter for a dataset
     of the values along it, of each dataset shown, the reference data's opened in a new Image viewer and the others' in
@@ -1294,6 +1335,10 @@ class PathTool(BasePathSlicerMode):
     master's exposure; a dataset glue cannot place from the reference data, as a slit-jaw image on a raster's axes, has
     no diagram. Each Enter makes a new set of diagrams, in a new viewer, sampled as `PathData` is with ``sampling``,
     which the "Path sampling" submenu of `ModesTool` sets, as does a path opened from ECSV with its own sampling.
+
+    The path of each diagram of the image in the data collection, on the axes shown, is drawn as glue-core draws its
+    paths, the latest brightest: in every Image viewer of it, whichever made it, Enter, "Open path from ECSV…", "Path on
+    other data…" or a restored session.
     """
 
     tool_id = "solar:path"
@@ -1303,10 +1348,40 @@ class PathTool(BasePathSlicerMode):
     slice_viewer_cls = ImageViewer
     sampling = "truncate"
 
+    def __init__(self, viewer, **kwargs):
+        super().__init__(viewer, **kwargs)
+        for prop in ("x_att", "y_att"):
+            viewer.state.add_callback(prop, self._refresh_overlays)
+        hub = viewer.session.hub
+        for message in (DataCollectionAddMessage, DataCollectionDeleteMessage):
+            hub.subscribe(self, message, handler=self._refresh_overlays, filter=lambda m: isinstance(m.data, PathData))
+        # also for a viewer torn down without closing its tools
+        viewer.figure.canvas.destroyed.connect(lambda *_: hub.unsubscribe_all(self))
+
     def _on_reference_data_change(self, *args):
         # Data only: a stack's diagram is 3D too, but a PathData, which _open_or_update has nothing to sample in
         if self.viewer is not None and (reference := self.viewer.state.reference_data) is not None:
             self.enabled = isinstance(reference, Data) and reference.ndim >= 3
+        self._refresh_overlays()
+
+    def _refresh_overlays(self, *_):
+        # glue-core's overlays, of the paths in the collection (_drawn), where glue-core draws its own traces in the
+        # viewer they were drawn in
+        if self.viewer is None:  # closed
+            return
+        state = self.viewer.state
+        drawn = _drawn(state, self.viewer.session.data_collection)
+        gone = [self._overlays.pop(path) for path in set(self._overlays) - set(drawn)]
+        for line in gone:
+            line.remove()
+        for path in drawn:
+            if path not in self._overlays:
+                self._overlays[path] = self.viewer.axes.add_line(Line2D([], [], color=_PATH_COLOR, lw=2, zorder=100))
+            along = {path.cid_x.axis: path.x, path.cid_y.axis: path.y}
+            self._overlays[path].set_data(along[state.x_att.axis], along[state.y_att.axis])
+            self._overlays[path].set_alpha(_PATH_ALPHA_ACTIVE if path is drawn[-1] else _PATH_ALPHA_INACTIVE)
+        if gone or drawn:
+            self.viewer.figure.canvas.draw_idle()
 
     def _finish_roi(self, event):
         # glue-core 1.27.0's path ROI blits the patch it has just removed, None, if it cached a background, which raises
@@ -1322,36 +1397,21 @@ class PathTool(BasePathSlicerMode):
         self._extract(x, y, self.sampling)
 
     def _extract(self, x, y, sampling):
-        # glue-core's create_trace, of PathData of the samples x, y placed in each dataset. Every Enter makes a new
-        # set: glue-qt 0.4.2 has no menu to pick a path to update instead (glue-viz/glue-qt#66, draft, adds one)
-        state, collection = self.viewer.state, self.viewer.session.data_collection
+        # PathData of the samples x, y placed in each dataset. Every Enter makes a new set: glue-qt 0.4.2 has no menu
+        # to pick a path to update instead (glue-viz/glue-qt#66, draft, adds one)
+        state = self.viewer.state
         datasets = [layer.layer for layer in state.layers if isinstance(layer.layer, Data)]
-        trace = []
-        # the reference data's first, whose path glue-core draws on the image
-        for data in sorted(datasets, key=lambda data: data is not state.reference_data):
-            placed = _placed(self.viewer, data, x, y)
-            if placed is None:
-                continue
-            (cid_x, px), (cid_y, py) = placed
-            # the parent's diagrams made here, kept or deleted, and in the collection, such as a restored session's
-            # or another viewer's: a new number
-            known = {path for old in self._traces for path in old} | {d for d in collection if isinstance(d, PathData)}
-            count = sum(path.original_data is data for path in known)
-            label = f"{data.label} [slice {count + 1}{'' if sampling == 'truncate' else ', ' + sampling}]"
-            path = PathData(data, cid_x, px, cid_y, py, label=label, sampling=sampling)
-            path.parent_viewer = self.viewer if data is state.reference_data else None  # the crosshair's
-            collection.append(path)
-            link_path_sliced_to_parent(collection, path)
-            for other in trace:  # sample by sample
-                link_path_sliced_pair_paths(collection, path, other)
-            trace.append(path)
+        # the reference data's first, which the crosshair follows
+        datasets.sort(key=lambda data: data is not state.reference_data)
+        placed = [(data, at) for data in datasets if (at := _placed(self.viewer, data, x, y)) is not None]
+        made = [path for old in self._traces for path in old]
+        trace = _diagrams(self.viewer.session.data_collection, placed, sampling, made)
+        trace[0].parent_viewer = self.viewer
         self._traces.append(trace)
-        self._target_trace = trace  # drawn as the active path
         # the reference data's only: glue cannot show the others on its axes, such as a raster window's wavelength
         # on a slit-jaw image's frames, and lists them disabled
         self._slice_viewer = open_slice_viewer_for(self.viewer, self.slice_viewer_cls, trace[:1])
         self._slice_viewers.append(self._slice_viewer)
-        self._refresh_overlays()
 
 
 @viewer_tool
@@ -1435,6 +1495,82 @@ def _open_path(tool):
     if {state.x_att.axis, state.y_att.axis} != set(along):
         raise ValueError(f"The path is on pixel axes {table.meta['axes']} of {table.meta['data']}: show those.")
     tool._extract(np.asarray(along[state.x_att.axis]), np.asarray(along[state.y_att.axis]), table.meta["sampling"])
+
+
+_SKY = ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat")
+
+
+def _on_sky(data, lon, lat, when):
+    """
+    The two pixel components of ``data`` along which its helioprojective longitude and latitude vary and no other world
+    coordinate does, each with the positions along it of the longitudes and latitudes ``lon, lat`` (Quantity), on its
+    coordinates at its first pixel along its other axes but the frame or scan with the ``Time`` nearest ``when``, where
+    its pointing changes; None if there are not two, as on a raster's wavelengths against its slit.
+    """
+    types = list(getattr(data.coords, "world_axis_physical_types", None) or ())
+    if not set(_SKY) <= set(types):
+        return None
+    wcs, sky = data.coords, [types.index(kind) for kind in _SKY]
+    matrix = np.asarray(wcs.axis_correlation_matrix)[:, ::-1]  # numpy's axis order
+    on_sky, other = matrix[sky].any(axis=0), np.delete(matrix, sky, axis=0).any(axis=0)
+    axes = np.flatnonzero(on_sky & ~other)
+    if axes.size != 2:
+        return None
+    index, time = [0] * data.ndim, _time_component(data)
+    for axis in np.flatnonzero(on_sky & other) if time is not None and when is not None else ():
+        along = [0] * data.ndim
+        along[axis] = slice(None)
+        [index[axis]], _ = nearest([when], data[time, tuple(along)])
+    world = list(wcs.pixel_to_world_values(*index[::-1]))
+    for axis, angle in zip(sky, (lon, lat), strict=True):
+        world[axis] = angle.to_value(wcs.world_axis_units[axis])
+    pixel = wcs.world_to_pixel_values(*np.broadcast_arrays(*world))[::-1]
+    return [(data.pixel_component_ids[axis], np.asarray(pixel[axis], float)) for axis in axes]
+
+
+def _reused(viewer):
+    """The path "Path on other data…" places: the Image viewer's `PathData` diagram, or the latest drawn on its image."""
+    reference = viewer.state.reference_data
+    drawn = [reference] if isinstance(reference, PathData) else _drawn(viewer.state, viewer.session.data_collection)
+    return drawn[-1] if drawn else None
+
+
+@messagebox_on_error("Could not place the path on other data")
+def _reuse_path(viewer):
+    """
+    Make a diagram of the path `_reused` gives on each 3D or 4D dataset ticked of those it can be placed in (`_on_sky`)
+    by its longitudes and latitudes as `_save_path` saves them, at the parent's first index of its other axes, and the
+    ``Time`` of its first sample on the data there: each opened in a new Image viewer, sampled as the path is and linked
+    to it sample by sample.
+    """
+    path, collection = _reused(viewer), viewer.session.data_collection
+    table = _path_table(path)
+    if "lon" not in table.colnames:
+        raise ValueError(f"{path.label} has no helioprojective coordinates to place its path by.")
+    time = _time_component(path)
+    at = np.asarray(path[time, (0,) * (path.ndim - 1) + (slice(None),)]) if time is not None else np.array([], "M8")
+    when = next(iter(at[~np.isnat(at)]), None)
+    sky = table["lon"].quantity, table["lat"].quantity, when
+    offered = [
+        (data, placed)
+        for data in collection
+        if isinstance(data, Data) and data is not path.original_data and data.ndim >= 3
+        if (placed := _on_sky(data, *sky)) is not None
+    ]
+    if not offered:
+        raise ValueError("No other 3D or 4D dataset has helioprojective coordinates to place the path in.")
+    dialog = QtWidgets.QDialog(viewer, windowTitle="Path on other data")
+    form = QtWidgets.QFormLayout(dialog)
+    form.addRow(QtWidgets.QLabel(f"Diagrams of the path of {path.label} on:"))
+    ticks = [QtWidgets.QCheckBox(data.label) for data, _ in offered]
+    for tick in ticks:
+        form.addRow(tick)
+    if not _accepted(dialog, form):
+        return
+    ticked = [placed for placed, tick in zip(offered, ticks, strict=True) if tick.isChecked()]
+    for diagram in _diagrams(collection, ticked, path.sampling):
+        link_path_sliced_pair_paths(collection, diagram, path)
+        open_slice_viewer_for(viewer, ImageViewer, [diagram])
 
 
 def _track(viewer, x, y):
@@ -2382,8 +2518,9 @@ class _ToolMenu(SimpleToolMenu):
 class ModesTool(_ToolMenu):
     """
     The Image viewer's menu of glue-solar's mouse modes: Measure, Path diagram, its crosshair and Slope; "Save path as
-    ECSV…" on a diagram (`_save_path`) and "Open path from ECSV…" (`_open_path`); and the "Path sampling" submenu,
-    which sets `PathTool`'s ``sampling`` for the next Enter.
+    ECSV…" on a diagram (`_save_path`), "Open path from ECSV…" (`_open_path`) and "Path on other data…" on a diagram
+    or an image with a path drawn (`_reuse_path`); and the "Path sampling" submenu, which sets `PathTool`'s
+    ``sampling`` for the next Enter.
     """
 
     icon = "pencil"
@@ -2405,6 +2542,15 @@ class ModesTool(_ToolMenu):
             action.triggered.connect(run)
             add_callback(shown, "enabled", action.setVisible)
             action.setVisible(shown.enabled)
+        # on a diagram, or an image with a path drawn
+        reuse = modes.addAction("Path on other data…")
+        reuse.triggered.connect(lambda: _reuse_path(self.viewer))
+
+        def offer():
+            reuse.setVisible(_reused(self.viewer) is not None)
+
+        modes.aboutToShow.connect(offer)
+        offer()
         # a submenu, which glue-qt 0.4.2's tool menus cannot hold, as the Coordinate menu's "Blink interval"
         menu = modes.addMenu("Path sampling")
         group = QtWidgets.QActionGroup(menu)

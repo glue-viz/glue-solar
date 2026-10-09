@@ -13,8 +13,8 @@ glue-solar keeps its Image Viewer tools, all but Follow/lock, in three menus, so
 fits a viewer 700 pixels wide; a narrower viewer moves the last buttons behind the toolbar's »
 button. The pencil icon holds glue-solar's mouse modes, "Measure", "Path diagram", "Show
 position on original path" and "Slope", with the one on checked, and "Save path as ECSV…", "Open
-path from ECSV…" and the "Path sampling" submenu, described with "Path diagram" below; the link
-icon is the "Coordinate" menu; and
+path from ECSV…", "Path on other data…" and the "Path sampling" submenu, described with "Path
+diagram" below; the link icon is the "Coordinate" menu; and
 the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Wavelength
 band…", "Physical aspect", "Zoom 1:1", "Colour bar" and "Cursor readout", each but "Zoom 1:1"
 checked while it is on.
@@ -80,8 +80,11 @@ toolbar has:
   nearest the frame's time, and its diagram gives every scan at those steps and slit rows. These
   other diagrams, which the image's axes cannot show, are in the data collection to open in viewers
   of their own. A dataset glue cannot place from the image, such as a slit-jaw image added to a
-  raster's viewer, gets no diagram. Each Enter makes a new set in a new viewer and
-  keeps its path drawn on the image; closing the viewer it was drawn in closes them. In the
+  raster's viewer, gets no diagram. Each Enter makes a new set in a new viewer; closing the viewer
+  it was drawn in closes them. The path of every diagram of a dataset in the data collection is
+  drawn on each Image viewer of that dataset showing the two axes it is on, the latest bright and
+  the others faint, whichever viewer made it, by Enter, "Open path from ECSV…" or "Path on other
+  data…", or a restored session; deleting the diagram removes its path. In the
   diagram's viewer, "Show position on original path" marks the point of the path under the mouse
   while you drag, and moves the viewer it was drawn in to the frame, wavelength or scan the
   diagram's y axis shows there, only that slider.
@@ -94,9 +97,24 @@ toolbar has:
   from ECSV…", in the pencil menu of a viewer showing that dataset on those axes, makes the same
   diagrams from it, with the saved sampling, as Enter does with a path drawn there. A saved session
   keeps the diagrams, each as its path, its dataset and its sampling, and they read their values
-  from the dataset again as the session opens (see `Saving sessions`_); the restored path is not
-  drawn on the image, "Show position on original path" is off on a restored diagram, closing the
-  viewer it was drawn in leaves the diagram's viewer open, and "Slope" on it starts a new table.
+  from the dataset again as the session opens (see `Saving sessions`_); the restored path is drawn
+  on the dataset's viewers, but "Show position on original path" is off on a restored diagram,
+  closing the viewer it was drawn in leaves the diagram's viewer open, and "Slope" on it starts a
+  new table.
+
+  "Path on other data…", in the pencil menu of a diagram's viewer, or of a viewer with a path drawn
+  on its image, the bright one, places that path on other datasets: it lists, each with a tick, the
+  other 3D and 4D datasets with a helioprojective longitude and latitude that vary along two of their
+  pixel axes, along which nothing else varies, such as the other raster windows, the slit-jaw images
+  and AIA cutouts of an observation, and OK makes one diagram on each dataset ticked, opened in a new
+  viewer, with the path's sampling and linked to it sample by sample. The path is placed by its
+  ``lon`` and ``lat``, as "Save path as ECSV…" writes them, in the dataset's own pixels, at its
+  first wavelength, and, where its pointing changes with its frame or scan, at the frame or scan
+  whose ``Time`` (a stack's at its first step) is nearest that of the path's first sample on the
+  data there; a sit-and-stare raster's exposures place it as Enter does. Each diagram is the one the
+  same path drawn on the dataset's own viewer gives; on OBSID 4000005156, an SJI 2796 path placed on
+  the C II 1336, Si IV 1403 and Mg II k 2796 windows gives the diagrams Enter makes with those
+  windows shown on the slit-jaw image's first frame. Running it again makes a new set, as Enter does.
 - "Slope", a glue-solar mode in a path diagram's viewer ("Click points along a track on a
   distance-time diagram, then press Enter for its speed"): on a diagram with one time on each row,
   a slit-jaw image's frames or a sit-and-stare raster's exposures against the path, click points
