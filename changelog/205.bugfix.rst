@@ -1,0 +1,1 @@
+Sessions holding links to sunpy maps open again, and a restored raster held in memory gives its Si IV bursts and radiometric calibration.
