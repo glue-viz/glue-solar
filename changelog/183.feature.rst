@@ -1,0 +1,1 @@
+"Light curve at the point" in the Coordinate menu shows the band's mean at the quicklook's point at each exposure or scan, following the point.
