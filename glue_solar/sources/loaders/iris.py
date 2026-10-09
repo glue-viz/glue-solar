@@ -949,8 +949,9 @@ class QtIRISImporter(QtWidgets.QDialog):
     as the last browser left them.
 
     A folder typed in the Folder field is searched once Return is pressed or the
-    field is left. A double-click on an entry loads it alone, whatever is ticked;
-    on an observation of several entries it expands or collapses the row.
+    field is left. A double-click on an entry, its tick box too, loads it alone,
+    whatever is ticked; on an observation of several entries it expands or collapses
+    the row.
     """
 
     progressed = Signal(int, int)  # (load, percent), from the worker thread
@@ -1005,8 +1006,10 @@ class QtIRISImporter(QtWidgets.QDialog):
             self.set_directory(directory)
 
     def set_directory(self, directory):
+        directory = str(directory or "").strip()
         if not directory:
             return
+        directory = os.path.normpath(os.path.expanduser(directory))  # one spelling for a typed ~ or trailing slash
         if not Path(directory).is_dir():  # a saved or recent folder since removed or unmounted
             self.progress.setFormat(f"No such folder: {directory}")
             return

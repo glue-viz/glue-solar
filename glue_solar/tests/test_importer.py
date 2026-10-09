@@ -490,11 +490,13 @@ def test_tick_boxes_open_as_the_last_browser_left_them(dialog, qtbot, iris_tree)
 
 def test_a_folder_typed_in_the_folder_field_is_searched(dialog, qtbot, iris_tree, tmp_path):
     dialog.show()
-    dialog.directory.setText(str(next(iris_tree.glob("*_raster"))))  # OBS_A's raster files
+    folder = next(iris_tree.glob("*_raster"))  # OBS_A's raster files
+    dialog.directory.setText(f"{folder}/ ")
     QTest.keyClick(dialog.directory, Qt.Key_Return)
     assert dialog.isVisible()  # Return searches, never loads
     scanned(qtbot, dialog)
     assert _listed(dialog) == [OBS_A[2]]
+    assert [search[0] for search in dialog._recent] == [str(folder), str(iris_tree)]  # one spelling
     dialog.directory.editingFinished.emit()  # as the unchanged field loses focus
     assert dialog.ok.isEnabled()  # no rescan
     dialog.directory.setText(str(tmp_path / "gone"))
