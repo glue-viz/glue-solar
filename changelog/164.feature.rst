@@ -1,0 +1,1 @@
+"IRIS: Mg II features…" leaves a line's features out where a sample it searches is saturated, and says how many in the status bar.

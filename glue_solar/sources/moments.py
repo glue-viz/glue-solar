@@ -98,10 +98,18 @@ def _read(data, rows, wavelengths):
     return per_second(values.astype(float), seconds), seconds
 
 
-def _cube(data, values, rows, wavelengths, unit, meta=None):
-    """irispy's cube of ``values`` in ``unit``, of ``data`` at ``rows`` and ``wavelengths``, NaN and -Inf masked."""
+def _cube(data, values, rows, wavelengths, unit, seconds=None):
+    """
+    irispy's cube of ``values`` in ``unit``, of ``data`` at ``rows`` and ``wavelengths``, NaN and -Inf masked; with
+    ``seconds``, each step's exposure time (`_read`), as the ``"exposure time"`` irispy converts its saturation limit by.
+    """
     from irispy.spectrograph import SpectrogramCube
+    from ndcube.meta import NDMeta
 
+    meta = None
+    if seconds is not None:
+        meta = NDMeta()
+        meta.add("exposure time", seconds.ravel() * u.s, None, 0)
     view = SlicedLowLevelWCS(data.coords._wcs, (*rows, wavelengths))
     return SpectrogramCube(values, view, unit=unit, mask=np.isnan(values) | np.isneginf(values), meta=meta)
 
@@ -129,7 +137,6 @@ def _moments(data, centre, wings, continuum, crop, inner, unit):
     from irispy.utils.constants import SATURATION_LIMIT
     from irispy.utils.moments import calculate_moments
     from irispy.utils.spectrograph import subtract_background
-    from ndcube.meta import NDMeta
 
     maps, saturated = {}, 0
     # a slab takes about 100 bytes per sample, 150 with a continuum: half the steps then, generously, keeps a small
@@ -140,13 +147,10 @@ def _moments(data, centre, wings, continuum, crop, inner, unit):
     for start in range(0, data.shape[0], steps):
         rows = (slice(start, start + steps), slice(None))
         values, seconds = _read(data, rows, crop)
-        meta = NDMeta()
-        if seconds is not None:
-            meta.add("exposure time", seconds.ravel() * u.s, None, 0)
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
             # saturated within the wings, before any background is subtracted: NaN in every map
             slab = calculate_moments(
-                _cube(data, values[..., inside], rows, inner, unit, meta),
+                _cube(data, values[..., inside], rows, inner, unit, seconds),
                 rest_wavelength=centre * u.AA,
                 wings=wings * u.AA,
                 saturation_limit=SATURATION_LIMIT,
@@ -277,13 +281,21 @@ def _failed(exc_info):
     raise exc_info[1]
 
 
-def _add(data_collection, status, moments):
-    data_collection.append(moments)
+def _add(data_collection, status, said, dataset):
+    data_collection.append(dataset)
     keep_hpc_linked(data_collection)
+    message = said(dataset) if said else None
+    if message and status is not None:  # in place of what it says while it is computed
+        status.showMessage(message)
+
+
+def _saturated(moments):
+    """What glue's status bar says of the saturated pixels of ``moments``, or None for none."""
     count = moments.meta.get("moments_saturated")
-    if count and status is not None:  # in place of what it says while they are computed
+    if count:
         pixels = f"{count} pixels" if count > 1 else "1 pixel"
-        status.showMessage(f"{moments.label}: {pixels} saturated within the wings {'are' if count > 1 else 'is'} NaN")
+        return f"{moments.label}: {pixels} saturated within the wings {'are' if count > 1 else 'is'} NaN"
+    return None
 
 
 def _status_bar(data_collection):
@@ -298,14 +310,14 @@ def _clear(status, text):
         status.clearMessage()
 
 
-def _start(data_collection, text, failed, function, *args):
+def _start(data_collection, text, failed, function, *args, said=None):
     """
     Compute ``function(*args)``, a dataset, on glue-qt's `Worker`, while glue's status bar says ``text``, and add it to
-    ``data_collection``, or show its error with ``failed``.
+    ``data_collection``, the status bar then saying ``said(dataset)``, if anything; or show its error with ``failed``.
     """
     worker = Worker(function, *args)
     status = _status_bar(data_collection)
-    worker.result.connect(partial(_add, data_collection, status))
+    worker.result.connect(partial(_add, data_collection, status, said))
     worker.error.connect(failed)
     if status is not None:  # until the dataset is added or the error shown (D46)
         status.showMessage(text)
@@ -334,7 +346,7 @@ def moments_iris(data, data_collection):
     if line is None:
         return
     text = f"Computing line moments of {data.label}…"
-    _start(data_collection, text, _failed, _moments, data, *line, *_window(data, *line))
+    _start(data_collection, text, _failed, _moments, data, *line, *_window(data, *line), said=_saturated)
 
 
 def _mean_spectrum(data, cid):
