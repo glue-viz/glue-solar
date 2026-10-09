@@ -1,0 +1,1 @@
+"IRIS: Doppler image…" adds red-minus-blue wing maps of a line at chosen velocities, optionally normalised.
