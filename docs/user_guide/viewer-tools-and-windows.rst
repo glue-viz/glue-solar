@@ -196,10 +196,19 @@ toolbar has:
   with "Per-frame limits" on, the whole cube's. Ticking "UTC time on each frame", under the indices,
   draws each frame's time at the lower left of the plot, in white edged in black, the "Frame time"
   readout's time, to 0.01 s (``2013-09-02T16:39:39.66 UTC``): a raster step's or
-  exposure's, or the first and last of a frame showing several, such as a stack's scan. It is drawn
-  only while saving, so "Save plot to file" and the viewer stay without it. "Cancel" in its
-  progress dialog keeps the frames saved so far, a movie of them too, and the viewer goes back to
-  its slice and limits.
+  exposure's, or the first and last of a frame showing several, such as a stack's scan. Ticking
+  "Frame numbers" draws the slider's index and its last index at the upper left (``frame 7/399``),
+  and "Scale bar" a white bar edged in black at the lower right, its length above it: the largest
+  of 1, 2, 5, 10, 20, 50, 100, 200, 500 and 1000" that fits in the right quarter of the plot, at
+  the angle a pixel along x spans on the sky at each frame, averaged across the image through the
+  middle of the view, so it keeps its length on a rolled or stretched image; on a raster map, whose
+  steps differ by up to 15 %, it is the mean step's. Where the axes are not a longitude and a
+  latitude, as on a spectrogram, the main window's status bar says there is no scale bar. These
+  are drawn only while saving, so "Save plot to file" and the viewer stay without them. The file
+  dialog offers a name made of the dataset's label and the first and last index
+  (``SJI_1400-4000255147-2013-09-02T16_39_35_0-399``), the file type chosen adding its suffix.
+  "Cancel" in its progress dialog keeps the frames saved so far, a movie of them too, and the
+  viewer goes back to its slice and limits.
 
 A Profile viewer, the quicklook's spectrum panels included, gets an "IRIS lines" button: where its x
 axis is the wavelength of IRIS data, a thin marker and a label mark each main IRIS line in the
