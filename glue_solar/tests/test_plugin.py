@@ -59,6 +59,7 @@ from glue_solar.lines import rest_wavelength_iris
 from glue_solar.quicklook import QuicklookImageViewer, _role, _wavelengths
 from glue_solar.regrid import regrid_on_time
 from glue_solar.sources.bursts import bursts_iris
+from glue_solar.sources.doppler import doppler_iris
 from glue_solar.sources.iris import help_iris, iris_quicklook, is_iris_fits, link_iris, quicklook_iris
 from glue_solar.sources.line_ratio import line_ratio_iris
 from glue_solar.sources.loaders.iris import _GlueWCS, image_data, link_hpc, raster_data
@@ -80,6 +81,7 @@ def test_setup_registers_hooks():
     assert startup_action.members["iris_quicklook"] is iris_quicklook
     assert ("IRIS: line moments…", moments_iris) in [(action.label, action.callback) for action in layer_action]
     assert ("IRIS: red-blue asymmetry…", red_blue_iris) in [(action.label, action.callback) for action in layer_action]
+    assert ("IRIS: Doppler image…", doppler_iris) in [(action.label, action.callback) for action in layer_action]
     assert ("Set rest wavelength…", rest_wavelength_iris) in [
         (action.label, action.callback) for action in layer_action
     ]

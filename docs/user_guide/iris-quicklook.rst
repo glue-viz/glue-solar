@@ -385,9 +385,9 @@ position. On OBSID 4000005156's deconvolved SJI 2796, (+2, −1) turns the reado
 - Only IRIS data can be shifted: a sunpy Map is refused with a message, so shift the IRIS data
   against it instead.
 - Datasets made from a shifted one afterwards, by "Regrid on time", "Rebin…", line moments, red-blue
-  asymmetry or Mg II features, take its offset; shift them on their own, and alike, after a later
-  shift: a line ratio between maps shifted differently is refused as not on the same grid. A line
-  ratio shares its numerator's coordinates and shifts with it.
+  asymmetry, Doppler images or Mg II features, take its offset; shift them on their own, and alike,
+  after a later shift: a line ratio between maps shifted differently is refused as not on the same
+  grid. A line ratio shares its numerator's coordinates and shifts with it.
 - A region drawn on a quicklook's map or slit-jaw image keeps the outline it had in longitude and
   latitude, so draw it again after shifting the dataset it was drawn on.
 - The "Frame time" tooltip keeps the file's pointing. A saved session keeps the offset, but cannot
@@ -410,6 +410,8 @@ Line moments
 velocity of a line: see :ref:`Line moments <glue_solar_users_guide_iris_line_moments>`.
 "IRIS: red-blue asymmetry…" compares its red and blue wings: see
 :ref:`Red-blue asymmetry <glue_solar_users_guide_iris_red_blue>`.
+"IRIS: Doppler image…" maps its red wing less its blue wing at chosen velocities: see
+:ref:`Doppler images <glue_solar_users_guide_iris_doppler>`.
 "IRIS: Mg II features…" maps the line centres and emission peaks of Mg II k and h: see
 :ref:`Mg II features <glue_solar_users_guide_iris_mg_features>`.
 "IRIS: line ratio diagnostic…" maps the electron density or the temperature from two lines' maps:

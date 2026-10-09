@@ -29,6 +29,9 @@ API Reference
 .. automodapi:: glue_solar.sources.red_blue
    :no-inheritance-diagram:
 
+.. automodapi:: glue_solar.sources.doppler
+   :no-inheritance-diagram:
+
 .. automodapi:: glue_solar.sources.mg_features
 .. automodapi:: glue_solar.sources.line_ratio
    :no-inheritance-diagram:
