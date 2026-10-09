@@ -183,8 +183,10 @@ too. The report lists ``amplitude_0``, the constant, and ``amplitude_1``, ``mean
 ``stddev_1``, the Gaussian's, then the centre and, within 0.5 Å of a main IRIS line with the x unit
 ``Angstrom``, its velocity from that line, (centre / rest - 1) c; Ni I is not one. Add the offset,
 the centre minus the measured line's rest wavelength, to the rest wavelength of a line on the same
-detector and type that as the :ref:`line moments' <glue_solar_users_guide_iris_line_moments>`
-centre: on OBSID 3824262996, whose mean O I fits at 1355.6172 Å, +4.30 km/s, Si IV 1402.77 Å becomes
+detector and set that with "Set rest wavelength…" on its window, so both the
+:ref:`line moments <glue_solar_users_guide_iris_line_moments>` and red-blue asymmetry start from it
+(see :ref:`Rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`), or type it as the line
+moments' centre: on OBSID 3824262996, whose mean O I fits at 1355.6172 Å, +4.30 km/s, Si IV 1402.77 Å becomes
 1402.789 Å, and Ni I fits at 2799.4729 Å, -0.12 km/s. The offset changes over the orbit; irispy's
 ``irispy.utils.wavelength_drift.calculate_wavelength_drift``, on the raster read with
 ``irispy.io.read_files`` in glue's terminal, fits O I and Ni I 2799.474 Å along the slit in every

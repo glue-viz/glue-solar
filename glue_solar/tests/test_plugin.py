@@ -52,6 +52,7 @@ import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.fitters import GaussianConstantFitter
+from glue_solar.lines import rest_wavelength_iris
 from glue_solar.quicklook import QuicklookImageViewer, _role
 from glue_solar.regrid import regrid_on_time
 from glue_solar.sources.bursts import bursts_iris
@@ -76,6 +77,9 @@ def test_setup_registers_hooks():
     assert startup_action.members["iris_quicklook"] is iris_quicklook
     assert ("IRIS: line moments…", moments_iris) in [(action.label, action.callback) for action in layer_action]
     assert ("IRIS: red-blue asymmetry…", red_blue_iris) in [(action.label, action.callback) for action in layer_action]
+    assert ("Set rest wavelength…", rest_wavelength_iris) in [
+        (action.label, action.callback) for action in layer_action
+    ]
     assert ("IRIS: Mg II features…", mg_features_iris) in [(action.label, action.callback) for action in layer_action]
     assert ("IRIS: detect UV bursts…", bursts_iris) in [(action.label, action.callback) for action in layer_action]
     assert ("IRIS: line ratio diagnostic…", line_ratio_iris) in [

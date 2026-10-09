@@ -5,9 +5,10 @@ Red-blue asymmetry
 ==================
 
 To compare the red and blue wings of a line, select a raster window of one scan in the data
-collection and choose "IRIS: red-blue asymmetry…" from its right-click menu. Type the rest
-wavelength in Å (the window's reference wavelength is never assumed); the wavelengths taken below
-and above it, ±1 Å unless changed, are all irispy is given, so a Mg II k window's h line is left
+collection and choose "IRIS: red-blue asymmetry…" from its right-click menu. The rest wavelength,
+in Å, starts at the window's :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`,
+or blank for a window without one; type another to change it. The wavelengths taken below and
+above it, ±1 Å unless changed, are all irispy is given, so a Mg II k window's h line is left
 out. irispy's ``calculate_red_blue_asymmetry`` interpolates each profile about its peak every
 velocity step and divides the mean of its red wing, from the first to the second wing velocity above
 the peak, less the mean of its blue wing, as far below it, by the peak: positive for excess red

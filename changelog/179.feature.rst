@@ -1,0 +1,1 @@
+The line moments and red-blue dialogs pre-fill the rest wavelength from the window's main line or a "Set rest wavelength…" override, never from TWAVE.

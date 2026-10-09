@@ -1,7 +1,7 @@
 """
 'IRIS: line moments…', on int16 copies of irispy's test files, Gaussian lines and one irispy-data cutout: what glue
-gets of irispy's maps; 'IRIS: subtract mean spectrum', as a Profile shows it; and the maps exported with their
-coordinates.
+gets of irispy's maps; 'IRIS: subtract mean spectrum', as a Profile shows it; the maps exported with their
+coordinates; and the rest wavelength the line dialogs start at.
 """
 
 import warnings
@@ -30,6 +30,7 @@ from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
+from glue_solar.lines import rest_wavelength
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import moments
 from glue_solar.sources.loaders import iris
@@ -61,16 +62,16 @@ def scan_path(tmp_path, irispy_test_files):
 def answer(monkeypatch, centre, wings=(), continuum="", accept=True, errors=False):
     """
     Make each line dialog return as if ``centre``, any ``wings`` and ``continuum`` were typed, "Error maps" ticked with
-    ``errors``, and OK, or Cancel, pressed; returns the wings, continuum and tick each dialog opened with.
+    ``errors``, and OK, or Cancel, pressed; returns the centre, wings, continuum and tick each dialog opened with.
     """
     opened = []
 
     def exec_(dialog):
         boxes = [dialog.findChild(QtWidgets.QDoubleSpinBox, side) for side in ("below", "above")]
-        windows = dialog.findChild(QtWidgets.QLineEdit, "continuum")
+        windows, field = (dialog.findChild(QtWidgets.QLineEdit, name) for name in ("continuum", "centre"))
         tick = dialog.findChild(QtWidgets.QCheckBox, "errors")
-        opened.append((*(box.value() for box in boxes), windows.text(), tick.isChecked()))
-        dialog.findChild(QtWidgets.QLineEdit, "centre").setText(centre)
+        opened.append((field.text(), *(box.value() for box in boxes), windows.text(), tick.isChecked()))
+        field.setText(centre)
         windows.setText(continuum)
         tick.setChecked(errors)
         for box, wing in zip(boxes, wings):
@@ -113,7 +114,7 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     keep_hpc_linked(collection)
     opened = answer(monkeypatch, "1402.77")
     maps = run(app, qtbot, raster)
-    assert opened == [(0.5, 0.5, "", False)]
+    assert opened == [("1402.77", 0.5, 0.5, "", False)]  # Si IV 1402.77, the window's main line
     assert maps.label == f"{raster.label} moments 1402.77"
     assert maps.shape == raster.shape[:2]
     assert [(cid.label, maps.get_component(cid).units) for cid in maps.main_components] == [
@@ -273,7 +274,7 @@ def test_ticked_error_maps_are_irispys_from_its_readers_uncertainty(app, qtbot, 
     app.data_collection.append(raster)
     opened = answer(monkeypatch, "1402.77", continuum=continuum, errors=True)
     maps = run(app, qtbot, raster)
-    assert opened == [(0.5, 0.5, "", False)]
+    assert opened == [("1402.77", 0.5, 0.5, "", False)]
     cube = read_files([scan_path], spectral_windows=["Si IV 1403"], uncertainty=True)["Si IV 1403"][0]
     cube = cube.apply_exposure_time_correction()
     if continuum:
@@ -595,3 +596,89 @@ def test_exporting_other_data_than_a_map_shows_why(qtbot, monkeypatch, tmp_path,
         for label in (raster.label, "plain", "image")
     ]
     assert not (tmp_path / "refused.fits").exists()
+
+
+def window(low, high, name, twave=None):
+    """A spectral window from ``low`` to ``high`` Angstrom, named ``name``, its TWAVE ``twave`` or mid-window."""
+    wcs = WCS(naxis=1)
+    wcs.wcs.ctype, wcs.wcs.cunit, wcs.wcs.crpix = ["WAVE"], ["Angstrom"], [1]
+    wcs.wcs.crval, wcs.wcs.cdelt = [low], [(high - low) / 10]
+    data = Data(label=str(name), x=np.zeros(11), coords=wcs)
+    data.meta.update(NWIN=1, TDESC1=name, TWAVE1=(low + high) / 2 if twave is None else twave)
+    return data
+
+
+def test_the_rest_wavelength_of_a_window():
+    """The one main line within it, else of several the one nearest its name's wavelength, else None; never TWAVE."""
+    assert rest_wavelength(window(1398, 1406, "Si IV 1403", twave=1402.8)) == 1402.77
+    assert rest_wavelength(window(1398, 1406, None)) == 1402.77  # one line needs no name
+    assert rest_wavelength(window(2790, 2810, "Mg II k 2796", twave=2796.2)) == 2796.352  # k, h and the triplet
+    assert rest_wavelength(window(2790, 2810, "Mg II h 2803")) == 2803.53
+    assert rest_wavelength(window(1332, 1358, "C II 1336")) == 1335.7079  # C II's three, Fe XII, Fe XXI and O I
+    for several in ("Mg II k", "Mg II 2800", None):  # a name without a wavelength, one within 1 Å of none, no name
+        assert rest_wavelength(window(2790, 2810, several)) is None
+    assert rest_wavelength(window(2831, 2834, "2832", twave=2832.7)) is None  # no line: not its TWAVE
+    assert rest_wavelength(Data(label="plain", x=np.zeros(3))) is None
+    # meta['rest_wavelength'] first
+    for data in (window(2790, 2810, "Mg II k 2796"), window(2831, 2834, "2832"), Data(x=np.zeros(3))):
+        data.meta["rest_wavelength"] = 2796.2
+        assert rest_wavelength(data) == 2796.2
+
+
+def test_the_line_dialogs_start_at_the_rest_wavelength(app, monkeypatch, irispy_test_files):
+    """Both line dialogs start at the window's rest wavelength, their tooltip saying where it is from, else blank."""
+    windows = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["Mg II k 2796", "2832"])
+    [none, mg] = sorted(windows, key=lambda data: data.label)  # 2832 first
+    app.data_collection.extend([mg, none])
+    opened = []
+
+    def exec_(dialog):
+        field = dialog.findChild(QtWidgets.QLineEdit, "centre") or dialog.findChild(QtWidgets.QLineEdit, "rest")
+        opened.append((field.text(), field.toolTip()))
+        return QtWidgets.QDialog.Rejected
+
+    monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
+    tree = app._layer_widget
+
+    def both(data):
+        tree.ui.layerTree.set_selected_layers([data])
+        for action in (ACTION, "IRIS: red-blue asymmetry…"):
+            tree._actions[action].trigger()
+        return [opened.pop(0) for _ in range(2)]
+
+    assert both(mg) == [("2796.352", "Mg II k, of the main IRIS lines")] * 2  # not the TWAVE, 2796.2
+    assert both(none) == [("", "")] * 2
+    mg.meta["rest_wavelength"] = 2796.2
+    assert both(mg) == [("2796.2", f"{mg.label}'s, set with 'Set rest wavelength…'")] * 2
+
+
+def test_set_rest_wavelength(app, monkeypatch, irispy_test_files):
+    """'Set rest wavelength…' lists the main lines within the window, takes one or a typed wavelength, or a blank."""
+    [mg] = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["Mg II k 2796"])
+    sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
+    app.data_collection.extend([mg, sji])
+    opened, shown = [], []
+    monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
+    monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
+    tree = app._layer_widget
+    action = tree._actions["Set rest wavelength…"]
+
+    def pick(text, ok=True):
+        monkeypatch.setattr(QtWidgets.QInputDialog, "getItem", lambda *args: opened.append(args[3:5]) or (text, ok))
+        action.trigger()
+        return rest_wavelength(mg), mg.meta.get("rest_wavelength")
+
+    tree.ui.layerTree.set_selected_layers([mg])
+    lines = ["Mg II 2791.599", "Mg II k 2796.352", "Mg II 2798.754", "Mg II 2798.823", "Mg II h 2803.53"]
+    assert pick("Mg II h 2803.53") == (2803.53, 2803.53)
+    assert pick(" 2796.2 ") == (2796.2, 2796.2)
+    assert pick("2800", ok=False) == (2796.2, 2796.2)  # Cancel
+    assert pick("k") == (2796.2, 2796.2)
+    assert pick(" ") == (2796.352, None)  # back to the main line
+    assert opened == [(lines, 1), (lines, 4), (["2796.2", *lines], 0), (["2796.2", *lines], 0), (["2796.2", *lines], 0)]
+    tree.ui.layerTree.set_selected_layers([sji])
+    action.trigger()
+    assert shown == [
+        "Could not set the rest wavelength\n'k' is not a wavelength in Angstrom, such as 1402.77.",
+        f"Could not set the rest wavelength\n{sji.label} has no wavelength axis.",
+    ]

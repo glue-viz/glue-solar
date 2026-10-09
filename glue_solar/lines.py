@@ -1,23 +1,25 @@
 """
-The main IRIS lines, and a Profile viewer button that labels them.
+The main IRIS lines, a Profile viewer button that labels them, and the rest wavelength of a spectral window (D11).
 
 Wavelengths are NIST ASD vacuum wavelengths in Angstrom: the observed one where NIST gives one, else its Ritz value
 (D44). irispy's line database is to replace this table (`wp5-irispy-line-database` in the plan).
 """
 
 import numpy as np
-from glue.config import viewer_tool
+from glue.config import layer_action, viewer_tool
 from glue.core.units import UnitConverter
 from glue.viewers.common.tool import Tool
+from glue_qt.utils.decorators import messagebox_on_error
 from matplotlib.lines import Line2D
 from matplotlib.text import Text
 from matplotlib.transforms import blended_transform_factory
+from qtpy import QtWidgets
 
 import astropy.units as u
 
-from glue_solar.quicklook import _spectral_axes
+from glue_solar.quicklook import _spectral_axes, _wavelengths, _window
 
-__all__ = ["MAIN_LINES", "LineTool"]
+__all__ = ["MAIN_LINES", "LineTool", "rest_wavelength", "rest_wavelength_iris"]
 
 MAIN_LINES = (
     ("C II", 1334.5323),
@@ -108,3 +110,68 @@ class LineTool(Tool):
                         color="0.35")
             self.artists.append(axes.add_artist(text))
         self.viewer.figure.canvas.draw_idle()
+
+
+def _within(data):
+    """The main lines within the wavelengths of ``data``, which has one wavelength axis, as (name, wavelength)."""
+    wavelengths, _ = _wavelengths(data)
+    return [(name, wave) for name, wave in MAIN_LINES if np.nanmin(wavelengths) <= wave <= np.nanmax(wavelengths)]
+
+
+def rest_wavelength(data):
+    """
+    The rest wavelength of the line in ``data``, in Angstrom, or None (D11): ``meta['rest_wavelength']`` where set,
+    else the one main line within its wavelengths or, of several, the one nearest the wavelength its window is named
+    for, such as 2796 in Mg II k 2796, if within 1 Å; never the window's TWAVE, which is not the line's.
+    """
+    if data.meta.get("rest_wavelength") is not None:
+        return float(data.meta["rest_wavelength"])
+    if len(_spectral_axes(data)) != 1:
+        return None
+    within = [wave for _, wave in _within(data)]
+    if len(within) > 1:
+        try:
+            named = float(str(_window(data)[0]).split()[-1])
+        except (IndexError, ValueError):  # no name, or no wavelength in it
+            return None
+        nearest = min(within, key=lambda wave: abs(wave - named))
+        within = [nearest] if abs(nearest - named) <= 1 else []
+    return within[0] if within else None
+
+
+def _wavelength(text):
+    """``text``, typed in Angstrom, as a float."""
+    try:
+        return float(text)
+    except ValueError:
+        raise ValueError(f"'{text}' is not a wavelength in Angstrom, such as 1402.77.") from None
+
+
+@layer_action(
+    "Set rest wavelength…",
+    single=True,
+    data=True,
+    tooltip="Set the rest wavelength of the line in this spectral window, which the line dialogs start from",
+)
+@messagebox_on_error("Could not set the rest wavelength")
+def rest_wavelength_iris(data, data_collection):
+    """
+    Set ``meta['rest_wavelength']`` of ``data`` to a main line within it picked or a wavelength typed in Angstrom, or
+    remove it for a blank one; the dialog starts at its `rest_wavelength`. glue shows why for data without one
+    wavelength axis.
+    """
+    if len(_spectral_axes(data)) != 1:
+        raise ValueError(f"{data.label} has no wavelength axis.")
+    choices = {f"{name} {wave}": wave for name, wave in _within(data)}
+    rest = rest_wavelength(data)
+    shown = next((text for text, wave in choices.items() if wave == rest), "" if rest is None else str(rest))
+    items = list(choices) if shown in choices else [shown, *choices]
+    title, label = f"Rest wavelength of {data.label}", "Rest wavelength [Å], blank for the main line's:"
+    text, ok = QtWidgets.QInputDialog.getItem(
+        QtWidgets.QApplication.activeWindow(), title, label, items, items.index(shown), True
+    )
+    text = text.strip()
+    if ok and text:
+        data.meta["rest_wavelength"] = choices[text] if text in choices else _wavelength(text)
+    elif ok:
+        data.meta.pop("rest_wavelength", None)

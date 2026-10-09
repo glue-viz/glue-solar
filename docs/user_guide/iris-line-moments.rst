@@ -5,9 +5,11 @@ Line moments
 ============
 
 To map a spectral line, select a raster window of one scan in the data collection and choose "IRIS:
-line moments…" from its right-click menu. Type the line centre in Å, the rest wavelength of the
-velocities (the window's reference wavelength is never assumed), and the wings, the wavelengths
-taken below and above it, ±0.5 Å unless changed; a blank centre adds nothing. Continuum windows are
+line moments…" from its right-click menu. The line centre, the rest wavelength of the velocities in
+Å, starts at the window's :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`,
+such as 2796.352 for Mg II k, or blank for a window without one; type another to change it. The
+wings, the wavelengths taken below and above it, are ±0.5 Å unless changed; a blank centre adds
+nothing. Continuum windows are
 optional: line-free wavelength ranges outside the wings, such as ``1401.6-1402.1, 1403.5-1404.3``,
 to which irispy's ``subtract_background`` fits the background of each spectrum, a constant to one
 window or a straight line to more, and subtracts it; left blank, nothing is subtracted, and any
@@ -81,6 +83,30 @@ Glue says why, and adds nothing, for:
 - a centre or continuum window that is not a wavelength, or a list of ranges, in Å;
 - a centre with no wavelength of the window within the wings, a continuum window with none, or one
   that overlaps the wings.
+
+.. _glue_solar_users_guide_iris_rest_wavelength:
+
+Rest wavelength
+---------------
+
+The rest wavelength of a spectral window, at which the line centre here and the rest wavelength of
+:ref:`red-blue asymmetry <glue_solar_users_guide_iris_red_blue>` start, is:
+
+- the one set with "Set rest wavelength…" from the window's right-click menu, which lists the main
+  IRIS lines within the window and takes a wavelength typed in Å, a blank one removing it. It is
+  kept in the dataset's ``meta['rest_wavelength']``, in Å, which a script can set too;
+- else the main IRIS line within the window's wavelengths (those the Profile viewer's "IRIS lines"
+  button labels, at NIST vacuum wavelengths), or of several, as a Mg II k window holds k, h and the
+  triplet, the one nearest the wavelength the window is named for, if within 1 Å: Mg II k
+  2796.352 Å in ``Mg II k 2796``, C II 1335.7079 Å in ``C II 1336``, O I 1355.5977 Å in ``O I 1356``;
+- else none, as for ``2832`` or ``Cl I 1352``.
+
+The window's reference wavelength, ``TWAVE``, is never taken: it is not the line's (2796.20 Å for
+Mg II k). The field's tooltip says where its wavelength comes from, and
+``glue_solar.lines.rest_wavelength(data)`` gives it, or None, in glue's terminal. Mg II features
+measure k and h each from irispy's own rest wavelengths, and the Profile viewer's "Gaussian +
+constant (IRIS)" fit names the main line nearest its fitted centre itself, as it has no dataset to
+read.
 
 Line ratios
 -----------

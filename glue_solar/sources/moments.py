@@ -18,6 +18,7 @@ import astropy.units as u
 from astropy.nddata import StdDevUncertainty
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
+from glue_solar.lines import MAIN_LINES, _wavelength, rest_wavelength
 from glue_solar.quicklook import _role, _spectral_axes, _wavelengths
 from glue_solar.sources.loaders.iris import _RUNNING, WCS_LOCK, _GlueWCS, keep_hpc_linked, per_second
 
@@ -269,23 +270,26 @@ def _accepted(dialog, form):
     return accepted
 
 
-def _wavelength(text):
-    """``text``, typed in Angstrom, as a float."""
-    try:
-        return float(text)
-    except ValueError:
-        raise ValueError(f"'{text}' is not a wavelength in Angstrom, such as 1402.77.") from None
+def _rest_field(data, name):
+    """A line edit ``name`` holding the `rest_wavelength` of ``data``, if any, its tooltip saying where it is from."""
+    rest = rest_wavelength(data)
+    field = QtWidgets.QLineEdit("" if rest is None else str(rest), objectName=name)
+    if data.meta.get("rest_wavelength") is not None:
+        field.setToolTip(f"{data.label}'s, set with 'Set rest wavelength…'")
+    elif rest is not None:
+        field.setToolTip(f"{next(line for line, wave in MAIN_LINES if wave == rest)}, of the main IRIS lines")
+    return field
 
 
 def _ask(data):
     """
-    The line centre typed for ``data``, the wings below and above it, and the continuum windows, or None for none, in
-    Angstrom, and whether error maps are ticked; or None for a blank centre or Cancel.
+    The line centre typed for ``data``, at first its `rest_wavelength`, the wings below and above it, and the continuum
+    windows, or None for none, in Angstrom, and whether error maps are ticked; or None for a blank centre or Cancel.
     """
     dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
     dialog.setWindowTitle(f"IRIS: line moments of {data.label}")
     form = QtWidgets.QFormLayout(dialog)
-    centre = QtWidgets.QLineEdit(objectName="centre")  # D24: typed, never the window's TWAVE
+    centre = _rest_field(data, "centre")  # D11: never the window's TWAVE
     form.addRow("Line centre [Å]:", centre)
     wings = []
     for side, wing in zip(("below", "above"), WINGS):
