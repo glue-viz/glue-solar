@@ -16,13 +16,14 @@ from glue.core.hub import HubListener
 from glue.core.link_manager import LinkManager
 from glue.core.message import SettingsChangeMessage, SubsetUpdateMessage
 from glue.core.roi import CircularROI, PolygonalROI, RectangularROI, XRangeROI, YRangeROI
-from glue.core.subset import SubsetState, roi_to_subset_state
+from glue.core.subset import RangeSubsetState, SubsetState, roi_to_subset_state
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from glue_qt.viewers.scatter import ScatterViewer
 from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.text import Text
 from qtpy import QtWidgets
@@ -1410,6 +1411,66 @@ def test_each_follower_viewer_reads_its_own_frame(bare_app, qtbot, irispy_test_f
     offset = sji[sji.id["Time"]][40, 0, 0] - raster_time(raster, (1,))
     qtbot.waitUntil(lambda: f"NO MATCH Δt = {offset / np.timedelta64(1, 's'):+.1f} s" in readout(other))
     assert " · Δt " in readout(sji_viewer)
+
+
+def time_series(app, data):
+    """A Scatter plot against time of a table of ``data``'s observation with a row at each of its exposures."""
+    table = Data(label="series", Time=data[data.id["Time"]][:, 0, 0], value=np.arange(data.shape[0], dtype=float))
+    table.meta = {key: data.meta[key] for key in ("OBSID", "STARTOBS")}
+    app.data_collection.append(table)
+    scatter = app.new_data_viewer(ScatterViewer, data=table)
+    scatter.state.x_att, scatter.state.y_att = table.id["Time"], table.id["value"]
+    return scatter
+
+
+def markers(app):
+    """The 'Master exposure' groups of ``app``."""
+    return [group for group in app.data_collection.subset_groups if group.label == "Master exposure"]
+
+
+def marks(app, data, index):
+    """Whether ``app``'s one 'Master exposure' selects the exposure of ``data`` at ``index`` along its first axis."""
+    view = (index, *[0] * (data.ndim - 1))
+    start = data[data.id["Time"]][view]
+    end = start + np.timedelta64(int(data[data.id["Exposure time"]][view] * 1e9), "ns")
+    return [(group.subset_state.lo, group.subset_state.hi) for group in markers(app)] == [(start, end)]
+
+
+def test_the_master_exposure_shows_on_a_datetime_scatter_plot(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    bare_app.data_collection.append(raster)
+    mine = bare_app.data_collection.new_subset_group(label="mine", subset_state=raster.pixel_component_ids[0] > 3)
+    viewers = quicklook(bare_app, [raster, sji])
+    [point] = bare_app.session.edit_subset_mode.edit_subset
+    scatter = time_series(bare_app, raster)
+    spectrogram = viewers["spectrogram"]
+    spectrogram.state.slices = (7, *spectrogram.state.slices[1:])  # the master's exposure
+    qtbot.waitUntil(lambda: marks(bare_app, raster, 7))
+    [group] = markers(bare_app)
+    assert isinstance(group.subset_state, RangeSubsetState)  # as a range dragged on its time axis
+    assert group.subset_state.att is scatter.state.x_att
+    assert bare_app.session.edit_subset_mode.edit_subset == [point]
+    assert mine.subset_state.left is raster.pixel_component_ids[0]  # the user's own stays
+    # drawn on the Scatter plot only, at that exposure's row
+    [layer] = [layer for layer in scatter.layers if getattr(layer.layer, "group", None) is group]
+    assert layer.enabled
+    assert layer.visible
+    np.testing.assert_array_equal(np.flatnonzero(layer.layer.to_mask()), [7])
+    assert len(layer.plot_artist.get_xdata()) == 1
+    others = [layer.layer for viewer in bare_app.viewers[-1] if viewer is not scatter for layer in viewer.layers]
+    assert group not in [getattr(layer, "group", None) for layer in others]
+    spectrogram.state.slices = (100, *spectrogram.state.slices[1:])  # it moves with the master
+    qtbot.waitUntil(lambda: marks(bare_app, raster, 100))
+    [sji_viewer] = viewers["sji"]
+    menu_action(sji_viewer, "Time master").trigger()  # and with a new master
+    sji_viewer.state.slices = (3, 0, 0)
+    qtbot.waitUntil(lambda: marks(bare_app, sji, 3))
+    synced = []
+    coordinator(bare_app.data_collection).add_listener(lambda *args: synced.append(args))
+    bare_app.data_collection.remove_subset_group(group)  # deleting it stops it
+    sji_viewer.state.slices = (5, 0, 0)
+    qtbot.waitUntil(lambda: bool(synced))
+    assert markers(bare_app) == []
 
 
 def footprint(raster, sji):
