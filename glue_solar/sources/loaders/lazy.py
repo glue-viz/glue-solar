@@ -8,6 +8,7 @@ import dask.array as da
 import numpy as np
 from glue.core.component import DaskComponent, DerivedComponent
 from glue.core.data import Data
+from glue.core.state import GlueSerializeError, _load_data_5, _save_data_5
 from glue.core.subset import SliceSubsetState
 from glue.utils import random_indices_for_array
 
@@ -207,3 +208,52 @@ class LazyData(Data):
         return super().compute_statistic(statistic, cid, subset_state=subset_state, axis=axis, finite=finite,
                                           positive=positive, percentile=percentile, view=view,
                                           random_subset=random_subset, **kwargs)
+
+    # A session saves a dataset read from its files (``_load_log``) as glue saves a Data, but for the coordinates and
+    # metadata its files give, which its load log reads again, so that it restores with them, irispy's metadata class
+    # and this class: only the pointing offset and the metadata added since are saved
+    def __gluestate__(self, context):
+        log = getattr(self, "_load_log", None)
+        if context.include_data or log is None:
+            return _save_data_5(self, context)
+        meta = {}
+        for key, value in self.meta.items():
+            if key not in self._loaded_meta:
+                try:
+                    context.do(value)
+                except GlueSerializeError:  # left out, as glue leaves it out
+                    continue
+                meta[key] = value
+        return {
+            "components": [(context.id(cid), context.id(self.get_component(cid))) for cid in self._components],
+            "subsets": [context.id(subset) for subset in self.subsets],
+            "label": self.label,
+            "style": context.do(self.style),
+            "_key_joins": [
+                [context.id(key), [context.id(cid) for cid in cids], [context.id(cid) for cid in other]]
+                for key, (cids, other) in self._key_joins.items()
+            ],
+            "uuid": self.uuid,
+            "primary_owner": [context.id(cid) for cid in self.components if cid.parent is self],
+            "meta": context.do(meta),
+            "log": context.id(log),
+            "log_item": log.data.index(self),
+            "pointing_offset": list(self.coords.pointing_offset),
+        }
+
+    @classmethod
+    def __setgluestate__(cls, rec, context):
+        if "log" not in rec:
+            yield from _load_data_5(rec, context)
+            return
+        log = context.object(rec["log"])
+        source = log.data[rec["log_item"]]
+        source.coords.pointing_offset = tuple(rec["pointing_offset"])
+        context.register_object(f"{rec['uuid']} coords", source.coords)
+        restored = _load_data_5({**rec, "coords": f"{rec['uuid']} coords"}, context)
+        data = next(restored)
+        data.__class__ = cls  # glue's loader makes a Data
+        data.meta, data._load_log, data._loaded_meta = source.meta, log, source._loaded_meta
+        log.data[rec["log_item"]] = data  # for a session saved from this one
+        yield data
+        yield from restored

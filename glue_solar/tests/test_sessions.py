@@ -27,6 +27,7 @@ from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
+from glue_solar.sources.loaders.lazy import LazyData
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments
 from glue_solar.tests.helpers import load_selected, scanned
@@ -174,6 +175,8 @@ def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_mo
     qtbot.addWidget(app)
     monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
     app.data_collection.extend(dialog.datasets)
+    dialog.datasets[0].coords.pointing_offset = (1.5, -2.25)
+    dialog.datasets[0].meta["rest_wavelength"] = 2796.35
     # with paths relative to the session file, the type glue's Save Session dialog starts with
     app.save_session(str(tmp_path / "first" / "session.glu"), absolute_paths=False)
     records = json.loads((tmp_path / "first" / "session.glu").read_text())
@@ -195,14 +198,29 @@ def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_mo
         "log" in record or record["_type"].endswith(("CoordinateComponent", "DerivedComponent"))
         for record in components
     )
+    # nor coordinates or metadata, which the files give, but for the offset and metadata added since
+    assert not any(record["_type"].endswith("_GlueWCS") for record in records.values())
+    meta = [records[data.label]["meta"]["contents"] for data in dialog.datasets]
+    assert meta == [{"st__rest_wavelength": 2796.35}, {}, {}, {}]
     (tmp_path / "first").rename(tmp_path / "moved")
     restored = GlueApplication.restore_session(str(tmp_path / "moved" / "session.glu"), show=False)
     qtbot.addWidget(restored)
+    monkeypatch.setattr(restored, "report_error", lambda message, detail: pytest.fail(detail))
     for data, expected in zip(restored.data_collection, dialog.datasets, strict=True):
         assert data.label == expected.label
         for cid, expected_cid in zip(data.components, expected.components, strict=True):
             if cid not in data.coordinate_components:
                 np.testing.assert_array_equal(data[cid], expected[expected_cid])
         assert_same_coordinates(data.coords, expected)
-        assert set(expected.meta) - set(data.meta) <= {"auxiliary times", "exposure FOV center"}
+        # glue's restore of a Data, with irispy's metadata and the class whose colour limits count the raw values
+        assert type(data) is LazyData
+        assert type(data.meta) is type(expected.meta)
+        assert data.meta.keys() == expected.meta.keys()
+        for key, value in data.meta.items():
+            if isinstance(expected.meta[key], u.Quantity):
+                assert value.unit == expected.meta[key].unit
+            np.testing.assert_array_equal(value, expected.meta[key])
         assert data.style.preferred_cmap.name == expected.style.preferred_cmap.name
+    # and a session saved from the restored one refers to them alike
+    restored.save_session(str(tmp_path / "moved" / "again.glu"), absolute_paths=False)
+    assert json.loads((tmp_path / "moved" / "again.glu").read_text()).keys() == records.keys()

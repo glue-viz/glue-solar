@@ -536,6 +536,7 @@ def _logged(datasets, path, factory, **kwargs):
     log = LoadLog(str(path), factory, kwargs)
     for data in datasets:
         log.log(data)
+        data._loaded_meta = frozenset(data.meta)  # what the file gives, which `LazyData` leaves out of a session
         for cid in data.coordinate_components + data.main_components:  # load_data's order, which a restore reads
             log.log(data.get_component(cid))
     return datasets
