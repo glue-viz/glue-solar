@@ -1,20 +1,26 @@
 """
 'IRIS: line ratio diagnostic…', on line moments of irispy's test raster and on synthetic maps: what glue gets of
-irispy's map_ratio_to_quantity.
+irispy's map_ratio_to_quantity, and of its density_diagnostic on a stand-in for fiasco, which CI does not install.
 """
+
+import sys
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 from glue.core import Data
 from glue.core.component import Component
 from glue_qt.app.application import GlueApplication
-from irispy.utils.density import map_ratio_to_quantity
+from irispy.utils.density import density_diagnostic, map_ratio_to_quantity
 from qtpy import QtWidgets
 
+import astropy.units as u
 from astropy.wcs import WCS
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
+from glue_solar.sources.line_ratio import DENSITIES, O_IV, TEMPERATURES
+from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.moments import line_moments
 from glue_solar.tests.test_quicklook import SCAN
@@ -187,3 +193,127 @@ def test_refusals_and_errors_show_why(app, monkeypatch, tmp_path, irispy_test_fi
         run(app, [maps, partner])
     assert len(shown) == 8
     assert len(collection) == 7
+
+
+@pytest.fixture
+def fiasco(monkeypatch, tmp_path):
+    """
+    A stand-in for fiasco with ``line_ratio``, the synthetic curve at each density, and no CHIANTI database built;
+    ``calls`` holds what its ``Ion`` and ``line_ratio`` were given.
+    """
+    calls = []
+
+    def ion(*args, **kwargs):
+        calls.append(("Ion", args, kwargs))
+        return SimpleNamespace()
+
+    def line_ratio(*args, **kwargs):
+        calls.append(("line_ratio", args, kwargs))
+        return 0.15 + 0.3 / (1 + np.exp(4 * (11 - np.log10(args[3].to_value(u.cm**-3)))))
+
+    fake = SimpleNamespace(
+        Ion=ion, line_ratio=line_ratio, defaults={"hdf5_dbase_root": tmp_path / "none.h5"}, calls=calls
+    )
+    monkeypatch.setitem(sys.modules, "fiasco", fake)
+    return fake
+
+
+# The dialog's widgets for a table, disabled while the O IV preset is ticked
+TABLE_WIDGETS = ((QtWidgets.QLineEdit, "table"), (QtWidgets.QPushButton, "browse"), (QtWidgets.QComboBox, "quantity"))
+
+
+def preset(monkeypatch):
+    """Make each dialog tick the O IV preset, if it can, and press OK; returns whether it could and its tooltip."""
+    opened = []
+
+    def exec_(dialog):
+        box = dialog.findChild(QtWidgets.QCheckBox, "preset")
+        opened.append((box.isEnabled(), box.toolTip()))
+        box.setChecked(box.isEnabled())  # as a click would
+        disabled = [not dialog.findChild(kind, name).isEnabled() for kind, name in TABLE_WIDGETS]
+        assert disabled == [box.isChecked()] * 3
+        return QtWidgets.QDialog.Accepted
+
+    monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
+    return opened
+
+
+def test_the_o_iv_preset_adds_irispys_density_diagnostic_of_two_moments_maps(
+    app, monkeypatch, qtbot, irispy_test_files, fiasco
+):
+    [raster] = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["Si IV 1403"])
+    lines = [line_moments(raster, centre) for centre in (1399.77, 1401.16)]
+    collection = app.data_collection
+    collection.extend([raster, *lines])
+    keep_hpc_linked(collection)
+    opened = preset(monkeypatch)
+    tree = app._layer_widget
+    tree.ui.layerTree.set_selected_layers(lines)
+    tree._actions[ACTION].trigger()
+    assert opened == [(True, "log n_e from irispy's density_diagnostic, in place of a table")]
+    assert iris._RUNNING  # on glue-qt's worker, as fiasco may first download and build CHIANTI
+    assert app.statusBar().currentMessage() == "Mapping the O IV density; fiasco first builds CHIANTI, for minutes…"
+    qtbot.waitUntil(lambda: len(collection) == 4 and not iris._RUNNING)
+    assert app.statusBar().currentMessage() == ""
+    result = collection[-1]
+    names = [f"{maps.label}: intensity" for maps in lines]
+    assert result.label == f"{lines[0].label} / {lines[1].label} log n_e"
+    assert result.meta == {
+        "OBSID": raster.meta["OBSID"],
+        "STARTOBS": raster.meta["STARTOBS"],
+        "ratio_numerator": names[0],
+        "ratio_denominator": names[1],
+        "ratio_preset": O_IV,
+    }
+    assert [(cid.label, result.get_component(cid).units) for cid in result.main_components] == [
+        ("ratio", ""),
+        ("log n_e", ""),
+    ]
+    assert not any(app.viewers)
+    assert result.coords is lines[0].coords
+    assert link_hpc(collection) == []
+    # fiasco's O IV, never asking on stdin, and its ratio of irispy's O IV lines on the densities
+    [(_, ion_args, ion_kwargs), (_, ratio_args, ratio_kwargs)] = fiasco.calls
+    assert ion_args[0] == "O IV"
+    np.testing.assert_array_equal(ion_args[1], TEMPERATURES * u.K)
+    assert ion_kwargs == {"ask_before": False, "show_progress": False}
+    assert ratio_args[1:3] == (1399.780 * u.AA, 1401.157 * u.AA)
+    np.testing.assert_array_equal(ratio_args[3], DENSITIES * u.cm**-3)
+    assert ratio_kwargs == {"use_two_ion_model": False}
+    over, under = (maps["intensity"] for maps in lines)
+    direct = density_diagnostic(
+        over,
+        under,
+        DENSITIES * u.cm**-3,
+        ion=ratio_args[0],
+        numerator=1399.780 * u.AA,
+        denominator=1401.157 * u.AA,
+        line_ratio_kwargs={"use_two_ion_model": False},
+    )
+    np.testing.assert_array_equal(result["ratio"], direct["ratio"].value)
+    np.testing.assert_array_equal(result["log n_e"], np.log10(direct["density"].to_value(u.cm**-3)))
+    assert np.isfinite(result["log n_e"]).any()
+    # once built, the status bar says no more; an error is shown as the table's are
+    fiasco.defaults["hdf5_dbase_root"].touch()
+    counts = Data(label="counts", intensity=np.ones(lines[0].shape), coords=lines[0].coords)
+    collection.append(counts)
+    shown = []
+    monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
+    monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
+    tree.ui.layerTree.set_selected_layers([lines[0], counts])
+    tree._actions[ACTION].trigger()
+    assert app.statusBar().currentMessage() == "Mapping the O IV density…"
+    qtbot.waitUntil(lambda: len(shown) == 1 and not iris._RUNNING)
+    assert shown == [f"Could not map the line ratio\n{names[0]} is in 'DN_IRIS_FUV / s' but counts: intensity in ''."]
+    assert len(collection) == 5
+
+
+@pytest.mark.parametrize("fake", [None, SimpleNamespace()], ids=["no fiasco", "fiasco without line_ratio"])
+def test_the_o_iv_preset_needs_fiascos_line_ratio(app, monkeypatch, fake):
+    monkeypatch.setitem(sys.modules, "fiasco", fake)  # None: import fiasco fails
+    over, under = Data(label="over", intensity=np.ones((2, 3))), Data(label="under", intensity=np.ones((2, 3)))
+    app.data_collection.extend([over, under])
+    opened = preset(monkeypatch)
+    run(app, [over, under])
+    assert opened == [(False, "Needs fiasco's line_ratio: pip install 'glue-solar[density]'")]
+    assert len(app.data_collection) == 2  # unticked, with no table: nothing added
