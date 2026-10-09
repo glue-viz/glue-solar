@@ -1,0 +1,1 @@
+A datetime Scatter plot of an IRIS observation's data shows its time master's exposure as the subset "Master exposure", which follows the master and is kept in sessions.
