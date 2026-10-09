@@ -115,6 +115,7 @@ A milestone is done when it has no items left.
 
 **Later**
 - WP0: `wp0-core-profile-restore-priority`, `wp0-qt68-macos-pass`
+- WP1: `wp1-stack-scan-link`
 - WP2: `wp2-burst-detection`
 - WP3: `wp3-style-cmap`, `wp3-wcs-saver`, `wp3-quantity-meta`, `wp3-file-references`, `wp3-session-budget`, `wp3-coordination-reattach`, `wp3-app-session-acceptance`, `wp3-last-session`
 - WP4: `wp4-l-redo-sji-click`, `wp4-profile-aggregation`
@@ -205,6 +206,10 @@ The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links be
 **M3**
 
 - [ ] **M3** `wp1-stack-per-scan-wcs` (F115): Per-scan spatial coordinates with an inverse for 4D stacks. Done when scan-k pixel→world matches scan k's WCS to 1e-6″ on the 3400109360 and 3602506433 stacks and round-trips, and the raster overlays' slits on scan 1 of the 4000005156 stack lie within 1 SJI px of its header slit positions (3.7 px off before).
+
+**L**
+
+- [ ] **L** `wp1-stack-scan-link`: With per-scan stack coordinates (`wp1-stack-per-scan-wcs`, user 2026-10-08: ship and document), glue cannot place a stack from longitude and latitude alone, so a plain glue region on a stack's pixels reaches no other dataset and a stack on another dataset's path gets no diagram; give `link_hpc` the stack's `Scan` (the scan nearest each dataset's time) or place stacks per scan in the path tool. Done when a glue region on a stack's map reaches an SJI and a stack gets a diagram on an SJI's path.
 
 **M4**
 
