@@ -22,7 +22,6 @@ from glue.core.hub import HubListener
 from glue.core.link_helpers import LinkSame, LinkSameWithUnits
 from glue.core.message import DataCollectionDeleteMessage
 from glue.core.state import GlueSerializeError
-from glue.core.visual import VisualAttributes
 from glue_qt.utils import load_ui
 from glue_qt.utils.threading import Worker
 from qtpy import QtWidgets
@@ -33,6 +32,7 @@ from astropy.io import fits
 from astropy.wcs import WCS, WCSHDO_P17, WCSHDO_all
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper, SlicedLowLevelWCS
 
+from ..maps import _Style
 from .lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask
 from .scan import _primary_header, extract_archive, scan_directory
 from .stack_spectrograms import MISSING_VALUES, _PerScanWCS, stack_spectrogram_sequence, stack_times, stack_wcs
@@ -373,7 +373,7 @@ def _dataset(wcs, meta, unit, values, label, *, color=None, cmap=None, missing=M
     data = (Data if scaling is None else LazyData)(label=label)
     data.coords = _GlueWCS(wcs)
     data.meta = meta
-    data.style = VisualAttributes(color=color, preferred_cmap=cmap)
+    data.style = _Style(color=color, preferred_cmap=cmap)
     if scaling is not None:
         cid = data.add_component(RawComponent(values, *scaling, missing, units=str(unit)), label)
         # a glue derived component, computed from the values glue reads

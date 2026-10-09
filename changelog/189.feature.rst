@@ -1,0 +1,1 @@
+glue sessions keep the colormap sunpy maps and IRIS datasets open in, so AIA map sessions save and restore.

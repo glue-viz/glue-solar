@@ -9,6 +9,7 @@ from glue.config import colormaps, data_factory, qglue_parser
 from glue.core.component import Component
 from glue.core.data import Data
 from glue.core.data_factories import is_fits
+from glue.core.state import _load_style, _save_style
 from glue.core.visual import VisualAttributes
 
 from sunpy.visualization.colormaps import cmlist
@@ -41,6 +42,23 @@ def _add_colormap(name):
         matplotlib.colormaps.register(ctable, name=ctable.name)
 
 
+class _Style(VisualAttributes):
+    """
+    glue's style of a dataset, which a session saves with its preferred colormap: glue-core 1.27.0 writes that colormap
+    as it is, which fails the save, and restores a style without one.
+    """
+
+    def __gluestate__(self, context):
+        return {**_save_style(self, context), "preferred_cmap": context.id(self.preferred_cmap)}
+
+    @classmethod
+    def __setgluestate__(cls, rec, context):
+        style = cls()
+        style.set(_load_style(rec, context))
+        style.preferred_cmap = context.object(rec["preferred_cmap"])  # glue's saver of a colormap, by its name
+        return style
+
+
 @qglue_parser(_GenericMap)
 def _parse_sunpy_map(data, label):
     """
@@ -53,7 +71,7 @@ def _parse_sunpy_map(data, label):
     result.add_component(Component(scan_map.data), scan_map.name)
     result.meta = scan_map.meta
     _add_colormap(scan_map.cmap.name)  # for the colormap menu of its Image layers
-    result.style = VisualAttributes(color="#FDB813", preferred_cmap=scan_map.cmap)
+    result.style = _Style(color="#FDB813", preferred_cmap=scan_map.cmap)
 
     return result
 

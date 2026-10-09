@@ -1,17 +1,26 @@
 """
-Sessions keep the coordinates of every kind of dataset glue-solar makes from IRIS data, on irispy's test files.
+Sessions keep the coordinates and colormaps of every kind of dataset glue-solar makes from IRIS data, on irispy's test
+files, and the colormap of a sunpy map.
 """
 
 import numpy as np
+import pytest
 from glue.core import DataCollection
 from glue.core.state import GlueSerializer, GlueUnSerializer
+from glue_qt.app.application import GlueApplication
+from glue_qt.viewers.image import ImageViewer
 
 import astropy.units as u
 from astropy.wcs import WCS
 
+import sunpy.data.test
+from sunpy.visualization.colormaps import cmlist
+
+import glue_solar
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.loaders.iris import image_data, raster_data
+from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments
 from glue_solar.tests.test_quicklook import SCAN
 from glue_solar.tools import _pointing
@@ -56,10 +65,13 @@ def test_the_coordinates_of_each_kind_of_dataset_round_trip_twice(irispy_test_fi
         north_up(sji),
         rebin(stack, (1, 2, 3, 1)),
     ]
-    # the coordinates alone: sessions cannot save the colormaps of most of these yet
-    for restored in twice([data.coords for data in datasets]):
-        for coords, data in zip(restored, datasets, strict=True):
+    # the coordinates and styles alone
+    for restored in twice([[data.coords, data.style] for data in datasets]):
+        for (coords, style), data in zip(restored, datasets, strict=True):
             assert_same_coordinates(coords, data)
+            assert style.color == data.style.color
+            assert getattr(style.preferred_cmap, "name", None) == getattr(data.style.preferred_cmap, "name", None)
+    assert sji.style.preferred_cmap.name == "irissji1330"
 
 
 def test_a_session_restores_a_moments_map_on_its_raster_steps(irispy_test_files):
@@ -76,8 +88,6 @@ def test_a_session_restores_a_moments_map_on_its_raster_steps(irispy_test_files)
 def test_a_session_restores_the_metadata_of_a_raster_and_a_slit_jaw_image(irispy_test_files):
     raster = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["C II 1336"])[0]
     sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
-    for data in (raster, sji):
-        data.style.preferred_cmap = None  # glue 1.27.0 cannot save a colormap (glue-core #2597)
     # glue leaves out what it cannot save: irispy's Time and SkyCoord
     left_out = [{"auxiliary times", "exposure FOV center"}, set()]
     for restored in twice(DataCollection([raster, sji])):
@@ -90,3 +100,19 @@ def test_a_session_restores_the_metadata_of_a_raster_and_a_slit_jaw_image(irispy
         headers = restored[1].meta["frame_wcs_headers"]
         assert WCS(headers[5]).to_header_string() == WCS(sji.meta["frame_wcs_headers"][5]).to_header_string()
         assert _pointing(restored[1].meta, 5) == _pointing(sji.meta, 5)  # the Frame time tooltip
+
+
+def test_an_aia_map_session_restores_its_colormap(qtbot, monkeypatch, tmp_path):
+    glue_solar.setup()  # every sunpy colormap listed
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
+    aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))
+    app.data_collection.append(aia)
+    app.new_data_viewer(ImageViewer, data=aia)
+    app.save_session(str(tmp_path / "aia.glu"))  # glue-core 1.27.0 alone fails on the map's colormap
+    restored = GlueApplication.restore_session(str(tmp_path / "aia.glu"))
+    qtbot.addWidget(restored)
+    assert restored.data_collection[0].style.preferred_cmap.name == "sdoaia171"  # glue's restore drops it
+    # its colours: glue's menu shows the first sunpy colormap of the same colours, here GOES-R SUVI 171's
+    assert restored.viewers[0][0].layers[0].state.cmap == cmlist["sdoaia171"]
