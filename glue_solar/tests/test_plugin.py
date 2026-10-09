@@ -29,7 +29,7 @@ from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QDesktopServices, QKeySequence
 from qtpy.QtTest import QTest
-from qtpy.QtWidgets import QToolBar
+from qtpy.QtWidgets import QInputDialog, QToolBar
 
 import astropy.units as u
 from astropy.coordinates import angular_separation
@@ -72,7 +72,7 @@ def test_setup_registers_hooks():
         assert ImageViewer.tools.count(tool) == 1
     assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
     assert ImageViewer.subtools["solar:modes"] == ["solar:measure", "solar:path", "solar:path_crosshair"]
-    view = ["solar:frame_time", "solar:hide_axes", "solar:per_frame_limits", "solar:physical_aspect"]
+    view = ["solar:frame_time", "solar:hide_axes", "solar:per_frame_limits", "solar:band", "solar:physical_aspect"]
     view += ["solar:zoom_1_1", "solar:colour_bar"]
     if not hasattr(ImageViewer, "cursor_status"):
         view.append("solar:cursor_readout")
@@ -355,11 +355,15 @@ def test_cursor_readout_shows_position_and_value(qtbot, irispy_test_files):
     assert other.toolbar.tools["solar:cursor_readout"].describe(1, 1).endswith(" | flux = 3.5")
 
 
-def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot):
+def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot, monkeypatch):
     glue_solar.setup()
+    # the band dialog picks 5 wavelength pixels, then 1
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *args: (args[3][1 - args[4]], True))
     app = GlueApplication()
     qtbot.addWidget(app)
-    cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5))
+    wcs = WCS(naxis=3)
+    wcs.wcs.ctype[0] = "WAVE"  # for the band
+    cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5), coords=wcs)
     app.data_collection.append(cube)
     viewer = app.new_data_viewer(ImageViewer, data=cube)
     toolbar = viewer.toolbar
@@ -403,13 +407,14 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot):
             if entry.isCheckable():
                 assert entry.isChecked() == tool.checked != was
 
-    # no L while Path diagram is off, as on a 2D image
+    # no L while Path diagram is off, as on a 2D image, which has no wavelength band either
     still = Data(label="still", flux=np.ones((4, 5)))
     app.data_collection.append(still)
     viewer.add_data(still)
     viewer.state.reference_data = still
     assert not toolbar.actions["solar:path"].isEnabled()
     assert not sampling.isVisible()
+    assert not toolbar.actions["solar:band"].isEnabled()
     QTest.keyClick(toolbar, Qt.Key_L)
     assert toolbar.active_tool is pixel
 
@@ -1300,6 +1305,52 @@ def test_keys_step_frames_and_wavelengths_round_and_play(qtbot, monkeypatch, iri
     for key in (Qt.Key_D, Qt.Key_F, Qt.Key_A, Qt.Key_S, Qt.Key_Space, Qt.Key_Space):
         press(profile, key)
     assert (frames.state.slices, waves.state.slices) == ((shown[-1], 0, 0), (0, 0, 1))
+
+
+def test_band_shows_the_mean_about_the_wavelength_slider(qtbot, monkeypatch):
+    glue_solar.setup()
+    wcs = WCS(naxis=4)
+    wcs.wcs.ctype[0] = "WAVE"
+    flux = np.random.default_rng(0).random((2, 3, 4, 20))
+    flux[..., 5] = np.nan
+    cube = Data(label="stack", flux=flux, coords=wcs)
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(cube)
+    viewer = app.new_data_viewer(ImageViewer, data=cube)
+    state = viewer.state
+    state.x_att, state.y_att = cube.pixel_component_ids[1], cube.pixel_component_ids[2]  # the map of steps and slit
+    state.slices = (1, 0, 0, 7)
+    picked = []
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *args: (picked.pop(), True))
+
+    def shown():
+        """The map displayed, and the scan and the mean expected of the band about the wavelength slider's index."""
+        scan, wave = state.slices[0], state.slices[3]
+        lo, hi = max(wave.center - 2, 0), wave.center + 3
+        return state.layers[0].get_sliced_data(), np.nanmean(flux[scan, :, :, lo:hi], axis=2).T
+
+    picked.append("5")
+    viewer.toolbar.actions["solar:band"].trigger()
+    assert viewer.toolbar.tools["solar:band"].checked
+    np.testing.assert_allclose(*shown())
+    # it follows the slider, as A and S and a drag move it, cut at the end of the axis, and stays on a scan move
+    sliders = viewer.options_widget().slice_helper._sliders
+    for move in (
+        lambda: press(viewer, Qt.Key_S),
+        lambda: sliders[3].value_slice_center.setValue(19),
+        lambda: sliders[3].value_slice_center.setValue(1),
+        lambda: sliders[0].value_slice_center.setValue(0),
+    ):
+        move()
+        np.testing.assert_allclose(*shown())
+    assert (state.slices[0], state.slices[3].center) == (0, 1)
+    # 1 shows the slider's wavelength alone again
+    picked.append("1")
+    viewer.toolbar.actions["solar:band"].trigger()
+    assert state.slices == (0, 0, 0, 1)
+    press(viewer, Qt.Key_S)
+    assert state.slices == (0, 0, 0, 2)
 
 
 _GLUE_START = """

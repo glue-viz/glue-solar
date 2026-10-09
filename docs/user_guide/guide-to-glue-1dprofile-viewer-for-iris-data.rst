@@ -165,6 +165,8 @@ same raster to the nearest wavelength.
 Median, Minimum, Maximum, Sum, Moment 1 or Moment 2) and press "Collapse": the Image viewers of the
 raster show the data combined over the range, each until you move any of its sliders. glue-qt 0.4.2
 leaves out the sample at the upper end of the range, so the range must cover at least two samples.
+For a mean over a band that follows the wavelength slider, use "Wavelength band…" in the Image
+viewer's View menu (see :ref:`glue_solar_users_guide_viewer_tools_and_windows`).
 
 In glue-qt 0.4.2, Navigate and Collapse pick the wrong wavelengths when the Profile's "x unit" is not
 the data's own (``Angstrom`` for IRIS wavelengths), so leave it unchanged for them.

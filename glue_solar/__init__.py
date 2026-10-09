@@ -69,6 +69,7 @@ def setup():
             tools.FrameTimeTool,
             tools.HideAxesTool,
             tools.PerFrameLimitsTool,
+            tools.BandTool,
             tools.PhysicalAspectTool,
             tools.ZoomOneToOneTool,
             tools.ColourBarTool,

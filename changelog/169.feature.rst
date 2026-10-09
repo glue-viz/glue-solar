@@ -1,0 +1,1 @@
+"Wavelength band…" in the View menu shows a map as the mean over 5, 9 or 15 wavelength pixels about the wavelength slider, following it.
