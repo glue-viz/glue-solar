@@ -510,6 +510,8 @@ def _image_cube_data(cube, path, scaling=None):
     wave = int(cube.meta["TWAVE1"])
     label = f"{desc}-{_observation_label(cube.meta)}"
     cmap = f"irissji{wave}" if desc.startswith("SJI") else f"sdoaia{wave}"
+    # irispy's FITS WCS header of each frame, in a tuple, which sessions save, rather than an array of objects
+    cube.meta["frame_wcs_headers"] = tuple(cube.meta["frame_wcs_headers"])
     if scaling is None:
         return _cube_data(cube, label, cmap=cmap)
     from irispy.utils.constants import DN_UNIT
