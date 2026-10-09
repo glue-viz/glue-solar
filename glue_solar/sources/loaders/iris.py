@@ -831,6 +831,9 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     The folder is scanned in the background as well, a header at a time, where
     Stop lists what the scan found so far.
+
+    The Filter field lists only the observations whose row or entries contain its
+    text, in any case, across rescans; Load selected leaves out what it hides.
     """
 
     progressed = Signal(int, int)  # (load, percent), from the worker thread
@@ -843,6 +846,7 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.progressed.connect(self._progressed)
         self.change.clicked.connect(self.choose_directory)
         self.recursive.toggled.connect(lambda _checked: self.set_directory(self.directory.text()))
+        self.filter.textChanged.connect(self._filter)
         self.observations = []
         self.datasets = []
         self.first_image = None
@@ -930,6 +934,14 @@ class QtIRISImporter(QtWidgets.QDialog):
             child.setFirstColumnSpanned(True)
         for column in range(self.obs_tree.columnCount()):
             self.obs_tree.resizeColumnToContents(column)
+        self._filter()
+
+    def _filter(self):
+        """List only the observations whose row or entries contain the filter's text, in any case."""
+        text, columns = self.filter.text().casefold(), range(self.obs_tree.columnCount())
+        for top in map(self.obs_tree.topLevelItem, range(self.obs_tree.topLevelItemCount())):
+            texts = [*map(top.text, columns), *(top.child(j).text(0) for j in range(top.childCount()))]
+            top.setHidden(text not in "\n".join(texts).casefold())  # within one text: no line break can be typed
 
     def _make_checkable(self, item, payload):
         item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
@@ -941,10 +953,10 @@ class QtIRISImporter(QtWidgets.QDialog):
         return item
 
     def selected(self):
-        """``(observation index, kind, name)`` for every ticked loadable entry."""
+        """``(observation index, kind, name)`` for every ticked loadable entry the filter lists."""
         picks = []
         root = self.obs_tree.invisibleRootItem()
-        items = [root.child(i) for i in range(root.childCount())]
+        items = [item for item in map(root.child, range(root.childCount())) if not item.isHidden()]
         items += [top.child(j) for top in items for j in range(top.childCount())]
         for item in items:
             if item.data(0, Qt.UserRole) is not None and item.checkState(0) == Qt.Checked:
