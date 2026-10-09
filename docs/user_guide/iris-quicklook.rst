@@ -248,6 +248,35 @@ there again before the next click. With the Si IV 1403 window of OBSID 400025514
 light curve and a Scatter plot of its 1600 exposure times open, playback runs as fast with it as
 without, 7 frames a second.
 
+"Light curves at this point (windows, SJI)" in the "Coordinate" menu of any Image viewer, unlike
+"Light curve at the point" above, plots the light curves at a point on a raster against time, with
+lines, in a new Scatter viewer: one for each loaded window of the point's raster file with exposures
+or scans (a sit-and-stare raster or a stack), and one for each slit-jaw channel of its observation.
+Each is a new dataset, such as "Mg II k 2796 2796.24 Å light curve" or "SJI 1400 light curve", of
+``Time`` and ``Value`` in the window's or channel's own data unit, not normalised. A window's curve
+is its value at the point's slit position (and a stack's raster step) at each exposure or scan, as
+``cube[:, y, k]``, at the wavelength pixel ``k`` the map shows, for the window it shows, or else the
+one nearest the window's line (its TWAVE). A slit-jaw curve is its value in each frame at the place
+of the point's slit position at the raster exposure, or a stack's scan, nearest the frame's time,
+placed with that frame's own pointing, and NaN where no exposure is within half the raster's time
+step or the place is off the frame. A scanning raster's steps are places, not times: it gets no
+curves of its own, and each slit-jaw curve follows the point's place in every frame. The curves
+follow the point a quarter of a second after it moves to another slit position (or raster step of
+a stack or a scanning raster), so Pixel drags and playback do not wait for them; another exposure
+or scan leaves them as they are, and so do "Clear point" and a point on other data. The first
+curve's ``Time`` and ``Value`` are linked to the others' with glue identity links, so that they
+share the plot's axes, and each keeps its observation's OBSID and start time, so the time master's
+exposure ("Master exposure", above) shows on every curve while their plot is the first open time
+plot of an observation's data. Choose the entry again for another wavelength: it adds new curves
+and a new plot. Removing a curve's dataset stops it. glue says why without a point on a raster.
+"ECSV (with Time)" saves a curve with its times (see
+:ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`). On OBSID 4000255147,
+with Mg II k 2796 and C II 1336 (1600 exposures) and SJI 1400 (400 frames), the window curves equal
+``cube[:, y, k]`` and the slit-jaw curve the same placement made frame by frame, recomputing the
+three takes 0.25 s, mostly placing the 400 frames, and a Pixel drag steps as fast with them as
+without, 0.13 s a step; playback runs at 11 frames a second with their plot open, as with any plot
+"Master exposure" marks, and 12 with none.
+
 A click with the Pixel tool on a slit-jaw viewer of the quicklook moves the point to the raster
 pixel there, placed with the displayed frame's own pointing (``sji_to_raster``, see
 :ref:`Scripting with IRIS data <glue_solar_users_guide_scripting_iris_data>`): on a scanning raster
@@ -296,8 +325,9 @@ A saved session opens the quicklook again with its point and its time master: it
 "Point" the edit subset whenever it is shown, the panels follow the time master to the frames they
 showed, with the same Δt, and a click or drag with the Pixel tool moves the other panels, the
 slit-jaw cross and the spectrum as before. Choose the Pixel tool again, as glue restores no
-viewer's mouse mode. The Point window and the lines are not restored, and a light curve stays
-where it was; "Master exposure" follows the time master again, and one deleted before saving comes
+viewer's mouse mode. The Point window and the lines are not restored, and a light curve and the
+light curves at a point stay where they were (choose the entry again for curves that follow the
+point); "Master exposure" follows the time master again, and one deleted before saving comes
 back at the first time sync with its Scatter plot open (see "Saving sessions" in :ref:`Viewer tools
 and windows <glue_solar_users_guide_viewer_tools_and_windows>` for what a session keeps of the data).
 

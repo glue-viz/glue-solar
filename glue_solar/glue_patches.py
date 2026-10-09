@@ -18,13 +18,13 @@ from echo.qt.connect import UserDataWrapper
 from glue.config import data_exporter
 from glue.core import Data, DataCollection, Subset, component_link, coordinate_helpers
 from glue.core.command import ApplySubsetState
-from glue.core.component import DaskComponent
+from glue.core.component import DaskComponent, DerivedComponent
 from glue.core.component_link import ComponentLink
 from glue.core.coordinate_helpers import unbroadcast
 from glue.core.data_exporters import gridded_fits
 from glue.core.edit_subset_mode import EditSubsetMode
 from glue.core.exceptions import IncompatibleAttribute
-from glue.core.link_helpers import LinkSameWithUnits
+from glue.core.link_helpers import LinkSame, LinkSameWithUnits
 from glue.core.state import GlueSerializeError, GlueSerializer, GlueUnSerializer, loader, saver
 from glue.core.subset import SubsetState
 from glue.utils import defer_draw
@@ -62,6 +62,7 @@ __all__ = [
     "canvas_init",
     "close_event",
     "datetime64_to_mpl",
+    "derived_datetime",
     "export_fits",
     "load_link_with_units",
     "load_quantity",
@@ -71,6 +72,7 @@ __all__ = [
     "needs_combo_match_workaround",
     "needs_crosshair_workaround",
     "needs_date_epoch_workaround",
+    "needs_derived_datetime_workaround",
     "needs_empty_collapse_workaround",
     "needs_fits_export_dask_workaround",
     "needs_icon_cache_workaround",
@@ -663,6 +665,29 @@ def needs_link_restore_workaround():
 if needs_link_restore_workaround():
     LinkSameWithUnits.__gluestate__ = save_link_with_units
     LinkSameWithUnits.__setgluestate__ = classmethod(load_link_with_units)
+
+
+# glue 1.27.0 gives a time linked from another dataset, such as the first light curve's ``Time`` on the others (a
+# `LinkSame`), no kind ("Unknown data kind"): it reads whether a derived component is numeric from its first value,
+# which a datetime is not, and never whether it is a datetime. So no Scatter plot shows two datasets against linked
+# times (report candidate for glue).
+_original_datetime = DerivedComponent.datetime
+
+
+def derived_datetime(self):
+    """Whether a derived component holds datetimes, read from its first value as glue reads whether it is numeric."""
+    return self[(0,) * self.ndim].dtype.kind == "M"
+
+
+def needs_derived_datetime_workaround(datetime=_original_datetime):
+    """Whether ``datetime``, a derived component's property, says a time linked from another dataset is none."""
+    first, second = (Data(t=np.zeros(1, "datetime64[ns]"), label=label) for label in ("first", "second"))
+    DataCollection([first, second]).add_link(LinkSame(first.id["t"], second.id["t"]))
+    return not datetime.fget(second.get_component(first.id["t"]))
+
+
+if needs_derived_datetime_workaround():
+    DerivedComponent.datetime = property(derived_datetime)
 
 
 _original_update_priority = ProfileViewerState._update_priority
