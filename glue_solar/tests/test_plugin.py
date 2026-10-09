@@ -2221,7 +2221,7 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     check(table, 2, curve)
     times = raster[raster.id["Time"]]
     assert isinstance(table["time2"], Time)
-    np.testing.assert_array_equal(table["time2"].datetime64, times[:, 5, 10])  # at the pixel
+    np.testing.assert_array_equal(table["time2"].datetime64, times[:, 5, 10])
     np.testing.assert_array_equal(table["time1"].datetime64, times[:, 0, 0])
     assert table["y2"].unit == raster.get_component(raster.main_components[0]).units
     assert table["y2"].meta["pixel"] == {"Pixel Axis 1 [y]": 5, "Pixel Axis 2 [x]": 10}
@@ -2250,6 +2250,19 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
         layer.visible = False
     with pytest.raises(ValueError, match="No visible layer has a profile"):
         tool.activate()
+    # a stack's scans, whose times differ by step: at the Pixel subset's step, slit row and wavelength
+    files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
+    [stack] = raster_data(files, ["Si IV 1403"], stack=True)
+    app.data_collection.append(stack)
+    stack.new_subset(PixelSubsetState(stack, [slice(None), slice(1, 2), slice(3, 4), slice(4, 5)]), label="Scans")
+    viewer = app.new_data_viewer(ProfileViewer, data=stack)
+    viewer.state.x_att = stack.pixel_component_ids[0]
+    [tool] = [tool for tool in viewer.toolbar.tools["save"].subtools if tool.tool_id == "solar:save_profile"]
+    times = stack[stack.id["Time"]]
+    assert not np.array_equal(times[:, 1, 3, 4], times[:, 0, 0, 0])
+    table = saved()
+    np.testing.assert_array_equal(table["time2"].datetime64, times[:, 1, 3, 4])
+    np.testing.assert_array_equal(table["time1"].datetime64, times[:, 0, 0, 0])
 
 
 def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot):
