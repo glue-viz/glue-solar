@@ -1,0 +1,1 @@
+Hinode/SOT cubes shipped with IRIS observations (ITN 32 filtergrams, magnetograms and SP maps) open through File → Open and the observation browser with their times and pointing, link to IRIS data and follow the time sync, as AIA cutouts do.

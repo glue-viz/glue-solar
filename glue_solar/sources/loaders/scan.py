@@ -22,8 +22,8 @@ from astropy.time import Time
 __all__ = ["Observation", "extract_archive", "find_observation_files", "scan_directory", "strip_pooch"]
 
 _POOCH = re.compile(r"^[0-9a-f]{32}-")
-# iris_l2_YYYYMMDD_HHMMSS_OBSID_... and the co-aligned aia_l2_... cutouts
-_L2_STEM = re.compile(r"^(?:iris|aia)_l2_(?P<date>\d{8})_(?P<time>\d{6})_(?P<obsid>\d{10})")
+# iris_l2_YYYYMMDD_HHMMSS_OBSID_... and the co-aligned aia_l2_... cutouts and Hinode sot_l2_... and sotsp_l2_... cubes
+_L2_STEM = re.compile(r"^(?:iris|aia|sot|sotsp)_l2_(?P<date>\d{8})_(?P<time>\d{6})_(?P<obsid>\d{10})")
 _FITS = (".fits", ".fits.gz")
 # ponytail: how long before a time window an observation stamped in a filename may have begun; longer ones are missed
 _LONGEST = 1 * u.day
@@ -91,11 +91,12 @@ class Observation:
     windows: list[str] = field(default_factory=list)  # TDESC1..NWIN of the first raster
     window_tips: dict[str, str] = field(default_factory=dict)  # each window's detector and wavelength range
     sdo: dict[str, Path] = field(default_factory=dict)  # "171_THIN" -> AIA cutout
+    sot: dict[str, Path] = field(default_factory=dict)  # "G band 4305", "6302A B_LOS" -> Hinode/SOT cube (ITN 32)
     archives: list[Path] = field(default_factory=list)  # un-extracted *.tar.gz, listed only
 
     @property
     def nfiles(self):
-        return len(self.sji) + len(self.rasters) + len(self.sdo)
+        return len(self.sji) + len(self.rasters) + len(self.sdo) + len(self.sot)
 
 
 def _obsid_description(obsid):
@@ -146,10 +147,12 @@ def _sji_key(header, name):
 
 
 def _is_supported_file(name, header):
-    """Accept IRIS science files and the aligned AIA cutouts produced for them."""
+    """Accept IRIS science files and the aligned AIA cutouts and Hinode/SOT cubes produced for them."""
     instrume = str(header.get("INSTRUME", ""))
     if instrume in {"SPEC", "SJI"}:
         return header.get("TELESCOP") == "IRIS"
+    if name.startswith(("sot_l2_", "sotsp_l2_")):
+        return instrume.startswith("SOT")
     return name.startswith("aia_l2_") and instrume.startswith("AIA")
 
 
@@ -236,10 +239,10 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None, s
     else:
         if files or not stop.is_set():  # unless a Stop cut the listing short of any file
             report(100)  # a Stop from now on leaves nothing out
-    # IRIS headers first so pointing/description come from the instrument, not the AIA cutout
+    # IRIS headers first so pointing/description come from the instrument, not an AIA cutout or SOT cube
     raster_names = set()
     for path, name, key, header in sorted(
-        headers, key=lambda h: (str(h[3].get("INSTRUME", "")).startswith("AIA"), h[1], str(h[0]))
+        headers, key=lambda h: (str(h[3].get("INSTRUME", "")).startswith(("AIA", "SOT")), h[1], str(h[0]))
     ):
         obs = found.setdefault(key, Observation(*key))
         _fill(obs, header)
@@ -257,6 +260,12 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None, s
                 obs.window_tips = {header[f"TDESC{i}"]: _window_tip(header, i) for i in range(1, len(obs.windows) + 1)}
         elif instrume.startswith("AIA"):
             obs.sdo[header.get("TDESC1", name)] = path
+        elif instrume.startswith("SOT"):
+            band = str(header.get("TDESC1", name))
+            if instrume == "SOT-SP":  # every SP map's TDESC1 is 6302A
+                band += f" {header.get('BTYPE', '')}"
+            # as irispy's read_files keys them, a repeat with its file's name
+            obs.sot[band if band not in obs.sot else f"{band} ({Path(name).stem})"] = path
     found = [
         obs
         for obs in found.values()
@@ -272,8 +281,8 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None, s
 def find_observation_files(directory, start=None, end=None, pattern=None, recursive=True):
     """
     The files of the observations below ``directory`` that run at some time from ``start`` to ``end``, as
-    `scan_directory` finds them: per observation, by start time, its rasters, slit-jaw images, AIA cutouts and
-    un-extracted archives.
+    `scan_directory` finds them: per observation, by start time, its rasters, slit-jaw images, AIA cutouts, Hinode/SOT
+    cubes and un-extracted archives.
 
     Pass the same time as ``start`` and ``end`` for the observation running at that time, and a ``pattern`` such
     as ``"*_raster_t*"`` for only its rasters.
@@ -285,5 +294,5 @@ def find_observation_files(directory, start=None, end=None, pattern=None, recurs
     return [
         path
         for obs in scan_directory(directory, recursive, start=start, end=end, pattern=pattern)
-        for path in (*obs.rasters, *obs.sji.values(), *obs.sdo.values(), *obs.archives)
+        for path in (*obs.rasters, *obs.sji.values(), *obs.sdo.values(), *obs.sot.values(), *obs.archives)
     ]

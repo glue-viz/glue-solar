@@ -195,7 +195,7 @@ def north_up(data):
         without a pixel scale, such as a north-up grid.
     """
     if data.ndim != 3 or not _placeable(data) or "CDELT1" not in data.meta:
-        raise ValueError(f"{data.label} is not a slit-jaw image or aligned AIA cutout, whose frames have a pointing.")
+        raise ValueError(f"{data.label} is not a slit-jaw image, AIA cutout or SOT cube, whose frames have a pointing.")
     nt, ny, nx = data.shape
     # the corners of every frame: its edges are great circles, which a gnomonic projection keeps straight
     lon, lat, _ = data.coords.pixel_to_world_values(*np.meshgrid([-0.5, nx - 0.5], [-0.5, ny - 0.5], np.arange(nt)))
@@ -217,7 +217,10 @@ def north_up(data):
 
 
 @layer_action(
-    "North up", single=True, data=True, tooltip="Show this slit-jaw image or AIA cutout north up, in a new Image viewer"
+    "North up",
+    single=True,
+    data=True,
+    tooltip="Show this slit-jaw image, AIA cutout or SOT cube north up, in a new Image viewer",
 )
 @messagebox_on_error("Could not show north up")
 def north_up_iris(data, data_collection):
@@ -247,7 +250,7 @@ def north_up_iris(data, data_collection):
 def _check(data):
     """Raise why ``data`` is not an IRIS dataset, which can be rebinned."""
     if not _timed(data) or not isinstance(data.coords, _GlueWCS):
-        raise ValueError(f"{data.label} is not an IRIS raster window, slit-jaw image or AIA cutout.")
+        raise ValueError(f"{data.label} is not an IRIS raster window, slit-jaw image, AIA cutout or SOT cube.")
 
 
 def _rebinned(data, view, values, bins, operation=np.nanmean):

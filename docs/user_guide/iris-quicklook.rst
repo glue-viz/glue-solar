@@ -122,8 +122,9 @@ The panels also follow one time. The raster is the time master: the slit-jaw vie
 nearest the time of the point's exposure or raster step (mid-raster before there is a point). Choose
 "Time master" in the "Coordinate" menu of a slit-jaw viewer to make it the master instead; the
 raster then moves to the exposure, or on a stack the scan, nearest each frame, keeping the slit and
-the raster step. An Image viewer of an aligned AIA cutout of the observation, which the quicklook
-gives no panel, follows the time and can be its master as a slit-jaw viewer does. The master rules:
+the raster step. An Image viewer of an aligned AIA cutout or Hinode/SOT cube of the observation,
+which the quicklook gives no panel, follows the time and can be its master as a slit-jaw viewer
+does. The master rules:
 while there is a point, moving the raster's exposure or scan slider by hand, or clicking another
 exposure or scan, snaps the raster back to the one matching the master's frame (after "Clear
 point" it keeps a hand-moved exposure or scan, as below), while a slit-jaw follower moved by hand

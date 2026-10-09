@@ -32,7 +32,7 @@ from glue_solar.sources.loaders.iris import (
     image_data,
     raster_data,
 )
-from glue_solar.sources.loaders.scan import extract_archive, scan_directory
+from glue_solar.sources.loaders.scan import extract_archive, find_observation_files, scan_directory
 from glue_solar.sources.loaders.stack_spectrograms import stack_spectrogram_sequence
 from glue_solar.tests.helpers import load_selected, scanned
 
@@ -339,6 +339,32 @@ def test_deconvolved_sji_is_listed_and_loaded_beside_the_plain_one(qtbot, tmp_pa
     ]
     assert read_iris_file(str(deconvolved)).label == labels[1]  # File -> Open labels it the same way
     assert read_iris_file(str(plain)).label == labels[0]
+
+
+def test_sot_cubes_are_listed_by_observation_and_loaded(qtbot, tmp_path, irispy_test_files):
+    sot = sorted(path for path in irispy_test_files if path.parent.name == "sot" and path.suffix == ".fits")
+    for path in sot:
+        shutil.copy2(path, tmp_path / path.name)
+    repeat = tmp_path / sot[-1].name.replace("_185006_", "_190000_")  # another SP map of the same quantity
+    shutil.copy2(sot[-1], repeat)
+    assert {obs.obsid: list(obs.sot) for obs in scan_directory(tmp_path)} == {
+        "3603259402": ["G band 4305"],
+        "3680100932": ["TF Na I 5896", "6302A B_LOS", f"6302A B_LOS ({repeat.stem})"],  # as irispy's read_files keys
+    }
+    assert len(find_observation_files(tmp_path)) == 4
+
+    dialog = QtIRISImporter(tmp_path)
+    qtbot.addWidget(dialog)
+    scanned(qtbot, dialog)
+    row = _row(dialog, "3680100932")
+    entries = [row.child(i).text(0) for i in range(row.childCount())]
+    assert entries == ["SOT 6302A B_LOS", f"SOT 6302A B_LOS ({repeat.stem})", "SOT TF Na I 5896"]
+    row.setCheckState(0, Qt.Checked)
+    load_selected(qtbot, dialog)
+    # glue tells the SP maps apart by their file's time
+    labels = ["6302A B_LOS 18:50:06", "6302A B_LOS 19:00:00", "TF Na I 5896"]
+    assert [data.label.split("-")[0] for data in dialog.datasets] == labels
+    assert dialog.first_image is dialog.datasets[0]
 
 
 def test_single_entry_observation_is_ticked_on_its_own_row(dialog):
