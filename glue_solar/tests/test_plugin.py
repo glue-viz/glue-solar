@@ -32,10 +32,12 @@ from glue.core.roi import RectangularROI
 from glue.core.subset import RoiSubsetState
 from glue.core.units import UnitConverter
 from glue.plugins.tools.path_slicer.path_sliced_data_links import PathRelativeLink
+from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.profile.state import ProfileViewerState
 from glue_qt.app.application import GlueApplication
 from glue_qt.config import keyboard_shortcut
+from glue_qt.viewers.histogram import HistogramViewer
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from glue_qt.viewers.scatter import ScatterViewer
@@ -52,7 +54,8 @@ import astropy.units as u
 from astropy import constants
 from astropy.coordinates import angular_separation
 from astropy.io import fits
-from astropy.table import QTable
+from astropy.table import QTable, Table
+from astropy.time import Time
 from astropy.visualization import PowerStretch
 from astropy.visualization.wcsaxes import WCSAxes
 from astropy.wcs import WCS
@@ -112,7 +115,11 @@ def test_setup_registers_hooks():
     shortcuts = [viewer_tool.members[tool].shortcut for tool in shown]
     assert len(set(shortcuts) - {None}) == len(shortcuts) - shortcuts.count(None)  # glue-qt drops a repeated one
     assert ImageViewer.subtools["save"].count("solar:save_sequence") == 1
-    assert "solar:save_sequence" not in ProfileViewer.subtools["save"]  # glue's Matplotlib viewers share one list
+    assert ProfileViewer.subtools["save"].count("solar:save_profile") == 1
+    # glue's Matplotlib viewers share one list
+    assert "solar:save_sequence" not in ProfileViewer.subtools["save"]
+    for viewer in (ImageViewer, ScatterViewer, HistogramViewer):
+        assert "solar:save_profile" not in viewer.subtools["save"]
     iris = next(f for f in data_factory if f.label == "IRIS Level 2 FITS")
     for label in ("FITS file", "sunpy Map"):  # both also match IRIS files; ours must win
         other = next(f for f in data_factory if f.label == label)
@@ -2178,6 +2185,85 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
     assert "km / s" not in units(state)
     assert state.x_display_unit == "Angstrom"
     assert 2830 < state.x_min < state.x_max < 2835
+
+
+def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_test_files):
+    glue_solar.setup()
+    sit_and_stare = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
+    [raster] = raster_data([find_irispy_test_file(irispy_test_files, sit_and_stare)], ["Si IV 1403"])
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(raster)
+    # (exposure, slit, wavelength): a light curve and a spectrum
+    raster.new_subset(PixelSubsetState(raster, [slice(None), slice(5, 6), slice(10, 11)]), label="Curve")
+    raster.new_subset(PixelSubsetState(raster, [slice(3, 4), slice(5, 6), slice(None)]), label="Spectrum")
+    viewer = app.new_data_viewer(ProfileViewer, data=raster)
+    state = viewer.state
+    whole, curve, spectrum = state.layers
+    state.x_att = raster.pixel_component_ids[0]  # the exposures
+    spectrum.visible = False  # left out, and not named
+    path = tmp_path / "profiles.ecsv"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
+    [tool] = [tool for tool in viewer.toolbar.tools["save"].subtools if tool.tool_id == "solar:save_profile"]
+
+    def saved():
+        tool.activate()
+        return Table.read(path, format="ascii.ecsv")
+
+    def check(table, i, layer):
+        np.testing.assert_array_equal(table[f"x{i}"], layer.profile[0])
+        np.testing.assert_array_equal(table[f"y{i}"], layer.profile[1])
+        assert (table[f"x{i}"].description, table[f"y{i}"].description) == (state.x_att.label, layer.layer.label)
+
+    table = saved()
+    assert table.colnames == ["x1", "y1", "time1", "x2", "y2", "time2"]
+    check(table, 1, whole)
+    check(table, 2, curve)
+    times = raster[raster.id["Time"]]
+    assert isinstance(table["time2"], Time)
+    np.testing.assert_array_equal(table["time2"].datetime64, times[:, 5, 10])
+    np.testing.assert_array_equal(table["time1"].datetime64, times[:, 0, 0])
+    assert table["y2"].unit == raster.get_component(raster.main_components[0]).units
+    assert table["y2"].meta["pixel"] == {"Pixel Axis 1 [y]": 5, "Pixel Axis 2 [x]": 10}
+    sky = [float(raster[cid, (0, 5, 10)]) for cid in raster.world_component_ids[:2]]  # at the first exposure
+    assert [table["y2"].meta[name].to_value(u.arcsec) for name in ("lon", "lat")] == pytest.approx(sky)
+    assert table.meta == {"function": "maximum", **{key: str(raster.meta[key]) for key in ("OBSID", "STARTOBS")}}
+    assert app.statusBar().currentMessage() == ""
+    # the spectrum, in km / s from Si IV 1402.77 Å, and the curve, one wavelength wide, is left out
+    spectrum.visible = True
+    state.x_att = raster.world_component_ids[2]
+    state.x_display_unit = "km / s"
+    state.function = "mean"
+    table = saved()
+    assert app.statusBar().currentMessage() == "Left out, without a profile: Curve"
+    assert table.colnames == ["x1", "y1", "x2", "y2"]  # no times along the wavelength
+    check(table, 1, whole)
+    check(table, 2, spectrum)
+    assert table["x2"].unit == "km / s"
+    assert table["y2"].meta["pixel"] == {"Pixel Axis 0 [z]": 3, "Pixel Axis 1 [y]": 5}
+    assert table.meta["function"] == "mean"
+    state.normalize = True  # as drawn
+    table = saved()
+    np.testing.assert_allclose(table["y1"], whole.normalize_values(whole.profile[1]))
+    assert table["y1"].unit is None
+    for layer in state.layers:
+        layer.visible = False
+    with pytest.raises(ValueError, match="No visible layer has a profile"):
+        tool.activate()
+    # a stack's scans, whose times differ by step: at the Pixel subset's step, slit row and wavelength
+    files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
+    [stack] = raster_data(files, ["Si IV 1403"], stack=True)
+    app.data_collection.append(stack)
+    stack.new_subset(PixelSubsetState(stack, [slice(None), slice(1, 2), slice(3, 4), slice(4, 5)]), label="Scans")
+    viewer = app.new_data_viewer(ProfileViewer, data=stack)
+    viewer.state.x_att = stack.pixel_component_ids[0]
+    [tool] = [tool for tool in viewer.toolbar.tools["save"].subtools if tool.tool_id == "solar:save_profile"]
+    times = stack[stack.id["Time"]]
+    assert not np.array_equal(times[:, 1, 3, 4], times[:, 0, 0, 0])
+    table = saved()
+    np.testing.assert_array_equal(table["time2"].datetime64, times[:, 1, 3, 4])
+    np.testing.assert_array_equal(table["time1"].datetime64, times[:, 0, 0, 0])
+    assert app.statusBar().currentMessage() == ""  # the earlier note cleared, as nothing was left out
 
 
 def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot):

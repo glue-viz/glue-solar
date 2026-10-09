@@ -235,6 +235,9 @@ plotted range (Mg II k, h and the triplet, C II, Si IV, O I, Fe XII and Fe XXI, 
 wavelengths), in the axis's unit, with lines too close to tell apart sharing a label. They start on,
 and the button hides or shows them. Its "Velocity axis" button shows or hides a top axis of the
 :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>` from the window's rest wavelength.
+Its save menu adds glue-solar's "Save profiles as ECSV…", which writes the visible profiles, as
+drawn, to one table, with their times along exposures, scans or frames (see :ref:`Saving the
+profiles <glue_solar_users_guide_iris_save_profiles>`).
 
 The stretch menu in the Image Viewer's layer options lists glue-solar's "Gamma 0.4", "Gamma 0.75",
 "Gamma 1.5" and "Gamma 2.2" after Glue's own stretches. Each raises the values between the limits to

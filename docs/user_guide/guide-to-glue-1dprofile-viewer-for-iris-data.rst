@@ -206,6 +206,27 @@ moments' centre: on OBSID 3824262996, whose mean O I fits at 1355.6172 Å, +4.30
 ``irispy.io.read_files`` in glue's terminal, fits O I and Ni I 2799.474 Å along the slit in every
 exposure.
 
+.. _glue_solar_users_guide_iris_save_profiles:
+
+**Saving the profiles.** "Save profiles as ECSV…" in the Profile viewer's save menu writes the
+profiles of its visible layers, as the viewer draws them, to one ECSV table, which
+``astropy.table.Table.read`` reads back. The ``i``-th layer saved, counted from 1 up the layer list
+(the order the layers are drawn, bottom first), gives two columns: ``x<i>``, in the "x unit",
+``km / s`` included, and ``y<i>``, the viewer's function ("Maximum", "Mean", …) of its attribute in
+the "y unit", or from 0 to 1 with "normalize" ticked. ``x<i>`` is described by the x axis's name and
+``y<i>`` by the layer's label, and the meta of ``y<i>`` give its attribute and, for a "Pixel" subset,
+the pixel it selects along each axis it fixes and the helioprojective ``lon`` and ``lat`` there, in
+arcsec, at the first sample along x. With the exposures of a sit-and-stare raster, the scans of a
+stack or the frames of a slit-jaw image as the x axis, ``time<i>`` gives the UTC time of each sample
+from the ``Time`` component, read back as an ``astropy.time.Time`` column: at the pixel of a "Pixel"
+subset or of "Light curve at the point", else at the first raster step and slit pixel. The table's
+meta give the function and the data's ``OBSID`` and ``STARTOBS``. A shorter profile is padded with
+empty values. Layers without a profile, such as one still being computed, or a subset one sample wide
+along x, which glue does not draw, are left out, and the main window's status bar names them. On the
+full Si IV 1403 window of OBSID 4000255147, 1600 exposures of 417 slit pixels and 262 wavelengths,
+the window's mean and a pixel's light curve over the exposures, with their times, save in under
+0.1 s.
+
 **Slice Extraction.** In an Image viewer of a raster or slit-jaw cube, "Slice Extraction" (P) takes a
 path drawn on the image and, on Enter, shows the data along the path against the slider's axis in a
 new window, for example along a path across a slit-jaw frame against time. The window is not a

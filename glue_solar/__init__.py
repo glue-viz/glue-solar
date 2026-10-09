@@ -147,10 +147,11 @@ def setup():
     for tool in (tools.FollowLockTool, tools.ModesTool, tools.CoordinateTool, tools.ViewTool):
         if tool.tool_id not in ImageViewer.tools:
             ImageViewer.tools.append(tool.tool_id)
-    if tools.SaveSequenceTool.tool_id not in ImageViewer.subtools["save"]:
-        # a copy, as glue makes for its own entry: the Matplotlib viewers share the list
-        ImageViewer.subtools = deepcopy(ImageViewer.subtools)
-        ImageViewer.subtools["save"].append(tools.SaveSequenceTool.tool_id)
+    for viewer, tool in ((ImageViewer, tools.SaveSequenceTool), (ProfileViewer, tools.SaveProfileTool)):
+        if tool.tool_id not in viewer.subtools["save"]:
+            # a copy, as glue makes for its own entry: the Matplotlib viewers share the list
+            viewer.subtools = deepcopy(viewer.subtools)
+            viewer.subtools["save"].append(tool.tool_id)
     for menu, entries in menus.items():
         ImageViewer.subtools[menu.tool_id] = [tool.tool_id for tool in entries]
     for tool in (lines.LineTool, lines.VelocityTool):

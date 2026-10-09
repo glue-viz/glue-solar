@@ -1,0 +1,1 @@
+"Save profiles as ECSV…" in the Profile viewer's save menu writes the visible profiles, as drawn and with their times on a time axis, to one ECSV table.

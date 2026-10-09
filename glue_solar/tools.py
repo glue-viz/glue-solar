@@ -10,12 +10,13 @@ from functools import partial
 import numpy as np
 from echo import add_callback, delay_callback
 from glue.config import settings, viewer_tool
-from glue.core import Data
+from glue.core import Data, Subset
 from glue.core.command import ApplySubsetState
 from glue.core.data import BaseCartesianData
 from glue.core.edit_subset_mode import ReplaceMode
 from glue.core.fixed_resolution_buffer import invalidate_cache, translate_pixel
 from glue.core.hub import HubListener
+from glue.core.link_manager import is_convertible_to_single_pixel_cid
 from glue.core.message import (
     DataCollectionAddMessage,
     DataCollectionDeleteMessage,
@@ -23,7 +24,7 @@ from glue.core.message import (
     SettingsChangeMessage,
 )
 from glue.core.state import GlueSerializer, loader, saver
-from glue.core.subset import SubsetState
+from glue.core.subset import SliceSubsetState, SubsetState
 from glue.plugins.tools.path_slicer.common import open_slice_viewer_for
 from glue.plugins.tools.path_slicer.matplotlib_mode import (
     _PATH_ALPHA_ACTIVE,
@@ -60,7 +61,7 @@ from qtpy import QtCore, QtWidgets
 
 import astropy.units as u
 from astropy.coordinates import Angle, SkyCoord, angular_separation
-from astropy.table import Table
+from astropy.table import Column, Table, hstack
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 from glue_solar.quicklook import (
@@ -75,6 +76,7 @@ from glue_solar.quicklook import (
     _shown,
     _spectral_axes,
     _sync_text,
+    _time_axis,
     _time_text,
     _timed,
     _times,
@@ -84,6 +86,7 @@ from glue_solar.quicklook import (
     nearest,
     observation_key,
 )
+from glue_solar.sources.iris import _write_ecsv
 from glue_solar.sources.loaders.iris import _GlueWCS
 from glue_solar.sources.loaders.stack_spectrograms import _PerScanWCS
 from glue_solar.sources.moments import _accepted
@@ -103,6 +106,7 @@ __all__ = [
     "PathTool",
     "PerFrameLimitsTool",
     "PhysicalAspectTool",
+    "SaveProfileTool",
     "SaveSequenceTool",
     "SlopeTool",
     "ViewTool",
@@ -1440,15 +1444,18 @@ class PathCrosshairTool(BasePathSlicerCrosshairMode):
         path.parent_viewer.figure.canvas.draw_idle()
 
 
+def _sky(coords, pixels):
+    """The sky coordinates ``coords`` give at ``pixels``, a pixel or array of each axis in numpy order; None if none."""
+    world = HighLevelWCSWrapper(coords).pixel_to_world(*pixels[::-1])
+    return next((w for w in (world if isinstance(world, list) else [world]) if isinstance(w, SkyCoord)), None)
+
+
 def _path_sky(path, row):
     """
     The sky coordinates of the samples of the `PathData` diagram ``path`` on its parent's coordinates at ``row``, an
     index of each other axis of the diagram and ``slice(None)``; None if they give none.
     """
-    world = HighLevelWCSWrapper(path.original_data.coords).pixel_to_world(
-        *path._pixels(path._cells(row), path.x, path.y)[::-1]
-    )
-    return next((w for w in (world if isinstance(world, list) else [world]) if isinstance(w, SkyCoord)), None)
+    return _sky(path.original_data.coords, path._pixels(path._cells(row), path.x, path.y))
 
 
 def _path_table(path):
@@ -2174,6 +2181,98 @@ class SaveSequenceTool(Tool):
             canvas.manager = manager
             figure.set_size_inches(size, forward=False)
             canvas.draw_idle()
+
+
+def _profile_table(viewer):
+    """
+    The profiles of the Profile viewer's visible layers as one astropy table, and the labels of the visible layers
+    without one (empty, disabled or still computing), which it leaves out. The ``i``-th layer kept, from 1, gives
+    ``x<i>`` and ``y<i>`` as glue draws them, in the viewer's x and y units (or normalized), described by the x axis's
+    name and the layer's label, ``y<i>`` with its attribute and, for a Pixel subset, the pixel of each axis it fixes and
+    the sky position there at the first sample (``lon`` and ``lat``, in arcsec); a shorter profile is padded with
+    masked values. Where x is the axis along which the data step through time (`_time_axis`: a sit-and-stare raster's
+    exposures, a stack's scans, a slit-jaw image's frames), ``time<i>`` gives each sample's ``Time``, at the pixel or
+    slice of a Pixel subset or light curve, else at the first index of the other axes. Its meta give the function.
+    """
+    state = viewer.state
+    tables, skipped = [], []
+    for artist in viewer.layers:
+        layer = artist.state
+        if not layer.visible:
+            continue
+        try:
+            profile = None if artist.is_computing or not artist.enabled else layer.profile
+        except Exception:  # glue's own limits skip a layer whose profile raises
+            profile = None
+        # glue 1.27.0 gives a subset one sample wide along x a single value, which it cannot draw
+        if profile is None or not 0 < len(profile[0]) == len(profile[1]):
+            skipped.append(layer.layer.label)
+            continue
+        x, y = profile
+        data = layer.layer.data if isinstance(layer.layer, Subset) else layer.layer
+        x_unit = state.reference_data.get_component(state.x_att).units
+        y_unit = data.get_component(layer.attribute).units
+        # glue converts only values with a unit
+        x_unit = (state.x_display_unit or x_unit) if x_unit else None
+        y_unit = None if state.normalize or not y_unit else state.y_display_unit or y_unit
+        y = layer.normalize_values(y) if state.normalize else y
+        meta = {"attribute": layer.attribute.label}
+        subset = getattr(layer.layer, "subset_state", None)
+        fixed = [None] * data.ndim
+        if isinstance(subset, PixelSubsetState):
+            fixed = subset._to_linked_pixel_coords(data)
+            meta["pixel"] = {c.label: p for c, p in zip(data.pixel_component_ids, fixed, strict=True) if p is not None}
+            sky = None if data.coords is None else _sky(data.coords, [p or 0 for p in fixed])
+            if sky is not None:
+                meta["lon"] = u.Quantity(sky.spherical.lon.wrap_at(180 * u.deg), u.arcsec)
+                meta["lat"] = u.Quantity(sky.spherical.lat, u.arcsec)
+        elif isinstance(subset, SliceSubsetState) and subset.reference_data is data:  # a light curve
+            fixed = [s.start for s in subset.slices]
+        i = len(tables) + 1
+        columns = [
+            Column(x, f"x{i}", unit=x_unit, description=state.x_att.label),
+            Column(y, f"y{i}", unit=y_unit, description=layer.layer.label, meta=meta),
+        ]
+        axis = is_convertible_to_single_pixel_cid(data, state.x_att_pixel).axis
+        if _time_component(data) is not None and _time_axis(data) == axis:
+            view = tuple(slice(None) if a == axis else p or 0 for a, p in enumerate(fixed))
+            columns.append(Column(data[_time_component(data), view], f"time{i}"))
+        tables.append(Table(columns))
+    if not tables:
+        raise ValueError("No visible layer has a profile.")
+    table = hstack(tables, join_type="outer")
+    table.meta["function"] = state.function
+    return table, skipped
+
+
+@viewer_tool
+class SaveProfileTool(Tool):
+    """
+    Save the Profile viewer's visible profiles, as glue draws them, to one ECSV table (`_profile_table`), its ``Time``
+    columns as `~astropy.time.Time` and the reference data's OBSID and STARTOBS in its meta. An entry of glue's save
+    menu; the application's status bar names the layers left out.
+    """
+
+    icon = "glue_filesave"
+    tool_id = "solar:save_profile"
+    action_text = "Save profiles as ECSV…"
+    tool_tip = "Save the visible profiles, as drawn, to an ECSV table"
+
+    @messagebox_on_error("Could not save the profiles")
+    def activate(self):
+        viewer = self.viewer
+        table, skipped = _profile_table(viewer)
+        start = os.path.expanduser(rcParams["savefig.directory"])
+        name, _ = QtWidgets.QFileDialog.getSaveFileName(viewer, "Save profiles as ECSV", start, "ECSV table (*.ecsv)")
+        if not name:
+            return
+        _write_ecsv(name, table, viewer.state.reference_data.meta)
+        # the application's, which glue-qt's toolbar does not clear after the entry, as it does the viewer's
+        status = viewer.session.application.statusBar()
+        if skipped:
+            status.showMessage(f"Left out, without a profile: {', '.join(skipped)}")
+        elif status.currentMessage().startswith("Left out, without a profile"):
+            status.clearMessage()  # an earlier save's
 
 
 def _position(viewer):
