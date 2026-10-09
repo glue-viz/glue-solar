@@ -946,14 +946,18 @@ def test_zoom_1_1_gives_a_data_pixel_a_screen_pixel(qtbot, irispy_test_files):
     assert state.x_max - state.x_min == pytest.approx(box.width) == pytest.approx(2 * width)
 
 
+def _key(viewer, key):
+    canvas = viewer.figure.canvas
+    canvas.callbacks.process("key_press_event", KeyEvent("key_press_event", canvas, key))
+
+
 def _draw_path(viewer, x, y):
     """Click the vertices ``x, y`` with the Path diagram tool and press Enter; the diagrams it makes."""
     viewer.toolbar.active_tool = "solar:path"
     for vx, vy in zip(x, y):
         mouse(viewer, "button_press_event", vx, vy)
         mouse(viewer, "button_release_event", vx, vy)
-    canvas = viewer.figure.canvas
-    canvas.callbacks.process("key_press_event", KeyEvent("key_press_event", canvas, "enter"))
+    _key(viewer, "enter")
     return viewer.toolbar.tools["solar:path"]._traces[-1]
 
 
@@ -1100,11 +1104,6 @@ def _click(tool, x, y):
     tool.release(event)
 
 
-def _key(viewer, key):
-    canvas = viewer.figure.canvas
-    canvas.callbacks.process("key_press_event", KeyEvent("key_press_event", canvas, key))
-
-
 def test_slope_recovers_an_injected_features_speed_and_acceleration(qtbot):
     # a slit-jaw-like cube of 0.1663" pixels seen from 1 AU, 60 frames 12 s apart, in which a blob moves along x from
     # 50 km/s, accelerating at 100 m/s²
@@ -1152,9 +1151,10 @@ def test_slope_recovers_an_injected_features_speed_and_acceleration(qtbot):
     assert diagram.toolbar.active_tool is tool  # still on, for the next track
 
     # two points give the mean speed between them, a row more in the Table viewer
+    _click(tool, ridge[-1], 59)  # from the track's end
     _click(tool, ridge[0], 0)
-    _click(tool, ridge[-1], 59)
     _key(diagram, "enter")
+    assert table["t0 (UTC)"][1] < table["t1 (UTC)"][1]
     assert table["speed (km/s)"][1] == pytest.approx(50 + 0.1 * seconds[-1] / 2, rel=0.01)
     assert np.isnan(table["acceleration (m/s²)"][1])
     assert shown.model.rowCount() == 2

@@ -1408,6 +1408,7 @@ class SlopeTool(PathMode):
         if event.key == "escape":
             self.clear()
             self.label.setText("")
+            self.viewer.figure.canvas.draw_idle()  # glue's reset leaves the track drawn
 
     def _readout(self):
         """Show the motion of the points drawn, and return it, or None."""

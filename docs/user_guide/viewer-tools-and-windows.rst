@@ -97,9 +97,7 @@ toolbar has:
   in km (``d0``, ``d1``), the speed and the acceleration, NaN from two times. The first row adds the
   table to the data collection and opens it in a Table viewer. A diagram without sky coordinates or
   ``DSUN_OBS``, or whose times change along the path, as a raster map's do, or points at one time,
-  give "No speed here". For example, a blob added to 60 frames of OBSID 4000255147's SJI 1400, moving
-  along a path from 50 km/s at 100 m/s², reads ``Speed 49.99 km/s · acceleration 100.0 m/s²`` from a
-  click at its peak in each frame.
+  give "No speed here".
 - "Cursor readout", in the View menu: the world position under the mouse, the ``Time`` (UTC, to the
   millisecond) and ``Exposure time`` of that pixel, and its value, in the status bar, for example
   ``65.13" 109.32" (world) · 2013-09-02T18:31:07.229 UTC · exp 2 s | value = -3`` on a raster map,
