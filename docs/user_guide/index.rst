@@ -17,6 +17,7 @@ issues on GitHub to report a problem, in the web browser.
    iris-red-blue-asymmetry
    iris-mg-features
    iris-calibration
+   iris-bursts
    viewer-tools-and-windows
    guide-to-glue-1dprofile-viewer-for-iris-data
    scripting-iris-data

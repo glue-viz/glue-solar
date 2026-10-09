@@ -32,3 +32,6 @@ API Reference
 
 .. automodapi:: glue_solar.sources.calibration
    :no-inheritance-diagram:
+
+.. automodapi:: glue_solar.sources.bursts
+   :no-inheritance-diagram:

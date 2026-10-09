@@ -354,3 +354,5 @@ velocity of a line: see :ref:`Line moments <glue_solar_users_guide_iris_line_mom
 :ref:`Mg II features <glue_solar_users_guide_iris_mg_features>`.
 "IRIS: line ratio diagnostic…" maps the electron density or the temperature from two lines' maps:
 see :ref:`Line moments <glue_solar_users_guide_iris_line_moments>`.
+"IRIS: detect UV bursts…" finds UV bursts in a Si IV raster window or a 1400 Å slit-jaw image: see
+:ref:`UV bursts <glue_solar_users_guide_iris_bursts>`.

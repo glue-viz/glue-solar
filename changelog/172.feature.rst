@@ -1,0 +1,1 @@
+"IRIS: detect UV bursts…" finds UV bursts in a Si IV raster window or a 1400 Å slit-jaw image with irispy, adding a label map and an event table.
