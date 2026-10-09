@@ -557,14 +557,19 @@ class Coordinator(HubListener):
 
     @staticmethod
     def _set_slices(viewer, indices):
-        """Move the viewer's sliders on the axes it does not show to ``indices``, leaving a collapse in place."""
+        """
+        Move the viewer's sliders on the axes it does not show to ``indices``, leaving a collapse in place but moving a
+        wavelength band (``solar:band``), which the band re-makes about the index.
+        """
         state = viewer.state
         if len(state.slices) != state.reference_data.ndim:
             return  # mid-way through an axis change
         shown = _shown(state)
+        band = viewer.toolbar.tools.get("solar:band")
+        banded = _spectral_axes(state.reference_data) if band is not None and band.checked else set()
         slices = list(state.slices)
         for axis, index in indices.items():
-            if axis not in shown and not isinstance(slices[axis], AggregateSlice):
+            if axis not in shown and (axis in banded or not isinstance(slices[axis], AggregateSlice)):
                 slices[axis] = index
         if slices != list(state.slices):
             state.slices = tuple(slices)

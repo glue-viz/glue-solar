@@ -82,7 +82,9 @@ only on the map; the spectrogram and the wavelength panel highlight its row inst
 line along it. Clicking the
 spectrogram or the wavelength panel moves the point there and the map to the clicked wavelength;
 no other wavelength slider moves. Moving a step, exposure or scan slider moves the point, so on a
-stack the point stays on the map's scan. A Profile's collapse of an axis is left in place. After
+stack the point stays on the map's scan. A Profile's collapse of an axis is left in place, but not
+the map's wavelength band (see :ref:`Viewer tools and windows
+<glue_solar_users_guide_viewer_tools_and_windows>`). After
 "Clear point" the panels stop following each other until the next click, except in time: the
 slit-jaw viewers keep following the exposure slider of a sit-and-stare raster and the scan slider of
 a stack's map, on a scanning raster the time stays at the last point's raster step, and a slit-jaw

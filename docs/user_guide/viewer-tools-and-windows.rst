@@ -116,8 +116,9 @@ toolbar has:
   again. The band is the Profile viewer's Collapse with Mean (see :ref:`Band maps
   <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`), cut at the ends of the window, so 5 pixels
   at pixel 1 average pixels 0 to 3; the slider shows its centre. Unlike a Collapse it follows the
-  slider: a drag, A and S, scan and step moves and the time sync keep it. A Pixel click on a
-  quicklook's spectrogram or wavelength panel leaves it in place, as it leaves a Collapse. Each step
+  slider: a drag, A and S, scan and step moves and the time sync keep it, and a Pixel click on a
+  quicklook's spectrogram or wavelength panel moves it to the clicked wavelength. It is offered for
+  data with a wavelength axis. Each step
   averages the band again: on the Si IV 1403 window of OBSID 4000005156 a step and its redraw take
   about 31 ms with 5 pixels and 49 ms with 15, against 18 ms with 1. A saved session shows the band
   where it was, and the next slider move shows a single wavelength.

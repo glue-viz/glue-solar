@@ -769,7 +769,9 @@ def test_a_map_click_moves_the_other_panels(bare_app, qtbot, scans):
             assert viewers["wavelength"].state.slices[1:3] == (1, 30)
 
 
-def test_a_click_on_a_wavelength_panel_moves_the_map_to_its_wavelength(bare_app, qtbot, scans):
+# glue averages the band over the NaN fill too, which numpy warns about
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
+def test_a_click_on_a_wavelength_panel_moves_the_map_to_its_wavelength(bare_app, qtbot, monkeypatch, scans):
     scan, _ = scans
     viewers = quicklook(bare_app, [scan])
     step, wavelength = viewers["spectrogram"].state.slices[0], viewers["spectrogram"].state.slices[2]
@@ -784,6 +786,12 @@ def test_a_click_on_a_wavelength_panel_moves_the_map_to_its_wavelength(bare_app,
     qtbot.waitUntil(lambda: viewers["spectrogram"].state.slices[0] == 6)
     # the panels that show wavelength never have their wavelength slider written
     assert viewers["spectrogram"].state.slices[2] == viewers["wavelength"].state.slices[2] == wavelength
+    # the map's wavelength band, unlike a collapse, moves to the click
+    monkeypatch.setattr(QtWidgets.QInputDialog, "getItem", lambda *args: ("5", True))
+    viewers["map"].toolbar.actions["solar:band"].trigger()
+    select_point(viewers["spectrogram"], 12, 40)
+    band = viewers["map"].state.slices[2]
+    assert (band.slice, band.center) == (slice(10, 15), 12)
 
 
 def test_typing_a_step_moves_the_point_once(bare_app, qtbot, scans):

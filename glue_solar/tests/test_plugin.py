@@ -361,7 +361,9 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot, monkeypatch
     monkeypatch.setattr(QInputDialog, "getItem", lambda *args: (args[3][1 - args[4]], True))
     app = GlueApplication()
     qtbot.addWidget(app)
-    cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5))
+    wcs = WCS(naxis=3)
+    wcs.wcs.ctype[0] = "WAVE"  # for the band
+    cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5), coords=wcs)
     app.data_collection.append(cube)
     viewer = app.new_data_viewer(ImageViewer, data=cube)
     toolbar = viewer.toolbar
@@ -405,13 +407,14 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot, monkeypatch
             if entry.isCheckable():
                 assert entry.isChecked() == tool.checked != was
 
-    # no L while Path diagram is off, as on a 2D image
+    # no L while Path diagram is off, as on a 2D image, which has no wavelength band either
     still = Data(label="still", flux=np.ones((4, 5)))
     app.data_collection.append(still)
     viewer.add_data(still)
     viewer.state.reference_data = still
     assert not toolbar.actions["solar:path"].isEnabled()
     assert not sampling.isVisible()
+    assert not toolbar.actions["solar:band"].isEnabled()
     QTest.keyClick(toolbar, Qt.Key_L)
     assert toolbar.active_tool is pixel
 
@@ -1335,6 +1338,7 @@ def test_band_shows_the_mean_about_the_wavelength_slider(qtbot, monkeypatch):
     sliders = viewer.options_widget().slice_helper._sliders
     for move in (
         lambda: press(viewer, Qt.Key_S),
+        lambda: sliders[3].value_slice_center.setValue(19),
         lambda: sliders[3].value_slice_center.setValue(1),
         lambda: sliders[0].value_slice_center.setValue(0),
     ):

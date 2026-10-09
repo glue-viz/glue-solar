@@ -669,7 +669,7 @@ class BandTool(Tool):
     0.4.2 makes it a single wavelength again whenever any slider moves (``wp0-qt-aggregate-slice``), so a validator
     of the viewer's ``slices`` turns a wavelength index into the band about it: the slider, A and S, scan and step
     moves and the time sync keep the band. A session saves the band shown, not the choice. A plain tool, as Hide
-    axes is.
+    axes is, offered for data with a wavelength axis.
     """
 
     icon = "glue_xrange_select"
@@ -683,6 +683,8 @@ class BandTool(Tool):
         super().__init__(viewer)
         self.width = 1
         viewer.state.add_callback("slices", self._band, validator=True)
+        viewer.state.add_callback("reference_data", self._enable)
+        self._enable(viewer.state.reference_data)
 
     @property
     def checked(self):
@@ -703,7 +705,11 @@ class BandTool(Tool):
 
     def close(self):
         self.viewer.state.remove_callback("slices", self._band)
+        self.viewer.state.remove_callback("reference_data", self._enable)
         super().close()
+
+    def _enable(self, data):
+        self.enabled = data is not None and bool(_spectral_axes(data))
 
     def _axes(self, slices):
         """The wavelength axes of the reference data that the viewer does not show, for ``slices``."""
@@ -719,7 +725,7 @@ class BandTool(Tool):
         for axis in self._axes(slices):
             index = slices[axis]
             if not isinstance(index, AggregateSlice):  # a Collapse stays until a slider moves, as in glue-qt
-                band = slice(max(index - half, 0), min(index + half + 1, self.viewer.state.reference_data.shape[axis]))
+                band = slice(max(index - half, 0), index + half + 1)  # glue cuts the stop at the end of the axis
                 slices[axis] = AggregateSlice(band, index, np.nanmean)
         return tuple(slices)
 
