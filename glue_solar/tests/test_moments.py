@@ -214,10 +214,14 @@ def test_a_profile_range_gives_the_wings_from_a_centre_within_it(app, qtbot, mon
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)
     profile = app.new_data_viewer(ProfileViewer, data=raster)
-    profile.state.x_att, profile.state.x_display_unit = raster.world_component_ids[-1], "nm"
+    profile.state.x_att = raster.pixel_component_ids[-1]
     profile.toolbar.active_tool = "profile-analysis"  # its Options
     tools = profile.toolbar.tools["profile-analysis"]._profile_tools
     tools.ui.tabs.setCurrentIndex(2)  # Collapse, which shows the range
+    tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 1300, 1500  # pixels, not Angstrom: the dialog's
+    answer(monkeypatch, "1402.77")
+    assert run(app, qtbot, raster).meta["moments_wings"] == (0.5, 0.5)
+    profile.state.x_att, profile.state.x_display_unit = raster.world_component_ids[-1], "nm"
     tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 140.33, 140.22  # dragged leftwards, in nm
     # from the centre the dialog starts at, the window's Si IV 1402.77, or, outside it, the dialog's until one within
     # it is typed

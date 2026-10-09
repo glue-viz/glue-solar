@@ -40,8 +40,8 @@ The new dataset's ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``,
 glue's terminal too. :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`
 saves the maps with their coordinates.
 
-Glue says why, and adds nothing, for stacks of scans, for slit-jaw images and other data, as
-:ref:`line moments <glue_solar_users_guide_iris_line_moments>` do, for a window that covers neither
-line over -40 to 40 km/s, before asking, for velocities that do not increase or that the window
+Glue says why, and adds nothing, for stacks of scans (unlike :ref:`line moments
+<glue_solar_users_guide_iris_line_moments>`), for slit-jaw images and other data, for a window that
+covers neither line over -40 to 40 km/s, before asking, for velocities that do not increase or that the window
 does not cover for any line ticked, and for irispy's own errors, such as too few wavelengths
 within the velocities searched. With no line ticked, OK adds nothing.
