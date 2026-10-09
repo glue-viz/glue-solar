@@ -1,0 +1,1 @@
+glue-solar keeps the session as glue's window closes and restores it from Plugins → "Restore last session"; sessions holding over 1 MB of values are skipped.
