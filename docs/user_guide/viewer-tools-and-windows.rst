@@ -344,7 +344,7 @@ panel, opens again with its x axis, "x unit" and range; glue-core 1.27.0 alone o
 whose Profile's x unit is not one of its data's first world axis's, such as a raster's wavelength
 or a light curve's exposure number. A quicklook adds its viewers, point and links: one of
 4000255147's Si IV 1403 window and slit-jaw image, read as they are viewed, saves a 33 kB session
-(151 kB with all ten windows) in under 0.1 s. Datasets made from IRIS data, such as line moments or
+(151 kB with all nine windows) in under 0.1 s. Datasets made from IRIS data, such as line moments or
 rebinned and north-up data, are saved with their values, which can make a session large (36 MB
 with line moments of that Si IV 1403 window), and one regridded on time from data read as they are
 viewed cannot be saved yet: save derived products separately rather than relying on a Glue session

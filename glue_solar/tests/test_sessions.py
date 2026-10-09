@@ -267,6 +267,9 @@ def test_a_quicklook_session_stays_small_and_opens(qtbot, monkeypatch, tmp_path,
     # quicklook of 4000255147's Si IV 1403 window and slit-jaw image)
     viewers = [viewer for tab in app.viewers for viewer in tab]
     assert (tmp_path / "quicklook.glu").stat().st_size < 8000 * (len(app.data_collection) + len(viewers))
+    records = json.loads((tmp_path / "quicklook.glu").read_text())
+    # nothing saved with its values
+    assert not any(record["_type"].endswith("Component") and "data" in record for record in records.values())
     restored = GlueApplication.restore_session(str(tmp_path / "quicklook.glu"), show=False)
     qtbot.addWidget(restored)
     assert restored.tab_names == app.tab_names
