@@ -19,7 +19,7 @@ from glue.core.message import NumericalDataChangedMessage, SettingsChangeMessage
 from glue.core.subset import SubsetState
 from glue.plugins.tools.path_slicer.common import open_slice_viewer_for
 from glue.plugins.tools.path_slicer.matplotlib_mode import BasePathSlicerCrosshairMode, BasePathSlicerMode
-from glue.plugins.tools.path_slicer.path_sliced_data import PathSlicedData, sample_points
+from glue.plugins.tools.path_slicer.path_sliced_data import PathSlicedCoordinates, PathSlicedData, sample_points
 from glue.plugins.tools.path_slicer.path_sliced_data_links import (
     link_path_sliced_pair_paths,
     link_path_sliced_to_parent,
@@ -65,6 +65,8 @@ from glue_solar.quicklook import (
     nearest,
     observation_key,
 )
+from glue_solar.sources.loaders.iris import _GlueWCS
+from glue_solar.sources.loaders.stack_spectrograms import _PerScanWCS
 from glue_solar.sources.moments import _accepted
 
 __all__ = [
@@ -238,13 +240,18 @@ def _hide_flat_angles(axes, shape):
     Hide the tick labels of a longitude or latitude, of any celestial frame, of the WCSAxes ``axes`` that barely
     changes across the displayed array of ``shape`` (x, y) while another coordinate, such as wavelength or time, is
     shown beside the two, as the latitude along a raster's steps does: pointing jitter takes it back and forth across
-    each tick value, and WCSAxes labels every crossing, one over another. An image of the two angles alone, such as
-    a map or a slit-jaw image, keeps both. Decided on the array's edges, so zooming keeps it, with a longitude across
-    0° unwrapped rather than 360° wide.
+    each tick value, and WCSAxes labels every crossing, one over another. Beside two other coordinates, such as a
+    stack's wavelength and scan, along which only each scan's pointing moves them, both angles lose their tick labels.
+    An image of the two angles alone, such as a map or a slit-jaw image, keeps both. Decided on the array's edges, so
+    zooming keeps it, with a longitude across 0° unwrapped rather than 360° wide.
     """
     shown = [coord for coord in axes.coords if coord.coord_index is not None]  # the others are not on these axes
     angles = [coord for coord in shown if coord.coord_type in ("longitude", "latitude")]
     if len(angles) != 2 or len(shown) == 2:  # an image of the two angles alone: both change across it
+        return
+    if len(shown) > 3:
+        for coord in angles:
+            coord.set_ticklabel_position("")
         return
     x, y = (np.linspace(0, n - 1, 64) for n in shape)  # -TAB rasters have no coordinates past the outer centres
     pixel = np.concatenate([
@@ -1093,7 +1100,7 @@ class PathData(PathSlicedData):
     positions given are the path's samples, which `PathTool` places in each dataset's own pixels, not vertices to
     sample. A slit-jaw image's longitude and latitude depend on its frame, so its diagram, with more world axes than
     pixel axes, on which glue-core's coordinates fail, has pixel coordinates only; a raster's keeps its wavelength, and
-    a stack's its scan too.
+    a stack's its scan too, from scan 0's WCS, as its longitude and latitude depend on its scan.
 
     ``sampling`` is one of `SAMPLINGS`: 'truncate', glue-core's, the pixel whose index each position rounds down to;
     'nearest', the nearest pixel, halfway up, as `scipy.ndimage.map_coordinates` with ``order=0``, NaN beyond half a
@@ -1108,6 +1115,9 @@ class PathData(PathSlicedData):
             raise ValueError(f"sampling must be one of {self.SAMPLINGS}, not {sampling!r}")
         self.sampling = sampling
         super().__init__(*args, **kwargs)
+        stack = getattr(self.original_data.coords, "_wcs", None)
+        if isinstance(stack, _PerScanWCS):  # scan 0's WCS with its Scan axis, which leaves no angles here
+            self._coords = PathSlicedCoordinates(_GlueWCS(stack._wcs), self.sliced_dims)
         if self._coords is not None and self._coords.world_n_dim != self._coords.pixel_n_dim:
             self._coords = None
 

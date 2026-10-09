@@ -532,22 +532,24 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
         data.coords.pixel_to_world_values(0, 0, 0, np.arange(len(paths)))[-1], np.arange(len(paths))
     )
 
-    wavelength, slit, step = np.meshgrid(np.arange(17), np.arange(109), np.arange(8), indexing="ij")
-    source_world = sequence[0].wcs.pixel_to_world_values(wavelength, slit, step)
-    stacked_world = data.coords.pixel_to_world_values(wavelength, slit, step, np.zeros_like(wavelength))
-    for expected, actual, unit, physical_type in zip(
-        source_world,
-        stacked_world[:3],
-        sequence[0].wcs.world_axis_units,
-        sequence[0].wcs.world_axis_physical_types,
-    ):
-        if physical_type in SHOWN:
-            expected = (expected * u.Unit(unit)).to_value(SHOWN[physical_type])
-        np.testing.assert_allclose(actual, expected)
-    for actual, expected in zip(
-        data.coords.world_to_pixel_values(*stacked_world),
-        (wavelength, slit, step, np.zeros_like(wavelength)),
-    ):
+    # every scan's pixels in that scan's own coordinates, a tenth of an arcsec apart here, in one call or one scan at a
+    # time, and glue's world components too
+    pixel = np.meshgrid(np.arange(17), np.arange(109), np.arange(8), np.arange(len(paths)), indexing="ij")
+    stacked_world = data.coords.pixel_to_world_values(*pixel)
+    for k, cube in enumerate(sequence):
+        scan_world = data.coords.pixel_to_world_values(*(p[..., k] for p in pixel[:3]), k)
+        source_world = cube.wcs.pixel_to_world_values(*(p[..., k] for p in pixel[:3]))
+        for expected, actual, alone, unit, physical_type in zip(
+            source_world, stacked_world[:3], scan_world, cube.wcs.world_axis_units, cube.wcs.world_axis_physical_types
+        ):
+            if physical_type in SHOWN:
+                expected = (expected * u.Unit(unit)).to_value(SHOWN[physical_type])
+            np.testing.assert_allclose(actual[..., k], expected)
+            np.testing.assert_array_equal(alone, actual[..., k])
+    assert np.ptp(stacked_world[2][0, 0, 0]) > 0.05  # longitude, arcsec
+    for i, name in ((1, "Helioprojective Latitude"), (2, "Helioprojective Longitude")):
+        np.testing.assert_array_equal(data[name], stacked_world[i].T)
+    for actual, expected in zip(data.coords.world_to_pixel_values(*stacked_world), pixel):
         np.testing.assert_allclose(actual, expected, atol=3e-6)
 
     with pytest.raises(ValueError, match="same shape"):

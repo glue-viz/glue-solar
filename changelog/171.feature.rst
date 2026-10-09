@@ -1,0 +1,1 @@
+Each scan of a stacked raster now has its own helioprojective coordinates, so overlays, the point and readouts follow every scan's pointing.

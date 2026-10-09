@@ -64,8 +64,10 @@ On an image that shows another coordinate, such as wavelength or time, beside lo
 latitude, an angle that changes by less than 5 % of the other across the image has no tick labels,
 also after glue resets the axes: the latitude along a raster's steps on the wavelength-against-step
 panel, or the longitude along the slit on the spectrogram. WCSAxes would label it wherever pointing
-jitter takes it across a tick value, one label over another or off the panel. An image of the two
-angles alone, such as the map, a slit-jaw image or any other celestial map, keeps both.
+jitter takes it across a tick value, one label over another or off the panel. Beside two other
+coordinates, as on a stack's wavelength-against-scan panel, where only each scan's own pointing
+moves them, neither angle has tick labels. An image of the two angles alone, such as the map, a
+slit-jaw image or any other celestial map, keeps both.
 
 The map shows the wavelength nearest the window's reference wavelength, and the panels use
 99.5 % limits and their band's stretch: log in the FUV (slit-jaw 1330 and 1400, C II, Si IV and the
@@ -91,8 +93,9 @@ a stack's map, on a scanning raster the time stays at the last point's raster st
 time master (see below) still moves the others. A click on a slit-jaw viewer moves the point to the
 raster there (see below). The raster panels and the slit-jaw viewers have glue's region selection
 tools. A region drawn on
-the map selects the raster's pixels inside it, and reaches each slit-jaw frame, at that frame's own
-pointing, and other linked data by its outline in longitude and latitude, in a fraction of a second
+the map selects the raster's pixels inside it, the same pixels in its other windows, and reaches
+each slit-jaw frame, at that frame's own pointing, and other linked data by its outline in
+longitude and latitude, in a fraction of a second
 per frame (see :ref:`Linking <glue_solar_users_guide_iris_linking>`); one drawn on the spectrogram
 or the wavelength panel selects on that raster only. A region drawn on a slit-jaw image selects the
 image's pixels inside it in every frame, and reaches the raster and other linked data by its outline
@@ -198,19 +201,19 @@ shows the slit a step away from the cross.
 "Raster overlays" in the "Coordinate" menu of any viewer of an observation shows or hides the
 raster's steps on all its viewers, and moves nothing. Each slit-jaw image draws the slit of every
 raster step or exposure as a thin white line, placed with the pointing of the frame nearest that
-step's time, whichever frame is shown; on a stack, the steps of the scan its panels show. Each map
-of the raster (steps or exposures against slit) draws a dashed white line at the step or exposure,
-in the scan it shows, nearest the time master's time, hidden when none is within half its time step
-("NO MATCH"); under a slit-jaw master it marks the step taken at the time of the frame shown. Like
-the other lines they show in "Save plot to file" and "Save frames or movie…", but not in a saved
-session or "Save Python script to reproduce plot". A stack's slits are placed with its first scan's
-pointing, a few slit-jaw pixels off on a later scan; open that scan on its own to place them exactly.
+step's time, whichever frame is shown; on a stack, the steps of the scan its panels show, with that
+scan's own pointing. Each map of the raster (steps or exposures against slit) draws a dashed white
+line at the step or exposure, in the scan it shows, nearest the time master's time, hidden when none
+is within half its time step ("NO MATCH"); under a slit-jaw master it marks the step taken at the
+time of the frame shown. Like the other lines they show in "Save plot to file" and "Save frames or
+movie…", but not in a saved session or "Save Python script to reproduce plot".
 
 A click with the Pixel tool on a slit-jaw viewer of the quicklook moves the point to the raster
 pixel there, placed with the displayed frame's own pointing (``sji_to_raster``, see
 :ref:`Scripting with IRIS data <glue_solar_users_guide_scripting_iris_data>`): on a scanning raster
 the nearest step and slit position, on a stack also the scan nearest the frame's time at that step,
-and on a sit-and-stare raster the exposure nearest the frame's time and the slit position level with
+with the step and slit position in that scan's own pointing, and on a sit-and-stare raster the
+exposure nearest the frame's time and the slit position level with
 the click, however far beside the slit: the slit, 0.33″ or about two slit-jaw pixels wide, is about
 a screen pixel wide at the quicklook's zoom. The other panels and the spectrum follow, as after a
 map click, and the red cross marks the point. The viewer keeps the frame clicked, also after a click

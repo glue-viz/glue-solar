@@ -106,7 +106,7 @@
      <item>
       <widget class="QCheckBox" name="stack">
        <property name="toolTip">
-        <string>Stack raster scans by detector position into one 4D cube. Scan 0 supplies the nominal spatial coordinates; exact times are retained.</string>
+        <string>Stack raster scans by detector position into one 4D cube. Each scan keeps its own spatial coordinates and exact times.</string>
        </property>
        <property name="text">
         <string>Stack sequential raster scans</string>

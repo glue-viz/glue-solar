@@ -74,15 +74,15 @@ toolbar has:
   Other datasets shown, such as a raster window added to a slit-jaw image's viewer, are sampled at
   the same places on the Sun through glue's links ("IRIS: link helioprojective coordinates"), with
   the pointing of the frame shown, so a viewer that follows the time master samples them at its
-  exposure; a stack is placed with its first scan's coordinates. A
-  sit-and-stare raster placed this way gives each place the exposure in which its slit lay there, as
-  its coordinates say, not the frame's. These other diagrams, which the image's axes cannot show,
-  are in the data collection to open in viewers of their own. A dataset glue cannot place from the
-  image, such as a slit-jaw image added to a raster's viewer, gets no diagram. Each Enter makes a
-  new set in a new viewer and keeps its path drawn on the image; closing the viewer it was drawn in
-  closes them. In the diagram's viewer, "Show position on original path" marks the point of the path
-  under the mouse while you drag, and moves the viewer it was drawn in to the frame, wavelength or
-  scan the diagram's y axis shows there, only that slider. Sessions do not save the diagrams yet.
+  exposure. A sit-and-stare raster placed this way gives each place the exposure in which its slit
+  lay there, as its coordinates say, not the frame's. These other diagrams, which the image's axes
+  cannot show, are in the data collection to open in viewers of their own. A dataset glue cannot
+  place from the image, such as a slit-jaw image added to a raster's viewer, or a stack, whose pixel
+  at a place depends on its scan, gets no diagram. Each Enter makes a new set in a new viewer and
+  keeps its path drawn on the image; closing the viewer it was drawn in closes them. In the
+  diagram's viewer, "Show position on original path" marks the point of the path under the mouse
+  while you drag, and moves the viewer it was drawn in to the frame, wavelength or scan the
+  diagram's y axis shows there, only that slider. Sessions do not save the diagrams yet.
 - "Cursor readout", in the View menu: the world position under the mouse, the ``Time`` (UTC, to the
   millisecond) and ``Exposure time`` of that pixel, and its value, in the status bar, for example
   ``65.13" 109.32" (world) · 2013-09-02T18:31:07.229 UTC · exp 2 s | value = -3`` on a raster map,
