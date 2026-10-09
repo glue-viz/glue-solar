@@ -1,23 +1,27 @@
 """
-'Regrid on time', on int16 copies of irispy's test files whose exposures, frames and scans are taken at known times.
+'Regrid on time', on int16 copies of irispy's test files whose exposures, frames and scans are taken at known times;
+and 'North up', on a rolled slit-jaw image and irispy's.
 """
 
 import numpy as np
 import pytest
 from glue.core import Data
+from glue.core.component_link import CoordinateComponentLink
 from glue_qt.app.application import GlueApplication
 from qtpy import QtWidgets
+from qtpy.QtCore import Qt
 from scipy.interpolate import make_interp_spline
 
 from astropy.io import fits
 
 import glue_solar
-from glue_solar.conftest import find_irispy_test_file
+from glue_solar.conftest import OBS_A, _header, _write_image, find_irispy_test_file, startobs
 from glue_solar.quicklook import quicklook
-from glue_solar.regrid import regrid_on_time
+from glue_solar.regrid import north_up, north_up_iris, regrid_on_time
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import _SJI_POINTING, image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.loaders.lazy import LazyData, RawComponent
+from glue_solar.tests.helpers import press
 from glue_solar.tests.test_lazy import RASTER, SJI, int16_copy, int16_raster_copy
 from glue_solar.tests.test_quicklook import SCAN, menu_action, readout
 
@@ -242,3 +246,96 @@ def test_the_quicklook_shows_a_regridded_raster(app, qtbot, tmp_path, irispy_tes
             qtbot.waitUntil(lambda pixel=pixel: group.subset_state.slices[0] == slice(pixel, pixel + 1))
         else:
             qtbot.waitUntil(lambda: "NO MATCH" in readout(spectrogram))
+
+
+def rolled_sji(tmp_path, roll):
+    """A slit-jaw image of 3 frames rolled ``roll`` degrees, its samples numbered, pointing 1" further west a frame."""
+    d, t, o = OBS_A
+    path = tmp_path / f"iris_l2_{d}_{t}_{o}_SJI_1400_t000.fits"
+    _write_image(path, _header("SJI", o, startobs(d, t), TDESC1="SJI_1400", TWAVE1=1400.0, NWIN=1), roll=roll)
+    with fits.open(path, mode="update") as hdulist:
+        hdulist[0].data[:] = np.arange(hdulist[0].data.size).reshape(hdulist[0].data.shape)
+        aux = hdulist[1]
+        aux.data[:, aux.header["XCENIX"]] += np.arange(len(aux.data))
+    return image_data(path)
+
+
+def north_angle(data, grid, frame):
+    """
+    The angle in degrees from the y axis of ``grid``'s pixels to solar north at the centre of ``data``'s frame
+    ``frame``, and from that of ``data``'s own pixels, east of north positive.
+    """
+    _, ny, nx = data.shape
+    lon, lat, time = data.coords.pixel_to_world_values((nx - 1) / 2, (ny - 1) / 2, frame)
+    angles = []
+    for coords in (grid.coords, data.coords):
+        x, y, _ = coords.world_to_pixel_values([lon, lon], [lat, lat + 1], [time, time])
+        angles.append(np.degrees(np.arctan2(x[0] - x[1], y[1] - y[0])))
+    return angles
+
+
+def test_north_up_shows_a_rolled_slit_jaw_image_north_up(app, tmp_path):
+    sji = rolled_sji(tmp_path, 30)
+    collection = app.data_collection
+    collection.append(sji)
+    keep_hpc_linked(collection)
+    tree = app._layer_widget
+    tree.ui.layerTree.set_selected_layers([sji])
+    tree._actions["North up"].trigger()
+    grid = collection[-1]
+    [viewer] = app.viewers[0]
+    assert viewer.state.reference_data is grid
+    assert [(layer.layer, layer.visible) for layer in viewer.state.layers] == [(grid, False), (sji, True)]
+    assert grid.label == f"{sji.label} north up"
+    assert link_hpc(collection) == []
+    # every frame lies on the grid, as its own pointing places it
+    nt, ny, nx = sji.shape
+    corners = np.meshgrid([-0.5, nx - 0.5], [-0.5, ny - 0.5], np.arange(nt))
+    x, y, t = grid.coords.world_to_pixel_values(*sji.coords.pixel_to_world_values(*corners))
+    assert np.all((x >= -0.5) & (x <= grid.shape[2] - 0.5) & (y >= -0.5) & (y <= grid.shape[1] - 0.5))
+    np.testing.assert_allclose(t, corners[2], atol=1e-9)
+    cid = sji.main_components[0]
+    for frame in range(nt):
+        viewer.state.slices = (frame, 0, 0)  # the grid's slider steps through the image's frames
+        up, rolled = north_angle(sji, grid, frame)
+        assert abs(up) < 0.001
+        assert abs(rolled) == pytest.approx(30, abs=0.01)
+        # glue draws each grid pixel with the frame's sample nearest it on the Sun, as the frame's own pointing
+        # places it, and NaN off the frame
+        gy, gx = np.mgrid[: grid.shape[1], : grid.shape[2]]
+        sx, sy, st = sji.coords.world_to_pixel_values(*grid.coords.pixel_to_world_values(gx, gy, frame))
+        sx, sy = np.round(sx).astype(int), np.round(sy).astype(int)
+        inside = (sx >= 0) & (sx < nx) & (sy >= 0) & (sy < ny)
+        expected = np.where(inside, np.asarray(sji[cid])[frame][np.clip(sy, 0, ny - 1), np.clip(sx, 0, nx - 1)], np.nan)
+        np.testing.assert_allclose(st, frame, atol=1e-9)
+        np.testing.assert_array_equal(viewer.state.layers[1].get_sliced_data(), expected)
+    with pytest.raises(ValueError, match="not a slit-jaw image or aligned AIA cutout"):
+        north_up(Data(label="plain", x=np.zeros((3, 4, 5))))
+
+
+def test_north_up_steps_through_irispys_slit_jaw_image(app, tmp_path, irispy_test_files):
+    sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
+    raster = sit_and_stare(tmp_path, irispy_test_files)
+    collection = app.data_collection
+    collection.extend([raster, sji])
+    keep_hpc_linked(collection)
+    north_up_iris(sji, collection)
+    grid = collection[-1]
+    [viewer] = app.viewers[0]
+    assert grid.shape[0] == sji.shape[0]
+    # its own roll, 0.65°, more than half a degree
+    for frame in (0, 30, sji.shape[0] - 1):
+        viewer.state.slices = (frame, 0, 0)
+        up, rolled = north_angle(sji, grid, frame)
+        assert abs(up) < 0.001 < 0.5 < abs(rolled)
+        assert readout(viewer) == f"{np.datetime_as_string(sji[sji.id['Time']][frame, 0, 0], unit='ms')} UTC"
+        assert np.isfinite(viewer.state.layers[1].get_sliced_data()).any()
+    press(viewer, Qt.Key_F)  # on, round from the last frame to the first: no time master moves it
+    assert viewer.state.slices == (0, 0, 0)
+    # its time is linked with the image's, and with no other dataset's, the datasets' own coordinates left out
+    links = [link for link in collection.links if not isinstance(link, CoordinateComponentLink)]
+    linked = [{link.get_to_id(), *link.get_from_ids()} for link in links]
+    times = [cids for cids in linked if any(cid.label.startswith("Time") for cid in cids)]
+    assert times == [{grid.world_component_ids[0], sji.world_component_ids[0]}]
+    with pytest.raises(ValueError, match="not a slit-jaw image or aligned AIA cutout"):
+        north_up(raster)
