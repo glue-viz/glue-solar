@@ -27,7 +27,7 @@ from glue.core.message import DataCollectionDeleteMessage
 from glue.core.state import GlueSerializeError
 from glue_qt.utils import load_ui
 from glue_qt.utils.threading import Worker
-from qtpy import QtWidgets
+from qtpy import QtGui, QtWidgets
 from qtpy.QtCore import QSettings, Qt, QTimer, Signal
 
 import astropy.units as u
@@ -949,9 +949,9 @@ class QtIRISImporter(QtWidgets.QDialog):
     as the last browser left them.
 
     A folder typed in the Folder field is searched once Return is pressed or the
-    field is left. A double-click on an entry, its tick box too, loads it alone,
-    whatever is ticked; on an observation of several entries it expands or collapses
-    the row.
+    field is left. A double-click on an entry loads it alone, whatever is ticked,
+    and one on its tick box only ticks and un-ticks it; on an observation of several
+    entries it expands or collapses the row.
     """
 
     progressed = Signal(int, int)  # (load, percent), from the worker thread
@@ -1165,7 +1165,14 @@ class QtIRISImporter(QtWidgets.QDialog):
         return picks
 
     def _double_clicked(self, item):
-        if item.data(0, Qt.UserRole) is not None:  # an entry, not an observation's row of several
+        if item.data(0, Qt.UserRole) is None:  # an observation's row of several entries
+            return
+        tree, option = self.obs_tree, QtWidgets.QStyleOptionViewItem()
+        option.initFrom(tree)  # the tick box's rect, as the style lays out the item and Qt toggles it
+        option.rect = tree.visualRect(tree.indexFromItem(item))  # past its indentation, as an entry spans the row
+        option.features = QtWidgets.QStyleOptionViewItem.HasCheckIndicator
+        box = tree.style().subElementRect(QtWidgets.QStyle.SE_ItemViewItemCheckIndicator, option, tree)
+        if not box.contains(tree.viewport().mapFromGlobal(QtGui.QCursor.pos())):
             self.finalize([self._payloads[item.data(0, Qt.UserRole)]])
 
     def finalize(self, picks):

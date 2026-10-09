@@ -11,8 +11,9 @@ import numpy as np
 import pytest
 from irispy.io import read_files
 from qtpy.QtCore import QMetaObject, Qt
+from qtpy.QtGui import QCursor
 from qtpy.QtTest import QTest
-from qtpy.QtWidgets import QDialog, QFileDialog, QInputDialog
+from qtpy.QtWidgets import QDialog, QFileDialog, QInputDialog, QStyle, QStyleOptionViewItem
 
 import astropy.units as u
 from astropy.io import fits
@@ -511,13 +512,24 @@ def test_double_click_loads_the_entry_alone_and_expands_an_observation(dialog, q
     tree, row = dialog.obs_tree, _row(dialog, OBS_A[2])
     tick(dialog, "Mg II k")
 
-    def double_click(item):  # as Qt sees one: a click, then the double-click
+    def double_click(item, box=False):  # as Qt sees one: a click, then the double-click
+        rect = tree.visualItemRect(item)
+        if box:  # its tick box, as the style lays it out
+            option = QStyleOptionViewItem()
+            option.initFrom(tree)
+            option.rect, option.features = tree.visualRect(tree.indexFromItem(item)), QStyleOptionViewItem.HasCheckIndicator
+            rect = tree.style().subElementRect(QStyle.SE_ItemViewItemCheckIndicator, option, tree)
+        QCursor.setPos(tree.viewport().mapToGlobal(rect.center()))  # QTest's events leave the cursor where it was
         for click in (QTest.mouseClick, QTest.mouseDClick):
-            click(tree.viewport(), Qt.LeftButton, pos=tree.visualItemRect(item).center())
+            click(tree.viewport(), Qt.LeftButton, pos=rect.center())
 
     double_click(row)
     assert row.isExpanded()
     assert dialog.ok.isEnabled()  # nothing loads
+    double_click(row.child(0), box=True)
+    assert row.child(0).checkState(0) == Qt.Checked  # the click ticks it
+    assert dialog.ok.isEnabled()  # the double-click loads nothing
+    assert dialog.cancel.text() != "Stop"
     double_click(row.child(0))
     assert dialog.cancel.text() == "Stop"  # in the background, as Load selected
     scanned(qtbot, dialog)

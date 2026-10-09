@@ -64,9 +64,9 @@ browser keeps them for next time, and opens with the latest search's "Start" and
 Tick the entries you want (ticking the observation row ticks everything under it); each slit-jaw
 channel and AIA cutout you tick loads as a dataset of its own. Then press "Load selected": the data
 are added to the data collection. Double-click an entry to load it alone, whatever is ticked (a
-quick tick and un-tick of its box counts as one); a double-click on an observation of several entries
-expands or collapses it instead. glue reads the files in the background, one at a time, and the
-progress bar counts them; meanwhile the list and its boxes are locked and "Cancel" reads "Stop".
+double-click on its tick box only ticks and un-ticks it); a double-click on an observation of several
+entries expands or collapses it instead. glue reads the files in the background, one at a time, and
+the progress bar counts them; meanwhile the list and its boxes are locked and "Cancel" reads "Stop".
 "Stop" ends the load once the file being read is done and loads the entries read in full, such as a
 slit-jaw channel read before a raster window, or nothing if none was. Pressing Esc or closing the
 browser drops the load: nothing is loaded. With "Open quicklook" ticked, the default, each
