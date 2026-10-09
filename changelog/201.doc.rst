@@ -1,0 +1,1 @@
+The guide gives the size of quicklook sessions: 33 kB for a raster window and its slit-jaw image, as the files are referred to, more for derived products saved with their values.
