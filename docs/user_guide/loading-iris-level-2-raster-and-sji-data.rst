@@ -76,11 +76,11 @@ does (see `Memory and open files`_); scans stored as floating point, such as iri
 are copied into a temporary file (a NumPy memmap) instead. Its leading ``Scan`` coordinate
 selects the original raster scan, and its ``Time`` component contains the exact acquisition time of
 every pixel. Each scan keeps its own coordinates, so a pixel's helioprojective longitude and
-latitude are those its scan gives it, and the place of a pixel needs its scan as well: glue cannot
-find a stack's pixels from another dataset's longitude and latitude alone, so a region glue makes on
-a stack's own pixels shows on no other dataset (the quicklook's regions reach them by their
-outline). A selected window containing one scan loads normally as a 3D dataset and also exposes its
-exact per-step ``Time`` values.
+latitude are those its scan gives it, and placing a stack on other data takes a scan as well: the
+links (see `Linking`_) place it on each other IRIS dataset with the scan nearest the time of each
+frame, exposure or step, each scan timed by its middle raster step, however far. A selected window
+containing one scan loads normally as a 3D dataset and also exposes its exact per-step ``Time``
+values.
 
 Every raster, stack, slit-jaw and AIA dataset has these components: the data (named after the
 dataset), ``Time`` and ``Exposure time`` (a stack lists ``Exposure time`` before ``Time``),
@@ -288,7 +288,9 @@ between the maps; a region drawn on one map still reaches the other through Glue
 - A region drawn on a raster map or a sunpy Map selects, in every slit-jaw frame, the pixels that
   lie inside it at that frame's own pointing. For a sit-and-stare raster the selection marks where
   the slit was on the Sun during the selected exposures: it lies on the slit in the slit-jaw frames
-  taken then, and moves away from it in other frames as the pointing changes.
+  taken then, and moves away from it in other frames as the pointing changes. On a stack's map, its
+  steps and slit rows lie where the scan nearest the frame's time places them, at that scan's own
+  pointing.
 - A region drawn on a raster map selects the pixels of a sunpy Map inside it, and the other way
   round.
 - A selection on longitude or latitude, for example from a scatter plot, carries over in both
@@ -297,8 +299,8 @@ between the maps; a region drawn on one map still reaches the other through Glue
   360° when the map's reference longitude is 0 or more, so that east of longitude 0 they are near
   360°, otherwise from -360° to 0.
 - A region drawn on a slit-jaw image does not carry over to a raster or a sunpy Map: which frame it
-  belongs to would need the time, and time is never linked. On a quicklook's slit-jaw image it does,
-  as below.
+  belongs to would need the time, and nothing links to a slit-jaw image's time. On a quicklook's
+  slit-jaw image it does, as below.
 
 A region drawn on the map of a quicklook (see :ref:`glue_solar_users_guide_iris_quicklook`) reaches
 the other data by its outline in longitude and latitude, traced through the raster's own

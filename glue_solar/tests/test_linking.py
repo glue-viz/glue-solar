@@ -31,6 +31,7 @@ from glue_solar.quicklook import _role, coordinator, nearest, quicklook
 from glue_solar.sources.iris import browse_iris, link_iris
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.tests.helpers import inversions, load_selected, raster_point_on_sji, scanned, select_point, shift
+from glue_solar.tests.test_quicklook import drifting_stack
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
 RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
@@ -350,15 +351,12 @@ def test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair(qtbot, sns):
     assert list(crosshairs.values()) == [{(30, 15)}, set()]
 
 
-@pytest.mark.parametrize("frame", [0, -1])
-def test_raster_map_roi_selects_the_sji_pixels_inside_it(linked_sns, frame):
-    # Each SJI frame's own coordinates decide, so the selection follows that frame's pointing
-    sji, raster = linked_sns
-    roi = RectangularROI(80, 100, 10.3, 19.8)  # raster steps and slit rows, edges off the SJI pixel grid
-    mask = sji.get_mask(
-        RoiSubsetState(xatt=raster.pixel_component_ids[0], yatt=raster.pixel_component_ids[1], roi=roi)
-    )[frame]
-    y, x = np.indices(mask.shape)
+def _inside(sji, frame, raster, roi):
+    """
+    The pixels of ``sji``'s frame ``frame`` inside ``roi``, steps and slit rows of ``raster``, from their coordinates,
+    and those within 0.05 raster pixel of its edge.
+    """
+    y, x = np.indices(sji.shape[1:])
     lon, lat, _ = sji.coords.pixel_to_world_values(x, y, frame % sji.shape[0])
     wavelength = np.full(lon.shape, raster.coords.pixel_to_world_values(0, 0, 0)[0])
     _, slit, step = raster.coords.world_to_pixel_values(wavelength, lat, lon)
@@ -367,10 +365,39 @@ def test_raster_map_roi_selects_the_sji_pixels_inside_it(linked_sns, frame):
     def inside(margin):
         return (abs(step - x) < half_width + margin) & (abs(slit - y) < half_height + margin)
 
-    expected, edge = inside(0), inside(0.05) != inside(-0.05)
+    return inside(0), inside(0.05) != inside(-0.05)
+
+
+@pytest.mark.parametrize("frame", [0, -1])
+def test_raster_map_roi_selects_the_sji_pixels_inside_it(linked_sns, frame):
+    # Each SJI frame's own coordinates decide, so the selection follows that frame's pointing
+    sji, raster = linked_sns
+    roi = RectangularROI(80, 100, 10.3, 19.8)  # raster steps and slit rows, edges off the SJI pixel grid
+    mask = sji.get_mask(
+        RoiSubsetState(xatt=raster.pixel_component_ids[0], yatt=raster.pixel_component_ids[1], roi=roi)
+    )[frame]
+    expected, edge = _inside(sji, frame, raster, roi)
     assert expected.sum() >= 10
     assert edge.sum() <= expected.sum() // 10
     np.testing.assert_array_equal(mask[~edge], expected[~edge])
+
+
+@pytest.mark.parametrize("frame", [0, -1])
+def test_stack_map_roi_selects_the_sji_pixels_inside_it_in_the_nearest_scan(tmp_path, irispy_test_files, frame):
+    # glue's own region on a stack's steps and slit rows, as a plain Image viewer of its map makes: in each SJI frame,
+    # the pixels inside it in the scan nearest the frame's time, by its middle step, at that scan's own pointing
+    sji = image_data(_real(irispy_test_files, SJI))
+    stack, alone = drifting_stack(tmp_path, irispy_test_files)
+    dc = DataCollection([sji, stack])
+    dc.add_link(link_hpc(dc))
+    roi = RectangularROI(60, 120, 10.3, 19.8)
+    mask = sji.get_mask(RoiSubsetState(xatt=stack.pixel_component_ids[1], yatt=stack.pixel_component_ids[2], roi=roi))
+    scan = 0 if frame == 0 else 1
+    expected, edge = _inside(sji, frame, alone[scan], roi)
+    assert expected.sum() >= 10
+    assert edge.sum() <= expected.sum() // 10
+    np.testing.assert_array_equal(mask[frame][~edge], expected[~edge])
+    assert (_inside(sji, frame, alone[1 - scan], roi)[0] != expected).sum() >= 10  # the other scan's pointing differs
 
 
 def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, monkeypatch):

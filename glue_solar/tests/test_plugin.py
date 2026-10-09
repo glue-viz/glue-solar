@@ -73,6 +73,7 @@ from glue_solar.sources.mg_features import mg_features_iris
 from glue_solar.sources.moments import moments_iris
 from glue_solar.sources.red_blue import red_blue_iris
 from glue_solar.tests.helpers import count_tick_work, mouse, press, raster_point_on_sji
+from glue_solar.tests.test_quicklook import drifting_stack
 from glue_solar.tools import PathData, sky_length
 
 
@@ -1038,6 +1039,33 @@ def test_path_diagrams_of_a_slit_jaw_image_and_a_raster_on_it(qtbot, irispy_test
     # the diagram's readout gives the frame's time
     when = sji[sji.id["Time"], (40, int(path.y[10]), int(path.x[10]))]
     assert np.datetime_as_string(when, unit="ms") in diagrams.axes.format_coord(10, 40)
+
+
+def test_path_diagram_of_a_stack_on_a_slit_jaw_image(qtbot, tmp_path, irispy_test_files):
+    sji = image_data(find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("SJI_1400_t000")))
+    stack, alone = drifting_stack(tmp_path, irispy_test_files)
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.extend([sji, stack])
+    app.data_collection.add_link(link_hpc(app.data_collection))
+    viewer = app.new_data_viewer(ImageViewer, data=sji)
+    viewer.add_data(stack)
+    flux = stack.main_components[0]
+    for frame, scan in ((0, 0), (sji.shape[0] - 1, 1)):
+        viewer.state.slices = (frame, 0, 0)
+        path, on_stack = _draw_path(viewer, [5, 18, 30], [3, 20, 35])
+        # scans and wavelength against the path, its steps and slit rows placed with the pointing of the scan nearest
+        # the frame's time, by its middle step
+        assert on_stack.shape == (stack.shape[0], stack.shape[3], len(path.x))
+        on = np.isfinite(on_stack.x)
+        assert on.sum() >= 5
+        offsets = []
+        for k in (scan, 1 - scan):  # from the path's samples, of the stack's placed through each scan on its own
+            x, y = raster_point_on_sji(alone[k], sji, on_stack.x[on], on_stack.y[on], frame)
+            offsets.append(np.hypot(x - path.x[on], y - path.y[on]).max())
+        assert offsets[0] < 0.5 < 1 < offsets[1]
+        np.testing.assert_array_equal(on_stack[flux][..., on], _along(stack, flux, on_stack, on))
 
 
 def test_path_diagram_of_a_stack(qtbot, irispy_test_files):
