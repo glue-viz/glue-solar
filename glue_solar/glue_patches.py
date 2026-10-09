@@ -207,20 +207,23 @@ pv_slicer._slice_from_path = pv_slice_from_path
 _original_fits_writer = gridded_fits.fits_writer
 
 
-def export_fits(filename, data, components=None):
+def export_fits(filename, data, components=None, data_header=None, extensions=()):
     """
     glue-core's "FITS (1 component/HDU)" exporter (``fits_writer``), reading each component as a NumPy array.
 
     glue-core 1.27.0 sets the values outside an exported subset to NaN in place, which a dask array, as a lazily
     loaded IRIS component is, refuses with ``IndexError``. The rest is glue-core's, except that a subset's unsigned
-    components, such as the mask, are exported unmasked where glue-core fails on them. Retired once glue exports a
-    DaskComponent's subset; no upstream fix exists yet.
+    components, such as the mask, are exported unmasked where glue-core fails on them. Its registration as glue's
+    exporter is retired once glue exports a DaskComponent's subset, no upstream fix exists yet; the function stays for
+    `glue_solar.sources.iris.export_iris_fits`, with ``data_header`` in place of the data's astropy WCS header and
+    ``extensions`` appended.
     """
     mask = None
     if isinstance(data, Subset):
         mask = data.to_mask()
         data = data.data
-    data_header = data.coords.to_header() if isinstance(data.coords, WCS) else fits.Header()
+    if data_header is None:
+        data_header = data.coords.to_header() if isinstance(data.coords, WCS) else fits.Header()
     hdus = fits.HDUList()
     for cid in data.main_components + data.derived_components:
         if (components is not None and cid not in components) or data.get_kind(cid) != "numerical":
@@ -241,6 +244,8 @@ def export_fits(filename, data, components=None):
         if blank is not None:
             header["BLANK"] = blank
         hdus.append(fits.ImageHDU(values, name=cid.label, header=header))
+    for hdu in extensions:
+        hdus.append(hdu)
     hdus.writeto(filename, overwrite=True)
 
 

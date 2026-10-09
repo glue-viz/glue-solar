@@ -1,6 +1,7 @@
 """
 'IRIS: line moments…', on int16 copies of irispy's test files, Gaussian lines and one irispy-data cutout: what glue
-gets of irispy's maps; and 'IRIS: subtract mean spectrum', as a Profile shows it.
+gets of irispy's maps; 'IRIS: subtract mean spectrum', as a Profile shows it; and the maps exported with their
+coordinates.
 """
 
 import warnings
@@ -11,6 +12,7 @@ import numpy as np
 import pytest
 from glue.core import Data
 from glue_qt.app.application import GlueApplication
+from glue_qt.core.data_exporters import dialog
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from irispy.io import read_files
@@ -21,13 +23,17 @@ from qtpy import QtWidgets
 
 import astropy.units as u
 from astropy import constants
+from astropy.io import fits
+from astropy.wcs import WCS
+from astropy.wcs.wcsapi import HighLevelWCSWrapper
+from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import moments
 from glue_solar.sources.loaders import iris
-from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
+from glue_solar.sources.loaders.iris import _HPC, _GlueWCS, image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.moments import line_moments
 from glue_solar.tests.helpers import select_point
 from glue_solar.tests.test_lazy import RASTER, SJI, int16_copy, int16_raster_copy, zero_exposure
@@ -35,6 +41,7 @@ from glue_solar.tests.test_quicklook import SCAN
 
 ACTION = "IRIS: line moments…"
 MEAN = "IRIS: subtract mean spectrum"
+EXPORT = "IRIS FITS (coordinates and Time)"
 
 
 @pytest.fixture
@@ -525,3 +532,66 @@ def test_subtracting_the_mean_spectrum_refuses_other_data_and_a_second_run(
         f"{label} mean spectrum",
         f"{label} minus mean spectrum",
     ]
+
+
+def export(monkeypatch, path, data):
+    """Export ``data`` to ``path`` as glue-qt's export dialog does, with the IRIS FITS exporter picked."""
+    monkeypatch.setattr(dialog.compat, "getsavefilename", lambda **_: (str(path), f"{EXPORT} (*.fits *.fit)"))
+    dialog.export_data(data)
+
+
+def test_moment_and_sliced_maps_export_with_their_coordinates_and_time(qtbot, monkeypatch, tmp_path, scan_path):
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    raster.coords.pointing_offset = (2.5, -3.25)  # 'Shift pointing…'
+    maps = line_moments(raster, 1402.77)
+    sliced = Data(
+        label="sliced",  # a raster window at a wavelength, with each step's time
+        coords=_GlueWCS(SlicedLowLevelWCS(raster.coords._wcs, (slice(None), slice(None), 20))),
+        values=raster[raster.main_components[0]][..., 20],
+        Time=raster["Time"][..., 20],
+    )
+    sliced.coords.pointing_offset = raster.coords.pointing_offset
+    for data in (maps, sliced):
+        export(monkeypatch, tmp_path / f"{data.label}.fits", data)
+        with fits.open(tmp_path / f"{data.label}.fits") as hdus:
+            # every pixel's longitude and latitude, as glue gives them
+            y, x = np.indices(data.shape)
+            world = dict(zip(data.coords.world_axis_physical_types, data.coords.pixel_to_world_values(x, y)))
+            wcs = WCS(hdus[0].header, fobj=hdus)
+            lon, lat = np.multiply(wcs.pixel_to_world_values(x, y), 3600)
+            np.testing.assert_allclose((lon + 648000) % 1296000 - 648000, world[_HPC[0]], rtol=0, atol=1e-9)
+            np.testing.assert_allclose(lat, world[_HPC[1]], rtol=0, atol=1e-9)
+            got, want = wcs.pixel_to_world(0, 0).frame, HighLevelWCSWrapper(data.coords).pixel_to_world(0, 0).frame
+            assert got.obstime == want.obstime
+            assert want.observer.separation_3d(got.observer) < 1 * u.m
+            for cid in data.main_components:
+                if cid.label != "Time":
+                    np.testing.assert_array_equal(hdus[cid.label].data, data[cid])
+                    assert hdus[cid.label].header["BUNIT"] == data.get_component(cid).units
+            if data is maps:
+                assert "TIME" not in hdus
+                keys = ("OBSID", "STARTOBS")
+                assert [hdus[0].header[key] for key in keys] == [str(raster.meta[key]) for key in keys]
+            else:
+                time = hdus["TIME"]
+                times = np.datetime64(time.header["DATEREF"]) + np.round(time.data * 1e9).astype("timedelta64[ns]")
+                np.testing.assert_array_equal(times, data["Time"])
+
+
+def test_exporting_other_data_than_a_map_shows_why(qtbot, monkeypatch, tmp_path, scan_path):
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    shown = []
+    monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
+    monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
+    for data in (
+        raster,
+        Data(label="plain", x=np.zeros((3, 4))),
+        Data(label="image", coords=WCS(naxis=2), x=np.zeros((3, 4))),  # glue's FITS loader, no CTYPE
+    ):
+        export(monkeypatch, tmp_path / "refused.fits", data)
+    assert shown == [
+        f"Could not export the data\n{label} is not a 2-D map on helioprojective coordinates: glue's 'FITS (1 "
+        "component/HDU)' exports it without them."
+        for label in (raster.label, "plain", "image")
+    ]
+    assert not (tmp_path / "refused.fits").exists()

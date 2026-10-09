@@ -1,16 +1,25 @@
 """
-IRIS Level 2 support: a file reader for File -> Open, the observation browser, and 'Shift pointing…'.
+IRIS Level 2 support: a file reader for File -> Open, the observation browser, 'Shift pointing…', and an exporter of
+derived maps with their coordinates.
 """
 
 import re
 from pathlib import Path
 
-from glue.config import data_factory, layer_action, layer_artist_maker, menubar_plugin, startup_action
+import numpy as np
+from glue.config import data_exporter, data_factory, layer_action, layer_artist_maker, menubar_plugin, startup_action
+from glue.core import Subset
 from glue.core.message import ExternallyDerivableComponentsChangedMessage
 from glue.viewers.image.viewer import MatplotlibImageMixin
 from glue_qt.utils.decorators import messagebox_on_error
 from qtpy import QtCore, QtGui, QtWidgets
 
+import astropy.units as u
+from astropy.io import fits
+from astropy.wcs.utils import celestial_frame_to_wcs
+from astropy.wcs.wcsapi import HighLevelWCSWrapper
+
+from glue_solar.glue_patches import export_fits
 from glue_solar.quicklook import (
     _pick_sjis,
     _pick_windows,
@@ -21,12 +30,20 @@ from glue_solar.quicklook import (
     observation_key,
     quicklook,
 )
-from glue_solar.sources.loaders.iris import QtIRISImporter, _GlueWCS, iris_data, keep_hpc_linked, last_directory
+from glue_solar.sources.loaders.iris import (
+    _HPC,
+    QtIRISImporter,
+    _GlueWCS,
+    iris_data,
+    keep_hpc_linked,
+    last_directory,
+)
 from glue_solar.sources.loaders.scan import _is_supported_file, _primary_header, strip_pooch
 from glue_solar.sources.moments import _accepted
 
 __all__ = [
     "browse_iris",
+    "export_iris_fits",
     "help_iris",
     "iris_image_layer",
     "iris_quicklook",
@@ -184,6 +201,46 @@ def shift_pointing_iris(data, data_collection):
     for other in data_collection:  # as glue does after a change of links: its layers place their images again
         data_collection.hub.broadcast(ExternallyDerivableComponentsChangedMessage(other))
     coordinator(data_collection).place_again()
+
+
+@data_exporter("IRIS FITS (coordinates and Time)", extension=["fits", "fit"])
+@messagebox_on_error("Could not export the data")
+def export_iris_fits(filename, data, components=None):
+    """
+    Write ``data``, a 2-D map on helioprojective coordinates, such as line moments, or a subset of one, as glue's
+    "FITS (1 component/HDU)" does, each image with the map's coordinates as a FITS-TAB WCS: every pixel's longitude
+    and latitude as glue gives them, in degrees, in a ``WCS-TABLE`` extension, and the frame's observer and time. A
+    ``Time`` component is a ``TIME`` image of the same pixels, every pixel of a subset too, in seconds since its
+    ``DATEREF``, UTC, NaN where missing; ``OBSID`` and ``STARTOBS`` go in every component's header. glue shows why for
+    other data.
+    """
+    maps = data.data if isinstance(data, Subset) else data
+    coords = maps.coords
+    types = list(getattr(coords, "world_axis_physical_types", ()))
+    if maps.ndim != 2 or set(types) != set(_HPC):
+        raise ValueError(
+            f"{maps.label} is not a 2-D map on helioprojective coordinates: glue's 'FITS (1 component/HDU)' "
+            "exports it without them."
+        )
+    y, x = np.indices(maps.shape)
+    world, axes = coords.pixel_to_world_values(x, y), [types.index(kind) for kind in _HPC]  # longitude, latitude
+    lonlat = np.stack([u.Unit(coords.world_axis_units[i]).to(u.deg, world[i]) for i in axes], -1)
+    table = fits.BinTableHDU(np.array([(lonlat,)], dtype=[("COORDS", float, lonlat.shape)]), name="WCS-TABLE")
+    header = fits.Header({key: str(maps.meta[key]) for key in ("OBSID", "STARTOBS") if key in maps.meta})
+    frame = HighLevelWCSWrapper(coords).pixel_to_world(0, 0).frame
+    header.update(celestial_frame_to_wcs(frame, projection="TAB").to_header())
+    for i in (1, 2):  # world axis i is element i of COORDS, whose axis i pixel axis i indexes directly
+        header.update({f"CUNIT{i}": "deg", f"CRPIX{i}": 1, f"CRVAL{i}": 1, f"CDELT{i}": 1})
+        header.update({f"PS{i}_0": table.name, f"PS{i}_1": "COORDS", f"PV{i}_3": i})
+    extensions = [table]
+    time = maps.find_component_id("Time")
+    if time is not None and maps.get_kind(time) == "datetime" and (components is None or time in components):
+        times = maps[time]
+        start = np.nanmin(times)
+        seconds = fits.ImageHDU((times - start) / np.timedelta64(1, "s"), name="TIME")
+        seconds.header.update(BUNIT="s", TIMESYS="UTC", DATEREF=np.datetime_as_string(start))
+        extensions.insert(0, seconds)
+    export_fits(filename, data, components, header, extensions)
 
 
 def _observations(data_collection):
