@@ -54,10 +54,9 @@ def _add_keys(viewer, keys):
 
 
 def setup():
-    # The IRIS slit-jaw and AIA colormaps, which IRIS data ask for; a sunpy Map adds its own as it loads
+    # Every sunpy colormap, under its own name; glue-qt draws each one's icon once (`glue_patches.update_icons`)
     for name in sorted(cmlist):
-        if name.startswith(("irissji", "sdoaia")):
-            _add_colormap(name)
+        _add_colormap(name)
     # Gamma stretches, value ** gamma between the limits; glue creates a stretch from its class with no arguments
     for gamma in (0.4, 0.75, 1.5, 2.2):
         if f"gamma_{gamma}" not in stretches.members:
