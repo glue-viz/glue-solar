@@ -32,6 +32,7 @@ from glue_qt.config import keyboard_shortcut
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from glue_qt.viewers.scatter import ScatterViewer
+from glue_qt.viewers.table import TableViewer
 from irispy.io import read_files
 from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
@@ -83,7 +84,7 @@ def test_setup_registers_hooks():
     for tool in ("solar:coordinate", "solar:modes", "solar:view"):
         assert ImageViewer.tools.count(tool) == 1
     assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
-    assert ImageViewer.subtools["solar:modes"] == ["solar:measure", "solar:path", "solar:path_crosshair"]
+    assert ImageViewer.subtools["solar:modes"] == ["solar:measure", "solar:path", "solar:path_crosshair", "solar:slope"]
     view = ["solar:frame_time", "solar:hide_axes", "solar:per_frame_limits", "solar:band", "solar:physical_aspect"]
     view += ["solar:zoom_1_1", "solar:colour_bar"]
     if not hasattr(ImageViewer, "cursor_status"):
@@ -395,8 +396,8 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot, monkeypatch
     sampling = menus["solar:modes"].actions()[-1]
     assert sampling.text() == "Path sampling"
 
-    # the mouse modes, checked while on, the crosshair on a path diagram only, and Path diagram's L
-    assert [entry.isVisible() for entry in menus["solar:modes"].actions()] == [True, True, False, True]
+    # the mouse modes, checked while on, the crosshair and Slope on a path diagram only, and Path diagram's L
+    assert [entry.isVisible() for entry in menus["solar:modes"].actions()] == [True, True, False, False, True]
     toolbar.active_tool = "image:point_selection"
     measure = toolbar.actions["solar:measure"]
     measure.trigger()
@@ -1090,6 +1091,83 @@ def test_path_diagram_sampling_on_a_ramp(qtbot):
             pixels = [frames, np.broadcast_to(path.y, frames.shape), np.broadcast_to(path.x, frames.shape)]
             reference = map_coordinates(ramp[flux], pixels, order=order, mode=mode, cval=np.nan)
             np.testing.assert_allclose(path[flux], reference, atol=1e-6)
+
+
+def _click(tool, x, y):
+    """Click ``x, y`` with the mouse mode ``tool``, exactly, where a mouse event lands on a screen pixel."""
+    event = SimpleNamespace(button=MouseButton.LEFT, inaxes=tool.viewer.axes, x=0, y=0, xdata=x, ydata=y, key=None)
+    tool.press(event)
+    tool.release(event)
+
+
+def _key(viewer, key):
+    canvas = viewer.figure.canvas
+    canvas.callbacks.process("key_press_event", KeyEvent("key_press_event", canvas, key))
+
+
+def test_slope_recovers_an_injected_features_speed_and_acceleration(qtbot):
+    # a slit-jaw-like cube of 0.1663" pixels seen from 1 AU, 60 frames 12 s apart, in which a blob moves along x from
+    # 50 km/s, accelerating at 100 m/s²
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    observer, seconds = 1.496e11, 12.0 * np.arange(60)
+    wcs = WCS(naxis=3)
+    wcs.wcs.ctype = "HPLN-TAN", "HPLT-TAN", ""
+    wcs.wcs.cunit = "arcsec", "arcsec", ""
+    wcs.wcs.cdelt = 0.1663, 0.1663, 1
+    wcs.wcs.crpix, wcs.wcs.crval = (280, 5, 1), (400, -300, 0)
+    km = (0.1663 * u.arcsec).to_value(u.rad) * observer / 1000  # a pixel's
+    centre = 20 + (50 * seconds + 0.1 / 2 * seconds**2) / km
+    _, y, x = np.indices((60, 9, 560))
+    cube = Data(label="cube", flux=100 * np.exp(-((x - centre[:, None, None]) ** 2 + (y - 4) ** 2) / 8), coords=wcs)
+    times = np.datetime64("2013-09-02T16:39:35") + (1000 * seconds).astype("timedelta64[ms]")
+    cube.add_component(np.broadcast_to(times[:, None, None], cube.shape), "Time")
+    cube.meta["DSUN_OBS"] = observer
+    app.data_collection.append(cube)
+    viewer = app.new_data_viewer(ImageViewer, data=cube)
+    [path] = _draw_path(viewer, [0.3, 559], [4, 4])
+    diagram = viewer.toolbar.tools["solar:path"]._slice_viewer
+    tool = diagram.toolbar.tools["solar:slope"]
+    assert (tool.enabled, viewer.toolbar.tools["solar:slope"].enabled) == (True, False)  # on diagrams only
+    diagram.toolbar.active_tool = "solar:slope"
+
+    # the ridge, clicked as a user would: each frame's brightest sample, to a fraction of a sample, as the log of a
+    # Gaussian is a parabola through its three brightest
+    values, frames = path[cube.id["flux"]], np.arange(60)
+    peak = values.argmax(axis=1)
+    left, middle, right = (np.log(values[frames, peak + i]) for i in (-1, 0, 1))
+    ridge = peak + (left - right) / (2 * (left - 2 * middle + right))
+    for frame in frames[::6]:
+        _click(tool, ridge[frame], frame)
+    _key(diagram, "enter")
+    table = path.slopes
+    assert table.label == "cube [slice 1] slopes"
+    assert (table["t0 (UTC)"][0], table["t1 (UTC)"][0]) == ("2013-09-02T16:39:35.000", "2013-09-02T16:50:23.000")
+    assert table["d0 (km)"][0] == pytest.approx(20 * km)  # from the path's first sample, at pixel 0
+    assert table["speed (km/s)"][0] == pytest.approx(50, rel=0.01)
+    assert table["acceleration (m/s²)"][0] == pytest.approx(100, rel=0.02)
+    assert tool.label.text() == "Speed 50.00 km/s · acceleration 100.0 m/s²"
+    [shown] = [viewer for tab in app.viewers for viewer in tab if isinstance(viewer, TableViewer)]
+    assert diagram.toolbar.active_tool is tool  # still on, for the next track
+
+    # two points give the mean speed between them, a row more in the Table viewer
+    _click(tool, ridge[0], 0)
+    _click(tool, ridge[-1], 59)
+    _key(diagram, "enter")
+    assert table["speed (km/s)"][1] == pytest.approx(50 + 0.1 * seconds[-1] / 2, rel=0.01)
+    assert np.isnan(table["acceleration (m/s²)"][1])
+    assert shown.model.rowCount() == 2
+
+    # points at one time give none, and Esc clears them
+    _click(tool, 10, 3)
+    _click(tool, 200, 3)
+    assert tool.label.text() == "No speed here"
+    _key(diagram, "enter")
+    assert table.shape == (2,)
+    _click(tool, 10, 3)
+    _key(diagram, "escape")
+    assert (tool.label.text(), tool.roi().to_polygon()) == ("", ([], []))
 
 
 @pytest.mark.remote_data

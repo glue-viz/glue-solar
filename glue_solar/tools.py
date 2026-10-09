@@ -31,9 +31,10 @@ from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.matplotlib.mpl_axes import update_appearance_from_settings
-from glue.viewers.matplotlib.toolbar_mode import ToolbarModeBase
+from glue.viewers.matplotlib.toolbar_mode import PathMode, ToolbarModeBase
 from glue_qt.utils.decorators import messagebox_on_error
 from glue_qt.viewers.image import ImageViewer
+from glue_qt.viewers.table import TableViewer
 from matplotlib import animation, rcParams
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import MouseButton, ResizeEvent
@@ -44,7 +45,8 @@ from matplotlib.transforms import ScaledTranslation, blended_transform_factory
 from qtpy import QtCore, QtWidgets
 
 import astropy.units as u
-from astropy.coordinates import Angle, angular_separation
+from astropy.coordinates import Angle, SkyCoord, angular_separation
+from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 from glue_solar.quicklook import (
     _across,
@@ -85,6 +87,7 @@ __all__ = [
     "PerFrameLimitsTool",
     "PhysicalAspectTool",
     "SaveSequenceTool",
+    "SlopeTool",
     "ViewTool",
     "ZoomOneToOneTool",
     "sky_length",
@@ -1310,6 +1313,142 @@ class PathCrosshairTool(BasePathSlicerCrosshairMode):
         path.parent_viewer.figure.canvas.draw_idle()
 
 
+def _track(viewer, x, y):
+    """
+    The motion along the path of a feature whose track passes through the points ``x, y`` (two or more) of the Image
+    viewer's `PathData` diagram, shown with the path along x and one ``Time`` on each row, as a slit-jaw image's frames
+    against its path: the times of the earliest and latest points, their distances along the path in km, and the speed
+    along the path in km/s at the earliest point and the acceleration in m/s², of the least-squares straight line
+    through the distances against time of points at two times, with NaN acceleration, or parabola through points at
+    three or more. A distance is that from the path's first sample, measured as `sky_length` measures, on the data's
+    coordinates at the point's row. None unless each point is on a row of one time with sky coordinates and the data
+    have ``DSUN_OBS``, at two times or more.
+    """
+    state, path = viewer.state, viewer.state.reference_data
+    if not isinstance(path, PathData) or getattr(state.x_att, "axis", None) != path.ndim - 1:
+        return None
+    data, time = path.original_data, _time_component(path)
+    observer = data.meta.get("DSUN_OBS")  # in m
+    if time is None or not observer or data.coords is None:
+        return None
+    wcs, rows, times, km = HighLevelWCSWrapper(data.coords), {}, [], []
+    for px, py in zip(x, y, strict=True):
+        cell = _hovered(state, px, py)
+        if cell is None:
+            return None
+        if cell[:-1] not in rows:  # each row once: a drag gives many points on one
+            row = (*cell[:-1], slice(None))
+            at = path[time, row]
+            at = at[~np.isnat(at)]
+            world = wcs.pixel_to_world(*path._pixels(path._cells(row), path.x, path.y)[::-1])
+            sky = next((w for w in (world if isinstance(world, list) else [world]) if isinstance(w, SkyCoord)), None)
+            if sky is None or at.size == 0 or at.min() != at.max():  # a raster map's times change along its path
+                return None
+            rows[cell[:-1]] = at[0], np.append(0, np.cumsum(sky[:-1].separation(sky[1:]).rad)) * observer / 1000
+        when, along = rows[cell[:-1]]
+        times.append(when)
+        km.append(np.interp(px, np.arange(along.size), along))
+    order = np.argsort(times, kind="stable")
+    times, km = np.array(times)[order], np.array(km)[order]
+    seconds = (times - times[0]) / np.timedelta64(1, "s")
+    degree = min(np.unique(seconds).size - 1, 2)
+    if degree < 1 or not np.isfinite(km).all():
+        return None
+    fit = np.polyfit(seconds, km, degree)[::-1]  # the lowest power first
+    return times[0], times[-1], km[0], km[-1], fit[1], 2000 * fit[2] if degree == 2 else np.nan
+
+
+# The columns of a diagram's table of slopes
+_SLOPES = ("t0 (UTC)", "t1 (UTC)", "d0 (km)", "d1 (km)", "speed (km/s)", "acceleration (m/s²)")
+
+
+@viewer_tool
+class SlopeTool(PathMode):
+    """
+    glue's path drawing mode on a `PathTool` diagram: click points along a feature's track on a distance-time diagram,
+    such as a slit-jaw image's frames against its path, or drag along it, and press Enter for its motion (`_track`) as
+    a row of the diagram's table, the dataset '<diagram> slopes', which the first row adds to the data collection and
+    opens in a Table viewer; Esc clears the points. The status bar gives the speed and acceleration of the points so
+    far, and of the last row.
+    """
+
+    icon = "pencil"
+    tool_id = "solar:slope"
+    action_text = "Slope"
+    tool_tip = "Click points along a track on a distance-time diagram, then press Enter for its speed (Esc clears them)"
+    status_tip = "CLICK points along a track, then press ENTER for its speed and acceleration, or ESC to clear them"
+    disable_on_finalize = False  # on for the next track
+
+    def __init__(self, viewer, **kwargs):
+        super().__init__(viewer, roi_callback=self._add_row, **kwargs)
+        self.label = QtWidgets.QLabel()
+        viewer.statusBar().insertPermanentWidget(0, self.label)
+        self.label.hide()
+        viewer.state.add_callback("reference_data", self._on_reference_data_change)
+        self._on_reference_data_change()
+
+    def _on_reference_data_change(self, *_):
+        if self.viewer is not None:  # None once the viewer closes
+            self.enabled = isinstance(self.viewer.state.reference_data, PathData)
+
+    def activate(self):
+        self.label.show()
+        super().activate()
+
+    def deactivate(self):
+        self.label.hide()
+        super().deactivate()
+
+    def release(self, event):
+        super().release(event)
+        self._readout()
+
+    def key(self, event):
+        super().key(event)
+        if event.key == "escape":
+            self.clear()
+            self.label.setText("")
+
+    def _readout(self):
+        """Show the motion of the points drawn, and return it, or None."""
+        x, y = self.roi().to_polygon()
+        motion = _track(self.viewer, x, y) if len(x) > 1 else None
+        if motion is None:
+            self.label.setText("No speed here" if len(x) > 1 else "")
+            return None
+        speed, acceleration = motion[-2:]
+        text = f"Speed {speed:,.2f} km/s"
+        self.label.setText(text if np.isnan(acceleration) else f"{text} · acceleration {acceleration:,.1f} m/s²")
+        return motion
+
+    def _add_row(self, mode):
+        motion = self._readout()
+        self.clear()  # a second Enter adds no second row
+        if motion is None:
+            return
+        path, app = self.viewer.state.reference_data, self.viewer.session.application
+        row = [np.datetime_as_string(t, unit="ms") for t in motion[:2]] + list(motion[2:])
+        table = getattr(path, "slopes", None)
+        new = table not in app.data_collection
+        if not new:
+            row = [np.append(table[name], value) for name, value in zip(_SLOPES, row, strict=True)]
+        rows = Data(label=f"{path.label} slopes" if new else table.label)
+        for name, values in zip(_SLOPES, row, strict=True):  # in this order, where Data(**columns) sorts them
+            rows.add_component(np.atleast_1d(values), name)
+        if new:
+            path.slopes = rows
+            app.data_collection.append(rows)
+            app.new_data_viewer(TableViewer, data=rows)
+            self.viewer.toolbar.active_tool = self  # glue-qt ends it as the new viewer takes the focus
+            return
+        table.update_values_from_data(rows)
+        # glue-qt 0.4.2's Table viewer shows the rows its dataset had when shown, and fails to sort more: show them all
+        for viewer in (viewer for tab in app.viewers for viewer in tab):
+            if isinstance(viewer, TableViewer) and viewer.data is table:
+                viewer.data = None
+                viewer._on_layers_changed()
+
+
 def _follows_mouse(group):
     """Whether the mouse may move the subset group ``group`` in Follow/lock: an unlocked point, or an empty group."""
     state = group.subset_state
@@ -2060,13 +2199,13 @@ class _ToolMenu(SimpleToolMenu):
 @viewer_tool
 class ModesTool(_ToolMenu):
     """
-    The Image viewer's menu of glue-solar's mouse modes: Measure, Path diagram and its crosshair, and the "Path
+    The Image viewer's menu of glue-solar's mouse modes: Measure, Path diagram, its crosshair and Slope, and the "Path
     sampling" submenu, which sets `PathTool`'s ``sampling`` for the next Enter.
     """
 
     icon = "pencil"
     tool_id = "solar:modes"
-    tool_tip = "Mouse modes: measure a line, or draw a path for the data along it"
+    tool_tip = "Mouse modes: measure a line, draw a path for the data along it, or a speed on its diagram"
 
     def _add_entries(self):
         super()._add_entries()

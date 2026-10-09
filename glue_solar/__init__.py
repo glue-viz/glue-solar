@@ -65,7 +65,7 @@ def setup():
             stretches.add(f"gamma_{gamma}", stretch, display=f"Gamma {gamma}")
     # The mouse modes and the display tools in menus of their own, so that the toolbar fits a viewer 700 px wide
     menus = {
-        tools.ModesTool: [tools.MeasureTool, tools.PathTool, tools.PathCrosshairTool],
+        tools.ModesTool: [tools.MeasureTool, tools.PathTool, tools.PathCrosshairTool, tools.SlopeTool],
         tools.ViewTool: [
             tools.FrameTimeTool,
             tools.HideAxesTool,
