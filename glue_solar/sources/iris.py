@@ -261,13 +261,20 @@ def export_ecsv(filename, data, components=None):
         raise ValueError(f"{whole.label} is not 1-D: glue's 'Comma-separated table' exports it.")
     table = data_to_astropy_table(data, components)
     for cid in whole.main_components + whole.derived_components:
-        if cid.label not in table.colnames:
-            continue
-        if whole.get_kind(cid) == "datetime":
-            table[cid.label] = Time(np.asarray(table[cid.label]), scale="utc")
-        elif whole.get_component(cid).units:
+        if cid.label in table.colnames and whole.get_component(cid).units:
             table[cid.label].unit = whole.get_component(cid).units
-    table.meta.update({key: str(whole.meta[key]) for key in ("OBSID", "STARTOBS") if key in whole.meta})
+    _write_ecsv(filename, table, whole.meta)
+
+
+def _write_ecsv(filename, table, meta):
+    """
+    Write the astropy ``table`` as ECSV, its datetime64 columns as UTC times to the nanosecond, which astropy reads back
+    as `~astropy.time.Time`, with ``OBSID`` and ``STARTOBS`` of ``meta`` in its meta.
+    """
+    for name in table.colnames:
+        if table[name].dtype.kind == "M":
+            table[name] = Time(table[name], scale="utc")  # a masked one stays masked
+    table.meta.update({key: str(meta[key]) for key in ("OBSID", "STARTOBS") if key in meta})
     table.write(filename, format="ascii.ecsv", overwrite=True)
 
 
