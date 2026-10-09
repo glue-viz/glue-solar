@@ -1,6 +1,7 @@
 """
 Sessions keep the coordinates and colormaps of every kind of dataset glue-solar makes from IRIS data, on irispy's test
-files, a stack's scans on other data, and the colormap of a sunpy map; they refer to the files IRIS data are read from.
+files, a stack's scans on other data, and the colormap of a sunpy map; they refer to the files IRIS data are read
+from, so a quicklook's stays small.
 """
 
 import json
@@ -15,6 +16,7 @@ from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QDialog, QFileDialog
 
 import astropy.units as u
 from astropy.wcs import WCS
@@ -26,11 +28,13 @@ import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.regrid import north_up, rebin, regrid_on_time
+from glue_solar.sources.iris import browse_iris
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, link_hpc, raster_data
 from glue_solar.sources.loaders.lazy import LazyData
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments
 from glue_solar.tests.helpers import load_selected, scanned
+from glue_solar.tests.test_importer import _row
 from glue_solar.tests.test_quicklook import SCAN, SNS, drifting_stack
 from glue_solar.tools import _pointing
 
@@ -240,3 +244,35 @@ def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_mo
     # and a session saved from the restored one refers to them alike
     restored.save_session(str(tmp_path / "moved" / "again.glu"), absolute_paths=False)
     assert json.loads((tmp_path / "moved" / "again.glu").read_text()).keys() == records.keys()
+
+
+def test_a_quicklook_session_stays_small_and_opens(qtbot, monkeypatch, tmp_path, iris_tree):
+    def load(dialog):
+        qtbot.addWidget(dialog)
+        scanned(qtbot, dialog)
+        _row(dialog, OBS_A[2]).setCheckState(0, Qt.Checked)
+        dialog.stack.setChecked(True)
+        load_selected(qtbot, dialog)
+        return QDialog.Accepted
+
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
+    monkeypatch.setattr(QtIRISImporter, "exec", load)
+    browse_iris(app.session, app.data_collection)  # a quicklook of its slit-jaw image and two stacked windows
+    app.save_session(str(tmp_path / "quicklook.glu"), absolute_paths=False)
+    # its viewers, point and links: about 5 kB a dataset or viewer, whatever the data's size (33 kB for a full-size
+    # quicklook of 4000255147's Si IV 1403 window and slit-jaw image)
+    viewers = [viewer for tab in app.viewers for viewer in tab]
+    assert (tmp_path / "quicklook.glu").stat().st_size < 8000 * (len(app.data_collection) + len(viewers))
+    restored = GlueApplication.restore_session(str(tmp_path / "quicklook.glu"), show=False)
+    qtbot.addWidget(restored)
+    assert restored.tab_names == app.tab_names
+    assert [[type(viewer) for viewer in tab] for tab in restored.viewers] == [
+        [type(viewer) for viewer in tab] for tab in app.viewers
+    ]
+    assert [data.label for data in restored.data_collection] == [data.label for data in app.data_collection]
+    [point], [expected] = restored.data_collection.subset_groups, app.data_collection.subset_groups
+    assert (point.label, point.subset_state.slices) == ("Point", expected.subset_state.slices)

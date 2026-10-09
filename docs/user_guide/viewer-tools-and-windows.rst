@@ -342,9 +342,12 @@ offset; the others lose the time and field-of-view centre irispy gives each rast
 (``auxiliary times`` and ``exposure FOV center``). A Profile viewer, such as a quicklook's spectrum
 panel, opens again with its x axis, "x unit" and range; glue-core 1.27.0 alone opens no session
 whose Profile's x unit is not one of its data's first world axis's, such as a raster's wavelength
-or a light curve's exposure number. Datasets made from IRIS data, such as line moments or rebinned
-and north-up data, are saved with their values, which can make a session large, and one regridded
-on time from data read as they are viewed cannot be saved yet: save derived products separately
-rather than relying on a Glue session as their only copy. With glue-core 1.27.0 a session saved
-while an Image viewer has "Per-frame limits" on, whatever its data, does not open: glue reports
+or a light curve's exposure number. A quicklook adds its viewers, point and links: one of
+4000255147's Si IV 1403 window and slit-jaw image, read as they are viewed, saves a 33 kB session
+(151 kB with all ten windows) in under 0.1 s. Datasets made from IRIS data, such as line moments or
+rebinned and north-up data, are saved with their values, which can make a session large (36 MB
+with line moments of that Si IV 1403 window), and one regridded on time from data read as they are
+viewed cannot be saved yet: save derived products separately rather than relying on a Glue session
+as their only copy. With glue-core 1.27.0 a session saved while an Image viewer has "Per-frame
+limits" on, whatever its data, does not open: glue reports
 "'NoneType' object has no attribute 'add_callback'". Turn them off before saving.
