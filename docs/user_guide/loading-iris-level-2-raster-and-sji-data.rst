@@ -189,11 +189,13 @@ its deconvolved SJI 2796 (37 million values), opened with "File -> Open Data Set
 has been stepped through every wavelength, the spectrogram through every step, the λ–step panel
 through every slit row and the slit-jaw image through every frame: about 4 bytes a value. Of that,
 only 55 MB are the raster file's pages, the Mg II k 2796 window read for its colour limits as the
-quicklook opens. The memory the system reports for glue ("resident" memory) counts such pages,
-which it frees again when memory runs short; Activity Monitor's "Memory" column leaves them out and
-reads 0.56 GB. With astropy 8.0, whose WCSLIB 8.6 never frees the error message of a point it
-cannot convert, each step that moves the point adds about 0.1 MB, as WCSAxes places tick marks
-past the raster's edges; astropy's development version, with WCSLIB 8.9, frees them.
+quicklook opens. The memory the system reports for glue ("resident" memory) counts such pages;
+most of the rest that Activity Monitor's "Memory" column leaves out (it reads 0.56 GB) is the code
+of glue's libraries and memory glue has freed but the system has not yet taken back, which it
+reclaims, like the file's pages, when memory runs short. With astropy 8.0, whose WCSLIB 8.6 never
+frees the error message of a point it cannot convert, each new slit row shown on the λ–step panel
+(its slider, or a click on the map) adds about 0.1 MB, as WCSAxes places that panel's tick marks
+past the raster's first and last steps; astropy's development version, with WCSLIB 8.9, frees them.
 
 A sit-and-stare raster loads every exposure this way. On OBSID 4000255147 (1600 exposures, a 2.1 GB
 file) and 3660259102 (1020 exposures, 1.5 GB), every window opened with "File -> Open Data Set"
