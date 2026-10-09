@@ -478,16 +478,20 @@ def _window_scaling(path):
 
 def _raster_collection_data(collection, windows=None, stack=False, scaling=None):
     """``scaling``: each window's ``(BSCALE, BZERO)`` when the collection holds the files' raw int16."""
+    from irispy.utils.constants import DN_UNIT
+
     datasets = []
     for window, sequence in collection.items():
         name = str(window).replace(" ", "_")
+        # glue reads the raw int16 scaled to DN, which irispy's unit for them does not say
+        unit = DN_UNIT[sequence[0].meta.detector_band] if scaling else None
         cmap = f"irissji{sequence[0].meta.detector_band}"  # sunpy's slit-jaw colormap of its detector, FUV or NUV
         if stack and len(sequence) > 1:
             label = f"{name}-{_observation_label(sequence[0].meta)}-stack"
             if scaling:
                 raw = RawStack([scan.data for scan in sequence])
                 wcs = stack_wcs([scan.wcs for scan in sequence])
-                data = _dataset(wcs, dict(sequence[0].meta), sequence[0].unit, raw, label,
+                data = _dataset(wcs, dict(sequence[0].meta), unit, raw, label,
                                 color="#7A617C", cmap=cmap, scaling=scaling[window])
                 times = stack_times(sequence)
             else:
@@ -503,7 +507,8 @@ def _raster_collection_data(collection, windows=None, stack=False, scaling=None)
             continue
         for i, scan in enumerate(sequence):
             label = f"{name}-{_observation_label(scan.meta)}-scan-{i}"
-            datasets.append(_cube_data(scan, label, color="#5A4FCF", cmap=cmap, scaling=scaling and scaling[window]))
+            datasets.append(_cube_data(scan, label, unit=unit, color="#5A4FCF", cmap=cmap,
+                                       scaling=scaling and scaling[window]))
     return datasets
 
 
