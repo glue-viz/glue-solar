@@ -23,8 +23,8 @@ from glue.core.coordinate_helpers import unbroadcast
 from glue.core.data_exporters import gridded_fits
 from glue.core.edit_subset_mode import EditSubsetMode
 from glue.core.exceptions import IncompatibleAttribute
-from glue.core.subset import SubsetState
 from glue.core.state import GlueSerializer, loader, saver
+from glue.core.subset import SubsetState
 from glue.utils import defer_draw
 from glue.viewers.histogram import state as histogram_state
 from glue.viewers.histogram import viewer as histogram_viewer
