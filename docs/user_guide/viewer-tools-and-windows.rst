@@ -352,6 +352,15 @@ rebinned and north-up data, are saved with their values, which can make a sessio
 with line moments of that Si IV 1403 window): save derived products separately rather than
 relying on a Glue session as their only copy.
 
+As glue's window closes with data loaded, on quit and when Open Session or Reset Session replaces
+the session, glue-solar keeps it as a "Glue Session with absolute paths to data" in glue's settings
+folder (``~/.glue/glue-solar-last-session.glu``), and Plugins → "Restore last session" opens it as
+File → Open Session does. The 4000255147 quicklook above is kept in under 0.01 s and restored from
+the menu in about 2 s; if its files have moved, glue says which it cannot find. A session glue
+cannot save, or of over 1 MB, such as one with those line moments, is not kept: the one kept
+before stays, and the terminal glue started from says why ("glue-solar kept no last session: the
+session is 35.7 MB, over 1 MB").
+
 Not saved yet:
 
 - A quicklook's Point window, its lines and the raster overlays (see :ref:`the IRIS quicklook
