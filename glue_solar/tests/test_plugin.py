@@ -45,7 +45,7 @@ from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QDesktopServices, QKeySequence
 from qtpy.QtTest import QTest
-from qtpy.QtWidgets import QFileDialog, QInputDialog, QToolBar
+from qtpy.QtWidgets import QCheckBox, QDialog, QFileDialog, QInputDialog, QToolBar
 
 import astropy.units as u
 from astropy import constants
@@ -406,18 +406,19 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot, monkeypatch
         button = toolbar.widgetForAction(toolbar.actions[menu])
         assert button.toolTip() == toolbar.tools[menu].tool_tip  # on hover, as a button's
         menus[menu] = button.menu()
-        # each tool's entry, by its id as for a button, and Path diagram's ECSV entries and sampling
+        # each tool's entry, by its id as for a button, and Path diagram's path entries and sampling
         entries = [toolbar.actions[tool] for tool in ImageViewer.subtools[menu]]
-        extra = ["Save path as ECSV…", "Open path from ECSV…", "Path sampling"] if menu == "solar:modes" else []
+        extra = ["Save path as ECSV…", "Open path from ECSV…", "Path on other data…", "Path sampling"]
+        extra = extra if menu == "solar:modes" else []
         assert menus[menu].actions()[: len(entries)] == entries
         assert [entry.text() for entry in menus[menu].actions()[len(entries) :]] == extra
     sampling = menus["solar:modes"].actions()[-1]
     assert sampling.text() == "Path sampling"
 
-    # the mouse modes, checked while on, the crosshair, Slope and saving a path on a path diagram only, and Path
-    # diagram's L
+    # the mouse modes, checked while on, the crosshair, Slope and saving a path on a path diagram only, placing one
+    # on other data once one is drawn, and Path diagram's L
     shown = [entry.isVisible() for entry in menus["solar:modes"].actions()]
-    assert shown == [True, True, False, False, False, True, True]
+    assert shown == [True, True, False, False, False, True, False, True]
     toolbar.active_tool = "image:point_selection"
     measure = toolbar.actions["solar:measure"]
     measure.trigger()
@@ -1314,6 +1315,128 @@ def test_a_path_diagram_reopens_from_ecsv_and_from_a_session(qtbot, monkeypatch,
     [image] = [shown for tab in app.viewers for shown in tab if shown.state.reference_data.label == "cube"]
     _modes_entry(image, entries[1]).trigger()
     assert image.toolbar.tools["solar:path"]._traces[-1][0].label == "cube [slice 3, linear]"
+
+
+def _sky_cube(label, shape, axes, pc=None):
+    """
+    Random values of ``shape`` on a FITS WCS of ``axes``, each (ctype, cunit, cdelt, crpix, crval) in WCS order, seen
+    from 1 AU.
+    """
+    wcs = WCS(naxis=len(axes))
+    wcs.wcs.ctype, wcs.wcs.cunit, wcs.wcs.cdelt, wcs.wcs.crpix, wcs.wcs.crval = map(list, zip(*axes, strict=True))
+    wcs.wcs.dateobs, wcs.wcs.aux.hgln_obs, wcs.wcs.aux.hglt_obs, wcs.wcs.aux.dsun_obs = "2013-09-02", 0, 0, 1.496e11
+    if pc is not None:
+        wcs.wcs.pc = pc
+    return Data(label=label, flux=np.random.default_rng(len(label)).random(shape), coords=wcs)
+
+
+def _paths_drawn(viewer):
+    """The x and y of each path drawn on the viewer's image, and whether it is the bright one."""
+    lines = viewer.toolbar.tools["solar:path"]._overlays.values()
+    return [(*line.get_data(), line.get_alpha() == 1) for line in lines]
+
+
+def test_a_path_is_drawn_on_every_viewer_of_its_image_and_placed_on_other_data(qtbot, monkeypatch, tmp_path):
+    # a slit-jaw-like cube of 0.1663" pixels, frames 12 s apart; two raster-like windows of 0.33" slit pixels and 0.35"
+    # steps, rolled 2 degrees; a slit-jaw-like cube of 0.2" pixels whose pointing drifts 1" a frame, its frame 2 at the
+    # first's frame 0; and a cube with no coordinates
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    times = np.datetime64("2013-09-02T16:39:35") + np.arange(4) * np.timedelta64(12, "s")
+    hpln, hplt, frame = ("HPLN-TAN", "arcsec"), ("HPLT-TAN", "arcsec"), ("", "", 1, 1, 0)
+    sji = _sky_cube("sji", (4, 30, 40), [(*hpln, 0.1663, 20, 400), (*hplt, 0.1663, 15, -300), frame])
+    cos, sin = np.cos(np.deg2rad(2)), np.sin(np.deg2rad(2))
+    windows = []
+    for name, n, wave in (("Si IV", 6, 1400), ("Mg II k", 9, 2796)):
+        axes = [("WAVE", "Angstrom", 0.05, 1, wave), (*hplt, 0.33, 20, -300), (*hpln, 0.35, 10, 400)]
+        windows.append(_sky_cube(name, (20, 40, n), axes, [[1, 0, 0], [0, cos, -sin], [0, sin, cos]]))
+    drift = [[1, 0, 5], [0, 1, 0], [0, 0, 1]]  # 5 pixels of x a frame
+    jaw = _sky_cube("jaw", (4, 25, 30), [(*hpln, 0.2, 15, 400), (*hplt, 0.2, 12, -300), frame], drift)
+    sji.add_component(np.broadcast_to(times[:, None, None], sji.shape), "Time")
+    jaw.add_component(np.broadcast_to(times[:, None, None] - np.timedelta64(24, "s"), jaw.shape), "Time")
+    app.data_collection.extend([sji, *windows, jaw, Data(label="plain", flux=np.ones((2, 3, 4)))])
+    viewer = app.new_data_viewer(ImageViewer, data=sji)
+    other = app.new_data_viewer(ImageViewer, data=sji)
+    other.state.x_att, other.state.y_att = sji.pixel_component_ids[1], sji.pixel_component_ids[2]  # transposed
+    reuse = _modes_entry(viewer, "Path on other data…")
+    reuse.parent().aboutToShow.emit()
+    assert not reuse.isVisible()  # no path drawn yet
+
+    # drawn in one viewer, it is drawn in every viewer of the image, opened before or after
+    viewer.toolbar.tools["solar:path"].sampling = "linear"
+    [path] = _draw_path(viewer, [3, 30], [5, 25])
+    third = app.new_data_viewer(ImageViewer, data=sji)
+    for shown, (x, y) in ((viewer, (path.x, path.y)), (other, (path.y, path.x)), (third, (path.x, path.y))):
+        [(drawn_x, drawn_y, bright)] = _paths_drawn(shown)
+        np.testing.assert_array_equal(np.stack([drawn_x, drawn_y]), np.stack([x, y]))
+        assert bright
+        _modes_entry(shown, reuse.text()).parent().aboutToShow.emit()
+        assert _modes_entry(shown, reuse.text()).isVisible()
+    # redrawn as a viewer's axes change, and not drawn off the image's axes
+    third.state.x_att, third.state.y_att = sji.pixel_component_ids[1], sji.pixel_component_ids[2]
+    [(drawn_x, drawn_y, _)] = _paths_drawn(third)
+    np.testing.assert_array_equal(np.stack([drawn_x, drawn_y]), np.stack([path.y, path.x]))
+    third.state.x_att = sji.pixel_component_ids[0]
+    assert _paths_drawn(third) == []
+    third.state.x_att = sji.pixel_component_ids[1]
+
+    # placed on the datasets ticked of those it lies on, from its diagram's viewer: one diagram each, in a new viewer
+    offered = []
+
+    def tick_all(dialog):
+        ticks = dialog.findChildren(QCheckBox)
+        offered.extend(tick.text() for tick in ticks)
+        for tick in ticks:
+            tick.setChecked(True)
+        return QDialog.Accepted
+
+    monkeypatch.setattr(QDialog, "exec", tick_all)
+    diagram = viewer.toolbar.tools["solar:path"]._slice_viewer
+    count = len(app.viewers[0])
+    _modes_entry(diagram, reuse.text()).trigger()
+    assert offered == ["Si IV", "Mg II k", "jaw"]
+    made = [data for data in app.data_collection if isinstance(data, PathData)][1:]
+    assert [data.label for data in made] == [f"{name} [slice 1, linear]" for name in offered]
+    assert [shown.state.reference_data for shown in app.viewers[0][count:]] == made
+    links = [link for link in app.data_collection.external_links if isinstance(link, PathRelativeLink)]
+    assert {frozenset((link._slice_from, link._slice_to)) for link in links} >= {frozenset((path, d)) for d in made}
+
+    # each the diagram of the path's sky positions on the image's frame 0 drawn on the dataset's own viewer, the
+    # drifting one's at its frame 2, nearest frame 0's time
+    lon, lat, _ = sji.coords.pixel_to_world_values(path.x, path.y, 0)
+    for data, got in zip([*windows, jaw], made, strict=True):
+        wcs = data.coords
+        if data is jaw:  # y and x, of x, y and frame
+            along = wcs.world_to_pixel_values(lon, lat, wcs.pixel_to_world_values(0, 0, 2)[2])[1::-1]
+        else:  # step and slit, of wavelength, slit and step
+            along = wcs.world_to_pixel_values(wcs.pixel_to_world_values(0, 0, 0)[0], lat, lon)[:0:-1]
+        own = app.new_data_viewer(ImageViewer, data=data)
+        own.state.x_att, own.state.y_att = (data.pixel_component_ids[axis] for axis in got.sliced_dims)
+        own.toolbar.tools["solar:path"]._extract(*along, "linear")
+        expected = own.toolbar.tools["solar:path"]._traces[-1][0]
+        np.testing.assert_allclose(np.stack([got.x, got.y]), np.stack([expected.x, expected.y]), rtol=0, atol=1e-9)
+        assert 0 < np.isfinite(got[data.id["flux"]]).mean()
+        np.testing.assert_allclose(got[data.id["flux"]], expected[data.id["flux"]], rtol=1e-6)
+        # and drawn on that viewer too, before the newer one
+        assert [bright for *_, bright in _paths_drawn(own)] == [False, True]
+    # 10 pixels left of where frame 0's pointing places it
+    x, _, _ = jaw.coords.world_to_pixel_values(lon, lat, jaw.coords.pixel_to_world_values(0, 0, 0)[2])
+    np.testing.assert_allclose(got.y - x, -10, atol=1e-6)
+
+    # a restored session draws the path in each viewer of the image
+    session = str(tmp_path / "paths.glu")
+    app.save_session(session)
+    app = GlueApplication.restore_session(session)
+    qtbot.addWidget(app)
+    shown = [shown for shown in app.viewers[0] if shown.state.reference_data.label == "sji"]
+    assert len(shown) == 3
+    for restored in shown:
+        [(drawn_x, drawn_y, _)] = _paths_drawn(restored)
+        assert {tuple(drawn_x), tuple(drawn_y)} == {tuple(path.x), tuple(path.y)}
+    # deleting the diagram removes its path
+    app.data_collection.remove(next(data for data in app.data_collection if data.label == path.label))
+    assert [_paths_drawn(restored) for restored in shown] == [[], [], []]
 
 
 @pytest.mark.remote_data
