@@ -1019,9 +1019,19 @@ class PathData(PathSlicedData):
     sample. A slit-jaw image's longitude and latitude depend on its frame, so its diagram, with more world axes than
     pixel axes, on which glue-core's coordinates fail, has pixel coordinates only; a raster's keeps its wavelength, and
     a stack's its scan too.
+
+    ``sampling`` is one of `SAMPLINGS`: 'truncate', glue-core's, the pixel whose index each position rounds down to;
+    'nearest', the nearest pixel, halfway up, as `scipy.ndimage.map_coordinates` with ``order=0``, NaN beyond half a
+    pixel off the data; 'linear', bilinear between the four pixels around each sample, as ``order=1`` with
+    ``mode="constant"``, NaN where any is NaN or off the data, with times and categories the nearest pixel's.
     """
 
-    def __init__(self, *args, **kwargs):
+    SAMPLINGS = ("truncate", "nearest", "linear")
+
+    def __init__(self, *args, sampling="truncate", **kwargs):
+        if sampling not in self.SAMPLINGS:
+            raise ValueError(f"sampling must be one of {self.SAMPLINGS}, not {sampling!r}")
+        self.sampling = sampling
         super().__init__(*args, **kwargs)
         if self._coords is not None and self._coords.world_n_dim != self._coords.pixel_n_dim:
             self._coords = None
@@ -1033,9 +1043,63 @@ class PathData(PathSlicedData):
         if getattr(self.original_data, "hub", None) is not None:
             self.original_data.hub.broadcast(NumericalDataChangedMessage(self))
 
+    def _cells(self, view):
+        """
+        The index along each axis, the path's last, of the cells ``view`` selects, in NumPy's indexing, which drops an
+        axis an integer selects, where glue-core's ``_get_pix_coords`` keeps it.
+        """
+        cells = np.ix_(*map(np.arange, self.shape))
+        if view is not None and view is not Ellipsis:
+            cells = [np.broadcast_to(cell, self.shape)[view] for cell in cells]
+        return np.broadcast_arrays(*cells)
+
+    def _pixels(self, cells, x, y):
+        """The parent's pixel along each of its axes at ``cells``, of a path at ``x, y``."""
+        *kept, path = cells
+        kept = iter(kept)
+        return [
+            x[path] if axis == self.cid_x.axis else y[path] if axis == self.cid_y.axis else next(kept)
+            for axis in range(self.original_data.ndim)
+        ]
+
+    def _get_pix_coords(self, view=None):
+        # glue-core's truncation, or the nearest pixel, floor(position + 0.5), as scipy's map_coordinates rounds
+        if self.sampling == "truncate":
+            return super()._get_pix_coords(view)
+        pixel = [np.floor(position + 0.5) for position in self._pixels(self._cells(view), self.x, self.y)]
+        keep = np.all([(p >= 0) & (p < n) for p, n in zip(pixel, self.original_data.shape, strict=True)], axis=0)
+        return [p[keep].astype(int) for p in pixel], keep, keep.shape
+
+    def _linear(self, cid, view):
+        """
+        ``cid`` bilinear between the four pixels around each path position ``view`` selects: the diagram within the
+        cells' bounding box, as glue's fixed-resolution buffer reads dask data, from one read of the distinct pixels
+        around its samples, about twice the pixels truncation reads.
+        """
+        cells = self._cells(view)
+        if not cells[0].size:
+            return np.full(cells[0].shape, np.nan)
+        box = [np.arange(cell.min(), cell.max() + 1) for cell in cells]
+        corners, weights = [], 1
+        for path, axis, high in zip((self.x, self.y), self.sliced_dims, ([0, 1, 0, 1], [0, 0, 1, 1]), strict=True):
+            n, position = self.original_data.shape[axis], path[box[-1]]
+            inside = (position >= 0) & (position <= n - 1)  # not NaN
+            low = np.minimum(np.floor(np.where(inside, position, 0)), max(n - 2, 0))  # n - 1 is the upper pixel's
+            fraction = np.where(inside, position - low, np.nan)
+            corners.append(np.minimum(np.add.outer(high, low), n - 1).astype(int).ravel())
+            weights = weights * np.where(np.reshape(high, (4, 1)), fraction, 1 - fraction)
+        (x, y), inverse = np.unique(corners, axis=1, return_inverse=True)
+        values = self.original_data.get_data(cid, view=tuple(self._pixels(np.ix_(*box[:-1], np.arange(x.size)), x, y)))
+        values = np.asarray(values)
+        diagram = sum(weight * values[..., index] for weight, index in zip(weights, inverse.reshape(4, -1)))
+        diagram = diagram.astype(np.result_type(values.dtype, np.float32), copy=False)
+        return diagram[tuple(cell - axis[0] for cell, axis in zip(cells, box, strict=True))]
+
     def get_data(self, cid, view=None):
         if cid in self.pixel_component_ids or cid in self.world_component_ids:
             return BaseCartesianData.get_data(self, cid, view)
+        if self.sampling == "linear" and self.get_kind(cid) == "numerical":
+            return self._linear(cid, view)[()]
         pixel, keep, shape = self._get_pix_coords(view=view)
         values = np.asarray(self.original_data.get_data(cid, view=tuple(pixel)))
         if values.dtype.kind == "M":
@@ -1080,7 +1144,8 @@ class PathTool(BasePathSlicerMode):
     of the reference data and placed in each other dataset through glue's links, such as
     `~glue_solar.sources.loaders.iris.link_hpc`'s, at the frame shown, so a time-synced viewer samples them at the time
     master's exposure; a dataset glue cannot place from the reference data, as a slit-jaw image on a raster's axes, has
-    no diagram. Each Enter makes a new set of diagrams, in a new viewer.
+    no diagram. Each Enter makes a new set of diagrams, in a new viewer, sampled as `PathData` is with ``sampling``,
+    which the "Path sampling" submenu of `ModesTool` sets.
     """
 
     tool_id = "solar:path"
@@ -1088,6 +1153,7 @@ class PathTool(BasePathSlicerMode):
     tool_tip = "Draw a path, then press Enter for the data along it (Esc clears the path)"
     shortcut = "L"
     slice_viewer_cls = ImageViewer
+    sampling = "truncate"
 
     def _on_reference_data_change(self, *args):
         # Data only: a stack's diagram is 3D too, but a PathData, which _open_or_update has nothing to sample in
@@ -1117,7 +1183,8 @@ class PathTool(BasePathSlicerMode):
                 continue
             (cid_x, px), (cid_y, py) = placed
             count = sum(path.original_data is data for old in self._traces for path in old)
-            path = PathData(data, cid_x, px, cid_y, py, label=f"{data.label} [slice {count + 1}]")
+            label = f"{data.label} [slice {count + 1}{'' if self.sampling == 'truncate' else ', ' + self.sampling}]"
+            path = PathData(data, cid_x, px, cid_y, py, label=label, sampling=self.sampling)
             path.parent_viewer = self.viewer if data is state.reference_data else None  # the crosshair's
             collection.append(path)
             link_path_sliced_to_parent(collection, path)
@@ -1881,11 +1948,32 @@ class _ToolMenu(SimpleToolMenu):
 
 @viewer_tool
 class ModesTool(_ToolMenu):
-    """The Image viewer's menu of glue-solar's mouse modes: Measure, Path diagram and its crosshair."""
+    """
+    The Image viewer's menu of glue-solar's mouse modes: Measure, Path diagram and its crosshair, and the "Path
+    sampling" submenu, which sets `PathTool`'s ``sampling`` for the next Enter.
+    """
 
     icon = "pencil"
     tool_id = "solar:modes"
     tool_tip = "Mouse modes: measure a line, or draw a path for the data along it"
+
+    def _add_entries(self):
+        super()._add_entries()
+        # a submenu, which glue-qt 0.4.2's tool menus cannot hold, as the Coordinate menu's "Blink interval"
+        toolbar = self.viewer.toolbar
+        path = toolbar.tools[PathTool.tool_id]
+        menu = toolbar.widgetForAction(toolbar.actions[self.tool_id]).menu().addMenu("Path sampling")
+        group = QtWidgets.QActionGroup(menu)
+        for sampling in PathData.SAMPLINGS:
+            action = group.addAction(sampling.capitalize())
+            action.setCheckable(True)
+            action.setChecked(sampling == path.sampling)
+            action.setData(sampling)
+            menu.addAction(action)
+        # not through glue-qt's toolbar, so the mouse mode stays
+        group.triggered.connect(lambda action: setattr(path, "sampling", action.data()))
+        add_callback(path, "enabled", menu.menuAction().setVisible)
+        menu.menuAction().setVisible(path.enabled)
 
 
 @viewer_tool

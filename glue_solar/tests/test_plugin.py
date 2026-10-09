@@ -369,11 +369,14 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot):
         button = toolbar.widgetForAction(toolbar.actions[menu])
         assert button.toolTip() == toolbar.tools[menu].tool_tip  # on hover, as a button's
         menus[menu] = button.menu()
-        # each tool's entry, by its id as for a button
-        assert menus[menu].actions() == [toolbar.actions[tool] for tool in ImageViewer.subtools[menu]]
+        # each tool's entry, by its id as for a button, and Path diagram's sampling
+        entries = [toolbar.actions[tool] for tool in ImageViewer.subtools[menu]]
+        assert menus[menu].actions() == entries + [menus[menu].actions()[-1]] * (menu == "solar:modes")
+    sampling = menus["solar:modes"].actions()[-1]
+    assert sampling.text() == "Path sampling"
 
     # the mouse modes, checked while on, the crosshair on a path diagram only, and Path diagram's L
-    assert [entry.isVisible() for entry in menus["solar:modes"].actions()] == [True, True, False]
+    assert [entry.isVisible() for entry in menus["solar:modes"].actions()] == [True, True, False, True]
     toolbar.active_tool = "image:point_selection"
     measure = toolbar.actions["solar:measure"]
     measure.trigger()
@@ -406,6 +409,7 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot):
     viewer.add_data(still)
     viewer.state.reference_data = still
     assert not toolbar.actions["solar:path"].isEnabled()
+    assert not sampling.isVisible()
     QTest.keyClick(toolbar, Qt.Key_L)
     assert toolbar.active_tool is pixel
 
@@ -1019,6 +1023,52 @@ def test_path_diagram_of_a_stack(qtbot, irispy_test_files):
     mouse(diagrams, "button_press_event", 2, 3)
     mouse(diagrams, "motion_notify_event", 2, 7)
     assert viewer.state.slices == (1, 0, 0, 7)
+
+
+def test_path_diagram_sampling_on_a_ramp(qtbot):
+    # a ramp, which bilinear sampling gives exactly, against scipy's map_coordinates: order 0, the nearest pixel, and
+    # order 1, NaN where a pixel around the sample is off the data
+    from scipy.ndimage import map_coordinates
+
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    t, y, x = np.indices((2, 12, 16), dtype=float)
+    times = np.datetime64("2013-09-02T16:39") + (60 * t).astype("timedelta64[s]")
+    ramp = Data(label="ramp", flux=0.7 * x - 1.3 * y + 2.5 + 10 * t)
+    ramp.add_component(times, "Time")
+    app.data_collection.append(ramp)
+    viewer = app.new_data_viewer(ImageViewer, data=ramp)
+    menu = viewer.toolbar.widgetForAction(viewer.toolbar.actions["solar:modes"]).menu().actions()[-1].menu()
+    assert [(entry.text(), entry.isChecked()) for entry in menu.actions()] == [
+        ("Truncate", True),
+        ("Nearest", False),
+        ("Linear", False),
+    ]
+    flux = ramp.id["flux"]
+    for count, (entry, order, mode) in enumerate(zip(menu.actions()[1:], (0, 1), ("grid-constant", "constant")), 1):
+        entry.trigger()
+        assert viewer.toolbar.active_tool is None  # the mouse mode stays
+        [path] = _draw_path(viewer, [0.3, 7.7, 15.3], [2.2, 10.9, 4.6])
+        sampling = entry.text().lower()
+        assert (path.sampling, path.label) == (sampling, f"ramp [slice {count}, {sampling}]")
+        frames = np.broadcast_to(np.arange(2.0)[:, None], (2, len(path.x)))
+        # times are not interpolated: the nearest pixel's
+        np.testing.assert_array_equal(path[ramp.id["Time"]], times[:, 0, :1].repeat(len(path.x), axis=1))
+        if order:  # the ramp itself, NaN past the last x centre, where the last sample is
+            assert path.x[-1] > 15
+            ramp_values = np.where(path.x <= 15, 0.7 * path.x - 1.3 * path.y + 2.5 + 10 * frames, np.nan)
+            np.testing.assert_allclose(path[flux], ramp_values, atol=1e-6)
+        # the drawn diagram, which glue asks for by index arrays
+        view = [(0, 1, 2), (0, len(path.x) - 1, len(path.x))]
+        drawn = path.compute_fixed_resolution_buffer(view, target_data=path, target_cid=flux)
+        np.testing.assert_array_equal(drawn, path[flux])
+        for xs, ys in ((path.x, path.y), ([0.5, 1.5, 2.5, 3.5], [2.5] * 4)):  # then halfway, which rounds up
+            path.set_xy(xs, ys)
+            frames = np.broadcast_to(np.arange(2.0)[:, None], (2, len(path.x)))
+            pixels = [frames, np.broadcast_to(path.y, frames.shape), np.broadcast_to(path.x, frames.shape)]
+            reference = map_coordinates(ramp[flux], pixels, order=order, mode=mode, cval=np.nan)
+            np.testing.assert_allclose(path[flux], reference, atol=1e-6)
 
 
 @pytest.mark.remote_data
