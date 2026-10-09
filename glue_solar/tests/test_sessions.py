@@ -455,6 +455,8 @@ def test_two_quicklooks_restore_twice_from_their_files(qtbot, monkeypatch, tmp_p
                 if isinstance(expected.meta[key], u.Quantity):
                     assert value.unit == expected.meta[key].unit
                 np.testing.assert_array_equal(value, expected.meta[key])
+        # iris_tree's scans share a time, so the scans the stack's links give are checked by
+        # test_a_session_restores_the_links_link_hpc_gives_a_stack_and_a_map
         assert links(opened.data_collection) == links(app.data_collection)
         assert link_hpc(opened.data_collection) == []
         assert shown(opened) == shown(app)
