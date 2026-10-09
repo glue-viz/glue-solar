@@ -329,8 +329,8 @@ class FrameTimeTool(Tool, HubListener):
     components: on a raster map each step's, on a slit-jaw image or a sit-and-stare raster the frame's or
     exposure's. Its position has fixed precision (`_world_position`), and on a displayed sit-and-stare
     exposure axis reads only the coordinate along the other axis, as the ticks do, with the time and
-    exposure in place of the slit's position along the exposures. Doppler velocities wait for a rest
-    wavelength (``wp5-m1-rest-wavelength-policy``). The View menu entry hides the frame time only.
+    exposure in place of the slit's position along the exposures. Doppler velocities wait for the velocity axis
+    (``wp5-m1-velocity-axis``). The View menu entry hides the frame time only.
     """
 
     icon = "window_tab"

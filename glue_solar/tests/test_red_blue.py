@@ -44,14 +44,15 @@ def scan_path(tmp_path, irispy_test_files):
 def answer(monkeypatch, rest, values=(), accept=True):
     """
     Make each red-blue dialog return as if ``rest`` and any ``values`` of its boxes were typed and OK, or Cancel,
-    pressed; returns the values each dialog opened with.
+    pressed; returns the rest wavelength and values each dialog opened with.
     """
     opened = []
 
     def exec_(dialog):
         boxes = [dialog.findChild(QtWidgets.QDoubleSpinBox, name) for name in BOXES]
-        opened.append(tuple(box.value() for box in boxes))
-        dialog.findChild(QtWidgets.QLineEdit, "rest").setText(rest)
+        field = dialog.findChild(QtWidgets.QLineEdit, "rest")
+        opened.append((field.text(), *(box.value() for box in boxes)))
+        field.setText(rest)
         for box, value in zip(boxes, values):
             box.setValue(value)
         return QtWidgets.QDialog.Accepted if accept else QtWidgets.QDialog.Rejected
@@ -101,7 +102,7 @@ def test_the_action_adds_irispys_maps_as_one_linked_dataset_and_no_viewer(
     keep_hpc_linked(collection)
     opened = answer(monkeypatch, "1402.77")
     maps = run(app, qtbot, raster)
-    assert opened == [(1.0, 1.0, 30.0, 55.0, 5.0)]  # iris_xfiles' wing velocities
+    assert opened == [("1402.77", 1.0, 1.0, 30.0, 55.0, 5.0)]  # the window's main line; iris_xfiles' wing velocities
     assert maps.label == f"{raster.label} red-blue asymmetry 1402.77"
     assert maps.shape == raster.shape[:2]
     assert maps.meta == {

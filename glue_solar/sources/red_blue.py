@@ -10,8 +10,9 @@ from qtpy import QtWidgets
 
 import astropy.units as u
 
+from glue_solar.lines import _wavelength
 from glue_solar.sources.loaders.iris import WCS_LOCK, per_second
-from glue_solar.sources.moments import _accepted, _check, _cube, _dataset, _read, _start, _wavelength, _window
+from glue_solar.sources.moments import _accepted, _check, _cube, _dataset, _read, _rest_field, _start, _window
 
 __all__ = ["red_blue_asymmetry", "red_blue_iris"]
 
@@ -103,13 +104,14 @@ def red_blue_asymmetry(data, rest, wavelengths=WAVELENGTHS, velocities=VELOCITIE
 
 def _ask(data):
     """
-    The rest wavelength typed for ``data`` and the wavelengths taken below and above it, in Angstrom, and the wing
-    velocities and the velocity step, in km/s; or None for a blank rest wavelength or Cancel.
+    The rest wavelength typed for ``data``, at first its `rest_wavelength`, and the wavelengths taken below and above
+    it, in Angstrom, and the wing velocities and the velocity step, in km/s; or None for a blank rest wavelength or
+    Cancel.
     """
     dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
     dialog.setWindowTitle(f"IRIS: red-blue asymmetry of {data.label}")
     form = QtWidgets.QFormLayout(dialog)
-    rest = QtWidgets.QLineEdit(objectName="rest")  # D24: typed, never the window's TWAVE
+    rest = _rest_field(data, "rest")  # D11: never the window's TWAVE
     form.addRow("Rest wavelength [Å]:", rest)
     boxes = []
     for name, label, value, unit in (
