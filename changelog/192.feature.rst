@@ -1,0 +1,1 @@
+"Save frames or movie…" can draw a scale bar in arcsec and frame numbers on each frame, and offers a file name from the dataset and range.
