@@ -1,7 +1,7 @@
 from copy import deepcopy
 from functools import partialmethod
 
-from glue.config import session_patch, stretches
+from glue.config import fit_plugin, session_patch, stretches
 from glue_qt.config import keyboard_shortcut
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
@@ -89,6 +89,8 @@ def setup():
         ImageViewer.subtools[menu.tool_id] = [tool.tool_id for tool in entries]
     if lines.LineTool.tool_id not in ProfileViewer.tools:
         ProfileViewer.tools.append(lines.LineTool.tool_id)
+    # The Gaussian + constant fitter, which glue loads with the first Profile viewer, leaving astropy.modeling to it
+    fit_plugin.lazy_add("glue_solar.fitters")
     # Keys for the viewer of the active window (`tools.KEYS`). glue-qt finds a viewer's keys by its exact class, so the
     # quicklook's raster panels take every key of the Image viewer, glue-qt's own Tab and Backspace too, which its
     # application module registers: glue loads plugins before it
