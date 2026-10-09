@@ -825,6 +825,53 @@ def test_a_collapse_is_never_overwritten(bare_app, qtbot, scans):
     assert viewers["spectrogram"].state.slices[0] is collapse
 
 
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")  # as above, for the Collapse
+def test_a_light_curve_follows_the_point_and_the_band(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, _ = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster])
+    raster_map, cube = viewers["map"], raster[raster.main_components[0]]
+    [point] = bare_app.session.edit_subset_mode.edit_subset
+    # opening it moves nothing, and the point stays the edit subset, with Pixel on
+    assert changes(bare_app, qtbot, viewers, menu_action(raster_map, "Light curve at the point").trigger) == {}
+    assert bare_app.session.edit_subset_mode.edit_subset == [point]
+    assert raster_map.toolbar.active_tool.tool_id == "image:point_selection"
+    profile = bare_app.viewers[-1][-1]
+    [subset] = [layer.layer for layer in profile.state.layers]
+    assert (subset.label, subset.data, profile.state.function) == ("Light curve", raster, "mean")
+    assert profile.state.x_att is raster.pixel_component_ids[0]
+    # and only there
+    shown = [layer.layer for viewer in bare_app.viewers[-1] if viewer is not profile for layer in viewer.state.layers]
+    assert subset.group not in [getattr(layer, "group", None) for layer in shown]
+
+    def check(slit, band):
+        _, values = profile.layers[0].state.profile
+        np.testing.assert_allclose(values, np.nanmean(cube[:, slit, band], axis=-1), rtol=1e-5, atol=1e-5)
+
+    _, slit, wl0 = expected_start(raster)
+    check(slit, slice(wl0, wl0 + 1))
+    select_point(raster_map, 50, 10)
+    check(10, slice(wl0, wl0 + 1))
+    # a Collapse on the spectrum panel, which leaves out the upper end of its range
+    spectrum = viewers["spectrum"]
+    spectrum.toolbar.active_tool = "profile-analysis"
+    tools = spectrum.toolbar.tools["profile-analysis"]._profile_tools
+    wave = raster[raster.world_component_ids[2], (0, 0, slice(None))]
+    tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = wave[8], wave[15]
+    tools.ui.button_collapse.click()
+    check(10, slice(8, 15))
+    raster_map.toolbar.tools["solar:band"].width = 5
+    raster_map.state.slices = (*raster_map.state.slices[:2], 20)
+    check(10, slice(18, 23))
+    menu_action(raster_map, "Clear point").trigger()
+    check(10, slice(18, 23))
+    shown = refusals(monkeypatch)
+    menu_action(viewers["spectrogram"], "Light curve at the point").trigger()
+    assert shown == [
+        "Could not open the light curve\nChoose it on the map of a sit-and-stare raster or a stack, whose wavelength or "
+        "band it averages."
+    ]
+
+
 def test_clearing_the_point_stops_the_coupling(bare_app, qtbot, scans):
     scan, _ = scans
     viewers = quicklook(bare_app, [scan])

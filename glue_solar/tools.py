@@ -52,6 +52,7 @@ from glue_solar.quicklook import (
     _across,
     _half_cadence,
     _is_sit_and_stare,
+    _light_curve,
     _place,
     _role,
     _seconds_text,
@@ -1593,6 +1594,16 @@ class _ClearPointEntry(_CoordinateEntry):
         coordinator.clear_point()
 
 
+class _LightCurveEntry(_CoordinateEntry):
+    tool_id = "solar:light_curve"
+    action_text = "Light curve at the point"
+    tool_tip = "Open the mean over the wavelength or band shown here at the point, against exposure or scan"
+
+    @messagebox_on_error("Could not open the light curve")
+    def run(self, coordinator):
+        _light_curve(self.viewer)
+
+
 def _first_slider(viewer):
     """
     glue-qt's slice slider of the Image viewer's first array axis (an IRIS dataset's frames, exposures, steps or
@@ -1997,9 +2008,9 @@ class CoordinateTool(SimpleToolMenu):
     Pixel tool, and unregisters it when the viewer closes. Its menu makes the displayed dataset the
     time master of its observation, clears the point, moves the time master to a typed UTC time, or
     makes the frame, exposure, step or scan slider's playback loop over a range, or shows the raster
-    overlays, or blinks the viewer between its position and a stored partner. On a slit-jaw image it
-    draws the displayed frame's slit, and the point of a raster of the same observation placed with that
-    frame's coordinates while it is on the image.
+    overlays, or opens the light curve at the point, or blinks the viewer between its position and a
+    stored partner. On a slit-jaw image it draws the displayed frame's slit, and the point of a raster of
+    the same observation placed with that frame's coordinates while it is on the image.
     """
 
     icon = "glue_link"
@@ -2014,6 +2025,7 @@ class CoordinateTool(SimpleToolMenu):
             _GoToUTCEntry,
             _LoopEntry,
             _OverlaysEntry,
+            _LightCurveEntry,
             _PartnerEntry,
             _BlinkEntry,
         )

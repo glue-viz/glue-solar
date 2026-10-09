@@ -17,7 +17,7 @@ from glue.core.link_helpers import LinkSame
 from glue.core.link_manager import is_equivalent_cid
 from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, SubsetDeleteMessage, SubsetUpdateMessage
 from glue.core.roi import PolygonalROI
-from glue.core.subset import RoiSubsetState, SubsetState
+from glue.core.subset import RoiSubsetState, SliceSubsetState, SubsetState
 from glue.core.units import UnitConverter
 from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
@@ -1433,6 +1433,70 @@ def _fit_spectrum(viewer, group):
     if data.size > _THREADED_SIZE:
         [subset] = [subset for subset in group.subsets if subset.data is data]
         viewer._solar_fit = _FitOnceComputed(viewer, subset)  # the hub holds its listeners weakly
+
+
+class _LightCurve(HubListener):
+    """
+    Keep a light curve's subset group (`_light_curve`) at the point's slit position, and a stack's step, and on the
+    wavelength or band its map shows: a Collapse, a Wavelength band or the slider's wavelength. While the point is no
+    Pixel selection on the map's file, or the map shows other data, it stays where it was.
+    """
+
+    def __init__(self, group, point, band):
+        self.group, self.point, self.band, self.data = group, point, band, band.state.reference_data
+        band.state.add_callback("slices", self.refresh)
+        self.data.hub.subscribe(self, SubsetUpdateMessage, handler=self.refresh, filter=self._moved)
+        self.refresh()
+
+    def _moved(self, message):
+        return message.subset.group is self.point and message.subset.data is self.data
+
+    def refresh(self, *_):
+        point, state, data = self.point.subset_state, self.band.state, self.data
+        if not isinstance(point, PixelSubsetState) or not _same_file(point.reference_data, data):
+            return
+        if state.reference_data is not data or len(state.slices) != data.ndim:
+            return
+        if any(s.start is None for s in point.slices[1:-1]):
+            return  # a click before the coordinator gives it the axes it was not clicked on (`Coordinator._pin`)
+        band = getattr(state.slices[-1], "slice", state.slices[-1])  # IRIS wavelengths are the last axis
+        slices = [slice(None), *point.slices[1:-1], band if isinstance(band, slice) else slice(band, band + 1)]
+        if slices != getattr(self.group.subset_state, "slices", None):
+            self.group.subset_state = SliceSubsetState(data, slices)
+
+
+def _light_curve(viewer):
+    """
+    Open a Profile of the light curve at the point: the mean, NaN left out, over the wavelength or band that
+    ``viewer``, an Image viewer of a sit-and-stare raster or a stack with a wavelength slider, shows, at the point's
+    slit position, and a stack's step, against exposure or scan. The light curve is the new subset group 'Light
+    curve', a `~glue.core.subset.SliceSubsetState` that follows the point and the band (`_LightCurve`), shown in that
+    Profile only.
+    """
+    app, data = viewer.session.application, viewer.state.reference_data
+    coord = coordinator(app.data_collection)
+    if _role(data) != "raster" or _time_axis(data) != 0 or _spectral_axes(data) & _shown(viewer.state):
+        raise ValueError(
+            "Choose it on the map of a sit-and-stare raster or a stack, whose wavelength or band it averages."
+        )
+    if coord.point is None or not _same_file(coord.point.reference_data, data):
+        raise ValueError(f"Select a point on {data.label} first.")
+    mode = app.session.edit_subset_mode
+    edit = mode.edit_subset
+    group = app.data_collection.new_subset_group(label="Light curve")
+    mode.edit_subset = edit  # glue-qt makes a new group the edit subset
+    # glue 1.27.0 profiles a slice subset with only its band's samples, which a spectrum panel cannot draw
+    for viewers in app.viewers:
+        for other in viewers:
+            _show(other, group, False)
+    group._solar_light_curve = _LightCurve(group, coord.group, viewer)  # until the group is deleted
+    profile = app.new_data_viewer(ProfileViewer)
+    profile.state.function = "mean"
+    profile.add_subset(next(subset for subset in group.subsets if subset.data is data))
+    profile.state.x_att = data.pixel_component_ids[0]
+    profile.state.title = f"{_window(data)[0] or data.label} light curve"
+    _fit_spectrum(profile, group)
+    return profile
 
 
 # the raster panels' lines, the last on top: the point's thin, in the colour of glue's crosshair, the others as a
