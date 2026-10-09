@@ -104,7 +104,9 @@ The rest wavelength of a spectral window, at which the line centre here and the 
 The window's reference wavelength, ``TWAVE``, is never taken: it is not the line's (2796.20 Å for
 Mg II k). The field's tooltip says where its wavelength comes from, and
 ``glue_solar.lines.rest_wavelength(data)`` gives it, or None, in glue's terminal. Mg II features
-measure k and h each from irispy's own rest wavelengths.
+measure k and h each from irispy's own rest wavelengths, and the Profile viewer's "Gaussian +
+constant (IRIS)" fit names the main line nearest its fitted centre itself, as it has no dataset to
+read.
 
 Line ratios
 -----------
