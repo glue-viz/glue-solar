@@ -92,7 +92,7 @@ Settled by the user; reopen only with the user.
 - **D51:** User (2026-10-08), analysis follow-ups: glue-solar offers fiasco's git main as an optional extra, `glue-solar[density]` (as irispy comes from git main, D47; fiasco brings plasmapy and h5py and downloads CHIANTI on first use), so irispy's `density_diagnostic` (which needs `fiasco.line_ratio`, on no fiasco release yet) gives the line ratio dialog (#155) a built-in O IV preset (#163); Mg II features get saturation through an irispy `saturation_limit` on `calculate_mg_features`, as #226 gave moments (draft irispy PR, then #164); the mean spectrum (#152) stays one all-scans mean in float32, and red-blue (#150) keeps its per-step DN/s limit. File → Open leaves linking to 'IRIS: link helioprojective coordinates' for AIA cutouts too (#157); Path diagrams keep L and a new set per Enter (#151); Measure (#147) gets key U.
 - **D52:** User (2026-10-09), before a night away: the line-group items wait for irispy #209 (`wp5-irispy-line-database`); the SOT reader's shrunk test files go in irispy's own `irispy/data/test/sot/` in its draft PR; ticks the browser filter hides still load (#185); a Profile range sets the line moments wings for the dialog's pre-filled centre too (#180); after Redo (and Undo) of a slit-jaw click the slit-jaw viewer goes back to the clicked frame (#193).
 - **D53:** User (2026-10-09), light curves: 'Light curves at this point' (#208) adds 1D datasets, one Data (Time, value) per chosen raster window and per SJI channel, recomputed as the point moves and shown together in one datetime Scatter plot, so the time marker (#207) marks them, with an 'ECSV (with Time)' exporter for 1D data; #183's 'Light curve at the point' (a Profile of a following subset, one raster window) stays, since a subset cannot follow the point across SJI frames.
-- **D54:** User (2026-10-09), irispy fixes (drafts #230-#233 open): each a draft PR on LM-SAL/irispy from a branch of origin/main in `~/Git/irispy-<branch>`, with a test and a changelog fragment named after its PR; the user reviews and merges. Small fixes: `dust-mask-scaled` (`apply_dust_mask` on memmap SJIs), `read-files-open-once`, `response-erfa-warning`, `example-02-fill`, `memmap-raster-unit` (unscaled FUV/NUV units on memmap rasters). Approved designs (study and Fable critique: `IRIS_PLAN_PROTOTYPES/irispy_designs_20261009.tar.gz`): `moments-background`, keyword-only `background_windows`/`background_degree` on `calculate_moments` so saturation is checked on the raw samples before the background is subtracted (the two-call path finds 0 of 839 saturated pixels on 3860258481 r00172-r00174), with separate commits masking pixels masked at every wavelength within the wings and adding einsum `optimize=True`; `raster-wcs-inverse`, a private `_RasterWCS` overriding only `world_to_pixel_values` with an exact windowed numpy inverse (same cells and NaNs as wcslib; SJI screen inversion 13.2 s to 0.02 s on 4000255147), the sit-and-stare 'first exposure whose slit passed' meaning documented. NaN-filled float rasters are dropped: glue-solar fills NaN itself (D17) and needs no irispy change.
+- **D54:** User (2026-10-09), irispy fixes (drafts #230-#235 open; `memmap-raster-unit` waits for glue-solar's compatible unit): each a draft PR on LM-SAL/irispy from a branch of origin/main in `~/Git/irispy-<branch>`, with a test and a changelog fragment named after its PR; the user reviews and merges. Small fixes: `dust-mask-scaled` (`apply_dust_mask` on memmap SJIs), `read-files-open-once`, `response-erfa-warning`, `example-02-fill`, `memmap-raster-unit` (unscaled FUV/NUV units on memmap rasters). Approved designs (study and Fable critique: `IRIS_PLAN_PROTOTYPES/irispy_designs_20261009.tar.gz`): `moments-background`, keyword-only `background_windows`/`background_degree` on `calculate_moments` so saturation is checked on the raw samples before the background is subtracted (the two-call path finds 0 of 839 saturated pixels on 3860258481 r00172-r00174), with separate commits masking pixels masked at every wavelength within the wings and adding einsum `optimize=True`; `raster-wcs-inverse`, a private `_RasterWCS` overriding only `world_to_pixel_values` with an exact windowed numpy inverse (same cells and NaNs as wcslib; SJI screen inversion 13.2 s to 0.02 s on 4000255147), the sit-and-stare 'first exposure whose slit passed' meaning documented. NaN-filled float rasters are dropped: glue-solar fills NaN itself (D17) and needs no irispy change.
 
 ## Milestones
 
@@ -112,6 +112,7 @@ A milestone is done when it has no items left.
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
+- WP2: `wp2-l-moments-one-call`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP8: `wp8-sot-cubes`
 - WP9: `wp9-l-deferred-recipes`
@@ -211,6 +212,10 @@ Notes:
 ### WP2: Line moments and diagnostics
 
 Products from IRIS spectra, as dataset `layer_action`s that add linked Data and open no viewer, in `glue_solar/sources/moments.py`.
+
+**L**
+
+- [ ] **L** `wp2-l-moments-one-call`: Once irispy draft #235 merges, line moments with a continuum make one `calculate_moments` call per slab with `background_windows`/`background_degree` (D54) instead of `subtract_background` and a second call (D49); the wings-mask line glue-solar keeps goes too. Done when 4000255147 Si IV with a continuum gives today's maps in about 0.5 s less. Depends on irispy #235.
 
 Notes:
 - Prototype: `IRIS_PLAN_PROTOTYPES/chk_wp2/` (a moments module and its tests).
