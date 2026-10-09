@@ -30,7 +30,7 @@ from glue_solar import glue_patches
 from glue_solar.quicklook import _role, coordinator, nearest, quicklook
 from glue_solar.sources.iris import browse_iris, link_iris
 from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, keep_hpc_linked, link_hpc, raster_data
-from glue_solar.tests.helpers import inversions, load_selected, raster_point_on_sji, select_point
+from glue_solar.tests.helpers import inversions, load_selected, raster_point_on_sji, select_point, shift
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
 RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
@@ -244,6 +244,36 @@ def test_link_hpc_places_a_sunpy_map_on_each_sji_frame(sns, frame):
     expected = aia.coords.world_to_pixel_values((lon * u.arcsec).to_value(u.deg), (lat * u.arcsec).to_value(u.deg))
     for cid, values in zip(aia.pixel_component_ids[::-1], expected):
         np.testing.assert_allclose(sji[cid][frame], values, rtol=0, atol=0.05)
+
+
+def test_shift_pointing_moves_a_sunpy_map_over_a_slit_jaw_image(qtbot, monkeypatch, sns):
+    # co-aligning: a map shown over a slit-jaw image is placed again through the image's shifted coordinates
+    sji, _ = sns
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)
+    aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia", obstime=sji.meta["DATE_OBS"])
+    aia.update_components({aia.main_components[0]: np.arange(aia.size, dtype=float).reshape(aia.shape)})
+    app.data_collection.extend([sji, aia])
+    keep_hpc_linked(app.data_collection)
+    viewer = app.new_data_viewer(ImageViewer, data=sji)
+    viewer.add_data(aia)
+    [layer] = [artist for artist in viewer.layers if artist.layer is aia]
+    bounds = [(0, n - 1, n) for n in sji.shape[1:]]
+    before = layer.state.get_sliced_data(bounds=bounds)  # glue's image of the map, which it keeps
+    shift(monkeypatch, sji, app.data_collection, (2, -1))
+    # the map's pixels under each slit-jaw pixel, from its shifted longitude and latitude
+    y, x = np.indices(sji.shape[1:])
+    lon, lat, _ = sji.coords.pixel_to_world_values(x, y, 0)
+    expected = aia.coords.world_to_pixel_values((lon * u.arcsec).to_value(u.deg), (lat * u.arcsec).to_value(u.deg))
+    for cid, values in zip(aia.pixel_component_ids[::-1], expected):
+        np.testing.assert_allclose(sji[cid][0], values, rtol=0, atol=0.05)
+    # and the viewer draws the map there, not glue's image of it from before
+    after = layer.state.get_sliced_data(bounds=bounds)
+    placed = aia.compute_fixed_resolution_buffer([0, *bounds], target_data=sji, target_cid=layer.state.attribute)
+    np.testing.assert_array_equal(after, placed)
+    assert not np.array_equal(after, before, equal_nan=True)
 
 
 def test_raster_pixels_reach_a_sunpy_map_whose_longitudes_run_from_0_to_360(sns):

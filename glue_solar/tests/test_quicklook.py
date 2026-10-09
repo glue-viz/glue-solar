@@ -1,4 +1,5 @@
 import itertools
+import re
 import shutil
 import time
 from collections import Counter
@@ -44,6 +45,9 @@ from glue_solar.quicklook import (
     quicklook,
     sji_to_raster,
 )
+from glue_solar.regrid import regrid_on_time
+from glue_solar.sources import moments
+from glue_solar.sources.iris import shift_pointing_iris
 from glue_solar.sources.loaders.iris import image_data, raster_data
 from glue_solar.tests.helpers import (
     count_tick_work,
@@ -53,6 +57,7 @@ from glue_solar.tests.helpers import (
     press,
     raster_point_on_sji,
     select_point,
+    shift,
 )
 
 SCAN = "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"
@@ -3575,6 +3580,70 @@ def test_one_undo_reverts_a_slit_jaw_click(bare_app, qtbot, irispy_test_files):
     qtbot.wait(20)
     assert sliders(bare_app, viewers) == before
     assert not undo.isEnabled()
+
+
+def arcsec_read_out(viewer, x, y):
+    """The angles the viewer's mouse-over readout gives at pixel ``x, y``, in arcsec."""
+    text = viewer.toolbar.tools["solar:cursor_readout"].describe(x, y)
+    return [float(value) for value in re.findall(r'(-?\d+\.\d+)"', text)]
+
+
+def test_shift_pointing_moves_the_readout_and_what_the_raster_meets(
+    bare_app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
+    path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
+    _, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [*raster_data([path], ["Si IV 1403", "C II 1336"]), sji])
+    [sji_viewer], raster = viewers["sji"], viewers["map"].state.reference_data
+    [window] = [data for data in bare_app.data_collection if data not in (raster, sji)]
+    collection, [point] = bare_app.data_collection, bare_app.session.edit_subset_mode.edit_subset
+    overlays_toggled(bare_app, qtbot, viewers, sji_viewer)
+    frame = sji_viewer.state.slices[0]
+    (x, y), (step, slit) = clicked(sji_viewer, raster, 30, 25)
+    select_point(sji_viewer, x, y)
+    qtbot.wait(20)
+    lon, lat, _ = sji.coords.pixel_to_world_values(x, y, frame)
+    read_out, marker, drawn = arcsec_read_out(sji_viewer, x, y), overlays(sji_viewer)[1], slits(sji_viewer)
+
+    # the slit-jaw image's longitude and latitude, and its readout, move by the offset, the raster's stay
+    assert shift(monkeypatch, sji, collection, (2, -1)) == (0, 0)
+    qtbot.wait(20)
+    assert sji.coords.pixel_to_world_values(x, y, frame)[:2] == pytest.approx((lon + 2, lat - 1), abs=1e-9)
+    assert arcsec_read_out(sji_viewer, x, y) == pytest.approx(np.add(read_out, (2, -1)), abs=1e-6)
+    assert raster.coords.pointing_offset == window.coords.pointing_offset == (0, 0)
+    # the point stays on its raster pixel, while its cross and the raster's slits move to where they now fall
+    assert overlays(sji_viewer)[1] == pytest.approx(raster_point_on_sji(raster, sji, step, slit, frame))
+    assert overlays(sji_viewer)[1] != pytest.approx(marker, abs=1)
+    assert slits(sji_viewer) == pytest.approx(expected_slits(raster, sji), abs=0.01)
+    assert slits(sji_viewer) != pytest.approx(drawn, abs=1)
+    # and a click at the same pixel reaches the raster pixel at its new longitude and latitude
+    types = list(raster.coords.world_axis_physical_types)
+    world = list(raster.coords.pixel_to_world_values(0, 0, 0))
+    world[types.index("custom:pos.helioprojective.lon")], world[types.index("custom:pos.helioprojective.lat")] = (
+        lon + 2,
+        lat - 1,
+    )
+    *moved, _ = np.round(raster.coords.world_to_pixel_values(*world)[::-1]).astype(int)
+    assert moved != [step, slit]
+    select_point(sji_viewer, x, y)
+    qtbot.wait(20)
+    assert point.subset_state.reference_data is raster
+    assert [s.start for s in point.subset_state.slices[:2]] == moved
+    # data made from it takes its offset
+    assert regrid_on_time(sji).coords.pointing_offset == (2, -1)
+
+    # a raster window shifts with the other windows of its file
+    assert shift(monkeypatch, window, collection, (0.5, 0.25)) == (0, 0)
+    assert raster.coords.pointing_offset == window.coords.pointing_offset == (0.5, 0.25)
+    assert moments._dataset(window, "x").coords.pointing_offset == (0.5, 0.25)
+    # the dialog opens at the offset, and 0, 0 takes it away
+    assert shift(monkeypatch, sji, collection, (0, 0)) == (2, -1)
+    assert sji.coords.pixel_to_world_values(x, y, frame)[:2] == (lon, lat)
+    # glue says why for data without IRIS coordinates
+    plain = Data(label="plain", values=np.zeros((2, 2)))
+    collection.append(plain)
+    with pytest.raises(ValueError, match="plain has no IRIS coordinates to shift"):
+        shift_pointing_iris(plain, collection)
 
 
 def follow(viewer):

@@ -295,6 +295,43 @@ NaN, with ``Time`` NaT, ``Exposure time`` NaN and the missing-data mask 1. The 1
   labels the data collection shows. ``glue_solar.regrid.regrid_on_time(data)`` regrids a dataset
   there too.
 
+.. _glue_solar_users_guide_iris_pointing:
+
+Shifting the pointing
+---------------------
+
+IRIS pointing can be off by an arcsecond or two between a slit-jaw image and its raster, or against
+AIA. To correct it, select the dataset in the data collection and choose "Shift pointing…" from its
+right-click menu. Type Δx and Δy in arcsec, which are added to its helioprojective longitude and
+latitude, a shift in the plane of the sky; the dialog shows the current offset, and 0, 0 takes it
+away. A raster window shifts with the other windows of its raster file, which share its slit. The
+mouse-over readout, the Point window, the links to the other data and every viewer follow at once:
+a map shown over the image moves across it, and on a quicklook's slit-jaw image the raster point's
+red cross and the raster overlays move, while a click there reaches the raster pixel at its new
+position. On OBSID 4000005156's deconvolved SJI 2796, (+2, −1) turns the readout at one pixel from
+``67.10" 65.43"`` to ``69.10" 64.43"``, and a click there that reached the Mg II k raster's step
+10, slit 300 reaches step 11, slit 294.
+
+- Only IRIS data can be shifted: a sunpy Map is refused with a message, so shift the IRIS data
+  against it instead.
+- Datasets made from a shifted one afterwards, by "Regrid on time", line moments, red-blue asymmetry
+  or Mg II features, take its offset; shift them on their own, and alike, after a later shift: a line
+  ratio between maps shifted differently is refused as not on the same grid. A line ratio shares its
+  numerator's coordinates and shifts with it.
+- A region drawn on a quicklook's map or slit-jaw image keeps the outline it had in longitude and
+  latitude, so draw it again after shifting the dataset it was drawn on.
+- The "Frame time" tooltip keeps the file's pointing, and sessions do not keep the offset (see
+  "Saving sessions" in :ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`).
+
+To co-align a slit-jaw image with its raster, click a small, distinct feature on the raster map: the
+red cross marks where the raster places it on the slit-jaw image. Read the feature's position in
+both with the mouse-over readout, and shift the slit-jaw image by the raster's position less its
+own. Against AIA, drag the AIA cutout or map onto the slit-jaw viewer and lower its opacity in its
+layer options, show it in a viewer beside it, or blink the two ("Set blink partner here" and
+"Blink" in the "Coordinate" menu), and read the feature's position in each the same way. A
+"Measure" line from the feature in one to the feature in the other then checks the shift: it should
+be under a pixel long.
+
 Line moments
 ------------
 

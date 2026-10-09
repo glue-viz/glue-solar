@@ -107,11 +107,15 @@ def _cube(data, values, rows, wavelengths, unit, meta=None):
 
 
 def _dataset(data, label):
-    """A new dataset ``label`` on the raster steps and slit pixels of ``data``, with its observation's meta."""
+    """
+    A new dataset ``label`` on the raster steps and slit pixels of ``data``, at its pointing offset, with its
+    observation's meta.
+    """
     maps = Data(label=label)
     with WCS_LOCK:
         # the raster's own steps and slit pixels: its wavelength does not move them
         maps.coords = _GlueWCS(SlicedLowLevelWCS(data.coords._wcs, (slice(None), slice(None), 0)))
+    maps.coords.pointing_offset = data.coords.pointing_offset
     # the observation's, for the quicklook's grouping and transparent NaN, without INSTRUME, which makes a raster
     maps.meta = {key: data.meta[key] for key in ("OBSID", "STARTOBS") if key in data.meta}
     return maps

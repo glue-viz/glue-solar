@@ -1,17 +1,29 @@
 """
-IRIS Level 2 support: a file reader for File -> Open, and the observation browser.
+IRIS Level 2 support: a file reader for File -> Open, the observation browser, and 'Shift pointing…'.
 """
 
 import re
 from pathlib import Path
 
-from glue.config import data_factory, layer_artist_maker, menubar_plugin, startup_action
+from glue.config import data_factory, layer_action, layer_artist_maker, menubar_plugin, startup_action
+from glue.core.message import ExternallyDerivableComponentsChangedMessage
 from glue.viewers.image.viewer import MatplotlibImageMixin
+from glue_qt.utils.decorators import messagebox_on_error
 from qtpy import QtCore, QtGui, QtWidgets
 
-from glue_solar.quicklook import _pick_sjis, _pick_windows, _role, _time_axis, observation_key, quicklook
-from glue_solar.sources.loaders.iris import QtIRISImporter, iris_data, keep_hpc_linked, last_directory
+from glue_solar.quicklook import (
+    _pick_sjis,
+    _pick_windows,
+    _role,
+    _same_file,
+    _time_axis,
+    coordinator,
+    observation_key,
+    quicklook,
+)
+from glue_solar.sources.loaders.iris import QtIRISImporter, _GlueWCS, iris_data, keep_hpc_linked, last_directory
 from glue_solar.sources.loaders.scan import _is_supported_file, _primary_header, strip_pooch
+from glue_solar.sources.moments import _accepted
 
 __all__ = [
     "browse_iris",
@@ -21,6 +33,7 @@ __all__ = [
     "link_iris",
     "quicklook_iris",
     "read_iris_file",
+    "shift_pointing_iris",
 ]
 
 
@@ -130,6 +143,47 @@ def link_iris(session, data_collection):
     links are kept when a dataset is removed.
     """
     keep_hpc_linked(data_collection)
+
+
+def _ask_offset(data):
+    """The pointing offset typed for ``data``, in arcsec, from its current one; or None for Cancel."""
+    dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
+    dialog.setWindowTitle(f"Shift pointing of {data.label}")
+    form = QtWidgets.QFormLayout(dialog)
+    boxes = []
+    for name, label, value in zip(("dx", "dy"), ("Δx (longitude):", "Δy (latitude):"), data.coords.pointing_offset):
+        box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=2, minimum=-1000, maximum=1000, singleStep=0.1)
+        box.setSuffix("″")
+        box.setValue(value)
+        form.addRow(label, box)
+        boxes.append(box)
+    return tuple(box.value() for box in boxes) if _accepted(dialog, form) else None
+
+
+@layer_action(
+    "Shift pointing…",
+    single=True,
+    data=True,
+    tooltip="Offset this IRIS dataset's helioprojective longitude and latitude by a typed number of arcsec",
+)
+@messagebox_on_error("Could not shift the pointing")
+def shift_pointing_iris(data, data_collection):
+    """
+    Add a typed offset, in arcsec, to the helioprojective longitude and latitude of ``data`` and of the other windows of
+    its raster file, in place of any before (0, 0 removes it), and place everything in every viewer, the readouts, links
+    and a quicklook's point and raster overlays again; glue shows why for data without IRIS coordinates.
+    """
+    if not isinstance(data.coords, _GlueWCS):
+        raise ValueError(f"{data.label} has no IRIS coordinates to shift: shift the IRIS data against it instead.")
+    offset = _ask_offset(data)
+    if offset is None:
+        return
+    for other in data_collection:
+        if _same_file(data, other):  # one slit, one pointing
+            other.coords.pointing_offset = offset
+    for other in data_collection:  # as glue does after a change of links: its layers place their images again
+        data_collection.hub.broadcast(ExternallyDerivableComponentsChangedMessage(other))
+    coordinator(data_collection).place_again()
 
 
 def _observations(data_collection):
