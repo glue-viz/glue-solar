@@ -1,0 +1,1 @@
+Line moments can add irispy's error maps, and "Rebin…" bins raster windows, stacks, slit-jaw images and AIA cutouts with ``NDCube.rebin``.
