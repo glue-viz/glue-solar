@@ -158,6 +158,15 @@ value-range subset, "Slice Extraction" and an export each read every value, as t
 Datasets merged with glue's "Merge datasets" take glue's own colour limits, sampled from a few
 corners of the data, so set those by hand.
 
+A sit-and-stare raster loads every exposure this way. On OBSID 4000255147 (1600 exposures, a 2.1 GB
+file) and 3660259102 (1020 exposures, 1.5 GB), every window opened with "File -> Open Data Set"
+opens in about 0.6 s with under 0.1 GB more memory, and the quicklook of Mg II k 2796, stepped with
+F through every exposure and then through every slit row of its wavelength panel, keeps glue under
+1.8 GB, each step redrawing the images in 0.06 to 0.12 s and the spectrum in 0.18 s. Every window
+and the slit-jaw image ticked in the observation browser, with "Open quicklook", take about 4 s, as
+the colour limits of each are counted first, and peak at about 3 GB on 4000255147, most of it the
+file's pages read for those counts.
+
 Each loaded file stays open, once for each time windows are loaded from it (the observation browser
 loads the windows ticked in an observation at once), so glue-solar raises the number of files glue
 may have open to 10240, or the system's hard limit if lower. A file must not be overwritten, cut
