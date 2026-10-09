@@ -1,0 +1,1 @@
+"IRIS FITS (coordinates and Time)" exports derived 2-D maps with every pixel's helioprojective coordinates and their Time.
