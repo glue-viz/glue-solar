@@ -1388,6 +1388,32 @@ def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_pa
         assert _cmap_menu(restored.viewers[0][0]).currentText() == name
 
 
+def test_a_colormap_menu_names_the_layers_colormap_of_equal_colours(qtbot, tmp_path):
+    from echo.qt import connect
+
+    import sunpy.data.test
+
+    installed = connect._find_combo_data is glue_patches.find_combo_data
+    assert installed == glue_patches.needs_combo_match_workaround()  # probes echo's own function
+    assert not glue_patches.needs_combo_match_workaround(glue_patches.find_combo_data)
+    glue_solar.setup()
+    # sunpy's AIA 171 colormap has the colours of SUVI 171, listed before it, and of EUI 174
+    aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(aia)
+    assert _cmap_menu(app.new_data_viewer(ImageViewer, data=aia)).currentText() == "SDO AIA 171.0 Angstrom"
+    aia.style.preferred_cmap = None  # a Colormap, which glue cannot save yet (wp3-style-cmap)
+    app.save_session(str(tmp_path / "aia.glu"))
+    restored = GlueApplication.restore_session(str(tmp_path / "aia.glu"))
+    qtbot.addWidget(restored)
+    menu = _cmap_menu(restored.viewers[0][0])
+    assert menu.currentText() == "SDO AIA 171.0 Angstrom"
+    for i in range(menu.count()):  # each entry, picked after the one before it
+        menu.setCurrentIndex(i)
+        assert menu.currentText() == menu.itemText(i)
+
+
 def test_gamma_stretches_are_listed_and_restored(qtbot, tmp_path):
     glue_solar.setup()
     glue_solar.setup()
