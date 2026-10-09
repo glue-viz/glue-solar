@@ -1329,7 +1329,10 @@ class PathTool(BasePathSlicerMode):
             if placed is None:
                 continue
             (cid_x, px), (cid_y, py) = placed
-            count = sum(path.original_data is data for old in self._traces for path in old)
+            # the parent's diagrams made here, kept or deleted, and in the collection, such as a restored session's
+            # or another viewer's: a new number
+            known = {path for old in self._traces for path in old} | {d for d in collection if isinstance(d, PathData)}
+            count = sum(path.original_data is data for path in known)
             label = f"{data.label} [slice {count + 1}{'' if sampling == 'truncate' else ', ' + sampling}]"
             path = PathData(data, cid_x, px, cid_y, py, label=label, sampling=sampling)
             path.parent_viewer = self.viewer if data is state.reference_data else None  # the crosshair's

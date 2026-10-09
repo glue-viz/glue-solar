@@ -94,7 +94,8 @@ toolbar has:
   diagrams from it, with the saved sampling, as Enter does with a path drawn there. A saved session
   keeps the diagrams, each as its path, its dataset and its sampling, and they read their values
   from the dataset again as the session opens (see `Saving sessions`_); the restored path is not
-  drawn on the image, and "Show position on original path" is off on a restored diagram.
+  drawn on the image, "Show position on original path" is off on a restored diagram, closing the
+  viewer it was drawn in leaves the diagram's viewer open, and "Slope" on it starts a new table.
 - "Slope", a glue-solar mode in a path diagram's viewer ("Click points along a track on a
   distance-time diagram, then press Enter for its speed"): on a diagram with one time on each row,
   a slit-jaw image's frames or a sit-and-stare raster's exposures against the path, click points

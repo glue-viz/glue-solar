@@ -26,10 +26,10 @@ from glue.config import (
 )
 from glue.core import Data
 from glue.core.data_factories import load_data
-from glue.core.units import UnitConverter
 from glue.core.link_helpers import LinkSame
 from glue.core.roi import RectangularROI
 from glue.core.subset import RoiSubsetState
+from glue.core.units import UnitConverter
 from glue.plugins.tools.path_slicer.path_sliced_data_links import PathRelativeLink
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.profile.state import ProfileViewerState
@@ -1250,7 +1250,8 @@ def test_a_path_diagram_reopens_from_ecsv_and_from_a_session(qtbot, monkeypatch,
     np.testing.assert_allclose(table["lat"].to_value(u.arcsec), lat * 3600, rtol=0, atol=1e-6)
     np.testing.assert_allclose(table["distance"].to_value(u.arcsec), 0.1663 * np.arange(len(table)), rtol=1e-6)
     assert table["distance_km"][1].to_value(u.km) == pytest.approx(120.6143, rel=1e-6)
-    # opened on the cube, it makes the same diagrams again
+    # opened on the cube, it makes the same diagrams again, with the saved sampling
+    viewer.toolbar.tools["solar:path"].sampling = "truncate"
     _modes_entry(viewer, entries[1]).trigger()
     again, again_on_other = viewer.toolbar.tools["solar:path"]._traces[-1]
     assert again.label == "cube [slice 2, linear]"
@@ -1271,7 +1272,9 @@ def test_a_path_diagram_reopens_from_ecsv_and_from_a_session(qtbot, monkeypatch,
         restored = {data.label: data for data in app.data_collection if isinstance(data, PathData)}
         assert list(restored) == [path.label, on_other.label, again.label, again_on_other.label]
         for expected in (path, on_other):
-            _assert_same_diagram(restored[expected.label], expected)
+            got = restored[expected.label]
+            _assert_same_diagram(got, expected)
+            assert all(cid.parent is got for cid in got.pixel_component_ids + got.world_component_ids)
         [shown] = [shown for tab in app.viewers for shown in tab if shown.state.reference_data is restored[path.label]]
         assert shown.state.x_att is restored[path.label].pixel_component_ids[1]
         shown.figure.canvas.draw()
@@ -1279,6 +1282,10 @@ def test_a_path_diagram_reopens_from_ecsv_and_from_a_session(qtbot, monkeypatch,
         links = [link for link in app.data_collection.external_links if isinstance(link, PathRelativeLink)]
         pairs = {(link._slice_from, link._slice_to) for link in links}
         assert (restored[on_other.label], restored[path.label]) in pairs
+    # opened on the restored cube, numbered past its restored diagrams
+    [image] = [shown for tab in app.viewers for shown in tab if shown.state.reference_data.label == "cube"]
+    _modes_entry(image, entries[1]).trigger()
+    assert image.toolbar.tools["solar:path"]._traces[-1][0].label == "cube [slice 3, linear]"
 
 
 @pytest.mark.remote_data
