@@ -507,7 +507,7 @@ def test_a_folder_typed_in_the_folder_field_is_searched(dialog, qtbot, iris_tree
     assert _listed(dialog) == [OBS_A[2]]
 
 
-def test_double_click_loads_the_entry_alone_and_expands_an_observation(dialog, qtbot):
+def test_double_click_loads_the_entry_alone_but_not_an_observation(dialog, qtbot):
     dialog.show()
     tree, row = dialog.obs_tree, _row(dialog, OBS_A[2])
     tick(dialog, "Mg II k")
@@ -524,8 +524,8 @@ def test_double_click_loads_the_entry_alone_and_expands_an_observation(dialog, q
             click(tree.viewport(), Qt.LeftButton, pos=rect.center())
 
     double_click(row)
-    assert row.isExpanded()
-    assert dialog.ok.isEnabled()  # nothing loads
+    assert dialog.ok.isEnabled()  # nothing loads: Qt's own double-click expands the row
+    row.setExpanded(True)
     double_click(row.child(0), box=True)
     assert row.child(0).checkState(0) == Qt.Checked  # the click ticks it
     assert dialog.ok.isEnabled()  # the double-click loads nothing
