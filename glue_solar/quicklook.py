@@ -309,7 +309,8 @@ class Coordinator(HubListener):
         self.overlays = set()  # the observation keys whose raster overlays show (`footprint_on`, `step_on`)
         self._footprint = (None, None)  # footprint_on's last (raster, scan, slit-jaw) and answer
         self._before = {}  # point group -> its last state other than a slit-jaw point (see _to_raster)
-        self._kept = (None, None)  # a slit-jaw image clicked, and the point its click set or left (see _to_raster)
+        # a slit-jaw image clicked, the point its click set or left, and the viewer and frame clicked (see _to_raster)
+        self._kept = (None, None, None, None)
         self._outside = (None, None)  # a slit-jaw viewer clicked outside the raster, and the point its click left
         self._busy = False
         self._drag = None  # while a mouse button is down on a viewer: whether a point was clicked
@@ -473,6 +474,12 @@ class Coordinator(HubListener):
         self.group = group
         self._pin(state)
         self._to_raster(state)
+        # an Undo or Redo back to a slit-jaw click's point: under a raster master, its viewer back to the frame clicked
+        sji, clicked, viewer, frame = self._kept
+        master = self._master(observation_key(state.reference_data))
+        if state is clicked and viewer.state.reference_data is sji and _role(master) == "raster":
+            with self._writing():
+                self._set_slices(viewer, {0: frame})
         if self._drag:
             self._timer.start()
             return
@@ -528,7 +535,8 @@ class Coordinator(HubListener):
         """
         Make a click on a slit-jaw image of a quicklook the point of the quicklook's raster there, placed with the frame
         the clicked viewer shows (`sji_to_raster`). Under a raster time master that frame stays while the point is the
-        click's, rather than move to the time the click gave the raster. A click outside the raster leaves the point as
+        click's, rather than move to the time the click gave the raster, and an Undo or Redo back to the click's point
+        moves the viewer back to it. A click outside the raster leaves the point as
         it was, and the viewer's readout says so (`outside_raster`). A click on an image showing its frame axis, or
         outside a quicklook, stays a slit-jaw point.
         """
@@ -549,7 +557,8 @@ class Coordinator(HubListener):
                 self.group.subset_state = self._before.get(self.group, SubsetState())
             else:
                 self.group.subset_state = PixelSubsetState(raster, [slice(i, i + 1) for i in index] + [slice(None)])
-        self._kept = (sji, self.point)  # without a point the sliders keep driving the time
+        # without a point the sliders keep driving the time
+        self._kept = (sji, self.point, viewer, _sji_frame(viewer.state))
         self._outside = (viewer if index is None else None, self.group.subset_state)
 
     def outside_raster(self, viewer):
@@ -675,7 +684,7 @@ class Coordinator(HubListener):
         None past half its cadence (NO MATCH), in a gap of a master regridded on time, without a time axis, or for the
         slit-jaw image clicked while the point is the click's and a raster the master.
         """
-        kept, clicked = self._kept
+        kept, clicked, *_ = self._kept
         if data is kept and _role(master) == "raster" and getattr(self.group, "subset_state", None) is clicked:
             return None  # a slit-jaw master rules, and once the point moves the image clicked follows it
         follower_step = self._timing(data)[1]
