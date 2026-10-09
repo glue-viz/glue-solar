@@ -650,7 +650,7 @@ def _update_priority(self, name):
 
 
 def needs_profile_restore_workaround(method=_original_update_priority):
-    """Whether a Profile viewer state ranked by ``method`` fails to restore the display unit of an x axis but the first."""
+    """Whether a Profile viewer state ranked by ``method`` fails to restore an x unit not of the first world axis."""
     wcs = WCS(naxis=2)
     wcs.wcs.cunit = ["count", ""]  # on the last axis; astropy lists the units equivalent to a count quickly
     data = Data(x=np.zeros((2, 2)), coords=wcs, label="probe")
