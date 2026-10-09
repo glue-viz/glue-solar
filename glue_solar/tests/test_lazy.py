@@ -683,8 +683,8 @@ def test_pv_slices_and_subset_exports_of_lazy_data(monkeypatch, tmp_path, int16_
 
     from glue_solar import glue_patches
 
-    installed = pv_slicer._slice_from_path is glue_patches.pv_slice_from_path
-    assert installed == glue_patches.needs_pv_dask_workaround()  # probes glue-qt's own function
+    assert pv_slicer._slice_from_path is glue_patches.pv_slice_from_path  # always, probing on the first slice
+    assert glue_patches._pv_needs_workaround() == glue_patches.needs_pv_dask_workaround()  # glue-qt's own function
     assert not glue_patches.needs_pv_dask_workaround(glue_patches.pv_slice_from_path)
     exporter = next(exporter for exporter in data_exporter if exporter.label == "FITS (1 component/HDU)")
     installed = exporter.function is glue_patches.export_fits

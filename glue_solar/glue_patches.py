@@ -6,6 +6,7 @@ Each fix installs, or acts, only when a probe finds the bug, and names the upstr
 
 import builtins
 import os
+from functools import cache
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
@@ -177,9 +178,12 @@ def pv_slice_from_path(x, y, data, attribute, slc):
 
     glue-qt 0.4.2 passes the values it reads, here a dask array, to pvextractor, which takes anything but a NumPy
     array for a spectral cube and fails on its missing WCS. The slice reads the whole cube, as for eager data.
-    Retired once glue-qt passes NumPy values; no upstream fix exists yet.
+    The probe runs on the first slice, not at plugin load: pvextractor imports spectral-cube where it is installed
+    (0.3-0.4 s). Retired once glue-qt passes NumPy values; no upstream fix exists yet.
     """
-    return _original_slice_from_path(x, y, _NumpyValues(data), attribute, slc)
+    if _pv_needs_workaround():
+        data = _NumpyValues(data)
+    return _original_slice_from_path(x, y, data, attribute, slc)
 
 
 def needs_pv_dask_workaround(func=_original_slice_from_path):
@@ -192,8 +196,12 @@ def needs_pv_dask_workaround(func=_original_slice_from_path):
     return False
 
 
-if needs_pv_dask_workaround():
-    pv_slicer._slice_from_path = pv_slice_from_path
+@cache
+def _pv_needs_workaround():
+    return needs_pv_dask_workaround()
+
+
+pv_slicer._slice_from_path = pv_slice_from_path
 
 
 _original_fits_writer = gridded_fits.fits_writer

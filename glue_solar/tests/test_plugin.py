@@ -94,7 +94,7 @@ import sys
 import glue_solar
 
 glue_solar.setup()
-print(*[name for name in ("irispy", "sunpy.map", "ndcube", "fiasco") if name in sys.modules], "|")
+print(*[name for name in ("irispy", "sunpy.map", "ndcube", "fiasco", "spectral_cube") if name in sys.modules], "|")
 
 import sunpy.data.test
 import sunpy.map
