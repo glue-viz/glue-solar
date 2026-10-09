@@ -1,0 +1,1 @@
+Blinking two slit-jaw channels during playback shows each at the frame the time sync gives it.
