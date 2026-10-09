@@ -136,7 +136,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 
 **M1**
 
-- [ ] **M1** `wp0-release-tracking`: After each glue-core, glue-qt or astropy release past 1.27.0/0.4.2/8.0.1, raise floors and retire workarounds. astropy 8.0.2 carries the backport of a WCSAxes fix (merged on main 2026-09-11) for a wrong value at a second tick crossing of an arcsec longitude on one spine, which rolled IRIS views can show on 8.0.1: on its release, move D5's baseline and the `iris-plan-main` envs to it and check a rolled SJI. Done when each release has a line here naming its PRs, floors and retired workarounds.
+- [ ] **M1** `wp0-release-tracking`: After each glue-core, glue-qt or astropy release past 1.27.0/0.4.2/8.0.1, raise floors and retire workarounds. astropy 8.0.2 carries the backport of a WCSAxes fix (merged on main 2026-09-11) for a wrong value at a second tick crossing of an arcsec longitude on one spine, which rolled IRIS views can show on 8.0.1: on its release, move D5's baseline and the `iris-plan-main` envs to it and check a rolled SJI. astropy 8.0.0 and 8.0.1 bundle WCSLIB 8.6, whose `wcserr_set` leaks 64 B per pixel outside a -TAB table (about 0.1 MB per slit row stepped on a raster's λ–step panel, `wp10-l-resident-memory`); WCSLIB 8.9 (astropy main 777e811427) fixes it: raise the astropy floor to the first release bundling it. Done when each release has a line here naming its PRs, floors and retired workarounds.
 
 **L**
 
