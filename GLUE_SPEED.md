@@ -327,6 +327,7 @@ Computing the mask in a box but still returning a full-view array saves only abo
 
 - [x] Re-verified on current versions (irispy main 3352413, 2026-10-09: 7-13 ms/pt on 4000255147, 13.2 s per SJI 1400 screen inversion; the ambiguity is a plateau of about 6 exposures between 0.05" pointing jumps, not a full overlap; a numpy inverse was prototyped and closed as irispy #234: the user will not re-implement WCSLIB and accepts the cost, D54; design in `IRIS_PLAN_PROTOTYPES/irispy_designs_20261009.tar.gz`)
 - [x] Declined (user, 2026-10-09): no re-implementation of WCSLIB's inverse
+- [ ] Future work: a direct bilinear-cell solve in WCSLIB's own `tabvox` for 2-D tables (`wp0-wcslib-tab-inverse`)
 - [ ] Fixed upstream
 
 **Repository:** irispy (WCS construction); wcslib via astropy (tabs2x). **Confidence:** High for the cost and cause, medium for the gain.. **Verification:** Confirmed (links#3); the verifier provided the evidence for the cause. irispy main was not checked.
