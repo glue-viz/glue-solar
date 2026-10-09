@@ -12,7 +12,7 @@ from sunpy.visualization.colormaps import cmlist
 
 from glue_solar import glue_patches, lines, regrid, tools
 from glue_solar.quicklook import QuicklookImageViewer
-from glue_solar.sources import bursts, calibration, iris, line_ratio, maps, mg_features, moments, red_blue
+from glue_solar.sources import bursts, calibration, doppler, iris, line_ratio, maps, mg_features, moments, red_blue
 from glue_solar.sources.maps import _add_colormap
 
 from glue_solar.version import version as __version__
@@ -22,6 +22,7 @@ __all__ = [
     "__version__",
     "bursts",
     "calibration",
+    "doppler",
     "glue_patches",
     "iris",
     "line_ratio",
