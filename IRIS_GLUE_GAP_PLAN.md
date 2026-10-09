@@ -93,6 +93,7 @@ Settled by the user; reopen only with the user.
 - **D52:** User (2026-10-09), before a night away: the line-group items wait for irispy #209 (`wp5-irispy-line-database`); the SOT reader's shrunk test files go in irispy's own `irispy/data/test/sot/` in its draft PR; ticks the browser filter hides still load (#185); a Profile range sets the line moments wings for the dialog's pre-filled centre too (#180); after Redo (and Undo) of a slit-jaw click the slit-jaw viewer goes back to the clicked frame (#193).
 - **D53:** User (2026-10-09), light curves: 'Light curves at this point' (#208) adds 1D datasets, one Data (Time, value) per chosen raster window and per SJI channel, recomputed as the point moves and shown together in one datetime Scatter plot, so the time marker (#207) marks them, with an 'ECSV (with Time)' exporter for 1D data; #183's 'Light curve at the point' (a Profile of a following subset, one raster window) stays, since a subset cannot follow the point across SJI frames.
 - **D54:** User (2026-10-09), irispy fixes (#230-#233 and #236 merged 2026-10-09, #235 ready, #234 closed; #210 made glue-solar ready for #236's unit): each a draft PR on LM-SAL/irispy from a branch of origin/main in `~/Git/irispy-<branch>`, with a test and a changelog fragment named after its PR; the user reviews and merges. Small fixes: `dust-mask-scaled` (`apply_dust_mask` on memmap SJIs), `read-files-open-once`, `response-erfa-warning`, `example-02-fill`, `memmap-raster-unit` (unscaled FUV/NUV units on memmap rasters). Approved designs (study and Fable critique: `IRIS_PLAN_PROTOTYPES/irispy_designs_20261009.tar.gz`): `moments-background`, keyword-only `background_windows`/`background_degree` on `calculate_moments` so saturation is checked on the raw samples before the background is subtracted (the two-call path finds 0 of 839 saturated pixels on 3860258481 r00172-r00174), with separate commits masking pixels masked at every wavelength within the wings and adding einsum `optimize=True`; `raster-wcs-inverse` (a numpy re-implementation of wcslib's -TAB inverse, #234) was closed: the user (2026-10-09) will not re-implement WCSLIB and accepts the slow raster world-to-pixel (R8: 7-13 ms per point on a sit-and-stare, 13 s per SJI screen inversion). NaN-filled float rasters are dropped: glue-solar fills NaN itself (D17) and needs no irispy change.
+- **D55:** User (2026-10-09), macOS app: glue-solar gets a macOS app bundle (`wp9-l-macos-app`), built now and rebuilt at the end of the plan as its last deliverable. For the user's Mac only: unsigned, Apple Silicon, built locally into a .dmg holding the app beside an Applications shortcut, so it drags into /Applications; no signing, notarization or CI build. The recipe lives in glue-solar's repo and reuses glue-viz/glue-standalone-apps' PyInstaller spec and hooks (D18).
 
 ## Milestones
 
@@ -114,7 +115,7 @@ A milestone is done when it has no items left.
 - WP0: `wp0-qt68-macos-pass`
 - WP2: `wp2-l-moments-one-call`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP9: `wp9-l-deferred-recipes`
+- WP9: `wp9-l-macos-app`, `wp9-l-deferred-recipes`
 
 **M4**
 - WP0: `wp0-irispy-requests`, `wp0-restore-full-ci`, `wp0-core-image-artist-bugs`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-track-line-layers`, `wp0-qt-aggregate-slice`, `wp0-track-qt66`, `wp0-core-datetime-export`, `wp0-qt68-cocoa`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-optional-proposals`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`
@@ -281,6 +282,8 @@ Notes:
 Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides and recipes.
 
 **L**
+
+- [ ] **L** `wp9-l-macos-app`: A macOS app bundle of glue with glue-solar, irispy main and sunpy, from a PyInstaller recipe in glue-solar's repo built on glue-standalone-apps' `glue_app.spec` and hooks (D55): a build script makes `Glue Solar.app` and a .dmg with an Applications shortcut, in a fresh micromamba env. Done when the app, dragged into /Applications, opens an IRIS observation's quicklook on the user's Mac; rebuilt with the M4 releases.
 
 - [ ] **L** `wp9-l-deferred-recipes` (F037, F145): Document Ctrl+I as the FITS header viewer, and row/column cuts once glue's Slice profile ships. Done when both reproduce on 4000005156 Si IV.
 
