@@ -48,7 +48,7 @@ phase('Review')
 const review = await agent(`${RULES}\n\n${SPEC}\n\nTask: review the commit(s) on branch ${KEY} (git -C ${W} diff origin/main...HEAD) as a demanding senior reviewer; READ-ONLY on the worktree (mutation checks in a detached worktree under ${S}/review/, removed after). Check: the done-when (re-measure yourself); D18 (did glue already offer this?); correctness and edge cases; interactions with the coordinator, quicklook, existing tools and keys; tests fail when the feature is broken; docs accuracy; concision of code, comments and docs; over-engineering. Verify every finding yourself; report only real ones. Implementer's report:\n${impl ?? '(implementer failed)'}`,
   { label: `review:${KEY}`, phase: 'Review', model: 'fable', schema: FINDINGS })
 
-const real = (review?.findings ?? []).filter(f => f.severity !== 'style' || /unused|dead|duplicate|stale|verbose|concis|leak/i.test(f.problem))
+const real = (review?.findings ?? []).filter(f => f.severity !== 'style' || /unused|dead|duplicate|stale|verbose|concis|leak|format|line-length|characters/i.test(f.problem))
 log(`${KEY} review: ${review?.findings?.length ?? 0} findings, ${real.length} to fix`)
 let fix = null
 if (real.length) {
