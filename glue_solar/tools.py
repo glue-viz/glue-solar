@@ -3,6 +3,7 @@ Toolbar tools for glue's viewers.
 """
 
 import os
+import re
 from contextlib import nullcontext
 from functools import partial
 
@@ -1866,6 +1867,30 @@ def _ask_range(viewer, title, slider, *rows):
 # What `SaveSequenceTool` writes, by file name suffix; MP4 only where matplotlib finds ffmpeg
 _SEQUENCE_FILTERS = {".png": "PNG frames (*.png)", ".mp4": "MP4 movie (*.mp4)", ".gif": "GIF movie (*.gif)"}
 _MOVIE_FPS = 10
+# The lengths a scale bar takes, in arcsec
+_SCALE_BARS = (1, 2, 5, 10, 20, 50, 100, 200, 500, 1000)
+
+
+def _place_scale_bar(viewer, line, label):
+    """
+    Put ``line`` and ``label``, in data x and axes y, at the Image viewer's lower right, as a scale bar ending at 95 %
+    of the axes' width: the largest of `_SCALE_BARS` the right quarter of the view spans, at the angle an x pixel
+    spans on the sky (`sky_length`) at the slice shown, on average across the image through the view centre, as
+    `_arcsec_ratio` takes it, so a rolled or stretched image gets it too; hidden off the sky.
+    """
+    state, axes = viewer.state, viewer.axes
+    nx, ny = (state.reference_data.shape[att.axis] - 1 for att in (state.x_att, state.y_att))
+    y = np.clip((state.y_min + state.y_max) / 2, 0, ny)
+    per_pixel = (sky_length(viewer, [0, nx], [y, y])[1] or 0) / max(nx, 1)
+    (x0, _), (x1, _) = (axes.transAxes + axes.transData.inverted()).transform([(0.7, 0), (0.95, 0)])
+    length = max((n for n in _SCALE_BARS if n <= abs(x1 - x0) * per_pixel), default=None)
+    line.set_visible(length is not None)
+    label.set_visible(length is not None)
+    if length:
+        x0 = x1 - np.sign(x1 - x0) * length / per_pixel
+        line.set_data([x0, x1], [0.05, 0.05])
+        label.set_position(((x0 + x1) / 2, 0.065))
+        label.set_text(f'{length}"')
 
 
 @viewer_tool
@@ -1881,8 +1906,11 @@ class SaveSequenceTool(Tool):
     master's, stops; the slider moves as in playback, on the GUI thread, and each frame is saved once Qt has run the
     time sync, so the other viewers follow and the overlays are drawn; per-frame limits are off during the run, so
     every frame has the same colour limits. Ticked in the range dialog, 'UTC time on each frame' draws the frame's
-    time (`_frame_time`, to 0.01 s) at the image's lower left during the run only. Cancel keeps the frames saved so
-    far, a movie of them too, and the viewer returns to its slice and limits.
+    time (`_frame_time`, to 0.01 s) at the image's lower left during the run only, 'Frame numbers' the slider's index
+    and last index at its upper left (``frame 7/399``), and 'Scale bar' a bar of a round length in arcsec at its lower
+    right (`_place_scale_bar`), or, where the displayed axes are not a longitude and a latitude, a message in the
+    application's status bar. The file dialog offers a name from the reference data's label and the indices. Cancel
+    keeps the frames saved so far, a movie of them too, and the viewer returns to its slice and limits.
     """
 
     icon = "glue_filesave"
@@ -1910,14 +1938,15 @@ class SaveSequenceTool(Tool):
             if not ok:
                 return
         axis, slider = sliders[labels.index(label)]
-        timed = QtWidgets.QCheckBox("UTC time on each frame")
-        picked = _ask_range(viewer, "Save frames or movie", slider, (timed,))
+        boxes = [QtWidgets.QCheckBox(text) for text in ("UTC time on each frame", "Frame numbers", "Scale bar")]
+        picked = _ask_range(viewer, "Save frames or movie", slider, *[(box,) for box in boxes])
         if picked is None:
             return
-        (first, last), timed = picked, timed.isChecked()
+        (first, last), (timed, numbered, scaled) = picked, [box.isChecked() for box in boxes]
         ffmpeg = animation.writers.is_available("ffmpeg")
         filters = [text for suffix, text in _SEQUENCE_FILTERS.items() if suffix != ".mp4" or ffmpeg]
-        start = os.path.expanduser(rcParams["savefig.directory"])
+        name = re.sub(r"[^\w-]+", "_", f"{state.reference_data.label}_{first}-{last}")  # its suffix the filter's
+        start = os.path.join(os.path.expanduser(rcParams["savefig.directory"]), name)
         path, chosen = QtWidgets.QFileDialog.getSaveFileName(viewer, "Save frames or movie", start, ";;".join(filters))
         if not path:
             return
@@ -1946,6 +1975,20 @@ class SaveSequenceTool(Tool):
         # white edged in black, to read on any colormap
         style = {"color": "white", "path_effects": [withStroke(linewidth=2, foreground="black")]}
         stamp = figure.text(0.01, 0.01, "", transform=viewer.axes.transAxes, **style) if timed else None
+        top = slider.value_slice_center.maximum()
+        number = figure.text(0.01, 0.99, "", va="top", transform=viewer.axes.transAxes, **style) if numbered else None
+        bar = None
+        if scaled and _sky_coords(viewer) is None:
+            # the application's, which glue-qt's toolbar does not clear after the entry, as it does the viewer's
+            viewer.session.application.statusBar().showMessage(
+                "No scale bar: the displayed axes are not a longitude and a latitude"
+            )
+        elif scaled:
+            where = blended_transform_factory(viewer.axes.transData, viewer.axes.transAxes)
+            edged = {"color": "white", "path_effects": [withStroke(linewidth=5, foreground="black")]}
+            # unsnapped, its ends where measured, not on pixel centres
+            line = Line2D([], [], lw=3, solid_capstyle="butt", snap=False, transform=where, **edged)
+            bar = viewer.axes.add_line(line), viewer.axes.text(0, 0, "", ha="center", transform=where, **style)
         try:
             # FFMpegWriter evens out an odd frame size through the canvas' manager, which would resize the canvas, and
             # glue would zoom to it: without one only the figure changes, until the end
@@ -1959,6 +2002,10 @@ class SaveSequenceTool(Tool):
                     QtWidgets.QApplication.processEvents()  # the time sync, its overlays and Cancel, as in playback
                     if stamp is not None:
                         stamp.set_text(_frame_time(data, _shown_slice(state), 2))
+                    if number is not None:
+                        number.set_text(f"frame {index}/{top}")
+                    if bar is not None:
+                        _place_scale_bar(viewer, *bar)
                     if writer is None:
                         figure.savefig(f"{stem}_{index:04d}.png")  # as 'Save plot to file' does
                     else:
@@ -1968,8 +2015,9 @@ class SaveSequenceTool(Tool):
                         break
         finally:
             progress.deleteLater()
-            if stamp is not None:
-                stamp.remove()
+            for artist in [stamp, number, *(bar or ())]:
+                if artist is not None:
+                    artist.remove()
             state.slices = slices
             for layer in per_frame:
                 layer.stretch_global = False

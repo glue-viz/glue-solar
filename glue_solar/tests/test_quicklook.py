@@ -60,6 +60,7 @@ from glue_solar.tests.helpers import (
     select_point,
     shift,
 )
+from glue_solar.tools import sky_length
 
 SCAN = "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"
 
@@ -3220,10 +3221,12 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
             sji_viewer.findChildren(QtWidgets.QProgressDialog)[-1].cancel()
 
     sji_viewer.state.add_callback("slices", cancel)
+    offered = []
 
     def save(entry, name, typed="0 9", tick=False):
         type_in_dialog(monkeypatch, typed, tick)
-        monkeypatch.setattr(QtWidgets.QFileDialog, "getSaveFileName", lambda *args: (str(tmp_path / name), ""))
+        path = str(tmp_path / name)
+        monkeypatch.setattr(QtWidgets.QFileDialog, "getSaveFileName", lambda *args: offered.append(args[2]) or (path, ""))
         entries[entry].trigger()
 
     # frames 0 to 9, with the raster following
@@ -3235,6 +3238,7 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
     slider.button_forw.click()  # playing, which the export stops
     slider._play_timer.setInterval(1)
     save("Save frames or movie…", "sji.png")
+    assert offered == [str(tmp_path / "SJI_1400-3620258102-2021-09-05T00_18_33_0-9")]  # its suffix the filter's
     assert not slider._play_timer.isActive()
     assert exposures == [nearest_frame(raster, when) for when in times[:10]]
     # the viewer returns to its frame and per-frame limits
@@ -3247,15 +3251,33 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
         save("Save plot to file", "plot.png")
         np.testing.assert_array_equal(imread(tmp_path / f"sji_{frame:04d}.png"), imread(tmp_path / "plot.png"))
     assert sorted(path.name for path in tmp_path.glob("sji_*.png")) == [f"sji_{frame:04d}.png" for frame in range(10)]
-    # ticked, each frame has its time to 0.01 s, drawn during the export only
-    figure, drawn = sji_viewer.figure, []
-    savefig = figure.savefig
-    monkeypatch.setattr(
-        figure, "savefig", lambda *args: drawn.append([text.get_text() for text in figure.texts]) or savefig(*args)
-    )
+    # ticked, each frame has its time to 0.01 s, its index and a scale bar of the length it says on the sky, drawn
+    # during the export only
+    figure, axes, drawn = sji_viewer.figure, sji_viewer.axes, []
+    savefig, lines, texts = figure.savefig, list(axes.lines), list(axes.texts)
+
+    def record(*args):
+        [bar], [label] = [line for line in axes.lines if line not in lines], [t for t in axes.texts if t not in texts]
+        ends = axes.transData.inverted().transform(bar.get_transform().transform(np.column_stack(bar.get_data())))
+        arcsec = sky_length(sji_viewer, *ends.T)[1]
+        drawn.append(([text.get_text() for text in figure.texts], label.get_text(), arcsec))
+        savefig(*args)
+
+    monkeypatch.setattr(figure, "savefig", record)
     save("Save frames or movie…", "utc.png", tick=True)
-    assert drawn == [[f"{utc(when)[:-1]} UTC"] for when in times[:10]]
-    assert (figure.texts, sji_viewer.state.slices) == ([], (9, 0, 0))
+    last, length = sji.shape[0] - 1, drawn[0][1]
+    assert drawn == [
+        ([f"{utc(when)[:-1]} UTC", f"frame {frame}/{last}"], length, pytest.approx(float(length[:-1])))
+        for frame, when in enumerate(times[:10])
+    ]
+    assert (figure.texts, list(axes.lines), list(axes.texts), sji_viewer.state.slices) == ([], lines, texts, (9, 0, 0))
+    # off the sky, as on the spectrogram, a status message says why there is no scale bar
+    spectrogram = viewers["spectrogram"]
+    button = spectrogram.toolbar.widgetForAction(spectrogram.toolbar.actions["save"])
+    type_in_dialog(monkeypatch, "0 1", True)
+    next(action for action in button.menu().actions() if action.text() == "Save frames or movie…").trigger()
+    message = "No scale bar: the displayed axes are not a longitude and a latitude"
+    assert bare_app.statusBar().currentMessage() == message
     monkeypatch.setattr(figure, "savefig", savefig)
     save("Save frames or movie…", "sji.gif")
     with Image.open(tmp_path / "sji.gif") as gif:
