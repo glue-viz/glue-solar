@@ -3661,6 +3661,49 @@ def test_one_undo_reverts_a_slit_jaw_click(bare_app, qtbot, irispy_test_files):
     assert not undo.isEnabled()
 
 
+def test_redo_of_a_slit_jaw_click_puts_back_its_raster_pixel(bare_app, qtbot, irispy_test_files):
+    from glue.core.command import ApplySubsetState
+
+    from glue_solar import glue_patches
+
+    installed = ApplySubsetState.do is glue_patches.apply_subset_state
+    assert installed == glue_patches.needs_redo_workaround()  # probes glue's own method
+    assert not glue_patches.needs_redo_workaround(glue_patches.apply_subset_state)
+
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    undo, redo = bare_app._actions["undo"], bare_app._actions["redo"]
+    qtbot.wait(20)
+    before = sliders(bare_app, viewers)["point"]
+    (x, y), index = clicked(sji_viewer, raster, 0, 30)
+    select_point(sji_viewer, x, y)
+    qtbot.wait(20)
+    point = (raster.label, (*index, None))
+    assert sliders(bare_app, viewers)["point"] == point
+    # the time moves on to another frame, in which the same click takes another exposure
+    for _ in range(3):
+        press(sji_viewer, Qt.Key_F)
+    qtbot.wait(20)
+    frame = sji_viewer.state.slices[0]
+    assert sliders(bare_app, viewers)["point"] == (raster.label, (index[0] + 3, index[1], None))
+    assert sji_to_raster(sji, frame, x, y, raster) not in (index, None)
+    undo.trigger()
+    qtbot.wait(20)
+    assert sliders(bare_app, viewers)["point"] == before
+    assert sji_viewer.state.slices[0] == frame
+    # Redo puts back the raster pixel the click gave, at once: no slit-jaw point in between; the frame shown stays
+    updates = SubsetUpdates(bare_app.data_collection.hub)
+    redo.trigger()
+    qtbot.wait(20)
+    assert sliders(bare_app, viewers)["point"] == point
+    assert sji_viewer.state.slices[0] == frame
+    assert updates.counts == {raster.label: 1, sji.label: 1}
+    undo.trigger()
+    qtbot.wait(20)
+    assert sliders(bare_app, viewers)["point"] == before
+
+
 def arcsec_read_out(viewer, x, y):
     """The angles the viewer's mouse-over readout gives at pixel ``x, y``, in arcsec."""
     text = viewer.toolbar.tools["solar:cursor_readout"].describe(x, y)
