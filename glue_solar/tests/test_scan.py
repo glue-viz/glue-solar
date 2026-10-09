@@ -90,6 +90,16 @@ def test_stop_ends_the_scan_while_it_lists_the_files(iris_tree, monkeypatch):
     assert len(listed) == 1  # and the rest of the tree is not walked
 
 
+def test_report_reaches_100_only_once_every_file_is_read(iris_tree):
+    reports, stop = [], threading.Event()
+    scan_directory(iris_tree, report=reports.append)
+    assert reports[-1] == 100
+    reports.clear()
+    stop.set()  # before a file is listed
+    assert scan_directory(iris_tree, stop=stop, report=reports.append) == []
+    assert reports == []
+
+
 def test_non_recursive_only_sees_top_level(iris_tree):
     obs = {o.obsid: o for o in scan_directory(iris_tree, recursive=False)}
     assert obs[OBS_A[2]].rasters == []  # rasters live in a subdirectory

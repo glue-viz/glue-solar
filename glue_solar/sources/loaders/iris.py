@@ -776,10 +776,9 @@ class QtIRISImporter(QtWidgets.QDialog):
         self._busy(False)
         self.observations = observations
         self.populate()
-        if self._stop.is_set():
+        if self.progress.value() < 100:  # Stop broke the scan off before it read every file
             self.progress.setFormat("Scan stopped at %p% of the files: observations may be missing or incomplete")
             return
-        self.progress.setValue(100)
         if skipped and not note:
             note = f"Skipped {len(skipped)} raster file(s) that are not Level 2"
         self.progress.setFormat(note or "%p%")

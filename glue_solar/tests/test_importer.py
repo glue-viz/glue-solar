@@ -391,6 +391,25 @@ def test_stop_lists_what_the_scan_found_so_far(qtbot, monkeypatch, iris_tree):
     assert dialog.cancel.text() == "Cancel"
 
 
+def test_stop_once_every_header_is_read_lists_the_whole_folder(qtbot, monkeypatch, iris_tree):
+    from glue_solar.sources.loaders import scan
+
+    dialog = QtIRISImporter()
+    qtbot.addWidget(dialog)
+    describe = scan._obsid_description
+
+    def stop_then_describe(obsid):  # OBS_C's archive has no header to describe it, so after the last one is read
+        from_the_worker(dialog.cancel, "click")
+        return describe(obsid)
+
+    monkeypatch.setattr(scan, "_obsid_description", stop_then_describe)
+    dialog.set_directory(iris_tree)
+    scanned(qtbot, dialog)
+    assert dialog.obs_tree.topLevelItemCount() == 3
+    assert dialog.progress.value() == 100
+    assert dialog.progress.format() == "Skipped 1 raster file(s) that are not Level 2"
+
+
 def test_closing_the_dialog_drops_the_scan(qtbot, monkeypatch, iris_tree):
     dialog = QtIRISImporter()
     qtbot.addWidget(dialog)

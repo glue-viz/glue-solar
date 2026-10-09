@@ -164,7 +164,7 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None):
     stop : `threading.Event`, optional
         Once set, ends the scan between files, or while it lists them, with what it found so far.
     report : callable, optional
-        ``report(percent)`` with the percentage of the files read, before each file.
+        ``report(percent)`` with the percentage of the files read, before each file, and 100 once every file is read.
 
     Returns
     -------
@@ -173,6 +173,7 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None):
     root = Path(root)
     skipped = [] if skipped is None else skipped
     stop = threading.Event() if stop is None else stop
+    report = report or (lambda percent: None)
     paths = itertools.takewhile(lambda _: not stop.is_set(), root.rglob("*") if recursive else root.iterdir())
     found = {}
     headers = []
@@ -180,8 +181,7 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None):
     visible = (p for p in paths if not any(part.startswith(".") for part in p.relative_to(root).parts))
     files = sorted(p for p in visible if p.is_file())
     for n, path in enumerate(files):
-        if report is not None:
-            report(100 * n // len(files))
+        report(100 * n // len(files))
         if stop.is_set():
             break
         name = strip_pooch(path.name)
@@ -205,6 +205,9 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None):
         key = _key_from_name(name) or _key_from_header(header)
         if key is not None:
             headers.append((path, name, key, header))
+    else:
+        if files or not stop.is_set():  # unless a Stop cut the listing short of any file
+            report(100)  # a Stop from now on leaves nothing out
     # IRIS headers first so pointing/description come from the instrument, not the AIA cutout
     raster_names = set()
     for path, name, key, header in sorted(
