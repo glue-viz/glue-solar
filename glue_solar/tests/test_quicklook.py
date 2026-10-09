@@ -3064,13 +3064,14 @@ def test_a_loop_plays_every_nth_frame_round_or_back_and_forth(bare_app, qtbot, m
     type_in_dialog(monkeypatch, "±5", every=3)
     menu_action(sji_viewer, "Loop…").trigger()
     assert play(qtbot, sji_viewer, "button_forw", 9)[:9] == [33, 25, 28, 31, 34, 25, 28, 31, 34]
-    # bouncing, back from the last frame played, 34, and on again from 25, each played once; the raster follows
+    # bouncing from outside the loop: from 25 forwards, back from the last frame played, 34, and on again from 25,
+    # each played once; the raster follows
     opened = type_in_dialog(monkeypatch, "25 35", tick=True, every=3)
     menu_action(sji_viewer, "Loop…").trigger()
     assert opened == [("25 35", 3, False)]
-    sji_viewer.state.slices = (25, 0, 0)
+    sji_viewer.state.slices = (40, 0, 0)
     shown = play(qtbot, sji_viewer, "button_forw", 10)
-    assert shown[:10] == [28, 31, 34, 31, 28, 25, 28, 31, 34, 31]
+    assert shown[:10] == [25, 28, 31, 34, 31, 28, 25, 28, 31, 34]
     frames = sji[sji.id["Time"]][:, 0, 0]
     assert check_follower(bare_app, qtbot, frames[shown[-1]], raster, viewers["spectrogram"])
     # +- for ±, cut to the first frame; the dialog opens on the loop, which a refusal keeps

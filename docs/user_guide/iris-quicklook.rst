@@ -159,13 +159,15 @@ scans (a viewer showing that axis has no such slider). It asks for the first and
 to play, such as ``100 120``, or ``±10`` (or ``+-10``) for the 10 either side of the current one,
 cut to the data's range, starting from the current loop or else the whole range: the slider's
 play buttons then go round those, both included, from the first forwards or the last backwards when
-the slider is outside them. "Play every Nth index" plays every Nth from the first, such as 100, 103,
-… 118 for 3, then 100 again; ticking "Bounce" plays back and forth instead, turning at the last
-index it reaches at either end (118, 115, … 100, 103, …), each played once. Clicked again while it
-plays, glue's play button plays faster: a step every 0.5 s, 0.25 s, 0.17 s and so on. Give the
-whole range, every index and no bounce to play everything again; the loop also ends when glue
-rebuilds the slider, for other data or axes. Playing the time master's slider moves the other panels
-at each step, so to play a slit-jaw viewer with the raster following, make it the time master first.
+the slider is outside them. "Play every Nth index" plays every Nth on from the current one, and from
+the first again past the end, such as 100, 103, … 118 for 3, then 100 again; ticking "Bounce" plays
+back and forth instead, turning at the last index it reaches at either end
+(118, 115, … 100, 103, …), each played once. Clicked again while it plays, glue's play button plays
+faster: a step every 0.5 s, 0.25 s, 0.17 s and so on (with Bounce, in its backward half the forward
+button turns it forward instead). Give the whole range, every index and no bounce to play everything
+again; the loop also ends when glue rebuilds the slider, for other data or axes. Playing the time
+master's slider moves the other panels at each step, so to play a slit-jaw viewer with the raster
+following, make it the time master first.
 Closing a viewer stops its playback, which glue-qt 0.4.2 would leave running.
 
 "Set blink partner here" and "Blink" in the "Coordinate" menu alternate a viewer between two
