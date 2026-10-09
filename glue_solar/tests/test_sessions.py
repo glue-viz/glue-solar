@@ -1,6 +1,6 @@
 """
 Sessions keep the coordinates and colormaps of every kind of dataset glue-solar makes from IRIS data, on irispy's test
-files, and the colormap of a sunpy map; they refer to the files IRIS data are read from.
+files, a stack's scans on other data, and the colormap of a sunpy map; they refer to the files IRIS data are read from.
 """
 
 import json
@@ -26,12 +26,12 @@ import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.regrid import north_up, rebin, regrid_on_time
-from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
+from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, link_hpc, raster_data
 from glue_solar.sources.loaders.lazy import LazyData
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments
 from glue_solar.tests.helpers import load_selected, scanned
-from glue_solar.tests.test_quicklook import SCAN
+from glue_solar.tests.test_quicklook import SCAN, SNS, drifting_stack
 from glue_solar.tools import _pointing
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1330_t000.fits"
@@ -92,6 +92,22 @@ def test_a_session_restores_a_moments_map_on_its_raster_steps(irispy_test_files)
         for cid, expected in zip(restored.world_component_ids, maps.world_component_ids, strict=True):
             assert cid.label == expected.label
             np.testing.assert_allclose(restored[cid], maps[expected], rtol=0, atol=1e-9)
+
+
+def test_a_session_restores_the_scans_link_hpc_gives_a_stack(tmp_path, irispy_test_files):
+    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    times = sji[sji.id["Time"]].copy()
+    times[3] = np.datetime64("NaT", "ns")  # a frame without a time, as in the gaps regrid_on_time leaves
+    sji.update_components({sji.id["Time"]: times})
+    stack, _ = drifting_stack(tmp_path, irispy_test_files)
+    collection = DataCollection([sji, stack])
+    collection.add_link(link_hpc(collection))
+    scans = sji[stack.id["Scan"]]
+    assert set(np.unique(np.delete(scans, 3, axis=0))) == {0, 1}
+    assert np.isnan(scans[3]).all()
+    for restored in twice(collection):
+        np.testing.assert_array_equal(restored[0][restored[1].id["Scan"]], scans)
+        assert link_hpc(restored) == []
 
 
 def test_a_session_restores_the_metadata_of_a_raster_and_a_slit_jaw_image(irispy_test_files):

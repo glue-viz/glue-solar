@@ -1261,7 +1261,9 @@ def _placed(viewer, data, x, y):
     """
     The two pixel components of ``data`` along which the path of samples ``x, y`` on the Image viewer's displayed axes
     runs, each with the path's positions along it (NaN where the path leaves ``data``), through glue's links from the
-    reference data at the viewer's slices; None if glue cannot place them from the reference data.
+    reference data at the viewer's slices; None if glue cannot place them from the reference data. A stack's scan,
+    its first axis, which `~glue_solar.sources.loaders.iris.link_hpc` makes the one nearest the time shown, is not
+    along the path.
     """
     state = viewer.state
     if data is state.reference_data:
@@ -1269,7 +1271,8 @@ def _placed(viewer, data, x, y):
     pixel = [np.full(x.shape, float(getattr(s, "center", s))) for s in state.slices]
     pixel[state.x_att.axis], pixel[state.y_att.axis] = x, y
     placed = []
-    for cid in data.pixel_component_ids:
+    first = 1 if any(cid.label == "Scan" for cid in data.world_component_ids) else 0
+    for cid in data.pixel_component_ids[first:]:
         try:
             values, axes = translate_pixel(state.reference_data, pixel, cid)
         except Exception:  # noqa: BLE001 - IncompatibleAttribute, or glue's bare Exception for other components

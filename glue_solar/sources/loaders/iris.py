@@ -1,5 +1,6 @@
 import base64
 import gzip
+import inspect
 import io
 import itertools
 import json
@@ -666,15 +667,41 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None)
     return result
 
 
+class _ScanAt:
+    """
+    A stack's ``Scan`` at each index along another dataset's first axis, its frames, exposures or steps (`link_hpc`),
+    and NaN off it: ``scans``. Saved in sessions.
+    """
+
+    __name__ = "nearest_scan"  # glue's name of a link function, as its own link helpers set it
+    __signature__ = inspect.signature(lambda index: None)  # one input to glue and its link editor, not self too
+
+    def __init__(self, scans):
+        self.scans = np.asarray(scans, dtype=float)
+
+    def __call__(self, index):
+        index = np.round(np.asarray(index, dtype=float))
+        inside = (index >= 0) & (index < len(self.scans))  # not NaN
+        return np.where(inside, self.scans[np.where(inside, index, 0).astype(int)], np.nan)
+
+    def __gluestate__(self, context):
+        return {"scans": self.scans.tolist()}
+
+    @classmethod
+    def __setgluestate__(cls, rec, context):
+        return cls(rec["scans"])
+
+
 def link_hpc(data_collection):
     """
     Links pairing the helioprojective longitude and latitude of every IRIS dataset, and of any other dataset such as
-    a sunpy map, with those of the first IRIS dataset.
+    a sunpy map, with those of the first IRIS dataset, and giving every stack of raster scans its ``Scan`` on each
+    IRIS dataset with a ``Time`` but a stack.
 
     Datasets are matched by world axis physical type, not by component name. IRIS datasets are all in arcsec and
     linked with `~glue.core.link_helpers.LinkSame`; others, such as a sunpy map in degrees, with
     `~glue.core.link_helpers.LinkSameWithUnits`, which converts. Without IRIS data nothing is linked: glue's own
-    WCS autolinker links sunpy maps to each other. No link involves time, so a slit-jaw image frame is placed with
+    WCS autolinker links sunpy maps to each other. No link pairs times, so a slit-jaw image frame is placed with
     its own pointing. Pairs that are already linked, either way round, are skipped, so calling this again after
     loading more data is safe. The caller adds the links::
 
@@ -684,10 +711,18 @@ def link_hpc(data_collection):
     takes 0.3 s for the 70 links of 36 datasets but 4 s for the 1260 links of every pair. Removing the first
     dataset drops the links of all the others; `keep_hpc_linked` links them again.
 
+    A stack's pixel at a place depends on its scan, each with its own pointing (`stack_wcs`), so the frames, exposures
+    or steps of each IRIS dataset with a ``Time`` but a stack get the scan nearest their time, however far, and those
+    without a time none, scans timed by their middle raster step as the quicklook times them: a
+    `~glue.core.component_link.ComponentLink` from the dataset's first pixel axis to the stack's ``Scan``.
+
     Returns
     -------
-    list of `~glue.core.link_helpers.LinkSame` and `~glue.core.link_helpers.LinkSameWithUnits`
+    list of `~glue.core.link_helpers.LinkSame`, `~glue.core.link_helpers.LinkSameWithUnits` and
+    `~glue.core.component_link.ComponentLink`
     """
+    from glue_solar.quicklook import _times, nearest  # which imports this module
+
     linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in data_collection.links}
     anchors, links = {}, []
     # IRIS datasets first, so that the first of them is the one every dataset links to
@@ -701,6 +736,21 @@ def link_hpc(data_collection):
                 anchor = anchors.setdefault(physical_type, cid) if iris else anchors.get(physical_type, cid)
                 if anchor is not cid and frozenset((anchor, cid)) not in linked:
                     links.append((LinkSame if iris else LinkSameWithUnits)(anchor, cid))
+    datasets = [data for data in data_collection if isinstance(data.coords, _GlueWCS)]
+    scans = {data: cid for data in datasets for cid in data.world_component_ids if cid.label == "Scan"}
+    # ponytail: a link per stack and other dataset, not a star: 104 for 8 stacks and 13 slit-jaw images add 0.03 s to
+    # glue's link rediscovery at each change; fewer if that grows
+    for stack, scan in scans.items():
+        if stack.find_component_id("Time") is None:  # a stack's line moments
+            continue
+        times = _times(stack, stack.shape[1] // 2)  # whose indices are the scan numbers (stack_wcs)
+        for data in datasets:
+            frame = data.pixel_component_ids[0]
+            if data in scans or frozenset((scan, frame)) in linked or data.find_component_id("Time") is None:
+                continue
+            when = _times(data, 0)
+            nearby = np.where(np.isnat(when), np.nan, nearest(when, times)[0])  # none for a frame without a time
+            links.append(ComponentLink([frame], scan, using=_ScanAt(nearby)))
     return links
 
 

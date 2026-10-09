@@ -2008,6 +2008,23 @@ def repointed(path, irispy_test_files, step=0.0, drift=0.0, roll=0.0):
     return path
 
 
+def drifting_stack(tmp_path, irispy_test_files):
+    """
+    A stack of the sit-and-stare fixture's raster made a scan, and a copy drifting 0.1 arcsec north per step timed
+    half the scan later, and each scan on its own: the fixture's first slit-jaw frame is nearest the first scan by its
+    middle step, its last the second.
+    """
+    paths = [
+        repointed(tmp_path / SNS.format(f"raster_t000_r0000{i}"), irispy_test_files, step=0.3, drift=0.1 * i)
+        for i in range(2)
+    ]
+    [stack] = raster_data(paths, ["Si IV 1403"], stack=True)
+    times = stack[stack.id["Time"]].copy()
+    times[1] += (times.max() - times.min()) / 2
+    stack.update_components({stack.id["Time"]: times})
+    return stack, [data for path in paths for data in raster_data([path], ["Si IV 1403"])]
+
+
 def test_sji_to_raster_on_a_sit_and_stare(tmp_path, irispy_test_files):
     bundled, sji = sit_and_stare(irispy_test_files)
     # and a copy whose rolled slit drifts north: each exposure's slit is its own
