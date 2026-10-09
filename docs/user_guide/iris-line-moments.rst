@@ -123,3 +123,35 @@ before the next use.
 Glue says why, and adds nothing, for fewer than two attributes of 2-D maps selected, maps of
 different shapes or coordinates or in different units, and a table that cannot be read, has fewer
 than two columns, or holds a ratio irispy cannot map from, such as one that is not monotonic.
+
+.. _glue_solar_users_guide_exporting_derived_data:
+
+Exporting derived data
+----------------------
+
+To save a map with its coordinates, such as the line moments, a line ratio, a red-blue asymmetry or
+the Mg II features, choose "Export Data/Subsets" in glue's toolbar, or "Export data values" from the
+map's right-click menu, and "IRIS FITS (coordinates and Time)". As with glue's "FITS (1
+component/HDU)", each attribute is an image named after it, with its unit in ``BUNIT``, and here
+also the observation's ``OBSID`` and ``STARTOBS`` and the map's coordinates as a FITS-TAB WCS: the
+helioprojective longitude and latitude of every pixel as glue gives them, shifted pointing included,
+in degrees, in the ``WCS-TABLE`` extension, with the observer and time of their frame. A ``Time``
+attribute is the ``TIME`` image, seconds since its ``DATEREF``, UTC. astropy reads them back, and
+with sunpy imported gives positions in the observer's helioprojective frame::
+
+    import astropy.units as u
+    import sunpy.coordinates  # noqa: F401
+    from astropy.io import fits
+    from astropy.time import Time
+    from astropy.wcs import WCS
+
+    with fits.open("moments.fits") as hdus:
+        wcs = WCS(hdus["INTENSITY"].header, fobj=hdus)
+        position = wcs.pixel_to_world(slit, step)  # FITS order: the fastest axis first
+        # for a map with a Time attribute
+        times = Time(hdus["TIME"].header["DATEREF"], scale="utc") + hdus["TIME"].data * u.s
+
+``glue_solar.sources.iris.export_iris_fits(filename, data)`` writes the file in glue's terminal too.
+Only 2-D maps on helioprojective coordinates export so: glue says why for a raster window, a
+slit-jaw image or other data, which glue's "FITS (1 component/HDU)" writes without their IRIS
+coordinates.
