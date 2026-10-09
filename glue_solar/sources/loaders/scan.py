@@ -276,7 +276,7 @@ def find_observation_files(directory, start=None, end=None, pattern=None, recurs
     un-extracted archives.
 
     Pass the same time as ``start`` and ``end`` for the observation running at that time, and a ``pattern`` such
-    as ``"*raster*"`` for only its rasters.
+    as ``"*_raster_t*"`` for only its rasters.
 
     Returns
     -------

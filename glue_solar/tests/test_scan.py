@@ -206,7 +206,7 @@ def days_tree(tmp_path):
         ("iris_l2_20130901_230000_4000000003_SJI_1400_t000.fits", "2013-09-01T23:00:00", "2013-09-02T01:00:00"),
         ("iris_l2_20130902_163935_4000255147_SJI_1400_t000.fits", "2013-09-02T16:39:35", "2013-09-02T17:58:48"),
         ("iris_l2_20130903_010000_4000000004_SJI_1400_t000.fits", "2013-09-03T01:00:00", "2013-09-03T02:00:00"),
-        ("sparse.fits", "2013-08-31T12:00:00", "2013-08-31T13:00:00"),  # no stamp in its name
+        ("sparse.fits", "2013-09-03T12:00:00", "2013-09-03T13:00:00"),  # no stamp in its name
     ):
         obsid = name[24:34] or "4000000006"
         header = {"TELESCOP": "IRIS", "INSTRUME": "SJI", "OBSID": obsid, "STARTOBS": start, "ENDOBS": end}
