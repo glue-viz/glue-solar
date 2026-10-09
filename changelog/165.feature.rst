@@ -1,0 +1,1 @@
+Path diagrams can sample the nearest pixel or interpolate linearly beside glue's truncation, chosen in a Path sampling submenu.
