@@ -154,7 +154,7 @@ class _NorthUp(BaseWCSWrapper):
         x, y, t = np.broadcast_arrays(x, y, t)
         lon, lat = self._tan.pixel_to_world_values(x, y)
         time = np.interp(unbroadcast(t), self._frames, self._times, left=np.nan, right=np.nan)
-        return ((np.asarray(lon) + 180) % 360 - 180) * 3600, np.asarray(lat) * 3600, np.broadcast_to(time, t.shape)
+        return np.asarray(lon) * 3600, np.asarray(lat) * 3600, np.broadcast_to(time, t.shape)
 
     def world_to_pixel_values(self, lon, lat, time):
         lon, lat, time = np.broadcast_arrays(lon, lat, time)
@@ -174,9 +174,10 @@ def north_up(data):
     Raises
     ------
     ValueError
-        For data without a helioprojective longitude and latitude and a time for each frame, such as a raster.
+        For data without a helioprojective longitude and latitude and a time for each frame, such as a raster, or
+        without a pixel scale, such as a north-up grid.
     """
-    if data.ndim != 3 or not _placeable(data):
+    if data.ndim != 3 or not _placeable(data) or "CDELT1" not in data.meta:
         raise ValueError(f"{data.label} is not a slit-jaw image or aligned AIA cutout, whose frames have a pointing.")
     nt, ny, nx = data.shape
     # the corners of every frame: its edges are great circles, which a gnomonic projection keeps straight

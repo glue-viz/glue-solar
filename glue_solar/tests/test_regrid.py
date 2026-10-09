@@ -309,8 +309,9 @@ def test_north_up_shows_a_rolled_slit_jaw_image_north_up(app, tmp_path):
         expected = np.where(inside, np.asarray(sji[cid])[frame][np.clip(sy, 0, ny - 1), np.clip(sx, 0, nx - 1)], np.nan)
         np.testing.assert_allclose(st, frame, atol=1e-9)
         np.testing.assert_array_equal(viewer.state.layers[1].get_sliced_data(), expected)
-    with pytest.raises(ValueError, match="not a slit-jaw image or aligned AIA cutout"):
-        north_up(Data(label="plain", x=np.zeros((3, 4, 5))))
+    for other in (Data(label="plain", x=np.zeros((3, 4, 5))), grid):
+        with pytest.raises(ValueError, match="not a slit-jaw image or aligned AIA cutout"):
+            north_up(other)
 
 
 def test_north_up_steps_through_irispys_slit_jaw_image(app, tmp_path, irispy_test_files):
@@ -339,3 +340,12 @@ def test_north_up_steps_through_irispys_slit_jaw_image(app, tmp_path, irispy_tes
     assert times == [{grid.world_component_ids[0], sji.world_component_ids[0]}]
     with pytest.raises(ValueError, match="not a slit-jaw image or aligned AIA cutout"):
         north_up(raster)
+
+
+@pytest.mark.remote_data
+def test_north_up_shows_an_aia_cutout_north_up(irispy_data):
+    [path] = [p for p in irispy_data("iris_l2_20250519_165924_3640107442_cutout_SDO.tar.gz") if p.endswith("_171.fits")]
+    aia = image_data(path)
+    grid = north_up(aia)
+    assert grid.shape[0] == aia.shape[0]
+    assert abs(north_angle(aia, grid, 0)[0]) < 0.001
