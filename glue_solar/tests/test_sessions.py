@@ -1,12 +1,16 @@
 """
 Sessions keep the coordinates and colormaps of every kind of dataset glue-solar makes from IRIS data, on irispy's test
 files, the links `link_hpc` gives, the colormap of a sunpy map, and a quicklook's time master and point; they refer to
-the files IRIS data are read from, so a quicklook's stays small, and two quicklooks restore twice alike.
+the files IRIS data are read from, so a quicklook's stays small, and two quicklooks restore twice alike; glue-solar keeps
+the last one as glue closes, which its menu entry restores.
 """
 
 import json
+import os
 import shutil
 
+import dask.array as da
+import glue.config
 import numpy as np
 import pytest
 from glue.core import Data, DataCollection
@@ -19,7 +23,7 @@ from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from matplotlib import colormaps
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QDialog, QFileDialog, QInputDialog
+from qtpy.QtWidgets import QDialog, QFileDialog, QInputDialog, QMessageBox
 
 import astropy.units as u
 from astropy.wcs import WCS
@@ -476,3 +480,84 @@ def test_two_quicklooks_restore_twice_from_their_files(qtbot, monkeypatch, tmp_p
                 qtbot.waitUntil(lambda: responses(opened, tab)[0] == responses(app, tab)[0])
                 for got, expected in zip(responses(opened, tab)[1], responses(app, tab)[1], strict=True):
                     np.testing.assert_allclose(got, expected, rtol=1e-12)
+
+
+def plugin_action(app, label):
+    """The entry ``label`` of ``app``'s Plugins menu."""
+    return next(action for action in app._actions["plugins"] if action.text() == label)
+
+
+def test_a_quicklook_kept_as_glue_quits_restores_from_the_menu(qtbot, monkeypatch, tmp_path, iris_tree):
+    def load(dialog):
+        qtbot.addWidget(dialog)
+        scanned(qtbot, dialog)
+        _row(dialog, OBS_A[2]).setCheckState(0, Qt.Checked)
+        dialog.stack.setChecked(True)
+        load_selected(qtbot, dialog)
+        return QDialog.Accepted
+
+    monkeypatch.setattr(glue.config, "CFG_DIR", str(tmp_path / ".glue"))  # glue's settings folder, not the user's
+    told = []
+    monkeypatch.setattr(QMessageBox, "information", lambda parent, title, text: told.append(text))
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
+    plugin_action(app, "Restore last session").trigger()
+    assert told == ["No session kept yet: glue-solar keeps one as glue's window closes with data."]
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
+    monkeypatch.setattr(QtIRISImporter, "exec", load)
+    browse_iris(app.session, app.data_collection)  # a quicklook of its slit-jaw image and two stacked windows
+    expected = app.tab_names, [[type(viewer) for viewer in tab] for tab in app.viewers]
+    labels = [data.label for data in app.data_collection]
+    app.show()
+    app.close()  # as File → Quit does
+    records = json.loads((tmp_path / ".glue" / "glue-solar-last-session.glu").read_text())
+    paths = [record["path"] for record in records.values() if "LoadLog" in record["_type"]]
+    assert len(paths) == len(labels)
+    assert all(map(os.path.isabs, paths))  # its files, wherever glue starts
+    fresh = GlueApplication()
+    qtbot.addWidget(fresh)
+    plugin_action(fresh, "Restore last session").trigger()
+    restored = fresh._new_application  # as File → Open Session gives it, closing ``fresh``
+    qtbot.addWidget(restored)
+    monkeypatch.setattr(restored, "report_error", lambda message, detail: pytest.fail(detail))
+    assert (restored.tab_names, [[type(viewer) for viewer in tab] for tab in restored.viewers]) == expected
+    assert [data.label for data in restored.data_collection] == labels
+
+
+@pytest.mark.parametrize("kind", ["empty", "values over 1 MB", "over 1 MB", "unserializable", "unwritable"])
+def test_a_session_glue_cannot_keep_leaves_the_last_one(qtbot, monkeypatch, tmp_path, caplog, kind):
+    monkeypatch.setattr(glue.config, "CFG_DIR", str(tmp_path))
+    last = tmp_path / "glue-solar-last-session.glu"
+    last.write_text("the session before")
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    values = {
+        "values over 1 MB": np.random.default_rng(0).random(150_000),  # 1.2 MB of values, not encoded
+        "over 1 MB": np.random.default_rng(0).random(100_000),  # 0.8 MB of values, 1.07 MB encoded
+        "unserializable": da.ones(3),  # as data regridded on time from data read as they are viewed
+        "unwritable": np.ones(3),
+    }
+    if kind in values:
+        app.data_collection.append(Data(x=values[kind], label="x"))
+    if kind == "unwritable":
+
+        def replace(*args):
+            raise PermissionError("read-only")
+
+        monkeypatch.setattr(os, "replace", replace)
+    app.show()
+    app.close()
+    assert [path.name for path in tmp_path.glob("*.glu")] == [last.name]  # nor a temporary file
+    assert last.read_text() == "the session before"
+    logged = [record.getMessage() for record in caplog.records if "last session" in record.getMessage()]
+    assert len(logged) == (kind != "empty")
+    reasons = {
+        "values over 1 MB": "MB of values, over 1 MB",
+        "over 1 MB": "MB, over 1 MB",
+        "unserializable": "serialize dask.array",
+        "unwritable": "read-only",
+    }
+    assert all(reasons[kind] in message for message in logged)

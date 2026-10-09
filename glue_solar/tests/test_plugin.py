@@ -84,6 +84,7 @@ def test_setup_registers_hooks():
     assert ("IRIS: link helioprojective coordinates", link_iris) in list(menubar_plugin)
     assert ("IRIS: quicklook…", quicklook_iris) in list(menubar_plugin)
     assert ("IRIS: user guide and issues", help_iris) in list(menubar_plugin)
+    assert ("Restore last session", glue_solar.restore_last_session) in list(menubar_plugin)
     assert startup_action.members["iris_quicklook"] is iris_quicklook
     assert ("IRIS: line moments…", moments_iris) in [(action.label, action.callback) for action in layer_action]
     assert ("IRIS: red-blue asymmetry…", red_blue_iris) in [(action.label, action.callback) for action in layer_action]
