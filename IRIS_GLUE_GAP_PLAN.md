@@ -99,6 +99,7 @@ Settled by the user; reopen only with the user.
 - **D58:** User (2026-10-09), row and column cuts (F145): no port of the user's draft glue #2596 (Slice profile) or glue-qt #70; glue-solar main already gives the spectrogram row (the spectrum panel), the sit-and-stare map row ('Light curve at the point') and exact slit-jaw rows and columns (a Pixel click on an SJI viewer of time against y or x, plus a Profile on the other axis), and the missing following cuts of raster maps along step and slit come from generalising #183's light curve, a `SliceSubsetState` following the point, to any non-wavelength axis (`wp11-l-point-cuts`, 'Row at the point' and 'Column at the point', placed after the tools review), with no glue patch; the slit-jaw cuts are documented. The check (exact against numpy on 4000005156 Si IV and the 4000255147 SJI 1400, re-run by a Fable verifier; #2596 would have been 400-600 lines to retire) is in `IRIS_PLAN_PROTOTYPES/cuts_check_20261009.tar.gz`. It also found that a stack's Path diagram with linear sampling raises on every redraw once a map region shows on it (`wp12-l-path-linear-stack`).
 - **D59:** User (2026-10-09), after 'IRIS: Mg II features' and 'IRIS: red-blue asymmetry' refused the user's 3602506433 Mg II k stack: every analysis action accepts a stack of raster scans, each scan computed at its own coordinates and exposure times as line moments do (#180), giving maps of (scan, step, slit): Mg II features and red-blue first, then UV bursts (per-scan metadata, as a stack's Data carries scan 0's) and radiometric calibration (each scan's exposure times and response) (`wp2-l-stack-analyses`).
 - **D60:** User (2026-10-09), the quicklook's main window (D42 kept Mg II k 2796 when ticked, else the first): the observation browser lets the user choose which ticked window gets the full panels (map, spectrogram, λ-step, λ-time or λ-scan), Mg II k staying the default, and a quicklook can switch its main window afterwards from any of its spectrum panels ('Show this window's panels'), keeping the point, the time and the other windows' panels (`wp4-l-main-window-switch`; the entry's placement follows the tools review).
+- **D61:** User (2026-10-09), after the tools and layout review (`IRIS_PLAN_PROTOTYPES/tools_review_20261009.tar.gz`): glue-solar's Image viewer buttons (Follow/lock, Modes, Coordinate, View) come right after Home, Pan and Zoom on every Image viewer, so glue's region tools overflow first; the Coordinate menu splits by job, keeping the time entries and gaining a 'Point' submenu (Clear point, the light curves, the row and column cuts) and a 'Blink' submenu; 'IRIS: ' prefixes everything glue-solar adds to glue's shared menus (all data actions and Plugins entries, renaming Set rest wavelength, Regrid on time, North up, Rebin, Shift pointing and Restore last session) and nothing inside glue-solar's own toolbar menus, with the light-curve entries renamed 'Light curve of this window' and 'Light curves of every window and SJI…'; data actions name the data where they are narrow and group by data kind, then hide where they cannot apply through a probe-gated `applies(data)` on glue-qt's layer actions, with the glue-qt change as a branch on the user's fork. PROVISIONAL with them: entries that cannot work are hidden, as glue hides them; Path diagram gets its own icon and status tip beside glue's Slice Extraction; matplotlib's g/G, l/k/L and p/o canvas keys are dropped as f/s are; glue-solar's text keeps British spelling.
 
 ## Milestones
 
@@ -121,8 +122,9 @@ A milestone is done when it has no items left.
 - WP2: `wp2-l-stack-analyses`
 - WP4: `wp4-l-quicklook-tab`, `wp4-l-main-window-switch`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP9: `wp9-l-deferred-recipes`
-- WP11: `wp11-l-point-cuts`
+- WP8: `wp8-l-action-names`
+- WP9: `wp9-l-review-fixes`, `wp9-l-deferred-recipes`
+- WP11: `wp11-l-toolbar-menus`, `wp11-l-point-cuts`
 - WP12: `wp12-l-path-linear-stack`
 
 **M4**
@@ -210,7 +212,7 @@ The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links be
 
 **OM**
 
-- [ ] **OM** `wp1-m3-multi-instrument` (F055): Docs only: a recipe linking a co-aligned IRIS–SST pair in glue's link editor. Done when a Pixel point on the SST cube gives the IRIS spectrum there. Depends: wp8-m3-level3-input.
+- [ ] **OM** `wp1-m3-multi-instrument` (F055): Docs only: a recipe linking a co-aligned IRIS–SST pair in glue's link editor. Done when a Pixel point on the SST cube gives the IRIS spectrum there. The 2015-09-17 Level 3 cubes share the SJI pixel grid, so pixel links are exact; the IRIS raster of 3630104144 (917 MB) is not downloaded (user's call). Depends: wp8-m3-level3-input.
 
 Notes:
 - Sessions are Later: #181 must carry the stack tables and pointing offset.
@@ -282,9 +284,13 @@ Notes:
 
 Covers the observation browser, the header scanner (`scan.py`) and the IRIS readers (`iris.py`).
 
+**L**
+
+- [ ] **L** `wp8-l-action-names`: The review's naming and data-action changes (D61): 'IRIS: ' on every data action and Plugins entry glue-solar adds (renaming Set rest wavelength, Regrid on time, North up, Rebin, Shift pointing, Restore last session), the light-curve entries renamed, narrow actions naming their data and grouped by data kind, 'IRIS: line ratio diagnostic…' not offered on a subset group, km/s written alike; then a probe-gated `applies(data)` on glue-qt's `LayerAction` hiding each action where its guard would refuse, with the glue-qt change as a branch on the user's fork (no PR). After `wp2-l-stack-analyses`, which changes four of these actions. Done when on a plain table, an SJI, a SOT cube and each raster kind only the actions that work are offered, and the docs use the new names.
+
 **OM**
 
-- [ ] **OM** `wp8-m3-level3-input` (F025): A `data_factory` that loads a Level-3 `*_im.fits` as one Data. Done when synthetic ITN 26 files load and Level-2 files are not claimed.
+- [ ] **OM** `wp8-m3-level3-input` (F025): A `data_factory` that loads a Level-3 `*_im.fits` as one Data. Done when synthetic ITN 26 files load and Level-2 files are not claimed. Real files (2026-10-09 search, `IRIS_PLAN_PROTOTYPES/sst_search_20261009.tar.gz`): the IRIS-SST database's 2015-09-17 set (OBSID 3630104144, Rouppe van der Voort et al. 2020) in `~/DATA/SST/IRIS-SST_20150917_073915_3630104144/` (CRISP H-alpha `_im` 193 MB, 62 steps x 17 slots; Fe I 6173 Milne-Eddington maps; SJI 2796 and 2832). Their headers are wrong: CTYPE 'x','y','wave','time', a wavelength axis copied from an IRIS window (1332.68 Å; the real ones are extension 1 `lambda-coordinate`, with two wideband slots), a time reference pixel of 60 (the real times are extension 2), and the slit-jaw's mid-observation pointing, 1.5" from irispy's per-frame one; the data share the SJI pixel grid. irispy's `read_files` raises `Expected 62 SJI auxiliary rows, found 1` (report candidate); glue opens them with no role and a 1332 Å axis.
 
 Notes:
 - Prototypes for #178 and #185: `wp8_scan.py`, `wp8_proto.py`, `wp8_loader.ui`; keep the object names `filter`, `stop_scan`, `progress`.
@@ -296,6 +302,7 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 
 **L**
 
+- [ ] **L** `wp9-l-review-fixes`: The review's docs fixes and small fixes, no decisions (D61): 'Export Session' for 'Save Session'; Raster overlays and Blink interval in the loading guide's Coordinate list; the 'IRIS Level 2 FITS' type named, with SOT cubes and AIA cutouts; a bursts route that works instead of glue-qt 0.4.2's Table viewer, which refuses datetime components; one arrow style for menu paths; the region tools named once; the quicklook and 'IRIS: quicklook…' skipping observations with neither raster nor SJI (a SOT-only one opened an empty tab); browser tooltips and a default button; a clear message from the IRIS fitter under 4 samples; `SOLAR_SHOW_AXES` documented. Done when each is done and the docs build.
 - [ ] **L** `wp9-l-deferred-recipes` (F037): Document Ctrl+I as the FITS header viewer (row and column cuts moved to `wp11-l-point-cuts`, D58). Done when it reproduces on 4000005156 Si IV.
 
 **M4**
@@ -321,7 +328,8 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 
 **L**
 
-- [ ] **L** `wp11-l-point-cuts` (F145): Row and column cuts at the point (D58): generalise `_LightCurve`/`_light_curve` (#183) from axis 0 to any non-wavelength pixel axis and add 'Row at the point' and 'Column at the point' to the map's Coordinate menu (placement and naming after the tools review; the light curve becomes the axis-0 case), hidden from other viewers as the light curve is; document them and the slit-jaw Pixel route. Done when on 4000005156 Si IV a map row along step (64) and a column along slit (771) equal the cube exactly and follow the point and the wavelength or band, and a session keeps them.
+- [ ] **L** `wp11-l-toolbar-menus`: The review's toolbar and menu changes (D61): glue-solar's four buttons after Zoom; menu help shown (tooltips visible in glue-solar's menus, or status tips) and glue's Save and Window buttons and the profile-viewer button given tooltips; Coordinate split into time entries plus 'Point' and 'Blink' submenus, its entries registered in `toolbar.tools` and hidden where they cannot work (and 'Wavelength band…' and 'Frame time' likewise); Path diagram's own icon and status tip; IRIS lines and Velocity axis showing their state; matplotlib's g/G, l/k/L and p/o canvas keys dropped; glue-solar's save entries after glue's. Done when at 1600 px a quicklook raster panel shows all four glue-solar buttons, every glue-solar menu entry shows its help, and the docs' toolbar and menu paragraphs match.
+- [ ] **L** `wp11-l-point-cuts` (F145): Row and column cuts at the point (D58): generalise `_LightCurve`/`_light_curve` (#183) from axis 0 to any non-wavelength pixel axis and add 'Row at the point' and 'Column at the point' to the map's Coordinate menu (in D61's 'Point' submenu, after `wp11-l-toolbar-menus`; the light curve becomes the axis-0 case), hidden from other viewers as the light curve is; document them and the slit-jaw Pixel route. Done when on 4000005156 Si IV a map row along step (64) and a column along slit (771) equal the cube exactly and follow the point and the wavelength or band, and a session keeps them.
 
 Notes:
 - glue-qt already takes B, C, G, H, K, M, P, R, X, Y, Z, Tab and Backspace, and dispatches keys by exact viewer type; matplotlib's own keys (F, S, O, P, L, K, G, Q, V) also reach its canvases, F and S dropped since #120; glue-solar takes D, F, A, S and Space.
@@ -345,8 +353,8 @@ Features only other missions need, planned with the user once suitable data exis
 
 **OM**
 
-- [ ] **OM** `wp13-stokes` (F171, F172, F173, F174): Stokes selection, multi-Stokes spectra, scaling and noise level, Stokes main cubes. Done when a real Stokes cube shows each parameter.
-- [ ] **OM** `wp13-solarnet-tab-wcs` (F027): Load SOLARNET files with a tabulated (-TAB) WCS. Done when a real -TAB file loads.
+- [ ] **OM** `wp13-stokes` (F171, F172, F173, F174): Stokes selection, multi-Stokes spectra, scaling and noise level, Stokes main cubes. Done when a real Stokes cube shows each parameter. Public SST Stokes cubes (2026-10-09 search): archive obs 167 (Fe I 6173 IQUV, 1.9 GB, the obs 171 pointing) and obs 161 (Ca II 8542 IQUV, 1.7 GB); none under 1 GB, not downloaded (user's call).
+- [ ] **OM** `wp13-solarnet-tab-wcs` (F027): Load SOLARNET files with a tabulated (-TAB) WCS. Done when a real -TAB file loads. The SST archive's obs 171 CRISP H-alpha cube (2020-10-16, 5 scans, 421 MB, IRIS OBS 3660258923 co-pointed) is in `~/DATA/SST/SST-archive_obs171_20201016_CRISP_6563/`: glue's own FITS reader already loads it with the right wavelengths and links it to IRIS, but times inside a scan are wrong by up to 2.2 s (glue evaluates each world axis only along the pixel axes astropy reports for it), a saved session does not reopen ('HDUList is required'), the cavity-error lookup (`CWDIS3`, up to 2.8 km/s) is ignored, 32 extension datasets come with it, SPECSYS is missing and the Stokes axis has length 1.
 - [ ] **OM** `wp13-height-cubes` (F030): Load simulation and height cubes. Done when one slices by height.
 
 Notes:
