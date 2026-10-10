@@ -1313,7 +1313,7 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 ### SST2. The 2020 SSTRED exports open but no viewer shows them: 'SPECSYS= not yet supported'
 
 - [x] Re-verified (2026-10-10)
-- [ ] Fixed (`wp13-solarnet-tab-wcs`)
+- [x] Fixed (#227, 2026-10-10)
 
 - **Cost:** obs167 and obs171 cannot be displayed at all.
 - **Cause:** these headers have OBSGEO but no SPECSYS.
@@ -1343,7 +1343,7 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
   - The surveyed pair (a 2013 IRIS field and a 2023 SST field) never overlaps, so it measured the cheap case. Co-pointed data (obs171 with IRIS 3660258923, the real use) costs about 100× more per covered pixel, about a minute for a half-covered SJI frame.
 - **#226's measurements correct the co-pointed case.** Through glue, a co-pointed SST WCS costs about what a non-overlapping one does: an SJI step took 2.05 s against 1.84 s.
   - glue inverts the SST WCS at its wavelength and time CRVAL, which lies outside the -TAB table, so every IRIS pixel takes the 7.9 µs path and gets NaN.
-  - So an SST region selects no IRIS pixels even when linked: 0 of 161,796 SJI pixels got a position. D67 gives the fix to `wp13-solarnet-tab-wcs`.
+  - So an SST region selects no IRIS pixels even when linked: 0 of 161,796 SJI pixels got a position. D67 gave the fix to the SST loader, #227: a co-pointed SST rectangle now selects the IRIS pixels at its place, with 0 mismatches against wcslib, and 4846 linked beside 9 windows opens in 9.3 s (was 231-241 s), with SJI steps of 0.10 s (was 1.84 s).
 - **Fix:** R2's footprint cull helps only where the region does not overlap. A faster inversion is ruled out (R8, D54). That leaves glue-solar's link scope: link non-IRIS data only on request ('IRIS: link helioprojective coordinates'), or keep foreign subsets off the quicklook's panels. The user chooses.
 
 ### SST4. The Profile button on a large cube reads the whole file, freezes the main thread for about 3/4 of the wait, and adds the file to RSS
@@ -1366,7 +1366,7 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 ### SST5. SST sessions save but never restore ('HDUList is required'), including the autosaved last session
 
 - [x] Re-verified (2026-10-10)
-- [ ] Fixed (`wp13-solarnet-tab-wcs`)
+- [x] Fixed (#227, 2026-10-10)
 
 - **Cost:** restore fails within 5-12 ms on 8542, 6173, 6302, 3950 and obs171.
 - **Autosave:** closing the app with an SST cube open writes a 65 KB `glue-solar-last-session.glu`. Its 1 MB guard lets it through, because glue's FITS components carry load logs. 'IRIS: restore last session' then fails the same way.
@@ -1439,7 +1439,7 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 ### SST12. File > Open makes 33 datasets per SST cube
 
 - [x] Re-verified (2026-10-10; description corrected)
-- [ ] Fixed (`wp13-solarnet-tab-wcs`)
+- [x] Fixed (#227, 2026-10-10)
 
 - **What it makes:** glue's `fits_reader` (priority 100) reads every HDU; glue-solar's IRIS factory declines in 1.3 ms. The 33 datasets are:
   - the cube, 5-D and memory-mapped;

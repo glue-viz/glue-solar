@@ -32,13 +32,18 @@ Out of scope:
 
 **Next.** The window of 2026-10-10, in the user's order. Each item is one run of `plan-item-workflow.js`: Opus implements, Fable reviews (falling back to the session model), and Opus fixes. Each ships with `ship_locked.sh` and merges on green CI.
   1. #226, the WCS lock with the link scope (D64): on main.
-  2. #227, with D67 (SST regions reaching IRIS data, the cavity map as a component): in flight.
-  3. `wp4-l-panel-toggles`, placed as D66.
+  2. #227, the SST loader with D67 (SST regions reaching IRIS data, the cavity map as a component): on main.
+  3. `wp4-l-panel-toggles`, placed as D66: in flight.
   4. `wp13-l-sst-quicklook` (D65).
 
   The other D63 items and the Ctrl+I recipe (`wp9-l-deferred-recipes`) fit around these. The survey (done 2026-10-10) is in GLUE_SPEED.md 'SST and IRIS stress survey, 2026-10-10' and `IRIS_PLAN_PROTOTYPES/sst_stress_20261010.tar.gz`. Left from #226:
   - glue's `WCSLink.__init__` reads `wcs.wcs.lng` and `.lat` on the struct, outside any lock, when File > Open autolinks a dataset beside a linked SST cube or map. Lock the WCS objects there, or note it for `wp0-astropy-19174`.
   - A reopened session locks a linked map's WCS only at the next `link_hpc`.
+  Left from #227:
+  - A Pixel point on an SST cube is placed at the cube's first scan and tuning, not the slider's, so it reaches the raster pixel at scan 0's position and the slit-jaw frame nearest scan 0.
+  - On a mosaic cube, a point placed on IRIS data does not reach the SST cube.
+  - glue's axis labels stay as they are: `''` for Stokes, and `Hplt` from a glue indexing bug.
+  - A map opened after an SST cube shows glue's 'Cannot slice WCS' (`wp0-core-wcslink-lists`); the user guide says to open the map first.
 
 Also: the glue-qt change of #223 is f19f2bca on branch `layer-action-applies` of the user's fork nabobalis/glue-qt (no PR; worktree `~/Git/glue-qt-layer-action-applies`); the SST cubes of D62 are all in `~/DATA/SST/` (2026-10-10; the data disk has about 25 GB free, so keep session saves and extractions small). Waiting on the user: the drag-into-/Applications check of #216's app (`~/Downloads/Glue Solar.dmg`, built from f073033's recipe), and an exact report of the linking and slider-sync problems the user saw in the app (2026-10-09), after which the same steps run with `glue` from `iris-plan-qt6` tell an app problem from a Qt 6 or glue-solar one. Waiting on others: `wp5-l-line-groups`, `wp5-l-lines-in-range` and `wp5-irispy-line-database` (irispy #209, D52), and the user's manual `wp0-qt68-macos-pass`. Left for later: from #207's review, viewers opened after the marker exists get its layers (about 10% slower playback steps with a second quicklook). Offered to the user, not started: the #207 leftover, `wp0-restore-full-ci`. The PyQt6 envs (`iris-plan-qt6`, `iris-plan-floor-qt6`, `iris-plan-docs-qt6`) are the baseline since #214, at irispy main 8c220d4 (#237); the PyQt5 envs are retired (left at irispy ca27ee9); `glue-solar-app` builds the macOS app (#216). Tooling is in `IRIS_PLAN_PROTOTYPES/plan_tooling/`: `ship_locked.sh KEY TITLE BODYFILE CTYPE CTEXT SUMMARY`, with PLAN_SCRATCH set to the session scratchpad, and `plan-item-workflow.js` for the Workflow tool (args key, item, extra, scratch; Opus implements, Fable reviews, Opus fixes). Never SendMessage an agent inside a running workflow: it starts a duplicate. The profiling survey's upstream findings are the M4 `wp0-perf-*` items (every finding in `GLUE_SPEED.md`, scripts in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` and `wcsaxes_study_20261001.tar.gz`). The matplotlib-free WCSAxes core prototype is on the user's astropy fork only, for the user to raise in person (GLUE_SPEED.md 'Matplotlib-free core prototype'; scripts and design in `IRIS_PLAN_PROTOTYPES/wcsaxes_core_20261001.tar.gz`); no PR, issue or upstream notice.
 
