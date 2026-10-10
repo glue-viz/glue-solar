@@ -411,9 +411,9 @@ and read from the original a slab at a time, a stack's a bin of scans at a time:
 of 3610108077's full Si IV 1403 window, 320 steps by 548 slit pixels by 337 wavelengths, takes 0.3
 to 0.5 s.
 
-- A rebinned raster window's line moments are those of each bin's mean: a saturated sample is missed
-  unless its whole bin is, and error maps are refused, as irispy would give each bin the noise of one
-  sample.
+- A rebinned raster window's line moments are those of each bin's mean: a bin with a saturated
+  sample is +Inf, saturated, and error maps are refused, as irispy would give each bin the noise of
+  one sample.
 - A bin with missing samples counts as much as a full one, so the rebinned data's mean can differ
   from the original's: by 0.2 % on 3610108077's Si IV 1403, whose 1 % of bins partly missing lie at
   the edges of the missing data. Weighted by their samples, the bins' means give the original's.

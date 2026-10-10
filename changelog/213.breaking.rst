@@ -1,0 +1,1 @@
+Following irispy, samples at the Level 2 ceiling (16182 DN) read as +Inf, which every analysis counts as saturated, and line moments take a velocity range in km/s around the line centre (``velocity_range``, default -107 to 107 km/s) instead of wings in Angstrom.

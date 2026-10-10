@@ -378,14 +378,18 @@ def _dataset(wcs, meta, unit, values, label, *, color=None, cmap=None, missing=M
     A Glue dataset of ``values`` and their mask, with the ``missing`` data codes as NaN.
 
     ``scaling`` is the ``(BSCALE, BZERO)`` of ``values`` that are a file's raw int16 (`_raw_scaling`), which then
-    stay where they are and are scaled where glue reads them.
+    stay where they are and are scaled where glue reads them, IRIS data's at irispy's ``SATURATION_LIMIT`` as +Inf.
     """
     data = (Data if scaling is None else LazyData)(label=label)
     data.coords = _GlueWCS(wcs)
     data.meta = meta
     data.style = _Style(color=color, preferred_cmap=cmap)
     if scaling is not None:
-        cid = data.add_component(RawComponent(values, *scaling, missing, units=str(unit)), label)
+        from irispy.utils.constants import SATURATION_LIMIT
+
+        # where irispy's scaled reads put +Inf: in raster windows and slit-jaw images, not AIA cutouts (D57)
+        ceiling = SATURATION_LIMIT.value if str(meta.get("INSTRUME")) in ("SPEC", "SJI", "IRIS") else None
+        cid = data.add_component(RawComponent(values, *scaling, missing, ceiling, units=str(unit)), label)
         # a glue derived component, computed from the values glue reads
         data.add_component_link(ComponentLink([cid], ComponentID(f"{label} mask", parent=data), using=fill_mask))
         return data

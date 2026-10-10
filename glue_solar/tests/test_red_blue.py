@@ -187,20 +187,18 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
     assert not action.isVisible()
 
 
-def test_a_peak_at_16182_dn_is_saturated_at_each_steps_exposure_time(monkeypatch, scan_path):
+def test_a_saturated_sample_taken_flags_its_pixel(monkeypatch, scan_path):
     """
-    irispy flags a pixel saturated where the peak of the wavelengths taken is at 16182 DN, its limit over the step's
-    exposure time where the window has DN/s: the same DN/s is 16182 DN in an 8 s step, saturated, not in a 4 s one.
+    irispy flags a pixel saturated where a sample of the wavelengths taken is saturated, +Inf, in DN or DN/s alike.
     """
     monkeypatch.setattr(iris, "LAZY", False)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     cid, (wavelengths, _) = raster.main_components[0], _wavelengths(raster)
     taken = np.flatnonzero(abs(wavelengths - 1402.77) <= 1)
-    values, seconds = np.array(raster[cid]), np.array(raster["Exposure time"])
-    seconds[:2] = [[[8]], [[4]]]
-    values[:2, 10, taken[4]] = [16182, 16182 / 2]
-    values[:, 20, wavelengths > 1404] = 16182  # not taken
-    raster.update_components({cid: values, raster.id["Exposure time"]: seconds})
+    values = np.array(raster[cid])
+    values[0, 10, taken[4]] = np.inf
+    values[:, 20, wavelengths > 1404] = np.inf  # not taken
+    raster.update_components({cid: values})
     for rate in (True, False):
         if not rate:  # irispy is given the DN themselves
             raster.remove_component(raster.id[f"{raster.label} DN/s"])

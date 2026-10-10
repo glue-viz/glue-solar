@@ -14,10 +14,10 @@ velocity step and divides the mean of its red wing, from the first to the second
 the peak, less the mean of its blue wing, as far below it, by the peak: positive for excess red
 emission. The wing velocities, 30 to 55 km/s, and the step, 5 km/s, unless changed, are those of
 SolarSoft's iris_xfiles (its double Gaussian fit, ``iris_moment__dgf.pro``). irispy computes the map
-on a worker thread from the window's DN/s, a raster step at a time, while glue's status bar says
-"Computing red-blue asymmetry of <label>…", and adds ``<label> red-blue asymmetry <rest>`` on the
-window's raster steps and slit pixels, with their helioprojective coordinates in arcsec linked with
-the other IRIS datasets. No viewer opens: drag it onto an Image viewer and pick a map as its
+on a worker thread from the window's DN/s, a slab of raster steps at a time, while glue's status bar
+says "Computing red-blue asymmetry of <label>…", and adds ``<label> red-blue asymmetry <rest>`` on
+the window's raster steps and slit pixels, with their helioprojective coordinates in arcsec linked
+with the other IRIS datasets. No viewer opens: drag it onto an Image viewer and pick a map as its
 attribute.
 
 The maps
@@ -26,8 +26,9 @@ The maps
 - ``red_blue_asymmetry``, NaN where irispy does not compute it;
 - ``quality``, irispy's ``RBAQualityFlag``: 0 computed, 1 no finite sample, 2 the peak at an end of
   the wavelengths taken, 3 too few samples, 4 the interpolation failed, 5 a peak of 0, 6 a wing not
-  covered, 8 saturated: a sample taken at 16182 DN, the Level 2 ceiling saturated samples are
-  clipped to (see :ref:`Was it saturated? <glue_solar_users_guide_iris_saturation>`); 7, below a
+  covered, 8 saturated: a sample taken is +Inf, as glue-solar reads 16182 DN, the Level 2 ceiling
+  saturated samples are clipped to (see :ref:`Was it saturated?
+  <glue_solar_users_guide_iris_saturation>`); 7, below a
   minimum intensity, is never set.
 
 Missing (NaN or -Inf) and negative samples are left out. The wings are measured from the peak,
@@ -61,8 +62,8 @@ the Doppler image of <label>…", and adds ``<label> Doppler image <rest>`` on t
 steps and slit pixels, a stack's scans too, each scan at its own wavelengths and coordinates, linked
 as above. No viewer opens: drag it onto an Image viewer and pick a map as its attribute.
 
-A map is NaN where either sample about a wing is missing, or at 16182 DN, the Level 2 ceiling
-saturated samples are clipped to (see :ref:`Was it saturated?
+A map is NaN where either sample about a wing is missing, or saturated: +Inf, as glue-solar reads
+16182 DN, the Level 2 ceiling saturated samples are clipped to (see :ref:`Was it saturated?
 <glue_solar_users_guide_iris_saturation>`). A line symmetric about the rest wavelength gives 0, to
 float precision, where the rest wavelength is a sample's or halfway between two; elsewhere the
 interpolation leaves a small difference. Velocities are relative to the uncorrected Level 2

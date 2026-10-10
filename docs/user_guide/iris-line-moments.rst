@@ -8,25 +8,27 @@ To map a spectral line, select a raster window, of one scan or a stack of its sc
 collection and choose "IRIS: line moments…" from its right-click menu. The line centre, the rest
 wavelength of the velocities in Å, starts at the window's :ref:`rest wavelength
 <glue_solar_users_guide_iris_rest_wavelength>`, such as 2796.352 for Mg II k, or blank for a window
-without one; type another to change it. The wings, the wavelengths taken below and above it, are
-±0.5 Å unless changed; a blank centre adds nothing. Continuum windows are optional: line-free
-wavelength ranges outside the wings, such as ``1401.6-1402.1, 1403.5-1404.3``, to which irispy's
-``subtract_background`` fits the background of each spectrum, a constant to one window or a straight
-line to more, and subtracts it; left blank, nothing is subtracted, and any continuum within the
-wings adds to every map. irispy's ``calculate_moments`` computes the maps on a worker thread from
-the wavelengths within the wings alone, while glue's status bar says "Computing line moments of
-<label>…", and adds ``<label> moments <centre>`` on the window's raster steps and slit pixels, with
-their helioprojective coordinates in arcsec linked with the other IRIS datasets. No viewer opens:
-drag it onto an Image viewer and pick a map as its attribute. A stack's maps are one dataset on its
+without one; type another to change it. The velocity range, the Doppler velocities of the
+wavelengths taken, from and to, in km/s from the centre, is -107 to 107 km/s unless changed, ±0.5 Å
+at Si IV 1402.77 and ±1.0 Å at Mg II k; a blank centre adds nothing. Continuum windows are
+optional: line-free wavelength ranges outside the velocity range, such as
+``1401.6-1402.1, 1403.5-1404.3``, to which irispy's ``subtract_background`` fits the background of
+each spectrum, a constant to one window or a straight line to more, and subtracts it; left blank,
+nothing is subtracted, and any continuum within the velocity range adds to every map. irispy's
+``calculate_moments`` computes the maps on a worker thread from the wavelengths within the velocity
+range alone, while glue's status bar says "Computing line moments of <label>…", and adds
+``<label> moments <centre>`` on the window's raster steps and slit pixels, with their
+helioprojective coordinates in arcsec linked with the other IRIS datasets. No viewer opens: drag
+it onto an Image viewer and pick a map as its attribute. A stack's maps are one dataset on its
 scans, raster steps and slit pixels, each scan's as that scan alone gives them, at its own
 coordinates and exposure times; the scan slider picks the scan.
 
-To take the wings from a Profile, drag a range over the line on the "Collapse" or "Fit" tab of the
-"Options" of a Profile viewer of the window against its wavelength, such as a quicklook's spectrum
-panel (see :ref:`the Profile guide <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`). While
-the range shows, the dialog shows it too, and a centre within it, the one the dialog starts at or
-one typed, sets the wings to reach its ends, whatever the Profile's "x unit"; they can still be
-changed afterwards.
+To take the velocity range from a Profile, drag a range over the line on the "Collapse" or "Fit"
+tab of the "Options" of a Profile viewer of the window against its wavelength, such as a
+quicklook's spectrum panel (see :ref:`the Profile guide
+<glue_solar_user_guide_1dprofile_viewer_for_iris_data>`). While the range shows, the dialog shows it
+too, and a centre within it, the one the dialog starts at or one typed, sets the velocities to its
+ends, whatever the Profile's "x unit"; they can still be changed afterwards.
 
 The maps
 --------
@@ -36,8 +38,8 @@ The maps
   own values, in their unit, for data without one;
 - ``centroid``, the line's intensity-weighted mean wavelength, in Å;
 - ``width``, its standard deviation about the centroid, in Å, not its full width at half maximum:
-  for a Gaussian line within the wings, the FWHM is 2√(2 ln 2) ≈ 2.355 times the width, and wings
-  that cut the line off give a smaller width;
+  for a Gaussian line within the velocity range, the FWHM is 2√(2 ln 2) ≈ 2.355 times the width,
+  and a range that cuts the line off gives a smaller width;
 - ``velocity`` and ``velocity_width``, the centroid's Doppler velocity from the centre and the width
   as a velocity, in km/s.
 
@@ -50,19 +52,25 @@ C II are optically thick: their profiles, often with two peaks about a central r
 a range of heights, so their centroid and width are proxies for the motions and broadening of the
 plasma, not measurements of them.
 
-A pixel whose every sample within the wings is missing (NaN or -Inf), or with too few samples in the
-continuum windows to fit its background, is NaN in every map; irispy counts other missing and
-negative samples, after any background is subtracted, as 0. A pixel with a sample within the wings
-at 16182 DN, the Level 2 ceiling saturated samples are clipped to (a sample merely that bright
-counts too, as Level 2 cannot tell them apart), is NaN in every map too; the status bar and
-``moments_saturated`` in ``meta`` say how many, and
-:ref:`Was it saturated? <glue_solar_users_guide_iris_saturation>` shows where the samples are.
+A pixel whose every sample within the velocity range is missing (NaN or -Inf), or with too few
+samples in the continuum windows to fit its background, is NaN in every map; irispy counts other
+missing and negative samples, after any background is subtracted, as 0. A pixel with a saturated
+sample within the velocity range, +Inf, as glue-solar reads 16182 DN, the Level 2 ceiling
+saturated samples are clipped to (a sample merely that bright counts too, as Level 2 cannot tell
+them apart), is NaN in every map too, as a background leaves +Inf as it is; the status bar and
+``moments_saturated`` in ``meta`` say how many, as irispy counts them, and
+:ref:`Was it saturated? <glue_solar_users_guide_iris_saturation>` shows where the samples are. A
+pixel saturated across its continuum windows too has no background, so irispy does not count it:
+the X1 flare's rasters r00172-r00174 of 3860258481 have 839 saturated Si IV 1402.77 pixels within
+±107 km/s, and 820 with continuum windows 1401.6-1402.1 and 1403.5-1404.3 Å.
 
 The new dataset's ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``, ``moments_centre``
-and ``moments_wings``, and with a continuum also ``moments_continuum``, the windows, and
-``moments_continuum_degree``, the degree of the background.
-``glue_solar.sources.moments.line_moments(data, centre, wings, continuum, errors)`` computes the
-dataset in glue's terminal too, ``continuum`` a list of ``(lower, upper)`` wavelengths in Å.
+and ``moments_velocity_range``, and with a continuum also ``moments_continuum``, the windows, and
+``moments_continuum_degree``, the degree of the background; maps made before glue-solar took a
+velocity range keep their ``moments_wings``, in Å, in sessions.
+``glue_solar.sources.moments.line_moments(data, centre, velocity_range, continuum, errors)``
+computes the dataset in glue's terminal too, ``velocity_range`` a ``(lower, upper)`` pair in km/s
+and ``continuum`` a list of ``(lower, upper)`` wavelengths in Å.
 
 Error maps
 ----------
@@ -89,8 +97,8 @@ Glue says why, and adds nothing, for:
 
 - a slit-jaw image or any other data than an IRIS raster window;
 - a centre or continuum window that is not a wavelength, or a list of ranges, in Å;
-- a centre with no wavelength of the window within the wings, a continuum window with none, or one
-  that overlaps the wings.
+- a velocity range that does not increase, or with no wavelength of the window within it about the
+  centre, a continuum window with none, or one that overlaps the velocity range.
 
 .. _glue_solar_users_guide_iris_rest_wavelength:
 
@@ -143,9 +151,9 @@ In place of a table, tick "O IV 1399.8/1401.2 (CHIANTI, fiasco)" to map ``log n_
 of the O IV 1399.8 Å line, the numerator, to the 1401.2 Å line, the denominator: irispy's
 ``density_diagnostic`` interpolates it, linearly in the electron density, on CHIANTI's ratio, which
 fiasco computes for 10⁸ to 10¹³ cm⁻³ at O IV's formation temperature, log T 5.15. Compute both
-moments with narrow wings and a continuum (see above): with the default wings and none, the weak
-1399.8 Å line's ratio lies above CHIANTI's, 0.17 to 0.42, at nearly every pixel, which the map
-leaves NaN. The new dataset is as from a table, with ``ratio_preset`` in its ``meta`` in place of
+moments with a narrow velocity range and a continuum (see above): with the default range and none,
+the weak 1399.8 Å line's ratio lies above CHIANTI's, 0.17 to 0.42, at nearly every pixel, which the
+map leaves NaN. The new dataset is as from a table, with ``ratio_preset`` in its ``meta`` in place of
 ``ratio_table``, and ``glue_solar.sources.line_ratio.o_iv_density(numerator, denominator)`` maps it
 in glue's terminal too. The preset needs fiasco from its git main, glue-solar's ``density`` extra
 (see :ref:`installing <glue-solar-index>`); without it, it is greyed out, and its tooltip says so.

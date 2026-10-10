@@ -14,9 +14,11 @@ from glue.core.component import Component
 from glue.core.component_id import ComponentID
 from glue.core.component_link import ComponentLink
 from glue.core.data import Data
+from glue.core.data_collection import DataCollection
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.parse import ParsedCommand, ParsedComponentLink
 from glue.core.subset import RangeSubsetState, SliceSubsetState
+from glue.core.util import facet_subsets
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from irispy.io.sji import read_sji_lvl2
@@ -272,8 +274,8 @@ def lazy_and_eager(monkeypatch, load):
 def assert_loads_as_before(lazy, eager):
     """
     ``lazy`` holds raw int16 and its mask is a glue derived component, while ``eager`` is laid out as before; every
-    value, NaN, mask sample, time, exposure and DN/s, and glue's image buffers of every pair of axes, are the same.
-    DN/s, a glue derived component of both, is the data over a positive exposure time, else NaN, in float32.
+    value, NaN, +Inf, mask sample, time, exposure and DN/s, and glue's image buffers of every pair of axes, are the
+    same. DN/s, a glue derived component of both, is the data over a positive exposure time, else NaN, in float32.
     """
     assert type(lazy) is LazyData
     assert type(eager) is Data
@@ -294,8 +296,9 @@ def assert_loads_as_before(lazy, eager):
     exposure = eager["Exposure time"]
     oracle = eager[eager.main_components[0]] / np.where(exposure > 0, exposure, np.nan)
     np.testing.assert_allclose(lazy[rate], oracle, rtol=1e-6)
-    for percentile in (0.25, 99.75):  # glue's 99.5% colour limits, exactly as from every eager value
-        exact = np.nanpercentile(eager[eager.main_components[0]], percentile)
+    values = eager[eager.main_components[0]]
+    for percentile in (0.25, 99.75):  # glue's 99.5% colour limits, exactly as from every finite eager value
+        exact = np.percentile(values[np.isfinite(values)], percentile)
         assert lazy.compute_statistic("percentile", science, percentile=percentile, random_subset=10000) == exact
     for axes in combinations(range(lazy.ndim), 2):
         bounds = [(0, n - 1, n) if axis in axes else n // 2 for axis, n in enumerate(lazy.shape)]
@@ -375,6 +378,49 @@ def test_int16_slit_jaw_and_aia_cubes_load_lazily(monkeypatch, tmp_path, irispy_
         assert_loads_as_before(lazy_result, eager)
         assert lazy_result.meta["scaled"]
     assert_loads_as_before(*lazy_and_eager(monkeypatch, lambda: iris_data(gzipped)))  # File -> Open
+
+
+def test_the_level_2_ceiling_loads_as_irispy_reads_it(monkeypatch, tmp_path, int16_raster, irispy_test_files):
+    """
+    Raw 32760, 16182 DN, the Level 2 ceiling, loads as +Inf, unmasked and left out of the colour limits, in raster
+    windows and slit-jaw images, and as 16182 DN in AIA cutouts, as irispy's scaled reads give them (D57).
+    """
+    source = find_irispy_test_file(irispy_test_files, SJI)
+    sji = int16_copy(source, tmp_path / SJI, [0])
+    aia = tmp_path / "aia_l2_20210905_001833_3620258102_171.fits"
+    int16_copy(source, aia, [0], INSTRUME="AIA_3", OBSID="20210905_001833_3620258102", TDESC1="171_THIN", TWAVE1=171)
+    cases = [
+        (int16_raster, WINDOW, lambda: raster_data([int16_raster], ["Si IV 1403"])[0], np.inf),
+        (sji, 0, lambda: image_data(sji), np.inf),
+        (aia, 0, lambda: image_data(aia), 16182),
+    ]
+    for path, hdu, load, ceiling in cases:
+        with fits.open(path, mode="update", do_not_scale_image_data=True) as hdulist:
+            hdulist[hdu].data[0, 0, 4] = 32760
+        lazy_result, eager = lazy_and_eager(monkeypatch, load)
+        assert_loads_as_before(lazy_result, eager)
+        science, mask = lazy_result.main_components[0], lazy_result.derived_components[0]
+        assert lazy_result[science, (0, 0, 4)] == ceiling
+        assert lazy_result[mask, (0, 0, 4)] == 0
+        assert np.isfinite(lazy_result.compute_statistic("maximum", science, random_subset=10000))
+
+
+def test_the_saturation_recipe_selects_the_ceiling(int16_raster):
+    """
+    'Was it saturated?' (loading guide): glue's arithmetic attribute ``np.isinf({<label>}) * 1``, and one faceted
+    subset of it from 1 to 1, select the samples at the Level 2 ceiling.
+    """
+    with fits.open(int16_raster, mode="update", do_not_scale_image_data=True) as hdulist:
+        hdulist[WINDOW].data[:2, 5, 7] = 32760
+    [raster] = raster_data([int16_raster], ["Si IV 1403"])
+    collection = DataCollection([raster])
+    cid = raster.main_components[0]
+    command = ParsedCommand(f"np.isinf({{{cid.label}}}) * 1", {cid.label: cid})
+    raster.add_component_link(ParsedComponentLink(ComponentID("saturated", parent=raster), command))
+    facet_subsets(collection, raster.id["saturated"], lo=1, hi=1, steps=1)
+    [group] = collection.subset_groups
+    assert group.label == "1.0<=saturated<=1.0"
+    np.testing.assert_array_equal(np.argwhere(group.subsets[0].to_mask()), [[0, 5, 7], [1, 5, 7]])
 
 
 def test_dn_per_s_is_nan_where_an_exposure_took_0_s(monkeypatch, tmp_path, irispy_test_files):

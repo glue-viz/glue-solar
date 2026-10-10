@@ -23,10 +23,11 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
 3. ``lazy.py`` holds data stored as int16, as Level 2 files store it, without scaling it
    in memory. ``RawComponent``, a glue ``DaskComponent``, keeps the raw integers (a
    memory map, or an array for a ``.fits.gz`` file) and scales only what a view selects,
-   astropy's way, with the fill codes as NaN; a read of the whole component goes through
-   dask. ``LazyData`` answers glue's sampled statistics, such as colour limits, from a
-   count of the raw values. ``RawStack`` stacks scans along a new leading axis without
-   copying them.
+   astropy's way, with the fill codes as NaN and, in raster windows and slit-jaw images, the
+   Level 2 ceiling, raw 32760, as +Inf, where irispy's scaled reads put it; a read of the whole
+   component goes through dask. ``LazyData`` answers glue's sampled statistics, such as colour
+   limits, from a count of the raw values, NaN and +Inf left out as glue leaves them out.
+   ``RawStack`` stacks scans along a new leading axis without copying them.
 4. ``stack_spectrograms.py`` gives a stack of two or more raster scans its WCS
    (``stack_wcs``, each scan's own with a leading scan-number axis on which the longitude
    and latitude depend) and its exact acquisition
