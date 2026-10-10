@@ -799,15 +799,17 @@ def add_tool(self, tool):
     glue-qt's ``BasicToolbar.add_tool``, with a menu tool's tooltip on its button and its entries' tooltips shown.
 
     glue-qt 0.4.2 sets a menu tool's tooltip, such as the Save menu's, on the action that holds its button, which
-    shows none, and leaves its menu's tooltips hidden, so the tooltips of its entries never show either. Each menu
-    probes for its button's tooltip, so this changes nothing once glue-qt sets one. Retired by a glue-qt fix (report
+    shows none, and leaves its menu's tooltips hidden, so the tooltips of its entries never show either. Each is
+    probed on its own, so this changes nothing once glue-qt does either. Retired by a glue-qt fix (report
     candidate).
     """
     action = _original_add_tool(self, tool)
     button = self.widgetForAction(action)
-    if isinstance(button, QtWidgets.QToolButton) and button.menu() is not None and not button.toolTip():
-        button.setToolTip(action.toolTip())
-        button.menu().setToolTipsVisible(True)
+    if isinstance(button, QtWidgets.QToolButton) and button.menu() is not None:
+        if not button.toolTip():  # each probed alone, as glue-qt may fix one and not the other
+            button.setToolTip(action.toolTip())
+        if not button.menu().toolTipsVisible():
+            button.menu().setToolTipsVisible(True)
     return action
 
 

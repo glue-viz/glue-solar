@@ -2579,14 +2579,15 @@ class CoordinateTool(_ToolMenu):
         """
         super()._add_entries()
         menu = self.toolbar.widgetForAction(self.toolbar.actions[self.tool_id]).menu()
+        submenus = {}
         for title, (tool_tip, entries) in self.SUBMENUS.items():
-            submenu = _submenu(menu, title, tool_tip)
+            submenus[title] = _submenu(menu, title, tool_tip)
             for entry in entries:
                 action = self.toolbar.actions[entry.tool_id]
                 menu.removeAction(action)
-                submenu.addAction(action)
+                submenus[title].addAction(action)
         self._action = self.toolbar.actions[_BlinkEntry.tool_id]
-        intervals = _submenu(submenu, "Blink interval", "How often the viewer alternates")
+        intervals = _submenu(submenus["Blink"], "Blink interval", "How often the viewer alternates")
         group = QtWidgets.QActionGroup(intervals)
         for seconds in (0.25, 0.5, 1, 2):
             action = group.addAction(f"{seconds:g} s")
