@@ -2411,6 +2411,24 @@ def test_a_stack_map_region_reaches_another_window_by_its_outline(bare_app, monk
         assert not inverted
 
 
+@pytest.mark.parametrize("stacked", [False, True], ids=["scan", "stack"])
+def test_a_map_region_shows_on_a_linear_path_diagram(bare_app, scans, stacked):
+    data = scans[stacked]
+    viewers = quicklook(bare_app, [data])
+    roi = PolygonalROI([0.2, 6.7, 3.1], [5.3, 40.2, 110.5])
+    region = draw_region(bare_app, viewers["map"], roi)
+    tool = viewers["map"].toolbar.tools["solar:path"]
+    tool._extract(np.linspace(0.5, 6.5, 61), np.linspace(10, 100, 61), "linear")
+    [path] = tool._traces[-1]
+    # glue draws the region on the diagram from the data's coordinates between pixels: the samples inside it, at
+    # every wavelength of the scan it was drawn on
+    tool._slice_viewer.figure.canvas.draw()
+    inside = roi.contains(path.x, path.y)
+    assert 0 < inside.sum() < inside.size
+    mask = path.get_mask(region)
+    np.testing.assert_array_equal(mask[0] if stacked else mask, np.broadcast_to(inside, mask.shape[-2:]))
+
+
 def test_a_raster_region_is_a_new_subset(bare_app, monkeypatch, irispy_test_files):
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
