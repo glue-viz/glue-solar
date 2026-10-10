@@ -6,7 +6,7 @@ A to-do list of performance problems in glue-core 1.27.0, glue-qt 0.4.2 and the 
 
 **Re-running.** The survey's scripts are in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` (132 scripts; extract it into a scratch directory). Evidence paths below are relative to that archive. Run with `env HOME="$(mktemp -d)" QT_QPA_PLATFORM=offscreen MPLBACKEND=agg ~/mamba/envs/iris-plan/bin/python <script>`, with a glue-solar checkout first on `sys.path` as the scripts do. Logs and profiles were not kept; the numbers below are the record.
 
-**Second survey.** The large SST SOLARNET cubes and the biggest IRIS sets were measured on 2026-10-10, under 'SST and IRIS stress survey, 2026-10-10' below (SST1-SST13, unverified when recorded).
+**Second survey.** The large SST SOLARNET cubes and the biggest IRIS sets were measured on 2026-10-10, under 'SST and IRIS stress survey, 2026-10-10' below (SST1-SST13, verified the same day).
 
 **How to use this file.** Tick an item's first box when its cost has been re-measured on current versions (note the date and numbers), and the second when it is fixed and released upstream (link the PR). Items are ranked by the time an IRIS user loses.
 
@@ -1236,66 +1236,83 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 
 ## SST and IRIS stress survey, 2026-10-10
 
-`wp10-l-sst-stress` (D62, D63). **Unverified:** a session-model verifier (run `wf_51e60611-065`) was re-measuring these findings when they were recorded. Tick "Re-verified" only from its result or a new check. The full report (method, every table, every number) is `report.md` in `IRIS_PLAN_PROTOTYPES/sst_stress_20261010.tar.gz`. The archive also holds `numbers.json`, the scripts (`sst.py`, `iris.py`, `restore.py`, `common.py`) and the per-run output that the evidence names below cite.
+`wp10-l-sst-stress` (D62, D63). **Verified the same day** by an independent session-model run with its own scripts: 10 findings confirmed, causes or numbers corrected where noted, none refuted. The numbers below are the verified ones. The archive `IRIS_PLAN_PROTOTYPES/sst_stress_20261010.tar.gz` holds:
+- the survey: `report.md`, `numbers.json`, `scripts/` and `out/`;
+- the verification: `verify.md` and `verify/`, with its own scripts and output.
 
-**How it was measured.** Software was the `iris-plan-qt6` env: glue-core 1.27.0, glue-qt 0.4.2, astropy 8.0.1, irispy main 8c220d4, matplotlib 3.11.2, numpy 2.5.3, PyQt6 on Qt 6.11. glue-solar was main 4c57625, from before #225. The machine was macOS with 24 GB and 12 CPUs, offscreen Agg, app 1600x1000 at DPR 1. Each run was a fresh process with one big cube.
+**How it was measured.**
+- **Software:** the `iris-plan-qt6` env (glue-core 1.27.0, glue-qt 0.4.2, astropy 8.0.1, irispy main 8c220d4, matplotlib 3.11.2, numpy 2.5.3, PyQt6 on Qt 6.11), with glue-solar main 4c57625; the verification ran on 75b7a73.
+- **Machine and app:** macOS, 24 GB, 12 CPUs; offscreen Agg; app 1600x1000 at DPR 1; a fresh process per big cube.
 - **SST path:** glue's File > Open, `load_data(path, factory=auto_data)`, then `add_datasets` with the autolinker.
-- **IRIS path:** the browser (`scan_directory`, the browser's `_load`, `keep_hpc_linked`) and then `quicklook`.
-- **Memory and I/O:** from macOS `proc_pid_rusage`: RSS, footprint and `diskio_bytesread`.
-- **Cache state:** the page cache could not be dropped, but every SST cube was 0% cached at its first run, so its open, viewer and Profile numbers are cold.
+- **IRIS path:** the browser (`scan_directory`, the browser's `_load`, `keep_hpc_linked`), then `quicklook`.
+- **Memory and I/O:** macOS `proc_pid_rusage` (RSS, footprint, `diskio_bytesread`).
+- **Cache state:** the page cache could not be dropped, but each SST cube was 0% cached at its first run, so its open, viewer and Profile numbers are cold.
 
-**SST cubes** (numpy order t, Stokes, λ, y, x; all float32, -TAB WCS, memory-mapped with 0 bytes read on open). Columns are open s; new Image viewer s, cold; slider step ms, first / warm; Profile button s, with the main-thread freeze; disk read by the Profile; Pixel drag ms per move with a Profile open; session restore.
+**SST cubes** (numpy order t, Stokes, λ, y, x; all float32 with a -TAB WCS; memory-mapped, 0 bytes read on open). The columns are:
+- Open, in s, including glue's autolinker;
+- a new Image viewer, cold, in s, with the GB read;
+- a slider step, first visit / warm, in ms;
+- the Profile button, cold, in s, with the main-thread freeze;
+- the disk read by the Profile;
+- a Pixel drag with a Profile open, in ms per move;
+- session restore.
 
-| Cube | Shape | GB | Open | Viewer | Step | Profile (freeze) | Read | Drag | Restore |
+| Cube | Shape | GB | Open | Viewer (read) | Step | Profile (freeze) | Read | Drag | Restore |
 |---|---|---|---|---|---|---|---|---|---|
-| obs492 Ca II 8542 | 6×4×21×2274×2281 | 9.86 | 0.61 | 1.8-2.6 | 34-39 / 20 | 32.6 (21.2) | 9.3 GB | 183-194 | fails |
-| obs492 Fe I 6173 | 6×4×14×2274×2280 | 6.61 | 0.52 | 2.6 | 34-39 / 20 | 21.5 (14.1) | 6.2 GB | 193 | fails |
-| obs492 Fe I 6302 | 6×4×11×2275×2280 | 5.22 | 0.48 | 2.6 | 35-38 / 20 | 17.0 (11.1) | 4.8 GB | 207 | fails |
-| obs495 Ca II K 3950 | 6×1×55×1848×1402 | 3.30 | 0.42 | 2.5 | 28 / 17.5 | 9.8 (6.0) | 2.4 GB | 184 | fails |
-| obs498 H-beta 4846 | 6×1×17×1846×1403 | 1.04 | 0.35 | 1.6 | 25 / 17 | 3.3 (1.9) | 0.7 GB | 196-198 | fails |
-| obs167 Fe I 6173 (2020) | 6×4×12×1324×1328 | 1.93 | 0.38 | refused (SST2) | 28-30 / 21 | 6.2 (3.7) | 1.5 GB | 186 | fails |
-| obs171 H-alpha (2020) | 5×1×11×1323×1326 | 0.39 | 0.33 | refused (SST2) | 25 / 21 | 1.2 (0.5) | 0.06 GB | 189 | fails |
+| obs492 Ca II 8542 | 6×4×21×2274×2281 | 9.86 | 0.25 | 1.8 (0.74) | 34-39 / 20 | 27.4 (21.2) | 9.2 GB | 183-194 | fails |
+| obs492 Fe I 6173 | 6×4×14×2274×2280 | 6.61 | 0.25 | 1.8 (0.72) | 37-39 / 19 | 18.7 (14.9) | 6.1 GB | 195 | fails |
+| obs492 Fe I 6302 | 6×4×11×2275×2280 | 5.22 | 0.24 | 1.8 (0.71) | 37-39 / 19 | 13.7 (10.5) | 4.3 GB | 201 | fails |
+| obs495 Ca II K 3950 | 6×1×55×1848×1402 | 3.30 | 0.24 | 1.75 (0.68) | 27 / 17 | 8.2 (6.1) | 2.2 GB | 182 | fails |
+| obs498 H-beta 4846 | 6×1×17×1846×1403 | 1.04 | 0.35* | 1.6 (0.50)* | 25 / 17 | 3.3 (1.9)* | 0.7 GB | 170-198 | fails |
+| obs167 Fe I 6173 (2020) | 6×4×12×1324×1328 | 1.93 | 0.38* | refused (SST2) | 28-30 / 21 | 6.2 (3.7)* | 1.5 GB | 186 | fails |
+| obs171 H-alpha (2020) | 5×1×11×1323×1326 | 0.39 | 0.33* | refused (SST2) | 25 / 21 | 1.2 (0.5)* | 0.06 GB | 189 | fails |
 
-- The 2020 cubes' numbers past the viewer were taken with SPECSYS set in memory.
-- Playback keeps glue-qt's 100 ms timer on every cube, and plays 40 frames/s at 25 ms.
-- A rectangle subset settles in 0.25-0.28 s.
-- Session saves take 8 ms and 61-119 KB.
-- Peak RSS was 13.7 GB, with a 4.4 GB footprint.
-- glue-solar's generic tools work on SST cubes: Measure, Path diagram (a 4-D diagram), Follow/lock, Hide axes, Per-frame limits, Wavelength band, Physical aspect, Zoom 1:1, Colour bar, Cursor readout, Loop…, Clear point and Blink. The IRIS-only entries are hidden.
+- **Survey-only numbers:** values marked * were not re-measured. The survey's open times included its 30 ms quiet windows, so they run about 0.1-0.35 s high. The 2020 cubes' numbers past the viewer were taken with SPECSYS set in memory.
+- **What works:**
+  - Playback keeps glue-qt's 100 ms timer on every cube, and plays 40 frames/s at 25 ms.
+  - A rectangle subset settles in 0.25-0.28 s.
+  - Session saves take 8-19 ms, 61-159 KB.
+  - Peak RSS was 14.0 GB, with a 4.4 GB footprint.
+  - glue-solar's generic tools work on SST cubes: Measure, Path diagram (a 4-D diagram), Follow/lock, Hide axes, Per-frame limits, Wavelength band, Physical aspect, Zoom 1:1, Colour bar, Cursor readout, Loop…, Clear point and Blink. The IRIS-only entries are hidden.
 
-**IRIS sets**, through the browser and quicklook path. Steps and moves are in ms; restore is in s.
+**IRIS sets**, through the browser and quicklook path; steps and moves in ms. The survey timed its restores under cProfile, which inflates them 2.5-3×, so only the verified restores are given.
 
-| Observation, windows | Open s (load / quicklook) | Exposure or scan step | Click / move | Restore |
+| Observation, windows | Open s (load / quicklook) | Exposure or scan step | Click / move | Restore s |
 |---|---|---|---|---|
-| 4000255147, Si IV 1403 + SJI 1400 | 4.35 (2.74 / 1.45) | 207 | 248 / 235 | 5.8 |
-| 4000255147, 9 windows + SJI 1400 | 13.6 (5.6 / 7.1) | 865-874 | 760 / 985 | 19.3 |
-| 3660259102 sit-and-stare, 9 windows | 12.4 | 845 | 711 / 958 | 16.4 |
-| 3824262996 400 steps, 8 windows | 5.6 | 361 | 378 / 417 | 6.9 |
-| 3602506433 99-scan stack, 7 windows | 16.7 | 599-606 | 608 / 742 | 49.3 (SST6) |
-| 3630104144 120-scan stack, 8 windows | 18.8 | 693-695 | 702 / 886 | 70.7 (SST6) |
-| 4000005156 2-scan stack, 9 windows + SJI 2796 | 10.1 | 772 | 685 / 856 | 15.7 |
+| 4000255147, Si IV 1403 + SJI 1400 | 3.4-4.35 | 194-207 (7 draws) | 248-264 / 235-240 | |
+| 4000255147, 9 windows + SJI 1400 | 13.4-13.6 | 865-875 (47 draws) | 760-887 / 985-991 | 6.7 |
+| 3660259102 sit-and-stare, 9 windows | 12.4 | 845 | 711 / 958 | |
+| 3824262996 400 steps, 8 windows | 5.6 | 361-374 | 378-385 / 417-424 | |
+| 3602506433 99-scan stack, 7 windows | 16.7 (11.2 / 4.8) | 599-606 | 608 / 742 | 19.8 (SST6) |
+| 3630104144 120-scan stack, 8 windows | 18.8 (12.4 / 5.5) | 693-695 | 702 / 886 | |
+| 4000005156 2-scan stack, 9 windows + SJI 2796 | 10.1 | 772 | 685 / 856 | |
+
+**Not measured:**
+- An IRIS region shown on an SST Image viewer. That inverts irispy's -TAB raster WCS once per SST screen pixel; R8 gives about 6 ms per point inside a sit-and-stare's footprint.
+- An SST light curve. It would be a Profile with x = time, which recomputes the whole-cube data layer (R14).
+- sunpy maps beside a quicklook. They carry a plain astropy WCS that `link_hpc` links, the same class as SST1.
+- Co-pointed SST and IRIS data: see SST3.
 
 ### SST1. An IRIS quicklook beside an SST cube crashes glue: wcslib is called on the SST cube's WCS from several threads, outside `WCS_LOCK`
 
-- [ ] Re-verified
+- [x] Re-verified (2026-10-10: 4 of 4 runs crashed again)
 - [ ] Fixed in glue-solar (`wp13-l-sst-wcs-lock`)
 
-- **Cost:** 4 of 4 unprotected runs crashed and the session was lost.
-  - Two SIGSEGVs came while the quicklook opened.
-  - One SIGABRT came with only the transforms locked.
-  - One SIGSEGV came on the first SST Pixel drag, with no rectangle at all.
-  - With every WCS entry point locked, 3 of 3 runs completed.
-- **Cause:** `keep_hpc_linked`/`link_hpc` link the SST cube's plain astropy WCS (-TAB axes plus a distortion lookup) to IRIS. glue-qt's profile `ComputeWorker` threads then call into that WCS by two paths:
-  - `pixel_selection_subset_state` → `link_manager.pixel_cid_to_pixel_cid_matrix` → `glue_patches.world2pixel_single_axis` → `all_world2pix`;
-  - `coordinate_helpers.pixel2world_single_axis` → `fitswcs.axis_correlation_matrix`.
+- **Cost:** 8 of 8 unprotected runs crashed, with SIGSEGV or SIGABRT, and the session was lost.
+  - Most crashed while the quicklook opened; one crashed on the first SST step or drag after it.
+  - No SST Profile viewer is needed: the quicklook's own spectrum panels compute the SST point's and rectangle's profiles over the IRIS windows on worker threads.
+  - With every WCS entry point locked, 3 of 3 runs completed. A lock on the transforms only still aborted.
+- **Cause:** `keep_hpc_linked`/`link_hpc` link the SST cube's plain astropy WCS, and its `WCSDVARR` dataset, to IRIS (20 → 122 links). glue-qt's `ComputeWorker` threads and the main thread then call wcslib on that WCS, unlocked, through:
+  - `subset.to_mask` → `component_link` → `glue_patches.world2pixel_single_axis` → `all_world2pix`;
+  - `pixel_selection_subset_state.to_array` → `glue_patches._to_linked_pixel_coords` → `link_manager.pixel_cid_to_pixel_cid_matrix` → the same.
 
-  Meanwhile the main thread draws linked masks through the same WCS. `WCS_LOCK` covers only `_GlueWCS`, which is IRIS data.
-- **Fix:** wrap the WCS of each non-IRIS dataset that `link_hpc` links in a locked wrapper, as `_GlueWCS` does, and take the lock in `world2pixel_single_axis`. The lock must cover properties too; transforms alone still aborted. astropy#19174 is the root cause (`wp0-astropy-19174`).
-- **Evidence:** `scripts/sst.py CUBE NAME --iris sit [--wcs-lock]`; `out/s498noroi.log`, `out/s8542.log`, `out/s498L.json`, `out/s8542W.json`.
+  The heap corruption surfaces in whichever thread allocates next, sometimes inside IRIS's locked `_GlueWCS`. In every dump, the only unlocked wcslib calls are on the SST WCS.
+- **Fix:** put the WCS of every non-`_GlueWCS` dataset that `link_hpc` links behind `WCS_LOCK`, properties too, sunpy maps included. Take the lock in `world2pixel_single_axis` and `_to_linked_pixel_coords`. Ship it with SST3's fix: once locked, the main thread waits behind multi-second worker inversions. Root cause: astropy#19174 (`wp0-astropy-19174`).
+- **Evidence:** the survey's `scripts/sst.py CUBE NAME --iris sit [--wcs-lock]`; the verification's `verify/beside.py`, which also crashed with `--no-profile` and with `--no-roi` (`verify/out/b1.log` to `b4.log`).
 
 ### SST2. The 2020 SSTRED exports open but no viewer shows them: 'SPECSYS= not yet supported'
 
-- [ ] Re-verified
+- [x] Re-verified (2026-10-10)
 - [ ] Fixed (`wp13-solarnet-tab-wcs`)
 
 - **Cost:** obs167 and obs171 cannot be displayed at all.
@@ -1303,92 +1320,113 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
   - astropy's `fitswcs._get_components_and_classes` raises for an empty SPECSYS when an observer location is present.
   - WCSAxes builds every axis's classes to get the celestial frame.
   - The 2023 exports carry `SPECSYS='TOPOCENT'` and work.
-- **Fix:** the SOLARNET loader sets `SPECSYS='TOPOCENT'` on ground-based files without one; set in memory, it makes both cubes work in every phase. The alternative is an astropy change that treats an empty SPECSYS as "no spectral observer".
-- **Evidence:** `scripts/sst.py --fix-specsys`; `out/s167.json`.
+- **Fix:** the SOLARNET loader sets `SPECSYS='TOPOCENT'` on ground-based files without one, before glue builds the WCS. Done in memory, this makes both cubes work in every phase. The alternative is an astropy change that treats an empty SPECSYS as "no spectral observer".
 
 ### SST3. An SST region shown on an IRIS quicklook costs minutes per action, once SST1 is locked
 
-- [ ] Re-verified
-- [ ] Fixed (`wp13-l-sst-link-scope`; upstream R2)
+- [x] Re-verified (2026-10-10; cause corrected)
+- [ ] Fixed (`wp13-l-sst-link-scope`)
 
-- **Cost:** compared with the same quicklook without the SST region:
-  - opening the quicklook takes 328-410 s instead of 13.6 s;
-  - an exposure step takes 3.7-4.4 s instead of 0.87 s;
-  - an SJI frame step takes 2.8-3.5 s instead of 0.042 s;
-  - a click takes 3.6-4.3 s instead of 0.76 s.
+- **Cost:** on 4846 beside 4000255147 (9 windows), against the quicklook alone:
 
-  RSS is 7.9-12.3 GB. SST Pixel moves take 571-735 ms with IRIS open, against 194 ms alone, as the hidden IRIS tab redraws (R4, R9).
-- **Cause:** the subset group puts the SST rectangle on all 10 IRIS datasets. `RoiSubsetState.to_mask` maps each IRIS pixel to world and then through the SST WCS's iterative inverse, which is iterative because of the distortion lookup. That happens for every screen pixel on the main thread (117-144 s in 42 masks) and for every value of every window in the profile workers.
-- **Fix:** upstream, R2's single inversion culled to the footprint. In glue-solar, link non-IRIS data only on request, or keep foreign subsets off the spectrum panels. Not a faster inversion (R8, D54).
+  | Action | With the SST region | Quicklook alone |
+  |---|---|---|
+  | Quicklook open | 328 s with the harness's lock; 798 s with profiles on the main thread | 13.6 s |
+  | Exposure step | 3.6-4.4 s | 0.87 s |
+  | SJI frame step | 2.8-3.5 s | 0.042 s |
+  | Click | 3.5-4.3 s | 0.76 s |
 
-### SST4. The Profile button on a large cube reads the whole file, freezes the main thread for about 2/3 of the wait, and adds the file to RSS
+  SST Pixel moves take 500-735 ms with IRIS open, against 194 ms alone, as the hidden IRIS tab redraws (R4, R9). RSS reaches 7.9-12.3 GB.
+- **Cause:** the subset group puts the SST rectangle on all 10 IRIS datasets. `RoiSubsetState.to_mask` maps each IRIS pixel to world and through the SST WCS's `all_world2pix`; on the open, that is 774 of 788 s, 98%.
+  - The verification corrected the mechanism. glue's FITS reader does not load CWDIS3 (`has_distortion` is False), so the cost is wcslib's -TAB inverse, not a distortion iteration.
+  - Inverse cost: 975 µs per point inside the cube's footprint and 7.9 µs outside, where the result is NaN. The forward transform costs 0.09 µs per point.
+  - The surveyed pair (a 2013 IRIS field and a 2023 SST field) never overlaps, so it measured the cheap case. Co-pointed data (obs171 with IRIS 3660258923, the real use) costs about 100× more per covered pixel, about a minute for a half-covered SJI frame.
+- **Fix:** R2's footprint cull helps only where the region does not overlap. A faster inversion is ruled out (R8, D54). That leaves glue-solar's link scope: link non-IRIS data only on request ('IRIS: link helioprojective coordinates'), or keep foreign subsets off the quicklook's panels. The user chooses.
 
-- [ ] Re-verified
+### SST4. The Profile button on a large cube reads the whole file, freezes the main thread for about 3/4 of the wait, and adds the file to RSS
+
+- [x] Re-verified (2026-10-10; numbers corrected)
 - [ ] Worked around in glue-solar (`wp10-l-sst-profile-hidden-data`); upstream R14, R21
 
-- **Cost:** about 3.3 s per GB, cold. On 8542 it took 32.6 s, 21.2 s of it frozen. It read 9.3 GB, left RSS at 10.3 GB (13.7 GB peak), with a 4.4 GB footprint peak. The table above has every cube.
-- **Cause:** `ProfileViewerState._reset_y_limits` computes the whole-cube maximum on the main thread (3 calls, 21.2 s), then the workers compute it again. `compute_statistic` copies each chunk to float64.
-- **Fix:** upstream R14 and R21, or glue-qt adding the data layer hidden at `large_data_size`. glue-solar can hide the data layer of non-IRIS cubes of 1e8 values or more now, as S13 does for the quicklook.
+- **Cost:** about 2.6-2.8 s per GB, cold. On 8542:
+  - 27.4 s, of which 21.2 s is frozen;
+  - 9.2 GB read;
+  - RSS 10.3 GB steady, 14.0 GB peak, with a 4.4 GB footprint peak.
+
+  The table above has every cube. Two dialogs come first: 'Creating a profile viewer', then 'Add large data set?'.
+- **Cause:**
+  - `ProfileViewerState._reset_y_limits` computes the whole-cube maximum on the main thread.
+  - The worker then computes it again on a warm cache: 5.9 s on 8542.
+  - `compute_statistic` chunks only along the profile axis, so each chunk is one λ plane, 1.24e8 values on 8542. Its float64 copy is about 1 GB, which is what pushes the footprint to 4.4 GB (R21).
+- **Fix:** upstream, R14 and R21, or glue-qt adding the data layer hidden at `large_data_size`. glue-solar can hide the data layer of non-IRIS cubes of 1e8 values or more now, as S13 does for the quicklook. That also removes SST9.
 
 ### SST5. SST sessions save but never restore ('HDUList is required'), including the autosaved last session
 
-- [ ] Re-verified
+- [x] Re-verified (2026-10-10)
 - [ ] Fixed (`wp13-solarnet-tab-wcs`)
 
-- **Cost:** restore fails within 12 ms on 8542, 6173, 3950 and obs171. #206's autosave keeps such a session, so 'IRIS: restore last session' fails too.
-- **Cause:** glue saves the WCS as a header string and rebuilds it with `WCS(Header)` without the HDUList (`glue/core/state.py`).
+- **Cost:** restore fails within 5-12 ms on 8542, 6173, 6302, 3950 and obs171.
+- **Autosave:** closing the app with an SST cube open writes a 65 KB `glue-solar-last-session.glu`. Its 1 MB guard lets it through, because glue's FITS components carry load logs. 'IRIS: restore last session' then fails the same way.
+- **Cause:** glue saves the WCS as a header string and rebuilds it with `WCS(Header)` without the HDUList (`glue/core/state.py` `_save_wcs`/`_load_wcs`).
 - **Fix:** a saver or session patch that rebuilds the WCS from the logged file.
 
-### SST6. Restoring a multi-window stack re-reads every raster file once per window
+### SST6. Restoring a multi-window stack reads every raster file once per window
 
-- [ ] Re-verified
+- [x] Re-verified (2026-10-10; cost corrected)
 - [ ] Fixed in glue-solar (`wp3-l-restore-one-read`)
 
-- **Cost:** 3602506433 with 7 windows restores in 49.3 s, 38.1 s of it in 693 `read_files` calls; the browser loads it in 11.2 s. 3630104144 with 8 windows restores in 70.7 s (56.5 s, 960 reads), against 12.4 s.
-- **Cause:** each window has its own load log, and its restore (`raster_files_data` → `_raster_windows_data(files, [window])`) opens every file for that one window.
-- **Fix:** read each file once for all logged windows of one restore, with a session patch grouping the raster logs or a per-restore cache. Expected about 49 → 12 s.
+- **Cost:** 3602506433 with 7 windows and 99 files restores in 19.8 s. Of that, 13.8 s is data, in 693 `read_files` calls (99 × 7). The browser loads it in 10.9 s with 99 calls. The survey's 49.3 s, and its 70.7 s for 3630104144, ran under cProfile.
+- **Cause:** each window has its own load log, and restoring it (`raster_files_data` → `_raster_windows_data(files, [window])`) opens every file for that one window.
+- **Fix:** read each file once for all logged windows of one restore, with a session patch that groups the raster logs or a per-restore cache. Tested directly: one call for all 7 windows takes 5.6-6.3 s against 13.5 s for one per window, so the restore should drop to about 12 s.
 
 ### SST7. Each ticked window multiplies the quicklook's redraws: about 4× per step with 9 windows
 
-- [ ] Re-verified
+- [x] Re-verified (2026-10-10)
 - [ ] Fixed in glue-solar (`wp4-l-window-rows-redraw`); per-draw cost R1, R5, R18
 
 - **Cost:** on 4000255147, going from 1 window to 9:
-  - an exposure step goes from 207 to 865-874 ms;
-  - a click from 248 to 760 ms;
-  - a move from 235 to 985 ms;
-  - the open from 4.35 to 13.6 s.
 
-  With the point curves, row and column open, a move takes 1668 ms. Over 84 steps there were 2008 canvas draws with 9 windows, against 381 with 1, at about 17 ms each.
+  | Action | 1 window | 9 windows |
+  |---|---|---|
+  | Exposure step | 194-207 ms, 7 draws | 865-875 ms, 47 draws |
+  | Click | 248-264 ms | 760-887 ms |
+  | Move | 235-240 ms | 985-991 ms |
+  | Open | 3.4-4.35 s | 13.4-13.6 s |
+
+  The map λ step (95 ms) and the SJI frame step (48 ms) do not change. With the point curves, row and column open, a move takes 1668 ms.
 - **Cause:** every other window's spectrum panel and λ panel redraws on each step and move.
 - **Fix:** blit the moving time and point markers, refresh images only when their slice changes, or redraw only the visible rows.
 
-### SST8. An SST Pixel drag waits about 168 of its 194 ms on the Profile worker
+### SST8. An SST Pixel drag with a Profile open costs about 190 ms per move
 
-- [ ] Re-verified
+- [x] Re-verified (2026-10-10; split corrected)
 
-- **Cost:** a drag move takes 194-198 ms with a Profile open and 30 ms without one. The worker's own compute is 0.2-0.5 ms. The cube-sized mask stays virtual (+0.02 GB).
-- **Covered by** R3 and R7: these are SST-scale numbers for R3's re-verification.
+- **Cost:** 170-201 ms per move with a Profile viewer open, against 31-34 ms without one.
+  - About 95-110 ms is waiting: R3's 25 Hz polling, twice.
+  - About 44-57 ms is the Profile viewer's extra draws on the main thread.
+  - The worker computes for only 0.4-0.5 ms, and the cube-sized mask stays virtual.
+- **Covered by** R3 (a) for the wait, and R3 (b), v_min/v_max no longer triggering a recompute, for the draws; and R7.
 
-### SST9. A Path diagram, or any link change, recomputes the region's whole-cube profile
+### SST9. A Path diagram, or any link change, recomputes the Profile's whole-cube data layer
 
-- [ ] Re-verified
+- [x] Re-verified (2026-10-10; cause corrected)
 
-- **Cost:** the settle after Enter takes 5.3 s on 8542, 7.0 s on 6173 and 3.5 s on 3950. On 8542 the worker spends 11.8 s in `compute_statistic`.
-- **Covered by** R11: a link change drops every linked mask.
+- **Cost:** after Enter (0.17-0.18 s) comes a settle of 3.5-7.0 s, varying with how many recomputes the link change triggers; 5.3 s on 8542.
+- **Cause:** the Path adds 3 links. Then `Data._update_externally_derivable_components` broadcasts (`glue/core/data.py:640-660`), `Viewer._update_data` follows (`glue/viewers/common/viewer.py:288-307`), and `ProfileLayerArtist.update` resets its cache. The data layer's whole-cube maximum recomputes (5.35 s on 8542); the rectangle's profile takes only 0.36-0.42 s.
+- **Covered by** R11, as its Profile data-layer case; `wp10-l-sst-profile-hidden-data` removes it for large non-IRIS cubes.
 
-### SST10. A new Image viewer on a cold memory-mapped cube reads 0.3-0.74 GB at random for its Min/Max limits
+### SST10. A new Image viewer on a cold memory-mapped cube reads about 0.7 GB at random for its Min/Max limits
 
-- [ ] Re-verified
-- [ ] Fixed upstream (`wp0-perf-core-stats-io`)
+- [x] Re-verified (2026-10-10)
+- [ ] Fixed upstream (`wp0-perf-core-stats-io`, as R32)
 
-- **Cost:** 1.3-2.6 s cold against 0.5-0.6 s warm, with about 10,000 page-ins.
-- **Cause:** `StateAttributeLimitsHelper` samples 10,000 uniform random indices over all axes (`glue/core/data.py`, `glue/utils/array.py`). Each index lands on a different page of the mapped file.
+- **Cost:** 1.75-1.82 s cold against 0.53-0.55 s warm, reading 0.68-0.74 GB in about 10,000 page-ins. `compute_statistic` takes 1.17-1.25 s.
+- **Cause:** `StateAttributeLimitsHelper` (`glue/core/state_objects.py:405-422`) calls `random_subset`, which draws 10,000 uniform random indices with one `np.random.randint` per axis (`glue/core/data.py:1849-1851`, `glue/utils/array.py:756`). Each index lands on a different page of the mapped file.
 - **Fix:** sample whole planes or rows, as glue-solar's `RawComponent._sample` does, or sort the indices by page.
 
 ### SST11. 'Light curves of every window and SJI…' is offered on a single-scan raster with no SJI, then refuses
 
-- [ ] Re-verified
+- [x] Re-verified (2026-10-10, on 75b7a73)
 - [ ] Fixed in glue-solar (`wp11-l-point-curves-offered`)
 
 - **Cost:** an error box on 3824262996 ('… has no exposures or scans, and its observation no slit-jaw image loaded').
@@ -1397,15 +1435,22 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 
 ### SST12. File > Open makes 33 datasets per SST cube
 
-- [ ] Re-verified
+- [x] Re-verified (2026-10-10; description corrected)
 - [ ] Fixed (`wp13-solarnet-tab-wcs`)
 
-- **Cost:** no time. The datasets are the cube, `WCSDVARR` (124 MB on 8542, and it looks like data), an empty 0-D `WCS-TAB` and 30 `VAR-EXT` tables, with about 30 'Dropping column' warnings. glue's `fits_reader` reads every HDU.
+- **What it makes:** glue's `fits_reader` (priority 100) reads every HDU; glue-solar's IRIS factory declines in 1.3 ms. The 33 datasets are:
+  - the cube, 5-D and memory-mapped;
+  - `WCSDVARR`, 5-D with its own WCS, which looks like data;
+  - 31 empty 0-D datasets with no components: `WCS-TAB` and the 30 `VAR-EXT` tables, whose multi-dimensional columns glue drops with about 30 warnings.
+- **Cost:** the open takes 0.24-0.25 s and reads 0 bytes.
 
-### SST13. A cold sit-and-stare quicklook reads the whole raster file
+### SST13. A cold sit-and-stare in the browser reads the whole raster file
 
-- **Cost:** 1.43 of 1.43 GB read on 3660259102. Each λ-time panel reads a row of every exposure plane, and readahead pulls in whole planes. On this SSD, cold is no slower than warm.
-- **Decision** (D63, PROVISIONAL): no action; it matters only on slow or network disks.
+- [x] Re-verified (2026-10-10; cause corrected)
+
+- **Cost:** 1.43 of 1.43 GB is read on 3660259102, during the browser's `_load`, on its worker thread behind the progress bar. The load takes 3.5-4.6 s cold against 2.8 s warm. The quicklook's own phase reads 5 MB.
+- **Cause:** `_load` samples each shown dataset's colour limits with `RawComponent._sample`, up to `SAMPLE_BYTES` (512 MiB) of whole planes each. With 9 windows, the samples cover the file.
+- **Decision** (D63, PROVISIONAL): no action. It costs 1-2 s cold on an SSD, off the main thread.
 
 ## Decoupling WCSAxes from matplotlib
 
