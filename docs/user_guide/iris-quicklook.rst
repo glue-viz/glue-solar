@@ -4,8 +4,7 @@
 The quicklook
 =============
 
-The quicklook is a CRISPEX-style set of viewers for one observation, in a new tab; tabs may be
-moved or closed while it opens, and closing its own stops it. Open it
+The quicklook is a CRISPEX-style set of viewers for one observation, in a new tab. Open it
 
 - from the observation browser, with "Open quicklook" ticked (the default): each observation you
   load opens in its own quicklook, showing the raster windows you ticked (see `Several windows`_);
@@ -15,6 +14,8 @@ moved or closed while it opens, and closing its own stops it. Open it
   this way load one by one, so each raster file keeps its raster number in its label
   (``…-r00003``) and the quicklook shows the first; to stack the scans, use the browser;
 - from glue's Terminal, with ``glue_solar.quicklook.quicklook(application, datasets)``.
+
+Tabs can be moved or closed while a quicklook opens; closing its tab stops it.
 
 For those used to CRISPEX:
 
