@@ -18,7 +18,8 @@ authors = [
 dependencies = [
   "dask[array]>=2024.7.0",
   "glue-core>=1.27.0",
-  "glue-qt[qt]>=0.4.2",
+  "glue-qt>=0.4.2",  # without its qt extra, which is PyQt5
+  "PyQt6>=6.8",
   "sunpy[map,net]>=6.0.0",
   # irispy main until glue-solar is released
   "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git",

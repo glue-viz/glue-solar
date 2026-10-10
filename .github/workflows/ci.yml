@@ -74,9 +74,13 @@ jobs:
       submodules: false
       pytest: false
       toxdeps: tox-pypi-filter
+      # graphviz, and what Qt 6 needs to load, which the docs import
       libraries: |
         apt:
           - graphviz
+          - libegl1
+          - libgl1
+          - libxkbcommon0
       envs: |
         - linux: build_docs
 
@@ -93,8 +97,9 @@ jobs:
     uses: OpenAstronomy/github-actions-workflows/.github/workflows/publish_pure_python.yml@22ddf09dfabb443adddfb9f861b7d41a787d6b1a  # v3.0.3
     with:
       python-version: '3.13'
-      test_extras: 'tests,qt'
+      test_extras: 'tests'
       test_command: 'pytest -n auto -p no:warnings --doctest-rst --pyargs glue_solar'
+      libraries: libegl1 libgl1 libxkbcommon0  # what Qt 6 needs to load; apt's arguments here, not tox.yml's apt: list
       submodules: false
       save_artifacts: true
       upload_to_pypi: false

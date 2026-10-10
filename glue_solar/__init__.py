@@ -4,6 +4,7 @@ from copy import deepcopy
 from functools import partialmethod
 
 import glue.config
+import qtpy
 from glue.config import fit_plugin, menubar_plugin, session_patch, stretches, unit_converter
 from glue.core.state import GlueSerializer
 from glue.logger import logger
@@ -15,6 +16,15 @@ from qtpy import QtWidgets
 from astropy.visualization import PowerStretch
 
 from sunpy.visualization.colormaps import cmlist
+
+# Before anything of glue-solar registers with glue
+if not qtpy.QT6:
+    message = (
+        f"glue-solar needs Qt 6 (PyQt6), not {qtpy.API_NAME} on Qt {qtpy.QT_VERSION}: install PyQt6, and set "
+        "QT_API=pyqt6 where PyQt5 is installed too, as qtpy takes it first"
+    )
+    logger.error(message)  # glue logs a plugin that fails to load only at info level, which it does not show
+    raise RuntimeError(message)
 
 from glue_solar import glue_patches, lines, regrid, tools
 from glue_solar.quicklook import QuicklookImageViewer

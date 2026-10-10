@@ -127,6 +127,28 @@ def test_setup_registers_hooks():
         assert iris.priority > (other.priority or 0)
 
 
+_QT_5_IMPORT = """
+import sys
+
+import qtpy
+
+qtpy.QT6, qtpy.API_NAME = False, "PyQt5"
+try:
+    import glue_solar
+except RuntimeError:
+    print(*[name for name in sys.modules if name.startswith("glue_solar")], "|")
+"""
+
+
+def test_import_refuses_qt_5_before_anything_registers():
+    # in a process of its own, as glue_solar is imported here
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)}
+    result = subprocess.run([sys.executable, "-c", _QT_5_IMPORT], env=env, capture_output=True, text=True)
+    assert result.stdout == "|\n", result.stderr[-2000:]
+    # glue logs a plugin that fails to load only at info level, which it does not show
+    assert re.search(r"glue-solar needs Qt 6 \(PyQt6\), not PyQt5 .* set QT_API=pyqt6", result.stderr)
+
+
 _PLUGIN_LOAD = """
 import sys
 
