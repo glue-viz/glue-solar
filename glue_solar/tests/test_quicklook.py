@@ -28,6 +28,7 @@ from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.text import Text
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt, QTimer
+from qtpy.QtTest import QTest
 
 import astropy.units as u
 from astropy.io import fits
@@ -751,11 +752,11 @@ def test_a_tab_closed_or_moved_as_a_quicklook_opens(bare_app, monkeypatch, scans
     }
     turns = []
 
-    def user(process_events=glue_solar.quicklook.process_events):
+    def user():
         if len(turns) == turn:
             changes[change]()
         turns.append(turn)
-        process_events()
+        QTest.qWait(0)  # a turn with its deferred deletes, as the app's loop runs them
 
     monkeypatch.setattr(glue_solar.quicklook, "process_events", user)
     viewers = quicklook(bare_app, [scans[0]])
