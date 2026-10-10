@@ -4,13 +4,14 @@
 UV bursts
 =========
 
-To find UV bursts, compact brightenings of the transition region, select a raster window of one scan
-covering Si IV 1402.77 Å, such as "Si IV 1403", or a 1400 Å slit-jaw image in the data collection
-and choose "IRIS: detect UV bursts…" from its right-click menu. Type irispy's parameters, its
-defaults unless changed; Cancel adds nothing. irispy finds the bursts on a worker thread, while
-glue's status bar says "Detecting UV bursts in <label>…", which then says how many it found, and
-adds two datasets: ``<label> bursts``, a map of their labels, and ``<label> burst events``, a table
-of them. No viewer opens: drag the map onto an Image viewer and the table onto a Table viewer.
+To find UV bursts, compact brightenings of the transition region, select a raster window, of one
+scan or a stack of its scans, covering Si IV 1402.77 Å, such as "Si IV 1403", or a 1400 Å slit-jaw
+image in the data collection and choose "IRIS: detect UV bursts…" from its right-click menu. Type
+irispy's parameters, its defaults unless changed; Cancel adds nothing. irispy finds the bursts on a
+worker thread, while glue's status bar says "Detecting UV bursts in <label>…", which then says how
+many it found, and adds two datasets: ``<label> bursts``, a map of their labels, and
+``<label> burst events``, a table of them. No viewer opens: drag the map onto an Image viewer and
+the table onto a Table viewer.
 
 In a raster window
 ------------------
@@ -35,6 +36,13 @@ each burst, irispy's columns: its ``label``, ``raster``, 0, and ``npix``, its nu
 and the ``step``, ``y`` (the slit pixel), ``time``, ``coordinate.Tx`` and ``coordinate.Ty`` in
 arcsec, and ``intensity``, the mean in DN/s, of its brightest pixel; its ``meta`` is the map's.
 On the 1600 steps of OBSID 4000255147's Si IV 1403 it takes 0.2 s.
+
+irispy finds a stack's bursts scan by scan, each scan's as that scan alone gives them, at its own
+coordinates, times, exposure times and date, so a threshold left blank is each scan's own. The map
+lies on the stack's scans, raster steps and slit pixels, the scan slider picking the scan, its
+labels numbered on through the scans, 1 to N over all N bursts, as irispy numbers the rasters of a
+sequence; ``bursts_threshold`` holds each scan's threshold, and the table's ``raster`` is the scan
+of each burst. The status bar counts the bursts of every scan.
 
 In a slit-jaw image
 -------------------
@@ -64,7 +72,6 @@ which the tables' ``coordinate.Tx`` and ``coordinate.Ty`` include, as the maps' 
 ``glue_solar.sources.bursts.sji_bursts(data, sigma_factor, min_pixels)`` return the two datasets in
 glue's terminal too.
 
-Glue says why, and adds nothing, for stacks of scans (unlike :ref:`line moments
-<glue_solar_users_guide_iris_line_moments>`), for slit-jaw images of other bands, other data, a
-window with no wavelength within the velocities of Si IV 1402.77 Å, before asking for ±50 km/s, a
-threshold that is not a number, and irispy's own errors.
+Glue says why, and adds nothing, for slit-jaw images of other bands, other data, a window with no
+wavelength within the velocities of Si IV 1402.77 Å, before asking for ±50 km/s, a threshold that is
+not a number, and irispy's own errors.

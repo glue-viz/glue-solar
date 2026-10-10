@@ -1,0 +1,1 @@
+'IRIS: Mg II features', 'IRIS: red-blue asymmetry', 'IRIS: detect UV bursts' and 'IRIS: radiometric calibration' take stacks of raster scans, computing each scan as it would be alone.

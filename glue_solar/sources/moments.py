@@ -37,16 +37,11 @@ SLAB = 2**21
 _HAIR = 1e-6
 
 
-def _check(data, what=None):
+def _check(data):
     """
-    Raise why ``data`` is not an IRIS raster window of one scan, (raster step, slit, wavelength), or, unless for
-    ``what``, which takes one scan, a stack of its scans, (scan, raster step, slit, wavelength).
+    Raise why ``data`` is not an IRIS raster window of one scan, (raster step, slit, wavelength), or a stack of its
+    scans, (scan, raster step, slit, wavelength).
     """
-    if _role(data) == "raster" and data.ndim == 4 and what:
-        raise ValueError(
-            f"{data.label} is a stack of raster scans: {what} take one scan, as the observation "
-            "browser loads them without 'Stack sequential raster scans'."
-        )
     if _role(data) != "raster" or data.ndim not in (3, 4) or _spectral_axes(data) != {data.ndim - 1}:
         raise ValueError(f"{data.label} is not an IRIS raster window.")
 
