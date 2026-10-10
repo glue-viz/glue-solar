@@ -67,6 +67,8 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 from glue_solar.quicklook import (
     _across,
     _curve_map,
+    _cut,
+    _cut_map,
     _half_cadence,
     _is_sit_and_stare,
     _light_curve,
@@ -1909,6 +1911,27 @@ class _PointCurvesEntry(_CoordinateEntry):
         return _role(self.viewer.state.reference_data) is not None
 
 
+class _RowEntry(_CoordinateEntry):
+    tool_id = "solar:row"
+    action_text = "Row at the point"
+    tool_tip = "Open the row through the point along x (raster step or exposure), at the wavelength or band shown"
+    label, back = "Row", 3  # along the raster's step or exposure axis, the third from the end
+
+    @messagebox_on_error("Could not open the cut")
+    def run(self, coordinator):
+        _cut(self.viewer, self.viewer.state.reference_data.ndim - self.back, self.label)
+
+    def offered(self):
+        return _cut_map(self.viewer)
+
+
+class _ColumnEntry(_RowEntry):
+    tool_id = "solar:column"
+    action_text = "Column at the point"
+    tool_tip = "Open the column through the point along y (slit position), at the wavelength or band shown"
+    label, back = "Column", 2  # along the slit
+
+
 def _first_slider(viewer):
     """
     glue-qt's slice slider of the Image viewer's first array axis (an IRIS dataset's frames, exposures, steps or
@@ -2516,7 +2539,8 @@ class CoordinateTool(_ToolMenu):
     Pixel tool, and unregisters it when the viewer closes. Its menu makes the displayed dataset the
     time master of its observation, moves the time master to a typed UTC time, makes the frame, exposure, step or
     scan slider's playback loop over a range, or shows the raster overlays; its "Point" submenu clears the point,
-    opens the light curve at the point, or plots the light curves of every window and slit-jaw image at the point;
+    opens the light curve at the point, plots the light curves of every window and slit-jaw image at the point, or
+    opens a raster map's row or column through the point;
     its "Blink" submenu blinks the viewer between its position and a stored partner. An entry shows only where it can
     act, as the menu opens (`_CoordinateEntry.offered`), and "Blink" is greyed without a partner. On a
     slit-jaw image it draws the displayed frame's slit, and the point of a raster of the same
@@ -2530,7 +2554,10 @@ class CoordinateTool(_ToolMenu):
     # the entries of the menu, then of each submenu, by its title, with its tooltip
     ENTRIES = (_TimeMasterEntry, _GoToUTCEntry, _LoopEntry, _OverlaysEntry)
     SUBMENUS = {
-        "Point": ("The point: clear it, or its light curves", (_ClearPointEntry, _LightCurveEntry, _PointCurvesEntry)),
+        "Point": (
+            "The point: clear it, its light curves, or the map's row and column through it",
+            (_ClearPointEntry, _LightCurveEntry, _PointCurvesEntry, _RowEntry, _ColumnEntry),
+        ),
         "Blink": ("Alternate the viewer between its position and a partner", (_PartnerEntry, _BlinkEntry)),
     }
 

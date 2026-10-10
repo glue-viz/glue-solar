@@ -1539,15 +1539,15 @@ def _fit_spectrum(viewer, group):
         viewer._solar_fit = _FitOnceComputed(viewer, subset)  # the hub holds its listeners weakly
 
 
-class _LightCurve(HubListener):
+class _Cut(HubListener):
     """
-    Keep a light curve's subset group (`_light_curve`) at the point's slit position, and a stack's step, and on the
+    Keep a cut's subset group (`_cut`) along array axis ``axis`` at the point's other axes but wavelength, and on the
     wavelength or band its map shows: a Collapse, a Wavelength band or the slider's wavelength. While the point is no
     Pixel selection on the map's file, or the map shows other data, it stays where it was.
     """
 
-    def __init__(self, group, point, band):
-        self.group, self.point, self.band, self.data = group, point, band, band.state.reference_data
+    def __init__(self, group, point, band, axis):
+        self.group, self.point, self.band, self.axis, self.data = group, point, band, axis, band.state.reference_data
         band.state.add_callback("slices", self.refresh)
         self.data.hub.subscribe(self, SubsetUpdateMessage, handler=self.refresh, filter=self._moved)
         self.refresh()
@@ -1561,52 +1561,67 @@ class _LightCurve(HubListener):
             return
         if state.reference_data is not data or len(state.slices) != data.ndim:
             return
-        if any(s.start is None for s in point.slices[1:-1]):
+        slices = list(point.slices)
+        if any(s.start is None for i, s in enumerate(slices[:-1]) if i != self.axis):
             return  # a click before the coordinator gives it the axes it was not clicked on (`Coordinator._pin`)
         band = getattr(state.slices[-1], "slice", state.slices[-1])  # IRIS wavelengths are the last axis
-        slices = [slice(None), *point.slices[1:-1], band if isinstance(band, slice) else slice(band, band + 1)]
+        slices[self.axis], slices[-1] = slice(None), band if isinstance(band, slice) else slice(band, band + 1)
         if slices != getattr(self.group.subset_state, "slices", None):
             self.group.subset_state = SliceSubsetState(data, slices)
 
 
+def _cut_map(viewer):
+    """Whether ``viewer``, an Image viewer, shows a raster with a wavelength slider."""
+    data = viewer.state.reference_data
+    return _role(data) == "raster" and not _spectral_axes(data) & _shown(viewer.state)
+
+
 def _curve_map(viewer):
     """Whether ``viewer``, an Image viewer, shows a sit-and-stare raster or a stack with a wavelength slider."""
-    data = viewer.state.reference_data
-    return _role(data) == "raster" and _time_axis(data) == 0 and not _spectral_axes(data) & _shown(viewer.state)
+    return _cut_map(viewer) and _time_axis(viewer.state.reference_data) == 0
 
 
-def _light_curve(viewer):
+def _cut(viewer, axis, label):
     """
-    Open a Profile of the light curve at the point: the mean, NaN left out, over the wavelength or band that
-    ``viewer``, an Image viewer of a sit-and-stare raster or a stack with a wavelength slider, shows, at the point's
-    slit position, and a stack's step, against exposure or scan. The light curve is the new subset group 'Light
-    curve', a `~glue.core.subset.SliceSubsetState` that follows the point and the band (`_LightCurve`), shown in that
-    Profile and removed from the other viewers open then.
+    Open a Profile of the cut through the point along array axis ``axis``: the mean, NaN left out, over the
+    wavelength or band that ``viewer``, an Image viewer of a raster with a wavelength slider, shows, at the point's
+    other axes, against ``axis``. The cut is the new subset group ``label``, a `~glue.core.subset.SliceSubsetState`
+    that follows the point and the band (`_Cut`), shown in that Profile and removed from the other viewers open then.
     """
     app, data = viewer.session.application, viewer.state.reference_data
     coord = coordinator(app.data_collection)
-    if not _curve_map(viewer):
-        raise ValueError(
-            "Choose it on the map of a sit-and-stare raster or a stack, whose wavelength or band it averages."
-        )
+    if not _cut_map(viewer):
+        raise ValueError("Choose it on the map of a raster, whose wavelength or band it averages.")
     if coord.point is None or not _same_file(coord.point.reference_data, data):
         raise ValueError(f"Select a point on {data.label} first.")
     mode = app.session.edit_subset_mode
     edit = mode.edit_subset
-    group = app.data_collection.new_subset_group(label="Light curve")
+    group = app.data_collection.new_subset_group(label=label)
     mode.edit_subset = edit  # glue-qt makes a new group the edit subset
     # glue 1.27.0 profiles a slice subset with only its band's samples, which a spectrum panel cannot draw
     for viewers in app.viewers:
         for other in viewers:
             _show(other, group, False)
-    group._solar_light_curve = _LightCurve(group, coord.group, viewer)  # until the group is deleted
+    group._solar_cut = _Cut(group, coord.group, viewer, axis)  # until the group is deleted
     profile = app.new_data_viewer(ProfileViewer)
     profile.state.function = "mean"
     profile.add_subset(next(subset for subset in group.subsets if subset.data is data))
-    profile.state.x_att = data.pixel_component_ids[0]
-    profile.state.title = f"{_window(data)[0] or data.label} light curve"
+    profile.state.x_att = data.pixel_component_ids[axis]
+    profile.state.title = f"{_window(data)[0] or data.label} {label.lower()}"
     _fit_spectrum(profile, group)
     return profile
+
+
+def _light_curve(viewer):
+    """
+    Open the light curve at the point (`_cut` along exposure or scan, 'Light curve') on ``viewer``, the map of a
+    sit-and-stare raster or a stack.
+    """
+    if not _curve_map(viewer):
+        raise ValueError(
+            "Choose it on the map of a sit-and-stare raster or a stack, whose wavelength or band it averages."
+        )
+    return _cut(viewer, 0, "Light curve")
 
 
 def _curve(source, raster, pixel, wavelength):
