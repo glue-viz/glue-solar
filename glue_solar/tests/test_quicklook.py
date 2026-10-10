@@ -109,10 +109,34 @@ def image(app, data, x, y, slices=None):
     return viewer
 
 
+def menu_actions(menu):
+    """The actions of ``menu`` and of its submenus."""
+    for action in menu.actions():
+        yield action
+        if action.menu() is not None:
+            yield from menu_actions(action.menu())
+
+
 def menu_action(viewer, text):
-    """The action of the ``solar:coordinate`` menu entry ``text``, as the toolbar shows it."""
+    """The action of the ``solar:coordinate`` menu entry, or else submenu, ``text``, as the toolbar shows it."""
     button = viewer.toolbar.widgetForAction(viewer.toolbar.actions["solar:coordinate"])
-    return next(action for action in button.menu().actions() if action.text() == text)
+    actions = sorted(menu_actions(button.menu()), key=lambda action: action.menu() is not None)  # stable
+    return next(action for action in actions if action.text() == text)
+
+
+def offered(viewer):
+    """
+    The entries of the viewer's Coordinate and View menus and their submenus, but the blink intervals, that show as
+    they open, " (greyed)" after a greyed one.
+    """
+    shown = []
+    for menu in ("solar:coordinate", "solar:view"):
+        menu = viewer.toolbar.widgetForAction(viewer.toolbar.actions[menu]).menu()
+        menu.aboutToShow.emit()
+        for action in menu_actions(menu):
+            if action.isVisible() and action.menu() is None and not action.text().endswith(" s"):
+                shown.append(action.text() + ("" if action.isEnabled() else " (greyed)"))
+    return shown
 
 
 def test_observation_key():
@@ -196,6 +220,58 @@ def test_menu_entries_keep_the_pixel_tool(app, scans):
         assert raster_map.toolbar.actions["image:point_selection"].isChecked()
     assert coord.point is None
     assert not app.data_collection.subset_groups[0].subset_state.to_mask(scan).any()
+
+
+def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_files):
+    scan, stack = scans
+    [sot] = [image_data(path) for path in irispy_test_files if "_Gband4305_FG_" in path.name]
+    flat = Data(label="flat", values=np.zeros((4, 5)))
+    bare_app.data_collection.extend([scan, stack, sot, flat])
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    # the Coordinate menu's time entries, then its Point and Blink submenus
+    button = viewers["map"].toolbar.widgetForAction(viewers["map"].toolbar.actions["solar:coordinate"])
+    assert [action.text() for action in button.menu().actions()] == [
+        "Time master",
+        "Go to UTC…",
+        "Loop…",
+        "Raster overlays",
+        "Point",
+        "Blink",
+    ]
+    submenus = {action.text(): action.menu() for action in button.menu().actions() if action.menu() is not None}
+    assert [action.text() for action in submenus["Point"].actions()] == [
+        "Clear point",
+        "Light curve at the point",
+        POINT_CURVES,
+    ]
+    assert [action.text() for action in submenus["Blink"].actions()] == [
+        "Set blink partner here",
+        "Blink",
+        "Blink interval",
+    ]
+    for tool_id in ("solar:time_master", "solar:light_curve", "solar:blink"):  # found by id, as a button
+        assert viewers["map"].toolbar.tools[tool_id].tool_id == tool_id
+    time = ["Time master", "Go to UTC…"]
+    point, curve = ["Clear point", POINT_CURVES], ["Clear point", "Light curve at the point", POINT_CURVES]
+    blink = ["Set blink partner here", "Blink (greyed)"]  # until a partner is set
+    view = ["Hide axes", "Per-frame limits", "Physical aspect", "Zoom 1:1", "Colour bar", "Cursor readout"]
+    banded = ["Frame time", *view[:2], "Wavelength band…", *view[2:]]
+    # the light curve on the map of a sit-and-stare raster or a stack, the band where wavelength has a slider, a loop
+    # where the data's first axis has one
+    assert offered(viewers["map"]) == [*time, "Raster overlays", *curve, *blink, *banded]
+    for panel in (viewers["spectrogram"], viewers["sji"][0]):
+        assert offered(panel) == [*time, "Loop…", "Raster overlays", *point, *blink, "Frame time", *view]
+    assert offered(viewers["wavelength"]) == [*time, "Raster overlays", *point, *blink, "Frame time", *view]
+    assert offered(image(bare_app, stack, 1, 2)) == [*time, "Loop…", "Raster overlays", *curve, *blink, *banded]
+    assert offered(image(bare_app, scan, 0, 1)) == [*time, "Raster overlays", *point, *blink, *banded]
+    # no raster of its observation on a SOT cube
+    assert offered(image(bare_app, sot, 2, 1)) == [*time, "Loop…", *point, *blink, "Frame time", *view]
+    # nothing of an observation or a time on a plain array
+    plain = image(bare_app, flat, 1, 0)
+    assert offered(plain) == ["Clear point", *blink, *view]
+    menu_action(plain, "Set blink partner here").trigger()
+    assert offered(plain) == ["Clear point", "Set blink partner here", "Blink", *view]
 
 
 def test_a_slit_jaw_click_outside_a_quicklook_stays_a_slit_jaw_point(app, qtbot, irispy_test_files):

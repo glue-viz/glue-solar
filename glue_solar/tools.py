@@ -66,6 +66,7 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 from glue_solar.quicklook import (
     _across,
+    _curve_map,
     _half_cadence,
     _is_sit_and_stare,
     _light_curve,
@@ -328,9 +329,9 @@ class FrameTimeTool(Tool, HubListener):
 
     The readout follows the sliders and reads the first datetime component of the reference
     data, whichever loader attached it (the IRIS loaders add ``Time``, one per SJI exposure or
-    raster step); its entry of the View menu (`ViewTool`) hides and shows it. A frame spanning several exposures,
-    such as a raster shown as step against slit, shows the range. Data with an ``Exposure time``
-    component also show it, and an SJI frame's pointing is in the tooltip. For an IRIS observation
+    raster step); its entry of the View menu (`ViewTool`), offered for data with one, hides and shows it. A frame
+    spanning several exposures, such as a raster shown as step against slit, shows the range. Data with an
+    ``Exposure time`` component also show it, and an SJI frame's pointing is in the tooltip. For an IRIS observation
     the readout also says which dataset is the time master (with its timing step for a raster), the
     signed offset of a matched follower's time from the master's, or NO MATCH with that offset,
     when the follower keeps its frame and is greyed.
@@ -477,6 +478,7 @@ class FrameTimeTool(Tool, HubListener):
     def _refresh(self, *_):
         state = self.viewer.state
         data = state.reference_data
+        self.enabled = data is not None and _time_component(data) is not None
         status = self.coordinator.time_status(self.viewer)
         unmatched = status is not None and status[0] == "no match"
         if self._grey.get_visible() != unmatched:
@@ -699,10 +701,9 @@ class BandTool(Tool):
     0.4.2 makes it a single wavelength again whenever any slider moves (``wp0-qt-aggregate-slice``), so a validator
     of the viewer's ``slices`` turns a wavelength index into the band about it: the slider, A and S, scan and step
     moves and the time sync keep the band. A session saves the band shown, not the choice. A plain tool, as Hide
-    axes is, offered for data with a wavelength axis.
+    axes is, offered while a wavelength axis has a slider.
     """
 
-    icon = "glue_xrange_select"
     tool_id = "solar:band"
     action_text = "Wavelength band…"
     tool_tip = "Show the mean over 5, 9 or 15 wavelength pixels about the slider's"
@@ -713,8 +714,9 @@ class BandTool(Tool):
         super().__init__(viewer)
         self.width = 1
         viewer.state.add_callback("slices", self._band, validator=True)
-        viewer.state.add_callback("reference_data", self._enable)
-        self._enable(viewer.state.reference_data)
+        for prop in _SLIDER_REBUILDS:
+            viewer.state.add_callback(prop, self._enable)
+        self._enable()
 
     @property
     def checked(self):
@@ -735,11 +737,13 @@ class BandTool(Tool):
 
     def close(self):
         self.viewer.state.remove_callback("slices", self._band)
-        self.viewer.state.remove_callback("reference_data", self._enable)
+        for prop in _SLIDER_REBUILDS:
+            self.viewer.state.remove_callback(prop, self._enable)
         super().close()
 
-    def _enable(self, data):
-        self.enabled = data is not None and bool(_spectral_axes(data))
+    def _enable(self, *_):
+        state = self.viewer.state
+        self.enabled = state.reference_data is not None and bool(_spectral_axes(state.reference_data) - _shown(state))
 
     def _axes(self, slices):
         """The wavelength axes of the reference data that the viewer does not show, for ``slices``."""
@@ -906,7 +910,6 @@ class ZoomOneToOneTool(Tool):
     per inch (``wp0-perf-core-draw``). A plain tool, as 'Hide axes' is, which leaves the mouse mode on.
     """
 
-    icon = "glue_zoom_to_rect"
     tool_id = "solar:zoom_1_1"
     action_text = "Zoom 1:1"
     tool_tip = "Zoom about the view centre to one data pixel per screen pixel"
@@ -977,7 +980,6 @@ class ColourBarTool(Tool):
     leaves the mouse mode on.
     """
 
-    icon = "glue_yrange_select"
     tool_id = "solar:colour_bar"
     action_text = "Colour bar"
     tool_tip = "Show or hide a colour bar of the displayed data's colours"
@@ -1348,9 +1350,11 @@ class PathTool(BasePathSlicerMode, HubListener):
     other data…" or a restored session.
     """
 
+    icon = "glue_path"
     tool_id = "solar:path"
     action_text = "Path diagram"
     tool_tip = "Draw a path, then press Enter for the data along it (Esc clears the path)"
+    status_tip = "CLICK the vertices of a path, then press ENTER for the data along it, or ESC to clear it"
     shortcut = "L"
     slice_viewer_cls = ImageViewer
     sampling = "truncate"
@@ -1428,6 +1432,7 @@ class PathCrosshairTool(BasePathSlicerCrosshairMode):
     it was drawn in, which moves that viewer's slider of the axis the diagram's y axis shows, and only that one.
     """
 
+    icon = None  # glue-core's is Path diagram's
     tool_id = "solar:path_crosshair"
 
     def _on_move(self, mode):
@@ -1641,7 +1646,6 @@ class SlopeTool(PathMode):
     far, and of the last row.
     """
 
-    icon = "pencil"
     tool_id = "solar:slope"
     action_text = "Slope"
     tool_tip = "Click points along a track on a distance-time diagram, then press Enter for its speed (Esc clears them)"
@@ -1816,7 +1820,10 @@ class FollowLockTool(PixelSelectionTool):
 
 
 class _CoordinateEntry(Tool):
-    """An entry of the ``solar:coordinate`` menu; the viewer's mouse mode, such as Pixel, stays on."""
+    """
+    An entry of the ``solar:coordinate`` menu, shown while it is `offered`; the viewer's mouse mode, such as Pixel,
+    stays on.
+    """
 
     def __init__(self, viewer, menu):
         super().__init__(viewer)
@@ -1826,6 +1833,10 @@ class _CoordinateEntry(Tool):
         self.run(self.menu.coordinator)
         _keep_mouse_mode(self.viewer)
 
+    def offered(self):
+        """Whether the entry can act on the viewer as it is now, which the menu checks as it opens."""
+        return True
+
 
 class _TimeMasterEntry(_CoordinateEntry):
     tool_id = "solar:time_master"
@@ -1834,6 +1845,10 @@ class _TimeMasterEntry(_CoordinateEntry):
 
     def run(self, coordinator):
         coordinator.set_master(self.viewer.state.reference_data)
+
+    def offered(self):
+        data = self.viewer.state.reference_data
+        return _timed(data) and observation_key(data) is not None
 
 
 class _OverlaysEntry(_CoordinateEntry):
@@ -1851,6 +1866,11 @@ class _OverlaysEntry(_CoordinateEntry):
 
     def run(self, coordinator):
         coordinator.toggle_overlays(observation_key(self.viewer.state.reference_data))
+
+    def offered(self):
+        key = observation_key(self.viewer.state.reference_data)
+        rasters = (data for data in self.viewer.session.data_collection if _role(data) == "raster")
+        return key is not None and any(observation_key(data) == key for data in rasters)
 
 
 class _ClearPointEntry(_CoordinateEntry):
@@ -1871,6 +1891,9 @@ class _LightCurveEntry(_CoordinateEntry):
     def run(self, coordinator):
         _light_curve(self.viewer)
 
+    def offered(self):
+        return _curve_map(self.viewer)
+
 
 class _PointCurvesEntry(_CoordinateEntry):
     tool_id = "solar:point_curves"
@@ -1880,6 +1903,10 @@ class _PointCurvesEntry(_CoordinateEntry):
     @messagebox_on_error("Could not add the light curves")
     def run(self, coordinator):
         _point_curves(self.viewer)
+
+    def offered(self):
+        # on a viewer of IRIS, AIA or SOT data, the point's raster being any
+        return _role(self.viewer.state.reference_data) is not None
 
 
 def _first_slider(viewer):
@@ -1905,13 +1932,21 @@ class _GoToUTCEntry(_CoordinateEntry):
     action_text = "Go to UTC…"
     tool_tip = "Move the time master to its frame, exposure, step or scan nearest a UTC time"
 
+    def _master(self):
+        data = self.viewer.state.reference_data
+        return self.menu.coordinator._master(observation_key(data)) if _timed(data) else None
+
+    def offered(self):
+        timed = _timed(self.viewer.state.reference_data)
+        return self._master() is not None or (timed and _first_slider(self.viewer) is not None)
+
     @messagebox_on_error("Could not go to UTC")
     def run(self, coordinator):
         viewer = self.viewer
         state = viewer.state
         data = state.reference_data
-        master = coordinator._master(observation_key(data)) if _timed(data) else None
-        if master is None and (_first_slider(viewer) is None or not _timed(data)):
+        master = self._master()
+        if not self.offered():
             raise ValueError("The viewer has no frame, exposure, step or scan slider of IRIS data.")
         moved = data if master is None else master
         index, step = coordinator._timing(moved)
@@ -1974,6 +2009,9 @@ class _LoopEntry(_CoordinateEntry):
     tool_id = "solar:loop"
     action_text = "Loop…"
     tool_tip = "Make the frame, exposure, step or scan slider's playback loop over a range"
+
+    def offered(self):
+        return _first_slider(self.viewer) is not None
 
     @messagebox_on_error("Could not loop")
     def run(self, coordinator):
@@ -2335,6 +2373,11 @@ class _BlinkEntry(_CoordinateEntry):
     action_text = "Blink"
     tool_tip = "Alternate the viewer between its position and its blink partner, or stop"
 
+    @property
+    def checked(self):
+        """Whether the viewer blinks, as the entry's check mark says."""
+        return self.menu._blink.isActive()
+
     @messagebox_on_error("Could not blink")
     def run(self, coordinator):
         self.menu.blink(not self.menu._blink.isActive())
@@ -2415,39 +2458,84 @@ KEYS = {
 }
 
 
+class _ToolMenu(SimpleToolMenu):
+    """
+    A toolbar menu of glue-solar tools, glue's own kind of menu: the viewer's ``subtools`` name its tools, or the menu
+    makes them itself as Coordinate does, and glue-qt 0.4.2 makes them its entries. Once glue-qt has built it, each tool is also in the toolbar's ``tools`` and
+    ``actions`` with its entry, as a button's would be, so glue-qt switches a mouse mode of the menu on and off and
+    scripts find a tool by its id as before. An entry shows only while its tool is ``enabled``, which glue-qt does for
+    buttons only (glue-viz/glue-qt#72, draft, adds it), has a check mark for a tool with a ``checked`` state, and takes
+    its tool's key while the toolbar has the keyboard, as a button does.
+    """
+
+    def __init__(self, viewer, subtools=None):
+        super().__init__(viewer, subtools=subtools)
+        viewer.toolbar_added.connect(self._add_entries)
+
+    def _add_entries(self):
+        toolbar = self.viewer.toolbar
+        menu = toolbar.widgetForAction(toolbar.actions[self.tool_id]).menu()
+        for tool, action in zip(self.subtools, menu.actions(), strict=True):
+            toolbar.tools[tool.tool_id], toolbar.actions[tool.tool_id] = tool, action
+
+            def show(enabled, action=action):
+                action.setVisible(enabled)
+                action.setEnabled(enabled)
+
+            add_callback(tool, "enabled", show)
+            show(tool.enabled)
+            if hasattr(tool, "checked"):
+                action.setCheckable(True)
+            if not action.shortcut().isEmpty():  # glue-qt's, on the entry, needs the menu's button focused
+                key = QtWidgets.QShortcut(action.shortcut(), toolbar)
+                key.setContext(QtCore.Qt.WidgetShortcut)
+                key.activated.connect(lambda action=action: action.isEnabled() and action.trigger())
+        menu.aboutToShow.connect(self._check)
+
+    def _check(self):
+        for tool in self.subtools:
+            if hasattr(tool, "checked"):
+                self.viewer.toolbar.actions[tool.tool_id].setChecked(tool.checked)
+
+
+def _submenu(menu, title, tool_tip):
+    """A submenu of ``menu`` titled ``title``, its tooltip and those of its entries shown, as the menu's."""
+    submenu = menu.addMenu(title)
+    submenu.menuAction().setToolTip(tool_tip)
+    submenu.setToolTipsVisible(True)
+    return submenu
+
+
 @viewer_tool
-class CoordinateTool(SimpleToolMenu):
+class CoordinateTool(_ToolMenu):
     """
     Coordinate the Image viewer with the others of its IRIS observation.
 
     The tool registers its viewer with the data collection's
     `~glue_solar.quicklook.Coordinator`, which keeps the viewers on the point selected with the
     Pixel tool, and unregisters it when the viewer closes. Its menu makes the displayed dataset the
-    time master of its observation, clears the point, moves the time master to a typed UTC time, or
-    makes the frame, exposure, step or scan slider's playback loop over a range, or shows the raster
-    overlays, or opens the light curve at the point, or plots the light curves of every window and
-    slit-jaw image at the point, or blinks the viewer between its position and a stored partner. On a
+    time master of its observation, moves the time master to a typed UTC time, makes the frame, exposure, step or
+    scan slider's playback loop over a range, or shows the raster overlays; its "Point" submenu clears the point,
+    opens the light curve at the point, or plots the light curves of every window and slit-jaw image at the point;
+    its "Blink" submenu blinks the viewer between its position and a stored partner. An entry shows only where it can
+    act, as the menu opens (`_CoordinateEntry.offered`), and "Blink" is greyed without a partner. On a
     slit-jaw image it draws the displayed frame's slit, and the point of a raster of the same
     observation placed with that frame's coordinates while it is on the image.
     """
 
     icon = "glue_link"
     tool_id = "solar:coordinate"
-    # no action_text, which glue-qt would show beside the icon, so that the toolbar fits a viewer 700 px wide
+    # no action_text, which glue-qt would show beside the icon, to keep the toolbar short
     tool_tip = "Coordinate this viewer with the others of its IRIS observation"
+    # the entries of the menu, then of each submenu, by its title, with its tooltip
+    ENTRIES = (_TimeMasterEntry, _GoToUTCEntry, _LoopEntry, _OverlaysEntry)
+    SUBMENUS = {
+        "Point": ("The point: clear it, or its light curves", (_ClearPointEntry, _LightCurveEntry, _PointCurvesEntry)),
+        "Blink": ("Alternate the viewer between its position and a partner", (_PartnerEntry, _BlinkEntry)),
+    }
 
     def __init__(self, viewer, subtools=None):
-        entries = (
-            _TimeMasterEntry,
-            _ClearPointEntry,
-            _GoToUTCEntry,
-            _LoopEntry,
-            _OverlaysEntry,
-            _LightCurveEntry,
-            _PointCurvesEntry,
-            _PartnerEntry,
-            _BlinkEntry,
-        )
+        entries = [*self.ENTRIES, *(entry for _, entries in self.SUBMENUS.values() for entry in entries)]
         super().__init__(viewer, subtools=subtools or [entry(viewer, self) for entry in entries])
         self.coordinator = coordinator(viewer._data)
         self.coordinator.register(viewer)
@@ -2456,7 +2544,6 @@ class CoordinateTool(SimpleToolMenu):
         self._blink = QtCore.QTimer(viewer)
         self._blink.setInterval(500)
         self._blink.timeout.connect(self._flip)
-        viewer.toolbar_added.connect(self._add_blink_menu)
         self.toolbar = viewer.toolbar
         self.mode = self.toolbar.active_tool
         self.toolbar.tool_activated.connect(self._remember_mode)
@@ -2485,26 +2572,38 @@ class CoordinateTool(SimpleToolMenu):
             self.viewer.state.remove_callback(prop, self._draw)
         super().close()
 
-    def _add_blink_menu(self):
+    def _add_entries(self):
         """
-        Make "Blink" a checkable entry and add the "Blink interval" submenu, neither of which glue-qt 0.4.2's tool
-        menus can hold, once glue-qt has built the menu, as its own Profile viewer tools edit theirs.
+        Move the entries of each of `SUBMENUS` into it and add the "Blink interval" submenu, which glue-qt 0.4.2's
+        tool menus cannot hold, once glue-qt has built the menu, as its own Profile viewer tools edit theirs.
         """
-        button = self.toolbar.widgetForAction(self.toolbar.actions[self.tool_id])
-        button.setToolTip(self.tool_tip)  # glue-qt 0.4.2 sets it on the button's action, which shows none
-        menu = button.menu()
-        self._action = next(action for action in menu.actions() if action.text() == _BlinkEntry.action_text)
-        self._action.setCheckable(True)
-        intervals = menu.addMenu("Blink interval")
+        super()._add_entries()
+        menu = self.toolbar.widgetForAction(self.toolbar.actions[self.tool_id]).menu()
+        submenus = {}
+        for title, (tool_tip, entries) in self.SUBMENUS.items():
+            submenus[title] = _submenu(menu, title, tool_tip)
+            for entry in entries:
+                action = self.toolbar.actions[entry.tool_id]
+                menu.removeAction(action)
+                submenus[title].addAction(action)
+        self._action = self.toolbar.actions[_BlinkEntry.tool_id]
+        intervals = _submenu(submenus["Blink"], "Blink interval", "How often the viewer alternates")
         group = QtWidgets.QActionGroup(intervals)
         for seconds in (0.25, 0.5, 1, 2):
             action = group.addAction(f"{seconds:g} s")
+            action.setToolTip(f"Alternate every {seconds:g} s")
             action.setCheckable(True)
             action.setChecked(seconds * 1000 == self._blink.interval())
             action.setData(seconds)
             intervals.addAction(action)
         # not through glue-qt's toolbar, so the mouse mode stays
         group.triggered.connect(lambda action: self._blink.setInterval(round(action.data() * 1000)))
+
+    def _check(self):
+        for entry in self.subtools:
+            entry.enabled = entry.offered()
+        super()._check()
+        self._action.setEnabled(self._blink.isActive() or self._valid())
 
     def blink(self, on):
         """
@@ -2586,48 +2685,6 @@ class CoordinateTool(SimpleToolMenu):
             viewer.figure.canvas.draw_idle()
 
 
-class _ToolMenu(SimpleToolMenu):
-    """
-    A toolbar menu of glue-solar tools, glue's own kind of menu: the viewer's ``subtools`` name its tools, which
-    glue-qt 0.4.2 makes its entries. Once glue-qt has built it, each tool is also in the toolbar's ``tools`` and
-    ``actions`` with its entry, as a button's would be, so glue-qt switches a mouse mode of the menu on and off and
-    scripts find a tool by its id as before. An entry shows only while its tool is ``enabled``, which glue-qt does for
-    buttons only (glue-viz/glue-qt#72, draft, adds it), has a check mark for a tool with a ``checked`` state, and takes
-    its tool's key while the toolbar has the keyboard, as a button does.
-    """
-
-    def __init__(self, viewer, subtools=None):
-        super().__init__(viewer, subtools=subtools)
-        viewer.toolbar_added.connect(self._add_entries)
-
-    def _add_entries(self):
-        toolbar = self.viewer.toolbar
-        button = toolbar.widgetForAction(toolbar.actions[self.tool_id])
-        button.setToolTip(self.tool_tip)  # glue-qt 0.4.2 sets it on the button's action, which shows none
-        menu = button.menu()
-        for tool, action in zip(self.subtools, menu.actions(), strict=True):
-            toolbar.tools[tool.tool_id], toolbar.actions[tool.tool_id] = tool, action
-
-            def show(enabled, action=action):
-                action.setVisible(enabled)
-                action.setEnabled(enabled)
-
-            add_callback(tool, "enabled", show)
-            show(tool.enabled)
-            if hasattr(tool, "checked"):
-                action.setCheckable(True)
-            if not action.shortcut().isEmpty():  # glue-qt's, on the entry, needs the menu's button focused
-                key = QtWidgets.QShortcut(action.shortcut(), toolbar)
-                key.setContext(QtCore.Qt.WidgetShortcut)
-                key.activated.connect(lambda action=action: action.isEnabled() and action.trigger())
-        menu.aboutToShow.connect(self._check)
-
-    def _check(self):
-        for tool in self.subtools:
-            if hasattr(tool, "checked"):
-                self.viewer.toolbar.actions[tool.tool_id].setChecked(tool.checked)
-
-
 @viewer_tool
 class ModesTool(_ToolMenu):
     """
@@ -2648,16 +2705,23 @@ class ModesTool(_ToolMenu):
         modes = toolbar.widgetForAction(toolbar.actions[self.tool_id]).menu()
         # not through glue-qt's toolbar, so the mouse mode stays: saving on a diagram, as Slope is, opening where Path
         # diagram is
-        for text, run, shown in (
-            ("Save path as ECSV…", lambda: _save_path(self.viewer), toolbar.tools[SlopeTool.tool_id]),
-            ("Open path from ECSV…", lambda: _open_path(path), path),
+        for text, tool_tip, run, shown in (
+            (
+                "Save path as ECSV…",
+                "Save this diagram's path, with its longitude, latitude and distance, as an ECSV table",
+                lambda: _save_path(self.viewer),
+                toolbar.tools[SlopeTool.tool_id],
+            ),
+            ("Open path from ECSV…", "Make the diagrams of a path saved as ECSV", lambda: _open_path(path), path),
         ):
             action = modes.addAction(text)
+            action.setToolTip(tool_tip)
             action.triggered.connect(run)
             add_callback(shown, "enabled", action.setVisible)
             action.setVisible(shown.enabled)
         # on a diagram, or an image with a path drawn
         reuse = modes.addAction("Path on other data…")
+        reuse.setToolTip("Place this path on other datasets, at the same places on the Sun, for their diagrams")
         reuse.triggered.connect(lambda: _reuse_path(self.viewer))
 
         def offer():
@@ -2665,11 +2729,17 @@ class ModesTool(_ToolMenu):
 
         modes.aboutToShow.connect(offer)
         offer()
-        # a submenu, which glue-qt 0.4.2's tool menus cannot hold, as the Coordinate menu's "Blink interval"
-        menu = modes.addMenu("Path sampling")
+        # a submenu, which glue-qt 0.4.2's tool menus cannot hold, as the Coordinate menu's
+        menu = _submenu(modes, "Path sampling", "How the next Path diagram samples the data")
         group = QtWidgets.QActionGroup(menu)
+        tips = {
+            "truncate": "The pixel each sample's position rounds down to, as glue samples",
+            "nearest": "The nearest pixel",
+            "linear": "Bilinear between the four pixels around each sample",
+        }
         for sampling in PathData.SAMPLINGS:
             action = group.addAction(sampling.capitalize())
+            action.setToolTip(tips[sampling])
             action.setCheckable(True)
             action.setChecked(sampling == path.sampling)
             action.setData(sampling)

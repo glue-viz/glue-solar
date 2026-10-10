@@ -47,12 +47,20 @@ MERGE = 0.01  # lines closer than this fraction of the plotted range share a lab
 KM_S = u.km / u.s
 
 
+def _check(tool):
+    """Check the Profile viewer button of ``tool``, a plain tool, while it is ``shown``."""
+    action = tool.viewer.toolbar.actions[tool.tool_id]
+    action.setCheckable(True)
+    action.setChecked(tool.shown)
+
+
 @viewer_tool
 class LineTool(Tool):
     """
     Label the main IRIS lines (`MAIN_LINES`) on a Profile viewer whose x axis is the wavelength of IRIS data: a thin
     marker at each line within the plotted range and its name at the top, in the axis's display unit. Lines too close
-    to tell apart at the plotted range share one label. The button switches them off and on; they start on.
+    to tell apart at the plotted range share one label. The button, checked while they show, switches them off and
+    on; they start on.
     """
 
     icon = "glue_spectrum"
@@ -67,10 +75,12 @@ class LineTool(Tool):
         for prop in ("reference_data", "x_att", "x_display_unit", "x_min", "x_max"):
             viewer.state.add_callback(prop, self.refresh)
         self.refresh()
+        viewer.toolbar_added.connect(lambda: _check(self))
 
     def activate(self):
         self.shown = not self.shown
         self.refresh()
+        _check(self)
 
     def close(self):
         for prop in ("reference_data", "x_att", "x_display_unit", "x_min", "x_max"):
@@ -181,10 +191,10 @@ class VelocityTool(Tool, HubListener):
     A top axis of the Doppler velocity, as the x unit 'km / s' gives it (`DopplerConverter`), on a Profile viewer
     whose x axis is the wavelength of data with a `rest_wavelength`, in a length unit. It follows the x range and unit
     and glue's x label and tick sizes. 'Set rest wavelength…' moves it and, in every Profile viewer of the data, offers
-    'km / s' or not and redraws the profiles in it. The button switches the axis off and on; it starts off.
+    'km / s' or not and redraws the profiles in it. The button, checked while it is on and greyed without a rest
+    wavelength, switches the axis off and on; it starts off.
     """
 
-    icon = "glue_forward"
     tool_id = "solar:velocity"
     action_text = "Velocity axis"
     tool_tip = "Show or hide a top axis of the Doppler velocity from the rest wavelength"
@@ -200,6 +210,7 @@ class VelocityTool(Tool, HubListener):
         self._hub = viewer.session.hub
         self._hub.subscribe(self, DataUpdateMessage, handler=self._rest_changed, filter=self._is_reference_meta)
         viewer.destroyed.connect(self._forget)  # also for a viewer torn down without closing its tools
+        viewer.toolbar_added.connect(self.refresh)
 
     def activate(self):
         self.shown = not self.shown
@@ -234,10 +245,12 @@ class VelocityTool(Tool, HubListener):
 
     def refresh(self, *_):
         state, axes = self.viewer.state, self.viewer.axes
-        rest = None
-        if self.shown and state.reference_data is not None and state.x_display_unit:
-            if u.Unit(state.x_display_unit).is_equivalent(u.AA):
-                rest = _doppler_rest(state.reference_data, state.x_att)
+        rest = None if state.reference_data is None else _doppler_rest(state.reference_data, state.x_att)
+        if self.tool_id in self.viewer.toolbar.actions:  # once glue-qt has added the button
+            _check(self)
+            self.viewer.toolbar.actions[self.tool_id].setEnabled(rest is not None)
+        if not (self.shown and state.x_display_unit and u.Unit(state.x_display_unit).is_equivalent(u.AA)):
+            rest = None
         if rest is None and self.axis is None:
             return
         if rest is None:

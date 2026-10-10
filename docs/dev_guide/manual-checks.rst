@@ -145,8 +145,9 @@ Coordinate menu and mouse mode
 ------------------------------
 
 21. On the map of item 6, with the Pixel tool active, click the toolbar button labelled "Coordinate"
-    and choose "Time master", then click it again and choose "Clear point". The menu opens under the
-    button as soon as you press it, and closes after the choice. After each entry the Pixel button
+    and choose "Time master", then click it again and choose "Clear point" in its "Point" submenu.
+    The menu opens under the button as soon as you press it, and closes after the choice; resting
+    the mouse on an entry shows its tooltip. After each entry the Pixel button
     is still pressed, and the next click on the map moves the point without choosing Pixel again.
     "Clear point" removes the crosshair and empties the spectrum panel.
 
@@ -231,13 +232,13 @@ Responsiveness
     press "Load selected". Drag Si IV 1403 from the data collection onto the map; in the map's "Plot
     Options" choose it as the reference data, set the axes back to the map's, and move the
     ``Wavelength`` slider to about 1402.8 Å. Choose "Set blink partner here" in the "Coordinate"
-    menu. Choose Mg II k 2796 again the same way, at about 2796.4 Å, zoom in with "Zoom" (Z) and
-    click a point with the Pixel tool. Choose "0.25 s" under "Blink interval", then "Blink": the map
-    alternates between the two windows four times a second without skipping or lagging, at the same
-    zoom and with the crosshair in place; the other panels' sliders and the Pixel button stay, and
-    "Blink" shows a check mark. Choose "Blink" again: the blink stops and both windows are ticked in
-    the layer list. Start it again and close the map while it blinks: the terminal shows no
-    traceback.
+    menu's "Blink" submenu. Choose Mg II k 2796 again the same way, at about 2796.4 Å, zoom in with
+    "Zoom" (Z) and click a point with the Pixel tool. Choose "0.25 s" under "Blink interval", then
+    "Blink": the map alternates between the two windows four times a second without skipping or
+    lagging, at the same zoom and with the crosshair in place; the other panels' sliders and the
+    Pixel button stay, and "Blink" shows a check mark. Choose "Blink" again: the blink stops and
+    both windows are ticked in the layer list. Start it again and close the map while it blinks: the
+    terminal shows no traceback.
 
 36. In the quicklook of item 5, make SJI 1400 the time master and choose "Save frames or movie…" in
     its save menu (the floppy-disk button). Keep the whole range offered and save as ``sji.mp4``

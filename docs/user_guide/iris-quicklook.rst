@@ -158,8 +158,8 @@ On the "Navigate" tab of the spectrum panel's "Options" (see :ref:`the 1D Profil
 <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`), a click on the spectrum moves the map, and
 its lines, to the nearest wavelength; with glue-qt 0.4.2 only while the x unit is Å, the data's own.
 
-The "Coordinate" menu of every Image viewer also has "Go to UTC…" and "Loop…". "Go to UTC…" asks for
-a UTC time, such as ``2013-09-02T17:00:00``, starting from the time master's, and moves the time
+The "Coordinate" menu also has "Go to UTC…" and "Loop…", each where it can act. "Go to UTC…" asks
+for a UTC time, such as ``2013-09-02T17:00:00``, starting from the time master's, and moves the time
 master, from whichever viewer of its observation you ask, to its frame, exposure, step or scan
 nearest it (the earlier of two as near; a stack's scans are timed at the point's raster step, and a
 scanning raster's step moves the point): the other panels follow, as when the master's slider
@@ -167,7 +167,8 @@ moves. A time more than half the master's time step from its nearest moves nothi
 why. A viewer of an observation without a time master, such as a slit-jaw image whose raster is not
 open, moves its own frame slider instead. "Loop…" is for the slider of the data's first axis: a
 slit-jaw image's frames, a sit-and-stare raster's exposures, a scanning raster's steps or a stack's
-scans (a viewer showing that axis has no such slider). It asks for the first and last index
+scans (a viewer showing that axis has no such slider, nor "Loop…"). It asks for the first and last
+index
 to play, such as ``100 120``, or ``±10`` (or ``+-10``) for the 10 either side of the current one,
 cut to the data's range, starting from the current loop or else the whole range: the slider's
 play buttons then go round those, both included, from the first forwards or the last backwards when
@@ -182,12 +183,14 @@ master's slider moves the other panels at each step, so to play a slit-jaw viewe
 following, make it the time master first.
 Closing a viewer stops its playback, which glue-qt 0.4.2 would leave running.
 
-"Set blink partner here" and "Blink" in the "Coordinate" menu alternate a viewer between two
+"Set blink partner here" and "Blink" in the "Coordinate" menu's "Blink" submenu alternate a viewer
+between two
 positions, such as the map at Mg II k and at Si IV 1403, at two wavelengths of one window, or a
 slit-jaw image at two frames or in two channels. Show the position to blink against and choose "Set
 blink partner here": for another window, drag it from the data collection onto the viewer, choose it
 as the reference data with the same axes in the viewer's options, and move its sliders. Go back to
-the position to show and choose "Blink": the viewer shows each in turn every 0.5 s, or as chosen
+the position to show and choose "Blink", greyed until then: the viewer shows each in turn every
+0.5 s, or as chosen
 under "Blink interval" (0.25, 0.5, 1 or 2 s), until "Blink" or "Set blink partner here" is chosen
 again, the viewer closes or the other window leaves the viewer. Nothing else moves: the point, the
 other panels, the time master and the Pixel tool stay, and the zoom stays in pixels, the same pixels
@@ -213,7 +216,8 @@ time" readout says "outside SJI FOV", when the point is off the image; neither i
 viewer shows the frame axis. A slit-jaw frame taken a raster step earlier or later than the point
 shows the slit a step away from the cross.
 
-"Raster overlays" in the "Coordinate" menu of any viewer of an observation shows or hides the
+"Raster overlays" in the "Coordinate" menu of any viewer of an observation with a raster loaded
+shows or hides the
 raster's steps on all its viewers, and moves nothing. Each slit-jaw image draws the slit of every
 raster step or exposure as a thin white line, placed with the pointing of the frame nearest that
 step's time, whichever frame is shown; on a stack, the steps of the scan its panels show, with that
@@ -223,7 +227,8 @@ is within half its time step ("NO MATCH"); under a slit-jaw master it marks the 
 time of the frame shown. Like the other lines they show in "Save plot to file" and "Save frames or
 movie…", but not in a saved session or "Save Python script to reproduce plot".
 
-"Light curve at the point" in the "Coordinate" menu of the map of a sit-and-stare raster or a stack
+"Light curve at the point" in the "Point" submenu of the "Coordinate" menu of the map of a
+sit-and-stare raster or a stack
 opens a Profile viewer of the light curve at the point: at each exposure, or scan, the mean, NaN left
 out, over the wavelength or band the map shows, at the point's slit position (and a stack's raster
 step). The band is a Collapse made on the spectrum panel's "Collapse" tab, averaged whatever the
@@ -238,8 +243,8 @@ band's samples): hide or remove it there. Choose the entry again for another. De
 curve" group in the layer tree stops it; select "Point" there again before the next click, as glue's
 deletion clears the edit subset. On the Si IV 1403 window of OBSID 4000255147, 1600 exposures by
 417 slit pixels by 262 wavelengths, it equals numpy's ``nanmean`` of the band at the point to
-float32 precision, and a click or band change redraws it in under half a second. On another viewer
-glue says why it cannot open.
+float32 precision, and a click or band change redraws it in under half a second. Other viewers do
+not offer it.
 
 A Scatter viewer with time on its x axis, of data of the observation (by its OBSID and start time)
 such as a table of burst events, shows the time master's exposure: the subset "Master exposure",
@@ -255,7 +260,8 @@ there again before the next click. With the Si IV 1403 window of OBSID 400025514
 light curve and a Scatter plot of its 1600 exposure times open, playback runs as fast with it as
 without, 7 frames a second.
 
-"Light curves at this point (windows, SJI)" in the "Coordinate" menu of any Image viewer, unlike
+"Light curves at this point (windows, SJI)" in the "Point" submenu of any Image viewer of IRIS, AIA
+or SOT data, unlike
 "Light curve at the point" above, plots the light curves at a point on a raster against time, with
 lines, in a new Scatter viewer: one for each loaded window of the point's raster file with exposures
 or scans (a sit-and-stare raster or a stack), and one for each slit-jaw channel of its observation.
@@ -459,7 +465,8 @@ red cross marks where the raster places it on the slit-jaw image. Read the featu
 both with the mouse-over readout, and shift the slit-jaw image by the raster's position less its
 own. Against AIA, drag the AIA cutout or map onto the slit-jaw viewer and lower its opacity in its
 layer options, show it in a viewer beside it, or blink the two ("Set blink partner here" and
-"Blink" in the "Coordinate" menu), and read the feature's position in each the same way. A
+"Blink" in the "Coordinate" menu's "Blink" submenu), and read the feature's position in each the
+same way. A
 "Measure" line from the feature in one to the feature in the other then checks the shift: it should
 be under a pixel long.
 

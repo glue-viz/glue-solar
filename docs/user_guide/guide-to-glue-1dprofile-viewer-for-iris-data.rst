@@ -177,7 +177,8 @@ the data's own (``Angstrom`` for IRIS wavelengths), so leave it unchanged for th
 ``km / s`` after the lengths: the optical Doppler velocity from the rest wavelength, (λ / rest - 1) c,
 so Mg II k 2796.352 Å is at 0 km/s in ``Mg II k 2796``. A window without one, such as ``2832``, has no
 ``km / s``. "Velocity axis" in the Profile's toolbar adds a top axis in km/s from the rest wavelength
-while the x unit is a length, such as Å, and hides it again; it starts hidden. Both follow "Set rest
+while the x unit is a length, such as Å, and hides it again; it starts hidden, and the button is
+checked while it shows and greyed for a window without a rest wavelength. Both follow "Set rest
 wavelength…": the top axis moves, and a Profile in ``km / s`` redraws its spectra over the same
 velocities, or goes back to Å when the window is left without a rest wavelength. A script that sets
 ``meta['rest_wavelength']`` calls ``data.broadcast("meta")`` for open Profiles to follow. The
@@ -234,7 +235,8 @@ path drawn on the image and, on Enter, shows the data along the path against the
 new window, for example along a path across a slit-jaw frame against time. The window is not a
 dataset, and the tool is not offered for stacks; see glue's
 `slice extraction <http://docs.glueviz.org/en/stable/gui_guide/slice.html>`__. glue-solar's "Path
-diagram" (L) makes datasets of the data along a path instead, the spectra along a path across a
+diagram" (L), in the pencil menu with an icon of its own, makes datasets of the data along a path
+instead, the spectra along a path across a
 raster map too, and takes stacks (see :ref:`glue_solar_users_guide_viewer_tools_and_windows`).
 
 **Average spectrum over scans.** CRISPEX can average its reference spectrum over chosen scans
