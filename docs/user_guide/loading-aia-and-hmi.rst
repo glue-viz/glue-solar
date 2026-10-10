@@ -50,7 +50,8 @@ Linking maps to IRIS data
 -------------------------
 
 Maps keep their own coordinates in degrees, which Glue's autolinking uses to link them to each other.
-The IRIS observation browser and "IRIS: link helioprojective coordinates" in the "Plugins" menu link them to IRIS data as well, so that a region drawn on a map selects the matching pixels of each slit-jaw frame and raster (see :ref:`glue_solar_users_guide_loading_iris_level_2_raster_and_sji_files`).
+"IRIS: link helioprojective coordinates" in the "Plugins" menu links them to IRIS data as well, so that a region drawn on a map selects the matching pixels of each slit-jaw frame and raster (see :ref:`glue_solar_users_guide_loading_iris_level_2_raster_and_sji_files`).
+The IRIS observation browser and a quicklook link IRIS data only, so a map is linked only on request.
 
 Saving sessions
 ---------------

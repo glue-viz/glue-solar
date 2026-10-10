@@ -1,6 +1,7 @@
 import itertools
 import shutil
 import threading
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -18,6 +19,7 @@ from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLin
 from glue_qt.app import GlueApplication
 from glue_qt.dialogs.link_editor.state import LinkEditorState
 from glue_qt.viewers.image import ImageViewer
+from glue_qt.viewers.profile.layer_artist import QThreadedProfileLayerArtist
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 
@@ -30,7 +32,15 @@ import glue_solar
 from glue_solar import glue_patches
 from glue_solar.quicklook import _role, coordinator, nearest, quicklook
 from glue_solar.sources.iris import browse_iris, link_iris
-from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, keep_hpc_linked, link_hpc, raster_data
+from glue_solar.sources.loaders.iris import (
+    WCS_LOCK,
+    QtIRISImporter,
+    _LockedWCS,
+    image_data,
+    keep_hpc_linked,
+    link_hpc,
+    raster_data,
+)
 from glue_solar.tests.helpers import inversions, load_selected, raster_point_on_sji, scanned, select_point, shift
 from glue_solar.tests.test_quicklook import drifting_stack
 
@@ -107,6 +117,28 @@ def test_inverse_workaround_installs_only_where_glue_needs_it():
     assert installed == glue_patches.needs_inverse_workaround()  # probes glue's own function
     assert coordinate_helpers.world2pixel_single_axis is component_link.world2pixel_single_axis
     assert not glue_patches.needs_inverse_workaround(glue_patches.world2pixel_single_axis)
+
+
+def test_the_link_patches_hold_the_wcs_lock(monkeypatch):
+    # SST1: glue's profile workers reach the WCS of each linked dataset through these, one restored unlocked too
+    held = []
+    wcs = SimpleNamespace(
+        axis_correlation_matrix=np.eye(2, dtype=bool),
+        world_to_pixel_values=lambda *world: held.append(WCS_LOCK._is_owned()) or world,
+    )
+    glue_patches.world2pixel_single_axis(wcs, np.zeros(3), np.zeros(3), pixel_axis=0)
+    monkeypatch.setattr(
+        glue_patches, "_original_to_linked_pixel_coords", lambda *args: held.append(WCS_LOCK._is_owned())
+    )
+    glue_patches._to_linked_pixel_coords(None, None)
+    # and WCSAxes, which calls wcslib's wcsset on the WCS of a linked dataset, as glue at each slice of an SST cube
+    monkeypatch.setattr(glue_patches, "_original_reset_wcs", lambda *args: held.append(WCS_LOCK._is_owned()))
+    glue_patches.reset_wcs(None, wcs=_LockedWCS(naxis=2))
+    glue_patches.reset_wcs(None, wcs=WCS(naxis=2))  # an unlinked one waits for no profile worker
+    assert held == [True, True, True, False]
+    # and glue's autolinker, which reads has_celestial of every dataset's WCS as data load: wcsset again
+    for name in ("has_celestial", "has_spectral", "has_temporal"):
+        assert _LockedWCS.__dict__[name].fget.__wrapped__ is getattr(WCS, name).fget
 
 
 def test_world_links_into_the_sji_use_each_exposure_time(sns):
@@ -189,7 +221,7 @@ def test_link_hpc_links_every_iris_dataset_to_the_first(qtbot, sns, irispy_test_
     # LinkSameWithUnits not
     assert {type(link) for link in links if link.cids2[0].parent is aia} == {LinkSameWithUnits}
     assert {type(link) for link in links if link.cids2[0].parent is not aia} == {LinkSame}
-    keep_hpc_linked(dc)
+    link_iris(None, dc)  # the map too, on request
     dc.remove(sji)  # the others were linked through it
     qtbot.waitUntil(lambda: len(dc.external_links) == 4)
     np.testing.assert_allclose(other[_cid(raster, HPC[1])], other[_cid(other, HPC[1])])
@@ -275,7 +307,7 @@ def test_shift_pointing_moves_a_sunpy_map_over_a_slit_jaw_image(qtbot, monkeypat
     aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia", obstime=sji.meta["DATE_OBS"])
     aia.update_components({aia.main_components[0]: np.arange(aia.size, dtype=float).reshape(aia.shape)})
     app.data_collection.extend([sji, aia])
-    keep_hpc_linked(app.data_collection)
+    link_iris(app.session, app.data_collection)
     viewer = app.new_data_viewer(ImageViewer, data=sji)
     viewer.add_data(aia)
     [layer] = [artist for artist in viewer.layers if artist.layer is aia]
@@ -325,7 +357,8 @@ def test_a_raster_map_region_reaches_a_sunpy_map_whose_longitudes_run_from_0_to_
     qtbot.addWidget(app)
     aia = _sunpy_map(10, -430, 0.5, (60, 240), "aia")
     app.data_collection.append(aia)
-    viewers = quicklook(app, [raster, sji])  # which links the map too
+    viewers = quicklook(app, [raster, sji])
+    link_iris(app.session, app.data_collection)  # the map, which a quicklook leaves unlinked
     roi = RectangularROI(80.5, 100.5, 2.3, 9.7)
     viewers["map"].apply_roi(roi)
     group = app.data_collection.subset_groups[-1]  # a new subset
@@ -355,7 +388,8 @@ def test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair(qtbot, sns):
     lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, sji.shape[0] // 2)
     aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia", rotation=10)
     app.data_collection.append(aia)
-    viewers = quicklook(app, [raster, sji])  # which links the map too
+    viewers = quicklook(app, [raster, sji])
+    link_iris(app.session, app.data_collection)  # the map, which a quicklook leaves unlinked
     select_point(viewers["map"], 30, 15)
     crosshairs = {}
     for viewer in (viewers["map"], *viewers["sji"]):
@@ -367,6 +401,63 @@ def test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair(qtbot, sns):
             if artist.layer.label == "Point" and artist._line_x.get_visible()
         }
     assert list(crosshairs.values()) == [{(30, 15)}, set()]
+
+
+def _linked(data_collection):
+    """The datasets of ``data_collection`` that any link between datasets reaches."""
+    return {cid.parent for link in data_collection.external_links for cid in (*link.cids1, *link.cids2)}
+
+
+def test_data_outside_the_iris_observations_link_only_on_request(qtbot, sns):
+    # D64: data load, the analyses and a quicklook link IRIS data only, as each quicklook panel would otherwise invert
+    # the other data's WCS (SST3); 'IRIS: link helioprojective coordinates' links the others too, their WCS locked
+    sji, raster = sns
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    dc = app.data_collection
+    lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)
+    aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia")
+    dc.append(aia)
+    keep_hpc_linked(dc)
+    quicklook(app, [raster, sji])
+    assert _linked(dc) == {sji, raster}
+    assert type(aia.coords) is WCS
+    link_iris(app.session, dc)
+    assert _linked(dc) == {sji, raster, aia}
+    assert isinstance(aia.coords, _LockedWCS)
+
+
+def test_profile_workers_reach_a_linked_map_s_wcs_holding_the_lock(qtbot, monkeypatch, sns):
+    # SST1: wcslib is not thread-safe, and a quicklook's spectrum panels compute a region drawn on other linked data
+    # over the raster on glue-qt's worker threads, as the GUI thread draws that data: each call holds WCS_LOCK
+    sji, raster = sns
+    glue_solar.setup()
+    # on the worker thread, as glue-qt computes the profiles of data of over 1e7 values, such as a whole raster
+    monkeypatch.setattr(
+        QThreadedProfileLayerArtist, "_calculate_profile", lambda self, reset=False: self._worker.work_queue.put(reset)
+    )
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)
+    aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia")  # over the raster
+    app.data_collection.append(aia)
+    quicklook(app, [raster, sji])
+    link_iris(app.session, app.data_collection)
+    calls = []  # (on the GUI thread, holding the lock) of each call into wcslib for the map
+    for name in ("_all_pix2world", "_all_world2pix"):  # under each transform of the map's WCS
+
+        def called(wcs, *args, _original=getattr(WCS, name), **kwargs):
+            if wcs is aia.coords:
+                calls.append((threading.current_thread() is threading.main_thread(), WCS_LOCK._is_owned()))
+            return _original(wcs, *args, **kwargs)
+
+        monkeypatch.setattr(WCS, name, called)
+    app.new_data_viewer(ImageViewer, data=aia)
+    region = RoiSubsetState(aia.pixel_component_ids[1], aia.pixel_component_ids[0], RectangularROI(20, 140, 10, 70))
+    app.data_collection.new_subset_group("region", region)
+    qtbot.waitUntil(lambda: {main for main, _ in calls} == {True, False}, timeout=30_000)
+    assert all(locked for _, locked in calls)
 
 
 def _inside(sji, frame, raster, roi):
@@ -446,6 +537,7 @@ def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, mon
     app = GlueApplication()
     qtbot.addWidget(app)
     dc = app.data_collection
+    dc.append(_sunpy_map(0, 0, 2, (40, 50), "aia"))  # loaded before, which the browser leaves to the link action
     on_gui, broadcast = [], Hub.broadcast
     monkeypatch.setattr(Hub, "broadcast", lambda hub, message: (
         on_gui.append(threading.current_thread() is threading.main_thread()) or broadcast(hub, message)
@@ -453,14 +545,14 @@ def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, mon
     browse_iris(app.session, dc)
     assert on_gui
     assert all(on_gui)  # glue's hub has no locks: the datasets are added on the GUI thread
-    assert len(dc) > 3  # two SJIs and every raster window
-    # longitude and latitude of each to the first, and the quicklook's exposure and slit pixels of each other raster
-    # window to the one it shows
+    assert len(dc) > 4  # the map, two SJIs and every raster window
+    # longitude and latitude of each IRIS dataset to the first, and the quicklook's exposure and slit pixels of each
+    # other raster window to the one it shows
     windows = 2 * (sum(_role(data) == "raster" for data in dc) - 1)
     hpc = [link for link in dc.external_links if {cid.label for cid in (*link.cids1, *link.cids2)} <= set(HPC)]
-    assert (len(hpc), len(dc.external_links) - len(hpc)) == (2 * (len(dc) - 1), windows)
+    assert (len(hpc), len(dc.external_links) - len(hpc)) == (2 * (len(dc) - 2), windows)
     dc.append(image_data(_real(irispy_test_files, SJI.replace("1400", "1330"))))  # loaded later
-    link_iris(app.session, dc)
+    link_iris(app.session, dc)  # and the map, on request
     assert len(dc.external_links) == 2 * (len(dc) - 1) + windows
 
 

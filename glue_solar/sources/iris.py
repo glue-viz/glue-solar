@@ -162,14 +162,13 @@ def _shown(loaded, quicklooks, main=None):
 @menubar_plugin("IRIS: link helioprojective coordinates")
 def link_iris(session, data_collection):
     """
-    Link the helioprojective longitude and latitude of every loaded IRIS dataset and sunpy map, and the scans of each
-    stack to the other IRIS data by time.
+    Link the helioprojective longitude and latitude of every loaded dataset that has them, IRIS data, sunpy maps and
+    FITS files such as SST cubes alike, and the scans of each stack to the other IRIS data by time.
 
-    Selections then carry over between slit-jaw images, rasters, aligned AIA cutouts, Hinode/SOT cubes and sunpy maps
-    through their world coordinates. The observation browser does this when it loads data, and the
-    links are kept when a dataset is removed.
+    Selections then carry over between them through their world coordinates. The observation browser, a quicklook and
+    the analyses link IRIS data only, and the links are kept when a dataset is removed.
     """
-    keep_hpc_linked(data_collection)
+    keep_hpc_linked(data_collection, others=data_collection)
 
 
 def _ask_offset(data):
