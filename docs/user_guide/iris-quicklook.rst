@@ -4,7 +4,8 @@
 The quicklook
 =============
 
-The quicklook is a CRISPEX-style set of viewers for one observation, in a new tab. Open it
+The quicklook is a CRISPEX-style set of viewers for one observation, in a new tab; tabs may be
+moved or closed while it opens, and closing its own stops it. Open it
 
 - from the observation browser, with "Open quicklook" ticked (the default): each observation you
   load opens in its own quicklook, showing the raster windows you ticked (see `Several windows`_);

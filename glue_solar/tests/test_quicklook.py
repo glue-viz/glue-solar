@@ -738,6 +738,37 @@ def test_each_quicklook_edits_its_own_point(bare_app, scans):
     assert bare_app.session.edit_subset_mode.edit_subset == [first_point]
 
 
+@pytest.mark.parametrize("turn", [0, 1])
+@pytest.mark.parametrize("change", ["close another", "move", "close its own"])
+def test_a_tab_closed_or_moved_as_a_quicklook_opens(bare_app, monkeypatch, scans, change, turn):
+    # the quicklook's turns of the event loop that take user input, as its tab and panels take their size
+    tabs = bare_app.tab_widget
+    bare_app.new_tab()
+    changes = {
+        "close another": lambda: bare_app.close_tab(0, warn=False),
+        "move": lambda: tabs.tabBar().moveTab(tabs.count() - 1, 0),
+        "close its own": lambda: bare_app.close_tab(tabs.count() - 1, warn=False),
+    }
+    turns = []
+
+    def user(process_events=glue_solar.quicklook.process_events):
+        if len(turns) == turn:
+            changes[change]()
+        turns.append(turn)
+        process_events()
+
+    monkeypatch.setattr(glue_solar.quicklook, "process_events", user)
+    viewers = quicklook(bare_app, [scans[0]])
+    if change == "close its own":  # it stops quietly
+        assert bare_app.tab_names == ["Tab 1", "Tab 2"]
+        return
+    [tab] = [bare_app.tab(i) for i, name in enumerate(bare_app.tab_names) if name.startswith("IRIS")]
+    assert tab.activeSubWindow() is viewers["map"].parent()
+    windows = tab.subWindowList()
+    assert len(windows) == 5  # with the Point window, laid out apart
+    assert not any(a.geometry().intersects(b.geometry()) for a, b in itertools.combinations(windows, 2))
+
+
 def test_quicklook_keeps_the_users_spectrum_range(bare_app, scans):
     viewers = quicklook(bare_app, [scans[0]])
     spectrum = viewers["spectrum"].state

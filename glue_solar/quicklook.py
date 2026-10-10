@@ -1092,7 +1092,7 @@ class QuicklookImageViewer(ImageViewer):
         glue calls this after each object it restores until it passes.
         """
         app = self.session.application
-        [tab] = [i for i, viewers in enumerate(app.viewers) if self in viewers]  # ValueError until then
+        [tab] = [app.tab(i) for i, viewers in enumerate(app.viewers) if self in viewers]  # ValueError until then
         point, master = self._solar_restored
         coord = coordinator(self.session.data_collection)
         if master is not None:
@@ -1344,7 +1344,8 @@ def quicklook(app, datasets, window=None):
     on the map. A read-only 'Point' window below the panels gives the point's pixel, position, time,
     exposure, value and time sync in each dataset they show. Lines on the spectrogram, the wavelength
     panel and the spectrum panel mark the point, the map's wavelength and the time master's time, and
-    a zoom on the spectrum panel is the wavelength panel's too (`_SpectralLines`).
+    a zoom on the spectrum panel is the wavelength panel's too (`_SpectralLines`). The user may move or
+    close tabs as it opens; closing its own stops it.
 
     Each other window named in ``window`` adds the spectrum of the point and, on a sit-and-stare raster
     or a stack, its own wavelength panel (λ–time or λ–scan), to a row below. Its scan, step or exposure,
@@ -1377,9 +1378,9 @@ def quicklook(app, datasets, window=None):
     key = observation_key((rasters or sjis or datasets)[0])
 
     app.new_tab()
-    tab = app.tab_count - 1
+    tab = app.current_tab  # not its index, which changes as the user moves or closes tabs before it ends
     names = app.tab_names
-    names[tab] = f"IRIS {key[0]}" if key else "IRIS"
+    names[-1] = f"IRIS {key[0]}" if key else "IRIS"
     app.tab_names = names
     coordinator(collection)  # before the point, so it follows it
 
@@ -1419,20 +1420,23 @@ def quicklook(app, datasets, window=None):
         for spectrum in spectra:
             _fit_spectrum(spectrum, group)
         _point_window(app, tab, group, key, own)
-        _SpectralLines(coordinator(collection), group, key, own[:3], viewers["spectrum"], app.tab(tab))
+        _SpectralLines(coordinator(collection), group, key, own[:3], viewers["spectrum"], tab)
         for panels in viewers["windows"]:
             if "wavelength" in panels:
-                _SpectralLines(coordinator(collection), group, key, [panels["wavelength"]], panels["spectrum"],
-                               app.tab(tab))
+                _SpectralLines(coordinator(collection), group, key, [panels["wavelength"]], panels["spectrum"], tab)
     app.statusBar().showMessage(" ".join(notes))
     process_events()  # let the tab take its final size
-    _arrange(app, tab, viewers)
+    if tab not in map(app.tab, range(app.tab_count)):  # closed by the user meanwhile: nothing left to do
+        return viewers
+    _arrange(tab, viewers)
     process_events()  # and the panels theirs, before the slit-jaw limits take the axes' aspect
+    if tab not in map(app.tab, range(app.tab_count)):
+        return viewers
     for viewer in viewers["sji"]:
         if rasters and _placeable(viewer.state.reference_data):
             _footprint_limits(viewer, raster)
     if rasters:
-        app.tab(tab).setActiveSubWindow(viewers["map"].parent())
+        tab.setActiveSubWindow(viewers["map"].parent())
         viewers["map"].toolbar.active_tool = "image:point_selection"
     return viewers
 
@@ -1450,7 +1454,7 @@ def _edit_in_tab(app, tab, group):
                 coordinator(app.data_collection).follow(group)
 
         app.tab_widget.currentChanged.connect(follow)
-    points[app.tab(tab)] = group
+    points[tab] = group
     app.session.edit_subset_mode.edit_subset = [group]
     coordinator(app.data_collection).follow(group)
 
@@ -1879,7 +1883,7 @@ class _SpectralLines(QObject):
                     setattr(panel, f"{xy}_max", ends[1])
 
 
-def _arrange(app, tab, viewers):
+def _arrange(tab, viewers):
     """
     Raster panels in a top row, slit-jaw viewers and the spectrum in a second row, each other window's wavelength
     panel and spectrum in rows of four below, at least 400 pixels tall each and 800 together, and the Point window
@@ -1892,10 +1896,10 @@ def _arrange(app, tab, viewers):
         *(others[i : i + 4] for i in range(0, len(others), 4)),
     ]
     rows = [row for row in rows if row]
-    size = app.tab(tab).viewport().size()
+    size = tab.viewport().size()
     least = 400 * max(len(rows), 2)
     width, height = max(size.width(), 1200), max(size.height(), least)
-    for window in app.tab(tab).subWindowList():
+    for window in tab.subWindowList():
         if isinstance(window.widget(), _PointWindow):
             height = max(size.height() - window.sizeHint().height(), least)
             window.setGeometry(0, height, width, window.sizeHint().height())
@@ -2065,6 +2069,6 @@ def _point_window(app, tab, group, key, viewers):
     sub.setWidget(window)
     sub.setAttribute(Qt.WA_DeleteOnClose)  # with its tab too, as glue closes every window of a tab it closes
     sub.setWindowTitle("Point")
-    app.tab(tab).addSubWindow(sub)
+    tab.addSubWindow(sub)
     sub.show()
     window.refresh()  # its rows, before the quicklook makes it as tall as they are
