@@ -1,9 +1,9 @@
 export const meta = {
   name: 'plan-item',
-  description: 'One glue-solar plan item: Opus implements, Fable reviews, Opus applies confirmed fixes (3 agents)',
+  description: 'One glue-solar plan item: Opus implements, Fable (or args.reviewer) reviews, Opus applies confirmed fixes (3 agents)',
   phases: [
     { title: 'Implement', detail: 'Opus: check glue first (D18), design, implement, test, commit locally' },
-    { title: 'Review', detail: 'Fable reviews and verifies its findings', model: 'fable' },
+    { title: 'Review', detail: 'Fable (or args.reviewer) reviews and verifies its findings; the session model if that agent fails' },
     { title: 'Fix', detail: 'Opus applies confirmed fixes' },
   ],
 }
@@ -45,8 +45,15 @@ const FINDINGS = {
 }
 
 phase('Review')
-const review = await agent(`${RULES}\n\n${SPEC}\n\nTask: review the commit(s) on branch ${KEY} (git -C ${W} diff origin/main...HEAD) as a demanding senior reviewer; READ-ONLY on the worktree (mutation checks in a detached worktree under ${S}/review/, removed after). Check: the done-when (re-measure yourself); D18 (did glue already offer this?); correctness and edge cases; interactions with the coordinator, quicklook, existing tools and keys; tests fail when the feature is broken; docs accuracy; concision of code, comments and docs; over-engineering. Verify every finding yourself; report only real ones. Implementer's report:\n${impl ?? '(implementer failed)'}`,
-  { label: `review:${KEY}`, phase: 'Review', model: 'fable', schema: FINDINGS })
+const REVIEW = `${RULES}\n\n${SPEC}\n\nTask: review the commit(s) on branch ${KEY} (git -C ${W} diff origin/main...HEAD) as a demanding senior reviewer; READ-ONLY on the worktree (mutation checks in a detached worktree under ${S}/review/, removed after). Check: the done-when (re-measure yourself); D18 (did glue already offer this?); correctness and edge cases; interactions with the coordinator, quicklook, existing tools and keys; tests fail when the feature is broken; docs accuracy; concision of code, comments and docs; over-engineering. Verify every finding yourself; report only real ones. Implementer's report:\n${impl ?? '(implementer failed)'}`
+// args.reviewer: 'fable' (default) or 'session' (the main-loop model, to spare Fable's limit); a failed Fable review
+// (for example a usage limit) falls back to the session model rather than shipping unreviewed
+const reviewer = args.reviewer ?? 'fable'
+let review = await agent(REVIEW, { label: `review:${KEY}`, phase: 'Review', schema: FINDINGS, ...(reviewer === 'fable' ? { model: 'fable' } : {}) })
+if (!review && reviewer === 'fable') {
+  log(`${KEY}: the Fable review failed; reviewing with the session model`)
+  review = await agent(REVIEW, { label: `review-fallback:${KEY}`, phase: 'Review', schema: FINDINGS })
+}
 
 const real = (review?.findings ?? []).filter(f => f.severity !== 'style' || /unused|dead|duplicate|stale|verbose|concis|leak|format|line-length|characters/i.test(f.problem))
 log(`${KEY} review: ${review?.findings?.length ?? 0} findings, ${real.length} to fix`)
