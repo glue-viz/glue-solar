@@ -22,7 +22,9 @@ a = Analysis(
     datas=datas,
     hiddenimports=hiddenimports,
     hooksconfig={"matplotlib": {"backends": "all"}},  # Save takes each format from its backend
-    excludes=["tkinter", "PyQt5", "PySide2", "PySide6"],  # PyQt6 only: glue-solar refuses Qt 5
+    # PyQt6 only, as glue-solar refuses Qt 5; no debugpy, ipykernel's debugger, whose vendored pydevd PyInstaller leaves
+    # out, which breaks glue's terminal
+    excludes=["tkinter", "PyQt5", "PySide2", "PySide6", "debugpy"],
 )
 exe = EXE(PYZ(a.pure), a.scripts, exclude_binaries=True, name="glue-solar", console=False)
 app = BUNDLE(

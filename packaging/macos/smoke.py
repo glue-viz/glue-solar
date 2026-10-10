@@ -5,10 +5,10 @@ A check of the built app, which runs it in place of glue with the files of an IR
     GLUE_SOLAR_APP_CHECK=packaging/macos/smoke.py "packaging/macos/dist/app/Glue Solar.app/Contents/MacOS/glue-solar" \
         raster.fits sji.fits
 
-It starts glue as ``glue`` does, checks that glue-solar's menu entries are there on PyQt6, loads the files and opens
-their quicklook as ``glue --startup=iris_quicklook`` does, adds irispy's radiometric calibration of the raster, which
-needs irispy's response files, and prints when the window showed and the seconds each step took. It exits 1 at the
-first failure.
+It starts glue as ``glue`` does, checks that glue-solar's menu entries are there on PyQt6 and that glue's IPython
+terminal starts, loads the files and opens their quicklook as ``glue --startup=iris_quicklook`` does, adds irispy's
+radiometric calibration of the raster, which needs irispy's response files, and prints when the window showed and the
+seconds each step took. It exits 1 at the first failure.
 """
 
 import os
@@ -34,6 +34,7 @@ def check(app):
         assert qtpy.API_NAME == "PyQt6", qtpy.API_NAME
         assert "glue_solar" in list_loaded_plugins(), list_loaded_plugins()
         assert {"IRIS: browse observations…", "IRIS: quicklook…"} <= entries, entries
+        assert app.has_terminal()
         began = time.perf_counter()
         app.add_datasets(load_data_files(sys.argv[1:]))
         app.run_startup_action("iris_quicklook")

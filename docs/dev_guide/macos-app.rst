@@ -49,9 +49,9 @@ Checking the app
 ----------------
 
 ``smoke.py`` checks a built app without showing it: run with ``GLUE_SOLAR_APP_CHECK`` naming it, the app runs it in
-place of glue (glue's own ``-x`` fails in glue-qt 0.4.2). It starts glue, checks glue-solar's menu entries, opens the
-quicklook of the files it is given, adds irispy's radiometric calibration of the raster, which needs irispy's response
-files, and exits 1 at the first failure::
+place of glue (glue's own ``-x`` fails in glue-qt 0.4.2). It starts glue, checks glue-solar's menu entries and glue's
+IPython terminal, opens the quicklook of the files it is given, adds irispy's radiometric calibration of the raster,
+which needs irispy's response files, and exits 1 at the first failure::
 
     T=$(micromamba run -n glue-solar-app python -c "import irispy.data.test as t; print(t.ROOTDIR)")/sns
     env HOME="$(mktemp -d)" QT_QPA_PLATFORM=offscreen GLUE_SOLAR_APP_CHECK=packaging/macos/smoke.py \

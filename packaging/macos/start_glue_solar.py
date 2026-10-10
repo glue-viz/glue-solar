@@ -10,6 +10,7 @@ from multiprocessing import freeze_support
 if __name__ == "__main__":
     freeze_support()  # a process that multiprocessing starts runs its task, not glue
     os.environ["QT_API"] = "pyqt6"  # before anything imports qtpy
+    os.environ.pop("MPLCONFIGDIR", None)  # PyInstaller's temp dir, which rebuilds the font cache at every launch
     if "GLUE_SOLAR_APP_CHECK" in os.environ:  # a script that checks the app, smoke.py; glue's own -x fails
         runpy.run_path(os.environ["GLUE_SOLAR_APP_CHECK"], run_name="__main__")
     else:
