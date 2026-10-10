@@ -1,6 +1,6 @@
 """
-'IRIS: detect UV bursts…': irispy's UV bursts in a Si IV raster window or a 1400 Å slit-jaw image, as a map of their
-labels and a table of them, two new datasets.
+'IRIS: detect UV bursts…': irispy's UV bursts in a Si IV raster window, or a stack of its scans, or a 1400 Å slit-jaw
+image, as a map of their labels and a table of them, two new datasets.
 """
 
 import numpy as np
@@ -12,6 +12,7 @@ from qtpy import QtWidgets
 
 import astropy.units as u
 from astropy.coordinates import SkyCoord
+from astropy.table import vstack
 from astropy.time import Time
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
@@ -27,18 +28,17 @@ VELOCITY_RANGE = 50.0
 MEDIAN_FACTOR = 10.0
 SIGMA_FACTOR = 10.0
 MIN_PIXELS = 2
-_WHAT = "UV bursts"
 
 
 def _is_sji(data):
-    """Whether ``data`` is a 1400 Å slit-jaw image, else an IRIS raster window of one scan; raise why for neither."""
+    """Whether ``data`` is a 1400 Å slit-jaw image, else an IRIS raster window or stack; raise why for neither."""
     if _role(data) == "sji" and data.ndim == 3:
         if data.meta.get("TWAVE1") != 1400:
             raise ValueError(f"{data.label} is not a 1400 Å slit-jaw image, in which irispy finds UV bursts.")
         return True
     if _role(data) != "raster":
         raise ValueError(f"{data.label} is not an IRIS raster window or slit-jaw image.")
-    _check(data, _WHAT)
+    _check(data)
     return False
 
 
@@ -85,53 +85,66 @@ def _si_iv_bursts(data, crop, threshold, velocity_range, median_factor):
     from irispy.utils.bursts import find_si_iv_bursts
     from irispy.utils.constants import DN_UNIT
 
-    rows = (slice(None), slice(None), crop)
-    values = data[data.main_components[0], rows]  # scaled float32 DN, NaN where missing
-    times = Time(data[data.id["Time"], (slice(None), 0, 0)], scale="utc")
-    with WCS_LOCK:  # irispy reads the wavelengths and positions through the raster's astropy WCS
-        meta = _irispy_meta(data)
-        cube = SpectrogramCube(
-            values,
-            SlicedLowLevelWCS(data.coords._wcs, rows),
-            unit=DN_UNIT[meta.detector_band],
-            mask=np.isnan(values),
-            meta=meta.slice[rows],  # irispy's, with each step's exposure time
-        )
-        cube.extra_coords.add("time", 0, times, physical_types="time")
-        labels, events = find_si_iv_bursts(
-            cube, threshold=threshold, velocity_range=velocity_range * u.km / u.s, median_factor=median_factor
-        )
+    labels, tables = [], []
+    for k, scan in enumerate(np.ndindex(data.shape[:-3])):  # each scan of a stack, as that scan alone gives them
+        rows = (*scan, slice(None), slice(None), crop)
+        values = data[data.main_components[0], rows]  # scaled float32 DN, NaN where missing
+        times = Time(data[data.id["Time"], (*scan, slice(None), 0, 0)], scale="utc")
+        with WCS_LOCK:  # irispy reads the wavelengths and positions through the raster's astropy WCS
+            meta = _irispy_meta(data, scan)
+            cube = SpectrogramCube(
+                values,
+                SlicedLowLevelWCS(data.coords._wcs, rows),
+                unit=DN_UNIT[meta.detector_band],
+                mask=np.isnan(values),
+                meta=meta.slice[rows[len(scan) :]],  # irispy's, with each step's exposure time
+            )
+            cube.extra_coords.add("time", 0, times, physical_types="time")
+            found, events = find_si_iv_bursts(
+                cube, threshold=threshold, velocity_range=velocity_range * u.km / u.s, median_factor=median_factor
+            )
+        # numbered on through the scans, as irispy numbers a sequence's
+        count = sum(len(table) for table in tables)
+        labels.append(np.where(found.data > 0, found.data + count, 0))
+        events["label"] += count
+        events["raster"] = k
+        tables.append(events)
     maps = _dataset(data, f"{data.label} bursts")
+    thresholds = tuple(float(events.meta["threshold"].value) for events in tables)
     maps.meta.update(
-        bursts_threshold=float(events.meta["threshold"].value),
+        bursts_threshold=thresholds if data.ndim == 4 else thresholds[0],  # a stack's, each scan's at its own date
         bursts_velocity_range=velocity_range,
         bursts_median_factor=median_factor,
     )
-    maps.add_component(Component(labels.data), "label")
+    maps.add_component(Component(np.reshape(labels, data.shape[:-1])), "label")
+    events = vstack(tables, metadata_conflicts="silent")  # their thresholds are the map's
     return [maps, _table(events, f"{data.label} burst events", dict(maps.meta), data.coords.pointing_offset)]
 
 
 def si_iv_bursts(data, threshold=None, velocity_range=VELOCITY_RANGE, median_factor=MEDIAN_FACTOR):
     """
-    irispy's UV bursts in ``data``, an IRIS raster window of one scan covering Si IV 1402.77 Å, by
-    ``find_si_iv_bursts``: a map of their labels on the window's raster steps and slit pixels, and a table of them.
+    irispy's UV bursts in ``data``, an IRIS raster window of one scan covering Si IV 1402.77 Å or a stack of its
+    scans, by ``find_si_iv_bursts``: a map of their labels on the window's scans, raster steps and slit pixels, and a
+    table of them; a stack's scan by scan, each as that scan alone gives them, at its own coordinates, times, exposure
+    times and date, its labels numbered on from the previous scan's, as irispy numbers a sequence's rasters.
 
     irispy is given the window's scaled DN, NaN masked, and only the wavelengths within ``velocity_range`` of the line,
     and finds a burst pixel where their mean over the step's exposure time reaches ``threshold`` and stays below
     ``median_factor`` times their median; pixels that touch, diagonally too, are one burst. The map,
     ``<label> bursts``, has ``label``, 0 outside bursts and 1 to N for the N bursts, and ``meta`` with the
-    observation's ``OBSID`` and ``STARTOBS``, ``bursts_threshold``, irispy's in DN/s per wavelength bin,
-    ``bursts_velocity_range`` and ``bursts_median_factor``. The table, ``<label> burst events``, has irispy's columns
-    a row a burst: ``label``, ``raster``, ``npix``, and the ``step``, ``y``, ``time``, ``coordinate.Tx``,
-    ``coordinate.Ty`` and ``intensity`` of its brightest pixel; and the map's ``meta``.
+    observation's ``OBSID`` and ``STARTOBS``, ``bursts_threshold``, irispy's in DN/s per wavelength bin, a stack's a
+    tuple of each scan's, ``bursts_velocity_range`` and ``bursts_median_factor``. The table, ``<label> burst events``,
+    has irispy's columns a row a burst: ``label``, ``raster``, the scan, ``npix``, and the ``step``, ``y``, ``time``,
+    ``coordinate.Tx``, ``coordinate.Ty`` and ``intensity`` of its brightest pixel; and the map's ``meta``.
 
     Parameters
     ----------
     data : `~glue.core.data.Data`
-        An IRIS raster window of one scan, (raster step, slit, wavelength).
+        An IRIS raster window of one scan, (raster step, slit, wavelength), or a stack of its scans, (scan, raster
+        step, slit, wavelength).
     threshold : float, optional
         In DN/s per wavelength bin of data summed by 2 in wavelength, which irispy scales by the data's summing; None
-        for irispy's, 500 DN/s scaled by the effective area at the observation's date.
+        for irispy's, 500 DN/s scaled by the effective area at the observation's date, each scan's.
     velocity_range : float
         The half-width averaged, in km / s.
     median_factor : float or None
@@ -140,7 +153,7 @@ def si_iv_bursts(data, threshold=None, velocity_range=VELOCITY_RANGE, median_fac
     Raises
     ------
     ValueError
-        For other data than an IRIS raster window of one scan, or one with no wavelength within ``velocity_range``.
+        For other data than an IRIS raster window or stack, or one with no wavelength within ``velocity_range``.
     """
     if _is_sji(data):
         raise ValueError(f"{data.label} is not an IRIS raster window.")
@@ -237,12 +250,12 @@ def _found(datasets):
     "IRIS: detect UV bursts…",
     single=True,
     data=True,
-    tooltip="Add irispy's UV burst labels and table of this Si IV raster window or 1400 Å slit-jaw image",
+    tooltip="Add irispy's UV burst labels and table of this Si IV raster window, stack or 1400 Å slit-jaw image",
 )
 @messagebox_on_error("Could not detect UV bursts")
 def bursts_iris(data, data_collection):
     """
-    Add the `si_iv_bursts` of a raster window, or the `sji_bursts` of a 1400 Å slit-jaw image, with irispy's
+    Add the `si_iv_bursts` of a raster window or stack, or the `sji_bursts` of a 1400 Å slit-jaw image, with irispy's
     parameters typed, to the data collection, the map's helioprojective coordinates linked, and no viewer; glue shows
     why for data that has none. irispy finds them in the background, while glue's status bar says so, and then how
     many.

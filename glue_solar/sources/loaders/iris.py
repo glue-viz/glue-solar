@@ -505,9 +505,10 @@ def _raster_collection_data(collection, windows=None, stack=False, scaling=None)
                 # the stack already holds NaN
                 data = _dataset(cube.wcs.low_level_wcs, cube.meta, cube.unit, cube.data, label, color="#7A617C",
                                 cmap=cmap, missing=())
-            # its meta is scan 0's, so exposure times and raster files come per scan
+            # its meta is scan 0's, so exposure times, raster files and dates come per scan
             _add_exposure(data, np.stack([scan.exposure_time.to_value(u.s) for scan in sequence]))
             data.meta["raster files"] = tuple(name for scan in sequence for name in scan.meta.get("raster files", ()))
+            data.meta["scan dates"] = tuple(str(scan.meta["DATE_OBS"]) for scan in sequence)
             data.add_component(_per_frame(times, data.shape), "Time")
             datasets.append(data)
             continue
@@ -549,10 +550,11 @@ def _image_cube_data(cube, path, scaling=None):
     return _cube_data(cube, label, unit=DN_UNIT["SJI"], cmap=cmap, scaling=scaling)
 
 
-def _irispy_meta(data):
+def _irispy_meta(data, scan=()):
     """
-    irispy's metadata of ``data``, an IRIS raster window of one scan, as its analyses read it: its own, or irispy's
-    class made again from the dict a glue session restores for data held in memory.
+    irispy's metadata of ``data``, an IRIS raster window of one scan, or of its ``scan`` of a stack, as its analyses
+    read it: its own, or irispy's class made again from the dict a glue session restores for data held in memory, or
+    from a stack's, scan 0's, with the scan's ``DATE_OBS`` and exposure times.
     """
     from irispy.meta import SGMeta
 
@@ -560,7 +562,11 @@ def _irispy_meta(data):
 
     if isinstance(data.meta, SGMeta):
         return data.meta
-    return SGMeta(dict(data.meta), _window(data)[0], data_shape=data.shape)
+    meta = dict(data.meta)
+    if scan:
+        meta["DATE_OBS"] = meta["scan dates"][scan[0]]
+        meta["exposure time"] = data[data.id["Exposure time"], (*scan, slice(None), 0, 0)] * u.s
+    return SGMeta(meta, _window(data)[0], data_shape=data.shape[len(scan) :])
 
 
 def _logged(datasets, path, factory, **kwargs):
@@ -775,7 +781,7 @@ def link_hpc(data_collection):
     # ponytail: a link per stack and other dataset, not a star: 104 for 8 stacks and 13 slit-jaw images add 0.03 s to
     # glue's link rediscovery at each change; fewer if that grows
     for stack, scan in scans.items():
-        if stack.find_component_id("Time") is None:  # a stack's line moments
+        if stack.find_component_id("Time") is None:  # a stack's maps, such as its line moments
             continue
         times = _times(stack, stack.shape[1] // 2)  # whose indices are the scan numbers (stack_wcs)
         for data in datasets:

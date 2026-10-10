@@ -1,6 +1,6 @@
 """
-'IRIS: detect UV bursts…', on irispy's burst test files and irispy-data files: what glue gets of irispy's labels and
-events.
+'IRIS: detect UV bursts…', on irispy's burst test files, int16 copies of its test raster and irispy-data files: what glue
+gets of irispy's labels and events, of a scan or a stack.
 """
 
 import numpy as np
@@ -21,7 +21,7 @@ from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
 from glue_solar.sources.calibration import remove_dust
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
-from glue_solar.tests.test_lazy import SJI
+from glue_solar.tests.test_lazy import SJI, int16_raster_copy
 from glue_solar.tests.test_quicklook import SCAN
 
 ACTION = "IRIS: detect UV bursts…"
@@ -38,6 +38,13 @@ def app(qtbot):
     app = GlueApplication()
     qtbot.addWidget(app)
     return app
+
+
+@pytest.fixture
+def stack_paths(tmp_path, irispy_test_files):
+    """The three scans of 3860258481, stored as int16."""
+    files = sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)
+    return [int16_raster_copy(p, tmp_path / p.name) for p in files]
 
 
 def answer(monkeypatch, accept=True, **typed):
@@ -140,6 +147,47 @@ def test_a_raster_window_gives_irispys_labels_and_events_linked_and_no_viewer(
     assert labels.meta["bursts_threshold"] == events.meta["threshold"].value
 
 
+def assert_each_scans(labels, table, paths, **parameters):
+    """
+    ``labels`` and ``table`` of a stack are those of each scan of ``paths`` loaded alone, the labels numbered on
+    through the scans and ``raster`` the scan, and its threshold each scan's.
+    """
+    count = 0
+    for k, path in enumerate(paths):
+        [scan] = raster_data([path], ["Si IV 1403"])
+        alone, events = si_iv_bursts(scan, **parameters)
+        assert labels.meta["bursts_threshold"][k] == alone.meta["bursts_threshold"]
+        np.testing.assert_array_equal(labels["label"][k], np.where(alone["label"] > 0, alone["label"] + count, 0))
+        rows, shifted = table["raster"] == k, {"label": events["label"] + count, "raster": np.full(events.size, k)}
+        for cid in events.main_components:
+            expected = shifted.get(cid.label, events[cid])
+            np.testing.assert_array_equal(table[cid.label][rows], expected, err_msg=cid.label)
+        count += events.size
+    assert table.size == count
+
+
+def test_a_stack_gives_each_scans_labels_and_events(app, qtbot, monkeypatch, stack_paths):
+    """
+    A lazy stack of 3860258481's three scans gives the labels and events of each scan loaded alone, at its own
+    threshold, numbered on through the scans; the status bar counts them all.
+    """
+    [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
+    collection = app.data_collection
+    collection.append(stack)
+    keep_hpc_linked(collection)
+    answer(monkeypatch, threshold="5", median_factor=0.0)
+    labels, table = run(app, qtbot, stack, 12)
+    assert labels.shape == stack.shape[:-1]
+    assert sorted(set(table["raster"])) == [0, 1, 2]
+    assert link_hpc(collection) == []
+    assert labels.meta["bursts_threshold"] == (5.0, 5.0, 5.0)
+    assert_each_scans(labels, table, stack_paths, threshold=5, median_factor=None)
+    # irispy's threshold, from the effective area at each scan's date
+    labels, table = si_iv_bursts(stack)
+    assert len(set(labels.meta["bursts_threshold"])) == 3
+    assert_each_scans(labels, table, stack_paths)
+
+
 def test_a_slit_jaw_image_gives_irispys_labels_and_events_on_its_coordinates(
     app, qtbot, monkeypatch, irispy_test_files
 ):
@@ -191,20 +239,17 @@ def test_a_slit_jaw_image_gives_irispys_labels_and_events_on_its_coordinates(
 def test_refusals_and_errors_show_why(app, monkeypatch, irispy_test_files):
     [raster] = raster_data([find_irispy_test_file(irispy_test_files, SI_IV)])
     [c_ii] = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["C II 1336"])
-    [stack] = raster_data(
-        sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)[:2], ["Si IV 1403"], stack=True
-    )
     sji = image_data(find_irispy_test_file(irispy_test_files, SJI.replace("1400", "1330")))
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
     collection = app.data_collection
-    collection.extend([raster, c_ii, stack, sji, plain])
+    collection.extend([raster, c_ii, sji, plain])
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
     action = tree._actions[ACTION]
     opened = answer(monkeypatch)
-    for data in (c_ii, stack, sji, plain):
+    for data in (c_ii, sji, plain):
         tree.ui.layerTree.set_selected_layers([data])
         action.trigger()
     assert opened == []  # refused before asking
@@ -215,8 +260,6 @@ def test_refusals_and_errors_show_why(app, monkeypatch, irispy_test_files):
     assert all(text.startswith("Could not detect UV bursts\n") for text in shown)
     assert [text.split("\n", 1)[1] for text in shown] == [
         f"No wavelength of {c_ii.label} (1332.73 to 1336.88 Å) lies within 50.0 km/s of Si IV 1402.77 Å.",
-        f"{stack.label} is a stack of raster scans: UV bursts take one scan, as the observation browser loads them "
-        "without 'Stack sequential raster scans'.",
         f"{sji.label} is not a 1400 Å slit-jaw image, in which irispy finds UV bursts.",
         "plain is not an IRIS raster window or slit-jaw image.",
         "'Si IV' is not a threshold in DN/s, such as 500.",
@@ -226,7 +269,7 @@ def test_refusals_and_errors_show_why(app, monkeypatch, irispy_test_files):
     answer(monkeypatch, accept=False)
     action.trigger()
     assert not iris._RUNNING  # no thread started
-    assert len(collection) == 5
+    assert len(collection) == 4
 
 
 @pytest.mark.remote_data

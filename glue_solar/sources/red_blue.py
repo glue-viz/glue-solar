@@ -1,6 +1,10 @@
 """
-'IRIS: red-blue asymmetry…': irispy's red-blue asymmetry of a line in a raster window, as a new dataset.
+'IRIS: red-blue asymmetry…': irispy's red-blue asymmetry of a line in a raster window or a stack of its scans, as a new
+dataset.
 """
+
+import gc
+import itertools
 
 import numpy as np
 from glue.config import layer_action
@@ -24,7 +28,6 @@ WAVELENGTHS = (1.0, 1.0)
 # uio/utils/iris_gen_rb_profile.pro, lines 7-11)
 VELOCITIES = (30.0, 55.0)
 STEP = 5.0
-_WHAT = "red-blue asymmetry maps"
 
 
 def _taken(data, rest, wavelengths):
@@ -42,9 +45,10 @@ def _red_blue(data, rest, wavelengths, velocities, step, crop, unit):
 
     maps = {}
     # irispy measures each pixel on its own, so a slab of steps gives what the whole window would
-    steps = max(1, SLAB // (data.shape[1] * (crop.stop - crop.start)))
-    for start in range(0, data.shape[0], steps):
-        rows = (slice(start, start + steps), slice(None))
+    steps = max(1, SLAB // (data.shape[-2] * (crop.stop - crop.start)))
+    # each scan of a stack, as its own WCS and exposure times give it
+    for scan, start in itertools.product(np.ndindex(data.shape[:-3]), range(0, data.shape[-3], steps)):
+        rows = (*scan, slice(start, start + steps), slice(None))
         values, _ = _read(data, rows, crop)
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
             slab = calculate_red_blue_asymmetry(
@@ -56,6 +60,7 @@ def _red_blue(data, rest, wavelengths, velocities, step, crop, unit):
             )
         for name, part in slab.items():
             maps.setdefault(name, []).append(part.data)
+        gc.collect(0)  # ndcube's cubes are reference cycles, and irispy's hold the slab's values
     asymmetry = _dataset(data, f"{data.label} red-blue asymmetry {rest}")
     asymmetry.meta.update(
         red_blue_rest=rest,
@@ -64,19 +69,20 @@ def _red_blue(data, rest, wavelengths, velocities, step, crop, unit):
         red_blue_step=step,
     )
     for name, parts in maps.items():
-        asymmetry.add_component(Component(np.concatenate(parts)), name)
+        asymmetry.add_component(Component(np.concatenate(parts).reshape(data.shape[:-1])), name)
     return asymmetry
 
 
 def red_blue_asymmetry(data, rest, wavelengths=WAVELENGTHS, velocities=VELOCITIES, step=STEP):
     """
-    irispy's red-blue asymmetry of a line in ``data``, an IRIS raster window of one scan, from its wavelengths within
-    ``wavelengths`` of ``rest``, as one dataset on the window's raster steps and slit pixels.
+    irispy's red-blue asymmetry of a line in ``data``, an IRIS raster window of one scan or a stack of its scans, from
+    its wavelengths within ``wavelengths`` of ``rest``, as one dataset on the window's scans, raster steps and slit
+    pixels, each scan's as that scan alone gives them, at its own coordinates.
 
     irispy is given the window's ``<label> DN/s`` where it has one, else its values, NaN, -Inf and negative samples
-    left out, a slab of raster steps at a time. For each pixel it interpolates the profile about its peak every
-    ``step`` and divides the mean red wing, from ``velocities[0]`` to ``velocities[1]`` above the peak, less the mean
-    blue wing, as far below it, by the peak. Its components are irispy's: ``red_blue_asymmetry``, NaN where it is not
+    left out, a slab of raster steps of one scan at a time. For each pixel it interpolates the profile about its peak
+    every ``step`` and divides the mean red wing, from ``velocities[0]`` to ``velocities[1]`` above the peak, less the
+    mean blue wing, as far below it, by the peak. Its components are irispy's: ``red_blue_asymmetry``, NaN where it is not
     computed, and ``quality``, an `~irispy.utils.red_blue.RBAQualityFlag` code, 0 where it is; a pixel with a
     saturated sample taken, +Inf, as the loader reads the Level 2 ceiling, 16182 DN, is flagged saturated. ``meta``
     holds the observation's ``OBSID`` and ``STARTOBS``, ``red_blue_rest``, ``red_blue_wavelengths``,
@@ -85,7 +91,8 @@ def red_blue_asymmetry(data, rest, wavelengths=WAVELENGTHS, velocities=VELOCITIE
     Parameters
     ----------
     data : `~glue.core.data.Data`
-        An IRIS raster window of one scan, (raster step, slit, wavelength).
+        An IRIS raster window of one scan, (raster step, slit, wavelength), or a stack of its scans, (scan, raster
+        step, slit, wavelength).
     rest : float
         The rest wavelength of the line, in Angstrom.
     wavelengths : tuple of float
@@ -98,10 +105,10 @@ def red_blue_asymmetry(data, rest, wavelengths=WAVELENGTHS, velocities=VELOCITIE
     Raises
     ------
     ValueError
-        For other data than an IRIS raster window of one scan, or one with no wavelength within ``wavelengths`` of
+        For other data than an IRIS raster window or stack, or one with no wavelength within ``wavelengths`` of
         ``rest``.
     """
-    _check(data, _WHAT)
+    _check(data)
     return _red_blue(data, rest, wavelengths, velocities, step, *_taken(data, rest, wavelengths))
 
 
@@ -145,7 +152,7 @@ def _failed(exc_info):
     "IRIS: red-blue asymmetry…",
     single=True,
     data=True,
-    tooltip="Add irispy's red-blue asymmetry map of a line in this raster window",
+    tooltip="Add irispy's red-blue asymmetry map of a line in this raster window or stack",
 )
 @messagebox_on_error("Could not compute red-blue asymmetry")
 def red_blue_iris(data, data_collection):
@@ -154,7 +161,7 @@ def red_blue_iris(data, data_collection):
     collection, with its helioprojective coordinates linked, and no viewer; glue shows why for data that has none.
     irispy computes it in the background, while glue's status bar says so.
     """
-    _check(data, _WHAT)  # before asking
+    _check(data)  # before asking
     line = _ask(data)
     if line is None:
         return

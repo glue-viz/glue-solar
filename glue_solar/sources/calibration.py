@@ -1,6 +1,6 @@
 """
 'IRIS: remove dust': a slit-jaw image with irispy's dust removed, as a new dataset; and 'IRIS: radiometric
-calibration': a raster window's DN/s in radiance, as a glue derived component.
+calibration': a raster window's or stack's DN/s in radiance, as a glue derived component.
 """
 
 import gc
@@ -105,13 +105,15 @@ def remove_dust_iris(data, data_collection):
 
 def radiometric_calibration(data):
     """
-    Add ``<label> radiance per DN/s`` to ``data``, an IRIS raster window of one scan: irispy's factor from DN/s to
-    radiance at each of its wavelengths, held as one spectrum; and ``<label> radiance``, its ``<label> DN/s`` times
-    it, a glue derived component, in irispy's ``RADIANCE_UNIT``, erg / (Å cm2 s sr).
+    Add ``<label> radiance per DN/s`` to ``data``, an IRIS raster window of one scan or a stack of its scans: irispy's
+    factor from DN/s to radiance at each of its wavelengths, held as one spectrum, a stack's one for each scan; and
+    ``<label> radiance``, its ``<label> DN/s`` times it, a glue derived component, in irispy's ``RADIANCE_UNIT``,
+    erg / (Å cm2 s sr).
 
     The factor is irispy's ``radiometric_calibration``'s: ``calculate_dn_to_radiance_factor`` of the window's
     wavelengths, detector, spectral dispersion and pixel solid angle, with the effective area of irispy's latest
-    response at its ``DATE_OBS``; NaN at wavelengths the response does not cover.
+    response at its ``DATE_OBS``; a stack's scan's, as that scan alone gives it, at its own ``DATE_OBS`` and from its
+    own WCS; NaN at wavelengths the response does not cover.
 
     Returns
     -------
@@ -121,31 +123,38 @@ def radiometric_calibration(data):
     Raises
     ------
     ValueError
-        For other data than an IRIS raster window of one scan, or one calibrated already.
+        For other data than an IRIS raster window or stack, or one calibrated already.
     """
     from irispy.spectrograph import SpectrogramCube
     from irispy.utils.constants import RADIANCE_UNIT
     from irispy.utils.response import get_latest_response
     from irispy.utils.spectrograph import calculate_dn_to_radiance_factor
 
-    _check(data, "radiance components")
+    _check(data)
     cid = data.main_components[0]
     label = f"{cid.label} radiance"
     if data.find_component_id(label) is not None:
         raise ValueError(f"{data.label} has its radiance already.")
     rate, unit = data.id[f"{cid.label} DN/s"], _unit(data)
-    with WCS_LOCK:  # irispy reads the window's astropy WCS
-        cube = SpectrogramCube(np.broadcast_to(np.float32(0), data.shape), data.coords._wcs, meta=_irispy_meta(data))
-        factor = calculate_dn_to_radiance_factor(
-            iris_response=get_latest_response(cube.meta.date_reference),
-            wavelength=cube.axis_world_coords(cube.wavelength_axis)[0],
-            detector_type=cube.meta.detector_band,
-            spectral_dispersion_per_pixel=cube.spectral_dispersion,
-            solid_angle=cube.solid_angle,
-        )
-    factor = (unit.to(u.photon / u.s) * u.photon / u.s * factor).to_value(RADIANCE_UNIT)  # of 1 DN/s, as irispy's
+    factors = []
+    for scan in np.ndindex(data.shape[:-3]):  # each scan of a stack
+        wcs = data.coords._wcs._wcses[scan[0]] if scan else data.coords._wcs  # a stack's scan's own (stack_wcs)
+        with WCS_LOCK:  # irispy reads the window's astropy WCS
+            meta = _irispy_meta(data, scan)
+            cube = SpectrogramCube(np.broadcast_to(np.float32(0), data.shape[-3:]), wcs, meta=meta)
+            factors.append(
+                calculate_dn_to_radiance_factor(
+                    iris_response=get_latest_response(cube.meta.date_reference),
+                    wavelength=cube.axis_world_coords_values(cube.wavelength_axis)[0],  # irispy's values, 40 ms a scan sooner
+                    detector_type=cube.meta.detector_band,
+                    spectral_dispersion_per_pixel=cube.spectral_dispersion,
+                    solid_angle=cube.solid_angle,
+                )
+            )
+    factor = (unit.to(u.photon / u.s) * u.photon / u.s * u.Quantity(factors)).to_value(RADIANCE_UNIT)  # of 1 DN/s
+    factor = factor.reshape(*data.shape[:-3], 1, 1, -1)  # a spectrum for each scan
     per_rate = Component(np.broadcast_to(factor, data.shape), units=str(RADIANCE_UNIT / (u.DN / u.s)))
-    radiance = rate * data.add_component(per_rate, f"{cid.label} radiance per DN/s")  # a view: one spectrum held
+    radiance = rate * data.add_component(per_rate, f"{cid.label} radiance per DN/s")  # a view: a spectrum a scan held
     data.add_component_link(radiance, label).units = str(RADIANCE_UNIT)
     return radiance.get_to_id()
 
@@ -154,7 +163,7 @@ def radiometric_calibration(data):
     "IRIS: radiometric calibration",
     single=True,
     data=True,
-    tooltip="Add this raster window's DN/s in radiance, erg / (Å cm2 s sr), with irispy's calibration",
+    tooltip="Add this raster window's or stack's DN/s in radiance, erg / (Å cm2 s sr), with irispy's calibration",
 )
 @messagebox_on_error("Could not calibrate the radiance")
 def radiometric_calibration_iris(data, data_collection):

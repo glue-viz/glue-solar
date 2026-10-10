@@ -1,8 +1,10 @@
 """
-'IRIS: Mg II features…': irispy's line centres and emission peaks of Mg II k and h in a raster window, as a new dataset.
+'IRIS: Mg II features…': irispy's line centres and emission peaks of Mg II k and h in a raster window or a stack of its
+scans, as a new dataset.
 """
 
 import gc
+import itertools
 
 import numpy as np
 from glue.config import layer_action
@@ -21,7 +23,6 @@ __all__ = ["mg_features", "mg_features_iris"]
 # irispy's defaults: the Doppler velocities searched, in km/s from each line's rest wavelength, and the lines measured
 VELOCITIES = (-40.0, 40.0)
 LINES = ("k", "h")
-_WHAT = "Mg II feature maps"
 
 
 def _crop(data, velocities, lines):
@@ -62,9 +63,10 @@ def _mg_features(data, velocities, lines, crop, unit):
 
     maps, saturated = {}, dict.fromkeys(lines, 0)
     # irispy measures each step on its own, so a slab of steps gives what the whole window would
-    steps = max(1, SLAB // (data.shape[1] * (crop.stop - crop.start)))
-    for start in range(0, data.shape[0], steps):
-        rows = (slice(start, start + steps), slice(None))
+    steps = max(1, SLAB // (data.shape[-2] * (crop.stop - crop.start)))
+    # each scan of a stack, as its own WCS and exposure times give it
+    for scan, start in itertools.product(np.ndindex(data.shape[:-3]), range(0, data.shape[-3], steps)):
+        rows = (*scan, slice(start, start + steps), slice(None))
         values, _ = _read(data, rows, crop)
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
             # a line's features are NaN where a sample it searches is saturated, +Inf
@@ -81,28 +83,31 @@ def _mg_features(data, velocities, lines, crop, unit):
     if any(saturated.values()):  # for the status bar and scripts, as line moments'
         features.meta["mg_features_saturated"] = {line: count for line, count in saturated.items() if count}
     for name, parts in maps.items():
-        features.add_component(Component(np.concatenate([part for part, _ in parts]), units=str(parts[0][1])), name)
+        values = np.concatenate([part for part, _ in parts]).reshape(data.shape[:-1])
+        features.add_component(Component(values, units=str(parts[0][1])), name)
     return features
 
 
 def mg_features(data, velocities=VELOCITIES, lines=LINES):
     """
-    irispy's line centres and emission peaks of Mg II ``lines`` in ``data``, an IRIS raster window of one scan, within
-    ``velocities`` of each line's rest wavelength, as one dataset on the window's raster steps and slit pixels.
+    irispy's line centres and emission peaks of Mg II ``lines`` in ``data``, an IRIS raster window of one scan or a
+    stack of its scans, within ``velocities`` of each line's rest wavelength, as one dataset on the window's scans,
+    raster steps and slit pixels, each scan's as that scan alone gives them, at its own coordinates.
 
-    irispy is given the window's ``<label> DN/s`` where it has one, else its values, a slab of steps at a time, and
-    only the wavelengths it searches; it skips a line the window does not cover over ``velocities``. For each line,
-    ``k`` (2796.35 Å) and ``h`` (2803.53 Å), its components are irispy's: ``k2v``, ``k3`` and ``k2r`` (``h2v``,
-    ``h3``, ``h2r``), the blue peak, line centre and red peak, each as ``<feature>_velocity`` in km / s and
+    irispy is given the window's ``<label> DN/s`` where it has one, else its values, a slab of steps of one scan at a
+    time, and only the wavelengths it searches; it skips a line the window does not cover over ``velocities``. For
+    each line, ``k`` (2796.35 Å) and ``h`` (2803.53 Å), its components are irispy's: ``k2v``, ``k3`` and ``k2r``
+    (``h2v``, ``h3``, ``h2r``), the blue peak, line centre and red peak, each as ``<feature>_velocity`` in km / s and
     ``<feature>_intensity`` in the window's unit; NaN where irispy finds none, or a sample it searches for the line is
     missing or saturated: +Inf, as the loader reads the Level 2 ceiling, 16182 DN. ``meta`` holds the observation's
     ``OBSID`` and ``STARTOBS``, ``mg_features_velocities`` and ``mg_features_lines``, those measured, and with
-    saturated pixels ``mg_features_saturated``, how many of each line's.
+    saturated pixels ``mg_features_saturated``, how many of each line's, over every scan.
 
     Parameters
     ----------
     data : `~glue.core.data.Data`
-        An IRIS raster window of one scan, (raster step, slit, wavelength).
+        An IRIS raster window of one scan, (raster step, slit, wavelength), or a stack of its scans, (scan, raster
+        step, slit, wavelength).
     velocities : tuple of float
         The Doppler velocities searched, from and to, in km / s from each line's rest wavelength.
     lines : tuple of str
@@ -111,10 +116,10 @@ def mg_features(data, velocities=VELOCITIES, lines=LINES):
     Raises
     ------
     ValueError
-        For other data than an IRIS raster window of one scan, other ``lines``, velocities that do not increase, or a
+        For other data than an IRIS raster window or stack, other ``lines``, velocities that do not increase, or a
         window that covers none of ``lines`` over them.
     """
-    _check(data, _WHAT)
+    _check(data)
     return _mg_features(data, velocities, *_crop(data, velocities, lines), _unit(data))
 
 
@@ -161,7 +166,7 @@ def _saturated(features):
     "IRIS: Mg II features…",
     single=True,
     data=True,
-    tooltip="Add irispy's Mg II k and h line centre and emission peak maps of this raster window",
+    tooltip="Add irispy's Mg II k and h line centre and emission peak maps of this raster window or stack",
 )
 @messagebox_on_error("Could not compute Mg II features")
 def mg_features_iris(data, data_collection):
@@ -171,7 +176,7 @@ def mg_features_iris(data, data_collection):
     none. irispy computes them in the background, while glue's status bar says so, and then how many pixels
     saturated, if any.
     """
-    _check(data, _WHAT)  # before asking
+    _check(data)  # before asking
     covered, _ = _crop(data, VELOCITIES, LINES)
     chosen = _ask(data, covered)
     if chosen is None:

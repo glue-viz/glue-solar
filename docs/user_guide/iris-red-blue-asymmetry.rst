@@ -4,21 +4,23 @@
 Red-blue asymmetry
 ==================
 
-To compare the red and blue wings of a line, select a raster window of one scan in the data
-collection and choose "IRIS: red-blue asymmetry…" from its right-click menu. The rest wavelength,
-in Å, starts at the window's :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`,
-or blank for a window without one; type another to change it. The wavelengths taken below and
-above it, ±1 Å unless changed, are all irispy is given, so a Mg II k window's h line is left
-out. irispy's ``calculate_red_blue_asymmetry`` interpolates each profile about its peak every
-velocity step and divides the mean of its red wing, from the first to the second wing velocity above
-the peak, less the mean of its blue wing, as far below it, by the peak: positive for excess red
-emission. The wing velocities, 30 to 55 km/s, and the step, 5 km/s, unless changed, are those of
-SolarSoft's iris_xfiles (its double Gaussian fit, ``iris_moment__dgf.pro``). irispy computes the map
-on a worker thread from the window's DN/s, a slab of raster steps at a time, while glue's status bar
-says "Computing red-blue asymmetry of <label>…", and adds ``<label> red-blue asymmetry <rest>`` on
-the window's raster steps and slit pixels, with their helioprojective coordinates in arcsec linked
-with the other IRIS datasets. No viewer opens: drag it onto an Image viewer and pick a map as its
-attribute.
+To compare the red and blue wings of a line, select a raster window, of one scan or a stack of its
+scans, in the data collection and choose "IRIS: red-blue asymmetry…" from its right-click menu. The
+rest wavelength, in Å, starts at the window's :ref:`rest wavelength
+<glue_solar_users_guide_iris_rest_wavelength>`, or blank for a window without one; type another to
+change it. The wavelengths taken below and above it, ±1 Å unless changed, are all irispy is given,
+so a Mg II k window's h line is left out. irispy's ``calculate_red_blue_asymmetry`` interpolates
+each profile about its peak every velocity step and divides the mean of its red wing, from the first
+to the second wing velocity above the peak, less the mean of its blue wing, as far below it, by the
+peak: positive for excess red emission. The wing velocities, 30 to 55 km/s, and the step, 5 km/s,
+unless changed, are those of SolarSoft's iris_xfiles (its double Gaussian fit,
+``iris_moment__dgf.pro``). irispy computes the map on a worker thread from the window's DN/s, a slab
+of raster steps of one scan at a time, while glue's status bar says "Computing red-blue asymmetry of
+<label>…", and adds ``<label> red-blue asymmetry <rest>`` on the window's raster steps and slit
+pixels, with their helioprojective coordinates in arcsec linked with the other IRIS datasets. No
+viewer opens: drag it onto an Image viewer and pick a map as its attribute. A stack's maps are one
+dataset on its scans, raster steps and slit pixels, each scan's as that scan alone gives them, at
+its own coordinates and exposure times; the scan slider picks the scan.
 
 The maps
 --------
@@ -40,7 +42,7 @@ observation's ``OBSID`` and ``STARTOBS``, ``red_blue_rest``, ``red_blue_waveleng
 computes the dataset in glue's terminal too. :ref:`Exporting derived data
 <glue_solar_users_guide_exporting_derived_data>` saves the maps with their coordinates.
 
-Glue says why, and adds nothing, for stacks of scans, for the data and centres :ref:`line moments
+Glue says why, and adds nothing, for the data and centres :ref:`line moments
 <glue_solar_users_guide_iris_line_moments>` refuse, and for irispy's own errors, such as wing
 velocities that do not increase.
 

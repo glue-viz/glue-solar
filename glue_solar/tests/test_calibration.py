@@ -43,6 +43,13 @@ def scan_path(tmp_path, irispy_test_files):
     return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
 
 
+@pytest.fixture
+def stack_paths(tmp_path, irispy_test_files):
+    """The three scans of 3860258481, stored as int16."""
+    files = sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)
+    return [int16_raster_copy(p, tmp_path / p.name) for p in files]
+
+
 def assert_irispys_dust_removed(dust, path):
     """``dust`` is irispy's ``remove_dust`` of ``path`` read in memory, NaN where irispy masks it."""
     cube = read_sji_lvl2(path, memmap=False, uncertainty=False)
@@ -133,20 +140,37 @@ def test_the_radiance_is_irispys_radiometric_calibration(app, request, which, wi
     np.testing.assert_allclose(values[kept], direct.data[kept], rtol=1e-6, atol=0)
 
 
-def test_refusals_show_why(app, monkeypatch, sji_path, scan_path, irispy_test_files):
+def test_a_stacks_radiance_is_each_scans_own(app, stack_paths):
+    """
+    The action's ``<label> radiance`` of a lazy stack of 3860258481's three scans is, at each scan, that of the scan
+    loaded alone, at its own date: its factor a spectrum a scan.
+    """
+    [stack] = raster_data(stack_paths, ["Mg II k 2796"], stack=True)
+    app.data_collection.append(stack)
+    tree = app._layer_widget
+    tree.ui.layerTree.set_selected_layers([stack])
+    tree._actions[RADIANCE].trigger()
+    cid = stack.main_components[0]
+    radiance, factor = stack.id[f"{cid.label} radiance"], stack.id[f"{cid.label} radiance per DN/s"]
+    assert not any(stack.get_component(factor).data.strides[1:-1])  # a spectrum a scan held
+    assert len({tuple(spectrum) for spectrum in stack[factor][:, 0, 0]}) == 3  # each at its scan's date
+    for k, path in enumerate(stack_paths):
+        [scan] = raster_data([path], ["Mg II k 2796"])
+        alone = calibration.radiometric_calibration(scan)
+        np.testing.assert_array_equal(stack[radiance][k], scan[alone])
+
+
+def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
     sji = image_data(sji_path)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
-    [stack] = raster_data(
-        sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)[:2], ["Si IV 1403"], stack=True
-    )
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
     collection = app.data_collection
-    collection.extend([sji, raster, stack, plain])
+    collection.extend([sji, raster, plain])
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
-    for action, datasets in ((DUST, (raster, plain)), (RADIANCE, (sji, stack, plain, raster, raster))):
+    for action, datasets in ((DUST, (raster, plain)), (RADIANCE, (sji, plain, raster, raster))):
         for data in datasets:
             tree.ui.layerTree.set_selected_layers([data])
             tree._actions[action].trigger()
@@ -155,9 +179,7 @@ def test_refusals_show_why(app, monkeypatch, sji_path, scan_path, irispy_test_fi
         f"Could not remove dust\n{raster.label} is not an IRIS slit-jaw image.",
         "Could not remove dust\nplain is not an IRIS slit-jaw image.",
         f"Could not calibrate the radiance\n{sji.label} is not an IRIS raster window.",
-        f"Could not calibrate the radiance\n{stack.label} is a stack of raster scans: radiance components take one "
-        "scan, as the observation browser loads them without 'Stack sequential raster scans'.",
         "Could not calibrate the radiance\nplain is not an IRIS raster window.",
         f"Could not calibrate the radiance\n{raster.label} has its radiance already.",
     ]
-    assert len(collection) == 4
+    assert len(collection) == 3

@@ -1,6 +1,6 @@
 """
-'IRIS: Mg II features…', on irispy's Mg II features test raster and an int16 copy of its test raster: what glue gets of
-irispy's maps.
+'IRIS: Mg II features…', on irispy's Mg II features test raster and int16 copies of its test raster: what glue gets of
+irispy's maps, of a scan or a stack.
 """
 
 import numpy as np
@@ -40,6 +40,13 @@ def app(qtbot):
 def scan_path(tmp_path, irispy_test_files):
     """Scan 0 of 3860258481, stored as int16; its Mg II k window covers h too."""
     return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
+
+
+@pytest.fixture
+def stack_paths(tmp_path, irispy_test_files):
+    """The three scans of 3860258481, stored as int16."""
+    files = sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)
+    return [int16_raster_copy(p, tmp_path / p.name) for p in files]
 
 
 def answer(monkeypatch, velocities=None, ticks=None, accept=True):
@@ -150,6 +157,46 @@ def test_a_saturated_sample_blanks_its_lines_features_at_its_pixel(app, qtbot, m
             assert np.isnan(maps[f"{name}_velocity"][blanked]).all()
 
 
+def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatch, stack_paths):
+    """
+    A lazy stack of 3860258481's three scans, in slabs of 3 steps, gives one dataset whose maps and coordinates at
+    each scan are those of the scan loaded alone.
+    """
+    monkeypatch.setattr(mg_features, "SLAB", 3 * 109 * 33)
+    [stack] = raster_data(stack_paths, ["Mg II k 2796"], stack=True)
+    collection = app.data_collection
+    collection.append(stack)
+    keep_hpc_linked(collection)
+    answer(monkeypatch)
+    maps = run(app, qtbot, stack)
+    assert maps.shape == stack.shape[:-1]
+    assert link_hpc(collection) == []
+    for k, path in enumerate(stack_paths):
+        [scan] = raster_data([path], ["Mg II k 2796"])
+        alone = mg_features.mg_features(scan)
+        assert maps.meta == alone.meta
+        for cid in alone.main_components:
+            np.testing.assert_array_equal(maps[cid.label][k], alone[cid])
+        for cid in alone.world_component_ids:
+            np.testing.assert_allclose(maps[cid.label][k], alone[cid], rtol=0, atol=1e-9)
+
+
+def test_a_stacks_saturated_pixels_are_counted_over_its_scans(app, qtbot, monkeypatch, stack_paths):
+    monkeypatch.setattr(iris, "LAZY", False)
+    [stack] = raster_data(stack_paths, ["Mg II k 2796"], stack=True)
+    app.data_collection.append(stack)
+    cid = stack.main_components[0]
+    values = np.array(stack[cid])
+    values[[0, 2], :, 10, 51] = np.inf  # h's core, at every step of scans 0 and 2
+    values[1, 0, 30, 23] = np.inf  # k's core
+    stack.update_components({cid: values})
+    answer(monkeypatch)
+    message = "the k features at 1 saturated pixel and the h features at 16 saturated pixels are NaN"
+    maps = run(app, qtbot, stack, f"{stack.label} Mg II features: {message}")
+    assert maps.meta["mg_features_saturated"] == {"k": 1, "h": 16}
+    assert np.isnan(maps["h3_velocity"][[0, 2], :, 10]).all()
+
+
 def test_the_lines_ticked_at_first_are_those_covered_and_the_typed_values(app, qtbot, monkeypatch, irispy_test_files):
     k, h = raster_data([find_irispy_test_file(irispy_test_files, FEATURES)], ["Mg II k 2796", "Mg II h 2803"])
     collection = app.data_collection
@@ -177,21 +224,18 @@ def test_the_lines_ticked_at_first_are_those_covered_and_the_typed_values(app, q
 
 def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, irispy_test_files):
     [k] = raster_data([find_irispy_test_file(irispy_test_files, FEATURES)], ["Mg II k 2796"])
-    [stack] = raster_data(
-        sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)[:2], ["Mg II k 2796"], stack=True
-    )
     [si_iv] = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["Si IV 1403"])
     sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
     collection = app.data_collection
-    collection.extend([k, stack, si_iv, sji, plain])
+    collection.extend([k, si_iv, sji, plain])
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
     action = tree._actions[ACTION]
     opened = answer(monkeypatch)
-    for data in (stack, si_iv, sji, plain):
+    for data in (si_iv, sji, plain):
         tree.ui.layerTree.set_selected_layers([data])
         action.trigger()
     assert opened == []  # refused before asking
@@ -202,11 +246,9 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, irispy_test_files
     # and an error of irispy's, on the thread
     answer(monkeypatch, (0, 1))
     action.trigger()
-    qtbot.waitUntil(lambda: len(shown) == 7 and not iris._RUNNING)
+    qtbot.waitUntil(lambda: len(shown) == 6 and not iris._RUNNING)
     assert all(text.startswith("Could not compute Mg II features\n") for text in shown)
     assert [text.split("\n", 1)[1] for text in shown] == [
-        f"{stack.label} is a stack of raster scans: Mg II feature maps take one scan, as the observation browser "
-        "loads them without 'Stack sequential raster scans'.",
         f"{si_iv.label} (1398.63 to 1405.75 Å) does not cover Mg II k or h from -40.0 to 40.0 km/s.",
         f"{sji.label} is not an IRIS raster window.",
         "plain is not an IRIS raster window.",
@@ -215,6 +257,6 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, irispy_test_files
         "Too few wavelength points of Mg II k between 0.0 and 1.0 km/s",
     ]
     assert app.statusBar().currentMessage() == ""
-    assert len(collection) == 5
+    assert len(collection) == 4
     tree.ui.layerTree.set_selected_layers([k, sji])  # one dataset at a time
     assert not action.isVisible()
