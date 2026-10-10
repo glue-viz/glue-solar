@@ -13,8 +13,7 @@ Then change directory to glue-solar and install with::
 
     pip install -e .
 
-This installs the Qt binding used by the interactive plugin, auto-registers it with glue,
-and installs glue itself.
+This installs glue and PyQt6 (glue-solar needs Qt 6), and registers the plugin with glue.
 
 Using
 -----

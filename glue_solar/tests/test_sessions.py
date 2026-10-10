@@ -571,7 +571,6 @@ def plugin_action(app, label):
 
 def test_a_quicklook_kept_as_glue_quits_restores_from_the_menu(qtbot, monkeypatch, tmp_path, iris_tree):
     def load(dialog):
-        qtbot.addWidget(dialog)
         scanned(qtbot, dialog)
         _row(dialog, OBS_A[2]).setCheckState(0, Qt.Checked)
         dialog.stack.setChecked(True)
@@ -582,8 +581,9 @@ def test_a_quicklook_kept_as_glue_quits_restores_from_the_menu(qtbot, monkeypatc
     told = []
     monkeypatch.setattr(QMessageBox, "information", lambda parent, title, text: told.append(text))
     glue_solar.setup()
+    # qtbot is given only the window left open: glue-qt deletes a window as it closes, with its dialogs, and pytest-qt
+    # cannot close a deleted one
     app = GlueApplication()
-    qtbot.addWidget(app)
     monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
     plugin_action(app, "Restore last session").trigger()
     assert told == ["No session kept yet: glue-solar keeps one as glue's window closes with data."]
@@ -599,7 +599,6 @@ def test_a_quicklook_kept_as_glue_quits_restores_from_the_menu(qtbot, monkeypatc
     assert len(paths) == len(labels)
     assert all(map(os.path.isabs, paths))  # its files, wherever glue starts
     fresh = GlueApplication()
-    qtbot.addWidget(fresh)
     plugin_action(fresh, "Restore last session").trigger()
     restored = fresh._new_application  # as File → Open Session gives it, closing ``fresh``
     qtbot.addWidget(restored)
@@ -614,8 +613,7 @@ def test_a_session_glue_cannot_keep_leaves_the_last_one(qtbot, monkeypatch, tmp_
     last = tmp_path / "glue-solar-last-session.glu"
     last.write_text("the session before")
     glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
+    app = GlueApplication()  # not given to qtbot, which cannot close it once glue-qt has deleted it as it closed
     values = {
         "values over 1 MB": np.random.default_rng(0).random(150_000),  # 1.2 MB of values, not encoded
         "over 1 MB": np.random.default_rng(0).random(100_000),  # 0.8 MB of values, 1.07 MB encoded
