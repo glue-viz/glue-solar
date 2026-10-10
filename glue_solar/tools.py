@@ -1238,8 +1238,8 @@ class PathData(PathSlicedData):
             weights = weights * np.where(np.reshape(high, (4, 1)), fraction, 1 - fraction)
         (x, y), inverse = np.unique(corners, axis=1, return_inverse=True)
         # index arrays of one shape: glue-core 1.27.0's world coordinates, which a region's outline reads, take no other
-        view = np.broadcast_arrays(*self._pixels(np.ix_(*box[:-1], np.arange(x.size)), x, y))
-        values = self.original_data.get_data(cid, view=tuple(view))
+        pixels = np.broadcast_arrays(*self._pixels(np.ix_(*box[:-1], np.arange(x.size)), x, y))
+        values = self.original_data.get_data(cid, view=tuple(pixels))
         values = np.asarray(values)
         diagram = sum(weight * values[..., index] for weight, index in zip(weights, inverse.reshape(4, -1)))
         diagram = diagram.astype(np.result_type(values.dtype, np.float32), copy=False)
