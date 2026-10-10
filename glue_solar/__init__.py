@@ -149,7 +149,9 @@ def restore_last_session(session, data_collection):
     app = session.application
     if not os.path.exists(_last_session()):
         QtWidgets.QMessageBox.information(
-            app, "Restore last session", "No session kept yet: glue-solar keeps one as glue's window closes with data."
+            app,
+            "IRIS: restore last session",
+            "No session kept yet: glue-solar keeps one as glue's window closes with data.",
         )
         return
     app.restore_session_and_close(_last_session())
