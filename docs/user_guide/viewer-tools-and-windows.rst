@@ -223,8 +223,8 @@ toolbar has:
   it, keeping "Square Pixels" and "Physical aspect", and "Save plot to file" saves the bar with the
   image. "Save Python script to reproduce plot" and saved sessions leave it out. The bar and its
   ticks stay when "Hide axes" is on.
-- A button with a spectrum icon, to which glue-solar gives the tooltip "Open a Profile viewer of
-  this viewer's data along a slider's axis", which opens a 1D Profile viewer of the image's data.
+- A button with a spectrum icon ("Open a Profile viewer of this viewer's data along a slider's
+  axis"), which opens a 1D Profile viewer of the image's data.
 - The save menu, with "Save plot to file", "Save Python script to reproduce plot" and glue-solar's
   "Save frames or movie…", and the window menu, with "Move to another tab" and "Change viewer
   title". "Save frames or movie…" saves the image at each index of a slider, from a first to a last,

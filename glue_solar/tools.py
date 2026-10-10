@@ -2460,8 +2460,8 @@ KEYS = {
 
 class _ToolMenu(SimpleToolMenu):
     """
-    A toolbar menu of glue-solar tools, glue's own kind of menu: the viewer's ``subtools`` name its tools, which
-    glue-qt 0.4.2 makes its entries. Once glue-qt has built it, each tool is also in the toolbar's ``tools`` and
+    A toolbar menu of glue-solar tools, glue's own kind of menu: the viewer's ``subtools`` name its tools, or the menu
+    makes them itself as Coordinate does, and glue-qt 0.4.2 makes them its entries. Once glue-qt has built it, each tool is also in the toolbar's ``tools`` and
     ``actions`` with its entry, as a button's would be, so glue-qt switches a mouse mode of the menu on and off and
     scripts find a tool by its id as before. An entry shows only while its tool is ``enabled``, which glue-qt does for
     buttons only (glue-viz/glue-qt#72, draft, adds it), has a check mark for a tool with a ``checked`` state, and takes
