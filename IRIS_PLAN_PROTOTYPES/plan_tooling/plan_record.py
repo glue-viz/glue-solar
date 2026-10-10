@@ -6,8 +6,10 @@ s = open(P).read()
 s, n = re.subn(rf"^- \[ \] \*\*\w+\*\* `{re.escape(key)}`[^\n]*\n", "", s, flags=re.M)
 assert n == 1, f"item {key} not found once ({n})"
 # checklist: drop the key, then any WP line left empty
-s = re.sub(rf"`{re.escape(key)}`, ", "", s)
-s = re.sub(rf", `{re.escape(key)}`", "", s)
+# (checklist lines only: in prose, the PR number replaces the key below)
+def drop(m):
+    return m.group(0).replace(f"`{key}`, ", "").replace(f", `{key}`", "")
+s = re.sub(r"^- WP\d+: [^\n]*", drop, s, flags=re.M)
 s = re.sub(rf"^- WP\d+: `{re.escape(key)}`\n", "", s, flags=re.M)
 # Depends lists
 def dep(m):
