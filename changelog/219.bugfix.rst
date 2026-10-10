@@ -1,0 +1,1 @@
+Moving or closing tabs while a quicklook opens no longer fails with "'NoneType' object has no attribute 'setActiveSubWindow'"; closing the quicklook's own tab stops it quietly.
