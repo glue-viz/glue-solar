@@ -2755,6 +2755,35 @@ def test_startup_shows_the_first_raster_file(qtbot, monkeypatch, irispy_test_fil
     assert "stacks of scans need" in app.statusBar().currentMessage()
 
 
+def test_an_observation_of_sot_alone_opens_in_an_image_viewer(qtbot, monkeypatch, tmp_path, irispy_test_files):
+    from glue.core.data_factories import load_data
+
+    from glue_solar.sources.iris import iris_quicklook, quicklook_iris
+
+    [path] = [p for p in irispy_test_files if "_Gband4305_FG_" in p.name]
+    app = bare_app_for(qtbot, monkeypatch)
+    app.data_collection.append(load_data(str(path)))
+    iris_quicklook(app.session, app.data_collection)
+    # no empty quicklook tab: the cube opens as the observation browser opens it
+    assert app.tab_count == 1
+    [[viewer]] = app.viewers
+    assert type(viewer) is ImageViewer
+    assert viewer.state.reference_data is app.data_collection[0]
+    messages = []
+    monkeypatch.setattr(QtWidgets.QMessageBox, "information", lambda parent, title, text: messages.append(text))
+    quicklook_iris(app.session, app.data_collection)
+    assert app.tab_count == 1
+    assert messages == ["No IRIS observation with a raster or slit-jaw image is loaded."]
+    with pytest.raises(ValueError, match="has no raster or slit-jaw image for a quicklook"):
+        quicklook(app, list(app.data_collection))
+    assert app.tab_count == 1
+    browsed = bare_app_for(qtbot, monkeypatch)
+    browse(qtbot, browsed, monkeypatch, copy_files(tmp_path / "sot", [path]), [0])
+    assert browsed.tab_count == 1
+    [[viewer]] = browsed.viewers
+    assert type(viewer) is ImageViewer
+
+
 def as_list(value):
     return value if isinstance(value, list) else [value]
 

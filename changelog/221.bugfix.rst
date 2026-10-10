@@ -1,0 +1,1 @@
+An observation of only AIA cutouts or SOT cubes no longer opens an empty quicklook tab, the observation browser's Load selected is its default button, and the IRIS Gaussian fitter says when its range holds too few samples.

@@ -230,7 +230,7 @@ def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_mo
     app.data_collection.extend(dialog.datasets)
     dialog.datasets[0].coords.pointing_offset = (1.5, -2.25)
     dialog.datasets[0].meta["rest_wavelength"] = 2796.35
-    # with paths relative to the session file, the type glue's Save Session dialog starts with
+    # with paths relative to the session file, the type glue's Export Session dialog starts with
     app.save_session(str(tmp_path / "first" / "session.glu"), absolute_paths=False)
     records = json.loads((tmp_path / "first" / "session.glu").read_text())
     logs = [(record["path"], dict(*record["kwargs"])) for record in records.values() if "LoadLog" in record["_type"]]

@@ -1367,15 +1367,22 @@ def quicklook(app, datasets, window=None):
     dict
         The viewers: ``map``, ``spectrogram``, ``wavelength``, ``spectrum`` (absent without a raster),
         ``sji``, a list, and ``windows``, a list of each other window's ``spectrum`` and any ``wavelength``.
+
+    Raises
+    ------
+    ValueError
+        For an observation with neither a raster nor a slit-jaw image.
     """
+    rasters = [data for data in datasets if _role(data) == "raster"]
+    sjis, offered = _pick_sjis([data for data in datasets if _role(data) == "sji"])
+    if not rasters and not sjis:
+        raise ValueError(f"{datasets[0].label} has no raster or slit-jaw image for a quicklook")
     collection = app.data_collection
     new = [data for data in datasets if data not in collection]
     if new:  # one link update for all, where each append runs one
         collection.extend(new)
     keep_hpc_linked(collection)
-    rasters = [data for data in datasets if _role(data) == "raster"]
-    sjis, offered = _pick_sjis([data for data in datasets if _role(data) == "sji"])
-    key = observation_key((rasters or sjis or datasets)[0])
+    key = observation_key((rasters or sjis)[0])
 
     app.new_tab()
     tab = app.current_tab  # not its index, which changes as the user moves or closes tabs before it ends

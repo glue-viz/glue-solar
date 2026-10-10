@@ -28,7 +28,7 @@ from glue.core.state import GlueSerializeError
 from glue_qt.utils import load_ui
 from glue_qt.utils.threading import Worker
 from qtpy import QtGui, QtWidgets
-from qtpy.QtCore import QSettings, Qt, QTimer, Signal
+from qtpy.QtCore import QEvent, QSettings, Qt, QTimer, Signal
 
 import astropy.units as u
 from astropy.io import fits
@@ -989,9 +989,9 @@ class QtIRISImporter(QtWidgets.QDialog):
     as the last browser left them.
 
     A folder typed in the Folder field is searched once Return is pressed or the
-    field is left. A double-click on an entry loads it alone, whatever is ticked,
-    and one on its tick box only ticks and un-ticks it; on an observation of several
-    entries it expands or collapses the row.
+    field is left; elsewhere Return presses Load selected. A double-click on an entry
+    loads it alone, whatever is ticked, and one on its tick box only ticks and
+    un-ticks it; on an observation of several entries it expands or collapses the row.
     """
 
     progressed = Signal(int, int)  # (load, percent), from the worker thread
@@ -1013,6 +1013,8 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.filter.textChanged.connect(self._filter)
         for field in (self.directory, self.start, self.end):
             field.editingFinished.connect(self._search_edited)
+        for field in (self.directory, self.start, self.end, self.filter):
+            field.installEventFilter(self)
         self.places.activated.connect(lambda i: self.set_directory(self._places[i][1]))
         self.add_place.clicked.connect(self._add_place)
         self.remove_place.clicked.connect(self._remove_place)
@@ -1031,12 +1033,16 @@ class QtIRISImporter(QtWidgets.QDialog):
         self._payloads = []
         self._load, self._stop = 0, threading.Event()  # the latest load, and its stop
         self.shown = shown
-        self.stack.setToolTip(
-            "Stack two or more raster scans by detector position into one 4D cube. "
-            "Each scan keeps its own spatial coordinates and exact acquisition times."
-        )
         if directory:
             self.set_directory(directory)
+
+    def eventFilter(self, field, event):
+        """Let Return in a field search, or filter, and go no further: not to Load selected, the default button."""
+        if event.type() == QEvent.Type.KeyPress and event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            field.keyPressEvent(event)
+            event.accept()
+            return True
+        return super().eventFilter(field, event)
 
     def choose_directory(self):
         directory = QtWidgets.QFileDialog.getExistingDirectory(

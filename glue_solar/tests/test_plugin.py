@@ -1875,7 +1875,8 @@ def test_the_key_table_lists_every_key_of_glue_solars_viewers_and_tools(request)
         keys += re.findall(r"event\.key == ['\"](\w+)", inspect.getsource(handler))
     package = Path(glue_solar.__file__).parent
     for module in package.rglob("*.py"):
-        if module.relative_to(package).parts[0] != "tests":
+        # not the observation browser's Return, a dialog's key, which the loading guide gives
+        if module.relative_to(package).parts[0] != "tests" and module.parent.name != "loaders":
             keys += re.findall(r"Qt\.Key_(\w+)", module.read_text())
     guide = request.config.rootpath / "docs" / "user_guide" / "viewer-tools-and-windows.rst"
     if not guide.exists():
@@ -2346,3 +2347,16 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot):
     assert model.parameters == pytest.approx([3, 40, 1355.62, 0.04])
     model, _ = GaussianConstantFitter().build_and_fit(x, 50 - y)
     assert model.parameters == pytest.approx([47, -40, 1355.62, 0.04])  # absorption
+
+
+def test_gaussian_on_a_constant_says_when_the_range_holds_too_few_samples():
+    x = np.arange(4.0)
+    y = 1 + 4 * np.exp(-0.5 * ((x - 1) / 0.5) ** 2)
+    y[3] = np.nan  # three finite samples for four parameters
+    message = r"Gaussian \+ constant \(IRIS\) needs at least 4 finite samples in the range, one per free parameter, and"
+    with pytest.raises(ValueError, match=f"{message} has 3: widen the range"):
+        GaussianConstantFitter().build_and_fit(x, y)
+    fitter = GaussianConstantFitter()
+    fitter.set_constraint("amplitude_0", value=1, fixed=True)
+    model, _ = fitter.build_and_fit(x, y)  # three free parameters, which three samples fit
+    assert np.abs(model.parameters) == pytest.approx([1, 4, 1, 0.5])

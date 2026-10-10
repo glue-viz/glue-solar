@@ -24,10 +24,11 @@ class GaussianConstantFitter(AstropyFitter1D):
     """
     A `~astropy.modeling.functional_models.Gaussian1D` on a `~astropy.modeling.functional_models.Const1D`, numbered as
     irispy's ``profiles_on_background`` numbers them (``amplitude_0`` the constant), fitted with the fitter class of
-    glue's Gaussian to the finite samples, as an IRIS window's fill is NaN. It starts from the data: the constant their
-    median, the line their sample farthest from it, an emission or absorption line, and the standard deviation from
-    the width where they are beyond half of that. The summary adds the centre and, within `NEAR` of a main IRIS line
-    (`lines.MAIN_LINES`) for an x axis in Angstrom, its Doppler velocity from that line.
+    glue's Gaussian to the finite samples, as an IRIS window's fill is NaN, one at least per free parameter. It starts
+    from the data: the constant their median, the line their sample farthest from it, an emission or absorption line,
+    and the standard deviation from the width where they are beyond half of that. The summary adds the centre and,
+    within `NEAR` of a main IRIS line (`lines.MAIN_LINES`) for an x axis in Angstrom, its Doppler velocity from that
+    line.
     """
 
     label = "Gaussian + constant (IRIS)"
@@ -37,6 +38,12 @@ class GaussianConstantFitter(AstropyFitter1D):
 
     def fit(self, x, y, dy, constraints):
         keep = np.isfinite(y)
+        free, finite = sum(not constraint["fixed"] for constraint in constraints.values()), np.count_nonzero(keep)
+        if finite < free:  # in place of scipy's "Improper input" traceback
+            raise ValueError(
+                f"{self.label} needs at least {free} finite samples in the range, one per free parameter, and has "
+                f"{finite}: widen the range"
+            )
         return super().fit(x[keep], y[keep], dy if dy is None else dy[keep], constraints)
 
     def parameter_guesses(self, x, y, dy):

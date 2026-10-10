@@ -9,7 +9,7 @@ Loading and stacking multi-scan IRIS Level 2 raster cubes
 
 Use the observation browser for this task because it groups raster scans by observing-program
 execution and lets you select spectral windows before loading their arrays. Open
-"Plugins -> IRIS: browse observations…" and point it at a directory containing the IRIS
+"Plugins → IRIS: browse observations…" and point it at a directory containing the IRIS
 Level 2 files or their downloaded archives. If an archive is still packed, tick its
 "Extract ..." entry and press "Load selected" first; the browser refreshes and shows its contents.
 Then tick the raster spectral windows to load (``C II 1336`` and ``Mg II k 2796`` here) and tick
@@ -146,7 +146,7 @@ the viewer's options:
   same axes give wavelength against raster step.
 
 **Four panels.** Open a raster map, a spectrogram, a slit-jaw image and a 1D Profile of the raster
-with ``Wavelength`` as its x axis, then choose "Canvas -> Gather Windows" (Ctrl+G) to place them side
+with ``Wavelength`` as its x axis, then choose "Canvas → Gather Windows" (Ctrl+G) to place them side
 by side. The 1D Profile viewer asks "Add large data set?" for datasets of 1e8 samples or more, with
 Cancel as the default button.
 
@@ -193,9 +193,11 @@ raster, pick "Gaussian + constant (IRIS)" on the "Fit" tab, drag a range over th
 1355.4 to 1355.8 Å for O I or 2799.3 to 2799.65 Å for Ni I, and press "Fit". It fits astropy's
 ``Gaussian1D`` on a ``Const1D`` to the samples in the range, the NaN fill left out, from the
 constant at their median and the line at the sample farthest from it, so an absorption line fits
-too. The report lists ``amplitude_0``, the constant, and ``amplitude_1``, ``mean_1`` and
-``stddev_1``, the Gaussian's, then the centre and, within 0.5 Å of a main IRIS line with the x unit
-``Angstrom``, its velocity from that line, (centre / rest - 1) c; Ni I is not one. Add the offset,
+too. It needs a sample in the range for each parameter not fixed under "Settings", four with none
+fixed, and with fewer the report ends with how many it has. The report lists ``amplitude_0``, the
+constant, and ``amplitude_1``, ``mean_1`` and ``stddev_1``, the Gaussian's, then the centre and,
+within 0.5 Å of a main IRIS line with the x unit ``Angstrom``, its velocity from that line,
+(centre / rest - 1) c; Ni I is not one. Add the offset,
 the centre minus the measured line's rest wavelength, to the rest wavelength of a line on the same
 detector and set that with "Set rest wavelength…" on its window, so both the
 :ref:`line moments <glue_solar_users_guide_iris_line_moments>` and red-blue asymmetry start from it

@@ -69,10 +69,10 @@ browser keeps them for next time, and opens with the latest search's "Start" and
 
 Tick the entries you want (ticking the observation row ticks everything under it); each slit-jaw
 channel, AIA cutout and SOT cube you tick loads as a dataset of its own. Then press "Load
-selected": the data are added to the data collection. Double-click an entry to load it alone,
-whatever is ticked (a
-double-click on its tick box only ticks and un-ticks it); a double-click on an observation of several
-entries expands or collapses it instead. glue reads the files in the background, one at a time, and
+selected", or Return anywhere but in a text field: the data are added to the data collection.
+Double-click an entry to load it alone, whatever is ticked (a double-click on its tick box only
+ticks and un-ticks it); a double-click on an observation of several entries expands or collapses it
+instead. glue reads the files in the background, one at a time, and
 the progress bar counts them; meanwhile the list and its boxes are locked and "Cancel" reads "Stop".
 "Stop" ends the load once the file being read is done and loads the entries read in full, such as a
 slit-jaw channel read before a raster window, or nothing if none was. Pressing Esc or closing the
@@ -166,11 +166,12 @@ against slit, the viewer's new step slider moves to the point. Wavelength slider
 The "Coordinate" menu (the link icon) in the Image Viewer toolbar has "Time master", which records
 the displayed dataset as the time reference of its observation (same OBSID and STARTOBS), "Clear
 point", "Go to UTC…", which moves the time master, "Loop…" for the frame, exposure, step or scan slider,
+"Raster overlays", which shows or hides the raster's steps on every viewer of the observation,
 "Light curve at the point", which opens the point's light curve over the map's wavelength or band,
 "Light curves at this point (windows, SJI)", which plots each raster window and slit-jaw image at
-the point against time, and "Set blink partner here" and "Blink", which alternate the viewer between
-two positions (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). The Pixel tool
-stays active after each entry.
+the point against time, and "Set blink partner here", "Blink" and "Blink interval", which alternate the
+viewer between two positions at the interval chosen (see :ref:`The quicklook
+<glue_solar_users_guide_iris_quicklook>`). The Pixel tool stays active after each entry.
 
 Downloads that are still packed (``*_raster.tar.gz``, ``*_SDO.tar.gz``, ``*_SOTFG.tar.gz``,
 ``*_SOTSP.tar.gz``) show up under their observation as an "Extract <archive> (<size> MB, next to
@@ -205,7 +206,7 @@ Datasets merged with glue's "Merge datasets" take glue's own colour limits, samp
 corners of the data, so set those by hand.
 
 On OBSID 4000005156's first raster file (64 steps, nine windows, 119 million values in 0.24 GB) and
-its deconvolved SJI 2796 (37 million values), opened with "File -> Open Data Set", glue grows from
+its deconvolved SJI 2796 (37 million values), opened with "File → Open Data Set", glue grows from
 0.38 to 0.84 GB as they load and the quicklook of Mg II k 2796 opens, and to 1.01 GB once the map
 has been stepped through every wavelength, the spectrogram through every step, the λ–step panel
 through every slit row and the slit-jaw image through every frame: about 4 bytes a value. Of that,
@@ -219,7 +220,7 @@ frees the error message of a point it cannot convert, each new slit row shown on
 past the raster's first and last steps; astropy's development version, with WCSLIB 8.9, frees them.
 
 A sit-and-stare raster loads every exposure this way. On OBSID 4000255147 (1600 exposures, a 2.1 GB
-file) and 3660259102 (1020 exposures, 1.5 GB), every window opened with "File -> Open Data Set"
+file) and 3660259102 (1020 exposures, 1.5 GB), every window opened with "File → Open Data Set"
 opens in about 0.6 s with under 0.1 GB more memory, and the quicklook of Mg II k 2796, stepped with
 F through every exposure and then through every slit row of its wavelength panel, keeps glue under
 1.8 GB, each step redrawing the images in 0.06 to 0.12 s and the spectrum in 0.18 s. Every window
@@ -236,10 +237,12 @@ browser's archive extraction never overwrites a file.
 Opening a single file
 ---------------------
 
-"File -> Open Data Set" also understands IRIS Level 2 files directly: a slit-jaw file, an aligned
-AIA cutout (``aia_l2_*.fits``) or a Hinode/SOT cube (``sot_l2_*.fits``, ``sotsp_l2_*.fits``) loads
-as one cube, as the observation browser loads it, and a raster
-file loads one dataset per spectral window, labelled with the file's raster number (``…-r00003``).
+"File → Open Data Set" also understands IRIS Level 2 files directly, as the file type "IRIS Level 2
+FITS", which its default type, "Auto", chooses for them: a slit-jaw file, an aligned AIA cutout
+(``aia_l2_*.fits``) or a Hinode/SOT cube (``sot_l2_*.fits``, ``sotsp_l2_*.fits``) loads as one cube,
+as the observation browser loads it, and a raster file loads one dataset per spectral window,
+labelled with the file's raster number (``…-r00003``). Other AIA and HMI files need "sunpy Map"
+picked instead (see :ref:`glue_solar_users_guide_loading_aia_and_hmi_files`).
 Files opened this way, or given on the ``glue`` command line, load one by one with every spectral
 window and cannot be stacked, so use the observation browser for large or multi-scan observations.
 
@@ -321,7 +324,7 @@ The observation browser links the ``Helioprojective Longitude`` and ``Helioproje
 of every slit-jaw image, raster, aligned AIA cutout and SOT cube it loads, so selections carry
 over between them. It links any file loaded as a sunpy Map (see
 :ref:`glue_solar_users_guide_loading_aia_and_hmi_files`) to them too, its degrees converted to
-arcsec, while Glue's own WCS autolinking links maps to each other. For data opened with "File ->
+arcsec, while Glue's own WCS autolinking links maps to each other. For data opened with "File →
 Open Data Set", choose "IRIS: link helioprojective coordinates" from the "Plugins" menu; it only
 adds links that are missing, so running it again after loading more data is safe. Removing a
 dataset leaves the others linked. The links pair coordinates as they are: they do not allow for
