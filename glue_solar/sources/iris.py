@@ -163,7 +163,7 @@ def _shown(loaded, quicklooks, main=None):
 def link_iris(session, data_collection):
     """
     Link the helioprojective longitude and latitude of every loaded dataset that has them, IRIS data, sunpy maps and
-    FITS files such as SST cubes alike, and the scans of each stack to the other IRIS data by time.
+    FITS files such as SST cubes alike, and the scans of each stack and SST cube to the other IRIS data by time.
 
     Selections then carry over between them through their world coordinates. The observation browser, a quicklook and
     the analyses link IRIS data only, and the links are kept when a dataset is removed.

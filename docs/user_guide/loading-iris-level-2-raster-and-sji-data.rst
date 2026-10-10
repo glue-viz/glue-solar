@@ -336,11 +336,12 @@ linked to IRIS data only on request: choose "IRIS: link helioprojective coordina
 converted to arcsec, as well as IRIS data opened with "File → Open Data Set". Glue's own WCS
 autolinking links maps to each other. Once a map is linked, every quicklook panel and spectrum works
 through its coordinates too. A linked SST cube's viewer shows the IRIS data's regions and crosshair,
-slowly, as every quicklook panel and spectrum then works through the cube's tabulated coordinates:
-beside a linked SST cube, a quicklook of the nine windows of 4000255147 took about 4 minutes to open
-rather than 6 s, and an exposure or slit-jaw frame step about 2 s rather than 0.6 s and 0.03 s. A
-region drawn on an SST cube selects no IRIS pixels yet: Glue fills in the cube's wavelength, time and
-Stokes coordinates, which IRIS data lack, with values outside its tables. The menu entry only adds
+and a region drawn on the cube selects the IRIS pixels at its place in the cube's scan nearest each
+frame's time (see :ref:`glue_solar_users_guide_loading_sst_cubes`). Every quicklook panel and spectrum
+then works through the cube's coordinates as well: beside a linked SST cube, a quicklook of the nine
+windows of 4000255147 took about 9 s to open rather than 6 s (14 s where a region on a co-pointed cube
+selected IRIS pixels), an exposure step about 0.63 s rather than 0.55 s, and a slit-jaw frame step
+0.1 s rather than 0.03 s. The menu entry only adds
 links that are missing, so running it again after loading more data is safe. Removing a dataset
 leaves the others linked, those linked on request included. A reopened session restores those links,
 but choose the menu entry again after reopening it: until then, removing a dataset drops a map's

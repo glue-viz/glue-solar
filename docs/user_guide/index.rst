@@ -18,6 +18,7 @@ each is offered only for data it takes; one that takes few kinds names them, as
 
    loading-aia-and-hmi
    loading-iris-level-2-raster-and-sji-data
+   loading-sst-cubes
    iris-quicklook
    iris-line-moments
    iris-red-blue-asymmetry

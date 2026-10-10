@@ -765,8 +765,8 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None)
 
 class _ScanAt:
     """
-    A stack's ``Scan`` at each index along another dataset's first axis, its frames, exposures or steps (`link_hpc`),
-    and NaN off it: ``scans``. Saved in sessions.
+    A stack's ``Scan``, or an SST cube's time, at each index along another dataset's first axis, its frames, exposures
+    or steps (`link_hpc`), and NaN off it: ``scans``. Saved in sessions.
     """
 
     __name__ = "nearest_scan"  # glue's name of a link function, as its own link helpers set it
@@ -811,17 +811,22 @@ def link_hpc(data_collection, others=None):
     A stack's pixel at a place depends on its scan, each with its own pointing (`stack_wcs`), so the frames, exposures
     or steps of each IRIS dataset with a ``Time`` but a stack get the scan nearest their time, however far, and those
     without a time none, scans timed by their middle raster step as the quicklook times them: a
-    `~glue.core.component_link.ComponentLink` from the dataset's first pixel axis to the stack's ``Scan``.
+    `~glue.core.component_link.ComponentLink` from the dataset's first pixel axis to the stack's ``Scan``. An SST cube's
+    pointing depends on its scan too (`glue_solar.sources.sst`): once it is linked, now or before, the frames,
+    exposures, steps or scans of each IRIS dataset with a ``Time`` give the cube their time, in its seconds since
+    ``DATEREF``, which its coordinates place in the scan nearest it, and the time axis of a slit-jaw image or AIA cutout
+    takes the time of each of the cube's scans, at its middle tuning, so that a point on the cube reaches the frame
+    nearest it.
 
     Returns
     -------
     list of `~glue.core.link_helpers.LinkSame`, `~glue.core.link_helpers.LinkSameWithUnits` and
     `~glue.core.component_link.ComponentLink`
     """
-    from glue_solar.quicklook import _times, nearest  # which imports this module
+    from glue_solar.quicklook import _role, _times, nearest  # which imports this module
 
     linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in data_collection.links}
-    anchors, links = {}, []
+    anchors, links, cubes = {}, [], set()
     # IRIS datasets first, so that the first of them is the one every dataset links to
     for data in sorted(data_collection, key=lambda data: not isinstance(data.coords, _GlueWCS)):
         iris = isinstance(data.coords, _GlueWCS)
@@ -837,6 +842,8 @@ def link_hpc(data_collection, others=None):
                     continue
                 if pair not in linked:
                     links.append((LinkSame if iris else LinkSameWithUnits)(anchor, cid))
+                if _role(data) == "sst":
+                    cubes.add(data)
                 # linked now or before, as a session restores it
                 # ponytail: only a plain astropy WCS, as glue's FITS reader and sunpy maps give, not a wrapper of one
                 if type(data.coords) is WCS:
@@ -856,6 +863,26 @@ def link_hpc(data_collection, others=None):
             when = _times(data, 0)
             nearby = np.where(np.isnat(when), np.nan, nearest(when, times)[0])  # none for a frame without a time
             links.append(ComponentLink([frame], scan, using=_ScanAt(nearby)))
+    for cube in cubes:
+        seconds, scan = cube.world_component_ids[0], cube.pixel_component_ids[0]  # its time since DATEREF, and scan
+        scans = cube[cube.find_component_id("Time"), (slice(None), 0, cube.shape[2] // 2, 0, 0)]  # at the line core
+        for data in datasets:
+            frame = data.pixel_component_ids[0]
+            if data.find_component_id("Time") is None:
+                continue
+            when = _times(data, data.shape[1] // 2 if data.ndim == 4 else 0)  # a stack's at its middle step
+            if frozenset((seconds, frame)) not in linked:
+                start = np.datetime64(cube.meta["DATEREF"])
+                links.append(ComponentLink([frame], seconds, using=_ScanAt((when - start) / np.timedelta64(1, "s"))))
+            kinds = list(data.coords.world_axis_physical_types)
+            if "time" not in kinds:  # a raster's
+                continue
+            # the time of each scan on a slit-jaw image's time axis, in its unit from its first frame's
+            time = data.world_component_ids[data.ndim - 1 - kinds.index("time")]
+            if frozenset((time, scan)) not in linked:
+                first = data[time, (0,) * data.ndim] * u.Unit(data.coords.world_axis_units[kinds.index("time")])
+                values = (first + (scans - when[0]) / np.timedelta64(1, "s") * u.s).to_value(first.unit)
+                links.append(ComponentLink([scan], time, using=_ScanAt(values)))
     return links
 
 

@@ -370,8 +370,9 @@ Saving sessions
 ---------------
 
 A session refers to the files of the IRIS data loaded with the observation browser, File → Open Data Set,
-or ``raster_data`` and ``image_data`` in glue's terminal, and reads them again as it opens, rather
-than holding their values. Save it as "Glue Session with relative paths to data", the type glue's
+or ``raster_data`` and ``image_data`` in glue's terminal, and of SST cubes (see
+:ref:`glue_solar_users_guide_loading_sst_cubes`), and reads them again as it opens, rather than holding
+their values. Save it as "Glue Session with relative paths to data", the type glue's
 Export Session dialog starts with, to move it and the files together: it opens wherever the files
 keep their place relative to it. "Glue Session including data" holds the values instead, and fails
 on data read from their files as they are viewed. A session keeps the coordinates of every IRIS

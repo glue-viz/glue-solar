@@ -39,6 +39,7 @@ from glue.plugins.tools.path_slicer.path_sliced_data_links import (
     link_path_sliced_pair_paths,
     link_path_sliced_to_parent,
 )
+from glue.utils import unbroadcast
 from glue.viewers.common.tool import SimpleToolMenu, Tool
 from glue.viewers.image.composite_array import CompositeArray
 from glue.viewers.image.layer_artist import ImageLayerArtist
@@ -317,7 +318,7 @@ def _frame_time(data, view, decimals=3):
     cid = None if view is None else _time_component(data)
     if cid is None:
         return ""
-    times = data[cid, view]
+    times = unbroadcast(data[cid, view])  # one per frame, not per pixel: an SST cube's took 22 ms a slider step
     times = times[~np.isnat(times)]  # NaT: a gap of data regridded on time
     if times.size == 0:  # a Collapse range narrower than one sample, or a gap
         return ""
@@ -1910,7 +1911,7 @@ class _PointCurvesEntry(_CoordinateEntry):
 
     def offered(self):
         # on a viewer of IRIS, AIA or SOT data, the point's raster being any
-        return _role(self.viewer.state.reference_data) is not None
+        return _role(self.viewer.state.reference_data) in ("raster", "sji", "aia")
 
 
 class _RowEntry(_CoordinateEntry):
