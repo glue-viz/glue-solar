@@ -38,7 +38,9 @@ class _TabularWCS(_LockedWCS):
     outside them (D67).
     """
 
-    # glue's autolinker takes the celestial axes of two such coordinates, a part of the table, which crashes wcslib
+    # glue's autolinker takes `celestial` of a cube beside data of other dimensions with celestial axes, such as a map,
+    # and wcslib crashes (SIGSEGV) cutting those axes out of the table; with this, astropy gives the longitude and
+    # latitude as quantities rather than a SkyCoord
     has_celestial = False
 
     @cached_property
@@ -53,13 +55,20 @@ class _TabularWCS(_LockedWCS):
         return matrix
 
     @cached_property
+    def _corners(self):
+        """Whether the table gives the pointing at the field's corners only, as SSTRED's do, which the inverse solves."""
+        with WCS_LOCK:
+            (table,) = self.wcs.tab
+            return all(table.K[m] == 2 for m, axis in enumerate(table.map) if axis < 2)
+
+    @cached_property
     def _grid(self):
         """
         At each scan and tuning, (scan, tuning) arrays: the longitude and latitude at pixel (0, 0), their steps along x
         and y, and the time; the wavelength of each tuning; and the Stokes axis's CRVAL, CDELT and CRPIX.
         """
         # ponytail: a pointing linear in x and y, as SSTRED's tables at the field's corners give; a table of more
-        # points, or a bilinear one, would want wcslib's own inverse there
+        # points takes wcslib's inverse (`_corners`), but a bilinear one of corners would want it too
         _, _, tunings, _, scans = self.pixel_shape
         t, k = np.indices((scans, tunings))
         lon, lat, wave, _, time = self.pixel_to_world_values([[0], [1], [0]], [[0], [0], [1]], k.ravel(), 0, t.ravel())
@@ -77,6 +86,8 @@ class _TabularWCS(_LockedWCS):
         )
 
     def world_to_pixel_values(self, *world_arrays):
+        if not self._corners:  # wcslib's, NaN for a wavelength or time outside the table
+            return super().world_to_pixel_values(*world_arrays)
         lon, lat, wave, stokes, time = np.broadcast_arrays(
             *(np.asarray(values, dtype=float) for values in world_arrays)
         )

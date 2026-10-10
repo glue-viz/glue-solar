@@ -66,3 +66,11 @@ What is not supported
 The Level 3 files of the IRIS–SST coordinated observations, made for CRISPEX
 (``iris_l3_…_im.fits``), are not SSTRED exports: glue's own "FITS file" reader opens them, without
 these coordinates, times and cavity maps.
+
+A cube whose table gives the pointing at more points than the field's four corners, which SSTRED does
+not write, takes wcslib's own inverse of its coordinates, so once linked a region drawn on it selects
+no IRIS pixels.
+
+Opening a map, or other data with sky coordinates and a different number of axes, after an SST cube
+shows glue's "Could not load data … Cannot slice WCS" from its autolinker, though the map loads; open
+the map first to avoid it.

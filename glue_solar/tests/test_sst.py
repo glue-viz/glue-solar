@@ -9,7 +9,7 @@ import mmap
 import glue.config
 import numpy as np
 import pytest
-from glue.core import DataCollection
+from glue.core import Data, DataCollection
 from glue.core.autolinking import find_possible_links
 from glue.core.data_factories import load_data
 from glue.core.exceptions import IncompatibleAttribute
@@ -48,18 +48,19 @@ def write_sst_cube(
     start=1200.0,
     cadence=60.0,
     prefilters=None,
+    knots=2,
 ):
     """
     Write an SST cube as SSTRED exports one, of ``shape`` (scans, Stokes, tunings, y, x): its pixel (x, y) at scan t is
     at ``centre + t * drift + R(roll) @ scale * (x - centre pixel, y - centre pixel)``, in arcsec, and its tuning k at
     scan t at ``start + t * cadence + 0.25 * k`` s since 2021-09-05 UTC. ``prefilters`` are the tunings of each cavity
     map, all of them in one map without OFFSET.3 and SCALE.3 by default; the map of extension version v is v + 0.001 *
-    (scan + x / 100 + y / 10000) nm. Returns the file's coordinate table, (scans, tunings, y corner, x corner, lon,
-    lat, wavelength, time).
+    (scan + x / 100 + y / 10000) nm. The table gives the pointing at ``knots`` points along x, the corners by default.
+    Returns the file's coordinate table, (scans, tunings, y corner, x point, lon, lat, wavelength, time).
     """
     scans, stokes, tunings, rows, columns = shape
-    t, k, j, i = np.indices((scans, tunings, 2, 2), dtype=float)
-    dx, dy = (i * (columns - 1) - (columns - 1) / 2) * scale, (j * (rows - 1) - (rows - 1) / 2) * scale
+    t, k, j, i = np.indices((scans, tunings, 2, knots), dtype=float)
+    dx, dy = (i / (knots - 1) - 0.5) * (columns - 1) * scale, (j * (rows - 1) - (rows - 1) / 2) * scale
     cos, sin = np.cos(np.deg2rad(roll)), np.sin(np.deg2rad(roll))
     lon, lat = centre[0] + t * drift[0] + cos * dx - sin * dy, centre[1] + t * drift[1] + sin * dx + cos * dy
     coord = np.stack([lon, lat, 656.28 + 0.01 * (k - tunings // 2), start + t * cadence + 0.25 * k], -1)
@@ -102,7 +103,7 @@ def write_sst_cube(
             fits.Column(
                 "HPLN+HPLT+WAVE+TIME", f"{coord.size}D", dim=str(coord.shape[::-1]).replace(" ", ""), array=coord[None]
             ),
-            fits.Column("HPLN-INDEX", "2E", array=[[1, columns]]),
+            fits.Column("HPLN-INDEX", f"{knots}E", array=[np.linspace(1, columns, knots)]),
             fits.Column("HPLT-INDEX", "2E", array=[[1, rows]]),
         ],
         name="WCS-TAB",
@@ -219,11 +220,24 @@ def test_an_image_viewer_shows_a_cube_without_specsys(qtbot, tmp_path):
     assert viewer.layers[0].enabled
 
 
-def test_two_cubes_autolink_without_crashing(tmp_path):
-    # glue's autolinker took the celestial axes of each, which wcslib cuts out of their table and crashed (SIGSEGV)
-    for name in ("a", "b"):
-        write_sst_cube(tmp_path / f"{name}.fits")
-    assert find_possible_links(DataCollection([sst_data(tmp_path / f"{name}.fits") for name in "ab"])) == {}
+def test_a_table_of_more_points_than_the_field_s_corners_takes_wcslib_s_inverse(tmp_path):
+    # the loader's own inverse solves SSTRED's tables of the field's corners only
+    path = tmp_path / "cube.fits"
+    write_sst_cube(path, drift=(5.0, -3.0), roll=10.0, knots=3)
+    coords = sst_data(path).coords
+    world = coords.pixel_to_world_values(3.5, 7.25, 2, 0, 1)
+    np.testing.assert_allclose(coords.world_to_pixel_values(*world), [3.5, 7.25, 2, 0, 1], atol=1e-6)
+    assert np.isnan(coords.world_to_pixel_values(*world[:2], 0, 1, 0)[0])  # wcslib's NaN outside the table
+
+
+def test_glue_s_autolinker_leaves_the_table_s_celestial_axes_whole(tmp_path):
+    # glue's autolinker took the celestial axes of a cube and a map, which wcslib cut out of the cube's table and
+    # crashed (SIGSEGV); with the cube first, glue 1.27's slicing of the two still fails, with a ValueError
+    write_sst_cube(tmp_path / "cube.fits")
+    cube = sst_data(tmp_path / "cube.fits")
+    assert not cube.coords.has_celestial
+    header = {"CTYPE1": "HPLN-TAN", "CTYPE2": "HPLT-TAN", "CUNIT1": "arcsec", "CUNIT2": "arcsec", "CRVAL1": -55}
+    find_possible_links(DataCollection([Data(x=np.zeros((4, 5)), coords=WCS(header)), cube]))
 
 
 def test_a_session_and_the_last_session_restore_a_cube_and_its_viewer(qtbot, monkeypatch, tmp_path):
