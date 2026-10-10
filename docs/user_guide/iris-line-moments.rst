@@ -60,9 +60,9 @@ saturated samples are clipped to (a sample merely that bright counts too, as Lev
 them apart), is NaN in every map too, as a background leaves +Inf as it is; the status bar and
 ``moments_saturated`` in ``meta`` say how many, as irispy counts them, and
 :ref:`Was it saturated? <glue_solar_users_guide_iris_saturation>` shows where the samples are. A
-pixel saturated across its continuum windows too has no background, so irispy does not count it:
-the X1 flare's rasters r00172-r00174 of 3860258481 have 839 saturated Si IV 1402.77 pixels within
-±107 km/s, and 820 with continuum windows 1401.6-1402.1 and 1403.5-1404.3 Å.
+pixel saturated across its continuum windows too has no background but keeps its +Inf, so it is
+counted: the X1 flare's rasters r00172-r00174 of 3860258481 have 839 saturated Si IV 1402.77
+pixels within ±107 km/s, with or without continuum windows 1401.6-1402.1 and 1403.5-1404.3 Å.
 
 The new dataset's ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``, ``moments_centre``
 and ``moments_velocity_range``, and with a continuum also ``moments_continuum``, the windows, and

@@ -1,0 +1,1 @@
+The line moments guide counts pixels saturated across their continuum windows, as irispy now does: the X1 flare has 839 saturated Si IV pixels with or without a continuum.
