@@ -253,8 +253,9 @@ position, and the column along its y axis, the slit, at the point's step or expo
 both in the point's scan. Like the light curve, each is the mean, NaN left out, over the wavelength
 or band the map shows, against glue's "Pixel Axis" of the step or the slit, and a new subset, "Row"
 or "Column", that follows the point, the scan and the band and is shown and stopped as the light
-curve is; a Profile viewer with another x axis that gets it draws a flat line at its one value, or
-nothing with a band. On the Si IV 1394 and 1403 windows of OBSID
+curve is; a Profile viewer with another x axis that gets it draws a flat line at its one value, and
+one with wavelength on x cannot draw it with a band wider than one pixel: hide or remove it there. On
+the Si IV 1394 and 1403 windows of OBSID
 4000005156, a stack of two scans of 64 steps by 771 slit pixels, and on its first scan alone, the
 row and the column equal ``cube[scan, :, y, k]`` and ``cube[scan, x, :, k]`` exactly after each
 click, scan and wavelength step, and numpy's ``nanmean`` over a band to float32 precision; a click
@@ -268,8 +269,9 @@ against x, a click and "Pixel Axis 1 [y]" on the Profile's x give a column. On t
 OBSID 4000255147 both equal the frame's 388-pixel row and 417-pixel column exactly, and follow a
 Pixel drag and the frame slider of any viewer of the image showing x and y. The click replaces the
 edit subset, a quicklook's "Point" while you use it: choose "None/Create New" in the subset menu of
-glue's toolbar first, so that the click makes a new subset, and select "Point" in the layer tree
-again before the next click on the quicklook.
+glue's toolbar first, so that the click makes a new subset, and click in a viewer in another tab;
+showing the quicklook's tab again makes "Point" the edit subset, or, in the quicklook's own tab,
+select "Point" in the layer tree again.
 
 A Scatter viewer with time on its x axis, of data of the observation (by its OBSID and start time)
 such as a table of burst events, shows the time master's exposure: the subset "Master exposure",

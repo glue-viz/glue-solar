@@ -992,42 +992,47 @@ def test_a_light_curve_follows_the_point_and_the_band(bare_app, qtbot, monkeypat
 
 
 @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")  # as above, for the band
-def test_a_row_and_a_column_follow_the_point_and_the_band(bare_app, qtbot, monkeypatch, scans):
-    _, stack = scans
-    viewers = quicklook(bare_app, [stack])
-    raster_map, cube = viewers["map"], stack[stack.main_components[0]]
+@pytest.mark.parametrize("stacked", [False, True], ids=["scan", "stack"])
+def test_a_row_and_a_column_follow_the_point_and_the_band(bare_app, qtbot, monkeypatch, scans, stacked):
+    data = scans[stacked]
+    viewers = quicklook(bare_app, [data])
+    raster_map, cube = viewers["map"], data[data.main_components[0]]
     [point] = bare_app.session.edit_subset_mode.edit_subset
-    cuts = {}
-    for text, axis in (("Row at the point", 1), ("Column at the point", 2)):
+    cuts = []
+    for text, axis in (("Row at the point", data.ndim - 3), ("Column at the point", data.ndim - 2)):
         menu_action(raster_map, text).trigger()
-        cuts[axis] = profile = bare_app.viewers[-1][-1]
-        assert profile.state.x_att is stack.pixel_component_ids[axis]
+        profile = bare_app.viewers[-1][-1]
+        cuts.append(profile)
+        assert profile.state.x_att is data.pixel_component_ids[axis]
         assert profile.layers[0].state.layer.label == text.split()[0]
     assert bare_app.session.edit_subset_mode.edit_subset == [point]
     # only in their own Profile viewers
     for viewer in bare_app.viewers[-1]:
         groups = [getattr(layer.layer, "group", None) for layer in viewer.state.layers]
         assert [group.label for group in groups if group is not None] == (
-            [viewer.layers[0].state.layer.label] if viewer in cuts.values() else ["Point"]
+            [viewer.layers[0].state.layer.label] if viewer in cuts else ["Point"]
         )
 
     def check(scan, step, slit, band):
-        for profile, expected in ((cuts[1], cube[scan, :, slit, band]), (cuts[2], cube[scan, step, :, band])):
+        row, column = cube[(*scan, slice(None), slit, band)], cube[(*scan, step, slice(None), band)]
+        for profile, expected in zip(cuts, (row, column), strict=True):
             _, values = profile.layers[0].state.profile
             if band.stop - band.start == 1:
                 np.testing.assert_array_equal(values, expected[..., 0])
             else:
                 np.testing.assert_allclose(values, np.nanmean(expected, axis=-1), rtol=1e-5, atol=1e-5)
 
-    scan, step, slit, wl0 = expected_start(stack)
+    *scan, step, slit, wl0 = expected_start(data)  # no scan on a single scan
     check(scan, step, slit, slice(wl0, wl0 + 1))
     select_point(raster_map, 2, 10)
     check(scan, 2, 10, slice(wl0, wl0 + 1))
-    raster_map.state.slices = (1, *raster_map.state.slices[1:])  # the point follows the scan
-    check(1, 2, 10, slice(wl0, wl0 + 1))
+    if stacked:
+        raster_map.state.slices = (1, *raster_map.state.slices[1:])  # the point follows the scan
+        scan = [1]
+        check(scan, 2, 10, slice(wl0, wl0 + 1))
     raster_map.toolbar.tools["solar:band"].width = 5
     raster_map.state.slices = (*raster_map.state.slices[:-1], 10)
-    check(1, 2, 10, slice(8, 13))
+    check(scan, 2, 10, slice(8, 13))
     shown = refusals(monkeypatch)
     menu_action(viewers["spectrogram"], "Row at the point").trigger()
     assert shown == ["Could not open the cut\nChoose it on the map of a raster, whose wavelength or band it averages."]
