@@ -21,7 +21,8 @@ checked while it is on.
 After a View entry the mouse mode, such as Pixel, stays on. A menu shows an entry's single-key
 shortcut beside it, which works while the toolbar has the keyboard, as a button's does.
 
-Besides glue's "Home" (H), "Pan" (M), "Zoom" (Z) and region selection tools, the Image Viewer
+Besides glue's "Home" (H), "Pan" (M) and "Zoom" (Z), and its region selection tools, "Rectangular
+ROI" (R), "X range" (X), "Y range" (Y), "Circular ROI" (C) and "Polygonal ROI" (G), the Image Viewer
 toolbar has:
 
 - "Pixel" ("Select a single pixel based on mouse location"): click or drag to select one pixel.
@@ -336,10 +337,10 @@ hidden.
 Saving sessions
 ---------------
 
-A session refers to the files of the IRIS data loaded with the observation browser, File → Open,
+A session refers to the files of the IRIS data loaded with the observation browser, File → Open Data Set,
 or ``raster_data`` and ``image_data`` in glue's terminal, and reads them again as it opens, rather
 than holding their values. Save it as "Glue Session with relative paths to data", the type glue's
-Save Session dialog starts with, to move it and the files together: it opens wherever the files
+Export Session dialog starts with, to move it and the files together: it opens wherever the files
 keep their place relative to it. "Glue Session including data" holds the values instead, and fails
 on data read from their files as they are viewed. A session keeps the coordinates of every IRIS
 dataset and of those made from them, with any pointing offset set with "Shift pointing…", the

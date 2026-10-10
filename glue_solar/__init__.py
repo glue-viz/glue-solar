@@ -71,9 +71,9 @@ def _last_session():
 
 def _save_last_session(app):
     """
-    Keep the session of ``app``, a shown glue application with data, as the last session, as glue's Save Session writes
-    it with absolute paths to the files; one over 1 MB or that glue cannot save leaves the last session as it was, and
-    the log says why.
+    Keep the session of ``app``, a shown glue application with data, as the last session, as glue's Export Session
+    writes it with absolute paths to the files; one over 1 MB or that glue cannot save leaves the last session as it
+    was, and the log says why.
     """
     if not app.isVisible() or not len(app.data_collection):
         return

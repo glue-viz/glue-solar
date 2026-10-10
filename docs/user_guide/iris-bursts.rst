@@ -11,7 +11,10 @@ irispy's parameters, its defaults unless changed; Cancel adds nothing. irispy fi
 worker thread, while glue's status bar says "Detecting UV bursts in <label>…", which then says how
 many it found, and adds two datasets: ``<label> bursts``, a map of their labels, and
 ``<label> burst events``, a table of them. No viewer opens: drag the map onto an Image viewer and
-the table onto a Table viewer.
+the table onto a Scatter viewer, such as ``time`` against ``intensity`` or ``coordinate.Tx`` against
+``coordinate.Ty``. glue-qt 0.4.2's Table viewer refuses the table, as it refuses any dataset with a
+time ("argument of type 'numpy.datetime64' is not iterable"): to read it row by row, export it with
+"File → Export Data/Subsets" as "ECSV (with Time)" and read it with astropy's ``Table.read``.
 
 In a raster window
 ------------------

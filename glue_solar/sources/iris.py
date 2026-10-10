@@ -1,6 +1,6 @@
 """
-IRIS Level 2 support: a file reader for File -> Open, the observation browser, 'Shift pointing…', an exporter of
-derived maps with their coordinates, and one of 1-D data, such as light curves, with their times.
+IRIS Level 2 support: a file reader for File → Open Data Set, the observation browser, 'Shift pointing…', an exporter
+of derived maps with their coordinates, and one of 1-D data, such as light curves, with their times.
 """
 
 import re
@@ -131,11 +131,12 @@ def _quicklooks(loaded):
     for observation, kind, name, datasets in loaded:
         got, windows = observations.get(id(observation), ([], []))
         observations[id(observation)] = (got + datasets, windows + [name] * (kind == "raster"))
-    return [
-        (datasets, windows or None)
-        for datasets, windows in observations.values()
-        if any(data.meta.get("INSTRUME") in ("SPEC", "SJI") for data in datasets)
-    ]
+    return [(datasets, windows or None) for datasets, windows in observations.values() if _has_quicklook(datasets)]
+
+
+def _has_quicklook(datasets):
+    """Whether ``datasets`` hold a raster or slit-jaw image, which a quicklook shows, and not only AIA or SOT cubes."""
+    return any(_role(data) in ("raster", "sji") for data in datasets)
 
 
 def _shown(loaded, quicklooks):
@@ -283,24 +284,27 @@ def _write_ecsv(filename, table, meta):
 
 
 def _observations(data_collection):
-    """The datasets of ``data_collection`` by IRIS observation, in the collection's order."""
+    """The datasets of ``data_collection`` by IRIS observation with a quicklook, in the collection's order."""
     observations = {}
     for data in data_collection:
         key = observation_key(data)
         if key is not None:
             observations.setdefault(key, []).append(data)
-    return observations
+    return {key: datasets for key, datasets in observations.items() if _has_quicklook(datasets)}
 
 
 @menubar_plugin("IRIS: quicklook…")
 def quicklook_iris(session, data_collection):
     """
-    Open the quicklook of an IRIS observation that is already loaded, asking which when several are.
+    Open the quicklook of an IRIS observation that is already loaded, with a raster or slit-jaw image, asking which
+    when several are.
     """
     app = session.application
     observations = _observations(data_collection)
     if not observations:
-        QtWidgets.QMessageBox.information(app, "IRIS quicklook", "No IRIS observation is loaded.")
+        QtWidgets.QMessageBox.information(
+            app, "IRIS quicklook", "No IRIS observation with a raster or slit-jaw image is loaded."
+        )
         return
     keys = list(observations)
     labels = [f"{obsid} {str(start)[:19]}" for obsid, start in keys]
@@ -331,15 +335,22 @@ def iris_quicklook(session, data_collection):
 
     Files given on the command line load one by one and cannot be stacked, so each observation
     opens on its first raster file (the lowest ``rNNNNN``); stacks of scans need the observation
-    browser.
+    browser. With no raster or slit-jaw image, only AIA cutouts or SOT cubes, the first opens in an
+    Image Viewer instead, as the observation browser opens it.
     """
     app = session.application
     several = False
-    for datasets in _observations(data_collection).values():
+    observations = _observations(data_collection)
+    for datasets in observations.values():
         numbers = sorted({_raster_number(data) for data in datasets} - {None})
         several |= len(numbers) > 1
         first = numbers[0] if numbers else None
         quicklook(app, [data for data in datasets if _raster_number(data) in (None, first)])
+    image = next((data for data in data_collection if observation_key(data) is not None), None)
+    if not observations and image is not None:
+        from glue_qt.viewers.image import ImageViewer
+
+        app.new_data_viewer(ImageViewer, data=image)
     if several:
         note = "Only the first raster file is shown: stacks of scans need Plugins → IRIS: browse observations…"
         app.statusBar().showMessage(f"{app.statusBar().currentMessage()} {note}".strip())

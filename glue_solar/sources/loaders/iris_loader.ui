@@ -32,6 +32,9 @@
      </item>
      <item>
       <widget class="QPushButton" name="change">
+       <property name="toolTip">
+        <string>Pick the folder to search</string>
+       </property>
        <property name="text">
         <string>Change…</string>
        </property>
@@ -42,6 +45,9 @@
      </item>
      <item>
       <widget class="QCheckBox" name="recursive">
+       <property name="toolTip">
+        <string>Search the folders inside the folder too</string>
+       </property>
        <property name="text">
         <string>Search subfolders</string>
        </property>
@@ -76,6 +82,9 @@
      </item>
      <item>
       <widget class="QPushButton" name="add_place">
+       <property name="toolTip">
+        <string>Save the folder under a name, to search it again from Saved</string>
+       </property>
        <property name="text">
         <string>Add current folder…</string>
        </property>
@@ -168,6 +177,9 @@
      </item>
      <item>
       <widget class="QLineEdit" name="filter">
+       <property name="toolTip">
+        <string>List only the observations whose row or entries contain this text, in any case</string>
+       </property>
        <property name="placeholderText">
         <string>Show the observations whose row or entries contain this text, in any case, e.g. mg ii or 2014-03</string>
        </property>
@@ -235,7 +247,7 @@
      <item>
       <widget class="QCheckBox" name="stack">
        <property name="toolTip">
-        <string>Stack raster scans by detector position into one 4D cube. Each scan keeps its own spatial coordinates and exact times.</string>
+        <string>Stack two or more raster scans by detector position into one 4D cube. Each scan keeps its own spatial coordinates and exact acquisition times.</string>
        </property>
        <property name="text">
         <string>Stack sequential raster scans</string>
@@ -270,6 +282,9 @@
      </item>
      <item>
       <widget class="QPushButton" name="cancel">
+       <property name="toolTip">
+        <string>Close the browser; as Stop, end the search or load with what is read in full</string>
+       </property>
        <property name="text">
         <string>Cancel</string>
        </property>
@@ -280,11 +295,17 @@
      </item>
      <item>
       <widget class="QPushButton" name="ok">
+       <property name="toolTip">
+        <string>Load the ticked entries, those Filter hides too, or unpack the ticked archives (Return)</string>
+       </property>
        <property name="text">
         <string>Load selected</string>
        </property>
        <property name="autoDefault">
         <bool>false</bool>
+       </property>
+       <property name="default">
+        <bool>true</bool>
        </property>
       </widget>
      </item>

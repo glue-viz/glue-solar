@@ -408,6 +408,17 @@ def test_return_in_the_filter_loads_nothing(dialog):
     assert dialog.ok.isEnabled()
 
 
+def test_return_in_the_list_loads_the_ticks(dialog, qtbot):
+    assert dialog.ok.isDefault()  # Return in a field searches instead (above, and for the Folder field below)
+    assert all(widget.toolTip() for widget in (dialog.change, dialog.recursive, dialog.add_place, dialog.cancel))
+    dialog.show()
+    _row(dialog, OBS_B[2]).setCheckState(0, Qt.Checked)
+    QTest.keyClick(dialog.obs_tree, Qt.Key_Return)
+    qtbot.waitUntil(lambda: not dialog.isVisible() and not _RUNNING, timeout=60_000)
+    assert dialog.result() == QDialog.Accepted
+    assert [data.label.split("-")[0] for data in dialog.datasets] == ["SJI_2832"]
+
+
 def test_filter_survives_a_rescan(dialog, qtbot):
     dialog.filter.setText("2025-03-28")
     dialog.recursive.setChecked(False)
