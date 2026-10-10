@@ -8,4 +8,5 @@ Developer Documentation
    :maxdepth: 1
 
    loader-customization
+   macos-app
    manual-checks

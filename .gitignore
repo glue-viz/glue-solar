@@ -35,6 +35,7 @@ glue_solar/version.py
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+!packaging/macos/glue_solar.spec
 
 # Installer logs
 pip-log.txt
