@@ -1,0 +1,1 @@
+glue-solar's data actions and Plugins entries start with "IRIS: ", name the data they take where it is narrow, are grouped by data kind and are offered only where they work; the light-curve entries are "Light curve of this window" and "Light curves of every window and SJI…".
