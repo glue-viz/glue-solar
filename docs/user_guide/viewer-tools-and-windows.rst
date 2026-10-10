@@ -20,9 +20,9 @@ icon holds glue-solar's mouse modes, "Measure", "Path diagram", "Show
 position on original path" and "Slope", with the one on checked, and "Save path as ECSV…", "Open
 path from ECSV…", "Path on other data…" and the "Path sampling" submenu, described with "Path
 diagram" below; the link icon is the "Coordinate" menu, with "Time master", "Go to UTC…", "Loop…"
-and "Raster overlays", its "Point" submenu, with "Clear point", "Light curve of this window" and
-"Light curves of every window and SJI…", and its "Blink" submenu, with "Set blink partner
-here", "Blink" and "Blink interval"; and
+and "Raster overlays", its "Point" submenu, with "Clear point", "Light curve of this window",
+"Light curves of every window and SJI…", "Row at the point" and "Column at the point", and its
+"Blink" submenu, with "Set blink partner here", "Blink" and "Blink interval"; and
 the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Wavelength
 band…", "Physical aspect", "Zoom 1:1", "Colour bar" and "Cursor readout", each but "Zoom 1:1"
 checked while it is on.
@@ -35,8 +35,9 @@ Coordinate menu, "Time master" for a dataset of an IRIS observation with times (
 slit-jaw image, aligned AIA cutout or SOT cube), "Go to UTC…" for one whose observation has a time
 master or that has a frame, exposure, step or scan slider, "Loop…" where the data's first axis has
 a slider, "Raster overlays" where a raster of the viewer's observation is loaded, "Light curve of
-this window" on the map of a sit-and-stare raster or a stack, at a wavelength or band, and "Light
-curves of every window and SJI…" on IRIS, AIA and SOT data; "Blink" is greyed until "Set blink
+this window" on the map of a sit-and-stare raster or a stack, at a wavelength or band, "Light
+curves of every window and SJI…" on IRIS, AIA and SOT data, and "Row at the point" and "Column at
+the point" on the map of any raster, at a wavelength or band; "Blink" is greyed until "Set blink
 partner here" gives it a partner. In the View menu, "Frame time" is offered for data with a time
 and "Wavelength band…" while a wavelength axis has a slider. On a plain array, of no observation and
 with no time, the Coordinate menu holds "Clear point" and the blink entries only.

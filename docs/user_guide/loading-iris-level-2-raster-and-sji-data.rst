@@ -168,8 +168,9 @@ the displayed dataset as the time reference of its observation (same OBSID and S
 UTC…", which moves the time master, "Loop…" for the frame, exposure, step or scan slider, and
 "Raster overlays", which shows or hides the raster's steps on every viewer of the observation. Its
 "Point" submenu has "Clear point", "Light curve of this window", which opens the point's light curve
-over the map's wavelength or band, and "Light curves of every window and SJI…", which plots each
-raster window and slit-jaw image at the point against time; its "Blink" submenu has "Set blink
+over the map's wavelength or band, "Light curves of every window and SJI…", which plots each
+raster window and slit-jaw image at the point against time, and "Row at the point" and "Column at
+the point", which open the map's row and column through the point; its "Blink" submenu has "Set blink
 partner here", "Blink" and "Blink interval", which alternate the viewer between two positions at the
 interval chosen (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). The menu shows
 only the entries that can act on the viewer's data (see :ref:`Viewer tools and windows

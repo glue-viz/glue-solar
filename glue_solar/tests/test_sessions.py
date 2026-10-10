@@ -452,6 +452,44 @@ def test_a_restored_quicklook_keeps_its_light_curves_where_they_were(qtbot, monk
         np.testing.assert_array_equal(values, saved[label][1])
 
 
+def test_a_restored_quicklook_keeps_its_cuts_where_they_were(qtbot, monkeypatch, tmp_path, irispy_test_files):
+    files = sorted(str(path) for path in irispy_test_files if "3860258481_raster" in path.name)
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
+    viewers = quicklook(app, raster_data(files, ["C II 1336"], stack=True))
+    for text in ("Light curve of this window", "Row at the point", "Column at the point"):
+        menu_action(viewers["map"], text).trigger()
+
+    def cuts(app):
+        """Each cut's slices, and its Profile's x axis and values, by label: in one viewer only."""
+        found = {}
+        for viewer in app.viewers[-1]:
+            for layer in viewer.layers:
+                group = getattr(layer.state.layer, "group", None)
+                if group is not None and group.label != "Point":
+                    assert group.label not in found
+                    found[group.label] = group.subset_state.slices, viewer.state.x_att, layer.state.profile[1]
+        return found
+
+    saved = cuts(app)
+    assert saved.keys() == {"Light curve", "Row", "Column"}
+    session = tmp_path / "cuts.glu"
+    app.save_session(str(session), absolute_paths=False)
+    opened = GlueApplication.restore_session(str(session), show=False)
+    qtbot.addWidget(opened)
+    monkeypatch.setattr(opened, "report_error", lambda message, detail: pytest.fail(detail))
+    select_point(opened.viewers[-1][0], 2, 10)  # leaves them where they were
+    [point] = opened.session.edit_subset_mode.edit_subset
+    assert point.subset_state.slices[1:3] == [slice(2, 3), slice(10, 11)]
+    restored = cuts(opened)
+    assert restored.keys() == saved.keys()
+    for label, (slices, x_att, values) in restored.items():
+        assert (slices, x_att.label) == (saved[label][0], saved[label][1].label)
+        np.testing.assert_array_equal(values, saved[label][2])
+
+
 def links(collection):
     """``collection``'s links, each as its datasets' and components' labels, its function and a `_ScanAt`'s scans."""
     found = set()

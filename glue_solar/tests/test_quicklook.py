@@ -244,6 +244,8 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
         "Clear point",
         "Light curve of this window",
         POINT_CURVES,
+        "Row at the point",
+        "Column at the point",
     ]
     assert [action.text() for action in submenus["Blink"].actions()] == [
         "Set blink partner here",
@@ -254,17 +256,18 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
         assert viewers["map"].toolbar.tools[tool_id].tool_id == tool_id
     time = ["Time master", "Go to UTC…"]
     point, curve = ["Clear point", POINT_CURVES], ["Clear point", "Light curve of this window", POINT_CURVES]
+    cuts = ["Row at the point", "Column at the point"]
     blink = ["Set blink partner here", "Blink (greyed)"]  # until a partner is set
     view = ["Hide axes", "Per-frame limits", "Physical aspect", "Zoom 1:1", "Colour bar", "Cursor readout"]
     banded = ["Frame time", *view[:2], "Wavelength band…", *view[2:]]
-    # the light curve on the map of a sit-and-stare raster or a stack, the band where wavelength has a slider, a loop
-    # where the data's first axis has one
-    assert offered(viewers["map"]) == [*time, "Raster overlays", *curve, *blink, *banded]
+    # the light curve on the map of a sit-and-stare raster or a stack, the cuts on any raster map, the band where
+    # wavelength has a slider, a loop where the data's first axis has one
+    assert offered(viewers["map"]) == [*time, "Raster overlays", *curve, *cuts, *blink, *banded]
     for panel in (viewers["spectrogram"], viewers["sji"][0]):
         assert offered(panel) == [*time, "Loop…", "Raster overlays", *point, *blink, "Frame time", *view]
     assert offered(viewers["wavelength"]) == [*time, "Raster overlays", *point, *blink, "Frame time", *view]
-    assert offered(image(bare_app, stack, 1, 2)) == [*time, "Loop…", "Raster overlays", *curve, *blink, *banded]
-    assert offered(image(bare_app, scan, 0, 1)) == [*time, "Raster overlays", *point, *blink, *banded]
+    assert offered(image(bare_app, stack, 1, 2)) == [*time, "Loop…", "Raster overlays", *curve, *cuts, *blink, *banded]
+    assert offered(image(bare_app, scan, 0, 1)) == [*time, "Raster overlays", *point, *cuts, *blink, *banded]
     # no raster of its observation on a SOT cube
     assert offered(image(bare_app, sot, 2, 1)) == [*time, "Loop…", *point, *blink, "Frame time", *view]
     # nothing of an observation or a time on a plain array
@@ -986,6 +989,48 @@ def test_a_light_curve_follows_the_point_and_the_band(bare_app, qtbot, monkeypat
     # a scripted subset with no group leaves it alone
     raster.new_subset(label="plain").subset_state = raster.pixel_component_ids[0] > 0
     check(10, slice(18, 23))
+
+
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")  # as above, for the band
+def test_a_row_and_a_column_follow_the_point_and_the_band(bare_app, qtbot, monkeypatch, scans):
+    _, stack = scans
+    viewers = quicklook(bare_app, [stack])
+    raster_map, cube = viewers["map"], stack[stack.main_components[0]]
+    [point] = bare_app.session.edit_subset_mode.edit_subset
+    cuts = {}
+    for text, axis in (("Row at the point", 1), ("Column at the point", 2)):
+        menu_action(raster_map, text).trigger()
+        cuts[axis] = profile = bare_app.viewers[-1][-1]
+        assert profile.state.x_att is stack.pixel_component_ids[axis]
+        assert profile.layers[0].state.layer.label == text.split()[0]
+    assert bare_app.session.edit_subset_mode.edit_subset == [point]
+    # only in their own Profile viewers
+    for viewer in bare_app.viewers[-1]:
+        groups = [getattr(layer.layer, "group", None) for layer in viewer.state.layers]
+        assert [group.label for group in groups if group is not None] == (
+            [viewer.layers[0].state.layer.label] if viewer in cuts.values() else ["Point"]
+        )
+
+    def check(scan, step, slit, band):
+        for profile, expected in ((cuts[1], cube[scan, :, slit, band]), (cuts[2], cube[scan, step, :, band])):
+            _, values = profile.layers[0].state.profile
+            if band.stop - band.start == 1:
+                np.testing.assert_array_equal(values, expected[..., 0])
+            else:
+                np.testing.assert_allclose(values, np.nanmean(expected, axis=-1), rtol=1e-5, atol=1e-5)
+
+    scan, step, slit, wl0 = expected_start(stack)
+    check(scan, step, slit, slice(wl0, wl0 + 1))
+    select_point(raster_map, 2, 10)
+    check(scan, 2, 10, slice(wl0, wl0 + 1))
+    raster_map.state.slices = (1, *raster_map.state.slices[1:])  # the point follows the scan
+    check(1, 2, 10, slice(wl0, wl0 + 1))
+    raster_map.toolbar.tools["solar:band"].width = 5
+    raster_map.state.slices = (*raster_map.state.slices[:-1], 10)
+    check(1, 2, 10, slice(8, 13))
+    shown = refusals(monkeypatch)
+    menu_action(viewers["spectrogram"], "Row at the point").trigger()
+    assert shown == ["Could not open the cut\nChoose it on the map of a raster, whose wavelength or band it averages."]
 
 
 POINT_CURVES = "Light curves of every window and SJI…"

@@ -246,6 +246,31 @@ deletion clears the edit subset. On the Si IV 1403 window of OBSID 4000255147, 1
 float32 precision, and a click or band change redraws it in under half a second. Other viewers do
 not offer it.
 
+"Row at the point" and "Column at the point", in the same submenu of the map of any raster, open a
+Profile viewer of the map's row or column through the point: the row along the map's x axis, the
+raster step (or a sit-and-stare raster's exposure, where it is the light curve), at the point's slit
+position, and the column along its y axis, the slit, at the point's step or exposure; on a stack,
+both in the point's scan. Like the light curve, each is the mean, NaN left out, over the wavelength
+or band the map shows, against glue's "Pixel Axis" of the step or the slit, and a new subset, "Row"
+or "Column", that follows the point, the scan and the band and is shown and stopped as the light
+curve is; a Profile viewer with another x axis that gets it draws a flat line at its one value, or
+nothing with a band. On the Si IV 1394 and 1403 windows of OBSID
+4000005156, a stack of two scans of 64 steps by 771 slit pixels, and on its first scan alone, the
+row and the column equal ``cube[scan, :, y, k]`` and ``cube[scan, x, :, k]`` exactly after each
+click, scan and wavelength step, and numpy's ``nanmean`` over a band to float32 precision; a click
+takes 0.25 s with both open, 0.21 s with neither. Panels showing wavelength do not offer them: the
+spectrum panel is the spectrogram's row, and the map's column its column.
+
+A slit-jaw image needs no entry for its rows and columns: in an Image viewer of it showing y against
+time ("Pixel Axis 0 [z]", the frame, on x), a click with the Pixel tool picks a frame and a row, and
+a Profile viewer of the image with "Pixel Axis 2 [x]" on x shows that row; in one showing time
+against x, a click and "Pixel Axis 1 [y]" on the Profile's x give a column. On the SJI 1400 of
+OBSID 4000255147 both equal the frame's 388-pixel row and 417-pixel column exactly, and follow a
+Pixel drag and the frame slider of any viewer of the image showing x and y. The click replaces the
+edit subset, a quicklook's "Point" while you use it: choose "None/Create New" in the subset menu of
+glue's toolbar first, so that the click makes a new subset, and select "Point" in the layer tree
+again before the next click on the quicklook.
+
 A Scatter viewer with time on its x axis, of data of the observation (by its OBSID and start time)
 such as a table of burst events, shows the time master's exposure: the subset "Master exposure",
 glue's own range on that axis from the exposure's start to its end, as glue's x range selection
@@ -338,11 +363,12 @@ A saved session opens the quicklook again with its point and its time master: it
 "Point" the edit subset whenever it is shown, the panels follow the time master to the frames they
 showed, with the same Δt, and a click or drag with the Pixel tool moves the other panels, the
 slit-jaw cross and the spectrum as before. Choose the Pixel tool again, as glue restores no
-viewer's mouse mode. The Point window and the lines are not restored, and a light curve and the
-light curves at a point stay where they were (choose the entry again for curves that follow the
-point); "Master exposure" follows the time master again, and one deleted before saving comes
-back at the first time sync with its Scatter plot open (see "Saving sessions" in :ref:`Viewer tools
-and windows <glue_solar_users_guide_viewer_tools_and_windows>` for what a session keeps of the data).
+viewer's mouse mode. The Point window and the lines are not restored, and a light curve, a row, a
+column and the light curves at a point stay where they were (choose the entry again for ones that
+follow the point); "Master exposure" follows the time master again, and one deleted before saving
+comes back at the first time sync with its Scatter plot open (see "Saving sessions" in :ref:`Viewer
+tools and windows <glue_solar_users_guide_viewer_tools_and_windows>` for what a session keeps of the
+data).
 
 Several windows
 ---------------
