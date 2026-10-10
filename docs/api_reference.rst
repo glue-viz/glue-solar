@@ -10,6 +10,9 @@ API Reference
 .. automodapi:: glue_solar.sources.maps
    :no-inheritance-diagram:
 
+.. automodapi:: glue_solar.sources.sst
+   :no-inheritance-diagram:
+
 .. automodapi:: glue_solar.sources.loaders.scan
    :no-inheritance-diagram:
 

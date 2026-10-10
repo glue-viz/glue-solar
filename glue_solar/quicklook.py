@@ -214,7 +214,7 @@ def _time_axis(data):
 
 def _timed(data):
     """Whether ``data`` takes part in time sync: an IRIS dataset or aligned AIA cutout with times."""
-    return bool(_role(data)) and data.find_component_id("Time") is not None
+    return _role(data) in ("raster", "sji", "aia") and data.find_component_id("Time") is not None
 
 
 def _times(data, step):
@@ -1103,11 +1103,14 @@ class QuicklookImageViewer(ImageViewer):
 
 def _role(data):
     """
-    'raster', 'sji', 'aia' or None, from the INSTRUME keyword: AIA cutouts and Hinode/SOT cubes load as slit-jaw cubes
-    and follow the time as they do, without their quicklook panel, raster point or overlays.
+    'raster', 'sji', 'aia', 'sst' or None, from the INSTRUME keyword: AIA cutouts and Hinode/SOT cubes load as slit-jaw
+    cubes and follow the time as they do, without their quicklook panel, raster point or overlays; SST CRISP and
+    CHROMIS cubes take no part in the time sync yet.
     """
     instrument = str((getattr(data, "meta", None) or {}).get("INSTRUME", ""))
-    return "aia" if instrument.startswith(("AIA", "SOT")) else {"SPEC": "raster", "SJI": "sji"}.get(instrument)
+    if instrument.startswith(("AIA", "SOT")):
+        return "aia"
+    return {"SPEC": "raster", "SJI": "sji", "CRISP": "sst", "CHROMIS": "sst"}.get(instrument)
 
 
 def _same_file(data, other):
