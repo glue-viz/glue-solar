@@ -1,1 +1,1 @@
-The 'Import sunpy Map Directory' menu entry is gone; select several files in File > Open Data Set with the 'sunpy Map' loader instead.
+The 'Import sunpy Map Directory' menu entry is gone; select several files in File → Open Data Set with the 'sunpy Map' loader instead.

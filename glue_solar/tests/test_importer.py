@@ -401,15 +401,16 @@ def test_ticks_the_filter_hides_still_load(dialog):
     assert len(dialog.selected()) == 5
 
 
-def test_return_in_the_filter_loads_nothing(dialog):
+@pytest.mark.parametrize("field", ["directory", "start", "end", "filter"])
+def test_return_in_a_field_loads_nothing(dialog, field):
     dialog.show()
-    QTest.keyClick(dialog.filter, Qt.Key_Return)
+    QTest.keyClick(getattr(dialog, field), Qt.Key_Return)
     assert dialog.isVisible()
     assert dialog.ok.isEnabled()
 
 
 def test_return_in_the_list_loads_the_ticks(dialog, qtbot):
-    assert dialog.ok.isDefault()  # Return in a field searches instead (above, and for the Folder field below)
+    assert dialog.ok.isDefault()  # Return in a field searches or filters instead (above)
     assert all(widget.toolTip() for widget in (dialog.change, dialog.recursive, dialog.add_place, dialog.cancel))
     dialog.show()
     _row(dialog, OBS_B[2]).setCheckState(0, Qt.Checked)
