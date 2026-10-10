@@ -334,12 +334,18 @@ outside the IRIS observations, such as a file loaded as a sunpy Map (see
 linked to IRIS data only on request: choose "IRIS: link helioprojective coordinates" from the
 "Plugins" menu, which links every loaded dataset with helioprojective coordinates, a map's degrees
 converted to arcsec, as well as IRIS data opened with "File → Open Data Set". Glue's own WCS
-autolinking links maps to each other. Once linked, every quicklook panel and spectrum works through
-the other data's coordinates too, which is slow for an SST cube's tabulated ones: beside a linked SST
-cube, a quicklook of the nine windows of 4000255147 took about 4 minutes to open rather than 6 s, and an
-exposure or slit-jaw frame step about 2 s rather than 0.6 s and 0.03 s. The menu entry only adds
+autolinking links maps to each other. Once a map is linked, every quicklook panel and spectrum works
+through its coordinates too. A linked SST cube's viewer shows the IRIS data's regions and crosshair,
+slowly, as every quicklook panel and spectrum then works through the cube's tabulated coordinates:
+beside a linked SST cube, a quicklook of the nine windows of 4000255147 took about 4 minutes to open
+rather than 6 s, and an exposure or slit-jaw frame step about 2 s rather than 0.6 s and 0.03 s. A
+region drawn on an SST cube selects no IRIS pixels yet: Glue fills in the cube's wavelength, time and
+Stokes coordinates, which IRIS data lack, with values outside its tables. The menu entry only adds
 links that are missing, so running it again after loading more data is safe. Removing a dataset
-leaves the others linked, those linked on request included. The links pair coordinates as they are:
+leaves the others linked, those linked on request included. A reopened session restores those links,
+but choose the menu entry again after reopening it: until then, removing a dataset drops a map's
+links, and a map's viewer and Glue's spectrum threads can reach its coordinates at once, which can
+crash Glue. The links pair coordinates as they are:
 they do not allow for the Sun's rotation between a map and the IRIS data, or for a map taken far
 from Earth; an IRIS dataset's own pointing can be corrected with "IRIS: shift pointing…" (see
 :ref:`glue_solar_users_guide_iris_pointing`). Once IRIS data are linked, a selection on longitude

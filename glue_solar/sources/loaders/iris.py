@@ -138,6 +138,9 @@ for _name in (
     "pixel_shape",
     "pixel_bounds",
     "has_distortion",
+    "has_celestial",  # glue's autolinker reads it as data load (File > Open Data Set)
+    "has_spectral",
+    "has_temporal",
 ):
     _property = getattr(WCS, _name)
     setattr(_LockedWCS, _name, property(_holding_lock(_property.fget), _property.fset))
