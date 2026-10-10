@@ -100,8 +100,9 @@ def browse_iris(session, data_collection):
     Browse a folder by observation, load the selection and link its helioprojective coordinates.
 
     With "Open quicklook" ticked, each loaded observation opens as a quicklook of its ticked raster
-    windows: Mg II k 2796 if ticked, else the first, with the others beside it; otherwise, or with no
-    raster or slit-jaw image loaded, the first image opens in an Image Viewer.
+    windows: the browser's "Main window" if ticked, else Mg II k 2796 if ticked, else the first, with
+    the others beside it; otherwise, or with no raster or slit-jaw image loaded, the first image opens
+    in an Image Viewer.
     """
     app = session.application
     directory = QtWidgets.QFileDialog.getExistingDirectory(
@@ -118,7 +119,7 @@ def browse_iris(session, data_collection):
     keep_hpc_linked(data_collection)
     quicklooks = _quicklooks(dialog.loaded) if dialog.quicklook.isChecked() else []
     for datasets, window in quicklooks:
-        quicklook(app, datasets, window=window)
+        quicklook(app, datasets, window=window, main=dialog.main_window.currentText() or None)
     if not quicklooks and dialog.first_image is not None:
         from glue_qt.viewers.image import ImageViewer
 
@@ -139,11 +140,11 @@ def _has_quicklook(datasets):
     return any(_role(data) in ("raster", "sji") for data in datasets)
 
 
-def _shown(loaded, quicklooks):
+def _shown(loaded, quicklooks, main=None):
     """
     The datasets of the observation browser's ``loaded`` that the first viewers `browse_iris` opens show: the raster,
-    the other windows with a wavelength panel and the slit-jaw images of each quicklook, with ``quicklooks`` on, else
-    the first image.
+    ``main`` where ticked, the other windows with a wavelength panel and the slit-jaw images of each quicklook, with
+    ``quicklooks`` on, else the first image.
     """
     quicklooks = _quicklooks(loaded) if quicklooks else []
     if not quicklooks:
@@ -152,7 +153,7 @@ def _shown(loaded, quicklooks):
     for datasets, window in quicklooks:
         rasters = [data for data in datasets if _role(data) == "raster"]
         if rasters:
-            raster, others = _pick_windows(rasters, window)
+            raster, others = _pick_windows(rasters, window, main)
             shown += [raster] + [data for data in others if _time_axis(data) is not None]
         shown += _pick_sjis([data for data in datasets if _role(data) == "sji"])[0]
     return shown

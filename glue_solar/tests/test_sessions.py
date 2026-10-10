@@ -50,12 +50,15 @@ from glue_solar.tests.test_quicklook import (
     POINT_CURVES,
     SCAN,
     SNS,
+    THREE,
     drifting_stack,
     marks,
     menu_action,
     readout,
     slit_jaw,
+    switch,
     time_series,
+    viewer_rows,
 )
 from glue_solar.tools import _pointing
 
@@ -378,6 +381,32 @@ def test_a_restored_quicklook_keeps_its_time_master_and_follows_a_pixel_drag(
         qtbot.waitUntil(lambda: responses(restored)[0] == responses(app)[0])
         for got, expected in zip(responses(restored)[1], responses(app)[1], strict=True):
             np.testing.assert_allclose(got, expected, rtol=1e-12)
+
+
+def test_a_restored_quicklook_keeps_its_switched_main_window(qtbot, monkeypatch, tmp_path, irispy_test_files):
+    files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
+    viewers = quicklook(app, [*raster_data(files[:1], THREE), image_data(files[1])], window=THREE)
+    menu_action(viewers["sji"][0], "Time master").trigger()
+    viewers["sji"][0].state.slices = (2, 0, 0)
+    switch(qtbot, viewers["windows"][1]["spectrum"])  # Si IV 1403
+    app.save_session(str(tmp_path / "switched.glu"), absolute_paths=False)
+    restored = GlueApplication.restore_session(str(tmp_path / "switched.glu"), show=False)
+    qtbot.addWidget(restored)
+    monkeypatch.setattr(restored, "report_error", lambda message, detail: pytest.fail(detail))
+    rows = [[(*row[:4], row[4] and tuple(row[4])) for row in viewer_rows(each)] for each in (restored, app)]
+    assert rows[0][0][1] == "Si IV 1403 slit vs time"
+    assert rows[0] == rows[1]  # slices restore as lists
+    # without its quicklook's viewers to open again, no spectrum panel offers 'Show this window's panels'
+    profiles = [viewer for viewer in restored.viewers[-1] if isinstance(viewer, ProfileViewer)]
+    assert len(profiles) == 3
+    assert not any(viewer.toolbar.actions["solar:main_window"].isVisible() for viewer in profiles)
+    qtbot.waitUntil(lambda: responses(restored)[0] == responses(app)[0])
+    for got, expected in zip(responses(restored)[1], responses(app)[1], strict=True):
+        np.testing.assert_allclose(got, expected, rtol=1e-12)
 
 
 def test_a_restored_quicklook_marks_its_master_exposure_again(qtbot, monkeypatch, tmp_path, irispy_test_files):

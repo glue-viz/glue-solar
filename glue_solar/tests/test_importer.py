@@ -175,6 +175,24 @@ def tick(dialog, *entries):
             item.setCheckState(0, Qt.Checked)
 
 
+def test_main_window_lists_the_ticked_raster_windows(dialog):
+    combo, row = dialog.main_window, _row(dialog, OBS_A[2])
+    windows = {row.child(i).text(0).split(" — ")[0]: row.child(i) for i in range(row.childCount())}
+
+    def ticked(name, state=Qt.Checked):
+        windows[name].setCheckState(0, state)
+        return [combo.itemText(i) for i in range(combo.count())], combo.currentText()
+
+    assert ticked("C II 1336") == (["C II 1336"], "C II 1336")
+    assert ticked("Mg II k 2796") == (["C II 1336", "Mg II k 2796"], "Mg II k 2796")  # by default
+    combo.setCurrentText("C II 1336")
+    combo.textActivated.emit("C II 1336")  # as the user chooses it
+    assert ticked("Mg II k 2796", Qt.Unchecked) == (["C II 1336"], "C II 1336")
+    assert ticked("Mg II k 2796") == (["C II 1336", "Mg II k 2796"], "C II 1336")  # kept while ticked
+    assert ticked("C II 1336", Qt.Unchecked) == (["Mg II k 2796"], "Mg II k 2796")
+    assert ticked("Mg II k 2796", Qt.Unchecked) == ([], "")
+
+
 def from_the_worker(widget, method):
     """The user's ``widget.method()`` on the GUI thread, which the worker thread waits for."""
     # on the GUI thread it would wait for itself: a load moved back there fails rather than hangs
@@ -204,7 +222,7 @@ def test_load_reads_a_file_at_a_time_off_the_gui_thread(dialog, qtbot, monkeypat
 def test_stop_keeps_the_entries_read_in_full(dialog, qtbot, monkeypatch):
     tick(dialog, "SJI_1400", "Mg II k")
     dialog.stack.setChecked(True)
-    dialog.shown = lambda loaded, quicklooks: [datasets[0] for *_, datasets in loaded]
+    dialog.shown = lambda loaded, quicklooks, main: [datasets[0] for *_, datasets in loaded]
 
     def stop_in_the_first_file(n):
         if n == 1:  # the user presses Stop while raster file 1 is read
@@ -304,7 +322,7 @@ def test_colour_limits_of_what_browse_iris_shows_are_counted_in_the_background(q
 
 
 def test_a_failure_after_the_reads_stays_in_the_dialog(qtbot, iris_tree, capsys):
-    def shown(loaded, quicklooks):
+    def shown(loaded, quicklooks, main):
         raise ValueError("no viewer to show")
 
     dialog = QtIRISImporter(iris_tree, shown=shown)

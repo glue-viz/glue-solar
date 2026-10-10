@@ -972,8 +972,12 @@ class QtIRISImporter(QtWidgets.QDialog):
     counts the files. Meanwhile Cancel reads Stop, which closes the dialog with the
     entries read in full; Esc or closing the dialog drops the load. ``shown``, if
     given, names the datasets the first viewers will show of what is loaded, as
-    ``shown(loaded, quicklooks)`` with whether Open quicklook is ticked: their
-    colour limits are counted in the background too.
+    ``shown(loaded, quicklooks, main)`` with whether Open quicklook is ticked and
+    the Main window chosen: their colour limits are counted in the background too.
+
+    Main window lists the ticked raster windows, by name, showing the one last
+    chosen there while it is ticked, else Mg II k 2796, else the first: each
+    quicklook shows it with its map, spectrogram and wavelength panel, where ticked.
 
     The folder is scanned in the background as well, a header at a time, where
     Stop lists what the scan found so far.
@@ -1007,6 +1011,9 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.cancel.clicked.connect(self._cancel)
         self.ok.clicked.connect(lambda: self.finalize(self.selected()))
         self.obs_tree.itemDoubleClicked.connect(self._double_clicked)
+        self.obs_tree.itemChanged.connect(self._ticked_windows)
+        self.main_window.textActivated.connect(lambda text: setattr(self, "_main", text))
+        self._ticked, self._main = set(), None  # the payloads of the ticked raster windows, and the main one chosen
         self.progressed.connect(self._progressed)
         self.change.clicked.connect(self.choose_directory)
         self.recursive.toggled.connect(lambda _checked: self.set_directory(self.directory.text()))
@@ -1143,6 +1150,8 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     def populate(self):
         self.obs_tree.clear()
+        self._ticked = set()
+        self.main_window.clear()
         self._payloads, children = [], []
         for i, obs in enumerate(self.observations):
             top = QtWidgets.QTreeWidgetItem(
@@ -1200,6 +1209,19 @@ class QtIRISImporter(QtWidgets.QDialog):
             item.setToolTip(0, self.observations[payload[0]].window_tips.get(payload[2], ""))
         return item
 
+    def _ticked_windows(self, item):
+        """List the ticked raster windows in Main window (see the class) as ``item`` is ticked or un-ticked."""
+        from glue_solar.quicklook import DEFAULT_WINDOW  # which imports this module
+
+        i = item.data(0, Qt.UserRole)
+        if i is None or (item.checkState(0) == Qt.Checked) == (i in self._ticked) or self._payloads[i][1] != "raster":
+            return  # an unchanged tick, as for each entry `populate` adds before its payload
+        self._ticked ^= {i}
+        names = list(dict.fromkeys(self._payloads[j][2] for j in sorted(self._ticked)))
+        self.main_window.clear()
+        self.main_window.addItems(names)
+        self.main_window.setCurrentText(next((n for n in (self._main, DEFAULT_WINDOW, *names) if n in names), ""))
+
     def selected(self):
         """``(observation index, kind, name)`` for every ticked loadable entry."""
         picks = []
@@ -1229,7 +1251,8 @@ class QtIRISImporter(QtWidgets.QDialog):
         if archives:  # unpack, rescan and stay open so the user can pick from what was inside
             self._start(self._extracted, _extract, archives)
         else:
-            shown = self.shown and partial(self.shown, quicklooks=self.quicklook.isChecked())
+            quicklooks, main = self.quicklook.isChecked(), self.main_window.currentText()
+            shown = self.shown and partial(self.shown, quicklooks=quicklooks, main=main)
             self._start(self._loaded, _load, self.observations, picks, self.stack.isChecked(), shown)
 
     def _start(self, done, function, *args):
@@ -1248,7 +1271,7 @@ class QtIRISImporter(QtWidgets.QDialog):
     def _busy(self, busy):
         """While a load runs, only Stop: the ticks and boxes it was started with stay as they were."""
         searching = self.directory, self.change, self.recursive, self.start, self.end, self.places, self.recent
-        for widget in (self.ok, *searching, self.obs_tree, self.stack, self.quicklook):
+        for widget in (self.ok, *searching, self.obs_tree, self.stack, self.quicklook, self.main_window):
             widget.setEnabled(not busy)
         self.cancel.setText("Stop" if busy else "Cancel")
 

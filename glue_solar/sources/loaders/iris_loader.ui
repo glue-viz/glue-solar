@@ -268,6 +268,26 @@
       </widget>
      </item>
      <item>
+      <widget class="QLabel" name="main_window_label">
+       <property name="text">
+        <string>Main window:</string>
+       </property>
+       <property name="buddy">
+        <cstring>main_window</cstring>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="main_window">
+       <property name="toolTip">
+        <string>The ticked raster window a quicklook shows with its map, spectrogram and wavelength panel, where ticked; the others get a spectrum panel. By default Mg II k 2796, else the first.</string>
+       </property>
+       <property name="sizeAdjustPolicy">
+        <enum>QComboBox::AdjustToContents</enum>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer name="horizontalSpacer">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>

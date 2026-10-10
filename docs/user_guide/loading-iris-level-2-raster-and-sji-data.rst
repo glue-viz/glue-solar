@@ -77,10 +77,12 @@ the progress bar counts them; meanwhile the list and its boxes are locked and "C
 "Stop" ends the load once the file being read is done and loads the entries read in full, such as a
 slit-jaw channel read before a raster window, or nothing if none was. Pressing Esc or closing the
 browser drops the load: nothing is loaded. With "Open quicklook" ticked, the default, each
-observation with a raster or slit-jaw image opens in a quicklook
-(see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). Otherwise the
-first slit-jaw (or AIA) cube opens in an Image Viewer, where its ``Time (Utc)`` slider steps through
-time; nothing opens for rasters alone. If an entry fails to load, the browser stays open and its progress bar names
+observation with a raster or slit-jaw image opens in a quicklook of the raster windows ticked,
+with the map, spectrogram and wavelength panels of the one chosen in "Main window" where it is
+ticked (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). "Main window" lists the
+ticked raster windows and shows Mg II k 2796 when ticked, else the first, until you choose one.
+Otherwise the first slit-jaw (or AIA) cube opens in an Image Viewer, where its ``Time (Utc)`` slider
+steps through time; nothing opens for rasters alone. If an entry fails to load, the browser stays open and its progress bar names
 the file and the error; for a raster window, the first raster file that fails to load on its own, or
 how many raster files there are if each loads on its own but not together.
 Tick "Stack sequential raster scans" to place two or more raster scans of a window into a single

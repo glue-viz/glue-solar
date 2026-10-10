@@ -25,7 +25,6 @@ from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.profile.state import ProfileLayerState
 from glue.viewers.scatter.state import ScatterViewerState
-from glue_qt.utils import process_events
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from glue_qt.viewers.scatter import ScatterViewer
@@ -1175,14 +1174,14 @@ def _pick_raster(rasters, window):
     return rasters[0]
 
 
-def _pick_windows(rasters, window):
+def _pick_windows(rasters, window, main=None):
     """
-    The raster to show (`_pick_raster`) of ``window``, a window name or a list of them, and of each other window of
-    the list a dataset of the same file or stack (`_same_file`), in the order of ``rasters``.
+    The raster to show (`_pick_raster`) of ``window``, a window name or a list of them, ``main`` if among them, and of
+    each other window of the list a dataset of the same file or stack (`_same_file`), in the order of ``rasters``.
     """
     names = [window] if isinstance(window, str) else list(window or ())
     named = [data for data in rasters if _window(data)[0] in names]
-    raster = _pick_raster(named or rasters, None)
+    raster = _pick_raster(named or rasters, main)
     others = {}
     for data in named:
         name = _window(data)[0]
@@ -1333,7 +1332,7 @@ def _profile(app, raster, window):
     return viewer, f"Spectrum of {raster.label} ({raster.size:.3g} elements)."
 
 
-def quicklook(app, datasets, window=None):
+def quicklook(app, datasets, window=None, main=None):
     """
     Open the IRIS quicklook of one observation in a new tab.
 
@@ -1344,13 +1343,14 @@ def quicklook(app, datasets, window=None):
     on the map. A read-only 'Point' window below the panels gives the point's pixel, position, time,
     exposure, value and time sync in each dataset they show. Lines on the spectrogram, the wavelength
     panel and the spectrum panel mark the point, the map's wavelength and the time master's time, and
-    a zoom on the spectrum panel is the wavelength panel's too (`_SpectralLines`). The user may move or
-    close tabs as it opens; closing its own stops it.
+    a zoom on the spectrum panel is the wavelength panel's too (`_SpectralLines`). Clicks and keys
+    wait until it is open.
 
     Each other window named in ``window`` adds the spectrum of the point and, on a sit-and-stare raster
     or a stack, its own wavelength panel (λ–time or λ–scan), to a row below. Its scan, step or exposure,
     and slit pixels are linked to the shown window's with `~glue.core.link_helpers.LinkSame` (once,
-    however often the quicklook opens), so the point is the same pixel in every window.
+    however often the quicklook opens), so the point is the same pixel in every window. Its spectrum
+    panel's 'Show this window's panels' makes it the main window (`_switch`).
 
     Parameters
     ----------
@@ -1359,8 +1359,10 @@ def quicklook(app, datasets, window=None):
         IRIS datasets of one observation. Those not yet in the data collection are added and linked.
     window : str or list of str, optional
         The spectral window to show, by its ``TDESC`` name. By default Mg II k 2796, else the first.
-        Of several, Mg II k 2796 if named, else the first, and the others of the same raster file or
-        stack beside it.
+        Of several, ``main`` if named, else Mg II k 2796 if named, else the first, and the others of
+        the same raster file or stack beside it.
+    main : str, optional
+        The main window, among ``window``: the one the map, spectrogram and wavelength panels show.
 
     Returns
     -------
@@ -1374,31 +1376,42 @@ def quicklook(app, datasets, window=None):
         For an observation with neither a raster nor a slit-jaw image.
     """
     rasters = [data for data in datasets if _role(data) == "raster"]
-    sjis, offered = _pick_sjis([data for data in datasets if _role(data) == "sji"])
-    if not rasters and not sjis:
+    shown = rasters or [data for data in datasets if _role(data) == "sji"]
+    if not shown:
         raise ValueError(f"{datasets[0].label} has no raster or slit-jaw image for a quicklook")
     collection = app.data_collection
     new = [data for data in datasets if data not in collection]
     if new:  # one link update for all, where each append runs one
         collection.extend(new)
     keep_hpc_linked(collection)
-    key = observation_key((rasters or sjis)[0])
-
     app.new_tab()
-    tab = app.current_tab  # not its index, which changes as the user moves or closes tabs before it ends
+    tab = app.current_tab
+    key = observation_key(shown[0])
     names = app.tab_names
     names[-1] = f"IRIS {key[0]}" if key else "IRIS"
     app.tab_names = names
+    return _fill(app, tab, datasets, window, main)
+
+
+def _fill(app, tab, datasets, window, main, group=None):
+    """
+    Open `quicklook`'s viewers of ``datasets`` in ``tab``, the current tab, with ``group`` as its point's group, or a
+    new one.
+    """
+    rasters = [data for data in datasets if _role(data) == "raster"]
+    sjis, offered = _pick_sjis([data for data in datasets if _role(data) == "sji"])
+    collection = app.data_collection
+    key = observation_key((rasters or sjis)[0])
     coordinator(collection)  # before the point, so it follows it
 
     viewers, notes = {"sji": [], "windows": []}, []
     if rasters:
-        raster, others = _pick_windows(rasters, window)
+        raster, others = _pick_windows(rasters, window, main)
         _link_windows(collection, raster, others)
-        window = _window(raster)[0] or raster.label
-        panels, point = _raster_panels(app, raster, window)
+        name = _window(raster)[0] or raster.label
+        panels, point = _raster_panels(app, raster, name)
         viewers.update(panels)
-        viewers["spectrum"], note = _profile(app, raster, window)
+        viewers["spectrum"], note = _profile(app, raster, name)
         notes.append(note)
         for other in others:
             name = _window(other)[0]
@@ -1406,6 +1419,7 @@ def quicklook(app, datasets, window=None):
             roles = ("wavelength",) if _time_axis(other) is not None else ()
             panels = _raster_panels(app, other, name, roles)[0]
             panels["spectrum"], note = _profile(app, other, name)
+            panels["spectrum"].toolbar.tools["solar:main_window"].enabled = True  # 'Show this window's panels'
             viewers["windows"].append(panels)
             notes.append(note)
     for sji in sjis:
@@ -1417,7 +1431,8 @@ def quicklook(app, datasets, window=None):
 
     QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # and after the last (see _image)
     if rasters:
-        group = collection.new_subset_group(label="Point", subset_state=point)
+        if group is None:
+            group = collection.new_subset_group(label="Point", subset_state=point)
         own = [viewers[role] for role in ("map", "spectrogram", "wavelength")] + viewers["sji"]
         lambda_t = [panels["wavelength"] for panels in viewers["windows"] if "wavelength" in panels]
         coordinator(collection).own(group, own + lambda_t)
@@ -1432,19 +1447,73 @@ def quicklook(app, datasets, window=None):
             if "wavelength" in panels:
                 _SpectralLines(coordinator(collection), group, key, [panels["wavelength"]], panels["spectrum"], tab)
     app.statusBar().showMessage(" ".join(notes))
-    process_events()  # let the tab take its final size
-    if tab not in map(app.tab, range(app.tab_count)):  # closed by the user meanwhile: nothing left to do
-        return viewers
+    QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # let the tab take its final size
     _arrange(tab, viewers)
-    process_events()  # and the panels theirs, before the slit-jaw limits take the axes' aspect
-    if tab not in map(app.tab, range(app.tab_count)):
-        return viewers
+    # and the panels theirs, before the slit-jaw limits take the axes' aspect
+    QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)
     for viewer in viewers["sji"]:
         if rasters and _placeable(viewer.state.reference_data):
             _footprint_limits(viewer, raster)
     if rasters:
         tab.setActiveSubWindow(viewers["map"].parent())
         viewers["map"].toolbar.active_tool = "image:point_selection"
+    tab._solar_quicklook = (datasets, window, viewers)  # for `_switch`
+    return viewers
+
+
+def _viewers(viewers):
+    """Every viewer of `quicklook`'s ``viewers``."""
+    roles = [viewers[role] for role in ("map", "spectrogram", "wavelength", "spectrum") if role in viewers]
+    return roles + viewers["sji"] + [viewer for panels in viewers["windows"] for viewer in panels.values()]
+
+
+# what a switch of the main window keeps of each Image panel's layer (`_switch`)
+_COLOURS = ("cmap", "stretch", "percentile", "v_min", "v_max", "contrast", "bias")
+
+
+def _switch(viewer):
+    """
+    Make the window of ``viewer``, a quicklook's spectrum panel of another window, the quicklook's main window: open the
+    quicklook again in its tab, in place of its viewers, as `quicklook` opens it with that window as ``main``, with its
+    point's group, the point at the same pixel of that window, the time master at the same frame, exposure, step or
+    scan, and the colours of each Image panel that shows the same data on the same axes again. The links stay, as do
+    the viewers added to the tab.
+    """
+    app = viewer.session.application
+    tab, collection = viewer.parent().mdiArea(), app.data_collection
+    coord = coordinator(collection)
+    datasets, window, viewers = tab._solar_quicklook
+    group, raster = app._solar_points[tab], viewer.state.reference_data
+    master = coord._master(observation_key(raster))
+    index, _ = coord._timing(master)
+    colours = {}
+    for panel in _viewers(viewers):
+        state = panel.state
+        layer = next((layer for layer in state.layers if layer.layer is state.reference_data), None)
+        if isinstance(panel, ImageViewer) and layer is not None:
+            colours[state.reference_data, state.x_att, state.y_att] = {att: getattr(layer, att) for att in _COLOURS}
+        panel.close(warn=False)
+        coord.unregister(panel)  # now rather than once glue-qt deletes it
+    for sub in tab.subWindowList():
+        if isinstance(sub.widget(), _PointWindow):
+            sub.close()
+    for lines in tab.findChildren(_SpectralLines):
+        coord.remove_listener(lines._synced)
+        lines.deleteLater()
+    point = group.subset_state
+    group.subset_state = SubsetState()  # while the panels open: each one's sliders would move it, and what follows it
+    viewers = _fill(app, tab, [data for data in datasets if data in collection], window, _window(raster)[0], group)
+    if isinstance(point, PixelSubsetState) and _same_file(point.reference_data, raster):  # wavelength is last
+        point = PixelSubsetState(raster, [*point.slices[:-1], slice(None)])
+    group.subset_state = point
+    for panel in _viewers(viewers):
+        state = panel.state
+        if isinstance(panel, ImageViewer):
+            layer = next(layer for layer in state.layers if layer.layer is state.reference_data)
+            layer.update_from_dict(colours.get((state.reference_data, state.x_att, state.y_att), {}))
+    now = coord._master(observation_key(raster))
+    if _same_file(now, master):  # the same, or another window of its file
+        coord.move_master(now, index)
     return viewers
 
 

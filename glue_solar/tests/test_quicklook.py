@@ -27,8 +27,7 @@ from glue_qt.viewers.scatter import ScatterViewer
 from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.text import Text
 from qtpy import QtWidgets
-from qtpy.QtCore import Qt, QTimer
-from qtpy.QtTest import QTest
+from qtpy.QtCore import QEventLoop, Qt, QTimer
 
 import astropy.units as u
 from astropy.io import fits
@@ -818,31 +817,15 @@ def test_each_quicklook_edits_its_own_point(bare_app, scans):
     assert bare_app.session.edit_subset_mode.edit_subset == [first_point]
 
 
-@pytest.mark.parametrize("turn", [0, 1])
-@pytest.mark.parametrize("change", ["close another", "move", "close its own"])
-def test_a_tab_closed_or_moved_as_a_quicklook_opens(bare_app, monkeypatch, scans, change, turn):
-    # the quicklook's turns of the event loop that take user input, as its tab and panels take their size
-    tabs = bare_app.tab_widget
-    bare_app.new_tab()
-    changes = {
-        "close another": lambda: bare_app.close_tab(0, warn=False),
-        "move": lambda: tabs.tabBar().moveTab(tabs.count() - 1, 0),
-        "close its own": lambda: bare_app.close_tab(tabs.count() - 1, warn=False),
-    }
-    turns = []
-
-    def user():
-        if len(turns) == turn:
-            changes[change]()
-        turns.append(turn)
-        QTest.qWait(0)  # a turn with its deferred deletes, as the app's loop runs them
-
-    monkeypatch.setattr(glue_solar.quicklook, "process_events", user)
+def test_no_turn_of_the_event_loop_as_a_quicklook_opens_takes_clicks_or_keys(bare_app, monkeypatch, scans):
+    # they wait until it is open, so that closing a panel or a tab meanwhile cannot break it; glue still draws
+    turns, turn = [], QtWidgets.QApplication.processEvents
+    record = staticmethod(lambda *flags: turns.append(flags) or turn(*flags))  # as pytest-qt calls it on the instance
+    monkeypatch.setattr(QtWidgets.QApplication, "processEvents", record)
     viewers = quicklook(bare_app, [scans[0]])
-    if change == "close its own":  # it stops quietly
-        assert bare_app.tab_names == ["Tab 1", "Tab 2"]
-        return
-    [tab] = [bare_app.tab(i) for i, name in enumerate(bare_app.tab_names) if name.startswith("IRIS")]
+    assert len(turns) == 7  # before each of its four viewers and after, and as the tab and the panels take their size
+    assert set(turns) == {(QEventLoop.ExcludeUserInputEvents,)}
+    tab = bare_app.current_tab
     assert tab.activeSubWindow() is viewers["map"].parent()
     windows = tab.subWindowList()
     assert len(windows) == 5  # with the Point window, laid out apart
@@ -2789,10 +2772,10 @@ def copy_files(folder, paths):
     return folder
 
 
-def browse(qtbot, app, monkeypatch, folder, rows, only=None):
+def browse(qtbot, app, monkeypatch, folder, rows, only=None, main=None):
     """
     Load observation ``rows`` of ``folder`` through the observation browser, with its quicklook box as is: every
-    entry, or with ``only`` those whose names start with any of it.
+    entry, or with ``only`` those whose names start with any of it, and ``main`` chosen as the main window.
     """
     from glue_solar.sources.iris import browse_iris
     from glue_solar.sources.loaders.iris import QtIRISImporter
@@ -2806,6 +2789,9 @@ def browse(qtbot, app, monkeypatch, folder, rows, only=None):
             item.setCheckState(0, Qt.Checked)
             for entry in map(item.child, range(item.childCount()) if only else ()):
                 entry.setCheckState(0, Qt.Checked if entry.text(0).startswith(only) else Qt.Unchecked)
+        if main is not None:
+            dialog.main_window.setCurrentText(main)
+            dialog.main_window.textActivated.emit(main)
         load_selected(qtbot, dialog)
         return QtWidgets.QDialog.Accepted
 
@@ -5002,6 +4988,93 @@ def test_time_moves_a_point_on_another_window(bare_app, qtbot, monkeypatch, iris
         "point": (c2.label, (100, slit, None)),
         "spectrogram": (100, None, None),
     }
+
+
+def switch(qtbot, panel):
+    """Choose 'Show this window's panels' on a quicklook's spectrum ``panel``; the quicklook's viewers then."""
+    tab = panel.parent().mdiArea()
+    viewers = tab._solar_quicklook[2]
+    panel.toolbar.actions["solar:main_window"].trigger()
+    qtbot.waitUntil(lambda: tab._solar_quicklook[2] is not viewers)
+    qtbot.wait(20)  # glue-qt deletes the viewers closed
+    return tab._solar_quicklook[2]
+
+
+def colours(app):
+    """The stretch and percentile of each Image viewer of the last tab, by title."""
+    states = [viewer.state for viewer in app.viewers[-1] if isinstance(viewer, ImageViewer)]
+    return {state.title: (state.layers[0].stretch, state.layers[0].percentile) for state in states}
+
+
+@pytest.mark.parametrize("kind", ["scan", "sit-and-stare", "stack"])
+def test_a_switch_gives_the_quicklook_opened_with_that_window_first(
+    bare_app, qtbot, monkeypatch, irispy_test_files, kind
+):
+    c2, si4, mg = windows_of(irispy_test_files, kind)
+    viewers = quicklook(bare_app, [c2, si4, mg], window=THREE)
+    spectra = [viewers["spectrum"], *(panels["spectrum"] for panels in viewers["windows"])]
+    assert [panel.toolbar.actions["solar:main_window"].isVisible() for panel in spectra] == [False, True, True]
+    [point] = bare_app.session.edit_subset_mode.edit_subset
+    select_point(viewers["map"], 5, 20)
+    menu_action(viewers["map"], "Row at the point").trigger()  # a viewer the user adds to the tab
+    row = viewer_rows(bare_app)[-1]
+    lambda_t = viewers["windows"][0].get("wavelength")  # C II 1336's
+    if lambda_t is not None:
+        lambda_t.state.layers[0].stretch = "linear"
+    switched = switch(qtbot, spectra[2])  # Si IV 1403
+    # the panels of Si IV 1403 as a quicklook opened with it first, the Row added and the C II stretch kept
+    first = bare_app_for(qtbot, monkeypatch)
+    expected = quicklook(first, windows_of(irispy_test_files, kind), window=THREE, main="Si IV 1403")
+    select_point(expected["map"], 5, 20)
+    qtbot.wait(20)
+    assert viewer_rows(bare_app) == [row, *viewer_rows(first)]
+    assert sliders(bare_app, switched) == sliders(first, expected)
+    if lambda_t is not None:
+        assert colours(bare_app) == {**colours(first), lambda_t.state.title: ("linear", 99.5)}
+    else:
+        assert colours(bare_app) == colours(first)
+    # one point, its group, offered now on Mg II k 2796 and C II 1336; the Row follows it at the old map's band
+    assert [group.label for group in bare_app.data_collection.subset_groups].count("Point") == 1
+    assert bare_app.session.edit_subset_mode.edit_subset == [point]
+    spectra = [switched["spectrum"], *(panels["spectrum"] for panels in switched["windows"])]
+    assert [panel.toolbar.actions["solar:main_window"].isVisible() for panel in spectra] == [False, True, True]
+    [cut] = [group for group in bare_app.data_collection.subset_groups if group.label == "Row"]
+    band = cut.subset_state.slices[-1]
+    select_point(switched["map"], 3, 10)
+    qtbot.wait(20)
+    assert (cut.subset_state.reference_data, cut.subset_state.slices[-2:]) == (mg, [slice(10, 11), band])
+
+
+def test_a_switch_keeps_the_point_the_time_master_and_the_colours(bare_app, qtbot, irispy_test_files):
+    c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
+    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
+    [sji_viewer] = viewers["sji"]
+    menu_action(sji_viewer, "Time master").trigger()
+    select_point(viewers["map"], 50, 20)
+    sji_viewer.state.slices = (2, 0, 0)
+    layer = sji_viewer.state.layers[0]
+    layer.stretch, layer.percentile = "linear", 95
+    qtbot.wait(20)
+    before = sliders(bare_app, viewers)
+    switched = switch(qtbot, viewers["windows"][0]["spectrum"])  # C II 1336
+    after = sliders(bare_app, switched)
+    assert after["point"] == (c2.label, before["point"][1])
+    assert after["sji0"] == before["sji0"] == (2, None, None)
+    assert after["spectrogram"][0] == before["spectrogram"][0]  # the exposure
+    layer = switched["sji"][0].state.layers[0]
+    assert (layer.stretch, layer.percentile) == ("linear", 95)
+
+
+def test_the_browser_shows_the_main_window_chosen(qtbot, monkeypatch, tmp_path, irispy_test_files):
+    path = find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))
+    app = bare_app_for(qtbot, monkeypatch)
+    folder = copy_files(tmp_path / "sns", [path])
+    browse(qtbot, app, monkeypatch, folder, [0], only=("C II", "Si IV 1403", "Mg II k"), main="Si IV 1403")
+    first = bare_app_for(qtbot, monkeypatch)
+    quicklook(first, windows_of(irispy_test_files, "sit-and-stare"), window=THREE, main="Si IV 1403")
+    assert viewer_rows(app)[0][1] == "Si IV 1403 slit vs time"
+    assert viewer_rows(app) == viewer_rows(first)
 
 
 def test_the_browser_shows_each_ticked_window(qtbot, monkeypatch, tmp_path, irispy_test_files):

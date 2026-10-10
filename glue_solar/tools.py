@@ -78,6 +78,7 @@ from glue_solar.quicklook import (
     _seconds_text,
     _shown,
     _spectral_axes,
+    _switch,
     _sync_text,
     _time_axis,
     _time_text,
@@ -102,6 +103,7 @@ __all__ = [
     "FollowLockTool",
     "FrameTimeTool",
     "HideAxesTool",
+    "MainWindowTool",
     "MeasureTool",
     "ModesTool",
     "PathCrosshairTool",
@@ -2336,6 +2338,32 @@ class SaveProfileTool(Tool):
             status.showMessage(f"Left out, without a profile: {', '.join(skipped)}")
         elif status.currentMessage().startswith("Left out, without a profile"):
             status.clearMessage()  # an earlier save's
+
+
+@viewer_tool
+class MainWindowTool(Tool):
+    """
+    'Show this window's panels' on a quicklook's spectrum panel of a window other than its main one, which makes it the
+    main window (`~glue_solar.quicklook._switch`); hidden on every other Profile viewer, as on a quicklook restored from
+    a session.
+    """
+
+    icon = "glue_slice"
+    tool_id = "solar:main_window"
+    action_text = "Show this window's panels"
+    tool_tip = "Make this window the quicklook's main window, with the map, spectrogram and wavelength panels"
+
+    def __init__(self, viewer):
+        super().__init__(viewer)
+        viewer.toolbar_added.connect(partial(setattr, self, "enabled", False))  # until its quicklook offers it
+
+    def activate(self):
+        QtCore.QTimer.singleShot(0, self.switch)  # once glue-qt's toolbar is done with the click: the viewer closes
+
+    @messagebox_on_error("Could not show this window's panels")
+    def switch(self):
+        if not self.viewer._closed:  # by a click before
+            _switch(self.viewer)
 
 
 def _position(viewer):
