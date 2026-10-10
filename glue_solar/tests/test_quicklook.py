@@ -1026,7 +1026,7 @@ def test_a_slit_jaw_light_curve_at_a_stack_point(irispy_data):
     times, values = _curve(sji, stack, (0, 2, 200), None)
     np.testing.assert_array_equal(times, sji[sji.id["Time"]][:, 0, 0])
     np.testing.assert_array_equal(values, expected_sji_curve(stack, sji, 200, step=2))
-    assert np.isfinite(values).any()
+    assert np.isnan(values).sum() == 2  # the two frames past half the 20.6 s cadence
 
 
 @pytest.mark.remote_data
