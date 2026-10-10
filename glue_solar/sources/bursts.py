@@ -1,10 +1,9 @@
 """
-'IRIS: detect UV bursts…': irispy's UV bursts in a Si IV raster window, or a stack of its scans, or a 1400 Å slit-jaw
-image, as a map of their labels and a table of them, two new datasets.
+'IRIS: detect UV bursts… (Si IV, SJI 1400)': irispy's UV bursts in a Si IV raster window, or a stack of its scans, or
+a 1400 Å slit-jaw image, as a map of their labels and a table of them, two new datasets.
 """
 
 import numpy as np
-from glue.config import layer_action
 from glue.core.component import Component
 from glue.core.data import Data
 from glue_qt.utils.decorators import messagebox_on_error
@@ -16,6 +15,7 @@ from astropy.table import vstack
 from astropy.time import Time
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
+from glue_solar.glue_patches import layer_action
 from glue_solar.quicklook import _role, _wavelengths
 from glue_solar.sources.loaders.iris import WCS_LOCK, _GlueWCS, _irispy_meta, _per_frame
 from glue_solar.sources.moments import _accepted, _check, _dataset, _start
@@ -58,6 +58,14 @@ def _crop(data, velocity_range):
             f"{velocity_range} km/s of Si IV 1402.77 Å."
         )
     return slice(max(inside[0] - 1, 0), min(inside[-1] + 2, wavelengths.size))
+
+
+def _check_bursts(data):
+    """Whether ``data`` is a 1400 Å slit-jaw image (`_is_sji`); raise why irispy finds no bursts in it."""
+    sji = _is_sji(data)
+    if not sji:
+        _crop(data, VELOCITY_RANGE)
+    return sji
 
 
 def _table(events, label, meta, offset):
@@ -247,9 +255,10 @@ def _found(datasets):
 
 
 @layer_action(
-    "IRIS: detect UV bursts…",
+    "IRIS: detect UV bursts… (Si IV, SJI 1400)",
     single=True,
     data=True,
+    check=_check_bursts,
     tooltip="Add irispy's UV burst labels and table of this Si IV raster window, stack or 1400 Å slit-jaw image",
 )
 @messagebox_on_error("Could not detect UV bursts")
@@ -260,9 +269,7 @@ def bursts_iris(data, data_collection):
     why for data that has none. irispy finds them in the background, while glue's status bar says so, and then how
     many.
     """
-    sji = _is_sji(data)  # before asking
-    if not sji:
-        _crop(data, VELOCITY_RANGE)
+    sji = _check_bursts(data)  # before asking
     parameters = _ask(data, sji)
     if parameters is None:
         return

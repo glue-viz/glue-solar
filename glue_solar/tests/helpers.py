@@ -15,6 +15,7 @@ __all__ = [
     "mouse",
     "press",
     "raster_point_on_sji",
+    "refused",
     "scanned",
     "select_point",
     "shift",
@@ -101,8 +102,14 @@ def raster_point_on_sji(raster, sji, step, slit, frame=0, scan=0):
     return x, y
 
 
+def refused(action):
+    """Run glue-qt's layer ``action``, which glue hides for the layers selected, on them anyway, as its guard sees it."""
+    assert not action.isVisible()
+    action._do_action()
+
+
 def shift(monkeypatch, data, collection, offset):
-    """Choose 'Shift pointing…' on ``data`` and type ``offset``, in arcsec; returns the offset its dialog opened with."""
+    """Choose 'IRIS: shift pointing…' on ``data`` and type ``offset``, in arcsec; returns the offset its dialog opened with."""
     from glue_solar.sources.iris import shift_pointing_iris
 
     opened = []

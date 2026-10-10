@@ -1,18 +1,18 @@
 """
-'IRIS: remove dust': a slit-jaw image with irispy's dust removed, as a new dataset; and 'IRIS: radiometric
+'IRIS: remove dust (SJI)': a slit-jaw image with irispy's dust removed, as a new dataset; and 'IRIS: radiometric
 calibration': a raster window's or stack's DN/s in radiance, as a glue derived component.
 """
 
 import gc
 
 import numpy as np
-from glue.config import layer_action
 from glue.core.component import Component
 from glue_qt.utils.decorators import messagebox_on_error
 
 import astropy.units as u
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
+from glue_solar.glue_patches import layer_action
 from glue_solar.quicklook import _role
 from glue_solar.sources.loaders.iris import WCS_LOCK, _add_exposure, _dataset, _irispy_meta, _per_frame
 from glue_solar.sources.moments import _check, _start, _unit
@@ -87,9 +87,10 @@ def _failed(exc_info):
 
 
 @layer_action(
-    "IRIS: remove dust",
+    "IRIS: remove dust (SJI)",
     single=True,
     data=True,
+    check=_check_sji,
     tooltip="Add this slit-jaw image with irispy's dust removed",
 )
 @messagebox_on_error("Could not remove dust")
@@ -101,6 +102,15 @@ def remove_dust_iris(data, data_collection):
     """
     _check_sji(data)
     _start(data_collection, f"Removing dust from {data.label}…", _failed, remove_dust, data)
+
+
+def _check_radiance(data):
+    """Raise why ``data`` is not an IRIS raster window or stack that can be calibrated."""
+    _check(data)
+    if "rebinned" in data.meta:  # 'IRIS: rebin…'
+        raise ValueError(f"{data.label} is rebinned: irispy calibrates a window's own pixels.")
+    if data.find_component_id(f"{data.main_components[0].label} radiance") is not None:
+        raise ValueError(f"{data.label} has its radiance already.")
 
 
 def radiometric_calibration(data):
@@ -130,13 +140,9 @@ def radiometric_calibration(data):
     from irispy.utils.response import get_latest_response
     from irispy.utils.spectrograph import calculate_dn_to_radiance_factor
 
-    _check(data)
-    if "rebinned" in data.meta:  # 'Rebin…'
-        raise ValueError(f"{data.label} is rebinned: irispy calibrates a window's own pixels.")
+    _check_radiance(data)
     cid = data.main_components[0]
     label = f"{cid.label} radiance"
-    if data.find_component_id(label) is not None:
-        raise ValueError(f"{data.label} has its radiance already.")
     rate, unit = data.id[f"{cid.label} DN/s"], _unit(data)
     factors = []
     for scan in np.ndindex(data.shape[:-3]):  # each scan of a stack
@@ -166,6 +172,7 @@ def radiometric_calibration(data):
     "IRIS: radiometric calibration",
     single=True,
     data=True,
+    check=_check_radiance,
     tooltip="Add this raster window's or stack's DN/s in radiance, erg / (Å cm2 s sr), with irispy's calibration",
 )
 @messagebox_on_error("Could not calibrate the radiance")

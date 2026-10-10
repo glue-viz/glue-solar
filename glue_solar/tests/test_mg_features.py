@@ -18,11 +18,12 @@ from glue_solar.conftest import find_irispy_test_file
 from glue_solar.sources import mg_features
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
+from glue_solar.tests.helpers import refused
 from glue_solar.tests.test_lazy import SJI, int16_copy, int16_raster_copy
 from glue_solar.tests.test_moments import dn_per_second_cube
 from glue_solar.tests.test_quicklook import SCAN
 
-ACTION = "IRIS: Mg II features…"
+ACTION = "IRIS: Mg II features… (Mg II)"
 # 4000005156 cut to Mg II k and to Mg II h, the line's ±44 km/s only, as two windows; 150 spectra of each hold -200
 FEATURES = "iris_l2_20130902_182935_4000005156_raster_t000_r00000_mg_features.fits"
 KH = ("k", "h")
@@ -230,7 +231,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, irispy_test_files
     opened = answer(monkeypatch)
     for data in (si_iv, sji, plain):
         tree.ui.layerTree.set_selected_layers([data])
-        action.trigger()
+        refused(action)
     assert opened == []  # refused before asking
     tree.ui.layerTree.set_selected_layers([k])
     for velocities in ((40, -40), (-40, 60)):

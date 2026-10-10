@@ -7,13 +7,13 @@ import gc
 import itertools
 
 import numpy as np
-from glue.config import layer_action
 from glue.core.component import Component
 from glue_qt.utils.decorators import messagebox_on_error
 from qtpy import QtWidgets
 
 import astropy.units as u
 
+from glue_solar.glue_patches import layer_action
 from glue_solar.lines import _wavelength
 from glue_solar.sources.loaders.iris import WCS_LOCK
 from glue_solar.sources.moments import SLAB, _accepted, _check, _cube, _dataset, _read, _rest_field, _start, _window
@@ -152,6 +152,7 @@ def _failed(exc_info):
     "IRIS: red-blue asymmetry…",
     single=True,
     data=True,
+    check=_check,
     tooltip="Add irispy's red-blue asymmetry map of a line in this raster window or stack",
 )
 @messagebox_on_error("Could not compute red-blue asymmetry")

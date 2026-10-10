@@ -167,8 +167,8 @@ The "Coordinate" menu (the link icon) in the Image Viewer toolbar has "Time mast
 the displayed dataset as the time reference of its observation (same OBSID and STARTOBS), "Go to
 UTC…", which moves the time master, "Loop…" for the frame, exposure, step or scan slider, and
 "Raster overlays", which shows or hides the raster's steps on every viewer of the observation. Its
-"Point" submenu has "Clear point", "Light curve at the point", which opens the point's light curve
-over the map's wavelength or band, and "Light curves at this point (windows, SJI)", which plots each
+"Point" submenu has "Clear point", "Light curve of this window", which opens the point's light curve
+over the map's wavelength or band, and "Light curves of every window and SJI…", which plots each
 raster window and slit-jaw image at the point against time; its "Blink" submenu has "Set blink
 partner here", "Blink" and "Blink interval", which alternate the viewer between two positions at the
 interval chosen (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). The menu shows
@@ -332,7 +332,7 @@ Open Data Set", choose "IRIS: link helioprojective coordinates" from the "Plugin
 adds links that are missing, so running it again after loading more data is safe. Removing a
 dataset leaves the others linked. The links pair coordinates as they are: they do not allow for
 the Sun's rotation between a map and the IRIS data, or for a map taken far from Earth; an IRIS
-dataset's own pointing can be corrected with "Shift pointing…" (see
+dataset's own pointing can be corrected with "IRIS: shift pointing…" (see
 :ref:`glue_solar_users_guide_iris_pointing`). Once IRIS data are linked, a selection on longitude
 or latitude values between two maps passes through them too, so it ignores those differences
 between the maps; a region drawn on one map still reaches the other through Glue's own link.

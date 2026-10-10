@@ -37,7 +37,7 @@ For those used to CRISPEX:
    * - ``spcube`` (transposed cube)
      - Not needed: the wavelength panel shows wavelength against step, exposure or scan
    * - ``dt`` and non-equidistant timing
-     - "Regrid on time" (see `Regridding on time`_)
+     - "IRIS: regrid on time" (see `Regridding on time`_)
    * - The cursor following the mouse, locked and unlocked with a click
      - The "Follow/lock" tool, in place of Pixel (see below)
 
@@ -227,7 +227,7 @@ is within half its time step ("NO MATCH"); under a slit-jaw master it marks the 
 time of the frame shown. Like the other lines they show in "Save plot to file" and "Save frames or
 movie…", but not in a saved session or "Save Python script to reproduce plot".
 
-"Light curve at the point" in the "Point" submenu of the "Coordinate" menu of the map of a
+"Light curve of this window" in the "Point" submenu of the "Coordinate" menu of the map of a
 sit-and-stare raster or a stack
 opens a Profile viewer of the light curve at the point: at each exposure, or scan, the mean, NaN left
 out, over the wavelength or band the map shows, at the point's slit position (and a stack's raster
@@ -260,9 +260,9 @@ there again before the next click. With the Si IV 1403 window of OBSID 400025514
 light curve and a Scatter plot of its 1600 exposure times open, playback runs as fast with it as
 without, 7 frames a second.
 
-"Light curves at this point (windows, SJI)" in the "Point" submenu of any Image viewer of IRIS, AIA
+"Light curves of every window and SJI…" in the "Point" submenu of any Image viewer of IRIS, AIA
 or SOT data, unlike
-"Light curve at the point" above, plots the light curves at a point on a raster against time, with
+"Light curve of this window" above, plots the light curves at a point on a raster against time, with
 lines, in a new Scatter viewer: one for each loaded window of the point's raster file with exposures
 or scans (a sit-and-stare raster or a stack), and one for each slit-jaw channel of its observation.
 Each is a new dataset, such as "Mg II k 2796 2796.24 Å light curve" or "SJI 1400 light curve", of
@@ -358,7 +358,7 @@ added once however often the quicklook opens, so the point is the same pixel in 
 spectrum panel shows its own window's spectrum there, a map of any of the windows shows the point's
 crosshair, and their wavelength panels follow the point's slit (and a stack's step), share its
 exposure or scan, and move it when you move their sliders. A Pixel click on another window's
-wavelength panel moves the point to that window, and the others follow; D, F and "Go to UTC" still
+wavelength panel moves the point to that window, and the others follow; D, F and "Go to UTC…" still
 move it with the time master. The Point window lists the window shown first only. The "Plugins"
 menu entry and the command line open one window.
 
@@ -366,10 +366,11 @@ Regridding on time
 ------------------
 
 Every axis of glue's viewers is an index axis, so a sit-and-stare raster's exposures, the frames of
-a slit-jaw image or aligned AIA cutout and a stack's scans show evenly spaced whatever their timing:
-the cadence of OBSID 4000255147's Si IV varies from 2.71 to 3.29 s, and an observation can have
-gaps. To see them in time, select one such dataset in the data collection and choose "Regrid on
-time" from its right-click menu. This adds ``<label> regridded``, resampled at the median step
+a slit-jaw image, aligned AIA cutout or Hinode/SOT cube and a stack's scans show evenly spaced
+whatever their timing: the cadence of OBSID 4000255147's Si IV varies from 2.71 to 3.29 s, and an
+observation can have gaps. To see them in time, select one such dataset in the data collection and
+choose "IRIS: regrid on time (sit-and-stare, stack, SJI, AIA, SOT)" from its right-click menu. This
+adds ``<label> regridded``, resampled at the median step
 between their times:
 each pixel along that axis is one step after the previous one, from the first time up to the first
 pixel at or past the last, and holds the exposure, frame or scan nearest its time within 0.75 steps
@@ -380,8 +381,8 @@ NaN, with ``Time`` NaT, ``Exposure time`` NaN and the missing-data mask 1. The 1
 - A stack is regridded scan by scan, each scan timed by its middle raster step: its steps are
   places on the Sun, so each pixel keeps a whole scan, and the scan slider stays its time, as in
   the quicklook.
-- A scanning raster is refused with a message saying why: its steps are places on the Sun, not
-  times. Stack its scans in the observation browser and regrid the stack instead.
+- A scanning raster is not offered it: its steps are places on the Sun, not times. Stack its scans
+  in the observation browser and regrid the stack instead.
 - The new dataset has the original's other axes, units, colormap, ``<label> DN/s`` and metadata,
   ``meta['time_step']`` adding the step in seconds, and its coordinates: along the regridded axis,
   those at each pixel's time, so that a slit-jaw image's time coordinate is regular, and those of
@@ -405,7 +406,7 @@ Rebinning
 ---------
 
 To trade resolution for signal, select a raster window, stack, slit-jaw image or AIA cutout in the
-data collection and choose "Rebin…" from its right-click menu. Type the pixels in a bin along each
+data collection and choose "IRIS: rebin…" from its right-click menu. Type the pixels in a bin along each
 axis, named as glue names its coordinates: 2 by 2 pixels of the map or image at first, raster steps
 or exposures and slit pixels, or y and x, and 1 along wavelength, frames and scans. This adds
 ``<label> rebinned <bins>``, such as ``… rebinned 2x2x1``, while glue's status bar says "Rebinning
@@ -438,8 +439,8 @@ Shifting the pointing
 ---------------------
 
 IRIS pointing can be off by an arcsecond or two between a slit-jaw image and its raster, or against
-AIA. To correct it, select the dataset in the data collection and choose "Shift pointing…" from its
-right-click menu. Type Δx and Δy in arcsec, which are added to its helioprojective longitude and
+AIA. To correct it, select the dataset in the data collection and choose "IRIS: shift pointing…" from
+its right-click menu. Type Δx and Δy in arcsec, which are added to its helioprojective longitude and
 latitude, a shift in the plane of the sky; the dialog shows the current offset, and 0, 0 takes it
 away. A raster window shifts with the other windows of its raster file, which share its slit. The
 mouse-over readout, the Point window, the links to the other data and every viewer follow at once:
@@ -449,12 +450,13 @@ position. On OBSID 4000005156's deconvolved SJI 2796, (+2, −1) turns the reado
 ``67.10" 65.43"`` to ``69.10" 64.43"``, and a click there that reached the Mg II k raster's step
 10, slit 300 reaches step 11, slit 294.
 
-- Only IRIS data can be shifted: a sunpy Map is refused with a message, so shift the IRIS data
-  against it instead.
-- Datasets made from a shifted one afterwards, by "Regrid on time", "Rebin…", line moments, red-blue
-  asymmetry, Doppler images or Mg II features, take its offset; shift them on their own, and alike,
-  after a later shift: a line ratio between maps shifted differently is refused as not on the same
-  grid. A line ratio shares its numerator's coordinates and shifts with it.
+- Only IRIS data can be shifted: a sunpy Map is not offered it, so shift the IRIS data against it
+  instead.
+- Datasets made from a shifted one afterwards, by "IRIS: regrid on time", "IRIS: rebin…", line
+  moments, red-blue asymmetry, Doppler images or Mg II features, take its offset; shift them on
+  their own, and alike, after a later shift: a line ratio between maps shifted differently is
+  refused as not on the same grid. A line ratio shares its numerator's coordinates and shifts with
+  it.
 - A region drawn on a quicklook's map or slit-jaw image keeps the outline it had in longitude and
   latitude, so draw it again after shifting the dataset it was drawn on.
 - The "Frame time" tooltip keeps the file's pointing. A saved session keeps the offset (see "Saving
@@ -479,9 +481,10 @@ velocity of a line: see :ref:`Line moments <glue_solar_users_guide_iris_line_mom
 :ref:`Red-blue asymmetry <glue_solar_users_guide_iris_red_blue>`.
 "IRIS: Doppler image…" maps its red wing less its blue wing at chosen velocities: see
 :ref:`Doppler images <glue_solar_users_guide_iris_doppler>`.
-"IRIS: Mg II features…" maps the line centres and emission peaks of Mg II k and h: see
+"IRIS: Mg II features… (Mg II)" maps the line centres and emission peaks of Mg II k and h: see
 :ref:`Mg II features <glue_solar_users_guide_iris_mg_features>`.
 "IRIS: line ratio diagnostic…" maps the electron density or the temperature from two lines' maps:
 see :ref:`Line moments <glue_solar_users_guide_iris_line_moments>`.
-"IRIS: detect UV bursts…" finds UV bursts in a Si IV raster window or a 1400 Å slit-jaw image: see
+"IRIS: detect UV bursts… (Si IV, SJI 1400)" finds UV bursts in a Si IV raster window or a 1400 Å
+slit-jaw image: see
 :ref:`UV bursts <glue_solar_users_guide_iris_bursts>`.

@@ -1,13 +1,13 @@
 """
-IRIS Level 2 support: a file reader for File → Open Data Set, the observation browser, 'Shift pointing…', an exporter
-of derived maps with their coordinates, and one of 1-D data, such as light curves, with their times.
+IRIS Level 2 support: a file reader for File → Open Data Set, the observation browser, 'IRIS: shift pointing…', an
+exporter of derived maps with their coordinates, and one of 1-D data, such as light curves, with their times.
 """
 
 import re
 from pathlib import Path
 
 import numpy as np
-from glue.config import data_exporter, data_factory, layer_action, layer_artist_maker, menubar_plugin, startup_action
+from glue.config import data_exporter, data_factory, layer_artist_maker, menubar_plugin, startup_action
 from glue.core import Subset
 from glue.core.data_exporters.astropy_table import data_to_astropy_table
 from glue.core.message import ExternallyDerivableComponentsChangedMessage
@@ -21,7 +21,7 @@ from astropy.time import Time
 from astropy.wcs.utils import celestial_frame_to_wcs
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
-from glue_solar.glue_patches import export_fits
+from glue_solar.glue_patches import export_fits, layer_action
 from glue_solar.quicklook import (
     _pick_sjis,
     _pick_windows,
@@ -186,10 +186,17 @@ def _ask_offset(data):
     return tuple(box.value() for box in boxes) if _accepted(dialog, form) else None
 
 
+def _check_iris(data):
+    """Raise why ``data`` has no IRIS coordinates to shift."""
+    if not isinstance(data.coords, _GlueWCS):
+        raise ValueError(f"{data.label} has no IRIS coordinates to shift: shift the IRIS data against it instead.")
+
+
 @layer_action(
-    "Shift pointing…",
+    "IRIS: shift pointing…",
     single=True,
     data=True,
+    check=_check_iris,
     tooltip="Offset this IRIS dataset's helioprojective longitude and latitude by a typed number of arcsec",
 )
 @messagebox_on_error("Could not shift the pointing")
@@ -199,8 +206,7 @@ def shift_pointing_iris(data, data_collection):
     its raster file, in place of any before (0, 0 removes it), and place everything in every viewer, the readouts, links
     and a quicklook's point and raster overlays again; glue shows why for data without IRIS coordinates.
     """
-    if not isinstance(data.coords, _GlueWCS):
-        raise ValueError(f"{data.label} has no IRIS coordinates to shift: shift the IRIS data against it instead.")
+    _check_iris(data)
     offset = _ask_offset(data)
     if offset is None:
         return

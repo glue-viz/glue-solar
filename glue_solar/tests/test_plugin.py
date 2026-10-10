@@ -36,6 +36,7 @@ from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.profile.state import ProfileViewerState
 from glue_qt.app.application import GlueApplication
+from glue_qt.app.layer_tree_widget import UserAction
 from glue_qt.config import keyboard_shortcut
 from glue_qt.viewers.histogram import HistogramViewer
 from glue_qt.viewers.image import ImageViewer
@@ -68,17 +69,26 @@ from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.fitters import GaussianConstantFitter
 from glue_solar.lines import rest_wavelength_iris
 from glue_solar.quicklook import QuicklookImageViewer, _role, _wavelengths
-from glue_solar.regrid import regrid_on_time
+from glue_solar.regrid import north_up_iris, rebin_iris, regrid_iris, regrid_on_time
 from glue_solar.sources.bursts import bursts_iris
+from glue_solar.sources.calibration import radiometric_calibration_iris, remove_dust_iris
 from glue_solar.sources.doppler import doppler_iris
-from glue_solar.sources.iris import help_iris, iris_quicklook, is_iris_fits, link_iris, quicklook_iris
+from glue_solar.sources.iris import (
+    help_iris,
+    iris_quicklook,
+    is_iris_fits,
+    link_iris,
+    quicklook_iris,
+    shift_pointing_iris,
+)
 from glue_solar.sources.line_ratio import line_ratio_iris
 from glue_solar.sources.loaders.iris import _GlueWCS, image_data, link_hpc, raster_data
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.mg_features import mg_features_iris
-from glue_solar.sources.moments import moments_iris
+from glue_solar.sources.moments import line_moments, mean_spectrum_iris, moments_iris
 from glue_solar.sources.red_blue import red_blue_iris
 from glue_solar.tests.helpers import count_tick_work, mouse, press, raster_point_on_sji
+from glue_solar.tests.test_lazy import RASTER, SJI
 from glue_solar.tests.test_quicklook import drifting_stack
 from glue_solar.tools import PathData, sky_length
 
@@ -90,18 +100,25 @@ def test_setup_registers_hooks():
     assert ("IRIS: link helioprojective coordinates", link_iris) in list(menubar_plugin)
     assert ("IRIS: quicklook…", quicklook_iris) in list(menubar_plugin)
     assert ("IRIS: user guide and issues", help_iris) in list(menubar_plugin)
-    assert ("Restore last session", glue_solar.restore_last_session) in list(menubar_plugin)
+    assert ("IRIS: restore last session", glue_solar.restore_last_session) in list(menubar_plugin)
     assert startup_action.members["iris_quicklook"] is iris_quicklook
-    assert ("IRIS: line moments…", moments_iris) in [(action.label, action.callback) for action in layer_action]
-    assert ("IRIS: red-blue asymmetry…", red_blue_iris) in [(action.label, action.callback) for action in layer_action]
-    assert ("IRIS: Doppler image…", doppler_iris) in [(action.label, action.callback) for action in layer_action]
-    assert ("Set rest wavelength…", rest_wavelength_iris) in [
-        (action.label, action.callback) for action in layer_action
-    ]
-    assert ("IRIS: Mg II features…", mg_features_iris) in [(action.label, action.callback) for action in layer_action]
-    assert ("IRIS: detect UV bursts…", bursts_iris) in [(action.label, action.callback) for action in layer_action]
-    assert ("IRIS: line ratio diagnostic…", line_ratio_iris) in [
-        (action.label, action.callback) for action in layer_action
+    # the data actions by data kind: the spectral analyses, the image actions, then the coordinates
+    ours = [(item.label, item.callback) for item in layer_action if item.callback.__module__[:10] == "glue_solar"]
+    assert ours == [
+        ("IRIS: set rest wavelength…", rest_wavelength_iris),
+        ("IRIS: radiometric calibration", radiometric_calibration_iris),
+        ("IRIS: subtract mean spectrum", mean_spectrum_iris),
+        ("IRIS: line moments…", moments_iris),
+        ("IRIS: Doppler image…", doppler_iris),
+        ("IRIS: red-blue asymmetry…", red_blue_iris),
+        ("IRIS: Mg II features… (Mg II)", mg_features_iris),
+        ("IRIS: detect UV bursts… (Si IV, SJI 1400)", bursts_iris),
+        ("IRIS: line ratio diagnostic…", line_ratio_iris),
+        ("IRIS: remove dust (SJI)", remove_dust_iris),
+        ("IRIS: north up (SJI, AIA, SOT)", north_up_iris),
+        ("IRIS: regrid on time (sit-and-stare, stack, SJI, AIA, SOT)", regrid_iris),
+        ("IRIS: rebin…", rebin_iris),
+        ("IRIS: shift pointing…", shift_pointing_iris),
     ]
     for tool in ("solar:coordinate", "solar:modes", "solar:view"):
         assert ImageViewer.tools.count(tool) == 1
@@ -126,6 +143,58 @@ def test_setup_registers_hooks():
     for label in ("FITS file", "sunpy Map"):  # both also match IRIS files; ours must win
         other = next(f for f in data_factory if f.label == label)
         assert iris.priority > (other.priority or 0)
+
+
+def test_data_actions_show_only_for_the_data_they_take(qtbot, irispy_test_files, iris_tree):
+    """Each data action is offered only where its own guard takes the data selected."""
+    windows = ["C II 1336", "Si IV 1403", "Mg II k 2796"]
+    sns = raster_data([find_irispy_test_file(irispy_test_files, RASTER)], windows)  # sit-and-stare
+    scans = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
+    [scanning] = raster_data(scans[:1], ["C II 1336"])
+    [stack] = raster_data(scans, ["Mg II k 2796"], stack=True)
+    sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
+    sot = image_data(next(p for p in irispy_test_files if "Gband" in p.name))
+    aia = image_data(next(iris_tree.rglob("aia_l2_*.fits")))
+    maps = line_moments(sns[1], 1402.77)
+    plain = Data(label="plain table", x=[1.0, 2.0])
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.extend([*sns, scanning, stack, sji, sot, aia, maps, plain])
+    group = app.data_collection.new_subset_group()
+    raster = [
+        "IRIS: set rest wavelength…",
+        "IRIS: radiometric calibration",
+        "IRIS: subtract mean spectrum",
+        "IRIS: line moments…",
+        "IRIS: Doppler image…",
+        "IRIS: red-blue asymmetry…",
+    ]
+    mg_ii, bursts = "IRIS: Mg II features… (Mg II)", "IRIS: detect UV bursts… (Si IV, SJI 1400)"
+    ratio, dust, north_up = "IRIS: line ratio diagnostic…", "IRIS: remove dust (SJI)", "IRIS: north up (SJI, AIA, SOT)"
+    regrid = "IRIS: regrid on time (sit-and-stare, stack, SJI, AIA, SOT)"
+    rebin, shift = "IRIS: rebin…", "IRIS: shift pointing…"
+    expected = [
+        ([plain], []),
+        ([sns[0]], [*raster, regrid, rebin, shift]),  # sit-and-stare C II
+        ([sns[1]], [*raster, bursts, regrid, rebin, shift]),  # Si IV
+        ([sns[2]], [*raster, mg_ii, regrid, rebin, shift]),  # Mg II k
+        ([scanning], [*raster, rebin, shift]),  # scanning C II: not on time
+        ([stack], [*raster, mg_ii, regrid, rebin, shift]),
+        ([sji], [bursts, dust, north_up, regrid, rebin, shift]),  # 1400
+        ([sot], [north_up, regrid, rebin, shift]),
+        ([aia], [north_up, regrid, rebin, shift]),
+        ([maps], [ratio, shift]),
+        ([group], []),
+        ([sns[0], sji], []),
+        ([maps, sns[1]], [ratio]),
+    ]
+    installed = UserAction._can_trigger is glue_patches.user_action_can_trigger
+    assert installed == glue_patches.needs_layer_action_applies_workaround()  # probes glue-qt's own registry
+    tree = app._layer_widget.ui.layerTree
+    labels = [action.label for action in layer_action if action.callback.__module__[:10] == "glue_solar"]
+    for layers, shown in expected:
+        tree.set_selected_layers(layers)
+        assert [a.text() for a in tree.actions() if a.text() in labels and a.isVisible()] == shown, layers[0].label
 
 
 _QT_5_IMPORT = """
@@ -2237,8 +2306,8 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
     state = viewer.state
     state.x_att = mg.world_component_ids[mg.ndim - 1]  # wavelength
     units = ProfileViewerState.x_display_unit.get_choices
-    assert units(state)[-1] == "km / s"  # after the lengths
-    assert UnitConverter().to_unit(mg, state.x_att, 2796.352, "km / s") == pytest.approx(0, abs=1e-9)  # Mg II k
+    assert units(state)[-1] == "km/s"  # after the lengths
+    assert UnitConverter().to_unit(mg, state.x_att, 2796.352, "km/s") == pytest.approx(0, abs=1e-9)  # Mg II k
     tool, button = viewer.toolbar.tools["solar:velocity"], viewer.toolbar.actions["solar:velocity"]
     assert tool.axis is None  # it starts off
     assert (button.isCheckable(), button.isChecked(), button.isEnabled()) == (True, False, True)
@@ -2251,6 +2320,7 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
 
     viewer.figure.canvas.draw()
     assert tool.axis.get_xlim() == pytest.approx(velocities([2795, 2798], 2796.352))
+    assert tool.axis.get_xlabel() == "Velocity from 2796.352 Å [km/s]"  # as the x unit is written
 
     def zero():
         """Where the top axis has its tick at 0 km/s, in Å."""
@@ -2265,24 +2335,24 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
     assert zero() == pytest.approx(2796.352, abs=1e-6)
     set_rest("2796.2")
     assert zero() == pytest.approx(2796.2, abs=1e-6)
-    state.x_display_unit = "km / s"  # the profile and its range from the rest wavelength, and no top axis
+    state.x_display_unit = "km/s"  # the profile and its range from the rest wavelength, and no top axis
     assert tool.axis is None
     assert [state.x_min, state.x_max] == pytest.approx(velocities([2795, 2798], 2796.2))
     assert viewer.layers[0].state.profile[0] == pytest.approx(velocities(_wavelengths(mg)[0], 2796.2))
-    set_rest("")  # back to Mg II k, still in km / s
-    assert state.x_display_unit == "km / s"
+    set_rest("")  # back to Mg II k, still in km/s
+    assert state.x_display_unit == "km/s"
     assert viewer.layers[0].state.profile[0] == pytest.approx(velocities(_wavelengths(mg)[0], 2796.352))
-    # 2832 has no line: no km / s or velocity axis until a rest wavelength is set, and none after, back in Å
+    # 2832 has no line: no km/s or velocity axis until a rest wavelength is set, and none after, back in Å
     state.reference_data = none
     state.x_att = none.world_component_ids[none.ndim - 1]
-    assert "km / s" not in units(state)
+    assert "km/s" not in units(state)
     assert not button.isEnabled()
     set_rest("2832.7")
-    assert units(state)[-1] == "km / s"
+    assert units(state)[-1] == "km/s"
     assert button.isEnabled()
-    state.x_display_unit = "km / s"
+    state.x_display_unit = "km/s"
     set_rest("")
-    assert "km / s" not in units(state)
+    assert "km/s" not in units(state)
     assert state.x_display_unit == "Angstrom"
     assert 2830 < state.x_min < state.x_max < 2835
 
@@ -2331,17 +2401,17 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     assert [table["y2"].meta[name].to_value(u.arcsec) for name in ("lon", "lat")] == pytest.approx(sky)
     assert table.meta == {"function": "maximum", **{key: str(raster.meta[key]) for key in ("OBSID", "STARTOBS")}}
     assert app.statusBar().currentMessage() == ""
-    # the spectrum, in km / s from Si IV 1402.77 Å, and the curve, one wavelength wide, is left out
+    # the spectrum, in km/s from Si IV 1402.77 Å, and the curve, one wavelength wide, is left out
     spectrum.visible = True
     state.x_att = raster.world_component_ids[2]
-    state.x_display_unit = "km / s"
+    state.x_display_unit = "km/s"
     state.function = "mean"
     table = saved()
     assert app.statusBar().currentMessage() == "Left out, without a profile: Curve"
     assert table.colnames == ["x1", "y1", "x2", "y2"]  # no times along the wavelength
     check(table, 1, whole)
     check(table, 2, spectrum)
-    assert table["x2"].unit == "km / s"
+    assert table["x2"].unit == "km/s"
     assert table["y2"].meta["pixel"] == {"Pixel Axis 0 [z]": 3, "Pixel Axis 1 [y]": 5}
     assert table.meta["function"] == "mean"
     state.normalize = True  # as drawn

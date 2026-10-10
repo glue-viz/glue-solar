@@ -37,6 +37,9 @@ from glue.viewers.matplotlib import viewer as matplotlib_viewer
 from glue.viewers.profile.state import ProfileLayerState, ProfileViewerState
 from glue.viewers.scatter import layer_artist as scatter_layer_artist
 from glue.viewers.scatter import viewer as scatter_viewer
+from glue_qt.app.layer_tree_widget import UserAction
+from glue_qt.config import LayerActionRegistry
+from glue_qt.config import layer_action as glue_layer_action
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
 from glue_qt.utils import colors
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
@@ -69,6 +72,7 @@ __all__ = [
     "load_link_with_units",
     "load_quantity",
     "find_combo_data",
+    "layer_action",
     "mpl_to_datetime64",
     "needs_axis_label_workaround",
     "needs_combo_match_workaround",
@@ -79,6 +83,7 @@ __all__ = [
     "needs_fits_export_dask_workaround",
     "needs_icon_cache_workaround",
     "needs_inverse_workaround",
+    "needs_layer_action_applies_workaround",
     "needs_link_restore_workaround",
     "needs_pixel_point_workaround",
     "needs_profile_restore_workaround",
@@ -93,6 +98,7 @@ __all__ = [
     "update_icons",
     "update_x_axislabel",
     "update_y_axislabel",
+    "user_action_can_trigger",
     "world2pixel_single_axis",
 ]
 
@@ -900,3 +906,58 @@ def needs_combo_match_workaround(find=_original_find_combo_data):
 
 if needs_combo_match_workaround():
     connect._find_combo_data = find_combo_data
+
+
+_original_can_trigger = UserAction._can_trigger
+_APPLIES = {}  # a layer action's callback: its ``applies``, where glue-qt's layer actions take none
+
+
+def user_action_can_trigger(self):
+    """
+    glue-qt's ``UserAction._can_trigger``, also false where the action's ``applies`` (`layer_action`) is.
+
+    glue-qt 0.4.2 shows a layer action by the kind of layer selected only, so each of glue-solar's showed on every
+    dataset and mostly ended in an error box. Retired by glue-qt's layer actions taking ``applies`` (upstream candidate,
+    ``layer-action-applies``).
+    """
+    if not _original_can_trigger(self):
+        return False
+    applies, layers = _APPLIES.get(self._callback), self.selected_layers()
+    return applies is None or applies(layers[0] if self._single else layers)
+
+
+def needs_layer_action_applies_workaround():
+    """Whether glue-qt's layer actions take no ``applies``."""
+    try:
+        LayerActionRegistry()("probe", applies=bool)
+    except TypeError:
+        return True
+    return False
+
+
+_needs_applies_workaround = needs_layer_action_applies_workaround()
+if _needs_applies_workaround:
+    UserAction._can_trigger = user_action_can_trigger
+
+
+def layer_action(label, check, **kwargs):
+    """
+    glue-qt's ``layer_action`` decorator, for an action glue shows only where ``check``, given the selected layer, or
+    the selected layers for an action not ``single``, raises nothing: where the action's own guard, ``check``, would not
+    refuse it.
+    """
+
+    def applies(selection):
+        try:
+            check(selection)
+        except Exception:  # noqa: BLE001 - the action would refuse it
+            return False
+        return True
+
+    def adder(func):
+        if _needs_applies_workaround:
+            _APPLIES[func] = applies
+            return glue_layer_action(label, **kwargs)(func)
+        return glue_layer_action(label, applies=applies, **kwargs)(func)
+
+    return adder

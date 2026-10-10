@@ -4,13 +4,13 @@ its scans, as a new dataset (D16).
 """
 
 import numpy as np
-from glue.config import layer_action
 from glue.core.component import Component
 from glue_qt.utils.decorators import messagebox_on_error
 from qtpy import QtWidgets
 
 import astropy.units as u
 
+from glue_solar.glue_patches import layer_action
 from glue_solar.lines import _wavelength
 from glue_solar.sources.moments import _accepted, _check, _dataset, _read, _rest_field, _start, _unit
 
@@ -146,6 +146,7 @@ def _failed(exc_info):
     "IRIS: Doppler image…",
     single=True,
     data=True,
+    check=_check,
     tooltip="Add red minus blue wing maps of a line at typed velocities in this raster window or stack",
 )
 @messagebox_on_error("Could not compute the Doppler image")

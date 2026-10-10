@@ -7,7 +7,7 @@ Wavelengths are NIST ASD vacuum wavelengths in Angstrom: the observed one where 
 """
 
 import numpy as np
-from glue.config import layer_action, viewer_tool
+from glue.config import viewer_tool
 from glue.core import Subset
 from glue.core.hub import HubListener
 from glue.core.message import DataUpdateMessage
@@ -22,6 +22,7 @@ from qtpy import QtWidgets
 
 import astropy.units as u
 
+from glue_solar.glue_patches import layer_action
 from glue_solar.quicklook import _spectral_axes, _wavelengths, _window
 
 __all__ = ["MAIN_LINES", "DopplerConverter", "LineTool", "VelocityTool", "rest_wavelength", "rest_wavelength_iris"]
@@ -166,19 +167,21 @@ def _doppler_rest(data, cid):
 
 class DopplerConverter(SimpleAstropyUnitConverter):
     """
-    glue's own unit converter, with 'km / s' too for the wavelength of data with a `rest_wavelength`: the optical
+    glue's own unit converter, with `VELOCITY` too for the wavelength of data with a `rest_wavelength`: the optical
     Doppler velocity from it, c (λ / rest - 1). glue-solar makes it glue's 'default' converter, so a Profile viewer
     offers it as an x unit, after the lengths; data without a rest wavelength get the lengths only.
     """
 
+    VELOCITY = "km/s"  # as glue-solar writes it elsewhere, not astropy's 'km / s'
+
     def equivalent_units(self, data, cid, units):
         units = list(super().equivalent_units(data, cid, units))
-        return units if _doppler_rest(data, cid) is None else [*units, "km / s"]
+        return units if _doppler_rest(data, cid) is None else [*units, self.VELOCITY]
 
     def to_unit(self, data, cid, values, original_units, target_units):
         try:
             return super().to_unit(data, cid, values, original_units, target_units)
-        except u.UnitConversionError:  # a wavelength to or from km / s
+        except u.UnitConversionError:  # a wavelength to or from km/s
             rest = _doppler_rest(data, cid)
             if rest is None:
                 raise
@@ -188,10 +191,10 @@ class DopplerConverter(SimpleAstropyUnitConverter):
 @viewer_tool
 class VelocityTool(Tool, HubListener):
     """
-    A top axis of the Doppler velocity, as the x unit 'km / s' gives it (`DopplerConverter`), on a Profile viewer
+    A top axis of the Doppler velocity, as the x unit 'km/s' gives it (`DopplerConverter`), on a Profile viewer
     whose x axis is the wavelength of data with a `rest_wavelength`, in a length unit. It follows the x range and unit
-    and glue's x label and tick sizes. 'Set rest wavelength…' moves it and, in every Profile viewer of the data, offers
-    'km / s' or not and redraws the profiles in it. The button, checked while it is on and greyed without a rest
+    and glue's x label and tick sizes. 'IRIS: set rest wavelength…' moves it and, in every Profile viewer of the data,
+    offers 'km/s' or not and redraws the profiles in it. The button, checked while it is on and greyed without a rest
     wavelength, switches the axis off and on; it starts off.
     """
 
@@ -233,8 +236,8 @@ class VelocityTool(Tool, HubListener):
         if state.x_att is None:
             return
         unit = state.x_display_unit
-        lost = unit == "km / s" and _doppler_rest(state.reference_data, state.x_att) is None
-        if lost:  # glue cannot convert the x range from km / s now
+        lost = unit == DopplerConverter.VELOCITY and _doppler_rest(state.reference_data, state.x_att) is None
+        if lost:  # glue cannot convert the x range from km/s now
             state._previous_x_att = None
         state._update_x_display_unit_choices()  # glue's own, which sets the data's unit
         if lost:
@@ -266,7 +269,7 @@ class VelocityTool(Tool, HubListener):
                 self.axis = axes.secondary_xaxis("top", functions=functions)
             else:
                 self.axis.set_functions(functions)
-            self.axis.set_xlabel(f"Velocity from {rest} Å [km / s]", size=state.x_axislabel_size)
+            self.axis.set_xlabel(f"Velocity from {rest} Å [{DopplerConverter.VELOCITY}]", size=state.x_axislabel_size)
             self.axis.tick_params(labelsize=state.x_ticklabel_size)
         axes.resizer.on_resize(None)  # also draws
 
@@ -279,10 +282,17 @@ def _wavelength(text):
         raise ValueError(f"'{text}' is not a wavelength in Angstrom, such as 1402.77.") from None
 
 
+def _check_wavelength(data):
+    """Raise why ``data`` has not one wavelength axis."""
+    if len(_spectral_axes(data)) != 1:
+        raise ValueError(f"{data.label} has no wavelength axis.")
+
+
 @layer_action(
-    "Set rest wavelength…",
+    "IRIS: set rest wavelength…",
     single=True,
     data=True,
+    check=_check_wavelength,
     tooltip="Set the rest wavelength of the line in this spectral window, which the line dialogs start from",
 )
 @messagebox_on_error("Could not set the rest wavelength")
@@ -292,8 +302,7 @@ def rest_wavelength_iris(data, data_collection):
     remove it for a blank one; the dialog starts at its `rest_wavelength`. glue shows why for data without one
     wavelength axis.
     """
-    if len(_spectral_axes(data)) != 1:
-        raise ValueError(f"{data.label} has no wavelength axis.")
+    _check_wavelength(data)
     choices = {f"{name} {wave}": wave for name, wave in _within(data)}
     rest = rest_wavelength(data)
     shown = next((text for text, wave in choices.items() if wave == rest), "" if rest is None else str(rest))

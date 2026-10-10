@@ -102,8 +102,8 @@ maps where each wavelength is brighter or fainter than the mean.
 
 The mean spectrum is computed once, a few raster steps at a time, and held as one spectrum; glue
 computes the difference only where it is shown. Glue's arithmetic attribute editor makes other
-comparisons from the two attributes, such as the values over the mean spectrum. A dataset that has
-them already, or other data than a raster window or stack, is refused. In glue's terminal,
+comparisons from the two attributes, such as the values over the mean spectrum. The entry is
+offered only for a raster window or stack that does not have them yet. In glue's terminal,
 ``glue_solar.sources.moments.subtract_mean_spectrum(data)`` adds them and returns the difference's
 attribute.
 
@@ -174,12 +174,12 @@ the data's own (``Angstrom`` for IRIS wavelengths), so leave it unchanged for th
 
 **Doppler velocity.** With ``Wavelength`` as the x axis of a raster window that has a
 :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`, the Profile's "x unit" lists
-``km / s`` after the lengths: the optical Doppler velocity from the rest wavelength, (λ / rest - 1) c,
+``km/s`` after the lengths: the optical Doppler velocity from the rest wavelength, (λ / rest - 1) c,
 so Mg II k 2796.352 Å is at 0 km/s in ``Mg II k 2796``. A window without one, such as ``2832``, has no
-``km / s``. "Velocity axis" in the Profile's toolbar adds a top axis in km/s from the rest wavelength
+``km/s``. "Velocity axis" in the Profile's toolbar adds a top axis in km/s from the rest wavelength
 while the x unit is a length, such as Å, and hides it again; it starts hidden, and the button is
-checked while it shows and greyed for a window without a rest wavelength. Both follow "Set rest
-wavelength…": the top axis moves, and a Profile in ``km / s`` redraws its spectra over the same
+checked while it shows and greyed for a window without a rest wavelength. Both follow "IRIS: set rest
+wavelength…": the top axis moves, and a Profile in ``km/s`` redraws its spectra over the same
 velocities, or goes back to Å when the window is left without a rest wavelength. A script that sets
 ``meta['rest_wavelength']`` calls ``data.broadcast("meta")`` for open Profiles to follow. The
 velocities are on the uncorrected Level 2 wavelength scale (see below), and Navigate and Collapse need
@@ -200,7 +200,7 @@ constant, and ``amplitude_1``, ``mean_1`` and ``stddev_1``, the Gaussian's, then
 within 0.5 Å of a main IRIS line with the x unit ``Angstrom``, its velocity from that line,
 (centre / rest - 1) c; Ni I is not one. Add the offset,
 the centre minus the measured line's rest wavelength, to the rest wavelength of a line on the same
-detector and set that with "Set rest wavelength…" on its window, so both the
+detector and set that with "IRIS: set rest wavelength…" on its window, so both the
 :ref:`line moments <glue_solar_users_guide_iris_line_moments>` and red-blue asymmetry start from it
 (see :ref:`Rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`), or type it as the line
 moments' centre: on OBSID 3824262996, whose mean O I fits at 1355.6172 Å, +4.30 km/s, Si IV 1402.77 Å becomes
@@ -215,14 +215,14 @@ exposure.
 profiles of its visible layers, as the viewer draws them, to one ECSV table, which
 ``astropy.table.Table.read`` reads back. The ``i``-th layer saved, counted from 1 up the layer list
 (the order the layers are drawn, bottom first), gives two columns: ``x<i>``, in the "x unit",
-``km / s`` included, and ``y<i>``, the viewer's function ("Maximum", "Mean", …) of its attribute in
+``km/s`` included, and ``y<i>``, the viewer's function ("Maximum", "Mean", …) of its attribute in
 the "y unit", or from 0 to 1 with "normalize" ticked. ``x<i>`` is described by the x axis's name and
 ``y<i>`` by the layer's label, and the meta of ``y<i>`` give its attribute and, for a "Pixel" subset,
 the pixel it selects along each axis it fixes and the helioprojective ``lon`` and ``lat`` there, in
 arcsec, at the first sample along x. With the exposures of a sit-and-stare raster, the scans of a
 stack or the frames of a slit-jaw image as the x axis, ``time<i>`` gives the UTC time of each sample
 from the ``Time`` component, read back as an ``astropy.time.Time`` column: at the pixel of a "Pixel"
-subset or of "Light curve at the point", else at the first raster step and slit pixel. The table's
+subset or of "Light curve of this window", else at the first raster step and slit pixel. The table's
 meta give the function and the data's ``OBSID`` and ``STARTOBS``. A shorter profile is padded with
 empty values. Layers without a profile, such as one still being computed, or a subset one sample wide
 along x, which glue does not draw, are left out, and the main window's status bar names them. On the

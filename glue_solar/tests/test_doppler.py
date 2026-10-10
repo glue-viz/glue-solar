@@ -22,6 +22,7 @@ from glue_solar.sources import doppler
 from glue_solar.sources.doppler import doppler_image
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
+from glue_solar.tests.helpers import refused
 from glue_solar.tests.test_lazy import SJI, int16_copy, int16_raster_copy
 from glue_solar.tests.test_quicklook import SCAN
 
@@ -234,7 +235,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
     opened = answer(monkeypatch, "1402.77")
     for data in (sji, plain):
         tree.ui.layerTree.set_selected_layers([data])
-        action.trigger()
+        refused(action)
     assert opened == []  # refused before asking
     tree.ui.layerTree.set_selected_layers([raster])
     for rest, velocities in (

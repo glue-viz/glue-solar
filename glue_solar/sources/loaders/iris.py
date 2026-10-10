@@ -115,8 +115,8 @@ class _GlueWCS(BaseWCSWrapper):
     # WCS says it has celestial axes; this wrapper has none of them, so send glue down its APE-14 path.
     # Always on, and harmless once glue checks for an astropy WCS instead (glue-viz/glue#2595, draft).
     has_celestial = False
-    # Arcsec added to the wrapped WCS's helioprojective longitude and latitude ('Shift pointing…'): a shift in the
-    # plane of the sky, small enough to add to both. Set it whole, never in place: the memo keys on it.
+    # Arcsec added to the wrapped WCS's helioprojective longitude and latitude ('IRIS: shift pointing…'): a shift in
+    # the plane of the sky, small enough to add to both. Set it whole, never in place: the memo keys on it.
     pointing_offset = (0.0, 0.0)
 
     def __init__(self, wcs):

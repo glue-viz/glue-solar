@@ -6,7 +6,7 @@ Mg II features
 
 To map the line centres and emission peaks of Mg II k and h, select a raster window, of one scan or
 a stack of its scans, that covers them, such as "Mg II k 2796", in the data collection and choose
-"IRIS: Mg II features…" from its right-click menu. Type the Doppler velocities searched, from and
+"IRIS: Mg II features… (Mg II)" from its right-click menu. Type the Doppler velocities searched, from and
 to, in km/s from each line's rest wavelength, -40 to 40 km/s unless changed, and tick the lines
 measured, at first those the window covers: k (2796.35 Å) and h (2803.53 Å), irispy's vacuum rest
 wavelengths, so no rest wavelength is typed. irispy's ``calculate_mg_features``, after Pereira et
@@ -44,7 +44,7 @@ The new dataset's ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``,
 glue's terminal too. :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`
 saves the maps with their coordinates.
 
-Glue says why, and adds nothing, for slit-jaw images and other data, for a window that covers
-neither line over -40 to 40 km/s, before asking, for velocities that do not increase or that the
-window does not cover for any line ticked, and for irispy's own errors, such as too few wavelengths
+The entry is offered only for a raster window or stack that covers Mg II k or h over -40 to 40 km/s.
+Glue says why, and adds nothing, for velocities that do not increase or that the window does not
+cover for any line ticked, and for irispy's own errors, such as too few wavelengths
 within the velocities searched. With no line ticked, OK adds nothing.

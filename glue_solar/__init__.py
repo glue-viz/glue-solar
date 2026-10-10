@@ -8,7 +8,7 @@ import qtpy
 from glue.config import fit_plugin, menubar_plugin, session_patch, stretches, unit_converter
 from glue.core.state import GlueSerializer
 from glue.logger import logger
-from glue_qt.config import keyboard_shortcut
+from glue_qt.config import keyboard_shortcut, layer_action
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.image.profile_viewer_tool import ProfileViewerTool
 from glue_qt.viewers.profile import ProfileViewer
@@ -33,6 +33,26 @@ from glue_solar.sources import bursts, calibration, doppler, iris, line_ratio, m
 from glue_solar.sources.maps import _add_colormap
 
 from glue_solar.version import version as __version__
+
+# glue-solar's data actions as the data collection's right-click menu lists them, after any others, by data kind: the
+# spectral analyses, the image actions, then the coordinates; glue lists them as they register, in import order
+_DATA_ACTIONS = (
+    lines.rest_wavelength_iris,
+    calibration.radiometric_calibration_iris,
+    moments.mean_spectrum_iris,
+    moments.moments_iris,
+    doppler.doppler_iris,
+    red_blue.red_blue_iris,
+    mg_features.mg_features_iris,
+    bursts.bursts_iris,
+    line_ratio.line_ratio_iris,
+    calibration.remove_dust_iris,
+    regrid.north_up_iris,
+    regrid.regrid_iris,
+    regrid.rebin_iris,
+    iris.shift_pointing_iris,
+)
+layer_action.members.sort(key=lambda item: _DATA_ACTIONS.index(item.callback) if item.callback in _DATA_ACTIONS else -1)
 
 __all__ = [
     "setup",
@@ -108,7 +128,7 @@ def _close_event(self, event):
     _glue_close_event(self, event)
 
 
-@menubar_plugin("Restore last session")
+@menubar_plugin("IRIS: restore last session")
 def restore_last_session(session, data_collection):
     """
     Open the session glue-solar kept as glue's window last closed with data, as File → Open Session opens one.

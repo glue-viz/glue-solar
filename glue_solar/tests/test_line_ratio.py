@@ -23,6 +23,7 @@ from glue_solar.sources.line_ratio import DENSITIES, O_IV, TEMPERATURES
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.moments import line_moments
+from glue_solar.tests.helpers import refused
 from glue_solar.tests.test_quicklook import SCAN
 
 ACTION = "IRIS: line ratio diagnostic…"
@@ -165,7 +166,8 @@ def test_refusals_and_errors_show_why(app, monkeypatch, tmp_path, irispy_test_fi
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     opened = answer(monkeypatch, table)
-    run(app, [raster])
+    app._layer_widget.ui.layerTree.set_selected_layers([raster])
+    refused(app._layer_widget._actions[ACTION])
     assert opened == []  # refused before asking
     for other in (small, plain, shifted, counts):
         run(app, [maps, other])

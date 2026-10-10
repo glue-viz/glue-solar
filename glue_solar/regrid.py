@@ -1,6 +1,7 @@
 """
-'Regrid on time': an IRIS dataset resampled at a regular time step, as a new dataset; 'North up': a slit-jaw image
-shown north up, on a new dataset's helioprojective grid; and 'Rebin…': an IRIS dataset binned, as a new dataset.
+'IRIS: regrid on time': an IRIS dataset resampled at a regular time step, as a new dataset; 'IRIS: north up': a
+slit-jaw image shown north up, on a new dataset's helioprojective grid; and 'IRIS: rebin…': an IRIS dataset binned, as
+a new dataset.
 """
 
 import gc
@@ -8,7 +9,6 @@ import math
 import warnings
 
 import numpy as np
-from glue.config import layer_action
 from glue.core import Data
 from glue.core.link_helpers import LinkSame
 from glue.utils import unbroadcast
@@ -20,6 +20,7 @@ from scipy.interpolate import make_interp_spline
 from astropy.wcs import WCS
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper, SlicedLowLevelWCS
 
+from glue_solar.glue_patches import layer_action
 from glue_solar.quicklook import _cadence, _placeable, _role, _spectral_axes, _time_axis, _timed, _times, nearest
 from glue_solar.sources.loaders.iris import (
     _SJI_POINTING,
@@ -79,6 +80,17 @@ def _gather(values, index, gap):
     return np.where(_per_frame(index < 0, taken.shape), gap, taken)
 
 
+def _check_timed(data):
+    """Raise why ``data`` cannot be regridded on time (`regrid_on_time`)."""
+    if not _timed(data) or _time_axis(data) is None:  # which is the first axis of the others
+        if _role(data) == "raster":
+            raise ValueError(
+                f"{data.label} cannot be regridded on time: the steps of a scanning raster are places on the Sun, not "
+                "times. Its scans can be, stacked with 'Stack sequential raster scans' in the observation browser."
+            )
+        raise ValueError(f"{data.label} is not an IRIS sit-and-stare raster, slit-jaw image or stack of scans.")
+
+
 def regrid_on_time(data):
     """
     A sit-and-stare raster, slit-jaw image, aligned AIA cutout or stack of raster scans resampled along its exposures,
@@ -98,12 +110,7 @@ def regrid_on_time(data):
         For a scanning raster, whose steps are places on the Sun, and for other data than an IRIS sit-and-stare
         raster, slit-jaw image, AIA cutout or stack, or one with fewer than two different times.
     """
-    if not _timed(data) or _time_axis(data) is None:  # which is the first axis of the others
-        if _role(data) == "raster":
-            raise ValueError(f"{data.label} cannot be regridded on time: the steps of a scanning raster are places "
-                             "on the Sun, not times. Its scans can be, stacked with 'Stack sequential raster scans' in "
-                             "the observation browser.")
-        raise ValueError(f"{data.label} is not an IRIS sit-and-stare raster, slit-jaw image or stack of scans.")
+    _check_timed(data)
     times = _times(data, data.shape[1] // 2)  # a stack's scans by their middle step, as the quicklook times them
     step = _cadence(times)
     if not step:
@@ -139,8 +146,13 @@ def regrid_on_time(data):
     return regridded
 
 
-@layer_action("Regrid on time", single=True, data=True,
-              tooltip="Add the dataset resampled at the median step between its times, with NaN where none is near")
+@layer_action(
+    "IRIS: regrid on time (sit-and-stare, stack, SJI, AIA, SOT)",
+    single=True,
+    data=True,
+    check=_check_timed,
+    tooltip="Add the dataset resampled at the median step between its times, with NaN where none is near",
+)
 @messagebox_on_error("Could not regrid on time")
 def regrid_iris(data, data_collection):
     """
@@ -180,6 +192,12 @@ class _NorthUp(BaseWCSWrapper):
         return x, y, np.broadcast_to(t, time.shape)
 
 
+def _check_pointed(data):
+    """Raise why ``data`` has no `north_up` grid."""
+    if data.ndim != 3 or not _placeable(data) or "CDELT1" not in data.meta:
+        raise ValueError(f"{data.label} is not a slit-jaw image, AIA cutout or SOT cube, whose frames have a pointing.")
+
+
 def north_up(data):
     """
     A north-up helioprojective grid for ``data``, a slit-jaw image or aligned AIA cutout, as a new dataset
@@ -194,8 +212,7 @@ def north_up(data):
         For data without a helioprojective longitude and latitude and a time for each frame, such as a raster, or
         without a pixel scale, such as a north-up grid.
     """
-    if data.ndim != 3 or not _placeable(data) or "CDELT1" not in data.meta:
-        raise ValueError(f"{data.label} is not a slit-jaw image, AIA cutout or SOT cube, whose frames have a pointing.")
+    _check_pointed(data)
     nt, ny, nx = data.shape
     # the corners of every frame: its edges are great circles, which a gnomonic projection keeps straight
     lon, lat, _ = data.coords.pixel_to_world_values(*np.meshgrid([-0.5, nx - 0.5], [-0.5, ny - 0.5], np.arange(nt)))
@@ -217,9 +234,10 @@ def north_up(data):
 
 
 @layer_action(
-    "North up",
+    "IRIS: north up (SJI, AIA, SOT)",
     single=True,
     data=True,
+    check=_check_pointed,
     tooltip="Show this slit-jaw image, AIA cutout or SOT cube north up, in a new Image viewer",
 )
 @messagebox_on_error("Could not show north up")
@@ -303,7 +321,7 @@ def rebin(data, bins):
         wcs = _Broadcast(ResampledLowLevelWCS(SlicedLowLevelWCS(data.coords._wcs, covered), bins[::-1]))
     meta = {key: value for key, value in data.meta.items() if key not in _SJI_POINTING}
     meta["rebinned"] = bins
-    if "time_step" in meta:  # 'Regrid on time': along the first axis
+    if "time_step" in meta:  # 'IRIS: regrid on time': along the first axis
         meta["time_step"] *= bins[0]
     rebinned = _dataset(
         wcs,
@@ -351,9 +369,10 @@ def _failed(exc_info):
 
 
 @layer_action(
-    "Rebin…",
+    "IRIS: rebin…",
     single=True,
     data=True,
+    check=_check,
     tooltip="Add the dataset binned: the mean of so many pixels along each axis, missing data left out",
 )
 @messagebox_on_error("Could not rebin")

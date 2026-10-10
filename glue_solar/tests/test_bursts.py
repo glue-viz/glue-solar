@@ -21,10 +21,11 @@ from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
 from glue_solar.sources.calibration import remove_dust
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
+from glue_solar.tests.helpers import refused
 from glue_solar.tests.test_lazy import SJI
 from glue_solar.tests.test_quicklook import SCAN
 
-ACTION = "IRIS: detect UV bursts…"
+ACTION = "IRIS: detect UV bursts… (Si IV, SJI 1400)"
 # irispy's cutouts of 4000005156's Si IV 1403 and 4000255147's SJI 1400, stored as int16: lazy in glue
 SI_IV = "iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits"
 SJI_1400 = "iris_l2_20130902_163935_4000255147_SJI_1400_t000.fits"
@@ -126,7 +127,7 @@ def test_a_raster_window_gives_irispys_labels_and_events_linked_and_no_viewer(
     assert (labels.meta["bursts_velocity_range"], labels.meta["bursts_median_factor"]) == (30.0, None)
     direct, events = find_si_iv_bursts(cube, threshold=80, velocity_range=30 * u.km / u.s, median_factor=None)
     assert_irispys(labels, table, direct, events)
-    # 'Shift pointing…' moves the table's coordinates as the map's
+    # 'IRIS: shift pointing…' moves the table's coordinates as the map's
     raster.coords.pointing_offset = (5.0, -3.0)
     shifted = si_iv_bursts(raster, 80, 30.0, None)[1]
     np.testing.assert_allclose(shifted["coordinate.Tx"], table["coordinate.Tx"] + 5, rtol=0, atol=1e-9)
@@ -244,7 +245,7 @@ def test_refusals_and_errors_show_why(app, monkeypatch, irispy_test_files):
     opened = answer(monkeypatch)
     for data in (c_ii, sji, plain):
         tree.ui.layerTree.set_selected_layers([data])
-        action.trigger()
+        refused(action)
     assert opened == []  # refused before asking
     for typed in ({"threshold": "Si IV"}, {"velocity_range": 0.1}):
         answer(monkeypatch, **typed)

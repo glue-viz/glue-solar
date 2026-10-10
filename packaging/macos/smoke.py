@@ -33,7 +33,7 @@ def check(app):
         entries = {action.text() for action in app.findChildren(QtGui.QAction)}
         assert qtpy.API_NAME == "PyQt6", qtpy.API_NAME
         assert "glue_solar" in list_loaded_plugins(), list_loaded_plugins()
-        assert {"IRIS: browse observations…", "IRIS: quicklook…"} <= entries, entries
+        assert {"IRIS: browse observations…", "IRIS: quicklook…", "IRIS: restore last session"} <= entries, entries
         assert app.has_terminal()
         began = time.perf_counter()
         app.add_datasets(load_data_files(sys.argv[1:]))
