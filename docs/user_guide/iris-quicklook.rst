@@ -254,13 +254,13 @@ both in the point's scan. Like the light curve, each is the mean, NaN left out, 
 or band the map shows, against glue's "Pixel Axis" of the step or the slit, and a new subset, "Row"
 or "Column", that follows the point, the scan and the band and is shown and stopped as the light
 curve is; a Profile viewer with another x axis that gets it draws a flat line at its one value, and
-one with wavelength on x cannot draw it with a band wider than one pixel: hide or remove it there. On
-the Si IV 1394 and 1403 windows of OBSID
-4000005156, a stack of two scans of 64 steps by 771 slit pixels, and on its first scan alone, the
-row and the column equal ``cube[scan, :, y, k]`` and ``cube[scan, x, :, k]`` exactly after each
-click, scan and wavelength step, and numpy's ``nanmean`` over a band to float32 precision; a click
-takes 0.25 s with both open, 0.21 s with neither. Panels showing wavelength do not offer them: the
-spectrum panel is the spectrogram's row, and the map's column its column.
+one with wavelength on x cannot draw it with a band wider than one pixel: hide or remove it there.
+On the Si IV 1394 and 1403 windows of OBSID 4000005156, a stack of two scans of 64 steps by 771 slit
+pixels, and on its first scan alone, the row and the column equal ``cube[scan, :, y, k]`` and
+``cube[scan, x, :, k]`` exactly after each click, scan and wavelength step, and numpy's ``nanmean``
+over a band to float32 precision; a click takes 0.25 s with both open, 0.21 s with neither. Panels
+showing wavelength do not offer them: the spectrum panel is the spectrogram's row, and the map's
+column its column.
 
 A slit-jaw image needs no entry for its rows and columns: in an Image viewer of it showing y against
 time ("Pixel Axis 0 [z]", the frame, on x), a click with the Pixel tool picks a frame and a row, and
