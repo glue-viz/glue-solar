@@ -15,6 +15,8 @@ The quicklook is a CRISPEX-style set of viewers for one observation, in a new ta
   (``…-r00003``) and the quicklook shows the first; to stack the scans, use the browser;
 - from glue's Terminal, with ``glue_solar.quicklook.quicklook(application, datasets)``.
 
+Tabs can be moved or closed while a quicklook opens; closing its tab stops it.
+
 For those used to CRISPEX:
 
 .. list-table::
