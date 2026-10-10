@@ -1296,7 +1296,7 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 ### SST1. An IRIS quicklook beside an SST cube crashes glue: wcslib is called on the SST cube's WCS from several threads, outside `WCS_LOCK`
 
 - [x] Re-verified (2026-10-10: 4 of 4 runs crashed again)
-- [ ] Fixed in glue-solar (`wp13-l-sst-wcs-lock`)
+- [x] Fixed in glue-solar (#226, 2026-10-10)
 
 - **Cost:** 8 of 8 unprotected runs crashed, with SIGSEGV or SIGABRT, and the session was lost.
   - Most crashed while the quicklook opened; one crashed on the first SST step or drag after it.
@@ -1325,7 +1325,7 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 ### SST3. An SST region shown on an IRIS quicklook costs minutes per action, once SST1 is locked
 
 - [x] Re-verified (2026-10-10; cause corrected)
-- [ ] Fixed (`wp13-l-sst-link-scope`)
+- [x] Fixed (#226, 2026-10-10: data outside the IRIS observations are linked only on request, D64)
 
 - **Cost:** on 4846 beside 4000255147 (9 windows), against the quicklook alone:
 
@@ -1341,6 +1341,9 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
   - The verification corrected the mechanism. glue's FITS reader does not load CWDIS3 (`has_distortion` is False), so the cost is wcslib's -TAB inverse, not a distortion iteration.
   - Inverse cost: 975 µs per point inside the cube's footprint and 7.9 µs outside, where the result is NaN. The forward transform costs 0.09 µs per point.
   - The surveyed pair (a 2013 IRIS field and a 2023 SST field) never overlaps, so it measured the cheap case. Co-pointed data (obs171 with IRIS 3660258923, the real use) costs about 100× more per covered pixel, about a minute for a half-covered SJI frame.
+- **#226's measurements correct the co-pointed case.** Through glue, a co-pointed SST WCS costs about what a non-overlapping one does: an SJI step took 2.05 s against 1.84 s.
+  - glue inverts the SST WCS at its wavelength and time CRVAL, which lies outside the -TAB table, so every IRIS pixel takes the 7.9 µs path and gets NaN.
+  - So an SST region selects no IRIS pixels even when linked: 0 of 161,796 SJI pixels got a position. D67 gives the fix to `wp13-solarnet-tab-wcs`.
 - **Fix:** R2's footprint cull helps only where the region does not overlap. A faster inversion is ruled out (R8, D54). That leaves glue-solar's link scope: link non-IRIS data only on request ('IRIS: link helioprojective coordinates'), or keep foreign subsets off the quicklook's panels. The user chooses.
 
 ### SST4. The Profile button on a large cube reads the whole file, freezes the main thread for about 3/4 of the wait, and adds the file to RSS
