@@ -10,6 +10,7 @@ from glue.core.state import GlueSerializer
 from glue.logger import logger
 from glue_qt.config import keyboard_shortcut
 from glue_qt.viewers.image import ImageViewer
+from glue_qt.viewers.image.profile_viewer_tool import ProfileViewerTool
 from glue_qt.viewers.profile import ProfileViewer
 from qtpy import QtWidgets
 
@@ -138,7 +139,7 @@ def setup():
         if f"gamma_{gamma}" not in stretches.members:
             stretch = type("GammaStretch", (PowerStretch,), {"__init__": partialmethod(PowerStretch.__init__, gamma)})
             stretches.add(f"gamma_{gamma}", stretch, display=f"Gamma {gamma}")
-    # The mouse modes and the display tools in menus of their own, so that the toolbar fits a viewer 700 px wide
+    # The mouse modes and the display tools in menus of their own, to keep the toolbar short
     menus = {
         tools.ModesTool: [tools.MeasureTool, tools.PathTool, tools.PathCrosshairTool, tools.SlopeTool],
         tools.ViewTool: [
@@ -154,14 +155,23 @@ def setup():
     # glue-qt with its own readout (glue-viz/glue-qt#74, draft) does not need ours
     if not hasattr(ImageViewer, "cursor_status"):
         menus[tools.ViewTool].append(tools.CursorReadoutTool)
-    for tool in (tools.FollowLockTool, tools.ModesTool, tools.CoordinateTool, tools.ViewTool):
-        if tool.tool_id not in ImageViewer.tools:
-            ImageViewer.tools.append(tool.tool_id)
+    # Right after glue's Home, Pan and Zoom, so that a narrow viewer moves glue's region tools, Pixel, Contrast/Bias,
+    # the Profile viewer button and Slice Extraction behind the toolbar's » button first
+    ours = [tool.tool_id for tool in (tools.FollowLockTool, tools.ModesTool, tools.CoordinateTool, tools.ViewTool)]
+    ImageViewer.tools[:] = ours + [tool for tool in ImageViewer.tools if tool not in ours]
+    # glue-qt 0.4.2's Profile viewer button has neither text nor tooltip
+    if ProfileViewerTool.tool_tip is None:
+        ProfileViewerTool.tool_tip = "Open a Profile viewer of this viewer's data along a slider's axis"
+    from glue.plugins.tools import python_export  # noqa: F401, registers glue's "save:python", as its plugin does
+
     for viewer, tool in ((ImageViewer, tools.SaveSequenceTool), (ProfileViewer, tools.SaveProfileTool)):
         if tool.tool_id not in viewer.subtools["save"]:
             # a copy, as glue makes for its own entry: the Matplotlib viewers share the list
             viewer.subtools = deepcopy(viewer.subtools)
-            viewer.subtools["save"].append(tool.tool_id)
+            # after glue's own, its Python script too, which glue's plugin adds after ours where it loads later, and
+            # glue-qt then lists once
+            save = viewer.subtools["save"]
+            save += [tool_id for tool_id in ("save:python", tool.tool_id) if tool_id not in save]
     for menu, entries in menus.items():
         ImageViewer.subtools[menu.tool_id] = [tool.tool_id for tool in entries]
     for tool in (lines.LineTool, lines.VelocityTool):

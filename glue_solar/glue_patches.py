@@ -40,6 +40,7 @@ from glue.viewers.scatter import viewer as scatter_viewer
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
 from glue_qt.utils import colors
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
+from glue_qt.viewers.common.toolbar import BasicToolbar
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.matplotlib.widget import MplCanvas
 from matplotlib import colormaps, dates, rcParams
@@ -57,6 +58,7 @@ from astropy.wcs import WCS
 from sunpy.visualization.colormaps import cmlist
 
 __all__ = [
+    "add_tool",
     "aggregate_slice_init",
     "apply_subset_state",
     "canvas_init",
@@ -756,21 +758,28 @@ ImageViewer.closeEvent = close_event
 _original_canvas_init = MplCanvas.__init__
 
 
+# matplotlib's key bindings that `canvas_init` drops, by their ``keymap.*`` settings
+_DROPPED_KEYMAPS = ("fullscreen", "save", "grid", "grid_minor", "yscale", "xscale", "pan", "zoom")
+
+
 def _matplotlib_keys(event):
-    """matplotlib's own key bindings, but for full screen and save, F and S alone or with Ctrl by default."""
-    if event.key not in rcParams["keymap.fullscreen"] + rcParams["keymap.save"]:
+    """matplotlib's own key bindings, but for those of `_DROPPED_KEYMAPS`."""
+    if event.key not in [key for name in _DROPPED_KEYMAPS for key in rcParams[f"keymap.{name}"]]:
         key_press_handler(event)
 
 
 def canvas_init(self, *args, **kwargs):
     """
     glue-qt's ``MplCanvas.__init__``, leaving F and S over a viewer to glue-solar's frame and wavelength keys
-    (`glue_solar.tools.KEYS`), which glue-qt gives them whatever the modifiers.
+    (`glue_solar.tools.KEYS`), which glue-qt gives them whatever the modifiers, and dropping matplotlib's grid, log
+    scale, pan and zoom keys.
 
     glue-qt 0.4.2 gives each canvas a matplotlib figure manager, which connects matplotlib's own key bindings: F shows
-    the manager's empty window full screen and S opens matplotlib's save dialog. The others, such as G for the grid,
-    stay. Each canvas probes for the manager's bindings, so this changes nothing once glue-qt connects none. Retired
-    by glue-qt dropping matplotlib's bindings from its canvases (report candidate).
+    the manager's empty window full screen, S opens matplotlib's save dialog, G and Shift+G raise from WCSAxes, L, K
+    and Shift+L set a log axis behind glue's options, and P and O switch on matplotlib's own pan and zoom beside
+    glue's mouse mode. The others, such as Home, stay. Each canvas probes for the manager's bindings, so this changes
+    nothing once glue-qt connects none. Retired by glue-qt dropping matplotlib's bindings from its canvases (report
+    candidate).
     """
     _original_canvas_init(self, *args, **kwargs)
     manager = getattr(self, "manager", None)
@@ -780,6 +789,29 @@ def canvas_init(self, *args, **kwargs):
 
 
 MplCanvas.__init__ = canvas_init
+
+
+_original_add_tool = BasicToolbar.add_tool
+
+
+def add_tool(self, tool):
+    """
+    glue-qt's ``BasicToolbar.add_tool``, with a menu tool's tooltip on its button and its entries' tooltips shown.
+
+    glue-qt 0.4.2 sets a menu tool's tooltip, such as the Save menu's, on the action that holds its button, which
+    shows none, and leaves its menu's tooltips hidden, so the tooltips of its entries never show either. Each menu
+    probes for its button's tooltip, so this changes nothing once glue-qt sets one. Retired by a glue-qt fix (report
+    candidate).
+    """
+    action = _original_add_tool(self, tool)
+    button = self.widgetForAction(action)
+    if isinstance(button, QtWidgets.QToolButton) and button.menu() is not None and not button.toolTip():
+        button.setToolTip(action.toolTip())
+        button.menu().setToolTipsVisible(True)
+    return action
+
+
+BasicToolbar.add_tool = add_tool
 
 
 _original_update_icons = colors.QColormapCombo._update_icons

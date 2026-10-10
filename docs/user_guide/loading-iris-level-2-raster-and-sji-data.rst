@@ -164,14 +164,17 @@ step or exposure; on a stack it stays on the scan that was displayed when you cl
 swap the axes of a viewer of that dataset, for example turning the raster map into wavelength
 against slit, the viewer's new step slider moves to the point. Wavelength sliders are never moved.
 The "Coordinate" menu (the link icon) in the Image Viewer toolbar has "Time master", which records
-the displayed dataset as the time reference of its observation (same OBSID and STARTOBS), "Clear
-point", "Go to UTC…", which moves the time master, "Loop…" for the frame, exposure, step or scan slider,
-"Raster overlays", which shows or hides the raster's steps on every viewer of the observation,
-"Light curve at the point", which opens the point's light curve over the map's wavelength or band,
-"Light curves at this point (windows, SJI)", which plots each raster window and slit-jaw image at
-the point against time, and "Set blink partner here", "Blink" and "Blink interval", which alternate the
-viewer between two positions at the interval chosen (see :ref:`The quicklook
-<glue_solar_users_guide_iris_quicklook>`). The Pixel tool stays active after each entry.
+the displayed dataset as the time reference of its observation (same OBSID and STARTOBS), "Go to
+UTC…", which moves the time master, "Loop…" for the frame, exposure, step or scan slider, and
+"Raster overlays", which shows or hides the raster's steps on every viewer of the observation. Its
+"Point" submenu has "Clear point", "Light curve at the point", which opens the point's light curve
+over the map's wavelength or band, and "Light curves at this point (windows, SJI)", which plots each
+raster window and slit-jaw image at the point against time; its "Blink" submenu has "Set blink
+partner here", "Blink" and "Blink interval", which alternate the viewer between two positions at the
+interval chosen (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). The menu shows
+only the entries that can act on the viewer's data (see :ref:`Viewer tools and windows
+<glue_solar_users_guide_viewer_tools_and_windows>`), and the Pixel tool stays active after each
+entry.
 
 Downloads that are still packed (``*_raster.tar.gz``, ``*_SDO.tar.gz``, ``*_SOTFG.tar.gz``,
 ``*_SOTSP.tar.gz``) show up under their observation as an "Extract <archive> (<size> MB, next to

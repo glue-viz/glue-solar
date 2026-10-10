@@ -39,6 +39,7 @@ from glue_qt.app.application import GlueApplication
 from glue_qt.config import keyboard_shortcut
 from glue_qt.viewers.histogram import HistogramViewer
 from glue_qt.viewers.image import ImageViewer
+from glue_qt.viewers.image.profile_viewer_tool import ProfileViewerTool
 from glue_qt.viewers.profile import ProfileViewer
 from glue_qt.viewers.scatter import ScatterViewer
 from glue_qt.viewers.table import TableViewer
@@ -456,17 +457,46 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot, monkeypatch
     app = GlueApplication()
     qtbot.addWidget(app)
     wcs = WCS(naxis=3)
-    wcs.wcs.ctype[0] = "WAVE"  # for the band
-    cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5), coords=wcs)
+    wcs.wcs.ctype[2] = "WAVE"  # along the slider, for the band
+    times = np.full((3, 4, 5), np.datetime64("2013-09-02T16:39:35"))  # for the frame time, after the flux
+    cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5), time=times, coords=wcs)
     app.data_collection.append(cube)
     viewer = app.new_data_viewer(ImageViewer, data=cube)
     toolbar = viewer.toolbar
     assert len(QToolBar.actions(toolbar)) <= 21  # of 26 buttons before, which needed a viewer 1200 px wide
+    # glue-solar's buttons right after glue's Home, Pan and Zoom, so that a narrow viewer hides glue's tools first
+    ids = {id(action): tool_id for tool_id, action in toolbar.actions.items()}
+    order = [ids.get(id(action)) for action in QToolBar.actions(toolbar)]
+    ours = ["solar:follow_lock", "solar:modes", "solar:coordinate", "solar:view"]
+    assert order[: len(ours) + 5] == ["save", "window", "mpl:home", "mpl:pan", "mpl:zoom", *ours]
+    # every menu button's tooltip and its entries' show on hover, glue's Save and Window too, and glue's Profile
+    # viewer button gets one
+    for menu in ("save", "window", "solar:modes", "solar:coordinate", "solar:view"):
+        button = toolbar.widgetForAction(toolbar.actions[menu])
+        assert button.toolTip() == toolbar.tools[menu].tool_tip
+        assert button.menu().toolTipsVisible()
+    assert toolbar.actions["profile-viewer"].toolTip() == ProfileViewerTool.tool_tip != ""
+
+    def entries(menu):
+        """Every entry of ``menu`` and of its submenus, and whether each menu shows tooltips."""
+        for entry in menu.actions():
+            yield entry, menu.toolTipsVisible()
+            if entry.menu() is not None:
+                yield from entries(entry.menu())
+
+    for menu in ours[1:]:
+        for entry, tips in entries(toolbar.widgetForAction(toolbar.actions[menu]).menu()):
+            assert tips
+            assert entry.toolTip() not in ("", entry.text())  # glue-qt's default tooltip, the text
+    # glue-solar's save entries after glue's
+    save = toolbar.widgetForAction(toolbar.actions["save"]).menu()
+    assert [entry.text() for entry in save.actions()][-2:] == [
+        "Save Python script to reproduce plot",
+        "Save frames or movie…",
+    ]
     menus = {}
     for menu in ("solar:modes", "solar:view"):
-        button = toolbar.widgetForAction(toolbar.actions[menu])
-        assert button.toolTip() == toolbar.tools[menu].tool_tip  # on hover, as a button's
-        menus[menu] = button.menu()
+        menus[menu] = toolbar.widgetForAction(toolbar.actions[menu]).menu()
         # each tool's entry, by its id as for a button, and Path diagram's path entries and sampling
         entries = [toolbar.actions[tool] for tool in ImageViewer.subtools[menu]]
         extra = ["Save path as ECSV…", "Open path from ECSV…", "Path on other data…", "Path sampling"]
@@ -505,8 +535,13 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot, monkeypatch
             assert toolbar.active_tool is pixel
             if entry.isCheckable():
                 assert entry.isChecked() == tool.checked != was
+    # the band only while the wavelength has a slider
+    viewer.state.x_att = cube.pixel_component_ids[0]
+    assert not toolbar.actions["solar:band"].isEnabled()
+    viewer.state.x_att = cube.pixel_component_ids[2]
+    assert toolbar.actions["solar:band"].isEnabled()
 
-    # no L while Path diagram is off, as on a 2D image, which has no wavelength band either
+    # no L while Path diagram is off, as on a 2D image, which has no wavelength band or time either
     still = Data(label="still", flux=np.ones((4, 5)))
     app.data_collection.append(still)
     viewer.add_data(still)
@@ -514,6 +549,7 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot, monkeypatch
     assert not toolbar.actions["solar:path"].isEnabled()
     assert not sampling.isVisible()
     assert not toolbar.actions["solar:band"].isEnabled()
+    assert not toolbar.actions["solar:frame_time"].isEnabled()
     QTest.keyClick(toolbar, Qt.Key_L)
     assert toolbar.active_tool is pixel
 
@@ -1758,11 +1794,14 @@ def test_keys_step_frames_and_wavelengths_round_and_play(qtbot, monkeypatch, iri
     # open its save dialog
     assert not frames.figure.canvas.manager.window.isVisible()
     assert saved == []
-    # its others, such as G for the grid, stay
+    # nor do its grid, log scale, pan and zoom keys, alone or with Shift; its others, such as H for home, stay
     handled = []
     monkeypatch.setattr(glue_patches, "key_press_handler", lambda event: handled.append(event.key))
-    press(frames, Qt.Key_G)
-    assert handled == ["g"]
+    for key in (Qt.Key_G, Qt.Key_L, Qt.Key_K, Qt.Key_P, Qt.Key_O, Qt.Key_H):
+        press(frames, key)
+    for key in (Qt.Key_G, Qt.Key_L):
+        QTest.keyClick(frames.figure.canvas, key, Qt.ShiftModifier)
+    assert [key for key in handled if key != "shift"] == ["h"]  # the Shift key's own press
     # Space plays the frames, round as glue-qt's play button does, and pauses them
     slider = frames.options_widget().slice_helper._sliders[0]
     shown = []
@@ -2176,10 +2215,14 @@ def test_profiles_label_the_main_iris_lines(qtbot, irispy_test_files):
     assert [x for _, x in labels()] == pytest.approx([2791.599, 2796.352, 2798.7885, 2803.530])
     viewer.state.x_display_unit = "nm"
     assert dict(labels())["Mg II k"] == pytest.approx(279.6352)
-    tool.activate()  # off
+    button = viewer.toolbar.actions["solar:lines"]
+    assert button.isChecked()  # while they show
+    button.trigger()  # off
     assert labels() == []
+    assert not button.isChecked()
     tool.activate()
     assert len(labels()) == 4
+    assert button.isChecked()
 
 
 def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monkeypatch, irispy_test_files):
@@ -2196,9 +2239,11 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
     units = ProfileViewerState.x_display_unit.get_choices
     assert units(state)[-1] == "km / s"  # after the lengths
     assert UnitConverter().to_unit(mg, state.x_att, 2796.352, "km / s") == pytest.approx(0, abs=1e-9)  # Mg II k
-    tool = viewer.toolbar.tools["solar:velocity"]
+    tool, button = viewer.toolbar.tools["solar:velocity"], viewer.toolbar.actions["solar:velocity"]
     assert tool.axis is None  # it starts off
-    tool.activate()
+    assert (button.isCheckable(), button.isChecked(), button.isEnabled()) == (True, False, True)
+    button.trigger()
+    assert button.isChecked()
     state.x_min, state.x_max = 2795, 2798
 
     def velocities(waves, rest):
@@ -2227,12 +2272,14 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
     set_rest("")  # back to Mg II k, still in km / s
     assert state.x_display_unit == "km / s"
     assert viewer.layers[0].state.profile[0] == pytest.approx(velocities(_wavelengths(mg)[0], 2796.352))
-    # 2832 has no line: no km / s until a rest wavelength is set, and none after, back in Å
+    # 2832 has no line: no km / s or velocity axis until a rest wavelength is set, and none after, back in Å
     state.reference_data = none
     state.x_att = none.world_component_ids[none.ndim - 1]
     assert "km / s" not in units(state)
+    assert not button.isEnabled()
     set_rest("2832.7")
     assert units(state)[-1] == "km / s"
+    assert button.isEnabled()
     state.x_display_unit = "km / s"
     set_rest("")
     assert "km / s" not in units(state)
@@ -2258,6 +2305,8 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     path = tmp_path / "profiles.ecsv"
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
     [tool] = [tool for tool in viewer.toolbar.tools["save"].subtools if tool.tool_id == "solar:save_profile"]
+    save = viewer.toolbar.widgetForAction(viewer.toolbar.actions["save"]).menu()  # after glue's entries
+    assert [entry.text() for entry in save.actions()][-2:] == ["Save Python script to reproduce plot", tool.action_text]
 
     def saved():
         tool.activate()

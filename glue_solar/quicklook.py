@@ -1569,6 +1569,12 @@ class _LightCurve(HubListener):
             self.group.subset_state = SliceSubsetState(data, slices)
 
 
+def _curve_map(viewer):
+    """Whether ``viewer``, an Image viewer, shows a sit-and-stare raster or a stack with a wavelength slider."""
+    data = viewer.state.reference_data
+    return _role(data) == "raster" and _time_axis(data) == 0 and not _spectral_axes(data) & _shown(viewer.state)
+
+
 def _light_curve(viewer):
     """
     Open a Profile of the light curve at the point: the mean, NaN left out, over the wavelength or band that
@@ -1579,7 +1585,7 @@ def _light_curve(viewer):
     """
     app, data = viewer.session.application, viewer.state.reference_data
     coord = coordinator(app.data_collection)
-    if _role(data) != "raster" or _time_axis(data) != 0 or _spectral_axes(data) & _shown(viewer.state):
+    if not _curve_map(viewer):
         raise ValueError(
             "Choose it on the map of a sit-and-stare raster or a stack, whose wavelength or band it averages."
         )

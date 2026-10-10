@@ -9,17 +9,37 @@ describes its viewers and tools; this section names those IRIS work uses most, a
 labels them. A toolbar button's tooltip gives the tool's single-key shortcut if it has one, for
 example "Zoom to rectangle [shortcut: Z]".
 
-glue-solar keeps its Image Viewer tools, all but Follow/lock, in three menus, so that the toolbar
-fits a viewer 700 pixels wide; a narrower viewer moves the last buttons behind the toolbar's »
-button. The pencil icon holds glue-solar's mouse modes, "Measure", "Path diagram", "Show
+glue-solar keeps its Image Viewer tools, all but Follow/lock, in three menus, and puts its four
+buttons right after glue's "Home", "Pan" and "Zoom", so that a narrow viewer moves glue's region
+tools, "Pixel", "Contrast/Bias", the Profile viewer button and "Slice Extraction" behind the
+toolbar's » button first. A quicklook's raster panels, 418 pixels wide in a main window of 1600
+by 1000 pixels and 525 in one of 1920 by 1080, show all four (392 pixels wide at 1280 by 800, all
+but "View"); its slit-jaw panels share the width below, so with four channels, 248 pixels wide at
+1600 by 1000, they show glue's save and window menus, "Home", "Pan" and "Zoom" only. The pencil
+icon holds glue-solar's mouse modes, "Measure", "Path diagram", "Show
 position on original path" and "Slope", with the one on checked, and "Save path as ECSV…", "Open
 path from ECSV…", "Path on other data…" and the "Path sampling" submenu, described with "Path
-diagram" below; the link icon is the "Coordinate" menu; and
+diagram" below; the link icon is the "Coordinate" menu, with "Time master", "Go to UTC…", "Loop…"
+and "Raster overlays", its "Point" submenu, with "Clear point", "Light curve at the point" and
+"Light curves at this point (windows, SJI)", and its "Blink" submenu, with "Set blink partner
+here", "Blink" and "Blink interval"; and
 the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Wavelength
 band…", "Physical aspect", "Zoom 1:1", "Colour bar" and "Cursor readout", each but "Zoom 1:1"
 checked while it is on.
-After a View entry the mouse mode, such as Pixel, stays on. A menu shows an entry's single-key
-shortcut beside it, which works while the toolbar has the keyboard, as a button's does.
+After a View or Coordinate entry the mouse mode, such as Pixel, stays on. Resting the mouse on a
+menu entry shows its tooltip, in glue's save and window menus too, and a menu shows an entry's
+single-key shortcut beside it, which works while the toolbar has the keyboard, as a button's does.
+
+A menu shows only the entries that can act on the viewer as it is, checked as it opens: in the
+Coordinate menu, "Time master" for a dataset of an IRIS observation with times (a raster window,
+slit-jaw image, aligned AIA cutout or SOT cube), "Go to UTC…" for one whose observation has a time
+master or that has a frame, exposure, step or scan slider, "Loop…" where the data's first axis has
+a slider, "Raster overlays" where a raster of the viewer's observation is loaded, "Light curve at
+the point" on the map of a sit-and-stare raster or a stack, at a wavelength or band, and "Light
+curves at this point (windows, SJI)" on IRIS, AIA and SOT data; "Blink" is greyed until "Set blink
+partner here" gives it a partner. In the View menu, "Frame time" is offered for data with a time
+and "Wavelength band…" while a wavelength axis has a slider. On a plain array, of no observation and
+with no time, the Coordinate menu holds "Clear point" and the blink entries only.
 
 Besides glue's "Home" (H), "Pan" (M) and "Zoom" (Z), and its region selection tools, "Rectangular
 ROI" (R), "X range" (X), "Y range" (Y), "Circular ROI" (C) and "Polygonal ROI" (G), the Image Viewer
@@ -53,7 +73,8 @@ toolbar has:
   The "Reset" button next to the layer's contrast/bias sliders undoes it.
 - "Slice Extraction" (P): draw a path and press Enter to see the data along it in a new window.
   It is offered for 3D data only, so not for stacks.
-- "Path diagram" (L), a glue-solar mode ("Draw a path, then press Enter for the data along it"):
+- "Path diagram" (L), a glue-solar mode in the pencil menu, with a path icon of its own ("Draw a
+  path, then press Enter for the data along it"):
   glue's path slicer for 3D and 4D data. Click the path's vertices on the image and press Enter (Esc
   clears the path): each dataset shown gets a dataset of its values along the path in the data
   collection, and that of the image opens in a new Image viewer, with the path along x and the
@@ -169,8 +190,8 @@ toolbar has:
   <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`), cut at the ends of the window, so 5 pixels
   at pixel 1 average pixels 0 to 3; the slider shows its centre. Unlike a Collapse it follows the
   slider: a drag, A and S, scan and step moves and the time sync keep it, and a Pixel click on a
-  quicklook's spectrogram or wavelength panel moves it to the clicked wavelength. It is offered for
-  data with a wavelength axis. Each step
+  quicklook's spectrogram or wavelength panel moves it to the clicked wavelength. It is offered
+  while a wavelength axis has a slider, so not on a spectrogram or wavelength panel. Each step
   averages the band again: on the Si IV 1403 window of OBSID 4000005156 a step and its redraw take
   about 31 ms with 5 pixels and 49 ms with 15, against 18 ms with 1. A saved session shows the band
   where it was, and the next slider move shows a single wavelength.
@@ -202,9 +223,10 @@ toolbar has:
   it, keeping "Square Pixels" and "Physical aspect", and "Save plot to file" saves the bar with the
   image. "Save Python script to reproduce plot" and saved sessions leave it out. The bar and its
   ticks stay when "Hide axes" is on.
-- A button with a spectrum icon and no tooltip, which opens a 1D Profile viewer of the image's data.
-- The save menu, with "Save plot to file", glue-solar's "Save frames or movie…" and "Save Python
-  script to reproduce plot", and the window menu, with "Move to another tab" and "Change viewer
+- A button with a spectrum icon, to which glue-solar gives the tooltip "Open a Profile viewer of
+  this viewer's data along a slider's axis", which opens a 1D Profile viewer of the image's data.
+- The save menu, with "Save plot to file", "Save Python script to reproduce plot" and glue-solar's
+  "Save frames or movie…", and the window menu, with "Move to another tab" and "Change viewer
   title". "Save frames or movie…" saves the image at each index of a slider, from a first to a last,
   as "Save plot to file" would save it there: as PNG files named after the file chosen with the index
   added (``sji.png`` gives ``sji_0000.png``, ``sji_0001.png``, …), or as a movie at 10 frames per
@@ -238,11 +260,13 @@ A Profile viewer, the quicklook's spectrum panels included, gets an "IRIS lines"
 axis is the wavelength of IRIS data, a thin marker and a label mark each main IRIS line in the
 plotted range (Mg II k, h and the triplet, C II, Si IV, O I, Fe XII and Fe XXI, at NIST vacuum
 wavelengths), in the axis's unit, with lines too close to tell apart sharing a label. They start on,
-and the button hides or shows them. Its "Velocity axis" button shows or hides a top axis of the
-:ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>` from the window's rest wavelength.
-Its save menu adds glue-solar's "Save profiles as ECSV…", which writes the visible profiles, as
-drawn, to one table, with their times along exposures, scans or frames (see :ref:`Saving the
-profiles <glue_solar_users_guide_iris_save_profiles>`).
+and the button, checked while they show, hides or shows them. Its "Velocity axis" button shows or
+hides a top axis of the :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>` from the
+window's rest wavelength; it is checked while on and greyed while the x axis is not the wavelength
+of data with a rest wavelength. Its save menu adds glue-solar's "Save profiles as ECSV…" after
+glue's entries, which writes the visible profiles, as drawn, to one table, with their times along
+exposures, scans or frames (see :ref:`Saving the profiles
+<glue_solar_users_guide_iris_save_profiles>`).
 
 The stretch menu in the Image Viewer's layer options lists glue-solar's "Gamma 0.4", "Gamma 0.75",
 "Gamma 1.5" and "Gamma 2.2" after Glue's own stretches. Each raises the values between the limits to
@@ -290,7 +314,8 @@ in the image or toolbar that has the keyboard, the one last clicked.
        axis.
    * - :kbd:`U`, :kbd:`L`
      - "Measure" and "Path diagram", from the pencil menu, which shows each key beside its entry; they
-       work while the toolbar has the keyboard, as a button's key does.
+       work while the toolbar has the keyboard, as a button's key does, so click the toolbar first,
+       such as its handle at the left end. Over the image they do nothing.
    * - :kbd:`Enter`
      - In "Path diagram", makes the diagrams of the path drawn; in "Slope", adds the speed of the
        points clicked to the diagram's table.
@@ -300,9 +325,11 @@ in the image or toolbar that has the keyboard, the one last clicked.
    * - :kbd:`W`
      - With the mouse over the image, switches the cursor readout between world and pixel positions.
 
-glue-qt's viewers also have matplotlib's own keys, such as G for a Profile viewer's grid with the
-mouse over its plot; with glue-solar, F and S no longer show an empty window full screen or open
-matplotlib's save dialog. The save menu saves the plot.
+glue-qt's viewers also have matplotlib's own keys over their plots. glue-solar drops those that
+clash with glue: F and S, which showed an empty window full screen and opened matplotlib's save
+dialog (the save menu saves the plot), G and Shift+G, its grids, which fail on an Image viewer, L, K
+and Shift+L, its log axes, which bypass the viewer's own log options, and P and O, its pan and
+zoom, which ran beside glue's mouse mode. Its others stay.
 
 North up
 --------
