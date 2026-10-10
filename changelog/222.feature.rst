@@ -1,0 +1,1 @@
+glue-solar's Image viewer buttons come right after Zoom, so quicklook panels show them; the Coordinate menu has Point and Blink submenus and offers only what can act; every menu entry shows its help; IRIS lines and Velocity axis show their state.
