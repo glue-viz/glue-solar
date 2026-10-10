@@ -1493,7 +1493,6 @@ def _switch(viewer):
         if isinstance(panel, ImageViewer) and layer is not None:
             colours[state.reference_data, state.x_att, state.y_att] = {att: getattr(layer, att) for att in _COLOURS}
         panel.close(warn=False)
-        coord.unregister(panel)  # now rather than once glue-qt deletes it
     for sub in tab.subWindowList():
         if isinstance(sub.widget(), _PointWindow):
             sub.close()

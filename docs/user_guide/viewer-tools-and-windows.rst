@@ -265,7 +265,7 @@ and the button, checked while they show, hides or shows them. Its "Velocity axis
 hides a top axis of the :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>` from the
 window's rest wavelength; it is checked while on and greyed while the x axis is not the wavelength
 of data with a rest wavelength. A quicklook's spectrum panel of a window other than its main one
-also gets "Show this window's panels" (the cube icon right after "Zoom"), which gives that window
+also gets "Show this window's panels" (the triangle icon right after "Zoom"), which gives that window
 the map, spectrogram and wavelength panels (see :ref:`The quicklook
 <glue_solar_users_guide_iris_quicklook>`). Its save menu adds glue-solar's "Save profiles as ECSV…"
 after glue's entries, which writes the visible profiles, as drawn, to one table, with their times

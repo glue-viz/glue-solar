@@ -2348,7 +2348,7 @@ class MainWindowTool(Tool):
     a session.
     """
 
-    icon = "glue_slice"
+    icon = "glue_triangle_up"  # glue_slice is glue's Slice Extraction on the Image panels beside it
     tool_id = "solar:main_window"
     action_text = "Show this window's panels"
     tool_tip = "Make this window the quicklook's main window, with the map, spectrogram and wavelength panels"

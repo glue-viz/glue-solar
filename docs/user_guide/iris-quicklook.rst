@@ -392,7 +392,7 @@ wavelength panel moves the point to that window, and the others follow; D, F and
 move it with the time master. The Point window lists the main window only. The "Plugins" menu entry
 and the command line open one window.
 
-"Show this window's panels", the cube icon after "Zoom" in another window's spectrum panel (and in
+"Show this window's panels", the triangle icon after "Zoom" in another window's spectrum panel (and in
 no other Profile viewer), makes that window the main window: the quicklook opens again in its tab as
 the browser opens it with that window chosen, and the window shown before joins the others in the
 rows below. The point stays at the same pixel, now of that window, in the same "Point" subset, the
