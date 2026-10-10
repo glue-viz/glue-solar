@@ -42,13 +42,6 @@ def scan_path(tmp_path, irispy_test_files):
     return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
 
 
-@pytest.fixture
-def stack_paths(tmp_path, irispy_test_files):
-    """The three scans of 3860258481, stored as int16."""
-    files = sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)
-    return [int16_raster_copy(p, tmp_path / p.name) for p in files]
-
-
 def answer(monkeypatch, rest, values=(), accept=True):
     """
     Make each red-blue dialog return as if ``rest`` and any ``values`` of its boxes were typed and OK, or Cancel,

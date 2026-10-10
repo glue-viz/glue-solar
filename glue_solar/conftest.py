@@ -312,3 +312,12 @@ def irispy_test_files():
     files = [path for path in ROOTDIR.rglob("*") if path.is_file() and path.suffix not in (".py", ".pyc")]
     assert files
     return files
+
+
+@pytest.fixture
+def stack_paths(tmp_path, irispy_test_files):
+    """The three scans of 3860258481, stored as int16."""
+    from glue_solar.tests.test_lazy import int16_raster_copy
+
+    files = sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)
+    return [int16_raster_copy(p, tmp_path / p.name) for p in files]

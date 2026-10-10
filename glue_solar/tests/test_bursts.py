@@ -21,7 +21,7 @@ from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
 from glue_solar.sources.calibration import remove_dust
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
-from glue_solar.tests.test_lazy import SJI, int16_raster_copy
+from glue_solar.tests.test_lazy import SJI
 from glue_solar.tests.test_quicklook import SCAN
 
 ACTION = "IRIS: detect UV bursts…"
@@ -38,13 +38,6 @@ def app(qtbot):
     app = GlueApplication()
     qtbot.addWidget(app)
     return app
-
-
-@pytest.fixture
-def stack_paths(tmp_path, irispy_test_files):
-    """The three scans of 3860258481, stored as int16."""
-    files = sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)
-    return [int16_raster_copy(p, tmp_path / p.name) for p in files]
 
 
 def answer(monkeypatch, accept=True, **typed):

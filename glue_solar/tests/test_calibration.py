@@ -44,13 +44,6 @@ def scan_path(tmp_path, irispy_test_files):
     return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
 
 
-@pytest.fixture
-def stack_paths(tmp_path, irispy_test_files):
-    """The three scans of 3860258481, stored as int16."""
-    files = sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)
-    return [int16_raster_copy(p, tmp_path / p.name) for p in files]
-
-
 def assert_irispys_dust_removed(dust, path):
     """``dust`` is irispy's ``remove_dust`` of ``path`` read in memory, NaN where irispy masks it."""
     cube = read_sji_lvl2(path, memmap=False, uncertainty=False)
