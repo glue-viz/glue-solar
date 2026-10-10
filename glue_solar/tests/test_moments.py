@@ -1,7 +1,8 @@
 """
 'IRIS: line moments…', on int16 copies of irispy's test files, Gaussian lines and one irispy-data cutout: what glue
-gets of irispy's maps, of a scan or a stack, and the wings a Profile range gives; 'IRIS: subtract mean spectrum', as
-a Profile shows it; the maps exported with their coordinates; and the rest wavelength the line dialogs start at.
+gets of irispy's maps, of a scan or a stack, and the velocity range a Profile range gives; 'IRIS: subtract mean
+spectrum', as a Profile shows it; the maps exported with their coordinates; and the rest wavelength the line dialogs
+start at.
 """
 
 import warnings
@@ -43,6 +44,7 @@ from glue_solar.tests.test_quicklook import SCAN
 ACTION = "IRIS: line moments…"
 MEAN = "IRIS: subtract mean spectrum"
 EXPORT = "IRIS FITS (coordinates and Time)"
+C = constants.c.to_value(u.km / u.s)
 
 
 @pytest.fixture
@@ -66,27 +68,33 @@ def stack_paths(tmp_path, irispy_test_files):
     return [int16_raster_copy(p, tmp_path / p.name) for p in files]
 
 
-def answer(monkeypatch, centre, wings=(), continuum="", accept=True, errors=False):
+def answer(monkeypatch, centre, velocities=(), continuum="", accept=True, errors=False):
     """
-    Make each line dialog return as if ``centre``, any ``wings`` and ``continuum`` were typed, "Error maps" ticked with
-    ``errors``, and OK, or Cancel, pressed; returns the centre, wings, continuum and tick each dialog opened with.
+    Make each line dialog return as if ``centre``, any ``velocities``, from and to, and ``continuum`` were typed,
+    "Error maps" ticked with ``errors``, and OK, or Cancel, pressed; returns the centre, velocities, continuum and tick
+    each dialog opened with.
     """
     opened = []
 
     def exec_(dialog):
-        boxes = [dialog.findChild(QtWidgets.QDoubleSpinBox, side) for side in ("below", "above")]
+        boxes = [dialog.findChild(QtWidgets.QDoubleSpinBox, name) for name in ("from", "to")]
         windows, field = (dialog.findChild(QtWidgets.QLineEdit, name) for name in ("continuum", "centre"))
         tick = dialog.findChild(QtWidgets.QCheckBox, "errors")
         opened.append((field.text(), *(box.value() for box in boxes), windows.text(), tick.isChecked()))
         field.setText(centre)
         windows.setText(continuum)
         tick.setChecked(errors)
-        for box, wing in zip(boxes, wings):
-            box.setValue(wing)
+        for box, velocity in zip(boxes, velocities):
+            box.setValue(velocity)
         return QtWidgets.QDialog.Accepted if accept else QtWidgets.QDialog.Rejected
 
     monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
     return opened
+
+
+def ends(centre, low=-107, high=107):
+    """The wavelengths, in Angstrom, at ``low`` and ``high`` km/s from ``centre``, as irispy's moments take them."""
+    return centre * (1 + low / C), centre * (1 + high / C)
 
 
 def missing(raster, low, high):
@@ -121,7 +129,7 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     keep_hpc_linked(collection)
     opened = answer(monkeypatch, "1402.77")
     maps = run(app, qtbot, raster)
-    assert opened == [("1402.77", 0.5, 0.5, "", False)]  # Si IV 1402.77, the window's main line
+    assert opened == [("1402.77", -107.0, 107.0, "", False)]  # Si IV 1402.77, the window's main line
     assert maps.label == f"{raster.label} moments 1402.77"
     assert maps.shape == raster.shape[:2]
     assert [(cid.label, maps.get_component(cid).units) for cid in maps.main_components] == [
@@ -135,7 +143,7 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
         "OBSID": raster.meta["OBSID"],
         "STARTOBS": raster.meta["STARTOBS"],
         "moments_centre": 1402.77,
-        "moments_wings": (0.5, 0.5),
+        "moments_velocity_range": (-107.0, 107.0),
     }
     assert not any(app.viewers)
     # on the raster's steps and slit pixels, its helioprojective coordinates linked with the others'
@@ -145,21 +153,21 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     assert link_hpc(collection) == []
     linked = {cid for link in collection.links for cid in (link.get_to_id(), *link.get_from_ids())}
     assert set(maps.world_component_ids) <= linked
-    # NaN where every sample within the wings is missing, irispy's 0 there
-    fill = missing(raster, 1402.27, 1403.27)
+    # NaN where every sample within the velocity range is missing
+    fill = missing(raster, *ends(1402.77))
     assert fill.sum() == 24
     np.testing.assert_array_equal(np.isnan(maps["intensity"]), fill)
     assert np.isnan(maps["velocity"][fill]).all()
 
 
-def test_the_typed_wings_and_a_blank_or_cancelled_centre(app, qtbot, monkeypatch, scan_path):
+def test_the_typed_velocity_range_and_a_blank_or_cancelled_centre(app, qtbot, monkeypatch, scan_path):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     collection = app.data_collection
     collection.append(raster)
-    answer(monkeypatch, " 1402.77 ", wings=(0.2, 1.0))
+    answer(monkeypatch, " 1402.77 ", velocities=(-40, 200))
     maps = run(app, qtbot, raster)
-    assert (maps.meta["moments_centre"], maps.meta["moments_wings"]) == (1402.77, (0.2, 1.0))
-    np.testing.assert_array_equal(np.isnan(maps["intensity"]), missing(raster, 1402.57, 1403.77))
+    assert (maps.meta["moments_centre"], maps.meta["moments_velocity_range"]) == (1402.77, (-40, 200))
+    np.testing.assert_array_equal(np.isnan(maps["intensity"]), missing(raster, *ends(1402.77, -40, 200)))
     # nothing more is added
     tree = app._layer_widget
     tree.ui.layerTree.set_selected_layers([raster])  # glue selects the dataset added
@@ -201,12 +209,14 @@ def test_a_stacks_saturated_pixels_are_counted_over_its_scans(app, qtbot, monkey
     [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
     app.data_collection.append(stack)
     cid, (wavelengths, _) = stack.main_components[0], _wavelengths(stack)
-    inside = np.flatnonzero((wavelengths >= 1402.27) & (wavelengths <= 1403.27))
+    low, high = ends(1402.77)
+    inside = np.flatnonzero((wavelengths >= low) & (wavelengths <= high))
     values = np.array(stack[cid])
-    values[0, :, 10, inside[1]] = values[2, :, 20, inside[1]] = 16182  # at every step of scans 0 and 2
+    values[0, :, 10, inside[1]] = values[2, :, 20, inside[1]] = np.inf  # at every step of scans 0 and 2
     stack.update_components({cid: values})
     answer(monkeypatch, "1402.77")
-    maps = run(app, qtbot, stack, f"{stack.label} moments 1402.77: 16 pixels saturated within the wings are NaN")
+    message = f"{stack.label} moments 1402.77: 16 pixels saturated within the velocity range are NaN"
+    maps = run(app, qtbot, stack, message)
     assert np.isnan(maps["intensity"][[0, 2], :, [10, 20]]).all()
 
 
@@ -221,7 +231,7 @@ def test_a_stacks_error_maps_are_each_scans_own(app, qtbot, monkeypatch, stack_p
     app.data_collection.append(stack)
     opened = answer(monkeypatch, "1402.77", errors=True)
     maps = run(app, qtbot, stack)
-    assert opened == [("1402.77", 0.5, 0.5, "", False)]
+    assert opened == [("1402.77", -107.0, 107.0, "", False)]
     assert np.isnan(maps["intensity error"][1, 3]).all()
     assert not np.isnan(maps["intensity error"][[0, 2], 3]).all()
     for k, path in enumerate(stack_paths):
@@ -232,7 +242,7 @@ def test_a_stacks_error_maps_are_each_scans_own(app, qtbot, monkeypatch, stack_p
             np.testing.assert_array_equal(maps[cid.label][k], alone[cid], err_msg=cid.label)
 
 
-def test_a_profile_range_gives_the_wings_from_a_centre_within_it(app, qtbot, monkeypatch, scan_path):
+def test_a_profile_range_gives_the_velocity_range_from_a_centre_within_it(app, qtbot, monkeypatch, scan_path):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)
     profile = app.new_data_viewer(ProfileViewer, data=raster)
@@ -242,19 +252,21 @@ def test_a_profile_range_gives_the_wings_from_a_centre_within_it(app, qtbot, mon
     tools.ui.tabs.setCurrentIndex(2)  # Collapse, which shows the range
     tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 1300, 1500  # pixels, not Angstrom: the dialog's
     answer(monkeypatch, "1402.77")
-    assert run(app, qtbot, raster).meta["moments_wings"] == (0.5, 0.5)
+    assert run(app, qtbot, raster).meta["moments_velocity_range"] == (-107, 107)
     profile.state.x_att, profile.state.x_display_unit = raster.world_component_ids[-1], "nm"
     tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 140.33, 140.22  # dragged leftwards, in nm
     # from the centre the dialog starts at, the window's Si IV 1402.77, or, outside it, the dialog's until one within
-    # it is typed
-    for rest, opens in ((None, ("1402.77", 0.57, 0.53)), (1404, ("1404.0", 0.5, 0.5))):
+    # it is typed, to the thousandth of a km/s the dialog shows
+    reach = pytest.approx(((1402.2 / 1402.77 - 1) * C, (1403.3 / 1402.77 - 1) * C), abs=5e-4)
+    for rest, opens in ((None, ("1402.77", reach)), (1404, ("1404.0", [-107, 107]))):
         raster.meta["rest_wavelength"] = rest
         opened = answer(monkeypatch, "1402.77")
-        assert run(app, qtbot, raster).meta["moments_wings"] == pytest.approx((0.57, 0.53))
-        assert opened == [(*opens, "", False)]
+        assert run(app, qtbot, raster).meta["moments_velocity_range"] == reach
+        [(centre, *velocities, continuum, errors)] = opened
+        assert (centre, velocities, continuum, errors) == (*opens, "", False)
     profile.toolbar.active_tool = "select:xrange"  # which hides the range
     answer(monkeypatch, "1402.77")
-    assert run(app, qtbot, raster).meta["moments_wings"] == (0.5, 0.5)
+    assert run(app, qtbot, raster).meta["moments_velocity_range"] == (-107, 107)
 
 
 def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy_test_files):
@@ -273,34 +285,37 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
         tree.ui.layerTree.set_selected_layers([data])
         action.trigger()
     assert opened == []  # refused before asking
-    for centre, continuum in (
-        ("3000", ""),
-        ("Si IV", ""),
-        ("1402.77", "1401.5"),
-        ("1402.77", "1401.5-1402,"),
-        ("1402.77", "1401.5-1402, 1402-1402.5"),
-        ("1402.77", "1300-1301"),
+    for centre, continuum, velocities in (
+        ("3000", "", ()),
+        ("Si IV", "", ()),
+        ("1402.77", "", (50, -50)),
+        ("1402.77", "1401.5", ()),
+        ("1402.77", "1401.5-1402,", ()),
+        ("1402.77", "1401.5-1402, 1402-1402.5", ()),
+        ("1402.77", "1300-1301", ()),
     ):
-        answer(monkeypatch, centre, continuum=continuum)
+        answer(monkeypatch, centre, velocities, continuum)
         tree.ui.layerTree.set_selected_layers([raster])
         action.trigger()
     assert all(text.startswith("Could not compute line moments\n") for text in shown)
+    span = f"{raster.label} (1398.63 to 1405.75 Å)"
     assert [text.split("\n", 1)[1] for text in shown] == [
         f"{sji.label} is not an IRIS raster window.",
         "plain is not an IRIS raster window.",
-        f"No wavelength of {raster.label} (1398.63 to 1405.75 Å) lies within 0.5 Å below and 0.5 Å above 3000.0 Å.",
+        f"No wavelength of {span} lies within the velocity range, -107 to 107 km/s from 3000.0 Å.",
         "'Si IV' is not a wavelength in Angstrom, such as 1402.77.",
+        "The velocity range, from 50 to -50 km/s, does not increase.",
         "'1401.5' is not a list of continuum windows in Angstrom, such as 1401.5-1402, 1404-1405.",
         "'1401.5-1402,' is not a list of continuum windows in Angstrom, such as 1401.5-1402, 1404-1405.",
-        "The continuum window 1402.0-1402.5 Å overlaps the wings, 0.5 Å below and 0.5 Å above 1402.77 Å.",
-        f"No wavelength of {raster.label} (1398.63 to 1405.75 Å) lies within the continuum window 1300.0-1301.0 Å.",
+        "The continuum window 1402.0-1402.5 Å overlaps the velocity range, -107 to 107 km/s from 1402.77 Å.",
+        f"No wavelength of {span} lies within the continuum window 1300.0-1301.0 Å.",
     ]
     assert len(collection) == 3
     # and an error of irispy's, on the thread
     monkeypatch.setattr(irispy.utils.moments, "calculate_moments", Mock(side_effect=RuntimeError("irispy failed")))
     answer(monkeypatch, "1402.77")
     action.trigger()
-    qtbot.waitUntil(lambda: len(shown) == 9 and not iris._RUNNING)
+    qtbot.waitUntil(lambda: len(shown) == 10 and not iris._RUNNING)
     assert shown[-1] == "Could not compute line moments\nirispy failed"
     assert app.statusBar().currentMessage() == ""
     assert len(collection) == 3
@@ -314,8 +329,9 @@ def test_a_continuum_window_is_irispys_background(app, qtbot, monkeypatch, scan_
     plain = line_moments(raster, 1402.77)
     cube = dn_per_second_cube(raster, DN_UNIT["FUV"])
     wavelengths, _ = _wavelengths(raster)
-    wings = (wavelengths >= 1402.27) & (wavelengths <= 1403.27)
-    # the second fits no background to 8 pixels missing from 1403.46 Å on but not within the wings
+    low, high = ends(1402.77)
+    inside = (wavelengths >= low) & (wavelengths <= high)
+    # the second fits no background to 8 pixels missing from 1403.46 Å on but not within the velocity range
     for typed, windows, degree, nan in (
         ("1401.5-1402, 1403.5 - 1404", ((1401.5, 1402.0), (1403.5, 1404.0)), 1, 24),
         (" 1403.5-1404 ", ((1403.5, 1404.0),), 0, 32),
@@ -328,9 +344,12 @@ def test_a_continuum_window_is_irispys_background(app, qtbot, monkeypatch, scan_
             "moments_continuum_degree": degree,
         }
         background = subtract_background(cube, windows * u.AA, degree=degree)
-        direct = irispy.utils.moments.calculate_moments(background, rest_wavelength=1402.77 * u.AA, wings=0.5 * u.AA)
-        # NaN too where every sample within the wings is missing, or no background is fitted
-        fill = np.isnan(background.data[..., wings]).all(-1)
+        direct = irispy.utils.moments.calculate_moments(
+            background, rest_wavelength=1402.77 * u.AA, velocity_range=(-107, 107) * u.km / u.s
+        )
+        direct.pop("saturated")
+        # NaN too where every sample within the velocity range is missing, or no background is fitted
+        fill = np.isnan(background.data[..., inside]).all(-1)
         assert fill.sum() == nan
         # a straight line fitted to a constant spectrum leaves 2e-13, not 0, on the slab or the whole window alike:
         # what irispy's roundoff gives such a non-line, a centroid or not, is not compared
@@ -354,21 +373,24 @@ def test_a_continuum_window_is_irispys_background(app, qtbot, monkeypatch, scan_
 def test_ticked_error_maps_are_irispys_from_its_readers_uncertainty(app, qtbot, monkeypatch, scan_path, continuum):
     """
     "Error maps", unticked at first, adds each map's error, a slab of steps at a time: irispy's own, of the window read
-    with its ``uncertainty=True``, in DN/s, less any background, but NaN where every sample within the wings is
-    missing.
+    with its ``uncertainty=True``, in DN/s, less any background, but NaN where every sample within the velocity range
+    is missing.
     """
     monkeypatch.setattr(moments, "SLAB", 3 * 109 * 4)  # slabs of 1 step: halved with errors
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)
     opened = answer(monkeypatch, "1402.77", continuum=continuum, errors=True)
     maps = run(app, qtbot, raster)
-    assert opened == [("1402.77", 0.5, 0.5, "", False)]
+    assert opened == [("1402.77", -107.0, 107.0, "", False)]
     cube = read_files([scan_path], spectral_windows=["Si IV 1403"], uncertainty=True)["Si IV 1403"][0]
     cube = cube.apply_exposure_time_correction()
     if continuum:
         cube = subtract_background(cube, [(1401.5, 1402.0), (1403.5, 1404.0)] * u.AA, degree=1)
-    direct = irispy.utils.moments.calculate_moments(cube, rest_wavelength=1402.77 * u.AA, wings=0.5 * u.AA)
-    fill = np.asarray(missing(raster, 1402.27, 1403.27))
+    direct = irispy.utils.moments.calculate_moments(
+        cube, rest_wavelength=1402.77 * u.AA, velocity_range=(-107, 107) * u.km / u.s
+    )
+    direct.pop("saturated")
+    fill = np.asarray(missing(raster, *ends(1402.77)))
     assert [cid.label for cid in maps.main_components] == [
         label for name in direct for label in (name, f"{name} error")
     ]
@@ -391,8 +413,11 @@ def test_nuv_error_maps_take_irispys_nuv_noise(tmp_path, irispy_test_files):
     assert maps.get_component("intensity error").units == "DN_IRIS_NUV / s"
     cube = read_files([path], spectral_windows=["Mg II k 2796"], uncertainty=True)["Mg II k 2796"][0]
     cube = cube.apply_exposure_time_correction()
-    direct = irispy.utils.moments.calculate_moments(cube, rest_wavelength=2796.35 * u.AA, wings=0.5 * u.AA)
-    fill = np.asarray(missing(raster, 2795.85, 2796.85))
+    direct = irispy.utils.moments.calculate_moments(
+        cube, rest_wavelength=2796.35 * u.AA, velocity_range=(-107, 107) * u.km / u.s
+    )
+    direct.pop("saturated")
+    fill = np.asarray(missing(raster, *ends(2796.35)))
     for name, moment in direct.items():
         expected = np.where(fill | moment.mask, np.nan, moment.uncertainty.array)
         if moment.unit.is_equivalent(u.AA):
@@ -437,7 +462,8 @@ def test_minus_infinity_is_missing(monkeypatch, scan_path):
     monkeypatch.setattr(iris, "LAZY", False)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     cid, (wavelengths, _) = raster.main_components[0], _wavelengths(raster)
-    inside = np.flatnonzero((wavelengths >= 1402.27) & (wavelengths <= 1403.27))
+    low, high = ends(1402.77)
+    inside = np.flatnonzero((wavelengths >= low) & (wavelengths <= high))
     assert np.isfinite(line_moments(raster, 1402.77)["intensity"][2:4, 10]).all()
     values = np.array(raster[cid])
     values[2, 10, inside[1]] = -np.inf
@@ -454,47 +480,32 @@ def test_minus_infinity_is_missing(monkeypatch, scan_path):
 
 
 @pytest.mark.parametrize("continuum", ["", "1401.5-1402, 1403.5-1404"])
-def test_saturated_pixels_within_the_wings_are_nan_and_counted(app, qtbot, monkeypatch, scan_path, continuum):
+def test_saturated_pixels_within_the_velocity_range_are_nan_and_counted(app, qtbot, monkeypatch, scan_path, continuum):
     """
-    A pixel with a sample at 16182 DN within the wings, irispy's limit, is NaN in every map, and the status bar says
-    how many; one outside the wings, here in a continuum window, is not.
+    A pixel with a sample at the Level 2 ceiling, raw 32760, which the loader reads as +Inf, within the velocity range
+    is NaN in every map, any background subtracted, and the status bar says how many; one outside it, here in a
+    continuum window, is not.
     """
-    monkeypatch.setattr(iris, "LAZY", False)
     monkeypatch.setattr(moments, "SLAB", 3 * 109 * 4)  # slabs of 3 steps, or of 1 with a continuum
     [raster] = raster_data([scan_path], ["Si IV 1403"])
-    app.data_collection.append(raster)
     cid, (wavelengths, _) = raster.main_components[0], _wavelengths(raster)
-    inside = np.flatnonzero((wavelengths >= 1402.27) & (wavelengths <= 1403.27))
+    low, high = ends(1402.77)
+    inside = np.flatnonzero((wavelengths >= low) & (wavelengths <= high))
     outside = np.flatnonzero((wavelengths >= 1403.5) & (wavelengths <= 1404))
-    assert not missing(raster, 1402.27, 1403.27)[:, [10, 20]].any()
-    values = np.array(raster[cid])
-    # at every step: in float32 DN/s, 16182 DN over 6 of their 8 exposure times rounds below irispy's limit
-    values[:, 10, inside[1]] = 16182
-    values[:, 20, outside] = 16182
-    raster.update_components({cid: values})
+    assert not missing(raster, low, high)[:, [10, 20]].any()
+    with fits.open(scan_path, mode="update") as hdulist:  # Si IV 1403, its raw int16, at every step
+        hdulist[5].data[:, 10, inside[1]] = 32760
+        hdulist[5].data[:, 20, outside] = 32760
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    app.data_collection.append(raster)
+    assert np.isposinf(raster[cid.label][:, 10, inside[1]]).all()
     answer(monkeypatch, "1402.77", continuum=continuum)
-    maps = run(app, qtbot, raster, f"{raster.label} moments 1402.77: 8 pixels saturated within the wings are NaN")
+    message = f"{raster.label} moments 1402.77: 8 pixels saturated within the velocity range are NaN"
+    maps = run(app, qtbot, raster, message)
     assert maps.meta["moments_saturated"] == 8
     for cid in maps.main_components:
         assert np.isnan(maps[cid][:, 10]).all()
     assert np.isfinite(maps["intensity"][:, 20]).all()
-
-
-def test_a_dn_per_second_window_saturates_at_each_steps_exposure_time(monkeypatch, scan_path):
-    """irispy is given each step's exposure time: the same DN/s is 16182 DN in an 8 s step, saturated, not in a 4 s one."""
-    monkeypatch.setattr(iris, "LAZY", False)
-    [raster] = raster_data([scan_path], ["Si IV 1403"])
-    cid, (wavelengths, _) = raster.main_components[0], _wavelengths(raster)
-    inside = np.flatnonzero((wavelengths >= 1402.27) & (wavelengths <= 1403.27))
-    values, seconds = np.array(raster[cid]), np.array(raster["Exposure time"])
-    seconds[:2] = [[[8]], [[4]]]
-    values[:2, 10, inside[1]] = [16182, 16182 / 2]
-    raster.update_components({cid: values, raster.id["Exposure time"]: seconds})
-    maps = line_moments(raster, 1402.77)
-    assert maps.get_component("intensity").units == "DN_IRIS_FUV / s"
-    assert maps.meta["moments_saturated"] == 1
-    assert np.isnan(maps["intensity"][0, 10])
-    assert np.isfinite(maps["intensity"][1, 10])
 
 
 def dn_per_second_cube(raster, unit):
@@ -503,14 +514,17 @@ def dn_per_second_cube(raster, unit):
     return SpectrogramCube(window, raster.coords._wcs, unit=unit / u.s, mask=np.isnan(window))
 
 
-def assert_irispys(maps, raster, centre, wings, unit):
+def assert_irispys(maps, raster, centre, velocities, unit):
     """
-    ``maps`` are irispy's own on ``raster``'s DN/s in ``unit`` / s, but NaN where every sample within the wings is
-    missing.
+    ``maps`` are irispy's own on ``raster``'s DN/s in ``unit`` / s, but NaN where every sample within ``velocities``
+    is missing.
     """
     cube = dn_per_second_cube(raster, unit)
-    direct = irispy.utils.moments.calculate_moments(cube, rest_wavelength=centre * u.AA, wings=wings * u.AA)
-    fill = missing(raster, centre - wings, centre + wings)
+    direct = irispy.utils.moments.calculate_moments(
+        cube, rest_wavelength=centre * u.AA, velocity_range=velocities * u.km / u.s
+    )
+    direct.pop("saturated")
+    fill = missing(raster, *ends(centre, *velocities))
     assert [cid.label for cid in maps.main_components] == list(direct)
     for name, moment in direct.items():
         expected = np.where(fill | moment.mask, np.nan, moment.data)
@@ -530,12 +544,13 @@ def test_gaussian_lines_give_irispys_maps_their_width_a_standard_deviation(monke
     wavelengths, _ = _wavelengths(raster)
     velocity = np.linspace(-20, 20, raster.shape[0])[:, None]  # km/s, by step
     fwhm = np.linspace(0.6, 0.9, raster.shape[1])  # Å, by slit pixel: sampled by the window's 0.25 Å, within ±2.5 Å
+    velocities = (-535, 535)  # ±2.5 Å
     centre = 1402.77 * (1 + velocity / constants.c.to_value(u.km / u.s))
     sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
     gaussians = 1000 * np.exp(-0.5 * ((wavelengths - centre[..., None]) / sigma[:, None]) ** 2)
     raster.update_components({raster.main_components[0]: gaussians.astype(np.float32)})
-    maps = line_moments(raster, 1402.77, wings=(2.5, 2.5))
-    assert_irispys(maps, raster, 1402.77, 2.5, DN_UNIT["FUV"])
+    maps = line_moments(raster, 1402.77, velocity_range=velocities)
+    assert_irispys(maps, raster, 1402.77, velocities, DN_UNIT["FUV"])
     np.testing.assert_allclose(maps["width"], np.broadcast_to(sigma, maps.shape), rtol=1e-6)
     np.testing.assert_allclose(maps["velocity"], np.broadcast_to(velocity, maps.shape), atol=1e-4)
 
@@ -547,8 +562,8 @@ def test_a_full_mg_ii_k_window_gives_irispys_maps(irispy_data):
     [raster] = raster_data([path], ["Mg II k 2796"])
     maps = line_moments(raster, 2796.352)
     assert maps.get_component("intensity").units == "DN_IRIS_NUV / s"
-    assert missing(raster, 2795.852, 2796.852).sum() == 1600  # the slit's last 25 pixels, at every step
-    assert_irispys(maps, raster, 2796.352, 0.5, DN_UNIT["NUV"])
+    assert missing(raster, *ends(2796.352)).sum() == 1600  # the slit's last 25 pixels, at every step
+    assert_irispys(maps, raster, 2796.352, (-107, 107), DN_UNIT["NUV"])
 
 
 @pytest.mark.parametrize("which", ["window", "stack", pytest.param("4000005156", marks=pytest.mark.remote_data)])
@@ -556,10 +571,13 @@ def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanm
     """
     On a raster window or a stack of 3860258481's three scans, both lazy, or 4000005156's full Si IV 1403, three steps
     a slab: a Pixel subset's Profile of ``<label> minus mean spectrum`` is the pixel's spectrum less numpy's nanmean
-    over every step, slit pixel and scan, within 1e-6.
+    over every step, slit pixel and scan, within 1e-6, saturated samples, +Inf, left out as missing ones.
     """
     if which == "window":
-        [data] = raster_data([request.getfixturevalue("scan_path")], ["Si IV 1403"])
+        path = request.getfixturevalue("scan_path")
+        with fits.open(path, mode="update", do_not_scale_image_data=True) as hdulist:
+            hdulist[5].data[0, 0, 4] = 32760  # Si IV 1403's raw int16 at the Level 2 ceiling, +Inf
+        [data] = raster_data([path], ["Si IV 1403"])
     elif which == "stack":
         [data] = raster_data(request.getfixturevalue("stack_paths"), ["Si IV 1403"], stack=True)
     else:
@@ -569,7 +587,9 @@ def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanm
     cid = data.main_components[0]
     with warnings.catch_warnings():  # before any viewer, whose threads would reset the filters
         warnings.simplefilter("ignore", RuntimeWarning)  # wavelengths with no valid sample give NaN
-        nanmean = np.nanmean(np.asarray(data[cid], dtype=float), axis=tuple(range(data.ndim - 1)))
+        values = np.asarray(data[cid], dtype=float)
+        assert np.isposinf(values).any() == (which == "window")
+        nanmean = np.nanmean(np.where(np.isinf(values), np.nan, values), axis=tuple(range(data.ndim - 1)))
     collection, tree = app.data_collection, app._layer_widget
     collection.append(data)
     tree.ui.layerTree.set_selected_layers([data])

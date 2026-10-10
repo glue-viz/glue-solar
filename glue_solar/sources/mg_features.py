@@ -58,7 +58,6 @@ def _mg_features(data, velocities, lines, crop, unit):
     `mg_features` of ``lines`` given ``crop`` of the wavelength pixels and ``unit`` the unit of the values irispy is
     given; on any thread.
     """
-    from irispy.utils.constants import SATURATION_LIMIT
     from irispy.utils.mg_features import calculate_mg_features
 
     maps, saturated = {}, dict.fromkeys(lines, 0)
@@ -66,14 +65,11 @@ def _mg_features(data, velocities, lines, crop, unit):
     steps = max(1, SLAB // (data.shape[1] * (crop.stop - crop.start)))
     for start in range(0, data.shape[0], steps):
         rows = (slice(start, start + steps), slice(None))
-        values, seconds = _read(data, rows, crop)
+        values, _ = _read(data, rows, crop)
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
-            # a line's features are NaN where a sample it searches is saturated
+            # a line's features are NaN where a sample it searches is saturated, +Inf
             slab = calculate_mg_features(
-                _cube(data, values, rows, crop, unit, seconds),
-                velocity_range=velocities * u.km / u.s,
-                lines=lines,
-                saturation_limit=SATURATION_LIMIT,
+                _cube(data, values, rows, crop, unit), velocity_range=velocities * u.km / u.s, lines=lines
             )
         for line in lines:
             saturated[line] += int(slab.pop(f"{line}_saturated").data.sum())
@@ -99,9 +95,9 @@ def mg_features(data, velocities=VELOCITIES, lines=LINES):
     ``k`` (2796.35 Å) and ``h`` (2803.53 Å), its components are irispy's: ``k2v``, ``k3`` and ``k2r`` (``h2v``,
     ``h3``, ``h2r``), the blue peak, line centre and red peak, each as ``<feature>_velocity`` in km / s and
     ``<feature>_intensity`` in the window's unit; NaN where irispy finds none, or a sample it searches for the line is
-    missing or saturated: at or above its ``SATURATION_LIMIT``, 16182 DN. ``meta`` holds the observation's ``OBSID``
-    and ``STARTOBS``, ``mg_features_velocities`` and ``mg_features_lines``, those measured, and with saturated pixels
-    ``mg_features_saturated``, how many of each line's.
+    missing or saturated: +Inf, as the loader reads the Level 2 ceiling, 16182 DN. ``meta`` holds the observation's
+    ``OBSID`` and ``STARTOBS``, ``mg_features_velocities`` and ``mg_features_lines``, those measured, and with
+    saturated pixels ``mg_features_saturated``, how many of each line's.
 
     Parameters
     ----------

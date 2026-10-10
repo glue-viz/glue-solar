@@ -12,7 +12,6 @@ from qtpy import QtWidgets
 import astropy.units as u
 
 from glue_solar.lines import _wavelength
-from glue_solar.sources.loaders.iris import per_second
 from glue_solar.sources.moments import _accepted, _check, _dataset, _read, _rest_field, _start, _unit
 
 __all__ = ["doppler_image", "doppler_iris"]
@@ -54,18 +53,13 @@ def _wings(data, rest, velocities):
 
 def _doppler(data, rest, velocities, normalised, wings, unit):
     """`doppler_image` given its `_wings` and ``unit`` the unit of the values read (`_read`); on any thread."""
-    from irispy.utils.constants import SATURATION_LIMIT
-
     planes = []
     for scan, crop, below, weight in wings:
         for step in range(data.shape[-3]):  # a step at a time
-            values, seconds = _read(data, (*scan, slice(step, step + 1), slice(None)), crop)
-            limit = np.float64(SATURATION_LIMIT.value)
-            if seconds is not None:  # over the step's exposure time, as the values, in float64
-                limit = per_second(limit, seconds)
-            low, high = values[..., below], values[..., below + 1]
-            wing = low * (1 - weight) + high * weight  # NaN where either sample is
-            wing[(low >= limit) | (high >= limit)] = np.nan
+            values, _ = _read(data, (*scan, slice(step, step + 1), slice(None)), crop)
+            with np.errstate(invalid="ignore"):  # +Inf, saturated, at a weight of 0 gives NaN
+                wing = values[..., below] * (1 - weight) + values[..., below + 1] * weight
+            wing[np.isinf(wing)] = np.nan  # NaN where either sample is missing or saturated
             planes.append(wing)
     red, blue = np.split(np.concatenate(planes).reshape(*data.shape[:-1], -1), 2, axis=-1)
     doppler = _dataset(data, f"{data.label} Doppler image {rest}")
@@ -89,7 +83,7 @@ def doppler_image(data, rest, velocities=VELOCITIES, normalised=False):
 
     Each wing is the window's ``<label> DN/s`` where it has one, else its values, interpolated linearly at
     ``rest * (1 ± v / c)``, the optical Doppler shift of velocity v, between the two samples about it, each scan at its
-    own wavelengths; NaN where either sample is missing or at or above irispy's ``SATURATION_LIMIT``, 16182 DN. Its
+    own wavelengths; NaN where either sample is missing or saturated, +Inf, as the loader reads the Level 2 ceiling. Its
     components are ``red - blue <v> km/s``, in that unit, positive for a brighter red wing, and with ``normalised``,
     ``(red - blue) / (red + blue) <v> km/s``, NaN where a wing is not positive. ``meta`` holds the observation's
     ``OBSID`` and ``STARTOBS``, ``doppler_rest``, ``doppler_velocities`` and ``doppler_sign``, ``"red - blue"``. The

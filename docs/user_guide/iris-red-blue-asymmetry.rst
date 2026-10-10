@@ -26,8 +26,9 @@ The maps
 - ``red_blue_asymmetry``, NaN where irispy does not compute it;
 - ``quality``, irispy's ``RBAQualityFlag``: 0 computed, 1 no finite sample, 2 the peak at an end of
   the wavelengths taken, 3 too few samples, 4 the interpolation failed, 5 a peak of 0, 6 a wing not
-  covered, 8 saturated: a sample taken at 16182 DN, the Level 2 ceiling saturated samples are
-  clipped to (see :ref:`Was it saturated? <glue_solar_users_guide_iris_saturation>`); 7, below a
+  covered, 8 saturated: a sample taken is +Inf, as glue-solar reads 16182 DN, the Level 2 ceiling
+  saturated samples are clipped to (see :ref:`Was it saturated?
+  <glue_solar_users_guide_iris_saturation>`); 7, below a
   minimum intensity, is never set.
 
 Missing (NaN or -Inf) and negative samples are left out. The wings are measured from the peak,
@@ -61,8 +62,8 @@ the Doppler image of <label>…", and adds ``<label> Doppler image <rest>`` on t
 steps and slit pixels, a stack's scans too, each scan at its own wavelengths and coordinates, linked
 as above. No viewer opens: drag it onto an Image viewer and pick a map as its attribute.
 
-A map is NaN where either sample about a wing is missing, or at 16182 DN, the Level 2 ceiling
-saturated samples are clipped to (see :ref:`Was it saturated?
+A map is NaN where either sample about a wing is missing, or saturated: +Inf, as glue-solar reads
+16182 DN, the Level 2 ceiling saturated samples are clipped to (see :ref:`Was it saturated?
 <glue_solar_users_guide_iris_saturation>`). A line symmetric about the rest wavelength gives 0, to
 float precision, where the rest wavelength is a sample's or halfway between two; elsewhere the
 interpolation leaves a small difference. Velocities are relative to the uncorrected Level 2

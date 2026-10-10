@@ -11,8 +11,8 @@ from qtpy import QtWidgets
 import astropy.units as u
 
 from glue_solar.lines import _wavelength
-from glue_solar.sources.loaders.iris import WCS_LOCK, per_second
-from glue_solar.sources.moments import _accepted, _check, _cube, _dataset, _read, _rest_field, _start, _window
+from glue_solar.sources.loaders.iris import WCS_LOCK
+from glue_solar.sources.moments import SLAB, _accepted, _check, _cube, _dataset, _read, _rest_field, _start, _window
 
 __all__ = ["red_blue_asymmetry", "red_blue_iris"]
 
@@ -27,28 +27,31 @@ STEP = 5.0
 _WHAT = "red-blue asymmetry maps"
 
 
+def _taken(data, rest, wavelengths):
+    """The `_window` of the wavelengths of ``data`` within ``wavelengths``, below and above ``rest``, in Angstrom."""
+    below, above = wavelengths
+    return _window(data, (rest - below, rest + above), f"{below} Å below and {above} Å above {rest} Å")
+
+
 def _red_blue(data, rest, wavelengths, velocities, step, crop, unit):
     """
     `red_blue_asymmetry` given ``crop`` of the wavelength pixels and ``unit`` the unit of the values irispy is given;
     on any thread.
     """
-    from irispy.utils.constants import SATURATION_LIMIT
     from irispy.utils.red_blue import calculate_red_blue_asymmetry
 
     maps = {}
-    for start in range(data.shape[0]):  # a step at a time: irispy's saturation limit is one value in the cube's unit
-        rows = (slice(start, start + 1), slice(None))
-        values, seconds = _read(data, rows, crop)
-        limit = np.float64(SATURATION_LIMIT.value)
-        if seconds is not None:  # over the step's exposure time, as the values
-            limit = per_second(limit, seconds).item()
+    # irispy measures each pixel on its own, so a slab of steps gives what the whole window would
+    steps = max(1, SLAB // (data.shape[1] * (crop.stop - crop.start)))
+    for start in range(0, data.shape[0], steps):
+        rows = (slice(start, start + steps), slice(None))
+        values, _ = _read(data, rows, crop)
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
             slab = calculate_red_blue_asymmetry(
                 _cube(data, values, rows, crop, unit),
                 rest_wavelength=rest * u.AA,
                 velocity_range=velocities * u.km / u.s,
                 dv=step * u.km / u.s,
-                saturation_limit=np.nextafter(limit, 0),  # irispy flags a peak above it: here one at 16182 DN
                 return_profiles=False,
             )
         for name, part in slab.items():
@@ -71,12 +74,13 @@ def red_blue_asymmetry(data, rest, wavelengths=WAVELENGTHS, velocities=VELOCITIE
     ``wavelengths`` of ``rest``, as one dataset on the window's raster steps and slit pixels.
 
     irispy is given the window's ``<label> DN/s`` where it has one, else its values, NaN, -Inf and negative samples
-    left out, a raster step at a time. For each pixel it interpolates the profile about its peak every ``step`` and
-    divides the mean red wing, from ``velocities[0]`` to ``velocities[1]`` above the peak, less the mean blue wing,
-    as far below it, by the peak. Its components are irispy's: ``red_blue_asymmetry``, NaN where it is not computed,
-    and ``quality``, an `~irispy.utils.red_blue.RBAQualityFlag` code, 0 where it is; a pixel with a sample at
-    16182 DN, irispy's ``SATURATION_LIMIT``, is flagged saturated. ``meta`` holds the observation's ``OBSID`` and
-    ``STARTOBS``, ``red_blue_rest``, ``red_blue_wavelengths``, ``red_blue_velocities`` and ``red_blue_step``.
+    left out, a slab of raster steps at a time. For each pixel it interpolates the profile about its peak every
+    ``step`` and divides the mean red wing, from ``velocities[0]`` to ``velocities[1]`` above the peak, less the mean
+    blue wing, as far below it, by the peak. Its components are irispy's: ``red_blue_asymmetry``, NaN where it is not
+    computed, and ``quality``, an `~irispy.utils.red_blue.RBAQualityFlag` code, 0 where it is; a pixel with a
+    saturated sample taken, +Inf, as the loader reads the Level 2 ceiling, 16182 DN, is flagged saturated. ``meta``
+    holds the observation's ``OBSID`` and ``STARTOBS``, ``red_blue_rest``, ``red_blue_wavelengths``,
+    ``red_blue_velocities`` and ``red_blue_step``.
 
     Parameters
     ----------
@@ -98,8 +102,7 @@ def red_blue_asymmetry(data, rest, wavelengths=WAVELENGTHS, velocities=VELOCITIE
         ``rest``.
     """
     _check(data, _WHAT)
-    _, crop, unit = _window(data, rest, wavelengths)
-    return _red_blue(data, rest, wavelengths, velocities, step, crop, unit)
+    return _red_blue(data, rest, wavelengths, velocities, step, *_taken(data, rest, wavelengths))
 
 
 def _ask(data):
@@ -121,7 +124,7 @@ def _ask(data):
         ("to", "Wing velocities to:", VELOCITIES[1], "km/s"),
         ("step", "Velocity step:", STEP, "km/s"),
     ):
-        step = 0.1 if unit == "Å" else 1  # as the moments dialog steps its wings
+        step = 0.1 if unit == "Å" else 1
         box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, maximum=1000, singleStep=step, suffix=f" {unit}")
         box.setValue(value)
         form.addRow(label, box)
@@ -155,6 +158,5 @@ def red_blue_iris(data, data_collection):
     line = _ask(data)
     if line is None:
         return
-    _, crop, unit = _window(data, *line[:2])
     text = f"Computing red-blue asymmetry of {data.label}…"
-    _start(data_collection, text, _failed, _red_blue, data, *line, crop, unit)
+    _start(data_collection, text, _failed, _red_blue, data, *line, *_taken(data, *line[:2]))
