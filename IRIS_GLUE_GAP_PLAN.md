@@ -44,7 +44,7 @@ Settled by the user; reopen only with the user.
 - **D2:** Build in glue-solar and irispy first via glue's public registries; nothing waits for an upstream release; upstream work is M4, on the user's direction. Workarounds switch on a behaviour probe, never a version.
 - **D3:** Arcsec and Angstrom on `_GlueWCS` IRIS data. sunpy Maps keep glue's plain astropy WCS, so glue autolinks and saves them; `link_hpc` links them to IRIS data.
 - **D4:** Analysis products are dataset `layer_action`s adding Data and links without a viewer; derived maps use `_GlueWCS(SlicedLowLevelWCS(raw_wcs, slices))`. A product that is a per-sample expression of one dataset (DN/s, radiometric calibration) is a glue derived component instead (user, 2026-09-30).
-- **D5:** Baseline: released glue-core 1.27.0 and glue-qt 0.4.2, and irispy's git main (D47).
+- **D5:** Baseline: released glue-core 1.27.0 and glue-qt 0.4.2, and irispy's git main (D47), on PyQt6 since D56.
 - **D6:** Selection is the stock Pixel tool plus Clear point; M1 adds hover-follow with click-to-lock.
 - **D7:** The point is a fixed detector pixel; time is an index axis with timestamp readouts. Nearest exposure, ties earlier; no match (greyed, never clamped) past half the partner's median cadence or outside its coverage. The raster is the default time master.
 - **D8:** The coordinator moves sliders from 1-D nearest-index arrays and adds no glue links: no pixel-component, `JoinLink`, lambda or closure links.
@@ -94,6 +94,7 @@ Settled by the user; reopen only with the user.
 - **D53:** User (2026-10-09), light curves: 'Light curves at this point' (#208) adds 1D datasets, one Data (Time, value) per chosen raster window and per SJI channel, recomputed as the point moves and shown together in one datetime Scatter plot, so the time marker (#207) marks them, with an 'ECSV (with Time)' exporter for 1D data; #183's 'Light curve at the point' (a Profile of a following subset, one raster window) stays, since a subset cannot follow the point across SJI frames.
 - **D54:** User (2026-10-09), irispy fixes (#230-#233 and #236 merged 2026-10-09, #235 ready, #234 closed; #210 made glue-solar ready for #236's unit): each a draft PR on LM-SAL/irispy from a branch of origin/main in `~/Git/irispy-<branch>`, with a test and a changelog fragment named after its PR; the user reviews and merges. Small fixes: `dust-mask-scaled` (`apply_dust_mask` on memmap SJIs), `read-files-open-once`, `response-erfa-warning`, `example-02-fill`, `memmap-raster-unit` (unscaled FUV/NUV units on memmap rasters). Approved designs (study and Fable critique: `IRIS_PLAN_PROTOTYPES/irispy_designs_20261009.tar.gz`): `moments-background`, keyword-only `background_windows`/`background_degree` on `calculate_moments` so saturation is checked on the raw samples before the background is subtracted (the two-call path finds 0 of 839 saturated pixels on 3860258481 r00172-r00174), with separate commits masking pixels masked at every wavelength within the wings and adding einsum `optimize=True`; `raster-wcs-inverse` (a numpy re-implementation of wcslib's -TAB inverse, #234) was closed: the user (2026-10-09) will not re-implement WCSLIB and accepts the slow raster world-to-pixel (R8: 7-13 ms per point on a sit-and-stare, 13 s per SJI screen inversion). NaN-filled float rasters are dropped: glue-solar fills NaN itself (D17) and needs no irispy change.
 - **D55:** User (2026-10-09), macOS app: glue-solar gets a macOS app bundle (`wp9-l-macos-app`), built now and rebuilt at the end of the plan as its last deliverable. For the user's Mac only: unsigned, Apple Silicon, built locally into a .dmg holding the app beside an Applications shortcut, so it drags into /Applications; no signing, notarization or CI build. The recipe lives in glue-solar's repo and reuses glue-viz/glue-standalone-apps' PyInstaller spec and hooks (D18).
+- **D56:** User (2026-10-09), Qt 6: glue-solar targets the latest Qt and enforces Qt 6 (`wp9-l-qt6`): it depends on PyQt6 (glue-qt without its PyQt5 `qt` extra), its `setup()` refuses Qt 5 with a message, its test envs and CI run PyQt6 (`iris-plan-qt6`: PyQt6 6.11 on Qt 6.11; `iris-plan-floor-qt6`: PyQt6 6.8.1 with the astropy and ndcube floors), and the macOS app (D55) is built on PyQt6. PyQt5 is no longer tested. Before the change, glue-solar main on PyQt6 gave 460 passed with 6 errors from one autosave test's teardown (restoring a session deletes the old window under PyQt6) and 2 from a missing `pvextractor` in the env.
 
 ## Milestones
 
@@ -115,7 +116,7 @@ A milestone is done when it has no items left.
 - WP0: `wp0-qt68-macos-pass`
 - WP2: `wp2-l-moments-one-call`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP9: `wp9-l-macos-app`, `wp9-l-deferred-recipes`
+- WP9: `wp9-l-qt6`, `wp9-l-macos-app`, `wp9-l-deferred-recipes`
 
 **M4**
 - WP0: `wp0-irispy-requests`, `wp0-restore-full-ci`, `wp0-core-image-artist-bugs`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-track-line-layers`, `wp0-qt-aggregate-slice`, `wp0-track-qt66`, `wp0-core-datetime-export`, `wp0-qt68-cocoa`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-optional-proposals`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`
@@ -283,7 +284,8 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 
 **L**
 
-- [ ] **L** `wp9-l-macos-app`: A macOS app bundle of glue with glue-solar, irispy main and sunpy, from a PyInstaller recipe in glue-solar's repo built on glue-standalone-apps' `glue_app.spec` and hooks (D55): a build script makes `Glue Solar.app` and a .dmg with an Applications shortcut, in a fresh micromamba env. Done when the app, dragged into /Applications, opens an IRIS observation's quicklook on the user's Mac; rebuilt with the M4 releases.
+- [ ] **L** `wp9-l-qt6`: Enforce Qt 6 (D56): PyQt6 in glue-solar's dependencies instead of glue-qt's PyQt5 `qt` extra, `setup()` refusing Qt 5 with a message, CI and the docs on PyQt6, and the autosave test's teardown fixed. Done when the full suite passes in `iris-plan-qt6` and `iris-plan-floor-qt6` and in CI, and glue-solar under Qt 5 says it needs Qt 6.
+- [ ] **L** `wp9-l-macos-app`: A macOS app bundle of glue with glue-solar, irispy main and sunpy, from a PyInstaller recipe in glue-solar's repo built on glue-standalone-apps' `glue_app.spec` and hooks (D55): a build script makes `Glue Solar.app` and a .dmg with an Applications shortcut, in a fresh micromamba env. Done when the app, dragged into /Applications, opens an IRIS observation's quicklook on the user's Mac; rebuilt with the M4 releases. Depends: wp9-l-qt6.
 - [ ] **L** `wp9-l-deferred-recipes` (F037, F145): Document Ctrl+I as the FITS header viewer, and row/column cuts once glue's Slice profile ships. Done when both reproduce on 4000005156 Si IV.
 
 **M4**
@@ -362,7 +364,8 @@ Planned workarounds are named in their items.
 
 Run all Python in a micromamba env, never a `.venv`; create a new env rather than change one.
 
-- `iris-plan-main`: the D5 baseline (Python 3.13, PyQt5, astropy 8.0.1, sunpy 8.0.0, irispy git main installed `--no-deps` with its `filelock`, editable glue-solar); reinstall irispy from git to follow main.
+- `iris-plan-qt6` and `iris-plan-floor-qt6` (D56, 2026-10-09): the PyQt6 baseline and floors (PyQt6 6.11 and 6.8.1, astropy 8.0.1 and 8.0.0, ndcube 2.4.2 and 2.4.0; glue-core 1.27.0, glue-qt 0.4.2 `--no-deps`, irispy git main `--no-deps`, conda-forge's `qtconsole-base`, since `qtconsole` pulls PyQt5); with `iris-plan-docs-qt6` for the docs (pip's `sphinx-changelog` and `sunpy-sphinx-theme`); every PR passes in both once `wp9-l-qt6` merges, and the PyQt5 envs below retire.
+- `iris-plan-main`: the D5 baseline before D56 (Python 3.13, PyQt5, astropy 8.0.1, sunpy 8.0.0, irispy git main installed `--no-deps` with its `filelock`, editable glue-solar); reinstall irispy from git to follow main.
 - `iris-plan-floor-main`: the dependency floors (astropy 8.0.0, ndcube 2.4.0) with irispy git main; every PR passes in both.
 - `iris-plan` and `iris-plan-floor`: the same on irispy 0.9.1, before D47.
 - `iris-plan-docs`: `iris-plan` plus Sphinx (irispy 0.9.1; enough for the docs build).
