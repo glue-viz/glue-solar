@@ -1,0 +1,1 @@
+Added 'Row at the point' and 'Column at the point' to the map's Point submenu: Profiles of a raster map's row and column through the point, over the wavelength or band shown, that follow the point, the scan and the band.
