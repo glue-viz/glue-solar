@@ -164,7 +164,8 @@ def test_the_typed_velocities_normalised_and_a_blank_or_cancelled_rest(app, qtbo
 def test_a_symmetric_line_gives_zero_a_redshift_a_positive_map_and_a_saturated_sample_nan(monkeypatch, scan_path):
     """
     A Gaussian line on a constant, centred at the rest wavelength, on a sample, gives 0 at every velocity to float
-    precision, and shifted by +5 km/s, a positive map; a saturated sample interpolated, +Inf, makes it NaN.
+    precision, and shifted by +5 km/s, a positive map; a saturated sample, +Inf, interpolated in either wing makes it
+    NaN.
     """
     monkeypatch.setattr(iris, "LAZY", False)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
@@ -183,11 +184,11 @@ def test_a_symmetric_line_gives_zero_a_redshift_a_positive_map_and_a_saturated_s
                 np.testing.assert_allclose(maps[name], 0, rtol=0, atol=1e-9)
     # every wing up to 50 km/s, 0.23 Å, lies between sample k and one beside it
     values = np.array(raster[cid])
-    values[0, 0, k], values[0, 1, k + 1], values[0, 2, 0] = np.inf, 16182, np.inf  # the last not interpolated
+    values[0, 0, k], values[0, 1, k + 1], values[0, 2, 0] = np.inf, np.inf, np.inf  # both wings, the red, neither
     raster.update_components({cid: values})
     maps = doppler_image(raster, rest)
     for name in maps.main_components:
-        assert np.flatnonzero(np.isnan(maps[name])).tolist() == [0]  # step 0, slit pixel 0
+        assert np.flatnonzero(np.isnan(maps[name])).tolist() == [0, 1]  # step 0, slit pixels 0 and 1
 
 
 def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatch, tmp_path, irispy_test_files):

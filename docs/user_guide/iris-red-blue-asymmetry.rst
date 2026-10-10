@@ -14,10 +14,10 @@ velocity step and divides the mean of its red wing, from the first to the second
 the peak, less the mean of its blue wing, as far below it, by the peak: positive for excess red
 emission. The wing velocities, 30 to 55 km/s, and the step, 5 km/s, unless changed, are those of
 SolarSoft's iris_xfiles (its double Gaussian fit, ``iris_moment__dgf.pro``). irispy computes the map
-on a worker thread from the window's DN/s, a raster step at a time, while glue's status bar says
-"Computing red-blue asymmetry of <label>…", and adds ``<label> red-blue asymmetry <rest>`` on the
-window's raster steps and slit pixels, with their helioprojective coordinates in arcsec linked with
-the other IRIS datasets. No viewer opens: drag it onto an Image viewer and pick a map as its
+on a worker thread from the window's DN/s, a slab of raster steps at a time, while glue's status bar
+says "Computing red-blue asymmetry of <label>…", and adds ``<label> red-blue asymmetry <rest>`` on
+the window's raster steps and slit pixels, with their helioprojective coordinates in arcsec linked
+with the other IRIS datasets. No viewer opens: drag it onto an Image viewer and pick a map as its
 attribute.
 
 The maps

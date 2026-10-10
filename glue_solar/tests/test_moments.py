@@ -493,12 +493,12 @@ def test_saturated_pixels_within_the_velocity_range_are_nan_and_counted(app, qtb
     inside = np.flatnonzero((wavelengths >= low) & (wavelengths <= high))
     outside = np.flatnonzero((wavelengths >= 1403.5) & (wavelengths <= 1404))
     assert not missing(raster, low, high)[:, [10, 20]].any()
-    with fits.open(scan_path, mode="update") as hdulist:  # Si IV 1403, its raw int16, at every step
+    with fits.open(scan_path, mode="update", do_not_scale_image_data=True) as hdulist:  # Si IV 1403's raw int16
         hdulist[5].data[:, 10, inside[1]] = 32760
         hdulist[5].data[:, 20, outside] = 32760
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)
-    assert np.isposinf(raster[cid.label][:, 10, inside[1]]).all()
+    assert np.isposinf(raster[cid.label, (slice(None), 10, inside[1])]).all()
     answer(monkeypatch, "1402.77", continuum=continuum)
     message = f"{raster.label} moments 1402.77: 8 pixels saturated within the velocity range are NaN"
     maps = run(app, qtbot, raster, message)
