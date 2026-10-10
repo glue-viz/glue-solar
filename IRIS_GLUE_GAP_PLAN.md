@@ -119,7 +119,7 @@ A milestone is done when it has no items left.
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP2: `wp2-l-stack-analyses`
-- WP4: `wp4-l-main-window-switch`
+- WP4: `wp4-l-quicklook-tab`, `wp4-l-main-window-switch`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP9: `wp9-l-deferred-recipes`
 - WP11: `wp11-l-point-cuts`
@@ -244,6 +244,7 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 
 **L**
 
+- [ ] **L** `wp4-l-quicklook-tab`: The user's app (2026-10-09) raised `AttributeError: 'NoneType' object has no attribute 'setActiveSubWindow'` at the end of a quicklook opened from the browser (`quicklook.py:1435`, `app.tab(tab)`): the quicklook keeps its tab as an index (`tab = app.tab_count - 1`) while glue's tabs can be moved and closed by the user (glue-qt `setMovable(True)`, `setTabsClosable(True)`) and the build runs `process_events()`, which takes user input. Keep the tab widget instead of its index wherever the quicklook and its helpers use it, and stop quietly if the tab is closed during the build. Done when a test that closes or moves another tab during the build passes and fails without the fix.
 - [ ] **L** `wp4-l-main-window-switch`: Choose and switch the quicklook's main window (D60): a 'main window' choice among the ticked windows in the observation browser (Mg II k by default), and 'Show this window's panels' on a quicklook's spectrum panels, which rebuilds the map, spectrogram and λ panels for that window and gives the old one a spectrum panel, keeping the point, the time master's position, the colour stretches and the links. Done when on a three-window file (4000255147: C II, Si IV, Mg II k) and a stack either way gives the same quicklook as opening it with that window first, and a session keeps the switched layout.
 
 Notes:
