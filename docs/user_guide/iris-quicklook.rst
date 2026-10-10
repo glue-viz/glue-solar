@@ -18,7 +18,7 @@ The quicklook is a CRISPEX-style set of viewers for one observation, in a new ta
 Tabs can be moved or closed while a quicklook opens; closing its tab stops it.
 
 An observation with neither a raster nor a slit-jaw image, only AIA cutouts or SOT cubes, has no
-quicklook: "IRIS: quicklook…" does not offer it, and where no quicklook opens the browser and the
+quicklook: "IRIS: quicklook…" does not offer it, and where no quicklook opens, the browser and the
 command line open its first cube in an Image viewer instead.
 
 For those used to CRISPEX:
