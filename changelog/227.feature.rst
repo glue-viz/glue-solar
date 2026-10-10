@@ -1,0 +1,1 @@
+File → Open Data Set reads SST CRISP and CHROMIS cubes (SSTRED SOLARNET FITS) as one memory-mapped dataset with each tuning's time and a cavity error component; once linked on request, a region drawn on one selects IRIS pixels.
