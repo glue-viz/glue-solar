@@ -40,5 +40,5 @@ alone. ``glue_solar.sources.calibration.radiometric_calibration(data)`` adds the
 too.
 
 Glue says why, and adds nothing, to remove dust from other data than a slit-jaw image, and to
-calibrate other data than a raster window or stack, or a window calibrated already: irispy has no
-radiometric calibration of slit-jaw images.
+calibrate other data than a raster window or stack, a rebinned one, or a window calibrated already:
+irispy has no radiometric calibration of slit-jaw images, and calibrates a window's own pixels.

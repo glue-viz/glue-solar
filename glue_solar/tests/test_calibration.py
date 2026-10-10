@@ -14,6 +14,7 @@ from qtpy import QtWidgets
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
+from glue_solar.regrid import rebin
 from glue_solar.sources import calibration
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
@@ -164,13 +165,14 @@ def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
     sji = image_data(sji_path)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
+    rebinned = rebin(raster, (1, 2, 1))  # 'Rebin…'
     collection = app.data_collection
-    collection.extend([sji, raster, plain])
+    collection.extend([sji, raster, plain, rebinned])
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
-    for action, datasets in ((DUST, (raster, plain)), (RADIANCE, (sji, plain, raster, raster))):
+    for action, datasets in ((DUST, (raster, plain)), (RADIANCE, (sji, plain, rebinned, raster, raster))):
         for data in datasets:
             tree.ui.layerTree.set_selected_layers([data])
             tree._actions[action].trigger()
@@ -180,6 +182,7 @@ def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
         "Could not remove dust\nplain is not an IRIS slit-jaw image.",
         f"Could not calibrate the radiance\n{sji.label} is not an IRIS raster window.",
         "Could not calibrate the radiance\nplain is not an IRIS raster window.",
+        f"Could not calibrate the radiance\n{rebinned.label} is rebinned: irispy calibrates a window's own pixels.",
         f"Could not calibrate the radiance\n{raster.label} has its radiance already.",
     ]
-    assert len(collection) == 3
+    assert len(collection) == 4

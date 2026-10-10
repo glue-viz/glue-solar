@@ -123,7 +123,7 @@ def radiometric_calibration(data):
     Raises
     ------
     ValueError
-        For other data than an IRIS raster window or stack, or one calibrated already.
+        For other data than an IRIS raster window or stack, one rebinned, or one calibrated already.
     """
     from irispy.spectrograph import SpectrogramCube
     from irispy.utils.constants import RADIANCE_UNIT
@@ -131,6 +131,8 @@ def radiometric_calibration(data):
     from irispy.utils.spectrograph import calculate_dn_to_radiance_factor
 
     _check(data)
+    if "rebinned" in data.meta:  # 'Rebin…'
+        raise ValueError(f"{data.label} is rebinned: irispy calibrates a window's own pixels.")
     cid = data.main_components[0]
     label = f"{cid.label} radiance"
     if data.find_component_id(label) is not None:
@@ -145,7 +147,8 @@ def radiometric_calibration(data):
             factors.append(
                 calculate_dn_to_radiance_factor(
                     iris_response=get_latest_response(cube.meta.date_reference),
-                    wavelength=cube.axis_world_coords_values(cube.wavelength_axis)[0],  # irispy's values, 40 ms a scan sooner
+                    # irispy's values, 40 ms a scan sooner
+                    wavelength=cube.axis_world_coords_values(cube.wavelength_axis)[0],
                     detector_type=cube.meta.detector_band,
                     spectral_dispersion_per_pixel=cube.spectral_dispersion,
                     solid_angle=cube.solid_angle,
