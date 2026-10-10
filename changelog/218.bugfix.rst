@@ -1,0 +1,1 @@
+A region no longer makes a path diagram with "Linear" sampling raise on every redraw; it shows on the diagram at the samples inside it.
