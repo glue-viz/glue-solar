@@ -313,7 +313,7 @@ def _ask(data, drawn=None):
     form.addRow("Line centre [Å]:", centre)
     boxes = []
     for name, value in zip(("from", "to"), VELOCITY_RANGE):
-        box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, minimum=-1000, maximum=1000, suffix=" km/s")
+        box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, minimum=-1e4, maximum=1e4, suffix=" km/s")
         box.setValue(value)
         form.addRow(f"Velocities {name}:", box)
         boxes.append(box)
