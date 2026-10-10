@@ -11,9 +11,10 @@ import threading
 import traceback
 import warnings
 from collections import OrderedDict
-from functools import cached_property, partial
+from functools import cached_property, partial, wraps
 from operator import attrgetter
 from pathlib import Path
+from weakref import WeakSet
 
 import numpy as np
 from glue.core.component import Component
@@ -89,6 +90,58 @@ WCS_LOCK = threading.RLock()
 # own conversions in each tick placement (wp0-perf-astropy-irispy).
 _MEMO_ENTRIES = 128
 _MEMO_SAMPLES = 4096
+
+
+def _holding_lock(function):
+    """``function``, called holding `WCS_LOCK`."""
+
+    @wraps(function)
+    def locked(*args, **kwargs):
+        with WCS_LOCK:
+            return function(*args, **kwargs)
+
+    return locked
+
+
+class _LockedWCS(WCS):
+    """
+    An astropy WCS whose transforms and properties hold `WCS_LOCK`, as those of `_GlueWCS` do. `link_hpc` makes the WCS
+    of each other dataset it links one, in place: IRIS data's profile workers then call wcslib on it beside the GUI
+    thread, which crashed glue 8 times in 8 beside an SST cube.
+    """
+
+
+# wcslib's transforms, and the properties that read its struct: a lock on the transforms alone still crashed
+for _name in (
+    "all_pix2world",
+    "all_world2pix",
+    "wcs_pix2world",
+    "wcs_world2pix",
+    "pixel_to_world_values",
+    "world_to_pixel_values",
+    "sub",
+    "to_header",
+    "__copy__",
+    "__deepcopy__",
+):
+    setattr(_LockedWCS, _name, _holding_lock(getattr(WCS, _name)))
+for _name in (
+    "axis_correlation_matrix",
+    "world_axis_physical_types",
+    "world_axis_units",
+    "world_axis_names",
+    "world_axis_object_components",
+    "world_axis_object_classes",
+    "pixel_n_dim",
+    "world_n_dim",
+    "array_shape",
+    "pixel_shape",
+    "pixel_bounds",
+    "has_distortion",
+):
+    _property = getattr(WCS, _name)
+    setattr(_LockedWCS, _name, property(_holding_lock(_property.fget), _property.fset))
+del _name, _property
 
 
 def _copies(values):
@@ -732,18 +785,19 @@ class _ScanAt:
         return cls(rec["scans"])
 
 
-def link_hpc(data_collection):
+def link_hpc(data_collection, others=None):
     """
-    Links pairing the helioprojective longitude and latitude of every IRIS dataset, and of any other dataset such as
-    a sunpy map, with those of the first IRIS dataset, and giving every stack of raster scans its ``Scan`` on each
-    IRIS dataset with a ``Time`` but a stack.
+    Links pairing the helioprojective longitude and latitude of every IRIS dataset, and of the other datasets of
+    ``others``, all by default, such as a sunpy map or an SST cube, with those of the first IRIS dataset, and giving
+    every stack of raster scans its ``Scan`` on each IRIS dataset with a ``Time`` but a stack.
 
     Datasets are matched by world axis physical type, not by component name. IRIS datasets are all in arcsec and
     linked with `~glue.core.link_helpers.LinkSame`; others, such as a sunpy map in degrees, with
     `~glue.core.link_helpers.LinkSameWithUnits`, which converts. Without IRIS data nothing is linked: glue's own
     WCS autolinker links sunpy maps to each other. No link pairs times, so a slit-jaw image frame is placed with
     its own pointing. Pairs that are already linked, either way round, are skipped, so calling this again after
-    loading more data is safe. The caller adds the links::
+    loading more data is safe. The plain astropy WCS of each other dataset linked, now or before, which IRIS data's
+    profile workers then call, is put behind `WCS_LOCK` in place (`_LockedWCS`). The caller adds the links::
 
         data_collection.add_link(link_hpc(data_collection))
 
@@ -768,14 +822,22 @@ def link_hpc(data_collection):
     # IRIS datasets first, so that the first of them is the one every dataset links to
     for data in sorted(data_collection, key=lambda data: not isinstance(data.coords, _GlueWCS)):
         iris = isinstance(data.coords, _GlueWCS)
+        asked = iris or others is None or data in others
         # glue's world components are in numpy order, the reverse of the WCS world axes
         physical_types = getattr(data.coords, "world_axis_physical_types", None) or ()
         for physical_type, cid in zip(physical_types[::-1], data.world_component_ids):
             if physical_type and physical_type.startswith("custom:pos.helioprojective."):
                 # never another dataset: with no IRIS dataset, one is its own anchor and gets no link
                 anchor = anchors.setdefault(physical_type, cid) if iris else anchors.get(physical_type, cid)
-                if anchor is not cid and frozenset((anchor, cid)) not in linked:
+                pair = frozenset((anchor, cid))
+                if anchor is cid or not (asked or pair in linked):
+                    continue
+                if pair not in linked:
                     links.append((LinkSame if iris else LinkSameWithUnits)(anchor, cid))
+                # linked now or before, as a session restores it
+                # ponytail: only a plain astropy WCS, as glue's FITS reader and sunpy maps give, not a wrapper of one
+                if type(data.coords) is WCS:
+                    data.coords.__class__ = _LockedWCS
     datasets = [data for data in data_collection if isinstance(data.coords, _GlueWCS)]
     scans = {data: cid for data in datasets for cid in data.world_component_ids if cid.label == "Scan"}
     # ponytail: a link per stack and other dataset, not a star: 104 for 8 stacks and 13 slit-jaw images add 0.03 s to
@@ -795,10 +857,14 @@ def link_hpc(data_collection):
 
 
 class _Relinker(HubListener):
-    """Link the IRIS datasets of a collection again, once, after datasets are removed from it."""
+    """
+    Link the IRIS datasets of a collection again, once, after datasets are removed from it, and the other datasets
+    `keep_hpc_linked` was asked to link, ``others``.
+    """
 
     def __init__(self, data_collection):
         self.data_collection = data_collection
+        self.others = WeakSet()
         # one relink after a burst of removals, such as clearing the collection
         self._timer = QTimer()
         self._timer.setSingleShot(True)
@@ -810,23 +876,28 @@ class _Relinker(HubListener):
         self._timer.start()
 
     def _relink(self):
-        links = link_hpc(self.data_collection)
-        if links:  # glue rediscovers every dataset's links on each add_link, even an empty one
-            self.data_collection.add_link(links)
+        keep_hpc_linked(self.data_collection)
 
 
-def keep_hpc_linked(data_collection):
+def keep_hpc_linked(data_collection, others=()):
     """
-    Add the `link_hpc` links to ``data_collection``, and add them again after any dataset is removed.
+    Add the `link_hpc` links of the IRIS datasets of ``data_collection`` and of ``others``, other datasets of it, and
+    add them again after any dataset is removed, those of ``others`` given to any call too.
+
+    Data outside the IRIS observations, such as a sunpy map or an SST cube, are linked only on request ('IRIS: link
+    helioprojective coordinates'), not as data load or a quicklook opens: every quicklook panel and profile then inverts
+    their WCS, and beside a linked SST cube, whose WCS is tabulated, a quicklook took about 4 minutes to open, not 6 s.
 
     Removing the dataset the others are linked through drops their links, so they are then linked
     through the new first dataset. Datasets loaded later need another call.
     """
-    links = link_hpc(data_collection)
-    if links:
-        data_collection.add_link(links)
     if not hasattr(data_collection, "_solar_relinker"):
         data_collection._solar_relinker = _Relinker(data_collection)  # the hub holds its listeners weakly
+    requested = data_collection._solar_relinker.others
+    requested.update(others)
+    links = link_hpc(data_collection, requested)
+    if links:  # glue rediscovers every dataset's links on each add_link, even an empty one
+        data_collection.add_link(links)
 
 
 def load_entry(observation, kind, name, stack=False):
