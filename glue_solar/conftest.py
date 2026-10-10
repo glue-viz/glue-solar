@@ -278,6 +278,14 @@ IRISPY_DATA_HASHES = {
     "iris_l2_20250519_165924_3640107442_cutout_SDO.tar.gz": "db95aec5c0b3400e39d077b0e840e9280f72e2fac798e1fd15975257f3677dc4",
     # OBSID 4000255147: the first 50 frames of SJI 1400, full size
     "iris_l2_20130902_163935_4000255147_SJI_1400_t000_f050.fits.gz": "b9a0b8cf2d98f5e1121000a14168079b113fdb0b169668ec1213411915afdb8f",
+    # OBSID 3620107423: 29 scans of the 4-step raster, all eight windows, ten minutes
+    "iris_l2_20250613_123658_3620107423_raster.tar.gz": "756ca99cbdfafca2a97c3e357a9e8ab1bc897bca6991f6e0fa42ac2717d5b05a",
+    # OBSID 3620107423: SJI 1400 over the same ten minutes, 58 frames
+    "iris_l2_20250613_123658_3620107423_SJI_1400_t000.fits.gz": "0f06f1a30409a69cb57c2a520c81f03b7352aeb850d3f043ad991df957f96929",
+    # OBSID 3620106076: 128 steps of one scan, 2832 only
+    "iris_l2_20170305_164021_3620106076_cutout_2832_raster.fits.gz": "945d4a1178ecc024925558f7bd04a3e3ab2dc3eea4133464088b4bbc6672c3cc",
+    # OBSID 3620106076: SJI 2832, the 33 frames over those steps
+    "iris_l2_20170305_164021_3620106076_cutout_SJI_2832.fits.gz": "4802b42f2389a14cc1692a9c92f49d12fe0e588ed2be44d018cf387a2292b5e2",
 }
 
 

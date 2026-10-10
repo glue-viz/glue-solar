@@ -41,6 +41,7 @@ from glue_solar.conftest import MD5, OBS_B, find_irispy_test_file
 from glue_solar.quicklook import (
     Coordinator,
     QuicklookImageViewer,
+    _curve,
     _half_cadence,
     coordinator,
     nearest,
@@ -882,20 +883,25 @@ def test_a_light_curve_follows_the_point_and_the_band(bare_app, qtbot, monkeypat
 POINT_CURVES = "Light curves at this point (windows, SJI)"
 
 
-def expected_sji_curve(raster, sji, slit):
+def expected_sji_curve(raster, sji, slit, step=None):
     """
-    The slit-jaw image's light curve at slit pixel ``slit`` of a sit-and-stare raster, frame by frame from both
-    datasets' own coordinates: at the exposure nearest each frame's time, NaN past half the raster's cadence or off the
-    frame.
+    The slit-jaw image's light curve at slit pixel ``slit`` of a sit-and-stare raster, or also at step ``step`` of a
+    stack or a scanning raster, frame by frame from both datasets' own coordinates: at the exposure, or the stack's
+    scan at that step, nearest each frame's time, NaN past half the raster's cadence, or at a scanning raster's one
+    place in every frame; NaN off the frame.
     """
-    times, frames = (data[data.id["Time"]][:, 0, 0] for data in (raster, sji))
+    times, frames = raster[raster.id["Time"]], sji[sji.id["Time"]][:, 0, 0]
+    times = times[:, step, 0, 0] if raster.ndim == 4 else times[:, 0, 0]
     values = sji[sji.main_components[0]]
     expected = np.full(len(frames), np.nan)
     for frame, when in enumerate(frames):
-        exposure = expected_nearest(when, times)
-        if abs(times[exposure] - when) > np.median(np.diff(np.sort(times))) / 2:
-            continue
-        x, y = np.round(raster_point_on_sji(raster, sji, exposure, slit, frame))
+        exposure = 0
+        if step is None or raster.ndim == 4:
+            exposure = expected_nearest(when, times)
+            if abs(times[exposure] - when) > np.median(np.diff(np.sort(times))) / 2:
+                continue
+        place = (exposure, slit) if step is None else (step, slit)
+        x, y = np.round(raster_point_on_sji(raster, sji, *place, frame, scan=exposure))
         if 0 <= y < sji.shape[1] and 0 <= x < sji.shape[2]:
             expected[frame] = values[frame, int(y), int(x)]
     return expected
@@ -1010,6 +1016,27 @@ def test_light_curves_at_a_stack_point(bare_app, qtbot, monkeypatch, scans):
     menu_action(raster_map, "Clear point").trigger()
     menu_action(raster_map, POINT_CURVES).trigger()
     assert shown == ["Could not add the light curves\nSelect a point on a raster first."]
+
+
+@pytest.mark.remote_data
+def test_a_slit_jaw_light_curve_at_a_stack_point(irispy_data):
+    """3620107423's 29 scans of a 4-step raster and its SJI 1400: each frame at the scan nearest it at the step."""
+    [stack] = raster_data(irispy_data("iris_l2_20250613_123658_3620107423_raster.tar.gz"), ["C II 1336"], stack=True)
+    sji = image_data(irispy_data("iris_l2_20250613_123658_3620107423_SJI_1400_t000.fits.gz"))
+    times, values = _curve(sji, stack, (0, 2, 200), None)
+    np.testing.assert_array_equal(times, sji[sji.id["Time"]][:, 0, 0])
+    np.testing.assert_array_equal(values, expected_sji_curve(stack, sji, 200, step=2))
+    assert np.isnan(values).sum() == 2  # the two frames past half the 20.6 s cadence
+
+
+@pytest.mark.remote_data
+def test_a_slit_jaw_light_curve_at_a_scanning_raster_point(irispy_data):
+    """3620106076's 128-step scan and its SJI 2832: one place in every frame, placed with that frame's own pointing."""
+    [raster] = raster_data([irispy_data("iris_l2_20170305_164021_3620106076_cutout_2832_raster.fits.gz")])
+    sji = image_data(irispy_data("iris_l2_20170305_164021_3620106076_cutout_SJI_2832.fits.gz"))
+    _, values = _curve(sji, raster, (64, 194), None)
+    np.testing.assert_array_equal(values, expected_sji_curve(raster, sji, 194, step=64))
+    assert np.isfinite(values).all()
 
 
 def test_clearing_the_point_stops_the_coupling(bare_app, qtbot, scans):
