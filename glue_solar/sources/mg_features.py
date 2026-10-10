@@ -1,19 +1,19 @@
 """
-'IRIS: Mg II features…': irispy's line centres and emission peaks of Mg II k and h in a raster window or a stack of its
-scans, as a new dataset.
+'IRIS: Mg II features… (Mg II)': irispy's line centres and emission peaks of Mg II k and h in a raster window or a
+stack of its scans, as a new dataset.
 """
 
 import gc
 import itertools
 
 import numpy as np
-from glue.config import layer_action
 from glue.core.component import Component
 from glue_qt.utils.decorators import messagebox_on_error
 from qtpy import QtWidgets
 
 import astropy.units as u
 
+from glue_solar.glue_patches import layer_action
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources.loaders.iris import WCS_LOCK
 from glue_solar.sources.moments import SLAB, _accepted, _check, _cube, _dataset, _read, _start, _unit
@@ -52,6 +52,14 @@ def _crop(data, velocities, lines):
             f"{' or '.join(lines)} from {low} to {high} km/s."
         )
     return tuple(covered), slice(max(min(starts), 0), min(max(stops), wavelengths.size))
+
+
+def _covered(data):
+    """
+    Those of `LINES` that ``data`` covers over `VELOCITIES` (`_crop`); raise why for data `_check` refuses or none.
+    """
+    _check(data)
+    return _crop(data, VELOCITIES, LINES)[0]
 
 
 def _mg_features(data, velocities, lines, crop, unit):
@@ -163,22 +171,21 @@ def _saturated(features):
 
 
 @layer_action(
-    "IRIS: Mg II features…",
+    "IRIS: Mg II features… (Mg II)",
     single=True,
     data=True,
+    check=_covered,
     tooltip="Add irispy's Mg II k and h line centre and emission peak maps of this raster window or stack",
 )
 @messagebox_on_error("Could not compute Mg II features")
 def mg_features_iris(data, data_collection):
     """
     Add the `mg_features` of ``data`` within typed velocities, of the lines ticked, at first those it covers, to the
-    data collection, with its helioprojective coordinates linked, and no viewer; glue shows why for data that has
-    none. irispy computes them in the background, while glue's status bar says so, and then how many pixels
-    saturated, if any.
+    data collection, with its helioprojective coordinates linked, and no viewer; offered only for a raster window or
+    stack covering Mg II k or h, and glue shows why for typed values it cannot take. irispy computes them in the
+    background, while glue's status bar says so, and then how many pixels saturated, if any.
     """
-    _check(data)  # before asking
-    covered, _ = _crop(data, VELOCITIES, LINES)
-    chosen = _ask(data, covered)
+    chosen = _ask(data, _covered(data))  # checked before asking
     if chosen is None:
         return
     velocities, lines = chosen

@@ -1884,7 +1884,7 @@ class _ClearPointEntry(_CoordinateEntry):
 
 class _LightCurveEntry(_CoordinateEntry):
     tool_id = "solar:light_curve"
-    action_text = "Light curve at the point"
+    action_text = "Light curve of this window"
     tool_tip = "Open the mean over the wavelength or band shown here at the point, against exposure or scan"
 
     @messagebox_on_error("Could not open the light curve")
@@ -1897,7 +1897,7 @@ class _LightCurveEntry(_CoordinateEntry):
 
 class _PointCurvesEntry(_CoordinateEntry):
     tool_id = "solar:point_curves"
-    action_text = "Light curves at this point (windows, SJI)"
+    action_text = "Light curves of every window and SJI…"
     tool_tip = "Plot each raster window and slit-jaw image at the point against time, as new datasets that follow it"
 
     @messagebox_on_error("Could not add the light curves")

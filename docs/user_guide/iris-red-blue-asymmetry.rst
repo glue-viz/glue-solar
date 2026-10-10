@@ -42,9 +42,9 @@ observation's ``OBSID`` and ``STARTOBS``, ``red_blue_rest``, ``red_blue_waveleng
 computes the dataset in glue's terminal too. :ref:`Exporting derived data
 <glue_solar_users_guide_exporting_derived_data>` saves the maps with their coordinates.
 
-Glue says why, and adds nothing, for the data and centres :ref:`line moments
-<glue_solar_users_guide_iris_line_moments>` refuse, and for irispy's own errors, such as wing
-velocities that do not increase.
+The entry is offered for the same data as :ref:`line moments
+<glue_solar_users_guide_iris_line_moments>`. Glue says why, and adds nothing, for the centres line
+moments refuse, and for irispy's own errors, such as wing velocities that do not increase.
 
 .. _glue_solar_users_guide_iris_doppler:
 
@@ -73,5 +73,6 @@ wavelength scale, as the line moments' are (see :ref:`Line moments
 <glue_solar_users_guide_iris_line_moments>`). The new dataset's ``meta`` holds the observation's
 ``OBSID`` and ``STARTOBS``, ``doppler_rest``, ``doppler_velocities`` and ``doppler_sign``,
 ``"red - blue"``. ``glue_solar.sources.doppler.doppler_image(data, rest, velocities, normalised)``
-computes the dataset in glue's terminal too. Glue says why, and adds nothing, for data other than a
-raster window or stack, a velocity that is not positive, or a wing outside the window.
+computes the dataset in glue's terminal too. The entry is offered only for a raster window or
+stack; glue says why, and adds nothing, for a velocity that is not positive, or a wing outside the
+window.

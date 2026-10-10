@@ -1,6 +1,7 @@
 """
-'Regrid on time', on int16 copies of irispy's test files whose exposures, frames and scans are taken at known times;
-'North up', on a rolled slit-jaw image and irispy's; and 'Rebin…', on int16 copies of irispy's test files.
+'IRIS: regrid on time', on int16 copies of irispy's test files whose exposures, frames and scans are taken at known
+times; 'IRIS: north up', on a rolled slit-jaw image and irispy's; and 'IRIS: rebin…', on int16 copies of irispy's test
+files.
 """
 
 import warnings
@@ -25,7 +26,7 @@ from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import _SJI_POINTING, image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.loaders.lazy import LazyData, RawComponent
 from glue_solar.sources.moments import line_moments
-from glue_solar.tests.helpers import press
+from glue_solar.tests.helpers import press, refused
 from glue_solar.tests.test_lazy import RASTER, SJI, int16_copy, int16_raster_copy, zero_exposure
 from glue_solar.tests.test_quicklook import SCAN, expected_nearest, menu_action, readout
 from glue_solar.tools import _exposure_label
@@ -195,7 +196,7 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(app, monkeypatch, tmp_
     collection.extend([sji, raster, scan])
     keep_hpc_linked(collection)
     tree = app._layer_widget
-    action = tree._actions["Regrid on time"]
+    action = tree._actions["IRIS: regrid on time (sit-and-stare, stack, SJI, AIA, SOT)"]
     tree.ui.layerTree.set_selected_layers([raster])
     assert action.isVisible()
     action.trigger()
@@ -207,12 +208,12 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(app, monkeypatch, tmp_
     assert link_hpc(collection) == []
     linked = {cid for link in collection.links for cid in (link.get_to_id(), *link.get_from_ids())}
     assert set(regridded.world_component_ids[:2]) <= linked
-    # a scanning raster is refused, and glue shows why
+    # a scanning raster hides the action, and its guard says why
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree.ui.layerTree.set_selected_layers([scan])
-    action.trigger()
+    refused(action)
     [text] = shown
     assert text.startswith("Could not regrid on time\n")
     assert "places on the Sun" in text
@@ -287,7 +288,7 @@ def test_north_up_shows_a_rolled_slit_jaw_image_north_up(app, tmp_path):
     keep_hpc_linked(collection)
     tree = app._layer_widget
     tree.ui.layerTree.set_selected_layers([sji])
-    tree._actions["North up"].trigger()
+    tree._actions["IRIS: north up (SJI, AIA, SOT)"].trigger()
     grid = collection[-1]
     [viewer] = app.viewers[0]
     assert viewer.state.reference_data is grid
@@ -392,7 +393,7 @@ def test_rebin_takes_each_bins_mean_of_its_values_and_keeps_the_finite_mean(
     else:
         data = image_data(int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0]))
         bins = (2, 3, 3)
-    data.coords.pointing_offset = (1.5, -0.5)  # 'Shift pointing…'
+    data.coords.pointing_offset = (1.5, -0.5)  # 'IRIS: shift pointing…'
     rebinned = rebin(data, bins)
     cid = data.main_components[0]
     label = f"{data.label} rebinned {'x'.join(map(str, bins))}"
@@ -471,7 +472,7 @@ def test_the_rebin_action_adds_a_linked_dataset_that_follows_the_time_sync(
     monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
     for data in (raster, sji):
         tree.ui.layerTree.set_selected_layers([data])
-        tree._actions["Rebin…"].trigger()
+        tree._actions["IRIS: rebin…"].trigger()
         assert app.statusBar().currentMessage() == f"Rebinning {data.label}…"
         qtbot.waitUntil(lambda: not iris._RUNNING)
     assert opened == [[2, 2, 1], [1, 2, 2]]  # exposures and slit pixels; y and x
@@ -491,14 +492,14 @@ def test_the_rebin_action_adds_a_linked_dataset_that_follows_the_time_sync(
     for exposure in (30, 90):
         viewers["spectrogram"].state.slices = (exposure, *viewers["spectrogram"].state.slices[1:])
         qtbot.waitUntil(lambda e=exposure: sji_viewer.state.slices[0] == expected_nearest(exposures[e], frames))
-    # other data are refused, and glue shows why
+    # other data hide the action, and its guard says why
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
     collection.append(plain)
     tree.ui.layerTree.set_selected_layers([plain])
-    tree._actions["Rebin…"].trigger()
+    refused(tree._actions["IRIS: rebin…"])
     assert shown == ["Could not rebin\nplain is not an IRIS raster window, slit-jaw image, AIA cutout or SOT cube."]
     with pytest.raises(ValueError, match="is rebinned: irispy would give each bin the noise of one sample"):
         line_moments(binned_raster, 1402.77, errors=True)

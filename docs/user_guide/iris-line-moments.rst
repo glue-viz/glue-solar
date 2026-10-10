@@ -93,9 +93,9 @@ own exposure times.
 What is refused
 ---------------
 
-Glue says why, and adds nothing, for:
+The entry is offered only for an IRIS raster window or a stack of its scans. Glue says why, and adds
+nothing, for:
 
-- a slit-jaw image or any other data than an IRIS raster window;
 - a centre or continuum window that is not a wavelength, or a list of ranges, in Å;
 - a velocity range that does not increase, or with no wavelength of the window within it about the
   centre, a continuum window with none, or one that overlaps the velocity range.
@@ -110,7 +110,7 @@ The rest wavelength of a spectral window, at which the line centre here and the 
 :ref:`Doppler images <glue_solar_users_guide_iris_doppler>` start, and from which a Profile viewer
 gives the :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>`, is:
 
-- the one set with "Set rest wavelength…" from the window's right-click menu, which lists the main
+- the one set with "IRIS: set rest wavelength…" from the window's right-click menu, which lists the main
   IRIS lines within the window and takes a wavelength typed in Å, a blank one removing it. It is
   kept in the dataset's ``meta['rest_wavelength']``, in Å, which a script can set too;
 - else the main IRIS line within the window's wavelengths (those the Profile viewer's "IRIS lines"
@@ -164,9 +164,10 @@ connection, while glue's status bar says so; a later map takes a few seconds, al
 background. Should glue quit while fiasco builds it, delete the unfinished ``chianti_dbase.h5``
 before the next use.
 
-Glue says why, and adds nothing, for fewer than two attributes of 2-D maps selected, maps of
-different shapes or coordinates or in different units, and a table that cannot be read, has fewer
-than two columns, or holds a ratio irispy cannot map from, such as one that is not monotonic.
+The entry is offered only where the 2-D maps selected hold two attributes or more between them, not
+for a subset group or other data. Glue says why, and adds nothing, for maps of different shapes or
+coordinates or in different units, and a table that cannot be read, has fewer than two columns, or
+holds a ratio irispy cannot map from, such as one that is not monotonic.
 
 .. _glue_solar_users_guide_exporting_derived_data:
 

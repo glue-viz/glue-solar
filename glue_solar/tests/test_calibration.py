@@ -18,10 +18,11 @@ from glue_solar.regrid import rebin
 from glue_solar.sources import calibration
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
+from glue_solar.tests.helpers import refused
 from glue_solar.tests.test_lazy import SJI, int16_copy, int16_raster_copy
 from glue_solar.tests.test_quicklook import SCAN
 
-DUST = "IRIS: remove dust"
+DUST = "IRIS: remove dust (SJI)"
 RADIANCE = "IRIS: radiometric calibration"
 
 
@@ -158,17 +159,22 @@ def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
     sji = image_data(sji_path)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
-    rebinned = rebin(raster, (1, 2, 1))  # 'Rebin…'
+    rebinned = rebin(raster, (1, 2, 1))  # 'IRIS: rebin…'
     collection = app.data_collection
     collection.extend([sji, raster, plain, rebinned])
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
-    for action, datasets in ((DUST, (raster, plain)), (RADIANCE, (sji, plain, rebinned, raster, raster))):
+    for action, datasets in ((DUST, (raster, plain)), (RADIANCE, (sji, plain, rebinned))):
         for data in datasets:
             tree.ui.layerTree.set_selected_layers([data])
-            tree._actions[action].trigger()
+            refused(tree._actions[action])
+    tree.ui.layerTree.set_selected_layers([raster])
+    tree._actions[RADIANCE].trigger()
+    tree.ui.layerTree.set_selected_layers([plain])
+    tree.ui.layerTree.set_selected_layers([raster])
+    refused(tree._actions[RADIANCE])  # calibrated already
     assert not iris._RUNNING  # no thread started
     assert shown == [
         f"Could not remove dust\n{raster.label} is not an IRIS slit-jaw image.",

@@ -37,7 +37,7 @@ from glue_solar.sources import moments
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import _HPC, _GlueWCS, image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.moments import line_moments
-from glue_solar.tests.helpers import select_point
+from glue_solar.tests.helpers import refused, select_point
 from glue_solar.tests.test_lazy import RASTER, SJI, int16_copy, int16_raster_copy, zero_exposure
 from glue_solar.tests.test_quicklook import SCAN
 
@@ -276,7 +276,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
     opened = answer(monkeypatch, "1402.77")
     for data in (sji, plain):
         tree.ui.layerTree.set_selected_layers([data])
-        action.trigger()
+        refused(action)
     assert opened == []  # refused before asking
     for centre, continuum, velocities in (
         ("3000", "", ()),
@@ -619,9 +619,14 @@ def test_subtracting_the_mean_spectrum_refuses_other_data_and_a_second_run(
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
-    for data in (sji, plain, raster, raster):
+    for data in (sji, plain):
         tree.ui.layerTree.set_selected_layers([data])
-        tree._actions[MEAN].trigger()
+        refused(tree._actions[MEAN])
+    tree.ui.layerTree.set_selected_layers([raster])
+    tree._actions[MEAN].trigger()
+    tree.ui.layerTree.set_selected_layers([plain])
+    tree.ui.layerTree.set_selected_layers([raster])
+    refused(tree._actions[MEAN])  # subtracted already
     assert shown == [
         f"Could not subtract the mean spectrum\n{sji.label} is not an IRIS raster window.",
         "Could not subtract the mean spectrum\nplain is not an IRIS raster window.",
@@ -642,7 +647,7 @@ def export(monkeypatch, path, data):
 
 def test_moment_and_sliced_maps_export_with_their_coordinates_and_time(qtbot, monkeypatch, tmp_path, scan_path):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
-    raster.coords.pointing_offset = (2.5, -3.25)  # 'Shift pointing…'
+    raster.coords.pointing_offset = (2.5, -3.25)  # 'IRIS: shift pointing…'
     maps = line_moments(raster, 1402.77)
     sliced = Data(
         label="sliced",  # a raster window at a wavelength, with each step's time
@@ -748,11 +753,13 @@ def test_the_line_dialogs_start_at_the_rest_wavelength(app, monkeypatch, irispy_
     assert both(mg) == [("2796.352", "Mg II k, of the main IRIS lines")] * 2  # not the TWAVE, 2796.2
     assert both(none) == [("", "")] * 2
     mg.meta["rest_wavelength"] = 2796.2
-    assert both(mg) == [("2796.2", f"{mg.label}'s, set with 'Set rest wavelength…'")] * 2
+    assert both(mg) == [("2796.2", f"{mg.label}'s, set with 'IRIS: set rest wavelength…'")] * 2
 
 
 def test_set_rest_wavelength(app, monkeypatch, irispy_test_files):
-    """'Set rest wavelength…' lists the main lines within the window, takes one or a typed wavelength, or a blank."""
+    """
+    'IRIS: set rest wavelength…' lists the main lines within the window, takes one or a typed wavelength, or a blank.
+    """
     [mg] = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["Mg II k 2796"])
     sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
     app.data_collection.extend([mg, sji])
@@ -760,7 +767,7 @@ def test_set_rest_wavelength(app, monkeypatch, irispy_test_files):
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
-    action = tree._actions["Set rest wavelength…"]
+    action = tree._actions["IRIS: set rest wavelength…"]
 
     def pick(text, ok=True):
         monkeypatch.setattr(QtWidgets.QInputDialog, "getItem", lambda *args: opened.append(args[3:5]) or (text, ok))
@@ -776,7 +783,7 @@ def test_set_rest_wavelength(app, monkeypatch, irispy_test_files):
     assert pick(" ") == (2796.352, None)  # back to the main line
     assert opened == [(lines, 1), (lines, 4), (["2796.2", *lines], 0), (["2796.2", *lines], 0), (["2796.2", *lines], 0)]
     tree.ui.layerTree.set_selected_layers([sji])
-    action.trigger()
+    refused(action)
     assert shown == [
         "Could not set the rest wavelength\n'k' is not a wavelength in Angstrom, such as 1402.77.",
         f"Could not set the rest wavelength\n{sji.label} has no wavelength axis.",

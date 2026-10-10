@@ -4,7 +4,6 @@ same grid, as a new dataset; from a table, or from CHIANTI's O IV ratio through 
 """
 
 import numpy as np
-from glue.config import layer_action
 from glue.core.component import Component
 from glue.core.data import Data
 from glue_qt.utils.decorators import messagebox_on_error
@@ -13,6 +12,7 @@ from qtpy import QtWidgets
 import astropy.units as u
 from astropy.io import ascii
 
+from glue_solar.glue_patches import layer_action
 from glue_solar.sources.loaders.iris import keep_hpc_linked
 from glue_solar.sources.moments import _accepted, _start
 
@@ -197,9 +197,18 @@ def _failed(exc_info):
     raise exc_info[1]
 
 
+def _maps(layers):
+    """The 2-D datasets of ``layers``; raise why they do not hold two components between them."""
+    datasets = [layer for layer in layers if isinstance(layer, Data) and layer.ndim == 2]
+    if sum(len(data.main_components) for data in datasets) < 2:
+        raise ValueError("Select two maps on the same grid, such as the line moments of two lines.")
+    return datasets
+
+
 @layer_action(
     "IRIS: line ratio diagnostic…",
     single=False,
+    check=_maps,
     tooltip="Add a quantity such as log n_e mapped by irispy from the ratio of two maps on the same grid",
 )
 @messagebox_on_error("Could not map the line ratio")
@@ -210,10 +219,7 @@ def line_ratio_iris(layers, data_collection):
     and no viewer; glue shows why for fewer than two components, or a table without two columns. fiasco and irispy
     map the O IV density in the background, while glue's status bar says so.
     """
-    datasets = [layer for layer in layers if isinstance(layer, Data) and layer.ndim == 2]
-    if sum(len(data.main_components) for data in datasets) < 2:
-        raise ValueError("Select two maps on the same grid, such as the line moments of two lines.")
-    picked = _ask(datasets)
+    picked = _ask(_maps(layers))
     if picked is None:
         return
     numerator, denominator, path, name = picked

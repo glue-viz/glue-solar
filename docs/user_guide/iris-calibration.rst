@@ -8,7 +8,7 @@ Removing dust
 -------------
 
 To remove the dust on a slit-jaw image, select it in the data collection and choose "IRIS: remove
-dust" from its right-click menu. irispy's ``SJICube.remove_dust``, after SolarSoft's
+dust (SJI)" from its right-click menu. irispy's ``SJICube.remove_dust``, after SolarSoft's
 ``iris_dustbuster``, finds dust where a value lies above -199 and below 0.5 DN, and the pixels next
 to it, and replaces each with the median of that pixel over the two frames on either side, scaled by
 their exposure times, or else with the median of the 5 by 5 pixels about it. It runs on a worker
@@ -39,6 +39,6 @@ holds a spectrum for each scan, as that scan alone gives it, at its own ``DATE_O
 alone. ``glue_solar.sources.calibration.radiometric_calibration(data)`` adds them in glue's terminal
 too.
 
-Glue says why, and adds nothing, to remove dust from other data than a slit-jaw image, and to
-calibrate other data than a raster window or stack, a rebinned one, or a window calibrated already:
-irispy has no radiometric calibration of slit-jaw images, and calibrates a window's own pixels.
+Removing dust is offered only for a slit-jaw image, and the calibration only for a raster window or
+stack that is not rebinned or calibrated already: irispy has no radiometric calibration of slit-jaw
+images, and calibrates a window's own pixels.

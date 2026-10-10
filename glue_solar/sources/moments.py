@@ -8,7 +8,6 @@ import itertools
 from functools import partial
 
 import numpy as np
-from glue.config import layer_action
 from glue.core.component import Component
 from glue.core.data import Data
 from glue.core.units import UnitConverter
@@ -22,6 +21,7 @@ from astropy import constants
 from astropy.nddata import StdDevUncertainty
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
+from glue_solar.glue_patches import layer_action
 from glue_solar.lines import MAIN_LINES, _wavelength, rest_wavelength
 from glue_solar.quicklook import _role, _spectral_axes, _wavelengths
 from glue_solar.sources.loaders.iris import _RUNNING, WCS_LOCK, _GlueWCS, keep_hpc_linked, per_second
@@ -164,7 +164,7 @@ def _moments(data, centre, velocity_range, continuum, crop, unit, errors=False):
     from irispy.utils.moments import calculate_moments
     from irispy.utils.spectrograph import subtract_background
 
-    if errors and "rebinned" in data.meta:  # 'Rebin…'
+    if errors and "rebinned" in data.meta:  # 'IRIS: rebin…'
         raise ValueError(f"{data.label} is rebinned: irispy would give each bin the noise of one sample.")
     maps, saturated = {}, 0
     # a slab takes about 100 bytes per sample, 150 with a continuum or errors: half the steps then, generously, keeps
@@ -271,7 +271,7 @@ def _rest_field(data, name):
     rest = rest_wavelength(data)
     field = QtWidgets.QLineEdit("" if rest is None else str(rest), objectName=name)
     if data.meta.get("rest_wavelength") is not None:
-        field.setToolTip(f"{data.label}'s, set with 'Set rest wavelength…'")
+        field.setToolTip(f"{data.label}'s, set with 'IRIS: set rest wavelength…'")
     elif rest is not None:
         field.setToolTip(f"{next(line for line, wave in MAIN_LINES if wave == rest)}, of the main IRIS lines")
     return field
@@ -410,6 +410,7 @@ def _start(data_collection, text, failed, function, *args, said=None):
     "IRIS: line moments…",
     single=True,
     data=True,
+    check=_check,
     tooltip="Add irispy's intensity, centroid, width and velocity maps of a line in this raster window or stack",
 )
 @messagebox_on_error("Could not compute line moments")
@@ -417,9 +418,9 @@ def moments_iris(data, data_collection):
     """
     Add the `line_moments` of ``data`` about a typed line centre, within a typed velocity range, or one to the ends of
     the range shown on a Profile of its wavelength, less any background fitted to typed continuum windows, with their
-    errors if ticked, to the data collection, with its helioprojective coordinates linked, and no viewer; glue shows
-    why for data that has none. irispy computes them in the background, while glue's status bar says so, and then how
-    many pixels saturated, if any.
+    errors if ticked, to the data collection, with its helioprojective coordinates linked, and no viewer; offered only
+    for a raster window or stack, and glue shows why for typed values it cannot take. irispy computes them in the
+    background, while glue's status bar says so, and then how many pixels saturated, if any.
     """
     _check(data)  # before asking
     asked = _ask(data, _profile_range(data, data_collection))
@@ -449,6 +450,14 @@ def _mean_spectrum(data, cid):
         return total / count
 
 
+def _check_mean(data):
+    """Raise why ``data`` is not an IRIS raster window or stack whose mean spectrum can be subtracted."""
+    if _role(data) != "raster" or _spectral_axes(data) != {data.ndim - 1}:
+        raise ValueError(f"{data.label} is not an IRIS raster window.")
+    if data.find_component_id(f"{data.main_components[0].label} minus mean spectrum") is not None:
+        raise ValueError(f"{data.label} has its mean spectrum subtracted already.")
+
+
 def subtract_mean_spectrum(data):
     """
     Add ``<label> mean spectrum`` to ``data``, an IRIS raster window or a stack of its scans: the mean of its values at
@@ -466,12 +475,9 @@ def subtract_mean_spectrum(data):
     ValueError
         For other data than an IRIS raster window or stack, or one that has the components already.
     """
-    if _role(data) != "raster" or _spectral_axes(data) != {data.ndim - 1}:
-        raise ValueError(f"{data.label} is not an IRIS raster window.")
+    _check_mean(data)
     cid = data.main_components[0]
     label = f"{cid.label} minus mean spectrum"
-    if data.find_component_id(label) is not None:
-        raise ValueError(f"{data.label} has its mean spectrum subtracted already.")
     units = data.get_component(cid).units
     mean = np.broadcast_to(_mean_spectrum(data, cid), data.shape)  # a view: one spectrum held
     difference = cid - data.add_component(Component(mean, units=units), f"{cid.label} mean spectrum")
@@ -483,9 +489,13 @@ def subtract_mean_spectrum(data):
     "IRIS: subtract mean spectrum",
     single=True,
     data=True,
+    check=_check_mean,
     tooltip="Add this raster window's values less its mean spectrum over every pixel and scan",
 )
 @messagebox_on_error("Could not subtract the mean spectrum")
 def mean_spectrum_iris(data, data_collection):
-    """Add the `subtract_mean_spectrum` components to ``data``; glue shows why for other data or a second run."""
+    """
+    Add the `subtract_mean_spectrum` components to ``data``; offered only for a raster window or stack not subtracted
+    already, and glue shows why for a second run before it is selected again.
+    """
     subtract_mean_spectrum(data)

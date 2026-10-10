@@ -242,7 +242,7 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
     submenus = {action.text(): action.menu() for action in button.menu().actions() if action.menu() is not None}
     assert [action.text() for action in submenus["Point"].actions()] == [
         "Clear point",
-        "Light curve at the point",
+        "Light curve of this window",
         POINT_CURVES,
     ]
     assert [action.text() for action in submenus["Blink"].actions()] == [
@@ -253,7 +253,7 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
     for tool_id in ("solar:time_master", "solar:light_curve", "solar:blink"):  # found by id, as a button
         assert viewers["map"].toolbar.tools[tool_id].tool_id == tool_id
     time = ["Time master", "Go to UTC…"]
-    point, curve = ["Clear point", POINT_CURVES], ["Clear point", "Light curve at the point", POINT_CURVES]
+    point, curve = ["Clear point", POINT_CURVES], ["Clear point", "Light curve of this window", POINT_CURVES]
     blink = ["Set blink partner here", "Blink (greyed)"]  # until a partner is set
     view = ["Hide axes", "Per-frame limits", "Physical aspect", "Zoom 1:1", "Colour bar", "Cursor readout"]
     banded = ["Frame time", *view[:2], "Wavelength band…", *view[2:]]
@@ -945,7 +945,7 @@ def test_a_light_curve_follows_the_point_and_the_band(bare_app, qtbot, monkeypat
     raster_map, cube = viewers["map"], raster[raster.main_components[0]]
     [point] = bare_app.session.edit_subset_mode.edit_subset
     # opening it moves nothing, and the point stays the edit subset, with Pixel on
-    assert changes(bare_app, qtbot, viewers, menu_action(raster_map, "Light curve at the point").trigger) == {}
+    assert changes(bare_app, qtbot, viewers, menu_action(raster_map, "Light curve of this window").trigger) == {}
     assert bare_app.session.edit_subset_mode.edit_subset == [point]
     assert raster_map.toolbar.active_tool.tool_id == "image:point_selection"
     profile = bare_app.viewers[-1][-1]
@@ -978,7 +978,7 @@ def test_a_light_curve_follows_the_point_and_the_band(bare_app, qtbot, monkeypat
     menu_action(raster_map, "Clear point").trigger()
     check(10, slice(18, 23))
     shown = refusals(monkeypatch)
-    menu_action(viewers["spectrogram"], "Light curve at the point").trigger()
+    menu_action(viewers["spectrogram"], "Light curve of this window").trigger()
     assert shown == [
         "Could not open the light curve\nChoose it on the map of a sit-and-stare raster or a stack, whose wavelength or "
         "band it averages."
@@ -988,7 +988,7 @@ def test_a_light_curve_follows_the_point_and_the_band(bare_app, qtbot, monkeypat
     check(10, slice(18, 23))
 
 
-POINT_CURVES = "Light curves at this point (windows, SJI)"
+POINT_CURVES = "Light curves of every window and SJI…"
 
 
 def expected_sji_curve(raster, sji, slit, step=None):

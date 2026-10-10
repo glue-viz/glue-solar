@@ -509,7 +509,7 @@ def test_two_quicklooks_restore_twice_from_their_files(qtbot, monkeypatch, tmp_p
     sns["map"].toolbar.tools["solar:band"].activate()  # a band of five wavelengths
     sns["sji"][1].layers[0].state.cmap = cmlist["irissji1400"]
     stack[0].layers[0].state.cmap = colormaps["viridis"]
-    sns["spectrum"].state.x_display_unit = "km / s"
+    sns["spectrum"].state.x_display_unit = "km/s"
     [spectrum, *_] = [viewer for viewer in stack if isinstance(viewer, ProfileViewer)]
     spectrum.state.x_display_unit = "nm"
     session = tmp_path / "first.glu"
@@ -585,7 +585,7 @@ def test_a_quicklook_kept_as_glue_quits_restores_from_the_menu(qtbot, monkeypatc
     # cannot close a deleted one
     app = GlueApplication()
     monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
-    plugin_action(app, "Restore last session").trigger()
+    plugin_action(app, "IRIS: restore last session").trigger()
     assert told == ["No session kept yet: glue-solar keeps one as glue's window closes with data."]
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
     monkeypatch.setattr(QtIRISImporter, "exec", load)
@@ -599,7 +599,7 @@ def test_a_quicklook_kept_as_glue_quits_restores_from_the_menu(qtbot, monkeypatc
     assert len(paths) == len(labels)
     assert all(map(os.path.isabs, paths))  # its files, wherever glue starts
     fresh = GlueApplication()
-    plugin_action(fresh, "Restore last session").trigger()
+    plugin_action(fresh, "IRIS: restore last session").trigger()
     restored = fresh._new_application  # as File → Open Session gives it, closing ``fresh``
     qtbot.addWidget(restored)
     monkeypatch.setattr(restored, "report_error", lambda message, detail: pytest.fail(detail))

@@ -6,15 +6,16 @@ UV bursts
 
 To find UV bursts, compact brightenings of the transition region, select a raster window, of one
 scan or a stack of its scans, covering Si IV 1402.77 Å, such as "Si IV 1403", or a 1400 Å slit-jaw
-image in the data collection and choose "IRIS: detect UV bursts…" from its right-click menu. Type
-irispy's parameters, its defaults unless changed; Cancel adds nothing. irispy finds the bursts on a
-worker thread, while glue's status bar says "Detecting UV bursts in <label>…", which then says how
-many it found, and adds two datasets: ``<label> bursts``, a map of their labels, and
-``<label> burst events``, a table of them. No viewer opens: drag the map onto an Image viewer and
-the table onto a Scatter viewer, such as ``time`` against ``intensity`` or ``coordinate.Tx`` against
-``coordinate.Ty``. glue-qt 0.4.2's Table viewer refuses the table, as it refuses any dataset with a
-time ("argument of type 'numpy.datetime64' is not iterable"): to read it row by row, export it with
-"File → Export Data/Subsets" as "ECSV (with Time)" and read it with astropy's ``Table.read``.
+image in the data collection and choose "IRIS: detect UV bursts… (Si IV, SJI 1400)" from its
+right-click menu, which offers it only for those. Type irispy's parameters, its defaults unless
+changed; Cancel adds nothing. irispy finds the bursts on a worker thread, while glue's status bar
+says "Detecting UV bursts in <label>…", which then says how many it found, and adds two datasets:
+``<label> bursts``, a map of their labels, and ``<label> burst events``, a table of them. No viewer
+opens: drag the map onto an Image viewer and the table onto a Scatter viewer, such as ``time``
+against ``intensity`` or ``coordinate.Tx`` against ``coordinate.Ty``. glue-qt 0.4.2's Table viewer
+refuses the table, as it refuses any dataset with a time ("argument of type 'numpy.datetime64' is
+not iterable"): to read it row by row, export it with "File → Export Data/Subsets" as "ECSV (with
+Time)" and read it with astropy's ``Table.read``.
 
 In a raster window
 ------------------
@@ -56,7 +57,7 @@ missing pixels left out; pixels that touch within a frame, diagonally too, are o
 bursts with fewer pixels than typed, 2 unless changed, are dropped. The 10 standard deviations are a
 quick look: on active-region data they find bursts in every frame, and Young et al. (2018)
 recommend a threshold chosen for each observation. A slit-jaw image with its dust removed, by
-:ref:`"IRIS: remove dust" <glue_solar_users_guide_iris_calibration>`, works too.
+:ref:`"IRIS: remove dust (SJI)" <glue_solar_users_guide_iris_calibration>`, works too.
 
 ``<label> bursts`` is a cube of their labels, 0 outside bursts and 1 to N through the image, on the
 slit-jaw image's coordinates, with its ``Time``, per-frame pointing and ``meta``, so that the time
@@ -69,12 +70,13 @@ on the 400 frames of OBSID 4000255147's SJI 1400 it takes 1.3 s and about 1.6 GB
 peak.
 
 The labels and tables are irispy's own, as its functions give them on the files read in memory,
-but for a pointing shifted by :ref:`"Shift pointing…" <glue_solar_users_guide_iris_pointing>`,
+but for a pointing shifted by :ref:`"IRIS: shift pointing…" <glue_solar_users_guide_iris_pointing>`,
 which the tables' ``coordinate.Tx`` and ``coordinate.Ty`` include, as the maps' coordinates do.
 ``glue_solar.sources.bursts.si_iv_bursts(data, threshold, velocity_range, median_factor)`` and
 ``glue_solar.sources.bursts.sji_bursts(data, sigma_factor, min_pixels)`` return the two datasets in
 glue's terminal too.
 
-Glue says why, and adds nothing, for slit-jaw images of other bands, other data, a window with no
-wavelength within the velocities of Si IV 1402.77 Å, before asking for ±50 km/s, a threshold that is
-not a number, and irispy's own errors.
+The entry is not offered for slit-jaw images of other bands, other data, or a window with no
+wavelength within ±50 km/s of Si IV 1402.77 Å. Glue says why, and adds nothing, for velocities
+typed that take no wavelength of the window, a threshold that is not a number, and irispy's own
+errors.

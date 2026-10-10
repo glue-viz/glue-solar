@@ -20,8 +20,8 @@ icon holds glue-solar's mouse modes, "Measure", "Path diagram", "Show
 position on original path" and "Slope", with the one on checked, and "Save path as ECSV…", "Open
 path from ECSV…", "Path on other data…" and the "Path sampling" submenu, described with "Path
 diagram" below; the link icon is the "Coordinate" menu, with "Time master", "Go to UTC…", "Loop…"
-and "Raster overlays", its "Point" submenu, with "Clear point", "Light curve at the point" and
-"Light curves at this point (windows, SJI)", and its "Blink" submenu, with "Set blink partner
+and "Raster overlays", its "Point" submenu, with "Clear point", "Light curve of this window" and
+"Light curves of every window and SJI…", and its "Blink" submenu, with "Set blink partner
 here", "Blink" and "Blink interval"; and
 the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Wavelength
 band…", "Physical aspect", "Zoom 1:1", "Colour bar" and "Cursor readout", each but "Zoom 1:1"
@@ -34,9 +34,9 @@ A menu shows only the entries that can act on the viewer as it is, checked as it
 Coordinate menu, "Time master" for a dataset of an IRIS observation with times (a raster window,
 slit-jaw image, aligned AIA cutout or SOT cube), "Go to UTC…" for one whose observation has a time
 master or that has a frame, exposure, step or scan slider, "Loop…" where the data's first axis has
-a slider, "Raster overlays" where a raster of the viewer's observation is loaded, "Light curve at
-the point" on the map of a sit-and-stare raster or a stack, at a wavelength or band, and "Light
-curves at this point (windows, SJI)" on IRIS, AIA and SOT data; "Blink" is greyed until "Set blink
+a slider, "Raster overlays" where a raster of the viewer's observation is loaded, "Light curve of
+this window" on the map of a sit-and-stare raster or a stack, at a wavelength or band, and "Light
+curves of every window and SJI…" on IRIS, AIA and SOT data; "Blink" is greyed until "Set blink
 partner here" gives it a partner. In the View menu, "Frame time" is offered for data with a time
 and "Wavelength band…" while a wavelength axis has a slider. On a plain array, of no observation and
 with no time, the Coordinate menu holds "Clear point" and the blink entries only.
@@ -336,7 +336,8 @@ North up
 
 A slit-jaw image or aligned AIA cutout of a rolled observation shows solar north at the roll angle:
 45.6° from the top for OBSID 3860608353, whose ``SAT_ROT`` is 45. To see one north up, select it in
-the data collection and choose "North up" from its right-click menu. This adds ``<label> north
+the data collection and choose "IRIS: north up (SJI, AIA, SOT)" from its right-click menu, which
+offers it for a slit-jaw image, an aligned AIA cutout or a Hinode/SOT cube. This adds ``<label> north
 up``, a grid with no values of its own (its ``empty`` component is NaN): square pixels as wide as
 the image's (``CDELT1``) on a gnomonic projection, helioprojective latitude up and longitude along
 x, covering every frame where its pointing places it, with the image's frames and ``Time``. An
@@ -370,7 +371,7 @@ than holding their values. Save it as "Glue Session with relative paths to data"
 Export Session dialog starts with, to move it and the files together: it opens wherever the files
 keep their place relative to it. "Glue Session including data" holds the values instead, and fails
 on data read from their files as they are viewed. A session keeps the coordinates of every IRIS
-dataset and of those made from them, with any pointing offset set with "Shift pointing…", the
+dataset and of those made from them, with any pointing offset set with "IRIS: shift pointing…", the
 colormap each opens in, their metadata, and the helioprojective links of the observation browser
 and "IRIS: link helioprojective coordinates", a stack's scans and sunpy maps included. Data read
 from their files as they are viewed take their coordinates and metadata from the files again, so
@@ -389,7 +390,7 @@ relying on a Glue session as their only copy.
 
 As glue's window closes with data loaded, on quit and when Open Session or Reset Session replaces
 the session, glue-solar keeps it as a "Glue Session with absolute paths to data" in glue's settings
-folder (``~/.glue/glue-solar-last-session.glu``), and Plugins → "Restore last session" opens it as
+folder (``~/.glue/glue-solar-last-session.glu``), and Plugins → "IRIS: restore last session" opens it as
 File → Open Session does, so restoring from a session with data keeps that one in its place. The
 4000255147 quicklook above is kept in under 0.01 s and restored from the menu in about 2 s; if its
 files have moved, glue says which it cannot find. A session glue cannot save, or of over 1 MB, such

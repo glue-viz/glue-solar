@@ -428,7 +428,7 @@ class Coordinator(HubListener):
             self._listeners.remove(listener)
 
     def place_again(self):
-        """Place the point and the raster overlays again, as after a dataset's pointing changed ('Shift pointing…')."""
+        """Place the point and the raster overlays again, as after a pointing changed ('IRIS: shift pointing…')."""
         self._placed = self._footprint = (None, None)
         self._timer.start()  # the sync redraws them
 
