@@ -1431,7 +1431,7 @@ def _fill(app, tab, datasets, window, main, group=None):
 
     QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # and after the last (see _image)
     if rasters:
-        if group is None:
+        if group not in collection.subset_groups:  # None, or deleted by the user
             group = collection.new_subset_group(label="Point", subset_state=point)
         own = [viewers[role] for role in ("map", "spectrogram", "wavelength")] + viewers["sji"]
         lambda_t = [panels["wavelength"] for panels in viewers["windows"] if "wavelength" in panels]
@@ -1501,8 +1501,8 @@ def _switch(viewer):
         coord.remove_listener(lines._synced)
         lines.deleteLater()
     point = group.subset_state
-    group.subset_state = SubsetState()  # while the panels open: each one's sliders would move it, and what follows it
     viewers = _fill(app, tab, [data for data in datasets if data in collection], window, _window(raster)[0], group)
+    group = app._solar_points[tab]  # a new one if the user deleted it
     if isinstance(point, PixelSubsetState) and _same_file(point.reference_data, raster):  # wavelength is last
         point = PixelSubsetState(raster, [*point.slices[:-1], slice(None)])
     group.subset_state = point

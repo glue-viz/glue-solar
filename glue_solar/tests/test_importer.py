@@ -298,9 +298,9 @@ def test_closing_the_dialog_drops_the_load(dialog, qtbot, monkeypatch):
 )
 def test_colour_limits_of_what_browse_iris_shows_are_counted_in_the_background(qtbot, monkeypatch, iris_tree, quicklook,
                                                                               shown):
-    from glue_solar.sources.iris import browse_iris
+    from glue_solar.sources.iris import _shown, browse_iris
 
-    loaded = []
+    loaded, entries = [], []
 
     def load(dialog):
         qtbot.addWidget(dialog)
@@ -309,6 +309,7 @@ def test_colour_limits_of_what_browse_iris_shows_are_counted_in_the_background(q
         dialog.quicklook.setChecked(quicklook)
         load_selected(qtbot, dialog)
         loaded.extend(dialog.datasets)
+        entries.extend(dialog.loaded)
         return QDialog.Rejected  # before browse_iris opens a viewer
 
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
@@ -319,6 +320,7 @@ def test_colour_limits_of_what_browse_iris_shows_are_counted_in_the_background(q
     # slit-jaw image: no viewer has asked
     counted = [data.label for data in loaded if data.get_component(data.main_components[0])._counts is not None]
     assert counted == [f"{name}-{OBS_A[2]}-2025-03-28T22:56:28" + "-scan-0" * (name != "SJI_1400") for name in shown]
+    assert _shown(entries, True, "C II 1336")[0].label.startswith("C_II_1336")  # the browser's main window first
 
 
 def test_a_failure_after_the_reads_stays_in_the_dialog(qtbot, iris_tree, capsys):

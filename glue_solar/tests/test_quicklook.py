@@ -5029,6 +5029,10 @@ def test_a_switch_gives_the_quicklook_opened_with_that_window_first(
     qtbot.wait(20)
     assert viewer_rows(bare_app) == [row, *viewer_rows(first)]
     assert sliders(bare_app, switched) == sliders(first, expected)
+    # one Point window, laid out as there, and only the new panels' lines
+    assert point_window(bare_app).parent().geometry() == point_window(first).parent().geometry()
+    lines = glue_solar.quicklook._SpectralLines
+    assert len(bare_app.tab().findChildren(lines)) == len(first.tab().findChildren(lines))
     if lambda_t is not None:
         assert colours(bare_app) == {**colours(first), lambda_t.state.title: ("linear", 99.5)}
     else:
@@ -5045,10 +5049,11 @@ def test_a_switch_gives_the_quicklook_opened_with_that_window_first(
     assert (cut.subset_state.reference_data, cut.subset_state.slices[-2:]) == (mg, [slice(10, 11), band])
 
 
-def test_a_switch_keeps_the_point_the_time_master_and_the_colours(bare_app, qtbot, irispy_test_files):
+def test_a_switch_keeps_the_point_the_time_master_and_the_colours(bare_app, qtbot, monkeypatch, irispy_test_files):
     c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
-    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
-    viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
+    path = find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000"))
+    bare_app.show()  # the Point window's size
+    viewers = quicklook(bare_app, [c2, si4, mg, image_data(path)], window=THREE)
     [sji_viewer] = viewers["sji"]
     menu_action(sji_viewer, "Time master").trigger()
     select_point(viewers["map"], 50, 20)
@@ -5064,6 +5069,23 @@ def test_a_switch_keeps_the_point_the_time_master_and_the_colours(bare_app, qtbo
     assert after["spectrogram"][0] == before["spectrogram"][0]  # the exposure
     layer = switched["sji"][0].state.layers[0]
     assert (layer.stretch, layer.percentile) == ("linear", 95)
+    # the Point window as tall as its rows, as in a quicklook opened with C II 1336 first
+    first = bare_app_for(qtbot, monkeypatch)
+    first.show()
+    quicklook(first, [*windows_of(irispy_test_files, "sit-and-stare"), image_data(path)], window=THREE, main="C II 1336")
+    assert point_window(bare_app).parent().geometry() == point_window(first).parent().geometry()
+
+
+def test_a_switch_after_the_point_is_deleted_gives_a_new_point(bare_app, qtbot, irispy_test_files):
+    c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
+    viewers = quicklook(bare_app, [c2, si4, mg], window=THREE)
+    collection = bare_app.data_collection
+    collection.remove_subset_group(collection.subset_groups[0])
+    switch(qtbot, viewers["windows"][1]["spectrum"])  # Si IV 1403
+    [group] = collection.subset_groups
+    assert bare_app.session.edit_subset_mode.edit_subset == [group]
+    assert (group.label, group.subset_state.reference_data) == ("Point", si4)
+    assert point_window(bare_app).rowCount() > 0
 
 
 def test_the_browser_shows_the_main_window_chosen(qtbot, monkeypatch, tmp_path, irispy_test_files):
