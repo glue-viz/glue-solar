@@ -72,6 +72,10 @@ toolbar has:
     the nearest pixel's: times are never interpolated.
 
   A diagram sampled "Nearest" or "Linear" says so in its name, such as ``... [slice 2, linear]``.
+  A region on the dataset, such as one drawn on a quicklook's map, shows on its diagrams at the
+  samples inside it in the scan or frame it was drawn on, and in the others at those inside its
+  outline on the Sun, as on other data: at the pixel each takes, or with "Linear" at the sample
+  itself.
   Other datasets shown, such as a raster window added to a slit-jaw image's viewer, are sampled at
   the same places on the Sun through glue's links ("IRIS: link helioprojective coordinates"), with
   the pointing of the frame shown, so a viewer that follows the time master samples them at its
