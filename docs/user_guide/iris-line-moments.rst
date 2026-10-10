@@ -165,8 +165,9 @@ background. Should glue quit while fiasco builds it, delete the unfinished ``chi
 before the next use.
 
 The entry is offered only where the 2-D maps selected hold two attributes or more between them, not
-for a subset group or other data. Glue says why, and adds nothing, for maps of different shapes or coordinates or in different units, and a table that cannot be read, has fewer
-than two columns, or holds a ratio irispy cannot map from, such as one that is not monotonic.
+for a subset group or other data. Glue says why, and adds nothing, for maps of different shapes or
+coordinates or in different units, and a table that cannot be read, has fewer than two columns, or
+holds a ratio irispy cannot map from, such as one that is not monotonic.
 
 .. _glue_solar_users_guide_exporting_derived_data:
 

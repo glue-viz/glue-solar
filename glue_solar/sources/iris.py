@@ -204,7 +204,7 @@ def shift_pointing_iris(data, data_collection):
     """
     Add a typed offset, in arcsec, to the helioprojective longitude and latitude of ``data`` and of the other windows of
     its raster file, in place of any before (0, 0 removes it), and place everything in every viewer, the readouts, links
-    and a quicklook's point and raster overlays again; glue shows why for data without IRIS coordinates.
+    and a quicklook's point and raster overlays again; offered only for data with IRIS coordinates.
     """
     _check_iris(data)
     offset = _ask_offset(data)

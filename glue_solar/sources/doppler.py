@@ -153,8 +153,9 @@ def _failed(exc_info):
 def doppler_iris(data, data_collection):
     """
     Add the `doppler_image` of ``data`` about a typed rest wavelength at typed velocities, normalised too if ticked,
-    to the data collection, with its helioprojective coordinates linked, and no viewer; glue shows why for data that
-    has none. It is computed in the background, while glue's status bar says so.
+    to the data collection, with its helioprojective coordinates linked, and no viewer; offered only for a raster
+    window or stack, and glue shows why for typed values it cannot take. It is computed in the background, while
+    glue's status bar says so.
     """
     _check(data)  # before asking
     asked = _ask(data)

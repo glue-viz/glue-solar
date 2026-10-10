@@ -85,6 +85,19 @@ def _add_session_colormaps(session):
             _add_colormap(record["cmap"])
 
 
+@session_patch()
+def _write_km_s_alike(session):
+    """
+    Give a session's Doppler x unit saved as astropy writes it, 'km / s', as glue-solar's x units now offer it
+    (`lines.DopplerConverter.VELOCITY`): glue opens no session whose unit is not one it offers.
+    """
+    for record in session.values():  # a viewer's, with its state's
+        state = record.get("state") if isinstance(record, dict) else None
+        values = state.get("values") if isinstance(state, dict) else None
+        if isinstance(values, dict) and values.get("x_display_unit") == "st__km / s":
+            values["x_display_unit"] = f"st__{lines.DopplerConverter.VELOCITY}"
+
+
 def _last_session():
     """Where glue-solar keeps the last session, in glue's settings folder (``~/.glue``)."""
     return os.path.join(glue.config.CFG_DIR, "glue-solar-last-session.glu")

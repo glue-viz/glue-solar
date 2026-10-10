@@ -157,7 +157,8 @@ def regrid_on_time(data):
 def regrid_iris(data, data_collection):
     """
     Add ``data`` regridded on time (`regrid_on_time`) to the data collection, with its helioprojective coordinates
-    linked, and no viewer; glue shows why for data that cannot be.
+    linked, and no viewer; offered only for data it takes (`_check_timed`), and glue shows why for one without two
+    different times.
     """
     data_collection.append(regrid_on_time(data))
     keep_hpc_linked(data_collection)
@@ -245,7 +246,7 @@ def north_up_iris(data, data_collection):
     """
     Add the `north_up` grid of ``data`` to the data collection, its helioprojective coordinates linked with the others'
     and its time and frames with ``data``'s, and open an Image viewer of it showing ``data``, its own layer hidden;
-    glue shows why for data that has no grid.
+    offered only for a slit-jaw image, AIA cutout or SOT cube.
     """
     grid = north_up(data)
     data_collection.append(grid)
@@ -379,8 +380,8 @@ def _failed(exc_info):
 def rebin_iris(data, data_collection):
     """
     Add ``data`` binned by the pixels typed for each axis (`rebin`) to the data collection, with its helioprojective
-    coordinates linked, and no viewer; glue shows why for other data. It is binned in the background, while glue's
-    status bar says so.
+    coordinates linked, and no viewer; offered only for an IRIS raster window or slit-jaw image, an AIA cutout or a
+    SOT cube. It is binned in the background, while glue's status bar says so.
     """
     _check(data)  # before asking
     bins = _ask(data)

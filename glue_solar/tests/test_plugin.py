@@ -2294,7 +2294,7 @@ def test_profiles_label_the_main_iris_lines(qtbot, irispy_test_files):
     assert button.isChecked()
 
 
-def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monkeypatch, irispy_test_files):
+def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monkeypatch, tmp_path, irispy_test_files):
     glue_solar.setup()
     files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
     [none, mg] = sorted(raster_data(files[:1], ["Mg II k 2796", "2832"]), key=lambda data: data.label)
@@ -2342,6 +2342,14 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
     set_rest("")  # back to Mg II k, still in km/s
     assert state.x_display_unit == "km/s"
     assert viewer.layers[0].state.profile[0] == pytest.approx(velocities(_wavelengths(mg)[0], 2796.352))
+    # a session saved with the unit as astropy writes it opens in km/s
+    app.save_session(str(tmp_path / "kms.glu"))
+    saved = (tmp_path / "kms.glu").read_text()
+    assert '"st__km/s"' in saved
+    (tmp_path / "kms.glu").write_text(saved.replace('"st__km/s"', '"st__km / s"'))
+    restored = GlueApplication.restore_session(str(tmp_path / "kms.glu"), show=False)
+    qtbot.addWidget(restored)
+    assert restored.viewers[0][0].state.x_display_unit == "km/s"
     # 2832 has no line: no km/s or velocity axis until a rest wavelength is set, and none after, back in Å
     state.reference_data = none
     state.x_att = none.world_component_ids[none.ndim - 1]

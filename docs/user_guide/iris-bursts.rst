@@ -7,15 +7,15 @@ UV bursts
 To find UV bursts, compact brightenings of the transition region, select a raster window, of one
 scan or a stack of its scans, covering Si IV 1402.77 Å, such as "Si IV 1403", or a 1400 Å slit-jaw
 image in the data collection and choose "IRIS: detect UV bursts… (Si IV, SJI 1400)" from its
-right-click menu, which offers it only for those. Type
-irispy's parameters, its defaults unless changed; Cancel adds nothing. irispy finds the bursts on a
-worker thread, while glue's status bar says "Detecting UV bursts in <label>…", which then says how
-many it found, and adds two datasets: ``<label> bursts``, a map of their labels, and
-``<label> burst events``, a table of them. No viewer opens: drag the map onto an Image viewer and
-the table onto a Scatter viewer, such as ``time`` against ``intensity`` or ``coordinate.Tx`` against
-``coordinate.Ty``. glue-qt 0.4.2's Table viewer refuses the table, as it refuses any dataset with a
-time ("argument of type 'numpy.datetime64' is not iterable"): to read it row by row, export it with
-"File → Export Data/Subsets" as "ECSV (with Time)" and read it with astropy's ``Table.read``.
+right-click menu, which offers it only for those. Type irispy's parameters, its defaults unless
+changed; Cancel adds nothing. irispy finds the bursts on a worker thread, while glue's status bar
+says "Detecting UV bursts in <label>…", which then says how many it found, and adds two datasets:
+``<label> bursts``, a map of their labels, and ``<label> burst events``, a table of them. No viewer
+opens: drag the map onto an Image viewer and the table onto a Scatter viewer, such as ``time``
+against ``intensity`` or ``coordinate.Tx`` against ``coordinate.Ty``. glue-qt 0.4.2's Table viewer
+refuses the table, as it refuses any dataset with a time ("argument of type 'numpy.datetime64' is
+not iterable"): to read it row by row, export it with "File → Export Data/Subsets" as "ECSV (with
+Time)" and read it with astropy's ``Table.read``.
 
 In a raster window
 ------------------

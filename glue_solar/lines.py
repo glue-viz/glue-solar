@@ -299,8 +299,8 @@ def _check_wavelength(data):
 def rest_wavelength_iris(data, data_collection):
     """
     Set ``meta['rest_wavelength']`` of ``data`` to a main line within it picked or a wavelength typed in Angstrom, or
-    remove it for a blank one; the dialog starts at its `rest_wavelength`. glue shows why for data without one
-    wavelength axis.
+    remove it for a blank one; the dialog starts at its `rest_wavelength`. It is offered only for data with one
+    wavelength axis, and glue shows why for a typed wavelength that is not a number.
     """
     _check_wavelength(data)
     choices = {f"{name} {wave}": wave for name, wave in _within(data)}

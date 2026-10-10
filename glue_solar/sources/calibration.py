@@ -97,8 +97,8 @@ def _failed(exc_info):
 def remove_dust_iris(data, data_collection):
     """
     Add ``data`` with its dust removed (`remove_dust`) to the data collection, with its helioprojective coordinates
-    linked, and no viewer; glue shows why for other data. irispy removes it in the background, while glue's status bar
-    says so.
+    linked, and no viewer; offered only for a slit-jaw image. irispy removes it in the background, while glue's status
+    bar says so.
     """
     _check_sji(data)
     _start(data_collection, f"Removing dust from {data.label}…", _failed, remove_dust, data)
@@ -177,5 +177,8 @@ def radiometric_calibration(data):
 )
 @messagebox_on_error("Could not calibrate the radiance")
 def radiometric_calibration_iris(data, data_collection):
-    """Add the `radiometric_calibration` components to ``data``; glue shows why for other data or a second run."""
+    """
+    Add the `radiometric_calibration` components to ``data``; offered only for a raster window or stack not calibrated
+    or rebinned, and glue shows why for a second run before it is selected again.
+    """
     radiometric_calibration(data)

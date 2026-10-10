@@ -265,9 +265,9 @@ def _found(datasets):
 def bursts_iris(data, data_collection):
     """
     Add the `si_iv_bursts` of a raster window or stack, or the `sji_bursts` of a 1400 Å slit-jaw image, with irispy's
-    parameters typed, to the data collection, the map's helioprojective coordinates linked, and no viewer; glue shows
-    why for data that has none. irispy finds them in the background, while glue's status bar says so, and then how
-    many.
+    parameters typed, to the data collection, the map's helioprojective coordinates linked, and no viewer; offered
+    only for a raster window or stack covering Si IV 1402.77 Å and a 1400 Å slit-jaw image. irispy finds them in the
+    background, while glue's status bar says so, and then how many.
     """
     sji = _check_bursts(data)  # before asking
     parameters = _ask(data, sji)

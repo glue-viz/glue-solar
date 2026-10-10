@@ -42,9 +42,9 @@ observation's ``OBSID`` and ``STARTOBS``, ``red_blue_rest``, ``red_blue_waveleng
 computes the dataset in glue's terminal too. :ref:`Exporting derived data
 <glue_solar_users_guide_exporting_derived_data>` saves the maps with their coordinates.
 
-The entry is offered for the data :ref:`line moments <glue_solar_users_guide_iris_line_moments>`
-are. Glue says why, and adds nothing, for the centres line moments refuse, and for irispy's own
-errors, such as wing velocities that do not increase.
+The entry is offered for the same data as :ref:`line moments
+<glue_solar_users_guide_iris_line_moments>`. Glue says why, and adds nothing, for the centres line
+moments refuse, and for irispy's own errors, such as wing velocities that do not increase.
 
 .. _glue_solar_users_guide_iris_doppler:
 

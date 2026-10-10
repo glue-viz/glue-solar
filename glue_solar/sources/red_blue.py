@@ -159,8 +159,9 @@ def _failed(exc_info):
 def red_blue_iris(data, data_collection):
     """
     Add the `red_blue_asymmetry` of ``data`` about a typed rest wavelength, with typed wing velocities, to the data
-    collection, with its helioprojective coordinates linked, and no viewer; glue shows why for data that has none.
-    irispy computes it in the background, while glue's status bar says so.
+    collection, with its helioprojective coordinates linked, and no viewer; offered only for a raster window or stack,
+    and glue shows why for typed values it cannot take. irispy computes it in the background, while glue's status bar
+    says so.
     """
     _check(data)  # before asking
     line = _ask(data)

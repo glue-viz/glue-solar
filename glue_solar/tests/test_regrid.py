@@ -1,6 +1,7 @@
 """
-'IRIS: regrid on time', on int16 copies of irispy's test files whose exposures, frames and scans are taken at known times;
-'IRIS: north up', on a rolled slit-jaw image and irispy's; and 'IRIS: rebin…', on int16 copies of irispy's test files.
+'IRIS: regrid on time', on int16 copies of irispy's test files whose exposures, frames and scans are taken at known
+times; 'IRIS: north up', on a rolled slit-jaw image and irispy's; and 'IRIS: rebin…', on int16 copies of irispy's test
+files.
 """
 
 import warnings
@@ -207,7 +208,7 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(app, monkeypatch, tmp_
     assert link_hpc(collection) == []
     linked = {cid for link in collection.links for cid in (link.get_to_id(), *link.get_from_ids())}
     assert set(regridded.world_component_ids[:2]) <= linked
-    # a scanning raster is refused, and glue shows why
+    # a scanning raster hides the action, and its guard says why
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
@@ -491,7 +492,7 @@ def test_the_rebin_action_adds_a_linked_dataset_that_follows_the_time_sync(
     for exposure in (30, 90):
         viewers["spectrogram"].state.slices = (exposure, *viewers["spectrogram"].state.slices[1:])
         qtbot.waitUntil(lambda e=exposure: sji_viewer.state.slices[0] == expected_nearest(exposures[e], frames))
-    # other data are refused, and glue shows why
+    # other data hide the action, and its guard says why
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))

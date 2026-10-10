@@ -55,7 +55,9 @@ def _crop(data, velocities, lines):
 
 
 def _covered(data):
-    """Those of `LINES` that ``data`` covers over `VELOCITIES` (`_crop`); raise why for data `_check` refuses or none."""
+    """
+    Those of `LINES` that ``data`` covers over `VELOCITIES` (`_crop`); raise why for data `_check` refuses or none.
+    """
     _check(data)
     return _crop(data, VELOCITIES, LINES)[0]
 
@@ -179,9 +181,9 @@ def _saturated(features):
 def mg_features_iris(data, data_collection):
     """
     Add the `mg_features` of ``data`` within typed velocities, of the lines ticked, at first those it covers, to the
-    data collection, with its helioprojective coordinates linked, and no viewer; glue shows why for data that has
-    none. irispy computes them in the background, while glue's status bar says so, and then how many pixels
-    saturated, if any.
+    data collection, with its helioprojective coordinates linked, and no viewer; offered only for a raster window or
+    stack covering Mg II k or h, and glue shows why for typed values it cannot take. irispy computes them in the
+    background, while glue's status bar says so, and then how many pixels saturated, if any.
     """
     chosen = _ask(data, _covered(data))  # checked before asking
     if chosen is None:

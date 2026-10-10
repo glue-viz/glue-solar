@@ -942,9 +942,8 @@ if _needs_applies_workaround:
 
 def layer_action(label, check, **kwargs):
     """
-    glue-qt's ``layer_action`` decorator, for an action glue shows only where ``check``, given the selected layer, or
-    the selected layers for an action not ``single``, raises nothing: where the action's own guard, ``check``, would not
-    refuse it.
+    glue-qt's ``layer_action``, shown only where ``check``, the action's own guard, takes the selection: the layer, or
+    the layers of an action not ``single``.
     """
 
     def applies(selection):

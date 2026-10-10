@@ -757,7 +757,9 @@ def test_the_line_dialogs_start_at_the_rest_wavelength(app, monkeypatch, irispy_
 
 
 def test_set_rest_wavelength(app, monkeypatch, irispy_test_files):
-    """'IRIS: set rest wavelength…' lists the main lines within the window, takes one or a typed wavelength, or a blank."""
+    """
+    'IRIS: set rest wavelength…' lists the main lines within the window, takes one or a typed wavelength, or a blank.
+    """
     [mg] = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["Mg II k 2796"])
     sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
     app.data_collection.extend([mg, sji])

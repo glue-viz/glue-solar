@@ -418,9 +418,9 @@ def moments_iris(data, data_collection):
     """
     Add the `line_moments` of ``data`` about a typed line centre, within a typed velocity range, or one to the ends of
     the range shown on a Profile of its wavelength, less any background fitted to typed continuum windows, with their
-    errors if ticked, to the data collection, with its helioprojective coordinates linked, and no viewer; glue shows
-    why for data that has none. irispy computes them in the background, while glue's status bar says so, and then how
-    many pixels saturated, if any.
+    errors if ticked, to the data collection, with its helioprojective coordinates linked, and no viewer; offered only
+    for a raster window or stack, and glue shows why for typed values it cannot take. irispy computes them in the
+    background, while glue's status bar says so, and then how many pixels saturated, if any.
     """
     _check(data)  # before asking
     asked = _ask(data, _profile_range(data, data_collection))
@@ -494,5 +494,8 @@ def subtract_mean_spectrum(data):
 )
 @messagebox_on_error("Could not subtract the mean spectrum")
 def mean_spectrum_iris(data, data_collection):
-    """Add the `subtract_mean_spectrum` components to ``data``; glue shows why for other data or a second run."""
+    """
+    Add the `subtract_mean_spectrum` components to ``data``; offered only for a raster window or stack not subtracted
+    already, and glue shows why for a second run before it is selected again.
+    """
     subtract_mean_spectrum(data)
