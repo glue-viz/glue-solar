@@ -1,0 +1,1 @@
+Added a 'Main window' choice to the observation browser and 'Show this window's panels' to a quicklook's other spectrum panels, which makes that window the quicklook's main window, keeping the point, the time master and the colours.

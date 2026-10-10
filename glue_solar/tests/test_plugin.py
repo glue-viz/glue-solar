@@ -123,6 +123,7 @@ def test_setup_registers_hooks():
     for tool in ("solar:coordinate", "solar:modes", "solar:view"):
         assert ImageViewer.tools.count(tool) == 1
     assert ProfileViewer.tools.count("solar:lines") == ProfileViewer.tools.count("solar:velocity") == 1
+    assert ProfileViewer.tools.index("solar:main_window") == 0  # right after glue's Home, Pan and Zoom
     assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
     assert ImageViewer.subtools["solar:modes"] == ["solar:measure", "solar:path", "solar:path_crosshair", "solar:slope"]
     view = ["solar:frame_time", "solar:hide_axes", "solar:per_frame_limits", "solar:band", "solar:physical_aspect"]

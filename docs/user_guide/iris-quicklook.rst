@@ -15,7 +15,7 @@ The quicklook is a CRISPEX-style set of viewers for one observation, in a new ta
   (``…-r00003``) and the quicklook shows the first; to stack the scans, use the browser;
 - from glue's Terminal, with ``glue_solar.quicklook.quicklook(application, datasets)``.
 
-Tabs can be moved or closed while a quicklook opens; closing its tab stops it.
+Clicks and keys wait until a quicklook is open.
 
 An observation with neither a raster nor a slit-jaw image, only AIA cutouts or SOT cubes, has no
 quicklook: "IRIS: quicklook…" does not offer it, and where no quicklook opens, the browser and the
@@ -377,18 +377,33 @@ Several windows
 
 Tick several raster windows of an observation in the browser, or pass a list such as
 ``window=["C II 1336", "Si IV 1403", "Mg II k 2796"]``, and the others join the quicklook of the
-first (Mg II k 2796 when among them) in rows below, four viewers to a row: each gets a spectrum
-panel and, on a sit-and-stare raster or a stack, its own wavelength against time or scan. A single
-scanning raster's other windows get a spectrum panel only, as their steps are places, not times.
-Only windows of the same raster files join, so a stack of other scans gets no panels. Each window's
-scan, step or exposure and slit pixels are linked to the shown window's with glue identity links,
-added once however often the quicklook opens, so the point is the same pixel in every window: each
-spectrum panel shows its own window's spectrum there, a map of any of the windows shows the point's
-crosshair, and their wavelength panels follow the point's slit (and a stack's step), share its
-exposure or scan, and move it when you move their sliders. A Pixel click on another window's
+main window, which has the map, spectrogram and wavelength panels, in rows below, four viewers to a
+row: the one chosen in the browser's "Main window", which lists the ticked windows, or passed as
+``main="Si IV 1403"``, else Mg II k 2796 when among them, else the first. Each other window gets a
+spectrum panel and, on a sit-and-stare raster or a stack, its own wavelength against time or scan. A
+single scanning raster's other windows get a spectrum panel only, as their steps are places, not
+times. Only windows of the same raster files join, so a stack of other scans gets no panels. Each
+window's scan, step or exposure and slit pixels are linked to the shown window's with glue identity
+links, added once however often the quicklook opens, so the point is the same pixel in every window:
+each spectrum panel shows its own window's spectrum there, a map of any of the windows shows the
+point's crosshair, and their wavelength panels follow the point's slit (and a stack's step), share
+its exposure or scan, and move it when you move their sliders. A Pixel click on another window's
 wavelength panel moves the point to that window, and the others follow; D, F and "Go to UTC…" still
-move it with the time master. The Point window lists the window shown first only. The "Plugins"
-menu entry and the command line open one window.
+move it with the time master. The Point window lists the main window only. The "Plugins" menu entry
+and the command line open one window.
+
+"Show this window's panels", the triangle icon after "Zoom" in another window's spectrum panel (and in
+no other Profile viewer), makes that window the main window: the quicklook opens again in its tab as
+the browser opens it with that window chosen, and the window shown before joins the others in the
+rows below. The point stays at the same pixel, now of that window, in the same "Point" subset, the
+time master stays at its frame, exposure, step or scan, and each panel that shows the same data on
+the same axes again keeps its stretch, colour limits and colormap; its other settings, such as a
+zoom or a spectrum panel's unit, are a new quicklook's. The links stay, and so do the viewers you
+added to the tab, where a light curve, a row or a column goes on following the point at the
+wavelength or band the old map showed. It takes 2.5 s on 4000255147's C II 1336, Si IV 1403 and Mg
+II k 2796 with its SJI 1400, and 2.4 s on a stack of 4000005156's two scans of the same windows. A
+saved session keeps the switched quicklook, but a quicklook restored from a session does not offer
+the switch: open it again from the browser.
 
 Regridding on time
 ------------------

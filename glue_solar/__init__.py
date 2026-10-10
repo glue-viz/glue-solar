@@ -212,6 +212,9 @@ def setup():
     for tool in (lines.LineTool, lines.VelocityTool):
         if tool.tool_id not in ProfileViewer.tools:
             ProfileViewer.tools.append(tool.tool_id)
+    # right after glue's Home, Pan and Zoom, as on Image viewers: a quicklook's narrow spectrum panels show it
+    if tools.MainWindowTool.tool_id not in ProfileViewer.tools:
+        ProfileViewer.tools.insert(0, tools.MainWindowTool.tool_id)
     # km / s for the wavelength of data with a rest wavelength, in glue's own converter; a setting naming another
     # converter would be saved, and glue reads its settings before loading plugins
     unit_converter.members["default"] = lines.DopplerConverter
