@@ -119,6 +119,10 @@ Settled by the user; reopen only with the user.
   - **Panels:** a map with wavelength and Stokes sliders; the spectrum at the point with I, Q, U and V side by side; wavelength against time at the point; a virtual slit through the point (wavelength against y) in place of IRIS's spectrogram; the light curve at the point; and a second wavelength map, e.g. line core and wing.
   - **Panel toggles:** the user wants an easy way to turn each panel on and off. This goes for IRIS's quicklook too, where hidden panels would also cut SST7's redraws (`wp4-l-panel-toggles`).
   - `wp13-stokes` keeps only what this leaves: Stokes scaling and noise level.
+- **D66:** User (2026-10-10), the panel toggles' placement (`wp4-l-panel-toggles`), chosen from four mock-ups:
+  - **Placement:** a checkable 'Panels' list in the quicklook tab's bottom strip, right of the Point window. The main window's panels and each slit-jaw image get one entry each. Each other window gets a group entry with one entry per panel (spectrum, λ–time). The SST quicklook (D65) uses the same list.
+  - **Layout:** the shown panels re-tile when a panel is turned off or on, and an empty row disappears. Manual moves and resizes are lost at a toggle.
+  - **Draw cost:** the user asked about re-tiling's draw cost. One burst of toggles gets one layout, and a panel whose size does not change does not redraw. The PR reports a toggle's cost on the 9-window 4000255147 quicklook.
 
 ## Milestones
 
@@ -268,7 +272,7 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 **L**
 
 - [ ] **L** `wp4-l-window-rows-redraw` (SST7, D63): Each other window's panels redraw on every step and move. On 4000255147, 9 windows cost about 4× one window: an exposure step 194 → 875 ms (7 → 47 draws), a move 240 → 991 ms, the open 3.4 → 13.4 s. Fixes to try: blit the moving time and point markers, refresh an image only when its slice changes, or redraw only the visible rows. Done when the 9-window step and move on 4000255147 and the 4000005156 stack are re-measured against main, with the panels drawing the same.
-- [ ] **L** `wp4-l-panel-toggles` (D65): An easy way to turn each quicklook panel on and off, for IRIS's quicklook and the SST one. A panel turned off is not drawn and its viewer does no work; a session keeps the choice. The user asked for 'a toggle panel somewhere'. PROVISIONAL placement, to show the user before building: a checkable list of the tab's panels beside the Point window. Done when every panel of a 9-window 4000255147 quicklook can be turned off and on again, unchanged, and a step with the other windows' panels off costs what a 1-window quicklook does (SST7: 194 against 875 ms).
+- [ ] **L** `wp4-l-panel-toggles` (D65): An easy way to turn each quicklook panel on and off, for IRIS's quicklook and the SST one. A panel turned off is not drawn and its viewer does no work; a session keeps the choice. The user asked for 'a toggle panel somewhere'. Placement and layout as D66: a checkable 'Panels' list beside the Point window, and the shown panels re-tiled at each toggle, at a measured cost. Done when every panel of a 9-window 4000255147 quicklook can be turned off and on again, unchanged, and a step with the other windows' panels off costs what a 1-window quicklook does (SST7: 194 against 875 ms).
 
 Notes:
 - Whisker polish (F143) and CRISPEX entry keywords (F020) are Later.
