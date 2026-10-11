@@ -1,15 +1,18 @@
 """Run source-worktree tests with isolated caches and explicit import paths."""
+import atexit
 import os
 from pathlib import Path
+import shutil
 import sys
 import tempfile
 
 root = Path(tempfile.mkdtemp(prefix="glue-fix-checks-"))
-for directory in ("mpl", "cache", "config", "sunpy"):
+atexit.register(shutil.rmtree, root, ignore_errors=True)  # its sunpy downloads are about 350 MB a run
+for directory in ("home", "mpl", "cache", "config", "sunpy"):
     (root / directory).mkdir()
 paths, *args = sys.argv[1:]
 os.environ.update(
-    QT_QPA_PLATFORM="offscreen", MPLBACKEND="agg", MPLCONFIGDIR=str(root / "mpl"),
+    HOME=str(root / "home"), QT_QPA_PLATFORM="offscreen", MPLBACKEND="agg", MPLCONFIGDIR=str(root / "mpl"),
     XDG_CACHE_HOME=str(root / "cache"), XDG_CONFIG_HOME=str(root / "config"),
     SUNPY_CONFIGDIR=str(root / "sunpy"), PYTHONDONTWRITEBYTECODE="1",
     PYTHONPATH=paths + os.pathsep + os.environ.get("PYTHONPATH", ""),
