@@ -405,9 +405,9 @@ without delaying the quit, as the values are counted before glue saves them.
 
 Not saved yet:
 
-- A quicklook's Point window, its lines and the raster overlays (see :ref:`the IRIS quicklook
-  <glue_solar_users_guide_iris_quicklook>`), a blink and its partner, and each viewer's mouse mode:
-  choose the Pixel tool again.
+- A quicklook's Point window, its Panels list, whose panels turned off a session leaves out, its lines
+  and the raster overlays (see :ref:`the IRIS quicklook <glue_solar_users_guide_iris_quicklook>`), a
+  blink and its partner, and each viewer's mouse mode: choose the Pixel tool again.
 - Data regridded on time from data read as they are viewed: a session holding them does not save
   ("Don't know how to serialize dask.array").
 - "Per-frame limits", with glue-core 1.27.0: a session saved while an Image viewer has them on,

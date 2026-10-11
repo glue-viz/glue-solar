@@ -1,0 +1,1 @@
+The IRIS quicklook has a Panels list beside the Point window that turns each panel, or all of another window's panels, off and on; a panel turned off is hidden and does no work, so a step with the other windows off costs what a one-window quicklook does.

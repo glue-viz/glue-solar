@@ -19,6 +19,7 @@ from glue.core.roi import CircularROI, PolygonalROI, RectangularROI, XRangeROI, 
 from glue.core.subset import RangeSubsetState, SubsetState, roi_to_subset_state
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
+from glue.viewers.profile.state import ProfileLayerState
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
@@ -27,7 +28,8 @@ from glue_qt.viewers.scatter import ScatterViewer
 from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.text import Text
 from qtpy import QtWidgets
-from qtpy.QtCore import QEventLoop, Qt, QTimer
+from qtpy.QtCore import QEventLoop, QPoint, Qt, QTimer
+from qtpy.QtTest import QTest
 
 import astropy.units as u
 from astropy.io import fits
@@ -828,7 +830,7 @@ def test_no_turn_of_the_event_loop_as_a_quicklook_opens_takes_clicks_or_keys(bar
     tab = bare_app.current_tab
     assert tab.activeSubWindow() is viewers["map"].parent()
     windows = tab.subWindowList()
-    assert len(windows) == 5  # with the Point window, laid out apart
+    assert len(windows) == 6  # with the Point window and the Panels list, laid out apart
     assert not any(a.geometry().intersects(b.geometry()) for a, b in itertools.combinations(windows, 2))
 
 
@@ -4842,7 +4844,7 @@ def test_each_window_of_the_file_joins_the_quicklook(bare_app, qtbot, irispy_tes
             assert (state.reference_data, state.title) == (data, f"{name} {title}")
             assert (state.x_att, state.y_att) == (data.pixel_component_ids[-1], data.pixel_component_ids[0])
     windows = bare_app.tab(bare_app.tab_count - 1).subWindowList()
-    assert len(windows) == 5 + 2 * (1 + (title is not None))  # with the Point window
+    assert len(windows) == 6 + 2 * (1 + (title is not None))  # with the Point window and the Panels list
     assert not any(a.geometry().intersects(b.geometry()) for a, b in itertools.combinations(windows, 2))
     # a map of each window, as a user opens one, and a point at (scan,) step or exposure s, slit y
     maps = [image(bare_app, data, data.ndim - 3, data.ndim - 2) for data in others]
@@ -5086,6 +5088,181 @@ def test_a_switch_after_the_point_is_deleted_gives_a_new_point(bare_app, qtbot, 
     assert bare_app.session.edit_subset_mode.edit_subset == [group]
     assert (group.label, group.subset_state.reference_data) == ("Point", si4)
     assert point_window(bare_app).rowCount() > 0
+
+
+# The Panels list (D66): a box per panel, and per other window for all its panels
+
+
+def panels_list(app):
+    [panels] = app.tab(app.tab_count - 1).findChildren(glue_solar.quicklook._Panels)
+    return panels
+
+
+def entries(panels):
+    """Each entry of the Panels list, as its label and whether it is ticked, with a window's own entries after it."""
+
+    def entry(item):
+        children = [entry(item.child(i)) for i in range(item.childCount())]
+        return (item.text(0), item.checkState(0) == Qt.Checked, *([children] if children else []))
+
+    root = panels.invisibleRootItem()
+    return [entry(root.child(i)) for i in range(root.childCount())]
+
+
+def tick(panels, *labels, on=True):
+    """Tick or untick the entries ``labels`` of the Panels list at once, as clicks in one turn of the event loop."""
+    for label in labels:
+        [item] = panels.findItems(label, Qt.MatchExactly | Qt.MatchRecursive)
+        item.setCheckState(0, Qt.Checked if on else Qt.Unchecked)
+
+
+def click_box(panels, label):
+    """Click the box of the entry ``label`` of the Panels list."""
+    [item] = panels.findItems(label, Qt.MatchExactly | Qt.MatchRecursive)
+    rect = panels.visualItemRect(item)
+    QTest.mouseClick(panels.viewport(), Qt.LeftButton, Qt.NoModifier, QPoint(rect.left() + 8, rect.center().y()))
+
+
+def applied(app, qtbot, viewers, panels, action):
+    """`changes` of ``action`` once the Panels list has applied it and the coordinator has followed."""
+    coord = coordinator(app.data_collection)
+
+    def act():
+        action()
+        qtbot.waitUntil(lambda: not panels._timer.isActive() and not coord._timer.isActive())
+
+    return changes(app, qtbot, viewers, act)
+
+
+def look(viewer):
+    """An Image panel's limits and its data layer's colours, which turning it off and on again keeps."""
+    state = viewer.state
+    layer = state.layers[0]
+    colours = tuple(getattr(layer, att) for att in ("stretch", "percentile", "v_min", "v_max", "contrast", "bias"))
+    return (state.x_min, state.x_max, state.y_min, state.y_max, *colours, layer.cmap.name)
+
+
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
+def test_panels_turned_off_do_nothing_and_come_back_as_they_were(bare_app, qtbot, monkeypatch, irispy_test_files):
+    c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
+    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    bare_app.show()  # Qt activates the windows it shows
+    viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
+    panels = panels_list(bare_app)
+    assert entries(panels) == [
+        ("Mg II k 2796 slit vs time", True),
+        ("Mg II k 2796 spectrogram", True),
+        ("Mg II k 2796 λ–time", True),
+        ("Mg II k 2796 spectrum", True),
+        ("SJI 1400", True),
+        ("C II 1336", True, [("C II 1336 λ–time", True), ("C II 1336 spectrum", True)]),
+        ("Si IV 1403", True, [("Si IV 1403 λ–time", True), ("Si IV 1403 spectrum", True)]),
+    ]
+    assert panels.verticalScrollBar().maximum() == 0  # every entry in sight, taller than the Point window
+    off = [viewers["sji"][0], *viewers["windows"][0].values(), viewers["spectrum"]]
+    images = [viewers[role] for role in RASTER_PANELS] + off[:2]
+    looks = [look(viewer) for viewer in images]
+    layouts = []
+    arrange = panels.arrange
+    monkeypatch.setattr(panels, "arrange", lambda: layouts.append(1) or arrange())
+
+    def event(action):
+        return applied(bare_app, qtbot, viewers, panels, action)
+
+    # a window's box, the slit-jaw image's and the spectrum's at once: one layout, the panels shown laid out apart and
+    # up, the SJI's row gone, C II's left to Si IV; the Point window lists the raster alone
+    assert event(lambda: tick(panels, "C II 1336", "SJI 1400", "Mg II k 2796 spectrum", on=False)) == {}
+    assert len(layouts) == 1
+    assert [viewer.parent().isHidden() for viewer in off] == [True] * 4
+    shown = [sub for sub in bare_app.tab().subWindowList() if not sub.isHidden()]
+    assert not any(a.geometry().intersects(b.geometry()) for a, b in itertools.combinations(shown, 2))
+    height = viewers["map"].viewer_size[1]
+    assert viewers["windows"][1]["wavelength"].position == (0, height)
+    assert point_window(bare_app).rowCount() == 1
+    # those turned off neither move, draw, read out nor compute on a click, a step or the map's wavelength
+    draws, asked, computed = Counter(), [], []
+    for viewer in off:
+        monkeypatch.setattr(viewer.figure.canvas, "draw_idle", lambda title=viewer.state.title: draws.update([title]))
+    time_status, update_profile = Coordinator.time_status, ProfileLayerState.update_profile
+    monkeypatch.setattr(Coordinator, "time_status", lambda self, v: asked.append(v) or time_status(self, v))
+    monkeypatch.setattr(
+        ProfileLayerState,
+        "update_profile",
+        lambda self, **kw: computed.append(self.viewer_state) or update_profile(self, **kw),
+    )
+    assert event(lambda: select_point(viewers["map"], 78, 10)) == {
+        "point": (mg.label, (78, 10, None)),
+        "spectrogram": (78, None, None),
+        "wavelength": (None, 10, None),
+        "wavelength2": (None, 10, None),
+    }
+    assert event(lambda: slide(viewers["spectrogram"], 0, 50)) == {
+        "point": (mg.label, (50, 10, None)),
+        "spectrogram": (50, None, None),
+    }
+    wavelength = viewers["map"].state.slices[2] + 3
+    assert event(lambda: slide(viewers["map"], 2, wavelength)) == {"map": (None, None, wavelength)}
+    assert draws == {}
+    assert not set(asked) & set(off)
+    assert not any(viewer.state in computed for viewer in off[2:])
+    # turned on again, one by a click on its box, they catch up with the point, the time and the map's wavelength, as
+    # they were otherwise, and the map stays active with its tool
+    activated = []
+    bare_app.tab().subWindowActivated.connect(activated.append)
+    assert event(lambda: (click_box(panels, "SJI 1400"), tick(panels, "C II 1336", "Mg II k 2796 spectrum"))) == {
+        "wavelength1": (None, 10, None),
+        "sji0": (nearest_frame(sji, raster_time(mg, (50,))), None, None),
+    }
+    assert len(layouts) == 2
+    assert not any(viewer.parent().isHidden() for viewer in off)
+    assert (activated, bare_app.tab().activeSubWindow()) == ([], viewers["map"].parent())
+    assert viewers["map"].toolbar.active_tool.tool_id == "image:point_selection"
+    assert drawn(off[1], "point") == ("y", [50])
+    [line] = [artist.plot_artist for artist in off[2].layers if artist.state.visible]
+    np.testing.assert_array_equal(line.get_ydata(), cube(c2)[50, 10])
+    assert drawn(viewers["spectrum"], "wavelength") == ("x", [pytest.approx(wavelengths(mg)[wavelength])])
+    assert point_window(bare_app).rowCount() == 2
+    assert [look(viewer) for viewer in images] == looks
+    # and follow the point again
+    assert event(lambda: select_point(viewers["map"], 60, 12))["point"] == (mg.label, (60, 12, None))
+    np.testing.assert_array_equal(line.get_ydata(), cube(c2)[60, 12])
+    # a panel closed by hand leaves the list, its window's entry with the last of its panels
+    viewers["windows"][1]["spectrum"].parent().close()
+    assert viewers["windows"][1]["spectrum"]._closed  # as glue-qt's close() marks it, which the lines and layout read
+    tick(panels, "Mg II k 2796 spectrogram", on=False)
+    qtbot.wait(20)
+    assert entries(panels)[-1] == ("Si IV 1403", True, [("Si IV 1403 λ–time", True)])
+    viewers["windows"][1]["wavelength"].parent().close()
+    qtbot.wait(20)
+    assert [entry[0] for entry in entries(panels)][-2:] == ["SJI 1400", "C II 1336"]
+    # a switch of the main window shows every panel again
+    switched = switch(qtbot, viewers["windows"][0]["spectrum"])
+    assert all(entry[1] for entry in entries(panels_list(bare_app)))
+    assert not any(viewer.parent().isHidden() for viewer in glue_solar.quicklook._viewers(switched))
+
+
+def test_the_time_master_turned_off_hands_the_time_back_once_on(bare_app, qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    menu_action(sji_viewer, "Time master").trigger()
+    slide(sji_viewer, 0, 5)
+    qtbot.wait(20)
+    panels = panels_list(bare_app)
+
+    def event(action):
+        return applied(bare_app, qtbot, viewers, panels, action)
+
+    # off, the raster leads the time; on, the slit-jaw image again, from its frame nearest the raster's time
+    exposure = viewers["spectrogram"].state.slices[0]
+    assert event(lambda: tick(panels, "SJI 1400", on=False)) == {}
+    assert event(lambda: slide(viewers["spectrogram"], 0, exposure + 10)) == {
+        "point": (raster.label, (exposure + 10, *sliders(bare_app, viewers)["point"][1][1:])),
+        "spectrogram": (exposure + 10, None, None),
+    }
+    frame = nearest_frame(sji, raster_time(raster, (exposure + 10,)))
+    assert event(lambda: tick(panels, "SJI 1400")) == {"sji0": (frame, None, None)}
+    assert "time master" in readout(sji_viewer)
 
 
 def test_the_browser_shows_the_main_window_chosen(qtbot, monkeypatch, tmp_path, irispy_test_files):

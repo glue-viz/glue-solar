@@ -28,7 +28,7 @@ if not qtpy.QT6:
     raise RuntimeError(message)
 
 from glue_solar import glue_patches, lines, regrid, tools
-from glue_solar.quicklook import QuicklookImageViewer
+from glue_solar.quicklook import QuicklookImageViewer, _off
 from glue_solar.sources import bursts, calibration, doppler, iris, line_ratio, maps, mg_features, moments, red_blue, sst
 from glue_solar.sources.maps import _add_colormap
 
@@ -142,6 +142,16 @@ def _close_event(self, event):
     _glue_close_event(self, event)
 
 
+_glue_gluestate = None  # glue-qt's ``GlueApplication.__gluestate__``, once `setup` wraps it
+
+
+def _gluestate(self, context):
+    """glue-qt's record of the application without the quicklook panels turned off, so that a session opens those shown."""
+    state = _glue_gluestate(self, context)
+    state["viewers"] = [[name for name in tab if not _off(context.object(name))] for tab in state["viewers"]]
+    return state
+
+
 @menubar_plugin("IRIS: restore last session")
 def restore_last_session(session, data_collection):
     """
@@ -166,7 +176,7 @@ def _add_keys(viewer, keys):
 
 
 def setup():
-    global _glue_close_event
+    global _glue_close_event, _glue_gluestate
     # Every sunpy colormap, under its own name; glue-qt draws each one's icon once (`glue_patches.update_icons`)
     for name in sorted(cmlist):
         _add_colormap(name)
@@ -234,3 +244,6 @@ def setup():
 
     if GlueApplication.closeEvent is not _close_event:
         _glue_close_event, GlueApplication.closeEvent = GlueApplication.closeEvent, _close_event
+    # Sessions without the quicklook panels turned off, which a restored quicklook has no Panels list to turn on
+    if GlueApplication.__gluestate__ is not _gluestate:
+        _glue_gluestate, GlueApplication.__gluestate__ = GlueApplication.__gluestate__, _gluestate
