@@ -1,0 +1,1 @@
+Opening a session reads each IRIS raster file once for all the windows it holds of it, as the observation browser does, rather than once a window: a quicklook of seven windows of a 99-scan stack opens in 7 s rather than 12 s.

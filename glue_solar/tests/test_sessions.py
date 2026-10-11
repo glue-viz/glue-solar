@@ -1,8 +1,8 @@
 """
 Sessions keep the coordinates and colormaps of every kind of dataset glue-solar makes from IRIS data, on irispy's test
 files, the links `link_hpc` gives, the colormap of a sunpy map, and a quicklook's time master and point; they refer to
-the files IRIS data are read from, so a quicklook's stays small, and two quicklooks restore twice alike; glue-solar keeps
-the last one as glue closes, which its menu entry restores.
+the files IRIS data are read from, each raster file read once for all its windows, so a quicklook's stays small, and two
+quicklooks restore twice alike; glue-solar keeps the last one as glue closes, which its menu entry restores.
 """
 
 import json
@@ -39,13 +39,13 @@ from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.bursts import si_iv_bursts
 from glue_solar.sources.calibration import radiometric_calibration
 from glue_solar.sources.iris import browse_iris
-from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, link_hpc, raster_data
+from glue_solar.sources.loaders.iris import _RESTORING, QtIRISImporter, image_data, link_hpc, raster_data
 from glue_solar.sources.loaders.lazy import LazyData
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments
 from glue_solar.tests.helpers import load_selected, mouse, scanned, select_point, shift
 from glue_solar.tests.test_bursts import SI_IV
-from glue_solar.tests.test_importer import _row
+from glue_solar.tests.test_importer import _row, counted_reads
 from glue_solar.tests.test_quicklook import (
     POINT_CURVES,
     SCAN,
@@ -157,6 +157,27 @@ def test_a_session_restores_the_metadata_of_a_raster_and_a_slit_jaw_image(irispy
         headers = restored[1].meta["frame_wcs_headers"]
         assert WCS(headers[5]).to_header_string() == WCS(sji.meta["frame_wcs_headers"][5]).to_header_string()
         assert _pointing(restored[1].meta, 5) == _pointing(sji.meta, 5)  # the Frame time tooltip
+
+
+def test_a_session_reads_each_raster_file_once_for_all_its_windows(monkeypatch, irispy_test_files):
+    files = sorted(path for path in irispy_test_files if "3860258481_raster" in path.name)
+    datasets = raster_data(files, THREE, stack=True) + raster_data(files, THREE[:2]) + raster_data(files[:1], THREE[2:])
+    reads = counted_reads(monkeypatch)
+    for restored in twice(DataCollection(datasets)):
+        # each file once for the stack's three windows and once for the scans' two, and the first once for its lone
+        # scan's third, rather than once a window: the same files stacked or not, and a subset of them, are read apart
+        assert sorted((os.path.basename(*paths), sorted(windows)) for paths, windows in reads) == sorted(
+            [(path.name, sorted(THREE)) for path in files]
+            + [(path.name, sorted(THREE[:2])) for path in files]
+            + [(files[0].name, THREE[2:])]
+        )
+        reads.clear()
+        assert not any(_RESTORING.values())  # nor held once restored
+        for data, expected in zip(restored, datasets, strict=True):
+            assert data.label == expected.label
+            for cid, expected_cid in zip(data.main_components, expected.main_components, strict=True):
+                np.testing.assert_array_equal(data[cid], expected[expected_cid])
+            assert_same_coordinates(data.coords, expected, stride=5)
 
 
 def test_a_raster_held_in_memory_gives_its_bursts_and_radiance_once_restored(monkeypatch, irispy_test_files):

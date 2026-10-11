@@ -17,6 +17,7 @@ from pathlib import Path
 from weakref import WeakSet
 
 import numpy as np
+from glue.config import session_patch
 from glue.core.component import Component
 from glue.core.component_id import ComponentID
 from glue.core.component_link import ComponentLink
@@ -725,9 +726,38 @@ def raster_files_data(path, files=(), windows=None, stack=False):
     """
     `raster_data` as a glue data factory, which a session's load log calls: ``path`` is the first raster file, and
     ``files`` every one by its path relative to the folder of ``path``, so that a session with relative paths finds
-    them all where it finds ``path``.
+    them all where it finds ``path``. A session's restore reads them once for every window it logs of them
+    (`_read_logged_windows_together`).
     """
-    return raster_data([Path(path).parent / name for name in files] or [path], windows, stack)
+    paths = [Path(path).parent / name for name in files] or [path]
+    read = _RESTORING.get((path, tuple(files), stack), {})
+    if len(windows or ()) != 1 or windows[0] not in read:
+        return raster_data(paths, windows, stack)
+    if read[windows[0]] is None:
+        unread = [window for window, datasets in read.items() if datasets is None]
+        read.update((str(window), datasets) for window, datasets in _raster_windows_data(paths, unread, stack).items())
+    datasets = read.pop(windows[0])  # held by the restore alone from now on
+    _warn_repeated_positions(datasets)
+    return datasets
+
+
+_RESTORING = {}  # the restoring session's windows by the raster files they are read from, with their datasets once read
+
+
+@session_patch()
+def _read_logged_windows_together(session):
+    """
+    List the windows a session's load logs read from each set of raster files (`raster_files_data`), one log a window,
+    so that its restore reads each file once for all of them, as the browser does, rather than once a window.
+    """
+    _RESTORING.clear()  # what a failed restore left
+    factory = f"{raster_files_data.__module__}.{raster_files_data.__name__}"
+    for record in session.values():
+        if isinstance(record, dict) and record.get("_type", "").endswith(".LoadLog"):
+            if record["factory"].get("function") == factory:
+                kwargs = dict(*record["kwargs"])
+                windows = _RESTORING.setdefault((record["path"], tuple(kwargs["files"]), kwargs["stack"]), {})
+                windows.update(dict.fromkeys(kwargs["windows"]))
 
 
 def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None):
