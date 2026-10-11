@@ -19,11 +19,10 @@ glue's terminal, ``sst_data`` loads one the same way::
 
 The dataset's axes are the file's, in numpy order: scan, Stokes, tuning, y and x, but a cube of
 intensities, such as CHROMIS's, leaves out its Stokes axis of length 1: scan, tuning, y and x. Its
-values stay in the file, memory-mapped: opening a cube reads only its headers and tables, 0.2 to 0.3
-MB in 0.03 to 0.05 s for the cubes of 0.4 to 9.9 GB tried, and a viewer reads the planes it shows. A
-viewer's colour limits come from evenly spaced rows and columns of 16 evenly spaced planes, about
-10,000 values, as many as glue samples at random, each on another page of the file, which read 0.7
-GB the first time.
+values stay in the file, memory-mapped: opening a cube reads only its headers and tables, about 0.3 MB
+in 0.03 to 0.05 s, and a viewer reads the planes it shows. A viewer's colour limits come from evenly
+spaced rows and columns of 16 evenly spaced planes, about 10,000 values, as many as glue samples at
+random, each on another page of the file, which read 0.7 GB the first time.
 
 Its coordinates are the file's tabulated WCS: the helioprojective longitude and latitude of each scan,
 which move from scan to scan in a mosaic, the nominal wavelength of each tuning, in nm, and the time

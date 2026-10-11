@@ -242,8 +242,8 @@ def sst_data(path):
     error`` the wavelength offset of each pixel at each scan from the nominal one, from the file's cavity maps, in the
     unit of the wavelength axis, 0 for a tuning without a map. ``meta['VAR-EXT']`` holds the columns of the file's
     ``VAR-EXT`` tables by name, such as the exposure times (``XPOSURE``) and the seeing (``ATMOS_R0``), each a value per
-    scan, tuning or pixel on the cube's axes, 1 long along those it does not change on, or the table's own samples. A
-    glue session refers to the file rather than holding the values.
+    scan, tuning or Stokes parameter on the cube's axes, 1 long along those it does not change on, or the table's own
+    samples. A glue session refers to the file rather than holding the values.
 
     Returns
     -------
