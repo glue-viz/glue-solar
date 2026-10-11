@@ -2887,7 +2887,7 @@ def test_an_observation_of_sot_alone_opens_in_an_image_viewer(qtbot, monkeypatch
     monkeypatch.setattr(QtWidgets.QMessageBox, "information", lambda parent, title, text: messages.append(text))
     quicklook_iris(app.session, app.data_collection)
     assert app.tab_count == 1
-    assert messages == ["No IRIS observation with a raster or slit-jaw image is loaded."]
+    assert messages == ["No IRIS observation with a raster or slit-jaw image, nor SST cube, is loaded."]
     with pytest.raises(ValueError, match="has no raster or slit-jaw image for a quicklook"):
         quicklook(app, list(app.data_collection))
     assert app.tab_count == 1
@@ -2923,10 +2923,12 @@ def bare_app_for(qtbot, monkeypatch):
 def sliders(app, viewers):
     """
     Each Image panel's slider positions, None along its shown axes, keyed by role and 'sji0', 'sji1', ... for
-    the slit-jaw panels; and the point as its dataset's label and indices (None along free axes), or None.
+    the slit-jaw panels, or an SST quicklook's 'wing' and 'slit' too; and the point as its dataset's label and indices
+    (None along free axes), or None.
     """
     found = {}
-    panels = [(role, viewers[role]) for role in RASTER_PANELS] + [(f"sji{n}", v) for n, v in enumerate(viewers["sji"])]
+    panels = [(role, viewers[role]) for role in (*RASTER_PANELS, "wing", "slit") if role in viewers]
+    panels += [(f"sji{n}", v) for n, v in enumerate(viewers.get("sji", []))]
     # another window's λ–time or λ–scan panel: 'wavelength1', 'wavelength2', ...
     others = [panels["wavelength"] for panels in viewers.get("windows", []) if "wavelength" in panels]
     panels += [(f"wavelength{n}", viewer) for n, viewer in enumerate(others, 1)]

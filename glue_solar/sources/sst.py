@@ -13,13 +13,14 @@ import numpy as np
 from glue.config import data_factory
 from glue.core.component import Component, DaskComponent
 from glue.core.data import Data
+from glue.core.state import _load_data_5, _save_data_5
 
 from astropy.io import fits
 from astropy.wcs import WCS, FITSFixedWarning
 
 from glue_solar.sources.loaders.iris import WCS_LOCK, _LockedWCS, _logged, _wcs_from_state, _wcs_state
 from glue_solar.sources.loaders.lazy import RawStack
-from glue_solar.sources.loaders.scan import _primary_header
+from glue_solar.sources.loaders.scan import _is_sst, _primary_header
 
 __all__ = ["is_sst_fits", "sst_data"]
 
@@ -121,14 +122,47 @@ class _TabularWCS(_LockedWCS):
         return wcs
 
 
+class _Cube(Data):
+    """
+    An SST cube's dataset, whose sampled statistics of a component held in the file, the colour limits of an Image
+    layer, its style editor and a Histogram's range, are those of evenly spaced rows and columns of 16 evenly spaced
+    planes, as many values as glue samples: glue's 10,000 random values each lie on another page of the file, 0.7 GB
+    read cold and 0.04 s warm per statistic (SST10), where these lie on a few hundred. A session keeps the class.
+    """
+
+    def compute_statistic(self, statistic, cid, subset_state=None, axis=None, view=None, random_subset=None, **kwargs):
+        sampled = random_subset and subset_state is None and axis is None and view is None
+        if sampled and type(self._components.get(cid)) is Component:  # not the cavity error's dask, nor a derived one
+            planes, rows, columns = int(np.prod(self.shape[:-2])), *self.shape[-2:]
+            side = max(1, round((random_subset / min(planes, 16)) ** 0.5))
+            plane = np.unravel_index(np.linspace(0, planes - 1, min(planes, 16)).round().astype(int), self.shape[:-2])
+            view = tuple(index[:, None, None] for index in plane) + (
+                np.linspace(0, rows - 1, min(rows, side)).round().astype(int)[:, None],
+                np.linspace(0, columns - 1, min(columns, side)).round().astype(int),
+            )
+            random_subset = None
+        return super().compute_statistic(
+            statistic, cid, subset_state=subset_state, axis=axis, view=view, random_subset=random_subset, **kwargs
+        )
+
+    def __gluestate__(self, context):
+        return _save_data_5(self, context)
+
+    @classmethod
+    def __setgluestate__(cls, rec, context):
+        restored = _load_data_5(rec, context)
+        data = next(restored)
+        data.__class__ = cls  # glue's loader makes a Data
+        yield data
+        yield from restored
+
+
 def is_sst_fits(filename, **_kwargs):
     """A CRISP or CHROMIS cube with a tabulated WCS and five axes, as the SST archive exports them."""
     try:
-        header = _primary_header(filename)
+        return _is_sst(_primary_header(filename))
     except (OSError, ValueError, EOFError):  # not a FITS file
         return False
-    instrument, axes = header.get("INSTRUME"), str(header.get("CTYPE1"))
-    return instrument in ("CRISP", "CHROMIS") and axes.endswith("-TAB") and header.get("NAXIS") == 5
 
 
 def _cavity_maps(header, tunings):
@@ -173,7 +207,7 @@ def sst_data(path):
         # wcslib's notes on the keywords it derives, such as MJDREF from DATEREF
         with warnings.catch_warnings(action="ignore", category=FITSFixedWarning):
             wcs = _TabularWCS(header, hdulist)
-        data = Data(label=Path(path).stem, coords=wcs)
+        data = _Cube(label=Path(path).stem, coords=wcs)
         data.meta.update(header.items())
         data.add_component(Component(hdulist[0].data, units=header.get("BUNIT")), header.get("BTYPE") or "PRIMARY")
         scans, _, tunings, rows, columns = data.shape

@@ -46,6 +46,11 @@ Expand an observation to see what can be loaded:
   ``SOT 6302A B_LOS``. SP maps, all ``6302A``, are named by what they measure (``BTYPE``), and a
   second file of the same name has its file name added, as ``irispy.io.read_files`` keys them; each
   map's dataset is labelled with its file's time too (``6302A B_LOS 08:06:09-3603259402-…``).
+- one entry per SST CRISP or CHROMIS cube as the SST archive exports them (``nb_8542_…_im.fits``), for
+  example ``SST CRISP Ca II 8542, Stokes I, Q, U and V``: the cubes of a folder of the archive, such as
+  the three lines of its obs 492, are one observation, with the instrument as its OBSID, its STARTOBS,
+  and the folder's name, such as ``SST-archive_obs492_20230919_CRISP_stokes``, as its description.
+  Each loads as File → Open loads it (see :ref:`glue_solar_users_guide_loading_sst_cubes`).
 
 An observation with only one entry shows it in its "Files" column (for example ``1 — AIA 1700``)
 and has its tick box on its own row.
@@ -79,7 +84,8 @@ slit-jaw channel read before a raster window, or nothing if none was. Pressing E
 browser drops the load: nothing is loaded. With "Open quicklook" ticked, the default, each
 observation with a raster or slit-jaw image opens in a quicklook of the raster windows ticked,
 with the map, spectrogram and wavelength panels of the one chosen in "Main window" where it is
-ticked (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). "Main window" lists the
+ticked (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`), and each SST cube in a
+quicklook of its own (see :ref:`glue_solar_users_guide_loading_sst_cubes`). "Main window" lists the
 ticked raster windows and shows Mg II k 2796 when ticked, else the first, until you choose one.
 Otherwise the first slit-jaw (or AIA) cube opens in an Image Viewer, where its ``Time (Utc)`` slider
 steps through time; nothing opens for rasters alone. If an entry fails to load, the browser stays open and its progress bar names

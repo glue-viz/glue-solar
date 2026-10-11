@@ -27,6 +27,7 @@ from glue_solar.quicklook import (
     _pick_windows,
     _role,
     _same_file,
+    _sst_line,
     _time_axis,
     coordinator,
     observation_key,
@@ -101,8 +102,8 @@ def browse_iris(session, data_collection):
 
     With "Open quicklook" ticked, each loaded observation opens as a quicklook of its ticked raster
     windows: the browser's "Main window" if ticked, else Mg II k 2796 if ticked, else the first, with
-    the others beside it; otherwise, or with no raster or slit-jaw image loaded, the first image opens
-    in an Image Viewer.
+    the others beside it, and each SST cube in an SST quicklook of its own; otherwise, or with no raster,
+    slit-jaw image or SST cube loaded, the first image opens in an Image Viewer.
     """
     app = session.application
     directory = QtWidgets.QFileDialog.getExistingDirectory(
@@ -127,12 +128,19 @@ def browse_iris(session, data_collection):
 
 
 def _quicklooks(loaded):
-    """The ``(datasets, window)`` of each quicklook `browse_iris` opens of the observation browser's ``loaded``."""
-    observations = {}  # observation -> (its datasets, its ticked raster windows)
+    """
+    The ``(datasets, window)`` of each quicklook `browse_iris` opens of the observation browser's ``loaded``, an SST
+    cube's after the IRIS observations'.
+    """
+    observations, cubes = {}, []  # observation -> (its datasets, its ticked raster windows); each SST cube's
     for observation, kind, name, datasets in loaded:
+        if kind == "sst":
+            cubes.append((datasets, None))
+            continue
         got, windows = observations.get(id(observation), ([], []))
         observations[id(observation)] = (got + datasets, windows + [name] * (kind == "raster"))
-    return [(datasets, windows or None) for datasets, windows in observations.values() if _has_quicklook(datasets)]
+    shown = [(datasets, windows or None) for datasets, windows in observations.values() if _has_quicklook(datasets)]
+    return shown + cubes
 
 
 def _has_quicklook(datasets):
@@ -302,24 +310,28 @@ def _observations(data_collection):
 @menubar_plugin("IRIS: quicklook…")
 def quicklook_iris(session, data_collection):
     """
-    Open the quicklook of an IRIS observation that is already loaded, with a raster or slit-jaw image, asking which
-    when several are.
+    Open the quicklook of an IRIS observation that is already loaded, with a raster or slit-jaw image, or of an SST
+    cube, asking which when several are.
     """
     app = session.application
-    observations = _observations(data_collection)
-    if not observations:
+    choices = {
+        f"{obsid} {str(start)[:19]}": datasets for (obsid, start), datasets in _observations(data_collection).items()
+    }
+    for cube in [data for data in data_collection if _role(data) == "sst"]:
+        label = f"SST {_sst_line(cube)}"
+        choices[f"{label} ({cube.label})" if label in choices else label] = [cube]  # its file's stem for a repeat
+    if not choices:
         QtWidgets.QMessageBox.information(
-            app, "IRIS quicklook", "No IRIS observation with a raster or slit-jaw image is loaded."
+            app, "IRIS quicklook", "No IRIS observation with a raster or slit-jaw image, nor SST cube, is loaded."
         )
         return
-    keys = list(observations)
-    labels = [f"{obsid} {str(start)[:19]}" for obsid, start in keys]
-    if len(keys) > 1:
+    labels = list(choices)
+    if len(labels) > 1:
         label, chosen = QtWidgets.QInputDialog.getItem(app, "IRIS quicklook", "Observation:", labels, 0, False)
         if not chosen:
             return
-        keys = [keys[labels.index(label)]]
-    quicklook(app, observations[keys[0]])
+        labels = [label]
+    quicklook(app, choices[labels[0]])
 
 
 @menubar_plugin("IRIS: user guide and issues")
@@ -337,12 +349,12 @@ def help_iris(session, data_collection):
 @startup_action("iris_quicklook")
 def iris_quicklook(session, data_collection):
     """
-    ``glue --startup=iris_quicklook <files>``: a quicklook of each IRIS observation among the files.
+    ``glue --startup=iris_quicklook <files>``: a quicklook of each IRIS observation and each SST cube among the files.
 
     Files given on the command line load one by one and cannot be stacked, so each observation
     opens on its first raster file (the lowest ``rNNNNN``); stacks of scans need the observation
-    browser. With no raster or slit-jaw image, only AIA cutouts or SOT cubes, the first opens in an
-    Image Viewer instead, as the observation browser opens it.
+    browser. With no raster, slit-jaw image or SST cube, only AIA cutouts or SOT cubes, the first
+    opens in an Image Viewer instead, as the observation browser opens it.
     """
     app = session.application
     several = False
@@ -352,8 +364,11 @@ def iris_quicklook(session, data_collection):
         several |= len(numbers) > 1
         first = numbers[0] if numbers else None
         quicklook(app, [data for data in datasets if _raster_number(data) in (None, first)])
+    cubes = [data for data in data_collection if _role(data) == "sst"]
+    for cube in cubes:
+        quicklook(app, [cube])
     image = next((data for data in data_collection if observation_key(data) is not None), None)
-    if not observations and image is not None:
+    if not observations and not cubes and image is not None:
         from glue_qt.viewers.image import ImageViewer
 
         app.new_data_viewer(ImageViewer, data=image)

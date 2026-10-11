@@ -1,0 +1,1 @@
+Each SST CRISP or CHROMIS cube opens in a quicklook of its own tab, from the observation browser, the Plugins menu or quicklook(): its map and second map, a virtual slit, the Stokes spectra, wavelength against scan and the light curve follow one point and one time, shared with the other cubes of the day and, once linked, with IRIS data.

@@ -1,5 +1,5 @@
 """
-Scan a directory tree for IRIS Level 2 files and group them by observation.
+Scan a directory tree for IRIS Level 2 files and SST cubes and group them by observation.
 
 Only primary headers are read, never data, so scanning a multi-GB archive
 takes seconds. Files cached by pooch (``<md5>-<name>``) are handled.
@@ -92,11 +92,12 @@ class Observation:
     window_tips: dict[str, str] = field(default_factory=dict)  # each window's detector and wavelength range
     sdo: dict[str, Path] = field(default_factory=dict)  # "171_THIN" -> AIA cutout
     sot: dict[str, Path] = field(default_factory=dict)  # "G band 4305", "6302A B_LOS" -> Hinode/SOT cube (ITN 32)
+    sst: dict[str, Path] = field(default_factory=dict)  # "Ca II 8542, Stokes I, Q, U and V" -> SST cube
     archives: list[Path] = field(default_factory=list)  # un-extracted *.tar.gz, listed only
 
     @property
     def nfiles(self):
-        return len(self.sji) + len(self.rasters) + len(self.sdo) + len(self.sot)
+        return len(self.sji) + len(self.rasters) + len(self.sdo) + len(self.sot) + len(self.sst)
 
 
 def _obsid_description(obsid):
@@ -156,6 +157,18 @@ def _is_supported_file(name, header):
     return name.startswith("aia_l2_") and instrume.startswith("AIA")
 
 
+def _is_sst(header):
+    """A CRISP or CHROMIS cube with a tabulated WCS and five axes, as the SST archive exports them."""
+    instrument, axes = header.get("INSTRUME"), str(header.get("CTYPE1"))
+    return instrument in ("CRISP", "CHROMIS") and axes.endswith("-TAB") and header.get("NAXIS") == 5
+
+
+def _sst_name(header):
+    """An SST cube's entry: its line, and its Stokes parameters where it has four, 'Ca II 8542, Stokes I, Q, U and V'."""
+    line = str(header.get("WAVEBAND") or header.get("FILTER1"))
+    return f"{line}, Stokes I, Q, U and V" if header.get("NAXIS4") == 4 else line
+
+
 def _isot(time):
     """``time`` in UTC to the second, as the filenames and STARTOBS give it: '2013-09-02T16:39:35'."""
     return None if time is None else Time(time).utc.isot[:19]
@@ -171,7 +184,9 @@ def _wanted(name, pattern, earliest, end):
 
 def scan_directory(root, recursive=True, skipped=None, stop=None, report=None, start=None, end=None, pattern=None):
     """
-    Group every IRIS Level 2 file below ``root``, outside hidden files and folders, into `Observation` objects.
+    Group every IRIS Level 2 file below ``root``, outside hidden files and folders, into `Observation` objects, and
+    every SST CRISP or CHROMIS cube as the SST archive exports them by its folder, an observation of the archive, under
+    its instrument and ``STARTOBS``, described by the folder's name.
 
     ``start``, ``end`` and ``pattern`` leave files out by their names, before any header is read: a time window
     reads only the files whose names are stamped from a day before ``start`` to ``end``, and those with no stamp.
@@ -228,6 +243,10 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None, s
             header = _primary_header(path)
         except Exception:  # noqa: BLE001 - not a FITS file after all
             continue
+        if _is_sst(header):  # an observation of the archive's per folder, as two share an instrument and STARTOBS
+            key = (str(header["INSTRUME"]), str(header.get("STARTOBS", ""))[:19], path.parent)
+            headers.append((path, name, key, header))
+            continue
         if not _is_supported_file(name, header):
             continue
         if header["INSTRUME"] == "SPEC" and header.get("DATA_LEV") != 2:
@@ -244,7 +263,7 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None, s
     for path, name, key, header in sorted(
         headers, key=lambda h: (str(h[3].get("INSTRUME", "")).startswith(("AIA", "SOT")), h[1], str(h[0]))
     ):
-        obs = found.setdefault(key, Observation(*key))
+        obs = found.setdefault(key, Observation(*key[:2]))
         _fill(obs, header)
         instrume = str(header.get("INSTRUME", ""))
         if instrume == "SJI":
@@ -266,6 +285,10 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None, s
                 band += f" {header.get('BTYPE', '')}"
             # as irispy's read_files keys them, a repeat with its file's name
             obs.sot[band if band not in obs.sot else f"{band} ({Path(name).stem})"] = path
+        elif _is_sst(header):
+            obs.description, obs.endobs = obs.description or path.parent.name, obs.endobs or header.get("DATE-END")
+            band = _sst_name(header)
+            obs.sst[band if band not in obs.sst else f"{band} ({Path(name).stem})"] = path
     found = [
         obs
         for obs in found.values()
@@ -282,7 +305,7 @@ def find_observation_files(directory, start=None, end=None, pattern=None, recurs
     """
     The files of the observations below ``directory`` that run at some time from ``start`` to ``end``, as
     `scan_directory` finds them: per observation, by start time, its rasters, slit-jaw images, AIA cutouts, Hinode/SOT
-    cubes and un-extracted archives.
+    cubes, SST cubes and un-extracted archives.
 
     Pass the same time as ``start`` and ``end`` for the observation running at that time, and a ``pattern`` such
     as ``"*_raster_t*"`` for only its rasters.
@@ -294,5 +317,12 @@ def find_observation_files(directory, start=None, end=None, pattern=None, recurs
     return [
         path
         for obs in scan_directory(directory, recursive, start=start, end=end, pattern=pattern)
-        for path in (*obs.rasters, *obs.sji.values(), *obs.sdo.values(), *obs.sot.values(), *obs.archives)
+        for path in (
+            *obs.rasters,
+            *obs.sji.values(),
+            *obs.sdo.values(),
+            *obs.sot.values(),
+            *obs.sst.values(),
+            *obs.archives,
+        )
     ]

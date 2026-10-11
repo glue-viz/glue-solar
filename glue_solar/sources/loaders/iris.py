@@ -816,14 +816,15 @@ def link_hpc(data_collection, others=None):
     exposures, steps or scans of each IRIS dataset with a ``Time`` give the cube their time, in its seconds since
     ``DATEREF``, which its coordinates place in the scan nearest it, and the time axis of a slit-jaw image or AIA cutout
     takes the time of each of the cube's scans, at its middle tuning, so that a point on the cube reaches the frame
-    nearest it.
+    nearest it. The cube then shares the time sync of the IRIS observation whose times come nearest its middle scan's,
+    as its ``meta['IRIS observation']``, ``(OBSID, STARTOBS)`` (`glue_solar.quicklook.observation_key`).
 
     Returns
     -------
     list of `~glue.core.link_helpers.LinkSame`, `~glue.core.link_helpers.LinkSameWithUnits` and
     `~glue.core.component_link.ComponentLink`
     """
-    from glue_solar.quicklook import _role, _times, nearest  # which imports this module
+    from glue_solar.quicklook import _role, _times, nearest, observation_key  # which imports this module
 
     linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in data_collection.links}
     anchors, links, cubes = {}, [], set()
@@ -866,11 +867,17 @@ def link_hpc(data_collection, others=None):
     for cube in cubes:
         seconds, scan = cube.world_component_ids[0], cube.pixel_component_ids[0]  # its time since DATEREF, and scan
         scans = cube[cube.find_component_id("Time"), (slice(None), 0, cube.shape[2] // 2, 0, 0)]  # at the line core
+        nearest_offset = None
         for data in datasets:
             frame = data.pixel_component_ids[0]
             if data.find_component_id("Time") is None:
                 continue
             when = _times(data, data.shape[1] // 2 if data.ndim == 4 else 0)  # a stack's at its middle step
+            key = observation_key(data)
+            if key is not None and not np.isnat(when).all():
+                offset = abs(nearest([scans[len(scans) // 2]], when)[1][0])
+                if nearest_offset is None or offset < nearest_offset:
+                    nearest_offset, cube.meta["IRIS observation"] = offset, [key[0], str(key[1])]
             if frozenset((seconds, frame)) not in linked:
                 start = np.datetime64(cube.meta["DATEREF"])
                 links.append(ComponentLink([frame], seconds, using=_ScanAt((when - start) / np.timedelta64(1, "s"))))
@@ -932,8 +939,8 @@ def keep_hpc_linked(data_collection, others=()):
 
 def load_entry(observation, kind, name, stack=False):
     """
-    Load one entry of the observation browser: a slit-jaw channel, an AIA cutout, a Hinode/SOT cube, or a raster
-    window.
+    Load one entry of the observation browser: a slit-jaw channel, an AIA cutout, a Hinode/SOT cube, an SST cube, or a
+    raster window.
 
     Returns
     -------
@@ -942,6 +949,10 @@ def load_entry(observation, kind, name, stack=False):
     """
     if kind == "raster":
         return raster_data(observation.rasters, [name], stack=stack)
+    if kind == "sst":
+        from glue_solar.sources.sst import sst_data  # which imports this module
+
+        return [sst_data(observation.sst[name])]
     return [image_data(getattr(observation, kind)[name])]  # its sji, sdo or sot
 
 
@@ -1271,6 +1282,7 @@ class QtIRISImporter(QtWidgets.QDialog):
             entries += [(f"{w} — {len(obs.rasters)} raster file(s)", (i, "raster", w)) for w in obs.windows]
             entries += [(f"AIA {band}", (i, "sdo", band)) for band in sorted(obs.sdo)]
             entries += [(f"SOT {band}", (i, "sot", band)) for band in sorted(obs.sot)]
+            entries += [(f"SST {obs.obsid} {name}", (i, "sst", name)) for name in sorted(obs.sst)]
             entries += [
                 (f"Extract {a.name} ({a.stat().st_size / 1e6:.0f} MB, next to the archive)", (i, "archive", a))
                 for a in obs.archives
