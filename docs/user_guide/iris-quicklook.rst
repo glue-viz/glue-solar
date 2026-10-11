@@ -361,11 +361,31 @@ click, slider step, time sync or change to a panel's layers, such as the compone
 only while its tab is shown. Move or resize it like a panel; closing the tab closes it, and one
 closed by hand stays closed.
 
+The "Panels" list, right of the Point window, turns each panel on and off: a box for each panel of
+the main window (the map, the spectrogram, the wavelength panel and the spectrum) and each slit-jaw
+image, and one for each other window (see `Several windows`_), which turns all its panels on or off;
+expand it for a box per panel. At each change the panels shown are laid out again in their rows, an
+empty row going and panels moved or resized by hand taking their place again, once for all the boxes
+changed at once, such as a window's; a panel that keeps its size is not drawn again. A panel turned
+off is hidden and does nothing: it neither moves, draws nor computes as the point, the sliders and
+the time move, and the Point window leaves out its row. Turned on again, it moves to the point and
+the time, its zoom, colours and other settings as they were; a map keeps its wavelength, which
+:kbd:`A`, :kbd:`S` and clicks on the panels showing wavelength move only on the maps shown. A
+slit-jaw image that is the time master hands the time to the raster while its panel is off, and
+takes it back, from the frame it kept, once on. A panel closed by hand leaves the list. "Show this
+window's panels" (below) shows every panel again, and a saved session leaves out the panels turned
+off. On 4000255147 with its nine windows and SJI 1400, an exposure step takes 0.19 s with the other
+windows' panels off, as with the main window alone, against 0.54 s with every panel on, and a click
+and a move take 0.2 s against 0.5 and 0.6 s; turning a panel or a window off or on takes 0.05 to 0.1
+s, and the eight other windows off at once 0.03 s and on again 0.26 s. A stack of 4000005156's two
+scans of the same windows and SJI 2796 steps as fast with its other windows off as alone.
+
 A saved session opens the quicklook again with its point and its time master: its tab makes
 "Point" the edit subset whenever it is shown, the panels follow the time master to the frames they
 showed, with the same Δt, and a click or drag with the Pixel tool moves the other panels, the
 slit-jaw cross and the spectrum as before. Choose the Pixel tool again, as glue restores no
-viewer's mouse mode. The Point window and the lines are not restored, and a light curve, a row, a
+viewer's mouse mode. The Point window, the Panels list and the lines are not restored, nor are the
+panels turned off, and a light curve, a row, a
 column and the light curves at a point stay where they were (choose the entry again for ones that
 follow the point); "Master exposure" follows the time master again, and one deleted before saving
 comes back at the first time sync with its Scatter plot open (see "Saving sessions" in :ref:`Viewer
@@ -389,8 +409,9 @@ each spectrum panel shows its own window's spectrum there, a map of any of the w
 point's crosshair, and their wavelength panels follow the point's slit (and a stack's step), share
 its exposure or scan, and move it when you move their sliders. A Pixel click on another window's
 wavelength panel moves the point to that window, and the others follow; D, F and "Go to UTC…" still
-move it with the time master. The Point window lists the main window only. The "Plugins" menu entry
-and the command line open one window.
+move it with the time master. The Point window lists the main window only, and the Panels list
+turns each window's panels off and on (see above). The "Plugins" menu entry and the command line
+open one window.
 
 "Show this window's panels", the triangle icon after "Zoom" in another window's spectrum panel (and in
 no other Profile viewer), makes that window the main window: the quicklook opens again in its tab as
@@ -398,7 +419,8 @@ the browser opens it with that window chosen, and the window shown before joins 
 rows below. The point stays at the same pixel, now of that window, in the same "Point" subset, the
 time master stays at its frame, exposure, step or scan, and each panel that shows the same data on
 the same axes again keeps its stretch, colour limits and colormap; its other settings, such as a
-zoom or a spectrum panel's unit, are a new quicklook's. The links stay, and so do the viewers you
+zoom or a spectrum panel's unit, are a new quicklook's, and every panel shows. The links stay, and
+so do the viewers you
 added to the tab, where a light curve, a row or a column goes on following the point at the
 wavelength or band the old map showed. It takes 2.5 s on 4000255147's C II 1336, Si IV 1403 and Mg
 II k 2796 with its SJI 1400, and 2.4 s on a stack of 4000005156's two scans of the same windows. A

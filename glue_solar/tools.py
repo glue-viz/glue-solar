@@ -73,6 +73,7 @@ from glue_solar.quicklook import (
     _half_cadence,
     _is_sit_and_stare,
     _light_curve,
+    _off,
     _place,
     _point_curves,
     _role,
@@ -474,7 +475,8 @@ class FrameTimeTool(Tool, HubListener):
         _throttle_slice_sliders(self.viewer)
 
     def _synced(self, key, time, exposure):
-        self._refresh()
+        if not _off(self.viewer):  # a quicklook panel turned off, refreshed once on
+            self._refresh()
 
     def _forget(self, *_):
         self.coordinator.remove_listener(self._synced)
@@ -2715,7 +2717,8 @@ class CoordinateTool(_ToolMenu):
         self.mode = self.toolbar.active_tool
 
     def _synced(self, key, time, exposure):
-        self._draw()
+        if not _off(self.viewer):  # a quicklook panel turned off, drawn once on
+            self._draw()
 
     def _draw(self, *_):
         """Draw the slit, the raster point and the raster overlays on a slit-jaw image, or hide them; and on a map."""
