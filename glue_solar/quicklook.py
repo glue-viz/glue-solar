@@ -1356,7 +1356,7 @@ def hidden_cube_profile(viewer, data):
     Add a cube to a Profile viewer hidden, so glue never computes its profile of the whole cube: the raster of a
     quicklook's spectrum panel, which would only hide it again (0.4 s of opening a quicklook on 4000255147, a full read
     of lazily loaded data), and a cube of glue's large-data size or more, 1e8 values, that the IRIS reader did not read,
-    such as an SST cube, which glue profiles on the main thread first (27 s and 9.2 GB read on obs 492 Ca II 8542), with
+    such as an SST cube, which glue profiles on the main thread first (30 s and 11 GB read on obs 492 Ca II 8542), with
     a note in the viewer's status bar. The viewer fits its range to the first of its subsets' profiles, as glue fits it
     to a shown cube's; ticking it in the layer list shows its own.
     """
@@ -1789,9 +1789,9 @@ class _FitOnceComputed(HubListener):
 
     def __init__(self, viewer, layer, fit=_fit):
         self.viewer, self.layer, self.fit = viewer, layer, fit
-        layer.hub.subscribe(self, ComputationEndedMessage, handler=self._ended, filter=self._is_point)
+        layer.hub.subscribe(self, ComputationEndedMessage, handler=self._ended, filter=self._of_layer)
 
-    def _is_point(self, message):
+    def _of_layer(self, message):
         if message.sender not in self.viewer.layers:
             return False
         layer = message.sender.state.layer

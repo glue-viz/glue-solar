@@ -566,7 +566,7 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
 
 
 def test_a_profile_viewer_adds_a_large_cube_hidden(sst_app, monkeypatch, tmp_path, sns):
-    # SST4: glue profiles a cube added to a Profile viewer on the main thread first, reading the whole file (27 s on obs
+    # SST4: glue profiles a cube added to a Profile viewer on the main thread first, reading the whole file (30 s on obs
     # 492 Ca II 8542); one of glue's large-data size or more, here any, that the IRIS reader did not read comes hidden
     cube, values = stokes_cube(tmp_path / "cube.fits")
     _, raster = sns
