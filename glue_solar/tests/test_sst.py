@@ -583,15 +583,19 @@ def test_a_profile_viewer_adds_a_large_cube_hidden(sst_app, monkeypatch, tmp_pat
     # glue-qt's Profile button, its note and 'Add large data set?' answered OK
     monkeypatch.setattr("glue_qt.viewers.image.profile_viewer_tool.info", lambda *args, **kwargs: True)
     monkeypatch.setattr(ProfileViewer, "warn", lambda *args, **kwargs: True)
+    # a subset group on the raster, not linked to the cube, which glue adds to the viewer with no profile
+    pixel = raster.pixel_component_ids
+    sst_app.data_collection.new_subset_group("Point", RoiSubsetState(pixel[-1], pixel[-2], RectangularROI(0, 2, 0, 2)))
+    sst_app.session.edit_subset_mode.edit_subset = []
     image = sst_app.new_data_viewer(ImageViewer, data=cube)
     image.toolbar.tools["profile-viewer"].activate()
     profile = sst_app.viewers[0][-1]
-    [layer] = profile.state.layers
+    [layer, _] = profile.state.layers
     assert not layer.visible
     assert cube.label in profile.statusBar().currentMessage()
     # a rectangle's profile, the maximum along wavelength, and the range fitted to it
     image.apply_roi(RectangularROI(1.5, 5.5, 2.5, 7.5))
-    [_, rectangle] = profile.state.layers
+    [_, _, rectangle] = profile.state.layers
     expected = values[..., 3:8, 2:6].max(axis=(0, 1, 3, 4))
     np.testing.assert_array_equal(rectangle.profile[1], expected)
     assert (profile.state.y_min, profile.state.y_max) == (expected.min(), expected.max())

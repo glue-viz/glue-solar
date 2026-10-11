@@ -158,14 +158,16 @@ A Profile viewer of a cube
 --------------------------
 
 glue's Profile button, or a cube dragged onto a 1D Profile viewer, adds the cube hidden once glue's
-"Add large data set?" is answered OK, as it adds any dataset of 1e8 values or more that is not IRIS
-data: glue would compute the cube's own profile on the main thread first, which reads the whole file,
-30 s, 20 s of them frozen, and 11 GB on obs 492 Ca II 8542, and again after each change of links, such
-as a Path diagram's. The viewer's status bar says so. A subset drawn on the cube, such as a rectangle,
-shows its profile, and the viewer fits its range to the first; ticking the cube in the viewer's layer
-list shows its own profile, at that cost. On obs 492 Ca II 8542 the button then opens in 0.2 s,
-reading nothing, a 200 by 200 pixel rectangle's profile takes 1.7 s from a cold disk, reading
-0.9 GB, and 0.6 s once read, and a Path diagram settles 0.3 s after Enter rather than 4 to 5 s.
+"Add large data set?" is answered OK, as it adds any dataset of 1e8 values or more that the IRIS
+reader did not open: glue would compute the cube's own profile on the main thread first, which reads
+the whole file, 30 s, 20 s of them frozen, and 11 GB on obs 492 Ca II 8542, and again after each
+change of links, such as a Path diagram's. The viewer's status bar says so. A subset drawn on the
+cube, such as a rectangle, shows its profile, and the viewer fits its range to the first subset
+profile computed: the rectangle, or the point's spectra when the cube's quicklook is open; Home fits
+the range to all. Ticking the cube in the viewer's layer list shows its own profile, at that cost.
+On obs 492 Ca II 8542 the button then opens in 0.2 s, reading nothing, a 200 by 200 pixel
+rectangle's profile takes 1.7 s from a cold disk, reading 0.9 GB, and 0.6 s once read, and a Path
+diagram settles 0.3 s after Enter rather than 4 to 5 s.
 
 Saving sessions
 ---------------

@@ -1798,6 +1798,13 @@ class _FitOnceComputed(HubListener):
         return isinstance(layer, Subset) and (layer is self.layer or layer.data is self.layer)
 
     def _ended(self, message):
+        # a subset of another, unlinked dataset ends its computation too, with no profile
+        try:
+            computed = message.sender.state.profile is not None
+        except Exception:
+            computed = False
+        if not computed:
+            return
         self.layer.hub.unsubscribe(self, ComputationEndedMessage)
         self.fit(self.viewer)
 

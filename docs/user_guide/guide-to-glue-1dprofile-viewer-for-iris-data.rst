@@ -148,9 +148,9 @@ the viewer's options:
 **Four panels.** Open a raster map, a spectrogram, a slit-jaw image and a 1D Profile of the raster
 with ``Wavelength`` as its x axis, then choose "Canvas → Gather Windows" (Ctrl+G) to place them side
 by side. The 1D Profile viewer asks "Add large data set?" for datasets of 1e8 samples or more, with
-Cancel as the default button. OK adds an IRIS raster as glue adds it, but other data, such as an SST
-cube, hidden, as glue would compute the profile of the whole cube on the main thread first (see "A
-Profile viewer of a cube" in :ref:`Opening SST CRISP and CHROMIS cubes
+Cancel as the default button. OK adds an IRIS raster as glue adds it, but data the IRIS reader did
+not open, such as an SST cube, hidden, as glue would compute the profile of the whole cube on the
+main thread first (see "A Profile viewer of a cube" in :ref:`Opening SST CRISP and CHROMIS cubes
 <glue_solar_users_guide_loading_sst_cubes>`): its subsets' profiles show, and ticking it in the
 viewer's layer list shows its own.
 
