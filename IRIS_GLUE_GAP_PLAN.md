@@ -36,9 +36,9 @@ Out of scope:
   3. #228, the panel toggles placed as D66: on main.
   4. #230, the SST quicklook (D65, D68, D70): on main.
 
-  Then, from the user's 2026-10-11 decisions: #231 (D71, axes hidden by default with an 'Axes' box in the Panels list) and #232 (D70, the #227 review marks) are on main. The user confirmed the suspected slips (2026-10-11, `scratchpad/choices/resolutions.json`); the rest of the choice-review marks are being applied to the plan.
+  Then, from the user's 2026-10-11 decisions: #231 (D71, axes hidden by default with an 'Axes' box in the Panels list) and #232 (D70, the #227 review marks) are on main.
 
-  The other D63 items and the Ctrl+I recipe (`wp9-l-deferred-recipes`) fit around these. The survey (done 2026-10-10) is in GLUE_SPEED.md 'SST and IRIS stress survey, 2026-10-10' and `IRIS_PLAN_PROTOTYPES/sst_stress_20261010.tar.gz`. Left from #226:
+  The other D63 items and the Ctrl+I recipe (`wp9-l-deferred-recipes`) fit around these. Then D72's items, in a proposed order for the user to change: `wp1-l-link-iris-only`, `wp9-l-text-spelling`, `wp11-l-menu-marks`, `wp2-l-analysis-marks`, `wp2-l-mg-features-marks`, `wp3-l-autosave-quit`, `wp3-l-restore-irispy-meta`, `wp12-l-profile-ecsv-columns`, `wp12-l-path-crosshair-sliders`, `wp12-l-export-worker`, `wp1-l-offset-follows`, `wp11-l-readout-velocity`, `wp8-l-browser-sot-marks`, `wp6-l-fitter-irispy`, `wp11-l-table-viewer-times`, `wp10-l-real-data-tests`, `wp11-l-own-icons`, `wp11-l-axes-preference` (after #231's review), `wp9-l-pyqt6-611`, `wp9-l-app-contents` and `wp9-l-app-build` (after 216-9's question), and `wp4-l-generic-quicklook` last. The survey (done 2026-10-10) is in GLUE_SPEED.md 'SST and IRIS stress survey, 2026-10-10' and `IRIS_PLAN_PROTOTYPES/sst_stress_20261010.tar.gz`. Left from #226:
   - glue's `WCSLink.__init__` reads `wcs.wcs.lng` and `.lat` on the struct, outside any lock, when File > Open autolinks a dataset beside a linked SST cube or map. Lock the WCS objects there, or note it for `wp0-astropy-19174`.
   - A reopened session locks a linked map's WCS only at the next `link_hpc`.
   Left from #227:
@@ -149,6 +149,13 @@ Settled by the user; reopen only with the user.
   - **SST10:** glue-solar keeps a workaround after all, an exception to D63's 'no glue-solar workaround'. SST cubes answer glue's sampled colour-limit statistics from 16 evenly spaced planes of 25 rows and 25 columns, which halves the 3950 quicklook's cold open (4.6 s to 2.0 s). It is tracked under R32 (`wp0-perf-core-stats-io`) and goes when glue samples cheaply itself.
   - **#227's review marks** go in one follow-up PR for the loader and the quicklook together (#232), after the quicklook merges.
 - **D71:** User (2026-10-11), after the axes probe (`scratchpad/viewers/axes-probe`: hiding the WCS axes takes the 9-window 4000255147 exposure step from 535 to 274 ms and the move from 601 to 324 ms, with images, point, markers, regions and readouts unchanged; pixel axes save only 13-19% and break the sky readout, Physical aspect, Measure and the scale bar): every quicklook, IRIS and SST, opens its image panels with the axes hidden, as 'Hide axes' does. An 'Axes' box at the top of the Panels list turns them on and off for all of that quicklook's image panels. The per-panel 'Hide axes' button stays (#231).
+- **D72:** User (2026-10-11), the choice review (`scratchpad/choices`, 304 choices from #100-#231), with the user's answers on 15 suspected slips ('Take your suggestions'):
+  - **Confirmed:** 206 choices kept. Every PROVISIONAL of #100-#229 not listed below stands as on main and is no longer provisional. 213-2 stays settled by D69; 227-1, 227-3, 227-4, 227-9 and 227-10 are `wp13-l-sst-loader-marks` (D70).
+  - **Changed:** 61 alternatives chosen. Already on main: 153-x1 (#220, D59) and D42-2 (#225, D60). Items: 212-3, 226-3 and D64-1 → `wp1-l-link-iris-only` (reversing D64's PROVISIONAL); 161-x2 → `wp1-l-offset-follows`; 152-x1, 163-x2 and 213-5 → `wp2-l-analysis-marks`; 164-x1 and 179-x2 → `wp2-l-mg-features-marks`; 206-3 and 206-7 → `wp3-l-autosave-quit`; 205-1 → `wp3-l-restore-irispy-meta`; 167-1 and 167-8 → `wp6-l-fitter-irispy`; 185-5 and 212-1 → `wp8-l-browser-sot-marks`; 214-1 → `wp9-l-pyqt6-611` (replacing D56's 6.8.1 floor); D61-4 and 223-7 → `wp9-l-text-spelling` (replacing D61's British spelling; no session patch, D69); 216-1, 216-3, 216-4, 216-7, 216-8 and 216-12 → `wp9-l-app-build`; 216-5, 216-6, 216-10 and 216-11 → `wp9-l-app-contents`; 221-1 → `wp9-l-deferred-recipes`; 160-x1 → `wp9-m4-release-updates` (no release has the IRIS guide yet); 137-1 and D40-9 → `wp10-l-real-data-tests`; 222-2 and 208-2 → `wp11-l-point-curves-offered`; 109-x1 → `wp11-l-readout-velocity`; 222-1, 222-11, 223-5 and 223-6 → `wp11-l-menu-marks`; 222-4, 222-5 and 222-10 → `wp11-l-own-icons`; 221-6 → `wp11-l-axes-preference`; 221-4 → `wp11-l-table-viewer-times`; 209-2, 209-3, 209-5, 209-6 and 209-7 → `wp12-l-profile-ecsv-columns`; 145-x2 → `wp12-l-export-worker`; 151-x1 → `wp12-l-path-crosshair-sliders`; 216-2 → `wp0-qt-run-script`. No item yet: 220-4 (a refusal for stacks restored from sessions older than #220), which waits on 220-3 and covers sessions D69 already leaves unsupported; and 216-9 (the app's own icon), which waits on its note's question.
+  - **Open questions** (briefs: `scratchpad/choices/apply/discuss.md`): 213-3, how much the maps change with DN/s in float32; 213-7, whether the mean spectrum leaves saturated samples out or counts them at 16182 DN (irispy has no mean spectrum); 220-3, a stack's per-scan dates or the first date for UV bursts and calibration, with 220-4; 220-5, calibrating rebinned windows, in glue-solar or irispy; 222-3, menu help as tooltips or status-bar tips; 222-7 and D61-3, which of matplotlib's canvas keys come back, on which viewers; 227-2, the cavity error in nm or km/s, and how a user adds it; 228-6, panel toggles laid out at once or after a short pause; 216-9, how the app ships, which decides its icon.
+  - **Superseded and other:** 100-x1 (#194), 182-1 (D52, #193), 185-2 (#221) and 206-5 (D61, #223) stay as on main. 227-3 (other): the VAR-EXT tables kept as metadata only, with each scan's and tuning's times right (`wp13-l-sst-loader-marks`).
+  - **Not reviewed:** #230's 230-1 to 230-13 and #231's 231-1 to 231-6 await the user's review; 102-x1, D39-10, D39-24 and D40-8 were left unmarked and stay open.
+  - **Notes:** on D65-1 (kept), the user wants a quicklook built from the reader, the cube's WCS and its data axes, for any instrument: `wp4-l-generic-quicklook`, with 230-1's alternative. On D63-2 (kept), the user wants what can go upstream tracked, with how: the Workaround register now lists every patch on main with its upstream route (15 rows added from main, 2026-10-11), and a PR that adds or retires a patch updates its row.
 
 ## Milestones
 
@@ -168,15 +175,20 @@ A milestone is done when it has no items left.
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
-- WP3: `wp3-l-restore-one-read`
-- WP4: `wp4-l-window-rows-redraw`, `wp4-l-restored-strip`
+- WP1: `wp1-l-link-iris-only`, `wp1-l-offset-follows`
+- WP2: `wp2-l-analysis-marks`, `wp2-l-mg-features-marks`
+- WP3: `wp3-l-restore-one-read`, `wp3-l-autosave-quit`, `wp3-l-restore-irispy-meta`
+- WP4: `wp4-l-window-rows-redraw`, `wp4-l-restored-strip`, `wp4-l-generic-quicklook`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP9: `wp9-l-deferred-recipes`
-- WP10: `wp10-l-sst-profile-hidden-data`
-- WP11: `wp11-l-point-curves-offered`
+- WP6: `wp6-l-fitter-irispy`
+- WP8: `wp8-l-browser-sot-marks`
+- WP9: `wp9-l-deferred-recipes`, `wp9-l-pyqt6-611`, `wp9-l-text-spelling`, `wp9-l-app-build`, `wp9-l-app-contents`
+- WP10: `wp10-l-sst-profile-hidden-data`, `wp10-l-real-data-tests`
+- WP11: `wp11-l-point-curves-offered`, `wp11-l-readout-velocity`, `wp11-l-menu-marks`, `wp11-l-own-icons`, `wp11-l-axes-preference`, `wp11-l-table-viewer-times`
+- WP12: `wp12-l-profile-ecsv-columns`, `wp12-l-export-worker`, `wp12-l-path-crosshair-sliders`
 
 **M4**
-- WP0: `wp0-irispy-requests`, `wp0-restore-full-ci`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-track-line-layers`, `wp0-qt-aggregate-slice`, `wp0-track-qt66`, `wp0-core-datetime-export`, `wp0-qt68-cocoa`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-optional-proposals`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`
+- WP0: `wp0-irispy-requests`, `wp0-restore-full-ci`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-track-line-layers`, `wp0-qt-aggregate-slice`, `wp0-track-qt66`, `wp0-core-datetime-export`, `wp0-qt68-cocoa`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-optional-proposals`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
 - WP1: `wp1-m4-autolink-matrix`
 - WP6: `wp6-glue-fit-tool`
 - WP9: `wp9-m4-release-updates`
@@ -248,6 +260,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 - [ ] **M4** `wp0-perf-qt`: glue-qt, measured only: the profile worker polls at 25 Hz and threads by the parent cube's size, so the quicklook spectrum lands about 250 ms late (368 → 115 ms); hidden tabs' canvases do full Agg redraws (−25 % per point move with two quicklooks); the data tree rebuilds and reloads icons per added dataset (1.2 s for 99); slider drags queue every position (seconds of backlog on Wayland-like input); colormap combos render every icon on creation and resize (GLUE_SPEED R17: 28 ms per combo with 102 colormaps against 4 ms with glue's 15; the fix is an icon cache in `glue_qt/utils/colors.py`, after which glue-solar registers every sunpy colormap again, D35); the splash appears late; QtQuick is imported on Qt5 and `QFont('Courier')` builds macOS's alias table (35 ms per launch, 55 ms on the first Profile viewer, R30); glue-core's `show_axes` state has no control (an axes-options checkbox would let any viewer drop its axes, as glue-solar's Hide axes button does for Image viewers (#90); others' ready glue #2128 is a Hide axes PR). Done when each is filed, merged or declined. SST8 (2026-10-10): an SST Pixel drag takes 170-201 ms with a Profile open and 31-34 ms without one. About 105 ms of it is R3's polling wait and about 50 ms the Profile's extra draws (R3 a and b).
 - [ ] **M4** `wp0-wcslib-tab-inverse`: Future work (user, 2026-10-09, not started): fix the slow -TAB inverse in WCSLIB itself (R8), never a re-implementation in irispy or glue-solar (D54). In WCSLIB 8.9's `C/tab.c`, `tabs2x` walks every cell in step order and `tabvox` bisects each candidate cell up to 31 levels by bounding boxes; for 2-D tables a direct solve of the bilinear cell (one quadratic) would keep the walk order, so the same first match, row skips, extrapolation and status codes. Prototype on a fresh astropy clone (never `~/Git/astropy`), checked against stock WCSLIB on 4000255147, 4000005156 and 3824262996 and with astropy's `wcs` tests and WCSLIB's own test programs; deliver a branch on the user's astropy fork and a diff against WCSLIB's `tab.c` for the user to send to its maintainer (WCSLIB takes patches by mail, no PRs); users get it only after a WCSLIB release that astropy vendors. Done when the user has the patch or drops it.
 - [ ] **M4** `wp0-perf-astropy-irispy`: astropy and irispy, measured only: WCSAxes re-places every tick on every draw with one WCS call per coordinate (37-59 calls, 17-20 distinct); prototyped 2026-10-01 ('WCSAxes tick rendering' in GLUE_SPEED.md, scripts in `IRIS_PLAN_PROTOTYPES/wcsaxes_study_20261001.tar.gz`): a per-placement memo (SJI draw −25 %, confirmed) then batched calls (−50 %, needs its failing-WCS fixes) as the first two astropy PRs, a placement cache only after those, and glue's `_set_wcs` label fix (`wp0-perf-core-draw`) before any of them; a gzipped FITS is decompressed 4-5 times on open (astropy seeks past data; irispy and glue reopen; 2.9× with one decompression; irispy main's `read_files` decompresses once, #206); irispy's sit-and-stare -TAB raster WCS makes world-to-pixel slow and ambiguous (6 ms per point, round trips off by up to 6 exposures; accepted, no WCSLIB re-implementation, D54). After the WCSAxes fixes, propose a matplotlib-free tick core on reuse grounds, not speed (astropy#9993 and #16464; it would give glue-jupyter's bqplot viewer WCS ticks, glue-jupyter#154): GLUE_SPEED.md 'Decoupling WCSAxes from matplotlib'. Done when each is filed, merged or declined.
+- [ ] **M4** `wp0-qt-run-script` (D72): glue's own `-x` script option fails in glue-qt 0.4.2, so the macOS app's `smoke.py` runs through glue-solar's `GLUE_SOLAR_APP_CHECK` instead (216-2). Fix `-x` upstream; once it is released, the app check runs `smoke.py` with `-x` and `GLUE_SOLAR_APP_CHECK` goes. Done when the fix is merged and released, or declined.
 
 Notes:
 - Few-line speed fixes from `GLUE_SPEED.md` are on the user's forks for review, no PRs (2026-10-02), one commit with its test and changelog each: glue `perf-g1a-wcs-labels`, `perf-g2-hidden-subset-layers`, `perf-g3-batch-link-removal`, `perf-g4-scalar-broadcast`, `perf-g5-lazy-scipy-optimize`, `perf-g6-lazy-ipython`, `perf-g7-profile-vminmax`, `perf-g8-slice-histogram`, `perf-g9-session-do-all`, `perf-g10-view-shape`; glue-qt `perf-q1-worker-block`, `perf-q2-slice-profile-sync`, `perf-q3-cmap-icon-cache`, `perf-q4-layer-icon-cache`, `perf-q5-lazy-terminal`, `perf-q6-startup-qt`; astropy `perf-a1-wcsaxes-pytest-import`. The user opens their PRs; until then the perf items count them as not filed.
@@ -256,6 +269,11 @@ Notes:
 ### WP1: Coordinates, units and links
 
 The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links between IRIS datasets and sunpy maps.
+
+**L**
+
+- [ ] **L** `wp1-l-link-iris-only` (D72): `link_hpc` anchors on the first IRIS raster or slit-jaw image whatever the load order, never on an AIA cutout or SOT cube loaded first (212-3). The AIA cutouts and SOT cubes of an IRIS tarball link only on request, like other data outside the IRIS observations, reversing D64's PROVISIONAL (D64-1). `link_hpc(dc)` called directly links only IRIS rasters and slit-jaw images unless `others` names more (226-3), and the scripting guide says so. Done when a SOT cube loaded before an IRIS raster is linked, on request, to the raster's coordinates; an IRIS tarball's AIA and SOT data stay unlinked through loading and the quicklook until 'IRIS: link helioprojective coordinates', with their time sync unchanged; and `link_hpc(dc)` beside a map and an SST cube gives no link for either.
+- [ ] **L** `wp1-l-offset-follows` (D72): Derived data (line moments, red-blue, Mg II features, bursts, regrid and rebin) follow their parent's pointing offset whenever 'IRIS: shift pointing…' changes it, not only when they are made, and the guide's step for shifting them too goes (161-x2). Done when shifting a raster moves its existing moments map and its rebinned copy by the same offset, and a session keeps it.
 
 **M4**
 
@@ -272,6 +290,11 @@ Notes:
 
 Products from IRIS spectra, as dataset `layer_action`s that add linked Data and open no viewer, in `glue_solar/sources/moments.py`.
 
+**L**
+
+- [ ] **L** `wp2-l-analysis-marks` (D72): 'IRIS: subtract mean spectrum' runs on glue-qt's `Worker` with a status-bar message, as the other analysis actions do through `_start` (152-x1). The O IV line ratio preset takes a density range and a temperature the user types, defaulting to today's 10^8-10^13 cm^-3 and log T 5.15 (163-x2). The line moments dialog's velocity boxes stop at the window's own wavelength range around the line centre, not ±10,000 km/s (213-5). Done when the mean of 4000255147 Si IV 1403 is computed off the main thread with the same values, the preset gives today's curve at its defaults and another at a typed log T, and a Profile range wider than the window is cut to it.
+- [ ] **L** `wp2-l-mg-features-marks` (D72): Mg II features keep irispy's `k_saturated` and `h_saturated` maps as components (164-x1). A rest wavelength set with 'IRIS: set rest wavelength…' is used, by shifting the cube's wavelengths by its offset from irispy's own k line, as irispy's docs advise for IDL's `wave_comp`, since `calculate_mg_features` takes no rest wavelength (179-x2). Done when the 3860258481 flare's saturated pixels show in both maps, matching the status-bar counts, and a rest wavelength set 0.01 Å redder lowers k3's velocity by about 1.07 km/s.
+
 Notes:
 - Prototype: `IRIS_PLAN_PROTOTYPES/chk_wp2/` (a moments module and its tests).
 - irispy's analysis functions take scaled cubes and raise on memmap ones (`check_scaled`; only `calculate_wavelength_drift` scales raw data itself), so they get glue's scaled values, never the loaders' raw int16: glue-solar's lazy SJI meta says `scaled = True`, which `check_scaled` trusts over the dtype. Rebin scaled values too.
@@ -286,6 +309,8 @@ Makes Save and Open Session work for the quicklook and every glue-solar dataset 
 **L**
 
 - [ ] **L** `wp3-l-restore-one-read` (SST6, D63): Restoring a multi-window raster or stack reads each raster file once for all its logged windows, not once per window. Use a session patch that groups the raster load logs, or a per-restore cache keyed by files and stack. Done when 3602506433 with 7 windows restores the same data with 99 `read_files` calls in about 12 s. It now takes 19.8 s, 13.8 s of it in 693 calls; one call for all 7 windows took 5.6-6.3 s against 13.5 s. A session test counts the reads.
+- [ ] **L** `wp3-l-autosave-quit` (D72): The last session is saved on quit only, not on Open Session, Reset Session or 'IRIS: restore last session', as the item that became #206 said, so a restore never swaps sessions (206-3). A skipped save (over 1 MB, data glue cannot save, a failed write) is reported in the window, on close or in 'IRIS: restore last session', not only in the terminal, which the macOS app lacks (206-7). Done when restoring twice in a row gives the same session, and the app shows a skipped save's reason.
+- [ ] **L** `wp3-l-restore-irispy-meta` (D72): A raster held in memory gets irispy's `SGMeta` back as it is restored, through a Data subclass's `__setgluestate__` (as the SST cube's `_Cube`), not a glue patch, so any code that reads it works; `_irispy_meta`'s rebuild from a dict goes, and its stack-scan case stays (205-1). Done when a restored in-memory raster's `meta` is an `SGMeta` and the session tests' bursts and calibration on it pass.
 
 Notes:
 - Sessions record `glue_solar` class and function paths; no aliases are kept when they move (D69); each new coords type adds a #181 case.
@@ -299,6 +324,7 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 
 - [ ] **L** `wp4-l-window-rows-redraw` (SST7, D63): Each other window's panels redraw on every step and move. On 4000255147, 9 windows cost about 4× one window: an exposure step 194 → 875 ms (7 → 47 draws), a move 240 → 991 ms, the open 3.4 → 13.4 s. Fixes to try: blit the moving time and point markers, refresh an image only when its slice changes, or redraw only the visible rows. Done when the 9-window step and move on 4000255147 and the 4000005156 stack are re-measured against main, with the panels drawing the same.
 - [ ] **L** `wp4-l-restored-strip` (D66; after #228): A restored quicklook gets its Point window and Panels list back, and a session keeps the panels turned off, restored hidden; today a session leaves them out (user, 2026-10-10). Done when a session of the 9-window 4000255147 quicklook saved with panels off restores them hidden, the Panels list turns each on unchanged, and the Point window shows the restored point.
+- [ ] **L** `wp4-l-generic-quicklook` (D72): Future work: one quicklook for any cube, built from its reader, its WCS and its data axes, so that a set of viewers opens whatever the instrument (the user's note on D65-1). IRIS's `_fill` and SST's `_fill_sst` become one fill reading a panel table per data kind (230-1's alternative). Planned with the user when it starts, after #230's review. Done when IRIS's and SST's quicklooks come from one fill with their panels, `changes()` matrix and session tests unchanged, and a cube with a spectral axis from neither instrument opens a quicklook.
 
 Notes:
 - Whisker polish (F143) and CRISPEX entry keywords (F020) are Later.
@@ -323,6 +349,10 @@ Notes:
 
 Map fitting of IRIS spectra on glue's Profile Fit tab, planned with the user when it starts.
 
+**L**
+
+- [ ] **L** `wp6-l-fitter-irispy` (D72): The 'Gaussian + constant (IRIS)' fitter builds its model with irispy's `profiles_on_background`, given starts from the data, so glue-solar and irispy share one model, and offers its linear background and Lorentzian profile as options (167-1). It fits with astropy's `TRFLSQFitter`, which astropy recommends over `LevMarLSQFitter` (167-8). Done when its fit at a 4000255147 Si IV 1403 point matches today's within the fit's errors, each option gives irispy's matching model, and the WP6 note on #167 is true.
+
 **M4**
 
 - [ ] **M4** `wp6-glue-fit-tool` (F157, F158, F159, F161): Fit IRIS models over a window into a linked map on glue's Fit tab (`fit_plugin`, `parallel_fit_dask`), closing its upstream gaps. Done when a user does this in the GUI.
@@ -334,6 +364,10 @@ Notes:
 ### WP8: Browser, discovery and inputs
 
 Covers the observation browser, the header scanner (`scan.py`) and the IRIS readers (`iris.py`).
+
+**L**
+
+- [ ] **L** `wp8-l-browser-sot-marks` (D72): The browser's filter waits for a pause in typing before it filters, not every keystroke (185-5). Every Hinode/SOT cube opens in sunpy's 'Hinode SOT intensity' colormap, as sunpy's SOTMap does, not gray for fields (212-1). Done when a typed filter refilters once after the pause, and a 3603259402 SOTSP field map opens in 'Hinode SOT intensity'.
 
 **OM**
 
@@ -349,11 +383,15 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 
 **L**
 
-- [ ] **L** `wp9-l-deferred-recipes` (F037): Document Ctrl+I as the FITS header viewer (row and column cuts moved to D58). Done when it reproduces on 4000005156 Si IV.
+- [ ] **L** `wp9-l-deferred-recipes` (F037; D72): Document Ctrl+I as the FITS header viewer (row and column cuts moved to D58). List the observation browser's Return key in the Keys table, so its test no longer skips the loaders folder (221-1). Done when it reproduces on 4000005156 Si IV and the Keys test checks the loaders too.
+- [ ] **L** `wp9-l-pyqt6-611` (D72): glue-solar requires PyQt6 6.11 or later, as D56's 'targets the latest Qt' says (214-1). The PyQt6 6.8.1 floor env `iris-plan-floor-qt6` retires; the astropy 8.0.0 and ndcube 2.4.0 floors move to a new env on PyQt6 6.11 unless the user drops them too. Main has run no floor CI job since #130, so `wp0-restore-full-ci`'s floor job takes 6.11 from `pyproject.toml`. Done when `pyproject.toml` says `PyQt6>=6.11`, no doc or plan line names a 6.8 env, and the tests pass in both envs.
+- [ ] **L** `wp9-l-text-spelling` (D72): glue-solar's user-visible text and docs use American spelling, as glue's does ('Color bar', 'color limits', 'center'), replacing D61's British spelling (D61-4). The velocity unit is astropy's 'km / s' everywhere: the Profile x-unit list, the velocity axis label, the fit report, the line moments dialog and the docs, with no session patch (223-7, D69). Code names and meta keys such as `moments_centre` stay. Done when no British spelling or 'km/s' is left in glue-solar's menus, dialogs, status messages and docs, and the tests that pin those texts are updated.
+- [ ] **L** `wp9-l-app-build` (D72): The macOS app recipe (#216, D55) changes. Its PyInstaller fixes move from the spec into hook files (216-1), copied from glue-standalone-apps' spec and hooks once the glue team adds a licence or gives permission, which the user asks for (216-8). The bundle identifier goes under glue-viz (216-3). The app registers .glu as a Glue Solar document and turns on argv emulation, so sessions and data files open from the Finder and the Dock (216-4). The build pins irispy to the commit glue-solar is tested against, moved with each irispy update and replaced by a version once irispy releases (216-7). The changelog and the install page mention the app (216-12). Done when a built app opens a .glu double-clicked in the Finder and a FITS file dropped on its Dock icon, and `smoke.py` passes.
+- [ ] **L** `wp9-l-app-contents` (D72): The app bundles only the matplotlib backends that QtAgg and 'Save plot' need (PNG, PDF, SVG) (216-5) and leaves out botocore, pyarrow, bokeh and distributed, or builds from dask-core (216-6). It adds fiasco main with plasmapy and h5py, so the O IV preset works (216-10), and ffmpeg, so movies save as MP4 (216-11). Done when the PR gives the app's size against 725 MB, and in an app started from the Finder the O IV preset gives its curve, a movie saves as MP4, and `smoke.py` passes.
 
 **M4**
 
-- [ ] **M4** `wp9-m4-release-updates`: Update the guides as glue #2596/#2601 and glue-qt #70/#74 ship. Rebuild the macOS app (#216, `packaging/macos/build_app.sh`, D55) on the final releases as the plan's last deliverable. Done when each has shipped and no guide still names a glue-core 1.27.0 or glue-qt 0.4.2 caveat it lifts.
+- [ ] **M4** `wp9-m4-release-updates`: Update the guides as glue #2596/#2601 and glue-qt #70/#74 ship. Rebuild the macOS app (#216, `packaging/macos/build_app.sh`, D55) on the final releases as the plan's last deliverable. Once a release has the IRIS guide, 'IRIS: user guide and issues' opens the installed release's docs, not 'latest' (160-x1, D72). Done when each has shipped and no guide still names a glue-core 1.27.0 or glue-qt 0.4.2 caveat it lifts.
 
 Notes:
 - `docs/` PRs build warning-free in `iris-plan-docs`, test no glue behaviour, and never present planned features as shipped.
@@ -366,6 +404,7 @@ Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on file
 **L**
 
 - [ ] **L** `wp10-l-sst-profile-hidden-data` (SST4, SST9, D63): A Profile viewer opened on a non-IRIS cube of 1e8 values or more adds the data layer hidden, so only subsets compute, as S13 does for the quicklook, until glue fixes R14 and R21. Done when, on obs492 Ca II 8542, the Profile button no longer reads the whole file (now 27.4 s cold, a 21.2 s freeze and 9.2 GB read). A subset's profile must be unchanged, and a Path Enter must settle without recomputing the cube (now 5.3 s).
+- [ ] **L** `wp10-l-real-data-tests` (D72): Two tests move from generated data to irispy-data v1's 3620107423 (a 29-scan raster with SJI 1400, #217). The stack regrid-on-time gap test now reuses scan 0's file as a fourth scan; it gets a real stack, with a gap made by leaving scans out (137-1). The raster overlays' slits and map line are tested on a generated scanning raster; they get a real scanning raster beside its slit-jaw image (D40-9). Done when both run on 3620107423 as `remote_data` tests with today's checks.
 
 Notes:
 - IRIS Level 2 image HDUs are int16 (BSCALE 0.25, BZERO 7992; fill is raw -32768/-32764). glue-solar reads SJIs and AIA cutouts through irispy main's `read_sji_lvl2(memmap=True)`, whose raw int16 keeps the fill under a lazy mask; a `.fits.gz` is decompressed once into bytes that irispy views (#140).
@@ -378,7 +417,12 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 
 **L**
 
-- [ ] **L** `wp11-l-point-curves-offered` (SST11, D63): 'Light curves of every window and SJI…' hides where `_point_curves` would refuse, such as a single-scan raster with no slit-jaw image loaded (D61: entries hide where they cannot act). Done when 3824262996's raster alone does not offer it and the menu test covers the case.
+- [ ] **L** `wp11-l-point-curves-offered` (SST11, D63, D72): 'Light curves of every window and SJI…' hides where `_point_curves` would refuse, such as a single-scan raster with no slit-jaw image loaded (D61: entries hide where they cannot act; 222-2). It gives curves of the windows the point's quicklook shows only, not every loaded window of the file, with no dialog, and its name says so (208-2). Done when 3824262996's raster alone does not offer it, a 4000255147 quicklook of two of its windows gives curves of those two and its SJI only, and the menu test covers both cases.
+- [ ] **L** `wp11-l-readout-velocity` (D72): The mouse-over readout adds the Doppler velocity from the rest wavelength where the data have one (D11), as the Profile's velocity axis gives it (109-x1). Done when the readout over a 4000255147 Si IV 1403 spectrogram gives the velocity axis's value there, and none on a window without a rest wavelength.
+- [ ] **L** `wp11-l-menu-marks` (D72): Blink hides until 'Set blink partner here' gives it a partner, like the other entries (222-1). 'Raster overlays' moves to the View menu (222-11). An entry whose check raises an unexpected error stays shown, so running it shows the fault (223-5). glue-solar's two entries in glue's Save menus take the prefix, 'IRIS: save frames or movie…' and 'IRIS: save profiles as ECSV…' (223-6). Done when the menu tests pin each.
+- [ ] **L** `wp11-l-own-icons` (D72): glue-solar draws its own icons for Path diagram, giving glue's path icon back to 'Show position on original path' (222-4); for Velocity axis, so the Profile toolbar is back to 363 px (222-5); and for Wavelength band, Colour bar, Zoom 1:1 and Slope (222-10). Done when each shows its icon in light and dark themes and none shares an icon with a glue tool.
+- [ ] **L** `wp11-l-axes-preference` (D72): glue's Preferences dialog gets an entry for `SOLAR_SHOW_AXES`, so hiding axes on new Image viewers no longer needs glue's terminal (221-6). After the user's review of 231-1 and 231-2, which may extend the setting to quicklooks. Done when the entry changes the setting, the setting persists across runs, and the viewer-tools guide shows it.
+- [ ] **L** `wp11-l-table-viewer-times` (D72): glue-qt 0.4.2's Table viewer refuses data with a datetime column, such as the UV burst event table. glue-solar patches it behind a probe, with its Workaround register row and a glue-qt report, and the bursts guide opens the table there instead of pointing to Scatter and ECSV (221-4). Done when the bursts test raster's event table opens in a Table viewer, a test covers the probe, and the register lists the patch.
 
 Notes:
 - glue-qt already takes B, C, G, H, K, M, P, R, X, Y, Z, Tab and Backspace, and dispatches keys by exact viewer type; matplotlib's own keys (F, S, O, P, L, K, G, Q, V) also reach its canvases, F and S dropped since #120; glue-solar takes D, F, A, S and Space.
@@ -387,6 +431,12 @@ Notes:
 ### WP12: Export and derived diagrams
 
 Frame, movie and data export plus path diagrams, built on glue's 'save' subtools, exporters and core's path slicer.
+
+**L**
+
+- [ ] **L** `wp12-l-profile-ecsv-columns` (D72): The Profile ECSV export (#209) saves the values before normalizing, in their unit, beside the normalized ones (209-2), and lon/lat for every sample as columns (209-3). It names hidden layers it leaves out in the status bar too (209-5), suggests a file name from the observation and the function, such as '<OBSID> mean profiles.ecsv' (209-6), and names its columns after the layer labels (209-7). Done when a file saved from two layers, one hidden, reads back with those columns, and its lon on 4000255147 changes along the exposures (99.18" at exposure 0, 105.66" at 800).
+- [ ] **L** `wp12-l-export-worker` (D72): The frame and movie export keeps glue usable while it saves. It encodes on glue-qt's `Worker` and draws between event-loop turns, or on the worker where matplotlib allows (145-x2). Done when saving 4000255147 SJI 1400's 400 frames as MP4 (28 s today) leaves glue responding, with frames equal to today's.
+- [ ] **L** `wp12-l-path-crosshair-sliders` (D72): The Path diagram's crosshair moves the source viewer's sliders as glue-core's does, every off-screen one, so on a stack the scan and the wavelength move together, not only the one the diagram's y axis shows (151-x1). `wp0-report-candidates` then drops its `drive_parent_slice` line. Done when a drag along a stack's diagram moves the source's scan and wavelength sliders, and the Path tests pass.
 
 Notes:
 - Paths and curves sample at the master's exposure; stack paths use the scan-0 WCS until #171. Core's path slicer fails on IRIS data, so #151's `solar:path` overrides seven methods (`wp0-report-candidates`) until core fixes them.
@@ -421,6 +471,8 @@ Notes:
 
 Gated workarounds on main. Raw-WCS readers hold `WCS_LOCK` or use a deep copy; never fake an all-ones `axis_correlation_matrix`.
 
+Every patch or override of glue, glue-qt, echo, astropy or wcslib behaviour on main has a row here naming its upstream route: an item key, a fork branch, or 'report candidate' (D72, from the user's note on D63-2). A PR that adds or retires one adds or drops its row.
+
 | Workaround | Switch | Retiring fix |
 | --- | --- | --- |
 | Correlated-axis `world2pixel_single_axis` (#71) | `needs_inverse_workaround()` | glue #2598 |
@@ -441,6 +493,21 @@ Gated workarounds on main. Raw-WCS readers hold `WCS_LOCK` or use a deep copy; n
 | Slice playback stopped when its viewer closes (`ImageViewer.closeEvent`, #115) | Per close: a slider still playing after glue-qt's own close | glue-qt stopping play timers on close (report candidate) |
 | Image viewer keys, glue-qt's Tab and Backspace included, copied to `QuicklookImageViewer` (`_add_keys` in `setup`, #120) | Always on (adds only keys the class lacks) | glue-qt dispatching keys by `isinstance` (report candidate) |
 | matplotlib's full-screen and save keys dropped from glue-qt's canvases (`MplCanvas.__init__`, `canvas_init`, #120) | Per canvas: a figure manager connecting matplotlib's key handler | glue-qt dropping matplotlib's key bindings from its canvases (report candidate) |
+| Redo of a subset change puts back the subset states its first run made (`ApplySubsetState.do`, #182) | `needs_redo_workaround()` | glue's `ApplySubsetState` keeping the states it made (`wp0-report-candidates`) |
+| `u.Quantity` saver and loader for sessions (`save_quantity`, #186, D13) | Only while glue has no `u.Quantity` saver | `wp0-core-quantity-saver` |
+| `LinkSameWithUnits` saved by its two components (#205) | `needs_link_restore_workaround()` | glue's saver (`wp0-core-session-reports`) |
+| A time linked from another dataset kept a datetime (`DerivedComponent.datetime`, #208) | `needs_derived_datetime_workaround()` | glue reading a derived component's datetime kind (report candidate) |
+| Profile display units restored after `x_att` (`ProfileViewerState._update_priority`, #197) | `needs_profile_restore_workaround()` | glue ranking the display units after `x_att` (`wp0-report-candidates`) |
+| Toolbar menu tooltips on the button and its entries (`BasicToolbar.add_tool`, #222) | Per button: no tooltip, or menu tooltips hidden | a glue-qt fix (report candidate) |
+| Colormap icons drawn once per colormap and width (`QColormapCombo._update_icons`, #177) | `needs_icon_cache_workaround()`, at the first combo | glue-qt caching icons (`wp0-perf-qt`; the user's fork branch `perf-q3-cmap-icon-cache`) |
+| A colormap matched to its own combo entry (echo's `_find_combo_data`, #194) | `needs_combo_match_workaround()` | echo matching the entry that is the value first (`wp0-report-candidates`) |
+| Layer actions hidden where their `applies(data)` refuses (`UserAction._can_trigger`, #223) | `needs_layer_action_applies_workaround()` | glue-qt's layer actions taking `applies` (the user's fork branch `layer-action-applies`, no PR) |
+| Lazy data's sampled statistics: raw-code counts (D33), random samples of derived attributes (`LazyData.compute_statistic`, `loaders/lazy.py`) | Always on | glue sampling dask arrays at random, not at chunk corners (`wp0-report-candidates`) |
+| SST cubes' colour-limit sample from 16 planes (`_Cube.compute_statistic`, #230, SST10, D70) | Always on | glue sampling cheaply (`wp0-perf-core-stats-io`, R32) |
+| `_TabularWCS.has_celestial = False` against wcslib's SIGSEGV in glue's autolinker (#227) | Always on | wcslib cutting a -TAB table's celestial axes safely (report candidate) |
+| SPECSYS 'TOPOCENT' on ground-based files without one (`sst.py`, #227, SST2) | Files with no SPECSYS | astropy treating a missing SPECSYS as no spectral observer (GLUE_SPEED.md SST2; report candidate) |
+| The mouse-over readout places WCSAxes ticks before formatting (`_readout`, `tools.py`, #90) | Always on | WCSAxes `format_coord` without a tick placement (report candidate) |
+| Path diagram overrides of core's path slicer and their session savers (`PathTool`, `PathData`, #151, #191) | Always on | core's path slicer fixes (`wp0-report-candidates`) |
 
 Planned workarounds are named in their items.
 
