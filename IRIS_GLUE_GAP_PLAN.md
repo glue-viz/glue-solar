@@ -142,7 +142,7 @@ Settled by the user; reopen only with the user.
 - **D68:** User (2026-10-10), the SST quicklook's scope and layout (`wp13-l-sst-quicklook`):
   - **Scope:** one cube per quicklook tab. The browser lists each cube of an archive folder (obs492 holds 8542, 6173 and 6302); a second cube opens in its own tab, time-synced. Not chosen: a folder's other lines as rows, as IRIS's other windows, or CRISP and CHROMIS together.
   - **Layout:** maps on top. Row 1: the map (wavelength and Stokes sliders), the second map and the virtual slit (wavelength against y). Row 2: the I, Q, U and V spectra (I only on CHROMIS). Row 3: wavelength against time and the light curve. The Point window and the Panels list sit in the bottom strip, as on IRIS.
-- **D69:** User (2026-10-10): glue-solar is unreleased, so nothing keeps sessions saved by older glue-solar opening: no back-compat patches or aliases, and the one on main goes (#229). Sessions of the current code still save and restore, and items keep their session checks.
+- **D69:** User (2026-10-10): glue-solar is unreleased, so nothing keeps sessions saved by older glue-solar opening: no back-compat patches or aliases, and #229 removed the one on main. Sessions of the current code still save and restore, and items keep their session checks.
 
 ## Milestones
 
