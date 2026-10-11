@@ -1576,7 +1576,9 @@ def _fill_sst(app, tab, cube):
     coord.own(group, own)
     _edit_in_tab(app, tab, group)
     _show_point(app, group, own)
-    stokes = {f"Stokes {name}": {1: k} for k, name in enumerate("IQUV"[: cube.shape[1]])} if w == 2 else {}
+    spectra = {"spectrum": None}
+    if w == 2:
+        spectra = {f"Stokes {name}": {1: k} for k, name in enumerate("IQUV"[: cube.shape[1]])}
     spectra = [
         _cut_profile(
             app,
@@ -1585,7 +1587,7 @@ def _fill_sst(app, tab, cube):
             cube.world_component_ids[w],
             f"{line} {name}",
         )
-        for name, at in (stokes or {"spectrum": None}).items()
+        for name, at in spectra.items()
     ]
     curve = partial(_Cut, point=group, band=viewers["map"], axis=0)
     curve = _cut_profile(app, f"{line} light curve", curve, cube.pixel_component_ids[0], f"{line} light curve")

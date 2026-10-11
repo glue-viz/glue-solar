@@ -181,12 +181,13 @@ class _Cube(Data):
         )
 
     def __gluestate__(self, context):
-        if context.include_data:
+        log = getattr(self, "_load_log", None)  # none on a cube restored with its data
+        if context.include_data or log is None:
             return _save_data_5(self, context)
         # the file's VAR-EXT tables, 0.15 to 0.2 MB in a session, are read from it again, as the cube's values are
         tables = self.meta.pop("VAR-EXT", {})
         try:
-            return {**_save_data_5(self, context), "log": context.id(self._load_log)}
+            return {**_save_data_5(self, context), "log": context.id(log)}
         finally:
             self.meta["VAR-EXT"] = tables
 
