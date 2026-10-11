@@ -27,6 +27,7 @@ from glue_solar.quicklook import (
     _pick_windows,
     _role,
     _same_file,
+    _sst_line,
     _time_axis,
     coordinator,
     observation_key,
@@ -316,7 +317,9 @@ def quicklook_iris(session, data_collection):
     choices = {
         f"{obsid} {str(start)[:19]}": datasets for (obsid, start), datasets in _observations(data_collection).items()
     }
-    choices.update({f"SST {data.label}": [data] for data in data_collection if _role(data) == "sst"})
+    for cube in [data for data in data_collection if _role(data) == "sst"]:
+        label = f"SST {_sst_line(cube)}"
+        choices[f"{label} ({cube.label})" if label in choices else label] = [cube]  # its file's stem for a repeat
     if not choices:
         QtWidgets.QMessageBox.information(
             app, "IRIS quicklook", "No IRIS observation with a raster or slit-jaw image, nor SST cube, is loaded."
@@ -346,12 +349,12 @@ def help_iris(session, data_collection):
 @startup_action("iris_quicklook")
 def iris_quicklook(session, data_collection):
     """
-    ``glue --startup=iris_quicklook <files>``: a quicklook of each IRIS observation among the files.
+    ``glue --startup=iris_quicklook <files>``: a quicklook of each IRIS observation and each SST cube among the files.
 
     Files given on the command line load one by one and cannot be stacked, so each observation
     opens on its first raster file (the lowest ``rNNNNN``); stacks of scans need the observation
-    browser. With no raster or slit-jaw image, only AIA cutouts or SOT cubes, the first opens in an
-    Image Viewer instead, as the observation browser opens it.
+    browser. With no raster, slit-jaw image or SST cube, only AIA cutouts or SOT cubes, the first
+    opens in an Image Viewer instead, as the observation browser opens it.
     """
     app = session.application
     several = False
@@ -361,8 +364,11 @@ def iris_quicklook(session, data_collection):
         several |= len(numbers) > 1
         first = numbers[0] if numbers else None
         quicklook(app, [data for data in datasets if _raster_number(data) in (None, first)])
+    cubes = [data for data in data_collection if _role(data) == "sst"]
+    for cube in cubes:
+        quicklook(app, [cube])
     image = next((data for data in data_collection if observation_key(data) is not None), None)
-    if not observations and image is not None:
+    if not observations and not cubes and image is not None:
         from glue_qt.viewers.image import ImageViewer
 
         app.new_data_viewer(ImageViewer, data=image)

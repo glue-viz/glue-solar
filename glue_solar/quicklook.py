@@ -298,8 +298,8 @@ class Coordinator(HubListener):
     The point is the Pixel tool's selection: the coordinator follows the last subset group given a
     `~glue.viewers.image.pixel_selection_subset_state.PixelSubsetState` on IRIS data or an SST cube. On a
     spectral cube the point is a detector pixel at every wavelength: a click takes the axes the
-    clicked viewer does not show, such as a stack's scan or an SST cube's scan and Stokes parameter, from its sliders. A click on a panel that
-    shows wavelength moves the cube's maps to the clicked wavelength instead of fixing it. Every
+    clicked viewer does not show, such as a stack's scan or an SST cube's scan and Stokes parameter, from its sliders.
+    A click on a panel that shows wavelength moves the cube's maps to the clicked wavelength instead of fixing it. Every
     other viewer of the cube, or of another window of its file (`_same_file`), then shows the point's
     step, exposure, scan and slit, after a drag only its last position, and editing one of those
     sliders moves the point. No other wavelength slider is moved, and a Profile's collapse is left in
@@ -1526,8 +1526,11 @@ def _fill(app, tab, datasets, window, main, group=None):
 
 
 def _sst_line(cube):
-    """The line an SST cube shows, as its header names it, such as 'Ca II 8542', else its prefilter or label."""
-    return str(cube.meta.get("WAVEBAND") or cube.meta.get("FILTER1") or cube.label)
+    """
+    The line an SST cube shows, as its header names it, such as 'Ca II 8542', else its prefilter or label; an '&' as
+    'and', which Qt's tab and window titles would take for a shortcut: 'Ca II H and K'.
+    """
+    return str(cube.meta.get("WAVEBAND") or cube.meta.get("FILTER1") or cube.label).replace("&", "and")
 
 
 def _fill_sst(app, tab, cube):

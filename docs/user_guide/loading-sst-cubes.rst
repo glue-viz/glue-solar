@@ -68,6 +68,7 @@ A CRISP or CHROMIS cube opens in a quicklook of its own, in a new tab named afte
   ticked;
 - for a cube already loaded, with "IRIS: quicklook…" in the "Plugins" menu, which asks which when
   several cubes or IRIS observations are loaded;
+- from the command line, with ``glue --startup=iris_quicklook`` followed by the cubes' files;
 - from glue's Terminal, with ``glue_solar.quicklook.quicklook(application, [cube])``.
 
 Its panels are laid out in three rows, maps on top:
@@ -95,10 +96,10 @@ at the point" or "<line> light curve", glue's selection of those pixels by their
 reads the whole cube, as a Profile viewer of the cube would (see "What is not supported"). As in the
 IRIS quicklook, the virtual slit and wavelength against scan have a thin red line at the point,
 wavelength against scan dashed white lines at both maps' wavelengths and a dotted one at the scan
-nearest the time master's time, and the Stokes I spectrum dashed grey lines at the maps' wavelengths,
-its wavelength range being that of wavelength against scan. The "Point" window gives the point's scan,
-Stokes parameter, wavelength (λ, the map's), y and x, its position, the time of that tuning and the
-value there, and the "Panels" list beside it turns each panel off and on.
+nearest the time master's time, and the Stokes I spectrum dashed grey lines at the maps' wavelengths;
+a zoom on its x axis gives wavelength against scan the same wavelength range. The "Point" window gives
+the point's scan, Stokes parameter, wavelength (λ, the map's), y and x, its position, the time of that
+tuning and the value there, and the "Panels" list beside it turns each panel off and on.
 
 Each scan of a mosaic, such as the archive's obs 492 and 495, is another pointing: the point is a
 pixel, which stays put from scan to scan, so the light curve and wavelength against scan follow that

@@ -38,7 +38,7 @@ from glue_solar.quicklook import (
     observation_key,
     quicklook,
 )
-from glue_solar.sources.iris import link_iris, quicklook_iris
+from glue_solar.sources.iris import iris_quicklook, link_iris, quicklook_iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, raster_data
 from glue_solar.sources.loaders.scan import scan_directory
 from glue_solar.sources.sst import _Cube, _TabularWCS, sst_data
@@ -232,6 +232,27 @@ def test_the_inverse_is_wcslib_s_inside_the_table_and_takes_the_line_core_outsid
         np.testing.assert_allclose(coords.world_to_pixel_values(lon, lat, 0, 1, seconds)[:2], [3.5, 7.25], atol=1e-9)
 
 
+def test_colour_limits_sample_evenly_spaced_planes_rows_and_columns(monkeypatch, tmp_path):
+    # SST10: glue's 10,000 random values each lie on another page of the file
+    write_sst_cube(tmp_path / "cube.fits", (2, 1, 23, 49, 97))
+    cube, values = sst_data(tmp_path / "cube.fits"), fits.getdata(tmp_path / "cube.fits")
+
+    def random(*args):
+        raise AssertionError("glue's random sample")
+
+    monkeypatch.setattr("glue.core.data.random_indices_for_array", random)
+    cid = cube.main_components[0]
+    sample = values.reshape(46, 49, 97)[::3, ::2, ::4]  # 16 of the 46 planes, 25 of the rows and of the columns
+    for percentile in (0.25, 99.75):
+        limit = cube.compute_statistic("percentile", cid, percentile=percentile, random_subset=10000)
+        assert limit == np.nanpercentile(sample, percentile)
+    # glue's own sample for an axis or a subset
+    first = PixelSubsetState(cube, [slice(0, 1)] + [slice(None)] * 4)
+    for where in ({"axis": (1, 2, 3, 4)}, {"subset_state": first}):
+        with pytest.raises(AssertionError, match="glue's random sample"):
+            cube.compute_statistic("maximum", cid, random_subset=10000, **where)
+
+
 def test_an_image_viewer_shows_a_cube_without_specsys(qtbot, tmp_path):
     # SST2: astropy refuses an empty SPECSYS beside the observatory's place, and no viewer took the cube
     path = tmp_path / "cube.fits"
@@ -372,10 +393,10 @@ def sst_app(qtbot, monkeypatch):
     return bare_app_for(qtbot, monkeypatch)
 
 
-def stokes_cube(path, shape=(3, 4, 5, 12, 16), **kwargs):
-    """A cube ``write_sst_cube`` writes at ``path``, named as the archive names H-alpha, and its values."""
+def stokes_cube(path, shape=(3, 4, 5, 12, 16), line="H-alpha", **kwargs):
+    """A cube ``write_sst_cube`` writes at ``path``, named as the archive names ``line``, and its values."""
     write_sst_cube(path, shape, drift=(5.0, -3.0), **kwargs)
-    fits.setval(path, "WAVEBAND", value="H-alpha")
+    fits.setval(path, "WAVEBAND", value=line)
     return sst_data(path), fits.getdata(path)
 
 
@@ -443,10 +464,11 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
     slide(viewers["map"], 2, 4)
     qtbot.wait(20)
     check_sst_panels(viewers, values, group)
-    # a cube of intensities has one spectrum; one cube to a tab
-    single, values = stokes_cube(tmp_path / "single.fits", shape=(3, 1, 5, 12, 16))
+    # a cube of intensities has one spectrum, the '&' of CHROMIS's line not a shortcut in Qt's titles; one cube to a tab
+    single, values = stokes_cube(tmp_path / "single.fits", shape=(3, 1, 5, 12, 16), line="Ca II H & K")
     viewers = quicklook(sst_app, [single])
-    assert [viewer.state.title for viewer in viewers["rows"][1]] == ["H-alpha spectrum"]
+    assert sst_app.tab_names[-1] == "SST Ca II H and K"
+    assert [viewer.state.title for viewer in viewers["rows"][1]] == ["Ca II H and K spectrum"]
     check_sst_panels(viewers, values, sst_app.session.edit_subset_mode.edit_subset[0])
     with pytest.raises(ValueError, match="one cube"):
         quicklook(sst_app, [cube, single])
@@ -646,5 +668,8 @@ def test_the_browser_lists_and_opens_each_sst_cube(qtbot, monkeypatch, tmp_path)
 
     monkeypatch.setattr(QtWidgets.QInputDialog, "getItem", choose)
     quicklook_iris(app.session, app.data_collection)  # 'IRIS: quicklook…'
-    assert choice["items"] == ["SST nb_8542_im", "SST nb_6173_im"]
+    assert choice["items"] == ["SST Ca II 8542", "SST Fe I 6173"]
     assert app.tab_names[-1] == "SST Fe I 6173"
+    iris_quicklook(app.session, app.data_collection)  # glue --startup=iris_quicklook
+    assert app.tab_names[-2:] == ["SST Ca II 8542", "SST Fe I 6173"]
+    assert len(app.viewers[-1]) == 6  # and no Image viewer of a cube
