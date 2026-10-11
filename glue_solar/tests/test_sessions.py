@@ -161,12 +161,15 @@ def test_a_session_restores_the_metadata_of_a_raster_and_a_slit_jaw_image(irispy
 
 def test_a_session_reads_each_raster_file_once_for_all_its_windows(monkeypatch, irispy_test_files):
     files = sorted(path for path in irispy_test_files if "3860258481_raster" in path.name)
-    datasets = raster_data(files, THREE, stack=True) + raster_data(files[:1], THREE[:2])
+    datasets = raster_data(files, THREE, stack=True) + raster_data(files, THREE[:2]) + raster_data(files[:1], THREE[2:])
     reads = counted_reads(monkeypatch)
     for restored in twice(DataCollection(datasets)):
-        # each of the stack's files once for its three windows, and the scan's for its two, rather than once a window
+        # each file once for the stack's three windows and once for the scans' two, and the first once for its lone
+        # scan's third, rather than once a window: the same files stacked or not, and a subset of them, are read apart
         assert sorted((os.path.basename(*paths), sorted(windows)) for paths, windows in reads) == sorted(
-            [(path.name, sorted(THREE)) for path in files] + [(files[0].name, sorted(THREE[:2]))]
+            [(path.name, sorted(THREE)) for path in files]
+            + [(path.name, sorted(THREE[:2])) for path in files]
+            + [(files[0].name, THREE[2:])]
         )
         reads.clear()
         assert not any(_RESTORING.values())  # nor held once restored
