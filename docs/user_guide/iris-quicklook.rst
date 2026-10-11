@@ -51,14 +51,21 @@ plus one viewer per slit-jaw channel and a spectrum panel:
 - a sit-and-stare raster: slit against time, the spectrogram and wavelength against time;
 - a stack of raster scans: the map of the current scan, the spectrogram and wavelength against scan.
 
-A sit-and-stare raster's exposure axis, in the quicklook or any Image viewer, is labelled
-"Exposure (acquisition order)" with the UTC range of its exposures on a second line, and its ticks
-are exposure numbers: it is an index axis, so exposures are evenly spaced whatever their cadence
-(`Regridding on time`_ places them in time). The other axis shows only its own coordinate, and so
-does the mouse-over readout, followed by the time and exposure of the exposure under the mouse,
-rather than where the slit was then. The label and ticks come back whenever glue resets the axes,
-after an axis change or, on the wavelength panel, a slit move; a label typed in the viewer's axes
-options is kept until that reset, as glue's own labels are.
+These panels and the slit-jaw viewers open without their axes, ticks, tick labels, axis labels and
+frame, as "Hide axes" in a viewer's View menu leaves them (see :ref:`Viewer tools and windows
+<glue_solar_users_guide_viewer_tools_and_windows>`), which makes each step and move of the point about
+twice as fast; the images, the point, the lines and the readouts are the same. "Axes", at the top of
+the Panels list (below), shows them on all of them at once; a quicklook of slit-jaw images alone has
+no Panels list, and "Hide axes" shows each one's. The spectrum panels keep their axes.
+
+A sit-and-stare raster's exposure axis, in the quicklook once its axes are shown or in any Image
+viewer, is labelled "Exposure (acquisition order)" with the UTC range of its exposures on a second
+line, and its ticks are exposure numbers: it is an index axis, so exposures are evenly spaced
+whatever their cadence (`Regridding on time`_ places them in time). The other axis shows only its
+own coordinate, and so does the mouse-over readout, followed by the time and exposure of the
+exposure under the mouse, rather than where the slit was then. The label and ticks come back
+whenever glue resets the axes, after an axis change or, on the wavelength panel, a slit move; a
+label typed in the viewer's axes options is kept until that reset, as glue's own labels are.
 
 In every Image viewer, each world coordinate's ticks are labelled with that coordinate's name.
 WCSAxes can put a coordinate's ticks on another side than the axis it belongs to: latitude can run
@@ -377,12 +384,22 @@ slit-jaw image that is the time master hands the time to the raster while its pa
 on, takes it back at its frame nearest the raster's time. A panel closed by hand leaves the list.
 Like the Point window, the list closed by hand stays closed, and the panels it had turned off stay
 off until "Show this window's panels" (below), which shows every panel again; a saved session leaves
-out the panels turned off. On 4000255147 with its nine windows and SJI 1400, an exposure step takes
-0.19 s with the other windows' panels off, as with the main window alone, against 0.54 s with every
-panel on, and a click and a move take 0.2 s against 0.5 and 0.6 s; turning a panel or a window off
-or on takes 0.05 to 0.1 s, and the eight other windows off at once 0.03 s and on again 0.26 s. A
-stack of 4000005156's two scans of the same windows and SJI 2796 steps as fast with its other
-windows off as alone.
+out the panels turned off. On 4000255147 with its nine windows and SJI 1400, with the axes shown, an
+exposure step takes 0.19 s with the other windows' panels off, as with the main window alone, against
+0.54 s with every panel on, and a click and a move take 0.2 s against 0.5 and 0.6 s; turning a panel
+or a window off or on takes 0.05 to 0.1 s, and the eight other windows off at once 0.03 s and on again
+0.26 s. A stack of 4000005156's two scans of the same windows and SJI 2796 steps as fast with its
+other windows off as alone.
+
+"Axes", above the panels' boxes and unticked as the quicklook opens, shows the axes of every Image
+panel shown, their ticks, tick labels and axis labels, the exposure axis's label with its UTC range
+among them, and hides them again. A panel's own "Hide axes" leaves the box partly ticked while the
+panels differ, and a click on it then shows every panel's. A panel turned on again takes the box's
+choice, as those turned off neither change nor draw while it changes; "Show this window's panels"
+keeps it, and a saved session keeps each panel's axes shown or hidden. On 4000255147 with every panel
+on, an exposure step takes 0.28 s without axes against 0.54 s with them, and a move of the point
+0.33 s against 0.61 s; ticking the box takes 0.2 s and unticking it 0.05 s. On a stack of
+4000005156's two scans a scan step takes 0.29 s against 0.48 s, and a move 0.33 s against 0.55 s.
 
 A saved session opens the quicklook again with its point and its time master: its tab makes
 "Point" the edit subset whenever it is shown, the panels follow the time master to the frames they
@@ -417,19 +434,18 @@ move it with the time master. The Point window lists the main window only, and t
 turns each window's panels off and on (see above). The "Plugins" menu entry and the command line
 open one window.
 
-"Show this window's panels", the triangle icon after "Zoom" in another window's spectrum panel (and in
-no other Profile viewer), makes that window the main window: the quicklook opens again in its tab as
-the browser opens it with that window chosen, and the window shown before joins the others in the
+"Show this window's panels", the triangle icon after "Zoom" in another window's spectrum panel (and
+in no other Profile viewer), makes that window the main window: the quicklook opens again in its tab
+as the browser opens it with that window chosen, and the window shown before joins the others in the
 rows below. The point stays at the same pixel, now of that window, in the same "Point" subset, the
 time master stays at its frame, exposure, step or scan, and each panel that shows the same data on
 the same axes again keeps its stretch, colour limits and colormap; its other settings, such as a
-zoom or a spectrum panel's unit, are a new quicklook's, and every panel shows. The links stay, and
-so do the viewers you
-added to the tab, where a light curve, a row or a column goes on following the point at the
-wavelength or band the old map showed. It takes 2.5 s on 4000255147's C II 1336, Si IV 1403 and Mg
-II k 2796 with its SJI 1400, and 2.4 s on a stack of 4000005156's two scans of the same windows. A
-saved session keeps the switched quicklook, but a quicklook restored from a session does not offer
-the switch: open it again from the browser.
+zoom or a spectrum panel's unit, are a new quicklook's, every panel shows, and with their axes if
+"Axes" was ticked. The links stay, and so do the viewers you added to the tab, where a light curve,
+a row or a column goes on following the point at the wavelength or band the old map showed. It takes
+2.5 s on 4000255147's C II 1336, Si IV 1403 and Mg II k 2796 with its SJI 1400, and 2.4 s on a stack
+of 4000005156's two scans of the same windows. A saved session keeps the switched quicklook, but a
+quicklook restored from a session does not offer the switch: open it again from the browser.
 
 Regridding on time
 ------------------
