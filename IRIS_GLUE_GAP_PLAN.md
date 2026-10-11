@@ -139,6 +139,9 @@ Settled by the user; reopen only with the user.
   - **SST to IRIS:** the SST loader makes an SST region or point reach IRIS data once linked. #226 found that it reaches none, co-pointed or not. glue fills in the cube's wavelength and time, which IRIS data lack, with CRVAL 0, outside the -TAB table, so wcslib returns NaN. The loader's coordinates use a time and wavelength inside the cube instead: the scan nearest each IRIS frame's time, as `link_hpc` gives a stack its scans, and the line core.
   - **Cavity map:** the axis keeps each scan's nominal wavelengths, and the cavity-error lookup (CWDIS3, up to 2.8 km/s) becomes its own component, documented, for the user to view or subtract.
   - **Inverse:** user (2026-10-10, after the review), an exception to D54 for this loader only. The loader inverts its coordinates itself: one linear solve per scan and tuning of SSTRED's tables, which give each scan's pointing at the field's corners. That is 1.5 µs a point, within 2e-9 px of wcslib, and 0.06 s per co-pointed SJI frame's mask, against about 50 s through wcslib's inverse. A table of more points falls back to wcslib. wcslib's own -TAB inverse stays `wp0-wcslib-tab-inverse`.
+- **D68:** User (2026-10-10), the SST quicklook's scope and layout (`wp13-l-sst-quicklook`):
+  - **Scope:** one cube per quicklook tab. The browser lists each cube of an archive folder (obs492 holds 8542, 6173 and 6302); a second cube opens in its own tab, time-synced. Not chosen: a folder's other lines as rows, as IRIS's other windows, or CRISP and CHROMIS together.
+  - **Layout:** maps on top. Row 1: the map (wavelength and Stokes sliders), the second map and the virtual slit (wavelength against y). Row 2: the I, Q, U and V spectra (I only on CHROMIS). Row 3: wavelength against time and the light curve. The Point window and the Panels list sit in the bottom strip, as on IRIS.
 
 ## Milestones
 
@@ -396,7 +399,7 @@ Features only other missions need, planned with the user once suitable data exis
   - File > Open gives the cube without its `WCSDVARR` dataset and the 31 empty 0-D datasets of the `WCS-TAB` and `VAR-EXT` HDUs (SST12).
   - Once linked on request, an SST region or point selects the IRIS pixels at its sky position: the scan nearest each IRIS frame's time, at the line core (D67). Test a co-pointed synthetic case.
   - The cavity-error lookup is its own component, and the wavelength axis keeps the nominal values (D67).
-- [ ] **L** `wp13-l-sst-quicklook` (D65; after #227 and `wp4-l-panel-toggles`): A quicklook of an SST CRISP or CHROMIS cube in its own tab, opened from the browser (which learns the SST archive's folders) and the Plugins menu. It reuses the coordinator, the 'Point' group, the Point window and the time sync, and builds its panels from a per-instrument panel set beside IRIS's (PROVISIONAL). The panels:
+- [ ] **L** `wp13-l-sst-quicklook` (D65, D68; after #227 and `wp4-l-panel-toggles`): A quicklook of an SST CRISP or CHROMIS cube in its own tab, opened from the browser (which learns the SST archive's folders) and the Plugins menu. It reuses the coordinator, the 'Point' group, the Point window and the time sync, and builds its panels from a per-instrument panel set beside IRIS's (PROVISIONAL). The panels:
   - a map with wavelength and Stokes sliders;
   - the spectrum at the point, I, Q, U and V side by side (one on CHROMIS);
   - wavelength against time at the point;
