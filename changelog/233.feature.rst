@@ -1,0 +1,1 @@
+A Profile viewer adds a cube of glue's large-data size or more that the IRIS reader did not open, such as an SST cube, with its own profile hidden and a note in the status bar, so its subsets' profiles show at once instead of glue reading the whole file first (30 s and 11 GB on a 9.9 GB CRISP cube).
