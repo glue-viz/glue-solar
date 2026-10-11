@@ -1349,7 +1349,7 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 ### SST4. The Profile button on a large cube reads the whole file, freezes the main thread for about 3/4 of the wait, and adds the file to RSS
 
 - [x] Re-verified (2026-10-10; numbers corrected)
-- [ ] Worked around in glue-solar (`wp10-l-sst-profile-hidden-data`); upstream R14, R21
+- [x] Worked around in glue-solar (#233, 2026-10-11): a Profile viewer adds the cube hidden. On 8542 the Profile button takes 0.17 s and reads 1 MB, against 29.6 s cold (a 20 s freeze, 11 GB read); a rectangle's profile is unchanged. Upstream R14, R21
 
 - **Cost:** about 2.6-2.8 s per GB, cold. On 8542:
   - 27.4 s, of which 21.2 s is frozen;
@@ -1417,7 +1417,8 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 
 - **Cost:** after Enter (0.17-0.18 s) comes a settle of 3.5-7.0 s, varying with how many recomputes the link change triggers; 5.3 s on 8542.
 - **Cause:** the Path adds 3 links. Then `Data._update_externally_derivable_components` broadcasts (`glue/core/data.py:640-660`), `Viewer._update_data` follows (`glue/viewers/common/viewer.py:288-307`), and `ProfileLayerArtist.update` resets its cache. The data layer's whole-cube maximum recomputes (5.35 s on 8542); the rectangle's profile takes only 0.36-0.42 s.
-- **Covered by** R11, as its Profile data-layer case; `wp10-l-sst-profile-hidden-data` removes it for large non-IRIS cubes.
+- **Covered by** R11, as its Profile data-layer case.
+- [x] Worked around for large non-IRIS cubes (#233, 2026-10-11): with the data layer hidden, a Path Enter on 8542 settles in 0.24-0.27 s, against 3.6-4.7 s.
 
 ### SST10. A new Image viewer on a cold memory-mapped cube reads about 0.7 GB at random for its Min/Max limits
 
