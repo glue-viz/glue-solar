@@ -34,13 +34,15 @@ Out of scope:
   1. #226, the WCS lock with the link scope (D64): on main.
   2. #227, the SST loader with D67 (SST regions reaching IRIS data, the cavity map as a component): on main.
   3. #228, the panel toggles placed as D66: on main.
-  4. #230 (D65, D68): in flight.
+  4. #230, the SST quicklook (D65, D68, D70): on main.
+
+  Then, from the user's 2026-10-11 decisions: `wp4-l-quicklook-axes` (D71, axes hidden by default with an 'Axes' box in the Panels list) and `wp13-l-sst-loader-marks` (D70, the #227 review marks), and the rest of the choice-review marks once the user confirms the suspected slips (`scratchpad/choices`).
 
   The other D63 items and the Ctrl+I recipe (`wp9-l-deferred-recipes`) fit around these. The survey (done 2026-10-10) is in GLUE_SPEED.md 'SST and IRIS stress survey, 2026-10-10' and `IRIS_PLAN_PROTOTYPES/sst_stress_20261010.tar.gz`. Left from #226:
   - glue's `WCSLink.__init__` reads `wcs.wcs.lng` and `.lat` on the struct, outside any lock, when File > Open autolinks a dataset beside a linked SST cube or map. Lock the WCS objects there, or note it for `wp0-astropy-19174`.
   - A reopened session locks a linked map's WCS only at the next `link_hpc`.
   Left from #227:
-  - A Pixel point on an SST cube is placed at the cube's first scan and tuning, not the slider's, so it reaches the raster pixel at scan 0's position and the slit-jaw frame nearest scan 0.
+  - A Pixel point on an SST cube takes the viewer's scan and Stokes since #230, but linked data still place it at the first tuning (the point is a pixel at every wavelength, and glue takes index 0 on free axes).
   - On a mosaic cube, a point placed on IRIS data does not reach the SST cube.
   - glue's axis labels stay as they are: `''` for Stokes, and `Hplt` from a glue indexing bug.
   - A map opened after an SST cube shows glue's 'Cannot slice WCS' (`wp0-core-wcslink-lists`); the user guide says to open the map first.

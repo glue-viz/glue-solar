@@ -1423,6 +1423,7 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 
 - [x] Re-verified (2026-10-10)
 - [ ] Fixed upstream (`wp0-perf-core-stats-io`, as R32)
+- [x] Worked around for SST cubes (#230, 2026-10-11, D70): `sst._Cube` answers glue's sampled statistics from 16 evenly spaced planes of 25 rows and 25 columns; the 3950 quicklook opens in 1.97 s cold (0.47 GB read), against 4.56 s (0.79 GB). Remove it once R32 is fixed.
 
 - **Cost:** 1.75-1.82 s cold against 0.53-0.55 s warm, reading 0.68-0.74 GB in about 10,000 page-ins. `compute_statistic` takes 1.17-1.25 s.
 - **Cause:** `StateAttributeLimitsHelper` (`glue/core/state_objects.py:405-422`) calls `random_subset`, which draws 10,000 uniform random indices with one `np.random.randint` per axis (`glue/core/data.py:1849-1851`, `glue/utils/array.py:756`). Each index lands on a different page of the mapped file.
