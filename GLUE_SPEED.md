@@ -1376,7 +1376,7 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 ### SST6. Restoring a multi-window stack reads every raster file once per window
 
 - [x] Re-verified (2026-10-10; cost corrected)
-- [ ] Fixed in glue-solar (`wp3-l-restore-one-read`)
+- [x] Fixed in glue-solar (#234, 2026-10-11): a restore reads each raster file once for all its logged windows. 3602506433 with 7 windows restores in 7.1-7.2 s with 99 `read_files` calls, against 11.9-12.2 s and 693 calls on main 3cfac20, with the same data; main had already dropped from 19.8 s to 12 s since the survey.
 
 - **Cost:** 3602506433 with 7 windows and 99 files restores in 19.8 s. Of that, 13.8 s is data, in 693 `read_files` calls (99 × 7). The browser loads it in 10.9 s with 99 calls. The survey's 49.3 s, and its 70.7 s for 3630104144, ran under cProfile.
 - **Cause:** each window has its own load log, and restoring it (`raster_files_data` → `_raster_windows_data(files, [window])`) opens every file for that one window.
