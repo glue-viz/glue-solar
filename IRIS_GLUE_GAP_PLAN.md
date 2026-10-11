@@ -143,6 +143,9 @@ Settled by the user; reopen only with the user.
   - **Scope:** one cube per quicklook tab. The browser lists each cube of an archive folder (obs492 holds 8542, 6173 and 6302); a second cube opens in its own tab, time-synced. Not chosen: a folder's other lines as rows, as IRIS's other windows, or CRISP and CHROMIS together.
   - **Layout:** maps on top. Row 1: the map (wavelength and Stokes sliders), the second map and the virtual slit (wavelength against y). Row 2: the I, Q, U and V spectra (I only on CHROMIS). Row 3: wavelength against time and the light curve. The Point window and the Panels list sit in the bottom strip, as on IRIS.
 - **D69:** User (2026-10-10): glue-solar is unreleased, so nothing keeps sessions saved by older glue-solar opening: no back-compat patches or aliases, and #229 removed the one on main. Sessions of the current code still save and restore, and items keep their session checks.
+- **D70:** User (2026-10-11), on `wp13-l-sst-quicklook`'s PR:
+  - **SST10:** glue-solar keeps a workaround after all, an exception to D63's 'no glue-solar workaround'. SST cubes answer glue's sampled colour-limit statistics from 16 evenly spaced planes of 25 rows and 25 columns, which halves the 3950 quicklook's cold open (4.6 s to 2.0 s). It is tracked under R32 (`wp0-perf-core-stats-io`) and goes when glue samples cheaply itself.
+  - **#227's review marks** go in one follow-up PR for the loader and the quicklook together (`wp13-l-sst-loader-marks`), after the quicklook merges.
 
 ## Milestones
 
@@ -168,7 +171,7 @@ A milestone is done when it has no items left.
 - WP9: `wp9-l-deferred-recipes`
 - WP10: `wp10-l-sst-profile-hidden-data`
 - WP11: `wp11-l-point-curves-offered`
-- WP13: `wp13-l-sst-quicklook`
+- WP13: `wp13-l-sst-quicklook`, `wp13-l-sst-loader-marks`
 
 **M4**
 - WP0: `wp0-irispy-requests`, `wp0-restore-full-ci`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-track-line-layers`, `wp0-qt-aggregate-slice`, `wp0-track-qt66`, `wp0-core-datetime-export`, `wp0-qt68-cocoa`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-optional-proposals`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`
@@ -408,6 +411,7 @@ Features only other missions need, planned with the user once suitable data exis
   - a second wavelength map.
 
   Each panel can be turned on and off (#228). It links to an IRIS quicklook only on request (D64), with time sync between them. Done when, on obs492 Ca II 8542 and obs495 CHROMIS 3950, every panel is exact against the cube and follows the point, the time, the wavelength and the Stokes slider; steps and moves are measured against GLUE_SPEED's SST table; and a session restores the quicklook.
+- [ ] **L** `wp13-l-sst-loader-marks` (D70; after `wp13-l-sst-quicklook`): The user's choice-review marks on #227 (2026-10-11): a length-1 Stokes axis is dropped, so CHROMIS and obs171 cubes open with four axes (227-1); the line core is the tuning nearest WAVELNTH or a known rest line, not the middle one, for D67's inverse and for the quicklook's opening and second map (227-4; on 3950 that is Ca II K, not H); a cube is locked only once linked, as #226 does for maps (227-9); `Cavity error` is 0, not NaN, at a tuning without a map (227-10); the VAR-EXT tables are kept as metadata, with each scan's and tuning's times right (227-3). Done when the loader and the SST quicklook do all five on obs492 8542 and obs495 3950, every quicklook panel stays exact against the cube, and D67's mask test still matches wcslib.
 - [ ] **OM** `wp13-height-cubes` (F030): Load simulation and height cubes. Done when one slices by height.
 
 Notes:
