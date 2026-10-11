@@ -146,6 +146,7 @@ Settled by the user; reopen only with the user.
 - **D70:** User (2026-10-11), on `wp13-l-sst-quicklook`'s PR:
   - **SST10:** glue-solar keeps a workaround after all, an exception to D63's 'no glue-solar workaround'. SST cubes answer glue's sampled colour-limit statistics from 16 evenly spaced planes of 25 rows and 25 columns, which halves the 3950 quicklook's cold open (4.6 s to 2.0 s). It is tracked under R32 (`wp0-perf-core-stats-io`) and goes when glue samples cheaply itself.
   - **#227's review marks** go in one follow-up PR for the loader and the quicklook together (`wp13-l-sst-loader-marks`), after the quicklook merges.
+- **D71:** User (2026-10-11), after the axes probe (`scratchpad/viewers/axes-probe`: hiding the WCS axes takes the 9-window 4000255147 exposure step from 535 to 274 ms and the move from 601 to 324 ms, with images, point, markers, regions and readouts unchanged; pixel axes save only 13-19% and break the sky readout, Physical aspect, Measure and the scale bar): every quicklook, IRIS and SST, opens its image panels with the axes hidden, as 'Hide axes' does. An 'Axes' box at the top of the Panels list turns them on and off for all of that quicklook's image panels. The per-panel 'Hide axes' button stays (`wp4-l-quicklook-axes`).
 
 ## Milestones
 
@@ -166,7 +167,7 @@ A milestone is done when it has no items left.
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP3: `wp3-l-restore-one-read`
-- WP4: `wp4-l-window-rows-redraw`, `wp4-l-restored-strip`
+- WP4: `wp4-l-window-rows-redraw`, `wp4-l-restored-strip`, `wp4-l-quicklook-axes`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP9: `wp9-l-deferred-recipes`
 - WP10: `wp10-l-sst-profile-hidden-data`
@@ -297,6 +298,7 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 
 - [ ] **L** `wp4-l-window-rows-redraw` (SST7, D63): Each other window's panels redraw on every step and move. On 4000255147, 9 windows cost about 4× one window: an exposure step 194 → 875 ms (7 → 47 draws), a move 240 → 991 ms, the open 3.4 → 13.4 s. Fixes to try: blit the moving time and point markers, refresh an image only when its slice changes, or redraw only the visible rows. Done when the 9-window step and move on 4000255147 and the 4000005156 stack are re-measured against main, with the panels drawing the same.
 - [ ] **L** `wp4-l-restored-strip` (D66; after #228): A restored quicklook gets its Point window and Panels list back, and a session keeps the panels turned off, restored hidden; today a session leaves them out (user, 2026-10-10). Done when a session of the 9-window 4000255147 quicklook saved with panels off restores them hidden, the Panels list turns each on unchanged, and the Point window shows the restored point.
+- [ ] **L** `wp4-l-quicklook-axes` (D71): Quicklook image panels, IRIS and SST, open with their WCS axes hidden, and an 'Axes' box at the top of the Panels list shows or hides them on all of that quicklook's image panels. Done when the 9-window 4000255147 exposure step and move are re-measured with the axes hidden and shown, about 274 against 535 ms and 324 against 601 ms on today's main; images, point, markers and readouts are unchanged; and turning the axes on gives the panels as on main.
 
 Notes:
 - Whisker polish (F143) and CRISPEX entry keywords (F020) are Later.
