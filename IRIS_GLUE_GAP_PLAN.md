@@ -36,7 +36,7 @@ Out of scope:
   3. #228, the panel toggles placed as D66: on main.
   4. #230, the SST quicklook (D65, D68, D70): on main.
 
-  Then, from the user's 2026-10-11 decisions: #231 (D71, axes hidden by default with an 'Axes' box in the Panels list) and `wp13-l-sst-loader-marks` (D70, the #227 review marks), and the rest of the choice-review marks once the user confirms the suspected slips (`scratchpad/choices`).
+  Then, from the user's 2026-10-11 decisions: #231 (D71, axes hidden by default with an 'Axes' box in the Panels list) is on main; next is `wp13-l-sst-loader-marks` (D70, the #227 review marks), and the rest of the choice-review marks once the user confirms the suspected slips (`scratchpad/choices`).
 
   The other D63 items and the Ctrl+I recipe (`wp9-l-deferred-recipes`) fit around these. The survey (done 2026-10-10) is in GLUE_SPEED.md 'SST and IRIS stress survey, 2026-10-10' and `IRIS_PLAN_PROTOTYPES/sst_stress_20261010.tar.gz`. Left from #226:
   - glue's `WCSLink.__init__` reads `wcs.wcs.lng` and `.lat` on the struct, outside any lock, when File > Open autolinks a dataset beside a linked SST cube or map. Lock the WCS objects there, or note it for `wp0-astropy-19174`.
