@@ -12,7 +12,7 @@ from itertools import pairwise
 import numpy as np
 from echo import delay_callback
 from glue.config import layer_artist_maker
-from glue.core import Data
+from glue.core import Data, Subset
 from glue.core.command import Command
 from glue.core.hub import HubListener
 from glue.core.link_helpers import LinkSame
@@ -1350,15 +1350,25 @@ def _raster_panels(app, raster, window, roles=("map", "spectrogram", "wavelength
     return viewers, PixelSubsetState(raster, slices)
 
 
-@layer_artist_maker("IRIS: quicklook spectrum without the cube's own")
+@layer_artist_maker("IRIS: Profiles without a large cube's own")
 def hidden_cube_profile(viewer, data):
     """
-    Add the raster to a quicklook's spectrum panel hidden, so glue never computes the mean spectrum of the
-    whole cube, which the panel would only hide (0.4 s of opening a quicklook on 4000255147, a full read of
-    lazily loaded data).
+    Add a cube to a Profile viewer hidden, so glue never computes its profile of the whole cube: the raster of a
+    quicklook's spectrum panel, which would only hide it again (0.4 s of opening a quicklook on 4000255147, a full read
+    of lazily loaded data), and a cube of glue's large-data size or more, 1e8 values, that the IRIS reader did not read,
+    such as an SST cube, which glue profiles on the main thread first (27 s and 9.2 GB read on obs 492 Ca II 8542), with
+    a note in the viewer's status bar. The viewer fits its range to the first of its subsets' profiles, as glue fits it
+    to a shown cube's; ticking it in the layer list shows its own.
     """
     if getattr(viewer, "_solar_hidden", None) is not data:
-        return None
+        large = isinstance(viewer, ProfileViewer) and isinstance(data, Data) and viewer.large_data_size is not None
+        if not large or data.size < viewer.large_data_size or _role(data) in ("raster", "sji", "aia"):
+            return None
+        viewer.set_status(
+            f"{data.label} is hidden, as its own profile reads all {data.size:.3g} values: tick it in the layer list to"
+            " show it."
+        )
+        viewer._solar_fit = _FitOnceComputed(viewer, data, fit=lambda viewer: viewer.state.reset_limits())
     return viewer.get_data_layer_artist(data, ProfileLayerState(layer=data, viewer_state=viewer.state, visible=False))
 
 
@@ -1772,18 +1782,24 @@ def _fit(viewer):
 
 
 class _FitOnceComputed(HubListener):
-    """Fit a spectrum panel once glue has computed the point's spectrum on a worker thread."""
+    """
+    Fit a Profile viewer with ``fit`` once glue has computed on a worker thread the profile of ``layer``, a spectrum
+    panel's point, or of any subset of ``layer``, a dataset (`hidden_cube_profile`).
+    """
 
-    def __init__(self, viewer, subset):
-        self.viewer, self.subset = viewer, subset
-        subset.data.hub.subscribe(self, ComputationEndedMessage, handler=self._ended, filter=self._is_point)
+    def __init__(self, viewer, layer, fit=_fit):
+        self.viewer, self.layer, self.fit = viewer, layer, fit
+        layer.hub.subscribe(self, ComputationEndedMessage, handler=self._ended, filter=self._is_point)
 
     def _is_point(self, message):
-        return message.sender in self.viewer.layers and message.sender.state.layer is self.subset
+        if message.sender not in self.viewer.layers:
+            return False
+        layer = message.sender.state.layer
+        return isinstance(layer, Subset) and (layer is self.layer or layer.data is self.layer)
 
     def _ended(self, message):
-        self.subset.data.hub.unsubscribe(self, ComputationEndedMessage)
-        _fit(self.viewer)
+        self.layer.hub.unsubscribe(self, ComputationEndedMessage)
+        self.fit(self.viewer)
 
 
 def _fit_spectrum(viewer, group):

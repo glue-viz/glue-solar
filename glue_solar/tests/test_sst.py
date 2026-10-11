@@ -565,6 +565,49 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
         quicklook(sst_app, [cube, single])
 
 
+def test_a_profile_viewer_adds_a_large_cube_hidden(sst_app, monkeypatch, tmp_path, sns):
+    # SST4: glue profiles a cube added to a Profile viewer on the main thread first, reading the whole file (27 s on obs
+    # 492 Ca II 8542); one of glue's large-data size or more, here any, that the IRIS reader did not read comes hidden
+    cube, values = stokes_cube(tmp_path / "cube.fits")
+    _, raster = sns
+    sst_app.data_collection.extend([cube, raster])
+    whole = []
+    compute = Data.compute_statistic
+
+    def counted(self, *args, **kwargs):
+        if kwargs.get("axis") is not None and kwargs.get("subset_state") is None:
+            whole.append(self.label)
+        return compute(self, *args, **kwargs)
+
+    monkeypatch.setattr(Data, "compute_statistic", counted)
+    # glue-qt's Profile button, its note and 'Add large data set?' answered OK
+    monkeypatch.setattr("glue_qt.viewers.image.profile_viewer_tool.info", lambda *args, **kwargs: True)
+    monkeypatch.setattr(ProfileViewer, "warn", lambda *args, **kwargs: True)
+    image = sst_app.new_data_viewer(ImageViewer, data=cube)
+    image.toolbar.tools["profile-viewer"].activate()
+    profile = sst_app.viewers[0][-1]
+    [layer] = profile.state.layers
+    assert not layer.visible
+    assert cube.label in profile.statusBar().currentMessage()
+    # a rectangle's profile, the maximum along wavelength, and the range fitted to it
+    image.apply_roi(RectangularROI(1.5, 5.5, 2.5, 7.5))
+    [_, rectangle] = profile.state.layers
+    expected = values[..., 3:8, 2:6].max(axis=(0, 1, 3, 4))
+    np.testing.assert_array_equal(rectangle.profile[1], expected)
+    assert (profile.state.y_min, profile.state.y_max) == (expected.min(), expected.max())
+    assert whole == []
+    # ticked in the layer list, the cube's own
+    layer.visible = True
+    np.testing.assert_array_equal(layer.profile[1], values.max(axis=(0, 1, 3, 4)))
+    # an IRIS raster shows as glue adds it
+    iris = sst_app.new_data_viewer(ProfileViewer, data=raster).state.layers[0]
+    assert iris.layer is raster
+    assert iris.visible
+    # and a cube below glue's large-data size
+    monkeypatch.setattr(ProfileViewer, "large_data_size", cube.size + 1)
+    assert sst_app.new_data_viewer(ProfileViewer, data=cube).state.layers[0].visible
+
+
 def test_what_moves_on_an_sst_cube(sst_app, qtbot, tmp_path):
     cube, values = stokes_cube(tmp_path / "cube.fits")
     viewers = quicklook(sst_app, [cube])

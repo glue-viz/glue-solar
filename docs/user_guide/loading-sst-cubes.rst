@@ -114,7 +114,7 @@ its own map only, and :kbd:`A` and :kbd:`S` step every map's but the second's, u
 The spectra keep their Stokes parameter and follow the point and the scan; the light curve follows the
 point, any Stokes parameter and the map's wavelength or band. Each is a subset group, "<line> Stokes I
 at the point" or "<line> light curve", glue's selection of those pixels by their indices, so no panel
-reads the whole cube, as a Profile viewer of the cube would (see "What is not supported"). As in the
+reads the whole cube, as the cube's own profile would (see `A Profile viewer of a cube`_). As in the
 IRIS quicklook, the virtual slit and wavelength against scan have a thin red line at the point,
 wavelength against scan dashed white lines at both maps' wavelengths and a dotted one at the scan
 nearest the time master's time, and the Stokes I spectrum dashed grey lines at the maps' wavelengths;
@@ -154,6 +154,19 @@ axis and 55 tunings, it opens in 2.0 s cold and 1.2 s warm, and a scan step take
 After each, every panel equals numpy's reading of the file at the point, the scan, the Stokes
 parameter and the wavelengths shown, and a saved session of either opens again in about a second.
 
+A Profile viewer of a cube
+--------------------------
+
+glue's Profile button, or a cube dragged onto a 1D Profile viewer, adds the cube hidden once glue's
+"Add large data set?" is answered OK, as it adds any dataset of 1e8 values or more that is not IRIS
+data: glue would compute the cube's own profile on the main thread first, which reads the whole file,
+30 s, 20 s of them frozen, and 11 GB on obs 492 Ca II 8542, and again after each change of links, such
+as a Path diagram's. The viewer's status bar says so. A subset drawn on the cube, such as a rectangle,
+shows its profile, and the viewer fits its range to the first; ticking the cube in the viewer's layer
+list shows its own profile, at that cost. On obs 492 Ca II 8542 the button then opens in 0.2 s,
+reading nothing, a 200 by 200 pixel rectangle's profile takes 1.7 s from a cold disk, reading
+0.9 GB, and 0.6 s once read, and a Path diagram settles 0.3 s after Enter rather than 4 to 5 s.
+
 Saving sessions
 ---------------
 
@@ -171,10 +184,6 @@ these coordinates, times and cavity maps.
 A cube whose table gives the pointing at more points than the field's four corners, which SSTRED does
 not write, takes wcslib's own inverse of its coordinates, so once linked a region drawn on it selects
 no IRIS pixels.
-
-A Profile viewer of a cube, as glue's Profile button opens one, profiles the whole cube too, which reads
-the whole file: 27 s and 9.2 GB on obs 492 Ca II 8542. The SST quicklook's spectra and light curve read
-only the point's pixels.
 
 Opening a map, or other data with sky coordinates and a different number of axes, after an SST cube
 shows glue's "Could not load data … Cannot slice WCS" from its autolinker, though the map loads; open
