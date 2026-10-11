@@ -228,12 +228,12 @@ def _timed(data):
 def _times(data, step):
     """
     The 1-D times of ``data``: per frame, exposure or step, per scan at raster step ``step`` of a stack, or per scan of
-    an SST cube at its middle tuning, as `~glue_solar.sources.loaders.iris.link_hpc` times them.
+    an SST cube at its line core, as `~glue_solar.sources.loaders.iris.link_hpc` times them.
     """
     index = [0] * data.ndim
     index[0] = slice(None)
     if _role(data) == "sst":
-        index[2] = data.shape[2] // 2
+        index[-3] = data.coords.core  # its tuning (`glue_solar.sources.sst.sst_data`)
     elif data.ndim == 4:
         index[1] = step
     return data[data.find_component_id("Time"), tuple(index)]
@@ -1537,13 +1537,14 @@ def _sst_line(cube):
 def _fill_sst(app, tab, cube):
     """
     Open the SST quicklook of ``cube`` (`quicklook`) in ``tab``, the current tab (D68): in a top row the map, at the
-    middle tuning, a second map, at the first, and the virtual slit, wavelength against y through the point; below them
-    the spectrum at the point of each Stokes parameter; and below those wavelength against scan at the point and the
-    light curve at the point over the map's wavelength or band. The point, a new subset group 'Point' that is the edit
-    subset while the tab is shown, starts at the map's centre in Stokes I and the first scan, or the scan nearest the
-    time of its observation's time master, such as another cube's in its own quicklook (`Coordinator.following`), with
-    the Pixel tool on the map. The spectra and the light curve are subset groups that follow it (`_Cut`): no panel
-    profiles the whole cube. The Point window and the Panels list sit below, as in IRIS's quicklook.
+    line core (`~glue_solar.sources.sst.sst_data`), a second map, at the first tuning, and the virtual slit, wavelength
+    against y through the point; below them the spectrum at the point of each Stokes parameter, or the one spectrum of a
+    cube of intensities; and below those wavelength against scan at the point and the light curve at the point over the
+    map's wavelength or band. The point, a new subset group 'Point' that is the edit subset while the tab is shown,
+    starts at the map's centre in Stokes I and the first scan, or the scan nearest the time of its observation's time
+    master, such as another cube's in its own quicklook (`Coordinator.following`), with the Pixel tool on the map. The
+    spectra and the light curve are subset groups that follow it (`_Cut`): no panel profiles the whole cube. The Point
+    window and the Panels list sit below, as in IRIS's quicklook.
 
     Returns
     -------
@@ -1553,37 +1554,38 @@ def _fill_sst(app, tab, cube):
     """
     collection = app.data_collection
     coord = coordinator(collection)
-    scans, stokes, tunings, ny, nx = cube.shape
-    line, start = _sst_line(cube), (coord.following(cube) or 0, 0, tunings // 2, ny // 2, nx // 2)
+    # scan, Stokes, wavelength, y and x, or a cube of intensities' scan, wavelength, y and x
+    w, ny, nx, core = cube.ndim - 3, *cube.shape[-2:], cube.coords.core
+    line, start = _sst_line(cube), (coord.following(cube) or 0, *[0] * (w - 1), core, ny // 2, nx // 2)
     panels = {  # x, y, tuning, title, aspect
-        "map": (4, 3, tunings // 2, "map", "equal"),
-        "wing": (4, 3, 0, "second map", "equal"),
-        "slit": (2, 3, tunings // 2, "virtual slit", "auto"),
-        "wavelength": (2, 0, tunings // 2, "λ–time", "auto"),
+        "map": (w + 2, w + 1, core, "map", "equal"),
+        "wing": (w + 2, w + 1, 0, "second map", "equal"),
+        "slit": (w, w + 1, core, "virtual slit", "auto"),
+        "wavelength": (w, 0, core, "λ–time", "auto"),
     }
-    viewers = {
-        role: _image(app, QuicklookImageViewer, cube, x, y, (*start[:2], tuning, *start[3:]), f"{line} {name}", aspect)
-        for role, (x, y, tuning, name, aspect) in panels.items()
-    }
+    viewers = {}
+    for role, (x, y, tuning, name, aspect) in panels.items():
+        at = (*start[:w], tuning, *start[w + 1 :])
+        viewers[role] = _image(app, QuicklookImageViewer, cube, x, y, at, f"{line} {name}", aspect)
     viewers["wing"]._solar_wing = True  # its wavelength stays (`_wing`)
     QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # and after the last (see _image)
     slices = [slice(i, i + 1) for i in start]
-    slices[2] = slice(None)  # a pixel at every wavelength
+    slices[w] = slice(None)  # a pixel at every wavelength
     group = collection.new_subset_group(label="Point", subset_state=PixelSubsetState(cube, slices))
     own = list(viewers.values())
     coord.own(group, own)
     _edit_in_tab(app, tab, group)
     _show_point(app, group, own)
-    names = [f"Stokes {name}" for name in "IQUV"[:stokes]] if stokes > 1 else ["spectrum"]
+    stokes = {f"Stokes {name}": {1: k} for k, name in enumerate("IQUV"[: cube.shape[1]])} if w == 2 else {}
     spectra = [
         _cut_profile(
             app,
             f"{line} {name} at the point",
-            partial(_Cut, point=group, band=None, axis=2, data=cube, at={1: k}),
-            cube.world_component_ids[2],
+            partial(_Cut, point=group, band=None, axis=w, data=cube, at=at),
+            cube.world_component_ids[w],
             f"{line} {name}",
         )
-        for k, name in enumerate(names)
+        for name, at in (stokes or {"spectrum": None}).items()
     ]
     curve = partial(_Cut, point=group, band=viewers["map"], axis=0)
     curve = _cut_profile(app, f"{line} light curve", curve, cube.pixel_component_ids[0], f"{line} light curve")
@@ -2355,8 +2357,8 @@ class _PointWindow(QTableWidget):
             return ["outside SJI FOV", "", "", "", "", sync]
         if _role(data) == "sji":
             names = ("frame", "y", "x")
-        elif _role(data) == "sst":
-            names = ("scan", "Stokes", "λ", "y", "x")
+        elif _role(data) == "sst":  # a cube of intensities has no Stokes axis
+            names = ("scan", "Stokes", "λ", "y", "x") if data.ndim == 5 else ("scan", "λ", "y", "x")
         elif data.ndim == 3 and _is_sit_and_stare(data):
             names = ("exposure", "slit", "λ")
         else:

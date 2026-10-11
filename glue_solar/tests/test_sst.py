@@ -7,6 +7,8 @@ IRIS data share.
 """
 
 import mmap
+import sys
+import threading
 
 import glue.config
 import numpy as np
@@ -39,9 +41,9 @@ from glue_solar.quicklook import (
     quicklook,
 )
 from glue_solar.sources.iris import iris_quicklook, link_iris, quicklook_iris
-from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, raster_data
+from glue_solar.sources.loaders.iris import WCS_LOCK, _LockedWCS, image_data, keep_hpc_linked, raster_data
 from glue_solar.sources.loaders.scan import scan_directory
-from glue_solar.sources.sst import _Cube, _TabularWCS, sst_data
+from glue_solar.sources.sst import _Cube, _line_core, _TabularWCS, sst_data
 from glue_solar.tests.helpers import press, select_point
 from glue_solar.tests.test_linking import RASTER, SJI, _real
 from glue_solar.tests.test_quicklook import (
@@ -79,21 +81,24 @@ def write_sst_cube(
     cadence=60.0,
     prefilters=None,
     knots=2,
+    core=None,
 ):
     """
     Write an SST cube as SSTRED exports one, of ``shape`` (scans, Stokes, tunings, y, x): its pixel (x, y) at scan t is
     at ``centre + t * drift + R(roll) @ scale * (x - centre pixel, y - centre pixel)``, in arcsec, and its tuning k at
-    scan t at ``start + t * cadence + 0.25 * k`` s since 2021-09-05 UTC. ``prefilters`` are the tunings of each cavity
-    map, all of them in one map without OFFSET.3 and SCALE.3 by default; the map of extension version v is v + 0.001 *
-    (scan + x / 100 + y / 10000) nm. The table gives the pointing at ``knots`` points along x, the corners by default.
-    Returns the file's coordinate table, (scans, tunings, y corner, x point, lon, lat, wavelength, time).
+    scan t at ``start + t * cadence + 0.25 * k`` s since 2021-09-05 UTC, as its DATE-AVG table gives it too, and
+    656.28 nm, H-alpha's, at tuning ``core``, the middle one by default, 0.01 nm apart. ``prefilters`` are the tunings of
+    each cavity map, all of them in one map without OFFSET.3 and SCALE.3 by default; the map of extension version v is v
+    + 0.001 * (scan + x / 100 + y / 10000) nm. The table gives the pointing at ``knots`` points along x, the corners by
+    default. Returns the file's coordinate table, (scans, tunings, y corner, x point, lon, lat, wavelength, time).
     """
     scans, stokes, tunings, rows, columns = shape
+    core = tunings // 2 if core is None else core
     t, k, j, i = np.indices((scans, tunings, 2, knots), dtype=float)
     dx, dy = (i / (knots - 1) - 0.5) * (columns - 1) * scale, (j * (rows - 1) - (rows - 1) / 2) * scale
     cos, sin = np.cos(np.deg2rad(roll)), np.sin(np.deg2rad(roll))
     lon, lat = centre[0] + t * drift[0] + cos * dx - sin * dy, centre[1] + t * drift[1] + sin * dx + cos * dy
-    coord = np.stack([lon, lat, 656.28 + 0.01 * (k - tunings // 2), start + t * cadence + 0.25 * k], -1)
+    coord = np.stack([lon, lat, 656.28 + 0.01 * (k - core), start + t * cadence + 0.25 * k], -1)
     header = fits.Header({"DATEREF": DATEREF, "DATE-OBS": DATEREF, "INSTRUME": "CRISP", "TIMESYS": "UTC"})
     header.update({"OBSGEO-X": 5327403, "OBSGEO-Y": -1718726, "OBSGEO-Z": 3051730})  # the SST's
     header.update(BUNIT="W m^-2 Hz^-1 sr^-1", BTYPE="Intensity")
@@ -144,10 +149,13 @@ def write_sst_cube(
         lookup = fits.ImageHDU(np.float32(version + 0.001 * (scan + x / 100 + y / 10000)), name="WCSDVARR", ver=version)
         lookup.header["DISTNAME"] = "Cavity error"
         lookups.append(lookup)
-    dates = fits.BinTableHDU.from_columns(
-        [fits.Column("DATE-AVG", "25A", array=["2021-09-05T00:20:00.000000000"])], name="VAR-EXT-DATE-AVG"
-    )
-    fits.HDUList([fits.PrimaryHDU(values, header), table, *lookups, dates]).writeto(path)
+    # SOLARNET's variable keywords: the time of each scan and tuning, and the seeing at times of its own
+    times = np.datetime64(DATEREF) + np.round(coord[:, :, 0, 0, 3] * 1e3).astype("timedelta64[ms]")
+    dates = np.datetime_as_string(times, unit="ms").reshape(scans, 1, tunings, 1, 1)
+    dates = fits.Column("DATE-AVG", f"{dates.size * 25}A", dim=f"(25,1,1,{tunings},1,{scans})", array=dates[None])
+    seeing = fits.Column("ATMOS_R0", "6E", dim="(2,3)", array=[[[0.1, 0.2]] * 3]), fits.Column("TIME-ATMOS_R0", "3D")
+    tables = [fits.BinTableHDU.from_columns(c, name=f"VAR-EXT-{c[0].name}") for c in ([dates], seeing)]
+    fits.HDUList([fits.PrimaryHDU(values, header), table, *lookups, *tables]).writeto(path)
     return coord
 
 
@@ -159,7 +167,8 @@ def _mapped(values):
 
 
 def test_file_open_gives_the_cube_alone_memory_mapped(tmp_path):
-    # SST12: not glue's 33 datasets, the WCSDVARR image and empty ones for the WCS-TAB and VAR-EXT tables
+    # SST12: not glue's 33 datasets, the WCSDVARR image and empty ones for the WCS-TAB and VAR-EXT tables; a cube of
+    # intensities without its Stokes axis of length 1 (227-1), the VAR-EXT tables as metadata (227-3)
     path = tmp_path / "nb_6563_scans=0-2_im.fits"
     write_sst_cube(path)
     data = load_data(str(path))  # File → Open Data Set's choice of reader
@@ -167,8 +176,20 @@ def test_file_open_gives_the_cube_alone_memory_mapped(tmp_path):
     assert [cid.label for cid in data.main_components] == ["Intensity", "Time", "Cavity error"]
     values = data.get_component("Intensity").data
     assert _mapped(values)
-    np.testing.assert_array_equal(values, fits.getdata(path))
+    np.testing.assert_array_equal(values, fits.getdata(path)[:, 0])
     assert isinstance(data.coords, _TabularWCS)
+    assert data.shape == (3, 5, 12, 16)
+    assert "phys.polarization.stokes" not in data.coords.world_axis_physical_types
+    tables = data.meta["VAR-EXT"]
+    assert {name: column.shape for name, column in tables.items()} == {
+        "DATE-AVG": (3, 5, 1, 1),  # on the cube's axes, 1 long along those it does not change on
+        "ATMOS_R0": (3, 2),  # at times of its own
+        "TIME-ATMOS_R0": (3,),
+    }
+    write_sst_cube(tmp_path / "stokes.fits", (3, 4, 5, 12, 16))
+    stokes = sst_data(tmp_path / "stokes.fits")
+    assert stokes.shape == (3, 4, 5, 12, 16)
+    assert stokes.meta["VAR-EXT"]["DATE-AVG"].shape == (3, 1, 5, 1, 1)
     assert data.meta["SPECSYS"] == "TOPOCENT"  # SST2: astropy needs one beside OBSGEO
     assert _role(data) == "sst"
     assert _timed(data)  # in the time sync of the SST cubes of its day (D68)
@@ -180,17 +201,21 @@ def test_time_and_wavelengths_are_the_table_s_at_every_pixel(tmp_path):
     coord = write_sst_cube(path, drift=(5.0, -3.0), roll=10.0)
     data = sst_data(path)
     times = np.datetime64(DATEREF, "ns") + np.round(coord[:, :, 0, 0, 3] * 1e9).astype("timedelta64[ns]")
-    np.testing.assert_array_equal(data["Time"], np.broadcast_to(times[:, None, :, None, None], data.shape))
-    seconds, _, wavelength, lat, lon = data.world_component_ids
-    np.testing.assert_allclose(data[seconds], np.broadcast_to(coord[:, None, :, :1, :1, 3], data.shape), rtol=1e-12)
-    np.testing.assert_allclose(data[wavelength], np.broadcast_to(coord[:, None, :, :1, :1, 2], data.shape), rtol=1e-12)
+    np.testing.assert_array_equal(data["Time"], np.broadcast_to(times[:, :, None, None], data.shape))
+    # each scan's and tuning's, as the file's DATE-AVG table gives it (227-3)
+    dates = data.meta["VAR-EXT"]["DATE-AVG"].astype("datetime64[ns]")
+    np.testing.assert_array_equal(data["Time"], np.broadcast_to(dates, data.shape))
+    seconds, wavelength, lat, lon = data.world_component_ids
+    np.testing.assert_allclose(data[seconds], np.broadcast_to(coord[:, :, :1, :1, 3], data.shape), rtol=1e-12)
+    np.testing.assert_allclose(data[wavelength], np.broadcast_to(coord[:, :, :1, :1, 2], data.shape), rtol=1e-12)
     # the pointing of each scan, at the field's corners
-    corners = data[lon][:, 0, 0][:, [0, -1]][:, :, [0, -1]], data[lat][:, 0, 0][:, [0, -1]][:, :, [0, -1]]
+    corners = data[lon][:, 0][:, [0, -1]][:, :, [0, -1]], data[lat][:, 0][:, [0, -1]][:, :, [0, -1]]
     np.testing.assert_allclose(corners, np.moveaxis(coord[:, 0, :, :, :2], -1, 0), atol=1e-9)
 
 
 def test_the_cavity_error_is_each_tuning_s_map(tmp_path):
-    # CHROMIS's Ca II H & K cube has a map for each prefilter, by tuning, and none for its continuum tuning
+    # CHROMIS's Ca II H & K cube has a map for each prefilter, by tuning, and none for its continuum tuning, where the
+    # nominal wavelength is the one to take (227-10)
     path = tmp_path / "cube.fits"
     write_sst_cube(path, shape=(2, 1, 7, 4, 5), prefilters=[range(3), range(3, 6)])
     data = sst_data(path)
@@ -198,21 +223,28 @@ def test_the_cavity_error_is_each_tuning_s_map(tmp_path):
     assert cavity.units == "nm"
     with fits.open(path) as hdulist:
         maps = [hdulist["WCSDVARR", version].data[:, :, 0] for version in (1, 2)]
-    expected = np.concatenate([maps[0]] * 3 + [maps[1]] * 3 + [np.full_like(maps[0], np.nan)], axis=1)
-    np.testing.assert_array_equal(data["Cavity error"], np.broadcast_to(expected[:, None], data.shape))
-    np.testing.assert_array_equal(data["Cavity error", (1, 0, slice(None), 2, 3)], expected[1, :, 2, 3])
+    expected = np.concatenate([maps[0]] * 3 + [maps[1]] * 3 + [np.zeros_like(maps[0])], axis=1)
+    np.testing.assert_array_equal(data["Cavity error"], np.broadcast_to(expected, data.shape))
+    np.testing.assert_array_equal(data["Cavity error", (1, slice(None), 2, 3)], expected[1, :, 2, 3])
+    # 5-D with four Stokes parameters
+    write_sst_cube(tmp_path / "stokes.fits", shape=(2, 4, 7, 4, 5), prefilters=[range(3), range(3, 6)])
+    stokes = sst_data(tmp_path / "stokes.fits")
+    np.testing.assert_array_equal(stokes["Cavity error"], np.broadcast_to(expected[:, None], stokes.shape))
 
 
-def test_the_inverse_is_wcslib_s_inside_the_table_and_takes_the_line_core_outside(tmp_path):
+@pytest.mark.parametrize("stokes", [1, 4])
+def test_the_inverse_is_wcslib_s_inside_the_table_and_takes_the_line_core_outside(tmp_path, stokes):
     path = tmp_path / "cube.fits"
-    coord = write_sst_cube(path, drift=(5.0, -3.0), roll=10.0)
+    coord = write_sst_cube(path, (3, stokes, 5, 12, 16), drift=(5.0, -3.0), roll=10.0, core=1)
     coords = sst_data(path).coords
+    assert coords.core == 1  # H-alpha's tuning, not the middle one
+    i, stokes_i = ([0], [1]) if stokes == 4 else ([], [])  # the pixel and the value of Stokes I, if any
     rng = np.random.default_rng(0)
     pixels = [
         rng.uniform(-2, 17, 40),
         rng.uniform(-2, 13, 40),
         rng.integers(0, 5, 40),
-        np.zeros(40),
+        *[rng.integers(0, 4, 40) for _ in i],
         rng.integers(0, 3, 40),
     ]
     world = coords.pixel_to_world_values(*pixels)
@@ -222,15 +254,31 @@ def test_the_inverse_is_wcslib_s_inside_the_table_and_takes_the_line_core_outsid
         np.testing.assert_allclose(got[~np.isnan(wcslib)], wcslib[~np.isnan(wcslib)], atol=1e-6)  # wcslib's tolerance
     assert (~np.isnan(inside[0])).sum() >= 20
     # glue's CRVAL, 0, for a wavelength and time: the line core of the nearest scan, the first, where wcslib gives NaN
-    lon, lat, *_ = coords.pixel_to_world_values(3.5, 7.25, 2, 0, 0)
-    assert np.isnan(WCS.world_to_pixel_values(coords, lon, lat, 0, 1, 0)[0])
-    x, y, wavelength, stokes, scan = coords.world_to_pixel_values(lon, lat, 0, 1, 0)
-    np.testing.assert_allclose([x, y, stokes, scan], [3.5, 7.25, 0, 0], atol=1e-9)
+    lon, lat, *_ = coords.pixel_to_world_values(3.5, 7.25, 2, *i, 0)
+    assert np.isnan(WCS.world_to_pixel_values(coords, lon, lat, 0, *stokes_i, 0)[0])
+    x, y, wavelength, *pixel_i, scan = coords.world_to_pixel_values(lon, lat, 0, *stokes_i, 0)
+    np.testing.assert_allclose([x, y, *pixel_i, scan], [3.5, 7.25, *i, 0], atol=1e-9)
     assert np.isnan(wavelength)
-    # a time: the scan nearest it, ties to the earlier
-    for seconds, nearest_scan in ((coord[1, 2, 0, 0, 3] + 29, 1), (coord[1, 2, 0, 0, 3] + 30, 1), (1e9, 2)):
-        lon, lat, *_ = coords.pixel_to_world_values(3.5, 7.25, 2, 0, nearest_scan)
-        np.testing.assert_allclose(coords.world_to_pixel_values(lon, lat, 0, 1, seconds)[:2], [3.5, 7.25], atol=1e-9)
+    # a time: the scan nearest it at the line core, ties to the earlier, where the middle tuning is 0.25 s later
+    core = coord[1, 1, 0, 0, 3]
+    for seconds, nearest_scan in ((core + 29, 1), (core + 30, 1), (core + 30.1, 2), (1e9, 2)):
+        lon, lat, *_ = coords.pixel_to_world_values(3.5, 7.25, 2, *i, nearest_scan)
+        got = coords.world_to_pixel_values(lon, lat, 0, *stokes_i, seconds)
+        np.testing.assert_allclose(got[:2], [3.5, 7.25], atol=1e-9)
+
+
+def test_the_line_core_is_the_tuning_nearest_the_line_nearest_wavelnth():
+    # 227-4: tunings of the SST archive's cubes, whose WAVELNTH is the prefilter's; the middle tuning of obs 495's Ca II
+    # H & K cube is in Ca II H, but the line nearest its WAVELNTH is Ca II K
+    chromis = [393.2674, 393.3675, 393.5326, 396.7562, 396.8415, 396.9, 399.9]
+    assert _line_core(chromis, 395.0) == 1  # 393.3675 nm, Ca II K
+    crisp = [853.9721, 854.1581, 854.2001, 854.2061, 854.2121, 854.2181, 854.2661, 854.4521]
+    assert _line_core(crisp, 854.1) == 4  # 854.2121 nm: Ca II 854.209 nm, as the Sun redshifts it; not WAVELNTH's
+    fe = [630.1883, 630.2183, 630.2363, 630.2483, 630.2543, 630.2783, 630.3083]
+    assert _line_core(fe, 630.26) == 3  # 630.2483 nm, Fe I 630.25, the one of the two within the tunings
+    assert _line_core([393.3660, 393.3672], 395.0) == 1  # Ca II K at 393.3663 nm, 393.3671 nm as the Sun redshifts it
+    assert _line_core([500.0, 500.1, 500.2, 500.3], 500.12) == 1  # no line of the table: WAVELNTH's tuning
+    assert _line_core(chromis) == 4  # without WAVELNTH, the line nearest the middle tuning: Ca II H
 
 
 def test_colour_limits_sample_evenly_spaced_planes_rows_and_columns(monkeypatch, tmp_path):
@@ -248,8 +296,8 @@ def test_colour_limits_sample_evenly_spaced_planes_rows_and_columns(monkeypatch,
         limit = cube.compute_statistic("percentile", cid, percentile=percentile, random_subset=10000)
         assert limit == np.nanpercentile(sample, percentile)
     # glue's own sample for an axis or a subset
-    first = PixelSubsetState(cube, [slice(0, 1)] + [slice(None)] * 4)
-    for where in ({"axis": (1, 2, 3, 4)}, {"subset_state": first}):
+    first = PixelSubsetState(cube, [slice(0, 1)] + [slice(None)] * 3)
+    for where in ({"axis": (1, 2, 3)}, {"subset_state": first}):
         with pytest.raises(AssertionError, match="glue's random sample"):
             cube.compute_statistic("maximum", cid, random_subset=10000, **where)
 
@@ -264,7 +312,7 @@ def test_an_image_viewer_shows_a_cube_without_specsys(qtbot, tmp_path):
     data = app.load_data(str(path))  # File → Open Data Set
     viewer = app.new_data_viewer(ImageViewer, data=data)
     readout = viewer.toolbar.tools["solar:frame_time"].label
-    for slices in ((0, 0, 0, 0, 0), (2, 0, 4, 0, 0)):  # the scan and tuning sliders, and that tuning's time
+    for slices in ((0, 0, 0, 0), (2, 4, 0, 0)):  # the scan and tuning sliders, and that tuning's time
         viewer.state.slices = slices
         qtbot.wait(20)  # the time sync, which the readout gives too
         assert readout.text() == f"{np.datetime_as_string(data['Time', slices], unit='ms')} UTC · time master"
@@ -276,9 +324,9 @@ def test_a_table_of_more_points_than_the_field_s_corners_takes_wcslib_s_inverse(
     path = tmp_path / "cube.fits"
     write_sst_cube(path, drift=(5.0, -3.0), roll=10.0, knots=3)
     coords = sst_data(path).coords
-    world = coords.pixel_to_world_values(3.5, 7.25, 2, 0, 1)
-    np.testing.assert_allclose(coords.world_to_pixel_values(*world), [3.5, 7.25, 2, 0, 1], atol=1e-6)
-    assert np.isnan(coords.world_to_pixel_values(*world[:2], 0, 1, 0)[0])  # wcslib's NaN outside the table
+    world = coords.pixel_to_world_values(3.5, 7.25, 2, 1)
+    np.testing.assert_allclose(coords.world_to_pixel_values(*world), [3.5, 7.25, 2, 1], atol=1e-6)
+    assert np.isnan(coords.world_to_pixel_values(*world[:2], 0, 0)[0])  # wcslib's NaN outside the table
 
 
 def test_glue_s_autolinker_leaves_the_table_s_celestial_axes_whole(tmp_path):
@@ -295,12 +343,12 @@ def test_a_session_and_the_last_session_restore_a_cube_and_its_viewer(qtbot, mon
     # SST5: glue rebuilt the coordinates from their header alone, without their table ('HDUList is required')
     monkeypatch.setattr(glue.config, "CFG_DIR", str(tmp_path / ".glue"))  # glue's settings folder, not the user's
     path = tmp_path / "cube.fits"
-    write_sst_cube(path, drift=(5.0, -3.0), roll=10.0, prefilters=[range(2), range(2, 5)])
+    write_sst_cube(path, drift=(5.0, -3.0), roll=10.0, prefilters=[range(2), range(2, 5)], core=1)
     glue_solar.setup()
     app = GlueApplication()  # not given to qtbot, which cannot close it once glue-qt has deleted it as it closed
     monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
     data = app.load_data(str(path))  # File → Open Data Set
-    app.new_data_viewer(ImageViewer, data=data).state.slices = (2, 0, 3, 0, 0)
+    app.new_data_viewer(ImageViewer, data=data).state.slices = (2, 3, 0, 0)
     app.save_session(str(tmp_path / "cube.glu"))
     app.show()
     app.close()  # as File → Quit does, which keeps the last session
@@ -320,13 +368,24 @@ def test_a_session_and_the_last_session_restore_a_cube_and_its_viewer(qtbot, mon
             np.testing.assert_allclose(got, expected, atol=1e-9)
         for component in ("Intensity", "Time", "Cavity error"):
             np.testing.assert_array_equal(cube[component], data[component])
-        assert tuple(restored.viewers[0][0].state.slices) == (2, 0, 3, 0, 0)
+        assert cube.coords.core == 1
+        for name, values in data.meta["VAR-EXT"].items():  # read from the file again, not held in the session
+            np.testing.assert_array_equal(cube.meta["VAR-EXT"][name], values)
+        assert "ATMOS_R0" not in (tmp_path / "cube.glu").read_text()
+        assert tuple(restored.viewers[0][0].state.slices) == (2, 3, 0, 0)
+    monkeypatch.setattr(restored, "report_error", lambda message, detail: pytest.fail(detail))
+    restored.save_session(str(tmp_path / "again.glu"))  # from a restored session
+    again = GlueApplication.restore_session(str(tmp_path / "again.glu"))
+    qtbot.addWidget(again)
+    [cube] = again.data_collection
+    np.testing.assert_array_equal(cube.meta["VAR-EXT"]["DATE-AVG"], data.meta["VAR-EXT"]["DATE-AVG"])
 
 
 def _sst_pixels(coord, lon, lat, when, shape, scale, roll):
     """
     The pixel (x, y) of a cube ``write_sst_cube`` wrote with ``coord``, ``shape``, ``scale`` and ``roll`` at ``lon``,
-    ``lat`` in the scan nearest each time ``when``, timed by its middle tuning, from the cube's own geometry.
+    ``lat`` in the scan nearest each time ``when``, timed by its line core, the middle tuning, from the cube's own
+    geometry.
     """
     *_, tunings, rows, columns = shape
     seconds = (when - np.datetime64(DATEREF)) / np.timedelta64(1, "s")
@@ -350,10 +409,12 @@ def test_once_linked_an_sst_region_or_point_selects_the_iris_pixels_at_its_place
     dc = DataCollection([sji, raster, cube])
     keep_hpc_linked(dc)
     roi = RectangularROI(10.3, 29.6, 6.2, 21.7)
-    region = RoiSubsetState(xatt=cube.pixel_component_ids[4], yatt=cube.pixel_component_ids[3], roi=roi)
+    region = RoiSubsetState(xatt=cube.pixel_component_ids[-1], yatt=cube.pixel_component_ids[-2], roi=roi)
     with pytest.raises(IncompatibleAttribute):  # D64: linked on request only
         sji.get_mask(region)
+    assert not isinstance(cube.coords, _LockedWCS)  # 227-9: nor behind the WCS lock until then
     keep_hpc_linked(dc, others=dc)  # 'IRIS: link helioprojective coordinates'
+    assert isinstance(cube.coords, _LockedWCS)
     for data, mask in ((sji, sji.get_mask(region)), (raster, raster.get_mask(region)[..., 0])):
         index = np.indices(mask.shape)
         if data is sji:
@@ -374,8 +435,8 @@ def test_once_linked_an_sst_region_or_point_selects_the_iris_pixels_at_its_place
         assert (inside(frames[0]) != expected).sum() >= 10  # not in the first scan's pointing throughout
     # glue's Pixel point, at the cube's first scan and tuning: the raster's exposure and slit row nearest it, and in the
     # slit-jaw frame nearest that scan, the pixel there
-    point = PixelSubsetState(cube, [slice(None)] * 3 + [slice(15, 16), slice(30, 31)])
-    lon, lat, *_ = cube.coords.pixel_to_world_values(30, 15, 0, 0, 0)
+    point = PixelSubsetState(cube, [slice(None)] * 2 + [slice(15, 16), slice(30, 31)])
+    lon, lat, *_ = cube.coords.pixel_to_world_values(30, 15, 0, 0)
     exposure, slit = np.indices(raster.shape[:2])
     _, lats, lons = raster.coords.pixel_to_world_values(0, slit, exposure)
     assert point._to_linked_pixel_coords(raster) == [
@@ -395,16 +456,20 @@ def sst_app(qtbot, monkeypatch):
 
 
 def stokes_cube(path, shape=(3, 4, 5, 12, 16), line="H-alpha", **kwargs):
-    """A cube ``write_sst_cube`` writes at ``path``, named as the archive names ``line``, and its values."""
+    """A cube ``write_sst_cube`` writes at ``path``, named as the archive names ``line``, and its file's values."""
     write_sst_cube(path, shape, drift=(5.0, -3.0), **kwargs)
     fits.setval(path, "WAVEBAND", value=line)
     return sst_data(path), fits.getdata(path)
 
 
 def check_sst_panels(viewers, values, group):
-    """Each panel of an SST quicklook is the cube at the point, its scan and Stokes, and the wavelengths shown."""
-    s, k, y, x = (group.subset_state.slices[axis].start for axis in (0, 1, 3, 4))
-    w, wing = viewers["map"].state.slices[2], viewers["wing"].state.slices[2]
+    """
+    Each panel of an SST quicklook is the file's ``values`` at the point, its scan and Stokes, and the wavelengths
+    shown; a cube of intensities has no Stokes axis.
+    """
+    point = group.subset_state.slices
+    s, k, y, x = point[0].start, point[1].start if len(point) == 5 else 0, point[-2].start, point[-1].start
+    w, wing = viewers["map"].state.slices[-3], viewers["wing"].state.slices[-3]
     images = {"map": values[s, k, w], "wing": values[s, k, wing], "slit": values[s, k, :, :, x].T}
     images["wavelength"] = values[:, k, :, y, x]
     for role, expected in images.items():
@@ -428,7 +493,8 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
     ]
     assert set(sst_app.viewers[-1]) == {viewer for row in viewers["rows"] for viewer in row}
     pixel = cube.pixel_component_ids
-    # the map at the middle tuning, the second map at the first, the point at the map's centre in scan 0 and Stokes I
+    # the map at the line core, H-alpha's tuning, the second map at the first, the point at the map's centre in scan 0
+    # and Stokes I
     for role, x, y, tuning in (("map", 4, 3, 2), ("wing", 4, 3, 0), ("slit", 2, 3, 2), ("wavelength", 2, 0, 2)):
         state = viewers[role].state
         assert isinstance(viewers[role], QuicklookImageViewer)
@@ -471,12 +537,30 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
     slide(viewers["map"], 2, 4)
     qtbot.wait(20)
     check_sst_panels(viewers, values, group)
-    # a cube of intensities has one spectrum, the '&' of CHROMIS's line not a shortcut in Qt's titles; one cube to a tab
-    single, values = stokes_cube(tmp_path / "single.fits", shape=(3, 1, 5, 12, 16), line="Ca II H & K")
+    # a cube of intensities, without a Stokes axis (227-1), has one spectrum, the '&' of CHROMIS's line not a shortcut in
+    # Qt's titles; its maps open at its line core (227-4), here its second tuning, and at the scan of the time the other
+    # cube's quicklook left; one cube to a tab
+    single, values = stokes_cube(tmp_path / "single.fits", shape=(3, 1, 5, 12, 16), line="Ca II H & K", core=1)
     viewers = quicklook(sst_app, [single])
     assert sst_app.tab_names[-1] == "SST Ca II H and K"
     assert [viewer.state.title for viewer in viewers["rows"][1]] == ["Ca II H and K spectrum"]
-    check_sst_panels(viewers, values, sst_app.session.edit_subset_mode.edit_subset[0])
+    pixel = single.pixel_component_ids
+    for role, x, y, tuning in (("map", 3, 2, 1), ("wing", 3, 2, 0), ("slit", 1, 2, 1), ("wavelength", 1, 0, 1)):
+        state = viewers[role].state
+        assert (state.x_att, state.y_att, state.slices) == (pixel[x], pixel[y], (2, tuning, 6, 8))
+    [group] = sst_app.session.edit_subset_mode.edit_subset
+    assert group.subset_state.slices == [slice(2, 3), slice(None), slice(6, 7), slice(8, 9)]
+    check_sst_panels(viewers, values, group)
+    window = point_window(sst_app)
+    settle(qtbot, window)
+    assert rows(window)[0][1] == "scan 2, λ 1, y 6, x 8"
+    # a click takes the scan of the map's slider; the scan and wavelength sliders: every panel follows
+    slide(viewers["map"], 0, 1)
+    select_point(viewers["map"], 3, 7)
+    slide(viewers["map"], 1, 4)
+    qtbot.wait(20)
+    assert group.subset_state.slices == [slice(1, 2), slice(None), slice(7, 8), slice(3, 4)]
+    check_sst_panels(viewers, values, group)
     with pytest.raises(ValueError, match="one cube"):
         quicklook(sst_app, [cube, single])
 
@@ -549,11 +633,6 @@ def test_what_moves_on_an_sst_cube(sst_app, qtbot, tmp_path):
     assert "time master" in viewers["map"].toolbar.tools["solar:frame_time"].label.text()
 
 
-def scan_times(cube):
-    """An SST cube's time of each scan, at its middle tuning."""
-    return cube["Time"][:, 0, cube.shape[2] // 2, 0, 0]
-
-
 def shown_scan(viewers):
     return viewers["map"].state.slices[0]
 
@@ -588,13 +667,16 @@ def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
 
 
 def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_path, sns):
-    # D64, D68: an SST cube joins the time sync of the IRIS observation it is linked to, on request only
+    # D64, D68: an SST cube joins the time sync of the IRIS observation it is linked to, on request only, each scan timed
+    # at its line core (227-4), here its second tuning; and only then behind the WCS lock (227-9)
     sji, raster = sns
     frames = _times(sji, 0)
     start, cadence = (frames[10] - np.datetime64(DATEREF)), (frames[-1] - frames[10]) / 3
     seconds = [time / np.timedelta64(1, "s") for time in (start, cadence)]
-    write_sst_cube(tmp_path / "cube.fits", (4, 1, 5, 30, 40), (-55.0, -400.0), (4.0, -3.0), 1.1, 8.0, *seconds)
+    write_sst_cube(tmp_path / "cube.fits", (4, 1, 5, 30, 40), (-55.0, -400.0), (4.0, -3.0), 1.1, 8.0, *seconds, core=1)
     cube = sst_data(tmp_path / "cube.fits")
+    scans = cube["Time"][:, 1, 0, 0]
+    np.testing.assert_array_equal(_times(cube, None), scans)
     iris = quicklook(sst_app, [raster, sji])
     sst = quicklook(sst_app, [cube])
     coord = coordinator(sst_app.data_collection)
@@ -604,26 +686,29 @@ def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_p
     show_tab(sst_app, qtbot, 2)
     assert shown_scan(sst) == 3
     assert observation_key(cube) == ("SST", np.datetime64(DATEREF[:10]))
+    assert not isinstance(cube.coords, _LockedWCS)
     link_iris(sst_app.session, sst_app.data_collection)  # 'IRIS: link helioprojective coordinates'
+    assert isinstance(cube.coords, _LockedWCS)
     key = observation_key(raster)
     assert observation_key(cube) == key
     assert cube.meta["IRIS observation"] == [key[0], str(key[1])]
     # shown, the IRIS quicklook takes the time from the cube's scan, and the cube then from its exposure
     times = _times(raster, None)
     show_tab(sst_app, qtbot, 1)
-    [nearest_exposure], _ = nearest([scan_times(cube)[3]], times)
+    [nearest_exposure], _ = nearest([scans[3]], times)
     assert iris["spectrogram"].state.slices[0] == nearest_exposure != exposure
     coord.move_master(raster, 5)
     qtbot.wait(20)
     show_tab(sst_app, qtbot, 2)
-    [scan], [offset] = nearest([times[5]], scan_times(cube))
+    [scan], [offset] = nearest([times[5]], scans)
     assert shown_scan(sst) == scan
     assert abs(offset) <= cadence / 2
     assert "time master" in sst["map"].toolbar.tools["solar:frame_time"].label.text()
 
 
-def test_a_session_restores_the_sst_quicklook(sst_app, qtbot, tmp_path):
-    cube, values = stokes_cube(tmp_path / "cube.fits")
+@pytest.mark.parametrize("stokes", [4, 1])
+def test_a_session_restores_the_sst_quicklook(sst_app, qtbot, tmp_path, stokes):
+    cube, values = stokes_cube(tmp_path / "cube.fits", (3, stokes, 5, 12, 16), core=1)
     viewers = quicklook(sst_app, [cube])
     select_point(viewers["map"], 3, 7)
     slide(viewers["map"], 0, 2)
@@ -635,18 +720,55 @@ def test_a_session_restores_the_sst_quicklook(sst_app, qtbot, tmp_path):
     panels = {viewer.state.title.split(" ", 1)[1]: viewer for viewer in restored.viewers[1]}
     again = {role: panels[title] for role, title in (("map", "map"), ("wing", "second map"), ("slit", "virtual slit"))}
     again.update(wavelength=panels["λ–time"], curve=panels["light curve"])
-    again["spectra"] = [panels[f"Stokes {stokes}"] for stokes in "IQUV"]
+    again["spectra"] = [panels[f"Stokes {name}"] for name in "IQUV"] if stokes == 4 else [panels["spectrum"]]
     [group] = restored.session.edit_subset_mode.edit_subset
     [data] = restored.data_collection
     assert isinstance(data, _Cube)  # its colour limits' sample too
+    assert data.coords.core == again["map"].state.slices[-3] == 1
     assert group.label == "Point"
-    assert group.subset_state.slices[:2] == [slice(2, 3), slice(0, 1)]
+    i = [slice(0, 1)] if stokes == 4 else []  # Stokes I, if any
+    assert group.subset_state.slices[: 1 + len(i)] == [slice(2, 3), *i]
     check_sst_panels(again, values, group)
     # a click moves every panel, the spectra and the light curve too
     select_point(again["map"], 10, 4)
     qtbot.wait(20)
-    assert group.subset_state.slices == [slice(2, 3), slice(0, 1), slice(None), slice(4, 5), slice(10, 11)]
+    assert group.subset_state.slices == [slice(2, 3), *i, slice(None), slice(4, 5), slice(10, 11)]
     check_sst_panels(again, values, group)
+
+
+def test_an_unlinked_cube_never_takes_the_wcs_lock(sst_app, qtbot, monkeypatch, tmp_path, sns):
+    # 227-9: an SST cube is behind the WCS lock only once linked to IRIS data, as maps are (#226), so that its viewers
+    # never wait for IRIS data's threads until then; with the axes shown, WCSAxes draws through its coordinates
+    taken, lock = [], WCS_LOCK
+
+    class Counted:
+        def __enter__(self):
+            taken.append(threading.current_thread().name)
+            return lock.__enter__()
+
+        def __exit__(self, *args):
+            return lock.__exit__(*args)
+
+    for name, module in list(sys.modules.items()):
+        if name.startswith("glue_solar") and getattr(module, "WCS_LOCK", None) is WCS_LOCK:  # each imports it by name
+            monkeypatch.setattr(module, "WCS_LOCK", Counted())
+    cube, _ = stokes_cube(tmp_path / "cube.fits")
+    single, values = stokes_cube(tmp_path / "single.fits", (3, 1, 5, 12, 16))
+    for data in (cube, single):  # the second's viewers also show the first's point
+        viewers = quicklook(sst_app, [data])
+        tick(panels_list(sst_app), "Axes")
+        select_point(viewers["map"], 3, 7)
+        slide(viewers["map"], 0, 2)
+        select_point(viewers["slit"], 2, 4)
+        settle(qtbot, point_window(sst_app))
+    check_sst_panels(viewers, values, sst_app.session.edit_subset_mode.edit_subset[0])
+    assert taken == []
+    sst_app.data_collection.extend(sns)
+    link_iris(sst_app.session, sst_app.data_collection)  # 'IRIS: link helioprojective coordinates'
+    taken.clear()  # as the links reach the IRIS data's coordinates
+    slide(viewers["map"], 0, 1)
+    settle(qtbot, point_window(sst_app))
+    assert taken
 
 
 def test_the_browser_lists_and_opens_each_sst_cube(qtbot, monkeypatch, tmp_path):

@@ -17,12 +17,13 @@ glue's terminal, ``sst_data`` loads one the same way::
 
     data_collection.append(sst_data("nb_8542_2023-09-19T10:43:01_mosaic_…_im.fits"))
 
-The dataset's axes are the file's, in numpy order: scan, Stokes, tuning, y and x, with a Stokes axis
-of length 1 in a cube of intensities. Its values stay in the file, memory-mapped: opening a cube reads
-only its headers and coordinate table, in 0.02 to 0.04 s for the cubes of 0.4 to 9.9 GB tried, and a
-viewer reads the planes it shows. A viewer's colour limits come from evenly spaced rows and columns of
-16 evenly spaced planes, about 10,000 values, as many as glue samples at random, each on another page
-of the file, which read 0.7 GB the first time.
+The dataset's axes are the file's, in numpy order: scan, Stokes, tuning, y and x, but a cube of
+intensities, such as CHROMIS's, leaves out its Stokes axis of length 1: scan, tuning, y and x. Its
+values stay in the file, memory-mapped: opening a cube reads only its headers and tables, 0.2 to 0.3
+MB in 0.03 to 0.05 s for the cubes of 0.4 to 9.9 GB tried, and a viewer reads the planes it shows. A
+viewer's colour limits come from evenly spaced rows and columns of 16 evenly spaced planes, about
+10,000 values, as many as glue samples at random, each on another page of the file, which read 0.7
+GB the first time.
 
 Its coordinates are the file's tabulated WCS: the helioprojective longitude and latitude of each scan,
 which move from scan to scan in a mosaic, the nominal wavelength of each tuning, in nm, and the time
@@ -31,7 +32,25 @@ at every pixel, as the file's ``DATE-AVG`` table does. A scan's tunings span fro
 H-alpha tunings of the archive's obs 171, to 26 s, the 21 Ca II 8542 tunings of its obs 492; glue's
 own reader gave every tuning the time of the first. A file whose header has no ``SPECSYS``, as the
 archive's 2020 exports have none, is given ``TOPOCENT``, without which no viewer showed it. The file's
-other tables (``VAR-EXT-…``, such as the seeing and the exposure times) are not loaded.
+other tables (``VAR-EXT-…``), such as the exposure times (``XPOSURE``) and the seeing (``ATMOS_R0``),
+are kept in the dataset's metadata, not as components: ``meta['VAR-EXT']`` gives each column by name,
+on the cube's axes, 1 long along those it does not change on, such as ``XPOSURE``'s value per scan and
+tuning, or at the table's own times, such as the seeing's (``TIME-ATMOS_R0``, in seconds since
+``DATEREF``).
+
+Line core
+---------
+
+The cube's line core is the tuning nearest its line: of the lines of the archive's cubes (Ca II K and
+H, H-beta, Fe I 617.33, 630.15 and 630.25 nm, H-alpha and Ca II 854.21 nm, at their NIST air
+wavelengths, redshifted 0.636 km/s by the Sun's gravity as the Sun shows them), the one within the
+cube's tunings nearest the header's ``WAVELNTH``, which is the prefilter's, not the line's; with none
+within them, the tuning nearest ``WAVELNTH``. Counting from 0, it is tuning 10 of 21 (854.2121 nm) on
+obs 492 Ca II 8542, the middle one, tuning 5 of 11 (630.2483 nm) on its Fe I 6302, the middle one too,
+and tuning 7 of 55 (393.3675 nm, Ca II K) on obs 495 Ca II H & K, whose ``WAVELNTH``, 395.0 nm, lies
+between Ca II K and H, nearer K, and whose middle tuning is in Ca II H. The quicklook opens its map
+there, the time sync and the links to IRIS data time each scan there, and a linked IRIS dataset,
+which has no wavelength, reaches the cube there (see `Linking to IRIS data`_).
 
 Cavity error
 ------------
@@ -43,7 +62,8 @@ correct one, or a line position measured on them, add the cavity error, with glu
 attribute editor for example: ``{Wavelength} + {Cavity error}``, or as a velocity at 656.28 nm,
 ``{Cavity error} / 656.28 * 299792.458`` in km/s. A CHROMIS Ca II H & K cube has a map for each
 prefilter, each applied to its own tunings, and none for its continuum tuning, where the cavity error
-is NaN. The maps too stay in the file until they are viewed.
+is 0, so that the corrected wavelength there is the nominal one. The maps too stay in the file until
+they are viewed.
 
 Linking to IRIS data
 --------------------
@@ -51,11 +71,13 @@ Linking to IRIS data
 An SST cube is linked to IRIS data only on request, with "IRIS: link helioprojective coordinates" in
 the "Plugins" menu (see :ref:`glue_solar_users_guide_iris_linking`). Once it is linked, a region drawn
 on the cube selects, in each slit-jaw frame and each raster exposure or step, the IRIS pixels at its
-place on the Sun in the cube's scan nearest that frame's time, timed by its middle tuning, at that
-scan's own pointing. A Pixel point on the cube, which takes the scan and Stokes parameter of the viewer
+place on the Sun in the cube's scan nearest that frame's time, timed at its line core, at that scan's
+own pointing. A Pixel point on the cube, which takes the scan and any Stokes parameter of the viewer
 clicked and is placed at the cube's first tuning, reaches the raster pixel at its place, and in the
 slit-jaw frame nearest that scan, the pixel there. The cube then also shares the time of the IRIS
-observation whose times come nearest its middle scan (see `The SST quicklook`_).
+observation whose times come nearest its middle scan (see `The SST quicklook`_). Only once linked are
+the cube's coordinates behind the lock glue-solar keeps IRIS data's behind, as a map's are, so until
+then its viewers never wait for IRIS data's spectrum threads.
 
 The SST quicklook
 -----------------
@@ -73,17 +95,17 @@ A CRISP or CHROMIS cube opens in a quicklook of its own, in a new tab named afte
 
 Its panels are laid out in three rows, maps on top:
 
-- the map, at the middle tuning, with sliders for the scan, the Stokes parameter and the wavelength;
-  a second map, at the first tuning, the line's blue wing; and the virtual slit, wavelength against y
-  at the point's x;
-- the spectrum at the point of Stokes I, Q, U and V side by side, or of I alone in a cube of
+- the map, at the line core (see `Line core`_), with sliders for the scan, the Stokes parameter, if
+  any, and the wavelength; a second map, at the first tuning, the line's blue wing; and the virtual
+  slit, wavelength against y at the point's x;
+- the spectrum at the point of Stokes I, Q, U and V side by side, or the one spectrum of a cube of
   intensities such as CHROMIS's;
 - wavelength against scan at the point ("λ–time"), and the light curve at the point: the cube's value
   at each scan, against the scan index, at the map's wavelength, or the mean over its band, a Collapse
   or a "Wavelength band…" (see :ref:`Viewer tools and windows
   <glue_solar_users_guide_viewer_tools_and_windows>`).
 
-The point, the edit subset "Point", starts at the map's centre in Stokes I and the first scan, with
+The point, the edit subset "Point", starts at the map's centre in the first scan and Stokes I, with
 the Pixel tool on the map, and is a pixel at every wavelength, as in the IRIS quicklook (see
 :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). A click on either map moves it, the
 virtual slit to its x and wavelength against scan to its y and x; a click on the virtual slit or on
@@ -91,19 +113,19 @@ wavelength against scan moves it there and the map, not the second map, to the w
 scan and Stokes sliders of either map move the point and the other panels; a wavelength slider moves
 its own map only, and :kbd:`A` and :kbd:`S` step every map's but the second's, unless pressed on it.
 The spectra keep their Stokes parameter and follow the point and the scan; the light curve follows the
-point, the Stokes parameter and the map's wavelength or band. Each is a subset group, "<line> Stokes I
+point, any Stokes parameter and the map's wavelength or band. Each is a subset group, "<line> Stokes I
 at the point" or "<line> light curve", glue's selection of those pixels by their indices, so no panel
 reads the whole cube, as a Profile viewer of the cube would (see "What is not supported"). As in the
 IRIS quicklook, the virtual slit and wavelength against scan have a thin red line at the point,
 wavelength against scan dashed white lines at both maps' wavelengths and a dotted one at the scan
 nearest the time master's time, and the Stokes I spectrum dashed grey lines at the maps' wavelengths;
-a zoom on its x axis gives wavelength against scan the same wavelength range. The "Point" window gives
-the point's scan, Stokes parameter, wavelength (λ, the map's), y and x, its position, the time of that
-tuning and the value there, and the "Panels" list beside it turns each panel off and on. As in the
-IRIS quicklook, the maps, the virtual slit and wavelength against scan open without their axes, and
-"Axes", at the top of the Panels list, shows or hides them on all four; the spectra and the light
-curve keep theirs. On obs 498 CHROMIS 4846 a scan step and a move of the point take 0.19 s with or
-without axes, as they wait for the spectrum and the light curve, which glue computes on a worker
+a zoom on its x axis gives wavelength against scan the same wavelength range. The "Point" window
+gives the point's scan, any Stokes parameter, wavelength (λ, the map's), y and x, its position, the
+time of that tuning and the value there, and the "Panels" list beside it turns each panel off and on.
+As in the IRIS quicklook, the maps, the virtual slit and wavelength against scan open without their
+axes, and "Axes", at the top of the Panels list, shows or hides them on all four; the spectra and the
+light curve keep theirs. On obs 498 CHROMIS 4846 a scan step and a move of the point take 0.19 s with
+or without axes, as they wait for the spectrum and the light curve, which glue computes on a worker
 thread; the panels' own redraws are faster without axes.
 
 Each scan of a mosaic, such as the archive's obs 492 and 495, is another pointing: the point is a
@@ -112,7 +134,7 @@ pixel, not a place on the Sun. The maps take 99.5 % colour limits over the whole
 and V together, so the Q, U and V maps show flat at first: "Per-frame limits" in a map's "View" menu
 scales each frame on its own. The spectra fit their own ranges.
 
-The cubes of a day share one time, a scan timed by its middle tuning, and the quicklook shown leads
+The cubes of a day share one time, a scan timed at its line core, and the quicklook shown leads
 it: its cube is the time master, unless one is chosen with "Time master" in the "Coordinate" menu.
 Showing another cube's quicklook moves that cube to its scan nearest the time the last one was left
 at, unless it is within half the longer of the two cubes' times between scans already, and a new
@@ -128,8 +150,8 @@ the lines and the panels turned off are not restored.
 On obs 492 Ca II 8542, 9.9 GB with four Stokes parameters, the quicklook opens in 2.4 s from a cold
 disk, reading 0.2 GB, and in 2.0 s once read. A scan or Stokes step takes 0.6 s cold, as the virtual
 slit reads a pixel of each row at each tuning, and 0.2 s warm; a wavelength step 0.16 s, a click 0.2
-to 0.3 s and each move of a Pixel drag 0.25 to 0.3 s. On obs 495 Ca II H & K, 3.3 GB with one Stokes
-parameter and 55 tunings, it opens in 2.0 s cold and 1.2 s warm, and a scan step takes 0.8 and 0.2 s.
+to 0.3 s and each move of a Pixel drag 0.25 to 0.3 s. On obs 495 Ca II H & K, 3.3 GB with no Stokes
+axis and 55 tunings, it opens in 2.0 s cold and 1.2 s warm, and a scan step takes 0.8 and 0.2 s.
 After each, every panel equals numpy's reading of the file at the point, the scan, the Stokes
 parameter and the wavelengths shown, and a saved session of either opens again in about a second.
 

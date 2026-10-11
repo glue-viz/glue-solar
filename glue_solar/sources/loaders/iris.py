@@ -800,7 +800,8 @@ def link_hpc(data_collection, others=None):
     WCS autolinker links sunpy maps to each other. No link pairs times, so a slit-jaw image frame is placed with
     its own pointing. Pairs that are already linked, either way round, are skipped, so calling this again after
     loading more data is safe. The plain astropy WCS of each other dataset linked, now or before, which IRIS data's
-    profile workers then call, is put behind `WCS_LOCK` in place (`_LockedWCS`). The caller adds the links::
+    profile workers then call, is put behind `WCS_LOCK` in place (`_LockedWCS`), an SST cube's too
+    (`glue_solar.sources.sst._LockedTabularWCS`). The caller adds the links::
 
         data_collection.add_link(link_hpc(data_collection))
 
@@ -815,7 +816,7 @@ def link_hpc(data_collection, others=None):
     pointing depends on its scan too (`glue_solar.sources.sst`): once it is linked, now or before, the frames,
     exposures, steps or scans of each IRIS dataset with a ``Time`` give the cube their time, in its seconds since
     ``DATEREF``, which its coordinates place in the scan nearest it, and the time axis of a slit-jaw image or AIA cutout
-    takes the time of each of the cube's scans, at its middle tuning, so that a point on the cube reaches the frame
+    takes the time of each of the cube's scans, at its line core, so that a point on the cube reaches the frame
     nearest it. The cube then shares the time sync of the IRIS observation whose times come nearest its middle scan's,
     as its ``meta['IRIS observation']``, ``(OBSID, STARTOBS)`` (`glue_solar.quicklook.observation_key`).
 
@@ -825,6 +826,7 @@ def link_hpc(data_collection, others=None):
     `~glue.core.component_link.ComponentLink`
     """
     from glue_solar.quicklook import _role, _times, nearest, observation_key  # which imports this module
+    from glue_solar.sources.sst import _LockedTabularWCS, _TabularWCS  # which imports this module
 
     linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in data_collection.links}
     anchors, links, cubes = {}, [], set()
@@ -846,9 +848,12 @@ def link_hpc(data_collection, others=None):
                 if _role(data) == "sst":
                     cubes.add(data)
                 # linked now or before, as a session restores it
-                # ponytail: only a plain astropy WCS, as glue's FITS reader and sunpy maps give, not a wrapper of one
+                # ponytail: only a plain astropy WCS, as glue's FITS reader and sunpy maps give, or an SST cube's, not
+                # a wrapper of one
                 if type(data.coords) is WCS:
                     data.coords.__class__ = _LockedWCS
+                elif type(data.coords) is _TabularWCS:
+                    data.coords.__class__ = _LockedTabularWCS
     datasets = [data for data in data_collection if isinstance(data.coords, _GlueWCS)]
     scans = {data: cid for data in datasets for cid in data.world_component_ids if cid.label == "Scan"}
     # ponytail: a link per stack and other dataset, not a star: 104 for 8 stacks and 13 slit-jaw images add 0.03 s to
@@ -866,7 +871,7 @@ def link_hpc(data_collection, others=None):
             links.append(ComponentLink([frame], scan, using=_ScanAt(nearby)))
     for cube in cubes:
         seconds, scan = cube.world_component_ids[0], cube.pixel_component_ids[0]  # its time since DATEREF, and scan
-        scans = cube[cube.find_component_id("Time"), (slice(None), 0, cube.shape[2] // 2, 0, 0)]  # at the line core
+        scans = _times(cube, None)  # at its line core
         nearest_offset = None
         for data in datasets:
             frame = data.pixel_component_ids[0]

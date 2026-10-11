@@ -338,10 +338,14 @@ def _to_linked_pixel_coords(self, data):
     glue-core 1.27.0 rounds the point's linked pixel position with ``int()``, so a point that lies
     outside a linked dataset, where the position is NaN, raises ``ValueError`` and glue shows an error
     box, for its crosshair or its spectrum. Retired by the ``core-translate-pixel`` report's fix. It holds
-    `WCS_LOCK`, as glue's profile workers call it through the WCS of each linked dataset.
+    `WCS_LOCK`, as glue's profile workers call it through the WCS of each linked dataset, but for a dataset with a WCS
+    `~glue_solar.sources.loaders.iris.link_hpc` has not locked, as it does once it links it: no IRIS data's WCS is
+    linked to it, so an unlinked map or SST cube never waits for IRIS data's threads.
     """
+    pair = self.reference_data, data
+    unlinked = any(isinstance(d.coords, WCS) and not isinstance(d.coords, _LockedWCS) for d in pair)
     try:
-        with WCS_LOCK:
+        with nullcontext() if unlinked else WCS_LOCK:
             return _original_to_linked_pixel_coords(self, data)
     except ValueError:  # int() of NaN: the point is not on ``data``
         raise IncompatibleAttribute() from None
