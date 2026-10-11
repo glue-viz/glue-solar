@@ -1,0 +1,1 @@
+IRIS and SST quicklooks open their image panels without axes, which makes a step of a several-window quicklook about twice as fast; an Axes box at the top of the Panels list shows them on every image panel at once.
