@@ -53,10 +53,12 @@ plus one viewer per slit-jaw channel and a spectrum panel:
 
 These panels and the slit-jaw viewers open without their axes, ticks, tick labels, axis labels and
 frame, as "Hide axes" in a viewer's View menu leaves them (see :ref:`Viewer tools and windows
-<glue_solar_users_guide_viewer_tools_and_windows>`), which makes each step and move of the point about
-twice as fast; the images, the point, the lines and the readouts are the same. "Axes", at the top of
-the Panels list (below), shows them on all of them at once; a quicklook of slit-jaw images alone has
-no Panels list, and "Hide axes" shows each one's. The spectrum panels keep their axes.
+<glue_solar_users_guide_viewer_tools_and_windows>`), which halves each step and move of the point on a
+quicklook of several windows (below) and a map's wavelength step and a slit-jaw frame step on any;
+with one window a step waits for its spectrum panel and barely changes. The images, the point, the
+lines and the readouts are the same. "Axes", at the top of the Panels list (below), shows them on all
+of them at once; a quicklook of slit-jaw images alone has no Panels list, and "Hide axes" shows each
+one's. The spectrum panels keep their axes.
 
 A sit-and-stare raster's exposure axis, in the quicklook once its axes are shown or in any Image
 viewer, is labelled "Exposure (acquisition order)" with the UTC range of its exposures on a second
@@ -396,9 +398,9 @@ panel shown, their ticks, tick labels and axis labels, the exposure axis's label
 among them, and hides them again. A panel's own "Hide axes" leaves the box partly ticked while the
 panels differ, and a click on it then shows every panel's. A panel turned on again takes the box's
 choice, as those turned off neither change nor draw while it changes; "Show this window's panels"
-keeps it, and a saved session keeps each panel's axes shown or hidden. On 4000255147 with every panel
-on, an exposure step takes 0.28 s without axes against 0.54 s with them, and a move of the point
-0.33 s against 0.61 s; ticking the box takes 0.2 s and unticking it 0.05 s. On a stack of
+keeps it when ticked (partly ticked, the panels open again without axes), and a saved session keeps
+each panel's axes shown or hidden. On 4000255147 with every panel on, an exposure step takes 0.28 s
+without axes against 0.54 s with them, and a move of the point 0.33 s against 0.61 s; ticking the box takes 0.2 s and unticking it 0.05 s. On a stack of
 4000005156's two scans a scan step takes 0.29 s against 0.48 s, and a move 0.33 s against 0.55 s.
 
 A saved session opens the quicklook again with its point and its time master: its tab makes

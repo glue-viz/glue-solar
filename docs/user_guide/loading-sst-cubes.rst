@@ -102,9 +102,9 @@ the point's scan, Stokes parameter, wavelength (λ, the map's), y and x, its pos
 tuning and the value there, and the "Panels" list beside it turns each panel off and on. As in the
 IRIS quicklook, the maps, the virtual slit and wavelength against scan open without their axes, and
 "Axes", at the top of the Panels list, shows or hides them on all four; the spectra and the light
-curve keep theirs. On obs 498 CHROMIS 4846 the panels redraw after a scan step in 0.06 s without
-axes against 0.14 s with them, and after a move of the point in 0.10 s against 0.19 s, though the
-step ends in 0.19 s either way, once the spectrum and the light curve are computed.
+curve keep theirs. On obs 498 CHROMIS 4846 a scan step and a move of the point take 0.19 s with or
+without axes, as they wait for the spectrum and the light curve, which glue computes on a worker
+thread; the panels' own redraws are faster without axes.
 
 Each scan of a mosaic, such as the archive's obs 492 and 495, is another pointing: the point is a
 pixel, which stays put from scan to scan, so the light curve and wavelength against scan follow that
