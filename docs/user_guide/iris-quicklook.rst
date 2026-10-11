@@ -9,7 +9,8 @@ The quicklook is a CRISPEX-style set of viewers for one observation, in a new ta
 - from the observation browser, with "Open quicklook" ticked (the default): each observation you
   load opens in its own quicklook, showing the raster windows you ticked (see `Several windows`_);
 - for data already loaded, with "IRIS: quicklook…" in the "Plugins" menu, which asks which
-  observation when several are loaded;
+  observation when several are loaded, and offers SST cubes too, each in its own quicklook (see
+  :ref:`glue_solar_users_guide_loading_sst_cubes`);
 - from the command line, with ``glue --startup=iris_quicklook`` followed by the files. Files given
   this way load one by one, so each raster file keeps its raster number in its label
   (``…-r00003``) and the quicklook shows the first; to stack the scans, use the browser;

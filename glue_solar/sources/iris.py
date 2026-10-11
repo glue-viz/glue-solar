@@ -101,8 +101,8 @@ def browse_iris(session, data_collection):
 
     With "Open quicklook" ticked, each loaded observation opens as a quicklook of its ticked raster
     windows: the browser's "Main window" if ticked, else Mg II k 2796 if ticked, else the first, with
-    the others beside it; otherwise, or with no raster or slit-jaw image loaded, the first image opens
-    in an Image Viewer.
+    the others beside it, and each SST cube in an SST quicklook of its own; otherwise, or with no raster,
+    slit-jaw image or SST cube loaded, the first image opens in an Image Viewer.
     """
     app = session.application
     directory = QtWidgets.QFileDialog.getExistingDirectory(
@@ -127,12 +127,19 @@ def browse_iris(session, data_collection):
 
 
 def _quicklooks(loaded):
-    """The ``(datasets, window)`` of each quicklook `browse_iris` opens of the observation browser's ``loaded``."""
-    observations = {}  # observation -> (its datasets, its ticked raster windows)
+    """
+    The ``(datasets, window)`` of each quicklook `browse_iris` opens of the observation browser's ``loaded``, an SST
+    cube's after the IRIS observations'.
+    """
+    observations, cubes = {}, []  # observation -> (its datasets, its ticked raster windows); each SST cube's
     for observation, kind, name, datasets in loaded:
+        if kind == "sst":
+            cubes.append((datasets, None))
+            continue
         got, windows = observations.get(id(observation), ([], []))
         observations[id(observation)] = (got + datasets, windows + [name] * (kind == "raster"))
-    return [(datasets, windows or None) for datasets, windows in observations.values() if _has_quicklook(datasets)]
+    shown = [(datasets, windows or None) for datasets, windows in observations.values() if _has_quicklook(datasets)]
+    return shown + cubes
 
 
 def _has_quicklook(datasets):
@@ -302,24 +309,26 @@ def _observations(data_collection):
 @menubar_plugin("IRIS: quicklook…")
 def quicklook_iris(session, data_collection):
     """
-    Open the quicklook of an IRIS observation that is already loaded, with a raster or slit-jaw image, asking which
-    when several are.
+    Open the quicklook of an IRIS observation that is already loaded, with a raster or slit-jaw image, or of an SST
+    cube, asking which when several are.
     """
     app = session.application
-    observations = _observations(data_collection)
-    if not observations:
+    choices = {
+        f"{obsid} {str(start)[:19]}": datasets for (obsid, start), datasets in _observations(data_collection).items()
+    }
+    choices.update({f"SST {data.label}": [data] for data in data_collection if _role(data) == "sst"})
+    if not choices:
         QtWidgets.QMessageBox.information(
-            app, "IRIS quicklook", "No IRIS observation with a raster or slit-jaw image is loaded."
+            app, "IRIS quicklook", "No IRIS observation with a raster or slit-jaw image, nor SST cube, is loaded."
         )
         return
-    keys = list(observations)
-    labels = [f"{obsid} {str(start)[:19]}" for obsid, start in keys]
-    if len(keys) > 1:
+    labels = list(choices)
+    if len(labels) > 1:
         label, chosen = QtWidgets.QInputDialog.getItem(app, "IRIS quicklook", "Observation:", labels, 0, False)
         if not chosen:
             return
-        keys = [keys[labels.index(label)]]
-    quicklook(app, observations[keys[0]])
+        labels = [label]
+    quicklook(app, choices[labels[0]])
 
 
 @menubar_plugin("IRIS: user guide and issues")

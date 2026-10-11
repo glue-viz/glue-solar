@@ -87,6 +87,7 @@ from glue_solar.quicklook import (
     _timed,
     _times,
     _value_text,
+    _wing,
     _world_text,
     coordinator,
     nearest,
@@ -2470,12 +2471,13 @@ def _frame_key(delta, session):
 def _wavelength_key(delta, session):
     """
     A and S: step the active Image viewer's wavelength slider back or on, round from either end, and in a quicklook's
-    tab, pressed on any of its viewers, that of each of its panels; nothing else moves.
+    tab, pressed on any of its viewers, that of each of its panels but an SST quicklook's second map, unless pressed on
+    it; nothing else moves.
     """
     viewer, sync, _ = _pressed(session)
     app = session.application
     group = getattr(app, "_solar_points", {}).get(app.current_tab)
-    for each in dict.fromkeys([viewer, *sync._owners.get(group, ())]):
+    for each in dict.fromkeys([viewer, *(other for other in sync._owners.get(group, ()) if not _wing(other))]):
         data = each.state.reference_data
         if isinstance(each, ImageViewer) and data is not None:
             sliders = each.options_widget().slice_helper._sliders

@@ -2,6 +2,8 @@
 SST CRISP and CHROMIS cubes, on small files written as the SST archive's SSTRED exports are: File → Open gives the cube
 alone, memory-mapped, with its time and wavelength at every pixel, its cavity maps and coordinates that sessions keep,
 and once linked on request a region drawn on it selects the IRIS pixels at its place in the scan nearest their time.
+The SST quicklook shows one cube in a tab, its panels on one point and one time, which other cubes and, once linked,
+IRIS data share.
 """
 
 import mmap
@@ -18,15 +20,42 @@ from glue.core.subset import RoiSubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.app import GlueApplication
 from glue_qt.viewers.image import ImageViewer
+from glue_qt.viewers.profile import ProfileViewer
+from qtpy import QtWidgets
+from qtpy.QtCore import Qt
 
 from astropy.io import fits
 from astropy.wcs import WCS
 
 import glue_solar
-from glue_solar.quicklook import _role, _timed, _times, nearest
+from glue_solar.quicklook import (
+    QuicklookImageViewer,
+    _role,
+    _timed,
+    _times,
+    coordinator,
+    nearest,
+    observation_key,
+    quicklook,
+)
+from glue_solar.sources.iris import link_iris, quicklook_iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, raster_data
-from glue_solar.sources.sst import _TabularWCS, sst_data
+from glue_solar.sources.loaders.scan import scan_directory
+from glue_solar.sources.sst import _Cube, _TabularWCS, sst_data
+from glue_solar.tests.helpers import press, select_point
 from glue_solar.tests.test_linking import RASTER, SJI, _real
+from glue_solar.tests.test_quicklook import (
+    bare_app_for,
+    browse,
+    changes,
+    entries,
+    menu_action,
+    panels_list,
+    point_window,
+    rows,
+    settle,
+    slide,
+)
 
 DATEREF = "2021-09-05T00:00:00"
 
@@ -141,7 +170,7 @@ def test_file_open_gives_the_cube_alone_memory_mapped(tmp_path):
     assert isinstance(data.coords, _TabularWCS)
     assert data.meta["SPECSYS"] == "TOPOCENT"  # SST2: astropy needs one beside OBSGEO
     assert _role(data) == "sst"
-    assert not _timed(data)  # in no time sync yet
+    assert _timed(data)  # in the time sync of the SST cubes of its day (D68)
 
 
 def test_time_and_wavelengths_are_the_table_s_at_every_pixel(tmp_path):
@@ -215,8 +244,8 @@ def test_an_image_viewer_shows_a_cube_without_specsys(qtbot, tmp_path):
     readout = viewer.toolbar.tools["solar:frame_time"].label
     for slices in ((0, 0, 0, 0, 0), (2, 0, 4, 0, 0)):  # the scan and tuning sliders, and that tuning's time
         viewer.state.slices = slices
-        viewer.figure.canvas.draw()
-        assert readout.text() == f"{np.datetime_as_string(data['Time', slices], unit='ms')} UTC"
+        qtbot.wait(20)  # the time sync, which the readout gives too
+        assert readout.text() == f"{np.datetime_as_string(data['Time', slices], unit='ms')} UTC · time master"
     assert viewer.layers[0].enabled
 
 
@@ -334,3 +363,288 @@ def test_once_linked_an_sst_region_or_point_selects_the_iris_pixels_at_its_place
     [frame], _ = nearest([np.datetime64(DATEREF) + np.timedelta64(int(coord[0, 2, 0, 0, 3] * 1e9), "ns")], frames)
     x, y, _ = sji.coords.world_to_pixel_values(lon, lat, sji.coords.pixel_to_world_values(0, 0, frame)[2])
     assert point._to_linked_pixel_coords(sji) == [frame, round(float(y)), round(float(x))]
+
+
+@pytest.fixture
+def sst_app(qtbot, monkeypatch):
+    """An application whose modal dialogs fail the test, with glue's large-data prompt set to fire on any size."""
+    monkeypatch.setattr(ProfileViewer, "large_data_size", 1)
+    return bare_app_for(qtbot, monkeypatch)
+
+
+def stokes_cube(path, shape=(3, 4, 5, 12, 16), **kwargs):
+    """A cube ``write_sst_cube`` writes at ``path``, named as the archive names H-alpha, and its values."""
+    write_sst_cube(path, shape, drift=(5.0, -3.0), **kwargs)
+    fits.setval(path, "WAVEBAND", value="H-alpha")
+    return sst_data(path), fits.getdata(path)
+
+
+def check_sst_panels(viewers, values, group):
+    """Each panel of an SST quicklook is the cube at the point, its scan and Stokes, and the wavelengths shown."""
+    s, k, y, x = (group.subset_state.slices[axis].start for axis in (0, 1, 3, 4))
+    w, wing = viewers["map"].state.slices[2], viewers["wing"].state.slices[2]
+    images = {"map": values[s, k, w], "wing": values[s, k, wing], "slit": values[s, k, :, :, x].T}
+    images["wavelength"] = values[:, k, :, y, x]
+    for role, expected in images.items():
+        np.testing.assert_array_equal(viewers[role].state.layers[0].get_sliced_data(), expected)
+    for stokes, spectrum in enumerate(viewers["spectra"]):
+        np.testing.assert_array_equal(spectrum.state.layers[0].profile[1], values[s, stokes, :, y, x])
+    np.testing.assert_array_equal(viewers["curve"].state.layers[0].profile[1], values[:, k, w, y, x])
+
+
+def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
+    # D68: the maps and the virtual slit on top, the spectra of I, Q, U and V below them, then wavelength against time
+    # and the light curve at the point, every panel computing only the point
+    cube, values = stokes_cube(tmp_path / "cube.fits")
+    viewers = quicklook(sst_app, [cube])
+    assert sst_app.tab_names[-1] == "SST H-alpha"
+    titles = [[viewer.state.title for viewer in row] for row in viewers["rows"]]
+    assert titles == [
+        ["H-alpha map", "H-alpha second map", "H-alpha virtual slit"],
+        ["H-alpha Stokes I", "H-alpha Stokes Q", "H-alpha Stokes U", "H-alpha Stokes V"],
+        ["H-alpha λ–time", "H-alpha light curve"],
+    ]
+    assert set(sst_app.viewers[-1]) == {viewer for row in viewers["rows"] for viewer in row}
+    pixel = cube.pixel_component_ids
+    # the map at the middle tuning, the second map at the first, the point at the map's centre in scan 0 and Stokes I
+    for role, x, y, tuning in (("map", 4, 3, 2), ("wing", 4, 3, 0), ("slit", 2, 3, 2), ("wavelength", 2, 0, 2)):
+        state = viewers[role].state
+        assert isinstance(viewers[role], QuicklookImageViewer)
+        assert (state.x_att, state.y_att, state.slices) == (pixel[x], pixel[y], (0, 0, tuning, 6, 8))
+        assert state.layers[0].percentile == 99.5
+    [group] = sst_app.session.edit_subset_mode.edit_subset
+    assert group.label == "Point"
+    assert group.subset_state.slices == [slice(0, 1), slice(0, 1), slice(None), slice(6, 7), slice(8, 9)]
+    assert viewers["map"].toolbar.active_tool.tool_id == "image:point_selection"
+    for viewer in [*viewers["spectra"], viewers["curve"]]:  # no profile of the whole cube, which glue asks about
+        [layer] = viewer.state.layers
+        assert layer.layer.group is not group
+        assert layer.layer.data is cube
+    np.testing.assert_allclose(viewers["spectra"][0].state.layers[0].profile[0], 656.28 + 0.01 * np.arange(-2, 3))
+    assert viewers["curve"].state.x_att is pixel[0]
+    check_sst_panels(viewers, values, group)
+    # in rows, the Point window and the Panels list below them
+    tops = [{viewer.parent().y() for viewer in row} for row in viewers["rows"]]
+    assert [len(top) for top in tops] == [1, 1, 1]
+    assert tops[0].pop() < tops[1].pop() < tops[2].pop()
+    window = point_window(sst_app)
+    assert window.parent().y() > viewers["curve"].parent().y()
+    assert entries(panels_list(sst_app)) == [(title, True) for row in titles for title in row]
+    settle(qtbot, window)
+    lon, lat, wavelength, _, _ = cube.coords.pixel_to_world_values(8, 6, 2, 0, 0)
+    position = f'{lon:.2f}" {lat:.2f}" {wavelength * 10:.3f} Å'
+    time = f"{np.datetime_as_string(cube['Time', 0, 0, 2, 6, 8], unit='ms')} UTC"
+    value = f"{values[0, 0, 2, 6, 8]:.6g}"
+    assert rows(window) == [[cube.label, "scan 0, Stokes 0, λ 2, y 6, x 8", position, time, "", value, "time master"]]
+    # a click, the scan, Stokes and wavelength sliders: every panel follows
+    select_point(viewers["map"], 3, 7)
+    slide(viewers["map"], 0, 2)
+    slide(viewers["map"], 1, 3)
+    slide(viewers["map"], 2, 4)
+    qtbot.wait(20)
+    check_sst_panels(viewers, values, group)
+    # a cube of intensities has one spectrum; one cube to a tab
+    single, values = stokes_cube(tmp_path / "single.fits", shape=(3, 1, 5, 12, 16))
+    viewers = quicklook(sst_app, [single])
+    assert [viewer.state.title for viewer in viewers["rows"][1]] == ["H-alpha spectrum"]
+    check_sst_panels(viewers, values, sst_app.session.edit_subset_mode.edit_subset[0])
+    with pytest.raises(ValueError, match="one cube"):
+        quicklook(sst_app, [cube, single])
+
+
+def test_what_moves_on_an_sst_cube(sst_app, qtbot, tmp_path):
+    cube, values = stokes_cube(tmp_path / "cube.fits")
+    viewers = quicklook(sst_app, [cube])
+    [group] = sst_app.session.edit_subset_mode.edit_subset
+    label = cube.label
+
+    def event(action):
+        return changes(sst_app, qtbot, viewers, action)
+
+    # a map click moves the point: the virtual slit to its x, wavelength against time to its y and x
+    assert event(lambda: select_point(viewers["map"], 3, 7)) == {
+        "point": (label, (0, 0, None, 7, 3)),
+        "slit": (0, 0, None, None, 3),
+        "wavelength": (None, 0, None, 7, 3),
+    }
+    # a click on the virtual slit (wavelength 4, y 2) keeps x, and moves the map, not the second map, to its wavelength
+    assert event(lambda: select_point(viewers["slit"], 4, 2)) == {
+        "point": (label, (0, 0, None, 2, 3)),
+        "map": (0, 0, 4, None, None),
+        "wavelength": (None, 0, None, 2, 3),
+    }
+    # one on wavelength against time (wavelength 1, scan 2) moves the point, the maps and the slit to its scan
+    assert event(lambda: select_point(viewers["wavelength"], 1, 2)) == {
+        "point": (label, (2, 0, None, 2, 3)),
+        "map": (2, 0, 1, None, None),
+        "wing": (2, 0, 0, None, None),
+        "slit": (2, 0, None, None, 3),
+    }
+    # the scan and Stokes sliders of either map move the point and the other panels
+    assert event(lambda: slide(viewers["map"], 0, 1)) == {
+        "point": (label, (1, 0, None, 2, 3)),
+        "map": (1, 0, 1, None, None),
+        "wing": (1, 0, 0, None, None),
+        "slit": (1, 0, None, None, 3),
+    }
+    assert event(lambda: slide(viewers["wing"], 1, 3)) == {
+        "point": (label, (1, 3, None, 2, 3)),
+        "map": (1, 3, 1, None, None),
+        "wing": (1, 3, 0, None, None),
+        "slit": (1, 3, None, None, 3),
+        "wavelength": (None, 3, None, 2, 3),
+    }
+    check_sst_panels(viewers, values, group)
+    # a wavelength slider moves its own map only, and A and S the second map only pressed on it
+    assert event(lambda: slide(viewers["map"], 2, 3)) == {"map": (1, 3, 3, None, None)}
+    assert event(lambda: slide(viewers["wing"], 2, 4)) == {"wing": (1, 3, 4, None, None)}
+    assert event(lambda: press(viewers["slit"], Qt.Key_S)) == {"map": (1, 3, 4, None, None)}
+    assert event(lambda: press(viewers["wing"], Qt.Key_A)) == {
+        "map": (1, 3, 3, None, None),
+        "wing": (1, 3, 3, None, None),
+    }
+    # the slit's x slider and the y slider of wavelength against time move the point
+    assert event(lambda: slide(viewers["slit"], 4, 10)) == {
+        "point": (label, (1, 3, None, 2, 10)),
+        "slit": (1, 3, None, None, 10),
+        "wavelength": (None, 3, None, 2, 10),
+    }
+    assert event(lambda: slide(viewers["wavelength"], 3, 9)) == {
+        "point": (label, (1, 3, None, 9, 10)),
+        "wavelength": (None, 3, None, 9, 10),
+    }
+    check_sst_panels(viewers, values, group)
+    # after Clear point the panels stay, but for the time
+    assert event(lambda: menu_action(viewers["map"], "Clear point").trigger()) == {"point": None}
+    assert event(lambda: slide(viewers["map"], 0, 2)) == {"map": (2, 3, 3, None, None)}
+    assert "time master" in viewers["map"].toolbar.tools["solar:frame_time"].label.text()
+
+
+def scan_times(cube):
+    """An SST cube's time of each scan, at its middle tuning."""
+    return cube["Time"][:, 0, cube.shape[2] // 2, 0, 0]
+
+
+def shown_scan(viewers):
+    return viewers["map"].state.slices[0]
+
+
+def show_tab(app, qtbot, index):
+    app.tab_widget.setCurrentIndex(index)
+    qtbot.wait(20)
+
+
+def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
+    # D68: one cube to a tab, the SST cubes of a day in one time sync: the cube shown leads the time, and one shown next
+    # starts at its scan nearest that time, unless within half the longer cadence of it
+    write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16), start=1200.0, cadence=60.0)
+    write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), start=1170.0, cadence=50.0)
+    first, second = sst_data(tmp_path / "a.fits"), sst_data(tmp_path / "b.fits")
+    assert observation_key(first) == observation_key(second) == ("SST", np.datetime64(DATEREF[:10]))
+    a = quicklook(sst_app, [first])
+    slide(a["map"], 0, 2)
+    qtbot.wait(20)
+    b = quicklook(sst_app, [second])  # 1320.25 s is nearest 1320.5 s
+    qtbot.wait(20)
+    assert (shown_scan(a), shown_scan(b)) == (2, 3)
+    assert sst_app.session.edit_subset_mode.edit_subset[0].subset_state.slices[0] == slice(3, 4)
+    slide(b["map"], 0, 1)  # 1220.25 s
+    show_tab(sst_app, qtbot, 1)
+    assert (shown_scan(a), shown_scan(b)) == (0, 1)  # 1200.5 s
+    slide(a["map"], 0, 1)  # 1260.5 s
+    show_tab(sst_app, qtbot, 2)
+    assert (shown_scan(a), shown_scan(b)) == (1, 2)  # 1270.25 s
+    show_tab(sst_app, qtbot, 1)  # within 30 s already: no step back and forth
+    assert (shown_scan(a), shown_scan(b)) == (1, 2)
+
+
+def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_path, sns):
+    # D64, D68: an SST cube joins the time sync of the IRIS observation it is linked to, on request only
+    sji, raster = sns
+    frames = _times(sji, 0)
+    start, cadence = (frames[10] - np.datetime64(DATEREF)), (frames[-1] - frames[10]) / 3
+    seconds = [time / np.timedelta64(1, "s") for time in (start, cadence)]
+    write_sst_cube(tmp_path / "cube.fits", (4, 1, 5, 30, 40), (-55.0, -400.0), (4.0, -3.0), 1.1, 8.0, *seconds)
+    cube = sst_data(tmp_path / "cube.fits")
+    iris = quicklook(sst_app, [raster, sji])
+    sst = quicklook(sst_app, [cube])
+    coord = coordinator(sst_app.data_collection)
+    slide(sst["map"], 0, 3)
+    show_tab(sst_app, qtbot, 1)  # unlinked, the tabs keep their own times
+    exposure = iris["spectrogram"].state.slices[0]  # a sit-and-stare's map is slit against time
+    show_tab(sst_app, qtbot, 2)
+    assert shown_scan(sst) == 3
+    assert observation_key(cube) == ("SST", np.datetime64(DATEREF[:10]))
+    link_iris(sst_app.session, sst_app.data_collection)  # 'IRIS: link helioprojective coordinates'
+    key = observation_key(raster)
+    assert observation_key(cube) == key
+    assert cube.meta["IRIS observation"] == [key[0], str(key[1])]
+    # shown, the IRIS quicklook takes the time from the cube's scan, and the cube then from its exposure
+    times = _times(raster, None)
+    show_tab(sst_app, qtbot, 1)
+    [nearest_exposure], _ = nearest([scan_times(cube)[3]], times)
+    assert iris["spectrogram"].state.slices[0] == nearest_exposure != exposure
+    coord.move_master(raster, 5)
+    qtbot.wait(20)
+    show_tab(sst_app, qtbot, 2)
+    [scan], [offset] = nearest([times[5]], scan_times(cube))
+    assert shown_scan(sst) == scan
+    assert abs(offset) <= cadence / 2
+    assert "time master" in sst["map"].toolbar.tools["solar:frame_time"].label.text()
+
+
+def test_a_session_restores_the_sst_quicklook(sst_app, qtbot, tmp_path):
+    cube, values = stokes_cube(tmp_path / "cube.fits")
+    viewers = quicklook(sst_app, [cube])
+    select_point(viewers["map"], 3, 7)
+    slide(viewers["map"], 0, 2)
+    qtbot.wait(20)
+    sst_app.save_session(str(tmp_path / "sst.glu"))
+    restored = GlueApplication.restore_session(str(tmp_path / "sst.glu"), show=False)
+    qtbot.addWidget(restored)
+    qtbot.wait(20)
+    panels = {viewer.state.title.split(" ", 1)[1]: viewer for viewer in restored.viewers[1]}
+    again = {role: panels[title] for role, title in (("map", "map"), ("wing", "second map"), ("slit", "virtual slit"))}
+    again.update(wavelength=panels["λ–time"], curve=panels["light curve"])
+    again["spectra"] = [panels[f"Stokes {stokes}"] for stokes in "IQUV"]
+    [group] = restored.session.edit_subset_mode.edit_subset
+    [data] = restored.data_collection
+    assert isinstance(data, _Cube)  # its colour limits' sample too
+    assert group.label == "Point"
+    assert group.subset_state.slices[:2] == [slice(2, 3), slice(0, 1)]
+    check_sst_panels(again, values, group)
+    # a click moves every panel, the spectra and the light curve too
+    select_point(again["map"], 10, 4)
+    qtbot.wait(20)
+    assert group.subset_state.slices == [slice(2, 3), slice(0, 1), slice(None), slice(4, 5), slice(10, 11)]
+    check_sst_panels(again, values, group)
+
+
+def test_the_browser_lists_and_opens_each_sst_cube(qtbot, monkeypatch, tmp_path):
+    # D68: an archive folder's observation, an entry per cube, a quicklook per cube; and the Plugins menu's
+    folder = tmp_path / "SST-archive_obs492_20230919_CRISP_stokes"
+    folder.mkdir()
+    for name, line, stokes in (("nb_8542_im.fits", "Ca II 8542", 4), ("nb_6173_im.fits", "Fe I 6173", 1)):
+        write_sst_cube(folder / name, (3, stokes, 5, 12, 16))
+        for keyword, value in (("WAVEBAND", line), ("STARTOBS", "2021-09-05T00:19:00"), ("DATE-END", DATEREF)):
+            fits.setval(folder / name, keyword, value=value)
+    [observation] = scan_directory(tmp_path)
+    assert (observation.obsid, observation.startobs) == ("CRISP", "2021-09-05T00:19:00")
+    assert observation.description == folder.name
+    stokes = "Ca II 8542, Stokes I, Q, U and V"
+    assert observation.sst == {stokes: folder / "nb_8542_im.fits", "Fe I 6173": folder / "nb_6173_im.fits"}
+    monkeypatch.setattr(ProfileViewer, "large_data_size", 1)
+    app = bare_app_for(qtbot, monkeypatch)
+    browse(qtbot, app, monkeypatch, tmp_path, [0])
+    assert app.tab_names[1:] == ["SST Ca II 8542", "SST Fe I 6173"]
+    assert [len(app.viewers[tab]) for tab in (1, 2)] == [9, 6]
+    choice = {}
+
+    def choose(parent, title, label, items, *args):
+        choice["items"] = items
+        return items[1], True
+
+    monkeypatch.setattr(QtWidgets.QInputDialog, "getItem", choose)
+    quicklook_iris(app.session, app.data_collection)  # 'IRIS: quicklook…'
+    assert choice["items"] == ["SST nb_8542_im", "SST nb_6173_im"]
+    assert app.tab_names[-1] == "SST Fe I 6173"
