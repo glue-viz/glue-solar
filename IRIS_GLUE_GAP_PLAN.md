@@ -134,6 +134,7 @@ Settled by the user; reopen only with the user.
   - **Placement:** a checkable 'Panels' list in the quicklook tab's bottom strip, right of the Point window. The main window's panels and each slit-jaw image get one entry each. Each other window gets a group entry with one entry per panel (spectrum, λ–time). The SST quicklook (D65) uses the same list.
   - **Layout:** the shown panels re-tile when a panel is turned off or on, and an empty row disappears. Manual moves and resizes are lost at a toggle.
   - **Draw cost:** the user asked about re-tiling's draw cost. One burst of toggles gets one layout, and a panel whose size does not change does not redraw. The PR reports a toggle's cost on the 9-window 4000255147 quicklook.
+  - **Sessions and the time master:** user (2026-10-10, after the review). A session leaves out the panels turned off, so it opens with those shown. A follow-up, `wp4-l-restored-strip`, brings back a restored quicklook's Point window and Panels list, with those panels restored hidden. A slit-jaw time master turned back on moves to its frame nearest the raster's time, so the raster stays where it was stepped.
 - **D67:** User (2026-10-10), after #226, for #227:
   - **SST to IRIS:** the SST loader makes an SST region or point reach IRIS data once linked. #226 found that it reaches none, co-pointed or not. glue fills in the cube's wavelength and time, which IRIS data lack, with CRVAL 0, outside the -TAB table, so wcslib returns NaN. The loader's coordinates use a time and wavelength inside the cube instead: the scan nearest each IRIS frame's time, as `link_hpc` gives a stack its scans, and the line core.
   - **Cavity map:** the axis keeps each scan's nominal wavelengths, and the cavity-error lookup (CWDIS3, up to 2.8 km/s) becomes its own component, documented, for the user to view or subtract.
@@ -158,7 +159,7 @@ A milestone is done when it has no items left.
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP3: `wp3-l-restore-one-read`
-- WP4: `wp4-l-window-rows-redraw`, `wp4-l-panel-toggles`
+- WP4: `wp4-l-window-rows-redraw`, `wp4-l-panel-toggles`, `wp4-l-restored-strip`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP9: `wp9-l-deferred-recipes`
 - WP10: `wp10-l-sst-profile-hidden-data`
@@ -289,6 +290,7 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 
 - [ ] **L** `wp4-l-window-rows-redraw` (SST7, D63): Each other window's panels redraw on every step and move. On 4000255147, 9 windows cost about 4× one window: an exposure step 194 → 875 ms (7 → 47 draws), a move 240 → 991 ms, the open 3.4 → 13.4 s. Fixes to try: blit the moving time and point markers, refresh an image only when its slice changes, or redraw only the visible rows. Done when the 9-window step and move on 4000255147 and the 4000005156 stack are re-measured against main, with the panels drawing the same.
 - [ ] **L** `wp4-l-panel-toggles` (D65): An easy way to turn each quicklook panel on and off, for IRIS's quicklook and the SST one. A panel turned off is not drawn and its viewer does no work; a session keeps the choice. The user asked for 'a toggle panel somewhere'. Placement and layout as D66: a checkable 'Panels' list beside the Point window, and the shown panels re-tiled at each toggle, at a measured cost. Done when every panel of a 9-window 4000255147 quicklook can be turned off and on again, unchanged, and a step with the other windows' panels off costs what a 1-window quicklook does (SST7: 194 against 875 ms).
+- [ ] **L** `wp4-l-restored-strip` (D66; after `wp4-l-panel-toggles`): A restored quicklook gets its Point window and Panels list back, and a session keeps the panels turned off, restored hidden; today a session leaves them out (user, 2026-10-10). Done when a session of the 9-window 4000255147 quicklook saved with panels off restores them hidden, the Panels list turns each on unchanged, and the Point window shows the restored point.
 
 Notes:
 - Whisker polish (F143) and CRISPEX entry keywords (F020) are Later.
