@@ -1304,6 +1304,7 @@ def _image(app, cls, data, x, y, slices, title, aspect):
     state.aspect = aspect
     state.reset_limits()  # glue pads the limits of a new viewer
     state.title = title
+    state.show_axes = False  # as 'Hide axes' does, so no draw places ticks; the Panels list's 'Axes' shows them (D71)
     state.layers[0].stretch = _stretch(data)
     state.layers[0].percentile = PERCENTILE
     return viewer
@@ -1389,10 +1390,10 @@ def quicklook(app, datasets, window=None, main=None):
     subset group 'Point' that is the edit subset while the tab is shown, with the Pixel tool active
     on the map. A read-only 'Point' window below the panels gives the point's pixel, position, time,
     exposure, value and time sync in each dataset they show, and the 'Panels' list beside it turns each
-    panel on and off (`_Panels`). Lines on the spectrogram, the wavelength
-    panel and the spectrum panel mark the point, the map's wavelength and the time master's time, and
-    a zoom on the spectrum panel is the wavelength panel's too (`_SpectralLines`). Clicks and keys
-    wait until it is open.
+    panel on and off and shows the axes the Image panels open without (`_Panels`). Lines on the
+    spectrogram, the wavelength panel and the spectrum panel mark the point, the map's wavelength and
+    the time master's time, and a zoom on the spectrum panel is the wavelength panel's too
+    (`_SpectralLines`). Clicks and keys wait until it is open.
 
     Of an SST CRISP or CHROMIS cube, alone in ``datasets``, it opens the SST quicklook instead (`_fill_sst`), one cube
     to a tab, whose panels follow the point and the time as the IRIS quicklook's do.
@@ -1616,8 +1617,9 @@ def _switch(viewer):
     Make the window of ``viewer``, a quicklook's spectrum panel of another window, the quicklook's main window: open the
     quicklook again in its tab, in place of its viewers, as `quicklook` opens it with that window as ``main``, with its
     point's group, the point at the same pixel of that window, the time master at the same frame, exposure, step or
-    scan, and the colours of each Image panel that shows the same data on the same axes again; every panel shows, the
-    Panels list's choices left behind. The links stay, as do the viewers added to the tab.
+    scan, the colours of each Image panel that shows the same data on the same axes again, and their axes if the Axes
+    box was ticked; every panel shows, the Panels list's other choices left behind. The links stay, as do the viewers
+    added to the tab.
     """
     app = viewer.session.application
     tab, collection = viewer.parent().mdiArea(), app.data_collection
@@ -1633,9 +1635,10 @@ def _switch(viewer):
         if isinstance(panel, ImageViewer) and layer is not None:
             colours[state.reference_data, state.x_att, state.y_att] = {att: getattr(layer, att) for att in _COLOURS}
         panel.close(warn=False)
-    for sub in tab.subWindowList():
-        if isinstance(sub.widget(), (_PointWindow, _Panels)):
-            sub.close()
+    strip = [sub for sub in tab.subWindowList() if isinstance(sub.widget(), (_PointWindow, _Panels))]
+    axes = any(sub.widget().axes_box.checkState(0) == Qt.Checked for sub in strip if isinstance(sub.widget(), _Panels))
+    for sub in strip:
+        sub.close()
     for lines in tab.findChildren(_SpectralLines):
         coord.remove_listener(lines._synced)
         lines.deleteLater()
@@ -1650,6 +1653,7 @@ def _switch(viewer):
         if isinstance(panel, ImageViewer):
             layer = next(layer for layer in state.layers if layer.layer is state.reference_data)
             layer.update_from_dict(colours.get((state.reference_data, state.x_att, state.y_att), {}))
+            state.show_axes = axes
     now = coord._master(observation_key(raster))
     if _same_file(now, master):  # the same, or another window of its file
         coord.move_master(now, index)
@@ -2393,6 +2397,10 @@ class _Panels(QTreeWidget):
     A quicklook's 'Panels' list: a check box for each of ``entries``, a panel, or a label and the panels whose boxes its
     own box sets together, such as another window's. A change turns the panels on or off (`_turn`) and ``arrange``
     lays out those shown, once for all the changes made at once. A panel closed by hand leaves the list.
+
+    The 'Axes' box above them shows or hides the axes of every Image panel shown, as each one's 'Hide axes' does, and a
+    panel turned on takes its choice. Unticked as the panels open without axes (`_image`, D71), it is partly ticked
+    while the panels shown differ.
     """
 
     def __init__(self, entries, group, arrange):
@@ -2402,6 +2410,9 @@ class _Panels(QTreeWidget):
         self.header().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.header().setStretchLastSection(False)
         self.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)  # as wide as its labels
+        self.axes_box = QTreeWidgetItem(self.invisibleRootItem(), ["Axes"])
+        self.axes_box.setFlags(self.axes_box.flags() | Qt.ItemIsUserCheckable)
+        self.axes_box.setToolTip(0, "Show or hide the axes of every image panel")
         for entry in entries:
             label, panels = entry if isinstance(entry, tuple) else (None, [entry])
             parent = self.invisibleRootItem()
@@ -2414,12 +2425,45 @@ class _Panels(QTreeWidget):
                 item.setCheckState(0, Qt.Checked)
                 self.panels.append((item, panel))
                 panel.window_closed.connect(self._forget)
+        images = [panel for _, panel in self.panels if isinstance(panel, ImageViewer)]
+        for panel in images:  # their own 'Hide axes' too
+            panel.state.add_callback("show_axes", self._agree)
+        self.destroyed.connect(partial(self._detach, images, self._agree))  # closed alone or with its tab
+        self._agree()
         # a label's box changes each of its panels' boxes
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(0)
         self._timer.timeout.connect(self.apply)
-        self.itemChanged.connect(lambda *_: self._timer.start())
+        self.itemChanged.connect(lambda item, _: self._show_axes() if item is self.axes_box else self._timer.start())
+
+    @staticmethod
+    def _detach(images, agree):
+        """Stop ``agree`` following the axes of ``images``, which may stay open."""
+        for panel in images:
+            panel.state.remove_callback("show_axes", agree)
+
+    def _images(self):
+        """The Image panels shown: the spectrum panels have plain Matplotlib axes, which stay."""
+        return [panel for _, panel in self.panels if isinstance(panel, ImageViewer) and not _off(panel)]
+
+    def _show_axes(self):
+        """Give every Image panel shown the axes the Axes box says, unless it is partly ticked."""
+        box = self.axes_box.checkState(0)
+        if box != Qt.PartiallyChecked:
+            for panel in self._images():
+                panel.state.show_axes = box == Qt.Checked
+        self._agree()
+
+    def _agree(self, *_):
+        """Tick the Axes box if every Image panel shown has its axes, untick it if none has, else tick it partly."""
+        shown = {panel.state.show_axes for panel in self._images()}
+        if shown:  # else as it was, for the panels turned on again
+            blocked = self.blockSignals(True)  # following the panels, it sets none
+            self.axes_box.setCheckState(
+                0, Qt.PartiallyChecked if len(shown) > 1 else Qt.Checked if True in shown else Qt.Unchecked
+            )
+            self.blockSignals(blocked)
 
     def apply(self):
         """Turn each panel on or off as its box says, then lay out the panels shown if any changed."""
@@ -2440,6 +2484,7 @@ class _Panels(QTreeWidget):
         if tab.activeSubWindow() is not active:  # the active panel turned off
             tab.subWindowActivated.emit(tab.activeSubWindow())
         if changed:
+            self._show_axes()
             self.arrange()
 
     def _forget(self):
@@ -2453,6 +2498,7 @@ class _Panels(QTreeWidget):
             if parent is not root and not parent.childCount():
                 root.removeChild(parent)
         self.panels = [(item, each) for item, each in self.panels if each is not panel]
+        self._agree()
 
 
 def _add_window(tab, widget, title):

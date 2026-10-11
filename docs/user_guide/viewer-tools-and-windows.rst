@@ -173,8 +173,10 @@ toolbar has:
   and shows them again. Without them each slice step and
   redraw is faster, since no ticks are placed; the image, subsets, links, the slit and point of
   slit-jaw viewers and the readouts work as before, and the mouse-over position stays in world
-  coordinates. A saved session keeps each viewer's choice. To open every new Image viewer,
-  quicklook panels included, without axes, add ``solar_show_axes = false`` to the ``[main]`` section
+  coordinates. A saved session keeps each viewer's choice. A quicklook's image panels open without
+  axes, and "Axes" in its Panels list shows or hides them on all of them at once, partly ticked while
+  the panels differ (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). To open every
+  other new Image viewer without axes, add ``solar_show_axes = false`` to the ``[main]`` section
   of glue's settings file, ``~/.glue/settings.cfg``, or type
   ``from glue.config import settings; settings.SOLAR_SHOW_AXES = False`` in glue's terminal for the
   rest of the session ("OK" in glue's Preferences then saves it to that file).

@@ -55,6 +55,7 @@ from glue_solar.tests.test_quicklook import (
     rows,
     settle,
     slide,
+    tick,
 )
 
 DATEREF = "2021-09-05T00:00:00"
@@ -450,7 +451,13 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
     assert tops[0].pop() < tops[1].pop() < tops[2].pop()
     window = point_window(sst_app)
     assert window.parent().y() > viewers["curve"].parent().y()
-    assert entries(panels_list(sst_app)) == [(title, True) for row in titles for title in row]
+    assert entries(panels_list(sst_app)) == [("Axes", False), *((title, True) for row in titles for title in row)]
+    # the image panels without axes, until the Axes box shows them (D71); the spectra and light curve keep theirs
+    images = [viewers[role] for role in ("map", "wing", "slit", "wavelength")]
+    profiles = [*viewers["spectra"], viewers["curve"]]
+    assert [viewer.axes.axison for viewer in images + profiles] == [False] * 4 + [True] * 5
+    tick(panels_list(sst_app), "Axes")
+    assert all(viewer.axes.axison for viewer in images)
     settle(qtbot, window)
     lon, lat, wavelength, _, _ = cube.coords.pixel_to_world_values(8, 6, 2, 0, 0)
     position = f'{lon:.2f}" {lat:.2f}" {wavelength * 10:.3f} Å'

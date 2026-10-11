@@ -466,6 +466,7 @@ def test_a_sit_and_stare_exposure_axis(bare_app, monkeypatch, irispy_test_files)
     raster, _ = sit_and_stare(irispy_test_files)
     bare_app.show()  # the quicklook's own panel sizes
     viewers = quicklook(bare_app, [raster])
+    tick(panels_list(bare_app), "Axes")  # the panels open without axes (D71)
     times = raster[raster.id["Time"]][:, 0, 0]
     first, last = (np.datetime_as_string(t, unit="s") for t in (times[0], times[-1]))
     label = f"{EXPOSURES}\n{first} – {last[11:]} UTC"  # one day
@@ -519,6 +520,7 @@ def test_a_sit_and_stare_exposure_axis(bare_app, monkeypatch, irispy_test_files)
 def test_a_slit_step_relabels_the_exposure_axis_without_placing_its_ticks(bare_app, monkeypatch, irispy_test_files):
     raster, _ = sit_and_stare(irispy_test_files)
     wavelength = quicklook(bare_app, [raster])["wavelength"]  # exposure on y
+    tick(panels_list(bare_app), "Axes")
     label = wavelength.state.y_axislabel
     assert label.startswith(f"{EXPOSURES}\n")
     edit = wavelength.options_widget().ui.axes_editor.ui.text_y_axislabel  # the axes options
@@ -690,6 +692,7 @@ def test_quicklook_of_a_full_raster(bare_app, monkeypatch, irispy_data):
     [data] = raster_data([irispy_data("iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz")])
     viewers = quicklook(bare_app, [data])
     check_panels(bare_app, viewers, data, {"map": (0, 1), "spectrogram": (2, 1), "wavelength": (2, 0)})
+    tick(panels_list(bare_app), "Axes")
     for role in ("map", "spectrogram", "wavelength"):  # no tick label over another or off the panel
         drawn = drawn_tick_labels(monkeypatch, viewers[role])
         width, height = viewers[role].figure.canvas.get_width_height()
@@ -730,6 +733,7 @@ def test_flat_helioprojective_coordinates_have_no_tick_labels(bare_app, scans):
     # latitude along the steps jitters back and forth across each tick value, and WCSAxes labels every crossing
     scan, stack = scans
     viewers = quicklook(bare_app, [scan])
+    tick(panels_list(bare_app), "Axes")
     sides = tick_label_sides(viewers["wavelength"])
     assert sides == {"Helioprojective Latitude": [], "Helioprojective Longitude": ["l", "#"]}
     assert tick_label_sides(viewers["spectrogram"])["Helioprojective Longitude"] == []
@@ -738,6 +742,7 @@ def test_flat_helioprojective_coordinates_have_no_tick_labels(bare_app, scans):
     assert tick_label_sides(viewers["wavelength"])["Helioprojective Latitude"] == []
     # a stack's λ–scan panel: each scan's pointing moves both angles, which leave the scan its own axis
     viewers = quicklook(bare_app, [stack])
+    tick(panels_list(bare_app), "Axes")
     assert tick_label_sides(viewers["wavelength"]) == {"Helioprojective Latitude": [], "Helioprojective Longitude": []}
     assert [] not in tick_label_sides(viewers["map"]).values()
 
@@ -1880,15 +1885,15 @@ def overlays(viewer):
 
 
 @pytest.mark.parametrize("show_axes", [True, False])
-def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, monkeypatch, irispy_test_files, show_axes):
+def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files, show_axes):
     raster, sji = sit_and_stare(irispy_test_files)
     # the fixture keeps full-size slit positions for 10x smaller frames: give each frame its own
     n, ny, nx = sji.shape
     slit = 1 + np.linspace(3, nx - 4, n)
     slit[[5, 6]] = 0, np.nan  # frames without a slit position
     sji.meta["slit x position"] = slit
-    monkeypatch.setattr(settings, "SOLAR_SHOW_AXES", show_axes)  # all the same without axes
     viewers = quicklook(bare_app, [raster, sji])
+    tick(panels_list(bare_app), "Axes", on=show_axes)  # all the same with axes
     [sji_viewer] = viewers["sji"]
     assert {viewer.axes.axison for viewer in bare_app.viewers[-1] if isinstance(viewer, ImageViewer)} == {show_axes}
     coord = coordinator(bare_app.data_collection)
@@ -4551,6 +4556,7 @@ def exposure_labels(viewer):
 def test_a_scanning_raster_has_no_exposure_axis(bare_app, scans):
     scan, _ = scans
     viewers = quicklook(bare_app, [scan])
+    tick(panels_list(bare_app), "Axes")
     # its steps are places on the Sun: glue's own labels and coordinates on every panel
     for role in RASTER_PANELS:
         assert exposure_labels(viewers[role]) == ([], [])
@@ -4583,6 +4589,7 @@ def test_an_exposure_axis_without_times_has_a_one_line_label(bare_app, irispy_te
 def test_the_exposure_axis_after_the_combo_hidden_axes_and_another_dataset(bare_app, irispy_test_files):
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
+    tick(panels_list(bare_app), "Axes")
     exposures = raster.shape[0]
     times = raster[raster.id["Time"]][:, 0, 0]
     first, last = (np.datetime_as_string(t, unit="s") for t in (times[0], times[-1]))
@@ -5152,6 +5159,7 @@ def test_panels_turned_off_do_nothing_and_come_back_as_they_were(bare_app, qtbot
     viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
     panels = panels_list(bare_app)
     assert entries(panels) == [
+        ("Axes", False),
         ("Mg II k 2796 slit vs time", True),
         ("Mg II k 2796 spectrogram", True),
         ("Mg II k 2796 λ–time", True),
@@ -5239,7 +5247,7 @@ def test_panels_turned_off_do_nothing_and_come_back_as_they_were(bare_app, qtbot
     assert [entry[0] for entry in entries(panels)][-2:] == ["SJI 1400", "C II 1336"]
     # a switch of the main window shows every panel again
     switched = switch(qtbot, viewers["windows"][0]["spectrum"])
-    assert all(entry[1] for entry in entries(panels_list(bare_app)))
+    assert all(entry[1] for entry in entries(panels_list(bare_app))[1:])
     assert not any(viewer.parent().isHidden() for viewer in glue_solar.quicklook._viewers(switched))
 
 
@@ -5265,6 +5273,66 @@ def test_the_time_master_turned_off_hands_the_time_back_once_on(bare_app, qtbot,
     frame = nearest_frame(sji, raster_time(raster, (exposure + 10,)))
     assert event(lambda: tick(panels, "SJI 1400")) == {"sji0": (frame, None, None)}
     assert "time master" in readout(sji_viewer)
+
+
+def test_the_panels_open_without_axes_which_the_axes_box_shows(bare_app, qtbot, monkeypatch, irispy_test_files):
+    from astropy.visualization.wcsaxes import WCSAxes
+
+    c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
+    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    bare_app.show()  # for clicks on the list
+    viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
+    panels = panels_list(bare_app)
+    every = glue_solar.quicklook._viewers(viewers)
+    images = [viewer for viewer in every if isinstance(viewer, ImageViewer)]
+    assert len(images) == 6  # Mg II k's three, the slit-jaw image, and C II's and Si IV's λ–time
+    placed = Counter()
+    place = WCSAxes._update_tick_and_label_positions
+    monkeypatch.setattr(
+        WCSAxes, "_update_tick_and_label_positions", lambda axes, **kw: placed.update([axes]) or place(axes, **kw)
+    )
+
+    def axes():
+        """Each Image panel's axes, as its state and WCSAxes have them, and those a draw of each places ticks on."""
+        placed.clear()
+        for viewer in images:
+            viewer.figure.canvas.draw()
+        return [(viewer.state.show_axes, viewer.axes.axison, viewer.axes in placed) for viewer in images]
+
+    def event(action):
+        return applied(bare_app, qtbot, viewers, panels, action)
+
+    # D71: every Image panel without axes, as 'Hide axes' leaves it, its draws skipping WCSAxes' ticks; the box unticked
+    # above the panels; the spectrum panels' plain Matplotlib axes kept
+    assert entries(panels)[:2] == [("Axes", False), ("Mg II k 2796 slit vs time", True)]
+    assert axes() == [(False, False, False)] * 6
+    assert all(viewer.axes.axison for viewer in every if isinstance(viewer, ProfileViewer))
+    # ticked: the axes, ticks and labels, the exposure axis and its UTC range among them; nothing moves
+    assert event(lambda: click_box(panels, "Axes")) == {}
+    assert axes() == [(True, True, True)] * 6
+    times = mg[mg.id["Time"]][:, 0, 0]
+    first, last = (np.datetime_as_string(t, unit="s") for t in (times[0], times[-1]))
+    check_exposure_axis(viewers["map"], "x", f"{EXPOSURES}\n{first} – {last[11:]} UTC", mg.shape[0])
+    # a panel's own 'Hide axes' ticks the box partly, and a click on it gives every panel its axes again
+    viewers["spectrogram"].toolbar.actions["solar:hide_axes"].trigger()
+    assert panels.axes_box.checkState(0) == Qt.PartiallyChecked
+    assert event(lambda: click_box(panels, "Axes")) == {}
+    assert axes() == [(True, True, True)] * 6
+    # a panel turned off keeps its axes; turned on again, it takes the box's
+    lambda_t = viewers["windows"][0]["wavelength"]  # C II 1336's
+    assert event(lambda: tick(panels, "C II 1336", on=False)) == {}
+    assert event(lambda: click_box(panels, "Axes")) == {}
+    assert (lambda_t.state.show_axes, entries(panels)[0]) == (True, ("Axes", False))
+    assert event(lambda: tick(panels, "C II 1336")) == {}
+    assert axes() == [(False, False, False)] * 6
+    # a switch of the main window keeps the box's choice
+    click_box(panels, "Axes")
+    switched = switch(qtbot, viewers["windows"][1]["spectrum"])  # Si IV 1403
+    assert entries(panels_list(bare_app))[0] == ("Axes", True)
+    images = [viewer for viewer in glue_solar.quicklook._viewers(switched) if isinstance(viewer, ImageViewer)]
+    assert axes() == [(True, True, True)] * 6
+    # an Image viewer opened by hand keeps its axes
+    assert bare_app.new_data_viewer(ImageViewer, data=mg).axes.axison
 
 
 def test_the_browser_shows_the_main_window_chosen(qtbot, monkeypatch, tmp_path, irispy_test_files):

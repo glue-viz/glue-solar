@@ -411,15 +411,17 @@ def test_a_restored_quicklook_keeps_its_switched_main_window(qtbot, monkeypatch,
         np.testing.assert_allclose(got, expected, rtol=1e-12)
 
 
-def test_a_restored_quicklook_has_the_panels_shown(qtbot, monkeypatch, tmp_path, irispy_test_files):
+def test_a_restored_quicklook_has_the_panels_shown_with_their_axes(qtbot, monkeypatch, tmp_path, irispy_test_files):
     files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
     glue_solar.setup()
     app = GlueApplication()
     qtbot.addWidget(app)
     monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
-    quicklook(app, [*raster_data(files[:1], THREE), image_data(files[1])], window=THREE)
+    viewers = quicklook(app, [*raster_data(files[:1], THREE), image_data(files[1])], window=THREE)
     panels = panels_list(app)
     tick(panels, "C II 1336", "SJI 1400", on=False)
+    tick(panels, "Axes")  # and the spectrogram's hidden again by hand
+    viewers["spectrogram"].toolbar.actions["solar:hide_axes"].trigger()
     qtbot.waitUntil(lambda: not panels._timer.isActive())
     shown = [row for row, viewer in zip(viewer_rows(app), app.viewers[-1]) if not viewer.parent().isHidden()]
     assert len(shown) == len(app.viewers[-1]) - 3
@@ -428,6 +430,9 @@ def test_a_restored_quicklook_has_the_panels_shown(qtbot, monkeypatch, tmp_path,
     qtbot.addWidget(restored)
     # slices restore as lists
     assert [(*row[:4], row[4] and tuple(row[4])) for row in viewer_rows(restored)] == shown
+    # each Image panel with or without its axes, as saved
+    axes = [viewer.axes.axison for viewer in restored.viewers[-1] if isinstance(viewer, ImageViewer)]
+    assert axes == [True, False, True, True]  # Mg II k's map, spectrogram and λ–time, Si IV's λ–time
 
 
 def test_a_restored_quicklook_marks_its_master_exposure_again(qtbot, monkeypatch, tmp_path, irispy_test_files):

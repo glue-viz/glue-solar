@@ -169,26 +169,29 @@ Readouts, labels and themes
     value under the mouse, neither covering the other. Write down the narrowest panel at which it
     still fits.
 
-25. On the map and the wavelength panel of item 5, the exposure axis is labelled "Exposure
-    (acquisition order)", with the UTC range of the exposures on a second line, and its ticks are
-    whole exposure numbers. Both lines are inside the panel and clear of the tick labels.
+25. The image panels of item 5 have no axes. Tick "Axes" at the top of its Panels list: every image
+    panel shows its axes, and on the map and the wavelength panel the exposure axis is labelled
+    "Exposure (acquisition order)", with the UTC range of the exposures on a second line, and its
+    ticks are whole exposure numbers. Both lines are inside the panel and clear of the tick labels.
 
 26. Switch the system to the other appearance, light or dark (macOS: System Settings, Appearance;
     Windows: Settings, Personalization, Colors; Linux: the desktop's dark theme), start glue again
     and repeat items 23 and 25. The grey veil, the grey NO MATCH text, the exposure label and the
     ticks stay readable in both.
 
-27. Press "Hide axes" on the map of item 5. The ticks, tick labels, axis labels and frame disappear,
-    and the Pixel tool stays on. Move the mouse over the image: the status bar gives the same world
-    position and value as with the axes shown. Zoom with "Zoom" (Z) and resize the panel, then move
-    the mouse again: the first readout after each is already in world coordinates. Press "Hide
-    axes" again: the axes come back, with the exposure label.
+27. Press "Hide axes" on the map of item 25. The ticks, tick labels, axis labels and frame disappear,
+    the Pixel tool stays on, and "Axes" in the Panels list is partly ticked. Move the mouse over the
+    image: the status bar gives the same world position and value as with the axes shown. Zoom with
+    "Zoom" (Z) and resize the panel, then move the mouse again: the first readout after each is
+    already in world coordinates. Press "Hide axes" again: the axes come back, with the exposure
+    label, and "Axes" is ticked again.
 
-28. Press "Physical aspect" on the map of item 11, whose 1″ raster steps are three times as wide as
-    its 0.33″ slit pixels. The map narrows to its field's proportions on the sky, and the Pixel tool
-    stays on. With a screenshot tool, measure the distance between two longitude ticks 10″ apart and
-    between two latitude ticks 10″ apart: they agree within 5 %. Resize the panel and zoom with "Zoom"
-    (Z), and measure again. Press "Physical aspect" again: the map fills the panel again.
+28. Tick "Axes" in the Panels list of the quicklook of item 11 and press "Physical aspect" on its
+    map, whose 1″ raster steps are three times as wide as its 0.33″ slit pixels. The map narrows to
+    its field's proportions on the sky, and the Pixel tool stays on. With a screenshot tool, measure
+    the distance between two longitude ticks 10″ apart and between two latitude ticks 10″ apart: they
+    agree within 5 %. Resize the panel and zoom with "Zoom" (Z), and measure again. Press "Physical
+    aspect" again: the map fills the panel again.
 
 Windows, tabs and shortcuts
 ---------------------------
