@@ -1398,6 +1398,7 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 
   The map λ step (95 ms) and the SJI frame step (48 ms) do not change. With the point curves, row and column open, a move takes 1668 ms.
 - **Cause:** every other window's spectrum panel and λ panel redraws on each step and move.
+- **Workaround (#228, 2026-10-10):** turning the other windows' panels off in the quicklook's Panels list brings the 9-window step to 188-195 ms (7 draws, none on hidden panels), a one-window quicklook's cost. With every panel shown, the step is unchanged (532-540 ms on today's main).
 - **Fix:** blit the moving time and point markers, refresh images only when their slice changes, or redraw only the visible rows.
 
 ### SST8. An SST Pixel drag with a Profile open costs about 190 ms per move

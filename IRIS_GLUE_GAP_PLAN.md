@@ -33,8 +33,8 @@ Out of scope:
 **Next.** The window of 2026-10-10, in the user's order. Each item is one run of `plan-item-workflow.js`: Opus implements, Fable reviews (falling back to the session model), and Opus fixes. Each ships with `ship_locked.sh` and merges on green CI.
   1. #226, the WCS lock with the link scope (D64): on main.
   2. #227, the SST loader with D67 (SST regions reaching IRIS data, the cavity map as a component): on main.
-  3. #228, placed as D66: in flight.
-  4. `wp13-l-sst-quicklook` (D65).
+  3. #228, the panel toggles placed as D66: on main.
+  4. `wp13-l-sst-quicklook` (D65, D68): in flight.
 
   The other D63 items and the Ctrl+I recipe (`wp9-l-deferred-recipes`) fit around these. The survey (done 2026-10-10) is in GLUE_SPEED.md 'SST and IRIS stress survey, 2026-10-10' and `IRIS_PLAN_PROTOTYPES/sst_stress_20261010.tar.gz`. Left from #226:
   - glue's `WCSLink.__init__` reads `wcs.wcs.lng` and `.lat` on the struct, outside any lock, when File > Open autolinks a dataset beside a linked SST cube or map. Lock the WCS objects there, or note it for `wp0-astropy-19174`.
