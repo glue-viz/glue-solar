@@ -130,12 +130,14 @@ def test_the_link_patches_hold_the_wcs_lock(monkeypatch):
     monkeypatch.setattr(
         glue_patches, "_original_to_linked_pixel_coords", lambda *args: held.append(WCS_LOCK._is_owned())
     )
-    glue_patches._to_linked_pixel_coords(None, None)
+    linked, iris, unlinked = (SimpleNamespace(coords=coords) for coords in (_LockedWCS(naxis=2), None, WCS(naxis=2)))
+    for point, data in ((linked, iris), (iris, linked), (iris, unlinked), (unlinked, unlinked)):
+        glue_patches._to_linked_pixel_coords(SimpleNamespace(reference_data=point), data)
     # and WCSAxes, which calls wcslib's wcsset on the WCS of a linked dataset, as glue at each slice of an SST cube
     monkeypatch.setattr(glue_patches, "_original_reset_wcs", lambda *args: held.append(WCS_LOCK._is_owned()))
     glue_patches.reset_wcs(None, wcs=_LockedWCS(naxis=2))
     glue_patches.reset_wcs(None, wcs=WCS(naxis=2))  # an unlinked one waits for no profile worker
-    assert held == [True, True, True, False]
+    assert held == [True, True, True, False, False, True, False]  # nor a point to or on an unlinked one (227-9)
     # and glue's autolinker, which reads has_celestial of every dataset's WCS as data load: wcsset again
     for name in ("has_celestial", "has_spectral", "has_temporal"):
         assert _LockedWCS.__dict__[name].fget.__wrapped__ is getattr(WCS, name).fget
