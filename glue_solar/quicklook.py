@@ -1454,7 +1454,10 @@ def _fill(app, tab, datasets, window, main, group=None):
             (_window(panels["spectrum"].state.reference_data)[0], list(panels.values()))
             for panels in viewers["windows"]
         ]
-        _add_window(tab, _Panels(entries, group, partial(_arrange, tab, viewers)), "Panels")
+        sub = _add_window(tab, _Panels(entries, group, partial(_arrange, tab, viewers)), "Panels")
+        # a click on a box leaves the panel active, with its tool: glue-qt resets both for the window Qt focuses
+        for widget in (sub, sub.widget(), sub.widget().viewport()):
+            widget.setFocusPolicy(Qt.NoFocus)
         _SpectralLines(coordinator(collection), group, key, own[:3], viewers["spectrum"], tab)
         for panels in viewers["windows"]:
             if "wavelength" in panels:
@@ -1573,7 +1576,8 @@ def _turn(viewer, on, group):
     Show ``viewer``, a quicklook panel whose point is ``group``, or hide it. Hidden, it draws nothing and does no work:
     the coordinator leaves it, as it does a closed one, its lines and tools leave it as they are, and glue only notes
     the subsets that change, so that once shown it updates their layers and the coordinator moves it to the point and
-    the time.
+    the time; a slit-jaw time master, which hands the time to the raster while hidden, takes it back at its frame
+    nearest the raster's.
     """
     session = viewer.session
     coord = coordinator(session.data_collection)
@@ -1585,6 +1589,11 @@ def _turn(viewer, on, group):
             if layer.layer in viewer._solar_changed:
                 layer.update()
         if isinstance(viewer, ImageViewer):
+            data = viewer.state.reference_data
+            master = _role(data) == "sji" and coord.masters.get(observation_key(data)) is data
+            frame = coord.following(data) if master else None  # the raster's time, while it leads
+            if frame is not None:
+                viewer.state.slices = (frame, *viewer.state.slices[1:])
             coord.register(viewer)
             coord.own(group, [viewer])
     else:
@@ -2027,7 +2036,8 @@ def _arrange(tab, viewers):
     """
     The panels shown, those neither closed nor turned off: raster panels in a top row, slit-jaw viewers and the spectrum
     in a second row, each other window's wavelength panel and spectrum in rows of four below, at least 400 pixels tall
-    each and 800 together; and below them the Point window, as tall as its rows, with the Panels list on its right.
+    each and 800 together; and below them the Point window, with the Panels list on its right, both as tall as the
+    longer one's rows.
     """
 
     def shown(panels):
@@ -2045,7 +2055,7 @@ def _arrange(tab, viewers):
     }
     if _PointWindow in strip:
         strip[_PointWindow].widget().refresh()  # the rows of the panels shown, which its height follows
-    tall = strip.get(_PointWindow, strip.get(_Panels)).sizeHint().height() if strip else 0
+    tall = max((sub.sizeHint().height() for sub in strip.values()), default=0)  # no scroll bar in the list
     size = tab.maximumViewportSize()  # without the scroll bars, which the layout decides
     height = max(size.height() - tall, 400 * max(len(rows), 2))
     width = max(size.width(), 1200)
@@ -2283,13 +2293,14 @@ class _Panels(QTreeWidget):
 
 
 def _add_window(tab, widget, title):
-    """Add ``widget`` to ``tab`` in a window of its own, titled ``title``."""
+    """Add ``widget`` to ``tab`` in a window of its own, titled ``title``, and return the window."""
     sub = QMdiSubWindow()
     sub.setWidget(widget)
     sub.setAttribute(Qt.WA_DeleteOnClose)  # with its tab too, as glue closes every window of a tab it closes
     sub.setWindowTitle(title)
     tab.addSubWindow(sub)
     sub.show()
+    return sub
 
 
 def _point_window(app, tab, group, key, viewers):

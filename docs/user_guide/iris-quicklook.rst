@@ -364,21 +364,24 @@ closed by hand stays closed.
 The "Panels" list, right of the Point window, turns each panel on and off: a box for each panel of
 the main window (the map, the spectrogram, the wavelength panel and the spectrum) and each slit-jaw
 image, and one for each other window (see `Several windows`_), which turns all its panels on or off;
-expand it for a box per panel. At each change the panels shown are laid out again in their rows, an
+expand it for a box per panel. A click on a box leaves the active panel and its tool as they were,
+and the list takes no keys. At each change the panels shown are laid out again in their rows, an
 empty row going and panels moved or resized by hand taking their place again, once for all the boxes
 changed at once, such as a window's; a panel that keeps its size is not drawn again. A panel turned
 off is hidden and does nothing: it neither moves, draws nor computes as the point, the sliders and
 the time move, and the Point window leaves out its row. Turned on again, it moves to the point and
 the time, its zoom, colours and other settings as they were; a map keeps its wavelength, which
 :kbd:`A`, :kbd:`S` and clicks on the panels showing wavelength move only on the maps shown. A
-slit-jaw image that is the time master hands the time to the raster while its panel is off, and
-takes it back, from the frame it kept, once on. A panel closed by hand leaves the list. "Show this
-window's panels" (below) shows every panel again, and a saved session leaves out the panels turned
-off. On 4000255147 with its nine windows and SJI 1400, an exposure step takes 0.19 s with the other
-windows' panels off, as with the main window alone, against 0.54 s with every panel on, and a click
-and a move take 0.2 s against 0.5 and 0.6 s; turning a panel or a window off or on takes 0.05 to 0.1
-s, and the eight other windows off at once 0.03 s and on again 0.26 s. A stack of 4000005156's two
-scans of the same windows and SJI 2796 steps as fast with its other windows off as alone.
+slit-jaw image that is the time master hands the time to the raster while its panel is off and, once
+on, takes it back at its frame nearest the raster's time. A panel closed by hand leaves the list.
+Like the Point window, the list closed by hand stays closed, and the panels it had turned off stay
+off until "Show this window's panels" (below), which shows every panel again; a saved session leaves
+out the panels turned off. On 4000255147 with its nine windows and SJI 1400, an exposure step takes
+0.19 s with the other windows' panels off, as with the main window alone, against 0.54 s with every
+panel on, and a click and a move take 0.2 s against 0.5 and 0.6 s; turning a panel or a window off
+or on takes 0.05 to 0.1 s, and the eight other windows off at once 0.03 s and on again 0.26 s. A
+stack of 4000005156's two scans of the same windows and SJI 2796 steps as fast with its other
+windows off as alone.
 
 A saved session opens the quicklook again with its point and its time master: its tab makes
 "Point" the edit subset whenever it is shown, the panels follow the time master to the frames they
