@@ -202,7 +202,8 @@ def _ask(datasets):
     preset = QtWidgets.QCheckBox(O_IV, objectName="preset")
     # its densities, in log10 cm^-3, 0.1 apart, and temperature, in log10 K, within fiasco's O IV temperatures
     densities = [
-        QtWidgets.QDoubleSpinBox(objectName=name, decimals=1, minimum=6, maximum=16) for name in ("from", "to")
+        QtWidgets.QDoubleSpinBox(objectName=name, decimals=1, minimum=6, maximum=16, singleStep=0.1)
+        for name in ("from", "to")
     ]
     temperature = QtWidgets.QDoubleSpinBox(objectName="log T", decimals=2, minimum=4.5, maximum=6, singleStep=0.05)
     for box, value in zip((*densities, temperature), (*LOG_DENSITIES, LOG_TEMPERATURE)):

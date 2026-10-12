@@ -241,6 +241,7 @@ def preset(monkeypatch, typed=()):
         numbers = [dialog.findChild(QtWidgets.QDoubleSpinBox, name) for name in PRESET_BOXES]
         opened.append((box.isEnabled(), box.toolTip(), tuple(number.value() for number in numbers)))
         assert not any(number.isEnabled() for number in numbers)
+        assert [number.singleStep() for number in numbers] == [0.1, 0.1, 0.05]  # densities 0.1 dex, as fiasco's
         box.setChecked(box.isEnabled())  # as a click would
         disabled = [not dialog.findChild(kind, name).isEnabled() for kind, name in TABLE_WIDGETS]
         assert disabled == [box.isChecked()] * 3
