@@ -429,8 +429,13 @@ def _start(data_collection, text, failed, function, *args, said=None, add=None):
         status.showMessage(text)
         worker.finished.connect(partial(_clear, status, text))
     _RUNNING.add(worker)
-    worker.finished.connect(lambda: _RUNNING.discard(worker))  # queued: the message cleared, the result added by then
-    worker.finished.connect(partial(refresh_layer_actions, data_collection))  # the entries its result or error changes
+
+    def finished():  # queued: the message cleared, the result added by then
+        _RUNNING.discard(worker)
+        refresh_layer_actions(data_collection)  # the entries its result or error changes
+
+    # one slot, the last: one queued after the discard could run once the worker is collected, its slots freed (segfault)
+    worker.finished.connect(finished)
     worker.start()
 
 
