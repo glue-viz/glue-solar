@@ -61,7 +61,7 @@ from astropy.wcs import WCS
 
 from sunpy.visualization.colormaps import cmlist
 
-from glue_solar.sources.loaders.iris import WCS_LOCK, _LockedWCS
+from glue_solar.sources.loaders.iris import WCS_LOCK, _HeldWCS, _LockedWCS
 
 __all__ = [
     "add_tool",
@@ -164,13 +164,14 @@ _original_reset_wcs = WCSAxes.reset_wcs
 
 def reset_wcs(self, wcs=None, *args, **kwargs):
     """
-    astropy's ``WCSAxes.reset_wcs``, holding `WCS_LOCK` for a WCS that `link_hpc` locked.
+    astropy's ``WCSAxes.reset_wcs``, holding the lock of a WCS that has one: `WCS_LOCK` for one that `link_hpc` locked,
+    and an SST cube's own.
 
     It calls wcslib's ``wcsset`` on an astropy WCS, which glue does at each slice of a cube whose sky axes depend on it,
     such as an SST cube, and which frees what a profile worker's world to pixel of the same WCS reads. Retired with
     `WCS_LOCK` (astropy/astropy#19174).
     """
-    with WCS_LOCK if isinstance(wcs, _LockedWCS) else nullcontext():
+    with wcs._held() if isinstance(wcs, _HeldWCS) else nullcontext():
         return _original_reset_wcs(self, wcs, *args, **kwargs)
 
 

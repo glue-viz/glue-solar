@@ -94,22 +94,29 @@ _MEMO_SAMPLES = 4096
 
 
 def _holding_lock(function):
-    """``function``, called holding `WCS_LOCK`."""
+    """``function`` of a WCS, called holding the WCS's lock, ``_held()``."""
 
     @wraps(function)
-    def locked(*args, **kwargs):
-        with WCS_LOCK:
-            return function(*args, **kwargs)
+    def locked(wcs, *args, **kwargs):
+        with wcs._held():
+            return function(wcs, *args, **kwargs)
 
     return locked
 
 
-class _LockedWCS(WCS):
+class _HeldWCS(WCS):
+    """An astropy WCS whose transforms, copies and the properties that read wcslib's struct hold its ``_held()``."""
+
+
+class _LockedWCS(_HeldWCS):
     """
     An astropy WCS whose transforms and properties hold `WCS_LOCK`, as those of `_GlueWCS` do. `link_hpc` makes the WCS
     of each other dataset it links one, in place: IRIS data's profile workers then call wcslib on it beside the GUI
     thread, which crashed glue 8 times in 8 beside an SST cube.
     """
+
+    def _held(self):
+        return WCS_LOCK
 
 
 # wcslib's transforms, and the properties that read its struct: a lock on the transforms alone still crashed
@@ -125,7 +132,7 @@ for _name in (
     "__copy__",
     "__deepcopy__",
 ):
-    setattr(_LockedWCS, _name, _holding_lock(getattr(WCS, _name)))
+    setattr(_HeldWCS, _name, _holding_lock(getattr(WCS, _name)))
 for _name in (
     "axis_correlation_matrix",
     "world_axis_physical_types",
@@ -144,7 +151,7 @@ for _name in (
     "has_temporal",
 ):
     _property = getattr(WCS, _name)
-    setattr(_LockedWCS, _name, property(_holding_lock(_property.fget), _property.fset))
+    setattr(_HeldWCS, _name, property(_holding_lock(_property.fget), _property.fset))
 del _name, _property
 
 

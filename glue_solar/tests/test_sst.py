@@ -6,6 +6,7 @@ The SST quicklook shows one cube in a tab, its panels on one point and one time,
 IRIS data share.
 """
 
+import copy
 import mmap
 import sys
 import threading
@@ -23,9 +24,11 @@ from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.app import GlueApplication
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from glue_qt.viewers.profile.layer_artist import QThreadedProfileLayerArtist
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 
+import astropy.wcs.wcsapi.fitswcs
 from astropy.io import fits
 from astropy.wcs import WCS
 
@@ -816,6 +819,48 @@ def test_an_unlinked_cube_never_takes_the_wcs_lock(sst_app, qtbot, monkeypatch, 
     slide(viewers["map"], 0, 1)
     settle(qtbot, point_window(sst_app))
     assert taken
+
+
+def test_every_wcslib_call_on_an_unlinked_cube_holds_its_own_lock(sst_app, qtbot, monkeypatch, tmp_path):
+    # D73: glue-qt computes the spectra of a cube of over 1e7 values on worker threads, as the GUI thread draws its
+    # coordinates and resets them (wcsset) at each scan; wcslib writes the table's scratch values as it reads them, which
+    # gave wrong values and crashed glue. So each call into wcslib, or into astropy's code that reads its struct, holds
+    # the cube's own lock, and not the WCS lock (227-9)
+    monkeypatch.setattr(
+        QThreadedProfileLayerArtist, "_calculate_profile", lambda self, reset=False: self._worker.work_queue.put(reset)
+    )
+    cube, _ = stokes_cube(tmp_path / "cube.fits")
+    wcs, struct = cube.coords, cube.coords.wcs
+    viewers = quicklook(sst_app, [cube])
+    tick(panels_list(sst_app), "Axes")
+    files = {astropy.wcs.wcs.__file__, astropy.wcs.wcsapi.fitswcs.__file__}
+    calls = []  # (on the GUI thread, the function, holding the cube's lock, holding the WCS lock)
+
+    def profile(frame, event, arg):
+        if event == "c_call" and any(getattr(arg, "__self__", None) is owner for owner in (wcs, struct)):
+            name = arg.__name__
+        elif event == "call" and frame.f_code.co_filename in files and "wcs" in frame.f_code.co_names:
+            if frame.f_locals.get("self") is not wcs:
+                return
+            name = frame.f_code.co_name
+        else:
+            return
+        main = threading.current_thread() is threading.main_thread()
+        calls.append((main, name, wcs._lock._is_owned(), WCS_LOCK._is_owned()))
+
+    threading.setprofile_all_threads(profile)  # glue-qt's workers too, which wait for work
+    try:
+        for scan, (x, y) in enumerate([(3, 7), (10, 4)], 1):
+            select_point(viewers["map"], x, y)
+            slide(viewers["map"], 0, scan)
+            settle(qtbot, point_window(sst_app))
+        qtbot.waitUntil(lambda: {main for main, *_ in calls} == {True, False}, timeout=30_000)
+        sst_app.save_session(str(tmp_path / "sst.glu"))
+    finally:
+        threading.setprofile_all_threads(None)
+    assert {"_all_pix2world", "set", "world_axis_units", "to_header"} <= {name for _, name, *_ in calls}
+    assert [call for call in calls if not call[2] or call[3]] == []
+    assert copy.deepcopy(wcs)._lock is not wcs._lock  # a copy's own, as its struct is
 
 
 def test_the_browser_lists_and_opens_each_sst_cube(qtbot, monkeypatch, tmp_path):
