@@ -1,0 +1,1 @@
+Path diagrams close with the viewer they were drawn in without asking 'Do you want to close this window?', as on 'Show this window's panels', closing glue or resetting the session.
