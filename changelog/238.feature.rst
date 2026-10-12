@@ -1,0 +1,1 @@
+A stack's UV bursts and radiometric calibration use its first date for every scan, and 'IRIS: radiometric calibration' takes windows rebinned with 'IRIS: rebin…', with the unbinned pixel's dispersion and solid angle at each bin's wavelength.
