@@ -1385,7 +1385,7 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 ### SST7. Each ticked window multiplies the quicklook's redraws: about 4× per step with 9 windows
 
 - [x] Re-verified (2026-10-10)
-- [ ] Fixed in glue-solar (`wp4-l-window-rows-redraw`); per-draw cost R1, R5, R18
+- [x] Worked around in glue-solar for panels out of sight (#235, 2026-10-11): they draw once in sight. 9-window 4000255147 at 1600×1000, axes hidden: step 270-278 → 196-201 ms (47 → 17 draws), move 312-322 → 213-220 ms; axes shown: step 497 → 246-249 ms. With every row in sight the cost is main's: of what is left, the repeated draws (glue drawing the point layer before the time sync, and R3's second worker run, about 55% of a step with axes hidden) and the per-draw cost R1, R5, R18
 
 - **Cost:** on 4000255147, going from 1 window to 9:
 
