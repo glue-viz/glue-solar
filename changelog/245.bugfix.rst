@@ -1,0 +1,1 @@
+Glue's Link Data dialog and its link suggestions open again, and keep the links on OK, once a sunpy map or SST cube is linked to IRIS data or a path diagram is placed on other data.
