@@ -1433,7 +1433,7 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 ### SST11. 'Light curves of every window and SJI…' is offered on a single-scan raster with no SJI, then refuses
 
 - [x] Re-verified (2026-10-10, on 75b7a73)
-- [ ] Fixed in glue-solar (`wp11-l-point-curves-offered`)
+- [x] Fixed in glue-solar (#236, 2026-10-11): the entry, now 'Light curves of the shown windows and SJI', runs `_point_curves`' own check and is not offered on 3824262996's raster alone; a 4000255147 quicklook of two windows and SJI 1400 gives those three curves in 0.47 s, against ten in 0.85 s.
 
 - **Cost:** an error box on 3824262996 ('… has no exposures or scans, and its observation no slit-jaw image loaded').
 - **Cause:** `_PointCurvesEntry.offered` checks only for an IRIS role.
