@@ -25,10 +25,27 @@ VELOCITIES = (-40.0, 40.0)
 LINES = ("k", "h")
 
 
-def _crop(data, velocities, lines):
+def _rest(data):
     """
-    Those of ``lines`` that ``data`` covers over ``velocities``, as irispy finds them, and the wavelength pixels it
-    takes of them, a pixel wider at either end, so it finds the same within them; raises why for none.
+    The rest wavelength set for ``data`` with 'IRIS: set rest wavelength…', in Angstrom, or None; raises why for one
+    over 1 Å from irispy's Mg II k.
+    """
+    from irispy.utils.mg_features import _REST_WAVELENGTH
+
+    rest, k = data.meta.get("rest_wavelength"), _REST_WAVELENGTH["k"].to_value(u.AA)
+    if rest is not None and abs(rest - k) > 1:
+        raise ValueError(
+            f"The rest wavelength set for {data.label}, {rest} Å, is not Mg II k's: Mg II features take one within 1 Å "
+            f"of {k:.3f} Å. Change or clear it with 'IRIS: set rest wavelength…'."
+        )
+    return rest
+
+
+def _crop(data, velocities, lines, rest=None):
+    """
+    Those of ``lines`` that ``data`` covers over ``velocities``, as irispy finds them, the wavelength pixels it takes of
+    them, a pixel wider at either end, so it finds the same within them, and the shift of its wavelengths, in pixels
+    (`_cube`), that has irispy measure k from ``rest``, a rest wavelength set (`_rest`); raises why for none.
     """
     from irispy.utils.mg_features import _REST_WAVELENGTH
 
@@ -38,9 +55,14 @@ def _crop(data, velocities, lines):
     if not low < high:
         raise ValueError(f"The velocities, from {low} to {high} km/s, do not increase.")
     wavelengths, _ = _wavelengths(data)
+    # each shorter by rest less irispy's k, as irispy advises for IDL's wave_comp: k is then measured from rest, h from
+    # irispy's h as far off
+    offset = 0.0 if rest is None else rest - _REST_WAVELENGTH["k"].to_value(u.AA)
     covered, starts, stops = [], [], []
     for line in lines:
-        velocity = (wavelengths * u.AA).to_value(u.km / u.s, equivalencies=u.doppler_optical(_REST_WAVELENGTH[line]))
+        velocity = ((wavelengths - offset) * u.AA).to_value(
+            u.km / u.s, equivalencies=u.doppler_optical(_REST_WAVELENGTH[line])
+        )
         if velocity[0] <= low and high <= velocity[-1]:  # irispy skips a line otherwise
             covered.append(line)
             # irispy's, within 3 km/s of the velocities
@@ -51,7 +73,9 @@ def _crop(data, velocities, lines):
             f"{data.label} ({wavelengths[0]:.2f} to {wavelengths[-1]:.2f} Å) does not cover Mg II "
             f"{' or '.join(lines)} from {low} to {high} km/s."
         )
-    return tuple(covered), slice(max(min(starts), 0), min(max(stops), wavelengths.size))
+    # Level 2 wavelengths are linear: shifting the pixels shifts each wavelength alike
+    shift = -offset * (wavelengths.size - 1) / (wavelengths[-1] - wavelengths[0])
+    return tuple(covered), slice(max(min(starts), 0), min(max(stops), wavelengths.size)), shift
 
 
 def _covered(data):
@@ -62,14 +86,14 @@ def _covered(data):
     return _crop(data, VELOCITIES, LINES)[0]
 
 
-def _mg_features(data, velocities, lines, crop, unit):
+def _mg_features(data, velocities, lines, crop, shift, unit, rest=None):
     """
-    `mg_features` of ``lines`` given ``crop`` of the wavelength pixels and ``unit`` the unit of the values irispy is
-    given; on any thread.
+    `mg_features` of ``lines`` given ``crop`` of the wavelength pixels, ``shift`` of the wavelengths, in pixels, for
+    ``rest``, the rest wavelength set, if any, and ``unit`` the unit of the values irispy is given; on any thread.
     """
     from irispy.utils.mg_features import calculate_mg_features
 
-    maps, saturated = {}, dict.fromkeys(lines, 0)
+    maps = {}
     # irispy measures each step on its own, so a slab of steps gives what the whole window would
     steps = max(1, SLAB // (data.shape[-2] * (crop.stop - crop.start)))
     # each scan of a stack, as its own WCS and exposure times give it
@@ -77,22 +101,24 @@ def _mg_features(data, velocities, lines, crop, unit):
         rows = (*scan, slice(start, start + steps), slice(None))
         values, _ = _read(data, rows, crop)
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
-            # a line's features are NaN where a sample it searches is saturated, +Inf
+            # a line's features are NaN where a sample it searches is saturated, +Inf, as its saturated map says
             slab = calculate_mg_features(
-                _cube(data, values, rows, crop, unit), velocity_range=velocities * u.km / u.s, lines=lines
+                _cube(data, values, rows, crop, unit, shift=shift), velocity_range=velocities * u.km / u.s, lines=lines
             )
-        for line in lines:
-            saturated[line] += int(slab.pop(f"{line}_saturated").data.sum())
         for name, feature in slab.items():
             maps.setdefault(name, []).append((feature.data, feature.unit))
         gc.collect(0)  # ndcube's cubes are reference cycles, and irispy's hold the slab's values
     features = _dataset(data, f"{data.label} Mg II features")
     features.meta.update(mg_features_velocities=tuple(velocities), mg_features_lines=lines)
-    if any(saturated.values()):  # for the status bar and scripts, as line moments'
-        features.meta["mg_features_saturated"] = {line: count for line, count in saturated.items() if count}
+    if rest is not None:
+        features.meta["mg_features_rest_wavelength"] = rest
     for name, parts in maps.items():
         values = np.concatenate([part for part, _ in parts]).reshape(data.shape[:-1])
+        # irispy's saturated maps are bool, which glue holds as int64
         features.add_component(Component(values, units=str(parts[0][1])), name)
+    saturated = {line: int(features[f"{line}_saturated"].sum()) for line in lines}
+    if any(saturated.values()):  # for the status bar and scripts, as line moments'
+        features.meta["mg_features_saturated"] = {line: count for line, count in saturated.items() if count}
     return features
 
 
@@ -107,9 +133,13 @@ def mg_features(data, velocities=VELOCITIES, lines=LINES):
     each line, ``k`` (2796.35 Å) and ``h`` (2803.53 Å), its components are irispy's: ``k2v``, ``k3`` and ``k2r``
     (``h2v``, ``h3``, ``h2r``), the blue peak, line centre and red peak, each as ``<feature>_velocity`` in km / s and
     ``<feature>_intensity`` in the window's unit; NaN where irispy finds none, or a sample it searches for the line is
-    missing or saturated: +Inf, as the loader reads the Level 2 ceiling, 16182 DN. ``meta`` holds the observation's
-    ``OBSID`` and ``STARTOBS``, ``mg_features_velocities`` and ``mg_features_lines``, those measured, and with
-    saturated pixels ``mg_features_saturated``, how many of each line's, over every scan.
+    missing or saturated: +Inf, as the loader reads the Level 2 ceiling, 16182 DN, where irispy's ``k_saturated``
+    (``h_saturated``) is 1, else 0. With a rest wavelength set for ``data`` with 'IRIS: set rest wavelength…', irispy
+    is given its wavelengths shorter by the rest wavelength less irispy's k, as irispy advises for IDL's ``wave_comp``:
+    k's velocities are then from the rest wavelength, and h's from irispy's h as far off. ``meta`` holds the
+    observation's ``OBSID`` and ``STARTOBS``, ``mg_features_velocities`` and ``mg_features_lines``, those measured,
+    with a rest wavelength set ``mg_features_rest_wavelength``, and with saturated pixels ``mg_features_saturated``,
+    how many of each line's, over every scan.
 
     Parameters
     ----------
@@ -124,11 +154,12 @@ def mg_features(data, velocities=VELOCITIES, lines=LINES):
     Raises
     ------
     ValueError
-        For other data than an IRIS raster window or stack, other ``lines``, velocities that do not increase, or a
-        window that covers none of ``lines`` over them.
+        For other data than an IRIS raster window or stack, a rest wavelength set over 1 Å from irispy's k, other
+        ``lines``, velocities that do not increase, or a window that covers none of ``lines`` over them.
     """
     _check(data)
-    return _mg_features(data, velocities, *_crop(data, velocities, lines), _unit(data))
+    rest = _rest(data)
+    return _mg_features(data, velocities, *_crop(data, velocities, lines, rest), _unit(data), rest)
 
 
 def _ask(data, lines):
@@ -182,13 +213,16 @@ def mg_features_iris(data, data_collection):
     """
     Add the `mg_features` of ``data`` within typed velocities, of the lines ticked, at first those it covers, to the
     data collection, with its helioprojective coordinates linked, and no viewer; offered only for a raster window or
-    stack covering Mg II k or h, and glue shows why for typed values it cannot take. irispy computes them in the
-    background, while glue's status bar says so, and then how many pixels saturated, if any.
+    stack covering Mg II k or h, and glue shows why for typed values it cannot take or a rest wavelength set over 1 Å
+    from irispy's k. irispy computes them in the background, while glue's status bar says so, and then how many pixels
+    saturated, if any.
     """
-    chosen = _ask(data, _covered(data))  # checked before asking
+    _check(data)  # before asking
+    rest = _rest(data)
+    chosen = _ask(data, _crop(data, VELOCITIES, LINES, rest)[0])
     if chosen is None:
         return
     velocities, lines = chosen
     text = f"Computing Mg II features of {data.label}…"
-    lines, crop = _crop(data, velocities, lines)
-    _start(data_collection, text, _failed, _mg_features, data, velocities, lines, crop, _unit(data), said=_saturated)
+    line = velocities, *_crop(data, velocities, lines, rest)
+    _start(data_collection, text, _failed, _mg_features, data, *line, _unit(data), rest, said=_saturated)

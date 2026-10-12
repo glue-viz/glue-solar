@@ -1,20 +1,25 @@
 """
 'IRIS: Mg II features…', on irispy's Mg II features test raster and int16 copies of its test raster: what glue gets of
-irispy's maps, of a scan or a stack.
+irispy's maps, its saturated maps too, of a scan or a stack, from irispy's rest wavelengths or one set, and what a
+session keeps of them.
 """
 
 import numpy as np
 import pytest
-from glue.core import Data
+from glue.core import Data, DataCollection
 from glue_qt.app.application import GlueApplication
+from irispy.spectrograph import SpectrogramCube
 from irispy.utils.constants import DN_UNIT
-from irispy.utils.mg_features import calculate_mg_features
+from irispy.utils.mg_features import _REST_WAVELENGTH, calculate_mg_features
+from ndcube.wcs.wrappers import ResampledLowLevelWCS
 from qtpy import QtWidgets
 
 import astropy.units as u
+from astropy import constants
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
+from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import mg_features
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
@@ -22,6 +27,7 @@ from glue_solar.tests.helpers import refused
 from glue_solar.tests.test_lazy import SJI, int16_copy, int16_raster_copy
 from glue_solar.tests.test_moments import dn_per_second_cube
 from glue_solar.tests.test_quicklook import SCAN
+from glue_solar.tests.test_sessions import twice
 
 ACTION = "IRIS: Mg II features… (Mg II)"
 # 4000005156 cut to Mg II k and to Mg II h, the line's ±44 km/s only, as two windows; 150 spectra of each hold -200
@@ -80,16 +86,19 @@ def run(app, qtbot, data, message=""):
     return collection[-1]
 
 
-def assert_irispys(maps, raster, velocities=(-40, 40), lines=KH):
-    """``maps`` are irispy's own, in one call, on the whole of ``raster``'s DN/s, its saturated maps only counted."""
-    direct = calculate_mg_features(
-        dn_per_second_cube(raster, DN_UNIT["NUV"]), velocity_range=velocities * u.km / u.s, lines=lines
-    )
-    direct = {name: cube for name, cube in direct.items() if not name.endswith("_saturated")}
+def assert_irispys(maps, raster, velocities=(-40, 40), lines=KH, cube=None):
+    """
+    ``maps`` are irispy's own, in one call, on the whole of ``raster``'s DN/s, or on ``cube``, its saturated maps as
+    glue's int64.
+    """
+    if cube is None:
+        cube = dn_per_second_cube(raster, DN_UNIT["NUV"])
+    direct = calculate_mg_features(cube, velocity_range=velocities * u.km / u.s, lines=lines)
     assert [cid.label for cid in maps.main_components] == list(direct)
     for name, cube in direct.items():
         np.testing.assert_array_equal(maps[name], cube.data)
         assert maps.get_component(name).units == str(cube.unit)
+        assert maps[name].dtype == (np.int64 if name.endswith("_saturated") else cube.data.dtype)
 
 
 def test_the_action_adds_irispys_maps_as_one_linked_dataset_and_no_viewer(
@@ -149,6 +158,9 @@ def test_a_saturated_sample_blanks_its_lines_features_at_its_pixel(app, qtbot, m
     for blanked, names in (((0, 30), ("k2v", "k3", "k2r")), ((slice(None), 10), ("h2v", "h3", "h2r"))):
         for name in names:
             assert np.isnan(maps[f"{name}_velocity"][blanked]).all()
+    # the saturated maps show the pixels the status bar counts, and only them
+    assert list(zip(*np.nonzero(maps["k_saturated"]))) == [(0, 30)]
+    assert list(zip(*np.nonzero(maps["h_saturated"]))) == [(step, 10) for step in range(8)]
 
 
 def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatch, stack_paths):
@@ -189,6 +201,87 @@ def test_a_stacks_saturated_pixels_are_counted_over_its_scans(app, qtbot, monkey
     maps = run(app, qtbot, stack, f"{stack.label} Mg II features: {message}")
     assert maps.meta["mg_features_saturated"] == {"k": 1, "h": 16}
     assert np.isnan(maps["h3_velocity"][[0, 2], :, 10]).all()
+    # each scan's own saturated maps
+    assert list(zip(*np.nonzero(maps["k_saturated"]))) == [(1, 0, 30)]
+    assert list(zip(*np.nonzero(maps["h_saturated"]))) == [(scan, step, 10) for scan in (0, 2) for step in range(8)]
+
+
+def test_a_rest_wavelength_set_shifts_the_wavelengths_irispy_is_given(app, qtbot, monkeypatch, irispy_test_files):
+    """
+    A rest wavelength set 0.01 Å redder than irispy's Mg II k gives irispy the window's wavelengths 0.01 Å shorter, as
+    irispy advises for IDL's wave_comp: k's velocities 1.07 km/s lower, h's by 0.01 Å at h; none set gives irispy's own
+    again, and one over 1 Å from k is refused before asking.
+    """
+    # the test file's own float32: the int16 copy's rounding leaves spectra with equal samples, whose features jump
+    [raster] = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["Mg II k 2796"])
+    collection = app.data_collection
+    collection.append(raster)
+    answer(monkeypatch)
+    plain = run(app, qtbot, raster)
+    rest = {line: _REST_WAVELENGTH[line].to_value(u.AA) for line in KH}
+    raster.meta["rest_wavelength"] = rest["k"] + 0.01
+    shifted = run(app, qtbot, raster)
+    assert shifted.meta["mg_features_rest_wavelength"] == rest["k"] + 0.01
+    c = constants.c.to_value(u.km / u.s)
+    for line in KH:
+        for feature in ("2v", "3", "2r"):
+            name = f"{line}{feature}_velocity"
+            found = np.isfinite(plain[name])
+            assert found.sum() > 200  # of 872
+            np.testing.assert_array_equal(np.isfinite(shifted[name]), found)
+            np.testing.assert_allclose(shifted[name][found] - plain[name][found], -c * 0.01 / rest[line], atol=1e-5)
+            np.testing.assert_allclose(shifted[f"{line}{feature}_intensity"], plain[f"{line}{feature}_intensity"])
+    # over a pixel, 0.3 Å, in slabs of 3 steps: what irispy finds on the whole window shifted so, its crop shifted too
+    monkeypatch.setattr(mg_features, "SLAB", 3 * 109 * 33)
+    raster.meta["rest_wavelength"] = rest["k"] + 0.3
+    wavelengths, _ = _wavelengths(raster)
+    shift = -(raster.meta["rest_wavelength"] - rest["k"]) * (wavelengths.size - 1) / (wavelengths[-1] - wavelengths[0])
+    cube = dn_per_second_cube(raster, DN_UNIT["NUV"])
+    cube = SpectrogramCube(cube.data, ResampledLowLevelWCS(cube.wcs, 1, (shift, 0, 0)), unit=cube.unit, mask=cube.mask)
+    assert_irispys(mg_features.mg_features(raster), raster, cube=cube)
+    del raster.meta["rest_wavelength"]
+    again = run(app, qtbot, raster)
+    assert again.meta == plain.meta
+    for cid in plain.main_components:
+        np.testing.assert_array_equal(again[cid.label], plain[cid])
+    shown = []
+    monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
+    monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
+    opened = answer(monkeypatch)
+    raster.meta["rest_wavelength"] = 2803.53  # Mg II h's
+    tree = app._layer_widget
+    tree.ui.layerTree.set_selected_layers([raster])  # glue selects the dataset added
+    assert tree._actions[ACTION].isVisible()  # offered still
+    tree._actions[ACTION].trigger()
+    why = (
+        f"The rest wavelength set for {raster.label}, 2803.53 Å, is not Mg II k's: Mg II features take one within 1 Å "
+        f"of 2796.351 Å. Change or clear it with 'IRIS: set rest wavelength…'."
+    )
+    assert shown == [f"Could not compute Mg II features\n{why}"]
+    assert opened == []
+    assert not iris._RUNNING
+    with pytest.raises(ValueError, match="is not Mg II k's"):
+        mg_features.mg_features(raster)
+
+
+def test_a_session_keeps_the_maps_and_their_meta(monkeypatch, scan_path):
+    monkeypatch.setattr(iris, "LAZY", False)
+    [raster] = raster_data([scan_path], ["Mg II k 2796"])
+    cid = raster.main_components[0]
+    values = np.array(raster[cid])
+    values[0, 30, 23] = np.inf  # k's core
+    raster.update_components({cid: values})
+    raster.meta["rest_wavelength"] = 2796.36
+    maps = mg_features.mg_features(raster)
+    assert maps.meta["mg_features_saturated"] == {"k": 1}
+    for (restored,) in twice(DataCollection([maps])):
+        # glue's JSON keeps tuples as lists
+        assert restored.meta == {**maps.meta, "mg_features_velocities": [-40.0, 40.0], "mg_features_lines": ["k", "h"]}
+        assert [cid.label for cid in restored.main_components] == [cid.label for cid in maps.main_components]
+        for cid in maps.main_components:
+            np.testing.assert_array_equal(restored[cid.label], maps[cid])
+            assert restored[cid.label].dtype == maps[cid].dtype
+            assert restored.get_component(cid.label).units == maps.get_component(cid).units
 
 
 def test_the_lines_ticked_at_first_are_those_covered_and_the_typed_values(app, qtbot, monkeypatch, irispy_test_files):

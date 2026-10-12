@@ -205,7 +205,8 @@ within 0.5 Å of a main IRIS line with the x unit ``Angstrom``, its velocity fro
 (centre / rest - 1) c; Ni I is not one. Add the offset,
 the centre minus the measured line's rest wavelength, to the rest wavelength of a line on the same
 detector and set that with "IRIS: set rest wavelength…" on its window, so both the
-:ref:`line moments <glue_solar_users_guide_iris_line_moments>` and red-blue asymmetry start from it
+:ref:`line moments <glue_solar_users_guide_iris_line_moments>` and red-blue asymmetry start from it,
+and :ref:`Mg II features <glue_solar_users_guide_iris_mg_features>` measure k from it
 (see :ref:`Rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`), or type it as the line
 moments' centre: on OBSID 3824262996, whose mean O I fits at 1355.6172 Å, +4.30 km/s, Si IV 1402.77 Å becomes
 1402.789 Å, and Ni I fits at 2799.4729 Å, -0.12 km/s. The offset changes over the orbit; irispy's

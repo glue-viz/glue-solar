@@ -122,7 +122,8 @@ gives the :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>`, is:
 The window's reference wavelength, ``TWAVE``, is never taken: it is not the line's (2796.20 Å for
 Mg II k). The field's tooltip says where its wavelength comes from, and
 ``glue_solar.lines.rest_wavelength(data)`` gives it, or None, in glue's terminal. Mg II features
-measure k and h each from irispy's own rest wavelengths, and the Profile viewer's "Gaussian +
+measure k and h each from irispy's own rest wavelengths, but k from one set here (see
+:ref:`Mg II features <glue_solar_users_guide_iris_mg_features>`), and the Profile viewer's "Gaussian +
 constant (IRIS)" fit names the main line nearest its fitted centre itself, as it has no dataset to
 read.
 
