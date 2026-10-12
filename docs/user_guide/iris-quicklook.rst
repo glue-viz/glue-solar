@@ -447,12 +447,17 @@ move it with the time master. The Point window lists the main window only, and t
 turns each window's panels off and on (see above). The "Plugins" menu entry and the command line
 open one window.
 
-A panel out of sight, such as one in the rows below the tab's view, is not drawn as the point and the
-time move: it is drawn once it comes into sight, scrolled to or uncovered, as it is then, so that a
-step costs the panels in sight only. In a 1600×1000 window the tab shows the main window's rows and
-the top of the first row of the others: on 4000255147 with its nine windows and SJI 1400, an exposure
-step takes 0.2 s, against 0.29 s with every row in sight and 0.17 s with the main window alone, and a
-move of the point 0.22 s, against 0.34 and 0.18 s.
+A panel out of sight, such as one in the rows below the tab's view, or any panel of a quicklook in a
+tab behind another or in a window not yet shown, is not drawn as the point and the time move: it is
+drawn once it comes into sight, scrolled to, uncovered or its tab shown, as it is then, so that a step
+costs the panels in sight only. Other viewers in the tab, such as the light curves, draw as before.
+In a 1600×1000 window the tab shows the main window's rows and the top of the first row of the
+others: on 4000255147 with its nine windows and SJI 1400, an exposure step takes 0.2 s, against
+0.29 s with every row in sight and 0.17 s with the main window alone, and a move of the point 0.22 s,
+against 0.34 and 0.18 s. With a second quicklook of it in another tab, following the same time
+master, a step takes 0.21 s and draws none of the second one's panels, against 0.22 s drawing ten,
+and showing its tab then draws them in 0.38 s, against 0.34 s; on a stack of 4000005156's two scans a
+scan step takes 0.21 s against 0.24 s.
 
 "Show this window's panels", the triangle icon after "Zoom" in another window's spectrum panel (and
 in no other Profile viewer), makes that window the main window: the quicklook opens again in its tab
