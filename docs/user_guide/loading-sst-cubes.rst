@@ -144,9 +144,7 @@ pixel, not a place on the Sun. The image panels show Stokes I with glue's 99.5 %
 the whole cube, and Q, U and V, as the Stokes slider moves to them, with limits symmetric about 0,
 the middle of the colour map: the 99.5th percentile of that parameter's absolute values, from 16 of
 its planes sampled as the colour limits are (see `What loads`_), the same at every scan and tuning.
-On obs 492 Ca II 8542 these are ±2.2, ±1.8 and ±3.6 × 10⁻¹⁰ in the cube's unit, where glue's limits
-over the whole cube, I's values mostly, of −1.7 × 10⁻¹⁰ to 3.2 × 10⁻⁸, left 98 % of the line-core Q,
-U and V maps' pixels within 0.3 to 0.5 % of the colour map, and now within 22 to 34 %. A limit or
+On obs 492 Ca II 8542 these are ±2.2, ±1.8 and ±3.6 × 10⁻¹⁰ in the cube's unit. A limit or
 percentile chosen in a layer's style editor holds until the Stokes slider moves. With "Per-frame
 limits" on, in a map's "View" menu, each frame takes glue's 99.5 % of its own values instead, Q, U
 and V's from the next move of the Stokes slider. The spectra fit their own ranges.
