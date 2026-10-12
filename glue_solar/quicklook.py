@@ -379,7 +379,10 @@ class Coordinator(HubListener):
             if end is None or first > end:  # after every cube before it
                 key, end = ("SST", first), last
             end = max(end, last)
+            old = observation_key(cube)
             cube._solar_time_key = key
+            if self.masters.get(old) is cube:  # a chosen time master stays one under its group's new key
+                self.masters[observation_key(cube)] = self.masters.pop(old)
 
     @property
     def point(self):

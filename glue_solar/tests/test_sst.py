@@ -846,6 +846,27 @@ def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
     assert [coord._master(observation_key(data)) for data in (first, second, later)] == [second, second, later]
 
 
+def test_sst_time_keys_follow_overlapping_scans(qtbot, tmp_path):
+    # 230-9: a cube overlapping only the tail of a group's earliest cube joins the group, and a chosen time master stays
+    # one as cubes come and go and its group's key moves
+    write_sst_cube(tmp_path / "a.fits", (3, 1, 5, 12, 16), start=1200.0, cadence=60.0)  # 1200 to 1321 s
+    write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), start=1170.0, cadence=57.5)  # 1170 to 1400.5 s
+    write_sst_cube(tmp_path / "d.fits", (3, 1, 5, 12, 16), start=1340.0, cadence=60.0)  # 1340 to 1461 s
+    a, b, d = (sst_data(tmp_path / f"{name}.fits") for name in "abd")
+    collection = DataCollection([a])
+    coord = coordinator(collection)
+    coord.set_master(a)
+    day = np.datetime64(DATEREF, "ns")
+    collection.append(b)
+    assert observation_key(a) == ("SST", day + np.timedelta64(1170, "s"))
+    assert coord.masters.get(observation_key(a)) is a
+    collection.append(d)
+    assert observation_key(d) == observation_key(b)
+    collection.remove(b)
+    assert observation_key(a) == ("SST", day + np.timedelta64(1200, "s")) != observation_key(d)
+    assert coord.masters.get(observation_key(a)) is a
+
+
 def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_path, sns):
     # D64, D68: an SST cube joins the time sync of the IRIS observation it is linked to, on request only, each scan timed
     # at its line core (227-4), here its second tuning; and only then behind the WCS lock (227-9)
