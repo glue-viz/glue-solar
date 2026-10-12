@@ -89,16 +89,17 @@ def run(app, qtbot, data, message=""):
 def assert_irispys(maps, raster, velocities=(-40, 40), lines=KH, cube=None):
     """
     ``maps`` are irispy's own, in one call, on the whole of ``raster``'s DN/s, or on ``cube``, its saturated maps as
-    glue's int64.
+    glue's int64 named 'k saturated' and 'h saturated'.
     """
     if cube is None:
         cube = dn_per_second_cube(raster, DN_UNIT["NUV"])
     direct = calculate_mg_features(cube, velocity_range=velocities * u.km / u.s, lines=lines)
-    assert [cid.label for cid in maps.main_components] == list(direct)
-    for name, cube in direct.items():
+    names = [key.replace("_saturated", " saturated") for key in direct]
+    assert [cid.label for cid in maps.main_components] == names
+    for name, cube in zip(names, direct.values()):
         np.testing.assert_array_equal(maps[name], cube.data)
         assert maps.get_component(name).units == str(cube.unit)
-        assert maps[name].dtype == (np.int64 if name.endswith("_saturated") else cube.data.dtype)
+        assert maps[name].dtype == (np.int64 if name.endswith(" saturated") else cube.data.dtype)
 
 
 def test_the_action_adds_irispys_maps_as_one_linked_dataset_and_no_viewer(
@@ -159,8 +160,8 @@ def test_a_saturated_sample_blanks_its_lines_features_at_its_pixel(app, qtbot, m
         for name in names:
             assert np.isnan(maps[f"{name}_velocity"][blanked]).all()
     # the saturated maps show the pixels the status bar counts, and only them
-    assert list(zip(*np.nonzero(maps["k_saturated"]))) == [(0, 30)]
-    assert list(zip(*np.nonzero(maps["h_saturated"]))) == [(step, 10) for step in range(8)]
+    assert list(zip(*np.nonzero(maps["k saturated"]))) == [(0, 30)]
+    assert list(zip(*np.nonzero(maps["h saturated"]))) == [(step, 10) for step in range(8)]
 
 
 def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatch, stack_paths):
@@ -205,8 +206,8 @@ def test_a_stacks_saturated_pixels_are_counted_over_its_scans(app, qtbot, monkey
     assert maps.meta["mg_features_saturated"] == {"k": 1, "h": 16}
     assert np.isnan(maps["h3_velocity"][[0, 2], :, 10]).all()
     # each scan's own saturated maps
-    assert list(zip(*np.nonzero(maps["k_saturated"]))) == [(1, 0, 30)]
-    assert list(zip(*np.nonzero(maps["h_saturated"]))) == [(scan, step, 10) for scan in (0, 2) for step in range(8)]
+    assert list(zip(*np.nonzero(maps["k saturated"]))) == [(1, 0, 30)]
+    assert list(zip(*np.nonzero(maps["h saturated"]))) == [(scan, step, 10) for scan in (0, 2) for step in range(8)]
 
 
 def test_a_rest_wavelength_set_shifts_the_wavelengths_irispy_is_given(app, qtbot, monkeypatch, irispy_test_files):
