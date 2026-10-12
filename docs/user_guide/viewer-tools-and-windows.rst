@@ -392,12 +392,12 @@ its x axis, "x unit" (km/s too) and range. Each quicklook adds its viewers, poin
 one of 4000255147's Si IV 1403 window and slit-jaw image, read as they are viewed, saves a 33 kB
 session (151 kB with all nine windows) in under 0.1 s, and with a stack of the eight scans of
 3400109360's Si IV 1403 window in a second quicklook, 85 kB, which opens in about 3 s and, saved
-and opened again, gives the same quicklooks. A session reads each raster file once for all the
-windows it holds of it, as the observation browser does: a quicklook of the seven windows of
-3602506433's 99 scans, stacked, opens in about 7 s. Datasets made from IRIS data, such as line
-moments or rebinned and north-up data, are saved with their values, which can make a session
-large (36 MB with line moments of that Si IV 1403 window): save derived products separately rather
-than relying on a Glue session as their only copy.
+and opened again, gives the same quicklooks. A session reads each raster file once per copy of
+the windows it holds of it (twice for an observation opened twice), as the observation browser
+does: a quicklook of the seven windows of 3602506433's 99 scans, stacked, opens in about 7 s.
+Datasets made from IRIS data, such as line moments or rebinned and north-up data, are saved with
+their values, which can make a session large (36 MB with line moments of that Si IV 1403 window):
+save derived products separately rather than relying on a Glue session as their only copy.
 
 As glue's window closes with data loaded, on quit and when Open Session or Reset Session replaces
 the session, glue-solar keeps it as a "Glue Session with absolute paths to data" in glue's settings
