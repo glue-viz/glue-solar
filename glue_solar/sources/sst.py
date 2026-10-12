@@ -5,7 +5,6 @@ tabulated (-TAB) WCS, read by File → Open Data Set and `sst_data`.
 
 import threading
 import warnings
-from contextlib import contextmanager, nullcontext
 from functools import cached_property
 from pathlib import Path
 from uuid import uuid4
@@ -20,7 +19,7 @@ from glue.core.state import _load_data_5, _save_data_5
 from astropy.io import fits
 from astropy.wcs import WCS, FITSFixedWarning
 
-from glue_solar.sources.loaders.iris import WCS_LOCK, _HeldWCS, _LockedWCS, _logged, _wcs_from_state, _wcs_state
+from glue_solar.sources.loaders.iris import _HeldWCS, _LockedWCS, _logged, _wcs_from_state, _wcs_state
 from glue_solar.sources.loaders.lazy import RawStack
 from glue_solar.sources.loaders.scan import _is_sst, _primary_header
 
@@ -51,10 +50,11 @@ class _TabularWCS(_HeldWCS):
     """
     The tabulated WCS of an SST cube as wcslib reads it, on x, y, tuning, any Stokes axis and scan, with the pixel axes
     each world axis depends on, an inverse of its own and its line core, ``core``, the tuning `sst_data` gives it
-    (`_line_core`). Its wcslib calls hold a lock of its own: glue-qt computes the spectra of a cube of over 1e7 values
-    on worker threads while WCSAxes draws it on the GUI thread, and wcslib writes the table's scratch values as it reads
-    them, which gave wrong values and crashed glue. Once linked to IRIS data they hold `WCS_LOCK` too
-    (`_LockedTabularWCS`), as `link_hpc` makes it; unlinked it never waits for IRIS data's threads.
+    (`_line_core`). Its wcslib calls hold a lock of its own, and only that, linked to IRIS data or not: glue-qt computes
+    the spectra of a cube of over 1e7 values on worker threads while WCSAxes draws it on the GUI thread, and wcslib
+    writes the table's scratch values as it reads them, which gave wrong values and crashed glue. Once linked
+    (`_LockedTabularWCS`, as `link_hpc` makes it), the link patches hold `WCS_LOCK` around its links; unlinked it never
+    waits for IRIS data's threads.
 
     SSTRED tabulates the wavelength of each tuning, the time of each tuning of each scan, and the pointing of each scan
     at the field's corners. astropy says each world axis depends on its own pixel axis only, so glue gave every tuning of
@@ -76,14 +76,12 @@ class _TabularWCS(_HeldWCS):
         """Its own lock, made at its first use: one, however many threads ask at once."""
         return self.__dict__.setdefault("_lock", threading.RLock())
 
-    @contextmanager
     def _held(self):
         """
-        Its own lock, after `WCS_LOCK` once linked (`_LockedTabularWCS`): a call that waited for its own lock as
-        `link_hpc` linked it still runs alone.
+        Its own lock, linked or not: its calls call it again holding it, and one that took `WCS_LOCK` there as
+        `link_hpc` linked it waited for good for the GUI thread, which held that and waited for this.
         """
-        with WCS_LOCK if isinstance(self, _LockedWCS) else nullcontext(), self._lock:
-            yield
+        return self._lock
 
     @cached_property
     def axis_correlation_matrix(self):
@@ -170,7 +168,10 @@ class _TabularWCS(_HeldWCS):
 
 
 class _LockedTabularWCS(_TabularWCS, _LockedWCS):
-    """An SST cube's `_TabularWCS` once `link_hpc` links it to IRIS data, behind `WCS_LOCK` as a `_LockedWCS` is."""
+    """
+    An SST cube's `_TabularWCS` once `link_hpc` links it to IRIS data, still behind its own lock: the link patches hold
+    `WCS_LOCK` around its links, as they do a `_LockedWCS`'s.
+    """
 
 
 class _Cube(Data):

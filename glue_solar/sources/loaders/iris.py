@@ -836,8 +836,9 @@ def link_hpc(data_collection, others=None):
     WCS autolinker links sunpy maps to each other. No link pairs times, so a slit-jaw image frame is placed with
     its own pointing. Pairs that are already linked, either way round, are skipped, so calling this again after
     loading more data is safe. The plain astropy WCS of each other dataset linked, now or before, which IRIS data's
-    profile workers then call, is put behind `WCS_LOCK` in place (`_LockedWCS`), an SST cube's too
-    (`glue_solar.sources.sst._LockedTabularWCS`). The caller adds the links::
+    profile workers then call, is put behind `WCS_LOCK` in place (`_LockedWCS`); an SST cube's keeps its own lock, and
+    the link patches hold `WCS_LOCK` around its links (`glue_solar.sources.sst._LockedTabularWCS`). The caller adds the
+    links::
 
         data_collection.add_link(link_hpc(data_collection))
 

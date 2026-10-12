@@ -46,7 +46,7 @@ from glue_solar.quicklook import (
 from glue_solar.sources.iris import iris_quicklook, link_iris, quicklook_iris
 from glue_solar.sources.loaders.iris import WCS_LOCK, _LockedWCS, image_data, keep_hpc_linked, raster_data
 from glue_solar.sources.loaders.scan import scan_directory
-from glue_solar.sources.sst import _Cube, _line_core, _TabularWCS, sst_data
+from glue_solar.sources.sst import _Cube, _line_core, _LockedTabularWCS, _TabularWCS, sst_data
 from glue_solar.tests.helpers import press, select_point
 from glue_solar.tests.test_linking import RASTER, SJI, _real
 from glue_solar.tests.test_quicklook import (
@@ -861,6 +861,34 @@ def test_every_wcslib_call_on_an_unlinked_cube_holds_its_own_lock(sst_app, qtbot
     assert {"_all_pix2world", "set", "world_axis_units", "to_header"} <= {name for _, name, *_ in calls}
     assert [call for call in calls if not call[2] or call[3]] == []
     assert copy.deepcopy(wcs)._lock is not wcs._lock  # a copy's own, as its struct is
+
+
+def test_a_cube_linked_mid_transform_neither_hangs_nor_races(tmp_path):
+    # link_hpc makes a cube's coordinates `_LockedTabularWCS` in place, maybe as a profile worker is in a transform,
+    # which calls into them again: one that took the WCS lock there waited for good for the GUI thread's next call, which
+    # held that and waited for the cube's lock
+    cube, _ = stokes_cube(tmp_path / "cube.fits")
+    wcs, pixel = cube.coords, [np.linspace(0, n - 1, 20_000) for n in cube.shape[::-1]]
+    expected, results, started, linked = wcs.pixel_to_world_values(*pixel), [], threading.Event(), threading.Event()
+
+    def worker():  # a profile worker
+        while not linked.is_set():
+            results.append(wcs.pixel_to_world_values(*pixel))
+            started.set()
+
+    def link():  # link_hpc, then the GUI thread
+        wcs.__class__ = _LockedTabularWCS
+        results.append(wcs.pixel_to_world_values(*pixel))
+        linked.set()
+
+    threads = [threading.Thread(target=target, daemon=True) for target in (worker, link)]
+    threads[0].start()
+    assert started.wait(10)  # and in its next transform
+    threads[1].start()
+    for thread in threads:
+        thread.join(timeout=10)
+    assert not any(thread.is_alive() for thread in threads)
+    assert all(np.array_equal(got, want) for values in results for got, want in zip(values, expected))
 
 
 def test_the_browser_lists_and_opens_each_sst_cube(qtbot, monkeypatch, tmp_path):
