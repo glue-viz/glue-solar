@@ -442,9 +442,9 @@ open one window.
 A panel out of sight, such as one in the rows below the tab's view, is not drawn as the point and the
 time move: it is drawn once it comes into sight, scrolled to or uncovered, as it is then, so that a
 step costs the panels in sight only. In a 1600×1000 window the tab shows the main window's rows and
-the first row of the others: on 4000255147 with its nine windows and SJI 1400, an exposure step takes
-0.2 s, against 0.29 s with every row in sight and 0.17 s with the main window alone, and a move of the
-point 0.22 s, against 0.34 and 0.18 s.
+the top of the first row of the others: on 4000255147 with its nine windows and SJI 1400, an exposure
+step takes 0.2 s, against 0.29 s with every row in sight and 0.17 s with the main window alone, and a
+move of the point 0.22 s, against 0.34 and 0.18 s.
 
 "Show this window's panels", the triangle icon after "Zoom" in another window's spectrum panel (and
 in no other Profile viewer), makes that window the main window: the quicklook opens again in its tab
