@@ -72,9 +72,11 @@ the "Plugins" menu (see :ref:`glue_solar_users_guide_iris_linking`). Once it is 
 on the cube selects, in each slit-jaw frame and each raster exposure or step, the IRIS pixels at its
 place on the Sun in the cube's scan nearest that frame's time, timed at its line core, at that scan's
 own pointing. A Pixel point on the cube, which takes the scan and any Stokes parameter of the viewer
-clicked and is placed at the cube's first tuning, reaches the raster pixel at its place, and in the
-slit-jaw frame nearest that scan, the pixel there. The cube then also shares the time of the IRIS
-observation whose times come nearest its middle scan (see `The SST quicklook`_). The cube's
+clicked and is placed at the cube's first tuning, reaches the raster pixel at its place in that scan's
+pointing, and in the slit-jaw frame nearest that scan, the pixel there: their viewers show its
+crosshair, and a Profile of the point their spectrum there. A scan outside the slit-jaw image's
+frames, such as one of a cube from another day, reaches no frame. The cube then also shares the time
+of the IRIS observation whose times come nearest its middle scan (see `The SST quicklook`_). The cube's
 coordinates have a lock of their own, as its viewers draw them while its spectra are computed on other
 threads; only once linked are its links to IRIS data made behind the lock glue-solar keeps IRIS data's
 behind, so until then its viewers never wait for IRIS data's spectrum threads.
