@@ -15,7 +15,8 @@ Level 2 files or their downloaded archives. If an archive is still packed, tick 
 Then tick the raster spectral windows to load (``C II 1336`` and ``Mg II k 2796`` here) and tick
 "Stack sequential raster scans" to place two or more scans of each selected window into one 4D
 cube without resampling their detector values. A window with only one scan loads as its normal 3D
-dataset.
+dataset. Untick "Open quicklook", ticked at first: this guide builds its views with glue's own
+viewers, and a quicklook's ``Point`` would take the "Pixel" click below rather than make a new subset.
 
 .. image:: images/choosing-iris-level-2-data-cubes-and-stacking-raster-cubes.png
    :width: 800
@@ -279,12 +280,11 @@ stays as it was. By hand, select the stack itself in the data collection, since 
 the selected subset, choose ``Scan`` as the x axis of a 1D Profile of it with the function "Mean"
 (``Pixel Axis 0 [z]``, the exposure, for a sit-and-stare raster), select an "X range" over the scans
 and choose ``Wavelength`` again: the new subset's layer is the average. In glue's terminal, for scans
-40 to 59 of a stack ``raster``::
-
-    import numpy as np
+40 to 59 of a stack ``raster``, glue's mean as the Profile computes it, which leaves out the NaN fill
+and the saturated samples, +Inf::
 
     cid = raster.main_components[0]
-    average = np.asarray(np.nanmean(raster[cid][40:60], axis=(0, 1, 2), dtype=float))  # (0, 1) for exposures
+    average = raster.compute_statistic("mean", cid, axis=(0, 1, 2), view=(slice(40, 60),))  # (0, 1) for exposures
 
 **Photospheric context.** A sunspot or pore hardly shows in the Mg II k core, so look at the
 photosphere beside it: tick a photospheric window, 2832 or 2814 (2826 in some programmes), with

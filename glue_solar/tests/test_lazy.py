@@ -479,9 +479,9 @@ def test_scripting_recipe_computes_spectra_of_lazy_data(int16_raster):
     [raster] = raster_data([int16_raster], ["Si IV 1403"])
     step, slit = 90, 20
     cid = raster.main_components[0]
+    mean_spectrum = raster.compute_statistic("mean", cid, axis=(0, 1))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)  # wavelengths with no valid sample give NaN
-        mean_spectrum = np.asarray(np.nanmean(raster[cid], axis=(0, 1), dtype=float))
         expected_mean = np.nanmean(expected(int16_raster, WINDOW), axis=(0, 1), dtype=float)
     point_spectrum = raster[cid, step, slit]
     assert type(mean_spectrum) is type(point_spectrum) is np.ndarray

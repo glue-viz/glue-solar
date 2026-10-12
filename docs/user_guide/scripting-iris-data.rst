@@ -75,10 +75,10 @@ The data values are ``raster[raster.main_components[0]]``, with NaN for missing 
 stored as 16-bit integers, as Level 2 files store them, this is a dask array, which reads the file
 only when computed: ``np.asarray`` computes a result, and a view in the brackets, such as
 ``raster[cid, step, slit]``, reads only what it selects. The Profile viewer's Mean of a raster
-against ``Wavelength`` is the mean spectrum over every step and slit position::
-
-    import numpy as np
+against ``Wavelength`` is the mean spectrum over every step and slit position, glue's
+``compute_statistic``, which leaves out the missing samples and the :ref:`saturated
+<glue_solar_users_guide_iris_saturation>` ones, +Inf, where numpy's ``nanmean`` would give +Inf::
 
     cid = raster.main_components[0]
-    mean_spectrum = np.asarray(np.nanmean(raster[cid], axis=(0, 1), dtype=float))  # float64 sums, as glue uses
+    mean_spectrum = raster.compute_statistic("mean", cid, axis=(0, 1))  # float64, as the Profile draws it
     point_spectrum = raster[cid, step, slit]

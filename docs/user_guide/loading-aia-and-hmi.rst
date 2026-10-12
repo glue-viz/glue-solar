@@ -10,6 +10,7 @@ Loading the files
 Upon firing up ``glue`` while the environment is with ``glue-solar`` installed, import data with the third icon from the left on the top navigation bar of ``glue``.
 Choose the file one would like to view, then before clicking the "Open" button, select from the dropdown menu at the bottom, the "sunpy Map" format.
 Otherwise the AIA file would be loaded automatically as an ordinary FITS file instead.
+"sunpy Map" fails on an AIA cutout aligned to an IRIS observation (``aia_l2_*.fits``): leave "Auto", which opens it as an IRIS cutout (see "Opening a single file" in :ref:`glue_solar_users_guide_loading_iris_level_2_raster_and_sji_files`).
 To load several maps at once, for example a folder of AIA and HMI files, select them all in the same dialog.
 Each map opens in its own sunpy colormap; the colormap menu of the Image Viewer lists every sunpy colormap.
 
