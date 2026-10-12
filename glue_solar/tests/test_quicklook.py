@@ -1719,6 +1719,7 @@ def show_quicklook(qtbot, app, viewers):
     app.resize(1600, 1000)
     app.show()
     qtbot.waitUntil(lambda: not any(v.figure.canvas._draw_pending for v in glue_solar.quicklook._viewers(viewers)))
+    qtbot.wait(600)  # and mpl-scatter-density's redraw of each image, 0.5 s after it is laid out
 
 
 def sit_and_stare(irispy_test_files):
