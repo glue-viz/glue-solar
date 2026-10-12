@@ -1,0 +1,1 @@
+A quicklook panel scrolled out of sight is drawn once it comes into sight rather than on every step and move of the point, so a step of a nine-window quicklook in a 1600x1000 window takes 0.2 s rather than 0.27 s (0.25 s rather than 0.5 s with axes shown).

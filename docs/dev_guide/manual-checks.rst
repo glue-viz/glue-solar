@@ -197,9 +197,12 @@ Windows, tabs and shortcuts
 ---------------------------
 
 29. In the quicklook of item 5 no panel overlaps another or reaches past the tab. Maximise the map
-    with its window's maximise button: it fills the tab; restore it: it returns to its place.
-    Minimise SJI 2832 and restore it. Choose "Gather Windows" in the "Canvas" menu: the viewers are
-    placed side by side, and still follow the point.
+    with its window's maximise button: it fills the tab; move its wavelength slider and restore it: it
+    returns to its place, and the dashed lines of the wavelength and spectrum panels it covered mark
+    the new wavelength. Make glue's window short enough that the tab scrolls, step the spectrogram's
+    exposure and scroll down: the panels that come into sight show the new exposure. Minimise SJI
+    2832 and restore it. Choose "Gather Windows" in the "Canvas" menu: the viewers are placed side by
+    side, and still follow the point.
 
 30. With two screens, move glue's window to the other screen, ideally one with a different scaling,
     and back. The panels redraw sharp at each screen's scaling, and the click of item 13 still lands
