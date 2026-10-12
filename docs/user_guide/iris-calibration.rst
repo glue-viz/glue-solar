@@ -24,8 +24,8 @@ computes the dataset in glue's terminal too.
 Radiance
 --------
 
-To see a raster window in radiance, select a window, of one scan or a stack of its scans, and
-choose "IRIS: radiometric calibration" from its right-click menu. It adds two components to the
+To see a raster window in radiance, select a window, of one scan or a stack of its scans, rebinned or
+not, and choose "IRIS: radiometric calibration" from its right-click menu. It adds two components to the
 window: ``<label> radiance per DN/s``, irispy's factor from DN/s to radiance at each wavelength,
 held as one spectrum, and ``<label> radiance``, the window's ``<label> DN/s`` times it, which glue
 computes as it reads it, in erg / (Å cm2 s sr). The factor is that of irispy's ``radiometric_calibration``
@@ -34,11 +34,23 @@ NUV (irispy's ``DN_UNIT``), times the photon energy at each wavelength over the 
 irispy's latest response at the window's ``DATE_OBS``, the spectral dispersion and the solid angle
 of a pixel, the slit width by a pixel's length along the slit. Unlike SolarSoft's
 ``iris_calib``, it is per Å, and it is NaN at wavelengths the response does not cover. A stack
-holds a spectrum for each scan, as that scan alone gives it, at its own ``DATE_OBS``, and its
-``<label> DN/s`` is over each scan's own exposure times, so each scan's radiance is that of the scan
-alone. ``glue_solar.sources.calibration.radiometric_calibration(data)`` adds them in glue's terminal
-too.
+holds a spectrum for each scan, at the scan's own wavelengths, with the response at the stack's
+``DATE_OBS``, its first scan's, which only picks the response: its effective area changes by at most
+0.12 % in 10 hours (Si IV 1402.77 Å on 2014-03-29). Its ``<label> DN/s`` is over each scan's own
+exposure times, so each scan's radiance is that of the scan alone within 0.2 %; on the 99 scans of
+OBSID 3602506433, over 68 minutes, it is the same, as irispy's response holds the effective area
+constant from mid-2023 on.
+``glue_solar.sources.calibration.radiometric_calibration(data)`` adds them in glue's terminal too.
+
+A window rebinned with "IRIS: rebin…" (see :ref:`Rebinning <glue_solar_users_guide_iris_rebinning>`)
+is calibrated too. Each bin is the mean of the window's pixels, so the factor takes their spectral
+dispersion and solid angle, from the window's coordinates beneath the rebinned ones, and the
+effective area at the bin's wavelength, the mean of its pixels'. The rebinned radiance is then the
+window's radiance rebinned within about half the factor's change across a bin, as the bin's samples
+share one factor: on OBSID 4000255147's C II 1336 rebinned by 2 along the slit and wavelength,
+within 0.036 %, where the factor changes by up to 0.072 % across a bin. A bin along raster steps
+adds the rebinned ``<label> DN/s``'s own difference, the bin's mean DN over its mean exposure time
+rather than the mean of each step's: up to 0.003 % there.
 
 Removing dust is offered only for a slit-jaw image, and the calibration only for a raster window or
-stack that is not rebinned or calibrated already: irispy has no radiometric calibration of slit-jaw
-images, and calibrates a window's own pixels.
+stack that is not calibrated already: irispy has no radiometric calibration of slit-jaw images.

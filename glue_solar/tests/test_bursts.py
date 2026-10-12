@@ -144,13 +144,15 @@ def test_a_raster_window_gives_irispys_labels_and_events_linked_and_no_viewer(
 def assert_each_scans(labels, table, paths, **parameters):
     """
     ``labels`` and ``table`` of a stack are those of each scan of ``paths`` loaded alone, the labels numbered on
-    through the scans and ``raster`` the scan, and its threshold each scan's.
+    through the scans and ``raster`` the scan, and its threshold each scan's within 0.2%.
     """
     count = 0
     for k, path in enumerate(paths):
         [scan] = raster_data([path], ["Si IV 1403"])
         alone, events = si_iv_bursts(scan, **parameters)
-        assert labels.meta["bursts_threshold"][k] == alone.meta["bursts_threshold"]
+        # irispy's, at the stack's first date rather than the scan's own: the effective area, which scales it, changes
+        # by at most 0.12% in 10 hours
+        assert labels.meta["bursts_threshold"] == pytest.approx(alone.meta["bursts_threshold"], rel=2e-3, abs=0)
         np.testing.assert_array_equal(labels["label"][k], np.where(alone["label"] > 0, alone["label"] + count, 0))
         rows, shifted = table["raster"] == k, {"label": events["label"] + count, "raster": np.full(events.size, k)}
         for cid in events.main_components:
@@ -162,8 +164,8 @@ def assert_each_scans(labels, table, paths, **parameters):
 
 def test_a_stack_gives_each_scans_labels_and_events(app, qtbot, monkeypatch, stack_paths):
     """
-    A lazy stack of 3860258481's three scans gives the labels and events of each scan loaded alone, at its own
-    threshold, numbered on through the scans; the status bar counts them all.
+    A lazy stack of 3860258481's three scans gives the labels and events of each scan loaded alone, numbered on
+    through the scans, irispy's threshold at the stack's first date; the status bar counts them all.
     """
     [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
     collection = app.data_collection
@@ -174,11 +176,12 @@ def test_a_stack_gives_each_scans_labels_and_events(app, qtbot, monkeypatch, sta
     assert labels.shape == stack.shape[:-1]
     assert sorted(set(table["raster"])) == [0, 1, 2]
     assert link_hpc(collection) == []
-    assert labels.meta["bursts_threshold"] == (5.0, 5.0, 5.0)
+    assert labels.meta["bursts_threshold"] == 5.0
     assert_each_scans(labels, table, stack_paths, threshold=5, median_factor=None)
-    # irispy's threshold, from the effective area at each scan's date
+    # irispy's threshold, from the effective area at the stack's DATE_OBS, its first scan's
     labels, table = si_iv_bursts(stack)
-    assert len(set(labels.meta["bursts_threshold"])) == 3
+    [first] = raster_data(stack_paths[:1], ["Si IV 1403"])
+    assert labels.meta["bursts_threshold"] == si_iv_bursts(first)[0].meta["bursts_threshold"]
     assert_each_scans(labels, table, stack_paths)
 
 

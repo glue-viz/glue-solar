@@ -42,11 +42,13 @@ arcsec, and ``intensity``, the mean in DN/s, of its brightest pixel; its ``meta`
 On the 1600 steps of OBSID 4000255147's Si IV 1403 it takes 0.2 s.
 
 irispy finds a stack's bursts scan by scan, each scan's as that scan alone gives them, at its own
-coordinates, times, exposure times and date, so a threshold left blank is each scan's own. The map
-lies on the stack's scans, raster steps and slit pixels, the scan slider picking the scan, its
-labels numbered on through the scans, 1 to N over all N bursts, as irispy numbers the rasters of a
-sequence; ``bursts_threshold`` holds each scan's threshold, and the table's ``raster`` is the scan
-of each burst. The status bar counts the bursts of every scan.
+coordinates, times and exposure times. A threshold left blank is that of the stack's ``DATE_OBS``,
+its first scan's, for every scan: the effective area changes by at most 0.12 % in 10 hours, and on
+the 99 scans of OBSID 3602506433 each scan's bursts are those of the scan alone. The map lies on the
+stack's scans, raster steps and slit pixels, the scan slider picking the scan, its labels numbered
+on through the scans, 1 to N over all N bursts, as irispy numbers the rasters of a sequence;
+``bursts_threshold`` holds the threshold of every scan, and the table's ``raster`` is the scan of
+each burst. The status bar counts the bursts of every scan.
 
 In a slit-jaw image
 -------------------
