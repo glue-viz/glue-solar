@@ -60,6 +60,7 @@ from glue_solar.tests.helpers import (
     inversions,
     load_selected,
     mouse,
+    mouse_click,
     press,
     raster_point_on_sji,
     scanned,
@@ -4188,6 +4189,57 @@ def test_what_a_slit_jaw_click_moves_on_a_sit_and_stare(bare_app, qtbot, irispy_
         "wavelength": (None, 30, None),
         "sji0": (20, None, None),
     }
+
+
+def test_the_first_click_on_any_panel_moves_the_point(bare_app, qtbot, irispy_test_files):
+    # glue-qt turns a viewer's mouse mode off as another window becomes active, and a click with none empties the edit
+    # subset: each panel takes the Pixel tool as its window becomes active, so a click there moves the point (D75)
+    raster, sji = sit_and_stare(irispy_test_files)
+    bare_app.show()
+    qtbot.waitUntil(bare_app.isActiveWindow)  # for a click to make its window the active one
+    viewers = quicklook(bare_app, [raster, sji])
+    collection, mode = bare_app.data_collection, bare_app.session.edit_subset_mode
+    [point] = mode.edit_subset
+    label, (exposure, _, _) = raster.label, expected_start(raster)
+
+    def moved(viewer, x, y):
+        return changes(bare_app, qtbot, viewers, lambda: mouse_click(viewer, x, y))["point"]
+
+    def stepped(key):  # on the map
+        return changes(bare_app, qtbot, viewers, lambda: press(viewers["map"], key))["point"]
+
+    assert moved(viewers["spectrogram"], 10, 5) == (label, (exposure, 5, None))
+    assert viewers["map"].state.slices[2] == 10
+    assert moved(viewers["wavelength"], 12, 40) == (label, (40, 5, None))
+    (x, y), index = clicked(viewers["sji"][0], raster, 40, 30)
+    assert moved(viewers["sji"][0], x, y) == (label, (*index, None))
+    assert moved(viewers["map"], 50, 20) == (label, (50, 20, None))
+    assert (mode.edit_subset, collection.subset_groups) == ([point], (point,))
+    tools = [viewers[role].toolbar.active_tool for role in RASTER_PANELS]
+    assert [tool.tool_id if tool else None for tool in tools] == ["image:point_selection", None, None]
+    # F and D still move the point
+    assert stepped(Qt.Key_F) == (label, (51, 20, None))
+    assert stepped(Qt.Key_D) == (label, (50, 20, None))
+    # another tool stays on while its panel is active, as other windows close; the panel takes Pixel back once active
+    # again
+    mouse_click(viewers["spectrogram"], 10, 5)
+    viewers["spectrogram"].toolbar.active_tool = "mpl:zoom"
+    viewers["spectrum"].close(warn=False)
+    assert viewers["spectrogram"].toolbar.active_tool.tool_id == "mpl:zoom"
+    mouse_click(viewers["map"], 50, 20)
+    assert moved(viewers["spectrogram"], 10, 7) == (label, (50, 7, None))
+    # a new subset made with Pixel takes the coordination from the point until "Point" is edited again, as picked in
+    # glue's Active Subset, and stays as it was
+    mode.edit_subset = []  # glue's "None/Create New"
+    mouse_click(viewers["wavelength"], 12, 60)
+    [new] = mode.edit_subset
+    assert collection.subset_groups == (point, new)
+    press(viewers["map"], Qt.Key_F)
+    assert point.subset_state.slices[0].start == 50
+    kept = new.subset_state
+    mode.edit_subset = [point]
+    assert stepped(Qt.Key_F) == (label, (51, 7, None))
+    assert new.subset_state is kept
 
 
 def test_one_undo_reverts_a_slit_jaw_click(bare_app, qtbot, irispy_test_files):

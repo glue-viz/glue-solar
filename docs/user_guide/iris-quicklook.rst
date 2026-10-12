@@ -89,7 +89,10 @@ The map shows the wavelength nearest the window's reference wavelength, and the 
 99.5 % limits and their band's stretch: log in the FUV (slit-jaw 1330 and 1400, C II, Si IV and the
 other FUV windows), sqrt about Mg II k and h (slit-jaw 2796 and those windows), linear for slit-jaw
 2832 and the other NUV windows; glue's layer controls change either. A point, the edit subset "Point", starts at the centre of the map with the Pixel
-tool active: drag it on the map, and the spectrum panel shows its spectrum. With "Follow/lock" chosen
+tool active: drag it on the map, and the spectrum panel shows its spectrum. Each image panel takes the
+Pixel tool as its window becomes active, so the first click on any panel moves the point; another
+mouse mode chosen in its toolbar, such as "Zoom" or a region tool, stays on until another window
+becomes active, as glue-qt then turns it off. With "Follow/lock" chosen
 in a panel's toolbar instead, the point follows the mouse over that panel, and on a slit-jaw viewer
 moves to the raster pixel under the mouse, as a click there does (below), until a left click locks
 it; a right click or Esc unlocks it (see :ref:`Viewer tools and windows
@@ -124,8 +127,9 @@ on a slit-jaw image too, and "Clear point" leaves regions alone.
 To change a region with the toolbar's selection "Mode", such
 as adding to it, first pick it in the data collection or as the toolbar's "Active Subset", then
 draw; the Pixel tool then replaces that region with the clicked pixel, on a slit-jaw image the
-image's own rather than the raster's, until "Point" is picked again
-or the tab is shown again. Each quicklook has its own point,
+image's own rather than the raster's, and the panels stop following, until "Point" is picked again
+or the tab is shown again; the panels then follow "Point" again, and the region keeps the pixel
+clicked. Each quicklook has its own point,
 shown only in its own panels, edited while its tab is
 shown and moved only by that tab's sliders. Where a point does not show, it is not in the viewer's
 layer list either, since glue would still redraw a hidden layer at every move: drag the subset onto
@@ -412,9 +416,9 @@ the same window, a scan step takes 0.21 s against 0.25 s, and a move 0.21 s agai
 A saved session opens the quicklook again with its point and its time master: its tab makes
 "Point" the edit subset whenever it is shown, the panels follow the time master to the frames they
 showed, with the same Δt, and a click or drag with the Pixel tool moves the other panels, the
-slit-jaw cross and the spectrum as before. Choose the Pixel tool again, as glue restores no
-viewer's mouse mode. The Point window, the Panels list and the lines are not restored, nor are the
-panels turned off, and a light curve, a row, a
+slit-jaw cross and the spectrum as before. Glue restores no viewer's mouse mode, but each image
+panel takes the Pixel tool as its window becomes active. The Point window, the Panels list and the
+lines are not restored, nor are the panels turned off, and a light curve, a row, a
 column and the light curves at a point stay where they were (choose the entry again for ones that
 follow the point); "Master exposure" follows the time master again, and one deleted before saving
 comes back at the first time sync with its Scatter plot open (see "Saving sessions" in :ref:`Viewer

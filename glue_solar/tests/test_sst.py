@@ -47,7 +47,7 @@ from glue_solar.sources.iris import iris_quicklook, link_iris, quicklook_iris
 from glue_solar.sources.loaders.iris import WCS_LOCK, _LockedWCS, image_data, keep_hpc_linked, raster_data
 from glue_solar.sources.loaders.scan import scan_directory
 from glue_solar.sources.sst import _Cube, _line_core, _LockedTabularWCS, _TabularWCS, sst_data
-from glue_solar.tests.helpers import press, select_point
+from glue_solar.tests.helpers import mouse_click, press, select_point
 from glue_solar.tests.test_linking import RASTER, SJI, _real
 from glue_solar.tests.test_quicklook import (
     bare_app_for,
@@ -681,6 +681,25 @@ def test_what_moves_on_an_sst_cube(sst_app, qtbot, tmp_path):
     assert event(lambda: menu_action(viewers["map"], "Clear point").trigger()) == {"point": None}
     assert event(lambda: slide(viewers["map"], 0, 2)) == {"map": (2, 3, 3, None, None)}
     assert "time master" in viewers["map"].toolbar.tools["solar:frame_time"].label.text()
+
+
+def test_the_first_click_on_any_sst_panel_moves_the_point(sst_app, qtbot, tmp_path):
+    # each panel takes the Pixel tool as its window becomes active, as in the IRIS quicklook (D75)
+    cube, _ = stokes_cube(tmp_path / "cube.fits")
+    sst_app.show()
+    qtbot.waitUntil(sst_app.isActiveWindow)  # for a click to make its window the active one
+    viewers = quicklook(sst_app, [cube])
+    label = cube.label
+
+    def moved(action):
+        return changes(sst_app, qtbot, viewers, action)["point"]
+
+    assert moved(lambda: mouse_click(viewers["wing"], 3, 7)) == (label, (0, 0, None, 7, 3))
+    assert moved(lambda: mouse_click(viewers["slit"], 4, 2)) == (label, (0, 0, None, 2, 3))
+    assert moved(lambda: mouse_click(viewers["wavelength"], 1, 2)) == (label, (2, 0, None, 2, 3))
+    assert moved(lambda: mouse_click(viewers["map"], 5, 9)) == (label, (2, 0, None, 9, 5))
+    assert moved(lambda: press(viewers["slit"], Qt.Key_F)) == (label, (0, 0, None, 9, 5))
+    assert [group.label for group in sst_app.session.edit_subset_mode.edit_subset] == ["Point"]
 
 
 def shown_scan(viewers):

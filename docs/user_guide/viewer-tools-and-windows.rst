@@ -50,7 +50,9 @@ toolbar has:
 
 - "Pixel" ("Select a single pixel based on mouse location"): click or drag to select one pixel.
   On IRIS data this is the point the other viewers follow
-  (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`).
+  (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). A quicklook's image panels, IRIS
+  and SST, take it as their window becomes active, as glue-qt turns a viewer's mouse mode off once
+  another window is.
 - "Follow/lock", from glue-solar ("Move the point with the mouse; click to lock it there, right-click
   or press Esc to unlock it"): the point follows the mouse over the image, as CRISPEX's cursor does,
   moving as a Pixel click there would move it, at most once every 50 ms and with no Undo step. A left
@@ -413,7 +415,8 @@ Not saved yet:
 
 - A quicklook's Point window, its Panels list, whose panels turned off a session leaves out, its lines
   and the raster overlays (see :ref:`the IRIS quicklook <glue_solar_users_guide_iris_quicklook>`), a
-  blink and its partner, and each viewer's mouse mode: choose the Pixel tool again.
+  blink and its partner, and each viewer's mouse mode: choose the Pixel tool again, which a quicklook's
+  image panels take as their window becomes active.
 - Data regridded on time from data read as they are viewed: a session holding them does not save
   ("Don't know how to serialize dask.array").
 - "Per-frame limits", with glue-core 1.27.0: a session saved while an Image viewer has them on,

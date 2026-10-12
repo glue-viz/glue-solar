@@ -17,7 +17,13 @@ from glue.core.command import Command
 from glue.core.hub import HubListener
 from glue.core.link_helpers import LinkSame
 from glue.core.link_manager import is_equivalent_cid
-from glue.core.message import ComputationEndedMessage, SubsetCreateMessage, SubsetDeleteMessage, SubsetUpdateMessage
+from glue.core.message import (
+    ComputationEndedMessage,
+    EditSubsetMessage,
+    SubsetCreateMessage,
+    SubsetDeleteMessage,
+    SubsetUpdateMessage,
+)
 from glue.core.roi import PolygonalROI
 from glue.core.subset import RangeSubsetState, RoiSubsetState, SliceSubsetState, SubsetState
 from glue.core.units import UnitConverter
@@ -296,7 +302,8 @@ class Coordinator(HubListener):
     Keep the Image viewers of each IRIS observation on one selected point.
 
     The point is the Pixel tool's selection: the coordinator follows the last subset group given a
-    `~glue.viewers.image.pixel_selection_subset_state.PixelSubsetState` on IRIS data or an SST cube. On a
+    `~glue.viewers.image.pixel_selection_subset_state.PixelSubsetState` on IRIS data or an SST cube, and a quicklook's
+    point group again once it is the edit subset alone, as after picking it as glue's Active Subset. On a
     spectral cube the point is a detector pixel at every wavelength: a click takes the axes the
     clicked viewer does not show, such as a stack's scan or an SST cube's scan and Stokes parameter, from its sliders.
     A click on a panel that shows wavelength moves the cube's maps to the clicked wavelength instead of fixing it. Every
@@ -340,6 +347,7 @@ class Coordinator(HubListener):
         hub = data_collection.hub
         hub.subscribe(self, SubsetCreateMessage, handler=self._subset_changed)
         hub.subscribe(self, SubsetDeleteMessage, handler=self._subset_deleted)
+        hub.subscribe(self, EditSubsetMessage, handler=self._edited)
         hub.subscribe(
             self, SubsetUpdateMessage, handler=self._subset_changed, filter=lambda m: m.attribute == "subset_state"
         )
@@ -530,6 +538,11 @@ class Coordinator(HubListener):
             self._update()
         except Exception:  # reported as from the timer: matplotlib's mouse events would only print it
             sys.excepthook(*sys.exc_info())
+
+    def _edited(self, message):
+        group = message.subset[0] if len(message.subset) == 1 else None
+        if group in self._owners and group is not self.group:
+            self.follow(group)  # as picked in glue's Active Subset after a Pixel click on another group
 
     def _subset_deleted(self, message):
         if getattr(message.subset, "group", None) is self.group:
@@ -1081,7 +1094,16 @@ class QuicklookImageViewer(ImageViewer):
     subset, so the Pixel tool keeps moving it; a region picked to edit takes glue's selection mode. A session saves and
     restores the viewer with its quicklook's point group and its observation's time master, and an SST quicklook's map
     with the subset groups of its spectra and light curve, which follow the point again (`_Cut`).
+
+    The panel takes the Pixel tool whenever it becomes the active window, unless it has another mouse mode on: glue-qt
+    turns a viewer's mouse mode off as another window becomes active, and a click with none would run glue-qt's region
+    selection and empty the edit subset rather than move the point.
     """
+
+    def set_focus(self, state):  # glue-qt's call once it has turned the last active viewer's mouse mode off
+        super().set_focus(state)
+        if state and self.toolbar.active_tool is None:
+            self.toolbar.active_tool = "image:point_selection"
 
     def apply_subset_state(self, subset_state, override_mode=None):
         session = self.session
