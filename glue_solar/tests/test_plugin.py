@@ -2419,8 +2419,9 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     assert table["Curve y"].meta["pixel"] == {"Pixel Axis 1 [y]": 5, "Pixel Axis 2 [x]": 10}
     lon, lat = sky((slice(None), 5, 10))  # each exposure's own pointing
     assert np.ptp(lon) > 0
-    np.testing.assert_allclose(table["Curve lon"].quantity.to_value(u.arcsec), lon)
-    np.testing.assert_allclose(table["Curve lat"].quantity.to_value(u.arcsec), lat)
+    np.testing.assert_allclose(table["Curve lon"], lon)
+    np.testing.assert_allclose(table["Curve lat"], lat)
+    assert table["Curve lon"].unit == table["Curve lat"].unit == u.arcsec
     assert table.meta == {"function": "maximum", **{key: str(raster.meta[key]) for key in ("OBSID", "STARTOBS")}}
     assert app.statusBar().currentMessage() == "Left out, hidden: Spectrum"
     # the spectrum, in km/s from Si IV 1402.77 Å, and the curve, one wavelength wide, is left out
@@ -2437,8 +2438,8 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     assert table["Spectrum x"].unit == "km/s"
     assert table["Spectrum y"].meta["pixel"] == {"Pixel Axis 0 [z]": 3, "Pixel Axis 1 [y]": 5}
     lon, lat = sky((3, 5, slice(None)))  # the same at each wavelength
-    np.testing.assert_allclose(table["Spectrum lon"].quantity.to_value(u.arcsec), lon)
-    np.testing.assert_allclose(table["Spectrum lat"].quantity.to_value(u.arcsec), lat)
+    np.testing.assert_allclose(table["Spectrum lon"], lon)
+    np.testing.assert_allclose(table["Spectrum lat"], lat)
     assert table.meta["function"] == "mean"
     state.normalize = True  # as drawn, beside the values before
     whole.visible = False
@@ -2475,7 +2476,7 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     np.testing.assert_array_equal(table[f"{stack.label} time"].datetime64, times[:, 0, 0, 0])
     np.testing.assert_array_equal(table["Band time"].datetime64, times[:, 1, 3, 4])
     lon = stack[stack.id["Helioprojective Longitude"], (slice(None), 1, 3, 4)]  # each scan's
-    np.testing.assert_allclose(table["Band lon"].quantity.to_value(u.arcsec), lon)
+    np.testing.assert_allclose(table["Band lon"], lon)
     assert f"{stack.label} lon" not in table.colnames  # no one place
     assert app.statusBar().currentMessage() == ""  # the earlier note cleared, as nothing was left out
     # no OBSID: the reference data's label, made a file name
