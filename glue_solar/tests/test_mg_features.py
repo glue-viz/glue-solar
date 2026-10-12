@@ -165,12 +165,14 @@ def test_a_saturated_sample_blanks_its_lines_features_at_its_pixel(app, qtbot, m
 
 def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatch, stack_paths):
     """
-    A lazy stack of 3860258481's three scans, in slabs of 3 steps, gives one dataset whose maps and coordinates at
-    each scan are those of the scan loaded alone.
+    A lazy stack of 3860258481's three scans, in slabs of 3 steps, with a rest wavelength set 0.3 Å redder than irispy's
+    k, gives one dataset whose maps and coordinates at each scan are those of the scan loaded alone.
     """
     monkeypatch.setattr(mg_features, "SLAB", 3 * 109 * 33)
     [stack] = raster_data(stack_paths, ["Mg II k 2796"], stack=True)
     collection = app.data_collection
+    rest = _REST_WAVELENGTH["k"].to_value(u.AA) + 0.3
+    stack.meta["rest_wavelength"] = rest
     collection.append(stack)
     keep_hpc_linked(collection)
     answer(monkeypatch)
@@ -179,6 +181,7 @@ def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatc
     assert link_hpc(collection) == []
     for k, path in enumerate(stack_paths):
         [scan] = raster_data([path], ["Mg II k 2796"])
+        scan.meta["rest_wavelength"] = rest
         alone = mg_features.mg_features(scan)
         assert maps.meta == alone.meta
         for cid in alone.main_components:
