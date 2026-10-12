@@ -839,6 +839,7 @@ def test_every_wcslib_call_on_an_unlinked_cube_holds_its_own_lock(sst_app, qtbot
     def profile(frame, event, arg):
         if event == "c_call" and any(getattr(arg, "__self__", None) is owner for owner in (wcs, struct)):
             name = arg.__name__
+        # astropy's methods that touch self.wcs, the struct
         elif event == "call" and frame.f_code.co_filename in files and "wcs" in frame.f_code.co_names:
             if frame.f_locals.get("self") is not wcs:
                 return
