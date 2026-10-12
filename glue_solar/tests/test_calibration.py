@@ -157,12 +157,12 @@ def test_a_stacks_radiance_is_each_scans_own(app, stack_paths):
         np.testing.assert_allclose(stack[radiance][k], scan[alone], rtol=0 if k == 0 else 2e-3, atol=0)
 
 
-@pytest.mark.parametrize("axis", [0, 1, 2])
-def test_a_stack_whose_scans_cdelt_differ_is_refused_naming_the_first(app, monkeypatch, stack_paths, axis):
+@pytest.mark.parametrize(("axis", "first"), [(0, 1), (1, 2), (2, 1)])
+def test_a_stack_whose_scans_cdelt_differ_is_refused_naming_the_first(app, monkeypatch, stack_paths, axis, first):
     """
-    A stack of 3860258481's three scans, or that stack rebinned, with CDELT1, 2 or 3 of scans 1 and 2 changed in
-    memory, is not offered the calibration, and glue says why, naming scan 1, the first that differs: every scan's
-    factor takes scan 0's spectral dispersion and solid angle.
+    A stack of 3860258481's three scans, or that stack rebinned, with CDELT1, 2 or 3 of scans 1 and 2, or of scan 2
+    alone, changed in memory, is not offered the calibration, and glue says why, naming the first scan that differs:
+    every scan's factor takes scan 0's spectral dispersion and solid angle.
     """
     [stack] = raster_data(stack_paths, ["Mg II k 2796"], stack=True)
     rebinned = rebin(stack, (1, 1, 2, 1))
@@ -171,7 +171,7 @@ def test_a_stack_whose_scans_cdelt_differ_is_refused_naming_the_first(app, monke
     tree = app._layer_widget
     tree.ui.layerTree.set_selected_layers([stack])
     assert tree._actions[RADIANCE].isVisible()  # offered while the scans' CDELT1-3 are alike
-    for wcs in stack.coords._wcs._wcses[1:]:  # each scan's own FITS WCS (stack_wcs)
+    for wcs in stack.coords._wcs._wcses[first:]:  # each scan's own FITS WCS (stack_wcs)
         cdelt = wcs.wcs.cdelt.copy()
         cdelt[axis] *= 1.001
         wcs.wcs.cdelt = cdelt
@@ -183,7 +183,7 @@ def test_a_stack_whose_scans_cdelt_differ_is_refused_naming_the_first(app, monke
         refused(tree._actions[RADIANCE])
     why = "differ from scan 0's, whose spectral dispersion and solid angle the calibration takes for every scan."
     assert shown == [
-        f"Could not calibrate the radiance\nThe pixel sizes (CDELT1-3) of scan 1 of {data.label} {why}"
+        f"Could not calibrate the radiance\nThe pixel sizes (CDELT1-3) of scan {first} of {data.label} {why}"
         for data in (rebinned, stack)
     ]
     assert [len(data.components) for data in (rebinned, stack)] == components  # nothing added
