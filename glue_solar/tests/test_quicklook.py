@@ -5335,6 +5335,56 @@ def test_the_panels_open_without_axes_which_the_axes_box_shows(bare_app, qtbot, 
     assert bare_app.new_data_viewer(ImageViewer, data=mg).axes.axison
 
 
+def test_panels_out_of_sight_draw_once_in_sight(bare_app, qtbot, monkeypatch, irispy_test_files):
+    c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
+    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    bare_app.resize(1600, 600)
+    bare_app.show()  # the other windows' row below the tab's view
+    viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
+    qtbot.wait(600)  # and mpl-scatter-density's redraw of each image, 0.5 s after it is laid out
+    every = glue_solar.quicklook._viewers(viewers)
+    below = [viewer for panels in viewers["windows"] for viewer in panels.values()]
+    assert [viewer for viewer in every if viewer.figure.canvas.visibleRegion().isEmpty()] == below
+    draws = Counter()
+    for viewer in every:
+        draw = viewer.figure.canvas.draw
+        monkeypatch.setattr(
+            viewer.figure.canvas, "draw", lambda draw=draw, viewer=viewer: draws.update([viewer]) or draw()
+        )
+
+    def drawn(action):
+        draws.clear()
+        action()
+        qtbot.wait(50)
+        return dict(draws)
+
+    def current(viewer):
+        """Whether the panel shows what a draw of it now shows."""
+        shown = np.asarray(viewer.figure.canvas.buffer_rgba()).copy()
+        viewer.figure.canvas.draw()
+        return np.array_equal(shown, viewer.figure.canvas.buffer_rgba())
+
+    def move():
+        viewers["map"].toolbar.active_tool = "image:point_selection"
+        mouse(viewers["map"], "button_press_event", 30, 10)
+        mouse(viewers["map"], "motion_notify_event", 40, 12)
+        mouse(viewers["map"], "button_release_event", 40, 12)
+
+    # an exposure step and a move of the point draw the panels in sight, those below once scrolled into sight, as they
+    # are then
+    in_sight = set(every) - set(below)
+    assert set(drawn(lambda: slide(viewers["spectrogram"], 0, 50))) == in_sight
+    assert set(drawn(move)) == in_sight
+    bar = bare_app.tab().verticalScrollBar()
+    assert drawn(lambda: bar.setValue(bar.maximum())) == dict.fromkeys(below, 1)
+    assert all(current(viewer) for viewer in every)
+    # and a paint of one still out of sight, such as a grab of it, draws it
+    bar.setValue(0)
+    assert set(drawn(lambda: slide(viewers["spectrogram"], 0, 60))) == in_sight
+    assert drawn(lambda: [viewer.figure.canvas.grab() for viewer in below]) == dict.fromkeys(below, 1)
+    assert all(current(viewer) for viewer in below)
+
+
 def test_the_browser_shows_the_main_window_chosen(qtbot, monkeypatch, tmp_path, irispy_test_files):
     path = find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))
     app = bare_app_for(qtbot, monkeypatch)

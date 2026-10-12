@@ -2225,7 +2225,7 @@ def _arrange(tab, viewers):
     The panels shown, those neither closed nor turned off: raster panels in a top row, slit-jaw viewers and the spectrum
     in a second row, each other window's wavelength panel and spectrum in rows of four below, or an SST quicklook's
     ``rows``, at least 400 pixels tall each and 800 together; and below them the Point window, with the Panels list on
-    its right, both as tall as the longer one's rows.
+    its right, both as tall as the longer one's rows. A panel out of sight draws once in sight (`_draw_in_sight`).
     """
 
     def shown(panels):
@@ -2261,6 +2261,21 @@ def _arrange(tab, viewers):
         for c, viewer in enumerate(row):
             viewer.move(c * width // len(row), r * height // len(rows))
             viewer.viewer_size = (width // len(row), height // len(rows))
+            viewer.figure.canvas._draw_idle = partial(_draw_in_sight, viewer.figure.canvas)
+
+
+def _draw_in_sight(canvas):
+    """
+    matplotlib's deferred draw of ``canvas``, a quicklook panel's, unless the panel is shown but out of sight, such as in
+    a row scrolled below the tab's view, which matplotlib would draw at every step and move all the same: its draw then
+    stays due, and Qt's paint of it once in sight makes it, as it is then.
+    """
+    try:
+        out_of_sight = canvas.isVisible() and canvas.visibleRegion().isEmpty()
+    except RuntimeError:  # closed since the draw was posted, which matplotlib's own then skips
+        out_of_sight = False
+    if not out_of_sight or canvas.testAttribute(Qt.WA_WState_InPaintEvent):  # a paint, such as a grab's, draws it
+        type(canvas)._draw_idle(canvas)
 
 
 def _time_text(time):

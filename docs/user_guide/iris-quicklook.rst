@@ -53,12 +53,12 @@ plus one viewer per slit-jaw channel and a spectrum panel:
 
 These panels and the slit-jaw viewers open without their axes, ticks, tick labels, axis labels and
 frame, as "Hide axes" in a viewer's View menu leaves them (see :ref:`Viewer tools and windows
-<glue_solar_users_guide_viewer_tools_and_windows>`), which halves each step and move of the point on a
-quicklook of several windows (below) and a map's wavelength step and a slit-jaw frame step on any;
-with one window a step waits for its spectrum panel and barely changes. The images, the point, the
-lines and the readouts are the same. "Axes", at the top of the Panels list (below), shows them on all
-of them at once; a quicklook of slit-jaw images alone has no Panels list, and "Hide axes" shows each
-one's. The spectrum panels keep their axes.
+<glue_solar_users_guide_viewer_tools_and_windows>`), which halves a map's wavelength step and a
+slit-jaw frame step on any quicklook, and each step and move of the point on one of several windows
+whose panels are all in sight (below); with one window a step waits for its spectrum panel and barely
+changes. The images, the point, the lines and the readouts are the same. "Axes", at the top of the
+Panels list (below), shows them on all of them at once; a quicklook of slit-jaw images alone has no
+Panels list, and "Hide axes" shows each one's. The spectrum panels keep their axes.
 
 A sit-and-stare raster's exposure axis, in the quicklook once its axes are shown or in any Image
 viewer, is labelled "Exposure (acquisition order)" with the UTC range of its exposures on a second
@@ -387,11 +387,12 @@ on, takes it back at its frame nearest the raster's time. A panel closed by hand
 Like the Point window, the list closed by hand stays closed, and the panels it had turned off stay
 off until "Show this window's panels" (below), which shows every panel again; a saved session leaves
 out the panels turned off. On 4000255147 with its nine windows and SJI 1400, with the axes shown, an
-exposure step takes 0.19 s with the other windows' panels off, as with the main window alone, against
-0.54 s with every panel on, and a click and a move take 0.2 s against 0.5 and 0.6 s; turning a panel
-or a window off or on takes 0.05 to 0.1 s, and the eight other windows off at once 0.03 s and on again
-0.26 s. A stack of 4000005156's two scans of the same windows and SJI 2796 steps as fast with its
-other windows off as alone.
+exposure step takes 0.17 s with the other windows' panels off, as with the main window alone, against
+0.25 s with every panel on in a 1600×1000 window and 0.54 s with every row in sight (see `Several
+windows`_), and a click and a move take 0.2 s against 0.36 and 0.3 s, and 0.47 and 0.59 s; turning
+a panel or a window off or on takes 0.05 to 0.1 s, and the eight other windows off at once 0.03 s and
+on again 0.26 s. A stack of 4000005156's two scans of the same windows and SJI 2796 steps as fast
+with its other windows off as alone.
 
 "Axes", above the panels' boxes and unticked as the quicklook opens, shows the axes of every Image
 panel shown, their ticks, tick labels and axis labels, the exposure axis's label with its UTC range
@@ -399,9 +400,11 @@ among them, and hides them again. A panel's own "Hide axes" leaves the box partl
 panels differ, and a click on it then shows every panel's. A panel turned on again takes the box's
 choice, as those turned off neither change nor draw while it changes; "Show this window's panels"
 keeps it when ticked (partly ticked, the panels open again without axes), and a saved session keeps
-each panel's axes shown or hidden. On 4000255147 with every panel on, an exposure step takes 0.28 s
-without axes against 0.54 s with them, and a move of the point 0.33 s against 0.61 s; ticking the box takes 0.2 s and unticking it 0.05 s. On a stack of
-4000005156's two scans a scan step takes 0.29 s against 0.48 s, and a move 0.33 s against 0.55 s.
+each panel's axes shown or hidden. On 4000255147 with every panel on, in a 1600×1000 window (see
+`Several windows`_), an exposure step takes 0.2 s without axes against 0.25 s with them, and a move of
+the point 0.22 s against 0.3 s, or with every row in sight 0.29 s against 0.54 s and 0.34 s against
+0.59 s; ticking the box takes 0.1 s and unticking it 0.03 s. On a stack of 4000005156's two scans, in
+the same window, a scan step takes 0.21 s against 0.25 s, and a move 0.21 s against 0.3 s.
 
 A saved session opens the quicklook again with its point and its time master: its tab makes
 "Point" the edit subset whenever it is shown, the panels follow the time master to the frames they
@@ -435,6 +438,13 @@ wavelength panel moves the point to that window, and the others follow; D, F and
 move it with the time master. The Point window lists the main window only, and the Panels list
 turns each window's panels off and on (see above). The "Plugins" menu entry and the command line
 open one window.
+
+A panel out of sight, such as one in the rows below the tab's view, is not drawn as the point and the
+time move: it is drawn once it comes into sight, scrolled to or uncovered, as it is then, so that a
+step costs the panels in sight only. In a 1600×1000 window the tab shows the main window's rows and
+the first row of the others: on 4000255147 with its nine windows and SJI 1400, an exposure step takes
+0.2 s, against 0.29 s with every row in sight and 0.17 s with the main window alone, and a move of the
+point 0.22 s, against 0.34 and 0.18 s.
 
 "Show this window's panels", the triangle icon after "Zoom" in another window's spectrum panel (and
 in no other Profile viewer), makes that window the main window: the quicklook opens again in its tab
