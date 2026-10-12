@@ -13,10 +13,12 @@ from glue.core.exceptions import IncompatibleAttribute
 from glue.core.hub import Hub
 from glue.core.link_helpers import LinkSame, LinkSameWithUnits
 from glue.core.roi import RectangularROI
-from glue.core.subset import RoiSubsetState
+from glue.core.subset import RoiSubsetState, SubsetState
 from glue.plugins.tools.path_slicer.path_sliced_data_links import PathRelativeLink
 from glue.plugins.wcs_autolinking import wcs_autolinking
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
+from glue.viewers.image import pixel_selection_subset_state
+from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.app import GlueApplication
 from glue_qt.dialogs.link_editor.state import LinkEditorState
 from glue_qt.viewers.image import ImageViewer
@@ -36,6 +38,7 @@ from glue_solar.sources.iris import browse_iris, link_iris
 from glue_solar.sources.loaders.iris import (
     WCS_LOCK,
     QtIRISImporter,
+    _HeldWCS,
     _LockedWCS,
     image_data,
     keep_hpc_linked,
@@ -48,6 +51,36 @@ from glue_solar.tests.test_quicklook import drifting_stack
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
 RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
 HPC = ["Helioprojective Longitude", "Helioprojective Latitude"]
+# what of a linked dataset's WCS holds the WCS lock: wcslib's transforms, copies and the properties that read its struct
+LOCKED_TRANSFORMS = (
+    "all_pix2world",
+    "all_world2pix",
+    "wcs_pix2world",
+    "wcs_world2pix",
+    "pixel_to_world_values",
+    "world_to_pixel_values",
+    "sub",
+    "to_header",
+    "__copy__",
+    "__deepcopy__",
+)
+LOCKED_PROPERTIES = (
+    "axis_correlation_matrix",
+    "world_axis_physical_types",
+    "world_axis_units",
+    "world_axis_names",
+    "world_axis_object_components",
+    "world_axis_object_classes",
+    "pixel_n_dim",
+    "world_n_dim",
+    "array_shape",
+    "pixel_shape",
+    "pixel_bounds",
+    "has_distortion",
+    "has_celestial",
+    "has_spectral",
+    "has_temporal",
+)
 
 
 def _real(files, name):
@@ -114,38 +147,61 @@ def test_sji_high_level_api_round_trips(sns):
 
 
 def test_inverse_workaround_installs_only_where_glue_needs_it():
-    installed = component_link.world2pixel_single_axis is glue_patches.world2pixel_single_axis
+    installed = component_link.world2pixel_single_axis.__wrapped__ is glue_patches.world2pixel_single_axis
     assert installed == glue_patches.needs_inverse_workaround()  # probes glue's own function
     assert coordinate_helpers.world2pixel_single_axis is component_link.world2pixel_single_axis
     assert not glue_patches.needs_inverse_workaround(glue_patches.world2pixel_single_axis)
 
 
-def test_the_link_patches_hold_the_wcs_lock(monkeypatch):
-    # SST1: glue's profile workers reach the WCS of each linked dataset through these, one restored unlocked too
+@pytest.mark.parametrize("needed", [True, False])
+def test_the_link_patches_hold_the_wcs_lock(monkeypatch, needed):
+    # SST1: glue's profile workers reach the WCS of each linked dataset through these, one restored unlocked too; glue's
+    # own, once fixed, still hold it (D73)
+    patched = (
+        (coordinate_helpers, "world2pixel_single_axis"),
+        (component_link, "world2pixel_single_axis"),  # which imports it by name
+        (PixelSubsetState, "_to_linked_pixel_coords"),
+    )
+    for owner, name in patched:
+        monkeypatch.setattr(owner, name, getattr(owner, name))  # put back after
+    for probe in ("needs_inverse_workaround", "needs_pixel_point_workaround"):
+        monkeypatch.setattr(glue_patches, probe, lambda *args: needed)
+    glue_patches._hold_wcs_lock()
+    *inverses, point = (getattr(owner, name) for owner, name in patched)
+    fixes = glue_patches.world2pixel_single_axis, glue_patches._to_linked_pixel_coords
+    assert [function.__wrapped__ in fixes for function in (*inverses, point)] == [needed] * 3
     held = []
     wcs = SimpleNamespace(
         axis_correlation_matrix=np.eye(2, dtype=bool),
         world_to_pixel_values=lambda *world: held.append(WCS_LOCK._is_owned()) or world,
     )
-    glue_patches.world2pixel_single_axis(wcs, np.zeros(3), np.zeros(3), pixel_axis=0)
-    monkeypatch.setattr(
-        glue_patches,
-        "pixel_cid_to_pixel_cid_matrix",
-        lambda *args: held.append(WCS_LOCK._is_owned()) or np.zeros((0, 0), bool),
-    )
+    for inverse in inverses:
+        inverse(wcs, np.zeros(3), np.zeros(3), pixel_axis=0)
+    for module in (glue_patches, pixel_selection_subset_state):  # the fix's and glue's
+        monkeypatch.setattr(
+            module,
+            "pixel_cid_to_pixel_cid_matrix",
+            lambda *args: held.append(WCS_LOCK._is_owned()) or np.zeros((0, 0), bool),
+        )
     linked, iris, unlinked = (
         SimpleNamespace(coords=coords, pixel_component_ids=[]) for coords in (_LockedWCS(naxis=2), None, WCS(naxis=2))
     )
-    for point, data in ((linked, iris), (iris, linked), (iris, unlinked), (unlinked, unlinked)):
-        glue_patches._to_linked_pixel_coords(SimpleNamespace(reference_data=point, slices=[]), data)
+    for reference, data in ((linked, iris), (iris, linked), (iris, unlinked), (unlinked, unlinked)):
+        point(SimpleNamespace(reference_data=reference, slices=[]), data)
     # and WCSAxes, which calls wcslib's wcsset on the WCS of a linked dataset, as glue at each slice of an SST cube
     monkeypatch.setattr(glue_patches, "_original_reset_wcs", lambda *args: held.append(WCS_LOCK._is_owned()))
     glue_patches.reset_wcs(None, wcs=_LockedWCS(naxis=2))
     glue_patches.reset_wcs(None, wcs=WCS(naxis=2))  # an unlinked one waits for no profile worker
-    assert held == [True, True, True, False, False, True, False]  # nor a point to or on an unlinked one (227-9)
-    # and glue's autolinker, which reads has_celestial of every dataset's WCS as data load: wcsset again
-    for name in ("has_celestial", "has_spectral", "has_temporal"):
+    assert held == [True, True, True, True, False, False, True, False]  # nor a point to or on an unlinked one (227-9)
+    # and each transform, copy and property reading wcslib's struct of a linked dataset's WCS (a lock on the transforms
+    # alone still crashed), as glue's autolinker reads has_celestial of every dataset's WCS as data load: wcsset again
+    for name in LOCKED_TRANSFORMS:
+        assert getattr(_LockedWCS, name).__wrapped__ is getattr(WCS, name)
+    for name in LOCKED_PROPERTIES:
         assert getattr(_LockedWCS, name).fget.__wrapped__ is getattr(WCS, name).fget
+    # and nothing else is wrapped that these lists do not name
+    wrapped = {name for name, value in vars(_HeldWCS).items() if hasattr(getattr(value, "fget", value), "__wrapped__")}
+    assert wrapped == {*LOCKED_TRANSFORMS, *LOCKED_PROPERTIES}
 
 
 def test_world_links_into_the_sji_use_each_exposure_time(sns):
@@ -451,20 +507,31 @@ def test_profile_workers_reach_a_linked_map_s_wcs_holding_the_lock(qtbot, monkey
     app.data_collection.append(aia)
     quicklook(app, [raster, sji])
     link_iris(app.session, app.data_collection)
-    calls = []  # (on the GUI thread, holding the lock) of each call into wcslib for the map
-    for name in ("_all_pix2world", "_all_world2pix"):  # under each transform of the map's WCS
+    calls = []  # (on the GUI thread, the transform or property, holding the lock) of each read of the map's WCS
+    names = {*LOCKED_TRANSFORMS, *LOCKED_PROPERTIES}
 
-        def called(wcs, *args, _original=getattr(WCS, name), **kwargs):
-            if wcs is aia.coords:
-                calls.append((threading.current_thread() is threading.main_thread(), WCS_LOCK._is_owned()))
-            return _original(wcs, *args, **kwargs)
+    def profile(frame, event, arg):
+        if event == "call" and frame.f_code.co_name in names and frame.f_locals.get("self") is aia.coords:
+            main = threading.current_thread() is threading.main_thread()
+            calls.append((main, frame.f_code.co_name, WCS_LOCK._is_owned()))
 
-        monkeypatch.setattr(WCS, name, called)
     app.new_data_viewer(ImageViewer, data=aia)
-    region = RoiSubsetState(aia.pixel_component_ids[1], aia.pixel_component_ids[0], RectangularROI(20, 140, 10, 70))
-    app.data_collection.new_subset_group("region", region)
-    qtbot.waitUntil(lambda: {main for main, _ in calls} == {True, False}, timeout=30_000)
-    assert all(locked for _, locked in calls)
+    group = app.data_collection.new_subset_group("region", SubsetState())  # and the workers of its profiles
+    threading.setprofile_all_threads(profile)  # its workers too, waiting for work: a QThread started later is not
+    try:
+        roi = RectangularROI(20, 140, 10, 70)
+        group.subset_state = RoiSubsetState(aia.pixel_component_ids[1], aia.pixel_component_ids[0], roi)
+        # on both threads, properties too off the GUI thread
+        qtbot.waitUntil(
+            lambda: (
+                {main for main, *_ in calls} == {True, False}
+                and any(not main and name in LOCKED_PROPERTIES for main, name, _ in calls)
+            ),
+            timeout=30_000,
+        )
+    finally:
+        threading.setprofile_all_threads(None)
+    assert all(locked for *_, locked in calls)
 
 
 def _inside(sji, frame, raster, roi):
@@ -679,9 +746,7 @@ def test_wcs_autolinks_leave_link_hpc_unchanged(sns, autolink_first):
 def test_pixel_point_workaround_installs_only_where_glue_needs_it(sns, tmp_path, irispy_test_files):
     import inspect
 
-    from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
-
-    installed = PixelSubsetState._to_linked_pixel_coords is glue_patches._to_linked_pixel_coords
+    installed = PixelSubsetState._to_linked_pixel_coords.__wrapped__ is glue_patches._to_linked_pixel_coords
     assert installed == glue_patches.needs_pixel_point_workaround()  # probes glue's own method
     assert not glue_patches.needs_pixel_point_workaround(glue_patches._to_linked_pixel_coords)
 

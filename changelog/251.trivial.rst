@@ -1,0 +1,1 @@
+The WCS lock around glue's linked-coordinate functions no longer depends on glue's other bugs being present, and the tests now catch any locked WCS method left unlocked.
