@@ -1,0 +1,1 @@
+'Light curves of every window and SJI…' is now 'Light curves of the shown windows and SJI': it plots the windows and slit-jaw images the point's quicklook shows, with no dialog, and shows only where it has curves to plot.

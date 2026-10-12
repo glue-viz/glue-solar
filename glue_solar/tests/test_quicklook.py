@@ -227,9 +227,13 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
     scan, stack = scans
     [sot] = [image_data(path) for path in irispy_test_files if "_Gband4305_FG_" in path.name]
     flat = Data(label="flat", values=np.zeros((4, 5)))
-    bare_app.data_collection.extend([scan, stack, sot, flat])
     raster, sji = sit_and_stare(irispy_test_files)
-    viewers = quicklook(bare_app, [raster, sji])
+    # two windows and one slit-jaw channel shown, another window and channel loaded beside them
+    file = find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))
+    c_ii, o_i = raster_data([file], ["C II 1336", "O I 1356"])
+    sji_2796 = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_2796_t000")))
+    bare_app.data_collection.extend([scan, stack, sot, flat, c_ii, o_i, sji_2796])
+    viewers = quicklook(bare_app, [raster, c_ii, sji], window=["Si IV 1403", "C II 1336"])
     # the Coordinate menu's time entries, then its Point and Blink submenus
     button = viewers["map"].toolbar.widgetForAction(viewers["map"].toolbar.actions["solar:coordinate"])
     assert [action.text() for action in button.menu().actions()] == [
@@ -276,6 +280,31 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
     assert offered(plain) == ["Clear point", *blink, *view]
     menu_action(plain, "Set blink partner here").trigger()
     assert offered(plain) == ["Clear point", "Set blink partner here", "Blink", *view]
+
+    def curves(viewer):
+        """The windows and channels of the light curves the entry plots, as their labels name them."""
+        menu_action(viewer, POINT_CURVES).trigger()
+        labels = [layer.layer.label for layer in bare_app.viewers[-1][-1].layers if isinstance(layer.layer, Data)]
+        return [re.sub(r"( \S+ Å)? light curve$", "", label) for label in labels]
+
+    # the light curves of the windows and slit-jaw images the quicklook shows, but those whose panels are turned off
+    assert curves(viewers["map"]) == ["C II 1336", "Si IV 1403", "SJI 1400"]
+    panels = panels_list(bare_app)
+    tick(panels, "C II 1336", on=False)
+    panels.apply()  # as the list does at the next turn of the event loop
+    assert curves(viewers["map"]) == ["Si IV 1403", "SJI 1400"]
+    # none without a point, the window's light curve and the cuts left to refuse when chosen
+    menu_action(viewers["map"], "Clear point").trigger()
+    assert offered(viewers["map"]) == [*time, "Raster overlays", *curve[:2], *cuts, *blink, *banded]
+    # of a point of no quicklook, its own window's and every slit-jaw image's
+    other = image(bare_app, raster, 0, 1)
+    bare_app.session.edit_subset_mode.edit_subset = [bare_app.data_collection.new_subset_group(label="Other")]
+    select_point(other, 3, 10)
+    assert curves(other) == ["Si IV 1403", "SJI 2796", "SJI 1400"]
+    # none on 3824262996's single scan alone, which has no exposures or scans and no slit-jaw image loaded
+    [drift] = [path for path in irispy_test_files if "3824262996_raster" in path.name]
+    lone = quicklook(bare_app, raster_data([drift]))
+    assert offered(lone["map"]) == [*time, "Raster overlays", "Clear point", *cuts, *blink, *banded]
 
 
 def test_a_slit_jaw_click_outside_a_quicklook_stays_a_slit_jaw_point(app, qtbot, irispy_test_files):
@@ -1028,7 +1057,7 @@ def test_a_row_and_a_column_follow_the_point_and_the_band(bare_app, qtbot, monke
     assert shown == ["Could not open the cut\nChoose it on the map of a raster, whose wavelength or band it averages."]
 
 
-POINT_CURVES = "Light curves of every window and SJI…"
+POINT_CURVES = "Light curves of the shown windows and SJI"
 
 
 def expected_sji_curve(raster, sji, slit, step=None):
@@ -1067,7 +1096,7 @@ def test_light_curves_at_the_point(bare_app, qtbot, tmp_path, irispy_test_files)
     file = find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))
     c_ii, mg_ii = raster_data([file], ["C II 1336", "Mg II k 2796"])
     sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
-    viewers = quicklook(bare_app, [c_ii, mg_ii, sji])  # Mg II k, with C II loaded beside it
+    viewers = quicklook(bare_app, [c_ii, mg_ii, sji], window=["C II 1336", "Mg II k 2796"])  # Mg II k, C II beside it
     raster_map, spectrogram = viewers["map"], viewers["spectrogram"]
     [point] = bare_app.session.edit_subset_mode.edit_subset
     k = expected_start(mg_ii)[-1] + 3

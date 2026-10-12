@@ -68,6 +68,7 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 from glue_solar.quicklook import (
     _across,
     _curve_map,
+    _curve_sources,
     _cut,
     _cut_map,
     _half_cadence,
@@ -1905,16 +1906,22 @@ class _LightCurveEntry(_CoordinateEntry):
 
 class _PointCurvesEntry(_CoordinateEntry):
     tool_id = "solar:point_curves"
-    action_text = "Light curves of every window and SJI…"
-    tool_tip = "Plot each raster window and slit-jaw image at the point against time, as new datasets that follow it"
+    action_text = "Light curves of the shown windows and SJI"
+    tool_tip = "Plot each window and slit-jaw image shown at the point against time, as new datasets that follow it"
 
     @messagebox_on_error("Could not add the light curves")
     def run(self, coordinator):
         _point_curves(self.viewer)
 
     def offered(self):
-        # on a viewer of IRIS, AIA or SOT data, the point's raster being any
-        return _role(self.viewer.state.reference_data) in ("raster", "sji", "aia")
+        # on a viewer of IRIS, AIA or SOT data, where the point has curves to plot, as `_point_curves` checks
+        if _role(self.viewer.state.reference_data) not in ("raster", "sji", "aia"):
+            return False
+        try:
+            _curve_sources(self.viewer.session.application)
+        except ValueError:
+            return False
+        return True
 
 
 class _RowEntry(_CoordinateEntry):
@@ -2572,7 +2579,7 @@ class CoordinateTool(_ToolMenu):
     Pixel tool, and unregisters it when the viewer closes. Its menu makes the displayed dataset the
     time master of its observation, moves the time master to a typed UTC time, makes the frame, exposure, step or
     scan slider's playback loop over a range, or shows the raster overlays; its "Point" submenu clears the point,
-    opens the light curve at the point, plots the light curves of every window and slit-jaw image at the point, or
+    opens the light curve at the point, plots the light curves of the windows and slit-jaw images shown at the point, or
     opens a raster map's row or column through the point;
     its "Blink" submenu blinks the viewer between its position and a stored partner. An entry shows only where it can
     act, as the menu opens (`_CoordinateEntry.offered`), and "Blink" is greyed without a partner. On a
