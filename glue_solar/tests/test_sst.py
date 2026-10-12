@@ -399,13 +399,14 @@ def _sst_pixels(coord, lon, lat, when, shape, scale, roll):
     return (cos * du + sin * dv) / scale + (columns - 1) / 2, (cos * dv - sin * du) / scale + (rows - 1) / 2
 
 
-def test_once_linked_an_sst_region_or_point_selects_the_iris_pixels_at_its_place(tmp_path, sns):
+@pytest.mark.parametrize("stokes", [1, 4])
+def test_once_linked_an_sst_region_or_point_selects_the_iris_pixels_at_its_place(tmp_path, sns, stokes):
     # D67: glue gave the cube's wavelength and time their CRVAL, 0, outside its table, which selected nothing; a mosaic's
     # pointing changes with each scan, so each SJI frame and raster exposure takes the scan nearest it
     sji, raster = sns
     frames = _times(sji, 0)
     start, cadence = (frames[10] - np.datetime64(DATEREF)), (frames[-1] - frames[10]) / 3  # from the 11th frame
-    shape, scale, roll = (4, 1, 5, 30, 40), 1.1, 8.0
+    shape, scale, roll = (4, stokes, 5, 30, 40), 1.1, 8.0
     seconds = [time / np.timedelta64(1, "s") for time in (start, cadence)]
     coord = write_sst_cube(tmp_path / "cube.fits", shape, (-55.0, -400.0), (4.0, -3.0), scale, roll, *seconds)
     cube = sst_data(tmp_path / "cube.fits")
@@ -436,19 +437,23 @@ def test_once_linked_an_sst_region_or_point_selects_the_iris_pixels_at_its_place
         assert edge.sum() <= expected.sum() // 20
         np.testing.assert_array_equal(mask[~edge], expected[~edge])
         assert (inside(frames[0]) != expected).sum() >= 10  # not in the first scan's pointing throughout
-    # glue's Pixel point, at the cube's first scan and tuning: the raster's exposure and slit row nearest it, and in the
-    # slit-jaw frame nearest that scan, the pixel there
-    point = PixelSubsetState(cube, [slice(None)] * 2 + [slice(15, 16), slice(30, 31)])
-    lon, lat, *_ = cube.coords.pixel_to_world_values(30, 15, 0, 0)
+    # glue's Pixel point, at the cube's first tuning: the raster's exposure and slit row nearest it, and in the slit-jaw
+    # frame nearest its scan, the pixel there; at the first scan with the scan free, and at a scan's own pointing with
+    # it fixed, as the quicklook fixes it and any Stokes parameter, which reach no IRIS axis (D73)
     exposure, slit = np.indices(raster.shape[:2])
     _, lats, lons = raster.coords.pixel_to_world_values(0, slit, exposure)
-    assert point._to_linked_pixel_coords(raster) == [
-        *np.unravel_index(np.argmin(np.hypot(lons - lon, lats - lat)), raster.shape[:2]),
-        None,
-    ]
-    [frame], _ = nearest([np.datetime64(DATEREF) + np.timedelta64(int(coord[0, 2, 0, 0, 3] * 1e9), "ns")], frames)
-    x, y, _ = sji.coords.world_to_pixel_values(lon, lat, sji.coords.pixel_to_world_values(0, 0, frame)[2])
-    assert point._to_linked_pixel_coords(sji) == [frame, round(float(y)), round(float(x))]
+    quicklook_point = [slice(2, 3)] + [slice(1, 2)] * (stokes > 1)
+    for scan, fixed in ((0, [slice(None)] * (cube.ndim - 3)), (2, quicklook_point)):
+        point = PixelSubsetState(cube, [*fixed, slice(None), slice(15, 16), slice(30, 31)])
+        lon, lat, *_ = cube.coords.pixel_to_world_values(30, 15, 0, *[0] * (stokes > 1), scan)
+        assert point._to_linked_pixel_coords(raster) == [
+            *np.unravel_index(np.argmin(np.hypot(lons - lon, lats - lat)), raster.shape[:2]),
+            None,
+        ]
+        when = np.datetime64(DATEREF) + np.timedelta64(int(coord[scan, 2, 0, 0, 3] * 1e9), "ns")
+        [frame], _ = nearest([when], frames)
+        x, y, _ = sji.coords.world_to_pixel_values(lon, lat, sji.coords.pixel_to_world_values(0, 0, frame)[2])
+        assert point._to_linked_pixel_coords(sji) == [frame, round(float(y)), round(float(x))]
 
 
 @pytest.fixture

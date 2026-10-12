@@ -1,0 +1,1 @@
+A point clicked on an SST cube linked to IRIS data now reaches the raster and slit-jaw pixels at that scan's pointing: the slit-jaw crosshair shows and the raster's Profile gives its spectrum.

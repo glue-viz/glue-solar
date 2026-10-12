@@ -27,6 +27,7 @@ from glue.core.data_exporters import gridded_fits
 from glue.core.edit_subset_mode import EditSubsetMode
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.link_helpers import LinkSame, LinkSameWithUnits
+from glue.core.link_manager import pixel_cid_to_pixel_cid_matrix
 from glue.core.state import GlueSerializeError, GlueSerializer, GlueUnSerializer, loader, saver
 from glue.core.subset import SubsetState
 from glue.dialogs.link_editor.state import LinkEditorState
@@ -341,26 +342,45 @@ _original_to_linked_pixel_coords = PixelSubsetState._to_linked_pixel_coords
 
 def _to_linked_pixel_coords(self, data):
     """
-    glue-core's ``PixelSubsetState._to_linked_pixel_coords``, with a point off ``data`` incompatible with it.
+    glue-core's ``PixelSubsetState._to_linked_pixel_coords``, with a point off ``data`` incompatible with it, and a
+    point whose fixed axes reach no pixel axis of ``data`` placed on it.
 
     glue-core 1.27.0 rounds the point's linked pixel position with ``int()``, so a point that lies
     outside a linked dataset, where the position is NaN, raises ``ValueError`` and glue shows an error
-    box, for its crosshair or its spectrum. Retired by the ``core-translate-pixel`` report's fix. It holds
+    box, for its crosshair or its spectrum. Retired by the ``core-translate-pixel`` report's fix. glue also wants the
+    axes of ``data`` the point's fixed axes reach to reach back to exactly those, so the SST quicklook's point, whose
+    scan and Stokes parameter reach no IRIS axis, reached no IRIS data (D73). This places a point whose reached axes
+    reach back to fixed axes only, at least one, at the point's own slices, a free axis at its first pixel as glue's:
+    the scan gives the cube's pointing there and the slit-jaw frame nearest it. One whose reached axes reach a free axis
+    stays incompatible, as glue's. Retired by glue's check taking a subset (report candidate). It holds
     `WCS_LOCK`, as glue's profile workers call it through the WCS of each linked dataset, but for a dataset with a WCS
     `~glue_solar.sources.loaders.iris.link_hpc` has not locked, as it does once it links it: no IRIS data's WCS is
     linked to it, so an unlinked map or SST cube never waits for IRIS data's threads.
     """
     pair = self.reference_data, data
     unlinked = any(isinstance(d.coords, WCS) and not isinstance(d.coords, _LockedWCS) for d in pair)
+    dimensions = [axis for axis, s in enumerate(self.slices) if s.start is not None]
     try:
         with nullcontext() if unlinked else WCS_LOCK:
-            return _original_to_linked_pixel_coords(self, data)
+            matrix = pixel_cid_to_pixel_cid_matrix(self.reference_data, data)
+            reached = np.nonzero(matrix[dimensions].any(axis=0))[0]
+            back = np.nonzero(matrix[:, reached].any(axis=1))[0]
+            if not set(back) <= set(dimensions) or (dimensions and not len(back)):
+                raise IncompatibleAttribute()
+            at = tuple(slice(0, 1) if s.start is None else s for s in self.slices)
+            return [
+                int(np.round(self.reference_data[cid, at].ravel()[0])) if axis in reached else None
+                for axis, cid in enumerate(data.pixel_component_ids)
+            ]
     except ValueError:  # int() of NaN: the point is not on ``data``
         raise IncompatibleAttribute() from None
 
 
 def needs_pixel_point_workaround(method=_original_to_linked_pixel_coords):
-    """Whether ``method`` raises ``ValueError`` for a Pixel point with no finite pixel in a linked dataset."""
+    """
+    Whether ``method`` raises ``ValueError`` for a Pixel point with no finite pixel in a linked dataset, or refuses one
+    whose fixed axis reaches no pixel axis of it.
+    """
     first, second = Data(x=np.zeros((2, 2)), label="first"), Data(y=np.zeros((2, 2)), label="second")
     collection = DataCollection([first, second])
     for a, b in zip(first.pixel_component_ids, second.pixel_component_ids):
@@ -373,6 +393,14 @@ def needs_pixel_point_workaround(method=_original_to_linked_pixel_coords):
         return True
     except IncompatibleAttribute:
         pass
+    cube, image = Data(x=np.zeros((2, 2, 2)), label="cube"), Data(y=np.zeros((2, 2)), label="image")
+    collection = DataCollection([cube, image])
+    for a, b in zip(cube.pixel_component_ids[1:], image.pixel_component_ids):
+        collection.add_link([ComponentLink([a], b), ComponentLink([b], a)])
+    try:
+        method(PixelSubsetState(cube, [slice(1, 2)] * 3), image)  # its first axis reaches no axis of the image
+    except IncompatibleAttribute:
+        return True
     return False
 
 

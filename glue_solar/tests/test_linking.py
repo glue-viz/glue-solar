@@ -129,11 +129,15 @@ def test_the_link_patches_hold_the_wcs_lock(monkeypatch):
     )
     glue_patches.world2pixel_single_axis(wcs, np.zeros(3), np.zeros(3), pixel_axis=0)
     monkeypatch.setattr(
-        glue_patches, "_original_to_linked_pixel_coords", lambda *args: held.append(WCS_LOCK._is_owned())
+        glue_patches,
+        "pixel_cid_to_pixel_cid_matrix",
+        lambda *args: held.append(WCS_LOCK._is_owned()) or np.zeros((0, 0), bool),
     )
-    linked, iris, unlinked = (SimpleNamespace(coords=coords) for coords in (_LockedWCS(naxis=2), None, WCS(naxis=2)))
+    linked, iris, unlinked = (
+        SimpleNamespace(coords=coords, pixel_component_ids=[]) for coords in (_LockedWCS(naxis=2), None, WCS(naxis=2))
+    )
     for point, data in ((linked, iris), (iris, linked), (iris, unlinked), (unlinked, unlinked)):
-        glue_patches._to_linked_pixel_coords(SimpleNamespace(reference_data=point), data)
+        glue_patches._to_linked_pixel_coords(SimpleNamespace(reference_data=point, slices=[]), data)
     # and WCSAxes, which calls wcslib's wcsset on the WCS of a linked dataset, as glue at each slice of an SST cube
     monkeypatch.setattr(glue_patches, "_original_reset_wcs", lambda *args: held.append(WCS_LOCK._is_owned()))
     glue_patches.reset_wcs(None, wcs=_LockedWCS(naxis=2))
@@ -672,7 +676,7 @@ def test_wcs_autolinks_leave_link_hpc_unchanged(sns, autolink_first):
         np.testing.assert_array_equal(sji[_cid(raster, label)], sji[_cid(sji, label)])
 
 
-def test_pixel_point_workaround_installs_only_where_glue_needs_it(sns):
+def test_pixel_point_workaround_installs_only_where_glue_needs_it(sns, tmp_path, irispy_test_files):
     import inspect
 
     from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
@@ -680,6 +684,14 @@ def test_pixel_point_workaround_installs_only_where_glue_needs_it(sns):
     installed = PixelSubsetState._to_linked_pixel_coords is glue_patches._to_linked_pixel_coords
     assert installed == glue_patches.needs_pixel_point_workaround()  # probes glue's own method
     assert not glue_patches.needs_pixel_point_workaround(glue_patches._to_linked_pixel_coords)
+
+    def rounding_fixed(self, data):  # glue's with a point off ``data`` incompatible, still refusing fixed axes
+        try:
+            return glue_patches._original_to_linked_pixel_coords(self, data)
+        except ValueError:
+            raise IncompatibleAttribute() from None
+
+    assert glue_patches.needs_pixel_point_workaround(rounding_fixed)
     # a private method: pin its signature on the released baseline
     assert list(inspect.signature(glue_patches._original_to_linked_pixel_coords).parameters) == ["self", "data"]
     # a slit-jaw point off the raster, as a click beside its field of view, is incompatible with the
@@ -690,3 +702,19 @@ def test_pixel_point_workaround_installs_only_where_glue_needs_it(sns):
     point = PixelSubsetState(sji, [slice(0, 1), slice(0, 1), slice(0, 1)])
     with pytest.raises(IncompatibleAttribute):
         point.to_array(raster, raster.main_components[0])
+    # a raster point's wavelength, which reaches no axis of a stack, leaves it the pixel the point gives without it; a
+    # slit row, whose stack pixel depends on its free exposure too, and a wavelength alone stay incompatible (D73)
+    stack, _ = drifting_stack(tmp_path, irispy_test_files)
+    dc.append(stack)
+    dc.add_link(link_hpc(dc))
+    pixel = PixelSubsetState(raster, [slice(93, 94), slice(20, 21), slice(None)])._to_linked_pixel_coords(stack)
+    assert PixelSubsetState(raster, [slice(93, 94), slice(20, 21), slice(5, 6)])._to_linked_pixel_coords(stack) == pixel
+    for slices in ([slice(None), slice(20, 21), slice(None)], [slice(None), slice(None), slice(5, 6)]):
+        with pytest.raises(IncompatibleAttribute):
+            PixelSubsetState(raster, slices)._to_linked_pixel_coords(stack)
+    # a free axis reaching an axis the fixed ones do not leaves the point as glue places it
+    cube, image = Data(x=np.zeros((2, 2, 2)), label="cube"), Data(y=np.zeros((2, 2, 2)), label="image")
+    dc = DataCollection([cube, image])
+    dc.add_link([LinkSame(a, b) for a, b in zip(cube.pixel_component_ids, image.pixel_component_ids)])
+    point = PixelSubsetState(cube, [slice(None), slice(1, 2), slice(1, 2)])
+    assert point._to_linked_pixel_coords(image) == [None, 1, 1]
