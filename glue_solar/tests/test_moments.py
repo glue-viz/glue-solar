@@ -257,9 +257,92 @@ def test_a_profile_range_gives_the_velocity_range_from_a_centre_within_it(app, q
         assert run(app, qtbot, raster).meta["moments_velocity_range"] == reach
         [(centre, *velocities, continuum, errors)] = opened
         assert (centre, velocities, continuum, errors) == (*opens, "", False)
+    # one wider than the window is cut to it, as the dialog says, and irispy takes every wavelength of the window
+    raster.meta["rest_wavelength"] = None
+    shown = []
+
+    def answer_showing():
+        """`answer` 1402.77, recording what each dialog shows of the Profile range."""
+        answer(monkeypatch, "1402.77")
+        exec_ = QtWidgets.QDialog.exec
+        monkeypatch.setattr(
+            QtWidgets.QDialog,
+            "exec",
+            lambda dialog: shown.append(dialog.findChild(QtWidgets.QLabel, "drawn").text()) or exec_(dialog),
+        )
+
+    tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 139, 141
+    answer_showing()
+    maps = run(app, qtbot, raster)
+    wavelengths, _ = _wavelengths(raster)
+    assert shown == [f"1390.000 to 1410.000 Å, cut to the window: {wavelengths[0]:.3f} to {wavelengths[-1]:.3f} Å"]
+    assert_cut(maps, raster, 1402.77, -1e4)
+    tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 141.1, 141.5  # beyond it: the velocities as they were
+    answer_showing()
+    assert run(app, qtbot, raster).meta["moments_velocity_range"] == (-107, 107)
+    assert shown[-1] == "1411.000 to 1415.000 Å, outside the window"
     profile.toolbar.active_tool = "select:xrange"  # which hides the range
     answer(monkeypatch, "1402.77")
     assert run(app, qtbot, raster).meta["moments_velocity_range"] == (-107, 107)
+
+
+def assert_beyond(raster, centre, low, high):
+    """
+    Assert that ``low`` and ``high``, in km/s from ``centre``, lie beyond the first and last wavelengths of ``raster``
+    by less than a thousandth of a km/s; a ``low`` of None is not checked.
+    """
+    wavelengths, _ = _wavelengths(raster)
+    if low is not None:
+        inner, outer = ends(centre, low + 1e-3, low)
+        assert outer <= wavelengths[0] < inner
+    inner, outer = ends(centre, high - 1e-3, high)
+    assert inner < wavelengths[-1] <= outer
+
+
+def assert_cut(maps, raster, centre, low):
+    """
+    Assert that ``maps`` of ``raster`` about ``centre`` were computed from ``low`` to the window's last wavelength, cut
+    to the thousandth of a km/s beyond it, and are those from ``low`` to 10,000 km/s; a ``low`` beyond the first
+    wavelength is cut likewise.
+    """
+    start, stop = maps.meta["moments_velocity_range"]
+    assert_beyond(raster, centre, start if low < start else None, stop)
+    assert start == max(low, start)
+    wide = line_moments(raster, centre, (low, 1e4))
+    for cid in wide.main_components:
+        np.testing.assert_array_equal(maps[cid.label], wide[cid], err_msg=cid.label)
+
+
+def test_the_velocities_stop_at_the_windows_wavelengths_about_the_centre(app, qtbot, monkeypatch, scan_path):
+    """
+    The velocity boxes stop at the window's first and last wavelengths about the centre, the one the dialog starts
+    at, one whose editing is finished or, on OK, one typed, to the thousandth of a km/s beyond them, a centre outside
+    the window leaving them as they were; irispy then takes the wavelengths it would from 10,000 km/s.
+    """
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    app.data_collection.append(raster)
+    limits = []
+
+    def exec_(dialog):
+        field = dialog.findChild(QtWidgets.QLineEdit, "centre")
+        boxes = [dialog.findChild(QtWidgets.QDoubleSpinBox, name) for name in ("from", "to")]
+        limits.append((boxes[0].minimum(), boxes[1].maximum()))  # about the window's Si IV 1402.77
+        for typed in ("1400", "3000"):
+            field.setText(typed)  # not as typed
+            limits.append((boxes[0].minimum(), boxes[1].maximum()))
+            field.editingFinished.emit()
+            limits.append((boxes[0].minimum(), boxes[1].maximum()))
+        field.setText("1402.77")
+        for box, velocity in zip(boxes, (-250, 1000)):
+            box.setValue(velocity)
+        return QtWidgets.QDialog.Accepted
+
+    monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
+    assert_cut(run(app, qtbot, raster), raster, 1402.77, -250)  # 1000 km/s cut from 1400 Å's limits on OK
+    for centre, (low, high) in zip((1402.77, 1400), limits[::2]):
+        assert_beyond(raster, centre, low, high)
+    assert limits[1] == limits[0]
+    assert limits[2] == limits[3] == limits[4]  # 3000 Å, outside the window: as they were
 
 
 def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy_test_files):
@@ -560,16 +643,19 @@ def test_a_full_mg_ii_k_window_gives_irispys_maps(irispy_data):
 
 
 @pytest.mark.parametrize("which", ["window", "stack", pytest.param("4000005156", marks=pytest.mark.remote_data)])
-def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanmean(app, monkeypatch, request, which):
+def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanmean(
+    app, qtbot, monkeypatch, request, which
+):
     """
     On a raster window or a stack of 3860258481's three scans, both lazy, or 4000005156's full Si IV 1403, three steps
     a slab: a Pixel subset's Profile of ``<label> minus mean spectrum`` is the pixel's spectrum less numpy's nanmean
-    over every step, slit pixel and scan, within 1e-6, saturated samples, +Inf, left out as missing ones.
+    over every step, slit pixel and scan, within 1e-6, saturated samples, +Inf, left out as missing ones, and counted
+    in the status bar; the mean is computed on glue-qt's worker, as in glue's terminal.
     """
     if which == "window":
         path = request.getfixturevalue("scan_path")
         with fits.open(path, mode="update", do_not_scale_image_data=True) as hdulist:
-            hdulist[5].data[0, 0, 4] = 32760  # Si IV 1403's raw int16 at the Level 2 ceiling, +Inf
+            hdulist[5].data[0, :2, 4] = 32760  # Si IV 1403's raw int16 at the Level 2 ceiling, +Inf
         [data] = raster_data([path], ["Si IV 1403"])
     elif which == "stack":
         [data] = raster_data(request.getfixturevalue("stack_paths"), ["Si IV 1403"], stack=True)
@@ -587,9 +673,15 @@ def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanm
     collection.append(data)
     tree.ui.layerTree.set_selected_layers([data])
     tree._actions[MEAN].trigger()
+    assert iris._RUNNING  # on glue-qt's worker
+    assert app.statusBar().currentMessage() == f"Computing the mean spectrum of {data.label}…"
+    qtbot.waitUntil(lambda: not iris._RUNNING, timeout=60_000)
+    said = f"{data.label}: 2 saturated samples are left out of the mean spectrum" if which == "window" else ""
+    assert app.statusBar().currentMessage() == said
     mean, difference = data.id[f"{cid.label} mean spectrum"], data.id[f"{cid.label} minus mean spectrum"]
     assert [data.get_component(c).units for c in (cid, mean, difference)] == [data.get_component(cid).units] * 3
     assert not any(data.get_component(mean).data.strides[:-1])  # one spectrum held
+    np.testing.assert_array_equal(data[mean, (0,) * (data.ndim - 1)], moments._mean_spectrum(data, cid)[0])
     # a Pixel click on the map of the scan shown, and the Profile of its subset
     image = app.new_data_viewer(ImageViewer, data=data)
     image.state.x_att, image.state.y_att = data.pixel_component_ids[-3], data.pixel_component_ids[-2]
@@ -609,7 +701,7 @@ def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanm
 
 
 def test_subtracting_the_mean_spectrum_refuses_other_data_and_a_second_run(
-    app, monkeypatch, scan_path, irispy_test_files
+    app, qtbot, monkeypatch, scan_path, irispy_test_files
 ):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
@@ -624,12 +716,15 @@ def test_subtracting_the_mean_spectrum_refuses_other_data_and_a_second_run(
         refused(tree._actions[MEAN])
     tree.ui.layerTree.set_selected_layers([raster])
     tree._actions[MEAN].trigger()
+    tree._actions[MEAN].trigger()  # while the first computes
+    qtbot.waitUntil(lambda: not iris._RUNNING)
     tree.ui.layerTree.set_selected_layers([plain])
     tree.ui.layerTree.set_selected_layers([raster])
     refused(tree._actions[MEAN])  # subtracted already
     assert shown == [
         f"Could not subtract the mean spectrum\n{sji.label} is not an IRIS raster window.",
         "Could not subtract the mean spectrum\nplain is not an IRIS raster window.",
+        f"Could not subtract the mean spectrum\nThe mean spectrum of {raster.label} is being computed.",
         f"Could not subtract the mean spectrum\n{raster.label} has its mean spectrum subtracted already.",
     ]
     label = raster.main_components[0].label
@@ -637,6 +732,17 @@ def test_subtracting_the_mean_spectrum_refuses_other_data_and_a_second_run(
         f"{label} mean spectrum",
         f"{label} minus mean spectrum",
     ]
+    # an error on the thread is shown, and adds nothing
+    monkeypatch.setattr(moments, "_mean_spectrum", Mock(side_effect=MemoryError("too large")))
+    tree.ui.layerTree.set_selected_layers([plain])
+    [other] = raster_data([scan_path], ["Si IV 1403"])
+    app.data_collection.append(other)
+    tree.ui.layerTree.set_selected_layers([other])
+    tree._actions[MEAN].trigger()
+    qtbot.waitUntil(lambda: len(shown) == 5 and not iris._RUNNING)
+    assert shown[-1] == "Could not subtract the mean spectrum\ntoo large"
+    assert app.statusBar().currentMessage() == ""
+    assert not [cid for cid in other.components if "mean" in cid.label]
 
 
 def export(monkeypatch, path, data):

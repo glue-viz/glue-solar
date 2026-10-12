@@ -10,7 +10,11 @@ wavelength of the velocities in Å, starts at the window's :ref:`rest wavelength
 <glue_solar_users_guide_iris_rest_wavelength>`, such as 2796.352 for Mg II k, or blank for a window
 without one; type another to change it. The velocity range, the Doppler velocities of the
 wavelengths taken, from and to, in km/s from the centre, is -107 to 107 km/s unless changed, ±0.5 Å
-at Si IV 1402.77 and ±1.0 Å at Mg II k; a blank centre adds nothing. Continuum windows are
+at Si IV 1402.77 and ±1.0 Å at Mg II k; a blank centre adds nothing. The velocities stop at the
+window's first and last wavelengths about a centre within them, the one the dialog starts at, or
+one typed once its editing finishes, or on OK: -726.906 to 692.126 km/s about Si IV 1402.77 in
+4000255147's window, 1399.369 to 1406.009 Å, rounded outwards to the thousandth of a km/s, so
+irispy still takes every wavelength of the window. Continuum windows are
 optional: line-free wavelength ranges outside the velocity range, such as
 ``1401.6-1402.1, 1403.5-1404.3``, to which irispy's ``subtract_background`` fits the background of
 each spectrum, a constant to one window or a straight line to more, and subtracts it; left blank,
@@ -28,7 +32,9 @@ tab of the "Options" of a Profile viewer of the window against its wavelength, s
 quicklook's spectrum panel (see :ref:`the Profile guide
 <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`). While the range shows, the dialog shows it
 too, and a centre within it, the one the dialog starts at or one typed, sets the velocities to its
-ends, whatever the Profile's "x unit"; they can still be changed afterwards.
+ends, whatever the Profile's "x unit"; they can still be changed afterwards. A range reaching past
+the window is cut to it, and the dialog says so, such as "1390.000 to 1415.000 Å, cut to the
+window: 1399.369 to 1406.009 Å"; one wholly outside it says "outside the window" and sets nothing.
 
 The maps
 --------
@@ -151,13 +157,18 @@ attributes, such as ``dc["<label>"].id["intensity"]``, on arrays in glue's termi
 In place of a table, tick "O IV 1399.8/1401.2 (CHIANTI, fiasco)" to map ``log n_e`` from the ratio
 of the O IV 1399.8 Å line, the numerator, to the 1401.2 Å line, the denominator: irispy's
 ``density_diagnostic`` interpolates it, linearly in the electron density, on CHIANTI's ratio, which
-fiasco computes for 10⁸ to 10¹³ cm⁻³ at O IV's formation temperature, log T 5.15. Compute both
-moments with a narrow velocity range and a continuum (see above): with the default range and none,
-the weak 1399.8 Å line's ratio lies above CHIANTI's, 0.17 to 0.42, at nearly every pixel, which the
-map leaves NaN. The new dataset is as from a table, with ``ratio_preset`` in its ``meta`` in place of
-``ratio_table``, and ``glue_solar.sources.line_ratio.o_iv_density(numerator, denominator)`` maps it
-in glue's terminal too. The preset needs fiasco from its git main, glue-solar's ``density`` extra
-(see :ref:`installing <glue-solar-index>`); without it, it is greyed out, and its tooltip says so.
+fiasco computes on electron densities 0.1 dex apart, from and to the log cm⁻³ typed below the tick,
+8 to 13 unless changed, at temperatures from log T 4.5 to 6, 0.05 apart, between which irispy
+interpolates, linearly, at the log T typed, O IV's formation temperature, 5.15, unless changed.
+Compute both moments with a narrow velocity range and a continuum (see above): with the default
+range and none, the weak 1399.8 Å line's ratio lies above CHIANTI's, 0.17 to 0.42, at nearly every
+pixel, which the map leaves NaN. The new dataset is as from a table, with ``ratio_preset`` in its
+``meta`` in place of ``ratio_table``, and ``ratio_log_n_e`` and ``ratio_log_t``, the densities and
+the temperature, and
+``glue_solar.sources.line_ratio.o_iv_density(numerator, denominator, log_densities, log_temperature)``
+maps it in glue's terminal too, ``log_densities`` a ``(from, to)`` pair. The preset needs fiasco
+from its git main, glue-solar's ``density`` extra (see :ref:`installing <glue-solar-index>`);
+without it, it is greyed out, and its tooltip says so.
 On its first use fiasco downloads the CHIANTI database, 3.5 GB unpacked, and builds its own 2.2 GB
 copy of it, in ``~/.fiasco`` or where ``~/.fiasco/fiascorc`` says, a path without ``em`` or ``ip``
 in it, as in a folder named emily or Temp, or the build finds no ions: 3 minutes on a fast
@@ -167,8 +178,9 @@ before the next use.
 
 The entry is offered only where the 2-D maps selected hold two attributes or more between them, not
 for a subset group or other data. Glue says why, and adds nothing, for maps of different shapes or
-coordinates or in different units, and a table that cannot be read, has fewer than two columns, or
-holds a ratio irispy cannot map from, such as one that is not monotonic.
+coordinates or in different units, a table that cannot be read, has fewer than two columns, or
+holds a ratio irispy cannot map from, such as one that is not monotonic, and O IV densities that do
+not increase.
 
 .. _glue_solar_users_guide_exporting_derived_data:
 
