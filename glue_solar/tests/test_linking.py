@@ -140,7 +140,7 @@ def test_the_link_patches_hold_the_wcs_lock(monkeypatch):
     assert held == [True, True, True, False, False, True, False]  # nor a point to or on an unlinked one (227-9)
     # and glue's autolinker, which reads has_celestial of every dataset's WCS as data load: wcsset again
     for name in ("has_celestial", "has_spectral", "has_temporal"):
-        assert _LockedWCS.__dict__[name].fget.__wrapped__ is getattr(WCS, name).fget
+        assert getattr(_LockedWCS, name).fget.__wrapped__ is getattr(WCS, name).fget
 
 
 def test_world_links_into_the_sji_use_each_exposure_time(sns):

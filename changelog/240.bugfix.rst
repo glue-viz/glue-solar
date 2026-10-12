@@ -1,0 +1,1 @@
+An SST cube's quicklook no longer gets wrong coordinates or crashes when glue-qt computes its spectra on worker threads while the panels draw: each cube's coordinates have a lock of their own.

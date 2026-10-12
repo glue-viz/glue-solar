@@ -74,9 +74,10 @@ place on the Sun in the cube's scan nearest that frame's time, timed at its line
 own pointing. A Pixel point on the cube, which takes the scan and any Stokes parameter of the viewer
 clicked and is placed at the cube's first tuning, reaches the raster pixel at its place, and in the
 slit-jaw frame nearest that scan, the pixel there. The cube then also shares the time of the IRIS
-observation whose times come nearest its middle scan (see `The SST quicklook`_). Only once linked are
-the cube's coordinates behind the lock glue-solar keeps IRIS data's behind, as a map's are, so until
-then its viewers never wait for IRIS data's spectrum threads.
+observation whose times come nearest its middle scan (see `The SST quicklook`_). The cube's
+coordinates have a lock of their own, as its viewers draw them while its spectra are computed on other
+threads; only once linked are its links to IRIS data made behind the lock glue-solar keeps IRIS data's
+behind, so until then its viewers never wait for IRIS data's spectrum threads.
 
 The SST quicklook
 -----------------

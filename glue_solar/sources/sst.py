@@ -3,8 +3,8 @@ SST CRISP and CHROMIS cubes as the SST archive exports them from the SSTRED pipe
 tabulated (-TAB) WCS, read by File → Open Data Set and `sst_data`.
 """
 
+import threading
 import warnings
-from contextlib import nullcontext
 from functools import cached_property
 from pathlib import Path
 from uuid import uuid4
@@ -19,7 +19,7 @@ from glue.core.state import _load_data_5, _save_data_5
 from astropy.io import fits
 from astropy.wcs import WCS, FITSFixedWarning
 
-from glue_solar.sources.loaders.iris import WCS_LOCK, _LockedWCS, _logged, _wcs_from_state, _wcs_state
+from glue_solar.sources.loaders.iris import _HeldWCS, _LockedWCS, _logged, _wcs_from_state, _wcs_state
 from glue_solar.sources.loaders.lazy import RawStack
 from glue_solar.sources.loaders.scan import _is_sst, _primary_header
 
@@ -46,12 +46,15 @@ def _line_core(waves, wavelnth=None):
     return int(np.argmin(abs(waves - line)))
 
 
-class _TabularWCS(WCS):
+class _TabularWCS(_HeldWCS):
     """
     The tabulated WCS of an SST cube as wcslib reads it, on x, y, tuning, any Stokes axis and scan, with the pixel axes
     each world axis depends on, an inverse of its own and its line core, ``core``, the tuning `sst_data` gives it
-    (`_line_core`). Once linked to IRIS data it is behind `WCS_LOCK` (`_LockedTabularWCS`), as `link_hpc` makes it;
-    unlinked it never waits for IRIS data's threads.
+    (`_line_core`). Its wcslib calls hold a lock of its own, and only that, linked to IRIS data or not: glue-qt computes
+    the spectra of a cube of over 1e7 values on worker threads while WCSAxes draws it on the GUI thread, and wcslib
+    writes the table's scratch values as it reads them, which gave wrong values and crashed glue. Once linked
+    (`_LockedTabularWCS`, as `link_hpc` makes it), the link patches hold `WCS_LOCK` around its links; unlinked it never
+    waits for IRIS data's threads.
 
     SSTRED tabulates the wavelength of each tuning, the time of each tuning of each scan, and the pointing of each scan
     at the field's corners. astropy says each world axis depends on its own pixel axis only, so glue gave every tuning of
@@ -68,9 +71,17 @@ class _TabularWCS(WCS):
     # latitude as quantities rather than a SkyCoord
     has_celestial = False
 
+    @property
+    def _lock(self):
+        """Its own lock, made at its first use: one, however many threads ask at once."""
+        return self.__dict__.setdefault("_lock", threading.RLock())
+
     def _held(self):
-        """`WCS_LOCK` once linked (`_LockedTabularWCS`), else nothing to hold."""
-        return WCS_LOCK if isinstance(self, _LockedWCS) else nullcontext()
+        """
+        Its own lock, linked or not: its calls call it again holding it, and one that took `WCS_LOCK` there as
+        `link_hpc` linked it waited for good for the GUI thread, which held that and waited for this.
+        """
+        return self._lock
 
     @cached_property
     def axis_correlation_matrix(self):
@@ -139,6 +150,10 @@ class _TabularWCS(WCS):
         stokes = [(s - crval) / cdelt + crpix - 1 for s, (crval, cdelt, crpix) in zip(stokes, axes)]
         return x, y, w, *stokes, t
 
+    def __deepcopy__(self, memo):
+        memo[id(self._lock)] = threading.RLock()  # a copy's own, as its wcslib struct is
+        return super().__deepcopy__(memo)
+
     # glue saves a dataset's coordinates in its session, those of data it reloads from a file too
     def __gluestate__(self, context):
         with self._held():
@@ -153,7 +168,10 @@ class _TabularWCS(WCS):
 
 
 class _LockedTabularWCS(_TabularWCS, _LockedWCS):
-    """An SST cube's `_TabularWCS` once `link_hpc` links it to IRIS data, behind `WCS_LOCK` as a `_LockedWCS` is."""
+    """
+    An SST cube's `_TabularWCS` once `link_hpc` links it to IRIS data, still behind its own lock: the link patches hold
+    `WCS_LOCK` around its links, as they do a `_LockedWCS`'s.
+    """
 
 
 class _Cube(Data):
