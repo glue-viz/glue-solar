@@ -1,0 +1,1 @@
+The user guides now match the app on real data: the Profile guide's subset step, the scripting and Profile means at saturated samples, irispy's DN units, AIA cutouts, the SST autolinker's errors, and two measured times.
