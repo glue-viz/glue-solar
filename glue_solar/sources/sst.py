@@ -177,18 +177,26 @@ class _LockedTabularWCS(_TabularWCS, _LockedWCS):
 class _Cube(Data):
     """
     An SST cube's dataset, whose sampled statistics of a component held in the file, the colour limits of an Image
-    layer, its style editor and a Histogram's range, are those of evenly spaced rows and columns of 16 evenly spaced
-    planes, as many values as glue samples: glue's 10,000 random values each lie on another page of the file, 0.7 GB
-    read cold and 0.04 s warm per statistic (SST10), where these lie on a few hundred. A session keeps the class, and
-    reads the ``VAR-EXT`` tables of ``meta`` from the file again.
+    layer, its style editor and a Histogram's range, are those of evenly spaced rows and columns of 16 planes, as many
+    values as glue samples: glue's 10,000 random values each lie on another page of the file, 0.7 GB read cold and
+    0.04 s warm per statistic (SST10), where these lie on a few hundred. Plane k, from 0 to 15, is at the k-th of 16
+    evenly spaced tunings, Stokes parameter k modulo their number and the (7k mod 16)-th of 16 evenly spaced scans, so
+    every part of the line counts whatever the number of scans (D73); a cube of 16 planes or fewer gives them all. A
+    session keeps the class, and reads the ``VAR-EXT`` tables of ``meta`` from the file again.
     """
 
     def compute_statistic(self, statistic, cid, subset_state=None, axis=None, view=None, random_subset=None, **kwargs):
         sampled = random_subset and subset_state is None and axis is None and view is None
         if sampled and type(self._components.get(cid)) is Component:  # not the cavity error's dask, nor a derived one
-            planes, rows, columns = int(np.prod(self.shape[:-2])), *self.shape[-2:]
-            side = max(1, round((random_subset / min(planes, 16)) ** 0.5))
-            plane = np.unravel_index(np.linspace(0, planes - 1, min(planes, 16)).round().astype(int), self.shape[:-2])
+            *axes, rows, columns = self.shape
+            if np.prod(axes) <= 16:
+                plane = np.indices(axes).reshape(len(axes), -1)
+            else:
+                k = np.arange(16)
+                scan = np.linspace(0, axes[0] - 1, 16).round().astype(int)[k * 7 % 16]
+                tuning = np.linspace(0, axes[-1] - 1, 16).round().astype(int)
+                plane = (scan, k % axes[1], tuning) if len(axes) == 3 else (scan, tuning)
+            side = max(1, round((random_subset / len(plane[0])) ** 0.5))
             view = tuple(index[:, None, None] for index in plane) + (
                 np.linspace(0, rows - 1, min(rows, side)).round().astype(int)[:, None],
                 np.linspace(0, columns - 1, min(columns, side)).round().astype(int),
