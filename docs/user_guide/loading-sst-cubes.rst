@@ -22,10 +22,10 @@ intensities, such as CHROMIS's, leaves out its Stokes axis of length 1: scan, tu
 values stay in the file, memory-mapped: opening a cube reads only its headers and tables, about 0.3 MB
 in 0.03 to 0.05 s, and a viewer reads the planes it shows. A viewer's colour limits come from evenly
 spaced rows and columns of 16 planes, about 10,000 values, as many as glue samples at random, each on
-another page of the file, which read 0.7 GB the first time. The planes are at 16 evenly spaced
-tunings, from the first to the last, with the Stokes parameters in turn and the scans spread over the
-series, so the line's core counts as much as its wings, whatever the number of scans; a cube of 16
-planes or fewer gives them all.
+another page of the file, which read 0.7 GB the first time. The planes are at evenly spaced tunings,
+from the first to the last, with the Stokes parameters in turn and the scans spread over the series,
+so the line's core counts as much as its wings, whatever the number of scans; a cube of 16 planes or
+fewer gives them all.
 
 Its coordinates are the file's tabulated WCS: the helioprojective longitude and latitude of each scan,
 which move from scan to scan in a mosaic, the nominal wavelength of each tuning, in nm, and the time
