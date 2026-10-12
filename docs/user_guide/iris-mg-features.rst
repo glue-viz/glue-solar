@@ -34,10 +34,11 @@ For each line measured, ``k2v``, ``k3`` and ``k2r`` or ``h2v``, ``h3`` and ``h2r
 NaN where irispy finds no such feature, or a sample within the velocities searched for the line is
 missing (NaN or -Inf) or saturated: +Inf, as glue-solar reads 16182 DN, the Level 2 ceiling
 saturated samples are clipped to (a sample merely that bright counts too, as Level 2 cannot tell
-them apart). Such a sample blanks only its own line's features, at its pixel, which irispy's map of
-the line, ``k_saturated`` or ``h_saturated``, marks with 1, else 0 (integers: glue holds irispy's
-True and False so), a stack's for each of its scans. The status bar and ``mg_features_saturated`` in
-``meta`` say how many pixels of each line the maps mark, over every scan of a stack, and
+them apart). Such a sample blanks only its own line's features, at its pixel, which the line's map,
+``k saturated`` or ``h saturated`` (irispy's ``k_saturated`` and ``h_saturated``), marks with 1,
+else 0 (integers: glue holds irispy's True and False so), a stack's for each of its scans. The
+status bar and ``mg_features_saturated`` in ``meta`` say how many pixels of each line the maps mark,
+over every scan of a stack, and
 :ref:`Was it saturated? <glue_solar_users_guide_iris_saturation>` shows where the samples are. A
 ticked line the window does not cover over the velocities is left out.
 The new dataset's ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``,

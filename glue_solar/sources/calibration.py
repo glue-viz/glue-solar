@@ -105,11 +105,33 @@ def remove_dust_iris(data, data_collection):
     _start(data_collection, f"Removing dust from {data.label}…", _failed, remove_dust, data)
 
 
+def _scan_wcses(data):
+    """
+    The FITS WCSes beneath the coordinates of ``data``, an IRIS raster window or stack, and any 'IRIS: rebin…': the
+    window's own, or a stack's each scan's (`stack_wcs`).
+    """
+    wcs = data.coords._wcs
+    while not isinstance(wcs, WCS) and not hasattr(wcs, "_wcses"):
+        wcs = wcs._wcs
+    return getattr(wcs, "_wcses", [wcs])
+
+
 def _check_radiance(data):
-    """Raise why ``data`` is not an IRIS raster window or stack that can be calibrated."""
+    """
+    Raise why ``data`` is not an IRIS raster window or stack that can be calibrated: one calibrated already, or a stack
+    with a scan whose pixel sizes, CDELT1-3, differ from its first scan's, which give every scan's factor.
+    """
     _check(data)
     if data.find_component_id(f"{data.main_components[0].label} radiance") is not None:
         raise ValueError(f"{data.label} has its radiance already.")
+    with WCS_LOCK:
+        cdelts = [wcs.wcs.cdelt.tolist() for wcs in _scan_wcses(data)]
+    differs = next((k for k, cdelt in enumerate(cdelts) if cdelt != cdelts[0]), None)
+    if differs is not None:
+        raise ValueError(
+            f"The pixel sizes (CDELT1-3) of scan {differs} of {data.label} differ from scan 0's, whose spectral "
+            f"dispersion and solid angle the calibration takes for every scan."
+        )
 
 
 def radiometric_calibration(data):
@@ -121,7 +143,8 @@ def radiometric_calibration(data):
 
     The factor is irispy's ``radiometric_calibration``'s: ``calculate_dn_to_radiance_factor`` of the window's
     wavelengths, detector, spectral dispersion and pixel solid angle, with the effective area of irispy's latest
-    response at its ``DATE_OBS``; a stack's scan's at its own wavelengths, from its own WCS, and at the stack's
+    response at its ``DATE_OBS``; a stack's scan's at its own wavelengths, from its own WCS, with the first scan's
+    spectral dispersion and solid angle, which every scan's pixel sizes, CDELT1-3, must equal, and at the stack's
     ``DATE_OBS``, its first scan's, which only picks the response; NaN at wavelengths the response does not cover. A
     bin of rebinned data is the mean of the window's pixels, so the factor takes their spectral dispersion and solid
     angle, from the window's WCS beneath the rebinned one, and the effective area at the bin's wavelength, its pixels'
@@ -135,7 +158,8 @@ def radiometric_calibration(data):
     Raises
     ------
     ValueError
-        For other data than an IRIS raster window or stack, or one calibrated already.
+        For other data than an IRIS raster window or stack, one calibrated already, or a stack with a scan whose
+        CDELT1-3 differ from its first scan's.
     """
     from irispy.spectrograph import SpectrogramCube
     from irispy.utils.constants import RADIANCE_UNIT
@@ -150,10 +174,8 @@ def radiometric_calibration(data):
     with WCS_LOCK:  # irispy reads the window's astropy WCS
         meta = _irispy_meta(data, scans[0])  # its DATE_OBS, a stack's first scan's, every scan's
         response = get_latest_response(meta.date_reference)
-        wcs = data.coords._wcs  # the window's own, a stack's first scan's, beneath any 'IRIS: rebin…'
-        while not isinstance(wcs, WCS):
-            wcs = wcs._wcses[0] if hasattr(wcs, "_wcses") else wcs._wcs
-        pixel = SpectrogramCube(zeros, wcs)  # of the window's pixels, of which a bin is the mean
+        # the window's own, a stack's first scan's, whose pixel sizes are every scan's (`_check_radiance`)
+        pixel = SpectrogramCube(zeros, _scan_wcses(data)[0])  # of the window's pixels, of which a bin is the mean
     factors = []
     for scan in scans:  # each scan of a stack, at its own wavelengths (stack_wcs)
         with WCS_LOCK:
@@ -187,6 +209,6 @@ def radiometric_calibration(data):
 def radiometric_calibration_iris(data, data_collection):
     """
     Add the `radiometric_calibration` components to ``data``; offered only for a raster window or stack not calibrated
-    already, and glue shows why for a second run before it is selected again.
+    already whose scans' CDELT1-3 are its first scan's, and glue shows why for a second run before it is selected again.
     """
     radiometric_calibration(data)

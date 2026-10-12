@@ -34,12 +34,12 @@ NUV (irispy's ``DN_UNIT``), times the photon energy at each wavelength over the 
 irispy's latest response at the window's ``DATE_OBS``, the spectral dispersion and the solid angle
 of a pixel, the slit width by a pixel's length along the slit. Unlike SolarSoft's
 ``iris_calib``, it is per Å, and it is NaN at wavelengths the response does not cover. A stack
-holds a spectrum for each scan, at the scan's own wavelengths, with the response at the stack's
-``DATE_OBS``, its first scan's, which only picks the response: its effective area changes by at most
-0.12 % in 10 hours (Si IV 1402.77 Å on 2014-03-29). Its ``<label> DN/s`` is over each scan's own
-exposure times, so each scan's radiance is that of the scan alone within 0.2 %; on the 99 scans of
-OBSID 3602506433, over 68 minutes, it is the same, as irispy's response holds the effective area
-constant from mid-2023 on.
+holds a spectrum for each scan, at the scan's own wavelengths, with its first scan's spectral
+dispersion and solid angle, and the response at the stack's ``DATE_OBS``, its first scan's, which
+only picks the response: its effective area changes by at most 0.12 % in 10 hours (Si IV 1402.77 Å
+on 2014-03-29). Its ``<label> DN/s`` is over each scan's own exposure times, so each scan's radiance
+is that of the scan alone within 0.2 %; on the 99 scans of OBSID 3602506433, over 68 minutes, it is
+the same, as irispy's response holds the effective area constant from mid-2023 on.
 ``glue_solar.sources.calibration.radiometric_calibration(data)`` adds them in glue's terminal too.
 
 A window rebinned with "IRIS: rebin…" (see :ref:`Rebinning <glue_solar_users_guide_iris_rebinning>`)
@@ -53,4 +53,9 @@ adds the rebinned ``<label> DN/s``'s own difference, the bin's mean DN over its 
 rather than the mean of each step's: up to 0.003 % there.
 
 Removing dust is offered only for a slit-jaw image, and the calibration only for a raster window or
-stack that is not calibrated already: irispy has no radiometric calibration of slit-jaw images.
+stack that is not calibrated already: irispy has no radiometric calibration of slit-jaw images. Nor
+is it offered for a stack with a scan whose ``CDELT1`` to ``CDELT3``, the pixel sizes of its
+coordinates, differ from its first scan's, which give every scan's spectral dispersion and solid
+angle: ``radiometric_calibration`` refuses one, naming the first scan that differs. The scans of
+one observation that the observation browser stacks share them: all 99 of OBSID 3602506433, both of
+4000005156 and the X1 flare's rasters r00172-r00174 of 3860258481, in every window.
