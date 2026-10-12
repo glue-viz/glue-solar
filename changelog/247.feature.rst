@@ -1,0 +1,1 @@
+Mg II features' saturated maps are named 'k saturated' and 'h saturated', and 'IRIS: radiometric calibration' refuses a stack whose scans' CDELT1-3 differ from its first scan's, naming the scan.
