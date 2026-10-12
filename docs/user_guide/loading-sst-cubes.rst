@@ -107,7 +107,8 @@ Its panels are laid out in three rows, maps on top:
 
 The point, the edit subset "Point", starts at the map's centre in the first scan and Stokes I, with
 the Pixel tool on the map, and is a pixel at every wavelength, as in the IRIS quicklook (see
-:ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). A click on either map moves it, the
+:ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). Each image panel takes the Pixel tool as
+its window becomes active. A click on either map moves it, the
 virtual slit to its x and wavelength against scan to its y and x; a click on the virtual slit or on
 wavelength against scan moves it there and the map, not the second map, to the wavelength clicked. The
 scan and Stokes sliders of either map move the point and the other panels; a wavelength slider moves

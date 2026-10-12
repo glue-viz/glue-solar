@@ -6,6 +6,7 @@ from collections import Counter
 
 from matplotlib.backend_bases import MouseEvent
 from qtpy import QtWidgets
+from qtpy.QtCore import QPoint, Qt
 from qtpy.QtTest import QTest
 
 __all__ = [
@@ -13,6 +14,7 @@ __all__ = [
     "inversions",
     "load_selected",
     "mouse",
+    "mouse_click",
     "press",
     "raster_point_on_sji",
     "refused",
@@ -75,6 +77,19 @@ def mouse(viewer, name, x, y, button=1):
     viewer.figure.canvas.draw()
     px, py = viewer.axes.transData.transform((x, y))
     viewer.figure.canvas.callbacks.process(name, MouseEvent(name, viewer.figure.canvas, px, py, button=button))
+
+
+def mouse_click(viewer, x, y):
+    """
+    Click data position ``x, y`` of the viewer with the mouse, whatever its mouse mode: Qt first makes its window the
+    active one, as a user's click does, in a main window shown.
+    """
+    canvas = viewer.figure.canvas
+    canvas.draw()
+    px, py = viewer.axes.transData.transform((x, y))
+    ratio = canvas.device_pixel_ratio
+    at = QPoint(round(px / ratio), round((canvas.figure.bbox.height - py) / ratio))
+    QTest.mouseClick(canvas, Qt.LeftButton, Qt.NoModifier, at)
 
 
 def select_point(viewer, x, y):

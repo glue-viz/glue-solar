@@ -1,0 +1,1 @@
+The first click on any quicklook panel (spectrogram, wavelength panel, slit-jaw panel, or the SST virtual slit, λ–time and second map) moves the point, and the quicklook follows its point again once 'Point' is the edit subset.
