@@ -10,6 +10,7 @@ from glue.core.component import Component
 from glue_qt.utils.decorators import messagebox_on_error
 
 import astropy.units as u
+from astropy.wcs import WCS
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
 from glue_solar.glue_patches import layer_action
@@ -107,23 +108,24 @@ def remove_dust_iris(data, data_collection):
 def _check_radiance(data):
     """Raise why ``data`` is not an IRIS raster window or stack that can be calibrated."""
     _check(data)
-    if "rebinned" in data.meta:  # 'IRIS: rebin…'
-        raise ValueError(f"{data.label} is rebinned: irispy calibrates a window's own pixels.")
     if data.find_component_id(f"{data.main_components[0].label} radiance") is not None:
         raise ValueError(f"{data.label} has its radiance already.")
 
 
 def radiometric_calibration(data):
     """
-    Add ``<label> radiance per DN/s`` to ``data``, an IRIS raster window of one scan or a stack of its scans: irispy's
-    factor from DN/s to radiance at each of its wavelengths, held as one spectrum, a stack's one for each scan; and
-    ``<label> radiance``, its ``<label> DN/s`` times it, a glue derived component, in irispy's ``RADIANCE_UNIT``,
-    erg / (Å cm2 s sr).
+    Add ``<label> radiance per DN/s`` to ``data``, an IRIS raster window of one scan or a stack of its scans,
+    rebinned by 'IRIS: rebin…' or not: irispy's factor from DN/s to radiance at each of its wavelengths, held as one
+    spectrum, a stack's one for each scan; and ``<label> radiance``, its ``<label> DN/s`` times it, a glue derived
+    component, in irispy's ``RADIANCE_UNIT``, erg / (Å cm2 s sr).
 
     The factor is irispy's ``radiometric_calibration``'s: ``calculate_dn_to_radiance_factor`` of the window's
     wavelengths, detector, spectral dispersion and pixel solid angle, with the effective area of irispy's latest
-    response at its ``DATE_OBS``; a stack's scan's, as that scan alone gives it, at its own ``DATE_OBS`` and from its
-    own WCS; NaN at wavelengths the response does not cover.
+    response at its ``DATE_OBS``; a stack's scan's at its own wavelengths, from its own WCS, and at the stack's
+    ``DATE_OBS``, its first scan's, which only picks the response; NaN at wavelengths the response does not cover. A
+    bin of rebinned data is the mean of the window's pixels, so the factor takes their spectral dispersion and solid
+    angle, from the window's WCS beneath the rebinned one, and the effective area at the bin's wavelength, its pixels'
+    mean.
 
     Returns
     -------
@@ -133,7 +135,7 @@ def radiometric_calibration(data):
     Raises
     ------
     ValueError
-        For other data than an IRIS raster window or stack, one rebinned, or one calibrated already.
+        For other data than an IRIS raster window or stack, or one calibrated already.
     """
     from irispy.spectrograph import SpectrogramCube
     from irispy.utils.constants import RADIANCE_UNIT
@@ -144,20 +146,26 @@ def radiometric_calibration(data):
     cid = data.main_components[0]
     label = f"{cid.label} radiance"
     rate, unit = data.id[f"{cid.label} DN/s"], _unit(data)
+    scans, zeros = list(np.ndindex(data.shape[:-3])), np.broadcast_to(np.float32(0), data.shape[-3:])
+    with WCS_LOCK:  # irispy reads the window's astropy WCS
+        meta = _irispy_meta(data, scans[0])  # its DATE_OBS, a stack's first scan's, every scan's
+        response = get_latest_response(meta.date_reference)
+        wcs = data.coords._wcs  # the window's own, a stack's first scan's, beneath any 'IRIS: rebin…'
+        while not isinstance(wcs, WCS):
+            wcs = wcs._wcses[0] if hasattr(wcs, "_wcses") else wcs._wcs
+        pixel = SpectrogramCube(zeros, wcs)  # of the window's pixels, of which a bin is the mean
     factors = []
-    for scan in np.ndindex(data.shape[:-3]):  # each scan of a stack
-        wcs = data.coords._wcs._wcses[scan[0]] if scan else data.coords._wcs  # a stack's scan's own (stack_wcs)
-        with WCS_LOCK:  # irispy reads the window's astropy WCS
-            meta = _irispy_meta(data, scan)
-            cube = SpectrogramCube(np.broadcast_to(np.float32(0), data.shape[-3:]), wcs, meta=meta)
+    for scan in scans:  # each scan of a stack, at its own wavelengths (stack_wcs)
+        with WCS_LOCK:
+            cube = SpectrogramCube(zeros, SlicedLowLevelWCS(data.coords._wcs, (*scan, ...)))
             factors.append(
                 calculate_dn_to_radiance_factor(
-                    iris_response=get_latest_response(cube.meta.date_reference),
-                    # irispy's values, 40 ms a scan sooner
+                    iris_response=response,
+                    # irispy's values, 40 ms a scan sooner; a bin's at its middle, its pixels' mean
                     wavelength=cube.axis_world_coords_values(cube.wavelength_axis)[0],
-                    detector_type=cube.meta.detector_band,
-                    spectral_dispersion_per_pixel=cube.spectral_dispersion,
-                    solid_angle=cube.solid_angle,
+                    detector_type=meta.detector_band,
+                    spectral_dispersion_per_pixel=pixel.spectral_dispersion,
+                    solid_angle=pixel.solid_angle,
                 )
             )
     factor = (unit.to(u.photon / u.s) * u.photon / u.s * u.Quantity(factors)).to_value(RADIANCE_UNIT)  # of 1 DN/s
@@ -179,6 +187,6 @@ def radiometric_calibration(data):
 def radiometric_calibration_iris(data, data_collection):
     """
     Add the `radiometric_calibration` components to ``data``; offered only for a raster window or stack not calibrated
-    or rebinned, and glue shows why for a second run before it is selected again.
+    already, and glue shows why for a second run before it is selected again.
     """
     radiometric_calibration(data)

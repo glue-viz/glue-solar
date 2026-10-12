@@ -192,6 +192,22 @@ def test_a_raster_held_in_memory_gives_its_bursts_and_radiance_once_restored(mon
         np.testing.assert_array_equal(data[radiometric_calibration(data)], radiance)
 
 
+def test_a_stack_held_in_memory_gives_its_bursts_and_radiance_once_restored_and_a_rebinned_window_its_radiance(
+    monkeypatch, stack_paths
+):
+    """The stack's at its first date, which its metadata keeps."""
+    monkeypatch.setattr("glue_solar.sources.loaders.iris.LAZY", False)  # its metadata restored as glue's dict
+    [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
+    rebinned = rebin(raster_data(stack_paths[:1], ["Si IV 1403"])[0], (1, 2, 2))
+    restored = list(twice(DataCollection([stack, rebinned])))
+    labels = si_iv_bursts(stack, threshold=5)[0]["label"]
+    radiance = [data[radiometric_calibration(data)] for data in (stack, rebinned)]
+    for collection in restored:
+        np.testing.assert_array_equal(si_iv_bursts(collection[0], threshold=5)[0]["label"], labels)
+        for data, expected in zip(collection, radiance, strict=True):
+            np.testing.assert_array_equal(data[radiometric_calibration(data)], expected)
+
+
 def test_an_aia_map_session_restores_its_colormap(qtbot, monkeypatch, tmp_path):
     glue_solar.setup()  # every sunpy colormap listed
     app = GlueApplication()

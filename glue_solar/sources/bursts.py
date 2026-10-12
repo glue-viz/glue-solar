@@ -118,9 +118,8 @@ def _si_iv_bursts(data, crop, threshold, velocity_range, median_factor):
         events["raster"] = k
         tables.append(events)
     maps = _dataset(data, f"{data.label} bursts")
-    thresholds = tuple(float(events.meta["threshold"].value) for events in tables)
     maps.meta.update(
-        bursts_threshold=thresholds if data.ndim == 4 else thresholds[0],  # a stack's, each scan's at its own date
+        bursts_threshold=float(tables[0].meta["threshold"].value),  # every scan's, at a stack's first date
         bursts_velocity_range=velocity_range,
         bursts_median_factor=median_factor,
     )
@@ -133,17 +132,18 @@ def si_iv_bursts(data, threshold=None, velocity_range=VELOCITY_RANGE, median_fac
     """
     irispy's UV bursts in ``data``, an IRIS raster window of one scan covering Si IV 1402.77 Å or a stack of its
     scans, by ``find_si_iv_bursts``: a map of their labels on the window's scans, raster steps and slit pixels, and a
-    table of them; a stack's scan by scan, each as that scan alone gives them, at its own coordinates, times, exposure
-    times and date, its labels numbered on from the previous scan's, as irispy numbers a sequence's rasters.
+    table of them; a stack's scan by scan, each as that scan alone gives them, at its own coordinates, times and
+    exposure times, its labels numbered on from the previous scan's, as irispy numbers a sequence's rasters, and at
+    the stack's ``DATE_OBS``, its first scan's, which only scales irispy's threshold.
 
     irispy is given the window's scaled DN, NaN masked, and only the wavelengths within ``velocity_range`` of the line,
     and finds a burst pixel where their mean over the step's exposure time reaches ``threshold`` and stays below
     ``median_factor`` times their median; pixels that touch, diagonally too, are one burst. The map,
     ``<label> bursts``, has ``label``, 0 outside bursts and 1 to N for the N bursts, and ``meta`` with the
-    observation's ``OBSID`` and ``STARTOBS``, ``bursts_threshold``, irispy's in DN/s per wavelength bin, a stack's a
-    tuple of each scan's, ``bursts_velocity_range`` and ``bursts_median_factor``. The table, ``<label> burst events``,
-    has irispy's columns a row a burst: ``label``, ``raster``, the scan, ``npix``, and the ``step``, ``y``, ``time``,
-    ``coordinate.Tx``, ``coordinate.Ty`` and ``intensity`` of its brightest pixel; and the map's ``meta``.
+    observation's ``OBSID`` and ``STARTOBS``, ``bursts_threshold``, irispy's in DN/s per wavelength bin,
+    ``bursts_velocity_range`` and ``bursts_median_factor``. The table, ``<label> burst events``, has irispy's columns a
+    row a burst: ``label``, ``raster``, the scan, ``npix``, and the ``step``, ``y``, ``time``, ``coordinate.Tx``,
+    ``coordinate.Ty`` and ``intensity`` of its brightest pixel; and the map's ``meta``.
 
     Parameters
     ----------
@@ -152,7 +152,7 @@ def si_iv_bursts(data, threshold=None, velocity_range=VELOCITY_RANGE, median_fac
         step, slit, wavelength).
     threshold : float, optional
         In DN/s per wavelength bin of data summed by 2 in wavelength, which irispy scales by the data's summing; None
-        for irispy's, 500 DN/s scaled by the effective area at the observation's date, each scan's.
+        for irispy's, 500 DN/s scaled by the effective area at the observation's date, a stack's first scan's.
     velocity_range : float
         The half-width averaged, in km / s.
     median_factor : float or None

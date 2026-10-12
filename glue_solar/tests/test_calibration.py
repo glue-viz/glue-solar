@@ -138,7 +138,7 @@ def test_the_radiance_is_irispys_radiometric_calibration(app, request, which, wi
 def test_a_stacks_radiance_is_each_scans_own(app, stack_paths):
     """
     The action's ``<label> radiance`` of a lazy stack of 3860258481's three scans is, at each scan, that of the scan
-    loaded alone, at its own date: its factor a spectrum a scan.
+    loaded alone within 0.2%: its factor a spectrum a scan, at the scan's own wavelengths, the stack's first date.
     """
     [stack] = raster_data(stack_paths, ["Mg II k 2796"], stack=True)
     app.data_collection.append(stack)
@@ -148,25 +148,60 @@ def test_a_stacks_radiance_is_each_scans_own(app, stack_paths):
     cid = stack.main_components[0]
     radiance, factor = stack.id[f"{cid.label} radiance"], stack.id[f"{cid.label} radiance per DN/s"]
     assert not any(stack.get_component(factor).data.strides[1:-1])  # a spectrum a scan held
-    assert len({tuple(spectrum) for spectrum in stack[factor][:, 0, 0]}) == 3  # each at its scan's date
+    assert len({tuple(spectrum) for spectrum in stack[factor][:, 0, 0]}) == 1  # the scans share their wavelengths
     for k, path in enumerate(stack_paths):
         [scan] = raster_data([path], ["Mg II k 2796"])
         alone = calibration.radiometric_calibration(scan)
-        np.testing.assert_array_equal(stack[radiance][k], scan[alone])
+        # the response at the stack's first date rather than the scan's own: the effective area changes by at most
+        # 0.12% in 10 hours
+        np.testing.assert_allclose(stack[radiance][k], scan[alone], rtol=0 if k == 0 else 2e-3, atol=0)
+
+
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")  # a bin with every sample missing: NaN
+@pytest.mark.parametrize("bins", [(2, 2, 1), (1, 1, 2), (1, 2, 3), (2, 1, 1, 2)])
+def test_a_rebinned_windows_radiance_is_its_radiance_rebinned(app, scan_path, stack_paths, bins):
+    """
+    The action's ``<label> radiance`` of 3860258481's C II 1336, or a stack of its scans, rebinned by 'IRIS: rebin…' is
+    its radiance rebinned within the factor's change across one bin, as a bin is the mean of the window's pixels: the
+    factor, of the window's spectral dispersion and solid angle at each bin's middle, is within 1e-4 of the window's
+    mean over the bin.
+    """
+    stack = len(bins) == 4
+    [data] = raster_data(stack_paths if stack else [scan_path], ["C II 1336"], stack=stack)
+    rebinned = rebin(data, bins)
+    app.data_collection.append(rebinned)
+    tree = app._layer_widget
+    tree.ui.layerTree.set_selected_layers([rebinned])
+    tree._actions[RADIANCE].trigger()
+    cid, label = rebinned.main_components[0], data.main_components[0].label
+    radiance = data[calibration.radiometric_calibration(data)]
+    factor = data[f"{label} radiance per DN/s"]
+    covered = tuple(slice(0, n * b) for n, b in zip(rebinned.shape, bins))
+    shape = [m for n, b in zip(rebinned.shape, bins) for m in (n, b)]
+
+    def binned(values, operation=np.nanmean):  # as 'IRIS: rebin…' bins them
+        return operation(values[covered].reshape(shape), axis=tuple(range(1, len(shape), 2)))
+
+    np.testing.assert_allclose(rebinned[f"{cid.label} radiance per DN/s"], binned(factor, np.mean), rtol=1e-4, atol=0)
+    change = (binned(factor, np.max) - binned(factor, np.min)) / binned(factor, np.mean)
+    got, expected = rebinned[f"{cid.label} radiance"], binned(radiance)
+    np.testing.assert_array_equal(np.isnan(got), np.isnan(expected))
+    kept = ~np.isnan(expected)
+    # and 1e-5: the rebinned DN/s is a bin's mean DN over its mean exposure time, its steps' 1e-6 apart
+    assert np.all(np.abs(got - expected)[kept] <= ((change + 1e-5) * binned(np.abs(radiance)))[kept])
 
 
 def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
     sji = image_data(sji_path)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
-    rebinned = rebin(raster, (1, 2, 1))  # 'IRIS: rebin…'
     collection = app.data_collection
-    collection.extend([sji, raster, plain, rebinned])
+    collection.extend([sji, raster, plain])
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
-    for action, datasets in ((DUST, (raster, plain)), (RADIANCE, (sji, plain, rebinned))):
+    for action, datasets in ((DUST, (raster, plain)), (RADIANCE, (sji, plain))):
         for data in datasets:
             tree.ui.layerTree.set_selected_layers([data])
             refused(tree._actions[action])
@@ -181,7 +216,6 @@ def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
         "Could not remove dust\nplain is not an IRIS slit-jaw image.",
         f"Could not calibrate the radiance\n{sji.label} is not an IRIS raster window.",
         "Could not calibrate the radiance\nplain is not an IRIS raster window.",
-        f"Could not calibrate the radiance\n{rebinned.label} is rebinned: irispy calibrates a window's own pixels.",
         f"Could not calibrate the radiance\n{raster.label} has its radiance already.",
     ]
-    assert len(collection) == 4
+    assert len(collection) == 3
