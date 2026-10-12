@@ -1,0 +1,1 @@
+'Save profiles as ECSV' names its columns as Python identifiers (such as Point_y), saves each profile in its unit with its normalized values beside it, and no longer names the layers glue-solar hides itself.

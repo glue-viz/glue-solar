@@ -685,6 +685,29 @@ def test_the_spectrum_panel_never_profiles_the_whole_cube(bare_app, qtbot, monke
     assert cube.visible
 
 
+def test_the_spectrum_panel_saves_profiles_naming_no_layer_it_hides(bare_app, monkeypatch, tmp_path, irispy_test_files):
+    [raster] = raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))], ["Si IV 1403"])
+    bare_app.data_collection.append(raster)
+    other = PixelSubsetState(raster, [slice(0, 1), slice(0, 1), slice(None)])
+    bare_app.data_collection.new_subset_group(label="Other", subset_state=other)
+    spectrum = quicklook(bare_app, [raster])["spectrum"]
+    path = tmp_path / "profiles.ecsv"
+    monkeypatch.setattr(QtWidgets.QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
+    [tool] = [tool for tool in spectrum.toolbar.tools["save"].subtools if tool.tool_id == "solar:save_profile"]
+    spectrum.state.normalize = True
+    # the raster's own layer and another subset, hidden by glue-solar: named nowhere, even once shown and hidden again
+    hidden = [layer for layer in spectrum.state.layers if not layer.visible]
+    assert {layer.layer.label for layer in hidden} == {raster.label, "Other"}
+    for layer in hidden:
+        layer.visible = True
+        layer.visible = False
+    tool.activate()
+    table = Table.read(path, format="ascii.ecsv")
+    assert table.colnames == [f"Point_{kind}" for kind in ("x", "y", "y_normalized", "lon", "lat")]
+    assert table["Point_y"].unit == raster.get_component(raster.main_components[0]).units
+    assert "Left out" not in bare_app.statusBar().currentMessage()
+
+
 @pytest.mark.remote_data
 def test_quicklook_gives_aia_cutouts_no_panel(bare_app, tmp_path, irispy_data, irispy_test_files):
     # A real AIA cutout claiming the fixture observation loads as a slit-jaw cube, but INSTRUME says AIA

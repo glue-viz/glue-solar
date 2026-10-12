@@ -2395,7 +2395,7 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
         return Table.read(path, format="ascii.ecsv")
 
     def check(table, name, layer):
-        x, y = table[f"{name} x"], table[f"{name} y"]
+        x, y = table[f"{name}_x"], table[f"{name}_y"]
         np.testing.assert_array_equal(x, layer.profile[0])
         np.testing.assert_array_equal(y, layer.profile[1])
         assert (x.description, y.description) == (state.x_att.label, layer.layer.label)
@@ -2405,23 +2405,25 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
 
     table = saved()
     label = raster.label
+    name = re.sub(r"[^A-Za-z0-9_]", "_", label)  # as glue names a variable, one _ a character
+    assert name != label
     assert suggested[-1] == f"{raster.meta['OBSID']} maximum profiles.ecsv"
-    assert table.colnames == [f"{label} {kind}" for kind in ("x", "y", "time")] + [
-        f"Curve {kind}" for kind in ("x", "y", "time", "lon", "lat")
+    assert table.colnames == [f"{name}_{kind}" for kind in ("x", "y", "time")] + [
+        f"Curve_{kind}" for kind in ("x", "y", "time", "lon", "lat")
     ]
-    check(table, label, whole)
+    check(table, name, whole)
     check(table, "Curve", curve)
     times = raster[raster.id["Time"]]
-    assert isinstance(table["Curve time"], Time)
-    np.testing.assert_array_equal(table["Curve time"].datetime64, times[:, 5, 10])
-    np.testing.assert_array_equal(table[f"{label} time"].datetime64, times[:, 0, 0])
-    assert table["Curve y"].unit == raster.get_component(raster.main_components[0]).units
-    assert table["Curve y"].meta["pixel"] == {"Pixel Axis 1 [y]": 5, "Pixel Axis 2 [x]": 10}
+    assert isinstance(table["Curve_time"], Time)
+    np.testing.assert_array_equal(table["Curve_time"].datetime64, times[:, 5, 10])
+    np.testing.assert_array_equal(table[f"{name}_time"].datetime64, times[:, 0, 0])
+    assert table["Curve_y"].unit == raster.get_component(raster.main_components[0]).units
+    assert table["Curve_y"].meta["pixel"] == {"Pixel Axis 1 [y]": 5, "Pixel Axis 2 [x]": 10}
     lon, lat = sky((slice(None), 5, 10))  # each exposure's own pointing
     assert np.ptp(lon) > 0
-    np.testing.assert_allclose(table["Curve lon"], lon)
-    np.testing.assert_allclose(table["Curve lat"], lat)
-    assert table["Curve lon"].unit == table["Curve lat"].unit == u.arcsec
+    np.testing.assert_allclose(table["Curve_lon"], lon)
+    np.testing.assert_allclose(table["Curve_lat"], lat)
+    assert table["Curve_lon"].unit == table["Curve_lat"].unit == u.arcsec
     assert table.meta == {"function": "maximum", **{key: str(raster.meta[key]) for key in ("OBSID", "STARTOBS")}}
     assert app.statusBar().currentMessage() == "Left out, hidden: Spectrum"
     # the spectrum, in km/s from Si IV 1402.77 Å, and the curve, one wavelength wide, is left out
@@ -2432,28 +2434,29 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     table = saved()
     assert suggested[-1] == f"{raster.meta['OBSID']} mean profiles.ecsv"
     assert app.statusBar().currentMessage() == "Left out, without a profile: Curve"
-    assert table.colnames == [f"{label} x", f"{label} y", *(f"Spectrum {kind}" for kind in ["x", "y", "lon", "lat"])]
-    check(table, label, whole)
+    assert table.colnames == [f"{name}_x", f"{name}_y", *(f"Spectrum_{kind}" for kind in ["x", "y", "lon", "lat"])]
+    check(table, name, whole)
     check(table, "Spectrum", spectrum)
-    assert table["Spectrum x"].unit == "km/s"
-    assert table["Spectrum y"].meta["pixel"] == {"Pixel Axis 0 [z]": 3, "Pixel Axis 1 [y]": 5}
+    assert table["Spectrum_x"].unit == "km/s"
+    assert table["Spectrum_y"].meta["pixel"] == {"Pixel Axis 0 [z]": 3, "Pixel Axis 1 [y]": 5}
     lon, lat = sky((3, 5, slice(None)))  # the same at each wavelength
-    np.testing.assert_allclose(table["Spectrum lon"], lon)
-    np.testing.assert_allclose(table["Spectrum lat"], lat)
+    np.testing.assert_allclose(table["Spectrum_lon"], lon)
+    np.testing.assert_allclose(table["Spectrum_lat"], lat)
     assert table.meta["function"] == "mean"
-    state.normalize = True  # as drawn, beside the values before
+    state.normalize = True  # in the y unit, beside the values as drawn
     whole.visible = False
     table = saved()
     assert app.statusBar().currentMessage() == f"Left out, hidden: {label}; without a profile: Curve"
-    assert table.colnames == [f"Spectrum {kind}" for kind in ["x", "y", "y unnormalized", "lon", "lat"]]
-    np.testing.assert_allclose(table["Spectrum y"], spectrum.normalize_values(spectrum.profile[1]))
-    assert table["Spectrum y"].unit is None
-    np.testing.assert_array_equal(table["Spectrum y unnormalized"], spectrum.profile[1])
-    assert table["Spectrum y unnormalized"].unit == raster.get_component(raster.main_components[0]).units
-    # a subset named as its dataset, with a line break, which ECSV keeps in no name
+    assert table.colnames == [f"Spectrum_{kind}" for kind in ["x", "y", "y_normalized", "lon", "lat"]]
+    check(table, "Spectrum", spectrum)
+    assert table["Spectrum_y"].unit == raster.get_component(raster.main_components[0]).units
+    np.testing.assert_allclose(table["Spectrum_y_normalized"], spectrum.normalize_values(spectrum.profile[1]))
+    assert table["Spectrum_y_normalized"].unit is None
+    # a subset whose label makes the dataset's name, line breaks included, made unique after
     whole.visible = True
-    spectrum.layer.label = f"{label}\n"
-    names = [f"{name} {kind}" for name in (label, f"{label}_01") for kind in ("x", "y", "y unnormalized")]
+    spectrum.layer.label = label.replace("-", "\n")
+    assert spectrum.layer.label != label
+    names = [f"{name}{repeat}_{kind}" for repeat in ("", "_01") for kind in ("x", "y", "y_normalized")]
     assert saved().colnames[:6] == names
     for layer in state.layers:
         layer.visible = False
@@ -2472,12 +2475,13 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     times = stack[stack.id["Time"]]
     assert not np.array_equal(times[:, 1, 3, 4], times[:, 0, 0, 0])
     table = saved()
-    np.testing.assert_array_equal(table["Scans time"].datetime64, times[:, 1, 3, 4])
-    np.testing.assert_array_equal(table[f"{stack.label} time"].datetime64, times[:, 0, 0, 0])
-    np.testing.assert_array_equal(table["Band time"].datetime64, times[:, 1, 3, 4])
+    name = re.sub(r"[^A-Za-z0-9_]", "_", stack.label)
+    np.testing.assert_array_equal(table["Scans_time"].datetime64, times[:, 1, 3, 4])
+    np.testing.assert_array_equal(table[f"{name}_time"].datetime64, times[:, 0, 0, 0])
+    np.testing.assert_array_equal(table["Band_time"].datetime64, times[:, 1, 3, 4])
     lon = stack[stack.id["Helioprojective Longitude"], (slice(None), 1, 3, 4)]  # each scan's
-    np.testing.assert_allclose(table["Band lon"], lon)
-    assert f"{stack.label} lon" not in table.colnames  # no one place
+    np.testing.assert_allclose(table["Band_lon"], lon)
+    assert f"{name}_lon" not in table.colnames  # no one place
     assert app.statusBar().currentMessage() == ""  # the earlier note cleared, as nothing was left out
     # no OBSID: the reference data's label, made a file name
     cube = Data(label="cube: 6563/scans", flux=np.ones((3, 4)))
