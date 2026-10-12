@@ -332,9 +332,9 @@ core at 1402.8 Å in 428 pixels, 28 to 82 at each raster step, a few across most
 Linking
 -------
 
-The observation browser links the ``Helioprojective Longitude`` and ``Helioprojective Latitude``
-of every slit-jaw image, raster, aligned AIA cutout and SOT cube it loads, so selections carry
-over between them, and a quicklook and the analyses link the IRIS data they open or make. Data from
+The observation browser links the ``Helioprojective Longitude`` and ``Helioprojective Latitude`` of
+every slit-jaw image, raster, aligned AIA cutout and SOT cube it loads, so selections carry over
+between them, and a quicklook and the analyses link the IRIS data they open or make. Data from
 outside the IRIS observations, such as a file loaded as a sunpy Map (see
 :ref:`glue_solar_users_guide_loading_aia_and_hmi_files`), an SST cube or any other FITS file, are
 linked to IRIS data only on request: choose "IRIS: link helioprojective coordinates" from the
@@ -343,21 +343,22 @@ converted to arcsec, as well as IRIS data opened with "File → Open Data Set". 
 autolinking links maps to each other. Once a map is linked, every quicklook panel and spectrum works
 through its coordinates too. A linked SST cube's viewer shows the IRIS data's regions and crosshair,
 and a region drawn on the cube selects the IRIS pixels at its place in the cube's scan nearest each
-frame's time (see :ref:`glue_solar_users_guide_loading_sst_cubes`). Every quicklook panel and spectrum
-then works through the cube's coordinates as well: beside a linked SST cube, a quicklook of the nine
-windows of 4000255147 took about 9 s to open rather than 6 s (14 s where a region on a co-pointed cube
-selected IRIS pixels), an exposure step about 0.63 s rather than 0.55 s, and a slit-jaw frame step
-0.1 s rather than 0.03 s. The menu entry only adds
-links that are missing, so running it again after loading more data is safe. Removing a dataset
-leaves the others linked, those linked on request included. A reopened session restores those links,
-but choose the menu entry again after reopening it: until then, removing a dataset drops a map's
-links, and a map's viewer and Glue's spectrum threads can reach its coordinates at once, which can
-crash Glue. The links pair coordinates as they are:
-they do not allow for the Sun's rotation between a map and the IRIS data, or for a map taken far
-from Earth; an IRIS dataset's own pointing can be corrected with "IRIS: shift pointing…" (see
-:ref:`glue_solar_users_guide_iris_pointing`). Once IRIS data are linked, a selection on longitude
-or latitude values between two maps passes through them too, so it ignores those differences
-between the maps; a region drawn on one map still reaches the other through Glue's own link.
+frame's time (see :ref:`glue_solar_users_guide_loading_sst_cubes`). Every quicklook panel and
+spectrum then works through the cube's coordinates as well: beside a linked SST cube, a quicklook of
+the nine windows of 4000255147 took about 9 s to open rather than 6 s (14 s where a region on a
+co-pointed cube selected IRIS pixels), an exposure step about 0.63 s rather than 0.55 s, and a
+slit-jaw frame step 0.1 s rather than 0.03 s. The menu entry only adds links that are missing, so
+running it again after loading more data is safe. Glue's "Link Data" dialog, and its link
+suggestions when more data are opened, list these links (a map's or SST cube's as a "Collection of
+links") and keep them on OK. Removing a dataset leaves the others linked, those linked on request
+included. A reopened session restores those links, but choose the menu entry again after reopening
+it: until then, removing a dataset drops a map's links, and a map's viewer and Glue's spectrum
+threads can reach its coordinates at once, which can crash Glue. The links pair coordinates as they
+are: they do not allow for the Sun's rotation between a map and the IRIS data, or for a map taken
+far from Earth; an IRIS dataset's own pointing can be corrected with "IRIS: shift pointing…" (see
+:ref:`glue_solar_users_guide_iris_pointing`). Once IRIS data are linked, a selection on longitude or
+latitude values between two maps passes through them too, so it ignores those differences between
+the maps; a region drawn on one map still reaches the other through Glue's own link.
 
 - A region drawn on a raster map or a sunpy Map selects, in every slit-jaw frame, the pixels that
   lie inside it at that frame's own pointing. For a sit-and-stare raster the selection marks where

@@ -14,6 +14,7 @@ from glue.core.hub import Hub
 from glue.core.link_helpers import LinkSame, LinkSameWithUnits
 from glue.core.roi import RectangularROI
 from glue.core.subset import RoiSubsetState
+from glue.plugins.tools.path_slicer.path_sliced_data_links import PathRelativeLink
 from glue.plugins.wcs_autolinking import wcs_autolinking
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
 from glue_qt.app import GlueApplication
@@ -520,6 +521,32 @@ def test_the_link_editor_keeps_a_stack_s_scans(tmp_path, irispy_test_files):
     scans = sji[stack.id["Scan"]]
     LinkEditorState(dc).update_links_in_collection()
     np.testing.assert_array_equal(sji[stack.id["Scan"]], scans)
+
+
+def test_the_link_editor_opens_on_a_linked_sunpy_map(sns):
+    # glue-core 1.27.0 names both ends of the map's LinkSameWithUnits 'values', so Link Data and Link Suggestions
+    # raised ValueError and never opened; the dialog lists each with the SJI's component and the map's, and OK, which
+    # makes every link again from its components, keeps them
+    sji, _ = sns
+    lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)
+    aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia", obstime=sji.meta["DATE_OBS"])
+    dc = DataCollection([sji, aia])
+    dc.add_link(link_hpc(dc))
+    pixels = [sji[cid] for cid in aia.pixel_component_ids]
+    state = LinkEditorState(dc)
+    assert [(link.x, link.y) for link in state.links] == [(link.cids1[0], link.cids2[0]) for link in dc.external_links]
+    state.update_links_in_collection()
+    assert {type(link) for link in dc.external_links} == {LinkSameWithUnits}
+    assert link_hpc(dc) == []
+    for cid, expected in zip(aia.pixel_component_ids, pixels, strict=True):
+        np.testing.assert_array_equal(sji[cid], expected)
+
+
+def test_link_editor_workaround_installs_only_where_glue_needs_it():
+    installed = LinkSameWithUnits.__init__ is glue_patches.link_with_units_init
+    assert installed == (PathRelativeLink.__init__ is glue_patches.path_link_init)
+    assert installed == glue_patches.needs_link_editor_workaround()  # probes glue's own classes
+    assert not glue_patches.needs_link_editor_workaround(glue_patches.link_with_units_init, glue_patches.path_link_init)
 
 
 def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, monkeypatch):
