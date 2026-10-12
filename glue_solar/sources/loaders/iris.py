@@ -732,38 +732,58 @@ def raster_files_data(path, files=(), windows=None, stack=False):
     """
     `raster_data` as a glue data factory, which a session's load log calls: ``path`` is the first raster file, and
     ``files`` every one by its path relative to the folder of ``path``, so that a session with relative paths finds
-    them all where it finds ``path``. A session's restore reads them once for every window it logs of them
+    them all where it finds ``path``. A session's restore reads them once for every copy of the windows it logs of them
     (`_read_logged_windows_together`).
     """
     paths = [Path(path).parent / name for name in files] or [path]
-    read = _RESTORING.get((path, tuple(files), stack), {})
-    if len(windows or ()) != 1 or windows[0] not in read:
+    slots = _RESTORING.get(windows[0]) if len(windows or ()) == 1 else None
+    if not slots:
         return raster_data(paths, windows, stack)
-    if read[windows[0]] is None:
-        unread = [window for window, datasets in read.items() if datasets is None]
-        read.update((str(window), datasets) for window, datasets in _raster_windows_data(paths, unread, stack).items())
-    datasets = read.pop(windows[0])  # held by the restore alone from now on
+    if slots[0] is None:  # one copy of every window with a log to restore, this one's included
+        unread = [window for window, pending in _RESTORING.items() if None in pending]
+        for window, datasets in _raster_windows_data(paths, unread, stack).items():
+            pending = _RESTORING[str(window)]
+            pending[pending.index(None)] = datasets
+    datasets = slots.pop(0)  # held by the restore alone from now on
     _warn_repeated_positions(datasets)
     return datasets
 
 
-_RESTORING = {}  # the restoring session's windows by the raster files they are read from, with their datasets once read
+_RESTORING = {}  # the windows of the raster files whose log glue restores, a slot a log: its datasets once read
+
+
+class _RasterFilesLog:
+    """
+    glue's load log of raster files as a session restores it (`_read_logged_windows_together`), with the windows of
+    every log of the same files, which the session's records keep, and so its restore alone, whether it ends or fails.
+    """
+
+    @staticmethod
+    def __setgluestate__(rec, context):
+        _RESTORING.update(rec["read together"])  # their slots, which raster_files_data fills and empties
+        try:
+            return LoadLog.__setgluestate__(rec, context)
+        finally:
+            _RESTORING.clear()
 
 
 @session_patch()
 def _read_logged_windows_together(session):
     """
-    List the windows a session's load logs read from each set of raster files (`raster_files_data`), one log a window,
-    so that its restore reads each file once for all of them, as the browser does, rather than once a window.
+    List on each of a session's load logs of raster files (`raster_files_data`), one log a window, the windows of every
+    log of the same files, a slot a log, so that its restore reads each file once for every copy of the windows, as the
+    browser does, rather than once a window (`_RasterFilesLog`).
     """
-    _RESTORING.clear()  # what a failed restore left
     factory = f"{raster_files_data.__module__}.{raster_files_data.__name__}"
+    together = {}
     for record in session.values():
         if isinstance(record, dict) and record.get("_type", "").endswith(".LoadLog"):
             if record["factory"].get("function") == factory:
                 kwargs = dict(*record["kwargs"])
-                windows = _RESTORING.setdefault((record["path"], tuple(kwargs["files"]), kwargs["stack"]), {})
-                windows.update(dict.fromkeys(kwargs["windows"]))
+                windows = together.setdefault((record["path"], tuple(kwargs["files"]), kwargs["stack"]), {})
+                for window in kwargs["windows"]:
+                    windows.setdefault(window, []).append(None)
+                record.update({"_type": f"{__name__}.{_RasterFilesLog.__name__}", "read together": windows})
 
 
 def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None):
