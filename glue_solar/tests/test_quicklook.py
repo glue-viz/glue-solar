@@ -5352,9 +5352,11 @@ def test_panels_out_of_sight_draw_once_in_sight(bare_app, qtbot, monkeypatch, ir
             viewer.figure.canvas, "draw", lambda draw=draw, viewer=viewer: draws.update([viewer]) or draw()
         )
 
-    def drawn(action):
+    def drawn(action, expected):
+        """The draws ``action`` makes, once each of ``expected`` has drawn (CI draws more slowly) and 50 ms after."""
         draws.clear()
         action()
+        qtbot.waitUntil(lambda: set(draws) >= set(expected), timeout=5000)
         qtbot.wait(50)
         return dict(draws)
 
@@ -5373,15 +5375,15 @@ def test_panels_out_of_sight_draw_once_in_sight(bare_app, qtbot, monkeypatch, ir
     # an exposure step and a move of the point draw the panels in sight, those below once scrolled into sight, as they
     # are then
     in_sight = set(every) - set(below)
-    assert set(drawn(lambda: slide(viewers["spectrogram"], 0, 50))) == in_sight
-    assert set(drawn(move)) == in_sight
+    assert set(drawn(lambda: slide(viewers["spectrogram"], 0, 50), in_sight)) == in_sight
+    assert set(drawn(move, in_sight)) == in_sight
     bar = bare_app.tab().verticalScrollBar()
-    assert drawn(lambda: bar.setValue(bar.maximum())) == dict.fromkeys(below, 1)
+    assert drawn(lambda: bar.setValue(bar.maximum()), below) == dict.fromkeys(below, 1)
     assert all(current(viewer) for viewer in every)
     # and a paint of one still out of sight, such as a grab of it, draws it
     bar.setValue(0)
-    assert set(drawn(lambda: slide(viewers["spectrogram"], 0, 60))) == in_sight
-    assert drawn(lambda: [viewer.figure.canvas.grab() for viewer in below]) == dict.fromkeys(below, 1)
+    assert set(drawn(lambda: slide(viewers["spectrogram"], 0, 60), in_sight)) == in_sight
+    assert drawn(lambda: [viewer.figure.canvas.grab() for viewer in below], below) == dict.fromkeys(below, 1)
     assert all(current(viewer) for viewer in below)
 
 
