@@ -110,10 +110,10 @@ toolbar has:
   other diagrams, which the image's axes cannot show, are in the data collection to open in viewers
   of their own. A dataset glue cannot place from the image, such as a slit-jaw image added to a
   raster's viewer, gets no diagram. Each Enter makes a new set in a new viewer; closing the viewer
-  it was drawn in closes them. The path of every diagram of a dataset in the data collection is
-  drawn on each Image viewer of that dataset showing the two axes it is on, the latest bright and
-  the others faint, whichever viewer made it, by Enter, "Open path from ECSV…" or "Path on other
-  data…", or a restored session; deleting the diagram removes its path. In the
+  it was drawn in, or glue, closes them without asking. The path of every diagram of a dataset in the
+  data collection is drawn on each Image viewer of that dataset showing the two axes it is on, the
+  latest bright and the others faint, whichever viewer made it, by Enter, "Open path from ECSV…" or
+  "Path on other data…", or a restored session; deleting the diagram removes its path. In the
   diagram's viewer, "Show position on original path" marks the point of the path under the mouse
   while you drag, and moves the viewer it was drawn in to the frame, wavelength or scan the
   diagram's y axis shows there, only that slider.

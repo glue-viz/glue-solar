@@ -1434,6 +1434,14 @@ class PathTool(BasePathSlicerMode, HubListener):
         self._slice_viewer = open_slice_viewer_for(self.viewer, self.slice_viewer_cls, trace[:1])
         self._slice_viewers.append(self._slice_viewer)
 
+    def _close_slice_viewers(self):
+        # as the viewer closes, without the prompt of glue-qt's close, which glue-core 1.27.0 gives: Cancel would leave
+        # a diagram without the viewer it was drawn in
+        for slice_viewer in self._slice_viewers:
+            slice_viewer.close(warn=False)
+        self._slice_viewers.clear()
+        self._slice_viewer = None
+
 
 @viewer_tool
 class PathCrosshairTool(BasePathSlicerCrosshairMode):

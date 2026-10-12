@@ -1633,7 +1633,7 @@ def _switch(viewer):
     point's group, the point at the same pixel of that window, the time master at the same frame, exposure, step or
     scan, the colours of each Image panel that shows the same data on the same axes again, and their axes if the Axes
     box was ticked; every panel shows, the Panels list's other choices left behind. The links stay, as do the viewers
-    added to the tab.
+    added to the tab but the path diagrams drawn on a panel, which close with it.
     """
     app = viewer.session.application
     tab, collection = viewer.parent().mdiArea(), app.data_collection
