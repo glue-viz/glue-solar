@@ -90,8 +90,9 @@ The map shows the wavelength nearest the window's reference wavelength, and the 
 other FUV windows), sqrt about Mg II k and h (slit-jaw 2796 and those windows), linear for slit-jaw
 2832 and the other NUV windows; glue's layer controls change either. A point, the edit subset "Point", starts at the centre of the map with the Pixel
 tool active: drag it on the map, and the spectrum panel shows its spectrum. Each image panel takes the
-Pixel tool as its window becomes active, so the first click on any panel moves the point; another
-mouse mode chosen in its toolbar, such as "Zoom" or a region tool, stays on until another window
+Pixel tool as its window becomes active, so the first click on any panel moves the point, or, in a
+quicklook of slit-jaw images alone, which has no point, makes a pixel subset; another mouse mode
+chosen in its toolbar, such as "Zoom" or a region tool, stays on until another window
 becomes active, as glue-qt then turns it off. With "Follow/lock" chosen
 in a panel's toolbar instead, the point follows the mouse over that panel, and on a slit-jaw viewer
 moves to the raster pixel under the mouse, as a click there does (below), until a left click locks
