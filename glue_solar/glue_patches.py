@@ -28,6 +28,9 @@ from glue.core.exceptions import IncompatibleAttribute
 from glue.core.link_helpers import LinkSame, LinkSameWithUnits
 from glue.core.state import GlueSerializeError, GlueSerializer, GlueUnSerializer, loader, saver
 from glue.core.subset import SubsetState
+from glue.dialogs.link_editor.state import LinkEditorState
+from glue.plugins.tools.path_slicer.path_sliced_data import PathSlicedData
+from glue.plugins.tools.path_slicer.path_sliced_data_links import PathRelativeLink
 from glue.utils import defer_draw
 from glue.viewers.histogram import state as histogram_state
 from glue.viewers.histogram import viewer as histogram_viewer
@@ -76,6 +79,7 @@ __all__ = [
     "load_quantity",
     "find_combo_data",
     "layer_action",
+    "link_with_units_init",
     "mpl_to_datetime64",
     "needs_axis_label_workaround",
     "needs_combo_match_workaround",
@@ -87,6 +91,7 @@ __all__ = [
     "needs_icon_cache_workaround",
     "needs_inverse_workaround",
     "needs_layer_action_applies_workaround",
+    "needs_link_editor_workaround",
     "needs_link_restore_workaround",
     "needs_pixel_point_workaround",
     "needs_profile_restore_workaround",
@@ -94,6 +99,7 @@ __all__ = [
     "needs_pv_slice_workaround",
     "needs_redo_workaround",
     "needs_reference_crosshair_workaround",
+    "path_link_init",
     "pv_slice_from_path",
     "reset_wcs",
     "save_link_with_units",
@@ -704,6 +710,55 @@ def needs_link_restore_workaround():
 if needs_link_restore_workaround():
     LinkSameWithUnits.__gluestate__ = save_link_with_units
     LinkSameWithUnits.__setgluestate__ = classmethod(load_link_with_units)
+
+
+# glue 1.27.0 names both ends of a `LinkSameWithUnits`, such as `link_hpc` gives a sunpy map or SST cube, ``values``,
+# and both of the `PathRelativeLink` between two path diagrams ``k``. Its link editor keeps one choice per name, so once
+# there was one, Link Data and Link Suggestions raised ValueError ("value Helioprojective Latitude is not in valid
+# choices") and never opened. Each end gets its own name, and a `LinkSameWithUnits` also takes the ``cids1`` and
+# ``cids2`` from which the editor's OK makes every link again (report candidate for glue).
+_original_link_with_units_init = LinkSameWithUnits.__init__
+_original_path_link_init = PathRelativeLink.__init__
+
+
+def link_with_units_init(self, cid1=None, cid2=None, **kwargs):
+    """glue's ``LinkSameWithUnits.__init__``, its ends named ``x`` and ``y`` as a `LinkSame`'s, taking ``cids1`` too."""
+    cid1 = kwargs["cids1"][0] if cid1 is None else cid1
+    cid2 = kwargs["cids2"][0] if cid2 is None else cid2
+    _original_link_with_units_init(self, cid1, cid2)
+    self.labels1, self.labels2 = ["x"], ["y"]
+
+
+def path_link_init(self, slice_from, slice_to):
+    """glue's ``PathRelativeLink.__init__``, its ends named ``k_from`` and ``k_to`` as its conversions name them."""
+    _original_path_link_init(self, slice_from, slice_to)
+    self.input_names, self.output_name = ["k_from"], "k_to"
+
+
+def needs_link_editor_workaround(units_init=_original_link_with_units_init, path_init=_original_path_link_init):
+    """
+    Whether glue's link editor, as Link Data and Link Suggestions open it, or its OK fails on a `LinkSameWithUnits`
+    made by ``units_init`` or a `PathRelativeLink` made by ``path_init``.
+    """
+    first, second = Data(x=np.zeros((2, 2)), label="first"), Data(y=np.zeros((2, 2)), label="second")
+    paths = [
+        PathSlicedData(data, data.pixel_component_ids[1], [0, 1], data.pixel_component_ids[0], [0, 1])
+        for data in (first, second)
+    ]
+    collection = DataCollection([first, second, *paths])
+    units = type("Probe", (LinkSameWithUnits,), {"__init__": units_init})
+    path = type("Probe", (PathRelativeLink,), {"__init__": path_init})
+    collection.add_link([units(first.id["x"], second.id["y"]), path(*paths)])
+    try:
+        LinkEditorState(collection).update_links_in_collection()
+    except (AttributeError, ValueError):
+        return True
+    return False
+
+
+if needs_link_editor_workaround():
+    LinkSameWithUnits.__init__ = link_with_units_init
+    PathRelativeLink.__init__ = path_link_init
 
 
 # glue 1.27.0 gives a time linked from another dataset, such as the first light curve's ``Time`` on the others (a

@@ -348,7 +348,10 @@ then works through the cube's coordinates as well: beside a linked SST cube, a q
 windows of 4000255147 took about 9 s to open rather than 6 s (14 s where a region on a co-pointed cube
 selected IRIS pixels), an exposure step about 0.63 s rather than 0.55 s, and a slit-jaw frame step
 0.1 s rather than 0.03 s. The menu entry only adds
-links that are missing, so running it again after loading more data is safe. Removing a dataset
+links that are missing, so running it again after loading more data is safe. Glue's "Link Data"
+dialog, and the one in which it suggests links for data opened later, list these links with the
+two components each pairs, a map's or SST cube's as a "Collection of links", and keep them.
+Removing a dataset
 leaves the others linked, those linked on request included. A reopened session restores those links,
 but choose the menu entry again after reopening it: until then, removing a dataset drops a map's
 links, and a map's viewer and Glue's spectrum threads can reach its coordinates at once, which can
