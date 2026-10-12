@@ -209,6 +209,6 @@ def radiometric_calibration(data):
 def radiometric_calibration_iris(data, data_collection):
     """
     Add the `radiometric_calibration` components to ``data``; offered only for a raster window or stack not calibrated
-    already whose scans' CDELT1-3 are its first scan's, and glue shows why for a second run before it is selected again.
+    already whose scans' CDELT1-3 are its first scan's.
     """
     radiometric_calibration(data)

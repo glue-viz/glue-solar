@@ -21,7 +21,7 @@ from astropy import constants
 from astropy.nddata import StdDevUncertainty
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
-from glue_solar.glue_patches import layer_action
+from glue_solar.glue_patches import _application, layer_action, refresh_layer_actions
 from glue_solar.lines import MAIN_LINES, _wavelength, rest_wavelength
 from glue_solar.quicklook import _role, _spectral_axes, _wavelengths
 from glue_solar.sources.loaders.iris import _RUNNING, WCS_LOCK, _GlueWCS, keep_hpc_linked, per_second
@@ -404,12 +404,6 @@ def _saturated(moments):
     return None
 
 
-def _application(data_collection):
-    """The glue window of ``data_collection``, or None."""
-    windows = QtWidgets.QApplication.topLevelWidgets()
-    return next((window for window in windows if getattr(window, "data_collection", None) is data_collection), None)
-
-
 def _status_bar(data_collection):
     """The status bar of the glue window of ``data_collection``, or None."""
     app = _application(data_collection)
@@ -425,7 +419,7 @@ def _start(data_collection, text, failed, function, *args, said=None, add=None):
     """
     Compute ``function(*args)`` on glue-qt's `Worker`, while glue's status bar says ``text``, and add it, a dataset, to
     ``data_collection``, or give it to ``add``, on the main thread, the status bar then saying ``said(result)``, if
-    anything; or show its error with ``failed``.
+    anything; or show its error with ``failed``; then refresh the right-click entries (`refresh_layer_actions`).
     """
     worker = Worker(function, *args)
     status = _status_bar(data_collection)
@@ -435,7 +429,8 @@ def _start(data_collection, text, failed, function, *args, said=None, add=None):
         status.showMessage(text)
         worker.finished.connect(partial(_clear, status, text))
     _RUNNING.add(worker)
-    worker.finished.connect(lambda: _RUNNING.discard(worker))  # last: queued, so the message is cleared by then
+    worker.finished.connect(lambda: _RUNNING.discard(worker))  # queued: the message cleared, the result added by then
+    worker.finished.connect(partial(refresh_layer_actions, data_collection))  # the entries its result or error changes
     worker.start()
 
 
@@ -553,8 +548,8 @@ def _mean_failed(exc_info):
 def mean_spectrum_iris(data, data_collection):
     """
     Add the `subtract_mean_spectrum` components to ``data``; offered only for a raster window or stack not subtracted
-    already, and glue shows why for a second run before it is selected again. The mean is computed in the background,
-    while glue's status bar says so, and then how many saturated samples it left out, if any.
+    already nor being subtracted. The mean is computed in the background, while glue's status bar says so, and then
+    how many saturated samples it left out, if any.
     """
     _check_mean(data)
     cid = data.main_components[0]

@@ -716,10 +716,8 @@ def test_subtracting_the_mean_spectrum_refuses_other_data_and_a_second_run(
         refused(tree._actions[MEAN])
     tree.ui.layerTree.set_selected_layers([raster])
     tree._actions[MEAN].trigger()
-    tree._actions[MEAN].trigger()  # while the first computes
+    refused(tree._actions[MEAN])  # while the first computes: hidden at once, the row still selected
     qtbot.waitUntil(lambda: not iris._RUNNING)
-    tree.ui.layerTree.set_selected_layers([plain])
-    tree.ui.layerTree.set_selected_layers([raster])
     refused(tree._actions[MEAN])  # subtracted already
     assert shown == [
         f"Could not subtract the mean spectrum\n{sji.label} is not an IRIS raster window.",
@@ -739,7 +737,7 @@ def test_subtracting_the_mean_spectrum_refuses_other_data_and_a_second_run(
     app.data_collection.append(other)
     tree.ui.layerTree.set_selected_layers([other])
     tree._actions[MEAN].trigger()
-    qtbot.waitUntil(lambda: len(shown) == 5 and not iris._RUNNING)
+    qtbot.waitUntil(lambda: len(shown) == 5 and tree._actions[MEAN].isVisible())  # offered again, the thread gone
     assert shown[-1] == "Could not subtract the mean spectrum\ntoo large"
     assert app.statusBar().currentMessage() == ""
     assert not [cid for cid in other.components if "mean" in cid.label]
