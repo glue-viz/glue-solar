@@ -1,0 +1,1 @@
+A quicklook in a tab behind another no longer redraws its panels at each step and move of another quicklook's point: they draw once the tab is shown.
