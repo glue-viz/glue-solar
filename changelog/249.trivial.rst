@@ -1,0 +1,1 @@
+The tests' irispy-data fixture locks each fetch, so parallel test workers no longer read a tarball's file while another extracts it.
