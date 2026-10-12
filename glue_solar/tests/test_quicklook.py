@@ -53,11 +53,12 @@ from glue_solar.quicklook import (
 )
 from glue_solar.regrid import regrid_on_time
 from glue_solar.sources import moments
-from glue_solar.sources.iris import export_ecsv, shift_pointing_iris
+from glue_solar.sources.iris import export_ecsv, link_iris, shift_pointing_iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, raster_data
 from glue_solar.tests.helpers import (
     count_tick_work,
     inversions,
+    linked_data,
     load_selected,
     mouse,
     mouse_click,
@@ -1562,6 +1563,26 @@ def test_an_aia_cutout_follows_the_time_master_and_can_be_it(bare_app, qtbot, ir
         [exposure], _ = nearest([aia[aia.id["Time"]][frame, 0, 0]], raster[raster.id["Time"]][:, 0, 0])
         qtbot.waitUntil(lambda exposure=exposure: viewers["spectrogram"].state.slices[0] == exposure)
         assert "time master" in readout(aia_viewer)
+
+
+def test_an_observation_s_aia_cutout_keeps_its_time_sync_until_and_once_linked(
+    bare_app, qtbot, tmp_path, irispy_test_files
+):
+    # D72: a quicklook links neither an observation's AIA cutouts and SOT cubes nor a stack's scans to them, until
+    # 'IRIS: link helioprojective coordinates'; they follow its time master either way, by observation, not by links
+    stack, _ = drifting_stack(tmp_path, irispy_test_files)
+    path = find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000"))
+    sji, aia = image_data(path), image_data(path)
+    aia.meta["INSTRUME"] = "AIA_3"  # read as an aligned cutout is, with the slit-jaw image's frames
+    viewers = quicklook(bare_app, [stack, sji, aia])
+    aia_viewer = bare_app.new_data_viewer(ImageViewer, data=aia)
+    collection = bare_app.data_collection
+    for linked in ({stack, sji}, {stack, sji, aia}):
+        assert linked_data(collection) == linked
+        for scan, step in ((1, 4), (0, 0)):
+            viewers["spectrogram"].state.slices = (scan, step, *viewers["spectrogram"].state.slices[2:])
+            assert check_follower(bare_app, qtbot, raster_time(stack, (scan, step)), aia, aia_viewer)
+        link_iris(bare_app.session, collection)
 
 
 def test_an_unmatched_slit_jaw_keeps_its_frame(bare_app, qtbot, scans):

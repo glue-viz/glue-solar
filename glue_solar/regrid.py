@@ -245,12 +245,13 @@ def north_up(data):
 def north_up_iris(data, data_collection):
     """
     Add the `north_up` grid of ``data`` to the data collection, its helioprojective coordinates linked with the others'
-    and its time and frames with ``data``'s, and open an Image viewer of it showing ``data``, its own layer hidden;
-    offered only for a slit-jaw image, AIA cutout or SOT cube.
+    and ``data``'s, an AIA cutout's or SOT cube's too, as glue shows ``data`` on it through them, and its time and
+    frames with ``data``'s, and open an Image viewer of it showing ``data``, its own layer hidden; offered only for a
+    slit-jaw image, AIA cutout or SOT cube.
     """
     grid = north_up(data)
     data_collection.append(grid)
-    keep_hpc_linked(data_collection)
+    keep_hpc_linked(data_collection, others=[data])
     # glue places each frame with its own pointing at its time; the frames save it inverting data's at each step
     data_collection.add_link(
         [

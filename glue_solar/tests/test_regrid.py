@@ -349,6 +349,17 @@ def test_north_up_steps_through_irispys_slit_jaw_image(app, tmp_path, irispy_tes
         north_up(raster)
 
 
+def test_north_up_links_the_aia_cutout_it_shows(app, irispy_test_files):
+    # D72: an AIA cutout or SOT cube is linked on request only, and north up asks: glue shows it on the grid through
+    # their links, with or without IRIS data
+    aia = image_data(find_irispy_test_file(irispy_test_files, SJI))
+    aia.meta["INSTRUME"] = "AIA_3"  # read as an aligned cutout is
+    app.data_collection.append(aia)
+    north_up_iris(aia, app.data_collection)
+    [viewer] = app.viewers[0]
+    assert np.isfinite(viewer.state.layers[1].get_sliced_data()).any()
+
+
 @pytest.mark.remote_data
 def test_north_up_shows_an_aia_cutout_north_up(irispy_data):
     [path] = [p for p in irispy_data("iris_l2_20250519_165924_3640107442_cutout_SDO.tar.gz") if p.endswith("_171.fits")]

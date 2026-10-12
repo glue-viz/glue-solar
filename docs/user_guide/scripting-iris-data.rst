@@ -35,6 +35,22 @@ into the window from the day before)::
     files = find_observation_files("/data/IRIS", "2021-09-05T00:30", "2021-09-05T00:30", pattern="*_raster_t*")
     data_collection.extend(raster_data(files, ["Si IV 1403"]))
 
+Linking
+-------
+
+Data added in the terminal are not linked. ``link_hpc`` gives the links of their helioprojective
+longitude and latitude that the observation browser makes, those of the IRIS rasters and slit-jaw
+images and of data made from them, and those of other datasets, such as an aligned AIA cutout, a
+Hinode/SOT cube, a sunpy map or an SST cube, only where ``others`` names them; it leaves out the
+links already made. ``others=data_collection`` links every dataset, as "IRIS: link helioprojective
+coordinates" does, though only the menu entry links them again once a dataset is removed (see
+:ref:`Linking <glue_solar_users_guide_iris_linking>`)::
+
+    from glue_solar.sources.loaders.iris import link_hpc
+
+    data_collection.add_link(link_hpc(data_collection))  # the IRIS data
+    data_collection.add_link(link_hpc(data_collection, others=[aia]))  # and an AIA cutout, aia
+
 Coordinates and times
 ---------------------
 

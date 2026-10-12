@@ -144,8 +144,9 @@ nearest the time of the point's exposure or raster step (mid-raster before there
 "Time master" in the "Coordinate" menu of a slit-jaw viewer to make it the master instead; the
 raster then moves to the exposure, or on a stack the scan, nearest each frame, keeping the slit and
 the raster step. An Image viewer of an aligned AIA cutout or Hinode/SOT cube of the observation,
-which the quicklook gives no panel, follows the time and can be its master as a slit-jaw viewer
-does. The master rules:
+which the quicklook gives no panel and leaves unlinked (see :ref:`Linking
+<glue_solar_users_guide_iris_linking>`), follows the time and can be its master as a slit-jaw viewer
+does, linked or not. The master rules:
 while there is a point, moving the raster's exposure or scan slider by hand, or clicking another
 exposure or scan, snaps the raster back to the one matching the master's frame (after "Clear
 point" it keeps a hand-moved exposure or scan, as below), while a slit-jaw follower moved by hand
@@ -498,7 +499,8 @@ NaN, with ``Time`` NaT, ``Exposure time`` NaN and the missing-data mask 1. The 1
   ``meta['time_step']`` adding the step in seconds, and its coordinates: along the regridded axis,
   those at each pixel's time, so that a slit-jaw image's time coordinate is regular, and those of
   the last time for a last pixel past it. Its helioprojective coordinates are linked with the other
-  IRIS datasets, no viewer opens, and data read from their files as they are viewed (see
+  IRIS datasets (an AIA cutout's or SOT cube's only on request, as its original's), no viewer opens,
+  and data read from their files as they are viewed (see
   :ref:`Memory and open files <glue_solar_users_guide_iris_memory_and_open_files>`) stay there.
 - In an Image viewer, a regridded sit-and-stare raster's time axis is labelled "Time (2.89 s per
   pixel)", with the UTC range of its exposures on a second line, and its ticks are pixel numbers. It
@@ -529,11 +531,11 @@ and its ``Exposure time`` the mean of the bin's exposure times, NaN where one is
 metadata, ``meta['rebinned']`` adding the bins, but not a slit-jaw image's per-frame pointing, so a
 quicklook draws no slit on it and its "Frame time" tooltip gives none; a dataset regridded on time
 has its ``meta['time_step']``, the seconds per pixel of its axis label, multiplied by the bin along
-time. Its helioprojective coordinates are linked with the other IRIS datasets, it follows and leads
-the time sync as its original does, and no viewer opens. Its values are held in memory, in float32,
-and read from the original a slab at a time, a stack's a bin of scans at a time: a 2 by 2 rebin
-of 3610108077's full Si IV 1403 window, 320 steps by 548 slit pixels by 337 wavelengths, takes 0.3
-to 0.5 s.
+time. Its helioprojective coordinates are linked with the other IRIS datasets (an AIA cutout's or
+SOT cube's only on request, as its original's), it follows and leads the time sync as its original
+does, and no viewer opens. Its values are held in memory, in float32, and read from the original a
+slab at a time, a stack's a bin of scans at a time: a 2 by 2 rebin of 3610108077's full Si IV 1403
+window, 320 steps by 548 slit pixels by 337 wavelengths, takes 0.3 to 0.5 s.
 
 - A rebinned raster window's line moments are those of each bin's mean: a bin with a saturated
   sample is +Inf, saturated, and error maps are refused, as irispy would give each bin the noise of

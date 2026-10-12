@@ -98,11 +98,11 @@ are copied into a temporary file (a NumPy memmap) instead. Its leading ``Scan`` 
 selects the original raster scan, and its ``Time`` component contains the exact acquisition time of
 every pixel. Each scan keeps its own coordinates, so a pixel's helioprojective longitude and
 latitude are those its scan gives it, and placing a stack on other data takes a scan as well: the
-links (see `Linking`_) place it on each slit-jaw image, AIA cutout and raster, not on another stack,
-with the scan nearest the time of each frame, exposure or step, each scan timed by its middle raster
-step, however far; a frame without a time, such as a gap of data regridded on time, gets none. A
-selected window containing one scan loads normally as a 3D dataset and also exposes its exact
-per-step ``Time`` values.
+links (see `Linking`_) place it on each slit-jaw image, raster and linked AIA cutout or SOT cube,
+not on another stack, with the scan nearest the time of each frame, exposure or step, each scan
+timed by its middle raster step, however far; a frame without a time, such as a gap of data
+regridded on time, gets none. A selected window containing one scan loads normally as a 3D dataset
+and also exposes its exact per-step ``Time`` values.
 
 Every raster, stack, slit-jaw and AIA dataset has these components: the data (named after the
 dataset), ``Time`` and ``Exposure time`` (a stack lists ``Exposure time`` before ``Time``),
@@ -137,7 +137,8 @@ narrowband magnetograms (Stokes V/I × 4096), and G, km/s, degrees or dimensionl
 maps, which have no ``<label> DN/s``. Their values are float32, NaN where missing, and no other
 value is fill, as negative fields are data. The quicklook gives them no panel; an Image viewer of
 one follows its observation's time and can be its master, as one of an AIA cutout does (see
-:ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`).
+:ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). Like AIA cutouts, they are linked to
+the IRIS data only on request (see `Linking`_).
 
 Slit-jaw images open in sunpy's IRIS colormap of their channel, raster windows and stacks in its
 FUV or NUV colormap by their detector (``TDETn``), AIA cutouts in sunpy's AIA colormap of their
@@ -333,13 +334,15 @@ Linking
 -------
 
 The observation browser links the ``Helioprojective Longitude`` and ``Helioprojective Latitude`` of
-every slit-jaw image, raster, aligned AIA cutout and SOT cube it loads, so selections carry over
-between them, and a quicklook and the analyses link the IRIS data they open or make. Data from
-outside the IRIS observations, such as a file loaded as a sunpy Map (see
+every slit-jaw image and raster it loads, so selections carry over between them, and a quicklook and
+the analyses link the IRIS data they open or make. An observation's aligned AIA cutouts and SOT
+cubes, and data from outside the IRIS observations, such as a file loaded as a sunpy Map (see
 :ref:`glue_solar_users_guide_loading_aia_and_hmi_files`), an SST cube or any other FITS file, are
 linked to IRIS data only on request: choose "IRIS: link helioprojective coordinates" from the
 "Plugins" menu, which links every loaded dataset with helioprojective coordinates, a map's degrees
-converted to arcsec, as well as IRIS data opened with "File → Open Data Set". Glue's own WCS
+converted to arcsec, as well as IRIS data opened with "File → Open Data Set". Until then an AIA
+cutout or SOT cube still follows its observation's time, which goes by its OBSID and start time,
+not by links, but a region drawn on it or on the IRIS data does not reach the other. Glue's own WCS
 autolinking links maps to each other. Once a map is linked, every quicklook panel and spectrum works
 through its coordinates too. A linked SST cube's viewer shows the IRIS data's regions and crosshair,
 and a region drawn on the cube selects the IRIS pixels at its place in the cube's scan nearest each

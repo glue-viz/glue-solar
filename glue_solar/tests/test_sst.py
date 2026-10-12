@@ -44,11 +44,11 @@ from glue_solar.quicklook import (
     quicklook,
 )
 from glue_solar.sources.iris import iris_quicklook, link_iris, quicklook_iris, quicklook_sst
-from glue_solar.sources.loaders.iris import WCS_LOCK, _LockedWCS, image_data, keep_hpc_linked, raster_data
+from glue_solar.sources.loaders.iris import WCS_LOCK, _LockedWCS, image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.loaders.scan import scan_directory
 from glue_solar.sources.sst import _Cube, _line_core, _LockedTabularWCS, _TabularWCS, sst_data
-from glue_solar.tests.helpers import mouse_click, press, select_point
-from glue_solar.tests.test_linking import RASTER, SJI, _real
+from glue_solar.tests.helpers import linked_data, mouse_click, press, select_point
+from glue_solar.tests.test_linking import RASTER, SJI, _real, _sunpy_map
 from glue_solar.tests.test_quicklook import (
     bare_app_for,
     browse,
@@ -459,6 +459,22 @@ def _sst_pixels(coord, lon, lat, when, shape, scale, roll):
     du, dv = lon - coord[scan, 0, :, :, 0].mean((-1, -2)), lat - coord[scan, 0, :, :, 1].mean((-1, -2))
     cos, sin = np.cos(np.deg2rad(roll)), np.sin(np.deg2rad(roll))
     return (cos * du + sin * dv) / scale + (columns - 1) / 2, (cos * dv - sin * du) / scale + (rows - 1) / 2
+
+
+def test_link_hpc_links_a_map_or_an_sst_cube_only_when_named(tmp_path, sns):
+    # 226-3: called directly, link_hpc links IRIS data only, as loading data does, and the datasets ``others`` names
+    sji, raster = sns
+    lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)
+    aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia", obstime=sji.meta["DATE_OBS"])
+    write_sst_cube(tmp_path / "cube.fits")
+    cube = sst_data(tmp_path / "cube.fits")
+    dc = DataCollection([aia, cube, sji, raster])
+    dc.add_link(link_hpc(dc))
+    assert linked_data(dc) == {sji, raster}
+    assert type(aia.coords) is WCS  # nor locked
+    assert type(cube.coords) is _TabularWCS
+    dc.add_link(link_hpc(dc, others=[aia, cube]))
+    assert linked_data(dc) == {sji, raster, aia, cube}
 
 
 @pytest.mark.parametrize("stokes", [1, 4])
