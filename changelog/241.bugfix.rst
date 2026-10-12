@@ -1,0 +1,1 @@
+A session restore that fails no longer keeps the raster windows it had read, and a session holding the same windows twice reads each file once per copy rather than once per window.
