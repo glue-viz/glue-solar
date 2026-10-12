@@ -19,6 +19,8 @@ from glue.core.link_helpers import LinkSame
 from glue.core.link_manager import is_equivalent_cid
 from glue.core.message import (
     ComputationEndedMessage,
+    DataCollectionAddMessage,
+    DataCollectionDeleteMessage,
     EditSubsetMessage,
     SubsetCreateMessage,
     SubsetDeleteMessage,
@@ -77,13 +79,16 @@ def observation_key(data):
     The ``(OBSID, STARTOBS)`` pair that identifies the IRIS observation ``data`` belongs to, or None.
 
     The OBSID alone names an observing program, which runs many times, so both are needed. An SST cube's is that of the
-    IRIS observation it is linked to (`~glue_solar.sources.loaders.iris.link_hpc`), else ``('SST', its day)``: the SST
-    cubes of a day share one time sync.
+    IRIS observation it is linked to (`~glue_solar.sources.loaders.iris.link_hpc`), else the one it shares with the SST
+    cubes whose scan times overlap its own (`Coordinator`), or before its collection has a coordinator ``('SST',
+    DATE-OBS)``.
     """
     meta = getattr(data, "meta", None) or {}
     obsid, start = meta.get("OBSID"), meta.get("STARTOBS")
     if _role(data) == "sst":
-        obsid, start = meta.get("IRIS observation") or ("SST", str(meta.get("DATE-OBS", ""))[:10])
+        obsid, start = (
+            meta.get("IRIS observation") or vars(data).get("_solar_time_key") or ("SST", meta.get("DATE-OBS"))
+        )
     if obsid is None or start is None:
         return None
     try:
@@ -315,7 +320,8 @@ class Coordinator(HubListener):
     quicklook owns follow whichever point is followed. A click on a quicklook's slit-jaw image moves
     its point to the raster there (`_to_raster`). A datetime Scatter plot shows the time master's
     exposure (`_mark`). Each data collection has one coordinator (`coordinator`), and the
-    ``solar:coordinate`` tool registers every Image viewer with it.
+    ``solar:coordinate`` tool registers every Image viewer with it. It gives the SST cubes their time keys as they come
+    and go (`_share_times`).
     """
 
     def __init__(self, data_collection):
@@ -351,6 +357,32 @@ class Coordinator(HubListener):
         hub.subscribe(
             self, SubsetUpdateMessage, handler=self._subset_changed, filter=lambda m: m.attribute == "subset_state"
         )
+        for message in (DataCollectionAddMessage, DataCollectionDeleteMessage):
+            hub.subscribe(self, message, handler=self._share_times)
+        self._share_times()
+
+    def _share_times(self, *_):
+        """
+        Give each SST cube of the collection its time key (`observation_key`): cubes whose scan times overlap, or overlap
+        those of one that does, share ``('SST', the first of their times)``, so co-temporal CRISP and CHROMIS cubes keep
+        one time and a cube from another part of the day its own (230-9). A linked cube's times count too, though it
+        takes its IRIS observation's key.
+        """
+        spans = []
+        for data in self.data_collection:
+            if _role(data) == "sst" and _timed(data):
+                index = (slice(None), *[0] * (data.ndim - 4), slice(None), 0, 0)  # every scan and tuning
+                times = data[data.find_component_id("Time"), index]
+                spans.append((times.min(), times.max(), data))
+        key = end = None
+        for first, last, cube in sorted(spans, key=lambda span: span[0]):
+            if end is None or first > end:  # after every cube before it
+                key, end = ("SST", first), last
+            end = max(end, last)
+            old = observation_key(cube)
+            cube._solar_time_key = key
+            if self.masters.get(old) is cube:  # a chosen time master stays one under its group's new key
+                self.masters[observation_key(cube)] = self.masters.pop(old)
 
     @property
     def point(self):
@@ -1577,8 +1609,9 @@ def _fill_sst(app, tab, cube):
     map's wavelength or band. The point, a new subset group 'Point' that is the edit subset while the tab is shown,
     starts at the map's centre in Stokes I and the first scan, or the scan nearest the time of its observation's time
     master, such as another cube's in its own quicklook (`Coordinator.following`), with the Pixel tool on the map. The
-    spectra and the light curve are subset groups that follow it (`_Cut`): no panel profiles the whole cube. The Point
-    window and the Panels list sit below, as in IRIS's quicklook.
+    spectra and the light curve are subset groups that follow it (`_Cut`): no panel profiles the whole cube. The image
+    panels show Q, U and V with limits of their own (`_stokes_limits`). The Point window and the Panels list sit below,
+    as in IRIS's quicklook.
 
     Returns
     -------
@@ -1601,6 +1634,8 @@ def _fill_sst(app, tab, cube):
     for role, (x, y, tuning, name, aspect) in panels.items():
         at = (*start[:w], tuning, *start[w + 1 :])
         viewers[role] = _image(app, QuicklookImageViewer, cube, x, y, at, f"{line} {name}", aspect)
+        if w == 2:
+            viewers[role].state.add_callback("slices", partial(_stokes_limits, viewers[role].state.layers[0]))
     viewers["wing"]._solar_wing = True  # its wavelength stays (`_wing`)
     QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # and after the last (see _image)
     slices = [slice(i, i + 1) for i in start]
@@ -1636,6 +1671,28 @@ def _fill_sst(app, tab, cube):
     QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # let the tab take its final size
     _arrange(tab, viewers)
     return viewers
+
+
+def _stokes_limits(layer, slices):
+    """
+    Give ``layer``, an SST quicklook image panel's of a cube with Stokes parameters, the colour limits of the Stokes
+    parameter of ``slices``: glue's 99.5% over the whole cube for I, and for Q, U and V limits symmetric about 0, the
+    99.5th percentile of the parameter's absolute values in 16 planes of it, as glue's sample is taken
+    (`~glue_solar.sources.sst._Cube`), where glue's over the whole cube, I's values mostly, showed them flat (230-6);
+    with 'Per-frame limits' on, glue's 99.5% of each frame for all four.
+    """
+    # ponytail: set as the Stokes parameter changes, over limits chosen in the style editor, and I takes glue's 99.5%
+    # again; keep each parameter's last limits if that matters
+    cube, stokes = layer.layer, slices[1]
+    if stokes == vars(layer).get("_solar_stokes", 0) or layer.attribute is not cube.main_components[0]:
+        return
+    layer._solar_stokes = stokes
+    if stokes == 0 or not layer.stretch_global:
+        layer.percentile = PERCENTILE
+        return
+    limit = np.nanpercentile(abs(cube[layer.attribute, cube._sample(10_000, stokes)]), PERCENTILE)
+    with delay_callback(layer, "v_min", "v_max"):
+        layer.v_min, layer.v_max = -limit, limit
 
 
 def _viewers(viewers):

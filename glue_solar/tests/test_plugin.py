@@ -74,11 +74,13 @@ from glue_solar.sources.bursts import bursts_iris
 from glue_solar.sources.calibration import radiometric_calibration_iris, remove_dust_iris
 from glue_solar.sources.doppler import doppler_iris
 from glue_solar.sources.iris import (
+    browse_iris,
     help_iris,
     iris_quicklook,
     is_iris_fits,
     link_iris,
     quicklook_iris,
+    quicklook_sst,
     shift_pointing_iris,
 )
 from glue_solar.sources.line_ratio import line_ratio_iris
@@ -96,11 +98,15 @@ from glue_solar.tools import PathData, sky_length
 def test_setup_registers_hooks():
     glue_solar.setup()
     glue_solar.setup()  # glue calls it once; tests and reloads must not duplicate the tool
-    assert "IRIS: browse observations…" in [label for label, _ in menubar_plugin]
-    assert ("IRIS: link helioprojective coordinates", link_iris) in list(menubar_plugin)
-    assert ("IRIS: quicklook…", quicklook_iris) in list(menubar_plugin)
-    assert ("IRIS: user guide and issues", help_iris) in list(menubar_plugin)
-    assert ("IRIS: restore last session", glue_solar.restore_last_session) in list(menubar_plugin)
+    # the Plugins menu's entries, as they register; SST's quicklook its own (230-13)
+    assert [(label, callback) for label, callback in menubar_plugin if callback.__module__[:10] == "glue_solar"] == [
+        ("IRIS: browse observations…", browse_iris),
+        ("IRIS: link helioprojective coordinates", link_iris),
+        ("IRIS: quicklook…", quicklook_iris),
+        ("SST: quicklook…", quicklook_sst),
+        ("IRIS: user guide and issues", help_iris),
+        ("IRIS: restore last session", glue_solar.restore_last_session),
+    ]
     assert startup_action.members["iris_quicklook"] is iris_quicklook
     # the data actions by data kind: the spectral analyses, the image actions, then the coordinates
     ours = [(item.label, item.callback) for item in layer_action if item.callback.__module__[:10] == "glue_solar"]

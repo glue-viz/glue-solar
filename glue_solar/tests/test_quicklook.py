@@ -2930,7 +2930,7 @@ def test_startup_shows_the_first_raster_file(qtbot, monkeypatch, irispy_test_fil
 def test_an_observation_of_sot_alone_opens_in_an_image_viewer(qtbot, monkeypatch, tmp_path, irispy_test_files):
     from glue.core.data_factories import load_data
 
-    from glue_solar.sources.iris import iris_quicklook, quicklook_iris
+    from glue_solar.sources.iris import iris_quicklook, quicklook_iris, quicklook_sst
 
     [path] = [p for p in irispy_test_files if "_Gband4305_FG_" in p.name]
     app = bare_app_for(qtbot, monkeypatch)
@@ -2945,7 +2945,9 @@ def test_an_observation_of_sot_alone_opens_in_an_image_viewer(qtbot, monkeypatch
     monkeypatch.setattr(QtWidgets.QMessageBox, "information", lambda parent, title, text: messages.append(text))
     quicklook_iris(app.session, app.data_collection)
     assert app.tab_count == 1
-    assert messages == ["No IRIS observation with a raster or slit-jaw image, nor SST cube, is loaded."]
+    assert messages == ["No IRIS observation with a raster or slit-jaw image is loaded."]
+    quicklook_sst(app.session, app.data_collection)  # 'SST: quicklook…'
+    assert messages[1:] == ["No SST cube is loaded."]
     with pytest.raises(ValueError, match="has no raster or slit-jaw image for a quicklook"):
         quicklook(app, list(app.data_collection))
     assert app.tab_count == 1

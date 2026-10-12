@@ -7,10 +7,11 @@ User Guide
 In glue, "IRIS: user guide and issues" in the "Plugins" menu opens this guide, and glue-solar's
 issues on GitHub to report a problem, in the web browser.
 
-glue-solar's five entries in the "Plugins" menu and its data actions in the data collection's
-right-click menu, which the "Data Manager" menu repeats, start with "IRIS: ". The data actions are
-listed by data kind, the spectral analyses first, then the image actions and the coordinates, and
-each is offered only for data it takes; one that takes few kinds names them, as
+glue-solar's six entries in the "Plugins" menu and its data actions in the data collection's
+right-click menu, which the "Data Manager" menu repeats, start with "IRIS: ", but for
+"SST: quicklook…", which opens SST cubes (see :ref:`glue_solar_users_guide_loading_sst_cubes`). The
+data actions are listed by data kind, the spectral analyses first, then the image actions and the
+coordinates, and each is offered only for data it takes; one that takes few kinds names them, as
 "IRIS: remove dust (SJI)" does. The entries in glue-solar's own toolbar menus have no prefix.
 
 .. toctree::

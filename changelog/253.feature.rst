@@ -1,0 +1,1 @@
+The SST quicklook shows Stokes Q, U and V with limits symmetric about 0; SST cubes share a time only when their scans overlap; 'SST: quicklook…' opens SST cubes; and the line core is the archive line's air wavelength without the gravitational redshift.

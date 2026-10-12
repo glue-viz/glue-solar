@@ -62,8 +62,9 @@ write down whether it does, and close it with either button.
    browse observations…".
 
 7. Run ``glue`` without files. The "Plugins" menu, on macOS in the menu bar at the top of the screen,
-   has "IRIS: browse observations…", "IRIS: link helioprojective coordinates" and "IRIS:
-   quicklook…". "IRIS: quicklook…" says "No IRIS observation is loaded."
+   has "IRIS: browse observations…", "IRIS: link helioprojective coordinates", "IRIS: quicklook…"
+   and "SST: quicklook…". "IRIS: quicklook…" says "No IRIS observation with a raster or slit-jaw image
+   is loaded.", and "SST: quicklook…" "No SST cube is loaded."
 
 8. Run ``glue $T/sns/*.fits $T/raster/iris_l2_20140329_140938_3860258481_raster/*_r00000_test.fits``
    and choose "IRIS: quicklook…" in the "Plugins" menu. A dialog asks for the "Observation:" and

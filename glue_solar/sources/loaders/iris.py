@@ -875,7 +875,8 @@ def link_hpc(data_collection, others=None):
     ``DATEREF``, which its coordinates place in the scan nearest it, and the time axis of a slit-jaw image or AIA cutout
     takes the time of each of the cube's scans, at its line core, so that a point on the cube reaches the frame
     nearest it. The cube then shares the time sync of the IRIS observation whose times come nearest its middle scan's,
-    as its ``meta['IRIS observation']``, ``(OBSID, STARTOBS)`` (`glue_solar.quicklook.observation_key`).
+    as its ``meta['IRIS observation']``, ``(OBSID, STARTOBS)`` (`glue_solar.quicklook.observation_key`), which each call
+    drops from a cube with no such link, as once the IRIS data are removed, so that it shares its SST cubes' again.
 
     Returns
     -------
@@ -926,6 +927,9 @@ def link_hpc(data_collection, others=None):
             when = _times(data, 0)
             nearby = np.where(np.isnat(when), np.nan, nearest(when, times)[0])  # none for a frame without a time
             links.append(ComponentLink([frame], scan, using=_ScanAt(nearby)))
+    for data in data_collection:
+        if _role(data) == "sst":
+            data.meta.pop("IRIS observation", None)  # set again below while linked
     for cube in cubes:
         seconds, scan = cube.world_component_ids[0], cube.pixel_component_ids[0]  # its time since DATEREF, and scan
         scans = _times(cube, None)  # at its line core

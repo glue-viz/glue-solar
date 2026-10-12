@@ -45,14 +45,17 @@ Line core
 
 The cube's line core is the tuning nearest its line: of the lines of the archive's cubes (Ca II K and
 H, H-beta, Fe I 617.33, 630.15 and 630.25 nm, H-alpha and Ca II 854.21 nm, at their NIST air
-wavelengths, redshifted 0.636 km/s by the Sun's gravity as the Sun shows them), the one within the
-cube's tunings nearest the header's ``WAVELNTH``, which is the prefilter's, not the line's; with none
-within them, the tuning nearest ``WAVELNTH``. Counting from 0, it is tuning 10 of 21 (854.2121 nm) on
-obs 492 Ca II 8542, the middle one, tuning 5 of 11 (630.2483 nm) on its Fe I 6302, the middle one too,
-and tuning 7 of 55 (393.3675 nm, Ca II K) on obs 495 Ca II H & K, whose ``WAVELNTH``, 395.0 nm, lies
-between Ca II K and H, nearer K, and whose middle tuning is in Ca II H. The quicklook opens its map
-there, the time sync and the links to IRIS data time each scan there, and a linked IRIS dataset,
-which has no wavelength, reaches the cube there (see `Linking to IRIS data`_).
+wavelengths, without the Sun's gravitational redshift), the one within the cube's tunings nearest the
+header's ``WAVELNTH``, which is the prefilter's, not the line's; with none within them, the tuning
+nearest ``WAVELNTH``. Of two tunings as near to 0.05 pm, half the 0.1 pm the lines are given to, it is
+the one nearer the middle tuning. Counting from 0, it is tuning 10 of 21 (854.2121 nm) on obs 492
+Ca II 8542, the middle one, 3.0 pm from Ca II 854.2091 nm as tuning 9 is; tuning 5 of 11
+(630.2483 nm) on its Fe I 6302, the middle one too; tuning 6 of 14 (617.3325 nm) on its Fe I 6173;
+tuning 7 of 55 (393.3675 nm, Ca II K) on obs 495 Ca II H & K, whose ``WAVELNTH``, 395.0 nm, lies
+between Ca II K and H, nearer K, and whose middle tuning is in Ca II H; and tuning 5 of 11
+(656.2799 nm) on obs 171 H-alpha. The quicklook opens its map there, the time sync and the links to
+IRIS data time each scan there, and a linked IRIS dataset, which has no wavelength, reaches the cube
+there (see `Linking to IRIS data`_).
 
 Cavity error
 ------------
@@ -79,10 +82,11 @@ clicked and is placed at the cube's first tuning, reaches the raster pixel at it
 pointing, and in the slit-jaw frame nearest that scan, the pixel there: their viewers show its
 crosshair, and a Profile of the point their spectrum there. A scan outside the slit-jaw image's
 frames, such as one of a cube from another day, reaches no frame. The cube then also shares the time
-of the IRIS observation whose times come nearest its middle scan (see `The SST quicklook`_). The cube's
-coordinates have a lock of their own, as its viewers draw them while its spectra are computed on other
-threads; only once linked are its links to IRIS data made behind the lock glue-solar keeps IRIS data's
-behind, so until then its viewers never wait for IRIS data's spectrum threads.
+of the IRIS observation whose times come nearest its middle scan (see `The SST quicklook`_), until
+those IRIS data are removed. The cube's coordinates have a lock of their own, as its viewers draw them
+while its spectra are computed on other threads; only once linked are its links to IRIS data made
+behind the lock glue-solar keeps IRIS data's behind, so until then its viewers never wait for IRIS
+data's spectrum threads.
 
 The SST quicklook
 -----------------
@@ -93,8 +97,8 @@ A CRISP or CHROMIS cube opens in a quicklook of its own, in a new tab named afte
 - from the observation browser, which lists the SST archive's cubes (see
   :ref:`glue_solar_users_guide_loading_iris_level_2_raster_and_sji_files`), with "Open quicklook"
   ticked;
-- for a cube already loaded, with "IRIS: quicklook…" in the "Plugins" menu, which asks which when
-  several cubes or IRIS observations are loaded;
+- for a cube already loaded, with "SST: quicklook…" in the "Plugins" menu, which asks which when
+  several are loaded;
 - from the command line, with ``glue --startup=iris_quicklook`` followed by the cubes' files;
 - from glue's Terminal, with ``glue_solar.quicklook.quicklook(application, [cube])``.
 
@@ -136,11 +140,19 @@ thread; the panels' own redraws are faster without axes.
 
 Each scan of a mosaic, such as the archive's obs 492 and 495, is another pointing: the point is a
 pixel, which stays put from scan to scan, so the light curve and wavelength against scan follow that
-pixel, not a place on the Sun. The maps take 99.5 % colour limits over the whole cube, Stokes I, Q, U
-and V together, so the Q, U and V maps show flat at first: "Per-frame limits" in a map's "View" menu
-scales each frame on its own. The spectra fit their own ranges.
+pixel, not a place on the Sun. The image panels show Stokes I with glue's 99.5 % colour limits over
+the whole cube, and Q, U and V, as the Stokes slider moves to them, with limits symmetric about 0,
+the middle of the colour map: the 99.5th percentile of that parameter's absolute values, from 16 of
+its planes sampled as the colour limits are (see `What loads`_), the same at every scan and tuning.
+On obs 492 Ca II 8542 these are ±2.2, ±1.8 and ±3.6 × 10⁻¹⁰ in the cube's unit. A limit or
+percentile chosen in a layer's style editor holds until the Stokes slider moves. With "Per-frame
+limits" on, in a map's "View" menu, each frame takes glue's 99.5 % of its own values instead, Q, U
+and V's from the next move of the Stokes slider. The spectra fit their own ranges.
 
-The cubes of a day share one time, a scan timed at its line core, and the quicklook shown leads
+Cubes whose scan times overlap share one time, a scan timed at its line core, such as the CRISP and
+CHROMIS cubes of one morning, while a cube from another part of the day keeps its own; a cube that
+overlaps two cubes which do not overlap each other puts all three in one time. The archive's obs
+492, 495 and 498 cubes share one time, as do those of obs 167 and 171. The quicklook shown leads
 it: its cube is the time master, unless one is chosen with "Time master" in the "Coordinate" menu.
 Showing another cube's quicklook moves that cube to its scan nearest the time the last one was left
 at, unless it is within half the longer of the two cubes' times between scans already, and a new
@@ -148,11 +160,12 @@ quicklook starts there; a quicklook not shown keeps its time until it is shown. 
 data, the cube shares the time of that IRIS observation instead: the IRIS quicklook, shown, moves its
 raster to the exposure nearest the cube's scan in the same way, and the cube moves to the scan nearest
 the IRIS time when its quicklook is shown again, each when the other's time falls within its scans or
-exposures.
+exposures. Once those IRIS data are removed, the cube shares its overlapping cubes' time again.
 
 A saved session opens the quicklook again with its point and its time master, the spectra and the
 light curve following the point again; as in the IRIS quicklook, the Point window, the Panels list,
-the lines and the panels turned off are not restored.
+the lines and the panels turned off are not restored, nor are Q, U and V's own limits as the Stokes
+slider moves.
 
 On obs 492 Ca II 8542, 9.9 GB with four Stokes parameters, the quicklook opens in 2.4 s from a cold
 disk, reading 0.2 GB, and in 2.0 s once read. A scan or Stokes step takes 0.6 s cold, as the virtual
