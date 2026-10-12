@@ -56,6 +56,6 @@ Removing dust is offered only for a slit-jaw image, and the calibration only for
 stack that is not calibrated already: irispy has no radiometric calibration of slit-jaw images. Nor
 is it offered for a stack with a scan whose ``CDELT1`` to ``CDELT3``, the pixel sizes of its
 coordinates, differ from its first scan's, which give every scan's spectral dispersion and solid
-angle: ``radiometric_calibration`` refuses one, naming the first scan that differs. The scans of
-one observation that the observation browser stacks share them: all 99 of OBSID 3602506433, both of
+angle: ``radiometric_calibration`` refuses one, naming the first scan that differs. The scans of one
+observation, which the observation browser stacks, share them: all 99 of OBSID 3602506433, both of
 4000005156 and the X1 flare's rasters r00172-r00174 of 3860258481, in every window.
