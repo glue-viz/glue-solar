@@ -29,7 +29,7 @@ from glue.core.component import DerivedComponent
 from glue.core.data_factories import load_data
 from glue.core.link_helpers import LinkSame
 from glue.core.roi import RectangularROI
-from glue.core.subset import RoiSubsetState
+from glue.core.subset import RoiSubsetState, SliceSubsetState
 from glue.core.units import UnitConverter
 from glue.plugins.tools.path_slicer.path_sliced_data_links import PathRelativeLink
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
@@ -2378,9 +2378,14 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     state = viewer.state
     whole, curve, spectrum = state.layers
     state.x_att = raster.pixel_component_ids[0]  # the exposures
-    spectrum.visible = False  # left out, and not named
-    path = tmp_path / "profiles.ecsv"
-    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
+    spectrum.visible = False  # left out, and named
+    path, suggested = tmp_path / "profiles.ecsv", []
+
+    def dialog(parent, caption, start, filters):
+        suggested.append(os.path.basename(start))
+        return str(path), ""
+
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", dialog)
     [tool] = [tool for tool in viewer.toolbar.tools["save"].subtools if tool.tool_id == "solar:save_profile"]
     save = viewer.toolbar.widgetForAction(viewer.toolbar.actions["save"]).menu()  # after glue's entries
     assert [entry.text() for entry in save.actions()][-2:] == ["Save Python script to reproduce plot", tool.action_text]
@@ -2389,42 +2394,67 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
         tool.activate()
         return Table.read(path, format="ascii.ecsv")
 
-    def check(table, i, layer):
-        np.testing.assert_array_equal(table[f"x{i}"], layer.profile[0])
-        np.testing.assert_array_equal(table[f"y{i}"], layer.profile[1])
-        assert (table[f"x{i}"].description, table[f"y{i}"].description) == (state.x_att.label, layer.layer.label)
+    def check(table, name, layer):
+        x, y = table[f"{name} x"], table[f"{name} y"]
+        np.testing.assert_array_equal(x, layer.profile[0])
+        np.testing.assert_array_equal(y, layer.profile[1])
+        assert (x.description, y.description) == (state.x_att.label, layer.layer.label)
+
+    def sky(view):  # lon and lat, in arcsec
+        return [raster[cid, view] for cid in raster.world_component_ids[:2]]
 
     table = saved()
-    assert table.colnames == ["x1", "y1", "time1", "x2", "y2", "time2"]
-    check(table, 1, whole)
-    check(table, 2, curve)
+    label = raster.label
+    assert suggested[-1] == f"{raster.meta['OBSID']} maximum profiles.ecsv"
+    assert table.colnames == [f"{label} {kind}" for kind in ("x", "y", "time")] + [
+        f"Curve {kind}" for kind in ("x", "y", "time", "lon", "lat")
+    ]
+    check(table, label, whole)
+    check(table, "Curve", curve)
     times = raster[raster.id["Time"]]
-    assert isinstance(table["time2"], Time)
-    np.testing.assert_array_equal(table["time2"].datetime64, times[:, 5, 10])
-    np.testing.assert_array_equal(table["time1"].datetime64, times[:, 0, 0])
-    assert table["y2"].unit == raster.get_component(raster.main_components[0]).units
-    assert table["y2"].meta["pixel"] == {"Pixel Axis 1 [y]": 5, "Pixel Axis 2 [x]": 10}
-    sky = [float(raster[cid, (0, 5, 10)]) for cid in raster.world_component_ids[:2]]  # at the first exposure
-    assert [table["y2"].meta[name].to_value(u.arcsec) for name in ("lon", "lat")] == pytest.approx(sky)
+    assert isinstance(table["Curve time"], Time)
+    np.testing.assert_array_equal(table["Curve time"].datetime64, times[:, 5, 10])
+    np.testing.assert_array_equal(table[f"{label} time"].datetime64, times[:, 0, 0])
+    assert table["Curve y"].unit == raster.get_component(raster.main_components[0]).units
+    assert table["Curve y"].meta["pixel"] == {"Pixel Axis 1 [y]": 5, "Pixel Axis 2 [x]": 10}
+    lon, lat = sky((slice(None), 5, 10))  # each exposure's own pointing
+    assert np.ptp(lon) > 0
+    np.testing.assert_allclose(table["Curve lon"], lon)
+    np.testing.assert_allclose(table["Curve lat"], lat)
+    assert table["Curve lon"].unit == table["Curve lat"].unit == u.arcsec
     assert table.meta == {"function": "maximum", **{key: str(raster.meta[key]) for key in ("OBSID", "STARTOBS")}}
-    assert app.statusBar().currentMessage() == ""
+    assert app.statusBar().currentMessage() == "Left out, hidden: Spectrum"
     # the spectrum, in km/s from Si IV 1402.77 Å, and the curve, one wavelength wide, is left out
     spectrum.visible = True
     state.x_att = raster.world_component_ids[2]
     state.x_display_unit = "km/s"
     state.function = "mean"
     table = saved()
+    assert suggested[-1] == f"{raster.meta['OBSID']} mean profiles.ecsv"
     assert app.statusBar().currentMessage() == "Left out, without a profile: Curve"
-    assert table.colnames == ["x1", "y1", "x2", "y2"]  # no times along the wavelength
-    check(table, 1, whole)
-    check(table, 2, spectrum)
-    assert table["x2"].unit == "km/s"
-    assert table["y2"].meta["pixel"] == {"Pixel Axis 0 [z]": 3, "Pixel Axis 1 [y]": 5}
+    assert table.colnames == [f"{label} x", f"{label} y", *(f"Spectrum {kind}" for kind in ["x", "y", "lon", "lat"])]
+    check(table, label, whole)
+    check(table, "Spectrum", spectrum)
+    assert table["Spectrum x"].unit == "km/s"
+    assert table["Spectrum y"].meta["pixel"] == {"Pixel Axis 0 [z]": 3, "Pixel Axis 1 [y]": 5}
+    lon, lat = sky((3, 5, slice(None)))  # the same at each wavelength
+    np.testing.assert_allclose(table["Spectrum lon"], lon)
+    np.testing.assert_allclose(table["Spectrum lat"], lat)
     assert table.meta["function"] == "mean"
-    state.normalize = True  # as drawn
+    state.normalize = True  # as drawn, beside the values before
+    whole.visible = False
     table = saved()
-    np.testing.assert_allclose(table["y1"], whole.normalize_values(whole.profile[1]))
-    assert table["y1"].unit is None
+    assert app.statusBar().currentMessage() == f"Left out, hidden: {label}; without a profile: Curve"
+    assert table.colnames == [f"Spectrum {kind}" for kind in ["x", "y", "y unnormalized", "lon", "lat"]]
+    np.testing.assert_allclose(table["Spectrum y"], spectrum.normalize_values(spectrum.profile[1]))
+    assert table["Spectrum y"].unit is None
+    np.testing.assert_array_equal(table["Spectrum y unnormalized"], spectrum.profile[1])
+    assert table["Spectrum y unnormalized"].unit == raster.get_component(raster.main_components[0]).units
+    # a subset named as its dataset, with a line break, which ECSV keeps in no name
+    whole.visible = True
+    spectrum.layer.label = f"{label}\n"
+    names = [f"{name} {kind}" for name in (label, f"{label}_01") for kind in ("x", "y", "y unnormalized")]
+    assert saved().colnames[:6] == names
     for layer in state.layers:
         layer.visible = False
     with pytest.raises(ValueError, match="No visible layer has a profile"):
@@ -2434,15 +2464,28 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     [stack] = raster_data(files, ["Si IV 1403"], stack=True)
     app.data_collection.append(stack)
     stack.new_subset(PixelSubsetState(stack, [slice(None), slice(1, 2), slice(3, 4), slice(4, 5)]), label="Scans")
+    # a light curve, over a band, as "Light curve at the point" makes it
+    stack.new_subset(SliceSubsetState(stack, [slice(None), slice(1, 2), slice(3, 4), slice(4, 8)]), label="Band")
     viewer = app.new_data_viewer(ProfileViewer, data=stack)
     viewer.state.x_att = stack.pixel_component_ids[0]
     [tool] = [tool for tool in viewer.toolbar.tools["save"].subtools if tool.tool_id == "solar:save_profile"]
     times = stack[stack.id["Time"]]
     assert not np.array_equal(times[:, 1, 3, 4], times[:, 0, 0, 0])
     table = saved()
-    np.testing.assert_array_equal(table["time2"].datetime64, times[:, 1, 3, 4])
-    np.testing.assert_array_equal(table["time1"].datetime64, times[:, 0, 0, 0])
+    np.testing.assert_array_equal(table["Scans time"].datetime64, times[:, 1, 3, 4])
+    np.testing.assert_array_equal(table[f"{stack.label} time"].datetime64, times[:, 0, 0, 0])
+    np.testing.assert_array_equal(table["Band time"].datetime64, times[:, 1, 3, 4])
+    lon = stack[stack.id["Helioprojective Longitude"], (slice(None), 1, 3, 4)]  # each scan's
+    np.testing.assert_allclose(table["Band lon"], lon)
+    assert f"{stack.label} lon" not in table.colnames  # no one place
     assert app.statusBar().currentMessage() == ""  # the earlier note cleared, as nothing was left out
+    # no OBSID: the reference data's label, made a file name
+    cube = Data(label="cube: 6563/scans", flux=np.ones((3, 4)))
+    app.data_collection.append(cube)
+    viewer = app.new_data_viewer(ProfileViewer, data=cube)
+    [tool] = [tool for tool in viewer.toolbar.tools["save"].subtools if tool.tool_id == "solar:save_profile"]
+    saved()
+    assert suggested[-1] == "cube_6563_scans maximum profiles.ecsv"
 
 
 def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot):

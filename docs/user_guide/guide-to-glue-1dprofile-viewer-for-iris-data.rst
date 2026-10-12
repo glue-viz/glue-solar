@@ -218,22 +218,40 @@ exposure.
 
 **Saving the profiles.** "Save profiles as ECSV…" in the Profile viewer's save menu writes the
 profiles of its visible layers, as the viewer draws them, to one ECSV table, which
-``astropy.table.Table.read`` reads back. The ``i``-th layer saved, counted from 1 up the layer list
-(the order the layers are drawn, bottom first), gives two columns: ``x<i>``, in the "x unit",
-``km/s`` included, and ``y<i>``, the viewer's function ("Maximum", "Mean", …) of its attribute in
-the "y unit", or from 0 to 1 with "normalize" ticked. ``x<i>`` is described by the x axis's name and
-``y<i>`` by the layer's label, and the meta of ``y<i>`` give its attribute and, for a "Pixel" subset,
-the pixel it selects along each axis it fixes and the helioprojective ``lon`` and ``lat`` there, in
-arcsec, at the first sample along x. With the exposures of a sit-and-stare raster, the scans of a
-stack or the frames of a slit-jaw image as the x axis, ``time<i>`` gives the UTC time of each sample
-from the ``Time`` component, read back as an ``astropy.time.Time`` column: at the pixel of a "Pixel"
-subset or of "Light curve of this window", else at the first raster step and slit pixel. The table's
-meta give the function and the data's ``OBSID`` and ``STARTOBS``. A shorter profile is padded with
-empty values. Layers without a profile, such as one still being computed, or a subset one sample wide
-along x, which glue does not draw, are left out, and the main window's status bar names them. On the
-full Si IV 1403 window of OBSID 4000255147, 1600 exposures of 417 slit pixels and 262 wavelengths,
-the window's mean and a pixel's light curve over the exposures, with their times, save in under
-0.1 s.
+``astropy.table.Table.read`` reads back. Its file dialog opens where the last plot or frames were
+saved and suggests ``<OBSID> <function> profiles.ecsv``, such as ``4000255147 mean profiles.ecsv``,
+with the dataset's label, its spaces and punctuation made ``_``, for data without an OBSID, such as
+an SST cube. Each layer saved, up the layer list (the order the layers are drawn, bottom first),
+gives columns named after its label: ``<label> x``, in the "x unit", ``km/s`` included, and
+``<label> y``, the viewer's function ("Maximum", "Mean", …) of its attribute in the "y unit", or
+from 0 to 1 with "normalize" ticked, when ``<label> y unnormalized`` gives the values before
+normalizing, in the "y unit". A line break or run of spaces in a label becomes one space, and a
+label met again, such as a subset named as its dataset or one subset group shown on two datasets,
+gets ``_01``, ``_02``, … as glue makes names unique. ``<label> x`` is described by the x axis's name
+and ``<label> y`` by the layer's label, and the meta of ``<label> y`` give its attribute and, for a
+"Pixel" subset, the pixel it selects along each axis it fixes. With the exposures of a sit-and-stare
+raster, the scans of a stack or the frames of a slit-jaw image as the x axis, ``<label> time`` gives
+the UTC time of each sample from the ``Time`` component, read back as an ``astropy.time.Time``
+column: at the pixel of a "Pixel" subset or of "Light curve of this window", else at the first
+raster step and slit pixel. A "Pixel" subset or light curve also gives ``<label> lon`` and
+``<label> lat``, the helioprojective position of each sample there, in arcsec: along the exposures,
+each exposure's pointing, which follows the Sun's rotation (on OBSID 4000255147 slit pixel 200 of Si
+IV 1403 is at 99.18" at exposure 0 and 105.66" at exposure 800), and along the wavelength the same
+in every row. The whole dataset and other subsets cover no one place and get none. The table's meta
+give the function and the data's ``OBSID`` and ``STARTOBS``. A shorter profile is padded with empty
+values. Hidden layers are left out, as are layers without a profile, such as one still being
+computed, or a subset one sample wide along x, which glue does not draw, and the main window's
+status bar names both ("Left out, hidden: …; without a profile: …"). On the full Si IV 1403 window
+of OBSID 4000255147, 1600 exposures of 417 slit pixels and 262 wavelengths, the window's mean and a
+pixel's light curve over the exposures, with their times and positions, save in under 0.1 s. In
+Python, for a "Point" subset::
+
+    from astropy.table import Table
+
+    profiles = Table.read("4000255147 mean profiles.ecsv")
+    profiles["Point time"]  # an astropy Time, UTC
+    profiles["Point lon"]  # arcsec, at each exposure
+    profiles["Point y"]  # in the y unit, or from 0 to 1 with "Point y unnormalized" beside it
 
 **Slice Extraction.** In an Image viewer of a raster or slit-jaw cube, "Slice Extraction" (P) takes a
 path drawn on the image and, on Enter, shows the data along the path against the slider's axis in a

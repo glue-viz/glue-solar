@@ -1,0 +1,1 @@
+'Save profiles as ECSV' names its columns after the layers, saves each sample's lon and lat and the values before normalizing, suggests '<OBSID> <function> profiles.ecsv', and names hidden layers it leaves out.

@@ -25,6 +25,7 @@ from glue.core.message import (
 )
 from glue.core.state import GlueSerializer, loader, saver
 from glue.core.subset import SliceSubsetState, SubsetState
+from glue.core.util import disambiguate
 from glue.plugins.tools.path_slicer.common import open_slice_viewer_for
 from glue.plugins.tools.path_slicer.matplotlib_mode import (
     _PATH_ALPHA_ACTIVE,
@@ -2261,20 +2262,24 @@ class SaveSequenceTool(Tool):
 
 def _profile_table(viewer):
     """
-    The profiles of the Profile viewer's visible layers as one astropy table, and the labels of the visible layers
-    without one (empty, disabled or still computing), which it leaves out. The ``i``-th layer kept, from 1, gives
-    ``x<i>`` and ``y<i>`` as glue draws them, in the viewer's x and y units (or normalized), described by the x axis's
-    name and the layer's label, ``y<i>`` with its attribute and, for a Pixel subset, the pixel of each axis it fixes and
-    the sky position there at the first sample (``lon`` and ``lat``, in arcsec); a shorter profile is padded with
-    masked values. Where x is the axis along which the data step through time (`_time_axis`: a sit-and-stare raster's
-    exposures, a stack's scans, a slit-jaw image's frames), ``time<i>`` gives each sample's ``Time``, at the pixel or
-    slice of a Pixel subset or light curve, else at the first index of the other axes. Its meta give the function.
+    The profiles of the Profile viewer's visible layers as one astropy table, the labels of the hidden layers, and those
+    of the visible layers without a profile (empty, disabled or still computing), all left out. Each layer kept gives
+    columns named after its label, its whitespace runs made one space and a repeat made unique as glue's `disambiguate`
+    does (``Point``, ``Point_01``): ``<label> x`` and ``<label> y`` as glue draws them, in the viewer's x and y units (or
+    normalized, when ``<label> y unnormalized`` gives them in the y unit), described by the x axis's name and the
+    layer's label, ``<label> y`` with its attribute and, for a Pixel subset, the pixel of each axis it fixes; a shorter
+    profile is padded with masked values. Where x is the axis along which the data step through time (`_time_axis`: a
+    sit-and-stare raster's exposures, a stack's scans, a slit-jaw image's frames), ``<label> time`` gives each sample's
+    ``Time``, at the pixel or slice of a Pixel subset or light curve, else at the first index of the other axes. A Pixel
+    subset or light curve gives the sky position of each sample there, ``<label> lon`` and ``<label> lat``, in arcsec.
+    Its meta give the function.
     """
     state = viewer.state
-    tables, skipped = [], []
+    tables, names, hidden, skipped = [], [], [], []
     for artist in viewer.layers:
         layer = artist.state
         if not layer.visible:
+            hidden.append(layer.layer.label)
             continue
         try:
             profile = None if artist.is_computing or not artist.enabled else layer.profile
@@ -2290,35 +2295,44 @@ def _profile_table(viewer):
         y_unit = data.get_component(layer.attribute).units
         # glue converts only values with a unit
         x_unit = (state.x_display_unit or x_unit) if x_unit else None
-        y_unit = None if state.normalize or not y_unit else state.y_display_unit or y_unit
-        y = layer.normalize_values(y) if state.normalize else y
+        y_unit = (state.y_display_unit or y_unit) if y_unit else None
         meta = {"attribute": layer.attribute.label}
         subset = getattr(layer.layer, "subset_state", None)
         fixed = [None] * data.ndim
         if isinstance(subset, PixelSubsetState):
             fixed = subset._to_linked_pixel_coords(data)
             meta["pixel"] = {c.label: p for c, p in zip(data.pixel_component_ids, fixed, strict=True) if p is not None}
-            sky = None if data.coords is None else _sky(data.coords, [p or 0 for p in fixed])
-            if sky is not None:
-                meta["lon"] = u.Quantity(sky.spherical.lon.wrap_at(180 * u.deg), u.arcsec)
-                meta["lat"] = u.Quantity(sky.spherical.lat, u.arcsec)
         elif isinstance(subset, SliceSubsetState) and subset.reference_data is data:  # a light curve
             fixed = [s.start for s in subset.slices]
-        i = len(tables) + 1
+        name = disambiguate(" ".join(layer.layer.label.split()), names)  # ECSV keeps no line break in a name
+        names.append(name)
         columns = [
-            Column(x, f"x{i}", unit=x_unit, description=state.x_att.label),
-            Column(y, f"y{i}", unit=y_unit, description=layer.layer.label, meta=meta),
+            Column(x, f"{name} x", unit=x_unit, description=state.x_att.label),
+            Column(
+                layer.normalize_values(y) if state.normalize else y,
+                f"{name} y",
+                unit=None if state.normalize else y_unit,
+                description=layer.layer.label,
+                meta=meta,
+            ),
         ]
+        if state.normalize:
+            columns.append(Column(y, f"{name} y unnormalized", unit=y_unit, description=layer.layer.label))
         axis = is_convertible_to_single_pixel_cid(data, state.x_att_pixel).axis
         if _time_component(data) is not None and _time_axis(data) == axis:
             view = tuple(slice(None) if a == axis else p or 0 for a, p in enumerate(fixed))
-            columns.append(Column(data[_time_component(data), view], f"time{i}"))
+            columns.append(Column(data[_time_component(data), view], f"{name} time"))
+        if any(p is not None for p in fixed) and data.coords is not None:
+            sky = _sky(data.coords, [np.arange(len(x)) if a == axis else p or 0 for a, p in enumerate(fixed)])
+            if sky is not None:
+                columns.append(Column(sky.spherical.lon.wrap_at(180 * u.deg).to(u.arcsec), f"{name} lon"))
+                columns.append(Column(sky.spherical.lat.to(u.arcsec), f"{name} lat"))
         tables.append(Table(columns))
     if not tables:
         raise ValueError("No visible layer has a profile.")
     table = hstack(tables, join_type="outer")
     table.meta["function"] = state.function
-    return table, skipped
+    return table, hidden, skipped
 
 
 @viewer_tool
@@ -2326,7 +2340,8 @@ class SaveProfileTool(Tool):
     """
     Save the Profile viewer's visible profiles, as glue draws them, to one ECSV table (`_profile_table`), its ``Time``
     columns as `~astropy.time.Time` and the reference data's OBSID and STARTOBS in its meta. An entry of glue's save
-    menu; the application's status bar names the layers left out.
+    menu, which suggests the name ``<OBSID> <function> profiles.ecsv``, or the reference data's label for the OBSID; the
+    application's status bar names the layers left out.
     """
 
     icon = "glue_filesave"
@@ -2337,17 +2352,22 @@ class SaveProfileTool(Tool):
     @messagebox_on_error("Could not save the profiles")
     def activate(self):
         viewer = self.viewer
-        table, skipped = _profile_table(viewer)
-        start = os.path.expanduser(rcParams["savefig.directory"])
+        table, hidden, skipped = _profile_table(viewer)
+        data = viewer.state.reference_data
+        stem = re.sub(r"[^\w-]+", "_", str(data.meta.get("OBSID") or data.label))
+        name = f"{stem} {table.meta['function']} profiles.ecsv"
+        start = os.path.join(os.path.expanduser(rcParams["savefig.directory"]), name)
         name, _ = QtWidgets.QFileDialog.getSaveFileName(viewer, "Save profiles as ECSV", start, "ECSV table (*.ecsv)")
         if not name:
             return
-        _write_ecsv(name, table, viewer.state.reference_data.meta)
+        _write_ecsv(name, table, data.meta)
         # the application's, which glue-qt's toolbar does not clear after the entry, as it does the viewer's
         status = viewer.session.application.statusBar()
-        if skipped:
-            status.showMessage(f"Left out, without a profile: {', '.join(skipped)}")
-        elif status.currentMessage().startswith("Left out, without a profile"):
+        left = {"hidden": hidden, "without a profile": skipped}
+        left = "; ".join(f"{why}: {', '.join(labels)}" for why, labels in left.items() if labels)
+        if left:
+            status.showMessage(f"Left out, {left}")
+        elif status.currentMessage().startswith("Left out, "):
             status.clearMessage()  # an earlier save's
 
 

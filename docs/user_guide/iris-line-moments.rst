@@ -217,3 +217,7 @@ observation's ``OBSID`` and ``STARTOBS`` in its header::
 
 ``glue_solar.sources.iris.export_ecsv(filename, data)`` writes the file in glue's terminal too, and
 glue says why for data that are not 1-D.
+
+The profiles a Profile viewer draws, such as a quicklook's spectrum panel, save with "Save profiles
+as ECSV…" in its save menu, a column for each layer's x, y, time and position, named after the
+layer (see :ref:`Saving the profiles <glue_solar_users_guide_iris_save_profiles>`).
