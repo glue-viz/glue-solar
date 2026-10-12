@@ -129,14 +129,18 @@ def _sigma(values, unit, seconds):
     return per_second(calculate_uncertainty(values * seconds, READOUT_NOISE[detector], DN_UNIT[detector]), seconds)
 
 
-def _cube(data, values, rows, wavelengths, unit, sigma=None):
+def _cube(data, values, rows, wavelengths, unit, sigma=None, shift=0):
     """
     irispy's cube of ``values`` in ``unit``, of ``data`` at ``rows`` and ``wavelengths``, NaN and -Inf masked, +Inf, in
-    which irispy finds saturation, not; with ``sigma``, each value's standard deviation (`_sigma`).
+    which irispy finds saturation, not; with ``sigma``, each value's standard deviation (`_sigma`), and with ``shift``,
+    each wavelength that of the pixel ``shift`` pixels further along.
     """
     from irispy.spectrograph import SpectrogramCube
+    from ndcube.wcs.wrappers import ResampledLowLevelWCS
 
     view = SlicedLowLevelWCS(data.coords._wcs, (*rows, wavelengths))
+    if shift:  # the wavelength is the first pixel axis
+        view = ResampledLowLevelWCS(view, 1, (shift, 0, 0))
     uncertainty = None if sigma is None else StdDevUncertainty(sigma)
     return SpectrogramCube(values, view, uncertainty, unit, mask=np.isnan(values) | np.isneginf(values))
 

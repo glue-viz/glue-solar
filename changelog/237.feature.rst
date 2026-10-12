@@ -1,0 +1,1 @@
+'IRIS: Mg II features' keeps irispy's k and h saturated-sample maps as components, and measures k's velocities from a rest wavelength set with 'IRIS: set rest wavelength…' (and h's from irispy's h, offset alike).
