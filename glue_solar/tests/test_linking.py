@@ -712,3 +712,9 @@ def test_pixel_point_workaround_installs_only_where_glue_needs_it(sns, tmp_path,
     for slices in ([slice(None), slice(20, 21), slice(None)], [slice(None), slice(None), slice(5, 6)]):
         with pytest.raises(IncompatibleAttribute):
             PixelSubsetState(raster, slices)._to_linked_pixel_coords(stack)
+    # a free axis reaching an axis the fixed ones do not leaves the point as glue places it
+    cube, image = Data(x=np.zeros((2, 2, 2)), label="cube"), Data(y=np.zeros((2, 2, 2)), label="image")
+    dc = DataCollection([cube, image])
+    dc.add_link([LinkSame(a, b) for a, b in zip(cube.pixel_component_ids, image.pixel_component_ids)])
+    point = PixelSubsetState(cube, [slice(None), slice(1, 2), slice(1, 2)])
+    assert point._to_linked_pixel_coords(image) == [None, 1, 1]
