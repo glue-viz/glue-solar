@@ -6,6 +6,7 @@ import re
 import warnings
 
 import numpy as np
+from glue.core.subset import RangeSubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
@@ -108,6 +109,15 @@ def test_browser_stacks_scans_into_4d_data_with_per_pixel_time(qtbot, irispy_tes
     load_selected(qtbot, dialog)
     [stack] = dialog.datasets
     assert stack.ndim == 4
+    # docs/user_guide/guide-to-glue-1dprofile-viewer-for-iris-data.rst: the terminal's mean over scans is the Profile's
+    # Mean of an X range over them
+    cid = stack.main_components[0]
+    np.testing.assert_array_equal(
+        stack.compute_statistic("mean", cid, axis=(0, 1, 2), view=(slice(1, 3),)),
+        stack.compute_statistic(
+            "mean", cid, axis=(0, 1, 2), subset_state=RangeSubsetState(0.5, 2.5, stack.world_component_ids[0])
+        ),
+    )
     assert stack.world_component_ids[0].label == "Scan"
     times = stack["Time"]
     assert times.shape == stack.shape
