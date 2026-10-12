@@ -21,11 +21,12 @@ __all__ = ["line_ratio", "line_ratio_iris", "o_iv_density"]
 # The names the dialog offers for the quantity, the first column of the theoretical ratio table, or one typed
 QUANTITIES = ("log n_e", "log T")
 # The dialog's preset: O IV's lines at CHIANTI's wavelengths in Angstrom, as in irispy's O IV example, and their ratio
-# on electron densities in cm^-3, 0.1 dex apart, at temperatures in K about O IV's, of which irispy takes the formation
-# temperature, log T 5.15
+# on electron densities in cm^-3, 0.1 dex apart, from and to those typed, at first log n_e 8 to 13, at temperatures in K
+# about O IV's, interpolated by irispy at the one typed, at first log T 5.15, O IV's formation temperature among them
 O_IV = "O IV 1399.8/1401.2 (CHIANTI, fiasco)"
 O_IV_LINES = (1399.780, 1401.157)
-DENSITIES = np.logspace(8, 13, 51)
+LOG_DENSITIES = (8.0, 13.0)
+LOG_TEMPERATURE = 5.15
 TEMPERATURES = np.logspace(4.5, 6, 31)
 
 
@@ -76,12 +77,32 @@ def line_ratio(numerator, denominator, quantity, ratio, name=QUANTITIES[0]):
     return _map(numerator, denominator, name, mapped)
 
 
-def o_iv_density(numerator, denominator):
+def _o_iv_grid(log_densities, log_temperature):
+    """
+    The electron densities, in cm^-3, from and to ``log_densities``, 0.1 dex apart, and the temperature, in K, of
+    ``log_temperature`` that `o_iv_density` takes; raises why for densities that do not increase or a temperature
+    outside `TEMPERATURES`.
+    """
+    low, high = log_densities
+    if not low < high:
+        raise ValueError(f"The densities, from log n_e {low:g} to {high:g}, do not increase.")
+    bounds = np.log10(TEMPERATURES[[0, -1]])
+    if not bounds[0] <= log_temperature <= bounds[1]:
+        raise ValueError(
+            f"log T {log_temperature:g} is outside fiasco's O IV temperatures, {bounds[0]:g} to {bounds[1]:g}."
+        )
+    return np.logspace(low, high, max(2, round((high - low) * 10) + 1)) * u.cm**-3, 10**log_temperature * u.K
+
+
+def o_iv_density(numerator, denominator, log_densities=LOG_DENSITIES, log_temperature=LOG_TEMPERATURE):
     """
     ``log n_e`` from the ratio of ``numerator``, O IV 1399.8 Å, to ``denominator``, O IV 1401.2 Å, two components in
     the same unit on the same grid, by irispy's `~irispy.utils.density.density_diagnostic` on CHIANTI's ratio, which
-    fiasco computes on electron densities of 10^8 to 10^13 cm^-3 at O IV's formation temperature, as one dataset on
-    that grid, as `line_ratio`'s; its ``meta`` holds ``ratio_preset`` in place of ``ratio_table``.
+    fiasco computes on electron densities from and to ``log_densities``, 10^8 to 10^13 cm^-3 unless changed, 0.1 dex
+    apart, at temperatures from log T 4.5 to 6, 0.05 apart, and irispy interpolates, linearly, at ``log_temperature``,
+    O IV's formation temperature, 5.15, unless changed, as one dataset on that grid, as `line_ratio`'s; its ``meta``
+    holds ``ratio_preset`` in place of ``ratio_table``, with ``ratio_log_n_e`` and ``ratio_log_t``, the densities and
+    temperature.
 
     fiasco, from its git main (``pip install 'glue-solar[density]'``), downloads and builds the CHIANTI database on
     its first use, in ``~/.fiasco`` or where its ``~/.fiasco/fiascorc`` says.
@@ -89,10 +110,13 @@ def o_iv_density(numerator, denominator):
     Raises
     ------
     ValueError
-        For components on different grids or in different units.
+        For components on different grids or in different units, densities that do not increase, or a temperature
+        outside log T 4.5 to 6.
     """
     import fiasco
     from irispy.utils.density import density_diagnostic
+
+    densities, temperature = _o_iv_grid(log_densities, log_temperature)
 
     def mapped(over, under):
         # ask_before: else fiasco asks on stdin; show_progress: its build's progress bar fails on a worker in a terminal
@@ -100,16 +124,17 @@ def o_iv_density(numerator, denominator):
         result = density_diagnostic(
             over,
             under,
-            DENSITIES * u.cm**-3,
+            densities,
             ion=ion,
             numerator=O_IV_LINES[0] * u.AA,
             denominator=O_IV_LINES[1] * u.AA,
+            temperature=temperature,
             line_ratio_kwargs={"use_two_ion_model": False},  # CHIANTI has no two-ion data for O IV, as fiasco warns
         )
         return result["ratio"].value, u.Quantity(np.log10(result["density"].to_value(u.cm**-3)))
 
     result = _map(numerator, denominator, QUANTITIES[0], mapped)
-    result.meta["ratio_preset"] = O_IV
+    result.meta.update(ratio_preset=O_IV, ratio_log_n_e=tuple(log_densities), ratio_log_t=log_temperature)
     return result
 
 
@@ -144,8 +169,9 @@ def _has_line_ratio():
 
 def _ask(datasets):
     """
-    The numerator and denominator picked among the components of ``datasets``, the path of the theoretical ratio
-    table, None for the `O_IV` preset, and the quantity's name; or None for a blank path or name, or Cancel.
+    The numerator and denominator picked among the components of ``datasets``, and the path of the theoretical ratio
+    table and the quantity's name, or None and the typed densities and temperature of the `O_IV` preset; or None for a
+    blank path or name, or Cancel.
     """
     dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
     dialog.setWindowTitle("IRIS: line ratio diagnostic")
@@ -174,6 +200,16 @@ def _ask(datasets):
     quantity = QtWidgets.QComboBox(objectName="quantity", editable=True)
     quantity.addItems(QUANTITIES)
     preset = QtWidgets.QCheckBox(O_IV, objectName="preset")
+    # its densities, in log10 cm^-3, 0.1 apart, and temperature, in log10 K, within fiasco's O IV temperatures
+    densities = [
+        QtWidgets.QDoubleSpinBox(objectName=name, decimals=1, minimum=6, maximum=16, singleStep=0.1)
+        for name in ("from", "to")
+    ]
+    temperature = QtWidgets.QDoubleSpinBox(objectName="log T", decimals=2, minimum=4.5, maximum=6, singleStep=0.05)
+    for box, value in zip((*densities, temperature), (*LOG_DENSITIES, LOG_TEMPERATURE)):
+        box.setValue(value)
+        box.setEnabled(False)  # until the preset is ticked
+        preset.toggled.connect(box.setEnabled)
     preset.toggled.connect(lambda on: [widget.setDisabled(on) for widget in (table, browse, quantity)])
     if _has_line_ratio():  # imports fiasco, at the first dialog rather than at the plugin's load
         preset.setToolTip("log n_e from irispy's density_diagnostic, in place of a table")
@@ -181,15 +217,19 @@ def _ask(datasets):
         preset.setEnabled(False)
         preset.setToolTip("Needs fiasco's line_ratio: pip install 'glue-solar[density]'")
     form.addRow("Or:", preset)
+    form.addRow("Densities from [log cm⁻³]:", densities[0])
+    form.addRow("Densities to [log cm⁻³]:", densities[1])
+    form.addRow("Temperature [log K]:", temperature)
     form.addRow("Quantity:", quantity)
     if not _accepted(dialog, form):
         return None
+    picked = boxes[0].currentData(), boxes[1].currentData()
     if preset.isChecked():
-        return boxes[0].currentData(), boxes[1].currentData(), None, QUANTITIES[0]
+        return *picked, None, (tuple(box.value() for box in densities), temperature.value())
     path, name = table.text().strip(), quantity.currentText().strip()
     if not path or not name:
         return None
-    return boxes[0].currentData(), boxes[1].currentData(), path, name
+    return *picked, path, name
 
 
 @messagebox_on_error("Could not map the line ratio")
@@ -215,19 +255,22 @@ def _maps(layers):
 def line_ratio_iris(layers, data_collection):
     """
     Add the `line_ratio` of two components picked among those of the selected maps, on the first two columns of a
-    picked text table, or their `o_iv_density`, to the data collection, with its helioprojective coordinates linked,
-    and no viewer; glue shows why for fewer than two components, or a table without two columns. fiasco and irispy
-    map the O IV density in the background, while glue's status bar says so.
+    picked text table, or their `o_iv_density` at typed densities and temperature, to the data collection, with its
+    helioprojective coordinates linked, and no viewer; glue shows why for fewer than two components, a table without
+    two columns, or densities that do not increase. fiasco and irispy map the O IV density in the background, while
+    glue's status bar says so.
     """
     picked = _ask(_maps(layers))
     if picked is None:
         return
     numerator, denominator, path, name = picked
-    if path is None:
+    if path is None:  # the O IV preset, with its densities and temperature in place of a name
         import fiasco
 
+        _o_iv_grid(*name)  # refused before anything starts
         first = "" if fiasco.defaults["hdf5_dbase_root"].is_file() else "; fiasco first builds CHIANTI, for minutes"
-        _start(data_collection, f"Mapping the O IV density{first}…", _failed, o_iv_density, numerator, denominator)
+        text = f"Mapping the O IV density{first}…"
+        _start(data_collection, text, _failed, o_iv_density, numerator, denominator, *name)
         return
     table = ascii.read(path)  # spaces or commas, an optional header line and # comments
     if len(table.colnames) < 2:

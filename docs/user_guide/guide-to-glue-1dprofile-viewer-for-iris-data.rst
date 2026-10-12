@@ -91,8 +91,9 @@ Select the raster window or stack in the "Data Collection" and choose "IRIS: sub
 spectrum" from its right-click menu. It adds two attributes to the dataset:
 
 - ``<label> mean spectrum``, the mean of its values at each wavelength over every raster step or
-  exposure, slit position and, for a stack, every scan, with the -200 and -199 fill left out (NaN
-  at a wavelength where every sample is fill);
+  exposure, slit position and, for a stack, every scan, with the -200 and -199 fill and the
+  :ref:`saturated <glue_solar_users_guide_iris_saturation>` samples, +Inf, left out (NaN at a
+  wavelength where every sample is);
 - ``<label> minus mean spectrum``, its values less the mean spectrum, in their unit.
 
 In the 1D Profile viewer, select the ``Subset 1`` layer in the viewer's layer list and set its
@@ -100,10 +101,14 @@ In the 1D Profile viewer, select the ``Subset 1`` layer in the viewer's layer li
 less the mean spectrum, and follows the pixel as you move it. As an Image viewer's attribute, it
 maps where each wavelength is brighter or fainter than the mean.
 
-The mean spectrum is computed once, a few raster steps at a time, and held as one spectrum; glue
-computes the difference only where it is shown. Glue's arithmetic attribute editor makes other
-comparisons from the two attributes, such as the values over the mean spectrum. The entry is
-offered only for a raster window or stack that does not have them yet. In glue's terminal,
+The mean spectrum is computed once, a few raster steps at a time, on a worker thread while glue's
+status bar says "Computing the mean spectrum of <label>…", and held as one spectrum; the status
+bar then says how many saturated samples it left out, if any, such as "<label>: 4 saturated
+samples are left out of the mean spectrum" for 4000255147's Si IV 1403, or 13,760 for the X1
+flare's raster r00173 of 3860258481. Glue computes the difference only where it is shown. Glue's
+arithmetic attribute editor makes other comparisons from the two attributes, such as the values
+over the mean spectrum. The entry is offered only for a raster window or stack that does not have
+them yet, and glue says why for a second run while the first computes. In glue's terminal,
 ``glue_solar.sources.moments.subtract_mean_spectrum(data)`` adds them and returns the difference's
 attribute.
 

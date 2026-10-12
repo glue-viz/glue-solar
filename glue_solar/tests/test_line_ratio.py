@@ -19,7 +19,7 @@ from astropy.wcs import WCS
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
-from glue_solar.sources.line_ratio import DENSITIES, O_IV, TEMPERATURES
+from glue_solar.sources.line_ratio import O_IV, TEMPERATURES, o_iv_density
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.moments import line_moments
@@ -30,6 +30,8 @@ ACTION = "IRIS: line ratio diagnostic…"
 # A synthetic theoretical ratio, increasing with log10 n_e in cm^-3
 LOG_NE = np.linspace(9, 13, 41)
 CURVE = 0.15 + 0.3 / (1 + np.exp(4 * (11 - LOG_NE)))
+# The O IV preset's densities before it took typed ones, in cm^-3
+DENSITIES = np.logspace(8, 13, 51)
 
 
 @pytest.fixture
@@ -200,18 +202,20 @@ def test_refusals_and_errors_show_why(app, monkeypatch, tmp_path, irispy_test_fi
 @pytest.fixture
 def fiasco(monkeypatch, tmp_path):
     """
-    A stand-in for fiasco with ``line_ratio``, the synthetic curve at each density, and no CHIANTI database built;
-    ``calls`` holds what its ``Ion`` and ``line_ratio`` were given.
+    A stand-in for fiasco with ``line_ratio``, the synthetic curve at each temperature and density, shifted by the
+    temperature's log T less 5.15, the formation temperature of its O IV, as fiasco's is among `TEMPERATURES`, and no
+    CHIANTI database built; ``calls`` holds what its ``Ion`` and ``line_ratio`` were given.
     """
     calls = []
 
     def ion(*args, **kwargs):
         calls.append(("Ion", args, kwargs))
-        return SimpleNamespace()
+        return SimpleNamespace(temperature=args[1], formation_temperature=args[1][13])
 
     def line_ratio(*args, **kwargs):
         calls.append(("line_ratio", args, kwargs))
-        return 0.15 + 0.3 / (1 + np.exp(4 * (11 - np.log10(args[3].to_value(u.cm**-3)))))
+        shift = np.log10(args[0].temperature.to_value(u.K))[:, np.newaxis] - 5.15
+        return 0.15 + 0.3 / (1 + np.exp(4 * (11 + shift - np.log10(args[3].to_value(u.cm**-3)))))
 
     fake = SimpleNamespace(
         Ion=ion, line_ratio=line_ratio, defaults={"hdf5_dbase_root": tmp_path / "none.h5"}, calls=calls
@@ -220,20 +224,30 @@ def fiasco(monkeypatch, tmp_path):
     return fake
 
 
-# The dialog's widgets for a table, disabled while the O IV preset is ticked
+# The dialog's widgets for a table, disabled while the O IV preset is ticked, and for the preset, enabled only then
 TABLE_WIDGETS = ((QtWidgets.QLineEdit, "table"), (QtWidgets.QPushButton, "browse"), (QtWidgets.QComboBox, "quantity"))
+PRESET_BOXES = ("from", "to", "log T")
 
 
-def preset(monkeypatch):
-    """Make each dialog tick the O IV preset, if it can, and press OK; returns whether it could and its tooltip."""
+def preset(monkeypatch, typed=()):
+    """
+    Make each dialog tick the O IV preset, if it can, type any densities from and to and temperature ``typed``, and
+    press OK; returns whether it could, its tooltip and what the preset's boxes opened with.
+    """
     opened = []
 
     def exec_(dialog):
         box = dialog.findChild(QtWidgets.QCheckBox, "preset")
-        opened.append((box.isEnabled(), box.toolTip()))
+        numbers = [dialog.findChild(QtWidgets.QDoubleSpinBox, name) for name in PRESET_BOXES]
+        opened.append((box.isEnabled(), box.toolTip(), tuple(number.value() for number in numbers)))
+        assert not any(number.isEnabled() for number in numbers)
+        assert [number.singleStep() for number in numbers] == [0.1, 0.1, 0.05]  # densities 0.1 dex, as fiasco's
         box.setChecked(box.isEnabled())  # as a click would
         disabled = [not dialog.findChild(kind, name).isEnabled() for kind, name in TABLE_WIDGETS]
         assert disabled == [box.isChecked()] * 3
+        assert [number.isEnabled() for number in numbers] == [box.isChecked()] * 3
+        for number, value in zip(numbers, typed):
+            number.setValue(value)
         return QtWidgets.QDialog.Accepted
 
     monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
@@ -252,7 +266,7 @@ def test_the_o_iv_preset_adds_irispys_density_diagnostic_of_two_moments_maps(
     tree = app._layer_widget
     tree.ui.layerTree.set_selected_layers(lines)
     tree._actions[ACTION].trigger()
-    assert opened == [(True, "log n_e from irispy's density_diagnostic, in place of a table")]
+    assert opened == [(True, "log n_e from irispy's density_diagnostic, in place of a table", (8, 13, 5.15))]
     assert iris._RUNNING  # on glue-qt's worker, as fiasco may first download and build CHIANTI
     assert app.statusBar().currentMessage() == "Mapping the O IV density; fiasco first builds CHIANTI, for minutes…"
     qtbot.waitUntil(lambda: len(collection) == 4 and not iris._RUNNING)
@@ -266,6 +280,8 @@ def test_the_o_iv_preset_adds_irispys_density_diagnostic_of_two_moments_maps(
         "ratio_numerator": names[0],
         "ratio_denominator": names[1],
         "ratio_preset": O_IV,
+        "ratio_log_n_e": (8, 13),
+        "ratio_log_t": 5.15,
     }
     assert [(cid.label, result.get_component(cid).units) for cid in result.main_components] == [
         ("ratio", ""),
@@ -274,7 +290,8 @@ def test_the_o_iv_preset_adds_irispys_density_diagnostic_of_two_moments_maps(
     assert not any(app.viewers)
     assert result.coords is lines[0].coords
     assert link_hpc(collection) == []
-    # fiasco's O IV, never asking on stdin, and its ratio of irispy's O IV lines on the densities
+    # fiasco's O IV, never asking on stdin, and its ratio of irispy's O IV lines on the densities, as before they were
+    # typed, at its formation temperature
     [(_, ion_args, ion_kwargs), (_, ratio_args, ratio_kwargs)] = fiasco.calls
     assert ion_args[0] == "O IV"
     np.testing.assert_array_equal(ion_args[1], TEMPERATURES * u.K)
@@ -295,19 +312,55 @@ def test_the_o_iv_preset_adds_irispys_density_diagnostic_of_two_moments_maps(
     np.testing.assert_array_equal(result["ratio"], direct["ratio"].value)
     np.testing.assert_array_equal(result["log n_e"], np.log10(direct["density"].to_value(u.cm**-3)))
     assert np.isfinite(result["log n_e"]).any()
-    # once built, the status bar says no more; an error is shown as the table's are
+    # typed densities and temperature; once built, the status bar says no more
     fiasco.defaults["hdf5_dbase_root"].touch()
+    fiasco.calls.clear()
+    preset(monkeypatch, (9, 12, 5.4))
+    tree.ui.layerTree.set_selected_layers(lines)
+    tree._actions[ACTION].trigger()
+    assert app.statusBar().currentMessage() == "Mapping the O IV density…"
+    qtbot.waitUntil(lambda: len(collection) == 5 and not iris._RUNNING)
+    typed = collection[-1]
+    assert typed.meta == {**result.meta, "ratio_log_n_e": (9, 12), "ratio_log_t": 5.4}
+    [_, (_, ratio_args, _)] = fiasco.calls
+    np.testing.assert_array_equal(ratio_args[3], np.logspace(9, 12, 31) * u.cm**-3)
+    direct = density_diagnostic(
+        over,
+        under,
+        ratio_args[3],
+        ion=ratio_args[0],
+        numerator=1399.780 * u.AA,
+        denominator=1401.157 * u.AA,
+        temperature=10**5.4 * u.K,
+        line_ratio_kwargs={"use_two_ion_model": False},
+    )
+    np.testing.assert_array_equal(typed["log n_e"], np.log10(direct["density"].to_value(u.cm**-3)))
+    both = np.isfinite(typed["log n_e"]) & np.isfinite(result["log n_e"])
+    assert both.any()
+    assert (typed["log n_e"][both] != result["log n_e"][both]).all()
+    # errors are shown as the table's are, densities that do not increase before anything starts
     counts = Data(label="counts", intensity=np.ones(lines[0].shape), coords=lines[0].coords)
     collection.append(counts)
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
+    preset(monkeypatch, (13, 8))
+    tree.ui.layerTree.set_selected_layers(lines)
+    tree._actions[ACTION].trigger()
+    assert not iris._RUNNING
+    preset(monkeypatch)
     tree.ui.layerTree.set_selected_layers([lines[0], counts])
     tree._actions[ACTION].trigger()
     assert app.statusBar().currentMessage() == "Mapping the O IV density…"
-    qtbot.waitUntil(lambda: len(shown) == 1 and not iris._RUNNING)
-    assert shown == [f"Could not map the line ratio\n{names[0]} is in 'DN_IRIS_FUV / s' but counts: intensity in ''."]
-    assert len(collection) == 5
+    qtbot.waitUntil(lambda: len(shown) == 2 and not iris._RUNNING)
+    assert shown == [
+        "Could not map the line ratio\nThe densities, from log n_e 13 to 8, do not increase.",
+        f"Could not map the line ratio\n{names[0]} is in 'DN_IRIS_FUV / s' but counts: intensity in ''.",
+    ]
+    assert len(collection) == 6
+    # a temperature outside fiasco's O IV temperatures, which the dialog cannot take
+    with pytest.raises(ValueError, match=r"^log T 6.5 is outside fiasco's O IV temperatures, 4.5 to 6\.$"):
+        o_iv_density(*(maps.id["intensity"] for maps in lines), log_temperature=6.5)
 
 
 @pytest.mark.parametrize("fake", [None, SimpleNamespace()], ids=["no fiasco", "fiasco without line_ratio"])
@@ -317,5 +370,5 @@ def test_the_o_iv_preset_needs_fiascos_line_ratio(app, monkeypatch, fake):
     app.data_collection.extend([over, under])
     opened = preset(monkeypatch)
     run(app, [over, under])
-    assert opened == [(False, "Needs fiasco's line_ratio: pip install 'glue-solar[density]'")]
+    assert opened == [(False, "Needs fiasco's line_ratio: pip install 'glue-solar[density]'", (8, 13, 5.15))]
     assert len(app.data_collection) == 2  # unticked, with no table: nothing added

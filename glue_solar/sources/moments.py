@@ -302,23 +302,46 @@ def _ask(data, drawn=None):
     """
     The line centre typed for ``data``, at first its `rest_wavelength`, in Angstrom, the velocity range about it, in
     km/s, the continuum windows, or None for none, in Angstrom, and whether error maps are ticked; or None for a blank
-    centre or Cancel. With ``drawn``, a Profile range, the velocity range reaches its ends from a centre within it, at
-    first or typed.
+    centre or Cancel. The velocities stop at the window's wavelengths about a centre within them, at first or typed.
+    With ``drawn``, a Profile range, the velocity range reaches its ends, cut to the window, from a centre within it.
     """
     dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
     dialog.setWindowTitle(f"IRIS: line moments of {data.label}")
     form = QtWidgets.QFormLayout(dialog)
     centre = _rest_field(data, "centre")  # D11: never the window's TWAVE
     form.addRow("Line centre [Å]:", centre)
+    wavelengths, _ = _wavelengths(data)
+    first, last, c = wavelengths[0], wavelengths[-1], constants.c.to_value(u.km / u.s)
     boxes = []
     for name, value in zip(("from", "to"), VELOCITY_RANGE):
         box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, minimum=-1e4, maximum=1e4, suffix=" km/s")
         box.setValue(value)
         form.addRow(f"Velocities {name}:", box)
         boxes.append(box)
+
+    def limit(text):
+        """
+        Stop the boxes at the window's first and last wavelengths about ``text``, a centre within them, rounded outwards
+        to the thousandth of a km/s they show: irispy then takes every wavelength a wider range would.
+        """
+        try:
+            typed = float(text)
+        except ValueError:
+            return
+        if first <= typed <= last:
+            ends = (np.array([first, last]) / typed - 1) * c * 1000  # as `_ends` inverts them
+            for box in boxes:
+                box.setRange(np.floor(ends[0]) / 1000, np.ceil(ends[1]) / 1000)
+
+    limit(centre.text())  # the rest wavelength it starts at
+    centre.editingFinished.connect(lambda: limit(centre.text()))  # not as typed: 1399 on the way to 1399.77 would cut
     if drawn is not None:
         low, high = drawn
-        form.addRow("Velocities to the Profile range:", QtWidgets.QLabel(f"{low:.3f} to {high:.3f} Å"))
+        shown = f"{low:.3f} to {high:.3f} Å"
+        if low < first or high > last:
+            low, high = max(low, first), min(high, last)
+            shown += f", cut to the window: {low:.3f} to {high:.3f} Å" if low <= high else ", outside the window"
+        form.addRow("Velocities to the Profile range:", QtWidgets.QLabel(shown, objectName="drawn"))
 
         def reach(text):
             try:
@@ -326,10 +349,11 @@ def _ask(data, drawn=None):
             except ValueError:
                 return
             if low <= typed <= high:
-                for box, end in zip(boxes, drawn):
-                    box.setValue((end / typed - 1) * constants.c.to_value(u.km / u.s))  # as `_ends` inverts it
+                limit(text)
+                for box, end in zip(boxes, drawn):  # the boxes stop an end beyond the window at it
+                    box.setValue((end / typed - 1) * c)  # as `_ends` inverts it
 
-        reach(centre.text())  # the rest wavelength it starts at
+        reach(centre.text())
         centre.textChanged.connect(reach)
     continuum = QtWidgets.QLineEdit(objectName="continuum", placeholderText="none, or such as 1401.5-1402, 1404-1405")
     form.addRow("Continuum windows [Å]:", continuum)
@@ -339,6 +363,7 @@ def _ask(data, drawn=None):
     text = centre.text().strip() if _accepted(dialog, form) else ""
     if not text:
         return None
+    limit(text)  # as when its editing finished
     line = _wavelength(text), tuple(box.value() for box in boxes)
     text = continuum.text().strip()
     if not text:
@@ -359,10 +384,13 @@ def _failed(exc_info):
     raise exc_info[1]
 
 
-def _add(data_collection, status, said, dataset):
-    data_collection.append(dataset)
-    keep_hpc_linked(data_collection)
-    message = said(dataset) if said else None
+def _add(data_collection, status, said, add, result):
+    if add is None:
+        data_collection.append(result)
+        keep_hpc_linked(data_collection)
+    else:
+        add(result)
+    message = said(result) if said else None
     if message and status is not None:  # in place of what it says while it is computed
         status.showMessage(message)
 
@@ -393,14 +421,15 @@ def _clear(status, text):
         status.clearMessage()
 
 
-def _start(data_collection, text, failed, function, *args, said=None):
+def _start(data_collection, text, failed, function, *args, said=None, add=None):
     """
-    Compute ``function(*args)``, a dataset, on glue-qt's `Worker`, while glue's status bar says ``text``, and add it to
-    ``data_collection``, the status bar then saying ``said(dataset)``, if anything; or show its error with ``failed``.
+    Compute ``function(*args)`` on glue-qt's `Worker`, while glue's status bar says ``text``, and add it, a dataset, to
+    ``data_collection``, or give it to ``add``, on the main thread, the status bar then saying ``said(result)``, if
+    anything; or show its error with ``failed``.
     """
     worker = Worker(function, *args)
     status = _status_bar(data_collection)
-    worker.result.connect(partial(_add, data_collection, status, said))
+    worker.result.connect(partial(_add, data_collection, status, said, add))
     worker.error.connect(failed)
     if status is not None:  # until the dataset is added or the error shown (D46)
         status.showMessage(text)
@@ -421,10 +450,11 @@ def _start(data_collection, text, failed, function, *args, said=None):
 def moments_iris(data, data_collection):
     """
     Add the `line_moments` of ``data`` about a typed line centre, within a typed velocity range, or one to the ends of
-    the range shown on a Profile of its wavelength, less any background fitted to typed continuum windows, with their
-    errors if ticked, to the data collection, with its helioprojective coordinates linked, and no viewer; offered only
-    for a raster window or stack, and glue shows why for typed values it cannot take. irispy computes them in the
-    background, while glue's status bar says so, and then how many pixels saturated, if any.
+    the range shown on a Profile of its wavelength, either stopping at the window's wavelengths, less any background
+    fitted to typed continuum windows, with their errors if ticked, to the data collection, with its helioprojective
+    coordinates linked, and no viewer; offered only for a raster window or stack, and glue shows why for typed values
+    it cannot take. irispy computes them in the background, while glue's status bar says so, and then how many pixels
+    saturated, if any.
     """
     _check(data)  # before asking
     asked = _ask(data, _profile_range(data, data_collection))
@@ -439,10 +469,11 @@ def moments_iris(data, data_collection):
 
 def _mean_spectrum(data, cid):
     """
-    The mean of the finite values of ``cid`` over every axis of ``data`` but wavelength, its last, NaN where none is;
-    summed in float64 a slab of `SLAB` samples at a time.
+    The mean of the finite values of ``cid`` over every axis of ``data`` but wavelength, its last, NaN where none is,
+    summed in float64 a slab of `SLAB` samples at a time, and how many saturated samples, +Inf, it left out; on any
+    thread.
     """
-    total, count = np.zeros(data.shape[-1]), np.zeros(data.shape[-1])
+    total, count, saturated = np.zeros(data.shape[-1]), np.zeros(data.shape[-1]), 0
     steps = max(1, SLAB // (data.shape[-2] * data.shape[-1]))
     for scan in np.ndindex(data.shape[:-3]):  # each scan of a stack
         for start in range(0, data.shape[-3], steps):
@@ -450,8 +481,9 @@ def _mean_spectrum(data, cid):
             valid = np.isfinite(values)  # +Inf, saturated, left out, as glue's Profile leaves it out
             total += values.sum((0, 1), dtype=float, where=valid)
             count += valid.sum((0, 1))
+            saturated += int(np.isposinf(values).sum())
     with np.errstate(invalid="ignore"):  # 0 / 0
-        return total / count
+        return total / count, saturated
 
 
 def _check_mean(data):
@@ -460,6 +492,17 @@ def _check_mean(data):
         raise ValueError(f"{data.label} is not an IRIS raster window.")
     if data.find_component_id(f"{data.main_components[0].label} minus mean spectrum") is not None:
         raise ValueError(f"{data.label} has its mean spectrum subtracted already.")
+    if any(worker.func is _mean_spectrum and worker.args[0] is data for worker in _RUNNING):
+        raise ValueError(f"The mean spectrum of {data.label} is being computed.")
+
+
+def _subtract(data, cid, mean):
+    """Add the components of `subtract_mean_spectrum` to ``data``, given ``mean``, the mean spectrum of ``cid``."""
+    units = data.get_component(cid).units
+    mean = np.broadcast_to(mean, data.shape)  # a view: one spectrum held
+    difference = cid - data.add_component(Component(mean, units=units), f"{cid.label} mean spectrum")
+    data.add_component_link(difference, f"{cid.label} minus mean spectrum").units = units
+    return difference.get_to_id()
 
 
 def subtract_mean_spectrum(data):
@@ -477,16 +520,26 @@ def subtract_mean_spectrum(data):
     Raises
     ------
     ValueError
-        For other data than an IRIS raster window or stack, or one that has the components already.
+        For other data than an IRIS raster window or stack, or one that has the components already or its mean spectrum
+        being computed.
     """
     _check_mean(data)
     cid = data.main_components[0]
-    label = f"{cid.label} minus mean spectrum"
-    units = data.get_component(cid).units
-    mean = np.broadcast_to(_mean_spectrum(data, cid), data.shape)  # a view: one spectrum held
-    difference = cid - data.add_component(Component(mean, units=units), f"{cid.label} mean spectrum")
-    data.add_component_link(difference, label).units = units
-    return difference.get_to_id()
+    return _subtract(data, cid, _mean_spectrum(data, cid)[0])
+
+
+def _left_out(data, mean):
+    """What glue's status bar says of the saturated samples `_mean_spectrum` left out of ``mean``, or None for none."""
+    count = mean[1]
+    if count:
+        samples = f"{count} saturated samples are" if count > 1 else "1 saturated sample is"
+        return f"{data.label}: {samples} left out of the mean spectrum"
+    return None
+
+
+@messagebox_on_error("Could not subtract the mean spectrum")
+def _mean_failed(exc_info):
+    raise exc_info[1]
 
 
 @layer_action(
@@ -500,6 +553,11 @@ def subtract_mean_spectrum(data):
 def mean_spectrum_iris(data, data_collection):
     """
     Add the `subtract_mean_spectrum` components to ``data``; offered only for a raster window or stack not subtracted
-    already, and glue shows why for a second run before it is selected again.
+    already, and glue shows why for a second run before it is selected again. The mean is computed in the background,
+    while glue's status bar says so, and then how many saturated samples it left out, if any.
     """
-    subtract_mean_spectrum(data)
+    _check_mean(data)
+    cid = data.main_components[0]
+    text = f"Computing the mean spectrum of {data.label}…"
+    said, add = partial(_left_out, data), lambda mean: _subtract(data, cid, mean[0])  # on the main thread
+    _start(data_collection, text, _mean_failed, _mean_spectrum, data, cid, said=said, add=add)

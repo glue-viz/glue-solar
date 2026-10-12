@@ -1,0 +1,1 @@
+'IRIS: subtract mean spectrum' computes in the background and says how many saturated samples it left out; the O IV preset takes a typed density range and temperature; the line moments dialog's velocities stop at the window's own wavelengths.
