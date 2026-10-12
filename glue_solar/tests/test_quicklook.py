@@ -5128,6 +5128,43 @@ def test_a_switch_after_the_point_is_deleted_gives_a_new_point(bare_app, qtbot, 
     assert point_window(bare_app).rowCount() > 0
 
 
+def path_diagram(viewer):
+    """The viewer of a Path diagram drawn across the Image viewer's view."""
+    state, tool = viewer.state, viewer.toolbar.tools["solar:path"]
+    x = np.interp([0.3, 0.7], [0, 1], [state.x_min, state.x_max])
+    y = np.interp([0.3, 0.7], [0, 1], [state.y_min, state.y_max])
+    tool._open_or_update(x, y)
+    return tool._slice_viewer
+
+
+def test_path_diagrams_close_unasked_with_their_panels(bare_app, qtbot, monkeypatch, irispy_test_files):
+    c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
+    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
+    asked = []
+
+    def warning(parent, title, text, buttons, defaultButton):
+        asked.append(text)
+        return defaultButton  # glue-qt's Cancel
+
+    monkeypatch.delenv("GLUE_TESTING")  # glue-qt asks before closing a viewer then
+    monkeypatch.setattr(QtWidgets.QMessageBox, "warning", warning)
+    diagrams = [path_diagram(viewers["sji"][0]), path_diagram(viewers["map"])]
+    # closed by hand, glue-qt asks, as for any viewer, and Cancel keeps it
+    diagrams[0].close()
+    assert (asked, diagrams[0]._closed) == (["Do you want to close this window?"], False)
+    # the switch closes them with their panels, unasked
+    switched = switch(qtbot, viewers["windows"][1]["spectrum"])  # Si IV 1403
+    assert asked == ["Do you want to close this window?"]
+    assert all(diagram._closed for diagram in diagrams)
+    qtbot.waitUntil(lambda: not {*diagrams} & {viewer for tab in bare_app.viewers for viewer in tab})
+    # and so does quitting
+    diagrams = [path_diagram(switched["sji"][0]), path_diagram(switched["map"])]
+    bare_app.close()
+    assert asked == ["Do you want to close this window?"]
+    assert all(diagram._closed for diagram in diagrams)
+
+
 # The Panels list (D66): a box per panel, and per other window for all its panels
 
 

@@ -457,7 +457,8 @@ time master stays at its frame, exposure, step or scan, and each panel that show
 the same axes again keeps its stretch, colour limits and colormap; its other settings, such as a
 zoom or a spectrum panel's unit, are a new quicklook's, every panel shows, and with their axes if
 "Axes" was ticked. The links stay, and so do the viewers you added to the tab, where a light curve,
-a row or a column goes on following the point at the wavelength or band the old map showed. It takes
+a row or a column goes on following the point at the wavelength or band the old map showed, but a path
+diagram drawn on a panel closes with it, as with any viewer it was drawn in. It takes
 2.5 s on 4000255147's C II 1336, Si IV 1403 and Mg II k 2796 with its SJI 1400, and 2.4 s on a stack
 of 4000005156's two scans of the same windows. A saved session keeps the switched quicklook, but a
 quicklook restored from a session does not offer the switch: open it again from the browser.
