@@ -172,7 +172,7 @@ def test_a_session_restores_the_metadata_of_a_raster_and_a_slit_jaw_image(irispy
 def test_a_session_reads_each_raster_file_once_for_all_its_windows(monkeypatch, irispy_test_files):
     files = sorted(path for path in irispy_test_files if "3860258481_raster" in path.name)
     stack, copy = (raster_data(files, THREE, stack=True) for _ in range(2))  # one observation opened twice
-    datasets = stack[:1] + copy + stack[1:] + raster_data(files, THREE[:2]) + raster_data(files[:1], THREE[2:])
+    datasets = stack[:1] + raster_data(files, THREE[:2]) + copy + stack[1:] + raster_data(files[:1], THREE[2:])
     reads = counted_reads(monkeypatch)
     for restored in twice(DataCollection(datasets)):
         # each file once for each copy of the stack's three windows, one's logs between the other's, and once for the
