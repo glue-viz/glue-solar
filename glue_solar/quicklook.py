@@ -2369,17 +2369,19 @@ def _arrange(tab, viewers):
         for c, viewer in enumerate(row):
             viewer.move(c * width // len(row), r * height // len(rows))
             viewer.viewer_size = (width // len(row), height // len(rows))
-            viewer.figure.canvas._draw_idle = partial(_draw_in_sight, viewer.figure.canvas)
+            viewer.figure.canvas._draw_idle = partial(_draw_in_sight, viewer.figure.canvas, tab)
 
 
-def _draw_in_sight(canvas):
+def _draw_in_sight(canvas, tab):
     """
-    matplotlib's deferred draw of ``canvas``, a quicklook panel's, unless the panel is shown but out of sight, such as in
-    a row scrolled below the tab's view, which matplotlib would draw at every step and move all the same: its draw then
-    stays due, and Qt's paint of it once in sight makes it, as it is then.
+    matplotlib's deferred draw of ``canvas``, a quicklook panel's in ``tab``, unless the panel is shown in the tab but
+    out of sight, such as in a row scrolled below the tab's view, in a tab behind another or in a window not yet shown,
+    which matplotlib would draw at every step and move all the same: its draw then stays due, and Qt's paint of it once
+    in sight makes it, as it is then. A panel hidden itself, turned off, minimised or closed, which no paint may follow,
+    draws at once as before.
     """
     try:
-        out_of_sight = canvas.isVisible() and canvas.visibleRegion().isEmpty()
+        out_of_sight = canvas.isVisibleTo(tab) and canvas.visibleRegion().isEmpty()  # none while the tab is hidden
     except RuntimeError:  # closed since the draw was posted, which matplotlib's own then skips
         out_of_sight = False
     if not out_of_sight or canvas.testAttribute(Qt.WA_WState_InPaintEvent):  # a paint, such as a grab's, draws it

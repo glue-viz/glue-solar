@@ -1396,7 +1396,7 @@ def test_a_drag_moves_the_other_panels_once(bare_app, qtbot, scans):
 def test_a_click_draws_each_other_panel_once(bare_app, qtbot, monkeypatch, irispy_test_files):
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
-    qtbot.wait(50)
+    show_quicklook(qtbot, bare_app, viewers)
     draws = Counter()
     panels = {"spectrogram": viewers["spectrogram"], "wavelength": viewers["wavelength"], "sji": viewers["sji"][0]}
     for role, viewer in panels.items():
@@ -1712,6 +1712,14 @@ def test_time_sync_on_a_negative_step_raster(bare_app, qtbot, irispy_data):
         scan = expected_nearest(sji[sji.id["Time"]][frame, 0, 0], later[:, step, 0, 0])
         qtbot.waitUntil(lambda scan=scan: group.subset_state.slices[0] == slice(scan, scan + 1))
         assert group.subset_state.slices[1].start == step
+
+
+def show_quicklook(qtbot, app, viewers):
+    """Show ``app``, whose quicklook panels draw only in sight (`_draw_in_sight`), and wait until they have."""
+    app.resize(1600, 1000)
+    app.show()
+    qtbot.waitUntil(lambda: not any(v.figure.canvas._draw_pending for v in glue_solar.quicklook._viewers(viewers)))
+    qtbot.wait(600)  # and mpl-scatter-density's redraw of each image, 0.5 s after it is laid out
 
 
 def sit_and_stare(irispy_test_files):
@@ -2123,9 +2131,9 @@ def lines(viewer):
 def test_lines_on_the_spectrogram_and_the_wavelength_panel(bare_app, qtbot, monkeypatch, irispy_test_files):
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
+    show_quicklook(qtbot, bare_app, viewers)
     spectrogram, panel = viewers["spectrogram"], viewers["wavelength"]
     exposure, slit, wavelength = expected_start(raster)
-    qtbot.wait(20)
     # the point's slit on the spectrogram; its exposure, the map's wavelength and the time master's exposure on the
     # λ–time panel
     assert lines(spectrogram) == {"point": ("y", [slit]), "wavelength": None, "time": None}
@@ -5478,6 +5486,13 @@ def test_the_panels_open_without_axes_which_the_axes_box_shows(bare_app, qtbot, 
     assert bare_app.new_data_viewer(ImageViewer, data=mg).axes.axison
 
 
+def current(viewer):
+    """Whether the panel shows what a draw of it now shows."""
+    shown = np.asarray(viewer.figure.canvas.buffer_rgba()).copy()
+    viewer.figure.canvas.draw()
+    return np.array_equal(shown, viewer.figure.canvas.buffer_rgba())
+
+
 def test_panels_out_of_sight_draw_once_in_sight(bare_app, qtbot, monkeypatch, irispy_test_files):
     c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
     sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
@@ -5503,12 +5518,6 @@ def test_panels_out_of_sight_draw_once_in_sight(bare_app, qtbot, monkeypatch, ir
         qtbot.wait(50)
         return dict(draws)
 
-    def current(viewer):
-        """Whether the panel shows what a draw of it now shows."""
-        shown = np.asarray(viewer.figure.canvas.buffer_rgba()).copy()
-        viewer.figure.canvas.draw()
-        return np.array_equal(shown, viewer.figure.canvas.buffer_rgba())
-
     def move():
         viewers["map"].toolbar.active_tool = "image:point_selection"
         mouse(viewers["map"], "button_press_event", 30, 10)
@@ -5528,6 +5537,60 @@ def test_panels_out_of_sight_draw_once_in_sight(bare_app, qtbot, monkeypatch, ir
     assert set(drawn(lambda: slide(viewers["spectrogram"], 0, 60), in_sight)) == in_sight
     assert drawn(lambda: [viewer.figure.canvas.grab() for viewer in below], below) == dict.fromkeys(below, 1)
     assert all(current(viewer) for viewer in below)
+
+
+def test_a_quicklook_in_a_hidden_tab_draws_once_shown(bare_app, qtbot, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    first = quicklook(bare_app, [raster, sji])
+    tab = bare_app.tab_count - 1
+    panels = glue_solar.quicklook._viewers(first)
+    draws = Counter()
+    for viewer in panels:
+        draw = viewer.figure.canvas.draw
+        monkeypatch.setattr(
+            viewer.figure.canvas, "draw", lambda draw=draw, viewer=viewer: draws.update([viewer]) or draw()
+        )
+
+    def pending(viewers):
+        return [viewer for viewer in viewers if viewer.figure.canvas._draw_pending]
+
+    def step(viewer, exposure):
+        """Step the exposure, as the slider or its playback does, and wait until the λ–time panel's line follows."""
+        slide(viewer, 0, exposure)
+        qtbot.waitUntil(lambda: lines(first["wavelength"])["time"] == ("y", [exposure]))
+        qtbot.wait(50)
+
+    # a step in a window not yet shown draws nothing until it is shown
+    step(first["spectrogram"], 40)
+    assert draws == {}
+    assert first["wavelength"] in pending(panels)
+    show_quicklook(qtbot, bare_app, first)
+    assert all(current(viewer) for viewer in panels)
+    # nor in a hidden tab: shown again, each panel the step changed draws once, as it is now
+    bare_app.new_tab()
+    qtbot.wait(600)  # and mpl-scatter-density's redraw of each image, 0.5 s after it is first laid out
+    draws.clear()
+    step(first["spectrogram"], 50)
+    assert draws == {}
+    stepped = pending(panels)
+    assert first["wavelength"] in stepped
+    bare_app.tab_widget.setCurrentIndex(tab)
+    qtbot.waitUntil(lambda: not pending(panels))
+    qtbot.wait(50)
+    assert draws == dict.fromkeys(stepped, 1)
+    assert all(current(viewer) for viewer in panels)
+    # hidden, a paint of a panel, such as a grab of it, draws it
+    bare_app.tab_widget.setCurrentIndex(tab + 1)
+    step(first["spectrogram"], 60)
+    draws.clear()
+    first["wavelength"].figure.canvas.grab()
+    assert draws == {first["wavelength"]: 1}
+    assert current(first["wavelength"])
+    # and a step in another quicklook of the observation, which moves the hidden one's time line, draws nothing there
+    second = quicklook(bare_app, [raster, sji])
+    draws.clear()
+    step(second["spectrogram"], 70)
+    assert draws == {}
 
 
 def test_the_browser_shows_the_main_window_chosen(qtbot, monkeypatch, tmp_path, irispy_test_files):
