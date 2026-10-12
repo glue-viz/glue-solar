@@ -38,6 +38,7 @@ from glue_solar.sources.iris import browse_iris, link_iris
 from glue_solar.sources.loaders.iris import (
     WCS_LOCK,
     QtIRISImporter,
+    _HeldWCS,
     _LockedWCS,
     image_data,
     keep_hpc_linked,
@@ -198,6 +199,9 @@ def test_the_link_patches_hold_the_wcs_lock(monkeypatch, needed):
         assert getattr(_LockedWCS, name).__wrapped__ is getattr(WCS, name)
     for name in LOCKED_PROPERTIES:
         assert getattr(_LockedWCS, name).fget.__wrapped__ is getattr(WCS, name).fget
+    # and nothing else is wrapped that these lists do not name
+    wrapped = {name for name, value in vars(_HeldWCS).items() if hasattr(getattr(value, "fget", value), "__wrapped__")}
+    assert wrapped == {*LOCKED_TRANSFORMS, *LOCKED_PROPERTIES}
 
 
 def test_world_links_into_the_sji_use_each_exposure_time(sns):
