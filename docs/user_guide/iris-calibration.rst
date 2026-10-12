@@ -38,18 +38,19 @@ holds a spectrum for each scan, at the scan's own wavelengths, with the response
 ``DATE_OBS``, its first scan's, which only picks the response: its effective area changes by at most
 0.12 % in 10 hours (Si IV 1402.77 Å on 2014-03-29). Its ``<label> DN/s`` is over each scan's own
 exposure times, so each scan's radiance is that of the scan alone within 0.2 %; on the 99 scans of
-OBSID 3602506433, over 68 minutes, it is the same, as the response does not change that day.
+OBSID 3602506433, over 68 minutes, it is the same, as irispy's response holds the effective area
+constant from mid-2023 on.
 ``glue_solar.sources.calibration.radiometric_calibration(data)`` adds them in glue's terminal too.
 
 A window rebinned with "IRIS: rebin…" (see :ref:`Rebinning <glue_solar_users_guide_iris_rebinning>`)
 is calibrated too. Each bin is the mean of the window's pixels, so the factor takes their spectral
 dispersion and solid angle, from the window's coordinates beneath the rebinned ones, and the
 effective area at the bin's wavelength, the mean of its pixels'. The rebinned radiance is then the
-window's radiance rebinned within half the factor's change across a bin, as the bin's samples share
-one factor: on OBSID 4000255147's C II 1336 rebinned by 2 along the slit and wavelength, within
-0.036 %, where the effective area changes by up to 0.070 % across a bin. A bin along raster steps
+window's radiance rebinned within about half the factor's change across a bin, as the bin's samples
+share one factor: on OBSID 4000255147's C II 1336 rebinned by 2 along the slit and wavelength,
+within 0.036 %, where the factor changes by up to 0.072 % across a bin. A bin along raster steps
 adds the rebinned ``<label> DN/s``'s own difference, the bin's mean DN over its mean exposure time
-rather than the mean of each step's: up to 0.002 % there.
+rather than the mean of each step's: up to 0.003 % there.
 
 Removing dust is offered only for a slit-jaw image, and the calibration only for a raster window or
 stack that is not calibrated already: irispy has no radiometric calibration of slit-jaw images.
