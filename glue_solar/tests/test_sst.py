@@ -284,6 +284,18 @@ def test_the_line_core_is_the_tuning_nearest_the_line_nearest_wavelnth():
     assert _line_core(chromis) == 4  # without WAVELNTH, the line nearest the middle tuning: Ca II H
 
 
+def _views(monkeypatch):
+    """A list that records the view of each statistic glue computes."""
+    views, compute = [], Data.compute_statistic
+
+    def read(self, *args, view=None, **kwargs):
+        views.append(view)
+        return compute(self, *args, view=view, **kwargs)
+
+    monkeypatch.setattr(Data, "compute_statistic", read)
+    return views
+
+
 def test_colour_limits_sample_evenly_spaced_planes_rows_and_columns(monkeypatch, tmp_path):
     # SST10: glue's 10,000 random values each lie on another page of the file
     write_sst_cube(tmp_path / "cube.fits", (2, 1, 23, 49, 97))
@@ -293,16 +305,56 @@ def test_colour_limits_sample_evenly_spaced_planes_rows_and_columns(monkeypatch,
         raise AssertionError("glue's random sample")
 
     monkeypatch.setattr("glue.core.data.random_indices_for_array", random)
-    cid = cube.main_components[0]
-    sample = values.reshape(46, 49, 97)[::3, ::2, ::4]  # 16 of the 46 planes, 25 of the rows and of the columns
-    for percentile in (0.25, 99.75):
+    cid, views = cube.main_components[0], _views(monkeypatch)
+    # 16 of the 46 planes, a tuning each, of either scan, and 25 of the rows and of the columns
+    scans = [0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1]
+    tunings = [0, 1, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 21, 22]
+    sample = values[scans, 0, tunings][:, ::2, ::4]
+    for percentile in (0.25, 50, 99.75):
         limit = cube.compute_statistic("percentile", cid, percentile=percentile, random_subset=10000)
         assert limit == np.nanpercentile(sample, percentile)
+    assert [index.ravel().tolist() for index in views[-1][:-2]] == [scans, tunings]
+    # every plane of a cube of 16 or fewer, and 25 or 26 of the rows and of the columns
+    for shape in ((2, 1, 8, 49, 97), (3, 1, 5, 51, 101)):
+        path = tmp_path / f"{shape[2]}.fits"
+        write_sst_cube(path, shape)
+        small, sample = sst_data(path), fits.getdata(path)[..., ::2, ::4]
+        for percentile in (0.25, 50, 99.75):
+            limit = small.compute_statistic(
+                "percentile", small.main_components[0], percentile=percentile, random_subset=10000
+            )
+            assert limit == np.nanpercentile(sample, percentile)
     # glue's own sample for an axis or a subset
     first = PixelSubsetState(cube, [slice(0, 1)] + [slice(None)] * 3)
     for where in ({"axis": (1, 2, 3)}, {"subset_state": first}):
         with pytest.raises(AssertionError, match="glue's random sample"):
             cube.compute_statistic("maximum", cid, random_subset=10000, **where)
+
+
+@pytest.mark.parametrize("stokes", [1, 4])
+def test_colour_limits_of_a_line_are_glue_s_when_15_divides_the_scans(monkeypatch, tmp_path, stokes):
+    # D73: planes evenly spaced over the scan, Stokes and tuning together were each the first or last tuning, and the
+    # line-core map opened black
+    path, shape = tmp_path / "cube.fits", (30, stokes, 13, 40, 40)
+    write_sst_cube(path, shape)
+    k = np.arange(13)[:, None, None]
+    with fits.open(path, mode="update") as hdul:
+        noise = 1 + 0.02 * np.random.RandomState(0).standard_normal(shape)  # numpy's frozen stream
+        hdul[0].data[...] = (1 - 0.8 * np.exp(-(((k - 6) / 2) ** 2))) * noise  # an absorption line, its core at 6
+    cube = sst_data(path)
+    cid, views = cube.main_components[0], _views(monkeypatch)
+    monkeypatch.setattr(np.random, "randint", np.random.RandomState(0).randint)  # glue's sample, the same each run
+    for percentile in (0.25, 99.75):
+        glue = Data.compute_statistic(cube, "percentile", cid, percentile=percentile, random_subset=10000)
+        limit = cube.compute_statistic("percentile", cid, percentile=percentile, random_subset=10000)
+        assert limit == pytest.approx(glue, rel=0.02)
+    # 16 planes, no two alike, of 16 scans, every Stokes parameter and every tuning, and 25 of their rows and columns
+    plane = views[-1][:-2]
+    assert np.broadcast(*views[-1]).shape == (16, 25, 25)
+    assert len(set(zip(*(index.ravel() for index in plane)))) == 16
+    assert [len(np.unique(index)) for index in plane] == ([16, 4, 13] if stokes == 4 else [16, 13])
+    if stokes == 4:
+        assert plane[1].ravel().tolist() == [0, 1, 2, 3] * 4  # the Stokes parameters in turn
 
 
 def test_an_image_viewer_shows_a_cube_without_specsys(qtbot, tmp_path):
