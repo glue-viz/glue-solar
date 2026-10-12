@@ -53,6 +53,7 @@ tests = [
   "pytest-xdist",
   "pytest-remotedata",
   "pooch",
+  "filelock",
 ]
 docs = [
   "sphinx",

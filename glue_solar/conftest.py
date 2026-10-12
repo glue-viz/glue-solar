@@ -291,14 +291,22 @@ IRISPY_DATA_HASHES = {
 
 @pytest.fixture(scope="session")
 def irispy_data():
-    """Fetch a file of LM-SAL/irispy-data into pooch's cache; a tarball gives its sorted FITS files."""
+    """
+    Fetch a file of LM-SAL/irispy-data into pooch's cache; a tarball gives its sorted FITS files.
+
+    pytest-xdist's workers share the cache, which pooch fills without a lock: a worker could read a tarball's file
+    while another still extracts it, or extract it again under another's memory map (a Bus error). Each fetch holds a
+    lock on its file, which the system frees if the worker dies.
+    """
     import pooch
+    from filelock import FileLock
 
     def fetch(name):
-        if name.endswith(".tar.gz"):
-            paths = pooch.retrieve(IRISPY_DATA + name, known_hash=IRISPY_DATA_HASHES[name], processor=pooch.Untar())
-            return sorted(path for path in paths if path.endswith(".fits"))
-        return pooch.retrieve(IRISPY_DATA + name, known_hash=IRISPY_DATA_HASHES[name])
+        with FileLock(pooch.os_cache("pooch") / f"{name}.lock"):
+            if name.endswith(".tar.gz"):
+                paths = pooch.retrieve(IRISPY_DATA + name, known_hash=IRISPY_DATA_HASHES[name], processor=pooch.Untar())
+                return sorted(path for path in paths if path.endswith(".fits"))
+            return pooch.retrieve(IRISPY_DATA + name, known_hash=IRISPY_DATA_HASHES[name])
 
     return fetch
 
