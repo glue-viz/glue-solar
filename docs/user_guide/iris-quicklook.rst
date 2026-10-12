@@ -298,33 +298,31 @@ light curve and a Scatter plot of its 1600 exposure times open, playback runs as
 without, 7 frames a second.
 
 "Light curves of the shown windows and SJI" in the "Point" submenu of any Image viewer of IRIS, AIA
-or SOT data, unlike
-"Light curve of this window" above, plots the light curves at a point on a raster against time, with
-lines, in a new Scatter viewer: one for each window of the point's raster file with exposures or
-scans (a sit-and-stare raster or a stack) that the point's quicklook shows, and one for each
-slit-jaw channel of its observation it shows, but those whose panels are all turned off in the
-Panels list; other windows and channels loaded get none. A point made outside a quicklook gets its
-own window's curve and one for each slit-jaw channel of its observation loaded. The entry shows
-only where there is such a curve: not without a point on a raster, nor on a single scan with no
-slit-jaw image loaded. Each is a new dataset, such as "Mg II k 2796 2796.24 Å light curve" or
+or SOT data, unlike "Light curve of this window" above, plots the light curves at a point on a
+raster against time, with lines, in a new Scatter viewer: one for each window of the point's raster
+file with exposures or scans (a sit-and-stare raster or a stack) that the point's quicklook shows,
+and one for each slit-jaw channel of its observation it shows, but those whose panels are all turned
+off in the Panels list; other windows and channels loaded get none. A point made outside a quicklook
+gets its own window's curve and one for each slit-jaw channel of its observation loaded. The entry
+shows only where there is such a curve: not without a point on a raster, nor on a single scan with
+no slit-jaw image loaded. Each is a new dataset, such as "Mg II k 2796 2796.24 Å light curve" or
 "SJI 1400 light curve", of ``Time`` and ``Value`` in the window's or channel's own data unit, not
 normalised. A window's curve is its value at the point's slit position (and a stack's raster step)
 at each exposure or scan, as ``cube[:, y, k]``, at the wavelength pixel ``k`` the map shows, for the
-window it shows, or else the
-one nearest the window's line (its TWAVE). A slit-jaw curve is its value in each frame at the place
-of the point's slit position at the raster exposure, or a stack's scan, nearest the frame's time,
-placed with that frame's own pointing, and NaN where no exposure is within half the raster's time
-step or the place is off the frame. A scanning raster's steps are places, not times: it gets no
-curves of its own, and each slit-jaw curve follows the point's place in every frame. The curves
-follow the point a quarter of a second after it moves to another slit position (or raster step of
-a stack or a scanning raster), so Pixel drags and playback do not wait for them; another exposure
-or scan leaves them as they are, and so do "Clear point" and a point on other data. The first
-curve's ``Time`` and ``Value`` are linked to the others' with glue identity links, so that they
-share the plot's axes, and each keeps its observation's OBSID and start time, so the time master's
-exposure ("Master exposure", above) shows on every curve while their plot is the first open time
-plot of an observation's data. Choose the entry again for another wavelength, or after turning
-panels on or off, which leaves the curves made as they are: it adds new curves and a new plot.
-Removing a curve's dataset stops it. "ECSV (with Time)" saves a curve with its times (see
+window it shows, or else the one nearest the window's line (its TWAVE). A slit-jaw curve is its
+value in each frame at the place of the point's slit position at the raster exposure, or a stack's
+scan, nearest the frame's time, placed with that frame's own pointing, and NaN where no exposure is
+within half the raster's time step or the place is off the frame. A scanning raster's steps are
+places, not times: it gets no curves of its own, and each slit-jaw curve follows the point's place
+in every frame. The curves follow the point a quarter of a second after it moves to another slit
+position (or raster step of a stack or a scanning raster), so Pixel drags and playback do not wait
+for them; another exposure or scan leaves them as they are, and so do "Clear point" and a point on
+other data. The first curve's ``Time`` and ``Value`` are linked to the others' with glue identity
+links, so that they share the plot's axes, and each keeps its observation's OBSID and start time, so
+the time master's exposure ("Master exposure", above) shows on every curve while their plot is the
+first open time plot of an observation's data. Choose the entry again for another wavelength, or
+after turning panels on or off, which leaves the curves made as they are: it adds new curves and a
+new plot. Removing a curve's dataset stops it. "ECSV (with Time)" saves a curve with its times (see
 :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`). On OBSID 4000255147,
 with Mg II k 2796 and C II 1336 (1600 exposures) and SJI 1400 (400 frames) shown and all nine
 windows loaded, the window curves equal ``cube[:, y, k]`` and the slit-jaw curve the same placement
