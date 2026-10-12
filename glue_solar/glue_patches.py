@@ -5,6 +5,7 @@ Each fix installs, or acts, only when a probe finds the bug, and names the upstr
 """
 
 import builtins
+import inspect
 import os
 from contextlib import nullcontext
 from functools import cache
@@ -716,7 +717,9 @@ if needs_link_restore_workaround():
 # and both of the `PathRelativeLink` between two path diagrams ``k``. Its link editor keeps one choice per name, so once
 # there was one, Link Data and Link Suggestions raised ValueError ("value Helioprojective Latitude is not in valid
 # choices") and never opened. Each end gets its own name, and a `LinkSameWithUnits` also takes the ``cids1`` and
-# ``cids2`` from which the editor's OK makes every link again (report candidate for glue).
+# ``cids2`` from which the editor's OK makes every link again. That OK makes a `PathRelativeLink` a `ComponentLink`
+# without its names, read then off its bound conversions, ``self`` too, so the next Link Data raised TypeError; they
+# take one name each, as `_ScanAt` does (report candidate for glue).
 _original_link_with_units_init = LinkSameWithUnits.__init__
 _original_path_link_init = PathRelativeLink.__init__
 
@@ -737,8 +740,8 @@ def path_link_init(self, slice_from, slice_to):
 
 def needs_link_editor_workaround(units_init=_original_link_with_units_init, path_init=_original_path_link_init):
     """
-    Whether glue's link editor, as Link Data and Link Suggestions open it, or its OK fails on a `LinkSameWithUnits`
-    made by ``units_init`` or a `PathRelativeLink` made by ``path_init``.
+    Whether glue's link editor, as Link Data and Link Suggestions open it, or its OK fails, at first or after an OK,
+    on a `LinkSameWithUnits` made by ``units_init`` or a `PathRelativeLink` made by ``path_init``.
     """
     first, second = Data(x=np.zeros((2, 2)), label="first"), Data(y=np.zeros((2, 2)), label="second")
     paths = [
@@ -750,8 +753,9 @@ def needs_link_editor_workaround(units_init=_original_link_with_units_init, path
     path = type("Probe", (PathRelativeLink,), {"__init__": path_init})
     collection.add_link([units(first.id["x"], second.id["y"]), path(*paths)])
     try:
-        LinkEditorState(collection).update_links_in_collection()
-    except (AttributeError, ValueError):
+        for _ in range(2):  # Link Data again after an OK
+            LinkEditorState(collection).update_links_in_collection()
+    except (AttributeError, TypeError, ValueError):
         return True
     return False
 
@@ -759,6 +763,8 @@ def needs_link_editor_workaround(units_init=_original_link_with_units_init, path
 if needs_link_editor_workaround():
     LinkSameWithUnits.__init__ = link_with_units_init
     PathRelativeLink.__init__ = path_link_init
+    PathRelativeLink._forward.__signature__ = inspect.signature(lambda k_from: None)
+    PathRelativeLink._backward.__signature__ = inspect.signature(lambda k_to: None)
 
 
 # glue 1.27.0 gives a time linked from another dataset, such as the first light curve's ``Time`` on the others (a
