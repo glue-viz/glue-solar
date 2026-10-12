@@ -43,7 +43,7 @@ from glue.viewers.matplotlib import viewer as matplotlib_viewer
 from glue.viewers.profile.state import ProfileLayerState, ProfileViewerState
 from glue.viewers.scatter import layer_artist as scatter_layer_artist
 from glue.viewers.scatter import viewer as scatter_viewer
-from glue_qt.app.layer_tree_widget import UserAction
+from glue_qt.app.layer_tree_widget import LayerAction, UserAction
 from glue_qt.config import LayerActionRegistry
 from glue_qt.config import layer_action as glue_layer_action
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
@@ -103,6 +103,7 @@ __all__ = [
     "needs_reference_crosshair_workaround",
     "path_link_init",
     "pv_slice_from_path",
+    "refresh_layer_actions",
     "reset_wcs",
     "save_link_with_units",
     "save_quantity",
@@ -1075,10 +1076,28 @@ if _needs_applies_workaround:
     UserAction._can_trigger = user_action_can_trigger
 
 
+def _application(data_collection):
+    """The glue window of ``data_collection``, or None."""
+    windows = QtWidgets.QApplication.topLevelWidgets()
+    return next((window for window in windows if getattr(window, "data_collection", None) is data_collection), None)
+
+
+def refresh_layer_actions(data_collection):
+    """
+    Show the right-click entries of the glue window of ``data_collection`` that take its selection now, and hide the
+    others: glue-qt does so when the selection changes only, so a run that changes its own guard, as 'IRIS: radiometric
+    calibration' does, left its entry offered.
+    """
+    app = _application(data_collection)
+    for action in [] if app is None else app.findChildren(LayerAction):
+        action.update_enabled()
+
+
 def layer_action(label, check, **kwargs):
     """
     glue-qt's ``layer_action``, shown only where ``check``, the action's own guard, takes the selection: the layer, or
-    the layers of an action not ``single``.
+    the layers of an action not ``single``; the entries are refreshed for the selection once it returns
+    (`refresh_layer_actions`).
     """
 
     def applies(selection):
@@ -1089,9 +1108,14 @@ def layer_action(label, check, **kwargs):
         return True
 
     def adder(func):
+        @wraps(func)
+        def run(selection, data_collection):
+            func(selection, data_collection)
+            refresh_layer_actions(data_collection)
+
         if _needs_applies_workaround:
-            _APPLIES[func] = applies
-            return glue_layer_action(label, **kwargs)(func)
-        return glue_layer_action(label, applies=applies, **kwargs)(func)
+            _APPLIES[run] = applies
+            return glue_layer_action(label, **kwargs)(run)
+        return glue_layer_action(label, applies=applies, **kwargs)(run)
 
     return adder

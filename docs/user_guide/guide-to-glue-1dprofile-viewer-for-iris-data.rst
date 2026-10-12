@@ -109,9 +109,9 @@ samples are left out of the mean spectrum" for 4000255147's Si IV 1403, or 13,76
 flare's raster r00173 of 3860258481. Glue computes the difference only where it is shown. Glue's
 arithmetic attribute editor makes other comparisons from the two attributes, such as the values
 over the mean spectrum. The entry is offered only for a raster window or stack that does not have
-them yet, and glue says why for a second run while the first computes. In glue's terminal,
-``glue_solar.sources.moments.subtract_mean_spectrum(data)`` adds them and returns the difference's
-attribute.
+them yet, so it is gone from the menu as soon as it is chosen, back only if the computation fails.
+In glue's terminal, ``glue_solar.sources.moments.subtract_mean_spectrum(data)`` adds them and
+returns the difference's attribute.
 
 Recipes
 -------

@@ -239,9 +239,7 @@ def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
             refused(tree._actions[action])
     tree.ui.layerTree.set_selected_layers([raster])
     tree._actions[RADIANCE].trigger()
-    tree.ui.layerTree.set_selected_layers([plain])
-    tree.ui.layerTree.set_selected_layers([raster])
-    refused(tree._actions[RADIANCE])  # calibrated already
+    refused(tree._actions[RADIANCE])  # calibrated already: hidden at once, the row still selected
     assert not iris._RUNNING  # no thread started
     assert shown == [
         f"Could not remove dust\n{raster.label} is not an IRIS slit-jaw image.",

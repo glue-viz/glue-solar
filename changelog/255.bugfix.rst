@@ -1,0 +1,1 @@
+A window just calibrated, or whose mean spectrum is being or has been subtracted, no longer offers the action again in the right-click menu until it is selected anew.
