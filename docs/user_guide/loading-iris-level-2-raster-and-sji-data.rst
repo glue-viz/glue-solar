@@ -236,7 +236,7 @@ file) and 3660259102 (1020 exposures, 1.5 GB), every window opened with "File â†
 opens in about 0.6 s with under 0.1 GB more memory, and the quicklook of Mg II k 2796, stepped with
 F through every exposure and then through every slit row of its wavelength panel, keeps glue under
 1.8 GB, each step redrawing the images in 0.06 to 0.12 s and the spectrum in 0.18 s. Every window
-and the slit-jaw image ticked in the observation browser, with "Open quicklook", take about 4 s, as
+and the slit-jaw image ticked in the observation browser, with "Open quicklook", take about 8 s, as
 the colour limits of each are counted first, and peak at about 3 GB on 4000255147, most of it the
 file's pages read for those counts.
 

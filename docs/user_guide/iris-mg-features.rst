@@ -29,7 +29,7 @@ For each line measured, ``k2v``, ``k3`` and ``k2r`` or ``h2v``, ``h3`` and ``h2r
 
 - ``<feature>_velocity``, in km/s from the line's rest wavelength, on the uncorrected Level 2
   wavelength scale, which can be off by about 5-10 km/s;
-- ``<feature>_intensity``, in the window's unit, DN/s;
+- ``<feature>_intensity``, in the window's DN/s, irispy's ``DN_IRIS_NUV / s``;
 
 NaN where irispy finds no such feature, or a sample within the velocities searched for the line is
 missing (NaN or -Inf) or saturated: +Inf, as glue-solar reads 16182 DN, the Level 2 ceiling

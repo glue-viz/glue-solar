@@ -39,9 +39,10 @@ window: 1399.369 to 1406.009 Å"; one wholly outside it says "outside the window
 The maps
 --------
 
-- ``intensity``, the sum of the samples, in DN/s: those of the window's ``<label> DN/s``, its DN over
-  each raster step's exposure time (NaN at a step whose exposure time is 0 s), or of the window's
-  own values, in their unit, for data without one;
+- ``intensity``, the sum of the samples: those of the window's ``<label> DN/s``, its DN over each
+  raster step's exposure time (NaN at a step whose exposure time is 0 s), in irispy's
+  ``DN_IRIS_FUV / s`` or ``DN_IRIS_NUV / s`` by the window's detector, or of the window's own values,
+  in their unit, for data without one;
 - ``centroid``, the line's intensity-weighted mean wavelength, in Å;
 - ``width``, its standard deviation about the centroid, in Å, not its full width at half maximum:
   for a Gaussian line within the velocity range, the FWHM is 2√(2 ln 2) ≈ 2.355 times the width,

@@ -147,7 +147,8 @@ at, unless it is within half the longer of the two cubes' times between scans al
 quicklook starts there; a quicklook not shown keeps its time until it is shown. Once linked to IRIS
 data, the cube shares the time of that IRIS observation instead: the IRIS quicklook, shown, moves its
 raster to the exposure nearest the cube's scan in the same way, and the cube moves to the scan nearest
-the IRIS time when its quicklook is shown again.
+the IRIS time when its quicklook is shown again, each when the other's time falls within its scans or
+exposures.
 
 A saved session opens the quicklook again with its point and its time master, the spectra and the
 light curve following the point again; as in the IRIS quicklook, the Point window, the Panels list,
@@ -174,7 +175,7 @@ profile computed: the rectangle, or the point's spectra when the cube's quickloo
 the range to all. Ticking the cube in the viewer's layer list shows its own profile, at that cost.
 On obs 492 Ca II 8542 the button then opens in 0.2 s, reading nothing, a 200 by 200 pixel
 rectangle's profile takes 1.7 s from a cold disk, reading 0.9 GB, and 0.6 s once read, and a Path
-diagram settles 0.3 s after Enter rather than 4 to 5 s.
+diagram settles about 0.6 s after Enter rather than 4 to 5 s.
 
 Saving sessions
 ---------------
@@ -195,5 +196,9 @@ not write, takes wcslib's own inverse of its coordinates, so once linked a regio
 no IRIS pixels.
 
 Opening a map, or other data with sky coordinates and a different number of axes, after an SST cube
-shows glue's "Could not load data … Cannot slice WCS" from its autolinker, though the map loads; open
-the map first to avoid it.
+makes glue's autolinker fail with "Cannot slice WCS", though the map loads: "File → Open Data Set"
+puts the traceback in glue's Error Console, and a file dropped on glue shows it as "Could not load
+data … Cannot slice WCS". Open the map first to avoid it. In the same way, a cube without Stokes
+parameters, such as obs 171's H-alpha, opened after one with them, such as obs 167's Fe I 6173, puts
+an ``IndexError`` from the autolinker in the Error Console, again with each later "File → Open Data
+Set", though each loads; open the cube without Stokes parameters first.
