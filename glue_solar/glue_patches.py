@@ -8,7 +8,7 @@ import builtins
 import inspect
 import os
 from contextlib import nullcontext
-from functools import cache
+from functools import cache, wraps
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
@@ -124,27 +124,25 @@ def world2pixel_single_axis(wcs, *world, pixel_axis=None):
     glue-core 1.27.0 keeps only the world axes that depend on ``pixel_axis`` and collapses the others
     to their first element. The longitude and latitude of an IRIS slit-jaw image depend on time, so
     every frame was inverted at exposure 0. The fix also keeps the world axes that share a pixel axis
-    with those; the rest is unchanged from glue-core, but for `WCS_LOCK`, held as glue's profile workers
-    call it on whatever WCS a link reaches.
+    with those; the rest is unchanged from glue-core. Installed holding `WCS_LOCK` (`_hold_wcs_lock`).
     """
     if pixel_axis is None:
         raise ValueError("pixel_axis needs to be set")
     if np.size(world[0]) == 0:
         return np.array([], dtype=float)
     original_shape = world[0].shape
-    with WCS_LOCK:
-        matrix = wcs.axis_correlation_matrix
-        world_dep = matrix[:, pixel_axis].copy()
-        for _ in range(matrix.shape[0]):  # transitive closure
-            world_dep |= (matrix & matrix[world_dep].any(axis=0)).any(axis=1)
-        world = np.broadcast_arrays(*[unbroadcast(w) if dep else w.flat[0] for w, dep in zip(world, world_dep)])
-        # astropy/astropy#12154: a 1D WCS cannot take arbitrary shapes
-        if len(world) == 1 and world[0].ndim > 1:
-            result = wcs.world_to_pixel_values(world[0].ravel()).reshape(world[0].shape)
-        else:
-            result = wcs.world_to_pixel_values(*world)
-            if len(world) > 1:
-                result = result[pixel_axis]
+    matrix = wcs.axis_correlation_matrix
+    world_dep = matrix[:, pixel_axis].copy()
+    for _ in range(matrix.shape[0]):  # transitive closure
+        world_dep |= (matrix & matrix[world_dep].any(axis=0)).any(axis=1)
+    world = np.broadcast_arrays(*[unbroadcast(w) if dep else w.flat[0] for w, dep in zip(world, world_dep)])
+    # astropy/astropy#12154: a 1D WCS cannot take arbitrary shapes
+    if len(world) == 1 and world[0].ndim > 1:
+        result = wcs.world_to_pixel_values(world[0].ravel()).reshape(world[0].shape)
+    else:
+        result = wcs.world_to_pixel_values(*world)
+        if len(world) > 1:
+            result = result[pixel_axis]
     return np.broadcast_to(result, original_shape)
 
 
@@ -159,12 +157,6 @@ def needs_inverse_workaround(func=_original_world2pixel_single_axis):
     )
     x = func(wcs, np.array([10.0, 11.0]), np.zeros(2), np.array([0.0, 1.0]), pixel_axis=0)
     return not np.allclose(x, 10)
-
-
-if needs_inverse_workaround():
-    coordinate_helpers.world2pixel_single_axis = world2pixel_single_axis
-    # glue.core.component_link imports it by name
-    component_link.world2pixel_single_axis = world2pixel_single_axis
 
 
 _original_reset_wcs = WCSAxes.reset_wcs
@@ -352,26 +344,21 @@ def _to_linked_pixel_coords(self, data):
     scan and Stokes parameter reach no IRIS axis, reached no IRIS data (D73). This places a point whose reached axes
     reach back to fixed axes only, at least one, at the point's own slices, a free axis at its first pixel as glue's:
     the scan gives the cube's pointing there and the slit-jaw frame nearest it. One whose reached axes reach a free axis
-    stays incompatible, as glue's. Retired by glue's check taking a subset (report candidate). It holds
-    `WCS_LOCK`, as glue's profile workers call it through the WCS of each linked dataset, but for a dataset with a WCS
-    `~glue_solar.sources.loaders.iris.link_hpc` has not locked, as it does once it links it: no IRIS data's WCS is
-    linked to it, so an unlinked map or SST cube never waits for IRIS data's threads.
+    stays incompatible, as glue's. Retired by glue's check taking a subset (report candidate). Installed holding
+    `WCS_LOCK` (`_hold_wcs_lock`).
     """
-    pair = self.reference_data, data
-    unlinked = any(isinstance(d.coords, WCS) and not isinstance(d.coords, _LockedWCS) for d in pair)
     dimensions = [axis for axis, s in enumerate(self.slices) if s.start is not None]
     try:
-        with nullcontext() if unlinked else WCS_LOCK:
-            matrix = pixel_cid_to_pixel_cid_matrix(self.reference_data, data)
-            reached = np.nonzero(matrix[dimensions].any(axis=0))[0]
-            back = np.nonzero(matrix[:, reached].any(axis=1))[0]
-            if not set(back) <= set(dimensions) or (dimensions and not len(back)):
-                raise IncompatibleAttribute()
-            at = tuple(slice(0, 1) if s.start is None else s for s in self.slices)
-            return [
-                int(np.round(self.reference_data[cid, at].ravel()[0])) if axis in reached else None
-                for axis, cid in enumerate(data.pixel_component_ids)
-            ]
+        matrix = pixel_cid_to_pixel_cid_matrix(self.reference_data, data)
+        reached = np.nonzero(matrix[dimensions].any(axis=0))[0]
+        back = np.nonzero(matrix[:, reached].any(axis=1))[0]
+        if not set(back) <= set(dimensions) or (dimensions and not len(back)):
+            raise IncompatibleAttribute()
+        at = tuple(slice(0, 1) if s.start is None else s for s in self.slices)
+        return [
+            int(np.round(self.reference_data[cid, at].ravel()[0])) if axis in reached else None
+            for axis, cid in enumerate(data.pixel_component_ids)
+        ]
     except ValueError:  # int() of NaN: the point is not on ``data``
         raise IncompatibleAttribute() from None
 
@@ -404,8 +391,36 @@ def needs_pixel_point_workaround(method=_original_to_linked_pixel_coords):
     return False
 
 
-if needs_pixel_point_workaround():
-    PixelSubsetState._to_linked_pixel_coords = _to_linked_pixel_coords
+def _hold_wcs_lock():
+    """
+    Install glue's ``world2pixel_single_axis`` and ``PixelSubsetState._to_linked_pixel_coords``, or their fixes here
+    where the probes find glue's faulty, holding `WCS_LOCK`: glue's profile workers call them through the WCS of each
+    dataset a link reaches, beside the GUI thread, which crashed glue beside an SST cube. Installed whatever the probes
+    say, so that only astropy/astropy#19174's fix retires the lock (D73). A point to or on a dataset with a WCS
+    `~glue_solar.sources.loaders.iris.link_hpc` has not locked, as it does once it links it, takes no lock: no IRIS
+    data's WCS is linked to it, so an unlinked map or SST cube never waits for IRIS data's threads.
+    """
+    inverse = world2pixel_single_axis if needs_inverse_workaround() else _original_world2pixel_single_axis
+    point = _to_linked_pixel_coords if needs_pixel_point_workaround() else _original_to_linked_pixel_coords
+
+    @wraps(inverse)
+    def locked_inverse(*args, **kwargs):
+        with WCS_LOCK:
+            return inverse(*args, **kwargs)
+
+    @wraps(point)
+    def locked_point(self, data):
+        pair = self.reference_data, data
+        unlinked = any(isinstance(d.coords, WCS) and not isinstance(d.coords, _LockedWCS) for d in pair)
+        with nullcontext() if unlinked else WCS_LOCK:
+            return point(self, data)
+
+    # glue.core.component_link imports it by name
+    coordinate_helpers.world2pixel_single_axis = component_link.world2pixel_single_axis = locked_inverse
+    PixelSubsetState._to_linked_pixel_coords = locked_point
+
+
+_hold_wcs_lock()
 
 
 _original_apply_subset_state = ApplySubsetState.do
