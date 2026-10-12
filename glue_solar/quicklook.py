@@ -1391,7 +1391,9 @@ def hidden_cube_profile(viewer, data):
             " show it."
         )
         viewer._solar_fit = _FitOnceComputed(viewer, data, fit=lambda viewer: viewer.state.reset_limits())
-    return viewer.get_data_layer_artist(data, ProfileLayerState(layer=data, viewer_state=viewer.state, visible=False))
+    state = ProfileLayerState(layer=data, viewer_state=viewer.state, visible=False)
+    state._solar_own = True  # hidden by glue-solar: 'Save profiles as ECSV…' does not name it
+    return viewer.get_data_layer_artist(data, state)
 
 
 def _profile(app, raster, window):
@@ -1790,6 +1792,7 @@ def _show_point(app, group, own):
                 viewer.remove_subset(layer.layer)  # see _show
             else:
                 layer.visible = False
+                layer._solar_own = True  # as hidden_cube_profile's
 
 
 # glue-qt computes the profile of a layer above this size on a worker thread
