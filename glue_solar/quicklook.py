@@ -2001,10 +2001,10 @@ def _curve_pixel(group, raster):
 def _curve_sources(app):
     """
     The point's raster, its pixel there (`_curve_pixel`, what `_curve` takes) and the datasets of its light curves
-    (`_point_curves`), in data collection order: each window of the raster's file with exposures or scans, and one
-    slit-jaw image of each channel of its observation, that a panel of the point's quicklook shows, those turned off
-    left out; for a point of no quicklook, the raster itself and every slit-jaw image. ValueError for no point on a
-    raster, or none of them.
+    (`_point_curves`): each window of the raster's file with exposures or scans, then one slit-jaw image of each
+    channel of its observation (`_pick_sjis`), each in data collection order, that a panel of the point's quicklook
+    shows, those turned off left out; for a point of no quicklook, the raster itself and every slit-jaw image.
+    ValueError for no point on a raster, or none of them.
     """
     collection = app.data_collection
     coord = coordinator(collection)

@@ -293,6 +293,9 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
     tick(panels, "C II 1336", on=False)
     panels.apply()  # as the list does at the next turn of the event loop
     assert curves(viewers["map"]) == ["Si IV 1403", "SJI 1400"]
+    # none without a point, the window's light curve and the cuts left to refuse when chosen
+    menu_action(viewers["map"], "Clear point").trigger()
+    assert offered(viewers["map"]) == [*time, "Raster overlays", *curve[:2], *cuts, *blink, *banded]
     # of a point of no quicklook, its own window's and every slit-jaw image's
     other = image(bare_app, raster, 0, 1)
     bare_app.session.edit_subset_mode.edit_subset = [bare_app.data_collection.new_subset_group(label="Other")]
