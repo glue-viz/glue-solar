@@ -1,6 +1,7 @@
 """
-IRIS Level 2 support: a file reader for File → Open Data Set, the observation browser, 'IRIS: shift pointing…', an
-exporter of derived maps with their coordinates, and one of 1-D data, such as light curves, with their times.
+IRIS Level 2 support: a file reader for File → Open Data Set, the observation browser, the Plugins menu's quicklooks, of
+IRIS data and of SST cubes, 'IRIS: shift pointing…', an exporter of derived maps with their coordinates, and one of 1-D
+data, such as light curves, with their times.
 """
 
 import re
@@ -53,6 +54,7 @@ __all__ = [
     "iris_quicklook",
     "link_iris",
     "quicklook_iris",
+    "quicklook_sst",
     "read_iris_file",
     "shift_pointing_iris",
 ]
@@ -310,24 +312,33 @@ def _observations(data_collection):
 @menubar_plugin("IRIS: quicklook…")
 def quicklook_iris(session, data_collection):
     """
-    Open the quicklook of an IRIS observation that is already loaded, with a raster or slit-jaw image, or of an SST
-    cube, asking which when several are.
+    Open the quicklook of an IRIS observation that is already loaded, with a raster or slit-jaw image, asking which when
+    several are.
     """
-    app = session.application
     choices = {
         f"{obsid} {str(start)[:19]}": datasets for (obsid, start), datasets in _observations(data_collection).items()
     }
+    _open_chosen(session.application, "IRIS", choices, "IRIS observation with a raster or slit-jaw image")
+
+
+@menubar_plugin("SST: quicklook…")
+def quicklook_sst(session, data_collection):
+    """Open the SST quicklook of a CRISP or CHROMIS cube that is already loaded, asking which when several are."""
+    choices = {}
     for cube in [data for data in data_collection if _role(data) == "sst"]:
         label = f"SST {_sst_line(cube)}"
         choices[f"{label} ({cube.label})" if label in choices else label] = [cube]  # its file's stem for a repeat
+    _open_chosen(session.application, "SST", choices, "SST cube")
+
+
+def _open_chosen(app, instrument, choices, kind):
+    """Open the quicklook of the datasets of one of ``choices``, by label, asking which when several, or say none is."""
     if not choices:
-        QtWidgets.QMessageBox.information(
-            app, "IRIS quicklook", "No IRIS observation with a raster or slit-jaw image, nor SST cube, is loaded."
-        )
+        QtWidgets.QMessageBox.information(app, f"{instrument} quicklook", f"No {kind} is loaded.")
         return
     labels = list(choices)
     if len(labels) > 1:
-        label, chosen = QtWidgets.QInputDialog.getItem(app, "IRIS quicklook", "Observation:", labels, 0, False)
+        label, chosen = QtWidgets.QInputDialog.getItem(app, f"{instrument} quicklook", "Observation:", labels, 0, False)
         if not chosen:
             return
         labels = [label]

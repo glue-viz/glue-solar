@@ -36,14 +36,17 @@ def _line_core(waves, wavelnth=None):
     """
     The tuning of the line core, of tunings at ``waves``, in nm: the one nearest the line of `_LINES` within them that is
     nearest ``wavelnth``, the header's WAVELNTH, which is the prefilter's, or the middle tuning's wavelength without it;
-    the line as the Sun shows it, redshifted 0.636 km/s by its gravity. With no line within them, the tuning nearest
-    ``wavelnth``.
+    the line's air wavelength itself, not redshifted by the Sun's gravity (232-1). Of tunings as near it to 0.05 pm, half
+    the 0.1 pm the table gives the lines to, such as obs 492 Ca II 8542's 9 and 10, each 3.0 pm from it, the one nearer
+    the middle tuning. With no line within them, the tuning nearest ``wavelnth``.
     """
     waves = np.asarray(waves)
     centre = waves[len(waves) // 2] if wavelnth is None else wavelnth
-    lines = _LINES[(waves.min() <= _LINES) & (_LINES <= waves.max())] * (1 + 0.636 / 299792.458)
+    lines = _LINES[(waves.min() <= _LINES) & (_LINES <= waves.max())]
     line = lines[np.argmin(abs(lines - centre))] if len(lines) else centre
-    return int(np.argmin(abs(waves - line)))
+    offset = abs(waves - line)
+    near = np.flatnonzero(offset <= offset.min() + 5e-5)
+    return int(near[np.argmin(abs(near - (len(waves) - 1) / 2))])
 
 
 class _TabularWCS(_HeldWCS):
@@ -188,22 +191,32 @@ class _Cube(Data):
     def compute_statistic(self, statistic, cid, subset_state=None, axis=None, view=None, random_subset=None, **kwargs):
         sampled = random_subset and subset_state is None and axis is None and view is None
         if sampled and type(self._components.get(cid)) is Component:  # not the cavity error's dask, nor a derived one
-            *axes, rows, columns = self.shape
-            if np.prod(axes) <= 16:
-                plane = np.indices(axes).reshape(len(axes), -1)
-            else:
-                k = np.arange(16)
-                scan = np.linspace(0, axes[0] - 1, 16).round().astype(int)[k * 7 % 16]
-                tuning = np.linspace(0, axes[-1] - 1, 16).round().astype(int)
-                plane = (scan, k % axes[1], tuning) if len(axes) == 3 else (scan, tuning)
-            side = max(1, round((random_subset / len(plane[0])) ** 0.5))
-            view = tuple(index[:, None, None] for index in plane) + (
-                np.linspace(0, rows - 1, min(rows, side)).round().astype(int)[:, None],
-                np.linspace(0, columns - 1, min(columns, side)).round().astype(int),
-            )
-            random_subset = None
+            view, random_subset = self._sample(random_subset), None
         return super().compute_statistic(
             statistic, cid, subset_state=subset_state, axis=axis, view=view, random_subset=random_subset, **kwargs
+        )
+
+    def _sample(self, size, stokes=None):
+        """
+        The view of the sample of ``size`` values, or of as many of Stokes parameter ``stokes`` alone, from 16 planes of
+        it in the same way, as the SST quicklook's limits of Q, U and V take them.
+        """
+        *axes, rows, columns = self.shape
+        if stokes is not None:
+            axes[1] = 1  # the planes of a cube of one Stokes parameter, then moved to it
+        if np.prod(axes) <= 16:
+            plane = list(np.indices(axes).reshape(len(axes), -1))
+        else:
+            k = np.arange(16)
+            scan = np.linspace(0, axes[0] - 1, 16).round().astype(int)[k * 7 % 16]
+            tuning = np.linspace(0, axes[-1] - 1, 16).round().astype(int)
+            plane = [scan, k % axes[1], tuning] if len(axes) == 3 else [scan, tuning]
+        if stokes is not None:
+            plane[1] = plane[1] + stokes
+        side = max(1, round((size / len(plane[0])) ** 0.5))
+        return tuple(index[:, None, None] for index in plane) + (
+            np.linspace(0, rows - 1, min(rows, side)).round().astype(int)[:, None],
+            np.linspace(0, columns - 1, min(columns, side)).round().astype(int),
         )
 
     def __gluestate__(self, context):

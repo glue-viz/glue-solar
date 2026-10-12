@@ -43,7 +43,7 @@ from glue_solar.quicklook import (
     observation_key,
     quicklook,
 )
-from glue_solar.sources.iris import iris_quicklook, link_iris, quicklook_iris
+from glue_solar.sources.iris import iris_quicklook, link_iris, quicklook_iris, quicklook_sst
 from glue_solar.sources.loaders.iris import WCS_LOCK, _LockedWCS, image_data, keep_hpc_linked, raster_data
 from glue_solar.sources.loaders.scan import scan_directory
 from glue_solar.sources.sst import _Cube, _line_core, _LockedTabularWCS, _TabularWCS, sst_data
@@ -195,7 +195,7 @@ def test_file_open_gives_the_cube_alone_memory_mapped(tmp_path):
     assert stokes.meta["VAR-EXT"]["DATE-AVG"].shape == (3, 1, 5, 1, 1)
     assert data.meta["SPECSYS"] == "TOPOCENT"  # SST2: astropy needs one beside OBSGEO
     assert _role(data) == "sst"
-    assert _timed(data)  # in the time sync of the SST cubes of its day (D68)
+    assert _timed(data)  # in the time sync of the SST cubes whose scan times overlap its own (230-9)
 
 
 def test_time_and_wavelengths_are_the_table_s_at_every_pixel(tmp_path):
@@ -275,11 +275,16 @@ def test_the_line_core_is_the_tuning_nearest_the_line_nearest_wavelnth():
     # H & K cube is in Ca II H, but the line nearest its WAVELNTH is Ca II K
     chromis = [393.2674, 393.3675, 393.5326, 396.7562, 396.8415, 396.9, 399.9]
     assert _line_core(chromis, 395.0) == 1  # 393.3675 nm, Ca II K
-    crisp = [853.9721, 854.1581, 854.2001, 854.2061, 854.2121, 854.2181, 854.2661, 854.4521]
-    assert _line_core(crisp, 854.1) == 4  # 854.2121 nm: Ca II 854.209 nm, as the Sun redshifts it; not WAVELNTH's
     fe = [630.1883, 630.2183, 630.2363, 630.2483, 630.2543, 630.2783, 630.3083]
     assert _line_core(fe, 630.26) == 3  # 630.2483 nm, Fe I 630.25, the one of the two within the tunings
-    assert _line_core([393.3660, 393.3672], 395.0) == 1  # Ca II K at 393.3663 nm, 393.3671 nm as the Sun redshifts it
+    # 232-1: the line's NIST air wavelength, not redshifted by the Sun's gravity to 393.3671 nm
+    assert _line_core([393.3660, 393.3672], 395.0) == 0  # Ca II K at 393.3663 nm
+    # obs 492 Ca II 8542's 21 tunings, 9 and 10 each 3.0 pm from Ca II 854.2091 nm: the middle one, 10, not WAVELNTH's
+    crisp = np.r_[853.9720965796, 854.1580965796 + 0.006 * np.arange(19), 854.4520965796]
+    assert _line_core(crisp, 854.1) == 10
+    # of two as near to 0.05 pm, 2.98 and 3.02 pm off, the one nearer the middle tuning; 0.1 pm apart, the nearer
+    assert _line_core([853.9721, 854.20612, 854.21212, 854.2661, 854.4521], 854.1) == 2
+    assert _line_core([853.9721, 854.20614, 854.21216, 854.2661, 854.4521], 854.1) == 1
     assert _line_core([500.0, 500.1, 500.2, 500.3], 500.12) == 1  # no line of the table: WAVELNTH's tuning
     assert _line_core(chromis) == 4  # without WAVELNTH, the line nearest the middle tuning: Ca II H
 
@@ -355,6 +360,11 @@ def test_colour_limits_of_a_line_are_glue_s_when_15_divides_the_scans(monkeypatc
     assert [len(np.unique(index)) for index in plane] == ([16, 4, 13] if stokes == 4 else [16, 13])
     if stokes == 4:
         assert plane[1].ravel().tolist() == [0, 1, 2, 3] * 4  # the Stokes parameters in turn
+        # the quicklook's limits of U from the same scans and tunings, all of U (230-6)
+        u = cube._sample(10000, 2)
+        assert u[1].ravel().tolist() == [2] * 16
+        for axis in (0, 2, 3, 4):
+            np.testing.assert_array_equal(u[axis], views[-1][axis])
 
 
 def test_an_image_viewer_shows_a_cube_without_specsys(qtbot, tmp_path):
@@ -625,6 +635,38 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
         quicklook(sst_app, [cube, single])
 
 
+def test_q_u_and_v_show_with_limits_symmetric_about_0(sst_app, qtbot, tmp_path):
+    # 230-6: glue's 99.5% over the whole cube, I's values mostly, showed Q, U and V flat
+    path = tmp_path / "cube.fits"
+    write_sst_cube(path, (3, 4, 5, 12, 16))
+    rng = np.random.default_rng(0)
+    with fits.open(path, mode="update") as hdul:
+        hdul[0].data[:, 0] = rng.normal(1000, 10, (3, 5, 12, 16))
+        hdul[0].data[:, 1:] = rng.normal(0, 1, (3, 3, 5, 12, 16)) * np.array([1, 1.5, 2])[:, None, None, None]
+        values = hdul[0].data.copy()
+    viewers = quicklook(sst_app, [sst_data(path)])
+    layers = [viewers[role].state.layers[0] for role in ("map", "wing", "slit", "wavelength")]
+    whole = [(layer.v_min, layer.v_max) for layer in layers]
+    assert [layer.percentile for layer in layers] == [99.5] * 4
+    for stokes in (1, 2, 3, 0):
+        slide(viewers["map"], 1, stokes)
+        qtbot.waitUntil(lambda: all(layer.viewer_state.slices[1] == stokes for layer in layers))
+        if stokes == 0:  # glue's again
+            assert [(layer.v_min, layer.v_max, layer.percentile) for layer in layers] == [(*w, 99.5) for w in whole]
+            continue
+        # every value of the parameter, as a cube of 16 planes of it or fewer gives
+        limit = np.percentile(abs(values[:, stokes]), 99.5)
+        for layer in layers:
+            assert (layer.v_min, layer.v_max) == (pytest.approx(-limit), pytest.approx(limit))
+        assert limit < 0.01 * (whole[0][1] - whole[0][0])  # the 1% of glue's range they took
+    # with 'Per-frame limits' on, glue's 99.5% of the frame shown
+    layers[0].stretch_global = False
+    slide(viewers["map"], 1, 3)
+    qtbot.waitUntil(lambda: layers[0].viewer_state.slices[1] == 3)
+    frame = np.percentile(values[0, 3, 2], [0.25, 99.75])
+    assert (layers[0].v_min, layers[0].v_max, layers[0].percentile) == (*map(pytest.approx, frame), 99.5)
+
+
 def test_a_profile_viewer_adds_a_large_cube_hidden(sst_app, monkeypatch, tmp_path, sns):
     # SST4: glue profiles a cube added to a Profile viewer on the main thread first, reading the whole file (30 s on obs
     # 492 Ca II 8542); one of glue's large-data size or more, here any, that the IRIS reader did not read comes hidden
@@ -769,12 +811,13 @@ def show_tab(app, qtbot, index):
 
 
 def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
-    # D68: one cube to a tab, the SST cubes of a day in one time sync: the cube shown leads the time, and one shown next
-    # starts at its scan nearest that time, unless within half the longer cadence of it
-    write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16), start=1200.0, cadence=60.0)
-    write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), start=1170.0, cadence=50.0)
-    first, second = sst_data(tmp_path / "a.fits"), sst_data(tmp_path / "b.fits")
-    assert observation_key(first) == observation_key(second) == ("SST", np.datetime64(DATEREF[:10]))
+    # D68: one cube to a tab, the SST cubes whose scan times overlap in one time sync (230-9): the cube shown leads the
+    # time, and one shown next starts at its scan nearest that time, unless within half the longer cadence of it; a cube
+    # from later in the day keeps its own
+    write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16), start=1200.0, cadence=60.0)  # 1200 to 1381 s
+    write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), start=1170.0, cadence=50.0)  # 1170 to 1370.5 s
+    write_sst_cube(tmp_path / "c.fits", (3, 1, 5, 12, 16), start=5000.0, cadence=60.0)  # 5000 to 5121 s
+    first, second, later = (sst_data(tmp_path / f"{name}.fits") for name in "abc")
     a = quicklook(sst_app, [first])
     slide(a["map"], 0, 2)
     qtbot.wait(20)
@@ -790,6 +833,17 @@ def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
     assert (shown_scan(a), shown_scan(b)) == (1, 2)  # 1270.25 s
     show_tab(sst_app, qtbot, 1)  # within 30 s already: no step back and forth
     assert (shown_scan(a), shown_scan(b)) == (1, 2)
+    c = quicklook(sst_app, [later])
+    day = np.datetime64(DATEREF, "ns")
+    assert observation_key(first) == observation_key(second) == ("SST", day + np.timedelta64(1170, "s"))
+    assert observation_key(later) == ("SST", day + np.timedelta64(5000, "s"))
+    # shown, the later cube leads its own time only, and the first two keep theirs
+    coord = coordinator(sst_app.data_collection)
+    slide(c["map"], 0, 2)
+    assert [coord._master(observation_key(data)) for data in (first, second, later)] == [first, first, later]
+    show_tab(sst_app, qtbot, 2)
+    assert (shown_scan(a), shown_scan(b), shown_scan(c)) == (1, 2, 2)
+    assert [coord._master(observation_key(data)) for data in (first, second, later)] == [second, second, later]
 
 
 def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_path, sns):
@@ -811,7 +865,7 @@ def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_p
     exposure = iris["spectrogram"].state.slices[0]  # a sit-and-stare's map is slit against time
     show_tab(sst_app, qtbot, 2)
     assert shown_scan(sst) == 3
-    assert observation_key(cube) == ("SST", np.datetime64(DATEREF[:10]))
+    assert observation_key(cube) == ("SST", cube["Time"].min())  # its own, the only cube
     assert not isinstance(cube.coords, _LockedWCS)
     link_iris(sst_app.session, sst_app.data_collection)  # 'IRIS: link helioprojective coordinates'
     assert isinstance(cube.coords, _LockedWCS)
@@ -830,6 +884,25 @@ def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_p
     assert shown_scan(sst) == scan
     assert abs(offset) <= cadence / 2
     assert "time master" in sst["map"].toolbar.tools["solar:frame_time"].label.text()
+
+
+def test_a_cube_shares_its_sst_cubes_time_again_once_the_iris_data_go(sst_app, qtbot, tmp_path, sns):
+    # D73: a cube kept the key of the IRIS data it was linked to once they were removed, out of its cubes' time sync
+    sji, raster = sns
+    frames = _times(sji, 0)
+    start, cadence = (frames[10] - np.datetime64(DATEREF)), (frames[-1] - frames[10]) / 3
+    seconds = [time / np.timedelta64(1, "s") for time in (start, cadence)]
+    for name in ("linked", "other"):
+        write_sst_cube(tmp_path / f"{name}.fits", (4, 1, 5, 30, 40), (-55.0, -400.0), (4.0, -3.0), 1.1, 8.0, *seconds)
+    linked, other = sst_data(tmp_path / "linked.fits"), sst_data(tmp_path / "other.fits")
+    sst_app.data_collection.extend([sji, raster, linked])
+    link_iris(sst_app.session, sst_app.data_collection)  # 'IRIS: link helioprojective coordinates'
+    assert observation_key(linked) == observation_key(raster)
+    sst_app.data_collection.remove(sji)
+    sst_app.data_collection.remove(raster)
+    qtbot.waitUntil(lambda: "IRIS observation" not in linked.meta)  # as the links are made again
+    quicklook(sst_app, [other])
+    assert observation_key(linked) == observation_key(other) == ("SST", other["Time"].min())
 
 
 @pytest.mark.parametrize("stokes", [4, 1])
@@ -969,7 +1042,8 @@ def test_a_cube_linked_mid_transform_neither_hangs_nor_races(tmp_path):
 
 
 def test_the_browser_lists_and_opens_each_sst_cube(qtbot, monkeypatch, tmp_path):
-    # D68: an archive folder's observation, an entry per cube, a quicklook per cube; and the Plugins menu's
+    # D68: an archive folder's observation, an entry per cube, a quicklook per cube; and the Plugins menu's SST entry,
+    # IRIS's offering none (230-13)
     folder = tmp_path / "SST-archive_obs492_20230919_CRISP_stokes"
     folder.mkdir()
     for name, line, stokes in (("nb_8542_im.fits", "Ca II 8542", 4), ("nb_6173_im.fits", "Fe I 6173", 1)):
@@ -993,8 +1067,13 @@ def test_the_browser_lists_and_opens_each_sst_cube(qtbot, monkeypatch, tmp_path)
         return items[1], True
 
     monkeypatch.setattr(QtWidgets.QInputDialog, "getItem", choose)
-    quicklook_iris(app.session, app.data_collection)  # 'IRIS: quicklook…'
+    quicklook_sst(app.session, app.data_collection)  # 'SST: quicklook…'
     assert choice["items"] == ["SST Ca II 8542", "SST Fe I 6173"]
+    assert app.tab_names[-1] == "SST Fe I 6173"
+    messages = []
+    monkeypatch.setattr(QtWidgets.QMessageBox, "information", lambda parent, title, text: messages.append(text))
+    quicklook_iris(app.session, app.data_collection)  # 'IRIS: quicklook…'
+    assert messages == ["No IRIS observation with a raster or slit-jaw image is loaded."]
     assert app.tab_names[-1] == "SST Fe I 6173"
     iris_quicklook(app.session, app.data_collection)  # glue --startup=iris_quicklook
     assert app.tab_names[-2:] == ["SST Ca II 8542", "SST Fe I 6173"]
