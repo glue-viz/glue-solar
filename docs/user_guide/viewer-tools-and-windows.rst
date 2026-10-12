@@ -21,7 +21,7 @@ position on original path" and "Slope", with the one on checked, and "Save path 
 path from ECSV…", "Path on other data…" and the "Path sampling" submenu, described with "Path
 diagram" below; the link icon is the "Coordinate" menu, with "Time master", "Go to UTC…", "Loop…"
 and "Raster overlays", its "Point" submenu, with "Clear point", "Light curve of this window",
-"Light curves of every window and SJI…", "Row at the point" and "Column at the point", and its
+"Light curves of the shown windows and SJI", "Row at the point" and "Column at the point", and its
 "Blink" submenu, with "Set blink partner here", "Blink" and "Blink interval"; and
 the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Wavelength
 band…", "Physical aspect", "Zoom 1:1", "Colour bar" and "Cursor readout", each but "Zoom 1:1"
@@ -36,7 +36,9 @@ slit-jaw image, aligned AIA cutout or SOT cube), "Go to UTC…" for one whose ob
 master or that has a frame, exposure, step or scan slider, "Loop…" where the data's first axis has
 a slider, "Raster overlays" where a raster of the viewer's observation is loaded, "Light curve of
 this window" on the map of a sit-and-stare raster or a stack, at a wavelength or band, "Light
-curves of every window and SJI…" on IRIS, AIA and SOT data, and "Row at the point" and "Column at
+curves of the shown windows and SJI" on IRIS, AIA and SOT data while the point, on a raster, has a
+window with exposures or scans or a slit-jaw image to plot (not on a single scan with no slit-jaw
+image loaded), and "Row at the point" and "Column at
 the point" on the map of any raster, at a wavelength or band; "Blink" is greyed until "Set blink
 partner here" gives it a partner. In the View menu, "Frame time" is offered for data with a time
 and "Wavelength band…" while a wavelength axis has a slider. On a plain array, of no observation and

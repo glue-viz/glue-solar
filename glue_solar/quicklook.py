@@ -1968,14 +1968,7 @@ class _PointCurves(QObject):
         self._timer.timeout.connect(self.refresh)
 
     def point(self):
-        """The point's pixel on the raster's file, its wavelength left out and, along time, 0: what `_curve` takes."""
-        state = self.group.subset_state
-        if not isinstance(state, PixelSubsetState) or not _same_file(state.reference_data, self.raster):
-            return None
-        pixel = tuple(s.start for s in state.slices[:-1])  # IRIS wavelengths are the last axis
-        if None in pixel:
-            return None  # a click before the coordinator gives it the axes it was not clicked on (`Coordinator._pin`)
-        return (0, *pixel[1:]) if _time_axis(self.raster) == 0 else pixel
+        return _curve_pixel(self.group, self.raster)
 
     def _synced(self, *_):
         self.curves = [entry for entry in self.curves if entry[0] in self.coordinator.data_collection]
@@ -1994,27 +1987,62 @@ class _PointCurves(QObject):
             curve.update_components({curve.id["Time"]: times, curve.id["Value"]: values})
 
 
+def _curve_pixel(group, raster):
+    """The pixel of ``group``'s point on ``raster``'s file, its wavelength left out and, along time, 0, or None."""
+    state = group.subset_state
+    if not isinstance(state, PixelSubsetState) or not _same_file(state.reference_data, raster):
+        return None
+    pixel = tuple(s.start for s in state.slices[:-1])  # IRIS wavelengths are the last axis
+    if None in pixel:
+        return None  # a click before the coordinator gives it the axes it was not clicked on (`Coordinator._pin`)
+    return (0, *pixel[1:]) if _time_axis(raster) == 0 else pixel
+
+
+def _curve_sources(app):
+    """
+    The point's raster, its pixel there (`_curve_pixel`, what `_curve` takes) and the datasets of its light curves
+    (`_point_curves`), in data collection order: each window of the raster's file with exposures or scans, and one
+    slit-jaw image of each channel of its observation, that a panel of the point's quicklook shows, those turned off
+    left out; for a point of no quicklook, the raster itself and every slit-jaw image. ValueError for no point on a
+    raster, or none of them.
+    """
+    collection = app.data_collection
+    coord = coordinator(collection)
+    raster = getattr(coord.point, "reference_data", None)
+    pixel = _curve_pixel(coord.group, raster) if _role(raster) == "raster" else None
+    if pixel is None:
+        raise ValueError("Select a point on a raster first.")
+    points = getattr(app, "_solar_points", {})
+    tab = next((viewers for i, viewers in enumerate(app.viewers) if points.get(app.tab(i)) is coord.group), None)
+    if tab is None:
+        shown = {raster, *(data for data in collection if _role(data) == "sji")}
+    else:
+        shown = {getattr(viewer.state, "reference_data", None) for viewer in tab if not _off(viewer)}
+    shown = [data for data in collection if data in shown]  # in data collection order
+    key = observation_key(raster)
+    sources = [data for data in shown if _same_file(data, raster) and _time_axis(data) == 0]
+    sjis = [data for data in shown if _role(data) == "sji" and observation_key(data) == key and _placeable(data)]
+    sources += _pick_sjis(sjis)[0]
+    if not sources:
+        raise ValueError(f"No window of {raster.label}'s file with exposures or scans, nor slit-jaw image, is shown.")
+    return raster, pixel, sources
+
+
 def _point_curves(viewer):
     """
     Add the light curves at the point, a raster pixel, as 1-D datasets of ``Time`` and ``Value`` (`_curve`), and plot
-    them against time in a new Scatter viewer: one of each window of the point's raster file with exposures or scans,
-    at the wavelength the map shows or else nearest its TWAVE, and one of each slit-jaw channel of its observation.
-    Each takes its dataset's OBSID and STARTOBS, so that the time master's exposure marks them (`Coordinator._mark`),
-    and the first's ``Time`` and ``Value`` are the others' through `~glue.core.link_helpers.LinkSame`. They follow
-    the point (`_PointCurves`); ``viewer`` is any Image viewer of the data collection.
+    them against time in a new Scatter viewer: one of each window of the point's raster file with exposures or scans
+    that its quicklook shows, at the wavelength the map shows or else nearest its TWAVE, and one of each slit-jaw
+    channel of its observation shown (`_curve_sources`). Each takes its dataset's OBSID and STARTOBS, so that the time
+    master's exposure marks them (`Coordinator._mark`), and the first's ``Time`` and ``Value`` are the others' through
+    `~glue.core.link_helpers.LinkSame`. They follow the point (`_PointCurves`); ``viewer`` is any Image viewer of the
+    data collection.
     """
     app = viewer.session.application
     collection = app.data_collection
     coord = coordinator(collection)
-    raster = getattr(coord.point, "reference_data", None)
+    raster, pixel, sources = _curve_sources(app)
     follower = _PointCurves(coord, coord.group, raster)
-    pixel = follower.point() if _role(raster) == "raster" else None
-    if pixel is None:
-        raise ValueError("Select a point on a raster first.")
-    key = observation_key(raster)
-    sources = [data for data in collection if _same_file(data, raster) and _time_axis(data) == 0]
-    sjis = [data for data in collection if _role(data) == "sji" and observation_key(data) == key and _placeable(data)]
-    sources += _pick_sjis(sjis)[0]
     for i, source in enumerate(sources):
         if _role(source) == "raster":
             [axis] = _spectral_axes(source)
@@ -2029,8 +2057,6 @@ def _point_curves(viewer):
         curve.style.color = to_hex(f"C{i % 10}")  # glue gives every dataset the same grey
         follower.curves.append((curve, source, wavelength))
     follower.pixel = pixel
-    if not follower.curves:
-        raise ValueError(f"{raster.label} has no exposures or scans, and its observation no slit-jaw image loaded.")
     curves = [curve for curve, *_ in follower.curves]
     mode = app.session.edit_subset_mode
     edit = mode.edit_subset
