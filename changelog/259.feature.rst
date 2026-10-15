@@ -1,0 +1,1 @@
+The 'Gaussian + constant (IRIS)' Profile fitter uses irispy's line-on-background model, fits with astropy's TRFLSQFitter, and offers a linear background and a Lorentzian profile in the Fit tab's Settings, whose values now reach the fit.
