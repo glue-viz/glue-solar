@@ -363,8 +363,9 @@ hidden.
 - A frame step costs about twice a native one, as glue places the frame through its coordinates
   at each step: 0.13 s against 0.06 s for that SJI 2832 in a viewer 800 pixels square.
 - The grid's helioprojective coordinates are linked with the other IRIS datasets (see
-  :ref:`Linking <glue_solar_users_guide_iris_linking>`), and its time and frames with the image's
-  only, which glue needs to place each frame.
+  :ref:`Linking <glue_solar_users_guide_iris_linking>`), and so are an AIA cutout's or SOT cube's,
+  which glue shows on the grid through them, as "IRIS: link helioprojective coordinates" links them;
+  its time and frames are linked with the image's only, which glue needs to place each frame.
 - The grid belongs to no observation, so time sync, the point and the raster overlays leave its
   viewer alone. "Per-frame limits" and "Colour bar", which take the viewer's reference data, act on
   the hidden grid rather than the image, and "Cursor readout" gives no value: set the image's

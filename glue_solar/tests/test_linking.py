@@ -28,6 +28,7 @@ from qtpy.QtCore import Qt
 
 import astropy.units as u
 from astropy.coordinates import SkyCoord
+from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
@@ -45,7 +46,15 @@ from glue_solar.sources.loaders.iris import (
     link_hpc,
     raster_data,
 )
-from glue_solar.tests.helpers import inversions, load_selected, raster_point_on_sji, scanned, select_point, shift
+from glue_solar.tests.helpers import (
+    inversions,
+    linked_data,
+    load_selected,
+    raster_point_on_sji,
+    scanned,
+    select_point,
+    shift,
+)
 from glue_solar.tests.test_quicklook import drifting_stack
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
@@ -277,7 +286,8 @@ def test_link_hpc_links_every_iris_dataset_to_the_first(qtbot, sns, irispy_test_
     aia = _parse_sunpy_map(sunpy.map.Map(sunpy.data.test.get_test_filepath("aia_171_level1.fits")), "aia")
     assert set(aia.coords.world_axis_units) == {"deg"}
     dc = DataCollection([sji, raster, aia, other])
-    links = link_hpc(dc)
+    assert len(link_hpc(dc)) == 4  # the map only when named (226-3)
+    links = link_hpc(dc, others=[aia])
     assert len(links) == 6
     assert {link.cids1[0] for link in links} == {_cid(sji, label) for label in HPC}
     # the map's degrees to arcsec; IRIS data keep LinkSame, which glue-core 1.27.0 restores from a session and
@@ -293,20 +303,23 @@ def test_link_hpc_links_every_iris_dataset_to_the_first(qtbot, sns, irispy_test_
     assert not dc.external_links
 
 
-def test_link_hpc_reaches_each_frame_of_a_sot_cube(sns, irispy_test_files):
-    # a Hinode/SOT cube's longitude and latitude, each frame at its own pointing, as IRIS data read them
-    sji, _ = sns
+def test_a_sot_cube_loaded_first_is_linked_on_request_to_the_raster(sns, irispy_test_files):
+    # D72: a Hinode/SOT cube's longitude and latitude, each frame at its own pointing, as IRIS data read them, linked
+    # only on request, and to the IRIS raster loaded after it, never the raster to it
+    _, raster = sns
     [path] = [path for path in irispy_test_files if "_Gband4305_FG_" in path.name]
     sot = image_data(path)
-    dc = DataCollection([sji, sot])
-    links = link_hpc(dc)
-    assert [(type(link), link.cids1[0], link.cids2[0]) for link in links] == [
-        (LinkSame, _cid(sji, label), _cid(sot, label)) for label in HPC[::-1]
+    sots = DataCollection([image_data(path), image_data(path)])
+    assert link_hpc(sots, others=sots) == []  # nor one SOT cube to another, with no IRIS dataset (212-3)
+    dc = DataCollection([sot, raster])
+    assert link_hpc(dc) == []
+    link_iris(None, dc)
+    assert [(type(link), link.cids1[0], link.cids2[0]) for link in dc.external_links] == [
+        (LinkSame, _cid(raster, label), _cid(sot, label)) for label in HPC[::-1]
     ]
-    dc.add_link(links)
     for label in HPC:
-        np.testing.assert_array_equal(sot[_cid(sji, label)], sot[_cid(sot, label)])
-    lon = _cid(sji, HPC[0])
+        np.testing.assert_array_equal(sot[_cid(raster, label)], sot[_cid(sot, label)])
+    lon = _cid(raster, HPC[0])
     assert 0 < sot.get_mask(lon > float(np.nanmedian(sot[lon]))).sum() < sot.size
 
 
@@ -330,7 +343,7 @@ def test_two_overlapping_sunpy_maps_autolink():
     second = _sunpy_map(10, 5, 1.5, (40, 50), "second", rotation=30, obstime="2021-09-05T01:30")
     assert isinstance(first.coords, WCS)
     dc = DataCollection([first, second])
-    assert link_hpc(dc) == []  # it links maps to IRIS data only
+    assert link_hpc(dc, others=dc) == []  # it links maps to IRIS data only
     [link] = _autolink(dc)
     assert isinstance(link, WCSLink)
     y, x = np.indices(first.shape)
@@ -346,7 +359,7 @@ def test_link_hpc_places_a_sunpy_map_on_each_sji_frame(sns, frame):
     lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, sji.shape[0] // 2)
     aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia", rotation=10, obstime=sji.meta["DATE_OBS"])
     dc = DataCollection([aia, sji])
-    links = link_hpc(dc)
+    links = link_hpc(dc, others=[aia])
     # to the IRIS dataset, though the map came first
     assert [(type(link), link.cids1[0], link.cids2[0]) for link in links] == [
         (LinkSameWithUnits, _cid(sji, label), cid) for label, cid in zip(HPC[::-1], aia.world_component_ids)
@@ -397,7 +410,7 @@ def test_raster_pixels_reach_a_sunpy_map_whose_longitudes_run_from_0_to_360(sns)
     aia = _sunpy_map(10, -430, 0.5, (60, 240), "aia")
     assert aia[aia.world_component_ids[1]].max() > 359
     dc = DataCollection([raster, aia])
-    dc.add_link(link_hpc(dc))
+    dc.add_link(link_hpc(dc, others=[aia]))
     y, x = np.indices(aia.shape)
     sky = aia.coords.pixel_to_world(x, y)
     wavelength = np.full(x.shape, raster.coords.pixel_to_world_values(0, 0, 0)[0])
@@ -466,11 +479,6 @@ def test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair(qtbot, sns):
     assert list(crosshairs.values()) == [{(30, 15)}, set()]
 
 
-def _linked(data_collection):
-    """The datasets of ``data_collection`` that any link between datasets reaches."""
-    return {cid.parent for link in data_collection.external_links for cid in (*link.cids1, *link.cids2)}
-
-
 def test_data_outside_the_iris_observations_link_only_on_request(qtbot, sns):
     # D64: data load, the analyses and a quicklook link IRIS data only, as each quicklook panel would otherwise invert
     # the other data's WCS (SST3); 'IRIS: link helioprojective coordinates' links the others too, their WCS locked
@@ -484,10 +492,10 @@ def test_data_outside_the_iris_observations_link_only_on_request(qtbot, sns):
     dc.append(aia)
     keep_hpc_linked(dc)
     quicklook(app, [raster, sji])
-    assert _linked(dc) == {sji, raster}
+    assert linked_data(dc) == {sji, raster}
     assert type(aia.coords) is WCS
     link_iris(app.session, dc)
-    assert _linked(dc) == {sji, raster, aia}
+    assert linked_data(dc) == {sji, raster, aia}
     assert isinstance(aia.coords, _LockedWCS)
 
 
@@ -602,7 +610,7 @@ def test_the_link_editor_opens_on_a_linked_sunpy_map(sns):
     lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)
     aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia", obstime=sji.meta["DATE_OBS"])
     dc = DataCollection([sji, aia])
-    dc.add_link(link_hpc(dc))
+    dc.add_link(link_hpc(dc, others=[aia]))
     pixels = [sji[cid] for cid in aia.pixel_component_ids]
     state = LinkEditorState(dc)
     assert [(link.x, link.y) for link in state.links] == [(link.cids1[0], link.cids2[0]) for link in dc.external_links]
@@ -623,6 +631,11 @@ def test_link_editor_workaround_installs_only_where_glue_needs_it():
 def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, monkeypatch):
     for name in (SJI, SJI.replace("1400", "2796"), RASTER):
         shutil.copy2(_real(irispy_test_files, name), tmp_path / name)
+    # a Hinode/SOT cube of the observation, as its SOTFG tarball gives one
+    [path] = [path for path in irispy_test_files if "_Gband4305_FG_" in path.name]
+    shutil.copy2(path, sot := tmp_path / "sot_l2_20210905_001833_3620258102_20210905003000_Gband4305_FG.fits")
+    with fits.open(sot, mode="update") as hdul:
+        hdul[0].header.update(OBSID="20210905_001833_3620258102", STARTOBS="2021-09-05T00:18:33.640")
     monkeypatch.setattr(QtWidgets.QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(tmp_path))
     # glue-qt asks in a modal dialog whenever glue suggests links; this test is about link_hpc
     monkeypatch.setattr("glue_qt.app.application.run_autolinker", lambda data_collection: None)
@@ -645,14 +658,17 @@ def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, mon
     browse_iris(app.session, dc)
     assert on_gui
     assert all(on_gui)  # glue's hub has no locks: the datasets are added on the GUI thread
-    assert len(dc) > 4  # the map, two SJIs and every raster window
+    assert len(dc) > 5  # the map, two SJIs, the SOT cube and every raster window
     # longitude and latitude of each IRIS dataset to the first, and the quicklook's exposure and slit pixels of each
-    # other raster window to the one it shows
+    # other raster window to the one it shows; not the SOT cube's, through loading and the quicklook (D72)
     windows = 2 * (sum(_role(data) == "raster" for data in dc) - 1)
     hpc = [link for link in dc.external_links if {cid.label for cid in (*link.cids1, *link.cids2)} <= set(HPC)]
-    assert (len(hpc), len(dc.external_links) - len(hpc)) == (2 * (len(dc) - 2), windows)
+    assert (len(hpc), len(dc.external_links) - len(hpc)) == (2 * (len(dc) - 3), windows)
+    [cube] = [data for data in dc if data.meta.get("INSTRUME") == "SOT"]
+    assert cube not in linked_data(dc)
+    assert app.tab_count == 2  # its quicklook
     dc.append(image_data(_real(irispy_test_files, SJI.replace("1400", "1330"))))  # loaded later
-    link_iris(app.session, dc)  # and the map, on request
+    link_iris(app.session, dc)  # and the map and SOT cube, on request
     assert len(dc.external_links) == 2 * (len(dc) - 1) + windows
 
 

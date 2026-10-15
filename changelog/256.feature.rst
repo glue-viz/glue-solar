@@ -1,0 +1,1 @@
+An IRIS observation's AIA cutouts and SOT cubes are linked to its IRIS data only on request ('IRIS: link helioprojective coordinates'), like other data, and links always anchor on IRIS data whatever was loaded first.

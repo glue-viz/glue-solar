@@ -18,8 +18,8 @@ import astropy.units as u
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.quicklook import sji_to_raster
-from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, raster_data
-from glue_solar.tests.helpers import load_selected, raster_point_on_sji, scanned, select_point
+from glue_solar.sources.loaders.iris import QtIRISImporter, image_data, link_hpc, raster_data
+from glue_solar.tests.helpers import linked_data, load_selected, raster_point_on_sji, scanned, select_point
 
 SNS = "iris_l2_20210905_001833_3620258102_{}.fits"
 
@@ -88,6 +88,15 @@ def test_scripting_recipe(qtbot, irispy_test_files):
     np.testing.assert_allclose(mean_spectrum, expected, rtol=1e-6)
     assert np.isfinite(mean_spectrum[pixel])
     np.testing.assert_array_equal(raster[cid, step, slit], raster[cid][step, slit])
+
+    # link_hpc links the IRIS data, and an AIA cutout only where others names it
+    aia = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    aia.meta["INSTRUME"] = "AIA_3"  # read as an aligned cutout is
+    data_collection.append(aia)
+    data_collection.add_link(link_hpc(data_collection))
+    assert linked_data(data_collection) == {raster, sji}
+    data_collection.add_link(link_hpc(data_collection, others=[aia]))
+    assert linked_data(data_collection) == {raster, sji, aia}
 
 
 def test_browser_stacks_scans_into_4d_data_with_per_pixel_time(qtbot, irispy_test_files):

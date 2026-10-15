@@ -100,7 +100,7 @@ def iris_image_layer(viewer, data):
 @menubar_plugin("IRIS: browse observations…")
 def browse_iris(session, data_collection):
     """
-    Browse a folder by observation, load the selection and link its helioprojective coordinates.
+    Browse a folder by observation, load the selection and link the helioprojective coordinates of its IRIS data.
 
     With "Open quicklook" ticked, each loaded observation opens as a quicklook of its ticked raster
     windows: the browser's "Main window" if ticked, else Mg II k 2796 if ticked, else the first, with
@@ -172,11 +172,13 @@ def _shown(loaded, quicklooks, main=None):
 @menubar_plugin("IRIS: link helioprojective coordinates")
 def link_iris(session, data_collection):
     """
-    Link the helioprojective longitude and latitude of every loaded dataset that has them, IRIS data, sunpy maps and
-    FITS files such as SST cubes alike, and the scans of each stack and SST cube to the other IRIS data by time.
+    Link the helioprojective longitude and latitude of every loaded dataset that has them, IRIS data, AIA cutouts, SOT
+    cubes, sunpy maps and FITS files such as SST cubes alike, and the scans of each stack and SST cube to the other
+    IRIS data by time.
 
     Selections then carry over between them through their world coordinates. The observation browser, a quicklook and
-    the analyses link IRIS data only, and the links are kept when a dataset is removed.
+    the analyses link IRIS rasters and slit-jaw images, and data made from them, only, and the links are kept when a
+    dataset is removed.
     """
     keep_hpc_linked(data_collection, others=data_collection)
 

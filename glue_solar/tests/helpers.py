@@ -12,6 +12,7 @@ from qtpy.QtTest import QTest
 __all__ = [
     "count_tick_work",
     "inversions",
+    "linked_data",
     "load_selected",
     "mouse",
     "mouse_click",
@@ -45,6 +46,16 @@ def count_tick_work(monkeypatch, axes):
 
     monkeypatch.setattr(CoordinateHelper, "_update_ticks", counted)
     return calls
+
+
+def linked_data(data_collection):
+    """The datasets of ``data_collection`` that any link between datasets reaches."""
+    linked = set()
+    for link in data_collection.links:
+        parents = {cid.parent for cid in (link.get_to_id(), *link.get_from_ids())}
+        if len(parents) > 1:
+            linked |= parents
+    return linked
 
 
 def inversions(monkeypatch, data):

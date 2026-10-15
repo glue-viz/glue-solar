@@ -41,7 +41,7 @@ from glue_solar.quicklook import coordinator, quicklook
 from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.bursts import si_iv_bursts
 from glue_solar.sources.calibration import radiometric_calibration
-from glue_solar.sources.iris import browse_iris
+from glue_solar.sources.iris import browse_iris, link_iris
 from glue_solar.sources.loaders.iris import (
     _RESTORING,
     QtIRISImporter,
@@ -142,14 +142,14 @@ def test_a_session_restores_the_links_link_hpc_gives_a_stack_and_a_map(tmp_path,
     stack, _ = drifting_stack(tmp_path, irispy_test_files)
     aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))  # linked with its units
     collection = DataCollection([sji, stack, aia])
-    collection.add_link(link_hpc(collection))
+    collection.add_link(link_hpc(collection, others=[aia]))
     assert not glue_patches.needs_link_restore_workaround()  # glue-core 1.27.0 alone opens no such session
     scans = sji[stack.id["Scan"]]
     assert set(np.unique(np.delete(scans, 3, axis=0))) == {0, 1}
     assert np.isnan(scans[3]).all()
     for restored in twice(collection):
         np.testing.assert_array_equal(restored[0][restored[1].id["Scan"]], scans)
-        assert link_hpc(restored) == []
+        assert link_hpc(restored, others=restored) == []
 
 
 def test_a_session_restores_the_metadata_of_a_raster_and_a_slit_jaw_image(irispy_test_files):
@@ -669,6 +669,7 @@ def test_two_quicklooks_restore_twice_from_their_files(qtbot, monkeypatch, tmp_p
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
     monkeypatch.setattr(QtIRISImporter, "exec", load)
     browse_iris(app.session, app.data_collection)
+    link_iris(app.session, app.data_collection)  # its AIA cutout too, which the browser leaves to the menu entry
     stack = app.viewers[-1]
     shift(monkeypatch, sns["map"].state.reference_data, app.data_collection, (1.5, -2.25))
     shift(monkeypatch, stack[0].state.reference_data, app.data_collection, (-0.5, 0.75))

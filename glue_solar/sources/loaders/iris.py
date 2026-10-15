@@ -844,34 +844,36 @@ class _ScanAt:
         return cls(rec["scans"])
 
 
-def link_hpc(data_collection, others=None):
+def link_hpc(data_collection, others=()):
     """
-    Links pairing the helioprojective longitude and latitude of every IRIS dataset, and of the other datasets of
-    ``others``, all by default, such as a sunpy map or an SST cube, with those of the first IRIS dataset, and giving
-    every stack of raster scans its ``Scan`` on each IRIS dataset with a ``Time`` but a stack.
+    Links pairing the helioprojective longitude and latitude of every IRIS dataset, a raster, slit-jaw image or data
+    made from them, and of the other datasets of ``others``, such as an AIA cutout, a Hinode/SOT cube, a sunpy map or
+    an SST cube, with those of the first IRIS dataset, whatever the order they loaded in, and giving every stack of
+    raster scans its ``Scan`` on each of those read through irispy with a ``Time`` but a stack.
 
-    Datasets are matched by world axis physical type, not by component name. IRIS datasets are all in arcsec and
-    linked with `~glue.core.link_helpers.LinkSame`; others, such as a sunpy map in degrees, with
-    `~glue.core.link_helpers.LinkSameWithUnits`, which converts. Without IRIS data nothing is linked: glue's own
-    WCS autolinker links sunpy maps to each other. No link pairs times, so a slit-jaw image frame is placed with
-    its own pointing. Pairs that are already linked, either way round, are skipped, so calling this again after
-    loading more data is safe. The plain astropy WCS of each other dataset linked, now or before, which IRIS data's
-    profile workers then call, is put behind `WCS_LOCK` in place (`_LockedWCS`); an SST cube's keeps its own lock, and
-    the link patches hold `WCS_LOCK` around its links (`glue_solar.sources.sst._LockedTabularWCS`). The caller adds the
-    links::
+    Datasets are matched by world axis physical type, not by component name. Data read through irispy, AIA cutouts and
+    SOT cubes too, are in arcsec and linked with `~glue.core.link_helpers.LinkSame`; others, such as a sunpy map in
+    degrees, with `~glue.core.link_helpers.LinkSameWithUnits`, which converts. Without IRIS data nothing is linked:
+    glue's own WCS autolinker links sunpy maps to each other. No link pairs times, so a slit-jaw image frame is placed
+    with its own pointing, and an AIA cutout or SOT cube shares its observation's time sync
+    (`glue_solar.quicklook.observation_key`) linked or not. Pairs that are already linked, either way round, are
+    skipped, so calling this again after loading more data is safe. The plain astropy WCS of each other dataset linked,
+    now or before, which IRIS data's profile workers then call, is put behind `WCS_LOCK` in place (`_LockedWCS`); an
+    SST cube's keeps its own lock, and the link patches hold `WCS_LOCK` around its links
+    (`glue_solar.sources.sst._LockedTabularWCS`). The caller adds the links::
 
-        data_collection.add_link(link_hpc(data_collection))
+        data_collection.add_link(link_hpc(data_collection, others=data_collection))  # every dataset
 
     Every dataset links to the first, not to every other: glue rediscovers all links at each change, which
     takes 0.3 s for the 70 links of 36 datasets but 4 s for the 1260 links of every pair. Removing the first
     dataset drops the links of all the others; `keep_hpc_linked` links them again.
 
     A stack's pixel at a place depends on its scan, each with its own pointing (`stack_wcs`), so the frames, exposures
-    or steps of each IRIS dataset with a ``Time`` but a stack get the scan nearest their time, however far, and those
-    without a time none, scans timed by their middle raster step as the quicklook times them: a
+    or steps of each linked dataset read through irispy with a ``Time`` but a stack get the scan nearest their time,
+    however far, and those without a time none, scans timed by their middle raster step as the quicklook times them: a
     `~glue.core.component_link.ComponentLink` from the dataset's first pixel axis to the stack's ``Scan``. An SST cube's
     pointing depends on its scan too (`glue_solar.sources.sst`): once it is linked, now or before, the frames,
-    exposures, steps or scans of each IRIS dataset with a ``Time`` give the cube their time, in its seconds since
+    exposures, steps or scans of each of those datasets with a ``Time`` give the cube their time, in its seconds since
     ``DATEREF``, which its coordinates place in the scan nearest it, and the time axis of a slit-jaw image or AIA cutout
     takes the time of each of the cube's scans, at its line core, so that a point on the cube reaches the frame
     nearest it. The cube then shares the time sync of the IRIS observation whose times come nearest its middle scan's,
@@ -887,22 +889,24 @@ def link_hpc(data_collection, others=None):
     from glue_solar.sources.sst import _LockedTabularWCS, _TabularWCS  # which imports this module
 
     linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in data_collection.links}
-    anchors, links, cubes = {}, [], set()
-    # IRIS datasets first, so that the first of them is the one every dataset links to
-    for data in sorted(data_collection, key=lambda data: not isinstance(data.coords, _GlueWCS)):
-        iris = isinstance(data.coords, _GlueWCS)
-        asked = iris or others is None or data in others
+    # read through irispy, but not an AIA cutout or SOT cube, which are linked on request as other data are (D72)
+    iris = {data for data in data_collection if isinstance(data.coords, _GlueWCS) and _role(data) != "aia"}
+    anchors, links, cubes, placed = {}, [], set(), set(iris)
+    # IRIS datasets first, so that the first of them is the one every dataset links to, whatever the load order
+    for data in sorted(data_collection, key=lambda data: data not in iris):
+        asked = data in iris or data in others
         # glue's world components are in numpy order, the reverse of the WCS world axes
         physical_types = getattr(data.coords, "world_axis_physical_types", None) or ()
         for physical_type, cid in zip(physical_types[::-1], data.world_component_ids):
             if physical_type and physical_type.startswith("custom:pos.helioprojective."):
                 # never another dataset: with no IRIS dataset, one is its own anchor and gets no link
-                anchor = anchors.setdefault(physical_type, cid) if iris else anchors.get(physical_type, cid)
+                anchor = anchors.setdefault(physical_type, cid) if data in iris else anchors.get(physical_type, cid)
                 pair = frozenset((anchor, cid))
                 if anchor is cid or not (asked or pair in linked):
                     continue
                 if pair not in linked:
-                    links.append((LinkSame if iris else LinkSameWithUnits)(anchor, cid))
+                    links.append((LinkSame if isinstance(data.coords, _GlueWCS) else LinkSameWithUnits)(anchor, cid))
+                placed.add(data)
                 if _role(data) == "sst":
                     cubes.add(data)
                 # linked now or before, as a session restores it
@@ -912,7 +916,8 @@ def link_hpc(data_collection, others=None):
                     data.coords.__class__ = _LockedWCS
                 elif type(data.coords) is _TabularWCS:
                     data.coords.__class__ = _LockedTabularWCS
-    datasets = [data for data in data_collection if isinstance(data.coords, _GlueWCS)]
+    # a stack's scans and an SST cube's times reach only data whose longitude and latitude are linked
+    datasets = [data for data in data_collection if data in placed and isinstance(data.coords, _GlueWCS)]
     scans = {data: cid for data in datasets for cid in data.world_component_ids if cid.label == "Scan"}
     # ponytail: a link per stack and other dataset, not a star: 104 for 8 stacks and 13 slit-jaw images add 0.03 s to
     # glue's link rediscovery at each change; fewer if that grows
@@ -987,9 +992,10 @@ def keep_hpc_linked(data_collection, others=()):
     Add the `link_hpc` links of the IRIS datasets of ``data_collection`` and of ``others``, other datasets of it, and
     add them again after any dataset is removed, those of ``others`` given to any call too.
 
-    Data outside the IRIS observations, such as a sunpy map or an SST cube, are linked only on request ('IRIS: link
-    helioprojective coordinates'), not as data load or a quicklook opens: every quicklook panel and profile then inverts
-    their WCS, and beside a linked SST cube, whose WCS is tabulated, a quicklook took about 4 minutes to open, not 6 s.
+    Data outside the IRIS observations, such as a sunpy map or an SST cube, and the AIA cutouts and SOT cubes of an
+    observation's own tarballs, are linked only on request ('IRIS: link helioprojective coordinates'), not as data
+    load or a quicklook opens: every quicklook panel and profile then inverts their WCS, and beside a linked SST cube,
+    whose WCS is tabulated, a quicklook took about 4 minutes to open, not 6 s.
 
     Removing the dataset the others are linked through drops their links, so they are then linked
     through the new first dataset. Datasets loaded later need another call.
