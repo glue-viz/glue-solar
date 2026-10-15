@@ -710,7 +710,8 @@ def test_a_profile_viewer_adds_a_large_cube_hidden(sst_app, monkeypatch, tmp_pat
     profile = sst_app.viewers[0][-1]
     [layer, _] = profile.state.layers
     assert not layer.visible
-    assert cube.label in profile.statusBar().currentMessage()
+    assert cube.label in sst_app.statusBar().currentMessage()  # the application's, not the viewer's
+    assert profile.statusBar().currentMessage() == ""
     # a rectangle's profile, the maximum along wavelength, and the range fitted to it
     image.apply_roi(RectangularROI(1.5, 5.5, 2.5, 7.5))
     [_, _, rectangle] = profile.state.layers

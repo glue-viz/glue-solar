@@ -1413,14 +1413,15 @@ def hidden_cube_profile(viewer, data):
     quicklook's spectrum panel, which would only hide it again (0.4 s of opening a quicklook on 4000255147, a full read
     of lazily loaded data), and a cube of glue's large-data size or more, 1e8 values, that the IRIS reader did not read,
     such as an SST cube, which glue profiles on the main thread first (30 s and 11 GB read on obs 492 Ca II 8542), with
-    a note in the viewer's status bar. The viewer fits its range to the first of its subsets' profiles, as glue fits it
-    to a shown cube's; ticking it in the layer list shows its own.
+    a note in the main window's status bar, or the viewer's outside one. The viewer fits its range to the first of its
+    subsets' profiles, as glue fits it to a shown cube's; ticking it in the layer list shows its own.
     """
     if getattr(viewer, "_solar_hidden", None) is not data:
         large = isinstance(viewer, ProfileViewer) and isinstance(data, Data) and viewer.large_data_size is not None
         if not large or data.size < viewer.large_data_size or _role(data) in ("raster", "sji", "aia"):
             return None
-        viewer.set_status(
+        # the application's, which glue-qt's toolbar does not clear on a change of tool, as it does the viewer's
+        (viewer.session.application or viewer).statusBar().showMessage(
             f"{data.label} is hidden, as its own profile reads all {data.size:.3g} values: tick it in the layer list to"
             " show it."
         )
