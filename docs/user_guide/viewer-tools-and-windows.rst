@@ -25,9 +25,7 @@ diagram" below; the link icon is the "Coordinate" menu, with "Time master", "Go 
 "Blink" submenu, with "Set blink partner here", "Blink" and "Blink interval"; and
 the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Wavelength
 band…", "Physical aspect", "Zoom 1:1", "Color bar", "Raster overlays" and "Cursor readout", each
-but "Zoom 1:1" checked while it is on. "Path diagram", "Slope", "Wavelength band…", "Zoom 1:1" and
-"Color bar" have icons of glue-solar's own, none of them a glue tool's, and "Show position on
-original path" has glue's path icon.
+but "Zoom 1:1" checked while it is on.
 After a View or Coordinate entry the mouse mode, such as Pixel, stays on. Resting the mouse on a
 menu entry shows its tooltip, in glue's save and window menus too, and a menu shows an entry's
 single-key shortcut beside it, which works while the toolbar has the keyboard, as a button's does.

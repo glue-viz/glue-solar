@@ -205,6 +205,7 @@ class VelocityTool(Tool, HubListener):
     wavelength, switches the axis off and on; it starts off.
     """
 
+    #: :meta hide-value:
     icon = _icon("solar_velocity_axis")
     tool_id = "solar:velocity"
     action_text = "Velocity axis"
