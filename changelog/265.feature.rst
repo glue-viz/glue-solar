@@ -1,0 +1,1 @@
+Saving frames or a movie no longer blocks glue: it draws a frame at each turn of the event loop, with a non-modal progress dialog, and finishes the movie on glue-qt's worker.
