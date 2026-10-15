@@ -4,6 +4,9 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 rm -rf "$here/build" "$here/dist"
+# from here, which holds no glue_solar/: python -m puts the folder it runs in first on sys.path, so from the checkout
+# the app would take the checkout's glue_solar/ in place of the installed one
+cd "$here"
 python -m PyInstaller --noconfirm --workpath "$here/build" --distpath "$here/dist/app" "$here/glue_solar.spec"
 rm -rf "$here/dist/app/glue-solar"  # the folder the app holds
 ln -s /Applications "$here/dist/app/Applications"
