@@ -400,24 +400,38 @@ def _listed(dialog):
     return [row.text(1) for row in map(tree.topLevelItem, range(tree.topLevelItemCount())) if not row.isHidden()]
 
 
-def test_filter_lists_the_observations_whose_row_or_entries_hold_the_text(dialog):
-    dialog.filter.setText("mg II")  # a raster window of OBS_A, in any case
-    assert _listed(dialog) == [OBS_A[2]]
-    dialog.filter.setText("2014-07-08")  # OBS_C's start date
-    assert _listed(dialog) == [OBS_C[2]]
-    dialog.filter.setText("sji_")  # an entry of OBS_A and the one on OBS_B's own row
-    assert _listed(dialog) == [OBS_B[2], OBS_A[2]]
-    dialog.filter.setText("3s 1.5")  # the end of a description and XCEN: never across texts
-    assert _listed(dialog) == []
-    dialog.filter.clear()
-    assert _listed(dialog) == [OBS_C[2], OBS_B[2], OBS_A[2]]
+def _filtered(dialog, qtbot, text):
+    """The observations listed once the filter, set to ``text``, has filtered."""
+    with qtbot.waitSignal(dialog._filter_timer.timeout):
+        dialog.filter.setText(text)
+    return _listed(dialog)
 
 
-def test_ticks_the_filter_hides_still_load(dialog):
+def test_filter_lists_the_observations_whose_row_or_entries_hold_the_text(dialog, qtbot):
+    assert _filtered(dialog, qtbot, "mg II") == [OBS_A[2]]  # a raster window of OBS_A, in any case
+    assert _filtered(dialog, qtbot, "2014-07-08") == [OBS_C[2]]  # OBS_C's start date
+    assert _filtered(dialog, qtbot, "sji_") == [OBS_B[2], OBS_A[2]]  # an entry of OBS_A and OBS_B's own row
+    assert _filtered(dialog, qtbot, "3s 1.5") == []  # the end of a description and XCEN: never across texts
+    assert _filtered(dialog, qtbot, "") == [OBS_C[2], OBS_B[2], OBS_A[2]]
+
+
+def test_filter_waits_for_a_pause_in_typing(dialog, qtbot):
+    dialog.show()
+    filters = []
+    dialog._filter_timer.timeout.connect(lambda: filters.append(dialog.filter.text()))
+    QTest.keyClicks(dialog.filter, "mg II")  # a keystroke at a time, faster than the pause
+    QTest.keyClick(dialog.filter, Qt.Key_Return)  # which does nothing more: the filter still waits
+    assert (filters, _listed(dialog)) == ([], [OBS_C[2], OBS_B[2], OBS_A[2]])
+    qtbot.waitUntil(lambda: bool(filters))
+    assert not dialog._filter_timer.isActive()  # and no other filter waits
+    assert (filters, _listed(dialog)) == (["mg II"], [OBS_A[2]])
+    assert dialog.isVisible()
+
+
+def test_ticks_the_filter_hides_still_load(dialog, qtbot):
     _row(dialog, OBS_A[2]).setCheckState(0, Qt.Checked)
     _row(dialog, OBS_B[2]).setCheckState(0, Qt.Checked)
-    dialog.filter.setText("2832")
-    assert _listed(dialog) == [OBS_B[2]]
+    assert _filtered(dialog, qtbot, "2832") == [OBS_B[2]]
     assert len(dialog.selected()) == 5
 
 
