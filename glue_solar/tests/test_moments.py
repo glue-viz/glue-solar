@@ -5,7 +5,6 @@ spectrum', as a Profile shows it; the maps exported with their coordinates; and 
 start at.
 """
 
-import warnings
 from unittest.mock import Mock
 
 import irispy.utils.moments
@@ -642,6 +641,9 @@ def test_a_full_mg_ii_k_window_gives_irispys_maps(irispy_data):
     assert_irispys(maps, raster, 2796.352, (-107, 107), DN_UNIT["NUV"])
 
 
+# wavelengths with no valid sample give NaN, in numpy's mean and glue's Profile. A catch_warnings block swaps the
+# process's one list of filters, which glue-qt's profile thread, leaving its own block, can swap back mid-block
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
 @pytest.mark.parametrize("which", ["window", "stack", pytest.param("4000005156", marks=pytest.mark.remote_data)])
 def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanmean(
     app, qtbot, monkeypatch, request, which
@@ -664,11 +666,9 @@ def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanm
         [data] = raster_data([request.getfixturevalue("irispy_data")(name)])
     monkeypatch.setattr(moments, "SLAB", 3 * data.shape[-2] * data.shape[-1])
     cid = data.main_components[0]
-    with warnings.catch_warnings():  # before any viewer, whose threads would reset the filters
-        warnings.simplefilter("ignore", RuntimeWarning)  # wavelengths with no valid sample give NaN
-        values = np.asarray(data[cid], dtype=float)
-        assert np.isposinf(values).any() == (which == "window")
-        nanmean = np.nanmean(np.where(np.isinf(values), np.nan, values), axis=tuple(range(data.ndim - 1)))
+    values = np.asarray(data[cid], dtype=float)
+    assert np.isposinf(values).any() == (which == "window")
+    nanmean = np.nanmean(np.where(np.isinf(values), np.nan, values), axis=tuple(range(data.ndim - 1)))
     collection, tree = app.data_collection, app._layer_widget
     collection.append(data)
     tree.ui.layerTree.set_selected_layers([data])

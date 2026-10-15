@@ -6,7 +6,6 @@ a new dataset.
 
 import gc
 import math
-import warnings
 
 import numpy as np
 from glue.core import Data
@@ -273,13 +272,22 @@ def _check(data):
         raise ValueError(f"{data.label} is not an IRIS raster window, slit-jaw image, AIA cutout or SOT cube.")
 
 
-def _rebinned(data, view, values, bins, operation=np.nanmean):
+def _nanmean(values, axis):
+    """
+    numpy's ``nanmean`` of float ``values``, NaN for a bin with every value missing, without its warning: a
+    ``catch_warnings`` block, on glue-qt's worker, would swap every thread's filters.
+    """
+    valid = ~np.isnan(values)
+    total = np.where(valid, values, 0).sum(axis)
+    with np.errstate(invalid="ignore"):  # 0 / 0
+        return np.divide(total, valid.sum(axis), out=total, casting="unsafe")  # in the dtype of ``values``, as numpy
+
+
+def _rebinned(data, view, values, bins, operation=_nanmean):
     """``values``, of ``data`` at ``view``, binned by ndcube's ``NDCube.rebin`` with ``operation``."""
     from ndcube import NDCube
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)  # a bin with every value missing: NaN
-        binned = NDCube(values, SlicedLowLevelWCS(data.coords, view)).rebin(bins, operation=operation).data
+    binned = NDCube(values, SlicedLowLevelWCS(data.coords, view)).rebin(bins, operation=operation).data
     gc.collect(0)  # ndcube's cubes are reference cycles, which hold ``values`` until Python's collector runs
     return binned
 
