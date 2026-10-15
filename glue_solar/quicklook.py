@@ -347,9 +347,8 @@ class Coordinator(HubListener):
         self._drag = None  # while a mouse button is down on a viewer: whether a point was clicked
         # a drag moves the point at every mouse event: show only its latest position. The application owns the timer:
         # PyQt frees the QObjects Python owns at exit in any order, then the application, so a viewer freed at exit
-        # still finds it
+        # still finds it. ponytail: one timer per data collection is kept until exit
         self._timer = QTimer(QCoreApplication.instance())
-        weakref.finalize(self, self._timer.deleteLater).atexit = False  # freed with the coordinator, else at exit
         self._timer.setSingleShot(True)
         self._timer.setInterval(0)
         self._timer.timeout.connect(self._update)
