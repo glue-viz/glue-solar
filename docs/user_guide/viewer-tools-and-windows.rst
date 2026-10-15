@@ -276,8 +276,9 @@ toolbar has:
   are drawn only while saving, so "Save plot to file" and the viewer stay without them. The file
   dialog offers a name made of the dataset's label and the first and last index
   (``SJI_1400-4000255147-2013-09-02T16_39_35_0-399``), the file type chosen adding its suffix.
-  "Cancel" in its progress dialog, or closing the viewer's tab, keeps the frames saved so far, a movie of
-  them too, and the viewer goes back to its slice and limits.
+  "Cancel" in its progress dialog, closing the viewer's tab, or resizing the viewer from outside its
+  window, with "Gather Windows" or by resizing the main window with the viewer maximized, keeps the
+  frames saved so far, a movie of them too, and the viewer goes back to its slice and limits.
 
 A Profile viewer, the quicklook's spectrum panels included, gets an "IRIS lines" button: where its x
 axis is the wavelength of IRIS data, a thin marker and a label mark each main IRIS line in the

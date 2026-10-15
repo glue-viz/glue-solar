@@ -42,6 +42,7 @@ from glue.plugins.tools.path_slicer.path_sliced_data_links import (
 from glue.utils import as_variable_name, unbroadcast
 from glue.viewers.common.tool import SimpleToolMenu, Tool
 from glue.viewers.image.composite_array import CompositeArray
+from glue.viewers.image.frb_artist import FRBArtist
 from glue.viewers.image.layer_artist import ImageLayerArtist
 from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
@@ -2194,8 +2195,9 @@ class SaveSequenceTool(Tool):
     numbers' the slider's index and last index at its upper left (``frame 7/399``), and 'Scale bar' a bar of a round
     length in arcsec at its lower right (`_place_scale_bar`), or, where the displayed axes are not a longitude and a
     latitude, a message in the application's status bar. The file dialog offers a name from the reference data's label
-    and the indices. Cancel, or closing the viewer, keeps the frames saved so far, a movie of them too, and the viewer
-    returns to its slice and limits.
+    and the indices. Cancel, closing the viewer, or resizing it from outside its grayed window (glue's Gather Windows,
+    or the main window's with it maximized) keeps the frames saved so far, a movie of them too, and the viewer returns
+    to its slice and limits.
     """
 
     icon = "glue_filesave"
@@ -2276,20 +2278,19 @@ class SaveSequenceTool(Tool):
             line = Line2D([], [], lw=3, solid_capstyle="butt", snap=False, transform=where, **edged)
             bar = viewer.axes.add_line(line), viewer.axes.text(0, 0, "", ha="center", transform=where, **style)
         # grayed, so that only the run moves the slider and changes the view: its sub-window too, which then cannot be
-        # resized, as frames after a resize would all be the image at it
+        # resized
         held = viewer.parent(), viewer.options_widget(), viewer.layer_view()
         steps = enumerate(indices, 1)
         timer = QtCore.QTimer(progress, singleShot=True)  # a frame a turn of the event loop
         writer = None
         ended = False
 
-        def end():  # once: after the last frame, Cancel, an error, or the viewer's close
+        def end():  # once: after the last frame, Cancel, an error, the viewer's close or a resize
             nonlocal ended
-            if ended:
-                return
             ended = True
             _SAVING.discard(viewer)
             viewer.window_closed.disconnect(end)  # which holds the writer, a GIF's frames too
+            canvas.resize_begin.disconnect(end)
             timer.stop()
             if writer is not None:
                 text = f"Saving {os.path.basename(writer.outfile)}…"
@@ -2304,9 +2305,7 @@ class SaveSequenceTool(Tool):
             for layer in per_frame:
                 layer.stretch_global = False
             canvas.manager = manager
-            # ponytail: the size at the start; a resize from outside the grayed sub-window (Tile, or the main window's
-            # with it maximized) is not stopped and still freezes the frames after it: end the save at a size change
-            figure.set_size_inches(size, forward=False)
+            figure.set_size_inches(size, forward=False)  # the start's, which a resize then changes
             canvas.draw_idle()
 
         @messagebox_on_error("Could not save the frames or movie")
@@ -2325,6 +2324,9 @@ class SaveSequenceTool(Tool):
                     number.set_text(f"frame {index}/{top}")
                 if bar is not None:
                     _place_scale_bar(viewer, *bar)
+                for image in viewer.axes.images:
+                    if isinstance(image, FRBArtist):  # whose array mpl-scatter-density holds 0.5 s after a resize
+                        image.on_release()
                 if writer is None:
                     figure.savefig(f"{stem}_{index:04d}.png")  # as 'Save plot to file' does
                 else:
@@ -2339,6 +2341,9 @@ class SaveSequenceTool(Tool):
 
         _SAVING.add(viewer)
         viewer.window_closed.connect(end)
+        # and a resize from outside the grayed sub-window (glue's Gather Windows, or the main window's with it
+        # maximized), before the canvas takes its size: the frames, a movie's, keep one size and view
+        canvas.resize_begin.connect(end)
         try:
             for widget in held:
                 widget.setEnabled(False)
