@@ -2256,6 +2256,8 @@ def test_the_time_line_follows_a_slit_jaw_master(bare_app, qtbot, scans):
         assert lines(viewers["wavelength"])["time"] == (None if step is None else ("y", [step]))
         assert lines(viewers["wavelength"])["point"] == ("y", [1])
     assert nearest_frame(scan, frames[0]) is None
+    overlays_toggled(bare_app, qtbot, viewers, sji_viewer)
+    assert slits(sji_viewer) is None  # a slit-jaw image without coordinates places nothing
 
 
 def slits(viewer):
@@ -2282,18 +2284,22 @@ def overlays_toggled(app, qtbot, viewers, viewer):
     assert changes(app, qtbot, viewers, viewer.toolbar.actions["solar:raster_overlays"].trigger) == {}
 
 
-def test_raster_overlays_on_slit_jaw_images(bare_app, qtbot, monkeypatch, tmp_path, irispy_test_files):
+@pytest.mark.remote_data
+def test_raster_overlays_on_slit_jaw_images(bare_app, qtbot, irispy_data):
+    """3620107423's 29 scans of a 4-step raster and its SJI 1400, which shows the slits upright, 6 pixels apart."""
+    paths = irispy_data("iris_l2_20250613_123658_3620107423_raster.tar.gz")
+    sji_path = irispy_data("iris_l2_20250613_123658_3620107423_SJI_1400_t000.fits.gz")
     # a scanning raster: each step's slit placed through the frame nearest its time, whichever frame shows
-    path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
-    [raster] = raster_data([path], ["Si IV 1403"])
-    _, sji = sit_and_stare(irispy_test_files)
+    [raster] = raster_data(paths[:1], ["C II 1336"])
+    sji = image_data(sji_path)
     viewers = quicklook(bare_app, [raster, sji])
     [sji_viewer] = viewers["sji"]
     qtbot.wait(20)
     assert slits(sji_viewer) is None  # off until chosen
     overlays_toggled(bare_app, qtbot, viewers, viewers["map"])  # on any viewer of the observation
     expected = expected_slits(raster, sji)
-    for frame in (0, sji.shape[0] - 1):
+    # and back to the frame nearest the raster's point, to which the next time sync moves it
+    for frame in (0, sji.shape[0] - 1, sji_viewer.state.slices[0]):
         slide(sji_viewer, 0, frame)
         assert slits(sji_viewer) == pytest.approx(expected, abs=0.01)
     sji_viewer.state.x_att, sji_viewer.state.y_att = sji.pixel_component_ids[1], sji.pixel_component_ids[2]
@@ -2304,7 +2310,34 @@ def test_raster_overlays_on_slit_jaw_images(bare_app, qtbot, monkeypatch, tmp_pa
     assert slits(sji_viewer) == pytest.approx(expected, abs=0.01)
     overlays_toggled(bare_app, qtbot, viewers, sji_viewer)
     assert slits(sji_viewer) is None
+    overlays_toggled(bare_app, qtbot, viewers, sji_viewer)  # on again
 
+    # a stack: the slits of the scan its panels show, placed with that scan's own pointing, 1.7 pixels off scan 0's by
+    # the last scan
+    [stack] = raster_data(paths, ["C II 1336"], stack=True)
+    [last] = raster_data(paths[-1:], ["C II 1336"])
+    sji = image_data(sji_path)
+    viewers = quicklook(bare_app, [stack, sji])
+    [sji_viewer] = viewers["sji"]
+    qtbot.wait(20)  # still on: the toggle is the observation's
+    assert slits(sji_viewer) == pytest.approx(expected_slits(stack, sji, 0), abs=0.01)
+    slide(viewers["map"], 0, 28)
+    qtbot.wait(20)
+    assert slits(sji_viewer) == pytest.approx(expected_slits(last, sji), abs=0.01)
+    assert not np.allclose(expected_slits(stack, sji, 0), expected_slits(last, sji), atol=0.01)
+    # and a region on the slit-jaw image reaches each scan of the stack through link_hpc in that scan's own pointing,
+    # as it does that scan alone
+    bare_app.data_collection.append(last)
+    keep_hpc_linked(bare_app.data_collection)
+    (x0, y0), (x1, y1) = slits(sji_viewer)[[0, -1], [0, 1]]
+    region = draw_region(bare_app, sji_viewer, RectangularROI(x0 - 1, x1 + 1, (y0 + y1) / 2, y1 - 5))
+    mask = stack.get_mask(region)
+    np.testing.assert_array_equal(mask[0], raster.get_mask(region))
+    np.testing.assert_array_equal(mask[-1], last.get_mask(region))
+    assert (mask[0] != mask[-1]).any()
+
+
+def test_raster_overlays_on_a_sit_and_stare_slit_jaw_image(bare_app, qtbot, monkeypatch, irispy_test_files):
     # a sit-and-stare's slits make one column, placed once, not at each frame step
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
@@ -2318,68 +2351,43 @@ def test_raster_overlays_on_slit_jaw_images(bare_app, qtbot, monkeypatch, tmp_pa
         slide(sji_viewer, 0, frame)
     assert len(calls) == 3  # the raster point's, one per frame
 
-    # a stack: the slits of the scan its panels show, placed with that scan's own pointing, here drifting north
-    later = repointed(tmp_path / SNS.format("raster_t000_r00001"), irispy_test_files, step=0.3, drift=0.1)
-    [stack] = raster_data([path, later], ["Si IV 1403"], stack=True)
-    [first], [alone] = raster_data([path], ["Si IV 1403"]), raster_data([later], ["Si IV 1403"])
-    times = stack[stack.id["Time"]].copy()
-    times[1] += times.max() - times.min()
-    stack.update_components({stack.id["Time"]: times})
-    alone.update_components({alone.id["Time"]: times[1]})
-    _, sji = sit_and_stare(irispy_test_files)
-    viewers = quicklook(bare_app, [stack, sji])
-    [sji_viewer] = viewers["sji"]
-    qtbot.wait(20)  # still on: the toggle is the observation's
-    assert slits(sji_viewer) == pytest.approx(expected_slits(stack, sji, 0), abs=0.01)
-    slide(viewers["map"], 0, 1)
-    qtbot.wait(20)
-    assert slits(sji_viewer) == pytest.approx(expected_slits(alone, sji), abs=0.01)
-    assert not np.allclose(expected_slits(stack, sji, 0), expected_slits(alone, sji), atol=0.01)
-    # and a region on the slit-jaw image reaches each scan of the stack through link_hpc in that scan's own pointing,
-    # as it does that scan alone
-    bare_app.data_collection.extend([first, alone])
-    keep_hpc_linked(bare_app.data_collection)
-    (x0, y0), (x1, y1) = slits(sji_viewer)[[0, -1], [0, 1]]
-    region = draw_region(bare_app, sji_viewer, RectangularROI(x0 - 1, x1 + 1, (y0 + y1) / 2, y1 - 5))
-    mask = stack.get_mask(region)
-    np.testing.assert_array_equal(mask[0], first.get_mask(region))
-    np.testing.assert_array_equal(mask[1], alone.get_mask(region))
-    assert (mask[0] != mask[1]).any()
 
-
-def test_the_map_line_marks_the_step_at_the_master_time(bare_app, qtbot, scans):
-    scan, stack = scans
-    times = scan[scan.id["Time"]][:, 0, 0]
-    frames = times[0] + (np.arange(24) - 2) * ((times[-1] - times[0]) / 19)  # about three per step
-    viewers = quicklook(bare_app, [scan, slit_jaw(frames, scan)])
+@pytest.mark.remote_data
+def test_the_map_line_marks_the_step_at_the_master_time(bare_app, qtbot, irispy_data):
+    """3620107423's 29 scans of a 4-step raster, one every 20.6 s, and its SJI 1400, a frame every 10.3 s."""
+    paths = irispy_data("iris_l2_20250613_123658_3620107423_raster.tar.gz")
+    sji_path = irispy_data("iris_l2_20250613_123658_3620107423_SJI_1400_t000.fits.gz")
+    [scan] = raster_data(paths[:1], ["C II 1336"])
+    sji = image_data(sji_path)
+    frames = sji[sji.id["Time"]][:, 0, 0]
+    viewers = quicklook(bare_app, [scan, sji])
     [sji_viewer] = viewers["sji"]
     select_point(viewers["map"], 1, 30)
     qtbot.wait(20)
     assert drawn(viewers["map"], "step") is None  # off until chosen
     overlays_toggled(bare_app, qtbot, viewers, sji_viewer)
     assert drawn(viewers["map"], "step") == ("x", [1])  # the raster master's: the point's step
-    assert slits(sji_viewer) is None  # a slit-jaw image without coordinates places nothing
     menu_action(sji_viewer, "Time master").trigger()
-    for frame in (10, 0, 23, 4):  # the step taken nearest the frame, hidden beyond half a step's time (NO MATCH)
+    for frame in (1, 0, 2, 57):  # the step taken nearest the frame, hidden beyond half a step's time (NO MATCH)
         slide(sji_viewer, 0, frame)
         qtbot.wait(20)
         step = nearest_frame(scan, frames[frame])
         assert drawn(viewers["map"], "step") == (None if step is None else ("x", [step]))
-    assert nearest_frame(scan, frames[0]) is None
+    assert nearest_frame(scan, frames[2]) is None
     overlays_toggled(bare_app, qtbot, viewers, viewers["spectrogram"])
     assert drawn(viewers["map"], "step") is None
 
     # a stack: the step of the scan the map shows
+    [stack] = raster_data(paths, ["C II 1336"], stack=True)
+    sji = image_data(sji_path)
     times = stack[stack.id["Time"]][:, :, 0, 0]
-    first, last = times.min(), times.max()
-    frames = first + (np.arange(3 * times.size + 4) - 2) * ((last - first) / (3 * times.size - 1))
-    viewers = quicklook(bare_app, [stack, slit_jaw(frames, stack)])
+    viewers = quicklook(bare_app, [stack, sji])
     [sji_viewer] = viewers["sji"]
     select_point(viewers["map"], 2, 30)
     overlays_toggled(bare_app, qtbot, viewers, viewers["map"])
     menu_action(sji_viewer, "Time master").trigger()
     shown_scans = set()
-    for frame in (0, 40, 41, 47, 55, 65, len(frames) - 1):
+    for frame in (0, 1, 2, 3, 29, 30, 57):
         slide(sji_viewer, 0, frame)
         qtbot.wait(20)
         shown = viewers["map"].state.slices[0]
