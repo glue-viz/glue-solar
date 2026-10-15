@@ -1,7 +1,7 @@
 """
-'IRIS: regrid on time', on int16 copies of irispy's test files whose exposures, frames and scans are taken at known
-times; 'IRIS: north up', on a rolled slit-jaw image and irispy's; and 'IRIS: rebin…', on int16 copies of irispy's test
-files.
+'IRIS: regrid on time', on int16 copies of irispy's test files whose exposures and frames are taken at known times, and
+on a stack of real scans; 'IRIS: north up', on a rolled slit-jaw image and irispy's; and 'IRIS: rebin…', on int16
+copies of irispy's test files.
 """
 
 import warnings
@@ -155,19 +155,14 @@ def test_a_slit_jaw_image_regrids_on_its_frame_times(tmp_path, irispy_test_files
     assert start + pixels[-1] * regridded.meta["time_step"] > end == times[-1]
 
 
-def test_a_stack_regrids_its_scans(tmp_path, irispy_test_files):
-    sources = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
-    paths = []
-    # scan 2 left out, and scan 4 2 s late at its middle step, which times it, in shorter steps than the others; the
-    # fixture's 3 scans, the first again for scan 4, in folders that sort in scan order, give the 4 a median cadence
-    # that the gap leaves out
-    for scan, source, start, step in ((0, 0, 0, 5.0), (1, 1, 60, 5.0), (3, 2, 180, 5.0), (4, 0, 246, 4.0)):
-        path = tmp_path / f"scan{scan}" / sources[source].name
-        paths.append(with_times(int16_raster_copy(sources[source], path), start + step * np.arange(8)))
-    [stack] = raster_data(paths, ["C II 1336"], stack=True)
+@pytest.mark.remote_data
+def test_a_stack_regrids_its_scans(irispy_data):
+    """3620107423's 29 scans of a 4-step raster, one every 20.6 s, stacked with scans 10 to 12 left out."""
+    paths = irispy_data("iris_l2_20250613_123658_3620107423_raster.tar.gz")
+    [stack] = raster_data(paths[:10] + paths[13:], ["C II 1336"], stack=True)
     regridded = regrid_on_time(stack)
-    assert list(check_regrid(stack, regridded)) == [2]
-    assert regridded.shape[0] == 5
+    assert list(check_regrid(stack, regridded)) == [10, 11, 12]
+    assert regridded.shape[0] == 29
 
 
 def test_a_scanning_raster_and_other_data_are_refused(tmp_path, irispy_test_files):
