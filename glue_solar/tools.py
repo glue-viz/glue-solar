@@ -2478,7 +2478,7 @@ class _BlinkEntry(_CoordinateEntry):
         return self.menu._blink.isActive()
 
     def offered(self):
-        return self.menu._blink.isActive() or self.menu._valid()
+        return self.menu._valid()  # a blink whose partner goes stops at its next flip (`_flip`)
 
     @messagebox_on_error("Could not blink")
     def run(self, coordinator):
