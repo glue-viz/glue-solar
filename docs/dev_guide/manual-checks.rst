@@ -254,7 +254,9 @@ Responsiveness
     its Plot Options grayed; click another tab and back meanwhile: glue switches at once. The file
     plays every frame at 10 a second in a movie player or web browser. Save again as ``sji.png``
     and press "Cancel" halfway: the dialog closes within a frame, the folder holds the PNG frames
-    saved until then, and the viewer is back on the frame it showed.
+    saved until then, and the viewer is back on the frame it showed. Maximize the viewer, save as
+    ``sji.gif`` and resize glue's main window halfway: the save ends there as at "Cancel", the GIF's
+    frames all of one size, and the viewer fills its new size.
 
 37. In the quicklook of item 5, drag SJI 2796 from the data collection onto the SJI 1400 viewer; in
     its "Plot Options" choose SJI 2796 as the reference data, set the axes back to the image's and

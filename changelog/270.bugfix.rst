@@ -1,0 +1,1 @@
+Saving frames or a movie no longer repeats the image shown before the save in its first frames after the viewer was resized, and resizing the viewer during a save ends it, keeping the frames saved so far.
