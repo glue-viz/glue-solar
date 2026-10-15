@@ -254,6 +254,13 @@ toolbar has:
   starting from the slider's loop or else its whole range, and saves every index between them.
   Playback of the slider, or of the time master, stops; the slider moves as when it plays, so the
   other viewers follow, and the slit, the point and the raster overlays are drawn as they then show.
+  glue stays usable while it saves: a frame is saved at each turn of glue's event loop, ffmpeg
+  encodes an MP4 as they come, and a GIF is encoded in the background once they are all saved,
+  while the status bar says ``Saving sji.gif…``. The viewer, its options and its layers are greyed,
+  and its window can be neither moved nor resized, until the last frame is saved; the other
+  viewers and tabs stay usable, and what they change in the viewer,
+  such as the point or the time master's time, shows in the frames saved after. One viewer saves
+  at a time.
   Every frame has the same colour limits:
   with "Per-frame limits" on, the whole cube's. Ticking "UTC time on each frame", under the indices,
   draws each frame's time at the lower left of the plot, in white edged in black, the "Frame time"
@@ -269,8 +276,8 @@ toolbar has:
   are drawn only while saving, so "Save plot to file" and the viewer stay without them. The file
   dialog offers a name made of the dataset's label and the first and last index
   (``SJI_1400-4000255147-2013-09-02T16_39_35_0-399``), the file type chosen adding its suffix.
-  "Cancel" in its progress dialog keeps the frames saved so far, a movie of them too, and the
-  viewer goes back to its slice and limits.
+  "Cancel" in its progress dialog, or closing the viewer's tab, keeps the frames saved so far, a movie of
+  them too, and the viewer goes back to its slice and limits.
 
 A Profile viewer, the quicklook's spectrum panels included, gets an "IRIS lines" button: where its x
 axis is the wavelength of IRIS data, a thin marker and a label mark each main IRIS line in the

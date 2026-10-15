@@ -4,7 +4,6 @@ Toolbar tools for glue's viewers.
 
 import os
 import re
-from contextlib import nullcontext
 from functools import partial
 
 import numpy as np
@@ -52,7 +51,7 @@ from glue.viewers.matplotlib.toolbar_mode import PathMode, ToolbarModeBase
 from glue_qt.utils.decorators import messagebox_on_error
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.table import TableViewer
-from matplotlib import animation, rcParams
+from matplotlib import animation, rc_context, rcParams
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import MouseButton, ResizeEvent
 from matplotlib.lines import Line2D
@@ -98,7 +97,7 @@ from glue_solar.quicklook import (
 from glue_solar.sources.iris import _write_ecsv
 from glue_solar.sources.loaders.iris import _GlueWCS
 from glue_solar.sources.loaders.stack_spectrograms import _PerScanWCS
-from glue_solar.sources.moments import _accepted
+from glue_solar.sources.moments import _accepted, _start
 
 __all__ = [
     "BandTool",
@@ -2144,6 +2143,7 @@ def _ask_range(viewer, title, slider, *rows):
 # What `SaveSequenceTool` writes, by file name suffix; MP4 only where matplotlib finds ffmpeg
 _SEQUENCE_FILTERS = {".png": "PNG frames (*.png)", ".mp4": "MP4 movie (*.mp4)", ".gif": "GIF movie (*.gif)"}
 _MOVIE_FPS = 10
+_SAVING = set()  # the viewers whose frames `SaveSequenceTool` is drawing: one at a time
 # The lengths a scale bar takes, in arcsec
 _SCALE_BARS = (1, 2, 5, 10, 20, 50, 100, 200, 500, 1000)
 
@@ -2170,6 +2170,11 @@ def _place_scale_bar(viewer, line, label):
         label.set_text(f'{length}"')
 
 
+@messagebox_on_error("Could not save the frames or movie")
+def _save_failed(exc_info):
+    raise exc_info[1]
+
+
 @viewer_tool
 class SaveSequenceTool(Tool):
     """
@@ -2180,14 +2185,17 @@ class SaveSequenceTool(Tool):
     ``FFMpegWriter``, offered where ffmpeg is installed, or a GIF through its ``PillowWriter``, at 10 frames per
     second. Of several sliders one is picked, the first (an IRIS dataset's frames, exposures, steps or scans) offered
     first, and the indices are typed as for Loop…, whose range the dialog opens on. Its playback, and the time
-    master's, stops; the slider moves as in playback, on the GUI thread, and each frame is saved once Qt has run the
-    time sync, so the other viewers follow and the overlays are drawn; per-frame limits are off during the run, so
-    every frame has the same colour limits. Ticked in the range dialog, 'UTC time on each frame' draws the frame's
-    time (`_frame_time`, to 0.01 s) at the image's lower left during the run only, 'Frame numbers' the slider's index
-    and last index at its upper left (``frame 7/399``), and 'Scale bar' a bar of a round length in arcsec at its lower
-    right (`_place_scale_bar`), or, where the displayed axes are not a longitude and a latitude, a message in the
-    application's status bar. The file dialog offers a name from the reference data's label and the indices. Cancel
-    keeps the frames saved so far, a movie of them too, and the viewer returns to its slice and limits.
+    master's, stops; the slider moves as in playback, a frame at each turn of the event loop, so glue stays usable, and
+    each frame is saved once Qt has run the time sync, so the other viewers follow and the overlays are drawn. ffmpeg
+    encodes an MP4 in its own process as the frames come; the writer's finish, which waits for ffmpeg or encodes the
+    GIF, runs on glue-qt's `Worker`. The viewer and its options are greyed, and per-frame limits off, during the run,
+    so every frame has the same colour limits; one viewer saves at a time. Ticked in the range dialog, 'UTC time on
+    each frame' draws the frame's time (`_frame_time`, to 0.01 s) at the image's lower left during the run only, 'Frame
+    numbers' the slider's index and last index at its upper left (``frame 7/399``), and 'Scale bar' a bar of a round
+    length in arcsec at its lower right (`_place_scale_bar`), or, where the displayed axes are not a longitude and a
+    latitude, a message in the application's status bar. The file dialog offers a name from the reference data's label
+    and the indices. Cancel, or closing the viewer, keeps the frames saved so far, a movie of them too, and the viewer
+    returns to its slice and limits.
     """
 
     icon = "glue_filesave"
@@ -2203,6 +2211,8 @@ class SaveSequenceTool(Tool):
             _keep_mouse_mode(self.viewer)
 
     def _save(self):
+        if _SAVING:
+            raise ValueError("Frames are being saved: wait for them, or press Cancel in their progress dialog.")
         viewer = self.viewer
         state, figure = viewer.state, viewer.figure
         sliders = [(axis, s) for axis, s in enumerate(viewer.options_widget().slice_helper._sliders) if s is not None]
@@ -2246,9 +2256,8 @@ class SaveSequenceTool(Tool):
             if each is not None and each._play_timer.isActive():
                 each.button_stop.click()
         per_frame = [ls for ls in state.layers if ls.layer is data and not getattr(ls, "stretch_global", True)]
-        progress = QtWidgets.QProgressDialog("Saving frames…", "Cancel", 0, len(indices), viewer)
-        progress.setWindowModality(QtCore.Qt.WindowModal)
-        progress.show()  # at once, keeping input from the viewer's window while the events below run
+        progress = QtWidgets.QProgressDialog("Saving frames…", "Cancel", 0, len(indices), viewer.session.application)
+        progress.show()  # at once
         # white edged in black, to read on any colormap
         style = {"color": "white", "path_effects": [withStroke(linewidth=2, foreground="black")]}
         stamp = figure.text(0.01, 0.01, "", transform=viewer.axes.transAxes, **style) if timed else None
@@ -2266,32 +2275,28 @@ class SaveSequenceTool(Tool):
             # unsnapped, its ends where measured, not on pixel centres
             line = Line2D([], [], lw=3, solid_capstyle="butt", snap=False, transform=where, **edged)
             bar = viewer.axes.add_line(line), viewer.axes.text(0, 0, "", ha="center", transform=where, **style)
-        try:
-            # FFMpegWriter evens out an odd frame size through the canvas' manager, which would resize the canvas, and
-            # glue would zoom to it: without one only the figure changes, until the end
-            canvas.manager = None
-            for layer in per_frame:
-                layer.stretch_global = True
-            saving = nullcontext() if movie is None else movie(fps=_MOVIE_FPS).saving(figure, stem + suffix, None)
-            with saving as writer:
-                for count, index in enumerate(indices, 1):
-                    state.slices = tuple(index if i == axis else s for i, s in enumerate(state.slices))
-                    QtWidgets.QApplication.processEvents()  # the time sync, its overlays and Cancel, as in playback
-                    if stamp is not None:
-                        stamp.set_text(_frame_time(data, _shown_slice(state), 2))
-                    if number is not None:
-                        number.set_text(f"frame {index}/{top}")
-                    if bar is not None:
-                        _place_scale_bar(viewer, *bar)
-                    if writer is None:
-                        figure.savefig(f"{stem}_{index:04d}.png")  # as 'Save plot to file' does
-                    else:
-                        writer.grab_frame()
-                    progress.setValue(count)
-                    if progress.wasCanceled():
-                        break
-        finally:
+        # greyed, so that only the run moves the slider and changes the view: its sub-window too, which then cannot be
+        # resized, as frames after a resize would all be the image at it
+        held = viewer.parent(), viewer.options_widget(), viewer.layer_view()
+        steps = enumerate(indices, 1)
+        timer = QtCore.QTimer(progress, singleShot=True)  # a frame a turn of the event loop
+        writer = None
+        ended = False
+
+        def end():  # once: after the last frame, Cancel, an error, or the viewer's close
+            nonlocal ended
+            if ended:
+                return
+            ended = True
+            _SAVING.discard(viewer)
+            viewer.window_closed.disconnect(end)  # which holds the writer, a GIF's frames too
+            timer.stop()
+            if writer is not None:
+                text = f"Saving {os.path.basename(writer.outfile)}…"
+                _start(viewer._data, text, _save_failed, writer.finish, add=lambda _: None)
             progress.deleteLater()
+            for widget in held:
+                widget.setEnabled(True)
             for artist in [stamp, number, *(bar or ())]:
                 if artist is not None:
                     artist.remove()
@@ -2299,8 +2304,58 @@ class SaveSequenceTool(Tool):
             for layer in per_frame:
                 layer.stretch_global = False
             canvas.manager = manager
+            # ponytail: the size at the start; a resize from outside the greyed sub-window (Tile, or the main window's
+            # with it maximized) is not stopped and still freezes the frames after it: end the save at a size change
             figure.set_size_inches(size, forward=False)
             canvas.draw_idle()
+
+        @messagebox_on_error("Could not save the frames or movie")
+        def tick():
+            try:
+                if progress.wasCanceled():
+                    return
+                count, index = next(steps)
+                state.slices = tuple(index if i == axis else s for i, s in enumerate(state.slices))
+                QtWidgets.QApplication.processEvents()  # the time sync, its overlays and Cancel, as in playback
+                if ended:  # the viewer closed meanwhile
+                    return
+                if stamp is not None:
+                    stamp.set_text(_frame_time(data, _shown_slice(state), 2))
+                if number is not None:
+                    number.set_text(f"frame {index}/{top}")
+                if bar is not None:
+                    _place_scale_bar(viewer, *bar)
+                if writer is None:
+                    figure.savefig(f"{stem}_{index:04d}.png")  # as 'Save plot to file' does
+                else:
+                    with rc_context({"savefig.bbox": None}):  # as the writer's saving() keeps it
+                        writer.grab_frame()
+                progress.setValue(count)
+                if count < len(indices) and not progress.wasCanceled():
+                    timer.start()
+            finally:
+                if not ended and not timer.isActive():  # the timer dies with the dialog once ended
+                    end()
+
+        _SAVING.add(viewer)
+        viewer.window_closed.connect(end)
+        try:
+            for widget in held:
+                widget.setEnabled(False)
+            # FFMpegWriter evens out an odd frame size through the canvas' manager, which would resize the canvas, and
+            # glue would zoom to it: without one only the figure changes, until the end
+            canvas.manager = None
+            for layer in per_frame:
+                layer.stretch_global = True
+            if movie is not None:
+                started = movie(fps=_MOVIE_FPS)
+                started.setup(figure, stem + suffix)
+                writer = started  # finished once set up
+        except BaseException:
+            end()
+            raise
+        timer.timeout.connect(tick)
+        tick()  # the first frame at once: a movie has one, however soon the viewer closes
 
 
 def _profile_table(viewer):

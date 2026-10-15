@@ -1,7 +1,10 @@
+import gc
 import itertools
 import re
 import shutil
+import threading
 import time
+import weakref
 from collections import Counter
 
 import numpy as np
@@ -54,7 +57,7 @@ from glue_solar.quicklook import (
 from glue_solar.regrid import regrid_on_time
 from glue_solar.sources import moments
 from glue_solar.sources.iris import export_ecsv, link_iris, shift_pointing_iris
-from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, raster_data
+from glue_solar.sources.loaders.iris import _RUNNING, image_data, keep_hpc_linked, raster_data
 from glue_solar.tests.helpers import (
     count_tick_work,
     inversions,
@@ -68,7 +71,7 @@ from glue_solar.tests.helpers import (
     select_point,
     shift,
 )
-from glue_solar.tools import sky_length
+from glue_solar.tools import _SAVING, sky_length
 
 SCAN = "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"
 
@@ -3782,7 +3785,7 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
 
     def cancel(slices):
         if slices[0] in cancel_at:
-            sji_viewer.findChildren(QtWidgets.QProgressDialog)[-1].cancel()
+            bare_app.findChildren(QtWidgets.QProgressDialog)[-1].cancel()
 
     sji_viewer.state.add_callback("slices", cancel)
     offered = []
@@ -3792,6 +3795,7 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
         path = str(tmp_path / name)
         monkeypatch.setattr(QtWidgets.QFileDialog, "getSaveFileName", lambda *args: offered.append(args[2]) or (path, ""))
         entries[entry].trigger()
+        qtbot.waitUntil(saved)
 
     # frames 0 to 9, with the raster following
     QtWidgets.QApplication.processEvents()  # the time sync of frame 20
@@ -3804,7 +3808,7 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
     save("IRIS: save frames or movie…", "sji.png")
     assert offered == [str(tmp_path / "SJI_1400-3620258102-2021-09-05T00_18_33_0-9")]  # its suffix the filter's
     assert not slider._play_timer.isActive()
-    assert exposures == [nearest_frame(raster, when) for when in times[:10]]
+    assert exposures[:10] == [nearest_frame(raster, when) for when in times[:10]]  # then back to frame 20's
     # the viewer returns to its frame and per-frame limits
     assert (sji_viewer.state.slices, layer.stretch_global) == ((20, 0, 0), False)
     # each at the whole cube's limits, as 'Save plot to file' saves it then
@@ -3840,6 +3844,7 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
     button = spectrogram.toolbar.widgetForAction(spectrogram.toolbar.actions["save"])
     type_in_dialog(monkeypatch, "0 1", True)
     next(action for action in button.menu().actions() if action.text() == "IRIS: save frames or movie…").trigger()
+    qtbot.waitUntil(saved)
     message = "No scale bar: the displayed axes are not a longitude and a latitude"
     assert bare_app.statusBar().currentMessage() == message
     monkeypatch.setattr(figure, "savefig", savefig)
@@ -3868,6 +3873,89 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
         save("IRIS: save frames or movie…", "sji.mp4", "0 2")
         assert (tmp_path / "sji.mp4").stat().st_size > 0
         assert (canvas.get_width_height(), (state.x_min, state.x_max, state.y_min, state.y_max)) == before
+
+
+def saved():
+    """Whether 'IRIS: save frames or movie…' has drawn its frames and encoded its movie."""
+    return not _SAVING and not _RUNNING
+
+
+def test_frames_and_movies_save_while_glue_runs(bare_app, qtbot, monkeypatch, tmp_path, irispy_test_files):
+    from matplotlib import animation, rcParams
+    from PIL import Image
+
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [viewer] = viewers["sji"]
+    menu_action(viewer, "Time master").trigger()
+    state = viewer.state
+    state.slices = (20, 0, 0)
+    QtWidgets.QApplication.processEvents()  # the time sync of frame 20
+    monkeypatch.setitem(rcParams, "savefig.directory", str(tmp_path))
+    # which a movie's frames leave out, as matplotlib's writers do
+    monkeypatch.setitem(rcParams, "savefig.dpi", 50)
+    monkeypatch.setitem(rcParams, "savefig.bbox", "tight")
+    button = viewer.toolbar.widgetForAction(viewer.toolbar.actions["save"])
+    entry = next(action for action in button.menu().actions() if action.text() == "IRIS: save frames or movie…")
+    encoders, writers, seen = [], [], []
+    finish = animation.PillowWriter.finish  # which encodes the GIF
+
+    def finished(writer):
+        encoders.append(threading.current_thread())
+        writers.append(weakref.ref(writer))
+        finish(writer)
+
+    monkeypatch.setattr(animation.PillowWriter, "finish", finished)
+    held = viewer.parent(), viewer.options_widget(), viewer.layer_view()  # its sub-window, options and layers
+
+    def turned():  # what the event loop sees while the frames are saved
+        if _SAVING:
+            modal = QtWidgets.QApplication.activeModalWidget()
+            seen.append((state.slices[0], modal, *(widget.isEnabled() for widget in held)))
+
+    turn = QTimer()
+    turn.timeout.connect(turned)
+
+    def save(name):
+        type_in_dialog(monkeypatch, "0 9")
+        monkeypatch.setattr(QtWidgets.QFileDialog, "getSaveFileName", lambda *args: (str(tmp_path / name), ""))
+        entry.trigger()
+
+    # the entry returns once the first frame is saved, and the event loop turns at every frame, no dialog modal: glue
+    # stays usable, but for the viewer, its sub-window, options and layers, greyed; the GIF is encoded on another thread
+    turn.start()
+    save("sji.gif")
+    assert state.slices == (0, 0, 0)
+    qtbot.waitUntil(saved, timeout=60_000)
+    turn.stop()
+    assert set(range(10)) <= {frame for frame, *_ in seen}
+    assert {tuple(each[1:]) for each in seen} == {(None, False, False, False)}
+    assert (state.slices, *(widget.isEnabled() for widget in held)) == ((20, 0, 0), True, True, True)
+    assert encoders == [encoders[0]]
+    assert encoders[0] is not threading.main_thread()
+    gc.collect()
+    assert writers[0]() is None  # nor are its frames kept once saved
+    # its frames those matplotlib's writer saves of the viewer at each, synchronously
+    writer = animation.PillowWriter(fps=10)
+    with writer.saving(viewer.figure, tmp_path / "sync.gif", None):
+        for frame in range(10):
+            state.slices = (frame, 0, 0)
+            QtWidgets.QApplication.processEvents()  # the time sync, as for the export
+            writer.grab_frame()
+    assert (tmp_path / "sji.gif").read_bytes() == (tmp_path / "sync.gif").read_bytes()
+    # one save at a time; closing the viewer ends it, keeping the frames saved so far
+    shown = refusals(monkeypatch)
+    state.add_callback("slices", lambda slices: slices[0] == 3 and viewer.close(warn=False))
+    save("cut.gif")
+    entry.trigger()
+    assert shown == [
+        "Could not save the frames or movie\nFrames are being saved: wait for them, or press Cancel in their progress "
+        "dialog."
+    ]
+    qtbot.waitUntil(saved, timeout=60_000)
+    with Image.open(tmp_path / "cut.gif") as gif:
+        assert gif.n_frames == 3  # frame 3, being saved as it closed, is not
+    assert len(shown) == 1
 
 
 def test_what_the_keys_move_on_a_sit_and_stare(bare_app, qtbot, irispy_test_files):
