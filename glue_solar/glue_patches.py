@@ -7,6 +7,7 @@ Each fix installs, or acts, only when a probe finds the bug, and names the upstr
 import builtins
 import inspect
 import os
+import re
 from contextlib import nullcontext
 from functools import cache, wraps
 from tempfile import TemporaryDirectory
@@ -35,6 +36,7 @@ from glue.dialogs.link_editor.state import LinkEditorState
 from glue.plugins.tools.path_slicer.path_sliced_data import PathSlicedData
 from glue.plugins.tools.path_slicer.path_sliced_data_links import PathRelativeLink
 from glue.utils import defer_draw
+from glue.viewers.common.state import LayerState
 from glue.viewers.histogram import state as histogram_state
 from glue.viewers.histogram import viewer as histogram_viewer
 from glue.viewers.image.layer_artist import ImageSubsetLayerArtist
@@ -44,6 +46,7 @@ from glue.viewers.matplotlib import viewer as matplotlib_viewer
 from glue.viewers.profile.state import ProfileLayerState, ProfileViewerState
 from glue.viewers.scatter import layer_artist as scatter_layer_artist
 from glue.viewers.scatter import viewer as scatter_viewer
+from glue.viewers.table.state import TableViewerState
 from glue_qt.app.layer_tree_widget import LayerAction, UserAction
 from glue_qt.config import LayerActionRegistry
 from glue_qt.config import layer_action as glue_layer_action
@@ -55,6 +58,7 @@ from glue_qt.viewers.common.toolbar import BasicToolbar
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.matplotlib.widget import MplCanvas
 from glue_qt.viewers.profile import ProfileViewer
+from glue_qt.viewers.table.data_viewer import DataTableModel
 from matplotlib import colormaps, dates, rcParams
 from matplotlib.backend_bases import key_press_handler
 from matplotlib.colors import Colormap, ListedColormap
@@ -83,6 +87,7 @@ __all__ = [
     "load_link_with_units",
     "load_quantity",
     "find_combo_data",
+    "get_filter_mask",
     "layer_action",
     "link_with_units_init",
     "mpl_to_datetime64",
@@ -104,6 +109,7 @@ __all__ = [
     "needs_pv_slice_workaround",
     "needs_redo_workaround",
     "needs_reference_crosshair_workaround",
+    "needs_table_time_workaround",
     "path_link_init",
     "pv_slice_from_path",
     "refresh_layer_actions",
@@ -835,6 +841,45 @@ def needs_derived_datetime_workaround(datetime=_original_datetime):
 
 if needs_derived_datetime_workaround():
     DerivedComponent.datetime = property(derived_datetime)
+
+
+_original_get_filter_mask = DataTableModel.get_filter_mask
+
+
+def get_filter_mask(self):
+    """
+    glue-qt's ``DataTableModel.get_filter_mask``, searching each value of the search column as the table shows it.
+
+    glue-qt 0.4.2 searches each value as text, which a time is not, and glue lists times among the columns to search:
+    so a Table viewer refused a dataset whose first such column is a time, such as a table of burst events, as it
+    searches it with the box empty ("argument of type 'numpy.datetime64' is not iterable"), and raised on a time picked
+    to search. Retired by a glue-qt fix (report candidate).
+    """
+    if self._state.filter is None or self._state.filter_att is None:
+        self.filter_mask = np.ones(self.order.shape, dtype=bool)
+        return
+    values = [str(value) for value in self._data.get_component(self._state.filter_att).data]
+    if self._state.regex:
+        pattern = re.compile(self._state.filter)
+        self.filter_mask = np.array([bool(pattern.search(value)) for value in values])
+    else:
+        self.filter_mask = np.array([self._state.filter in value for value in values])
+    self.data_changed()
+
+
+def needs_table_time_workaround(method=_original_get_filter_mask):
+    """Whether ``method`` refuses a Table viewer's dataset with a time, with the viewer's empty search box."""
+    data = Data(t=np.zeros(1, "datetime64[ns]"), label="probe")
+    state = TableViewerState(layers=[LayerState(layer=data)], filter="")
+    try:
+        method(DataTableModel(SimpleNamespace(data=data, state=state, layers=[])))
+    except TypeError:
+        return True
+    return False
+
+
+if needs_table_time_workaround():
+    DataTableModel.get_filter_mask = get_filter_mask
 
 
 _original_update_priority = ProfileViewerState._update_priority

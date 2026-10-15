@@ -1,0 +1,1 @@
+The UV burst event table and other datasets with a time column open in glue's Table viewer, where glue-qt 0.4.2 refused them; their times can be sorted and searched.
