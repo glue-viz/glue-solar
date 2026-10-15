@@ -225,7 +225,7 @@ def test_menu_entries_keep_the_pixel_tool(app, scans):
     assert not app.data_collection.subset_groups[0].subset_state.to_mask(scan).any()
 
 
-def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_files):
+def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_files, monkeypatch):
     scan, stack = scans
     [sot] = [image_data(path) for path in irispy_test_files if "_Gband4305_FG_" in path.name]
     flat = Data(label="flat", values=np.zeros((4, 5)))
@@ -293,6 +293,11 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
         overlays.trigger()
         offered(viewers["map"])
         assert overlays.isChecked() is checked
+    # a check that faults, rather than refuses, raises instead of hiding the entry
+    with monkeypatch.context() as patch:
+        patch.setattr("glue_solar.tools._check_cut", lambda *args, **kwargs: 1 / 0)
+        with pytest.raises(ZeroDivisionError):
+            viewers["map"].toolbar.tools["solar:light_curve"].offered()
 
     def curves(viewer):
         """The windows and channels of the light curves the entry plots, as their labels name them."""

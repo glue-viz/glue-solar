@@ -908,10 +908,10 @@ _PROFILE_KEYMAPS = ("grid", "grid_minor")
 
 def _matplotlib_keys(event):
     """matplotlib's own key bindings, but for those of `_DROPPED_KEYMAPS`, a Profile viewer's grid keys kept."""
-    viewer = event.canvas
-    while viewer is not None and not isinstance(viewer, ProfileViewer):
-        viewer = viewer.parentWidget()
-    kept = () if viewer is None else _PROFILE_KEYMAPS
+    widget = event.canvas
+    while widget is not None and not isinstance(widget, ProfileViewer):
+        widget = widget.parentWidget()
+    kept = () if widget is None else _PROFILE_KEYMAPS
     if event.key not in [key for name in _DROPPED_KEYMAPS if name not in kept for key in rcParams[f"keymap.{name}"]]:
         key_press_handler(event)
 
@@ -920,7 +920,7 @@ def canvas_init(self, *args, **kwargs):
     """
     glue-qt's ``MplCanvas.__init__``, leaving F and S over a viewer to glue-solar's frame and wavelength keys
     (`glue_solar.tools.KEYS`), which glue-qt gives them whatever the modifiers, and dropping matplotlib's grid, log
-    scale, pan and zoom keys, the grid keys but on a Profile viewer.
+    scale, pan and zoom keys, keeping the grid keys on a Profile viewer.
 
     glue-qt 0.4.2 gives each canvas a matplotlib figure manager, which connects matplotlib's own key bindings: F shows
     the manager's empty window full screen, S opens matplotlib's save dialog, G and Shift+G raise from WCSAxes and

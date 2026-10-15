@@ -1050,7 +1050,7 @@ class RasterOverlaysTool(Tool):
     def offered(self):
         """Whether a raster of the viewer's observation is loaded, which the View menu checks as it opens."""
         key = observation_key(self.viewer.state.reference_data)
-        rasters = (data for data in self.viewer.session.data_collection if _role(data) == "raster")
+        rasters = (data for data in self.viewer._data if _role(data) == "raster")
         return key is not None and any(observation_key(data) == key for data in rasters)
 
 

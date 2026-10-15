@@ -1972,14 +1972,15 @@ def _check_cut(viewer, curve=False):
         raise ValueError(f"Select a point on {data.label} first.")
 
 
-def _cut(viewer, axis, label):
+def _cut(viewer, axis, label, curve=False):
     """
     Open a Profile of the cut through the point along array axis ``axis``: the mean, NaN left out, over the
     wavelength or band that ``viewer``, an Image viewer of a raster with a wavelength slider, shows, at the point's
     other axes, against ``axis``. The cut is the new subset group ``label``, a `~glue.core.subset.SliceSubsetState`
     that follows the point and the band (`_Cut`), shown in that Profile and removed from the other viewers open then.
+    ``curve`` checks it as a light curve (`_check_cut`).
     """
-    _check_cut(viewer)
+    _check_cut(viewer, curve)
     app, data = viewer.session.application, viewer.state.reference_data
     coord = coordinator(app.data_collection)
     title = f"{_window(data)[0] or data.label} {label.lower()}"
@@ -2015,8 +2016,7 @@ def _light_curve(viewer):
     Open the light curve at the point (`_cut` along exposure or scan, 'Light curve') on ``viewer``, the map of a
     sit-and-stare raster or a stack.
     """
-    _check_cut(viewer, curve=True)
-    return _cut(viewer, 0, "Light curve")
+    return _cut(viewer, 0, "Light curve", curve=True)
 
 
 def _curve(source, raster, pixel, wavelength):
