@@ -578,12 +578,11 @@ position. On OBSID 4000005156's deconvolved SJI 2796, (+2, −1) turns the reado
 To co-align a slit-jaw image with its raster, click a small, distinct feature on the raster map: the
 red cross marks where the raster places it on the slit-jaw image. Read the feature's position in
 both with the mouse-over readout, and shift the slit-jaw image by the raster's position less its
-own. Against AIA, drag the AIA cutout or map onto the slit-jaw viewer and lower its opacity in its
-layer options, show it in a viewer beside it, or blink the two ("Set blink partner here" and
-"Blink" in the "Coordinate" menu's "Blink" submenu), and read the feature's position in each the
-same way. A
-"Measure" line from the feature in one to the feature in the other then checks the shift: it should
-be under a pixel long.
+own. Against AIA, show the AIA cutout or map in a viewer beside it, or drag the map onto the
+slit-jaw viewer and lower its opacity in its layer options or blink the two ("Set blink partner
+here" and "Blink" in the "Coordinate" menu's "Blink" submenu), and read the feature's position in
+each the same way. A "Measure" line from the feature in one to the feature in the other then
+checks the shift: it should be under a pixel long.
 
 Line moments
 ------------
