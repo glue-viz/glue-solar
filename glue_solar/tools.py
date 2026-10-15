@@ -1477,9 +1477,10 @@ class PathTool(BasePathSlicerMode, HubListener):
 class PathCrosshairTool(BasePathSlicerCrosshairMode):
     """
     glue-core's crosshair of a `PathTool` diagram: drag along the diagram to mark the point on the path in the viewer
-    it was drawn in, which moves every slider of that viewer to the index the diagram's y axis shows, as glue-core's
-    ``drive_parent_slice`` does, so on a stack the scan and the wavelength together; each to the nearest index within
-    its axis, where glue-core 1.27.0 rounds down and goes past a stack's last scan.
+    it was drawn in, which moves that viewer's slider of every axis but the path's to the index the diagram's y axis
+    shows, as glue-core's ``drive_parent_slice`` moves its off-screen ones, so on a stack the scan and the wavelength
+    together; each to the nearest index within its axis, where glue-core 1.27.0 truncates and goes past a stack's last
+    scan.
     """
 
     icon = None  # glue-core's is Path diagram's
@@ -1493,9 +1494,8 @@ class PathCrosshairTool(BasePathSlicerCrosshairMode):
         self._crosshair.set_data([path.x[index]], [path.y[index]])
         source = path.parent_viewer.state
         if source.reference_data is path.original_data and self.viewer.state.y_att.axis < path.ndim - 1:
-            shown = (source.x_att.axis, source.y_att.axis)
             source.slices = tuple(
-                s if axis in shown else int(np.clip(np.round(y), 0, n - 1))
+                s if axis in path.sliced_dims else int(np.clip(np.round(y), 0, n - 1))
                 for axis, (s, n) in enumerate(zip(source.slices, path.original_data.shape, strict=True))
             )
         path.parent_viewer.figure.canvas.draw_idle()

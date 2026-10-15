@@ -1285,10 +1285,14 @@ def test_path_diagram_of_a_stack(qtbot, irispy_test_files):
     diagrams.toolbar.active_tool = "solar:path_crosshair"
     scan, _, _, wavelength = viewer.options_widget().slice_helper._sliders
     mouse(diagrams, "button_press_event", 2, 3)
-    for y, slices in ((0, (0, 0, 0, 0)), (7, (stack.shape[0] - 1, 0, 0, 7))):
+    for y, slices in ((0.4, (0, 0, 0, 0)), (6.6, (stack.shape[0] - 1, 0, 0, 7))):  # the nearest row
         mouse(diagrams, "motion_notify_event", 2, y)
         assert viewer.state.slices == slices
         assert (scan.value_slice_center.value(), wavelength.value_slice_center.value()) == (slices[0], slices[3])
+    viewer.state.x_att = stack.pixel_component_ids[0]  # scan and slit shown: the path's step stays
+    viewer.state.slices = (0, 4, 0, 12)
+    mouse(diagrams, "motion_notify_event", 2, 6.6)
+    assert viewer.state.slices[1:] == (4, 0, 7)
 
 
 def test_path_diagram_sampling_on_a_ramp(qtbot):
