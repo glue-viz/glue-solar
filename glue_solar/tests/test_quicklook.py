@@ -242,7 +242,6 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
         "Time master",
         "Go to UTC…",
         "Loop…",
-        "Raster overlays",
         "Point",
         "Blink",
     ]
@@ -264,24 +263,36 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
     time = ["Time master", "Go to UTC…"]
     point, curve = ["Clear point", POINT_CURVES], ["Clear point", "Light curve of this window", POINT_CURVES]
     cuts = ["Row at the point", "Column at the point"]
-    blink = ["Set blink partner here", "Blink (greyed)"]  # until a partner is set
+    blink = ["Set blink partner here"]  # and "Blink" once a partner is set
     view = ["Hide axes", "Per-frame limits", "Physical aspect", "Zoom 1:1", "Colour bar", "Cursor readout"]
     banded = ["Frame time", *view[:2], "Wavelength band…", *view[2:]]
-    # the light curve on the map of a sit-and-stare raster or a stack, the cuts on any raster map, the band where
-    # wavelength has a slider, a loop where the data's first axis has one
-    assert offered(viewers["map"]) == [*time, "Raster overlays", *curve, *cuts, *blink, *banded]
+
+    def overlaid(entries):
+        """``entries`` with "Raster overlays", offered where a raster of the viewer's observation is loaded."""
+        return [*entries[:-1], "Raster overlays", entries[-1]]
+
+    # the light curve on the map of a sit-and-stare raster or a stack and the cuts on any raster map, with a point on
+    # its file, the band where wavelength has a slider, a loop where the data's first axis has one
+    assert offered(viewers["map"]) == [*time, *curve, *cuts, *blink, *overlaid(banded)]
     for panel in (viewers["spectrogram"], viewers["sji"][0]):
-        assert offered(panel) == [*time, "Loop…", "Raster overlays", *point, *blink, "Frame time", *view]
-    assert offered(viewers["wavelength"]) == [*time, "Raster overlays", *point, *blink, "Frame time", *view]
-    assert offered(image(bare_app, stack, 1, 2)) == [*time, "Loop…", "Raster overlays", *curve, *cuts, *blink, *banded]
-    assert offered(image(bare_app, scan, 0, 1)) == [*time, "Raster overlays", *point, *cuts, *blink, *banded]
+        assert offered(panel) == [*time, "Loop…", *point, *blink, *overlaid(["Frame time", *view])]
+    assert offered(viewers["wavelength"]) == [*time, *point, *blink, *overlaid(["Frame time", *view])]
+    stack_map, scan_map = image(bare_app, stack, 1, 2), image(bare_app, scan, 0, 1)
+    assert offered(stack_map) == [*time, "Loop…", *point, *blink, *overlaid(banded)]
+    assert offered(scan_map) == [*time, *point, *blink, *overlaid(banded)]
     # no raster of its observation on a SOT cube
     assert offered(image(bare_app, sot, 2, 1)) == [*time, "Loop…", *point, *blink, "Frame time", *view]
     # nothing of an observation or a time on a plain array
     plain = image(bare_app, flat, 1, 0)
     assert offered(plain) == ["Clear point", *blink, *view]
     menu_action(plain, "Set blink partner here").trigger()
-    assert offered(plain) == ["Clear point", "Set blink partner here", "Blink", *view]
+    assert offered(plain) == ["Clear point", *blink, "Blink", *view]
+    # "Raster overlays" checked while they show
+    overlays = viewers["map"].toolbar.actions["solar:raster_overlays"]
+    for checked in (True, False):
+        overlays.trigger()
+        offered(viewers["map"])
+        assert overlays.isChecked() is checked
 
     def curves(viewer):
         """The windows and channels of the light curves the entry plots, as their labels name them."""
@@ -295,18 +306,22 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
     tick(panels, "C II 1336", on=False)
     panels.apply()  # as the list does at the next turn of the event loop
     assert curves(viewers["map"]) == ["Si IV 1403", "SJI 1400"]
-    # none without a point, the window's light curve and the cuts left to refuse when chosen
+    # none without a point, nor the window's light curve and the cuts
     menu_action(viewers["map"], "Clear point").trigger()
-    assert offered(viewers["map"]) == [*time, "Raster overlays", *curve[:2], *cuts, *blink, *banded]
+    assert offered(viewers["map"]) == [*time, "Clear point", *blink, *overlaid(banded)]
     # of a point of no quicklook, its own window's and every slit-jaw image's
     other = image(bare_app, raster, 0, 1)
     bare_app.session.edit_subset_mode.edit_subset = [bare_app.data_collection.new_subset_group(label="Other")]
     select_point(other, 3, 10)
     assert curves(other) == ["Si IV 1403", "SJI 2796", "SJI 1400"]
+    # the cuts on a scanning raster's map once the point is on its file, and the light curve too on a stack's
+    for viewer, shown in ((scan_map, cuts), (stack_map, [curve[1], *cuts])):
+        select_point(viewer, 2, 40)
+        assert [entry for entry in offered(viewer) if entry in (curve[1], *cuts)] == shown
     # none on 3824262996's single scan alone, which has no exposures or scans and no slit-jaw image loaded
     [drift] = [path for path in irispy_test_files if "3824262996_raster" in path.name]
     lone = quicklook(bare_app, raster_data([drift]))
-    assert offered(lone["map"]) == [*time, "Raster overlays", "Clear point", *cuts, *blink, *banded]
+    assert offered(lone["map"]) == [*time, "Clear point", *cuts, *blink, *overlaid(banded)]
 
 
 def test_a_slit_jaw_click_outside_a_quicklook_stays_a_slit_jaw_point(app, qtbot, irispy_test_files):
@@ -2259,7 +2274,7 @@ def expected_slits(raster, sji, scan=0):
 
 def overlays_toggled(app, qtbot, viewers, viewer):
     """Choose "Raster overlays" on ``viewer``, which moves nothing."""
-    assert changes(app, qtbot, viewers, lambda: menu_action(viewer, "Raster overlays").trigger()) == {}
+    assert changes(app, qtbot, viewers, viewer.toolbar.actions["solar:raster_overlays"].trigger) == {}
 
 
 def test_raster_overlays_on_slit_jaw_images(bare_app, qtbot, monkeypatch, tmp_path, irispy_test_files):
@@ -3773,7 +3788,7 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
     slider = sji_viewer.options_widget().slice_helper._sliders[0]
     slider.button_forw.click()  # playing, which the export stops
     slider._play_timer.setInterval(1)
-    save("Save frames or movie…", "sji.png")
+    save("IRIS: save frames or movie…", "sji.png")
     assert offered == [str(tmp_path / "SJI_1400-3620258102-2021-09-05T00_18_33_0-9")]  # its suffix the filter's
     assert not slider._play_timer.isActive()
     assert exposures == [nearest_frame(raster, when) for when in times[:10]]
@@ -3800,7 +3815,7 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
         savefig(*args)
 
     monkeypatch.setattr(figure, "savefig", record)
-    save("Save frames or movie…", "utc.png", tick=True)
+    save("IRIS: save frames or movie…", "utc.png", tick=True)
     last, length = sji.shape[0] - 1, drawn[0][1]
     assert drawn == [
         ([f"{utc(when)[:-1]} UTC", f"frame {frame}/{last}"], length, pytest.approx(float(length[:-1])))
@@ -3811,18 +3826,18 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
     spectrogram = viewers["spectrogram"]
     button = spectrogram.toolbar.widgetForAction(spectrogram.toolbar.actions["save"])
     type_in_dialog(monkeypatch, "0 1", True)
-    next(action for action in button.menu().actions() if action.text() == "Save frames or movie…").trigger()
+    next(action for action in button.menu().actions() if action.text() == "IRIS: save frames or movie…").trigger()
     message = "No scale bar: the displayed axes are not a longitude and a latitude"
     assert bare_app.statusBar().currentMessage() == message
     monkeypatch.setattr(figure, "savefig", savefig)
-    save("Save frames or movie…", "sji.gif")
+    save("IRIS: save frames or movie…", "sji.gif")
     with Image.open(tmp_path / "sji.gif") as gif:
         assert gif.n_frames == 10
     # Cancel keeps the frames saved, the one being saved too
     cancel_at.append(3)
-    save("Save frames or movie…", "cut.png")
+    save("IRIS: save frames or movie…", "cut.png")
     assert sorted(path.name for path in tmp_path.glob("cut_*.png")) == [f"cut_{frame:04d}.png" for frame in range(4)]
-    save("Save frames or movie…", "cut.gif")
+    save("IRIS: save frames or movie…", "cut.gif")
     with Image.open(tmp_path / "cut.gif") as gif:
         assert gif.n_frames == 4
     assert sji_viewer.state.slices == (9, 0, 0)
@@ -3837,7 +3852,7 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
             if canvas.get_width_height(physical=True)[1] % 2:
                 break
         before = canvas.get_width_height(), (state.x_min, state.x_max, state.y_min, state.y_max)
-        save("Save frames or movie…", "sji.mp4", "0 2")
+        save("IRIS: save frames or movie…", "sji.mp4", "0 2")
         assert (tmp_path / "sji.mp4").stat().st_size > 0
         assert (canvas.get_width_height(), (state.x_min, state.x_max, state.y_min, state.y_max)) == before
 

@@ -167,9 +167,9 @@ show another axis than wavelength, such as the spectrogram turned into a map, ad
 wavelength to both, and one turned to show wavelength against the wavelength panel's step, exposure
 or scan axis has its lines; on a stack, wavelength against step has only the point's. The lines
 follow the sliders, the point, the time master, axis changes and the x unit; they show in "Save plot
-to file" and "Save frames or movie…", but not in a saved session or "Save Python script to reproduce
-plot". Zooming, panning or typing limits on the spectrum panel's x axis gives the wavelength panel
-the same wavelength range.
+to file" and "IRIS: save frames or movie…", but not in a saved session or "Save Python script to
+reproduce plot". Zooming, panning or typing limits on the spectrum panel's x axis gives the
+wavelength panel the same wavelength range.
 On the "Navigate" tab of the spectrum panel's "Options" (see :ref:`the 1D Profile guide
 <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`), a click on the spectrum moves the map, and
 its lines, to the nearest wavelength; with glue-qt 0.4.2 only while the x unit is Å, the data's own.
@@ -205,7 +205,8 @@ positions, such as the map at Mg II k and at Si IV 1403, at two wavelengths of o
 slit-jaw image at two frames or in two channels. Show the position to blink against and choose "Set
 blink partner here": for another window, drag it from the data collection onto the viewer, choose it
 as the reference data with the same axes in the viewer's options, and move its sliders. Go back to
-the position to show and choose "Blink", greyed until then: the viewer shows each in turn every
+the position to show and choose "Blink", which the submenu holds once there is a partner: the
+viewer shows each in turn every
 0.5 s, or as chosen
 under "Blink interval" (0.25, 0.5, 1 or 2 s), until "Blink" or "Set blink partner here" is chosen
 again, the viewer closes or the other window leaves the viewer. Nothing else moves: the point, the
@@ -232,19 +233,19 @@ time" readout says "outside SJI FOV", when the point is off the image; neither i
 viewer shows the frame axis. A slit-jaw frame taken a raster step earlier or later than the point
 shows the slit a step away from the cross.
 
-"Raster overlays" in the "Coordinate" menu of any viewer of an observation with a raster loaded
-shows or hides the
-raster's steps on all its viewers, and moves nothing. Each slit-jaw image draws the slit of every
+"Raster overlays" in the View menu (the gear icon) of any viewer of an observation with a raster
+loaded shows or hides the raster's steps on all its viewers, and moves nothing; it is checked while
+they show. Each slit-jaw image draws the slit of every
 raster step or exposure as a thin white line, placed with the pointing of the frame nearest that
 step's time, whichever frame is shown; on a stack, the steps of the scan its panels show, with that
 scan's own pointing. Each map of the raster (steps or exposures against slit) draws a dashed white
 line at the step or exposure, in the scan it shows, nearest the time master's time, hidden when none
 is within half its time step ("NO MATCH"); under a slit-jaw master it marks the step taken at the
-time of the frame shown. Like the other lines they show in "Save plot to file" and "Save frames or
-movie…", but not in a saved session or "Save Python script to reproduce plot".
+time of the frame shown. Like the other lines they show in "Save plot to file" and "IRIS: save
+frames or movie…", but not in a saved session or "Save Python script to reproduce plot".
 
 "Light curve of this window" in the "Point" submenu of the "Coordinate" menu of the map of a
-sit-and-stare raster or a stack
+sit-and-stare raster or a stack, shown while the point is on the map's raster file,
 opens a Profile viewer of the light curve at the point: at each exposure, or scan, the mean, NaN left
 out, over the wavelength or band the map shows, at the point's slit position (and a stack's raster
 step). The band is a Collapse made on the spectrum panel's "Collapse" tab, averaged whatever the
@@ -262,7 +263,8 @@ deletion clears the edit subset. On the Si IV 1403 window of OBSID 4000255147, 1
 float32 precision, and a click or band change redraws it in under half a second. Other viewers do
 not offer it.
 
-"Row at the point" and "Column at the point", in the same submenu of the map of any raster, open a
+"Row at the point" and "Column at the point", in the same submenu of the map of any raster with the
+point on its file, open a
 Profile viewer of the map's row or column through the point: the row along the map's x axis, the
 raster step (or a sit-and-stare raster's exposure, where it is the light curve), at the point's slit
 position, and the column along its y axis, the slit, at the point's step or exposure; on a stack,

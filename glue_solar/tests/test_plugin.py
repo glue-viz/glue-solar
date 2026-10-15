@@ -46,12 +46,12 @@ from glue_qt.viewers.scatter import ScatterViewer
 from glue_qt.viewers.table import TableViewer
 from irispy.io import read_files
 from irispy.io.sji import read_sji_lvl2
-from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent
+from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent, key_press_handler
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from qtpy.QtCore import Qt
-from qtpy.QtGui import QDesktopServices, QKeySequence
+from qtpy.QtGui import QCursor, QDesktopServices, QKeySequence
 from qtpy.QtTest import QTest
-from qtpy.QtWidgets import QCheckBox, QDialog, QFileDialog, QInputDialog, QToolBar
+from qtpy.QtWidgets import QCheckBox, QDialog, QFileDialog, QInputDialog, QMessageBox, QToolBar
 
 import astropy.units as u
 from astropy import constants
@@ -133,7 +133,7 @@ def test_setup_registers_hooks():
     assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
     assert ImageViewer.subtools["solar:modes"] == ["solar:measure", "solar:path", "solar:path_crosshair", "solar:slope"]
     view = ["solar:frame_time", "solar:hide_axes", "solar:per_frame_limits", "solar:band", "solar:physical_aspect"]
-    view += ["solar:zoom_1_1", "solar:colour_bar"]
+    view += ["solar:zoom_1_1", "solar:colour_bar", "solar:raster_overlays"]
     if not hasattr(ImageViewer, "cursor_status"):
         view.append("solar:cursor_readout")
     assert ImageViewer.subtools["solar:view"] == view
@@ -152,7 +152,7 @@ def test_setup_registers_hooks():
         assert iris.priority > (other.priority or 0)
 
 
-def test_data_actions_show_only_for_the_data_they_take(qtbot, irispy_test_files, iris_tree):
+def test_data_actions_show_only_for_the_data_they_take(qtbot, monkeypatch, irispy_test_files, iris_tree):
     """Each data action is offered only where its own guard takes the data selected."""
     windows = ["C II 1336", "Si IV 1403", "Mg II k 2796"]
     sns = raster_data([find_irispy_test_file(irispy_test_files, RASTER)], windows)  # sit-and-stare
@@ -202,6 +202,17 @@ def test_data_actions_show_only_for_the_data_they_take(qtbot, irispy_test_files,
     for layers, shown in expected:
         tree.set_selected_layers(layers)
         assert [a.text() for a in tree.actions() if a.text() in labels and a.isVisible()] == shown, layers[0].label
+    # a check that faults, not refuses, leaves its entry shown, and running it shows the fault
+    monkeypatch.setattr("glue_solar.sources.iris._GlueWCS", None)  # isinstance() raises TypeError
+    tree.set_selected_layers([plain])
+    [action] = [a for a in tree.actions() if a.text() in labels and a.isVisible()]
+    assert action.text() == "IRIS: shift pointing…"
+    errors = []
+    monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
+    monkeypatch.setattr(QMessageBox, "exec_", lambda box: errors.append(box.text()))
+    action.trigger()
+    [text] = errors
+    assert text.startswith("Could not shift the pointing\nisinstance() arg 2 must be a type")
 
 
 _QT_5_IMPORT = """
@@ -568,7 +579,7 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot, monkeypatch
     save = toolbar.widgetForAction(toolbar.actions["save"]).menu()
     assert [entry.text() for entry in save.actions()][-2:] == [
         "Save Python script to reproduce plot",
-        "Save frames or movie…",
+        "IRIS: save frames or movie…",
     ]
     menus = {}
     for menu in ("solar:modes", "solar:view"):
@@ -602,6 +613,8 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot, monkeypatch
     toolbar.active_tool = "image:point_selection"
     pixel = toolbar.active_tool
     for tool_id in ImageViewer.subtools["solar:view"]:
+        if tool_id == "solar:raster_overlays":
+            continue  # offered with a raster of the viewer's observation, as the quicklook tests check
         tool, entry = toolbar.tools[tool_id], toolbar.actions[tool_id]
         assert entry.isCheckable() == (tool_id != "solar:zoom_1_1")
         for _ in range(2):
@@ -1902,6 +1915,48 @@ def test_keys_step_frames_and_wavelengths_round_and_play(qtbot, monkeypatch, iri
     assert (frames.state.slices, waves.state.slices) == ((shown[-1], 0, 0), (0, 0, 1))
 
 
+def test_g_grids_a_profile_and_does_nothing_on_an_image(qtbot, monkeypatch):
+    """
+    matplotlib's G and Shift+G toggle a Profile viewer's grids; on an Image viewer, where G is glue's Polygonal ROI and
+    matplotlib's grids raise from WCSAxes, they do nothing, and its log, pan and zoom keys stay off on both.
+    """
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5))
+    app.data_collection.append(cube)
+    profile, image = (app.new_data_viewer(viewer, data=cube) for viewer in (ProfileViewer, ImageViewer))
+    handled = []
+    monkeypatch.setattr(
+        glue_patches, "key_press_handler", lambda event: handled.append(event.key) or key_press_handler(event)
+    )
+
+    def over(viewer, key, modifier=Qt.NoModifier):
+        """Press ``key`` with the mouse over the middle of the viewer's plot, where matplotlib's grid keys act."""
+        canvas = viewer.figure.canvas
+        monkeypatch.setattr(QCursor, "pos", lambda *args: canvas.mapToGlobal(canvas.rect().center()))
+        QTest.keyClick(canvas, key, modifier)
+
+    def grids(axes):
+        return [{tick.gridline.get_visible() for tick in axis.get_major_ticks()} for axis in (axes.xaxis, axes.yaxis)]
+
+    # G steps matplotlib's major grids from none to x's, then both; Shift+G its minor ones, x's first, with the major
+    for key, modifier, shown in (
+        (Qt.Key_G, Qt.NoModifier, [{True}, {False}]),
+        (Qt.Key_G, Qt.NoModifier, [{True}, {True}]),
+        (Qt.Key_G, Qt.ShiftModifier, [{True}, {False}]),
+    ):
+        over(profile, key, modifier)
+        assert grids(profile.axes) == shown
+    for key in (Qt.Key_L, Qt.Key_K, Qt.Key_P, Qt.Key_O):
+        over(profile, key)
+    over(profile, Qt.Key_L, Qt.ShiftModifier)
+    assert [key for key in handled if key != "shift"] == ["g", "g", "G"]
+    handled.clear()
+    over(image, Qt.Key_G)
+    over(image, Qt.Key_G, Qt.ShiftModifier)
+    assert [key for key in handled if key != "shift"] == []
+
+
 def test_band_shows_the_mean_about_the_wavelength_slider(qtbot, monkeypatch):
     glue_solar.setup()
     wcs = WCS(naxis=4)
@@ -2394,7 +2449,10 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     monkeypatch.setattr(QFileDialog, "getSaveFileName", dialog)
     [tool] = [tool for tool in viewer.toolbar.tools["save"].subtools if tool.tool_id == "solar:save_profile"]
     save = viewer.toolbar.widgetForAction(viewer.toolbar.actions["save"]).menu()  # after glue's entries
-    assert [entry.text() for entry in save.actions()][-2:] == ["Save Python script to reproduce plot", tool.action_text]
+    assert [entry.text() for entry in save.actions()][-2:] == [
+        "Save Python script to reproduce plot",
+        "IRIS: save profiles as ECSV…",
+    ]
 
     def saved():
         tool.activate()
