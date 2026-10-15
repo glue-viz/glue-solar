@@ -397,6 +397,7 @@ class FrameTimeTool(Tool, HubListener):
             viewer.state.add_callback(prop, self._throttle_sliders)
         self._exposure_ticks = (None, None)  # the WCSAxes coordinates they were added to, and their helper
         self._flat_checked = None  # the WCSAxes coordinates last checked for a flat angle
+        self._rest = (None, None)  # the data's uuid and rest wavelength override, and its rest wavelength
         for prop in _LABELS:
             viewer.state.add_callback(prop, self._label_exposures)
         # glue's Preferences restyle only the WCS coordinates
@@ -405,7 +406,6 @@ class FrameTimeTool(Tool, HubListener):
         self._label_exposures()
         self._format_coord = viewer.axes.format_coord  # WCSAxes' world readout, set on the axes
         viewer.axes.format_coord = self._readout
-        self._rest = (None, None)  # the data's uuid and rest wavelength override, and its rest wavelength
 
     @property
     def checked(self):
