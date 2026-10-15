@@ -42,7 +42,6 @@ from glue.plugins.tools.path_slicer.path_sliced_data_links import (
 from glue.utils import as_variable_name, unbroadcast
 from glue.viewers.common.tool import SimpleToolMenu, Tool
 from glue.viewers.image.composite_array import CompositeArray
-from glue.viewers.image.frb_artist import FRBArtist
 from glue.viewers.image.layer_artist import ImageLayerArtist
 from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
@@ -59,6 +58,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from matplotlib.patheffects import withStroke
 from matplotlib.transforms import ScaledTranslation, blended_transform_factory
+from mpl_scatter_density.base_image_artist import BaseImageArtist
 from qtpy import QtCore, QtWidgets
 
 import astropy.units as u
@@ -2325,7 +2325,7 @@ class SaveSequenceTool(Tool):
                 if bar is not None:
                     _place_scale_bar(viewer, *bar)
                 for image in viewer.axes.images:
-                    if isinstance(image, FRBArtist):  # whose array mpl-scatter-density holds 0.5 s after a resize
+                    if isinstance(image, BaseImageArtist):  # glue's image or density map, held 0.5 s after a resize
                         image.on_release()
                 if writer is None:
                     figure.savefig(f"{stem}_{index:04d}.png")  # as 'Save plot to file' does

@@ -257,8 +257,8 @@ toolbar has:
   glue stays usable while it saves: a frame is saved at each turn of glue's event loop, ffmpeg
   encodes an MP4 as they come, and a GIF is encoded in the background once they are all saved,
   while the status bar says ``Saving sji.gif…``. The viewer, its options and its layers are grayed,
-  and its window can be neither moved nor resized, until the last frame is saved; the other
-  viewers and tabs stay usable, and what they change in the viewer,
+  and its window can be neither moved nor resized by dragging, until the last frame is saved; the
+  other viewers and tabs stay usable, and what they change in the viewer,
   such as the point or the time master's time, shows in the frames saved after. One viewer saves
   at a time.
   Every frame has the same color limits:
