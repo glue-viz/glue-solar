@@ -55,6 +55,8 @@ This will launch the ``glue`` graphical user interface (GUI) from your terminal.
 On Windows operating systems, installation creates an executable ``glue.exe`` file within the Python script directory (e.g., ``C:\Python312\Scripts``).
 Windows users can create a desktop shortcut for this file upon installation
 
+On a Mac, glue-solar can also be built into an app, ``Glue Solar.app``, which opens from the Finder, the Dock or Launchpad: see :ref:`glue_solar_dev_docs_macos_app`.
+
 User Interface Guide
 ^^^^^^^^^^^^^^^^^^^^
 

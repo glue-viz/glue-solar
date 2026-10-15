@@ -8,8 +8,9 @@ A check of the built app, which runs it in place of glue with the files of an IR
 It starts glue as ``glue`` does, checks that glue-solar's menu entries are there on PyQt6 and that glue's IPython
 terminal starts, that fiasco has the line_ratio of the O IV preset and that matplotlib runs the bundled ffmpeg and
 saves a two-frame MP4 through it, loads the files and opens their quicklook as ``glue --startup=iris_quicklook`` does,
-adds irispy's radiometric calibration of the raster, which needs irispy's response files, and prints when the window
-showed and the seconds each step took. It exits 1 at the first failure.
+adds irispy's radiometric calibration of the raster, which needs irispy's response files, saves and restores the
+session, which needs asdf's schemas, and prints when the window showed and the seconds each step took. It exits 1 at
+the first failure.
 """
 
 import os
@@ -31,11 +32,11 @@ from qtpy import QtCore, QtGui
 
 
 def check(app):
-    from glue_solar.quicklook import QuicklookImageViewer, _role
-    from glue_solar.sources.calibration import radiometric_calibration
-    from glue_solar.sources.line_ratio import _has_line_ratio
+    try:  # an import that fails would leave glue's window open
+        from glue_solar.quicklook import QuicklookImageViewer, _role
+        from glue_solar.sources.calibration import radiometric_calibration
+        from glue_solar.sources.line_ratio import _has_line_ratio
 
-    try:
         print(f"window shown at {time.time():.3f}", flush=True)
         entries = {action.text() for action in app.findChildren(QtGui.QAction)}
         assert qtpy.API_NAME == "PyQt6", qtpy.API_NAME
@@ -64,6 +65,13 @@ def check(app):
         raster = next(data for data in app.data_collection if _role(data) == "raster")
         assert np.isfinite(raster[radiometric_calibration(raster)]).any()
         print(f"radiometric calibration {time.perf_counter() - began:.2f} s", flush=True)
+        began = time.perf_counter()
+        with tempfile.TemporaryDirectory() as folder:  # as a .glu opened from the Finder: its WCSs need asdf's schemas
+            session = os.path.join(folder, "check.glu")
+            GlueApplication.save_session.__wrapped__(app, session)  # raising where Save Session shows a message box
+            restored = GlueApplication.restore_session(session, show=False)
+            assert len(restored.data_collection) == len(app.data_collection)
+        print(f"session {time.perf_counter() - began:.2f} s", flush=True)
     except BaseException:
         traceback.print_exc()
         os._exit(1)
