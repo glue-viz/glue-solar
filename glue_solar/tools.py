@@ -66,6 +66,7 @@ from astropy.coordinates import Angle, SkyCoord, angular_separation
 from astropy.table import Column, Table, hstack
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
+from glue_solar.lines import KM_S, rest_wavelength
 from glue_solar.quicklook import (
     _across,
     _check_cut,
@@ -200,22 +201,27 @@ def _hovered(state, x, y):
     )
 
 
-def _world_position(axes, x, y, keep=None):
+def _world_position(axes, x, y, keep=None, rest=None):
     """
     The world position WCSAxes reads out at ``x, y`` of the WCSAxes ``axes``, with each coordinate it shows in arcsec
     (a helioprojective longitude or latitude) to 0.01" and each it shows in Å (an IRIS wavelength) to 0.001 Å, a tenth
     of an IRIS pixel or finer, where WCSAxes gives each the precision of its ticks (2834 for a wavelength of an NUV
     window, of 0.025 Å pixels); other coordinates, such as a right ascension or a Carrington longitude, keep WCSAxes'
-    text. Given ``keep``, one of the coordinates of ``axes``, the other angles are left out.
+    text. Given ``keep``, one of the coordinates of ``axes``, the other angles are left out. Given ``rest``, a rest
+    wavelength in Å, the Doppler velocity of the wavelength shown follows, as the Profile's velocity axis gives it
+    (`~glue_solar.lines.VelocityTool`), in km/s to 0.1 km/s.
     """
     world = axes.coords[0].transform.transform(np.array([[x, y]]))[0]
-    texts = []
+    wavelength = axes.coords["em.wl"] if rest is not None and "em.wl" in axes.coords else None  # by physical type
+    texts, velocity = [], ""
     for coord in axes.coords:
         if coord.coord_index is None:  # not on these axes
             continue
         if coord.coord_type in ("longitude", "latitude") and keep not in (None, coord):
             continue
         value = world[coord.coord_index] * coord.coord_unit
+        if coord is wavelength:
+            velocity = f" · {value.to_value(KM_S, u.doppler_optical(rest * u.AA)):z.1f} km/s"
         if coord.get_format_unit() == u.arcsec:
             angle = Angle(value) if coord.coord_wrap is None else Angle(value).wrap_at(coord.coord_wrap)
             texts.append(_world_text(angle))
@@ -223,7 +229,7 @@ def _world_position(axes, x, y, keep=None):
             texts.append(_world_text(value))
         else:
             texts.append(coord.format_coord(world[coord.coord_index], format="ascii"))
-    return " ".join(texts) + " (world)"
+    return " ".join(texts) + " (world)" + velocity
 
 
 def _exposure_label(data):
@@ -360,7 +366,9 @@ class FrameTimeTool(Tool, HubListener):
     components: on a raster map each step's, on a slit-jaw image or a sit-and-stare raster the frame's or
     exposure's. Its position has fixed precision (`_world_position`), and on a displayed sit-and-stare
     exposure axis reads only the coordinate along the other axis, as the ticks do, with the time and
-    exposure in place of the slit's position along the exposures. The View menu entry hides the frame time only.
+    exposure in place of the slit's position along the exposures. Where it shows a wavelength of data with a rest
+    wavelength (`~glue_solar.lines.rest_wavelength`), the Doppler velocity from it follows the position. The View
+    menu entry hides the frame time only.
     """
 
     icon = "window_tab"
@@ -389,6 +397,7 @@ class FrameTimeTool(Tool, HubListener):
             viewer.state.add_callback(prop, self._throttle_sliders)
         self._exposure_ticks = (None, None)  # the WCSAxes coordinates they were added to, and their helper
         self._flat_checked = None  # the WCSAxes coordinates last checked for a flat angle
+        self._rest = (None, None)  # the data's uuid and rest wavelength override, and its rest wavelength
         for prop in _LABELS:
             viewer.state.add_callback(prop, self._label_exposures)
         # glue's Preferences restyle only the WCS coordinates
@@ -428,7 +437,7 @@ class FrameTimeTool(Tool, HubListener):
             axes, shown = self.viewer.axes, (state.x_att.axis, state.y_att.axis)
             # glue's own mapping of the axis beside the exposures to its world coordinate, as for the ticks
             keep = axes.coords[data.ndim - 1 - max(shown)] if 0 in shown and _sit_and_stare_raster(data) else None
-            text = _world_position(axes, x, y, keep)
+            text = _world_position(axes, x, y, keep, self._rest_wavelength(data))
         pixel = _hovered(state, x, y)
         if pixel is None:
             return text
@@ -438,6 +447,17 @@ class FrameTimeTool(Tool, HubListener):
         if exposure is not None:
             text += f" · exp {_seconds_text(data[exposure, pixel])}"
         return text
+
+    def _rest_wavelength(self, data):
+        """
+        The `~glue_solar.lines.rest_wavelength` of ``data``, worked out again only for other data or another override:
+        it takes 0.2 to 0.4 ms, and each mouse move asks for it three times (matplotlib's hidden toolbars and the
+        readout's).
+        """
+        key = (data.uuid, data.meta.get("rest_wavelength"))
+        if self._rest[0] != key:
+            self._rest = (key, rest_wavelength(data))
+        return self._rest[1]
 
     def _label_exposures(self, *_):
         """
@@ -535,9 +555,10 @@ class CursorReadoutTool(Tool):
     Show the world position and the data value under the mouse in the Image Viewer's status bar.
 
     The position is whatever the reference data's WCS maps the displayed axes to (helioprojective
-    position, wavelength, ...), as the viewer's WCSAxes reads it out, with the time and exposure the
-    Frame time tool adds; the value is the reference layer's displayed attribute at that pixel of the
-    current slice. Pressing ``w`` over the image switches WCSAxes between world and pixel positions.
+    position, wavelength, ...), as the viewer's WCSAxes reads it out, with the Doppler velocity, time
+    and exposure the Frame time tool adds; the value is the reference layer's displayed attribute at
+    that pixel of the current slice. Pressing ``w`` over the image switches WCSAxes between world and
+    pixel positions.
     Its View menu entry hides and shows the readout.
     """
 

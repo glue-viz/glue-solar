@@ -2435,6 +2435,62 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
     assert 2830 < state.x_min < state.x_max < 2835
 
 
+def test_readout_gives_the_velocity_axis_value_from_the_rest_wavelength(qtbot, monkeypatch, irispy_test_files):
+    glue_solar.setup()
+    sit_and_stare = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
+    path = find_irispy_test_file(irispy_test_files, sit_and_stare)
+    [none, si] = sorted(raster_data([path], ["Si IV 1403", "2832"]), key=lambda data: data.label)
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.extend([si, none])
+    profile = app.new_data_viewer(ProfileViewer, data=si)
+    profile.state.x_att = si.world_component_ids[2]  # wavelength
+    tool = profile.toolbar.tools["solar:velocity"]
+    tool.activate()  # the top axis of the Doppler velocity
+    image = app.new_data_viewer(ImageViewer, data=si)
+    image.add_data(none)
+
+    def show(data, x, y):  # array axes, x against y
+        image.state.reference_data = data
+        image.state.x_att, image.state.y_att = data.pixel_component_ids[x], data.pixel_component_ids[y]
+        image.figure.canvas.draw()
+
+    def set_rest(data, text):
+        monkeypatch.setattr(QInputDialog, "getItem", lambda *args: (text, True))
+        rest_wavelength_iris(data, app.data_collection)
+
+    def check(x, y=5):
+        """The readout's velocity at pixel x of the wavelength axis, which is the velocity axis's there."""
+        text = image.axes.format_coord(x, y)
+        wave = _wavelengths(si)[0][x]
+        assert f"{wave:.3f} Å" in text
+        profile.figure.canvas.draw()
+        expected = tool.axis.transData.inverted().transform(profile.axes.transData.transform((wave, 0)))[0]
+        [velocity] = re.findall(r" \(world\) · (-?\d+\.\d) km/s · ", text)  # after the position, before the time
+        assert float(velocity) == pytest.approx(expected, abs=0.05 + 1e-9)  # to the printed precision
+        return float(velocity)
+
+    show(si, 2, 1)  # the spectrogram, wavelength against slit
+    velocities = [check(x) for x in (0, 20, len(_wavelengths(si)[0]) - 1)]
+    assert velocities[0] < 0 < velocities[-1]
+    set_rest(si, "1402.5")  # 'IRIS: set rest wavelength…'
+    assert tool.axis.get_xlabel() == "Velocity from 1402.5 Å [km/s]"
+    assert check(20) > velocities[1] + 50  # 0.27 Å nearer the blue: 58 km/s more
+    set_rest(si, "")  # back to Si IV 1402.77
+    assert check(20) == velocities[1]
+    show(si, 2, 0)  # wavelength against exposure
+    check(20)
+    show(si, 0, 1)  # the map: no wavelength shown, so no velocity
+    assert "km/s" not in image.axes.format_coord(10, 5)
+    show(none, 2, 1)  # 2832 has no line, so no rest wavelength
+    text = image.axes.format_coord(5, 5)
+    assert " Å " in text
+    assert "km/s" not in text
+    assert "nan" not in text
+    set_rest(none, "2832.7")
+    assert re.search(r" \(world\) · -?\d+\.\d km/s · ", image.axes.format_coord(5, 5))
+
+
 def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_test_files):
     glue_solar.setup()
     sit_and_stare = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"

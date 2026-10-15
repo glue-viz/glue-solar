@@ -678,10 +678,13 @@ def test_readout_reads_the_time_along_sit_and_stare_exposures_and_slit_jaw_frame
     for exposure in (0, 90, 186):
         pixel = (exposure, slit, k)
         wavelength, latitude, _ = raster.coords.pixel_to_world_values(k, slit, exposure)
-        # λ–time: the wavelength and the hovered exposure's time, not where the slit pixel was then
+        # λ–time: the wavelength, its Doppler velocity (test_plugin) and the hovered exposure's time, not where the
+        # slit pixel was then
         viewer.state.x_att, viewer.state.y_att = raster.pixel_component_ids[2], raster.pixel_component_ids[0]
         viewer.state.slices = (0, slit, 0)
-        assert hover(viewer, k, exposure).startswith(f"{wavelength:.3f} Å" + time_and_exposure(raster, pixel))
+        position, _, after = hover(viewer, k, exposure).partition(" km/s")
+        assert position.startswith(f"{wavelength:.3f} Å (world) · ")
+        assert (" (world)" + after).startswith(time_and_exposure(raster, pixel))
         # slit against time: the latitude along the slit
         viewer.state.x_att, viewer.state.y_att = raster.pixel_component_ids[0], raster.pixel_component_ids[1]
         viewer.state.slices = (0, 0, k)
