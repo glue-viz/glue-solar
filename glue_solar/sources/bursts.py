@@ -68,13 +68,16 @@ def _check_bursts(data):
     return sji
 
 
-def _table(events, label, meta, offset):
+def _table(events, label, meta, maps):
     """
     A dataset of irispy's ``events``, a row each: ``time`` as glue's times, and ``coordinate`` as
-    ``coordinate.Tx`` and ``coordinate.Ty`` in arcsec, as glue reads a FITS table's, plus the data's pointing ``offset``.
+    ``coordinate.Tx`` and ``coordinate.Ty`` in arcsec, as glue reads a FITS table's, plus the pointing offset of
+    ``maps``, the bursts' labels, whose shifts it follows (`_shift_events`): ``meta['pointing_offset']`` and
+    ``meta['pointing_follows']``, as `~glue_solar.sources.loaders.iris._GlueWCS` holds them.
     """
+    offset = maps.coords.pointing_offset
     table = Data(label=label)
-    table.meta = meta
+    table.meta = {**meta, "pointing_offset": list(offset), "pointing_follows": [maps.uuid, *maps.coords.follows]}
     for name, column in events.columns.items():
         if isinstance(column, SkyCoord):
             for axis, shift in zip(("Tx", "Ty"), offset):
@@ -85,6 +88,15 @@ def _table(events, label, meta, offset):
         else:
             table.add_component(Component(np.asarray(column), units=str(getattr(column, "unit", None) or "")), name)
     return table
+
+
+def _shift_events(table, offset):
+    """Move the coordinates of ``table``, a `_table`, from its pointing offset to ``offset``, in arcsec."""
+    moved = {}
+    for axis, new, old in zip((".Tx", ".Ty"), offset, table.meta["pointing_offset"]):
+        moved.update({cid: table[cid] + (new - old) for cid in table.main_components if cid.label.endswith(axis)})
+    table.update_components(moved)
+    table.meta["pointing_offset"] = list(offset)
 
 
 def _si_iv_bursts(data, crop, threshold, velocity_range, median_factor):
@@ -125,7 +137,7 @@ def _si_iv_bursts(data, crop, threshold, velocity_range, median_factor):
     )
     maps.add_component(Component(np.reshape(labels, data.shape[:-1])), "label")
     events = vstack(tables, metadata_conflicts="silent")  # their thresholds are the map's
-    return [maps, _table(events, f"{data.label} burst events", dict(maps.meta), data.coords.pointing_offset)]
+    return [maps, _table(events, f"{data.label} burst events", dict(maps.meta), maps)]
 
 
 def si_iv_bursts(data, threshold=None, velocity_range=VELOCITY_RANGE, median_factor=MEDIAN_FACTOR):
@@ -202,12 +214,12 @@ def sji_bursts(data, sigma_factor=SIGMA_FACTOR, min_pixels=MIN_PIXELS):
     labels, events = find_bright_image_events(cube, sigma_factor=sigma_factor, min_pixels=min_pixels)
     parameters = {"bursts_sigma_factor": sigma_factor, "bursts_min_pixels": min_pixels}
     bursts = Data(label=f"{data.label} bursts", coords=_GlueWCS(data.coords._wcs))
-    bursts.coords.pointing_offset = data.coords.pointing_offset
+    bursts.coords.follow(data)
     bursts.meta = {**data.meta, **parameters}
     bursts.add_component(Component(labels.data), "label")
     bursts.add_component(_per_frame(data[data.id["Time"], (slice(None), 0, 0)], bursts.shape), "Time")
     meta = {key: data.meta[key] for key in ("OBSID", "STARTOBS") if key in data.meta}
-    table = _table(events, f"{data.label} burst events", {**meta, **parameters}, data.coords.pointing_offset)
+    table = _table(events, f"{data.label} burst events", {**meta, **parameters}, bursts)
     return [bursts, table]
 
 

@@ -182,6 +182,8 @@ class _GlueWCS(BaseWCSWrapper):
     # Arcsec added to the wrapped WCS's helioprojective longitude and latitude ('IRIS: shift pointing…'): a shift in
     # the plane of the sky, small enough to add to both. Set it whole, never in place: the memo keys on it.
     pointing_offset = (0.0, 0.0)
+    # The uuids of the datasets this one is made from, nearest first, whose shifts it follows (`follow`)
+    follows = ()
 
     def __init__(self, wcs):
         super().__init__(wcs)
@@ -189,6 +191,10 @@ class _GlueWCS(BaseWCSWrapper):
         # glue converts on worker threads too. The memo has its own lock, held only to read or add an entry:
         # holding WCS_LOCK through the unit arithmetic as well lets a busy thread starve the others.
         self._memo_lock = threading.Lock()
+
+    def follow(self, data):
+        """Take the pointing offset of ``data``, the dataset this one is made from, and follow its later shifts."""
+        self.pointing_offset, self.follows = data.coords.pointing_offset, (data.uuid, *data.coords.follows)
 
     @property
     def axis_correlation_matrix(self):
@@ -308,12 +314,14 @@ class _GlueWCS(BaseWCSWrapper):
     def __gluestate__(self, context):
         with WCS_LOCK:  # astropy writes a FITS WCS's header through wcslib
             wcs = _wcs_state(self._wcs)
-        return {"wcs": wcs, "pointing_offset": [float(offset) for offset in self.pointing_offset]}
+        offset = [float(offset) for offset in self.pointing_offset]
+        return {"wcs": wcs, "pointing_offset": offset, "follows": list(self.follows)}
 
     @classmethod
     def __setgluestate__(cls, rec, context):
         wcs = cls(_wcs_from_state(rec["wcs"]))
         wcs.pointing_offset = tuple(rec["pointing_offset"])
+        wcs.follows = tuple(rec.get("follows", ()))  # none in a session saved before derived data followed
         return wcs
 
 

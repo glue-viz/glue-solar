@@ -1,0 +1,1 @@
+Data made from an IRIS dataset (line moments, red-blue, Doppler, Mg II features, bursts, regridded and rebinned copies, dust removal) now follow every later "IRIS: shift pointing…" of it, in a restored session too.

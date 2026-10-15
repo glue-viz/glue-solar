@@ -566,11 +566,14 @@ position. On OBSID 4000005156's deconvolved SJI 2796, (+2, −1) turns the reado
 
 - Only IRIS data can be shifted: a sunpy Map is not offered it, so shift the IRIS data against it
   instead.
-- Datasets made from a shifted one afterwards, by "IRIS: regrid on time", "IRIS: rebin…", line
-  moments, red-blue asymmetry, Doppler images or Mg II features, take its offset; shift them on
-  their own, and alike, after a later shift: a line ratio between maps shifted differently is
-  refused as not on the same grid. A line ratio shares its numerator's coordinates and shifts with
-  it.
+- Data made from it, by "IRIS: regrid on time", "IRIS: rebin…", "IRIS: remove dust (SJI)", line
+  moments, red-blue asymmetry, Doppler images, Mg II features or UV bursts, take its offset and
+  follow every later shift of it, as do data made from those in turn, such as a rebinned window's
+  line moments, and a burst events table's ``coordinate.Tx`` and ``coordinate.Ty``; a saved
+  session keeps them following. Data shifted on their own move with the data made from them,
+  until the dataset they were made from is shifted again, and once it is removed they keep their
+  offset. A line ratio shares its numerator's coordinates and shifts with it; a north-up grid
+  stays where it was made, and the slit-jaw image moves across it.
 - A region drawn on a quicklook's map or slit-jaw image keeps the outline it had in longitude and
   latitude, so draw it again after shifting the dataset it was drawn on.
 - The "Frame time" tooltip keeps the file's pointing. A saved session keeps the offset (see "Saving

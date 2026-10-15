@@ -98,10 +98,10 @@ def regrid_on_time(data):
     Pixel ``i`` along that axis is ``i`` steps after the first time, up to the first pixel at or past the last, and
     holds the exposure, frame or scan nearest its time (the earlier of two as near) within 0.75 steps, else NaN, as
     do its ``Time`` (NaT then) and ``Exposure time``; a scan is timed by its middle raster step. The other axes are
-    those of ``data``, and so are the pointing offset and the coordinates, along this axis those at each pixel's time
-    (at the last time for a last pixel past it), so that a slit-jaw image's time coordinate is regular.
-    ``meta['time_step']`` is the step in seconds. Data stored as int16 are read from their file as they are viewed, as
-    ``data`` is.
+    those of ``data``, and so are the pointing offset, which it follows, and the coordinates, along this axis those at
+    each pixel's time (at the last time for a last pixel past it), so that a slit-jaw image's time coordinate is
+    regular. ``meta['time_step']`` is the step in seconds. Data stored as int16 are read from their file as they are
+    viewed, as ``data`` is.
 
     Raises
     ------
@@ -135,7 +135,7 @@ def regrid_on_time(data):
     regridded = _dataset(_Regridded(data.coords._wcs, positions), meta, component.units, values,
                          f"{data.label} regridded", color=data.style.color, cmap=data.style.preferred_cmap,
                          scaling=scaling)
-    regridded.coords.pointing_offset = data.coords.pointing_offset
+    regridded.coords.follow(data)
     lead = (slice(None),) * (data.ndim - 2) + (0, 0)  # one value per exposure, frame, or scan and step
     regridded.add_component(_per_frame(_gather(data[data.id["Time"], lead], index, np.datetime64("NaT", "ns")),
                                        regridded.shape), "Time")
@@ -301,9 +301,9 @@ def rebin(data, bins):
     whole bin along an axis are left out. Its coordinates are ndcube's ``ResampledLowLevelWCS`` of those of ``data``,
     so a pixel is at its bin's centre; its ``Time`` is the mean of its bin's times, and its ``Exposure time`` the mean
     of its bin's exposure times, NaN where one is 0 s, so that ``<label> DN/s`` is its mean DN over it. The units,
-    colormap, pointing offset and metadata are those of ``data``, without a slit-jaw image's per-frame pointing,
-    ``meta['rebinned']`` adding ``bins``, and the ``meta['time_step']`` of data regridded on time multiplied by the bin
-    along time.
+    colormap, pointing offset, which it follows, and metadata are those of ``data``, without a slit-jaw image's
+    per-frame pointing, ``meta['rebinned']`` adding ``bins``, and the ``meta['time_step']`` of data regridded on time
+    multiplied by the bin along time.
 
     Raises
     ------
@@ -343,7 +343,7 @@ def rebin(data, bins):
         cmap=data.style.preferred_cmap,
         missing=(),
     )
-    rebinned.coords.pointing_offset = data.coords.pointing_offset
+    rebinned.coords.follow(data)
     lead, along = (*covered[:-2], 0, 0), bins[:-2]  # one value per exposure, frame, or scan and step
     times = data[data.id["Time"], lead]
     offsets = _rebinned(data, lead, (times - times.flat[0]) / np.timedelta64(1, "ns"), along)
