@@ -135,21 +135,30 @@ def test_a_session_restores_a_moments_map_on_its_raster_steps(irispy_test_files)
 
 
 def test_a_session_keeps_data_following_the_dataset_they_are_made_from(qtbot, monkeypatch, irispy_test_files):
-    collection = DataCollection(raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["C II 1336"]))
+    collection = DataCollection(raster_data([find_irispy_test_file(irispy_test_files, SI_IV)]))
     shift(monkeypatch, collection[0], collection, (1.5, -2.25))
     rebinned = rebin(collection[0], (2, 2, 1))
-    collection.extend([line_moments(collection[0], 1335.71), rebinned, line_moments(rebinned, 1335.71)])
+    collection.extend([line_moments(collection[0], 1402.77), rebinned, line_moments(rebinned, 1402.77)])
+    collection.extend(si_iv_bursts(collection[0], 80))
     for restored in twice(collection):  # the raster read from its file again, the others restored
-        raster, _, rebinned, _ = restored
+        raster, _, rebinned, _, bursts, table = restored
         assert [data.uuid for data in restored] == [data.uuid for data in collection]
-        follows = [(raster.uuid,), (raster.uuid,), (rebinned.uuid, raster.uuid)]
-        assert [data.coords.follows for data in restored[1:]] == follows
-        offset, before = raster.coords.pointing_offset, [angles(data) for data in restored[1:]]
-        assert [data.coords.pointing_offset for data in restored[1:]] == [offset] * 3
-        # and a shift there moves them all, the map, the rebinned copy and its map, by the same offset
+        follows = [(raster.uuid,), (raster.uuid,), (rebinned.uuid, raster.uuid), (raster.uuid,)]
+        assert [data.coords.follows for data in restored[1:5]] == follows
+        offset, before = raster.coords.pointing_offset, [angles(data) for data in restored[1:5]]
+        assert [data.coords.pointing_offset for data in restored[1:5]] == [offset] * 4
+        # the burst events table's in its metadata
+        assert table.meta["pointing_offset"] == list(offset)
+        assert table.meta["pointing_follows"] == [bursts.uuid, raster.uuid]
+        events = [table[f"coordinate.{axis}"] for axis in ("Tx", "Ty")]
+        assert events[0].size
+        # and a shift there moves them all, the map, the rebinned copy and its map, the bursts and their events, by
+        # the same offset
         shift(monkeypatch, raster, restored, (offset[0] + 1, offset[1] - 0.5))
-        for data, angle in zip(restored[1:], before):
+        for data, angle in zip(restored[1:5], before):
             np.testing.assert_allclose(angles(data), angle + [[1], [-0.5]], rtol=0, atol=1e-9, err_msg=data.label)
+        for axis, values, delta in zip(("Tx", "Ty"), events, (1, -0.5)):
+            np.testing.assert_allclose(table[f"coordinate.{axis}"], values + delta, rtol=0, atol=1e-9)
 
 
 def test_a_session_restores_the_links_link_hpc_gives_a_stack_and_a_map(tmp_path, irispy_test_files):
