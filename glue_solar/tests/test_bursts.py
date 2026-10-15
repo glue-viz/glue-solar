@@ -170,7 +170,7 @@ def test_the_event_table_opens_in_a_table_viewer(app, irispy_test_files):
     assert shown() == [times[1]]
     viewer.state.regex = True
     viewer.state.filter = f"{times[0]}|{times[2]}"
-    assert shown() == [times[2], times[0]]
+    assert shown() == sorted([times[0], times[2]], reverse=True)
     viewer.state.filter = ""
     # a range of times, as the time master's "Master exposure" gives, highlights their rows
     lo, hi = np.sort(table["time"])[[1, -1]]

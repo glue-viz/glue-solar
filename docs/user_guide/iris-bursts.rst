@@ -15,8 +15,8 @@ opens: drag the map onto an Image viewer and the table onto a Table viewer, a ro
 ``time`` in UTC to the nanosecond. Click a column's header to sort by it; the search box shows the
 rows whose search column, ``time`` unless changed, holds the text typed, such as ``T17:2`` for the
 bursts from 17:20 to 17:29. A Scatter viewer plots them, such as ``time`` against ``intensity`` or
-``coordinate.Tx`` against ``coordinate.Ty``. glue-qt 0.4.2's Table viewer refuses a dataset with a
-time, such as this table, as its search reads each value as text; glue-solar searches the text each
+``coordinate.Tx`` against ``coordinate.Ty``. glue-qt 0.4.2's Table viewer refuses this table, whose
+search column is a time, as its search reads each value as text; glue-solar searches the text each
 shows instead.
 
 In a raster window
