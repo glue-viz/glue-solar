@@ -419,7 +419,11 @@ def test_filter_waits_for_a_pause_in_typing(dialog, qtbot):
     dialog.show()
     filters = []
     dialog._filter_timer.timeout.connect(lambda: filters.append(dialog.filter.text()))
-    QTest.keyClicks(dialog.filter, "mg II")  # a keystroke at a time, faster than the pause
+    QTest.keyClicks(dialog.filter, "mg")  # a keystroke at a time, faster than the pause
+    qtbot.wait(100)
+    left = dialog._filter_timer.remainingTime()
+    QTest.keyClicks(dialog.filter, " II")
+    assert dialog._filter_timer.remainingTime() > left  # each keystroke starts the pause over
     QTest.keyClick(dialog.filter, Qt.Key_Return)  # which does nothing more: the filter still waits
     assert (filters, _listed(dialog)) == ([], [OBS_C[2], OBS_B[2], OBS_A[2]])
     qtbot.waitUntil(lambda: bool(filters))
