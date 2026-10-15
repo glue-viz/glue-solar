@@ -36,7 +36,8 @@ def _check_sji(data):
 def remove_dust(data):
     """
     ``data``, an IRIS slit-jaw image, with irispy's dust removed, as a new dataset ``<label> dust removed`` on its
-    coordinates, at its pointing offset, with its ``Time``, ``Exposure time``, ``<label> DN/s`` and ``meta``.
+    coordinates, at its pointing offset, which it follows, with its ``Time``, ``Exposure time``, ``<label> DN/s``
+    and ``meta``.
 
     irispy's ``SJICube.remove_dust`` is given the scaled values, NaN masked, a slab of frames at a time with the
     `FRAMES` on either side it takes replacements from, and each frame's exposure time. It finds dust where a value
