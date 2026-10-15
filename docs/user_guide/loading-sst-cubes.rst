@@ -20,7 +20,7 @@ glue's terminal, ``sst_data`` loads one the same way::
 The dataset's axes are the file's, in numpy order: scan, Stokes, tuning, y and x, but a cube of
 intensities, such as CHROMIS's, leaves out its Stokes axis of length 1: scan, tuning, y and x. Its
 values stay in the file, memory-mapped: opening a cube reads only its headers and tables, about 0.3 MB
-in 0.03 to 0.05 s, and a viewer reads the planes it shows. A viewer's colour limits come from evenly
+in 0.03 to 0.05 s, and a viewer reads the planes it shows. A viewer's color limits come from evenly
 spaced rows and columns of 16 planes, about 10,000 values, as many as glue samples at random, each on
 another page of the file, which read 0.7 GB the first time. The planes are at evenly spaced tunings,
 from the first to the last, with the Stokes parameters in turn and the scans spread over the series,
@@ -62,10 +62,10 @@ Cavity error
 
 ``Cavity error`` is the shift of each pixel's wavelength from the nominal one at each scan, in nm,
 from the cavity map of the Fabry–Pérot that SSTRED stores in the file (``WCSDVARR``): up to
-0.006 nm on obs 171, 2.8 km/s at H-alpha. The wavelength axis keeps the nominal wavelengths. To
+0.006 nm on obs 171, 2.8 km / s at H-alpha. The wavelength axis keeps the nominal wavelengths. To
 correct one, or a line position measured on them, add the cavity error, with glue's arithmetic
 attribute editor for example: ``{Wavelength} + {Cavity error}``, or as a velocity at 656.28 nm,
-``{Cavity error} / 656.28 * 299792.458`` in km/s. A CHROMIS Ca II H & K cube has a map for each
+``{Cavity error} / 656.28 * 299792.458`` in km / s. A CHROMIS Ca II H & K cube has a map for each
 prefilter, each applied to its own tunings, and none for its continuum tuning, where the cavity error
 is 0, so that the corrected wavelength there is the nominal one. The maps too stay in the file until
 they are viewed.
@@ -114,7 +114,7 @@ Its panels are laid out in three rows, maps on top:
   or a "Wavelength band…" (see :ref:`Viewer tools and windows
   <glue_solar_users_guide_viewer_tools_and_windows>`).
 
-The point, the edit subset "Point", starts at the map's centre in the first scan and Stokes I, with
+The point, the edit subset "Point", starts at the map's center in the first scan and Stokes I, with
 the Pixel tool on the map, and is a pixel at every wavelength, as in the IRIS quicklook (see
 :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). Each image panel takes the Pixel tool as
 its window becomes active. A click on either map moves it, the
@@ -128,7 +128,7 @@ at the point" or "<line> light curve", glue's selection of those pixels by their
 reads the whole cube, as the cube's own profile would (see `A Profile viewer of a cube`_). As in the
 IRIS quicklook, the virtual slit and wavelength against scan have a thin red line at the point,
 wavelength against scan dashed white lines at both maps' wavelengths and a dotted one at the scan
-nearest the time master's time, and the Stokes I spectrum dashed grey lines at the maps' wavelengths;
+nearest the time master's time, and the Stokes I spectrum dashed gray lines at the maps' wavelengths;
 a zoom on its x axis gives wavelength against scan the same wavelength range. The "Point" window
 gives the point's scan, any Stokes parameter, wavelength (λ, the map's), y and x, its position, the
 time of that tuning and the value there, and the "Panels" list beside it turns each panel off and on.
@@ -140,10 +140,10 @@ thread; the panels' own redraws are faster without axes.
 
 Each scan of a mosaic, such as the archive's obs 492 and 495, is another pointing: the point is a
 pixel, which stays put from scan to scan, so the light curve and wavelength against scan follow that
-pixel, not a place on the Sun. The image panels show Stokes I with glue's 99.5 % colour limits over
+pixel, not a place on the Sun. The image panels show Stokes I with glue's 99.5 % color limits over
 the whole cube, and Q, U and V, as the Stokes slider moves to them, with limits symmetric about 0,
-the middle of the colour map: the 99.5th percentile of that parameter's absolute values, from 16 of
-its planes sampled as the colour limits are (see `What loads`_), the same at every scan and tuning.
+the middle of the color map: the 99.5th percentile of that parameter's absolute values, from 16 of
+its planes sampled as the color limits are (see `What loads`_), the same at every scan and tuning.
 On obs 492 Ca II 8542 these are ±2.2, ±1.8 and ±3.6 × 10⁻¹⁰ in the cube's unit. A limit or
 percentile chosen in a layer's style editor holds until the Stokes slider moves. With "Per-frame
 limits" on, in a map's "View" menu, each frame takes glue's 99.5 % of its own values instead, Q, U

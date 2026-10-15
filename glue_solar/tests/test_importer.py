@@ -214,7 +214,7 @@ def test_load_reads_a_file_at_a_time_off_the_gui_thread(dialog, qtbot, monkeypat
     assert dialog.result() == QDialog.Accepted
     assert len(reads) == 2
     assert on_gui == [False, False, True]  # the reads, then the result
-    # from the scan's 100%, the slit-jaw file, each raster file, then the colour limits
+    # from the scan's 100%, the slit-jaw file, each raster file, then the color limits
     assert progress == [(0, False), (25, False), (50, False), (75, False), (100, False)]
     assert [data.ndim for data in dialog.datasets] == [3, 4]
 
@@ -970,7 +970,7 @@ def _same(shown, wrapped):
 
 
 def test_high_level_objects_agree_with_the_values(irispy_test_files):
-    # glue's WCS link builds SkyCoords and SpectralCoords from the values: they said degrees and metres while the
+    # glue's WCS link builds SkyCoords and SpectralCoords from the values: they said degrees and meters while the
     # values were arcsec and Angstrom, which raised (latitude past 90 deg) or gave positions 3600 times too far out
     obs = "iris_l2_20210905_001833_3620258102_{}.fits"
     [raster] = raster_data([find_irispy_test_file(irispy_test_files, obs.format("raster_t000_r00000"))], ["Si IV 1403"])
@@ -1249,7 +1249,7 @@ def test_negative_step_raster_keeps_irispys_orientation(qtbot, irispy_data):
     row = scan.shape[1] // 2
 
     longitude = scan[scan.id["Helioprojective Longitude"]][:, row, 0]
-    with fits.open(path) as hdul:  # the per-step FOV centre, stored in acquisition order
+    with fits.open(path) as hdul:  # the per-step FOV center, stored in acquisition order
         aux = hdul[hdul[0].header["NWIN"] + 1]
         np.testing.assert_allclose(longitude, aux.data[::-1, aux.header["XCENIX"]], atol=0.01)
     assert longitude[[0, 63]] == pytest.approx([-970.73, -907.89], abs=0.01)

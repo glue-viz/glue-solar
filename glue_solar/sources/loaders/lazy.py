@@ -15,7 +15,7 @@ from glue.utils import random_indices_for_array
 
 __all__ = ["LazyData", "RawComponent", "RawStack", "allow_open_files", "fill_mask"]
 
-# Colour limits count every raw value of a window up to this many bytes, else of evenly spaced planes (raster
+# Color limits count every raw value of a window up to this many bytes, else of evenly spaced planes (raster
 # steps or slit-jaw frames) up to it: exact on the acceptance windows, at most 0.6 s for the first Image layer
 SAMPLE_BYTES = 512 * 2**20
 # Steps or frames per dask chunk, for the reads glue makes of a whole component
@@ -111,7 +111,7 @@ class RawComponent(DaskComponent):
         return counts
 
     def _sample(self):
-        """How often each raw code occurs in the colour-limit sample (`SAMPLE_BYTES`), as `_count` counts them."""
+        """How often each raw code occurs in the color-limit sample (`SAMPLE_BYTES`), as `_count` counts them."""
         if self._counts is None:
             raw = self._source.raw
             planes = int(np.prod(raw.shape[:-2]))
@@ -190,7 +190,7 @@ class RawStack:
 
 class LazyData(Data):
     """
-    A glue dataset whose `RawComponent` answers glue's sampled statistics, the colour limits of an Image layer, its
+    A glue dataset whose `RawComponent` answers glue's sampled statistics, the color limits of an Image layer, its
     style editor and a Histogram's range, from the counts of its raw codes (`SAMPLE_BYTES`), and those of a view or
     a slice, such as an Image layer's per-frame limits, from the counts of every raw code it selects.
 

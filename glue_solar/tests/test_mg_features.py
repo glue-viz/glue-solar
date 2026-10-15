@@ -30,7 +30,7 @@ from glue_solar.tests.test_quicklook import SCAN
 from glue_solar.tests.test_sessions import twice
 
 ACTION = "IRIS: Mg II features… (Mg II)"
-# 4000005156 cut to Mg II k and to Mg II h, the line's ±44 km/s only, as two windows; 150 spectra of each hold -200
+# 4000005156 cut to Mg II k and to Mg II h, the line's ±44 km / s only, as two windows; 150 spectra of each hold -200
 FEATURES = "iris_l2_20130902_182935_4000005156_raster_t000_r00000_mg_features.fits"
 KH = ("k", "h")
 
@@ -148,8 +148,8 @@ def test_a_saturated_sample_blanks_its_lines_features_at_its_pixel(app, qtbot, m
     assert np.isfinite(clean["k3_velocity"].data[0, 30])
     cid = raster.main_components[0]
     values = np.array(raster[cid])
-    values[:, 10, 51] = np.inf  # h's core, at -6 km/s, at every step
-    values[0, 30, 23] = np.inf  # k's core, at -0.6 km/s
+    values[:, 10, 51] = np.inf  # h's core, at -6 km / s, at every step
+    values[0, 30, 23] = np.inf  # k's core, at -0.6 km / s
     raster.update_components({cid: values})
     answer(monkeypatch)
     message = "the k features at 1 saturated pixel and the h features at 8 saturated pixels are NaN"
@@ -213,7 +213,7 @@ def test_a_stacks_saturated_pixels_are_counted_over_its_scans(app, qtbot, monkey
 def test_a_rest_wavelength_set_shifts_the_wavelengths_irispy_is_given(app, qtbot, monkeypatch, irispy_test_files):
     """
     A rest wavelength set 0.01 Å redder than irispy's Mg II k gives irispy the window's wavelengths 0.01 Å shorter, as
-    irispy advises for IDL's wave_comp: k's velocities 1.07 km/s lower, h's by 0.01 Å at h; none set gives irispy's own
+    irispy advises for IDL's wave_comp: k's velocities 1.07 km / s lower, h's by 0.01 Å at h; none set gives irispy's own
     again, and one over 1 Å from k is refused before asking.
     """
     # the test file's own float32: the int16 copy's rounding leaves spectra with equal samples, whose features jump
@@ -340,12 +340,12 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, irispy_test_files
     qtbot.waitUntil(lambda: len(shown) == 6 and not iris._RUNNING)
     assert all(text.startswith("Could not compute Mg II features\n") for text in shown)
     assert [text.split("\n", 1)[1] for text in shown] == [
-        f"{si_iv.label} (1398.63 to 1405.75 Å) does not cover Mg II k or h from -40.0 to 40.0 km/s.",
+        f"{si_iv.label} (1398.63 to 1405.75 Å) does not cover Mg II k or h from -40.0 to 40.0 km / s.",
         f"{sji.label} is not an IRIS raster window.",
         "plain is not an IRIS raster window.",
-        "The velocities, from 40.0 to -40.0 km/s, do not increase.",
-        f"{k.label} (2795.94 to 2796.78 Å) does not cover Mg II k from -40.0 to 60.0 km/s.",
-        "Too few wavelength points of Mg II k between 0.0 and 1.0 km/s",
+        "The velocities, from 40.0 to -40.0 km / s, do not increase.",
+        f"{k.label} (2795.94 to 2796.78 Å) does not cover Mg II k from -40.0 to 60.0 km / s.",
+        "Too few wavelength points of Mg II k between 0.0 and 1.0 km/s",  # irispy's text
     ]
     assert app.statusBar().currentMessage() == ""
     assert len(collection) == 4

@@ -12,11 +12,11 @@ from irispy.utils.fitting import profiles_on_background
 from astropy import constants
 from astropy.modeling import fitting
 
-from glue_solar.lines import MAIN_LINES
+from glue_solar.lines import KM_S, MAIN_LINES
 
 __all__ = ["GaussianConstantFitter"]
 
-NEAR = 0.5  # a centre within this many Angstrom of a main IRIS line gets its velocity from it
+NEAR = 0.5  # a center within this many Angstrom of a main IRIS line gets its velocity from it
 
 
 class GaussianConstantFitter(AstropyFitter1D):
@@ -26,7 +26,7 @@ class GaussianConstantFitter(AstropyFitter1D):
     samples, as an IRIS window's fill is NaN, one at least per free parameter. It starts from the data: the background
     their median, flat, the line their sample farthest from it, an emission or absorption line, and the width from
     where they are beyond half of that, a Gaussian's standard deviation or a Lorentzian's full width at half maximum.
-    The summary adds the centre and, within `NEAR` of a main IRIS line (`lines.MAIN_LINES`) for an x axis in Angstrom,
+    The summary adds the center and, within `NEAR` of a main IRIS line (`lines.MAIN_LINES`) for an x axis in Angstrom,
     its Doppler velocity from that line.
 
     glue-qt's Profile tools call the fitter registered for a new one at each Settings and each fit, so the one
@@ -98,10 +98,10 @@ class GaussianConstantFitter(AstropyFitter1D):
     def summarize(self, fit_result, x, y, dy=None):
         model = fit_result[0]
         centre = getattr(model, model.param_names[-2]).value
-        text = f"{super().summarize(fit_result, x, y, dy)}\n\ncentre = {centre:.6f}"
+        text = f"{super().summarize(fit_result, x, y, dy)}\n\ncenter = {centre:.6f}"
         name, rest = min(MAIN_LINES, key=lambda line: abs(line[1] - centre))
         if abs(centre - rest) <= NEAR:
-            text += f"\n{name} {rest} Å: {(centre / rest - 1) * constants.c.to_value('km/s'):+.2f} km/s"
+            text += f"\n{name} {rest} Å: {(centre / rest - 1) * constants.c.to_value(KM_S):+.2f} {KM_S}"
         return text
 
 

@@ -168,7 +168,7 @@ def test_colour_limits_count_every_raw_value(int16_raster):
     assert data.compute_statistic("minimum", cid, subset_state=within, random_subset=10000) == oracle[oracle >= 5].min()
     expected_maxima = eager.compute_statistic("maximum", eager.id["values"], axis=(0, 1))
     np.testing.assert_array_equal(data.compute_statistic("maximum", cid, axis=(0, 1)), expected_maxima)
-    # NumPy's interpolation between unequal neighbours, in float32 to the last bit (compared as float64, as NumPy
+    # NumPy's interpolation between unequal neighbors, in float32 to the last bit (compared as float64, as NumPy
     # compares a float32 with a Python float in float32)
     small, cid, _ = lazy_data(np.array([[[0, 1, 5, -32768]]], np.int16))
     for percentile in (20.0, 80.0):
@@ -177,7 +177,7 @@ def test_colour_limits_count_every_raw_value(int16_raster):
 
 
 def test_colour_limits_of_a_slice_count_its_values(int16_raster):
-    # per-frame colour limits (glue's stretch_global off) of a raster map at one wavelength, a slice subset of more
+    # per-frame color limits (glue's stretch_global off) of a raster map at one wavelength, a slice subset of more
     # values than the 10,000 glue picks at random: exactly those of every value, as for a view of the same slice
     raw = np.concatenate([raw_of(int16_raster, WINDOW)] * 2, axis=1)
     oracle = np.concatenate([expected(int16_raster, WINDOW)] * 2, axis=1)
@@ -297,7 +297,7 @@ def assert_loads_as_before(lazy, eager):
     oracle = eager[eager.main_components[0]] / np.where(exposure > 0, exposure, np.nan)
     np.testing.assert_allclose(lazy[rate], oracle, rtol=1e-6)
     values = eager[eager.main_components[0]]
-    for percentile in (0.25, 99.75):  # glue's 99.5% colour limits, exactly as from every finite eager value
+    for percentile in (0.25, 99.75):  # glue's 99.5% color limits, exactly as from every finite eager value
         exact = np.percentile(values[np.isfinite(values)], percentile)
         assert lazy.compute_statistic("percentile", science, percentile=percentile, random_subset=10000) == exact
     for axes in combinations(range(lazy.ndim), 2):
@@ -325,7 +325,7 @@ def test_int16_rasters_load_lazily_and_float32_ones_as_before(monkeypatch, tmp_p
     for path in (flipped, gzipped):
         assert_loads_as_before(*lazy_and_eager(monkeypatch, lambda path=path: raster_data([path], ["Si IV 1403"])[0]))
     # irispy's float32 test file loads as before, as do a file with only one window stored as int16 and one stored
-    # as int32, more codes than the colour limits count
+    # as int32, more codes than the color limits count
     (tmp_path / "partly").mkdir()
     partly = int16_copy(source, tmp_path / "partly" / RASTER, [WINDOW])
     int32 = tmp_path / "int32" / RASTER
@@ -382,7 +382,7 @@ def test_int16_slit_jaw_and_aia_cubes_load_lazily(monkeypatch, tmp_path, irispy_
 
 def test_the_level_2_ceiling_loads_as_irispy_reads_it(monkeypatch, tmp_path, int16_raster, irispy_test_files):
     """
-    Raw 32760, 16182 DN, the Level 2 ceiling, loads as +Inf, unmasked and left out of the colour limits, in raster
+    Raw 32760, 16182 DN, the Level 2 ceiling, loads as +Inf, unmasked and left out of the color limits, in raster
     windows and slit-jaw images, and as 16182 DN in AIA cutouts, as irispy's scaled reads give them (D57).
     """
     source = find_irispy_test_file(irispy_test_files, SJI)
@@ -512,7 +512,7 @@ def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path
     np.testing.assert_array_equal(restored.data_collection[0][data.main_components[0].label], oracle)
     layer.attribute = data.derived_components[0]  # the mask draws too
     viewer.figure.canvas.draw()
-    # and DN/s, with colour limits from random points, whose unit labels a profile
+    # and DN/s, with color limits from random points, whose unit labels a profile
     rate = data.derived_components[1]
     rates = np.asarray(data[rate])
     layer.attribute = rate
@@ -682,7 +682,7 @@ def test_readout_reads_the_time_along_sit_and_stare_exposures_and_slit_jaw_frame
         # slit pixel was then
         viewer.state.x_att, viewer.state.y_att = raster.pixel_component_ids[2], raster.pixel_component_ids[0]
         viewer.state.slices = (0, slit, 0)
-        position, _, after = hover(viewer, k, exposure).partition(" km/s")
+        position, _, after = hover(viewer, k, exposure).partition(" km / s")
         assert position.startswith(f"{wavelength:.3f} Å (world) · ")
         assert (" (world)" + after).startswith(time_and_exposure(raster, pixel))
         # slit against time: the latitude along the slit

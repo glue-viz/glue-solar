@@ -98,9 +98,9 @@ def numpys(raster, rest, velocities):
 def assert_numpys(maps, raster, rest, velocities=VELOCITIES, normalised=False):
     """``maps`` are numpy's red less blue wing of ``raster``'s DN/s, and with ``normalised``, over their sum."""
     red, blue = numpys(raster, rest, velocities)
-    names = [f"red - blue {v:g} km/s" for v in velocities]
+    names = [f"red - blue {v:g} km / s" for v in velocities]
     if normalised:
-        names += [f"(red - blue) / (red + blue) {v:g} km/s" for v in velocities]
+        names += [f"(red - blue) / (red + blue) {v:g} km / s" for v in velocities]
     assert [cid.label for cid in maps.main_components] == names
     for k, v in enumerate(velocities):
         np.testing.assert_allclose(maps[names[k]], red[k] - blue[k], rtol=1e-12, atol=1e-12)
@@ -140,7 +140,7 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     linked = {cid for link in collection.links for cid in (link.get_to_id(), *link.get_from_ids())}
     assert set(maps.world_component_ids) <= linked
     assert_numpys(maps, raster, 1402.77)
-    assert np.isnan(maps["red - blue 10 km/s"]).sum() == 32  # where either sample interpolated is missing
+    assert np.isnan(maps["red - blue 10 km / s"]).sum() == 32  # where either sample interpolated is missing
 
 
 def test_the_typed_velocities_normalised_and_a_blank_or_cancelled_rest(app, qtbot, monkeypatch, scan_path):
@@ -164,8 +164,8 @@ def test_the_typed_velocities_normalised_and_a_blank_or_cancelled_rest(app, qtbo
 
 def test_a_symmetric_line_gives_zero_a_redshift_a_positive_map_and_a_saturated_sample_nan(monkeypatch, scan_path):
     """
-    A Gaussian line on a constant, centred at the rest wavelength, on a sample, gives 0 at every velocity to float
-    precision, and shifted by +5 km/s, a positive map; a saturated sample, +Inf, interpolated in either wing makes it
+    A Gaussian line on a constant, centered at the rest wavelength, on a sample, gives 0 at every velocity to float
+    precision, and shifted by +5 km / s, a positive map; a saturated sample, +Inf, interpolated in either wing makes it
     NaN.
     """
     monkeypatch.setattr(iris, "LAZY", False)
@@ -183,7 +183,7 @@ def test_a_symmetric_line_gives_zero_a_redshift_a_positive_map_and_a_saturated_s
                 assert (maps[name] > 0).all()
             else:
                 np.testing.assert_allclose(maps[name], 0, rtol=0, atol=1e-9)
-    # every wing up to 50 km/s, 0.23 Å, lies between sample k and one beside it
+    # every wing up to 50 km / s, 0.23 Å, lies between sample k and one beside it
     values = np.array(raster[cid])
     values[0, 0, k], values[0, 1, k + 1], values[0, 2, 0] = np.inf, np.inf, np.inf  # both wings, the red, neither
     raster.update_components({cid: values})
@@ -260,13 +260,13 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
     assert [text.split("\n", 1)[1] for text in shown] == [
         f"{sji.label} is not an IRIS raster window.",
         "plain is not an IRIS raster window.",
-        f"The wings at ±10, 20, 30, 40, 50 km/s from 3000.0 Å lie outside {span}.",
+        f"The wings at ±10, 20, 30, 40, 50 km / s from 3000.0 Å lie outside {span}.",
         "'Si IV' is not a wavelength in Angstrom, such as 1402.77.",
-        "The velocities must be positive, not 0, 10 km/s.",
-        "The velocities must be positive, not nan km/s.",
-        "'10 fast' is not a list of velocities in km/s, such as 10, 20, 30.",
-        "'' is not a list of velocities in km/s, such as 10, 20, 30.",
-        f"The wings at ±200, 300 km/s from 1399.0 Å lie outside {span}.",
+        "The velocities must be positive, not 0, 10 km / s.",
+        "The velocities must be positive, not nan km / s.",
+        "'10 fast' is not a list of velocities in km / s, such as 10, 20, 30.",
+        "'' is not a list of velocities in km / s, such as 10, 20, 30.",
+        f"The wings at ±200, 300 km / s from 1399.0 Å lie outside {span}.",
         "unreadable",
     ]
     assert app.statusBar().currentMessage() == ""
@@ -279,5 +279,5 @@ def test_a_full_mg_ii_k_window_gives_numpys_maps(irispy_data):
     [path] = irispy_data("iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz")
     [raster] = raster_data([path], ["Mg II k 2796"])
     maps = doppler_image(raster, 2796.352, normalised=True)
-    assert maps.get_component("red - blue 10 km/s").units == "DN_IRIS_NUV / s"
+    assert maps.get_component("red - blue 10 km / s").units == "DN_IRIS_NUV / s"
     assert_numpys(maps, raster, 2796.352, normalised=True)

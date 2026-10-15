@@ -87,7 +87,7 @@ def iris_image_layer(viewer, data):
     """
     Give image layers of IRIS datasets transparent NaN pixels, as matplotlib draws them.
 
-    glue's default paints NaN opaque in the colormap's "bad" colour, black for the IRIS
+    glue's default paints NaN opaque in the colormap's "bad" color, black for the IRIS
     colormaps, so gaps and off-detector areas look like dark data.
     """
     if not isinstance(viewer, MatplotlibImageMixin) or "OBSID" not in getattr(data, "meta", {}):

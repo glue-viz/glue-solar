@@ -604,7 +604,7 @@ def _set_axislabel(viewer, axis):
 @defer_draw
 def update_x_axislabel(self, *event):
     """
-    glue-qt's ``ImageViewer.update_x_axislabel``, labelling the WCSAxes coordinate of the x axis directly.
+    glue-qt's ``ImageViewer.update_x_axislabel``, labeling the WCSAxes coordinate of the x axis directly.
 
     glue-core 1.27.0 labels an Image viewer's axes with ``WCSAxes.set_xlabel`` and ``set_ylabel``, which
     place every tick at once to find the coordinate to label, and the next draw places them again. glue
@@ -645,7 +645,7 @@ def needs_axis_label_workaround(updates=_original_update_axislabels):
     wcs = WCS(naxis=2)
     axes = WCSAxes(Figure(), [0, 0, 1, 1], wcs=wcs)
     viewer = SimpleNamespace(axes=axes, state=state, _wcs_set=True, redraw=lambda: None)
-    # placing ticks evaluates the WCS, and labelling a coordinate does not
+    # placing ticks evaluates the WCS, and labeling a coordinate does not
     evaluated, evaluate = [], wcs.pixel_to_world_values
     wcs.pixel_to_world_values = lambda *pixel: evaluated.append(pixel) or evaluate(*pixel)
     for update in updates:
@@ -936,7 +936,7 @@ def close_event(self, event):
     """
     _original_close_event(self, event)
     if not event.isAccepted():
-        return  # cancelled at glue-qt's confirmation: the viewer stays, playing
+        return  # canceled at glue-qt's confirmation: the viewer stays, playing
     for slider in self.options_widget().findChildren(SliceWidget):
         if slider._play_timer.isActive():
             slider._adjust_play("stop")  # glue-qt's Stop button
@@ -1088,9 +1088,9 @@ _original_find_combo_data = connect._find_combo_data
 def find_combo_data(widget, value):
     """
     echo's ``_find_combo_data``, matching a colormap to the entry that is it, then to one of its name or of the sunpy
-    colormap of that key, before an earlier entry of equal colours.
+    colormap of that key, before an earlier entry of equal colors.
 
-    sunpy has colormaps of equal colours, such as AIA 171, SUVI 171 and EUI 174, and echo 0.15 matches the first
+    sunpy has colormaps of equal colors, such as AIA 171, SUVI 171 and EUI 174, and echo 0.15 matches the first
     listed: an AIA 171 map's menu showed SUVI 171, and picking AIA 171 gave SUVI 171 back. A sunpy map's colormap and
     the one glue restores from a session are matplotlib's copies, named by sunpy's key or by the saved name. Retired by
     echo matching the entry that is the value first (report candidate), once the readers and glue's restore give the

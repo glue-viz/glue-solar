@@ -23,8 +23,8 @@ __all__ = ["red_blue_asymmetry", "red_blue_iris"]
 # The wavelengths the dialog takes at first, in Angstrom below and above the rest wavelength: irispy takes the peak of
 # all it is given, which in a Mg II k window can be Mg II h
 WAVELENGTHS = (1.0, 1.0)
-# iris_xfiles' red-blue settings, in km/s: its double Gaussian fit averages red minus blue over 5 km/s from each of 30,
-# 35, ... 50 km/s, so from 30 to 55 km/s (SolarSoft iris/idl/uio/objects/iris_moment__dgf.pro, lines 49-53, and
+# iris_xfiles' red-blue settings, in km / s: its double Gaussian fit averages red minus blue over 5 km / s from each of 30,
+# 35, ... 50 km / s, so from 30 to 55 km / s (SolarSoft iris/idl/uio/objects/iris_moment__dgf.pro, lines 49-53, and
 # uio/utils/iris_gen_rb_profile.pro, lines 7-11)
 VELOCITIES = (30.0, 55.0)
 STEP = 5.0
@@ -115,7 +115,7 @@ def red_blue_asymmetry(data, rest, wavelengths=WAVELENGTHS, velocities=VELOCITIE
 def _ask(data):
     """
     The rest wavelength typed for ``data``, at first its `rest_wavelength`, and the wavelengths taken below and above
-    it, in Angstrom, and the wing velocities and the velocity step, in km/s; or None for a blank rest wavelength or
+    it, in Angstrom, and the wing velocities and the velocity step, in km / s; or None for a blank rest wavelength or
     Cancel.
     """
     dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
@@ -127,9 +127,9 @@ def _ask(data):
     for name, label, value, unit in (
         ("below", "Taken below the rest:", WAVELENGTHS[0], "Å"),
         ("above", "Taken above the rest:", WAVELENGTHS[1], "Å"),
-        ("from", "Wing velocities from:", VELOCITIES[0], "km/s"),
-        ("to", "Wing velocities to:", VELOCITIES[1], "km/s"),
-        ("step", "Velocity step:", STEP, "km/s"),
+        ("from", "Wing velocities from:", VELOCITIES[0], "km / s"),
+        ("to", "Wing velocities to:", VELOCITIES[1], "km / s"),
+        ("step", "Velocity step:", STEP, "km / s"),
     ):
         step = 0.1 if unit == "Å" else 1
         box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, maximum=1000, singleStep=step, suffix=f" {unit}")

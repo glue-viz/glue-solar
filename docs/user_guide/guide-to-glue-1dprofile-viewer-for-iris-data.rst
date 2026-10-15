@@ -24,8 +24,8 @@ viewers, and a quicklook's ``Point`` would take the "Pixel" click below rather t
 
 The browser uses ``irispy`` to read the selected files and returns the datasets to Glue.
 Once loaded, the data sets show up in the "Data Collection" window in the upper left of the GUI.
-A stacked window is labelled ``<window>-<OBSID>-<STARTOBS>-stack``, while unstacked scans are
-labelled ``<window>-<OBSID>-<STARTOBS>-scan-<n>``. Including ``STARTOBS`` keeps repeated executions
+A stacked window is labeled ``<window>-<OBSID>-<STARTOBS>-stack``, while unstacked scans are
+labeled ``<window>-<OBSID>-<STARTOBS>-scan-<n>``. Including ``STARTOBS`` keeps repeated executions
 of the same observing program distinct.
 
 The stacked cube has a leading ``Scan`` coordinate rather than pretending that a complete raster
@@ -188,18 +188,18 @@ the data's own (``Angstrom`` for IRIS wavelengths), so leave it unchanged for th
 
 **Doppler velocity.** With ``Wavelength`` as the x axis of a raster window that has a
 :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`, the Profile's "x unit" lists
-``km/s`` after the lengths: the optical Doppler velocity from the rest wavelength, (λ / rest - 1) c,
-so Mg II k 2796.352 Å is at 0 km/s in ``Mg II k 2796``. A window without one, such as ``2832``, has no
-``km/s``. "Velocity axis" in the Profile's toolbar adds a top axis in km/s from the rest wavelength
+``km / s`` after the lengths: the optical Doppler velocity from the rest wavelength, (λ / rest - 1) c,
+so Mg II k 2796.352 Å is at 0 km / s in ``Mg II k 2796``. A window without one, such as ``2832``, has no
+``km / s``. "Velocity axis" in the Profile's toolbar adds a top axis in km / s from the rest wavelength
 while the x unit is a length, such as Å, and hides it again; it starts hidden, and the button is
-checked while it shows and greyed for a window without a rest wavelength. Both follow "IRIS: set rest
-wavelength…": the top axis moves, and a Profile in ``km/s`` redraws its spectra over the same
+checked while it shows and grayed for a window without a rest wavelength. Both follow "IRIS: set rest
+wavelength…": the top axis moves, and a Profile in ``km / s`` redraws its spectra over the same
 velocities, or goes back to Å when the window is left without a rest wavelength. A script that sets
 ``meta['rest_wavelength']`` calls ``data.broadcast("meta")`` for open Profiles to follow. The
 velocities are on the uncorrected Level 2 wavelength scale (see below), and Navigate and Collapse need
 the x unit in Å (above).
 
-**Rest wavelength from a measured line.** Level 2 wavelengths can be off by about 5-10 km/s, and
+**Rest wavelength from a measured line.** Level 2 wavelengths can be off by about 5-10 km / s, and
 the FUV and NUV detectors drift apart. O I 1355.5977 Å, in a window covering it such as ``O I 1356``,
 forms low enough to be nearly at rest and measures the offset of the FUV windows (C II, Si IV, O I);
 Ni I 2799.474 Å, an absorption line in the ``Mg II k 2796`` window, measures the NUV's (Mg II). With
@@ -217,15 +217,15 @@ from the data. It needs a sample in the range for each parameter not fixed, four
 none fixed and five with a linear background, and with fewer the report ends with how many it has.
 The report lists the background's ``amplitude_0``, or ``slope_0`` and ``intercept_0``, its value at
 0 Å, and the line's ``amplitude_1``, ``mean_1`` and ``stddev_1``, or a Lorentzian's ``x_0_1`` and
-``fwhm_1``, then the centre and, within 0.5 Å of a main IRIS line with the x unit ``Angstrom``, its
-velocity from that line, (centre / rest - 1) c; Ni I is not one. Add the offset,
-the centre minus the measured line's rest wavelength, to the rest wavelength of a line on the same
+``fwhm_1``, then the center and, within 0.5 Å of a main IRIS line with the x unit ``Angstrom``, its
+velocity from that line, (center / rest - 1) c; Ni I is not one. Add the offset,
+the center minus the measured line's rest wavelength, to the rest wavelength of a line on the same
 detector and set that with "IRIS: set rest wavelength…" on its window, so both the
 :ref:`line moments <glue_solar_users_guide_iris_line_moments>` and red-blue asymmetry start from it,
 and :ref:`Mg II features <glue_solar_users_guide_iris_mg_features>` measure k from it
 (see :ref:`Rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`), or type it as the line
-moments' centre: on OBSID 3824262996, whose mean O I fits at 1355.6172 Å, +4.30 km/s, Si IV 1402.77 Å becomes
-1402.789 Å, and Ni I fits at 2799.4729 Å, -0.12 km/s. The offset changes over the orbit; irispy's
+moments' center: on OBSID 3824262996, whose mean O I fits at 1355.6172 Å, +4.30 km / s, Si IV 1402.77 Å becomes
+1402.789 Å, and Ni I fits at 2799.4729 Å, -0.12 km / s. The offset changes over the orbit; irispy's
 ``irispy.utils.wavelength_drift.calculate_wavelength_drift``, on the raster read with
 ``irispy.io.read_files`` in glue's terminal, fits O I and Ni I 2799.474 Å along the slit in every
 exposure.
@@ -242,7 +242,7 @@ gives columns named after its label as glue's terminal names a variable: each ch
 an ASCII letter, digit or ``_`` becomes ``_``, and a label starting with a digit gets ``_`` before
 it, so ``Si IV 1403`` gives ``Si_IV_1403``. A label met again once so named, such as a subset named as its
 dataset or one subset group shown on two datasets, gets ``_01``, ``_02``, … as glue makes names
-unique. The columns are ``<label>_x``, in the "x unit", ``km/s`` included, ``<label>_y``, the
+unique. The columns are ``<label>_x``, in the "x unit", ``km / s`` included, ``<label>_y``, the
 viewer's function ("Maximum", "Mean", …) of its attribute in the "y unit", and, with "normalize"
 ticked, ``<label>_y_normalized``, from 0 to 1 as drawn. ``<label>_x`` is described by the x axis's
 name, ``<label>_y`` by the layer's label, and the meta of ``<label>_y`` give its attribute and, for

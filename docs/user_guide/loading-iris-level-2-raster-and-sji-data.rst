@@ -39,13 +39,13 @@ Expand an observation to see what can be loaded:
   raster scan of the observation is loaded for that window, and its tooltip gives the window's detector and
   wavelength range (``NUV, 2790.5–2806.6 Å``),
 - one entry per co-aligned SDO/AIA cutout (``aia_l2_*.fits``), for example ``AIA 1700``. Cutouts
-  are recognised by file name and header, so they need no ``_SDO`` directory.
+  are recognized by file name and header, so they need no ``_SDO`` directory.
 - one entry per co-aligned Hinode/SOT cube (``sot_l2_*.fits`` and ``sotsp_l2_*.fits``, from the
   ``_SOTFG`` and ``_SOTSP`` archives; `IRIS Technical Note 32 <https://iris.lmsal.com/itn32/>`__),
-  recognised by file name and header too, for example ``SOT G band 4305``, ``SOT TF Na I 5896`` or
+  recognized by file name and header too, for example ``SOT G band 4305``, ``SOT TF Na I 5896`` or
   ``SOT 6302A B_LOS``. SP maps, all ``6302A``, are named by what they measure (``BTYPE``), and a
   second file of the same name has its file name added, as ``irispy.io.read_files`` keys them; each
-  map's dataset is labelled with its file's time too (``6302A B_LOS 08:06:09-3603259402-…``).
+  map's dataset is labeled with its file's time too (``6302A B_LOS 08:06:09-3603259402-…``).
 - one entry per SST CRISP or CHROMIS cube as the SST archive exports them (``nb_8542_…_im.fits``), for
   example ``SST CRISP Ca II 8542, Stokes I, Q, U and V``: the cubes of a folder of the archive, such as
   the three lines of its obs 492, are one observation, with the instrument as its OBSID, its STARTOBS,
@@ -115,7 +115,7 @@ by the exposure time, with the unit DN/s (the 1D Profile viewer's "y_unit" menu 
 with it), and NaN where an exposure took 0 s, as step 157 of OBSID 3610108077's Si IV windows did.
 The "Frame time" tool, in the Image Viewer toolbar's View menu, shows the displayed frame's time
 and exposure in the status bar, as a range when the image spans several frames; for a single
-slit-jaw frame its tooltip gives that frame's pointing (PZT offset, field-of-view centre and slit
+slit-jaw frame its tooltip gives that frame's pointing (PZT offset, field-of-view center and slit
 position), which glue-solar keeps in the dataset's metadata. The mouse-over readout (see "Cursor readout" in
 :ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`)
 gives the time and exposure of the pixel under the mouse: on a raster map those of the step it is
@@ -126,14 +126,14 @@ in AIA cutouts too. Level 2 files, stored as 16-bit integers, cannot hold +Inf, 
 saturation code, so they clip saturated samples to 16182 DN; glue-solar reads the samples of
 raster windows and slit-jaw images at that ceiling as +Inf again, as irispy does, but not those of
 AIA cutouts, and leaves +Inf outside the mask (see `Was it saturated?`_). An Image viewer draws
-+Inf in its colormap's top colour, as it draws values above its upper colour limit, and leaves it
-out of its colour limits; the cursor readout shows ``inf``; and a Profile leaves it out: a gap in
++Inf in its colormap's top color, as it draws values above its upper color limit, and leaves it
+out of its color limits; the cursor readout shows ``inf``; and a Profile leaves it out: a gap in
 a pixel's spectrum. ``<label> mask`` is a uint8 array that is 1 where the data are NaN and 0
 elsewhere.
 
 Hinode/SOT cubes load as AIA cutouts do, each frame with its own time and pointing, in the unit
 irispy reads from their ``BUNIT``: DN for filtergrams and the SP continuum, dimensionless for
-narrowband magnetograms (Stokes V/I × 4096), and G, km/s, degrees or dimensionless for the other SP
+narrowband magnetograms (Stokes V/I × 4096), and G, km / s, degrees or dimensionless for the other SP
 maps, which have no ``<label> DN/s``. Their values are float32, NaN where missing, and no other
 value is fill, as negative fields are data. The quicklook gives them no panel; an Image viewer of
 one follows its observation's time and can be its master, as one of an AIA cutout does (see
@@ -145,7 +145,7 @@ FUV or NUV colormap by their detector (``TDETn``), AIA cutouts in sunpy's AIA co
 wavelength, and SOT cubes in DN in sunpy's Hinode SOT intensity colormap, other SOT cubes in gray.
 The colormap menu of an Image Viewer layer lists Glue's own colormaps and every sunpy
 colormap, under sunpy's names for them, such as ``SDO AIA 171.0 Angstrom``, and shows the layer's
-own colormap even where another has the same colours (the FUV and NUV ones have those of 1330 and
+own colormap even where another has the same colors (the FUV and NUV ones have those of 1330 and
 2796, AIA 171 those of SUVI 171). To list another, add it with ``colormaps.add`` in a
 ``config.py``, as
 `Glue's customization guide <https://docs.glueviz.org/en/stable/customizing_guide/customization.html>`__
@@ -206,7 +206,7 @@ those integers in the file and scales only what a viewer, readout or profile rea
 values as NaN, so even every spectral window of a large observation opens in little memory; a
 ``.fits.gz`` file is decompressed into memory once, at two bytes a sample, briefly twice that as it
 opens. The first image
-of a window takes its colour limits from a count of every stored value (of evenly spaced raster
+of a window takes its color limits from a count of every stored value (of evenly spaced raster
 steps or frames of a window over 512 MiB), which takes up to about half a second, and the "99.5%"
 and other presets of the layer's style editor use the same count; "Per-frame limits" (see
 :ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`) count every value of the
@@ -215,7 +215,7 @@ attributes take theirs from 10,000 random samples, as glue does for data in memo
 approximate. Memory still grows as you view a window, since the parts of the file read are kept, and
 a Profile or Histogram of a whole cube, a
 value-range subset, "Slice Extraction" and an export each read every value, as they did before.
-Datasets merged with glue's "Merge datasets" take glue's own colour limits, sampled from a few
+Datasets merged with glue's "Merge datasets" take glue's own color limits, sampled from a few
 corners of the data, so set those by hand.
 
 On OBSID 4000005156's first raster file (64 steps, nine windows, 119 million values in 0.24 GB) and
@@ -223,7 +223,7 @@ its deconvolved SJI 2796 (37 million values), opened with "File → Open Data Se
 0.38 to 0.84 GB as they load and the quicklook of Mg II k 2796 opens, and to 1.01 GB once the map
 has been stepped through every wavelength, the spectrogram through every step, the λ–step panel
 through every slit row and the slit-jaw image through every frame: about 4 bytes a value. Of that,
-only 55 MB are the raster file's pages, the Mg II k 2796 window read for its colour limits as the
+only 55 MB are the raster file's pages, the Mg II k 2796 window read for its color limits as the
 quicklook opens. The memory the system reports for glue ("resident" memory) counts such pages;
 most of the rest that Activity Monitor's "Memory" column leaves out (it reads 0.56 GB) is the code
 of glue's libraries and memory glue has freed but the system has not yet taken back, which it
@@ -238,7 +238,7 @@ opens in about 0.6 s with under 0.1 GB more memory, and the quicklook of Mg II k
 F through every exposure and then through every slit row of its wavelength panel, keeps glue under
 1.8 GB, each step redrawing the images in 0.06 to 0.12 s and the spectrum in 0.18 s. Every window
 and the slit-jaw image ticked in the observation browser, with "Open quicklook", take about 8 s, as
-the colour limits of each are counted first, and peak at about 3 GB on 4000255147, most of it the
+the color limits of each are counted first, and peak at about 3 GB on 4000255147, most of it the
 file's pages read for those counts.
 
 Each loaded file stays open, once for each time windows are loaded from it (the observation browser
@@ -254,7 +254,7 @@ Opening a single file
 FITS", which its default type, "Auto", chooses for them: a slit-jaw file, an aligned AIA cutout
 (``aia_l2_*.fits``) or a Hinode/SOT cube (``sot_l2_*.fits``, ``sotsp_l2_*.fits``) loads as one cube,
 as the observation browser loads it, and a raster file loads one dataset per spectral window,
-labelled with the file's raster number (``…-r00003``). Other AIA and HMI files need "sunpy Map"
+labeled with the file's raster number (``…-r00003``). Other AIA and HMI files need "sunpy Map"
 picked instead (see :ref:`glue_solar_users_guide_loading_aia_and_hmi_files`).
 Files opened this way, or given on the ``glue`` command line, load one by one with every spectral
 window and cannot be stacked, so use the observation browser for large or multi-scan observations.
@@ -389,7 +389,7 @@ takes a fraction of a second per slit-jaw frame, for example 0.23 s for a full 1
 OBSID 4000005156's deconvolved SJI 2796 under a Si IV raster region, which glue takes 11 s over. It
 reaches a sunpy Map whose longitudes run from 0 to 360° too. One drawn on a quicklook's slit-jaw
 image reaches the raster and the other data by its outline too, placed at the pointing of the frame
-shown as it was drawn: the raster pixels whose centres lie inside it in that frame, again but for a
+shown as it was drawn: the raster pixels whose centers lie inside it in that frame, again but for a
 few along the edge of a circle. On a sit-and-stare raster these are the exposures whose slit lay
 inside it at that frame's pointing: as the pointing changes, the slit moves out of it in exposures
 taken long before or after, although it stays on the same slit-jaw pixels. A box 47 pixels wide

@@ -479,7 +479,7 @@ def test_readout_gives_arcsec_only_where_wcsaxes_shows_arcsec(qtbot):
     for x in (2, 100):  # east and west of 0
         position = aia.coords.pixel_to_world(x, 60)
         assert viewer.axes.format_coord(x, 60) == f'{position.Tx.arcsec:.2f}" {position.Ty.arcsec:.2f}" (world)'
-    # a right ascension, a Carrington longitude and a wavelength in metres keep WCSAxes' own text
+    # a right ascension, a Carrington longitude and a wavelength in meters keep WCSAxes' own text
     for ctype in (("RA---TAN", "DEC--TAN"), ("CRLN-CEA", "CRLT-CEA"), ("WAVE", "LINEAR")):
         wcs = WCS(naxis=2)
         wcs.wcs.ctype, wcs.wcs.crval = ctype, (150, 2)
@@ -646,7 +646,7 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot, monkeypatch
 
 
 def margins(viewer):
-    """The colours the canvas draws left of and below the viewer's axes, where WCSAxes puts its ticks and labels."""
+    """The colors the canvas draws left of and below the viewer's axes, where WCSAxes puts its ticks and labels."""
     viewer.figure.canvas.draw()
     rgba = np.asarray(viewer.figure.canvas.buffer_rgba())
     box = viewer.axes.get_window_extent()
@@ -782,7 +782,7 @@ def test_colour_bar_draws_glues_colours_and_is_saved(qtbot, monkeypatch, tmp_pat
     assert beside < width  # the bar's room
 
     def drawn():
-        """The bar's colours, glue's colours of a row of the image, and the bar's value limits."""
+        """The bar's colors, glue's colors of a row of the image, and the bar's value limits."""
         viewer.figure.canvas.draw()
         return np.asarray(tool.bar.images[0].get_array())[:, 0], viewer.axes._composite()[0], tool.bar.get_ylim()
 
@@ -814,7 +814,7 @@ def test_colour_bar_draws_glues_colours_and_is_saved(qtbot, monkeypatch, tmp_pat
     save.trigger()
     off, on = (imread(tmp_path / name) for name in ("off.png", "on.png"))
     assert off.shape == on.shape
-    # the bar's colours at its place in the file, whose pixels are the window's at the figure's dpi
+    # the bar's colors at its place in the file, whose pixels are the window's at the figure's dpi
     x0, y0, x1, y1 = tool.bar.get_window_extent().extents
     saved = on[int(on.shape[0] - y1) + 2 : int(on.shape[0] - y0) - 2, int(x0) + 1 : int(x1) - 1]
     assert len(np.unique(saved.reshape(-1, 4), axis=0)) > 100
@@ -837,7 +837,7 @@ def generated_map():
 
 def sky_square(viewer, side=10):
     """
-    The lengths on screen, in screen pixels, of the sides of a ``side``″ square of sky about the view centre, along
+    The lengths on screen, in screen pixels, of the sides of a ``side``″ square of sky about the view center, along
     its longitude and along its latitude, placed with the reference data's own coordinates.
     """
     state = viewer.state
@@ -948,7 +948,7 @@ def test_physical_aspect_draws_a_square_of_sky_square(qtbot, request, source):
     state.aspect = "equal"  # and 'Square Pixels' then gives square pixels
     assert square_pixels()
 
-    pan(nx)  # the view centre past the last step, where -TAB rasters have no coordinates
+    pan(nx)  # the view center past the last step, where -TAB rasters have no coordinates
     button.trigger()  # from 'Square Pixels', as on a slit-jaw viewer,
     pan(-nx)
     assert square()
@@ -1325,7 +1325,7 @@ def test_path_diagram_sampling_on_a_ramp(qtbot):
         frames = np.broadcast_to(np.arange(2.0)[:, None], (2, len(path.x)))
         # times are not interpolated: the nearest pixel's
         np.testing.assert_array_equal(path[ramp.id["Time"]], times[:, 0, :1].repeat(len(path.x), axis=1))
-        if order:  # the ramp itself, NaN past the last x centre, where the last sample is
+        if order:  # the ramp itself, NaN past the last x center, where the last sample is
             assert path.x[-1] > 15
             ramp_values = np.where(path.x <= 15, 0.7 * path.x - 1.3 * path.y + 2.5 + 10 * frames, np.nan)
             np.testing.assert_allclose(path[flux], ramp_values, atol=1e-6)
@@ -1350,7 +1350,7 @@ def _click(tool, x, y):
 
 def test_slope_recovers_an_injected_features_speed_and_acceleration(qtbot):
     # a slit-jaw-like cube of 0.1663" pixels seen from 1 AU, 60 frames 12 s apart, in which a blob moves along x from
-    # 50 km/s, accelerating at 100 m/s²
+    # 50 km / s, accelerating at 100 m/s²
     glue_solar.setup()
     app = GlueApplication()
     qtbot.addWidget(app)
@@ -1388,9 +1388,9 @@ def test_slope_recovers_an_injected_features_speed_and_acceleration(qtbot):
     assert table.label == "cube [slice 1] slopes"
     assert (table["t0 (UTC)"][0], table["t1 (UTC)"][0]) == ("2013-09-02T16:39:35.000", "2013-09-02T16:50:23.000")
     assert table["d0 (km)"][0] == pytest.approx(20 * km)  # from the path's first sample, at pixel 0
-    assert table["speed (km/s)"][0] == pytest.approx(50, rel=0.01)
+    assert table["speed (km / s)"][0] == pytest.approx(50, rel=0.01)
     assert table["acceleration (m/s²)"][0] == pytest.approx(100, rel=0.02)
-    assert tool.label.text() == "Speed 50.00 km/s · acceleration 100.0 m/s²"
+    assert tool.label.text() == "Speed 50.00 km / s · acceleration 100.0 m/s²"
     [shown] = [viewer for tab in app.viewers for viewer in tab if isinstance(viewer, TableViewer)]
     assert diagram.toolbar.active_tool is tool  # still on, for the next track
 
@@ -1399,7 +1399,7 @@ def test_slope_recovers_an_injected_features_speed_and_acceleration(qtbot):
     _click(tool, ridge[0], 0)
     _key(diagram, "enter")
     assert table["t0 (UTC)"][1] < table["t1 (UTC)"][1]
-    assert table["speed (km/s)"][1] == pytest.approx(50 + 0.1 * seconds[-1] / 2, rel=0.01)
+    assert table["speed (km / s)"][1] == pytest.approx(50 + 0.1 * seconds[-1] / 2, rel=0.01)
     assert np.isnan(table["acceleration (m/s²)"][1])
     assert shown.model.rowCount() == 2
 
@@ -1744,7 +1744,7 @@ def test_a_colormap_menu_names_the_layers_colormap_of_equal_colours(qtbot, tmp_p
     assert installed == glue_patches.needs_combo_match_workaround()  # probes echo's own function
     assert not glue_patches.needs_combo_match_workaround(glue_patches.find_combo_data)
     glue_solar.setup()
-    # sunpy's AIA 171 colormap has the colours of SUVI 171, listed before it, and of EUI 174
+    # sunpy's AIA 171 colormap has the colors of SUVI 171, listed before it, and of EUI 174
     aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))
     app = GlueApplication()
     qtbot.addWidget(app)
@@ -2215,7 +2215,7 @@ def drawn_labels(viewer):
 
 
 def own_names(viewer):
-    """Whether each world coordinate labelled on a spine has its own name as its label."""
+    """Whether each world coordinate labeled on a spine has its own name as its label."""
     names = viewer.state.reference_data.coords.world_axis_names
     shown = [coord for coord in viewer.axes.coords if coord.get_axislabel_position()]
     return all(coord.get_axislabel() == names[coord.coord_index] for coord in shown)
@@ -2378,8 +2378,8 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
     state = viewer.state
     state.x_att = mg.world_component_ids[mg.ndim - 1]  # wavelength
     units = ProfileViewerState.x_display_unit.get_choices
-    assert units(state)[-1] == "km/s"  # after the lengths
-    assert UnitConverter().to_unit(mg, state.x_att, 2796.352, "km/s") == pytest.approx(0, abs=1e-9)  # Mg II k
+    assert units(state)[-1] == "km / s"  # after the lengths
+    assert UnitConverter().to_unit(mg, state.x_att, 2796.352, "km / s") == pytest.approx(0, abs=1e-9)  # Mg II k
     tool, button = viewer.toolbar.tools["solar:velocity"], viewer.toolbar.actions["solar:velocity"]
     assert tool.axis is None  # it starts off
     assert (button.isCheckable(), button.isChecked(), button.isEnabled()) == (True, False, True)
@@ -2388,14 +2388,14 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
     state.x_min, state.x_max = 2795, 2798
 
     def velocities(waves, rest):
-        return (np.asarray(waves) / rest - 1) * constants.c.to_value("km/s")
+        return (np.asarray(waves) / rest - 1) * constants.c.to_value("km / s")
 
     viewer.figure.canvas.draw()
     assert tool.axis.get_xlim() == pytest.approx(velocities([2795, 2798], 2796.352))
-    assert tool.axis.get_xlabel() == "Velocity from 2796.352 Å [km/s]"  # as the x unit is written
+    assert tool.axis.get_xlabel() == "Velocity from 2796.352 Å [km / s]"  # as the x unit is written
 
     def zero():
-        """Where the top axis has its tick at 0 km/s, in Å."""
+        """Where the top axis has its tick at 0 km / s, in Å."""
         viewer.figure.canvas.draw()
         assert 0 in tool.axis.get_xticks()
         return viewer.axes.transData.inverted().transform(tool.axis.transData.transform((0, 0)))[0]
@@ -2407,30 +2407,30 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
     assert zero() == pytest.approx(2796.352, abs=1e-6)
     set_rest("2796.2")
     assert zero() == pytest.approx(2796.2, abs=1e-6)
-    state.x_display_unit = "km/s"  # the profile and its range from the rest wavelength, and no top axis
+    state.x_display_unit = "km / s"  # the profile and its range from the rest wavelength, and no top axis
     assert tool.axis is None
     assert [state.x_min, state.x_max] == pytest.approx(velocities([2795, 2798], 2796.2))
     assert viewer.layers[0].state.profile[0] == pytest.approx(velocities(_wavelengths(mg)[0], 2796.2))
-    set_rest("")  # back to Mg II k, still in km/s
-    assert state.x_display_unit == "km/s"
+    set_rest("")  # back to Mg II k, still in km / s
+    assert state.x_display_unit == "km / s"
     assert viewer.layers[0].state.profile[0] == pytest.approx(velocities(_wavelengths(mg)[0], 2796.352))
-    # a session opens in km/s
+    # a session opens in km / s
     app.save_session(str(tmp_path / "kms.glu"))
-    assert '"st__km/s"' in (tmp_path / "kms.glu").read_text()
+    assert '"st__km / s"' in (tmp_path / "kms.glu").read_text()
     restored = GlueApplication.restore_session(str(tmp_path / "kms.glu"), show=False)
     qtbot.addWidget(restored)
-    assert restored.viewers[0][0].state.x_display_unit == "km/s"
-    # 2832 has no line: no km/s or velocity axis until a rest wavelength is set, and none after, back in Å
+    assert restored.viewers[0][0].state.x_display_unit == "km / s"
+    # 2832 has no line: no km / s or velocity axis until a rest wavelength is set, and none after, back in Å
     state.reference_data = none
     state.x_att = none.world_component_ids[none.ndim - 1]
-    assert "km/s" not in units(state)
+    assert "km / s" not in units(state)
     assert not button.isEnabled()
     set_rest("2832.7")
-    assert units(state)[-1] == "km/s"
+    assert units(state)[-1] == "km / s"
     assert button.isEnabled()
-    state.x_display_unit = "km/s"
+    state.x_display_unit = "km / s"
     set_rest("")
-    assert "km/s" not in units(state)
+    assert "km / s" not in units(state)
     assert state.x_display_unit == "Angstrom"
     assert 2830 < state.x_min < state.x_max < 2835
 
@@ -2466,7 +2466,7 @@ def test_readout_gives_the_velocity_axis_value_from_the_rest_wavelength(qtbot, m
         assert f"{wave:.3f} Å" in text
         profile.figure.canvas.draw()
         expected = tool.axis.transData.inverted().transform(profile.axes.transData.transform((wave, 0)))[0]
-        [velocity] = re.findall(r" \(world\) · (-?\d+\.\d) km/s · ", text)  # after the position, before the time
+        [velocity] = re.findall(r" \(world\) · (-?\d+\.\d) km / s · ", text)  # after the position, before the time
         assert float(velocity) == pytest.approx(expected, abs=0.05 + 1e-9)  # to the printed precision
         return float(velocity)
 
@@ -2474,21 +2474,21 @@ def test_readout_gives_the_velocity_axis_value_from_the_rest_wavelength(qtbot, m
     velocities = [check(x) for x in (0, 20, len(_wavelengths(si)[0]) - 1)]
     assert velocities[0] < 0 < velocities[-1]
     set_rest(si, "1402.5")  # 'IRIS: set rest wavelength…'
-    assert tool.axis.get_xlabel() == "Velocity from 1402.5 Å [km/s]"
-    assert check(20) > velocities[1] + 50  # 0.27 Å nearer the blue: 58 km/s more
+    assert tool.axis.get_xlabel() == "Velocity from 1402.5 Å [km / s]"
+    assert check(20) > velocities[1] + 50  # 0.27 Å nearer the blue: 58 km / s more
     set_rest(si, "")  # back to Si IV 1402.77
     assert check(20) == velocities[1]
     show(si, 2, 0)  # wavelength against exposure
     check(20)
     show(si, 0, 1)  # the map: no wavelength shown, so no velocity
-    assert "km/s" not in image.axes.format_coord(10, 5)
+    assert "km / s" not in image.axes.format_coord(10, 5)
     show(none, 2, 1)  # 2832 has no line, so no rest wavelength
     text = image.axes.format_coord(5, 5)
     assert " Å " in text
-    assert "km/s" not in text
+    assert "km / s" not in text
     assert "nan" not in text
     set_rest(none, "2832.7")
-    assert re.search(r" \(world\) · -?\d+\.\d km/s · ", image.axes.format_coord(5, 5))
+    assert re.search(r" \(world\) · -?\d+\.\d km / s · ", image.axes.format_coord(5, 5))
 
 
 def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_test_files):
@@ -2556,10 +2556,10 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     assert table["Curve_lon"].unit == table["Curve_lat"].unit == u.arcsec
     assert table.meta == {"function": "maximum", **{key: str(raster.meta[key]) for key in ("OBSID", "STARTOBS")}}
     assert app.statusBar().currentMessage() == "Left out, hidden: Spectrum"
-    # the spectrum, in km/s from Si IV 1402.77 Å, and the curve, one wavelength wide, is left out
+    # the spectrum, in km / s from Si IV 1402.77 Å, and the curve, one wavelength wide, is left out
     spectrum.visible = True
     state.x_att = raster.world_component_ids[2]
-    state.x_display_unit = "km/s"
+    state.x_display_unit = "km / s"
     state.function = "mean"
     table = saved()
     assert suggested[-1] == f"{raster.meta['OBSID']} mean profiles.ecsv"
@@ -2567,7 +2567,7 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     assert table.colnames == [f"{name}_x", f"{name}_y", *(f"Spectrum_{kind}" for kind in ["x", "y", "lon", "lat"])]
     check(table, name, whole)
     check(table, "Spectrum", spectrum)
-    assert table["Spectrum_x"].unit == "km/s"
+    assert table["Spectrum_x"].unit == "km / s"
     assert table["Spectrum_y"].meta["pixel"] == {"Pixel Axis 0 [z]": 3, "Pixel Axis 1 [y]": 5}
     lon, lat = sky((3, 5, slice(None)))  # the same at each wavelength
     np.testing.assert_allclose(table["Spectrum_lon"], lon)
@@ -2646,11 +2646,11 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot, monkeypatch, tmp_p
         tools.ui.text_log.clear()
         tools.ui.button_fit.click()
         tools.wait_for_fit()
-        qtbot.waitUntil(lambda: "km/s" in tools.text_log.toPlainText())
+        qtbot.waitUntil(lambda: "km / s" in tools.text_log.toPlainText())
         return tools.text_log.toPlainText().splitlines()
 
-    # the fill left out, its centre and its velocity from O I 1355.5977, (1355.62 / 1355.5977 - 1) c
-    assert fit()[-2:] == ["centre = 1355.620000", "O I 1355.5977 Å: +4.93 km/s"]
+    # the fill left out, its center and its velocity from O I 1355.5977, (1355.62 / 1355.5977 - 1) c
+    assert fit()[-2:] == ["center = 1355.620000", "O I 1355.5977 Å: +4.93 km / s"]
     model, _ = GaussianConstantFitter().build_and_fit(x, y)
     assert model.parameters == pytest.approx([3, 40, 1355.62, 0.04])
     model, _ = GaussianConstantFitter().build_and_fit(x, 50 - y)
@@ -2668,7 +2668,7 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot, monkeypatch, tmp_p
     tools.ui.button_settings.click()
     lines = fit()
     assert [line.split(" ")[0] for line in lines[3:8]] == ["amplitude_1", "fwhm_1", "intercept_0", "slope_0", "x_0_1"]
-    assert float(lines[-2].removeprefix("centre = ")) == pytest.approx(1355.62, abs=1e-3)  # a Lorentzian's
+    assert float(lines[-2].removeprefix("center = ")) == pytest.approx(1355.62, abs=1e-3)  # a Lorentzian's
     x = 1355 + 0.025 * np.arange(49)
     y = 3 + 0.5 * (x - 1355) + 40 / (1 + ((x - 1355.62) / 0.03) ** 2)
     model, _ = GaussianConstantFitter(linear_background=True, lorentzian=True).build_and_fit(x, y)

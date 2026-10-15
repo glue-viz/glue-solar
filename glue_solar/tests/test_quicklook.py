@@ -133,7 +133,7 @@ def menu_action(viewer, text):
 def offered(viewer):
     """
     The entries of the viewer's Coordinate and View menus and their submenus, but the blink intervals, that show as
-    they open, " (greyed)" after a greyed one.
+    they open, " (grayed)" after a grayed one.
     """
     shown = []
     for menu in ("solar:coordinate", "solar:view"):
@@ -141,7 +141,7 @@ def offered(viewer):
         menu.aboutToShow.emit()
         for action in menu_actions(menu):
             if action.isVisible() and action.menu() is None and not action.text().endswith(" s"):
-                shown.append(action.text() + ("" if action.isEnabled() else " (greyed)"))
+                shown.append(action.text() + ("" if action.isEnabled() else " (grayed)"))
     return shown
 
 
@@ -267,7 +267,7 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
     point, curve = ["Clear point", POINT_CURVES], ["Clear point", "Light curve of this window", POINT_CURVES]
     cuts = ["Row at the point", "Column at the point"]
     blink = ["Set blink partner here"]  # and "Blink" once a partner is set
-    view = ["Hide axes", "Per-frame limits", "Physical aspect", "Zoom 1:1", "Colour bar", "Cursor readout"]
+    view = ["Hide axes", "Per-frame limits", "Physical aspect", "Zoom 1:1", "Color bar", "Cursor readout"]
     banded = ["Frame time", *view[:2], "Wavelength band…", *view[2:]]
 
     def overlaid(entries):
@@ -404,7 +404,7 @@ def bare_app(qtbot, monkeypatch):
 
 
 def expected_start(data):
-    """The point's first position: the map centre, scan 0 of a stack, and the pixel nearest the window's TWAVE."""
+    """The point's first position: the map center, scan 0 of a stack, and the pixel nearest the window's TWAVE."""
     wave = data[data.world_component_ids[-1], (0,) * (data.ndim - 1)] * u.Unit(data.coords.world_axis_units[0])
     wave = wave.to_value(u.AA)
     twaves = [data.meta[f"TWAVE{n}"] for n in range(1, data.meta["NWIN"] + 1)]
@@ -557,7 +557,7 @@ def test_a_sit_and_stare_exposure_axis(bare_app, monkeypatch, irispy_test_files)
     check(wavelength, "y")
     wavelength.state.x_att_world = raster.world_component_ids[0]  # exposure on x, wavelength on y
     check(wavelength, "x")
-    # sizes from the axes options, and colours from the Preferences, as glue gives its own coordinates
+    # sizes from the axes options, and colors from the Preferences, as glue gives its own coordinates
     exposures = exposure_axis(wavelength, label)
     wavelength.state.x_axislabel_size = 12
     assert exposures._axislabels.get_size() == 12
@@ -1706,7 +1706,7 @@ def test_a_collapse_on_the_master_and_a_follower(bare_app, qtbot, irispy_test_fi
     viewers["spectrogram"].state.slices = (120, *viewers["spectrogram"].state.slices[1:])
     qtbot.wait(20)
     assert sji_viewer.state.slices[0] is collapse
-    menu_action(sji_viewer, "Time master").trigger()  # a collapsed master's time is at its centre
+    menu_action(sji_viewer, "Time master").trigger()  # a collapsed master's time is at its center
     [group] = bare_app.session.edit_subset_mode.edit_subset
     [exposure], _ = nearest([sji[sji.id["Time"]][2, 0, 0]], raster[raster.id["Time"]][:, 0, 0])
     qtbot.waitUntil(lambda: group.subset_state.slices[0] == slice(exposure, exposure + 1))
@@ -1822,7 +1822,7 @@ def test_each_follower_viewer_reads_its_own_frame(bare_app, qtbot, irispy_test_f
     qtbot.waitUntil(lambda: " · Δt " in readout(sji_viewer))
     other = bare_app.new_data_viewer(ImageViewer, data=sji)  # a new viewer joins the master's time
     qtbot.waitUntil(lambda: other.state.slices[0] == sji_viewer.state.slices[0])
-    other.state.slices = (40, 0, 0)  # moved away by hand: its own offset, and greyed
+    other.state.slices = (40, 0, 0)  # moved away by hand: its own offset, and grayed
     offset = sji[sji.id["Time"]][40, 0, 0] - raster_time(raster, (1,))
     qtbot.waitUntil(lambda: f"NO MATCH Δt = {offset / np.timedelta64(1, 's'):+.1f} s" in readout(other))
     assert " · Δt " in readout(sji_viewer)
@@ -1912,7 +1912,7 @@ def test_slit_jaw_panels(bare_app, qtbot, tmp_path, monkeypatch, irispy_test_fil
     sjis = [image_data(find_irispy_test_file(irispy_test_files, SNS.format(f"SJI_{c}_t000"))) for c in channels]
     viewers = quicklook(bare_app, [raster, *sjis])
     assert [viewer.state.title for viewer in viewers["sji"]] == [f"SJI {c}" for c in channels]
-    # each opens on the raster's field of view in its first frame, centred, with a margin
+    # each opens on the raster's field of view in its first frame, centered, with a margin
     for viewer, sji in zip(viewers["sji"], sjis):
         x, y = footprint(raster, sji)
         margin = max(10, 0.1 * max(np.ptp(x), np.ptp(y)))
@@ -2201,7 +2201,7 @@ def test_lines_on_the_spectrogram_and_the_wavelength_panel(bare_app, qtbot, monk
     menu_action(viewers["map"], "Time master").trigger()  # a time sync that moves nothing: no draw
     qtbot.wait(20)
     assert draws == {"wavelength": 1, "spectrum": 1}
-    # a Profile's collapse of the map's wavelengths, at its centre
+    # a Profile's collapse of the map's wavelengths, at its center
     viewers["map"].state.slices = (*viewers["map"].state.slices[:2], AggregateSlice(slice(3, 8), 5, np.nansum))
     assert lines(panel)["wavelength"] == ("x", [5])
     assert drawn(viewers["spectrum"], "wavelength") == ("x", [pytest.approx(wavelengths(raster)[5])])
@@ -2436,7 +2436,7 @@ def test_navigate_moves_the_map_and_its_lines(bare_app, qtbot, scans, unit):
     wave = (wavelengths(scan) * u.AA).to_value(unit)
     spectrum.state.x_display_unit = unit
     tools = spectrum.toolbar.tools["profile-analysis"]
-    # behaviour probe: glue-qt 0.4.2 compares Navigate's position with the data's own unit, Å (glue-qt #70 converts)
+    # behavior probe: glue-qt 0.4.2 compares Navigate's position with the data's own unit, Å (glue-qt #70 converts)
     if tools._profile_tools._get_axis_and_pixel_slice(scan, wave[3])[1] != 3:
         pytest.skip("glue-qt's Navigate takes positions in the data's own unit only")
     tools.activate()  # glue's profile tools open on Navigate
@@ -2752,7 +2752,7 @@ def test_a_raster_region_edits_only_a_region_picked_to_edit(bare_app, irispy_tes
 def inside_in_frame(raster, sji, frame, roi):
     """
     Whether each raster pixel lies inside ``roi`` within slit-jaw frame ``frame``, between its first and last pixel
-    centres, from the datasets' coordinates.
+    centers, from the datasets' coordinates.
     """
     step, slit = np.indices(raster.shape[:2])
     x, y = raster_point_on_sji(raster, sji, step, slit, frame)
@@ -2979,7 +2979,7 @@ def test_startup_shows_the_first_raster_file(qtbot, monkeypatch, irispy_test_fil
     app = bare_app_for(qtbot, monkeypatch)
     app.data_collection.extend([data for path in files for data in load_data(path)])
     labels = [data.label for data in app.data_collection]
-    assert len(set(labels)) == len(labels) == 3 * 9  # each file's windows are labelled by its raster number
+    assert len(set(labels)) == len(labels) == 3 * 9  # each file's windows are labeled by its raster number
     iris_quicklook(app.session, app.data_collection)
     shown = app.viewers[-1][0].state.reference_data
     assert shown.ndim == 3
@@ -3301,7 +3301,7 @@ def test_what_moves_on_a_sit_and_stare(bare_app, qtbot, irispy_test_files):
         return changes(bare_app, qtbot, viewers, action)
 
     def no_match(n, when):
-        """SJI ``n`` keeps its frame, greyed, and reads NO MATCH with the nearest frame's offset from ``when``."""
+        """SJI ``n`` keeps its frame, grayed, and reads NO MATCH with the nearest frame's offset from ``when``."""
         return not check_follower(bare_app, qtbot, when, sjis[n], viewers["sji"][n])
 
     start, _, wavelength = expected_start(raster)
@@ -3754,7 +3754,7 @@ def test_closing_the_master_stops_its_playback(bare_app, qtbot, monkeypatch, iri
     slider.button_forw.click()
     slider._play_timer.setInterval(1)
     qtbot.waitUntil(lambda: len(shown) >= 3)
-    # a close cancelled at glue-qt's confirmation leaves it playing
+    # a close canceled at glue-qt's confirmation leaves it playing
     sji_viewer._warn_close = True
     monkeypatch.setattr(sji_viewer, "_confirm_close", lambda: False)
     assert not sji_viewer._mdi_wrapper.close()
@@ -3922,7 +3922,7 @@ def test_frames_and_movies_save_while_glue_runs(bare_app, qtbot, monkeypatch, tm
         entry.trigger()
 
     # the entry returns once the first frame is saved, and the event loop turns at every frame, no dialog modal: glue
-    # stays usable, but for the viewer, its sub-window, options and layers, greyed; the GIF is encoded on another thread
+    # stays usable, but for the viewer, its sub-window, options and layers, grayed; the GIF is encoded on another thread
     turn.start()
     save("sji.gif")
     assert state.slices == (0, 0, 0)
@@ -4943,7 +4943,7 @@ def test_the_point_window_reads_the_raster_at_the_point(bare_app, qtbot, scans, 
         settle(qtbot, window)
         assert rows(window) == [read_at(data, names, pixel, f"time master, step {pixel[-3]}"), no_match]
 
-    # it opens at the map's centre and wavelength, and follows map clicks, the map's wavelength slider, and a
+    # it opens at the map's center and wavelength, and follows map clicks, the map's wavelength slider, and a
     # spectrogram click, which moves the map to its wavelength
     start = expected_start(data)
     event(lambda: None, start)
@@ -5432,7 +5432,7 @@ def applied(app, qtbot, viewers, panels, action):
 
 
 def look(viewer):
-    """An Image panel's limits and its data layer's colours, which turning it off and on again keeps."""
+    """An Image panel's limits and its data layer's colors, which turning it off and on again keeps."""
     state = viewer.state
     layer = state.layers[0]
     colours = tuple(getattr(layer, att) for att in ("stretch", "percentile", "v_min", "v_max", "contrast", "bias"))
@@ -5960,7 +5960,7 @@ def test_blink_two_slit_jaw_channels_in_playback(bare_app, qtbot, irispy_test_fi
             crosses.append(tool._marker.get_xydata()[0])
         # the raster point drawn on each channel within a pixel of the other
         assert np.hypot(*np.subtract(*crosses)) < 1
-    # each channel keeps its own stretch and colour limits
+    # each channel keeps its own stretch and color limits
     assert styles() == before
     # a collapse over the frames stays, and a partner without times, such as a ratio of the channels, keeps its frame
     tool.partner = (sji, (AggregateSlice(slice(0, 4), 2, np.nansum), 0, 0))
@@ -6004,7 +6004,7 @@ def test_blink_stops_when_its_viewer_closes(bare_app, qtbot, monkeypatch, irispy
     menu_action(raster_map, "Blink").trigger()
     tool._blink.setInterval(1)
     qtbot.waitUntil(lambda: len(flips) >= 2)
-    # a close cancelled at glue-qt's confirmation leaves it blinking
+    # a close canceled at glue-qt's confirmation leaves it blinking
     raster_map._warn_close = True
     monkeypatch.setattr(raster_map, "_confirm_close", lambda: False)
     assert not raster_map._mdi_wrapper.close()

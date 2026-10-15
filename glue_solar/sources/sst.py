@@ -27,7 +27,7 @@ __all__ = ["is_sst_fits", "sst_data"]
 
 # NIST air wavelengths, in nm, of the lines of the SST archive's cubes: Ca II K and H, H-beta, Fe I 6173, 6301 and 6302,
 # H-alpha and Ca II 8542
-# ponytail: those lines only; a cube of another line takes the tuning nearest WAVELNTH, the prefilter's centre, until its
+# ponytail: those lines only; a cube of another line takes the tuning nearest WAVELNTH, the prefilter's center, until its
 # line is added here
 _LINES = np.array([393.3663, 396.8469, 486.135, 617.3335, 630.1501, 630.2493, 656.279, 854.2091])
 
@@ -179,7 +179,7 @@ class _LockedTabularWCS(_TabularWCS, _LockedWCS):
 
 class _Cube(Data):
     """
-    An SST cube's dataset, whose sampled statistics of a component held in the file, the colour limits of an Image
+    An SST cube's dataset, whose sampled statistics of a component held in the file, the color limits of an Image
     layer, its style editor and a Histogram's range, are those of evenly spaced rows and columns of 16 planes, as many
     values as glue samples: glue's 10,000 random values each lie on another page of the file, 0.7 GB read cold and
     0.04 s warm per statistic (SST10), where these lie on a few hundred. Plane k, from 0 to 15, is at the k-th of 16

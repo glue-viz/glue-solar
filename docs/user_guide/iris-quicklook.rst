@@ -61,7 +61,7 @@ Panels list (below), shows them on all of them at once; a quicklook of slit-jaw 
 Panels list, and "Hide axes" shows each one's. The spectrum panels keep their axes.
 
 A sit-and-stare raster's exposure axis, in the quicklook once its axes are shown or in any Image
-viewer, is labelled "Exposure (acquisition order)" with the UTC range of its exposures on a second
+viewer, is labeled "Exposure (acquisition order)" with the UTC range of its exposures on a second
 line, and its ticks are exposure numbers: it is an index axis, so exposures are evenly spaced
 whatever their cadence (`Regridding on time`_ places them in time). The other axis shows only its
 own coordinate, and so does the mouse-over readout, followed by the time and exposure of the
@@ -69,7 +69,7 @@ exposure under the mouse, rather than where the slit was then. The label and tic
 whenever glue resets the axes, after an axis change or, on the wavelength panel, a slit move; a
 label typed in the viewer's axes options is kept until that reset, as glue's own labels are.
 
-In every Image viewer, each world coordinate's ticks are labelled with that coordinate's name.
+In every Image viewer, each world coordinate's ticks are labeled with that coordinate's name.
 WCSAxes can put a coordinate's ticks on another side than the axis it belongs to: latitude can run
 along the bottom of a slit-jaw image rolled by more than 45°. The label then stays with the ticks,
 and an x or y axis label typed in the axes options names the coordinate of that axis, wherever its
@@ -88,7 +88,7 @@ slit-jaw image or any other celestial map, keeps both.
 The map shows the wavelength nearest the window's reference wavelength, and the panels use
 99.5 % limits and their band's stretch: log in the FUV (slit-jaw 1330 and 1400, C II, Si IV and the
 other FUV windows), sqrt about Mg II k and h (slit-jaw 2796 and those windows), linear for slit-jaw
-2832 and the other NUV windows; glue's layer controls change either. A point, the edit subset "Point", starts at the centre of the map with the Pixel
+2832 and the other NUV windows; glue's layer controls change either. A point, the edit subset "Point", starts at the center of the map with the Pixel
 tool active: drag it on the map, and the spectrum panel shows its spectrum. Each image panel takes the
 Pixel tool as its window becomes active, so the first click on any panel moves the point, or, in a
 quicklook of slit-jaw images alone, which has no point, makes a pixel subset; another mouse mode
@@ -120,7 +120,7 @@ per frame (see :ref:`Linking <glue_solar_users_guide_iris_linking>`); one drawn 
 or the wavelength panel selects on that raster only. A region drawn on a slit-jaw image selects the
 image's pixels inside it in every frame, and reaches the raster and other linked data by its outline
 at the pointing of the frame shown as you draw it, as a click does: on the raster, the pixels whose
-centres lie inside it in that frame; one drawn on a slit-jaw viewer showing the frame axis selects
+centers lie inside it in that frame; one drawn on a slit-jaw viewer showing the frame axis selects
 on that image only. Each region, on any panel, is a new subset, shown on the
 raster panels, the slit-jaw images and, as its mean spectrum, in the spectrum panel, and one Undo
 removes it. The point stays as it was and stays the edit subset, so the Pixel tool keeps moving it,
@@ -153,7 +153,7 @@ point" it keeps a hand-moved exposure or scan, as below), while a slit-jaw follo
 keeps its frame until the panels next follow the time, on a click, a move of the point or of the
 master, or when its tab is shown again. A dataset with nothing within
 half its own time step of the master's time (for a
-scanning raster, one that does not cover it) keeps its frame and is greyed. The "Frame time" readout
+scanning raster, one that does not cover it) keeps its frame and is grayed. The "Frame time" readout
 says which dataset is the time master, how far each matched dataset's time is from the master's
 (Δt) and "NO MATCH" with that offset for the others. Wavelength and slit sliders are never moved.
 
@@ -161,7 +161,7 @@ Lines mark the wavelength and the time. The wavelength panel has a dashed white 
 wavelength and a dotted white line at the step, exposure or scan nearest the time master's time,
 hidden when none is within half its time step; under a slit-jaw master, which leaves a scanning
 raster's step alone, it marks the step taken at the time of the frame shown. The spectrum panel has
-a dashed grey line at the map's wavelength, in its "x unit" (Å, or nm when chosen in its plot
+a dashed gray line at the map's wavelength, in its "x unit" (Å, or nm when chosen in its plot
 options), while its x axis is the raster's wavelength or wavelength pixel. A raster panel turned to
 show another axis than wavelength, such as the spectrogram turned into a map, adds a line at its own
 wavelength to both, and one turned to show wavelength against the wavelength panel's step, exposure
@@ -217,9 +217,9 @@ collapse stays), so two slit-jaw channels blink at one time while the time maste
 time master a dataset the blinking viewer does not show, by default the raster, and play it in its
 own viewer, as Space does from any viewer of the observation: glue rebuilds the blinking viewer's
 sliders at each flip, which stops their playback. The slit-jaw channels of one observation share
-their pixels, so the zoom shows the same place in both, and each keeps its own stretch and colour
+their pixels, so the zoom shows the same place in both, and each keeps its own stretch and color
 limits. The window not shown is hidden in the layer list until the blink stops; with "Per-frame
-limits" on, it takes its whole cube's colour limits again, as after any change of the reference
+limits" on, it takes its whole cube's color limits again, as after any change of the reference
 data, and a window dragged in has glue's linear stretch until you change it. Sessions and "Save
 Python script to reproduce plot" leave the blink out; stop it before saving a session, which keeps
 hidden layers hidden.
@@ -314,7 +314,7 @@ gets its own window's curve and one for each slit-jaw channel of its observation
 shows only where there is such a curve: not without a point on a raster, nor on a single scan with
 no slit-jaw image loaded. Each is a new dataset, such as "Mg II k 2796 2796.24 Å light curve" or
 "SJI 1400 light curve", of ``Time`` and ``Value`` in the window's or channel's own data unit, not
-normalised. A window's curve is its value at the point's slit position (and a stack's raster step)
+normalized. A window's curve is its value at the point's slit position (and a stack's raster step)
 at each exposure or scan, as ``cube[:, y, k]``, at the wavelength pixel ``k`` the map shows, for the
 window it shows, or else the one nearest the window's line (its TWAVE). A slit-jaw curve is its
 value in each frame at the place of the point's slit position at the raster exposure, or a stack's
@@ -347,7 +347,7 @@ the click, however far beside the slit: the slit, 0.33″ or about two slit-jaw 
 a screen pixel wide at the quicklook's zoom. The other panels and the spectrum follow, as after a
 map click, and the red cross marks the point. The viewer keeps the frame clicked, also after a click
 outside the raster (below), until the point moves again, with its offset from the raster's time, NO
-MATCH and greyed when the raster took that place more than half a frame interval away, as it often
+MATCH and grayed when the raster took that place more than half a frame interval away, as it often
 did on a scanning raster; under a slit-jaw time master the master rules, and the exposure or scan
 and the viewer clicked follow its frame. One Undo ("Edit" menu, Ctrl+Z, Cmd+Z on macOS) takes the
 point back, and Redo puts it back on the raster pixel the click gave, also after the frame has
@@ -390,7 +390,7 @@ empty row going and panels moved or resized by hand taking their place again, on
 changed at once, such as a window's; a panel that keeps its size is not drawn again. A panel turned
 off is hidden and does nothing: it neither moves, draws nor computes as the point, the sliders and
 the time move, and the Point window leaves out its row. Turned on again, it moves to the point and
-the time, its zoom, colours and other settings as they were; a map keeps its wavelength, which
+the time, its zoom, colors and other settings as they were; a map keeps its wavelength, which
 :kbd:`A`, :kbd:`S` and clicks on the panels showing wavelength move only on the maps shown. A
 slit-jaw image that is the time master hands the time to the raster while its panel is off and, once
 on, takes it back at its frame nearest the raster's time. A panel closed by hand leaves the list.
@@ -466,7 +466,7 @@ in no other Profile viewer), makes that window the main window: the quicklook op
 as the browser opens it with that window chosen, and the window shown before joins the others in the
 rows below. The point stays at the same pixel, now of that window, in the same "Point" subset, the
 time master stays at its frame, exposure, step or scan, and each panel that shows the same data on
-the same axes again keeps its stretch, colour limits and colormap; its other settings, such as a
+the same axes again keeps its stretch, color limits and colormap; its other settings, such as a
 zoom or a spectrum panel's unit, are a new quicklook's, every panel shows, and with their axes if
 "Axes" was ticked. The links stay, and so do the viewers you added to the tab, where a light curve,
 a row or a column goes on following the point at the wavelength or band the old map showed, but a path
@@ -503,7 +503,7 @@ NaN, with ``Time`` NaT, ``Exposure time`` NaN and the missing-data mask 1. The 1
   IRIS datasets (an AIA cutout's or SOT cube's only on request, as its original's), no viewer opens,
   and data read from their files as they are viewed (see
   :ref:`Memory and open files <glue_solar_users_guide_iris_memory_and_open_files>`) stay there.
-- In an Image viewer, a regridded sit-and-stare raster's time axis is labelled "Time (2.89 s per
+- In an Image viewer, a regridded sit-and-stare raster's time axis is labeled "Time (2.89 s per
   pixel)", with the UTC range of its exposures on a second line, and its ticks are pixel numbers. It
   follows and leads the time sync as its original does (see `The quicklook`_): a pixel in a gap has
   no time, so its "Frame time" readout is empty, the other datasets keep their frames and show "NO
@@ -526,7 +526,7 @@ or exposures and slit pixels, or y and x, and 1 along wavelength, frames and sca
 ``<label> rebinned <bins>``, such as ``… rebinned 2x2x1``, while glue's status bar says "Rebinning
 <label>…". Each pixel is the mean of the values in its bin, by ndcube's ``NDCube.rebin``, missing
 samples left out, and NaN where every one is missing; pixels past the last whole bin along an axis
-are left out. Its coordinates are at each bin's centre, its ``Time`` is the mean of the bin's times,
+are left out. Its coordinates are at each bin's center, its ``Time`` is the mean of the bin's times,
 and its ``Exposure time`` the mean of the bin's exposure times, NaN where one is 0 s, over which
 ``<label> DN/s`` is its mean DN. It has the original's units, colormap, pointing offset and
 metadata, ``meta['rebinned']`` adding the bins, but not a slit-jaw image's per-frame pointing, so a
@@ -597,7 +597,7 @@ velocity of a line: see :ref:`Line moments <glue_solar_users_guide_iris_line_mom
 :ref:`Red-blue asymmetry <glue_solar_users_guide_iris_red_blue>`.
 "IRIS: Doppler image…" maps its red wing less its blue wing at chosen velocities: see
 :ref:`Doppler images <glue_solar_users_guide_iris_doppler>`.
-"IRIS: Mg II features… (Mg II)" maps the line centres and emission peaks of Mg II k and h: see
+"IRIS: Mg II features… (Mg II)" maps the line centers and emission peaks of Mg II k and h: see
 :ref:`Mg II features <glue_solar_users_guide_iris_mg_features>`.
 "IRIS: line ratio diagnostic…" maps the electron density or the temperature from two lines' maps:
 see :ref:`Line moments <glue_solar_users_guide_iris_line_moments>`.

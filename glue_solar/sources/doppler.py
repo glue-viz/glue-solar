@@ -16,7 +16,7 @@ from glue_solar.sources.moments import _accepted, _check, _dataset, _read, _rest
 
 __all__ = ["doppler_image", "doppler_iris"]
 
-# The velocities the dialog takes at first, in km/s from the rest wavelength
+# The velocities the dialog takes at first, in km / s from the rest wavelength
 VELOCITIES = (10.0, 20.0, 30.0, 40.0, 50.0)
 
 
@@ -28,7 +28,7 @@ def _wings(data, rest, velocities):
     """
     _check(data)
     if not (len(velocities) and np.all(np.asarray(velocities, float) > 0)):  # NaN too
-        raise ValueError(f"The velocities must be positive, not {', '.join(f'{v:g}' for v in velocities)} km/s.")
+        raise ValueError(f"The velocities must be positive, not {', '.join(f'{v:g}' for v in velocities)} km / s.")
     speeds = np.concatenate([velocities, np.negative(velocities)])
     targets = (speeds * u.km / u.s).to_value(u.AA, equivalencies=u.doppler_optical(rest * u.AA))
     unit = u.Unit(data.coords.world_axis_units[0])
@@ -43,7 +43,7 @@ def _wings(data, rest, velocities):
         if outside.any():
             listed = ", ".join(f"{v:g}" for v in sorted(set(np.abs(speeds[outside]))))
             raise ValueError(
-                f"The wings at ±{listed} km/s from {rest} Å lie outside {data.label} "
+                f"The wings at ±{listed} km / s from {rest} Å lie outside {data.label} "
                 f"({wavelengths[0]:.2f} to {wavelengths[-1]:.2f} Å)."
             )
         crop = slice(below.min(), below.max() + 2)
@@ -66,12 +66,12 @@ def _doppler(data, rest, velocities, normalised, wings, unit):
     doppler.meta.update(doppler_rest=rest, doppler_velocities=tuple(velocities), doppler_sign="red - blue")
     difference = red - blue
     for k, v in enumerate(velocities):
-        doppler.add_component(Component(difference[..., k], units=str(unit)), f"red - blue {v:g} km/s")
+        doppler.add_component(Component(difference[..., k], units=str(unit)), f"red - blue {v:g} km / s")
     if normalised:
         positive = (red > 0) & (blue > 0)  # else the ratio is not one of intensities, and unbounded
         ratio = np.divide(difference, red + blue, out=np.full(red.shape, np.nan), where=positive)
         for k, v in enumerate(velocities):
-            doppler.add_component(Component(ratio[..., k]), f"(red - blue) / (red + blue) {v:g} km/s")
+            doppler.add_component(Component(ratio[..., k]), f"(red - blue) / (red + blue) {v:g} km / s")
     return doppler
 
 
@@ -84,8 +84,8 @@ def doppler_image(data, rest, velocities=VELOCITIES, normalised=False):
     Each wing is the window's ``<label> DN/s`` where it has one, else its values, interpolated linearly at
     ``rest * (1 ± v / c)``, the optical Doppler shift of velocity v, between the two samples about it, each scan at its
     own wavelengths; NaN where either sample is missing or saturated, +Inf, as the loader reads the Level 2 ceiling. Its
-    components are ``red - blue <v> km/s``, in that unit, positive for a brighter red wing, and with ``normalised``,
-    ``(red - blue) / (red + blue) <v> km/s``, NaN where a wing is not positive. ``meta`` holds the observation's
+    components are ``red - blue <v> km / s``, in that unit, positive for a brighter red wing, and with ``normalised``,
+    ``(red - blue) / (red + blue) <v> km / s``, NaN where a wing is not positive. ``meta`` holds the observation's
     ``OBSID`` and ``STARTOBS``, ``doppler_rest``, ``doppler_velocities`` and ``doppler_sign``, ``"red - blue"``. The
     window is read a raster step at a time.
 
@@ -113,7 +113,7 @@ def doppler_image(data, rest, velocities=VELOCITIES, normalised=False):
 def _ask(data):
     """
     The rest wavelength typed for ``data``, at first its `rest_wavelength`, in Angstrom, the velocities typed, in
-    km/s, increasing, and whether the normalised maps are ticked; or None for a blank rest wavelength or Cancel.
+    km / s, increasing, and whether the normalized maps are ticked; or None for a blank rest wavelength or Cancel.
     """
     dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
     dialog.setWindowTitle(f"IRIS: Doppler image of {data.label}")
@@ -121,7 +121,7 @@ def _ask(data):
     rest = _rest_field(data, "rest")  # D11: never the window's TWAVE
     form.addRow("Rest wavelength [Å]:", rest)
     velocities = QtWidgets.QLineEdit(", ".join(f"{v:g}" for v in VELOCITIES), objectName="velocities")
-    form.addRow("Velocities [km/s]:", velocities)
+    form.addRow("Velocities [km / s]:", velocities)
     normalised = QtWidgets.QCheckBox("(red - blue) / (red + blue) too", objectName="normalised")
     form.addRow(normalised)
     text = rest.text().strip() if _accepted(dialog, form) else ""
@@ -133,7 +133,7 @@ def _ask(data):
     except ValueError:
         speeds = []
     if not speeds:
-        raise ValueError(f"'{typed}' is not a list of velocities in km/s, such as 10, 20, 30.")
+        raise ValueError(f"'{typed}' is not a list of velocities in km / s, such as 10, 20, 30.")
     return _wavelength(text), speeds, normalised.isChecked()
 
 
@@ -152,7 +152,7 @@ def _failed(exc_info):
 @messagebox_on_error("Could not compute the Doppler image")
 def doppler_iris(data, data_collection):
     """
-    Add the `doppler_image` of ``data`` about a typed rest wavelength at typed velocities, normalised too if ticked,
+    Add the `doppler_image` of ``data`` about a typed rest wavelength at typed velocities, normalized too if ticked,
     to the data collection, with its helioprojective coordinates linked, and no viewer; offered only for a raster
     window or stack, and glue shows why for typed values it cannot take. It is computed in the background, while
     glue's status bar says so.
