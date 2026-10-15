@@ -41,7 +41,7 @@ from matplotlib.colors import to_hex
 from matplotlib.lines import Line2D
 from matplotlib.path import Path
 from matplotlib.transforms import Bbox
-from qtpy.QtCore import QEventLoop, QObject, Qt, QTimer
+from qtpy.QtCore import QCoreApplication, QEventLoop, QObject, Qt, QTimer
 from qtpy.QtWidgets import (
     QAbstractItemView,
     QAbstractScrollArea,
@@ -345,8 +345,10 @@ class Coordinator(HubListener):
         self._busy = False
         self.marker = None  # the 'Master exposure' subset group (`_mark`), once made
         self._drag = None  # while a mouse button is down on a viewer: whether a point was clicked
-        # a drag moves the point at every mouse event: show only its latest position
-        self._timer = QTimer()
+        # a drag moves the point at every mouse event: show only its latest position. The application owns the timer:
+        # PyQt frees the QObjects Python owns at exit in any order, then the application, so a viewer freed at exit
+        # still finds it. ponytail: one timer per data collection is kept until exit
+        self._timer = QTimer(QCoreApplication.instance())
         self._timer.setSingleShot(True)
         self._timer.setInterval(0)
         self._timer.timeout.connect(self._update)

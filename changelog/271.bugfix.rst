@@ -1,0 +1,1 @@
+A viewer freed at exit, such as one left by a failed test, no longer raises 'wrapped C/C++ object of type QTimer has been deleted' from the quicklook coordinator.

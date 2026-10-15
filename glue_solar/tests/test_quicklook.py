@@ -30,7 +30,7 @@ from glue_qt.viewers.profile import ProfileViewer
 from glue_qt.viewers.scatter import ScatterViewer
 from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.text import Text
-from qtpy import QtWidgets
+from qtpy import QtWidgets, sip
 from qtpy.QtCore import QEventLoop, QPoint, Qt, QTimer
 from qtpy.QtTest import QTest
 
@@ -177,6 +177,19 @@ def test_viewers_join_and_leave(app, qtbot, tmp_path):
     restored = GlueApplication.restore_session(str(session), show=False)
     qtbot.addWidget(restored)
     assert list(coordinator(restored.data_collection)._viewers) == list(restored.viewers[0])
+
+
+def test_a_viewer_freed_at_exit_unregisters(app, qtbot):
+    """At exit PyQt frees the QObjects Python owns in any order, then the application: here the timer first."""
+    viewer = ImageViewer(app.session)  # a top-level viewer, which Python owns
+    coord = coordinator(app.data_collection)
+    assert viewer in coord._viewers
+    with qtbot.captureExceptions() as errors:
+        for obj in (coord._timer, viewer):
+            if sip.ispyowned(obj):
+                sip.delete(obj)  # its tool unregisters it as it goes
+    assert not errors
+    assert viewer not in coord._viewers
 
 
 def test_map_click_on_a_raster_needs_no_coordination(app, scans):
