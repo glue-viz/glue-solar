@@ -57,9 +57,9 @@ and has its tick box on its own row.
 
 Type in "Filter" to list only the observations whose row or entries contain the text, in any case:
 a line such as ``mg ii`` or ``Si IV 1403``, a start date as STARTOBS shows it (``2013-09-02``), or
-an OBSID. An observation it lists shows all its entries, and the filter stays as the folder is
-searched again. Ticks stay as the filter changes, and "Load selected" loads every tick, listed or
-not.
+an OBSID. The list changes a moment after you stop typing, not at each key. An observation it
+lists shows all its entries, and the filter stays as the folder is searched again. Ticks stay as
+the filter changes, and "Load selected" loads every tick, listed or not.
 
 Type a UTC time in "Start" or "End", such as ``2013-09-02T16:00``, ``2013-09-02`` or ``2013-09``,
 and press Return to search the folder again for the observations that run at some time between
@@ -142,7 +142,8 @@ the IRIS data only on request (see `Linking`_).
 
 Slit-jaw images open in sunpy's IRIS colormap of their channel, raster windows and stacks in its
 FUV or NUV colormap by their detector (``TDETn``), AIA cutouts in sunpy's AIA colormap of their
-wavelength, and SOT cubes in DN in sunpy's Hinode SOT intensity colormap, other SOT cubes in gray.
+wavelength, and every SOT cube, fields and velocities too, in sunpy's Hinode SOT intensity
+colormap, as sunpy's ``SOTMap`` shows them.
 The colormap menu of an Image Viewer layer lists Glue's own colormaps and every sunpy
 colormap, under sunpy's names for them, such as ``SDO AIA 171.0 Angstrom``, and shows the layer's
 own colormap even where another has the same colors (the FUV and NUV ones have those of 1330 and

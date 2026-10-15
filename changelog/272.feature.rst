@@ -1,0 +1,1 @@
+The observation browser's Filter waits for a pause in typing before it filters, and every Hinode/SOT cube opens in sunpy's Hinode SOT intensity colormap, as sunpy's SOTMap does.

@@ -307,14 +307,14 @@ def test_open_real_aia_cutout_through_load_data(irispy_data):
 
 
 @pytest.mark.parametrize(
-    ("name", "label", "units", "cmap"),
+    ("name", "label", "units"),
     [
-        ("_Gband4305_FG_", "G band 4305-3603259402-2015-08-30T07:09:53", "DN", "hinodesotintensity"),
-        ("_TFNaI5896_MG_", "TF Na I 5896-3680100932-2016-01-08T19:12:11", "", "gray"),
-        ("_blapp_index_", "6302A B_LOS 18:50:06-3680100932-2016-01-08T19:12:11", "G", "gray"),
+        ("_Gband4305_FG_", "G band 4305-3603259402-2015-08-30T07:09:53", "DN"),
+        ("_TFNaI5896_MG_", "TF Na I 5896-3680100932-2016-01-08T19:12:11", ""),
+        ("_blapp_index_", "6302A B_LOS 18:50:06-3680100932-2016-01-08T19:12:11", "G"),
     ],
 )
-def test_open_sot_cube_through_load_data(tmp_path, irispy_test_files, name, label, units, cmap):
+def test_open_sot_cube_through_load_data(tmp_path, irispy_test_files, name, label, units):
     # Hinode/SOT cubes of IRIS Technical Note 32 load as AIA cutouts do, in their own unit
     [source] = [path for path in irispy_test_files if name in path.name]
     path = shutil.copy2(source, tmp_path)
@@ -322,7 +322,7 @@ def test_open_sot_cube_through_load_data(tmp_path, irispy_test_files, name, labe
         hdul[0].data[0, 0, 0] = -200  # IRIS's fill code, a value in a SOT cube
     data, cube = load_data(path), read_sji_lvl2(path)
     assert isinstance(data.coords, _GlueWCS)
-    assert (data.label, data.style.preferred_cmap.name) == (label, cmap)
+    assert (data.label, data.style.preferred_cmap.name) == (label, "hinodesotintensity")  # fields too, as SOTMap
     assert _role(data) == "aia"  # which follows the time as an AIA cutout
     science = data.get_component(data.main_components[0])
     assert science.units == units

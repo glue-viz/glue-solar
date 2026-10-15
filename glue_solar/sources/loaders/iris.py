@@ -611,8 +611,7 @@ def _image_cube_data(cube, path, scaling=None):
     # cube rebuilt from restored meta fails (glue-solar never does); a glue loader(MetaDict) if that is ever needed.
     cube.meta["frame_wcs_headers"] = tuple(cube.meta["frame_wcs_headers"])
     if instrument.startswith("SOT"):  # float32 in its own unit, NaN where missing: negative fields are data
-        cmap = "hinodesotintensity" if cube.unit == u.DN else "gray"  # gray for fields, as Hinode's archive shows them
-        return _cube_data(cube, label, cmap=cmap, missing=())
+        return _cube_data(cube, label, cmap="hinodesotintensity", missing=())  # fields too, as sunpy's SOTMap
     if scaling is None:
         return _cube_data(cube, label, cmap=cmap)
     from irispy.utils.constants import DN_UNIT
@@ -1175,7 +1174,8 @@ class QtIRISImporter(QtWidgets.QDialog):
     Stop lists what the scan found so far.
 
     The Filter field lists only the observations whose row or entries contain its
-    text, in any case, across rescans; Load selected still loads the ticks it hides.
+    text, in any case, across rescans, a moment after typing stops; Load selected
+    still loads the ticks it hides.
 
     Start and End list only the observations that run at some time between them:
     the scan reads the headers only of the files whose names are stamped from a day
@@ -1209,7 +1209,11 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.progressed.connect(self._progressed)
         self.change.clicked.connect(self.choose_directory)
         self.recursive.toggled.connect(lambda _checked: self.set_directory(self.directory.text()))
-        self.filter.textChanged.connect(self._filter)
+        self._filter_timer = QTimer(self)  # one filter a pause in typing, not one a keystroke
+        self._filter_timer.setSingleShot(True)
+        self._filter_timer.setInterval(250)
+        self._filter_timer.timeout.connect(self._filter)
+        self.filter.textChanged.connect(lambda _text: self._filter_timer.start())
         for field in (self.directory, self.start, self.end):
             field.editingFinished.connect(self._search_edited)
         for field in (self.directory, self.start, self.end, self.filter):
