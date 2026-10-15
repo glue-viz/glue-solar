@@ -4,12 +4,14 @@ Helpers that drive glue's viewers the way a user does, and read the expected ans
 
 from collections import Counter
 
+import numpy as np
 from matplotlib.backend_bases import MouseEvent
 from qtpy import QtWidgets
 from qtpy.QtCore import QPoint, Qt
 from qtpy.QtTest import QTest
 
 __all__ = [
+    "angles",
     "count_tick_work",
     "inversions",
     "linked_data",
@@ -23,6 +25,15 @@ __all__ = [
     "select_point",
     "shift",
 ]
+
+
+def angles(data):
+    """The helioprojective longitude and latitude of ``data`` at its first and last pixels, in arcsec, a row each."""
+    from glue_solar.sources.loaders.iris import _HPC
+
+    types = list(data.coords.world_axis_physical_types)
+    world = data.coords.pixel_to_world_values(*zip([0] * data.ndim, np.subtract(data.shape[::-1], 1)))
+    return np.array([world[types.index(kind)] for kind in _HPC])
 
 
 def count_tick_work(monkeypatch, axes):

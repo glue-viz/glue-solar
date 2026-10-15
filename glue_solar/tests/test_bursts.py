@@ -118,7 +118,8 @@ def test_a_raster_window_gives_irispys_labels_and_events_linked_and_no_viewer(
         "bursts_velocity_range": 50.0,
         "bursts_median_factor": 10.0,
     }
-    assert table.meta == labels.meta
+    # with the offset its coordinates include, and the datasets whose shifts move them
+    assert table.meta == {**labels.meta, "pointing_offset": [0.0, 0.0], "pointing_follows": [labels.uuid, raster.uuid]}
     assert [cid.label for cid in table.main_components] == ["label", "raster", "npix", "step", "y", *POSITION]
     # on the raster's steps and slit pixels, their helioprojective coordinates linked with the others'
     assert labels.shape == raster.shape[:2]
@@ -244,6 +245,8 @@ def test_a_slit_jaw_image_gives_irispys_labels_and_events_on_its_coordinates(
         "STARTOBS": sji.meta["STARTOBS"],
         "bursts_sigma_factor": 10.0,
         "bursts_min_pixels": 2,
+        "pointing_offset": [0.0, 0.0],
+        "pointing_follows": [labels.uuid, sji.uuid],
     }
     # the slit-jaw image's coordinates, times and per-frame pointing, its helioprojective ones linked
     assert labels.coords._wcs is sji.coords._wcs

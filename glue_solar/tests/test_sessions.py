@@ -53,7 +53,7 @@ from glue_solar.sources.loaders.iris import (
 from glue_solar.sources.loaders.lazy import LazyData
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments
-from glue_solar.tests.helpers import load_selected, mouse, scanned, select_point, shift
+from glue_solar.tests.helpers import angles, load_selected, mouse, scanned, select_point, shift
 from glue_solar.tests.test_bursts import SI_IV
 from glue_solar.tests.test_importer import _row, counted_reads
 from glue_solar.tests.test_quicklook import (
@@ -96,7 +96,7 @@ def assert_same_coordinates(coords, data, stride=1):
         np.testing.assert_allclose(got, expected, rtol=0, atol=1e-9)
     assert coords.world_axis_names == data.coords.world_axis_names
     assert coords.world_axis_units == data.coords.world_axis_units
-    assert coords.pointing_offset == data.coords.pointing_offset
+    assert (coords.pointing_offset, coords.follows) == (data.coords.pointing_offset, data.coords.follows)
 
 
 def test_the_coordinates_of_each_kind_of_dataset_round_trip_twice(irispy_test_files):
@@ -132,6 +132,24 @@ def test_a_session_restores_a_moments_map_on_its_raster_steps(irispy_test_files)
         for cid, expected in zip(restored.world_component_ids, maps.world_component_ids, strict=True):
             assert cid.label == expected.label
             np.testing.assert_allclose(restored[cid], maps[expected], rtol=0, atol=1e-9)
+
+
+def test_a_session_keeps_data_following_the_dataset_they_are_made_from(qtbot, monkeypatch, irispy_test_files):
+    collection = DataCollection(raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["C II 1336"]))
+    shift(monkeypatch, collection[0], collection, (1.5, -2.25))
+    rebinned = rebin(collection[0], (2, 2, 1))
+    collection.extend([line_moments(collection[0], 1335.71), rebinned, line_moments(rebinned, 1335.71)])
+    for restored in twice(collection):  # the raster read from its file again, the others restored
+        raster, _, rebinned, _ = restored
+        assert [data.uuid for data in restored] == [data.uuid for data in collection]
+        follows = [(raster.uuid,), (raster.uuid,), (rebinned.uuid, raster.uuid)]
+        assert [data.coords.follows for data in restored[1:]] == follows
+        offset, before = raster.coords.pointing_offset, [angles(data) for data in restored[1:]]
+        assert [data.coords.pointing_offset for data in restored[1:]] == [offset] * 3
+        # and a shift there moves them all, the map, the rebinned copy and its map, by the same offset
+        shift(monkeypatch, raster, restored, (offset[0] + 1, offset[1] - 0.5))
+        for data, angle in zip(restored[1:], before):
+            np.testing.assert_allclose(angles(data), angle + [[1], [-0.5]], rtol=0, atol=1e-9, err_msg=data.label)
 
 
 def test_a_session_restores_the_links_link_hpc_gives_a_stack_and_a_map(tmp_path, irispy_test_files):

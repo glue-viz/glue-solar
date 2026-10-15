@@ -34,6 +34,7 @@ from glue_solar.quicklook import (
     observation_key,
     quicklook,
 )
+from glue_solar.sources.bursts import _shift_events
 from glue_solar.sources.loaders.iris import (
     _HPC,
     QtIRISImporter,
@@ -214,17 +215,24 @@ def _check_iris(data):
 @messagebox_on_error("Could not shift the pointing")
 def shift_pointing_iris(data, data_collection):
     """
-    Add a typed offset, in arcsec, to the helioprojective longitude and latitude of ``data`` and of the other windows of
-    its raster file, in place of any before (0, 0 removes it), and place everything in every viewer, the readouts, links
-    and a quicklook's point and raster overlays again; offered only for data with IRIS coordinates.
+    Add a typed offset, in arcsec, to the helioprojective longitude and latitude of ``data``, of the other windows of
+    its raster file and of the data made from any of them that follow it (`_GlueWCS.follow`), a burst events table's
+    coordinates too, in place of any before (0, 0 removes it), and place everything in every viewer, the readouts,
+    links and a quicklook's point and raster overlays again; offered only for data with IRIS coordinates.
     """
     _check_iris(data)
     offset = _ask_offset(data)
     if offset is None:
         return
+    shifted = {other.uuid for other in data_collection if _same_file(data, other)}  # one slit, one pointing
     for other in data_collection:
-        if _same_file(data, other):  # one slit, one pointing
-            other.coords.pointing_offset = offset
+        coords = other.coords if isinstance(other.coords, _GlueWCS) else None
+        follows = other.meta.get("pointing_follows", ()) if coords is None else coords.follows
+        if other.uuid in shifted or shifted.intersection(follows):
+            if coords is None:
+                _shift_events(other, offset)
+            else:
+                coords.pointing_offset = offset
     for other in data_collection:  # as glue does after a change of links: its layers place their images again
         data_collection.hub.broadcast(ExternallyDerivableComponentsChangedMessage(other))
     coordinator(data_collection).place_again()

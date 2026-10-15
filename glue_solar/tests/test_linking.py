@@ -34,7 +34,12 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 import glue_solar
 from glue_solar import glue_patches
+from glue_solar.conftest import find_irispy_test_file
 from glue_solar.quicklook import _role, coordinator, nearest, quicklook
+from glue_solar.regrid import north_up, rebin, regrid_on_time
+from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
+from glue_solar.sources.calibration import remove_dust
+from glue_solar.sources.doppler import doppler_image
 from glue_solar.sources.iris import browse_iris, link_iris
 from glue_solar.sources.loaders.iris import (
     WCS_LOCK,
@@ -46,7 +51,11 @@ from glue_solar.sources.loaders.iris import (
     link_hpc,
     raster_data,
 )
+from glue_solar.sources.mg_features import mg_features
+from glue_solar.sources.moments import line_moments
+from glue_solar.sources.red_blue import red_blue_asymmetry
 from glue_solar.tests.helpers import (
+    angles,
     inversions,
     linked_data,
     load_selected,
@@ -55,7 +64,8 @@ from glue_solar.tests.helpers import (
     select_point,
     shift,
 )
-from glue_solar.tests.test_quicklook import drifting_stack
+from glue_solar.tests.test_bursts import SI_IV, SJI_1400
+from glue_solar.tests.test_quicklook import SCAN, drifting_stack
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
 RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
@@ -401,6 +411,70 @@ def test_shift_pointing_moves_a_sunpy_map_over_a_slit_jaw_image(qtbot, monkeypat
     placed = aia.compute_fixed_resolution_buffer([0, *bounds], target_data=sji, target_cid=layer.state.attribute)
     np.testing.assert_array_equal(after, placed)
     assert not np.array_equal(after, before, equal_nan=True)
+
+
+def test_data_made_from_a_dataset_follow_every_shift_of_it(qtbot, monkeypatch, irispy_test_files):
+    [si_iv] = raster_data([find_irispy_test_file(irispy_test_files, SI_IV)])
+    c_ii, mg_ii = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["C II 1336", "Mg II k 2796"])
+    sji = image_data(find_irispy_test_file(irispy_test_files, SJI_1400))
+    rebinned, dust = rebin(si_iv, (2, 2, 1)), remove_dust(sji)
+    maps, rebinned_maps = line_moments(si_iv, 1402.77), line_moments(rebinned, 1402.77)
+    bursts, events = si_iv_bursts(si_iv, 80)
+    sji_labels, sji_events = sji_bursts(dust)
+    of_si_iv = [maps, rebinned, rebinned_maps, bursts, red_blue_asymmetry(si_iv, 1402.77)]
+    of_si_iv.append(doppler_image(si_iv, 1402.77))
+    of_sji = [regrid_on_time(sji), rebin(sji, (1, 2, 2)), dust, sji_labels]
+    features, grid = mg_features(mg_ii), north_up(sji)
+    collection = DataCollection([si_iv, c_ii, mg_ii, sji, *of_si_iv, *of_sji, features, grid, events, sji_events])
+    keep_hpc_linked(collection)
+    before = {data.label: angles(data) for data in collection if data not in (events, sji_events)}
+    places = {table.label: (table["coordinate.Tx"], table["coordinate.Ty"]) for table in (events, sji_events)}
+    lon, lat = si_iv.world_component_ids[:2]
+
+    def region():  # drawn on raster steps 20 to 40, slit pixels 60 to 120, as their angles now are
+        corners = si_iv.coords.pixel_to_world_values(0, [60, 120], [20, 40])
+        return RoiSubsetState(lon, lat, RectangularROI(*sorted(corners[2]), *sorted(corners[1])))
+
+    selected = region().to_mask(maps)
+    assert 0 < selected.sum() < maps.size
+
+    def assert_followed(datasets, offset, of=before):
+        for data in datasets:
+            assert data.coords.pointing_offset == offset
+            expected = of[data.label] + np.reshape(offset, (2, 1))
+            np.testing.assert_allclose(angles(data), expected, rtol=0, atol=1e-9, err_msg=data.label)
+
+    def assert_events(table, offset):
+        for got, start, shift_ in zip((table["coordinate.Tx"], table["coordinate.Ty"]), places[table.label], offset):
+            np.testing.assert_allclose(got, start + shift_, rtol=0, atol=1e-9)
+
+    # each shift moves the data made from the shifted dataset, a raster's other windows' too, and from those in turn
+    for offset in [(5.0, -3.0), (0.5, 0.25)]:
+        shift(monkeypatch, si_iv, collection, offset)
+        shift(monkeypatch, c_ii, collection, offset[::-1])  # mg_ii, its file's other window, too
+        shift(monkeypatch, sji, collection, (-offset[0], offset[1]))
+        assert_followed(of_si_iv, offset)
+        assert_followed([features], offset[::-1])
+        assert_followed(of_sji, (-offset[0], offset[1]))
+        assert_events(events, offset)
+        assert_events(sji_events, (-offset[0], offset[1]))
+        # the links still place them: a region drawn again on the same raster pixels selects the same map pixels
+        np.testing.assert_array_equal(region().to_mask(maps), selected)
+    # a north-up grid stays, and the slit-jaw image moves across it
+    np.testing.assert_array_equal(angles(grid), before[grid.label])
+    # one shifted on its own moves what is made from it, until what it is made from is shifted again
+    shift(monkeypatch, rebinned, collection, (1.0, 1.0))
+    assert_followed([rebinned, rebinned_maps], (1.0, 1.0), of=before)
+    assert_followed([si_iv, maps], (0.5, 0.25), of=before)
+    shift(monkeypatch, si_iv, collection, (0.5, 0.25))
+    assert_followed([rebinned, rebinned_maps], (0.5, 0.25), of=before)
+    # once removed, what it was made from moves it no more, while what that was made from still does
+    collection.remove(rebinned)
+    collection.remove(mg_ii)
+    shift(monkeypatch, si_iv, collection, (2.0, 2.0))
+    shift(monkeypatch, c_ii, collection, (3.0, 3.0))
+    assert_followed([rebinned_maps], (2.0, 2.0), of=before)
+    assert_followed([features], (0.25, 0.5), of=before)
 
 
 def test_raster_pixels_reach_a_sunpy_map_whose_longitudes_run_from_0_to_360(sns):
