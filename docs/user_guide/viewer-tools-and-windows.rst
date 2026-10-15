@@ -169,9 +169,16 @@ toolbar has:
   where the time is that of the step under the mouse; on a slit-jaw image or a sit-and-stare
   raster it is that of the frame or exposure. Helioprojective angles are in arcsec to 0.01″ and
   IRIS wavelengths in Å to 0.001 Å, a tenth of an IRIS pixel or finer, whatever the zoom; other
-  coordinates, such as a stack's scan or a Carrington longitude, are as on their ticks. Press W
-  over the image to switch between world and pixel positions; the entry hides and shows the
-  readout.
+  coordinates, such as a stack's scan or a Carrington longitude, are as on their ticks. Where the
+  image shows the wavelength of a window with a
+  :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`, the Doppler velocity from it
+  follows the position, in km/s to 0.1 km/s, as the Profile's
+  :ref:`velocity axis <glue_solar_users_guide_iris_velocity>` gives it, for example
+  ``1402.701 Å 63.91" 105.68" (world) · -14.7 km/s · 2013-09-02T17:19:13.239 UTC · exp 2 s | value = 19.25``
+  on a Si IV 1403 spectrogram of OBSID 4000255147. It follows "IRIS: set rest wavelength…"; a
+  window without a rest wavelength, such as ``2832``, and a map, whose wavelength is the slider's,
+  show none. Press W over the image to switch between world and pixel positions; the entry hides
+  and shows the readout.
 - "Frame time", in the View menu, and the "Coordinate" menu, from glue-solar,
   :ref:`described above <glue_solar_users_guide_loading_iris_level_2_raster_and_sji_files>`; the "Frame time" entry
   hides and shows its readout of the displayed frame, not the mouse-over one.
