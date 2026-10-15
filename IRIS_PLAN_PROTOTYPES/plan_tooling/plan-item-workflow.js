@@ -20,7 +20,8 @@ Repo and environment rules (must follow):
 - Headless runs: isolated HOME (remove every temp HOME and output you make once read: the disk fills); on macOS QSettings('glue-solar', 'glue-solar') ignores HOME and writes the user's own preferences, so a probe that opens the observation browser patches glue_solar.sources.loaders.iris.QSettings as glue_solar/conftest.py does; QT_QPA_PLATFORM=offscreen, MPLBACKEND=agg; probes in ${S}/<label>/, never with a checkout as cwd. Full-size data under /Users/nabil/DATA/IRIS (real home via pwd.getpwuid(os.getuid()).pw_dir).
 - D18: before building anything, check glue-core and glue-qt (released and main on GitHub) for the feature, and prefer configuring, defaulting, documenting or calling glue's own API. glue-solar tests cover the GUI/glue side only, never irispy's numerics; real-data tests are @pytest.mark.remote_data on LM-SAL/irispy-data release assets via the irispy_data fixture (glue_solar/conftest.py IRISPY_DATA_HASHES), never local paths or committed data; new irispy-data assets need the user.
 - Keep it the smallest change that meets the done-when; match the surrounding style and comment density (terse docstring prose as in glue_solar/tools.py, quicklook.py, sources/moments.py); docs updated in the same PR; NO changelog fragment (added once the PR number exists).
-- Any choice the user should make: take the lowest-risk default and mark it PROVISIONAL in your report with the alternative.`
+- Any choice the user should make: take the lowest-risk default and mark it PROVISIONAL in your report with the alternative.
+- Your final message ends your run: a background check's notification never reaches you after it, and uncommitted work is left behind (two fix runs ended "waiting for the suite" on 2026-10-15). Wait for every check to finish (foreground runs, or a wait loop on a background one) and commit before you reply.`
 
 const SPEC = `
 Item: ${args.item}
