@@ -2275,7 +2275,9 @@ class SaveSequenceTool(Tool):
             # unsnapped, its ends where measured, not on pixel centres
             line = Line2D([], [], lw=3, solid_capstyle="butt", snap=False, transform=where, **edged)
             bar = viewer.axes.add_line(line), viewer.axes.text(0, 0, "", ha="center", transform=where, **style)
-        held = viewer, viewer.options_widget()  # greyed, so that only the run moves the slider and changes the view
+        # greyed, so that only the run moves the slider and changes the view: its sub-window too, which then cannot be
+        # resized, as frames after a resize would all be the image at it
+        held = viewer.parent(), viewer.options_widget(), viewer.layer_view()
         steps = enumerate(indices, 1)
         timer = QtCore.QTimer(progress, singleShot=True)  # a frame a turn of the event loop
         writer = None
@@ -2302,7 +2304,8 @@ class SaveSequenceTool(Tool):
             for layer in per_frame:
                 layer.stretch_global = False
             canvas.manager = manager
-            # ponytail: the size at the start, which a resize during the run leaves wrong until the next one
+            # ponytail: the size at the start; a resize from outside the greyed sub-window (Tile, or the main window's
+            # with it maximized) is not stopped and still freezes the frames after it: end the save at a size change
             figure.set_size_inches(size, forward=False)
             canvas.draw_idle()
 
@@ -2331,7 +2334,7 @@ class SaveSequenceTool(Tool):
                 if count < len(indices) and not progress.wasCanceled():
                     timer.start()
             finally:
-                if not timer.isActive():
+                if not ended and not timer.isActive():  # the timer dies with the dialog once ended
                     end()
 
         _SAVING.add(viewer)

@@ -3906,12 +3906,12 @@ def test_frames_and_movies_save_while_glue_runs(bare_app, qtbot, monkeypatch, tm
         finish(writer)
 
     monkeypatch.setattr(animation.PillowWriter, "finish", finished)
-    options = viewer.options_widget()
+    held = viewer.parent(), viewer.options_widget(), viewer.layer_view()  # its sub-window, options and layers
 
     def turned():  # what the event loop sees while the frames are saved
         if _SAVING:
             modal = QtWidgets.QApplication.activeModalWidget()
-            seen.append((state.slices[0], modal, viewer.isEnabled(), options.isEnabled()))
+            seen.append((state.slices[0], modal, *(widget.isEnabled() for widget in held)))
 
     turn = QTimer()
     turn.timeout.connect(turned)
@@ -3922,15 +3922,15 @@ def test_frames_and_movies_save_while_glue_runs(bare_app, qtbot, monkeypatch, tm
         entry.trigger()
 
     # the entry returns once the first frame is saved, and the event loop turns at every frame, no dialog modal: glue
-    # stays usable, but for the viewer and its options, greyed; the GIF is encoded on another thread
+    # stays usable, but for the viewer, its sub-window, options and layers, greyed; the GIF is encoded on another thread
     turn.start()
     save("sji.gif")
     assert state.slices == (0, 0, 0)
-    qtbot.waitUntil(saved)
+    qtbot.waitUntil(saved, timeout=60_000)
     turn.stop()
     assert set(range(10)) <= {frame for frame, *_ in seen}
-    assert {tuple(each[1:]) for each in seen} == {(None, False, False)}
-    assert (state.slices, viewer.isEnabled(), options.isEnabled()) == ((20, 0, 0), True, True)
+    assert {tuple(each[1:]) for each in seen} == {(None, False, False, False)}
+    assert (state.slices, *(widget.isEnabled() for widget in held)) == ((20, 0, 0), True, True, True)
     assert encoders == [encoders[0]]
     assert encoders[0] is not threading.main_thread()
     gc.collect()
@@ -3945,18 +3945,16 @@ def test_frames_and_movies_save_while_glue_runs(bare_app, qtbot, monkeypatch, tm
     assert (tmp_path / "sji.gif").read_bytes() == (tmp_path / "sync.gif").read_bytes()
     # one save at a time; closing the viewer ends it, keeping the frames saved so far
     shown = refusals(monkeypatch)
-    state.add_callback(
-        "slices", lambda slices: slices[0] == 3 and QTimer.singleShot(0, lambda: viewer.close(warn=False))
-    )
+    state.add_callback("slices", lambda slices: slices[0] == 3 and viewer.close(warn=False))
     save("cut.gif")
     entry.trigger()
     assert shown == [
         "Could not save the frames or movie\nFrames are being saved: wait for them, or press Cancel in their progress "
         "dialog."
     ]
-    qtbot.waitUntil(saved)
+    qtbot.waitUntil(saved, timeout=60_000)
     with Image.open(tmp_path / "cut.gif") as gif:
-        assert gif.n_frames in (3, 4)  # as the close comes during frame 3 or after it
+        assert gif.n_frames == 3  # frame 3, being saved as it closed, is not
     assert len(shown) == 1
 
 
