@@ -1,0 +1,1 @@
+Dragging the Path diagram's crosshair moves every slider of the viewer the path was drawn in but the path's own, as glue does, so on a stack the scan and the wavelength move together.
