@@ -11,11 +11,13 @@ right-click menu, which offers it only for those. Type irispy's parameters, its 
 changed; Cancel adds nothing. irispy finds the bursts on a worker thread, while glue's status bar
 says "Detecting UV bursts in <label>…", which then says how many it found, and adds two datasets:
 ``<label> bursts``, a map of their labels, and ``<label> burst events``, a table of them. No viewer
-opens: drag the map onto an Image viewer and the table onto a Scatter viewer, such as ``time``
-against ``intensity`` or ``coordinate.Tx`` against ``coordinate.Ty``. glue-qt 0.4.2's Table viewer
-refuses the table, as it refuses any dataset with a time ("argument of type 'numpy.datetime64' is
-not iterable"): to read it row by row, export it with "File → Export Data/Subsets" as "ECSV (with
-Time)" and read it with astropy's ``Table.read``.
+opens: drag the map onto an Image viewer and the table onto a Table viewer, a row a burst, its
+``time`` in UTC to the nanosecond. Click a column's header to sort by it; the search box shows the
+rows whose search column, ``time`` unless changed, holds the text typed, such as ``T17:2`` for the
+bursts from 17:20 to 17:29. A Scatter viewer plots them, such as ``time`` against ``intensity`` or
+``coordinate.Tx`` against ``coordinate.Ty``. glue-qt 0.4.2's Table viewer refuses a dataset with a
+time, such as this table, as its search reads each value as text; glue-solar searches the text each
+shows instead.
 
 In a raster window
 ------------------

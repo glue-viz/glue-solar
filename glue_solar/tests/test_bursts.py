@@ -6,16 +6,20 @@ gets of irispy's labels and events, of a scan or a stack.
 import numpy as np
 import pytest
 from glue.core import Data
+from glue.core.subset import RangeSubsetState
 from glue_qt.app.application import GlueApplication
+from glue_qt.viewers.table import TableViewer
+from glue_qt.viewers.table.data_viewer import DataTableModel
 from irispy.io.sji import read_sji_lvl2
 from irispy.io.spectrograph import read_spectrograph_lvl2
 from irispy.sji import SJICube
 from irispy.utils.bursts import find_si_iv_bursts, find_sji_bursts
-from qtpy import QtWidgets
+from qtpy import QtCore, QtWidgets
 
 import astropy.units as u
 
 import glue_solar
+from glue_solar import glue_patches
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
 from glue_solar.sources.calibration import remove_dust
@@ -139,6 +143,41 @@ def test_a_raster_window_gives_irispys_labels_and_events_linked_and_no_viewer(
     direct, events = find_si_iv_bursts(cube)
     assert_irispys(labels, table, direct, events)
     assert labels.meta["bursts_threshold"] == events.meta["threshold"].value
+
+
+def test_the_event_table_opens_in_a_table_viewer(app, irispy_test_files):
+    installed = DataTableModel.get_filter_mask is glue_patches.get_filter_mask
+    assert installed == glue_patches.needs_table_time_workaround()  # probes glue-qt's own method
+    assert not glue_patches.needs_table_time_workaround(glue_patches.get_filter_mask)
+    [raster] = raster_data([find_irispy_test_file(irispy_test_files, SI_IV)])
+    _, table = si_iv_bursts(raster, threshold=80)
+    app.data_collection.append(table)
+    # glue-qt 0.4.2 alone: "argument of type 'numpy.datetime64' is not iterable"
+    viewer = app.new_data_viewer(TableViewer, data=table)
+    model = viewer.model
+    column = [cid.label for cid in model.columns].index("time")
+
+    def shown():
+        return [model.data(model.index(row, column), QtCore.Qt.DisplayRole) for row in range(model.rowCount())]
+
+    times = [str(time) for time in table["time"]]  # numpy's ISO times, to the nanosecond
+    assert shown() == times
+    model.sort(column, QtCore.Qt.DescendingOrder)
+    assert shown() == sorted(times, reverse=True)
+    # the search box, on the time column, finds the text of the times shown
+    assert viewer.state.filter_att is table.id["time"]
+    viewer.state.filter = times[1][11:19]
+    assert shown() == [times[1]]
+    viewer.state.regex = True
+    viewer.state.filter = f"{times[0]}|{times[2]}"
+    assert shown() == [times[2], times[0]]
+    viewer.state.filter = ""
+    # a range of times, as the time master's "Master exposure" gives, highlights their rows
+    lo, hi = np.sort(table["time"])[[1, -1]]
+    app.data_collection.new_subset_group("later", RangeSubsetState(lo, hi, table.id["time"]))
+    rows = range(model.rowCount())
+    highlighted = [model.data(model.index(row, column), QtCore.Qt.BackgroundRole) is not None for row in rows]
+    assert highlighted == [time > min(times) for time in shown()]
 
 
 def assert_each_scans(labels, table, paths, **parameters):
