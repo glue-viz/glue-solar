@@ -25,7 +25,7 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
    memory map, or an array for a ``.fits.gz`` file) and scales only what a view selects,
    astropy's way, with the fill codes as NaN and, in raster windows and slit-jaw images, the
    Level 2 ceiling, raw 32760, as +Inf, where irispy's scaled reads put it; a read of the whole
-   component goes through dask. ``LazyData`` answers glue's sampled statistics, such as colour
+   component goes through dask. ``LazyData`` answers glue's sampled statistics, such as color
    limits, from a count of the raw values, NaN and +Inf left out as glue leaves them out.
    ``RawStack`` stacks scans along a new leading axis without copying them.
 4. ``stack_spectrograms.py`` gives a stack of two or more raster scans its WCS

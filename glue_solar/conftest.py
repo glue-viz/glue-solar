@@ -151,7 +151,7 @@ def _write_image(path, header, roll=1.0):
     # A small real rotation by default avoids irispy 0.8.1 treating zero
     # off-diagonal PC entries as missing pointing samples.
     angle = np.deg2rad(roll)
-    # real SJI files spell the units this way; astropy's WCS warns unless they are normalised
+    # real SJI files spell the units this way; astropy's WCS warns unless they are normalized
     header["CUNIT1"], header["CUNIT2"], header["CUNIT3"] = "arcsecs", "arcsecs", "seconds"
     header.update({
         "CTYPE1": "HPLN-TAN", "CTYPE2": "HPLT-TAN", "CTYPE3": "Time",

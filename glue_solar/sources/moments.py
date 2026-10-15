@@ -28,7 +28,7 @@ from glue_solar.sources.loaders.iris import _RUNNING, WCS_LOCK, _GlueWCS, keep_h
 
 __all__ = ["line_moments", "mean_spectrum_iris", "moments_iris", "subtract_mean_spectrum"]
 
-# The velocity range the dialog takes at first, in km/s from the line centre: ±0.5 Å at Si IV 1402.77 (D57)
+# The velocity range the dialog takes at first, in km / s from the line center: ±0.5 Å at Si IV 1402.77 (D57)
 VELOCITY_RANGE = (-107.0, 107.0)
 # Samples per irispy call, which copies its input about seven times as float64, and per read of a mean spectrum
 SLAB = 2**21
@@ -48,14 +48,14 @@ def _check(data):
 
 def _ends(centre, velocity_range):
     """
-    The wavelengths, in Angstrom, at ``velocity_range``, a ``(lower, upper)`` pair in km/s from ``centre``, as irispy's
+    The wavelengths, in Angstrom, at ``velocity_range``, a ``(lower, upper)`` pair in km / s from ``centre``, as irispy's
     ``calculate_moments`` takes them, and the words for the range; raises why for velocities that do not increase.
     """
     low, high = velocity_range
     if not low < high:
-        raise ValueError(f"The velocity range, from {low:g} to {high:g} km/s, does not increase.")
+        raise ValueError(f"The velocity range, from {low:g} to {high:g} km / s, does not increase.")
     c = constants.c.to_value(u.km / u.s)
-    words = f"the velocity range, {low:g} to {high:g} km/s from {centre} Å"
+    words = f"the velocity range, {low:g} to {high:g} km / s from {centre} Å"
     return (centre * (1 + low / c), centre * (1 + high / c)), words
 
 
@@ -240,7 +240,7 @@ def line_moments(data, centre, velocity_range=VELOCITY_RANGE, continuum=None, er
         An IRIS raster window of one scan, (raster step, slit, wavelength), or a stack of its scans, (scan, raster
         step, slit, wavelength).
     centre : float
-        The line centre, in Angstrom.
+        The line center, in Angstrom.
     velocity_range : tuple of float
         The ``(lower, upper)`` Doppler velocities of the wavelengths taken, in km / s from ``centre``.
     continuum : sequence of tuple of float, optional
@@ -300,29 +300,29 @@ def _profile_range(data, data_collection):
 
 def _ask(data, drawn=None):
     """
-    The line centre typed for ``data``, at first its `rest_wavelength`, in Angstrom, the velocity range about it, in
-    km/s, the continuum windows, or None for none, in Angstrom, and whether error maps are ticked; or None for a blank
-    centre or Cancel. The velocities stop at the window's wavelengths about a centre within them, at first or typed.
-    With ``drawn``, a Profile range, the velocity range reaches its ends, cut to the window, from a centre within it.
+    The line center typed for ``data``, at first its `rest_wavelength`, in Angstrom, the velocity range about it, in
+    km / s, the continuum windows, or None for none, in Angstrom, and whether error maps are ticked; or None for a blank
+    center or Cancel. The velocities stop at the window's wavelengths about a center within them, at first or typed.
+    With ``drawn``, a Profile range, the velocity range reaches its ends, cut to the window, from a center within it.
     """
     dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
     dialog.setWindowTitle(f"IRIS: line moments of {data.label}")
     form = QtWidgets.QFormLayout(dialog)
     centre = _rest_field(data, "centre")  # D11: never the window's TWAVE
-    form.addRow("Line centre [Å]:", centre)
+    form.addRow("Line center [Å]:", centre)
     wavelengths, _ = _wavelengths(data)
     first, last, c = wavelengths[0], wavelengths[-1], constants.c.to_value(u.km / u.s)
     boxes = []
     for name, value in zip(("from", "to"), VELOCITY_RANGE):
-        box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, minimum=-1e4, maximum=1e4, suffix=" km/s")
+        box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, minimum=-1e4, maximum=1e4, suffix=" km / s")
         box.setValue(value)
         form.addRow(f"Velocities {name}:", box)
         boxes.append(box)
 
     def limit(text):
         """
-        Stop the boxes at the window's first and last wavelengths about ``text``, a centre within them, rounded outwards
-        to the thousandth of a km/s they show: irispy then takes every wavelength a wider range would.
+        Stop the boxes at the window's first and last wavelengths about ``text``, a center within them, rounded outwards
+        to the thousandth of a km / s they show: irispy then takes every wavelength a wider range would.
         """
         try:
             typed = float(text)
@@ -449,7 +449,7 @@ def _start(data_collection, text, failed, function, *args, said=None, add=None):
 @messagebox_on_error("Could not compute line moments")
 def moments_iris(data, data_collection):
     """
-    Add the `line_moments` of ``data`` about a typed line centre, within a typed velocity range, or one to the ends of
+    Add the `line_moments` of ``data`` about a typed line center, within a typed velocity range, or one to the ends of
     the range shown on a Profile of its wavelength, either stopping at the window's wavelengths, less any background
     fitted to typed continuum windows, with their errors if ticked, to the data collection, with its helioprojective
     coordinates linked, and no viewer; offered only for a raster window or stack, and glue shows why for typed values

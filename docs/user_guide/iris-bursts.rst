@@ -23,7 +23,7 @@ In a raster window
 ------------------
 
 irispy's ``find_si_iv_bursts``, a port of SolarSoft's ``iris_burst_check.pro`` (Young et al. 2018),
-averages the wavelengths within the velocities typed, ±50 km/s unless changed, of Si IV 1402.77 Å
+averages the wavelengths within the velocities typed, ±50 km / s unless changed, of Si IV 1402.77 Å
 in each spectrum, over its raster step's exposure time, and finds a burst pixel where the mean
 reaches the threshold and stays below the particle-hit test's factor times their median, 10 unless
 changed ("off" switches the test off). The threshold is in DN/s per wavelength bin of data summed
@@ -83,6 +83,6 @@ coordinates do: a table's ``meta['pointing_offset']`` is the offset they include
 glue's terminal too.
 
 The entry is not offered for slit-jaw images of other bands, other data, or a window with no
-wavelength within ±50 km/s of Si IV 1402.77 Å. Glue says why, and adds nothing, for velocities
+wavelength within ±50 km / s of Si IV 1402.77 Å. Glue says why, and adds nothing, for velocities
 typed that take no wavelength of the window, a threshold that is not a number, and irispy's own
 errors.

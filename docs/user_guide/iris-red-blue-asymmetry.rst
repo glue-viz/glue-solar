@@ -12,7 +12,7 @@ change it. The wavelengths taken below and above it, ±1 Å unless changed, are 
 so a Mg II k window's h line is left out. irispy's ``calculate_red_blue_asymmetry`` interpolates
 each profile about its peak every velocity step and divides the mean of its red wing, from the first
 to the second wing velocity above the peak, less the mean of its blue wing, as far below it, by the
-peak: positive for excess red emission. The wing velocities, 30 to 55 km/s, and the step, 5 km/s,
+peak: positive for excess red emission. The wing velocities, 30 to 55 km / s, and the step, 5 km / s,
 unless changed, are those of SolarSoft's iris_xfiles (its double Gaussian fit,
 ``iris_moment__dgf.pro``). irispy computes the map on a worker thread from the window's DN/s, a slab
 of raster steps of one scan at a time, while glue's status bar says "Computing red-blue asymmetry of
@@ -43,7 +43,7 @@ computes the dataset in glue's terminal too. :ref:`Exporting derived data
 <glue_solar_users_guide_exporting_derived_data>` saves the maps with their coordinates.
 
 The entry is offered for the same data as :ref:`line moments
-<glue_solar_users_guide_iris_line_moments>`. Glue says why, and adds nothing, for the centres line
+<glue_solar_users_guide_iris_line_moments>`. Glue says why, and adds nothing, for the centers line
 moments refuse, and for irispy's own errors, such as wing velocities that do not increase.
 
 .. _glue_solar_users_guide_iris_doppler:
@@ -53,12 +53,12 @@ Doppler images
 
 To map a line's red wing less its blue wing at chosen velocities, as CRISPEX's Doppler images do,
 select a raster window, of one scan or a stack of its scans, and choose "IRIS: Doppler image…" from
-its right-click menu. The rest wavelength starts as above; the velocities, 10, 20, 30, 40, 50 km/s
-unless changed, are any positive velocities in km/s, separated by commas or spaces. At each velocity
+its right-click menu. The rest wavelength starts as above; the velocities, 10, 20, 30, 40, 50 km / s
+unless changed, are any positive velocities in km / s, separated by commas or spaces. At each velocity
 v, each wing is the window's DN/s interpolated linearly at rest × (1 ± v/c), the optical Doppler
-shift, between the two samples about it, and its map, ``red - blue <v> km/s``, is the red wing less
+shift, between the two samples about it, and its map, ``red - blue <v> km / s``, is the red wing less
 the blue: positive where the red wing is brighter, as for a redshift. "(red - blue) / (red + blue)
-too" adds each map over the sum of its wings, ``(red - blue) / (red + blue) <v> km/s``, NaN where a
+too" adds each map over the sum of its wings, ``(red - blue) / (red + blue) <v> km / s``, NaN where a
 wing is not positive. glue computes them on a worker thread, while its status bar says "Computing
 the Doppler image of <label>…", and adds ``<label> Doppler image <rest>`` on the window's raster
 steps and slit pixels, a stack's scans too, each scan at its own wavelengths and coordinates, linked

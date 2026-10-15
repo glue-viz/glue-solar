@@ -293,7 +293,7 @@ def _shown(state):
 
 
 def _sji_frame(state):
-    """The frame a slit-jaw viewer shows, a collapse's centre, or None while it displays the frame axis."""
+    """The frame a slit-jaw viewer shows, a collapse's center, or None while it displays the frame axis."""
     data = state.reference_data
     if data is None or state.x_att is None or state.y_att is None or len(state.slices) != data.ndim:
         return None
@@ -749,7 +749,7 @@ class Coordinator(HubListener):
         return (scan if data.ndim == 4 else step), step
 
     def _slider(self, data, axis, default=0):
-        """The slider of a viewer of ``data`` that does not show ``axis``, at the centre of a collapse."""
+        """The slider of a viewer of ``data`` that does not show ``axis``, at the center of a collapse."""
         for viewer in self._viewers_of(data):
             if axis not in _shown(viewer.state) and len(viewer.state.slices) == data.ndim:
                 index = viewer.state.slices[axis]
@@ -1028,12 +1028,12 @@ def _outline_region(raster, roi, x_axis, y_axis, slices):
     ``roi``, drawn on the pixel axes ``x_axis`` and ``y_axis`` of ``raster`` at ``slices``, as a region of
     helioprojective longitude and latitude.
 
-    Its outline runs within the raster's first and last pixel centres, past which glue's inverse of its coordinates
+    Its outline runs within the raster's first and last pixel centers, past which glue's inverse of its coordinates
     places nothing, and has a corner wherever it crosses a whole step: between steps those coordinates are linear.
     ``raster`` can also be a slit-jaw image, at the frame in ``slices``: across a frame its coordinates are linear to
     1.3e-4 pixel, so the outline has no other corners.
     """
-    margin = 1e-6  # so that pixel centres on the edge, such as another window's of the raster, are inside
+    margin = 1e-6  # so that pixel centers on the edge, such as another window's of the raster, are inside
     box = Bbox([[-margin, -margin], [raster.shape[x_axis] - 1 + margin, raster.shape[y_axis] - 1 + margin]])
     vertices = np.column_stack(roi.to_polygon())
     clipped = Path(np.vstack([vertices, vertices[:1]]), closed=True).clip_to_bbox(box).to_polygons()
@@ -1378,7 +1378,7 @@ def _stretch(data):
 def _raster_panels(app, raster, window, roles=("map", "spectrogram", "wavelength")):
     """
     The map, spectrogram and wavelength panels of the table in the plan, or those of ``roles``, with the point at the
-    map centre.
+    map center.
     """
     _, spectral = _wavelengths(raster)
     wl0 = _line_core(raster)
@@ -1452,7 +1452,7 @@ def quicklook(app, datasets, window=None, main=None):
 
     A raster (or a stack of scans) opens as a map, a spectrogram and a wavelength panel (wavelength
     against step, exposure or scan), each slit-jaw channel in its own viewer, and a spectrum panel
-    showing the mean spectrum of the point. The point starts at the centre of the map, in a new
+    showing the mean spectrum of the point. The point starts at the center of the map, in a new
     subset group 'Point' that is the edit subset while the tab is shown, with the Pixel tool active
     on the map. A read-only 'Point' window below the panels gives the point's pixel, position, time,
     exposure, value and time sync in each dataset they show, and the 'Panels' list beside it turns each
@@ -1607,7 +1607,7 @@ def _fill_sst(app, tab, cube):
     against y through the point; below them the spectrum at the point of each Stokes parameter, or the one spectrum of a
     cube of intensities; and below those wavelength against scan at the point and the light curve at the point over the
     map's wavelength or band. The point, a new subset group 'Point' that is the edit subset while the tab is shown,
-    starts at the map's centre in Stokes I and the first scan, or the scan nearest the time of its observation's time
+    starts at the map's center in Stokes I and the first scan, or the scan nearest the time of its observation's time
     master, such as another cube's in its own quicklook (`Coordinator.following`), with the Pixel tool on the map. The
     spectra and the light curve are subset groups that follow it (`_Cut`): no panel profiles the whole cube. The image
     panels show Q, U and V with limits of their own (`_stokes_limits`). The Point window and the Panels list sit below,
@@ -1675,7 +1675,7 @@ def _fill_sst(app, tab, cube):
 
 def _stokes_limits(layer, slices):
     """
-    Give ``layer``, an SST quicklook image panel's of a cube with Stokes parameters, the colour limits of the Stokes
+    Give ``layer``, an SST quicklook image panel's of a cube with Stokes parameters, the color limits of the Stokes
     parameter of ``slices``: glue's 99.5% over the whole cube for I, and for Q, U and V limits symmetric about 0, the
     99.5th percentile of the parameter's absolute values in 16 planes of it, as glue's sample is taken
     (`~glue_solar.sources.sst._Cube`), where glue's over the whole cube, I's values mostly, showed them flat (230-6);
@@ -1712,7 +1712,7 @@ def _switch(viewer):
     Make the window of ``viewer``, a quicklook's spectrum panel of another window, the quicklook's main window: open the
     quicklook again in its tab, in place of its viewers, as `quicklook` opens it with that window as ``main``, with its
     point's group, the point at the same pixel of that window, the time master at the same frame, exposure, step or
-    scan, the colours of each Image panel that shows the same data on the same axes again, and their axes if the Axes
+    scan, the colors of each Image panel that shows the same data on the same axes again, and their axes if the Axes
     box was ticked; every panel shows, the Panels list's other choices left behind. The links stay, as do the viewers
     added to the tab but the path diagrams drawn on a panel, which close with it.
     """
@@ -2148,7 +2148,7 @@ def _point_curves(viewer):
         curve = Data(label=label, Time=times, Value=values)
         curve.get_component("Value").units = source.get_component(source.main_components[0]).units
         curve.meta = {name: source.meta[name] for name in ("OBSID", "STARTOBS")}
-        curve.style.color = to_hex(f"C{i % 10}")  # glue gives every dataset the same grey
+        curve.style.color = to_hex(f"C{i % 10}")  # glue gives every dataset the same gray
         follower.curves.append((curve, source, wavelength))
     follower.pixel = pixel
     curves = [curve for curve, *_ in follower.curves]
@@ -2174,7 +2174,7 @@ def _point_curves(viewer):
     return plot
 
 
-# the raster panels' lines, the last on top: the point's thin, in the colour of glue's crosshair, the others as a
+# the raster panels' lines, the last on top: the point's thin, in the color of glue's crosshair, the others as a
 # slit-jaw image's slit
 _LINES = {
     "wavelength": dict(color="white", lw=0.8, ls="--"),
@@ -2217,7 +2217,7 @@ class _SpectralLines(QObject):
     spectrogram, its step, exposure or scan on the wavelength panel. One showing wavelength against step, exposure or
     scan, the wavelength panel, also has a dashed white line at the wavelength of each raster panel with a wavelength
     slider, the map, and a dotted white line at the step, exposure or scan nearest the time master's time, hidden when
-    none is within half its cadence. The spectrum panel has a dashed grey line at each of those wavelengths, in its x
+    none is within half its cadence. The spectrum panel has a dashed gray line at each of those wavelengths, in its x
     unit, while its x axis is the raster's wavelength or wavelength pixel; whenever its x range changes, the wavelength
     panel takes it. The lines follow the point, the time master, the sliders, axis changes and the x unit, and are
     plain matplotlib lines: 'Save plot' shows them, and sessions and Python scripts leave them out.
@@ -2389,7 +2389,7 @@ def _draw_in_sight(canvas, tab):
     matplotlib's deferred draw of ``canvas``, a quicklook panel's in ``tab``, unless the panel is shown in the tab but
     out of sight, such as in a row scrolled below the tab's view, in a tab behind another or in a window not yet shown,
     which matplotlib would draw at every step and move all the same: its draw then stays due, and Qt's paint of it once
-    in sight makes it, as it is then. A panel hidden itself, turned off, minimised or closed, which no paint may follow,
+    in sight makes it, as it is then. A panel hidden itself, turned off, minimized or closed, which no paint may follow,
     draws at once as before.
     """
     try:

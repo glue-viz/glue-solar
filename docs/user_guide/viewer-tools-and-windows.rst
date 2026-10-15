@@ -24,7 +24,7 @@ diagram" below; the link icon is the "Coordinate" menu, with "Time master", "Go 
 "Light curves of the shown windows and SJI", "Row at the point" and "Column at the point", and its
 "Blink" submenu, with "Set blink partner here", "Blink" and "Blink interval"; and
 the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Wavelength
-band…", "Physical aspect", "Zoom 1:1", "Colour bar", "Raster overlays" and "Cursor readout", each
+band…", "Physical aspect", "Zoom 1:1", "Color bar", "Raster overlays" and "Cursor readout", each
 but "Zoom 1:1" checked while it is on.
 After a View or Coordinate entry the mouse mode, such as Pixel, stays on. Resting the mouse on a
 menu entry shows its tooltip, in glue's save and window menus too, and a menu shows an entry's
@@ -66,8 +66,8 @@ toolbar has:
 - "Measure", a glue-solar mode (:kbd:`U`, "Drag a line to measure its length in pixels, arcsec and km"): drag a
   line on the image, and the status bar gives its length in data pixels, on the sky in arcsec, the
   great-circle angle between the world coordinates at its ends, and in km, that angle at the
-  observer's distance from the Sun's centre, the data's ``DSUN_OBS``. The km are a length in the
-  plane of the sky through the Sun's centre, 713 to 737 km per arcsec through the year, with no
+  observer's distance from the Sun's center, the data's ``DSUN_OBS``. The km are a length in the
+  plane of the sky through the Sun's center, 713 to 737 km per arcsec through the year, with no
   correction for foreshortening on the disk. For example, a 100-pixel line on a slit-jaw image of
   OBSID 4000255147 reads ``Length 100.0 px · 16.64" · 12,172 km``. On axes other than a longitude
   and a latitude alone, such as a spectrogram, a slit-jaw image's x against time or a sit-and-stare
@@ -96,7 +96,7 @@ toolbar has:
     the even one; NaN beyond the outer pixels' edges.
   - "Linear": bilinear between the four pixels around the sample, as ``map_coordinates`` with
     ``order=1`` and ``mode="constant"``, exact where the data change linearly across the image; NaN
-    where any of the four is NaN or off the data, so beyond the outer pixels' centres. ``Time`` is
+    where any of the four is NaN or off the data, so beyond the outer pixels' centers. ``Time`` is
     the nearest pixel's: times are never interpolated.
 
   A diagram sampled "Nearest" or "Linear" says so in its name, such as ``... [slice 2, linear]``.
@@ -152,7 +152,7 @@ toolbar has:
   distance-time diagram, then press Enter for its speed"): on a diagram with one time on each row,
   a slit-jaw image's frames or a sit-and-stare raster's exposures against the path, click points
   along a feature's track, or drag along it, and press Enter (Esc clears the points). The status bar
-  gives the speed along the path at the earliest point, in km/s, positive away from the path's start:
+  gives the speed along the path at the earliest point, in km / s, positive away from the path's start:
   of the straight line through the distances against time of points at two times, or, with three
   times or more, of the least-squares parabola through them, which also gives the acceleration in
   m/s². A distance is the length along the path from its first sample, measured as "Measure"
@@ -172,9 +172,9 @@ toolbar has:
   coordinates, such as a stack's scan or a Carrington longitude, are as on their ticks. Where the
   image shows the wavelength of a window with a
   :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`, the Doppler velocity from it
-  follows the position, in km/s to 0.1 km/s, as the Profile's
+  follows the position, in km / s to 0.1 km / s, as the Profile's
   :ref:`velocity axis <glue_solar_users_guide_iris_velocity>` gives it, for example
-  ``1402.701 Å 63.91" 105.68" (world) · -14.7 km/s · 2013-09-02T17:19:13.239 UTC · exp 2 s | value = 19.25``
+  ``1402.701 Å 63.91" 105.68" (world) · -14.7 km / s · 2013-09-02T17:19:13.239 UTC · exp 2 s | value = 19.25``
   on a Si IV 1403 spectrogram of OBSID 4000255147. It follows "IRIS: set rest wavelength…"; a
   window without a rest wavelength, such as ``2832``, and a map, whose wavelength is the slider's,
   show none. Press W over the image to switch between world and pixel positions; the entry hides
@@ -193,7 +193,7 @@ toolbar has:
   of glue's settings file, ``~/.glue/settings.cfg``, or type
   ``from glue.config import settings; settings.SOLAR_SHOW_AXES = False`` in glue's terminal for the
   rest of the session ("OK" in glue's Preferences then saves it to that file).
-- "Per-frame limits", in the View menu: takes the colour limits of the displayed dataset from the
+- "Per-frame limits", in the View menu: takes the color limits of the displayed dataset from the
   displayed slice, at the layer's percentile (99.5 % on the quicklook panels), so each slice step,
   such as a wavelength step of a raster map, gets that slice's limits; choose it again for the whole
   cube's limits. Layers of other datasets keep theirs, and choosing another reference data in the
@@ -201,10 +201,10 @@ toolbar has:
   style editor change with each step while it is on. A session saved with it on does not open
   (see `Saving sessions`_).
 - "Wavelength band…", in the View menu: shows a raster map as the mean, NaN left out, of a band of 5,
-  9 or 15 wavelength pixels centred on the wavelength slider, or with 1 the slider's wavelength alone
+  9 or 15 wavelength pixels centered on the wavelength slider, or with 1 the slider's wavelength alone
   again. The band is the Profile viewer's Collapse with Mean (see :ref:`Band maps
   <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`), cut at the ends of the window, so 5 pixels
-  at pixel 1 average pixels 0 to 3; the slider shows its centre. Unlike a Collapse it follows the
+  at pixel 1 average pixels 0 to 3; the slider shows its center. Unlike a Collapse it follows the
   slider: a drag, A and S, scan and step moves and the time sync keep it, and a Pixel click on a
   quicklook's spectrogram or wavelength panel moves it to the clicked wavelength. It is offered
   while a wavelength axis has a slider, so not on a spectrogram or wavelength panel. Each step
@@ -214,7 +214,7 @@ toolbar has:
 - "Physical aspect", in the View menu: shows the image in its proportions on the sky, an arcsecond
   as long on screen along x as along y, and chosen again, with the aspect it had. It sets the
   aspect in the viewer's options to "Square Pixels", scaled by the ratio of
-  the arcseconds a pixel spans along y and along x, on average across the image through the centre
+  the arcseconds a pixel spans along y and along x, on average across the image through the center
   of the view, so that a raster map of 2″ steps along a slit of 0.17″ pixels shows each step 12
   times as wide as a slit pixel is tall, wherever the view is. Resizing, zooming, panning and the
   sliders keep the proportions, and choosing other x or y axes shows the new image whole, in its
@@ -223,7 +223,7 @@ toolbar has:
   against time. Choosing "Automatic" in the viewer's options switches it off too. Chosen again on
   a quicklook raster panel, whose aspect is "Automatic", the image fills the panel again, keeping a
   zoom. A saved session restores the viewer with "Square Pixels".
-- "Zoom 1:1", in the View menu: zooms about the centre of the view so that one pixel of the displayed
+- "Zoom 1:1", in the View menu: zooms about the center of the view so that one pixel of the displayed
   dataset spans one pixel of the screen, along whichever axes are shown, wavelength included;
   "Home" (H) shows the whole image again. A screen pixel is a physical
   one, so on a HiDPI (Retina) screen the image shows at half the size it would in the screen's
@@ -231,11 +231,11 @@ toolbar has:
   of 2″ steps along a slit of 0.17″ pixels, 12 slit pixels share each screen pixel. glue draws an
   image through a buffer of 72 dots per inch, so at 1:1 it shows only some of the rows and columns,
   72 of every 100 at matplotlib's 100 dots per inch and 36 on a HiDPI screen.
-- "Colour bar", in the View menu: shows a colour bar right of the image, from one colour limit of the
+- "Color bar", in the View menu: shows a color bar right of the image, from one color limit of the
   displayed dataset (the viewer's reference data) to the other, with value ticks, and chosen again
-  hides it. Its colours are glue's own for that dataset's layer, so it
+  hides it. Its colors are glue's own for that dataset's layer, so it
   follows the limits, "Per-frame limits" included, the stretch, the contrast and bias, the colormap,
-  or the colour in "One color per layer" mode, and the sliders. The image narrows to make room for
+  or the color in "One color per layer" mode, and the sliders. The image narrows to make room for
   it, keeping "Square Pixels" and "Physical aspect", and "Save plot to file" saves the bar with the
   image. "Save Python script to reproduce plot" and saved sessions leave it out. The bar and its
   ticks stay when "Hide axes" is on.
@@ -256,12 +256,12 @@ toolbar has:
   other viewers follow, and the slit, the point and the raster overlays are drawn as they then show.
   glue stays usable while it saves: a frame is saved at each turn of glue's event loop, ffmpeg
   encodes an MP4 as they come, and a GIF is encoded in the background once they are all saved,
-  while the status bar says ``Saving sji.gif…``. The viewer, its options and its layers are greyed,
+  while the status bar says ``Saving sji.gif…``. The viewer, its options and its layers are grayed,
   and its window can be neither moved nor resized, until the last frame is saved; the other
   viewers and tabs stay usable, and what they change in the viewer,
   such as the point or the time master's time, shows in the frames saved after. One viewer saves
   at a time.
-  Every frame has the same colour limits:
+  Every frame has the same color limits:
   with "Per-frame limits" on, the whole cube's. Ticking "UTC time on each frame", under the indices,
   draws each frame's time at the lower left of the plot, in white edged in black, the "Frame time"
   readout's time, to 0.01 s (``2013-09-02T16:39:39.66 UTC``): a raster step's or
@@ -285,7 +285,7 @@ plotted range (Mg II k, h and the triplet, C II, Si IV, O I, Fe XII and Fe XXI, 
 wavelengths), in the axis's unit, with lines too close to tell apart sharing a label. They start on,
 and the button, checked while they show, hides or shows them. Its "Velocity axis" button shows or
 hides a top axis of the :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>` from the
-window's rest wavelength; it is checked while on and greyed while the x axis is not the wavelength
+window's rest wavelength; it is checked while on and grayed while the x axis is not the wavelength
 of data with a rest wavelength. A quicklook's spectrum panel of a window other than its main one
 also gets "Show this window's panels" (the triangle icon right after "Zoom"), which gives that window
 the map, spectrogram and wavelength panels (see :ref:`The quicklook
@@ -302,7 +302,7 @@ gamma of 0.5.
 Windows and keys
 ----------------
 
-Each viewer is a window in the current tab, with its own minimise, maximise and close buttons. The
+Each viewer is a window in the current tab, with its own minimize, maximize and close buttons. The
 "Canvas" menu has "New Data Viewer" (Ctrl+N), "New Tab" (Ctrl+T), "Gather Windows" (Ctrl+G), which
 places the tab's viewers side by side, and "Rename Tab" (Ctrl+R); on macOS these use Cmd. Backspace
 closes the active viewer after asking "Do you want to close this window?" if it is an Image viewer,
@@ -385,7 +385,7 @@ hidden.
   which glue shows on the grid through them, as "IRIS: link helioprojective coordinates" links them;
   its time and frames are linked with the image's only, which glue needs to place each frame.
 - The grid belongs to no observation, so time sync, the point and the raster overlays leave its
-  viewer alone. "Per-frame limits" and "Colour bar", which take the viewer's reference data, act on
+  viewer alone. "Per-frame limits" and "Color bar", which take the viewer's reference data, act on
   the hidden grid rather than the image, and "Cursor readout" gives no value: set the image's
   limits in its layer's style editor.
 - In glue's terminal, ``glue_solar.regrid.north_up_iris(data, dc)`` does the same, and
@@ -405,11 +405,11 @@ dataset and of those made from them, with any pointing offset set with "IRIS: sh
 colormap each opens in, their metadata, and the helioprojective links of the observation browser
 and "IRIS: link helioprojective coordinates", a stack's scans and sunpy maps included. Data read
 from their files as they are viewed take their coordinates and metadata from the files again, so
-the session holds little more than their offset; the others lose the time and field-of-view centre
+the session holds little more than their offset; the others lose the time and field-of-view center
 irispy gives each raster step (``auxiliary times`` and ``exposure FOV center``), which neither UV
 bursts nor the radiometric calibration need. Each viewer opens again with its slices, a wavelength
 band included, and its colormaps, and a Profile viewer, such as a quicklook's spectrum panel, with
-its x axis, "x unit" (km/s too) and range. Each quicklook adds its viewers, point and time master:
+its x axis, "x unit" (km / s too) and range. Each quicklook adds its viewers, point and time master:
 one of 4000255147's Si IV 1403 window and slit-jaw image, read as they are viewed, saves a 33 kB
 session (151 kB with all nine windows) in under 0.1 s, and with a stack of the eight scans of
 3400109360's Si IV 1403 window in a second quicklook, 85 kB, which opens in about 3 s and, saved

@@ -284,7 +284,7 @@ def test_an_aia_map_session_restores_its_colormap(qtbot, monkeypatch, tmp_path):
     restored = GlueApplication.restore_session(str(tmp_path / "aia.glu"))
     qtbot.addWidget(restored)
     assert restored.data_collection[0].style.preferred_cmap.name == "sdoaia171"  # glue's restore drops it
-    # its colours: glue's menu shows the first sunpy colormap of the same colours, here GOES-R SUVI 171's
+    # its colors: glue's menu shows the first sunpy colormap of the same colors, here GOES-R SUVI 171's
     assert restored.viewers[0][0].layers[0].state.cmap == cmlist["sdoaia171"]
 
 
@@ -371,7 +371,7 @@ def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_mo
             if cid not in data.coordinate_components:
                 np.testing.assert_array_equal(data[cid], expected[expected_cid])
         assert_same_coordinates(data.coords, expected)
-        # glue's restore of a Data, with irispy's metadata and the class whose colour limits count the raw values
+        # glue's restore of a Data, with irispy's metadata and the class whose color limits count the raw values
         assert type(data) is LazyData
         assert type(data.meta) is type(expected.meta)
         assert data.meta.keys() == expected.meta.keys()
@@ -421,7 +421,7 @@ def test_a_quicklook_session_stays_small_and_opens(qtbot, monkeypatch, tmp_path,
 
 
 def slices(state):
-    """An Image viewer's slices, a band (`AggregateSlice`) as its range, centre and function."""
+    """An Image viewer's slices, a band (`AggregateSlice`) as its range, center and function."""
     return [(s.slice, s.center, s.function.__name__) if isinstance(s, AggregateSlice) else s for s in state.slices]
 
 
@@ -704,7 +704,7 @@ def test_two_quicklooks_restore_twice_from_their_files(qtbot, monkeypatch, tmp_p
     sns["map"].toolbar.tools["solar:band"].activate()  # a band of five wavelengths
     sns["sji"][1].layers[0].state.cmap = cmlist["irissji1400"]
     stack[0].layers[0].state.cmap = colormaps["viridis"]
-    sns["spectrum"].state.x_display_unit = "km/s"
+    sns["spectrum"].state.x_display_unit = "km / s"
     [spectrum, *_] = [viewer for viewer in stack if isinstance(viewer, ProfileViewer)]
     spectrum.state.x_display_unit = "nm"
     session = tmp_path / "first.glu"

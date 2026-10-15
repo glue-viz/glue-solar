@@ -208,7 +208,7 @@ def _world_position(axes, x, y, keep=None, rest=None):
     window, of 0.025 Å pixels); other coordinates, such as a right ascension or a Carrington longitude, keep WCSAxes'
     text. Given ``keep``, one of the coordinates of ``axes``, the other angles are left out. Given ``rest``, a rest
     wavelength in Å, the Doppler velocity of the wavelength shown follows, as the Profile's velocity axis gives it
-    (`~glue_solar.lines.VelocityTool`), in km/s to 0.1 km/s.
+    (`~glue_solar.lines.VelocityTool`), in km / s to 0.1 km / s.
     """
     world = axes.coords[0].transform.transform(np.array([[x, y]]))[0]
     wavelength = axes.coords["em.wl"] if rest is not None and "em.wl" in axes.coords else None  # by physical type
@@ -220,7 +220,7 @@ def _world_position(axes, x, y, keep=None, rest=None):
             continue
         value = world[coord.coord_index] * coord.coord_unit
         if coord is wavelength:
-            velocity = f" · {value.to_value(KM_S, u.doppler_optical(rest * u.AA)):z.1f} km/s"
+            velocity = f" · {value.to_value(KM_S, u.doppler_optical(rest * u.AA)):z.1f} {KM_S}"
         if coord.get_format_unit() == u.arcsec:
             angle = Angle(value) if coord.coord_wrap is None else Angle(value).wrap_at(coord.coord_wrap)
             texts.append(_world_text(angle))
@@ -292,7 +292,7 @@ def _hide_flat_angles(axes, shape):
         for coord in angles:
             coord.set_ticklabel_position("")
         return
-    x, y = (np.linspace(0, n - 1, 64) for n in shape)  # -TAB rasters have no coordinates past the outer centres
+    x, y = (np.linspace(0, n - 1, 64) for n in shape)  # -TAB rasters have no coordinates past the outer centers
     pixel = np.concatenate([
         np.column_stack([x, np.zeros(64)]), np.column_stack([x, np.full(64, shape[1] - 1)]),
         np.column_stack([np.zeros(64), y]), np.column_stack([np.full(64, shape[0] - 1), y]),
@@ -348,7 +348,7 @@ class FrameTimeTool(Tool, HubListener):
     ``Exposure time`` component also show it, and an SJI frame's pointing is in the tooltip. For an IRIS observation
     the readout also says which dataset is the time master (with its timing step for a raster), the
     signed offset of a matched follower's time from the master's, or NO MATCH with that offset,
-    when the follower keeps its frame and is greyed.
+    when the follower keeps its frame and is grayed.
 
     The tool exists for every Image viewer, so it also throttles the viewer's slice sliders, labels
     a displayed sit-and-stare exposure axis 'Exposure (acquisition order)' with the UTC range of its
@@ -380,7 +380,7 @@ class FrameTimeTool(Tool, HubListener):
         self.label = QtWidgets.QLabel()
         self.label.setContentsMargins(0, 0, 12, 0)  # keep clear of the window edge and size grip
         viewer.statusBar().addPermanentWidget(self.label)
-        # greys a follower with no frame near the time master's
+        # grays a follower with no frame near the time master's
         self._grey = viewer.axes.add_patch(
             Rectangle((0, 0), 1, 1, transform=viewer.axes.transAxes, color="0.6", alpha=0.6, zorder=1000, visible=False)
         )
@@ -543,7 +543,7 @@ def _pointing(meta, frame):
         return ""
     return (
         f"PZT offset {meta['pztx'][frame]:.2f}″, {meta['pzty'][frame]:.2f}″; "
-        f"FOV centre {meta['xcenix'][frame]:.2f}″, {meta['ycenix'][frame]:.2f}″; "
+        f"FOV center {meta['xcenix'][frame]:.2f}″, {meta['ycenix'][frame]:.2f}″; "
         f"slit at x = {meta['slit x position'][frame]:.1f} px"
     )
 
@@ -671,7 +671,7 @@ class HideAxesTool(Tool):
 @viewer_tool
 class PerFrameLimitsTool(Tool):
     """
-    Take the colour limits of the Image viewer's reference data from the displayed slice, so each slice step, such as
+    Take the color limits of the Image viewer's reference data from the displayed slice, so each slice step, such as
     a wavelength step of a raster map, gives that slice's limits, or again from the whole cube.
 
     Its entry switches glue's own ``stretch_global`` of each layer of the reference data, which glue-qt 0.4.2 has no
@@ -687,7 +687,7 @@ class PerFrameLimitsTool(Tool):
     icon = "glue_rainbow"
     tool_id = "solar:per_frame_limits"
     action_text = "Per-frame limits"
-    tool_tip = "Take the colour limits from the displayed slice, or again from the whole cube"
+    tool_tip = "Take the color limits from the displayed slice, or again from the whole cube"
 
     def __init__(self, viewer):
         super().__init__(viewer)
@@ -815,7 +815,7 @@ def _sky_coords(viewer):
 def _arcsec_ratio(viewer):
     """
     The angle a pixel spans along the viewer's y axis over the angle it spans along x, on average across the image
-    through the view centre, or None off the sky (`_sky_coords`). Averaged between the outer pixel centres, since -TAB
+    through the view center, or None off the sky (`_sky_coords`). Averaged between the outer pixel centers, since -TAB
     rasters have no coordinates past them and their steps differ by up to 15 % from one to the next.
     """
     state, angles = viewer.state, _sky_coords(viewer)
@@ -929,7 +929,7 @@ class PhysicalAspectTool(Tool):
 @viewer_tool
 class ZoomOneToOneTool(Tool):
     """
-    Zoom the Image viewer about the view centre so that one pixel of its reference data along x spans one screen pixel.
+    Zoom the Image viewer about the view center so that one pixel of its reference data along x spans one screen pixel.
 
     A screen pixel is a device pixel, as matplotlib's display coordinates are: on a HiDPI screen, with a device pixel
     ratio of 2, the image shows at half its size in Qt's logical pixels. glue's x and y limits are in the pixels of
@@ -942,7 +942,7 @@ class ZoomOneToOneTool(Tool):
 
     tool_id = "solar:zoom_1_1"
     action_text = "Zoom 1:1"
-    tool_tip = "Zoom about the view centre to one data pixel per screen pixel"
+    tool_tip = "Zoom about the view center to one data pixel per screen pixel"
 
     def activate(self):
         state, box = self.viewer.state, self.viewer.axes.bbox  # in device pixels
@@ -956,14 +956,14 @@ class ZoomOneToOneTool(Tool):
         _keep_mouse_mode(self.viewer)
 
 
-# A colour bar's gap from the Image viewer's axes and width, and the room it takes with its ticks, in inches
+# A color bar's gap from the Image viewer's axes and width, and the room it takes with its ticks, in inches
 _BAR = (0.1, 0.15)
 _BAR_ROOM = 0.9
 
 
 class _ColourBarAxes(Axes):
     """
-    The axes of a colour bar, which take the colours of the viewer's reference data from glue's own image as they draw:
+    The axes of a color bar, which take the colors of the viewer's reference data from glue's own image as they draw:
     whatever glue draws the image with, they draw the bar with.
     """
 
@@ -979,7 +979,7 @@ class _ColourBarAxes(Axes):
         layer = None if artist is None else artist.composite.layers.get(artist.uuid)
         if layer is None:
             return
-        # glue's limits, contrast and bias, stretch and colormap, or colour, on the values from one limit to the other
+        # glue's limits, contrast and bias, stretch and colormap, or color, on the values from one limit to the other
         bar = CompositeArray()
         bar.mode, bar.cmap_bad = artist.composite.mode, artist.composite.cmap_bad
         bar.allocate("bar")
@@ -1000,19 +1000,19 @@ class _ColourBarAxes(Axes):
 @viewer_tool
 class ColourBarTool(Tool):
     """
-    Show or hide a colour bar right of the Image viewer's image: the colours of its reference data from one colour
+    Show or hide a color bar right of the Image viewer's image: the colors of its reference data from one color
     limit to the other, with value ticks.
 
-    The bar takes glue's own colouring of the reference data's layer as it draws (`_ColourBarAxes`), so it follows
-    the limits, per frame too, the stretch, contrast and bias, the colormap, or the colour in 'One color per layer'
+    The bar takes glue's own coloring of the reference data's layer as it draws (`_ColourBarAxes`), so it follows
+    the limits, per frame too, the stretch, contrast and bias, the colormap, or the color in 'One color per layer'
     mode, and the slices; it is part of the figure, so saved plots show it. Its room comes from the axes, as from a
     resize, so 'Square Pixels' and 'Physical aspect' keep their proportions. A plain tool, as 'Hide axes' is, which
     leaves the mouse mode on.
     """
 
     tool_id = "solar:colour_bar"
-    action_text = "Colour bar"
-    tool_tip = "Show or hide a colour bar of the displayed data's colours"
+    action_text = "Color bar"
+    tool_tip = "Show or hide a color bar of the displayed data's colors"
 
     def __init__(self, viewer):
         super().__init__(viewer)
@@ -1020,7 +1020,7 @@ class ColourBarTool(Tool):
 
     @property
     def checked(self):
-        """Whether the colour bar shows, as the View menu entry's check mark says."""
+        """Whether the color bar shows, as the View menu entry's check mark says."""
         return self.bar is not None and self.bar.get_visible()
 
     def activate(self):
@@ -1034,7 +1034,7 @@ class ColourBarTool(Tool):
             self.bar.imshow(np.zeros((1, 1, 4)), origin="lower", aspect="auto", interpolation="nearest")
             self.bar.set_xticks([])
             self.bar.yaxis.tick_right()
-            update_appearance_from_settings(self.bar)  # glue's colours for its axes
+            update_appearance_from_settings(self.bar)  # glue's colors for its axes
         shown = not self.bar.get_visible()
         self.bar.set_visible(shown)
         left, right, bottom, top = axes.resizer.margins  # glue's, in inches
@@ -1079,7 +1079,7 @@ def sky_length(viewer, x, y):
     The length of the line through the points ``x``, ``y`` (two or more) of the Image viewer's displayed axes, as
     ``(pixels, arcsec, km)``: in data pixels; on the sky, the great-circle angles between the world coordinates at the
     ends of its segments, added up; and on the Sun, that angle in radians times the reference data's ``DSUN_OBS``, the
-    observer's distance from the Sun's centre: a length in the plane of the sky through the Sun's centre, with no
+    observer's distance from the Sun's center: a length in the plane of the sky through the Sun's center, with no
     correction for foreshortening. The arcsec are None off the sky (`_sky_coords`) or past the outer steps of a -TAB
     raster, which has no coordinates there; the km also without ``DSUN_OBS``.
     """
@@ -1663,7 +1663,7 @@ def _track(viewer, x, y):
     The motion along the path of a feature whose track passes through the points ``x, y`` (two or more) of the Image
     viewer's `PathData` diagram, shown with the path along x and one ``Time`` on each row, as a slit-jaw image's frames
     against its path: the times of the earliest and latest points, their distances along the path in km, and the speed
-    along the path in km/s at the earliest point and the acceleration in m/s², of the least-squares straight line
+    along the path in km / s at the earliest point and the acceleration in m/s², of the least-squares straight line
     through the distances against time of points at two times, with NaN acceleration, or parabola through points at
     three or more. A distance is that from the path's first sample, measured as `sky_length` measures, on the data's
     coordinates at the point's row. None unless each point is on a row of one time with sky coordinates and the data
@@ -1703,7 +1703,7 @@ def _track(viewer, x, y):
 
 
 # The columns of a diagram's table of slopes
-_SLOPES = ("t0 (UTC)", "t1 (UTC)", "d0 (km)", "d1 (km)", "speed (km/s)", "acceleration (m/s²)")
+_SLOPES = ("t0 (UTC)", "t1 (UTC)", "d0 (km)", "d1 (km)", "speed (km / s)", "acceleration (m/s²)")
 
 
 @viewer_tool
@@ -1761,7 +1761,7 @@ class SlopeTool(PathMode):
             self.label.setText("No speed here" if len(x) > 1 else "")
             return None
         speed, acceleration = motion[-2:]
-        text = f"Speed {speed:,.2f} km/s"
+        text = f"Speed {speed:,.2f} km / s"
         self.label.setText(text if np.isnan(acceleration) else f"{text} · acceleration {acceleration:,.1f} m/s²")
         return motion
 
@@ -2111,7 +2111,7 @@ class _LoopEntry(_CoordinateEntry):
 def _ask_range(viewer, title, slider, *rows):
     """
     The first and last index of ``slider``, a glue-qt slice slider, typed in a dialog that opens on its loop (Loop…)
-    or else its whole range, or None if the dialog is cancelled; ``±N`` (or ``+-N``) types the N indices either side
+    or else its whole range, or None if the dialog is canceled; ``±N`` (or ``+-N``) types the N indices either side
     of the current one, cut to 0 and the last. ``rows``, each the arguments of a ``QFormLayout.addRow``, go below; read
     their widgets as soon as this returns.
     """
@@ -2152,7 +2152,7 @@ def _place_scale_bar(viewer, line, label):
     """
     Put ``line`` and ``label``, in data x and axes y, at the Image viewer's lower right, as a scale bar ending at 95 %
     of the axes' width: the largest of `_SCALE_BARS` the right quarter of the view spans, at the angle an x pixel
-    spans on the sky (`sky_length`) at the slice shown, on average across the image through the view centre, as
+    spans on the sky (`sky_length`) at the slice shown, on average across the image through the view center, as
     `_arcsec_ratio` takes it, so a rolled or stretched image gets it too; hidden off the sky.
     """
     state, axes = viewer.state, viewer.axes
@@ -2188,8 +2188,8 @@ class SaveSequenceTool(Tool):
     master's, stops; the slider moves as in playback, a frame at each turn of the event loop, so glue stays usable, and
     each frame is saved once Qt has run the time sync, so the other viewers follow and the overlays are drawn. ffmpeg
     encodes an MP4 in its own process as the frames come; the writer's finish, which waits for ffmpeg or encodes the
-    GIF, runs on glue-qt's `Worker`. The viewer and its options are greyed, and per-frame limits off, during the run,
-    so every frame has the same colour limits; one viewer saves at a time. Ticked in the range dialog, 'UTC time on
+    GIF, runs on glue-qt's `Worker`. The viewer and its options are grayed, and per-frame limits off, during the run,
+    so every frame has the same color limits; one viewer saves at a time. Ticked in the range dialog, 'UTC time on
     each frame' draws the frame's time (`_frame_time`, to 0.01 s) at the image's lower left during the run only, 'Frame
     numbers' the slider's index and last index at its upper left (``frame 7/399``), and 'Scale bar' a bar of a round
     length in arcsec at its lower right (`_place_scale_bar`), or, where the displayed axes are not a longitude and a
@@ -2272,10 +2272,10 @@ class SaveSequenceTool(Tool):
         elif scaled:
             where = blended_transform_factory(viewer.axes.transData, viewer.axes.transAxes)
             edged = {"color": "white", "path_effects": [withStroke(linewidth=5, foreground="black")]}
-            # unsnapped, its ends where measured, not on pixel centres
+            # unsnapped, its ends where measured, not on pixel centers
             line = Line2D([], [], lw=3, solid_capstyle="butt", snap=False, transform=where, **edged)
             bar = viewer.axes.add_line(line), viewer.axes.text(0, 0, "", ha="center", transform=where, **style)
-        # greyed, so that only the run moves the slider and changes the view: its sub-window too, which then cannot be
+        # grayed, so that only the run moves the slider and changes the view: its sub-window too, which then cannot be
         # resized, as frames after a resize would all be the image at it
         held = viewer.parent(), viewer.options_widget(), viewer.layer_view()
         steps = enumerate(indices, 1)
@@ -2304,7 +2304,7 @@ class SaveSequenceTool(Tool):
             for layer in per_frame:
                 layer.stretch_global = False
             canvas.manager = manager
-            # ponytail: the size at the start; a resize from outside the greyed sub-window (Tile, or the main window's
+            # ponytail: the size at the start; a resize from outside the grayed sub-window (Tile, or the main window's
             # with it maximized) is not stopped and still freezes the frames after it: end the save at a size change
             figure.set_size_inches(size, forward=False)
             canvas.draw_idle()
@@ -2942,6 +2942,6 @@ class ViewTool(_ToolMenu):
     icon = "glue_settings"
     tool_id = "solar:view"
     tool_tip = (
-        "View: frame time, axes, colour limits, wavelength band, aspect, zoom, colour bar, raster overlays and cursor "
+        "View: frame time, axes, color limits, wavelength band, aspect, zoom, color bar, raster overlays and cursor "
         "readout"
     )

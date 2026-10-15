@@ -48,10 +48,10 @@ write down whether it does, and close it with either button.
 5. Run ``glue --startup=iris_quicklook $T/sns/*.fits``. glue opens a tab with the quicklook of OBSID
    3620258102: the map (slit against time), the spectrogram and wavelength against time in the top
    row, and the SJI 1330, 1400, 2796 and 2832 viewers and the spectrum panel in the bottom row, side
-   by side without overlapping. The Pixel tool is active on the map, the point is at its centre and
+   by side without overlapping. The Pixel tool is active on the map, the point is at its center and
    the spectrum panel shows its spectrum. The fixture's slit-jaw frames are minutes apart, and SJI
-   1330, 1400 and 2796 have none within half their cadence of the centre exposure: these three keep
-   their first frame under a grey veil, and their "Frame time" readouts are grey and end with
+   1330, 1400 and 2796 have none within half their cadence of the center exposure: these three keep
+   their first frame under a gray veil, and their "Frame time" readouts are gray and end with
    "NO MATCH Δt = …"; SJI 2832 shows its nearest frame. The terminal shows no traceback; write down
    any warning it prints, such as a font alias warning on macOS.
 
@@ -137,7 +137,7 @@ collection and the plot layers.
     "Play forwards" again: playback runs twice as fast. Press "Stop the playback".
 
 20. Choose "Time master" in the "Coordinate" menu of SJI 1330 and play its ``Time (Utc)`` slider.
-    The spectrogram's exposure follows each frame, and the other slit-jaw viewers follow or grey out
+    The spectrogram's exposure follows each frame, and the other slit-jaw viewers follow or gray out
     with NO MATCH. While it plays, close the SJI 1330 viewer with its window's close button, and
     confirm if asked. Playback stops and the terminal shows no traceback. Click the map: the raster
     is the time master again, and the raster panels' "Frame time" readouts say "time master".
@@ -145,7 +145,7 @@ collection and the plot layers.
 Coordinate menu and mouse mode
 ------------------------------
 
-21. On the map of item 6, with the Pixel tool active, click the toolbar button labelled "Coordinate"
+21. On the map of item 6, with the Pixel tool active, click the toolbar button labeled "Coordinate"
     and choose "Time master", then click it again and choose "Clear point" in its "Point" submenu.
     The menu opens under the button as soon as you press it, and closes after the choice; resting
     the mouse on an entry shows its tooltip. After each entry the Pixel button
@@ -160,10 +160,10 @@ Readouts, labels and themes
 ---------------------------
 
 23. In the quicklook of item 5, move the spectrogram's exposure slider to 1, then the ``Time (Utc)``
-    slider of SJI 1400 to 40. SJI 1400 is covered by a grey veil, and its "Frame time" readout, in
-    grey, ends with "NO MATCH Δt = …". Click the map near its left edge (an exposure below 20): SJI
+    slider of SJI 1400 to 40. SJI 1400 is covered by a gray veil, and its "Frame time" readout, in
+    gray, ends with "NO MATCH Δt = …". Click the map near its left edge (an exposure below 20): SJI
     1400 moves to a matching frame and the veil goes. A click on one of the few exposures with no SJI
-    1400 frame within half its cadence, such as the map's centre, leaves it greyed with NO MATCH.
+    1400 frame within half its cadence, such as the map's center, leaves it grayed with NO MATCH.
 
 24. At the size the quicklook gives each panel, its "Frame time" readout, for example
     "2021-09-05T… UTC · exp … s · Δt +… s", shows in full in the status bar beside the position and
@@ -171,13 +171,13 @@ Readouts, labels and themes
     still fits.
 
 25. The image panels of item 5 have no axes. Tick "Axes" at the top of its Panels list: every image
-    panel shows its axes, and on the map and the wavelength panel the exposure axis is labelled
+    panel shows its axes, and on the map and the wavelength panel the exposure axis is labeled
     "Exposure (acquisition order)", with the UTC range of the exposures on a second line, and its
     ticks are whole exposure numbers. Both lines are inside the panel and clear of the tick labels.
 
 26. Switch the system to the other appearance, light or dark (macOS: System Settings, Appearance;
     Windows: Settings, Personalization, Colors; Linux: the desktop's dark theme), start glue again
-    and repeat items 23 and 25. The grey veil, the grey NO MATCH text, the exposure label and the
+    and repeat items 23 and 25. The gray veil, the gray NO MATCH text, the exposure label and the
     ticks stay readable in both.
 
 27. Press "Hide axes" on the map of item 25. The ticks, tick labels, axis labels and frame disappear,
@@ -197,11 +197,11 @@ Readouts, labels and themes
 Windows, tabs and shortcuts
 ---------------------------
 
-29. In the quicklook of item 5 no panel overlaps another or reaches past the tab. Maximise the map
-    with its window's maximise button: it fills the tab; move its wavelength slider and restore it: it
+29. In the quicklook of item 5 no panel overlaps another or reaches past the tab. Maximize the map
+    with its window's maximize button: it fills the tab; move its wavelength slider and restore it: it
     returns to its place, and the dashed lines of the wavelength and spectrum panels it covered mark
     the new wavelength. Make glue's window short enough that the tab scrolls, step the spectrogram's
-    exposure and scroll down: the panels that come into sight show the new exposure. Minimise SJI
+    exposure and scroll down: the panels that come into sight show the new exposure. Minimize SJI
     2832 and restore it. Choose "Gather Windows" in the "Canvas" menu: the viewers are placed side by
     side, and still follow the point.
 
@@ -251,7 +251,7 @@ Responsiveness
     movie…" in its save menu (the floppy-disk button). Keep the whole range offered and save as
     ``sji.mp4`` where ffmpeg is installed, else as ``sji.gif``. A progress dialog counts the frames
     while the image, its slit and red cross and the spectrogram step through them, the viewer and
-    its Plot Options greyed; click another tab and back meanwhile: glue switches at once. The file
+    its Plot Options grayed; click another tab and back meanwhile: glue switches at once. The file
     plays every frame at 10 a second in a movie player or web browser. Save again as ``sji.png``
     and press "Cancel" halfway: the dialog closes within a frame, the folder holds the PNG frames
     saved until then, and the viewer is back on the frame it showed.
@@ -260,7 +260,7 @@ Responsiveness
     its "Plot Options" choose SJI 2796 as the reference data, set the axes back to the image's and
     choose "Set blink partner here", then choose SJI 1400 again the same way and "Frame time" in the
     View menu. Choose "Blink", then press Space: while the raster plays, the viewer alternates
-    between the two channels without skipping, each keeping its own colour limits, the "Frame time"
+    between the two channels without skipping, each keeping its own color limits, the "Frame time"
     readout gives each a time within 139 s (half its cadence) of the raster's or NO MATCH, and the
     red cross stays on the same feature in both. Press Space and choose "Blink" again: playback and
     the blink stop, and both channels are ticked in the layer list.

@@ -172,7 +172,7 @@ class DopplerConverter(SimpleAstropyUnitConverter):
     offers it as an x unit, after the lengths; data without a rest wavelength get the lengths only.
     """
 
-    VELOCITY = "km/s"  # as glue-solar writes it elsewhere, not astropy's 'km / s'
+    VELOCITY = KM_S.to_string()  # 'km / s', as glue lists units
 
     def equivalent_units(self, data, cid, units):
         units = list(super().equivalent_units(data, cid, units))
@@ -181,7 +181,7 @@ class DopplerConverter(SimpleAstropyUnitConverter):
     def to_unit(self, data, cid, values, original_units, target_units):
         try:
             return super().to_unit(data, cid, values, original_units, target_units)
-        except u.UnitConversionError:  # a wavelength to or from km/s
+        except u.UnitConversionError:  # a wavelength to or from km / s
             rest = _doppler_rest(data, cid)
             if rest is None:
                 raise
@@ -191,10 +191,10 @@ class DopplerConverter(SimpleAstropyUnitConverter):
 @viewer_tool
 class VelocityTool(Tool, HubListener):
     """
-    A top axis of the Doppler velocity, as the x unit 'km/s' gives it (`DopplerConverter`), on a Profile viewer
+    A top axis of the Doppler velocity, as the x unit 'km / s' gives it (`DopplerConverter`), on a Profile viewer
     whose x axis is the wavelength of data with a `rest_wavelength`, in a length unit. It follows the x range and unit
     and glue's x label and tick sizes. 'IRIS: set rest wavelength…' moves it and, in every Profile viewer of the data,
-    offers 'km/s' or not and redraws the profiles in it. The button, checked while it is on and greyed without a rest
+    offers 'km / s' or not and redraws the profiles in it. The button, checked while it is on and grayed without a rest
     wavelength, switches the axis off and on; it starts off.
     """
 
@@ -237,7 +237,7 @@ class VelocityTool(Tool, HubListener):
             return
         unit = state.x_display_unit
         lost = unit == DopplerConverter.VELOCITY and _doppler_rest(state.reference_data, state.x_att) is None
-        if lost:  # glue cannot convert the x range from km/s now
+        if lost:  # glue cannot convert the x range from km / s now
             state._previous_x_att = None
         state._update_x_display_unit_choices()  # glue's own, which sets the data's unit
         if lost:

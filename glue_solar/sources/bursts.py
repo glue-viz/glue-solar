@@ -22,7 +22,7 @@ from glue_solar.sources.moments import _accepted, _check, _dataset, _start
 
 __all__ = ["bursts_iris", "si_iv_bursts", "sji_bursts"]
 
-# irispy's defaults: the half-width averaged about Si IV 1402.77 Å in km/s and the particle-hit test factor; the
+# irispy's defaults: the half-width averaged about Si IV 1402.77 Å in km / s and the particle-hit test factor; the
 # slit-jaw threshold in standard deviations and the fewest pixels of an event
 VELOCITY_RANGE = 50.0
 MEDIAN_FACTOR = 10.0
@@ -44,7 +44,7 @@ def _is_sji(data):
 
 def _crop(data, velocity_range):
     """
-    The wavelength pixels of ``data`` from the first to the last within ``velocity_range`` km/s of Si IV 1402.77 Å, a
+    The wavelength pixels of ``data`` from the first to the last within ``velocity_range`` km / s of Si IV 1402.77 Å, a
     pixel wider at either end, so irispy picks the same within them; raises why for none.
     """
     from irispy.utils.bursts import _SI_IV
@@ -55,7 +55,7 @@ def _crop(data, velocity_range):
     if not inside.size:
         raise ValueError(
             f"No wavelength of {data.label} ({wavelengths[0]:.2f} to {wavelengths[-1]:.2f} Å) lies within "
-            f"{velocity_range} km/s of Si IV 1402.77 Å."
+            f"{velocity_range} km / s of Si IV 1402.77 Å."
         )
     return slice(max(inside[0] - 1, 0), min(inside[-1] + 2, wavelengths.size))
 
@@ -238,7 +238,7 @@ def _ask(data, sji):
         return {"sigma_factor": sigma.value(), "min_pixels": pixels.value()} if _accepted(dialog, form) else None
     threshold = QtWidgets.QLineEdit(objectName="threshold", placeholderText="irispy's, from the effective area")
     form.addRow("Threshold [DN/s, summed by 2]:", threshold)
-    velocity = QtWidgets.QDoubleSpinBox(objectName="velocity_range", decimals=1, maximum=1000, suffix=" km/s")
+    velocity = QtWidgets.QDoubleSpinBox(objectName="velocity_range", decimals=1, maximum=1000, suffix=" km / s")
     velocity.setValue(VELOCITY_RANGE)
     form.addRow("Velocities averaged, ±:", velocity)
     # 0 would find no burst: it switches irispy's test off

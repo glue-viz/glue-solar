@@ -579,7 +579,7 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
     ]
     assert set(sst_app.viewers[-1]) == {viewer for row in viewers["rows"] for viewer in row}
     pixel = cube.pixel_component_ids
-    # the map at the line core, H-alpha's tuning, the second map at the first, the point at the map's centre in scan 0
+    # the map at the line core, H-alpha's tuning, the second map at the first, the point at the map's center in scan 0
     # and Stokes I
     for role, x, y, tuning in (("map", 4, 3, 2), ("wing", 4, 3, 0), ("slit", 2, 3, 2), ("wavelength", 2, 0, 2)):
         state = viewers[role].state
@@ -959,7 +959,7 @@ def test_a_session_restores_the_sst_quicklook(sst_app, qtbot, tmp_path, stokes):
     again["spectra"] = [panels[f"Stokes {name}"] for name in "IQUV"] if stokes == 4 else [panels["spectrum"]]
     [group] = restored.session.edit_subset_mode.edit_subset
     [data] = restored.data_collection
-    assert isinstance(data, _Cube)  # its colour limits' sample too
+    assert isinstance(data, _Cube)  # its color limits' sample too
     assert data.coords.core == again["map"].state.slices[-3] == 1
     assert group.label == "Point"
     i = [slice(0, 1)] if stokes == 4 else []  # Stokes I, if any

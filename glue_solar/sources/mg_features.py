@@ -1,5 +1,5 @@
 """
-'IRIS: Mg II features… (Mg II)': irispy's line centres and emission peaks of Mg II k and h in a raster window or a
+'IRIS: Mg II features… (Mg II)': irispy's line centers and emission peaks of Mg II k and h in a raster window or a
 stack of its scans, as a new dataset.
 """
 
@@ -20,7 +20,7 @@ from glue_solar.sources.moments import SLAB, _accepted, _check, _cube, _dataset,
 
 __all__ = ["mg_features", "mg_features_iris"]
 
-# irispy's defaults: the Doppler velocities searched, in km/s from each line's rest wavelength, and the lines measured
+# irispy's defaults: the Doppler velocities searched, in km / s from each line's rest wavelength, and the lines measured
 VELOCITIES = (-40.0, 40.0)
 LINES = ("k", "h")
 
@@ -53,7 +53,7 @@ def _crop(data, velocities, lines, rest=None):
         raise ValueError(f"lines must be 'k', 'h' or both, not {lines!r}")
     low, high = velocities
     if not low < high:
-        raise ValueError(f"The velocities, from {low} to {high} km/s, do not increase.")
+        raise ValueError(f"The velocities, from {low} to {high} km / s, do not increase.")
     wavelengths, _ = _wavelengths(data)
     # each shorter by rest less irispy's k, as irispy advises for IDL's wave_comp: k is then measured from rest, h from
     # irispy's h as far off
@@ -65,13 +65,13 @@ def _crop(data, velocities, lines, rest=None):
         )
         if velocity[0] <= low and high <= velocity[-1]:  # irispy skips a line otherwise
             covered.append(line)
-            # irispy's, within 3 km/s of the velocities
+            # irispy's, within 3 km / s of the velocities
             starts.append(np.searchsorted(velocity, low - 3, "right") - 1)
             stops.append(np.searchsorted(velocity, high + 3) + 1)
     if not covered:
         raise ValueError(
             f"{data.label} ({wavelengths[0]:.2f} to {wavelengths[-1]:.2f} Å) does not cover Mg II "
-            f"{' or '.join(lines)} from {low} to {high} km/s."
+            f"{' or '.join(lines)} from {low} to {high} km / s."
         )
     # Level 2 wavelengths are linear: shifting the pixels shifts each wavelength alike
     shift = -offset * (wavelengths.size - 1) / (wavelengths[-1] - wavelengths[0])
@@ -124,14 +124,14 @@ def _mg_features(data, velocities, lines, crop, shift, unit, rest=None):
 
 def mg_features(data, velocities=VELOCITIES, lines=LINES):
     """
-    irispy's line centres and emission peaks of Mg II ``lines`` in ``data``, an IRIS raster window of one scan or a
+    irispy's line centers and emission peaks of Mg II ``lines`` in ``data``, an IRIS raster window of one scan or a
     stack of its scans, within ``velocities`` of each line's rest wavelength, as one dataset on the window's scans,
     raster steps and slit pixels, each scan's as that scan alone gives them, at its own coordinates.
 
     irispy is given the window's ``<label> DN/s`` where it has one, else its values, a slab of steps of one scan at a
     time, and only the wavelengths it searches; it skips a line the window does not cover over ``velocities``. For
     each line, ``k`` (2796.35 Å) and ``h`` (2803.53 Å), its components are irispy's: ``k2v``, ``k3`` and ``k2r``
-    (``h2v``, ``h3``, ``h2r``), the blue peak, line centre and red peak, each as ``<feature>_velocity`` in km / s and
+    (``h2v``, ``h3``, ``h2r``), the blue peak, line center and red peak, each as ``<feature>_velocity`` in km / s and
     ``<feature>_intensity`` in the window's unit; NaN where irispy finds none, or a sample it searches for the line is
     missing or saturated: +Inf, as the loader reads the Level 2 ceiling, 16182 DN, where ``k saturated``
     (``h saturated``), irispy's ``k_saturated`` (``h_saturated``), is 1, else 0. With a rest wavelength set for
@@ -165,7 +165,7 @@ def mg_features(data, velocities=VELOCITIES, lines=LINES):
 
 def _ask(data, lines):
     """
-    The velocities typed for ``data``, from and to, in km/s, and the lines ticked, at first ``lines``; or None for
+    The velocities typed for ``data``, from and to, in km / s, and the lines ticked, at first ``lines``; or None for
     none ticked or Cancel.
     """
     dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
@@ -173,7 +173,7 @@ def _ask(data, lines):
     form = QtWidgets.QFormLayout(dialog)
     boxes = []
     for name, value in zip(("from", "to"), VELOCITIES):
-        box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, minimum=-1000, maximum=1000, suffix=" km/s")
+        box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, minimum=-1000, maximum=1000, suffix=" km / s")
         box.setValue(value)
         form.addRow(f"Velocities {name}:", box)
         boxes.append(box)
@@ -207,7 +207,7 @@ def _saturated(features):
     single=True,
     data=True,
     check=_covered,
-    tooltip="Add irispy's Mg II k and h line centre and emission peak maps of this raster window or stack",
+    tooltip="Add irispy's Mg II k and h line center and emission peak maps of this raster window or stack",
 )
 @messagebox_on_error("Could not compute Mg II features")
 def mg_features_iris(data, data_collection):

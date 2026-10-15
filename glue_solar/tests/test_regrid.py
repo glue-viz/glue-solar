@@ -108,7 +108,7 @@ def check_regrid(source, regridded):
     np.testing.assert_allclose(regridded.coords.pixel_to_world_values(*others, pixels), world, rtol=1e-9)
     back = make_interp_spline(positions, pixels, k=1)(source.coords.world_to_pixel_values(*world)[-1])
     np.testing.assert_allclose(regridded.coords.world_to_pixel_values(*world)[-1], back, atol=1e-9)
-    if isinstance(regridded, LazyData):  # glue's 99.5% colour limits, exactly as from every value
+    if isinstance(regridded, LazyData):  # glue's 99.5% color limits, exactly as from every value
         for percentile in (0.25, 99.75):
             limit = regridded.compute_statistic("percentile", cid, percentile=percentile, random_subset=10000)
             assert limit == np.nanpercentile(values, percentile)
@@ -230,7 +230,7 @@ def test_the_quicklook_shows_a_regridded_raster(app, qtbot, tmp_path, irispy_tes
     first, last = (np.datetime_as_string(t, unit="s") for t in (times[0], times[~np.isnat(times)][-1]))
     assert viewers["map"].state.x_axislabel == f"Time (3 s per pixel)\n{first} – {last[11:]} UTC"
     assert _exposure_label(rebin(regridded, (2, 1, 1))).startswith("Time (6 s per pixel)\n")  # 2 exposures a pixel
-    # a pixel in the gap has no time: the slit-jaw image keeps its frame, greyed
+    # a pixel in the gap has no time: the slit-jaw image keeps its frame, grayed
     spectrogram = viewers["spectrogram"]
     frame = sji_viewer.state.slices[0]
     spectrogram.state.slices = (GAP + 5, *spectrogram.state.slices[1:])
@@ -264,7 +264,7 @@ def rolled_sji(tmp_path, roll):
 
 def north_angle(data, grid, frame):
     """
-    The angle in degrees from the y axis of ``grid``'s pixels to solar north at the centre of ``data``'s frame
+    The angle in degrees from the y axis of ``grid``'s pixels to solar north at the center of ``data``'s frame
     ``frame``, and from that of ``data``'s own pixels, east of north positive.
     """
     _, ny, nx = data.shape
@@ -420,7 +420,7 @@ def test_rebin_takes_each_bins_mean_of_its_values_and_keeps_the_finite_mean(
     # the mean of the values, missing ones left out: the bins' means, each weighted by how many values it holds
     counts = binned(np.isfinite(covered), bins)[0] * np.prod(bins)
     assert np.nansum(values * counts) / counts.sum() == pytest.approx(np.nanmean(covered), rel=1e-6)
-    # a pixel at its bin's centre
+    # a pixel at its bin's center
     pixels = [np.arange(length) for length in rebinned.shape[::-1]]
     pixels = np.meshgrid(*pixels, indexing="ij")
     centres = [(pixel + 0.5) * n - 0.5 for pixel, n in zip(pixels, bins[::-1])]

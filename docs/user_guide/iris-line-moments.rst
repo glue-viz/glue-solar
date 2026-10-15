@@ -5,15 +5,15 @@ Line moments
 ============
 
 To map a spectral line, select a raster window, of one scan or a stack of its scans, in the data
-collection and choose "IRIS: line moments…" from its right-click menu. The line centre, the rest
+collection and choose "IRIS: line moments…" from its right-click menu. The line center, the rest
 wavelength of the velocities in Å, starts at the window's :ref:`rest wavelength
 <glue_solar_users_guide_iris_rest_wavelength>`, such as 2796.352 for Mg II k, or blank for a window
 without one; type another to change it. The velocity range, the Doppler velocities of the
-wavelengths taken, from and to, in km/s from the centre, is -107 to 107 km/s unless changed, ±0.5 Å
-at Si IV 1402.77 and ±1.0 Å at Mg II k; a blank centre adds nothing. The velocities stop at the
-window's first and last wavelengths about a centre within them, the one the dialog starts at, or
-one typed once its editing finishes, or on OK: -726.906 to 692.126 km/s about Si IV 1402.77 in
-4000255147's window, 1399.369 to 1406.009 Å, rounded outwards to the thousandth of a km/s, so
+wavelengths taken, from and to, in km / s from the center, is -107 to 107 km / s unless changed, ±0.5 Å
+at Si IV 1402.77 and ±1.0 Å at Mg II k; a blank center adds nothing. The velocities stop at the
+window's first and last wavelengths about a center within them, the one the dialog starts at, or
+one typed once its editing finishes, or on OK: -726.906 to 692.126 km / s about Si IV 1402.77 in
+4000255147's window, 1399.369 to 1406.009 Å, rounded outwards to the thousandth of a km / s, so
 irispy still takes every wavelength of the window. Continuum windows are
 optional: line-free wavelength ranges outside the velocity range, such as
 ``1401.6-1402.1, 1403.5-1404.3``, to which irispy's ``subtract_background`` fits the background of
@@ -21,7 +21,7 @@ each spectrum, a constant to one window or a straight line to more, and subtract
 nothing is subtracted, and any continuum within the velocity range adds to every map. irispy's
 ``calculate_moments`` computes the maps on a worker thread from the wavelengths within the velocity
 range alone, while glue's status bar says "Computing line moments of <label>…", and adds
-``<label> moments <centre>`` on the window's raster steps and slit pixels, with their
+``<label> moments <center>`` on the window's raster steps and slit pixels, with their
 helioprojective coordinates in arcsec linked with the other IRIS datasets. No viewer opens: drag
 it onto an Image viewer and pick a map as its attribute. A stack's maps are one dataset on its
 scans, raster steps and slit pixels, each scan's as that scan alone gives them, at its own
@@ -31,7 +31,7 @@ To take the velocity range from a Profile, drag a range over the line on the "Co
 tab of the "Options" of a Profile viewer of the window against its wavelength, such as a
 quicklook's spectrum panel (see :ref:`the Profile guide
 <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`). While the range shows, the dialog shows it
-too, and a centre within it, the one the dialog starts at or one typed, sets the velocities to its
+too, and a center within it, the one the dialog starts at or one typed, sets the velocities to its
 ends, whatever the Profile's "x unit"; they can still be changed afterwards. A range reaching past
 the window is cut to it, and the dialog says so, such as "1390.000 to 1415.000 Å, cut to the
 window: 1399.369 to 1406.009 Å"; one wholly outside it says "outside the window" and sets nothing.
@@ -47,11 +47,11 @@ The maps
 - ``width``, its standard deviation about the centroid, in Å, not its full width at half maximum:
   for a Gaussian line within the velocity range, the FWHM is 2√(2 ln 2) ≈ 2.355 times the width,
   and a range that cuts the line off gives a smaller width;
-- ``velocity`` and ``velocity_width``, the centroid's Doppler velocity from the centre and the width
-  as a velocity, in km/s.
+- ``velocity`` and ``velocity_width``, the centroid's Doppler velocity from the center and the width
+  as a velocity, in km / s.
 
 Velocities are relative to the uncorrected Level 2 wavelength scale, which can be off by about
-5-10 km/s; for a FUV window, a centre shifted by a fitted O I 1355.5977 Å makes them relative to a
+5-10 km / s; for a FUV window, a center shifted by a fitted O I 1355.5977 Å makes them relative to a
 line at rest, and for a NUV window, one shifted by a fitted Ni I 2799.474 Å (see "Rest wavelength
 from a measured line" in
 :ref:`the Profile guide <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`). Mg II h and k and
@@ -69,14 +69,14 @@ them apart), is NaN in every map too, as a background leaves +Inf as it is; the 
 :ref:`Was it saturated? <glue_solar_users_guide_iris_saturation>` shows where the samples are. A
 pixel saturated across its continuum windows too has no background but keeps its +Inf, so it is
 counted: the X1 flare's rasters r00172-r00174 of 3860258481 have 839 saturated Si IV 1402.77
-pixels within ±107 km/s, with or without continuum windows 1401.6-1402.1 and 1403.5-1404.3 Å.
+pixels within ±107 km / s, with or without continuum windows 1401.6-1402.1 and 1403.5-1404.3 Å.
 
 The new dataset's ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``, ``moments_centre``
 and ``moments_velocity_range``, and with a continuum also ``moments_continuum``, the windows, and
 ``moments_continuum_degree``, the degree of the background; maps made before glue-solar took a
 velocity range keep their ``moments_wings``, in Å, in sessions.
 ``glue_solar.sources.moments.line_moments(data, centre, velocity_range, continuum, errors)``
-computes the dataset in glue's terminal too, ``velocity_range`` a ``(lower, upper)`` pair in km/s
+computes the dataset in glue's terminal too, ``velocity_range`` a ``(lower, upper)`` pair in km / s
 and ``continuum`` a list of ``(lower, upper)`` wavelengths in Å.
 
 Error maps
@@ -103,16 +103,16 @@ What is refused
 The entry is offered only for an IRIS raster window or a stack of its scans. Glue says why, and adds
 nothing, for:
 
-- a centre or continuum window that is not a wavelength, or a list of ranges, in Å;
+- a center or continuum window that is not a wavelength, or a list of ranges, in Å;
 - a velocity range that does not increase, or with no wavelength of the window within it about the
-  centre, a continuum window with none, or one that overlaps the velocity range.
+  center, a continuum window with none, or one that overlaps the velocity range.
 
 .. _glue_solar_users_guide_iris_rest_wavelength:
 
 Rest wavelength
 ---------------
 
-The rest wavelength of a spectral window, at which the line centre here and the rest wavelength of
+The rest wavelength of a spectral window, at which the line center here and the rest wavelength of
 :ref:`red-blue asymmetry <glue_solar_users_guide_iris_red_blue>` and
 :ref:`Doppler images <glue_solar_users_guide_iris_doppler>` start, and from which a Profile viewer
 gives the :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>` and the Image viewer's
@@ -133,7 +133,7 @@ Mg II k). The field's tooltip says where its wavelength comes from, and
 ``glue_solar.lines.rest_wavelength(data)`` gives it, or None, in glue's terminal. Mg II features
 measure k and h from irispy's own rest wavelengths, or, with one set here, k from it and h from
 irispy's h as far off (see :ref:`Mg II features <glue_solar_users_guide_iris_mg_features>`), and the
-Profile viewer's "Gaussian + constant (IRIS)" fit names the main line nearest its fitted centre
+Profile viewer's "Gaussian + constant (IRIS)" fit names the main line nearest its fitted center
 itself, as it has no dataset to read.
 
 Line ratios
@@ -171,7 +171,7 @@ the temperature, and
 ``glue_solar.sources.line_ratio.o_iv_density(numerator, denominator, log_densities, log_temperature)``
 maps it in glue's terminal too, ``log_densities`` a ``(from, to)`` pair. The preset needs fiasco
 from its git main, glue-solar's ``density`` extra (see :ref:`installing <glue-solar-index>`);
-without it, it is greyed out, and its tooltip says so.
+without it, it is grayed out, and its tooltip says so.
 On its first use fiasco downloads the CHIANTI database, 3.5 GB unpacked, and builds its own 2.2 GB
 copy of it, in ``~/.fiasco`` or where ``~/.fiasco/fiascorc`` says, a path without ``em`` or ``ip``
 in it, as in a folder named emily or Temp, or the build finds no ions: 3 minutes on a fast

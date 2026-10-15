@@ -63,7 +63,7 @@ def scan_path(tmp_path, irispy_test_files):
 def answer(monkeypatch, centre, velocities=(), continuum="", accept=True, errors=False):
     """
     Make each line dialog return as if ``centre``, any ``velocities``, from and to, and ``continuum`` were typed,
-    "Error maps" ticked with ``errors``, and OK, or Cancel, pressed; returns the centre, velocities, continuum and tick
+    "Error maps" ticked with ``errors``, and OK, or Cancel, pressed; returns the center, velocities, continuum and tick
     each dialog opened with.
     """
     opened = []
@@ -85,7 +85,7 @@ def answer(monkeypatch, centre, velocities=(), continuum="", accept=True, errors
 
 
 def ends(centre, low=-107, high=107):
-    """The wavelengths, in Angstrom, at ``low`` and ``high`` km/s from ``centre``, as irispy's moments take them."""
+    """The wavelengths, in Angstrom, at ``low`` and ``high`` km / s from ``centre``, as irispy's moments take them."""
     return centre * (1 + low / C), centre * (1 + high / C)
 
 
@@ -247,8 +247,8 @@ def test_a_profile_range_gives_the_velocity_range_from_a_centre_within_it(app, q
     assert run(app, qtbot, raster).meta["moments_velocity_range"] == (-107, 107)
     profile.state.x_att, profile.state.x_display_unit = raster.world_component_ids[-1], "nm"
     tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 140.33, 140.22  # dragged leftwards, in nm
-    # from the centre the dialog starts at, the window's Si IV 1402.77, or, outside it, the dialog's until one within
-    # it is typed, to the thousandth of a km/s the dialog shows
+    # from the center the dialog starts at, the window's Si IV 1402.77, or, outside it, the dialog's until one within
+    # it is typed, to the thousandth of a km / s the dialog shows
     reach = pytest.approx(((1402.2 / 1402.77 - 1) * C, (1403.3 / 1402.77 - 1) * C), abs=5e-4)
     for rest, opens in ((None, ("1402.77", reach)), (1404, ("1404.0", [-107, 107]))):
         raster.meta["rest_wavelength"] = rest
@@ -287,8 +287,8 @@ def test_a_profile_range_gives_the_velocity_range_from_a_centre_within_it(app, q
 
 def assert_beyond(raster, centre, low, high):
     """
-    Assert that ``low`` and ``high``, in km/s from ``centre``, lie beyond the first and last wavelengths of ``raster``
-    by less than a thousandth of a km/s; a ``low`` of None is not checked.
+    Assert that ``low`` and ``high``, in km / s from ``centre``, lie beyond the first and last wavelengths of ``raster``
+    by less than a thousandth of a km / s; a ``low`` of None is not checked.
     """
     wavelengths, _ = _wavelengths(raster)
     if low is not None:
@@ -301,7 +301,7 @@ def assert_beyond(raster, centre, low, high):
 def assert_cut(maps, raster, centre, low):
     """
     Assert that ``maps`` of ``raster`` about ``centre`` were computed from ``low`` to the window's last wavelength, cut
-    to the thousandth of a km/s beyond it, and are those from ``low`` to 10,000 km/s; a ``low`` beyond the first
+    to the thousandth of a km / s beyond it, and are those from ``low`` to 10,000 km / s; a ``low`` beyond the first
     wavelength is cut likewise.
     """
     start, stop = maps.meta["moments_velocity_range"]
@@ -314,9 +314,9 @@ def assert_cut(maps, raster, centre, low):
 
 def test_the_velocities_stop_at_the_windows_wavelengths_about_the_centre(app, qtbot, monkeypatch, scan_path):
     """
-    The velocity boxes stop at the window's first and last wavelengths about the centre, the one the dialog starts
-    at, one whose editing is finished or, on OK, one typed, to the thousandth of a km/s beyond them, a centre outside
-    the window leaving them as they were; irispy then takes the wavelengths it would from 10,000 km/s.
+    The velocity boxes stop at the window's first and last wavelengths about the center, the one the dialog starts
+    at, one whose editing is finished or, on OK, one typed, to the thousandth of a km / s beyond them, a center outside
+    the window leaving them as they were; irispy then takes the wavelengths it would from 10,000 km / s.
     """
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)
@@ -337,7 +337,7 @@ def test_the_velocities_stop_at_the_windows_wavelengths_about_the_centre(app, qt
         return QtWidgets.QDialog.Accepted
 
     monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
-    assert_cut(run(app, qtbot, raster), raster, 1402.77, -250)  # 1000 km/s cut from 1400 Å's limits on OK
+    assert_cut(run(app, qtbot, raster), raster, 1402.77, -250)  # 1000 km / s cut from 1400 Å's limits on OK
     for centre, (low, high) in zip((1402.77, 1400), limits[::2]):
         assert_beyond(raster, centre, low, high)
     assert limits[1] == limits[0]
@@ -377,12 +377,12 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
     assert [text.split("\n", 1)[1] for text in shown] == [
         f"{sji.label} is not an IRIS raster window.",
         "plain is not an IRIS raster window.",
-        f"No wavelength of {span} lies within the velocity range, -107 to 107 km/s from 3000.0 Å.",
+        f"No wavelength of {span} lies within the velocity range, -107 to 107 km / s from 3000.0 Å.",
         "'Si IV' is not a wavelength in Angstrom, such as 1402.77.",
-        "The velocity range, from 50 to -50 km/s, does not increase.",
+        "The velocity range, from 50 to -50 km / s, does not increase.",
         "'1401.5' is not a list of continuum windows in Angstrom, such as 1401.5-1402, 1404-1405.",
         "'1401.5-1402,' is not a list of continuum windows in Angstrom, such as 1401.5-1402, 1404-1405.",
-        "The continuum window 1402.0-1402.5 Å overlaps the velocity range, -107 to 107 km/s from 1402.77 Å.",
+        "The continuum window 1402.0-1402.5 Å overlaps the velocity range, -107 to 107 km / s from 1402.77 Å.",
         f"No wavelength of {span} lies within the continuum window 1300.0-1301.0 Å.",
     ]
     assert len(collection) == 3
@@ -617,7 +617,7 @@ def test_gaussian_lines_give_irispys_maps_their_width_a_standard_deviation(monke
     monkeypatch.setattr(moments, "SLAB", 1)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     wavelengths, _ = _wavelengths(raster)
-    velocity = np.linspace(-20, 20, raster.shape[0])[:, None]  # km/s, by step
+    velocity = np.linspace(-20, 20, raster.shape[0])[:, None]  # km / s, by step
     fwhm = np.linspace(0.6, 0.9, raster.shape[1])  # Å, by slit pixel: sampled by the window's 0.25 Å, within ±2.5 Å
     velocities = (-535, 535)  # ±2.5 Å
     centre = 1402.77 * (1 + velocity / constants.c.to_value(u.km / u.s))

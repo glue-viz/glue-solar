@@ -689,7 +689,7 @@ def iris_data(path):
     """
     Load one IRIS Level 2 file through irispy and convert its return shape.
 
-    A raster file's windows are labelled by its raster number (``…-r00003``), so that the files of a
+    A raster file's windows are labeled by its raster number (``…-r00003``), so that the files of a
     multi-scan observation opened one by one keep distinct labels.
     """
     if _primary_header(path).get("INSTRUME") != "SPEC":
@@ -1056,7 +1056,7 @@ def _failing_file(observation, kind, name, windows, stop):
 def _load(load, observations, picks, stack, shown, stop, report):
     """
     Read the browser's ticked entries on glue-qt's worker thread, until ``stop`` is set: ``report(load, percent)``
-    after each raster, slit-jaw or AIA file, and after the count of the colour limits of the datasets
+    after each raster, slit-jaw or AIA file, and after the count of the color limits of the datasets
     ``shown(loaded)`` gives, unless it is None, which the GUI thread would otherwise count as their first viewers
     open. What Stop keeps is counted too.
 
@@ -1067,7 +1067,7 @@ def _load(load, observations, picks, stack, shown, stop, report):
     for i, kind, name in picks:
         if kind == "raster":
             windows.setdefault(i, []).append(name)
-    # one step per file, and one for the colour limits
+    # one step per file, and one for the color limits
     files = sum(len(observations[i].rasters) for i in windows) + sum(kind != "raster" for _, kind, _ in picks) + 1
     done = itertools.count(1)
 
@@ -1165,7 +1165,7 @@ class QtIRISImporter(QtWidgets.QDialog):
     entries read in full; Esc or closing the dialog drops the load. ``shown``, if
     given, names the datasets the first viewers will show of what is loaded, as
     ``shown(loaded, quicklooks, main)`` with whether Open quicklook is ticked and
-    the Main window chosen: their colour limits are counted in the background too.
+    the Main window chosen: their color limits are counted in the background too.
 
     Main window lists the ticked raster windows, by name, showing the one last
     chosen there while it is ticked, else Mg II k 2796, else the first: each
