@@ -2055,8 +2055,7 @@ def test_the_key_table_lists_every_key_of_glue_solars_viewers_and_tools(request)
         keys += re.findall(r"event\.key == ['\"](\w+)", inspect.getsource(handler))
     package = Path(glue_solar.__file__).parent
     for module in package.rglob("*.py"):
-        # not the observation browser's Return, a dialog's key, which the loading guide gives
-        if module.relative_to(package).parts[0] != "tests" and module.parent.name != "loaders":
+        if module.relative_to(package).parts[0] != "tests":
             keys += re.findall(r"Qt\.Key_(\w+)", module.read_text())
     guide = request.config.rootpath / "docs" / "user_guide" / "viewer-tools-and-windows.rst"
     if not guide.exists():

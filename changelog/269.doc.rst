@@ -1,0 +1,1 @@
+The loading guide says how to see an IRIS file's FITS header with glue's Ctrl+I, and the Keys table lists the observation browser's Return key.
