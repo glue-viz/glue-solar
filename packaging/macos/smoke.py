@@ -6,12 +6,15 @@ A check of the built app, which runs it in place of glue with the files of an IR
         raster.fits sji.fits
 
 It starts glue as ``glue`` does, checks that glue-solar's menu entries are there on PyQt6 and that glue's IPython
-terminal starts, loads the files and opens their quicklook as ``glue --startup=iris_quicklook`` does, adds irispy's
-radiometric calibration of the raster, which needs irispy's response files, and prints when the window showed and the
-seconds each step took. It exits 1 at the first failure.
+terminal starts, that fiasco has the line_ratio of the O IV preset and that matplotlib runs the bundled ffmpeg, loads
+the files and opens their quicklook as ``glue --startup=iris_quicklook`` does, adds irispy's radiometric calibration of
+the raster, which needs irispy's response files, and prints when the window showed and the seconds each step took. It
+exits 1 at the first failure.
 """
 
 import os
+import shutil
+import subprocess
 import sys
 import time
 import traceback
@@ -21,12 +24,14 @@ import qtpy
 from glue.main import list_loaded_plugins
 from glue_qt.app import GlueApplication
 from glue_qt.main import load_data_files, start_glue
+from matplotlib import animation
 from qtpy import QtCore, QtGui
 
 
 def check(app):
     from glue_solar.quicklook import QuicklookImageViewer, _role
     from glue_solar.sources.calibration import radiometric_calibration
+    from glue_solar.sources.line_ratio import _has_line_ratio
 
     try:
         print(f"window shown at {time.time():.3f}", flush=True)
@@ -35,6 +40,10 @@ def check(app):
         assert "glue_solar" in list_loaded_plugins(), list_loaded_plugins()
         assert {"IRIS: browse observations…", "IRIS: quicklook…", "IRIS: restore last session"} <= entries, entries
         assert app.has_terminal()
+        assert _has_line_ratio()
+        ffmpeg = shutil.which(animation.FFMpegWriter.bin_path())  # as 'IRIS: save frames or movie…' offers MP4
+        assert str(ffmpeg).startswith(sys._MEIPASS), ffmpeg
+        subprocess.run([ffmpeg, "-version"], check=True, capture_output=True)  # with its own libraries
         began = time.perf_counter()
         app.add_datasets(load_data_files(sys.argv[1:]))
         app.run_startup_action("iris_quicklook")

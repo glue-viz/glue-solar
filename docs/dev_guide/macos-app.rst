@@ -19,20 +19,27 @@ The environment
 ---------------
 
 Build in a new micromamba environment holding only what the app needs, as PyInstaller takes in whatever the code
-imports. glue-qt and irispy come from pip without their dependencies, which come from conda-forge, where
+imports. glue-qt, irispy and fiasco come from pip without their dependencies, which come from conda-forge, where
 ``qtconsole-base`` stands in for ``qtconsole``, which brings PyQt5. glue-solar is installed from the checkout as a
 package, not editable::
 
     micromamba create -y -n glue-solar-app -c conda-forge python=3.13 pyinstaller pyqt6=6.11 qtpy qtconsole-base \
         glue-core=1.27.0 astropy=8.0.1 sunpy=8.0.0 ndcube "dask>=2024.7" sunraster dkist gwcs scipy mpl_animators \
-        filelock ipykernel "ipython<9" pvextractor pip
+        filelock ipykernel "ipython<9" pvextractor plasmapy h5py fortranformat ffmpeg pip
     micromamba run -n glue-solar-app pip install --no-deps glue-qt==0.4.2 \
-        "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git"
+        "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git" "fiasco @ git+https://github.com/wtbarnes/fiasco.git"
     micromamba run -n glue-solar-app pip install --no-deps .
 
-Install glue-solar again after each change to the checkout. The app holds no PyQt5, PySide or tkinter, and not
-fiasco, which glue-solar's ``density`` extra adds, or ffmpeg: opened from the Finder, it saves movies as GIF, not
-MP4.
+Install glue-solar again after each change to the checkout. The app holds no PyQt5, PySide or tkinter. It holds
+fiasco, which glue-solar's ``density`` extra adds, so the line ratio diagnostic offers its O IV preset; as outside the
+app, fiasco downloads and builds the CHIANTI database in ``~/.fiasco`` on its first use (see
+:ref:`glue_solar_users_guide_iris_line_moments`). It holds the environment's ffmpeg, which ``start_glue_solar.py``
+puts first on the ``PATH``, so that movies save as MP4 in an app opened from the Finder, which gives it no shell
+``PATH``. Of matplotlib's backends it holds QtAgg and those that Save takes PNG, PDF and SVG from: Save still lists
+EPS, PS and PGF, which then fail with "No module named". The spec leaves out botocore, pyarrow, bokeh and
+distributed, which conda-forge's dask and astropy bring for cloud storage, Parquet, dashboards and clusters, none of
+which glue-solar uses; ``dask-core`` and ``astropy-base`` would not keep them out, as the reproject and spectral-cube
+that sunpy and pvextractor need depend on the full packages.
 
 Building
 --------
@@ -41,8 +48,8 @@ From the checkout::
 
     micromamba run -n glue-solar-app packaging/macos/build_app.sh
 
-It takes about 2.5 minutes and writes ``packaging/macos/dist/Glue Solar.dmg``, about 350 MB, and the app it holds in
-``packaging/macos/dist/app``, about 720 MB. Both folders, ``build`` and ``dist``, are left out of git and the source
+It takes about 2 minutes and writes ``packaging/macos/dist/Glue Solar.dmg``, about 290 MB, and the app it holds in
+``packaging/macos/dist/app``, about 580 MB. Both folders, ``build`` and ``dist``, are left out of git and the source
 distribution.
 
 Checking the app
@@ -50,12 +57,23 @@ Checking the app
 
 ``smoke.py`` checks a built app without showing it: run with ``GLUE_SOLAR_APP_CHECK`` naming it, the app runs it in
 place of glue (glue's own ``-x`` fails in glue-qt 0.4.2). It starts glue, checks glue-solar's menu entries and glue's
-IPython terminal, opens the quicklook of the files it is given, adds irispy's radiometric calibration of the raster,
-which needs irispy's response files, and exits 1 at the first failure::
+IPython terminal, that fiasco has the line_ratio of the O IV preset and that matplotlib runs the bundled ffmpeg, opens
+the quicklook of the files it is given, adds irispy's radiometric calibration of the raster, which needs irispy's
+response files, and exits 1 at the first failure::
 
     T=$(micromamba run -n glue-solar-app python -c "import irispy.data.test as t; print(t.ROOTDIR)")/sns
     env HOME="$(mktemp -d)" QT_QPA_PLATFORM=offscreen GLUE_SOLAR_APP_CHECK=packaging/macos/smoke.py \
         "packaging/macos/dist/app/Glue Solar.app/Contents/MacOS/glue-solar" $T/*raster*.fits $T/*SJI_1400*.fits
+
+To check it as the Finder opens it, start it with ``open``, which passes the variables and the files, writes what
+the check prints to files and waits for the app to quit, with the ``PATH`` the Finder gives apps, as ``open`` would
+pass the shell's; its window shows meanwhile, and a traceback says what failed::
+
+    H=$(mktemp -d)
+    open -n -W --env PATH=/usr/bin:/bin:/usr/sbin:/sbin --env HOME="$H" \
+        --env GLUE_SOLAR_APP_CHECK="$PWD/packaging/macos/smoke.py" --stdout "$H/out.txt" --stderr "$H/err.txt" \
+        "packaging/macos/dist/app/Glue Solar.app" --args $T/*raster*.fits $T/*SJI_1400*.fits
+    cat "$H/out.txt" "$H/err.txt"
 
 Installing
 ----------
