@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <!-- Color bar: a colormap's colors with value ticks -->
+  <defs>
+    <linearGradient id="colors" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#440154"/>
+      <stop offset="0.25" stop-color="#3b528b"/>
+      <stop offset="0.5" stop-color="#21918c"/>
+      <stop offset="0.75" stop-color="#5ec962"/>
+      <stop offset="1" stop-color="#fde725"/>
+    </linearGradient>
+  </defs>
+  <rect x="9" y="4" width="15" height="40" fill="url(#colors)" stroke="#808080" stroke-width="2"/>
+  <path d="M24,6 H30 M24,24 H30 M24,42 H30 M33,6 H43 M33,24 H43 M33,42 H43" fill="none" stroke="#808080" stroke-width="3.5" stroke-linecap="round"/>
+</svg>

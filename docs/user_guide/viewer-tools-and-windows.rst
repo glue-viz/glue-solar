@@ -25,7 +25,9 @@ diagram" below; the link icon is the "Coordinate" menu, with "Time master", "Go 
 "Blink" submenu, with "Set blink partner here", "Blink" and "Blink interval"; and
 the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Wavelength
 band…", "Physical aspect", "Zoom 1:1", "Color bar", "Raster overlays" and "Cursor readout", each
-but "Zoom 1:1" checked while it is on.
+but "Zoom 1:1" checked while it is on. "Path diagram", "Slope", "Wavelength band…", "Zoom 1:1" and
+"Color bar" have icons of glue-solar's own, none of them a glue tool's, and "Show position on
+original path" has glue's path icon.
 After a View or Coordinate entry the mouse mode, such as Pixel, stays on. Resting the mouse on a
 menu entry shows its tooltip, in glue's save and window menus too, and a menu shows an entry's
 single-key shortcut beside it, which works while the toolbar has the keyboard, as a button's does.
@@ -79,7 +81,7 @@ toolbar has:
   The "Reset" button next to the layer's contrast/bias sliders undoes it.
 - "Slice Extraction" (P): draw a path and press Enter to see the data along it in a new window.
   It is offered for 3D data only, so not for stacks.
-- "Path diagram" (L), a glue-solar mode in the pencil menu, with a path icon of its own ("Draw a
+- "Path diagram" (L), a glue-solar mode in the pencil menu, with an icon of its own ("Draw a
   path, then press Enter for the data along it"):
   glue's path slicer for 3D and 4D data. Click the path's vertices on the image and press Enter (Esc
   clears the path): each dataset shown gets a dataset of its values along the path in the data
@@ -284,16 +286,16 @@ A Profile viewer, the quicklook's spectrum panels included, gets an "IRIS lines"
 axis is the wavelength of IRIS data, a thin marker and a label mark each main IRIS line in the
 plotted range (Mg II k, h and the triplet, C II, Si IV, O I, Fe XII and Fe XXI, at NIST vacuum
 wavelengths), in the axis's unit, with lines too close to tell apart sharing a label. They start on,
-and the button, checked while they show, hides or shows them. Its "Velocity axis" button shows or
-hides a top axis of the :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>` from the
-window's rest wavelength; it is checked while on and grayed while the x axis is not the wavelength
-of data with a rest wavelength. A quicklook's spectrum panel of a window other than its main one
-also gets "Show this window's panels" (the triangle icon right after "Zoom"), which gives that window
-the map, spectrogram and wavelength panels (see :ref:`The quicklook
-<glue_solar_users_guide_iris_quicklook>`). Its save menu adds glue-solar's "IRIS: save profiles as
-ECSV…" after glue's entries, which writes the visible profiles, as drawn, to one table, with their
-times along exposures, scans or frames (see :ref:`Saving the profiles
-<glue_solar_users_guide_iris_save_profiles>`).
+and the button, checked while they show, hides or shows them. Its "Velocity axis" button, with an
+icon of glue-solar's own, shows or hides a top axis of the :ref:`Doppler velocity
+<glue_solar_users_guide_iris_velocity>` from the window's rest wavelength; it is checked while on
+and grayed while the x axis is not the wavelength of data with a rest wavelength. A quicklook's
+spectrum panel of a window other than its main one also gets "Show this window's panels" (the
+triangle icon right after "Zoom"), which gives that window the map, spectrogram and wavelength
+panels (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). Its save menu adds
+glue-solar's "IRIS: save profiles as ECSV…" after glue's entries, which writes the visible profiles,
+as drawn, to one table, with their times along exposures, scans or frames (see :ref:`Saving the
+profiles <glue_solar_users_guide_iris_save_profiles>`).
 
 The stretch menu in the Image Viewer's layer options lists glue-solar's "Gamma 0.4", "Gamma 0.75",
 "Gamma 1.5" and "Gamma 2.2" after Glue's own stretches. Each raises the values between the limits to

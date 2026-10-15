@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <!-- Wavelength band: a band about a line's core -->
+  <rect x="16" y="4" width="16" height="40" fill="#d9472f" fill-opacity="0.35" stroke="#d9472f" stroke-width="3"/>
+  <path d="M3,42 C13,42 16,41 19,30 C21,20 22,10 24,10 C26,10 27,20 29,30 C32,41 35,42 45,42" fill="none" stroke="#1f86c8" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>
