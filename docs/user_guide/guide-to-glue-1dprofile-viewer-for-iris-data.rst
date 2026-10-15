@@ -297,7 +297,7 @@ and the saturated samples, +Inf::
     average = raster.compute_statistic("mean", cid, axis=(0, 1, 2), view=(slice(40, 60),))  # (0, 1) for exposures
 
 **Photospheric context.** A sunspot or pore hardly shows in the Mg II k core, so look at the
-photosphere beside it: tick a photospheric window, 2832 or 2814 (2826 in some programmes), with
+photosphere beside it: tick a photospheric window, 2832 or 2814 (2826 in some programs), with
 Mg II k 2796 in the browser, or slit-jaw 2832, which the quicklook opens in a viewer of its own;
 without them, the far wings of Mg II k and h form lower down. The quicklook gives the window a
 spectrum panel; for its map, blink the map against it (see "Set blink partner here" in
