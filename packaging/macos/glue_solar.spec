@@ -25,8 +25,8 @@ a = Analysis(
     binaries=[(os.path.join(sys.prefix, "bin", "ffmpeg"), "bin")],
     datas=datas,
     hiddenimports=hiddenimports,
-    # QtAgg, and the backends Save takes PNG (Agg), PDF and SVG from
-    hooksconfig={"matplotlib": {"backends": ["QtAgg", "PDF", "SVG"]}},
+    # QtAgg, and the backends Save takes PNG (Agg), PDF, SVG, EPS and PS (PS) from
+    hooksconfig={"matplotlib": {"backends": ["QtAgg", "PDF", "SVG", "PS"]}},
     # PyQt6 only, as glue-solar refuses Qt 5; no debugpy, ipykernel's debugger, whose vendored pydevd PyInstaller leaves
     # out, which breaks glue's terminal; and none of what conda-forge's dask and astropy bring for cloud storage,
     # Parquet, dashboards or clusters
