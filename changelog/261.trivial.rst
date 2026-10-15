@@ -1,0 +1,1 @@
+A moments test no longer fails now and then under load, and rebinning no longer changes the warning filters of glue's other threads.
