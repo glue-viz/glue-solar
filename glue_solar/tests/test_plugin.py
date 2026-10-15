@@ -41,11 +41,12 @@ from glue_qt.config import keyboard_shortcut
 from glue_qt.viewers.histogram import HistogramViewer
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.image.profile_viewer_tool import ProfileViewerTool
-from glue_qt.viewers.profile import ProfileViewer
+from glue_qt.viewers.profile import ProfileViewer, profile_tools
 from glue_qt.viewers.scatter import ScatterViewer
 from glue_qt.viewers.table import TableViewer
 from irispy.io import read_files
 from irispy.io.sji import read_sji_lvl2
+from irispy.utils.fitting import profiles_on_background
 from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent, key_press_handler
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from qtpy.QtCore import Qt
@@ -57,6 +58,7 @@ import astropy.units as u
 from astropy import constants
 from astropy.coordinates import angular_separation
 from astropy.io import fits
+from astropy.modeling.fitting import TRFLSQFitter
 from astropy.table import QTable, Table
 from astropy.time import Time
 from astropy.visualization import PowerStretch
@@ -66,7 +68,7 @@ from astropy.wcs import WCS
 import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
-from glue_solar.fitters import GaussianConstantFitter
+from glue_solar.fitters import FITTER, GaussianConstantFitter
 from glue_solar.lines import rest_wavelength_iris
 from glue_solar.quicklook import QuicklookImageViewer, _role, _wavelengths
 from glue_solar.regrid import north_up_iris, rebin_iris, regrid_iris, regrid_on_time
@@ -2556,10 +2558,10 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     assert suggested[-1] == "cube_6563_scans maximum profiles.ecsv"
 
 
-def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot):
+def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot, monkeypatch, tmp_path):
     glue_solar.setup()
     glue_solar.setup()
-    assert list(fit_plugin).count(GaussianConstantFitter) == 1
+    assert list(fit_plugin).count(FITTER) == 1
     wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 1355, "CDELT1": 0.025})
     x = 1355 + 0.025 * np.arange(49)
     y = 3 + 40 * np.exp(-0.5 * ((x - 1355.62) / 0.04) ** 2)
@@ -2573,17 +2575,82 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot):
     viewer.state.x_display_unit = "Angstrom"
     viewer.toolbar.active_tool = "profile-analysis"
     tools = viewer.toolbar.tools["profile-analysis"]._profile_tools
-    tools.fit_function = GaussianConstantFitter
+    tools.fit_function = FITTER
     tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 1354, 1356.5
-    tools.ui.button_fit.click()
-    tools.wait_for_fit()
-    qtbot.waitUntil(lambda: "km/s" in tools.text_log.toPlainText())
+
+    def fit():
+        tools.ui.text_log.clear()
+        tools.ui.button_fit.click()
+        tools.wait_for_fit()
+        qtbot.waitUntil(lambda: "km/s" in tools.text_log.toPlainText())
+        return tools.text_log.toPlainText().splitlines()
+
     # the fill left out, its centre and its velocity from O I 1355.5977, (1355.62 / 1355.5977 - 1) c
-    assert tools.text_log.toPlainText().splitlines()[-2:] == ["centre = 1355.620000", "O I 1355.5977 Å: +4.93 km/s"]
+    assert fit()[-2:] == ["centre = 1355.620000", "O I 1355.5977 Å: +4.93 km/s"]
     model, _ = GaussianConstantFitter().build_and_fit(x, y)
     assert model.parameters == pytest.approx([3, 40, 1355.62, 0.04])
     model, _ = GaussianConstantFitter().build_and_fit(x, 50 - y)
     assert model.parameters == pytest.approx([47, -40, 1355.62, 0.04])  # absorption
+    # both options ticked in glue's Settings reach the next fit
+    for option in ("linear_background", "lorentzian"):
+        monkeypatch.setattr(FITTER, option, False)  # put back after the test, as the dialog sets the one fitter
+
+    def tick(dialog):
+        dialog.widgets["linear_background"].setChecked(True)
+        dialog.widgets["lorentzian"].setChecked(True)
+        dialog.accept()
+
+    monkeypatch.setattr(profile_tools.FitSettingsWidget, "exec_", tick)
+    tools.ui.button_settings.click()
+    lines = fit()
+    assert [line.split(" ")[0] for line in lines[3:8]] == ["amplitude_1", "fwhm_1", "intercept_0", "slope_0", "x_0_1"]
+    assert float(lines[-2].removeprefix("centre = ")) == pytest.approx(1355.62, abs=1e-3)  # a Lorentzian's
+    x = 1355 + 0.025 * np.arange(49)
+    y = 3 + 0.5 * (x - 1355) + 40 / (1 + ((x - 1355.62) / 0.03) ** 2)
+    model, _ = GaussianConstantFitter(linear_background=True, lorentzian=True).build_and_fit(x, y)
+    assert model.parameters == pytest.approx([0.5, 3 - 0.5 * 1355, 40, 1355.62, 0.06])  # irispy's intercept at 0 Å
+    fitter = GaussianConstantFitter(linear_background=True)
+    fitter.set_constraint("slope_0", value=0.25, fixed=True)  # irispy's starts flat
+    assert fitter.build_and_fit(x, y)[0].slope_0.value == 0.25
+    # a Lorentzian starts from the width a Gaussian's standard deviation is from
+    starts = GaussianConstantFitter().parameter_guesses(x, y, None)
+    widths = GaussianConstantFitter(lorentzian=True).parameter_guesses(x, y, None)
+    assert widths["fwhm_1"] == pytest.approx(starts["stddev_1"] * np.sqrt(8 * np.log(2)))
+    # a session keeps the Profile viewer with the fitter chosen
+    app.save_session(str(tmp_path / "fit.glu"))
+    restored = GlueApplication.restore_session(str(tmp_path / "fit.glu"))
+    qtbot.addWidget(restored)
+    assert [type(viewer) for viewer in restored.viewers[0]] == [ProfileViewer]
+
+
+@pytest.mark.remote_data
+@pytest.mark.parametrize("lorentzian", [False, True])
+@pytest.mark.parametrize("linear_background", [False, True])
+def test_the_iris_fitter_fits_irispys_line_on_a_background(irispy_data, linear_background, lorentzian):
+    """At a 4000005156 Si IV 1403 point, irispy's model, from the fitter's starts, fitted with astropy's TRF."""
+    [raster] = raster_data([irispy_data("iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz")])
+    x = raster[raster.id["Wavelength"]][0, 237]
+    y = np.asarray(raster[raster.main_components[0]][0, 237])
+    keep = (1402.4 <= x) & (x <= 1403.2)
+    x, y = x[keep], y[keep]
+    fitter = GaussianConstantFitter(linear_background=linear_background, lorentzian=lorentzian)
+    model, fitted_with = fitter.build_and_fit(x, y)
+    starts = fitter.parameter_guesses(x, y, None)
+    *_, level, amplitude, centre, width = model.param_names
+    irispys = profiles_on_background(
+        starts[centre],
+        amplitudes=[starts[amplitude]],
+        widths=[starts[width]],
+        background="linear" if linear_background else "constant",
+        background_level=starts[level],
+        profile="lorentzian" if lorentzian else "gaussian",
+    )
+    expected = TRFLSQFitter()(irispys, x, y)
+    assert isinstance(fitted_with, TRFLSQFitter)
+    assert model.param_names == expected.param_names
+    assert model.bounds == expected.bounds  # irispy's, a Lorentzian's width positive too
+    np.testing.assert_array_equal(model.parameters, expected.parameters)
+    assert 1402.7 < getattr(model, centre).value < 1402.9
 
 
 def test_gaussian_on_a_constant_says_when_the_range_holds_too_few_samples():

@@ -205,14 +205,19 @@ forms low enough to be nearly at rest and measures the offset of the FUV windows
 Ni I 2799.474 Å, an absorption line in the ``Mg II k 2796`` window, measures the NUV's (Mg II). With
 ``Wavelength`` as the Profile's x axis and "Mean" as its function, for the signal of the whole
 raster, pick "Gaussian + constant (IRIS)" on the "Fit" tab, drag a range over the line, about
-1355.4 to 1355.8 Å for O I or 2799.3 to 2799.65 Å for Ni I, and press "Fit". It fits astropy's
-``Gaussian1D`` on a ``Const1D`` to the samples in the range, the NaN fill left out, from the
-constant at their median and the line at the sample farthest from it, so an absorption line fits
-too. It needs a sample in the range for each parameter not fixed under "Settings", four with none
-fixed, and with fewer the report ends with how many it has. The report lists ``amplitude_0``, the
-constant, and ``amplitude_1``, ``mean_1`` and ``stddev_1``, the Gaussian's, then the centre and,
-within 0.5 Å of a main IRIS line with the x unit ``Angstrom``, its velocity from that line,
-(centre / rest - 1) c; Ni I is not one. Add the offset,
+1355.4 to 1355.8 Å for O I or 2799.3 to 2799.65 Å for Ni I, and press "Fit". It fits irispy's
+``irispy.utils.fitting.profiles_on_background`` model, a ``Gaussian1D`` on a ``Const1D``, with
+astropy's ``TRFLSQFitter`` to the samples in the range, the NaN fill left out, from the constant at
+their median and the line at the sample farthest from it, so an absorption line fits too. "Settings"
+ticks irispy's two options, "Linear background", a ``Linear1D`` starting flat, and "Lorentzian
+profile", a ``Lorentz1D``; the fitter keeps them, with the estimates, fixed parameters and bounds
+set there, for every fit in every Profile viewer, and lists the parameters of a model just chosen
+when "Settings" opens again. It needs a sample in the range for each parameter not fixed, four with
+none fixed and five with a linear background, and with fewer the report ends with how many it has.
+The report lists the background's ``amplitude_0``, or ``slope_0`` and ``intercept_0``, its value at
+0 Å, and the line's ``amplitude_1``, ``mean_1`` and ``stddev_1``, or a Lorentzian's ``x_0_1`` and
+``fwhm_1``, then the centre and, within 0.5 Å of a main IRIS line with the x unit ``Angstrom``, its
+velocity from that line, (centre / rest - 1) c; Ni I is not one. Add the offset,
 the centre minus the measured line's rest wavelength, to the rest wavelength of a line on the same
 detector and set that with "IRIS: set rest wavelength…" on its window, so both the
 :ref:`line moments <glue_solar_users_guide_iris_line_moments>` and red-blue asymmetry start from it,

@@ -28,6 +28,7 @@ from glue.core.edit_subset_mode import EditSubsetMode
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.link_helpers import LinkSame, LinkSameWithUnits
 from glue.core.link_manager import pixel_cid_to_pixel_cid_matrix
+from glue.core.simpleforms import BoolOption
 from glue.core.state import GlueSerializeError, GlueSerializer, GlueUnSerializer, loader, saver
 from glue.core.subset import SubsetState
 from glue.dialogs.link_editor.state import LinkEditorState
@@ -46,6 +47,7 @@ from glue.viewers.scatter import viewer as scatter_viewer
 from glue_qt.app.layer_tree_widget import LayerAction, UserAction
 from glue_qt.config import LayerActionRegistry
 from glue_qt.config import layer_action as glue_layer_action
+from glue_qt.core import simpleforms
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
 from glue_qt.utils import colors
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
@@ -963,6 +965,25 @@ def add_tool(self, tool):
 
 
 BasicToolbar.add_tool = add_tool
+
+
+class BoolFormItem(simpleforms.BoolFormItem):
+    """
+    glue-qt's ``BoolFormItem``, its check box giving its state as ``value()``.
+
+    glue-qt 0.4.2's fit Settings dialog (``FitSettingsWidget.update_fitter_from_settings``) reads each option's
+    widget's ``value()``, which a check box lacks, so OK raises for a fitter with a ``BoolOption``, such as the
+    IRIS fitter's linear background. Each box probes for it, so this changes nothing once Qt or glue-qt gives one.
+    Retired by glue-qt reading the form item's ``value`` (report candidate).
+    """
+
+    def __init__(self, instance, option):
+        super().__init__(instance, option)
+        if not hasattr(self.widget, "value"):
+            self.widget.value = self.widget.isChecked
+
+
+simpleforms.register(BoolOption, BoolFormItem)
 
 
 _original_update_icons = colors.QColormapCombo._update_icons

@@ -1,13 +1,16 @@
 """
-A Gaussian on a constant for the Fit tab of glue's Profile viewer, which glue imports with its first Profile viewer.
+irispy's line on a background for the Fit tab of glue's Profile viewer, which glue imports with its first Profile
+viewer.
 """
 
 import numpy as np
 from glue.config import fit_plugin
-from glue.core.fitters import AstropyFitter1D, SimpleAstropyGaussianFitter
+from glue.core.fitters import AstropyFitter1D
+from glue.core.simpleforms import BoolOption
+from irispy.utils.fitting import profiles_on_background
 
 from astropy import constants
-from astropy.modeling import models
+from astropy.modeling import fitting
 
 from glue_solar.lines import MAIN_LINES
 
@@ -16,27 +19,52 @@ __all__ = ["GaussianConstantFitter"]
 NEAR = 0.5  # a centre within this many Angstrom of a main IRIS line gets its velocity from it
 
 
-def _model(amplitude_0, amplitude_1, mean_1, stddev_1):
-    return models.Const1D(amplitude_0) + models.Gaussian1D(amplitude_1, mean_1, stddev_1)
-
-
 class GaussianConstantFitter(AstropyFitter1D):
     """
-    A `~astropy.modeling.functional_models.Gaussian1D` on a `~astropy.modeling.functional_models.Const1D`, numbered as
-    irispy's ``profiles_on_background`` numbers them (``amplitude_0`` the constant), fitted with the fitter class of
-    glue's Gaussian to the finite samples, as an IRIS window's fill is NaN, one at least per free parameter. It starts
-    from the data: the constant their median, the line their sample farthest from it, an emission or absorption line,
-    and the standard deviation from the width where they are beyond half of that. The summary adds the centre and,
-    within `NEAR` of a main IRIS line (`lines.MAIN_LINES`) for an x axis in Angstrom, its Doppler velocity from that
-    line.
+    irispy's ``profiles_on_background`` model of one line, a Gaussian on a constant, or on a sloping background with
+    `linear_background` and a Lorentzian with `lorentzian`, fitted with astropy's ``TRFLSQFitter`` to the finite
+    samples, as an IRIS window's fill is NaN, one at least per free parameter. It starts from the data: the background
+    their median, flat, the line their sample farthest from it, an emission or absorption line, and the width from
+    where they are beyond half of that, a Gaussian's standard deviation or a Lorentzian's full width at half maximum.
+    The summary adds the centre and, within `NEAR` of a main IRIS line (`lines.MAIN_LINES`) for an x axis in Angstrom,
+    its Doppler velocity from that line.
+
+    glue-qt's Profile tools call the fitter registered for a new one at each Settings and each fit, so the one
+    registered returns itself, keeping its Settings for every fit (report candidate).
     """
 
     label = "Gaussian + constant (IRIS)"
-    model_cls = staticmethod(_model)
-    param_names = ["amplitude_0", "amplitude_1", "mean_1", "stddev_1"]
-    fitting_cls = SimpleAstropyGaussianFitter.fitting_cls
+    linear_background = BoolOption(label="Linear background")
+    lorentzian = BoolOption(label="Lorentzian profile")
+    fitting_cls = fitting.TRFLSQFitter
 
-    def fit(self, x, y, dy, constraints):
+    def __call__(self):
+        return self
+
+    def _kinds(self):
+        return {
+            "background": "linear" if self.linear_background else "constant",
+            "profile": "lorentzian" if self.lorentzian else "gaussian",
+        }
+
+    @property
+    def param_names(self):
+        return list(profiles_on_background(0, **self._kinds()).param_names)
+
+    def model_cls(self, **starts):  # glue's hook, given each parameter's start
+        *_, level, amplitude, centre, width = self.param_names
+        model = profiles_on_background(
+            starts[centre],
+            amplitudes=[starts[amplitude]],
+            widths=[starts[width]],
+            background_level=starts[level],
+            **self._kinds(),
+        )
+        if starts.get("slope_0") is not None:  # set in Settings: irispy's starts flat
+            model.slope_0 = starts["slope_0"]
+        return model
+
+    def fit(self, x, y, dy, constraints, **options):  # the options are read from the fitter
         keep = np.isfinite(y)
         free, finite = sum(not constraint["fixed"] for constraint in constraints.values()), np.count_nonzero(keep)
         if finite < free:  # in place of scipy's "Improper input" traceback
@@ -51,11 +79,17 @@ class GaussianConstantFitter(AstropyFitter1D):
         peak = np.argmax(np.abs(y - constant))
         amplitude = y[peak] - constant
         fwhm = np.count_nonzero(np.abs(y - constant) >= np.abs(amplitude) / 2) * np.ptp(x) / (len(x) - 1)
-        stddev = fwhm / np.sqrt(8 * np.log(2))
-        return {"amplitude_0": constant, "amplitude_1": amplitude, "mean_1": x[peak], "stddev_1": stddev}
+        *_, level, height, centre, width = self.param_names
+        return {
+            level: constant,
+            height: amplitude,
+            centre: x[peak],
+            width: fwhm if self.lorentzian else fwhm / np.sqrt(8 * np.log(2)),
+        }
 
     def summarize(self, fit_result, x, y, dy=None):
-        centre = fit_result[0].mean_1.value
+        model = fit_result[0]
+        centre = getattr(model, model.param_names[-2]).value
         text = f"{super().summarize(fit_result, x, y, dy)}\n\ncentre = {centre:.6f}"
         name, rest = min(MAIN_LINES, key=lambda line: abs(line[1] - centre))
         if abs(centre - rest) <= NEAR:
@@ -63,6 +97,9 @@ class GaussianConstantFitter(AstropyFitter1D):
         return text
 
 
+FITTER = GaussianConstantFitter()  # the one in glue's Fit tab
+
+
 def setup():
-    if GaussianConstantFitter not in fit_plugin:  # glue_solar.setup() may run more than once
-        fit_plugin.add(GaussianConstantFitter)
+    if FITTER not in fit_plugin:  # glue_solar.setup() may run more than once
+        fit_plugin.add(FITTER)
