@@ -1,0 +1,1 @@
+glue-solar's menus, dialogs, status messages and docs use American spelling, as glue's do ("Color bar", "color limits", "center"), and write the velocity unit as astropy's "km / s".
