@@ -1,0 +1,1 @@
+Blink, the point's light curve and its row and column cuts show only once they can act; 'Raster overlays' moves to the View menu; glue-solar's save entries read 'IRIS: save frames or movie…' and 'IRIS: save profiles as ECSV…'; and G toggles a Profile viewer's grid.

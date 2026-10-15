@@ -183,6 +183,7 @@ def setup():
             tools.PhysicalAspectTool,
             tools.ZoomOneToOneTool,
             tools.ColourBarTool,
+            tools.RasterOverlaysTool,
         ],
     }
     # glue-qt with its own readout (glue-viz/glue-qt#74, draft) does not need ours

@@ -68,10 +68,9 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 from glue_solar.quicklook import (
     _across,
-    _curve_map,
+    _check_cut,
     _curve_sources,
     _cut,
-    _cut_map,
     _half_cadence,
     _is_sit_and_stare,
     _light_curve,
@@ -116,6 +115,7 @@ __all__ = [
     "PathTool",
     "PerFrameLimitsTool",
     "PhysicalAspectTool",
+    "RasterOverlaysTool",
     "SaveProfileTool",
     "SaveSequenceTool",
     "SlopeTool",
@@ -1024,6 +1024,36 @@ class ColourBarTool(Tool):
         _keep_mouse_mode(self.viewer)
 
 
+@viewer_tool
+class RasterOverlaysTool(Tool):
+    """
+    Show or hide the raster overlays of the viewer's observation on all its viewers: on each slit-jaw image the slit of
+    each raster step or exposure, a stack's at the scan its panels show, placed through the frame nearest that step's
+    time, and on each map of the raster, its steps or exposures against slit, a dashed line at the one nearest the time
+    master's time, hidden beyond half their cadence. Plain matplotlib lines: 'Save plot' shows them, and sessions and
+    Python scripts leave them out. Its View menu entry shows where a raster of the observation is loaded.
+    """
+
+    tool_id = "solar:raster_overlays"
+    action_text = "Raster overlays"
+    tool_tip = "Show or hide each raster step's slit on the slit-jaw images and the step at the master's time on maps"
+
+    @property
+    def checked(self):
+        """Whether the overlays of the viewer's observation show, as the View menu entry's check mark says."""
+        return observation_key(self.viewer.state.reference_data) in coordinator(self.viewer._data).overlays
+
+    def activate(self):
+        coordinator(self.viewer._data).toggle_overlays(observation_key(self.viewer.state.reference_data))
+        _keep_mouse_mode(self.viewer)
+
+    def offered(self):
+        """Whether a raster of the viewer's observation is loaded, which the View menu checks as it opens."""
+        key = observation_key(self.viewer.state.reference_data)
+        rasters = (data for data in self.viewer._data if _role(data) == "raster")
+        return key is not None and any(observation_key(data) == key for data in rasters)
+
+
 def sky_length(viewer, x, y):
     """
     The length of the line through the points ``x``, ``y`` (two or more) of the Image viewer's displayed axes, as
@@ -1869,26 +1899,13 @@ class _TimeMasterEntry(_CoordinateEntry):
         return _timed(data) and observation_key(data) is not None
 
 
-class _OverlaysEntry(_CoordinateEntry):
-    """
-    Show or hide the raster overlays of the viewer's observation on all its viewers: on each slit-jaw image the slit of
-    each raster step or exposure, a stack's at the scan its panels show, placed through the frame nearest that step's
-    time, and on each map of the raster, its steps or exposures against slit, a dashed line at the one nearest the time
-    master's time, hidden beyond half their cadence. Plain matplotlib lines: 'Save plot' shows them, and sessions and
-    Python scripts leave them out.
-    """
-
-    tool_id = "solar:raster_overlays"
-    action_text = "Raster overlays"
-    tool_tip = "Show or hide each raster step's slit on the slit-jaw images and the step at the master's time on maps"
-
-    def run(self, coordinator):
-        coordinator.toggle_overlays(observation_key(self.viewer.state.reference_data))
-
-    def offered(self):
-        key = observation_key(self.viewer.state.reference_data)
-        rasters = (data for data in self.viewer.session.data_collection if _role(data) == "raster")
-        return key is not None and any(observation_key(data) == key for data in rasters)
+def _takes(check, *args, **kwargs):
+    """Whether ``check``, the guard an entry's run calls too (D61), takes these arguments, raising no ValueError."""
+    try:
+        check(*args, **kwargs)
+    except ValueError:
+        return False
+    return True
 
 
 class _ClearPointEntry(_CoordinateEntry):
@@ -1910,7 +1927,7 @@ class _LightCurveEntry(_CoordinateEntry):
         _light_curve(self.viewer)
 
     def offered(self):
-        return _curve_map(self.viewer)
+        return _takes(_check_cut, self.viewer, curve=True)
 
 
 class _PointCurvesEntry(_CoordinateEntry):
@@ -1924,13 +1941,8 @@ class _PointCurvesEntry(_CoordinateEntry):
 
     def offered(self):
         # on a viewer of IRIS, AIA or SOT data, where the point has curves to plot, as `_point_curves` checks
-        if _role(self.viewer.state.reference_data) not in ("raster", "sji", "aia"):
-            return False
-        try:
-            _curve_sources(self.viewer.session.application)
-        except ValueError:
-            return False
-        return True
+        role = _role(self.viewer.state.reference_data)
+        return role in ("raster", "sji", "aia") and _takes(_curve_sources, self.viewer.session.application)
 
 
 class _RowEntry(_CoordinateEntry):
@@ -1944,7 +1956,7 @@ class _RowEntry(_CoordinateEntry):
         _cut(self.viewer, self.viewer.state.reference_data.ndim - self.back, self.label)
 
     def offered(self):
-        return _cut_map(self.viewer)
+        return _takes(_check_cut, self.viewer)
 
 
 class _ColumnEntry(_RowEntry):
@@ -2157,7 +2169,7 @@ class SaveSequenceTool(Tool):
 
     icon = "glue_filesave"
     tool_id = "solar:save_sequence"
-    action_text = "Save frames or movie…"
+    action_text = "IRIS: save frames or movie…"
     tool_tip = "Save the image at each index of a slider as PNG files or a movie"
 
     @messagebox_on_error("Could not save the frames or movie")
@@ -2351,7 +2363,7 @@ class SaveProfileTool(Tool):
 
     icon = "glue_filesave"
     tool_id = "solar:save_profile"
-    action_text = "Save profiles as ECSV…"
+    action_text = "IRIS: save profiles as ECSV…"
     tool_tip = "Save the visible profiles, as drawn, to an ECSV table"
 
     @messagebox_on_error("Could not save the profiles")
@@ -2465,6 +2477,9 @@ class _BlinkEntry(_CoordinateEntry):
         """Whether the viewer blinks, as the entry's check mark says."""
         return self.menu._blink.isActive()
 
+    def offered(self):
+        return self.menu._valid()  # a blink whose partner goes stops at its next flip (`_flip`)
+
     @messagebox_on_error("Could not blink")
     def run(self, coordinator):
         self.menu.blink(not self.menu._blink.isActive())
@@ -2552,8 +2567,9 @@ class _ToolMenu(SimpleToolMenu):
     makes them itself as Coordinate does, and glue-qt 0.4.2 makes them its entries. Once glue-qt has built it, each tool is also in the toolbar's ``tools`` and
     ``actions`` with its entry, as a button's would be, so glue-qt switches a mouse mode of the menu on and off and
     scripts find a tool by its id as before. An entry shows only while its tool is ``enabled``, which glue-qt does for
-    buttons only (glue-viz/glue-qt#72, draft, adds it), has a check mark for a tool with a ``checked`` state, and takes
-    its tool's key while the toolbar has the keyboard, as a button does.
+    buttons only (glue-viz/glue-qt#72, draft, adds it), set from its ``offered`` as the menu opens where it has one,
+    has a check mark for a tool with a ``checked`` state, and takes its tool's key while the toolbar has the keyboard,
+    as a button does.
     """
 
     def __init__(self, viewer, subtools=None):
@@ -2582,6 +2598,8 @@ class _ToolMenu(SimpleToolMenu):
 
     def _check(self):
         for tool in self.subtools:
+            if hasattr(tool, "offered"):
+                tool.enabled = tool.offered()
             if hasattr(tool, "checked"):
                 self.viewer.toolbar.actions[tool.tool_id].setChecked(tool.checked)
 
@@ -2602,12 +2620,12 @@ class CoordinateTool(_ToolMenu):
     The tool registers its viewer with the data collection's
     `~glue_solar.quicklook.Coordinator`, which keeps the viewers on the point selected with the
     Pixel tool, and unregisters it when the viewer closes. Its menu makes the displayed dataset the
-    time master of its observation, moves the time master to a typed UTC time, makes the frame, exposure, step or
-    scan slider's playback loop over a range, or shows the raster overlays; its "Point" submenu clears the point,
+    time master of its observation, moves the time master to a typed UTC time, or makes the frame, exposure, step or
+    scan slider's playback loop over a range; its "Point" submenu clears the point,
     opens the light curve at the point, plots the light curves of the windows and slit-jaw images shown at the point, or
     opens a raster map's row or column through the point;
     its "Blink" submenu blinks the viewer between its position and a stored partner. An entry shows only where it can
-    act, as the menu opens (`_CoordinateEntry.offered`), and "Blink" is greyed without a partner. On a
+    act, as the menu opens (`_CoordinateEntry.offered`): "Blink" once it has a partner. On a
     slit-jaw image it draws the displayed frame's slit, and the point of a raster of the same
     observation placed with that frame's coordinates while it is on the image.
     """
@@ -2617,7 +2635,7 @@ class CoordinateTool(_ToolMenu):
     # no action_text, which glue-qt would show beside the icon, to keep the toolbar short
     tool_tip = "Coordinate this viewer with the others of its IRIS observation"
     # the entries of the menu, then of each submenu, by its title, with its tooltip
-    ENTRIES = (_TimeMasterEntry, _GoToUTCEntry, _LoopEntry, _OverlaysEntry)
+    ENTRIES = (_TimeMasterEntry, _GoToUTCEntry, _LoopEntry)
     SUBMENUS = {
         "Point": (
             "The point: clear it, its light curves, or the map's row and column through it",
@@ -2690,12 +2708,6 @@ class CoordinateTool(_ToolMenu):
             intervals.addAction(action)
         # not through glue-qt's toolbar, so the mouse mode stays
         group.triggered.connect(lambda action: self._blink.setInterval(round(action.data() * 1000)))
-
-    def _check(self):
-        for entry in self.subtools:
-            entry.enabled = entry.offered()
-        super()._check()
-        self._action.setEnabled(self._blink.isActive() or self._valid())
 
     def blink(self, on):
         """
@@ -2851,4 +2863,7 @@ class ViewTool(_ToolMenu):
 
     icon = "glue_settings"
     tool_id = "solar:view"
-    tool_tip = "View: frame time, axes, colour limits, wavelength band, aspect, zoom, colour bar and cursor readout"
+    tool_tip = (
+        "View: frame time, axes, colour limits, wavelength band, aspect, zoom, colour bar, raster overlays and cursor "
+        "readout"
+    )

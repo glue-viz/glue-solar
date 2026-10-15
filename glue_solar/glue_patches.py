@@ -52,6 +52,7 @@ from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.common.toolbar import BasicToolbar
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.matplotlib.widget import MplCanvas
+from glue_qt.viewers.profile import ProfileViewer
 from matplotlib import colormaps, dates, rcParams
 from matplotlib.backend_bases import key_press_handler
 from matplotlib.colors import Colormap, ListedColormap
@@ -900,13 +901,18 @@ ImageViewer.closeEvent = close_event
 _original_canvas_init = MplCanvas.__init__
 
 
-# matplotlib's key bindings that `canvas_init` drops, by their ``keymap.*`` settings
+# matplotlib's key bindings that `canvas_init` drops, by their ``keymap.*`` settings, and those a Profile viewer keeps
 _DROPPED_KEYMAPS = ("fullscreen", "save", "grid", "grid_minor", "yscale", "xscale", "pan", "zoom")
+_PROFILE_KEYMAPS = ("grid", "grid_minor")
 
 
 def _matplotlib_keys(event):
-    """matplotlib's own key bindings, but for those of `_DROPPED_KEYMAPS`."""
-    if event.key not in [key for name in _DROPPED_KEYMAPS for key in rcParams[f"keymap.{name}"]]:
+    """matplotlib's own key bindings, but for those of `_DROPPED_KEYMAPS`, a Profile viewer's grid keys kept."""
+    widget = event.canvas
+    while widget is not None and not isinstance(widget, ProfileViewer):
+        widget = widget.parentWidget()
+    kept = () if widget is None else _PROFILE_KEYMAPS
+    if event.key not in [key for name in _DROPPED_KEYMAPS if name not in kept for key in rcParams[f"keymap.{name}"]]:
         key_press_handler(event)
 
 
@@ -914,14 +920,15 @@ def canvas_init(self, *args, **kwargs):
     """
     glue-qt's ``MplCanvas.__init__``, leaving F and S over a viewer to glue-solar's frame and wavelength keys
     (`glue_solar.tools.KEYS`), which glue-qt gives them whatever the modifiers, and dropping matplotlib's grid, log
-    scale, pan and zoom keys.
+    scale, pan and zoom keys, keeping the grid keys on a Profile viewer.
 
     glue-qt 0.4.2 gives each canvas a matplotlib figure manager, which connects matplotlib's own key bindings: F shows
-    the manager's empty window full screen, S opens matplotlib's save dialog, G and Shift+G raise from WCSAxes, L, K
-    and Shift+L set a log axis behind glue's options, and P and O switch on matplotlib's own pan and zoom beside
-    glue's mouse mode. The others, such as Home, stay. Each canvas probes for the manager's bindings, so this changes
-    nothing once glue-qt connects none. Retired by glue-qt dropping matplotlib's bindings from its canvases (report
-    candidate).
+    the manager's empty window full screen, S opens matplotlib's save dialog, G and Shift+G raise from WCSAxes and
+    clash with glue's Polygonal ROI, L, K and Shift+L set a log axis behind glue's options, and P and O switch on
+    matplotlib's own pan and zoom beside glue's mouse mode. The others, such as Home, stay, and a Profile viewer, with
+    no WCSAxes and no glue key on G, keeps G and Shift+G, its grids. Each canvas probes for the manager's bindings, so
+    this changes nothing once glue-qt connects none. Retired by glue-qt dropping matplotlib's bindings from its
+    canvases (report candidate).
     """
     _original_canvas_init(self, *args, **kwargs)
     manager = getattr(self, "manager", None)
@@ -1103,8 +1110,10 @@ def layer_action(label, check, **kwargs):
     def applies(selection):
         try:
             check(selection)
-        except Exception:  # noqa: BLE001 - the action would refuse it
+        except ValueError:  # the guard's refusal
             return False
+        except Exception:  # noqa: BLE001 - a fault, not a refusal: shown, so that running it shows the fault
+            return True
         return True
 
     def adder(func):

@@ -19,13 +19,13 @@ but "View"); its slit-jaw panels share the width below, so with four channels, 2
 icon holds glue-solar's mouse modes, "Measure", "Path diagram", "Show
 position on original path" and "Slope", with the one on checked, and "Save path as ECSV…", "Open
 path from ECSV…", "Path on other data…" and the "Path sampling" submenu, described with "Path
-diagram" below; the link icon is the "Coordinate" menu, with "Time master", "Go to UTC…", "Loop…"
-and "Raster overlays", its "Point" submenu, with "Clear point", "Light curve of this window",
+diagram" below; the link icon is the "Coordinate" menu, with "Time master", "Go to UTC…" and
+"Loop…", its "Point" submenu, with "Clear point", "Light curve of this window",
 "Light curves of the shown windows and SJI", "Row at the point" and "Column at the point", and its
 "Blink" submenu, with "Set blink partner here", "Blink" and "Blink interval"; and
 the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Wavelength
-band…", "Physical aspect", "Zoom 1:1", "Colour bar" and "Cursor readout", each but "Zoom 1:1"
-checked while it is on.
+band…", "Physical aspect", "Zoom 1:1", "Colour bar", "Raster overlays" and "Cursor readout", each
+but "Zoom 1:1" checked while it is on.
 After a View or Coordinate entry the mouse mode, such as Pixel, stays on. Resting the mouse on a
 menu entry shows its tooltip, in glue's save and window menus too, and a menu shows an entry's
 single-key shortcut beside it, which works while the toolbar has the keyboard, as a button's does.
@@ -34,15 +34,16 @@ A menu shows only the entries that can act on the viewer as it is, checked as it
 Coordinate menu, "Time master" for a dataset of an IRIS observation with times (a raster window,
 slit-jaw image, aligned AIA cutout or SOT cube), "Go to UTC…" for one whose observation has a time
 master or that has a frame, exposure, step or scan slider, "Loop…" where the data's first axis has
-a slider, "Raster overlays" where a raster of the viewer's observation is loaded, "Light curve of
-this window" on the map of a sit-and-stare raster or a stack, at a wavelength or band, "Light
-curves of the shown windows and SJI" on IRIS, AIA and SOT data while the point, on a raster, has a
-window with exposures or scans or a slit-jaw image to plot (not on a single scan with no slit-jaw
-image loaded), and "Row at the point" and "Column at
-the point" on the map of any raster, at a wavelength or band; "Blink" is greyed until "Set blink
-partner here" gives it a partner. In the View menu, "Frame time" is offered for data with a time
-and "Wavelength band…" while a wavelength axis has a slider. On a plain array, of no observation and
-with no time, the Coordinate menu holds "Clear point" and the blink entries only.
+a slider, "Light curve of this window" on the map of a sit-and-stare raster or a stack, at a
+wavelength or band, while the point is on the map's raster file, "Light curves of the shown windows
+and SJI" on IRIS, AIA and SOT data while the point, on a raster, has a window with exposures or
+scans or a slit-jaw image to plot (not on a single scan with no slit-jaw image loaded), "Row at the
+point" and "Column at the point" on the map of any raster, at a wavelength or band, while the point
+is on its file, and "Blink" once "Set blink partner here" gives it a partner. In the View menu,
+"Frame time" is offered for data with a time, "Wavelength band…" while a wavelength axis has a
+slider and "Raster overlays" where a raster of the viewer's observation is loaded. On a plain
+array, of no observation and with no time, the Coordinate menu holds "Clear point" and the blink
+entries only.
 
 Besides glue's "Home" (H), "Pan" (M) and "Zoom" (Z), and its region selection tools, "Rectangular
 ROI" (R), "X range" (X), "Y range" (Y), "Circular ROI" (C) and "Polygonal ROI" (G), the Image Viewer
@@ -233,19 +234,19 @@ toolbar has:
 - A button with a spectrum icon ("Open a Profile viewer of this viewer's data along a slider's
   axis"), which opens a 1D Profile viewer of the image's data.
 - The save menu, with "Save plot to file", "Save Python script to reproduce plot" and glue-solar's
-  "Save frames or movie…", and the window menu, with "Move to another tab" and "Change viewer
-  title". "Save frames or movie…" saves the image at each index of a slider, from a first to a last,
-  as "Save plot to file" would save it there: as PNG files named after the file chosen with the index
-  added (``sji.png`` gives ``sji_0000.png``, ``sji_0001.png``, …), or as a movie at 10 frames per
-  second, an MP4 where ffmpeg is installed or else a GIF. A GIF is kept in memory until it is
-  written, about 1.4 MB a frame of 800 × 600 pixels, so save long sequences as an MP4 or as PNG
-  files. Of several sliders it asks which, offering first that of the data's first axis (a slit-jaw
-  image's frames, a sit-and-stare raster's exposures, a scanning raster's steps or a stack's scans),
-  then for the first and last index, or ±N around the current one, as "Loop…" does, starting from
-  the slider's loop or else its whole range, and saves every index between them. Playback of the
-  slider, or of the time master, stops; the slider moves as when it plays, so the other viewers
-  follow, and the slit, the point and the raster overlays are drawn as they then show. Every frame
-  has the same colour limits:
+  "IRIS: save frames or movie…", and the window menu, with "Move to another tab" and "Change viewer
+  title". "IRIS: save frames or movie…" saves the image at each index of a slider, from a first to a
+  last, as "Save plot to file" would save it there: as PNG files named after the file chosen with
+  the index added (``sji.png`` gives ``sji_0000.png``, ``sji_0001.png``, …), or as a movie at 10
+  frames per second, an MP4 where ffmpeg is installed or else a GIF. A GIF is kept in memory until
+  it is written, about 1.4 MB a frame of 800 × 600 pixels, so save long sequences as an MP4 or as
+  PNG files. Of several sliders it asks which, offering first that of the data's first axis (a
+  slit-jaw image's frames, a sit-and-stare raster's exposures, a scanning raster's steps or a
+  stack's scans), then for the first and last index, or ±N around the current one, as "Loop…" does,
+  starting from the slider's loop or else its whole range, and saves every index between them.
+  Playback of the slider, or of the time master, stops; the slider moves as when it plays, so the
+  other viewers follow, and the slit, the point and the raster overlays are drawn as they then show.
+  Every frame has the same colour limits:
   with "Per-frame limits" on, the whole cube's. Ticking "UTC time on each frame", under the indices,
   draws each frame's time at the lower left of the plot, in white edged in black, the "Frame time"
   readout's time, to 0.01 s (``2013-09-02T16:39:39.66 UTC``): a raster step's or
@@ -273,9 +274,9 @@ window's rest wavelength; it is checked while on and greyed while the x axis is 
 of data with a rest wavelength. A quicklook's spectrum panel of a window other than its main one
 also gets "Show this window's panels" (the triangle icon right after "Zoom"), which gives that window
 the map, spectrogram and wavelength panels (see :ref:`The quicklook
-<glue_solar_users_guide_iris_quicklook>`). Its save menu adds glue-solar's "Save profiles as ECSV…"
-after glue's entries, which writes the visible profiles, as drawn, to one table, with their times
-along exposures, scans or frames (see :ref:`Saving the profiles
+<glue_solar_users_guide_iris_quicklook>`). Its save menu adds glue-solar's "IRIS: save profiles as
+ECSV…" after glue's entries, which writes the visible profiles, as drawn, to one table, with their
+times along exposures, scans or frames (see :ref:`Saving the profiles
 <glue_solar_users_guide_iris_save_profiles>`).
 
 The stretch menu in the Image Viewer's layer options lists glue-solar's "Gamma 0.4", "Gamma 0.75",
@@ -337,9 +338,11 @@ in the image or toolbar that has the keyboard, the one last clicked.
 
 glue-qt's viewers also have matplotlib's own keys over their plots. glue-solar drops those that
 clash with glue: F and S, which showed an empty window full screen and opened matplotlib's save
-dialog (the save menu saves the plot), G and Shift+G, its grids, which fail on an Image viewer, L, K
-and Shift+L, its log axes, which bypass the viewer's own log options, and P and O, its pan and
-zoom, which ran beside glue's mouse mode. Its others stay.
+dialog (the save menu saves the plot), G and Shift+G, its grids, which fail on an Image viewer,
+where G is glue's "Polygonal ROI", L, K and Shift+L, its log axes, which bypass the viewer's own log
+options, and P and O, its pan and zoom, which ran beside glue's mouse mode. Its others stay, and a
+Profile viewer keeps G and Shift+G: with the mouse over the plot, G steps its grid lines from none
+to x only, both and y only, and Shift+G does the same with the lines at the minor ticks too.
 
 North up
 --------

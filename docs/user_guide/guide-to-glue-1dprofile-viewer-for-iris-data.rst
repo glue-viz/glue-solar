@@ -170,6 +170,10 @@ switches glue's selection mode to replace.
 tab, click the profile or drag its line to move the wavelength slider of every Image viewer of the
 same raster to the nearest wavelength.
 
+**Grid.** With the mouse over the plot, G steps matplotlib's grid lines from none to x only, both
+and y only, and Shift+G does the same with the lines at the minor ticks too, which a log axis has.
+Image viewers do not take them (see :ref:`glue_solar_users_guide_viewer_tools_and_windows`).
+
 **Band maps.** On the "Collapse" tab, drag a wavelength range on the profile, pick a function (Mean,
 Median, Minimum, Maximum, Sum, Moment 1 or Moment 2) and press "Collapse": the Image viewers of the
 raster show the data combined over the range, each until you move any of its sliders. glue-qt 0.4.2
@@ -222,7 +226,7 @@ exposure.
 
 .. _glue_solar_users_guide_iris_save_profiles:
 
-**Saving the profiles.** "Save profiles as ECSV…" in the Profile viewer's save menu writes the
+**Saving the profiles.** "IRIS: save profiles as ECSV…" in the Profile viewer's save menu writes the
 profiles of its visible layers, as the viewer draws them, to one ECSV table, which
 ``astropy.table.Table.read`` reads back. Its file dialog opens where the last plot or frames were
 saved and suggests ``<OBSID> <function> profiles.ecsv``, such as ``4000255147 mean profiles.ecsv``,

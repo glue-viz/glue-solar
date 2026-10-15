@@ -1424,7 +1424,7 @@ def hidden_cube_profile(viewer, data):
         )
         viewer._solar_fit = _FitOnceComputed(viewer, data, fit=lambda viewer: viewer.state.reset_limits())
     state = ProfileLayerState(layer=data, viewer_state=viewer.state, visible=False)
-    state._solar_own = True  # hidden by glue-solar: 'Save profiles as ECSV…' does not name it
+    state._solar_own = True  # hidden by glue-solar: 'IRIS: save profiles as ECSV…' does not name it
     return viewer.get_data_layer_artist(data, state)
 
 
@@ -1954,19 +1954,35 @@ def _curve_map(viewer):
     return _cut_map(viewer) and _time_axis(viewer.state.reference_data) == 0
 
 
-def _cut(viewer, axis, label):
+def _check_cut(viewer, curve=False):
+    """
+    Raise why ``viewer``, an Image viewer, has no cut through the point (`_cut`), or with ``curve`` no light curve
+    (`_light_curve`): it shows no raster with a wavelength slider, nor for a light curve a sit-and-stare raster or a
+    stack, or the point is not on its file.
+    """
+    data = viewer.state.reference_data
+    if curve and not _curve_map(viewer):
+        raise ValueError(
+            "Choose it on the map of a sit-and-stare raster or a stack, whose wavelength or band it averages."
+        )
+    if not _cut_map(viewer):
+        raise ValueError("Choose it on the map of a raster, whose wavelength or band it averages.")
+    point = coordinator(viewer.session.data_collection).point
+    if point is None or not _same_file(point.reference_data, data):
+        raise ValueError(f"Select a point on {data.label} first.")
+
+
+def _cut(viewer, axis, label, curve=False):
     """
     Open a Profile of the cut through the point along array axis ``axis``: the mean, NaN left out, over the
     wavelength or band that ``viewer``, an Image viewer of a raster with a wavelength slider, shows, at the point's
     other axes, against ``axis``. The cut is the new subset group ``label``, a `~glue.core.subset.SliceSubsetState`
     that follows the point and the band (`_Cut`), shown in that Profile and removed from the other viewers open then.
+    ``curve`` checks it as a light curve (`_check_cut`).
     """
+    _check_cut(viewer, curve)
     app, data = viewer.session.application, viewer.state.reference_data
     coord = coordinator(app.data_collection)
-    if not _cut_map(viewer):
-        raise ValueError("Choose it on the map of a raster, whose wavelength or band it averages.")
-    if coord.point is None or not _same_file(coord.point.reference_data, data):
-        raise ValueError(f"Select a point on {data.label} first.")
     title = f"{_window(data)[0] or data.label} {label.lower()}"
     cut = partial(_Cut, point=coord.group, band=viewer, axis=axis)
     return _cut_profile(app, label, cut, data.pixel_component_ids[axis], title)
@@ -2000,11 +2016,7 @@ def _light_curve(viewer):
     Open the light curve at the point (`_cut` along exposure or scan, 'Light curve') on ``viewer``, the map of a
     sit-and-stare raster or a stack.
     """
-    if not _curve_map(viewer):
-        raise ValueError(
-            "Choose it on the map of a sit-and-stare raster or a stack, whose wavelength or band it averages."
-        )
-    return _cut(viewer, 0, "Light curve")
+    return _cut(viewer, 0, "Light curve", curve=True)
 
 
 def _curve(source, raster, pixel, wavelength):

@@ -247,13 +247,13 @@ Responsiveness
     both windows are ticked in the layer list. Start it again and close the map while it blinks: the
     terminal shows no traceback.
 
-36. In the quicklook of item 5, make SJI 1400 the time master and choose "Save frames or movie…" in
-    its save menu (the floppy-disk button). Keep the whole range offered and save as ``sji.mp4``
-    where ffmpeg is installed, else as ``sji.gif``. A progress dialog counts the frames while the
-    image, its slit and red cross and the spectrogram step through them; the file plays every frame
-    at 10 a second in a movie player or web browser. Save again as ``sji.png`` and press "Cancel"
-    halfway: the dialog closes within a frame, the folder holds the PNG frames saved until then, and
-    the viewer is back on the frame it showed.
+36. In the quicklook of item 5, make SJI 1400 the time master and choose "IRIS: save frames or
+    movie…" in its save menu (the floppy-disk button). Keep the whole range offered and save as
+    ``sji.mp4`` where ffmpeg is installed, else as ``sji.gif``. A progress dialog counts the frames
+    while the image, its slit and red cross and the spectrogram step through them; the file plays
+    every frame at 10 a second in a movie player or web browser. Save again as ``sji.png`` and press
+    "Cancel" halfway: the dialog closes within a frame, the folder holds the PNG frames saved until
+    then, and the viewer is back on the frame it showed.
 
 37. In the quicklook of item 5, drag SJI 2796 from the data collection onto the SJI 1400 viewer; in
     its "Plot Options" choose SJI 2796 as the reference data, set the axes back to the image's and
