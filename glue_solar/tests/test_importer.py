@@ -417,6 +417,7 @@ def test_filter_lists_the_observations_whose_row_or_entries_hold_the_text(dialog
 
 def test_filter_waits_for_a_pause_in_typing(dialog, qtbot):
     dialog.show()
+    dialog._filter_timer.setInterval(2000)  # a pause no wait below overruns on a loaded runner
     filters = []
     dialog._filter_timer.timeout.connect(lambda: filters.append(dialog.filter.text()))
     QTest.keyClicks(dialog.filter, "mg")  # a keystroke at a time, faster than the pause
