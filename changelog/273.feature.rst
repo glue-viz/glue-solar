@@ -1,0 +1,1 @@
+The note that a large cube was added hidden to a Profile viewer shows in glue's main-window status bar, which a tool change does not clear.
