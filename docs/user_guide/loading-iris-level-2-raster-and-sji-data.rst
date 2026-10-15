@@ -268,7 +268,8 @@ Select a dataset in the data collection and press Ctrl+I (Cmd+I on macOS), or ch
 metadata/header" in its right-click menu or the "Data Manager" menu: glue's metadata window lists
 the dataset's metadata, a keyword and its value on each row, under its number of dimensions and
 shape. Ctrl+I acts while the data collection has the keyboard, as a click on the dataset gives it.
-Long values, such as arrays, are cut at the window's edge.
+Long values are cut at the window's edge, and an array shows only its first line, its first few
+values.
 
 - A raster window's metadata are its file's primary header, which describes every window of the
   observation (``TDESCn``, ``TWAVEn`` and the like, ``n`` numbering the windows), then irispy's
@@ -286,11 +287,10 @@ Long values, such as arrays, are cut at the window's edge.
   (``frame_wcs_headers``).
 
 The window lists each keyword once, so of the ``HISTORY`` and ``COMMENT`` lines it shows only the
-last (see `Was it saturated?`_). It leaves out a raster window's own extension header, whose
-coordinate keywords (``CRVALn``, ``CDELTn`` and the like) glue gives as the dataset's coordinates.
-In glue's terminal, ``data_collection[0].meta.fits_header`` gives a scan's or slit-jaw image's
-primary header whole (a stack's ``meta`` keeps none), and ``astropy.io.fits.getheader(path, n)``
-reads the header of window ``n`` from a raster file.
+last; `Was it saturated?`_ lists them in glue's terminal (a stack's ``meta`` keeps no header). It
+leaves out a raster window's own extension header, whose coordinate keywords (``CRVALn``,
+``CDELTn`` and the like) glue gives as the dataset's coordinates; in glue's terminal,
+``astropy.io.fits.getheader(path, n)`` reads the header of window ``n`` from a raster file.
 
 Overlaying the missing-data mask
 --------------------------------

@@ -346,8 +346,8 @@ The others act in the image, toolbar or browser that has the keyboard, the one l
    * - :kbd:`Enter`, :kbd:`Return`
      - In "Path diagram", makes the diagrams of the path drawn; in "Slope", adds the speed of the
        points clicked to the diagram's table. In the observation browser, presses "Load selected",
-       but in its text fields: in "Folder", "Start" and "End" it searches the folder they give, and
-       in "Filter" it does nothing more.
+       except in a text field, where "Folder", "Start" and "End" search and "Filter" does nothing
+       more.
    * - :kbd:`Esc`
      - In "Path diagram", clears the path; in "Slope", the points; in "Follow/lock", unlocks the
        point.
