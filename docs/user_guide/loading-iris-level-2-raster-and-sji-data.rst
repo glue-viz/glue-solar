@@ -259,6 +259,39 @@ picked instead (see :ref:`glue_solar_users_guide_loading_aia_and_hmi_files`).
 Files opened this way, or given on the ``glue`` command line, load one by one with every spectral
 window and cannot be stacked, so use the observation browser for large or multi-scan observations.
 
+.. _glue_solar_users_guide_iris_fits_header:
+
+Seeing the FITS header
+----------------------
+
+Select a dataset in the data collection and press Ctrl+I (Cmd+I on macOS), or choose "View
+metadata/header" in its right-click menu or the "Data Manager" menu: glue's metadata window lists
+the dataset's metadata, a keyword and its value on each row, under its number of dimensions and
+shape. Ctrl+I acts while the data collection has the keyboard, as a click on the dataset gives it.
+Long values, such as arrays, are cut at the window's edge.
+
+- A raster window's metadata are its file's primary header, which describes every window of the
+  observation (``TDESCn``, ``TWAVEn`` and the like, ``n`` numbering the windows), then irispy's
+  values per raster step (``auxiliary times``, ``exposure time``, ``exposure FOV center``,
+  ``observer radial velocity`` and ``orbital phase``) and the file's name (``raster files``): 401
+  rows for each scan of OBSID 4000005156's Si IV 1403.
+- A stack's are its first scan's, with the names of every scan's file: on 4000005156's Si IV 1403
+  stack of two scans, ``DATE_OBS`` and ``DATE_END`` give 18:29:35.670 to 18:32:39.720 and
+  ``exposure time`` the first scan's 64 steps, though the second scan ran to 18:35:47.480. For each
+  scan's own header, un-tick "Stack sequential raster scans" in the observation browser and load
+  the window again, each scan as a dataset of its own; the stack's ``Time`` and ``Exposure time``
+  give every scan's times.
+- A slit-jaw image's are its file's primary header, then irispy's pointing of each frame
+  (``pztx``, ``pzty``, ``xcenix``, ``ycenix`` and ``slit x position``) and each frame's WCS header
+  (``frame_wcs_headers``).
+
+The window lists each keyword once, so of the ``HISTORY`` and ``COMMENT`` lines it shows only the
+last (see `Was it saturated?`_). It leaves out a raster window's own extension header, whose
+coordinate keywords (``CRVALn``, ``CDELTn`` and the like) glue gives as the dataset's coordinates.
+In glue's terminal, ``data_collection[0].meta.fits_header`` gives a scan's or slit-jaw image's
+primary header whole (a stack's ``meta`` keeps none), and ``astropy.io.fits.getheader(path, n)``
+reads the header of window ``n`` from a raster file.
+
 Overlaying the missing-data mask
 --------------------------------
 

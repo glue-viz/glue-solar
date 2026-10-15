@@ -308,15 +308,16 @@ places the tab's viewers side by side, and "Rename Tab" (Ctrl+R); on macOS these
 closes the active viewer after asking "Do you want to close this window?" if it is an Image viewer,
 quicklook panels included, or one of glue's Scatter or Histogram viewers. It does nothing in a
 Profile or Table viewer. In the data collection, though, Backspace is "Delete Layer": it removes the
-selected datasets and subsets at once, without asking and without undo. glue-qt also gives those
-viewers Tab, to go to the tab's next window, but Qt takes Tab first to move the keyboard focus, so it
-never does.
+selected datasets and subsets at once, without asking and without undo, and Ctrl+I (Cmd+I on
+macOS) is "View metadata/header", which shows the selected dataset's FITS header (see
+:ref:`glue_solar_users_guide_iris_fits_header`). glue-qt also gives those viewers Tab, to go to the
+tab's next window, but Qt takes Tab first to move the keyboard focus, so it never does.
 
-The table lists the keys of glue-solar's viewers and tools, which no toolbar tooltip gives as a
-shortcut. glue-solar gives Image and Profile viewers, quicklook panels included, D, F, A, S and
-Space: these act on the active viewer, the one last clicked, unless you are typing in a box or the
-data collection has the keyboard focus, and glue-qt ignores Shift and Ctrl with them. The others act
-in the image or toolbar that has the keyboard, the one last clicked.
+The table lists the keys of glue-solar's viewers, tools and observation browser, which no toolbar
+tooltip gives as a shortcut. glue-solar gives Image and Profile viewers, quicklook panels included,
+D, F, A, S and Space: these act on the active viewer, the one last clicked, unless you are typing in
+a box or the data collection has the keyboard focus, and glue-qt ignores Shift and Ctrl with them.
+The others act in the image, toolbar or browser that has the keyboard, the one last clicked.
 
 .. list-table:: Keys
    :header-rows: 1
@@ -342,9 +343,11 @@ in the image or toolbar that has the keyboard, the one last clicked.
      - "Measure" and "Path diagram", from the pencil menu, which shows each key beside its entry; they
        work while the toolbar has the keyboard, as a button's key does, so click the toolbar first,
        such as its handle at the left end. Over the image they do nothing.
-   * - :kbd:`Enter`
+   * - :kbd:`Enter`, :kbd:`Return`
      - In "Path diagram", makes the diagrams of the path drawn; in "Slope", adds the speed of the
-       points clicked to the diagram's table.
+       points clicked to the diagram's table. In the observation browser, presses "Load selected",
+       but in its text fields: in "Folder", "Start" and "End" it searches the folder they give, and
+       in "Filter" it does nothing more.
    * - :kbd:`Esc`
      - In "Path diagram", clears the path; in "Slope", the points; in "Follow/lock", unlocks the
        point.
