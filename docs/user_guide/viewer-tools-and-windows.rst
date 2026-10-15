@@ -118,8 +118,9 @@ toolbar has:
   latest bright and the others faint, whichever viewer made it, by Enter, "Open path from ECSV…" or
   "Path on other data…", or a restored session; deleting the diagram removes its path. In the
   diagram's viewer, "Show position on original path" marks the point of the path under the mouse
-  while you drag, and moves the viewer it was drawn in to the frame, wavelength or scan the
-  diagram's y axis shows there, only that slider.
+  while you drag, and moves every slider of the viewer it was drawn in to the index the diagram's y
+  axis shows there, as glue's does: a slit-jaw image's frame, a raster's wavelength, and a stack's
+  scan and wavelength together, the scan stopping at the last.
 
   On a diagram, the pencil menu's "Save path as ECSV…" writes its path as an ECSV table, a row a
   sample: ``x`` and ``y``, the dataset's pixels from 0, and, at its first frame, wavelength or
