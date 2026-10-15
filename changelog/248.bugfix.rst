@@ -1,1 +1,1 @@
-An SST cube of 30, 45, 60 or more scans no longer opens its line-core map all black: the colour-limit sample spreads its 16 planes over the tunings, the Stokes parameters and the scans.
+An SST cube of 30, 45, 60 or more scans no longer opens its line-core map all black: the color-limit sample spreads its 16 planes over the tunings, the Stokes parameters and the scans.

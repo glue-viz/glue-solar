@@ -1,1 +1,1 @@
-Each workaround for glue, glue-qt and astropy behaviour now names what switches it on and the upstream change that would retire it.
+Each workaround for glue, glue-qt and astropy behavior now names what switches it on and the upstream change that would retire it.
