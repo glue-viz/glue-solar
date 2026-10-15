@@ -2664,3 +2664,7 @@ def test_gaussian_on_a_constant_says_when_the_range_holds_too_few_samples():
     fitter.set_constraint("amplitude_0", value=1, fixed=True)
     model, _ = fitter.build_and_fit(x, y)  # three free parameters, which three samples fit
     assert np.abs(model.parameters) == pytest.approx([1, 4, 1, 0.5])
+    fitter.set_constraint("mean_1", fixed=True)  # with no estimate, at its start from the data, the peak's sample
+    assert np.abs(fitter.build_and_fit(x, y)[0].parameters) == pytest.approx([1, 4, 1, 0.5])
+    fitter.set_constraint("amplitude_0", value=None, fixed=False, limits=None)  # as Settings sends a row cleared
+    assert fitter.constraints["amplitude_0"] == {"value": None, "fixed": False, "limits": None}

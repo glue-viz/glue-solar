@@ -211,8 +211,9 @@ astropy's ``TRFLSQFitter`` to the samples in the range, the NaN fill left out, f
 their median and the line at the sample farthest from it, so an absorption line fits too. "Settings"
 ticks irispy's two options, "Linear background", a ``Linear1D`` starting flat, and "Lorentzian
 profile", a ``Lorentz1D``; the fitter keeps them, with the estimates, fixed parameters and bounds
-set there, for every fit in every Profile viewer, and lists the parameters of a model just chosen
-when "Settings" opens again. It needs a sample in the range for each parameter not fixed, four with
+set there, for every fit in every Profile viewer until cleared there, and lists the parameters of a
+model just chosen when "Settings" opens again; a parameter fixed with no estimate stays at its start
+from the data. It needs a sample in the range for each parameter not fixed, four with
 none fixed and five with a linear background, and with fewer the report ends with how many it has.
 The report lists the background's ``amplitude_0``, or ``slope_0`` and ``intercept_0``, its value at
 0 Å, and the line's ``amplitude_1``, ``mean_1`` and ``stddev_1``, or a Lorentzian's ``x_0_1`` and

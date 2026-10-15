@@ -41,6 +41,10 @@ class GaussianConstantFitter(AstropyFitter1D):
     def __call__(self):
         return self
 
+    def set_constraint(self, parameter_name, value=None, fixed=None, limits=None):
+        # Settings' row replaces the entry, as glue's keeps an estimate or bounds cleared there (report candidate)
+        self._constraints[parameter_name] = {"value": value, "fixed": bool(fixed), "limits": limits}
+
     def _kinds(self):
         return {
             "background": "linear" if self.linear_background else "constant",
@@ -72,7 +76,11 @@ class GaussianConstantFitter(AstropyFitter1D):
                 f"{self.label} needs at least {free} finite samples in the range, one per free parameter, and has "
                 f"{finite}: widen the range"
             )
-        return super().fit(x[keep], y[keep], dy if dy is None else dy[keep], constraints)
+        x, y, dy = x[keep], y[keep], dy if dy is None else dy[keep]
+        for name, start in self.parameter_guesses(x, y, dy).items():  # glue leaves one fixed with no estimate None
+            if constraints[name]["fixed"] and constraints[name]["value"] is None:
+                constraints[name]["value"] = start
+        return super().fit(x, y, dy, constraints)
 
     def parameter_guesses(self, x, y, dy):
         constant = np.median(y)
