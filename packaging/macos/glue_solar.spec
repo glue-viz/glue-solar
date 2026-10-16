@@ -24,7 +24,7 @@ app = BUNDLE(
     COLLECT(exe, a.binaries, a.datas, name="glue-solar"),
     name="Glue Solar.app",
     icon=os.path.join(SPECPATH, "icon.png"),  # its own, made .icns by PyInstaller
-    bundle_identifier="org.glueviz.glue-solar",
+    bundle_identifier="io.gluesolutions.glue-solar",  # beside glue's own app, io.gluesolutions.glueviz
     version=importlib.metadata.version("glue-solar"),
     # Sessions open in the app when double-clicked, ranked below glue's own app, their owner; FITS files keep their
     # default app and open in it from Open With or dropped on it, gzipped ones (any .gz) dropped on it only
