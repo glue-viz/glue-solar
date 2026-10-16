@@ -31,8 +31,8 @@ Out of scope:
 **Resume here.** Main is at 041229c (#285). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
 
 **Next** (D81, D82), three at a time with disjoint files (tests in the file named). Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. Running: #285, `wp1-l-relink-restored-request` (test_linking) and `wp6-l-fitter-per-viewer` (test_plugin).
-  2. Then, as files come free: `wp4-l-point-edit-subset`, `wp3-l-restore-irispy-meta`, `wp6-l-fit-lines`, `wp2-l-radiance-factor-saver`, `wp9-l-app-reproject-metadata` and the `-lean-` items, `wp10-l-lean-tests` last and alone.
+  1. Running: `wp1-l-relink-restored-request` (test_linking), `wp6-l-fitter-per-viewer` (test_plugin) and `wp4-l-point-edit-subset` (test_quicklook).
+  2. Then, as files come free: `wp3-l-restore-irispy-meta`, `wp6-l-fit-lines`, `wp2-l-radiance-factor-saver`, `wp9-l-app-reproject-metadata` and the `-lean-` items, `wp10-l-lean-tests` last and alone.
 
   Held for the user (D82): `wp4-l-restored-strip`, `wp13-l-restored-second-map` and `wp3-l-autosave-quit`.
 
