@@ -1,6 +1,6 @@
 """
 'IRIS: remove dust (SJI)': a slit-jaw image with irispy's dust removed, as a new dataset; and 'IRIS: radiometric
-calibration': a raster window's or stack's DN/s in radiance, as a glue derived component.
+calibration': a raster window's or stack's DN / s in radiance, as a glue derived component.
 """
 
 import gc
@@ -41,7 +41,7 @@ def _check_sji(data):
 def remove_dust(data):
     """
     ``data``, an IRIS slit-jaw image, with irispy's dust removed, as a new dataset ``<label> dust removed`` on its
-    coordinates, at its pointing offset, which it follows, with its ``Time``, ``Exposure time``, ``<label> DN/s``
+    coordinates, at its pointing offset, which it follows, with its ``Time``, ``Exposure time``, ``<label> DN / s``
     and ``meta``, ``meta['dust_removed']`` added, which data made from it keep.
 
     irispy's ``SJICube.remove_dust`` is given the scaled values, NaN masked, a slab of frames at a time with the
@@ -143,9 +143,9 @@ def _check_radiance(data):
 
 def radiometric_calibration(data):
     """
-    Add ``<label> radiance per DN/s`` to ``data``, an IRIS raster window of one scan or a stack of its scans,
-    rebinned by 'IRIS: rebin…' or not: irispy's factor from DN/s to radiance at each of its wavelengths, held as one
-    spectrum, a stack's one for each scan; and ``<label> radiance``, its ``<label> DN/s`` times it, a glue derived
+    Add ``<label> radiance per DN / s`` to ``data``, an IRIS raster window of one scan or a stack of its scans,
+    rebinned by 'IRIS: rebin…' or not: irispy's factor from DN / s to radiance at each of its wavelengths, held as one
+    spectrum, a stack's one for each scan; and ``<label> radiance``, its ``<label> DN / s`` times it, a glue derived
     component, in irispy's ``RADIANCE_UNIT``, erg / (Å cm2 s sr).
 
     The factor is irispy's ``radiometric_calibration``'s: ``calculate_dn_to_radiance_factor`` of the window's
@@ -176,7 +176,7 @@ def radiometric_calibration(data):
     _check_radiance(data)
     cid = data.main_components[0]
     label = f"{cid.label} radiance"
-    rate, unit = data.id[f"{cid.label} DN/s"], _unit(data)
+    rate, unit = data.id[f"{cid.label} DN / s"], _unit(data)
     scans, zeros = list(np.ndindex(data.shape[:-3])), np.broadcast_to(np.float32(0), data.shape[-3:])
     with WCS_LOCK:  # irispy reads the window's astropy WCS
         meta = _irispy_meta(data, scans[0])  # its DATE_OBS, a stack's first scan's, every scan's
@@ -197,10 +197,10 @@ def radiometric_calibration(data):
                     solid_angle=pixel.solid_angle,
                 )
             )
-    factor = (unit.to(u.photon / u.s) * u.photon / u.s * u.Quantity(factors)).to_value(RADIANCE_UNIT)  # of 1 DN/s
+    factor = (unit.to(u.photon / u.s) * u.photon / u.s * u.Quantity(factors)).to_value(RADIANCE_UNIT)  # of 1 DN / s
     factor = factor.reshape(*data.shape[:-3], 1, 1, -1)  # a spectrum for each scan
     per_rate = Component(np.broadcast_to(factor, data.shape), units=str(RADIANCE_UNIT / (u.DN / u.s)))
-    radiance = rate * data.add_component(per_rate, f"{cid.label} radiance per DN/s")  # a view: a spectrum a scan held
+    radiance = rate * data.add_component(per_rate, f"{cid.label} radiance per DN / s")  # a view: a spectrum a scan held
     data.add_component_link(radiance, label).units = str(RADIANCE_UNIT)
     return radiance.get_to_id()
 
@@ -210,7 +210,7 @@ def radiometric_calibration(data):
     single=True,
     data=True,
     check=_check_radiance,
-    tooltip="Add this raster window's or stack's DN/s in radiance, erg / (Å cm2 s sr), with irispy's calibration",
+    tooltip="Add this raster window's or stack's DN / s in radiance, erg / (Å cm2 s sr), with irispy's calibration",
 )
 @messagebox_on_error("Could not calibrate the radiance")
 def radiometric_calibration_iris(data, data_collection):

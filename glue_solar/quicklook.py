@@ -1806,7 +1806,7 @@ def _viewers(viewers):
 
 
 # what a switch of the main window keeps of each Image panel's layer (`_switch`)
-_COLOURS = ("cmap", "stretch", "percentile", "v_min", "v_max", "contrast", "bias")
+_COLORS = ("cmap", "stretch", "percentile", "v_min", "v_max", "contrast", "bias")
 
 
 def _switch(viewer):
@@ -1825,12 +1825,12 @@ def _switch(viewer):
     group, raster = app._solar_points[tab], viewer.state.reference_data
     master = coord._master(observation_key(raster))
     index, _ = coord._timing(master)
-    colours = {}
+    colors = {}
     for panel in _viewers(viewers):
         state = panel.state
         layer = next((layer for layer in state.layers if layer.layer is state.reference_data), None)
         if isinstance(panel, ImageViewer) and layer is not None:
-            colours[state.reference_data, state.x_att, state.y_att] = {att: getattr(layer, att) for att in _COLOURS}
+            colors[state.reference_data, state.x_att, state.y_att] = {att: getattr(layer, att) for att in _COLORS}
         panel.close(warn=False)
     strip = [sub for sub in tab.subWindowList() if isinstance(sub.widget(), (_PointWindow, _Panels))]
     axes = any(sub.widget().axes_box.checkState(0) == Qt.Checked for sub in strip if isinstance(sub.widget(), _Panels))
@@ -1850,7 +1850,7 @@ def _switch(viewer):
         state = panel.state
         if isinstance(panel, ImageViewer):
             layer = next(layer for layer in state.layers if layer.layer is state.reference_data)
-            layer.update_from_dict(colours.get((state.reference_data, state.x_att, state.y_att), {}))
+            layer.update_from_dict(colors.get((state.reference_data, state.x_att, state.y_att), {}))
             state.show_axes = axes
     now = coord._master(observation_key(raster))
     if _same_file(now, master):  # the same, or another window of its file

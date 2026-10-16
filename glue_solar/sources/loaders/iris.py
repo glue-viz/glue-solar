@@ -434,15 +434,15 @@ def per_second(flux, exposure):
 
 def _add_exposure(data, exposure):
     """
-    Add ``Exposure time``, ``exposure`` in seconds over the leading axes, and ``<label> DN/s``, the data over it as a
+    Add ``Exposure time``, ``exposure`` in seconds over the leading axes, and ``<label> DN / s``, the data over it as a
     glue derived component, unless they are not in DN, as a Hinode/SOT magnetogram.
     """
     seconds = data.add_component(Component(_per_frame(exposure, data.shape), units="s"), "Exposure time")
     flux = data.main_components[0]
     if not data.get_component(flux).units.startswith("DN"):
         return
-    rate = ComponentLink([flux, seconds], ComponentID(f"{flux.label} DN/s", parent=data), using=per_second)
-    data.add_component_link(rate).units = "DN/s"
+    rate = ComponentLink([flux, seconds], ComponentID(f"{flux.label} DN / s", parent=data), using=per_second)
+    data.add_component_link(rate).units = "DN / s"
 
 
 def _dataset(wcs, meta, unit, values, label, *, color=None, cmap=None, missing=MISSING_VALUES, scaling=None):

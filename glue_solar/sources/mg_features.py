@@ -128,7 +128,7 @@ def mg_features(data, velocities=VELOCITIES, lines=LINES):
     stack of its scans, within ``velocities`` of each line's rest wavelength, as one dataset on the window's scans,
     raster steps and slit pixels, each scan's as that scan alone gives them, at its own coordinates.
 
-    irispy is given the window's ``<label> DN/s`` where it has one, else its values, a slab of steps of one scan at a
+    irispy is given the window's ``<label> DN / s`` where it has one, else its values, a slab of steps of one scan at a
     time, and only the wavelengths it searches; it skips a line the window does not cover over ``velocities``. For
     each line, ``k`` (2796.35 Å) and ``h`` (2803.53 Å), its components are irispy's: ``k2v``, ``k3`` and ``k2r``
     (``h2v``, ``h3``, ``h2r``), the blue peak, line center and red peak, each as ``<feature>_velocity`` in km / s and

@@ -301,7 +301,7 @@ def test_refusals_and_errors_show_why(app, monkeypatch, irispy_test_files):
         f"No wavelength of {c_ii.label} (1332.73 to 1336.88 Å) lies within 50.0 km / s of Si IV 1402.77 Å.",
         f"{sji.label} is not a 1400 Å slit-jaw image, in which irispy finds UV bursts.",
         "plain is not an IRIS raster window or slit-jaw image.",
-        "'Si IV' is not a threshold in DN/s, such as 500.",
+        "'Si IV' is not a threshold in DN / s, such as 500.",
         f"No wavelength of {raster.label} (1402.50 to 1403.04 Å) lies within 0.1 km / s of Si IV 1402.77 Å.",
     ]
     # Cancel adds nothing

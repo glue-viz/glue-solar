@@ -156,7 +156,7 @@ toolbar has:
   gives the speed along the path at the earliest point, in km / s, positive away from the path's start:
   of the straight line through the distances against time of points at two times, or, with three
   times or more, of the least-squares parabola through them, which also gives the acceleration in
-  m/s². A distance is the length along the path from its first sample, measured as "Measure"
+  m / s2. A distance is the length along the path from its first sample, measured as "Measure"
   measures, with the data's coordinates at the point's frame and its ``DSUN_OBS``; a time is that of
   the point's row. Enter adds the measurement as a row of the diagram's table, the dataset
   ``<diagram> slopes``: the earliest and latest points' times in UTC (``t0``, ``t1``) and distances

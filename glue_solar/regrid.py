@@ -300,7 +300,7 @@ def rebin(data, bins):
     in float32 in memory; ``data`` is read a slab at a time, a stack a bin of scans at a time, and pixels past its last
     whole bin along an axis are left out. Its coordinates are ndcube's ``ResampledLowLevelWCS`` of those of ``data``,
     so a pixel is at its bin's center; its ``Time`` is the mean of its bin's times, and its ``Exposure time`` the mean
-    of its bin's exposure times, NaN where one is 0 s, so that ``<label> DN/s`` is its mean DN over it. The units,
+    of its bin's exposure times, NaN where one is 0 s, so that ``<label> DN / s`` is its mean DN over it. The units,
     colormap, pointing offset, which it follows, and metadata are those of ``data``, without a slit-jaw image's
     per-frame pointing, ``meta['rebinned']`` adding ``bins``, and the ``meta['time_step']`` of data regridded on time
     multiplied by the bin along time.

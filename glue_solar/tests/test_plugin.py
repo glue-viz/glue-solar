@@ -138,7 +138,7 @@ def test_setup_registers_hooks():
     assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
     assert ImageViewer.subtools["solar:modes"] == ["solar:measure", "solar:path", "solar:path_crosshair", "solar:slope"]
     view = ["solar:frame_time", "solar:hide_axes", "solar:per_frame_limits", "solar:band", "solar:physical_aspect"]
-    view += ["solar:zoom_1_1", "solar:colour_bar", "solar:raster_overlays"]
+    view += ["solar:zoom_1_1", "solar:color_bar", "solar:raster_overlays"]
     if not hasattr(ImageViewer, "cursor_status"):
         view.append("solar:cursor_readout")
     assert ImageViewer.subtools["solar:view"] == view
@@ -333,7 +333,7 @@ def test_open_sot_cube_through_load_data(tmp_path, irispy_test_files, name, labe
     assert science.units == units
     assert (science.data[0, 0, 0], data[f"{label} mask"][0, 0, 0]) == (-200, 0)
     np.testing.assert_array_equal(science.data, cube.data)  # NaN where missing, and negative fields kept
-    assert (data.find_component_id(f"{label} DN/s") is not None) == (units == "DN")
+    assert (data.find_component_id(f"{label} DN / s") is not None) == (units == "DN")
     sky, times = cube.axis_world_coords()  # each frame at its own pointing
     np.testing.assert_array_equal(data["Time"][:, 0, 0], times.utc.to_value("datetime64"))
     for axis, expected in (("Longitude", sky.Tx), ("Latitude", sky.Ty)):
@@ -656,7 +656,7 @@ def margins(viewer):
     rgba = np.asarray(viewer.figure.canvas.buffer_rgba())
     box = viewer.axes.get_window_extent()
     left, below = rgba[:, : int(box.x0) - 2], rgba[rgba.shape[0] - int(box.y0) + 2 :]
-    return {tuple(colour) for part in (left, below) for colour in part.reshape(-1, 4)}
+    return {tuple(color) for part in (left, below) for color in part.reshape(-1, 4)}
 
 
 def test_hide_axes(qtbot, monkeypatch, irispy_test_files):
@@ -786,7 +786,7 @@ def test_sessions_with_per_frame_limits_fail_to_restore(qtbot, tmp_path):
         GlueApplication.restore_session(str(tmp_path / "limits.glu"))
 
 
-def test_colour_bar_draws_glues_colours_and_is_saved(qtbot, monkeypatch, tmp_path):
+def test_color_bar_draws_glues_colors_and_is_saved(qtbot, monkeypatch, tmp_path):
     import matplotlib
     from matplotlib.backends.qt_compat import QtWidgets
     from matplotlib.image import imread
@@ -809,8 +809,8 @@ def test_colour_bar_draws_glues_colours_and_is_saved(qtbot, monkeypatch, tmp_pat
     save.trigger()
 
     viewer.toolbar.active_tool = "image:point_selection"
-    pixel, button = viewer.toolbar.active_tool, viewer.toolbar.actions["solar:colour_bar"]
-    tool, width = viewer.toolbar.tools["solar:colour_bar"], viewer.axes.get_window_extent().width
+    pixel, button = viewer.toolbar.active_tool, viewer.toolbar.actions["solar:color_bar"]
+    tool, width = viewer.toolbar.tools["solar:color_bar"], viewer.axes.get_window_extent().width
     button.trigger()
     assert viewer.toolbar.active_tool is pixel
     beside = viewer.axes.get_window_extent().width
@@ -825,21 +825,21 @@ def test_colour_bar_draws_glues_colours_and_is_saved(qtbot, monkeypatch, tmp_pat
     layer.contrast, layer.bias, layer.cmap = 1.5, 0.3, matplotlib.colormaps["viridis"]
     for stretch in ("linear", "log", "sqrt", "arcsinh", "gamma_2.2"):
         layer.stretch = stretch
-        colours, image, limits = drawn()
-        assert (np.array_equal(colours, image), limits) == (True, (0, 100))
-        assert not np.array_equal(colours, bar)  # changed with the stretch, contrast and bias or colormap
-        bar = colours
+        colors, image, limits = drawn()
+        assert (np.array_equal(colors, image), limits) == (True, (0, 100))
+        assert not np.array_equal(colors, bar)  # changed with the stretch, contrast and bias or colormap
+        bar = colors
     viewer.state.color_mode = "One color per layer"
-    colours, image, limits = drawn()
-    assert (np.array_equal(colours, image), limits) == (True, (0, 100))
+    colors, image, limits = drawn()
+    assert (np.array_equal(colors, image), limits) == (True, (0, 100))
     viewer.state.color_mode = "Colormaps"
     # the limits of each frame, from glue's per-frame limits
     viewer.toolbar.actions["solar:per_frame_limits"].trigger()
     layer.percentile = 100
     for frame, top in ((1, 200), (0, 100)):
         viewer.state.slices = (frame, 0, 0)
-        colours, image, limits = drawn()
-        assert (np.array_equal(colours, image), limits) == (True, (0, top))
+        colors, image, limits = drawn()
+        assert (np.array_equal(colors, image), limits) == (True, (0, top))
     layer.v_min, layer.v_max = 20, 80
     assert drawn()[2] == (20, 80)
     layer.v_min = 80  # a constant frame's limits
@@ -882,12 +882,12 @@ def sky_square(viewer, side=10):
     lon, lat = (next(i for i, kind in enumerate(kinds) if kind.endswith(end)) for end in (".lon", ".lat"))
     pixel = [float(s) for s in state.slices[::-1]]
     pixel[last - x], pixel[last - y] = (state.x_min + state.x_max) / 2, (state.y_min + state.y_max) / 2
-    centre = coords.pixel_to_world_values(*pixel)
+    center = coords.pixel_to_world_values(*pixel)
     half = (side / 2 * u.arcsec).to_value(coords.world_axis_units[lon])
     ends = []
     for axis in (lon, lat):
         for sign in (-1, 1):
-            world = list(centre)
+            world = list(center)
             world[axis] = world[axis] + sign * half
             end = coords.world_to_pixel_values(*world)
             ends.append((end[last - x], end[last - y]))
@@ -1169,12 +1169,12 @@ def test_zoom_1_1_gives_a_data_pixel_a_screen_pixel(qtbot, irispy_test_files):
     for x, y, aspect in ((0, 1, "auto"), (1, 0, "equal"), (2, 1, "equal")):
         state.x_att, state.y_att = data.pixel_component_ids[x], data.pixel_component_ids[y]
         state.aspect = aspect
-        centre = ((state.x_min + state.x_max) / 2, (state.y_min + state.y_max) / 2)
+        center = ((state.x_min + state.x_max) / 2, (state.y_min + state.y_max) / 2)
         for _ in range(2):  # and again, at 1:1 already
             button.trigger()
             assert viewer.toolbar.active_tool is pixel
             assert (state.x_max - state.x_min, state.y_max - state.y_min) == pytest.approx((box.width, box.height))
-            assert ((state.x_min + state.x_max) / 2, (state.y_min + state.y_max) / 2) == pytest.approx(centre)
+            assert ((state.x_min + state.x_max) / 2, (state.y_min + state.y_max) / 2) == pytest.approx(center)
     # with 'Physical aspect', a y pixel spans the sky's proportion of an x pixel
     state.x_att, state.y_att = data.pixel_component_ids[0], data.pixel_component_ids[1]
     viewer.toolbar.actions["solar:physical_aspect"].trigger()
@@ -1385,7 +1385,7 @@ def _click(tool, x, y):
 
 def test_slope_recovers_an_injected_features_speed_and_acceleration(qtbot):
     # a slit-jaw-like cube of 0.1663" pixels seen from 1 AU, 60 frames 12 s apart, in which a blob moves along x from
-    # 50 km / s, accelerating at 100 m/s²
+    # 50 km / s, accelerating at 100 m / s2
     glue_solar.setup()
     app = GlueApplication()
     qtbot.addWidget(app)
@@ -1396,9 +1396,9 @@ def test_slope_recovers_an_injected_features_speed_and_acceleration(qtbot):
     wcs.wcs.cdelt = 0.1663, 0.1663, 1
     wcs.wcs.crpix, wcs.wcs.crval = (280, 5, 1), (400, -300, 0)
     km = (0.1663 * u.arcsec).to_value(u.rad) * observer / 1000  # a pixel's
-    centre = 20 + (50 * seconds + 0.1 / 2 * seconds**2) / km
+    center = 20 + (50 * seconds + 0.1 / 2 * seconds**2) / km
     _, y, x = np.indices((60, 9, 560))
-    cube = Data(label="cube", flux=100 * np.exp(-((x - centre[:, None, None]) ** 2 + (y - 4) ** 2) / 8), coords=wcs)
+    cube = Data(label="cube", flux=100 * np.exp(-((x - center[:, None, None]) ** 2 + (y - 4) ** 2) / 8), coords=wcs)
     times = np.datetime64("2013-09-02T16:39:35") + (1000 * seconds).astype("timedelta64[ms]")
     cube.add_component(np.broadcast_to(times[:, None, None], cube.shape), "Time")
     cube.meta["DSUN_OBS"] = observer
@@ -1424,8 +1424,8 @@ def test_slope_recovers_an_injected_features_speed_and_acceleration(qtbot):
     assert (table["t0 (UTC)"][0], table["t1 (UTC)"][0]) == ("2013-09-02T16:39:35.000", "2013-09-02T16:50:23.000")
     assert table["d0 (km)"][0] == pytest.approx(20 * km)  # from the path's first sample, at pixel 0
     assert table["speed (km / s)"][0] == pytest.approx(50, rel=0.01)
-    assert table["acceleration (m/s²)"][0] == pytest.approx(100, rel=0.02)
-    assert tool.label.text() == "Speed 50.00 km / s · acceleration 100.0 m/s²"
+    assert table["acceleration (m / s2)"][0] == pytest.approx(100, rel=0.02)
+    assert tool.label.text() == "Speed 50.00 km / s · acceleration 100.0 m / s2"
     [shown] = [viewer for tab in app.viewers for viewer in tab if isinstance(viewer, TableViewer)]
     assert diagram.toolbar.active_tool is tool  # still on, for the next track
 
@@ -1435,7 +1435,7 @@ def test_slope_recovers_an_injected_features_speed_and_acceleration(qtbot):
     _key(diagram, "enter")
     assert table["t0 (UTC)"][1] < table["t1 (UTC)"][1]
     assert table["speed (km / s)"][1] == pytest.approx(50 + 0.1 * seconds[-1] / 2, rel=0.01)
-    assert np.isnan(table["acceleration (m/s²)"][1])
+    assert np.isnan(table["acceleration (m / s2)"][1])
     assert shown.model.rowCount() == 2
 
     # points at one time give none, and Esc clears them
@@ -1770,7 +1770,7 @@ def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_pa
         assert _cmap_menu(restored.viewers[0][0]).currentText() == name
 
 
-def test_a_colormap_menu_names_the_layers_colormap_of_equal_colours(qtbot, tmp_path):
+def test_a_colormap_menu_names_the_layers_colormap_of_equal_colors(qtbot, tmp_path):
     from echo.qt import connect
 
     import sunpy.data.test
@@ -2734,9 +2734,9 @@ def test_the_iris_fitter_fits_irispys_line_on_a_background(irispy_data, linear_b
     fitter = GaussianConstantFitter(linear_background=linear_background, lorentzian=lorentzian)
     model, fitted_with = fitter.build_and_fit(x, y)
     starts = fitter.parameter_guesses(x, y, None)
-    *_, level, amplitude, centre, width = model.param_names
+    *_, level, amplitude, center, width = model.param_names
     irispys = profiles_on_background(
-        starts[centre],
+        starts[center],
         amplitudes=[starts[amplitude]],
         widths=[starts[width]],
         background="linear" if linear_background else "constant",
@@ -2748,7 +2748,7 @@ def test_the_iris_fitter_fits_irispys_line_on_a_background(irispy_data, linear_b
     assert model.param_names == expected.param_names
     assert model.bounds == expected.bounds  # irispy's, a Lorentzian's width positive too
     np.testing.assert_array_equal(model.parameters, expected.parameters)
-    assert 1402.7 < getattr(model, centre).value < 1402.9
+    assert 1402.7 < getattr(model, center).value < 1402.9
 
 
 def test_gaussian_on_a_constant_says_when_the_range_holds_too_few_samples():

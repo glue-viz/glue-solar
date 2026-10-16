@@ -183,7 +183,7 @@ def setup():
             tools.BandTool,
             tools.PhysicalAspectTool,
             tools.ZoomOneToOneTool,
-            tools.ColourBarTool,
+            tools.ColorBarTool,
             tools.RasterOverlaysTool,
         ],
     }

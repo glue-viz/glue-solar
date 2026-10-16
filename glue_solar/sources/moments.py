@@ -46,17 +46,17 @@ def _check(data):
         raise ValueError(f"{data.label} is not an IRIS raster window.")
 
 
-def _ends(centre, velocity_range):
+def _ends(center, velocity_range):
     """
-    The wavelengths, in Angstrom, at ``velocity_range``, a ``(lower, upper)`` pair in km / s from ``centre``, as irispy's
+    The wavelengths, in Angstrom, at ``velocity_range``, a ``(lower, upper)`` pair in km / s from ``center``, as irispy's
     ``calculate_moments`` takes them, and the words for the range; raises why for velocities that do not increase.
     """
     low, high = velocity_range
     if not low < high:
         raise ValueError(f"The velocity range, from {low:g} to {high:g} km / s, does not increase.")
     c = constants.c.to_value(u.km / u.s)
-    words = f"the velocity range, {low:g} to {high:g} km / s from {centre} Å"
-    return (centre * (1 + low / c), centre * (1 + high / c)), words
+    words = f"the velocity range, {low:g} to {high:g} km / s from {center} Å"
+    return (center * (1 + low / c), center * (1 + high / c)), words
 
 
 def _window(data, ends, lines, continuum=None):
@@ -93,7 +93,7 @@ def _unit(data):
     cid = data.main_components[0]
     with u.add_enabled_units(DN_UNIT.values()):  # astropy's registry, global: on the calling thread
         unit = u.Unit(data.get_component(cid).units)
-    if data.find_component_id(f"{cid.label} DN/s") is not None:
+    if data.find_component_id(f"{cid.label} DN / s") is not None:
         unit = unit / u.s
     return unit
 
@@ -102,12 +102,12 @@ def _read(data, rows, wavelengths):
     """
     The values of ``data`` at ``rows``, the scan of a stack, raster steps and slit pixels, and ``wavelengths`` that
     irispy is given, and each step's exposure time in s:
-    of a window with the loader's ``<label> DN/s``, its DN over each step's exposure time (D4), from the DN read here,
+    of a window with the loader's ``<label> DN / s``, its DN over each step's exposure time (D4), from the DN read here,
     in float64, else its scaled float32 and None; NaN where missing, +Inf where saturated, on any thread.
     """
     cid = data.main_components[0]
     values = data[cid, (*rows, wavelengths)]  # scaled float32 of these steps and wavelengths only
-    if data.find_component_id(f"{cid.label} DN/s") is None:
+    if data.find_component_id(f"{cid.label} DN / s") is None:
         return values, None
     # glue's derived component reads them again
     seconds = data["Exposure time", (*rows[:-1], slice(0, 1), slice(0, 1))].astype(np.float32)
@@ -160,7 +160,7 @@ def _dataset(data, label):
     return maps
 
 
-def _moments(data, centre, velocity_range, continuum, crop, unit, errors=False):
+def _moments(data, center, velocity_range, continuum, crop, unit, errors=False):
     """
     `line_moments` given ``crop`` of the wavelength pixels and ``unit`` the unit of the values irispy is given; on any
     thread.
@@ -184,7 +184,7 @@ def _moments(data, centre, velocity_range, continuum, crop, unit, errors=False):
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
             if continuum:  # NaN where irispy fits no background; +Inf, saturated, stays +Inf
                 cube = subtract_background(cube, continuum * u.AA, degree=degree)
-            slab = calculate_moments(cube, rest_wavelength=centre * u.AA, velocity_range=velocity_range * u.km / u.s)
+            slab = calculate_moments(cube, rest_wavelength=center * u.AA, velocity_range=velocity_range * u.km / u.s)
         saturated += int(slab.pop("saturated").data.sum())
         for name, moment in slab.items():
             # irispy sums masked samples, NaN and -Inf, as 0, and masks a pixel with none in the velocity range, or
@@ -197,8 +197,8 @@ def _moments(data, centre, velocity_range, continuum, crop, unit, errors=False):
         # ndcube's cubes are reference cycles, and irispy's hold the slab's values: else every slab's stay until
         # Python's collector runs
         gc.collect(0)
-    moments = _dataset(data, f"{data.label} moments {centre}")
-    moments.meta.update(moments_centre=centre, moments_velocity_range=tuple(velocity_range))
+    moments = _dataset(data, f"{data.label} moments {center}")
+    moments.meta.update(moments_center=center, moments_velocity_range=tuple(velocity_range))
     if continuum:
         moments.meta.update(moments_continuum=tuple(map(tuple, continuum)), moments_continuum_degree=degree)
     if saturated:  # for the status bar and scripts; maps without keep the meta they had
@@ -211,26 +211,26 @@ def _moments(data, centre, velocity_range, continuum, crop, unit, errors=False):
     return moments
 
 
-def line_moments(data, centre, velocity_range=VELOCITY_RANGE, continuum=None, errors=False):
+def line_moments(data, center, velocity_range=VELOCITY_RANGE, continuum=None, errors=False):
     """
     irispy's moments of a line in ``data``, an IRIS raster window of one scan or a stack of its scans, about
-    ``centre`` within ``velocity_range``, as one dataset on the window's scans, raster steps and slit pixels, each
+    ``center`` within ``velocity_range``, as one dataset on the window's scans, raster steps and slit pixels, each
     scan's at its own coordinates; with ``continuum`` windows, of the line less irispy's background fitted to them: a
     constant to one window, a straight line to more.
 
-    irispy is given the window's ``<label> DN/s`` where it has one, else its values, with NaN and -Inf masked. Its
+    irispy is given the window's ``<label> DN / s`` where it has one, else its values, with NaN and -Inf masked. Its
     components are irispy's: ``intensity`` in that unit, ``centroid`` and ``width`` in Angstrom, and ``velocity`` and
-    ``velocity_width`` in km / s, relative to ``centre``; all are NaN where every sample within the velocity range is
+    ``velocity_width`` in km / s, relative to ``center``; all are NaN where every sample within the velocity range is
     missing, no background could be fitted, or irispy finds a sample there saturated: +Inf, as the loader reads the
     Level 2 ceiling, 16182 DN, which a background leaves +Inf. ``meta`` holds the observation's ``OBSID`` and
-    ``STARTOBS``, ``moments_centre`` and ``moments_velocity_range``, with a continuum ``moments_continuum`` and
+    ``STARTOBS``, ``moments_center`` and ``moments_velocity_range``, with a continuum ``moments_continuum`` and
     ``moments_continuum_degree``, the degree of the background, and with saturated pixels ``moments_saturated``, how
     many. irispy is given only the wavelengths from the first to the last within the velocity range or a continuum
     window, a slab of steps of one scan at a time, in one call.
 
     With ``errors``, each map ``<name>`` has ``<name> error``, irispy's standard deviation of it, in its unit, propagated
     to first order from that of each sample its reader gives with ``uncertainty=True``: the photon and read noise of
-    its DN, over the step's exposure time for DN/s, taken as independent (a background's error is left out). irispy
+    its DN, over the step's exposure time for DN / s, taken as independent (a background's error is left out). irispy
     leaves it NaN where it is undefined: the intensity's where no sample is left, the centroid's and the velocity's
     where fewer than two are, and the widths' where the width is 0.
 
@@ -239,10 +239,10 @@ def line_moments(data, centre, velocity_range=VELOCITY_RANGE, continuum=None, er
     data : `~glue.core.data.Data`
         An IRIS raster window of one scan, (raster step, slit, wavelength), or a stack of its scans, (scan, raster
         step, slit, wavelength).
-    centre : float
+    center : float
         The line center, in Angstrom.
     velocity_range : tuple of float
-        The ``(lower, upper)`` Doppler velocities of the wavelengths taken, in km / s from ``centre``.
+        The ``(lower, upper)`` Doppler velocities of the wavelengths taken, in km / s from ``center``.
     continuum : sequence of tuple of float, optional
         The ``(lower, upper)`` wavelengths of each continuum window, in Angstrom, ends included, outside the velocity
         range.
@@ -255,8 +255,8 @@ def line_moments(data, centre, velocity_range=VELOCITY_RANGE, continuum=None, er
         For other data than an IRIS raster window or stack, a velocity range that does not increase or has no
         wavelength of the window, or a continuum window with none or overlapping the velocity range.
     """
-    window = _window(data, *_ends(centre, velocity_range), continuum)
-    return _moments(data, centre, velocity_range, continuum, *window, errors)
+    window = _window(data, *_ends(center, velocity_range), continuum)
+    return _moments(data, center, velocity_range, continuum, *window, errors)
 
 
 def _accepted(dialog, form):
@@ -308,8 +308,8 @@ def _ask(data, drawn=None):
     dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
     dialog.setWindowTitle(f"IRIS: line moments of {data.label}")
     form = QtWidgets.QFormLayout(dialog)
-    centre = _rest_field(data, "centre")  # D11: never the window's TWAVE
-    form.addRow("Line center [Å]:", centre)
+    center = _rest_field(data, "center")  # D11: never the window's TWAVE
+    form.addRow("Line center [Å]:", center)
     wavelengths, _ = _wavelengths(data)
     first, last, c = wavelengths[0], wavelengths[-1], constants.c.to_value(u.km / u.s)
     boxes = []
@@ -333,8 +333,8 @@ def _ask(data, drawn=None):
             for box in boxes:
                 box.setRange(np.floor(ends[0]) / 1000, np.ceil(ends[1]) / 1000)
 
-    limit(centre.text())  # the rest wavelength it starts at
-    centre.editingFinished.connect(lambda: limit(centre.text()))  # not as typed: 1399 on the way to 1399.77 would cut
+    limit(center.text())  # the rest wavelength it starts at
+    center.editingFinished.connect(lambda: limit(center.text()))  # not as typed: 1399 on the way to 1399.77 would cut
     if drawn is not None:
         low, high = drawn
         shown = f"{low:.3f} to {high:.3f} Å"
@@ -353,14 +353,14 @@ def _ask(data, drawn=None):
                 for box, end in zip(boxes, drawn):  # the boxes stop an end beyond the window at it
                     box.setValue((end / typed - 1) * c)  # as `_ends` inverts it
 
-        reach(centre.text())
-        centre.textChanged.connect(reach)
+        reach(center.text())
+        center.textChanged.connect(reach)
     continuum = QtWidgets.QLineEdit(objectName="continuum", placeholderText="none, or such as 1401.5-1402, 1404-1405")
     form.addRow("Continuum windows [Å]:", continuum)
     errors = QtWidgets.QCheckBox("Error maps", objectName="errors")  # off: irispy then takes about 1.7 times as long
     errors.setToolTip("Add each map's error, from irispy's photon and read noise of each sample")
     form.addRow(errors)
-    text = centre.text().strip() if _accepted(dialog, form) else ""
+    text = center.text().strip() if _accepted(dialog, form) else ""
     if not text:
         return None
     limit(text)  # as when its editing finished
@@ -460,9 +460,9 @@ def moments_iris(data, data_collection):
     asked = _ask(data, _profile_range(data, data_collection))
     if asked is None:
         return
-    centre, velocity_range, continuum, errors = asked
-    window = _window(data, *_ends(centre, velocity_range), continuum)
-    line = centre, velocity_range, continuum
+    center, velocity_range, continuum, errors = asked
+    window = _window(data, *_ends(center, velocity_range), continuum)
+    line = center, velocity_range, continuum
     text = f"Computing line moments of {data.label}…"
     _start(data_collection, text, _failed, _moments, data, *line, *window, errors, said=_saturated)
 
