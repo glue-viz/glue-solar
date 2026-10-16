@@ -48,6 +48,7 @@ from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.matplotlib.mpl_axes import update_appearance_from_settings
 from glue.viewers.matplotlib.toolbar_mode import PathMode, ToolbarModeBase
+from glue_qt.config import preference_panes
 from glue_qt.utils.decorators import messagebox_on_error
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.table import TableViewer
@@ -101,6 +102,7 @@ from glue_solar.sources.loaders.stack_spectrograms import _PerScanWCS
 from glue_solar.sources.moments import _accepted, _start
 
 __all__ = [
+    "AxesPreferences",
     "BandTool",
     "ColourBarTool",
     "CoordinateTool",
@@ -125,7 +127,7 @@ __all__ = [
     "sky_length",
 ]
 
-# Whether a new Image viewer shows its axes; the user guide says how to change it
+# Whether a new Image viewer shows its axes, a check box in glue's Preferences (`AxesPreferences`)
 settings.add("SOLAR_SHOW_AXES", True, validator=bool)
 
 _WATCHED = ("reference_data", "x_att", "y_att", "slices")
@@ -667,6 +669,30 @@ class HideAxesTool(Tool):
         if axes.axison != shown:
             axes.set_axis_on() if shown else axes.set_axis_off()
             self.viewer.figure.canvas.draw_idle()
+
+
+class AxesPreferences(QtWidgets.QWidget):
+    """
+    glue-solar's pane in glue's Preferences: whether new Image viewers show their axes (``SOLAR_SHOW_AXES``).
+    glue sets it on OK and saves it with its own settings, in ``~/.glue/settings.cfg``.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.show_axes = QtWidgets.QCheckBox("Show axes on new Image viewers")
+        self.show_axes.setChecked(settings.SOLAR_SHOW_AXES)
+        note = QtWidgets.QLabel("A quicklook's image panels open without axes: 'Axes' in its Panels list shows them.")
+        note.setWordWrap(True)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(self.show_axes)
+        layout.addWidget(note)
+        layout.addStretch()
+
+    def finalize(self):
+        settings.SOLAR_SHOW_AXES = self.show_axes.isChecked()
+
+
+preference_panes.add("glue-solar", AxesPreferences)
 
 
 @viewer_tool
