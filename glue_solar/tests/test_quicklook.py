@@ -309,11 +309,14 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
         overlays.trigger()
         offered(viewers["map"])
         assert overlays.isChecked() is checked
-    # a check that faults, rather than refuses, raises instead of hiding the entry
+    # a check that faults, rather than refuses, leaves its entry shown, and running it shows the fault
     with monkeypatch.context() as patch:
-        patch.setattr("glue_solar.tools._check_cut", lambda *args, **kwargs: 1 / 0)
-        with pytest.raises(ZeroDivisionError):
-            viewers["map"].toolbar.tools["solar:light_curve"].offered()
+        for module in ("tools", "quicklook"):  # the entry's check and its run's
+            patch.setattr(f"glue_solar.{module}._check_cut", lambda *args, **kwargs: 1 / 0)
+        assert offered(viewers["map"]) == [*time, *curve, *cuts, *blink, *overlaid(banded)]
+        errors = refusals(patch)
+        menu_action(viewers["map"], "Light curve of this window").trigger()
+        assert errors == ["Could not open the light curve\ndivision by zero"]
 
     def curves(viewer):
         """The windows and channels of the light curves the entry plots, as their labels name them."""
