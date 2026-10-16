@@ -8,7 +8,6 @@ import builtins
 import inspect
 import os
 import re
-import traceback
 from contextlib import nullcontext
 from functools import cache, wraps
 from tempfile import TemporaryDirectory
@@ -36,7 +35,7 @@ from glue.core.subset import SubsetState
 from glue.dialogs.link_editor.state import LinkEditorState
 from glue.plugins.tools.path_slicer.path_sliced_data import PathSlicedData
 from glue.plugins.tools.path_slicer.path_sliced_data_links import PathRelativeLink
-from glue.utils import color2hex, defer_draw
+from glue.utils import defer_draw
 from glue.viewers.common.state import LayerState
 from glue.viewers.histogram import state as histogram_state
 from glue.viewers.histogram import viewer as histogram_viewer
@@ -54,7 +53,7 @@ from glue_qt.config import layer_action as glue_layer_action
 from glue_qt.core import simpleforms
 from glue_qt.core.fitters import FitSettingsWidget
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
-from glue_qt.utils import Worker, colors
+from glue_qt.utils import colors
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.common.toolbar import BasicToolbar
 from glue_qt.viewers.image import ImageViewer
@@ -1034,62 +1033,32 @@ class BoolFormItem(simpleforms.BoolFormItem):
 simpleforms.register(BoolOption, BoolFormItem)
 
 
-def _get_fitter(self):
-    """The fitter of glue-qt's ``ProfileTools`` for its fitter class, made at its first Settings or fit."""
+def _get_fitter(self, cls):
+    """The one fitter of class ``cls`` for this ``ProfileTools``, so for this Profile viewer."""
     fitters = vars(self).setdefault("_fitters", {})
-    if self.fit_function not in fitters:
-        fitters[self.fit_function] = self.fit_function()
-    return fitters[self.fit_function]
+    if cls not in fitters:
+        fitters[cls] = cls()
+    return fitters[cls]
 
 
 def _on_settings(self):
-    """glue-qt's ``ProfileTools._on_settings``, setting the fitter that `_on_fit` uses."""
-    FitSettingsWidget(_get_fitter(self)).exec_()
+    FitSettingsWidget(_get_fitter(self, self.fit_function)).exec_()
 
 
-def _on_fit(self):
+_original_fit = ProfileTools._fit
+
+
+def _fit(self, fitter, xlim=None):
     """
-    glue-qt's ``ProfileTools._on_fit``, fitting with the fitter Settings set, one per Profile viewer and fitter class.
-
-    glue-qt 0.4.2 makes a new fitter for Settings and another for each fit, so no fit has what Settings set, such as
-    glue's Polynomial degree. Retired by glue-qt's ``ProfileTools._get_fitter`` (``wp0-qt-fitter-settings``).
+    glue-qt 0.4.2 makes a new fitter for Settings and for each fit, so no fit has what Settings set; both use
+    `_get_fitter`'s. Retired by glue-qt's ``ProfileTools._get_fitter`` (``wp0-qt-fitter-settings``).
     """
-    if self.rng_mode.state.x_min is None or self.rng_mode.state.x_max is None:
-        return
-    fitter = _get_fitter(self)
-
-    def on_success(result):
-        fit_results, x, y = result
-        report, normalize = "", {}
-        for layer_artist in fit_results:
-            report += f"<b><font color='{color2hex(layer_artist.state.color)}'>{layer_artist.layer.label}</font></b>"
-            report += f"<pre>{fitter.summarize(fit_results[layer_artist], x, y)}</pre>"
-            if self.viewer.state.normalize:
-                normalize[layer_artist] = layer_artist.state.normalize_values
-        self._report_fit(report)
-        self._plot_fit(fitter, fit_results, x, y, normalize)
-
-    def on_fail(exc_info):
-        exc = "\n".join(traceback.format_exception(*exc_info))
-        self._report_fit(f"Error during fitting:\n{exc}")
-
-    def on_done():
-        self.ui.button_fit.setText("Fit")
-        self.ui.button_fit.setEnabled(True)
-        self.canvas.draw_idle()
-
-    self.ui.button_fit.setText("Running...")
-    self.ui.button_fit.setEnabled(False)
-    self._fit_worker = Worker(self._fit, fitter, xlim=self.rng_mode.state.x_range)  # held, as glue-qt holds it
-    self._fit_worker.result.connect(on_success)
-    self._fit_worker.error.connect(on_fail)
-    self._fit_worker.finished.connect(on_done)
-    self._fit_worker.start()
+    return _original_fit(self, _get_fitter(self, type(fitter)), xlim)
 
 
 if not hasattr(ProfileTools, "_get_fitter"):
     ProfileTools._on_settings = _on_settings
-    ProfileTools._on_fit = _on_fit
+    ProfileTools._fit = _fit
 
 
 _original_update_icons = colors.QColormapCombo._update_icons
