@@ -51,6 +51,7 @@ from glue_qt.app.layer_tree_widget import LayerAction, UserAction
 from glue_qt.config import LayerActionRegistry
 from glue_qt.config import layer_action as glue_layer_action
 from glue_qt.core import simpleforms
+from glue_qt.core.fitters import FitSettingsWidget
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
 from glue_qt.utils import colors
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
@@ -58,6 +59,7 @@ from glue_qt.viewers.common.toolbar import BasicToolbar
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.matplotlib.widget import MplCanvas
 from glue_qt.viewers.profile import ProfileViewer
+from glue_qt.viewers.profile.profile_tools import ProfileTools
 from glue_qt.viewers.table.data_viewer import DataTableModel
 from matplotlib import colormaps, dates, rcParams
 from matplotlib.backend_bases import key_press_handler
@@ -1029,6 +1031,34 @@ class BoolFormItem(simpleforms.BoolFormItem):
 
 
 simpleforms.register(BoolOption, BoolFormItem)
+
+
+def _get_fitter(self, cls):
+    """The one fitter of class ``cls`` for this ``ProfileTools``, so for this Profile viewer."""
+    fitters = vars(self).setdefault("_fitters", {})
+    if cls not in fitters:
+        fitters[cls] = cls()
+    return fitters[cls]
+
+
+def _on_settings(self):
+    FitSettingsWidget(_get_fitter(self, self.fit_function)).exec_()
+
+
+_original_fit = ProfileTools._fit
+
+
+def _fit(self, fitter, xlim=None):
+    """
+    glue-qt 0.4.2 makes a new fitter for Settings and for each fit, so no fit has what Settings set; both use
+    `_get_fitter`'s. Retired by glue-qt's ``ProfileTools._get_fitter`` (``wp0-qt-fitter-settings``).
+    """
+    return _original_fit(self, _get_fitter(self, type(fitter)), xlim)
+
+
+if not hasattr(ProfileTools, "_get_fitter"):
+    ProfileTools._on_settings = _on_settings
+    ProfileTools._fit = _fit
 
 
 _original_update_icons = colors.QColormapCombo._update_icons
