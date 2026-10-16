@@ -28,10 +28,10 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 5058533 (#286). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
+**Resume here.** Main is at b93cd8e (#287). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
 
 **Next** (D81, D82), three at a time with disjoint files (tests in the file named). Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. Running: `wp6-l-fitter-per-viewer` (test_plugin), `wp4-l-point-edit-subset` (test_quicklook) and `wp3-l-restore-irispy-meta` (test_sessions).
+  1. Running: #287 (test_plugin), `wp4-l-point-edit-subset` (test_quicklook) and `wp3-l-restore-irispy-meta` (test_sessions).
   2. Then, as files come free: `wp6-l-fit-lines`, `wp2-l-radiance-factor-saver`, `wp9-l-app-reproject-metadata` and the `-lean-` items, `wp10-l-lean-tests` last and alone.
 
   Held for the user (D82): `wp4-l-restored-strip`, `wp13-l-restored-second-map` and `wp3-l-autosave-quit`.
@@ -131,7 +131,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 - **D78:** One fill builds every quicklook from a panel table per data kind: IRIS raster, slit-jaw only, SST and generic (#277). The generic table follows the cube's WCS axes (spectral, celestial, time, Stokes), giving SST-like panels, with λ–time and the light curve only for a time axis, from a 'Quicklook…' layer action on any cube with one spectral and two spatial axes.
 - **D79:** The choice review's fourth pass (#241-#275's 139 choices, chunks d8-h2 in `session_20261015.tar.gz`): 122 kept, 258-1, 262-5, 265-6 and 268-2 after discussion; the changes are on main, except 267-7 (`wp0-irispy-requests`); 265-8 was a bug (#270); 259-1 to 259-3: D81.
 - **D80:** The choice review's fifth pass (#276-#283's 28 choices, chunks h3-i0): 27 kept; on 283-3 (prose says `DN / s` too) the user noted "Make it all match". Changed: 283-4 → #284.
-- **D81:** Sessions stay (D74's first option), so the held session items go ahead; `wp0-core-session-reports` and `wp0-core-quantity-saver` stay M4. Fitting (`briefs/fitting.md` in the session archive): one fitter per Profile viewer as a glue-solar stopgap (`wp6-l-fitter-per-viewer`, 259-2); the glue-qt fix, the check-box one-liner included, on a branch of the user's fork with no PR (`wp0-qt-fitter-settings`), the check-box shim staying (259-3); the check boxes stay and 'Number of lines' is added (`wp6-l-fit-lines`, 259-1), while fits from the line list or a line table of the fitter's own wait. The flaky SST thread test is fixed (#285).
+- **D81:** Sessions stay (D74's first option), so the held session items go ahead; `wp0-core-session-reports` and `wp0-core-quantity-saver` stay M4. Fitting (`briefs/fitting.md` in the session archive): one fitter per Profile viewer as a glue-solar stopgap (#287, 259-2); the glue-qt fix, the check-box one-liner included, on a branch of the user's fork with no PR (`wp0-qt-fitter-settings`), the check-box shim staying (259-3); the check boxes stay and 'Number of lines' is added (`wp6-l-fit-lines`, 259-1), while fits from the line list or a line table of the fitter's own wait. The flaky SST thread test is fixed (#285).
 
 - **D82:** User (2026-10-16): keep the plan concise and the code lean; port CRISPEX's ideas to glue better, faster, sleeker and nicer, not one to one. The plan keeps rules and open items only (git keeps the history; Current state gets no per-PR line), and items with nothing to do are dropped (wp0-optional-proposals, wp0-track-qt66, wp0-track-line-layers, wp8-m3-level3-input, wp1-m3-multi-instrument, wp13-height-cubes; wp0-qt68-cocoa joins wp0-qt68-macos-pass). The audits (`audit2/` in the session archive) found about 820 source and 500 test lines that can go with no visible change (the four `-lean-` items) and one bug (`wp4-l-point-edit-subset`). Held for the user: `wp4-l-restored-strip`, `wp13-l-restored-second-map` and `wp3-l-autosave-quit`, which a quicklook restored by re-running `quicklook()`, or dropping 'IRIS: restore last session', would replace; and every feature cut or redesign in the audits.
 
@@ -154,7 +154,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP3: `wp2-l-radiance-factor-saver`, `wp3-l-autosave-quit`, `wp3-l-restore-irispy-meta`
 - WP4: `wp4-l-restored-strip`, `wp4-l-point-edit-subset`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP6: `wp6-l-fitter-per-viewer`, `wp6-l-fit-lines`
+- WP6: `wp6-l-fit-lines`
 - WP9: `wp9-l-app-reproject-metadata`
 - WP10: `wp10-l-lean-patches`, `wp10-l-lean-loaders-analysis`, `wp10-l-lean-tests`
 - WP11: `wp11-l-lean-tools-quicklook`
@@ -293,7 +293,6 @@ Map fitting of IRIS spectra on glue's Profile Fit tab, planned with the user whe
 
 **L**
 
-- [ ] **L** `wp6-l-fitter-per-viewer` (D81; #259, 259-2, 259-3): glue-qt's `ProfileTools` makes a new fitter for Settings and another for each fit (profile_tools.py:179, :194), so one registered instance, `FITTER`, carries the IRIS fitter's options and constraints and every other fitter's Settings are lost. A glue-solar patch keeps one fitter per Profile viewer and fitter class instead, and switches off once glue-qt has `wp0-qt-fitter-settings` (probed, as `update_icons` is); the check-box `value` shim stays. Done when a bound set for one quicklook's spectrum panel leaves another Profile viewer's fit unchanged, glue's own Polynomial degree set in Settings is what its fit uses, the test fails without the patch, and the Profile guide no longer says Settings are shared.
 - [ ] **L** `wp6-l-fit-lines` (D81; 259-1, the brief's first design): the IRIS fitter's Settings get 'Number of lines' (1-4) and 'Same width'; the lines start at the strongest peaks, irispy's `profiles_on_background` takes their centers, amplitudes stay positive, and each line's parameter rows appear when Settings is reopened. `summarize` takes each line's velocity from the layer's rest wavelength (D11), not the nearest `MAIN_LINES` entry. Done when, on irispy-data, a C II window's 1334.53/1335.71 pair fits as two lines (with one width when 'Same width' is ticked) and a test covers one and two lines.
 
 **M4**
