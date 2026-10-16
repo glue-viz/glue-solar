@@ -1960,7 +1960,7 @@ def _takes(check, *args, **kwargs):
         check(*args, **kwargs)
     except ValueError:  # the guard's refusal
         return False
-    except Exception:  # noqa: BLE001 - a fault, not a refusal: shown, so that running it shows the fault
+    except Exception:  # noqa: BLE001 - a fault, not a refusal
         return True
     return True
 
