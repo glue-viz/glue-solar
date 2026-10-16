@@ -28,10 +28,10 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at b264281 (#291). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
+**Resume here.** Main is at 520e7b8 (#292). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
 
 **Next** (D81, D82), three at a time with disjoint files (tests in the file named). Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. Running: `wp11-l-lean-tools-quicklook`, `wp10-l-lean-loaders-analysis` and `wp9-l-app-reproject-metadata`.
+  1. Running: #292, `wp10-l-lean-loaders-analysis` and `wp9-l-app-reproject-metadata`.
   2. Then `wp10-l-lean-tests`, last and alone.
 
   Held for the user (D82): `wp4-l-restored-strip`, `wp13-l-restored-second-map`, `wp3-l-autosave-quit` and `wp3-l-restore-irispy-meta`.
@@ -156,7 +156,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP9: `wp9-l-app-reproject-metadata`
 - WP10: `wp10-l-lean-loaders-analysis`, `wp10-l-lean-tests`
-- WP11: `wp11-l-lean-tools-quicklook`
 - WP13: `wp13-l-restored-second-map`
 
 **M4**
@@ -337,10 +336,6 @@ Notes:
 ### WP11: Display, readouts and inspection tools
 
 Display and inspection tools for stock Image and Profile viewers, in `glue_solar/tools.py` and `glue_solar/quicklook.py`.
-
-**L**
-
-- [ ] **L** `wp11-l-lean-tools-quicklook` (D82; `audit2/code/report.md`): tools.py and quicklook.py: docstrings over five lines cut to the reason and a reference (S1), the one-caller helpers and duplicates (S5, S6) and the branches always taken on glue 1.27 (S7). No user-visible change. Done when the suites pass in both envs with the same tests (less any duplicate removed), ruff and the docs build pass, and the lines removed are reported.
 
 Notes:
 - glue-qt takes B, C, G, H, K, M, P, R, X, Y, Z, Tab and Backspace, and dispatches keys by exact viewer type; glue-solar takes D, F, A, S, U and Space, and drops matplotlib's canvas keys (D61, D72; register).
