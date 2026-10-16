@@ -3154,6 +3154,7 @@ def test_what_moves_on_a_stack(bare_app, qtbot, scans):
         "spectrogram": (1, 2, None, None),
         "sji0": (frame(1, 2), None, None),
     }
+    np.testing.assert_array_equal(spectrum(viewers), cube(stack)[1, 2, 30])
     assert event(lambda: slide(viewers["spectrogram"], 0, 2)) == {
         "point": (label, (2, 2, 30, None)),
         "map": (2, None, None, wave),
