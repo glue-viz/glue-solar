@@ -14,7 +14,7 @@ from qtpy import QtWidgets
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
-from glue_solar.regrid import rebin
+from glue_solar.regrid import rebin, regrid_on_time
 from glue_solar.sources import calibration
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
@@ -65,6 +65,7 @@ def test_the_action_adds_irispys_dust_removed_slit_jaw_image_linked_and_no_viewe
     collection.extend([raster, sji])
     keep_hpc_linked(collection)
     tree.ui.layerTree.set_selected_layers([sji])
+    assert tree._actions[DUST].isVisible()
     tree._actions[DUST].trigger()
     assert iris._RUNNING  # on glue-qt's worker
     assert app.statusBar().currentMessage() == f"Removing dust from {sji.label}…"
@@ -82,13 +83,19 @@ def test_the_action_adds_irispys_dust_removed_slit_jaw_image_linked_and_no_viewe
     assert dust.get_component(f"{label} DN/s").units == "DN/s"
     assert_irispys_dust_removed(dust, sji_path)
     assert not any(app.viewers)
+    assert tree.ui.layerTree.selected_layers() == [dust]
+    assert not tree._actions[DUST].isVisible()  # its dust removed already
     # the slit-jaw image's coordinates, times and per-frame pointing, its helioprojective ones linked
     assert dust.coords._wcs is sji.coords._wcs
     for cid, sji_cid in zip(dust.world_component_ids, sji.world_component_ids):
         np.testing.assert_array_equal(dust[cid], sji[sji_cid])
     for name in ("Time", "Exposure time"):
         np.testing.assert_array_equal(dust[name], sji[name])
-    assert {key: dust.meta[key] for key in ("INSTRUME", "TWAVE1")} == {"INSTRUME": "SJI", "TWAVE1": 1400.0}
+    assert {key: dust.meta[key] for key in ("INSTRUME", "TWAVE1", "dust_removed")} == {
+        "INSTRUME": "SJI",
+        "TWAVE1": 1400.0,
+        "dust_removed": True,
+    }
     np.testing.assert_array_equal(dust.meta["xcenix"], sji.meta["xcenix"])
     assert link_hpc(collection) == []
     linked = {cid for link in collection.links for cid in (link.get_to_id(), *link.get_from_ids())}
@@ -227,13 +234,16 @@ def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
     sji = image_data(sji_path)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
+    dust = calibration.remove_dust(sji)
+    rebinned = rebin(dust, (1, 2, 2))  # data made from it keep its meta['dust_removed']
+    regridded = regrid_on_time(dust)
     collection = app.data_collection
-    collection.extend([sji, raster, plain])
+    collection.extend([sji, raster, plain, dust, rebinned, regridded])
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
-    for action, datasets in ((DUST, (raster, plain)), (RADIANCE, (sji, plain))):
+    for action, datasets in ((DUST, (raster, plain, dust, rebinned, regridded)), (RADIANCE, (sji, plain))):
         for data in datasets:
             tree.ui.layerTree.set_selected_layers([data])
             refused(tree._actions[action])
@@ -244,8 +254,11 @@ def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
     assert shown == [
         f"Could not remove dust\n{raster.label} is not an IRIS slit-jaw image.",
         "Could not remove dust\nplain is not an IRIS slit-jaw image.",
+        f"Could not remove dust\n{dust.label} has its dust removed already.",
+        f"Could not remove dust\n{rebinned.label} has its dust removed already.",
+        f"Could not remove dust\n{regridded.label} has its dust removed already.",
         f"Could not calibrate the radiance\n{sji.label} is not an IRIS raster window.",
         "Could not calibrate the radiance\nplain is not an IRIS raster window.",
         f"Could not calibrate the radiance\n{raster.label} has its radiance already.",
     ]
-    assert len(collection) == 3
+    assert len(collection) == 6
