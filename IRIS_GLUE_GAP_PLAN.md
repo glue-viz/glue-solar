@@ -28,10 +28,10 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at ce851f4 (#284). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
+**Resume here.** Main is at 041229c (#285). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
 
 **Next** (D81, D82), three at a time with disjoint files (tests in the file named). Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. Running: `wp10-l-sst-race-test`, `wp1-l-relink-restored-request` (test_linking) and `wp6-l-fitter-per-viewer` (test_plugin).
+  1. Running: #285, `wp1-l-relink-restored-request` (test_linking) and `wp6-l-fitter-per-viewer` (test_plugin).
   2. Then, as files come free: `wp4-l-point-edit-subset`, `wp3-l-restore-irispy-meta`, `wp6-l-fit-lines`, `wp2-l-radiance-factor-saver`, `wp9-l-app-reproject-metadata` and the `-lean-` items, `wp10-l-lean-tests` last and alone.
 
   Held for the user (D82): `wp4-l-restored-strip`, `wp13-l-restored-second-map` and `wp3-l-autosave-quit`.
@@ -131,7 +131,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 - **D78:** One fill builds every quicklook from a panel table per data kind: IRIS raster, slit-jaw only, SST and generic (#277). The generic table follows the cube's WCS axes (spectral, celestial, time, Stokes), giving SST-like panels, with λ–time and the light curve only for a time axis, from a 'Quicklook…' layer action on any cube with one spectral and two spatial axes.
 - **D79:** The choice review's fourth pass (#241-#275's 139 choices, chunks d8-h2 in `session_20261015.tar.gz`): 122 kept, 258-1, 262-5, 265-6 and 268-2 after discussion; the changes are on main, except 267-7 (`wp0-irispy-requests`); 265-8 was a bug (#270); 259-1 to 259-3: D81.
 - **D80:** The choice review's fifth pass (#276-#283's 28 choices, chunks h3-i0): 27 kept; on 283-3 (prose says `DN / s` too) the user noted "Make it all match". Changed: 283-4 → #284.
-- **D81:** Sessions stay (D74's first option), so the held session items go ahead; `wp0-core-session-reports` and `wp0-core-quantity-saver` stay M4. Fitting (`briefs/fitting.md` in the session archive): one fitter per Profile viewer as a glue-solar stopgap (`wp6-l-fitter-per-viewer`, 259-2); the glue-qt fix, the check-box one-liner included, on a branch of the user's fork with no PR (`wp0-qt-fitter-settings`), the check-box shim staying (259-3); the check boxes stay and 'Number of lines' is added (`wp6-l-fit-lines`, 259-1), while fits from the line list or a line table of the fitter's own wait. The flaky SST thread test is fixed (`wp10-l-sst-race-test`).
+- **D81:** Sessions stay (D74's first option), so the held session items go ahead; `wp0-core-session-reports` and `wp0-core-quantity-saver` stay M4. Fitting (`briefs/fitting.md` in the session archive): one fitter per Profile viewer as a glue-solar stopgap (`wp6-l-fitter-per-viewer`, 259-2); the glue-qt fix, the check-box one-liner included, on a branch of the user's fork with no PR (`wp0-qt-fitter-settings`), the check-box shim staying (259-3); the check boxes stay and 'Number of lines' is added (`wp6-l-fit-lines`, 259-1), while fits from the line list or a line table of the fitter's own wait. The flaky SST thread test is fixed (#285).
 
 - **D82:** User (2026-10-16): keep the plan concise and the code lean; port CRISPEX's ideas to glue better, faster, sleeker and nicer, not one to one. The plan keeps rules and open items only (git keeps the history; Current state gets no per-PR line), and items with nothing to do are dropped (wp0-optional-proposals, wp0-track-qt66, wp0-track-line-layers, wp8-m3-level3-input, wp1-m3-multi-instrument, wp13-height-cubes; wp0-qt68-cocoa joins wp0-qt68-macos-pass). The audits (`audit2/` in the session archive) found about 820 source and 500 test lines that can go with no visible change (the four `-lean-` items) and one bug (`wp4-l-point-edit-subset`). Held for the user: `wp4-l-restored-strip`, `wp13-l-restored-second-map` and `wp3-l-autosave-quit`, which a quicklook restored by re-running `quicklook()`, or dropping 'IRIS: restore last session', would replace; and every feature cut or redesign in the audits.
 
@@ -157,7 +157,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP6: `wp6-l-fitter-per-viewer`, `wp6-l-fit-lines`
 - WP9: `wp9-l-app-reproject-metadata`
-- WP10: `wp10-l-sst-race-test`, `wp10-l-lean-patches`, `wp10-l-lean-loaders-analysis`, `wp10-l-lean-tests`
+- WP10: `wp10-l-lean-patches`, `wp10-l-lean-loaders-analysis`, `wp10-l-lean-tests`
 - WP11: `wp11-l-lean-tools-quicklook`
 - WP13: `wp13-l-restored-second-map`
 
@@ -341,7 +341,6 @@ Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on file
 - [ ] **L** `wp10-l-lean-tests` (D82; `audit2/code/report.md`): the tests: shared `app`, `answer`, `run_action` and `restore` helpers (T1-T5), tests the move/stay matrix covers (T6), dead tests and helpers (T8), and fixed 600 ms waits (T9). No user-visible change. Done when the suites pass in both envs with the same tests (less any duplicate removed), ruff and the docs build pass, and the lines removed are reported.
 - [ ] **L** `wp10-l-lean-loaders-analysis` (D82; `audit2/code/report.md`): the loaders, `sources/` and regrid.py: docstrings (S1), `stack_spectrogram_sequence` folded into the lazy read (S3), one error path, dialog opener and slab loop (S4, S10, S8), the failing file named at the read (S9) and the small duplicates (S11). No user-visible change. Done when the suites pass in both envs with the same tests (less any duplicate removed), ruff and the docs build pass, and the lines removed are reported.
 - [ ] **L** `wp10-l-lean-patches` (D82; `audit2/code/report.md`): glue_patches.py: docstrings cut to the reason and a register pointer (S1), the unused `__all__` (S2), and a probe that raises installs its patch rather than unloading glue-solar (the audit's R-P first step). No user-visible change. Done when the suites pass in both envs with the same tests (less any duplicate removed), ruff and the docs build pass, and the lines removed are reported.
-- [ ] **L** `wp10-l-sst-race-test` (D81; #283's review): `test_sst.py::test_a_cube_linked_mid_transform_neither_hangs_nor_races` joins two threads that each run 20,000-point tabular-WCS transforms in a loop with a 10 s timeout, and it timed out once under a parallel full suite. Its worker runs a fixed number of transforms after `started` is set, so the test checks for the deadlock and the race, not for speed. Done when it fails with the lock removed and passes 20 times beside a full suite.
 
 Notes:
 - IRIS Level 2 image HDUs are int16 (BSCALE 0.25, BZERO 7992; fill is raw -32768/-32764). glue-solar reads SJIs and AIA cutouts through irispy main's `read_sji_lvl2(memmap=True)`, whose raw int16 keeps the fill under a lazy mask; a `.fits.gz` is decompressed once into bytes that irispy views (#140).
