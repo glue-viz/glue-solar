@@ -6,11 +6,12 @@ A check of the built app, which runs it in place of glue with the files of an IR
         raster.fits sji.fits
 
 It starts glue as ``glue`` does, checks that glue-solar's menu entries are there on PyQt6 and that glue's IPython
-terminal starts, that fiasco has the line_ratio of the O IV preset and that matplotlib runs the bundled ffmpeg and
-saves a two-frame MP4 through it, loads the files and opens their quicklook as ``glue --startup=iris_quicklook`` does,
-adds irispy's radiometric calibration of the raster, which needs irispy's response files, saves and restores the
-session, which needs asdf's schemas, and prints when the window showed and the seconds each step took. It exits 1 at
-the first failure.
+terminal starts, that fiasco has the line_ratio of the O IV preset, that sunpy.map finds its extra dependencies, without
+which it warns as a session saves or loads, and that matplotlib runs the bundled ffmpeg and saves a two-frame MP4
+through it, loads the files and opens their quicklook as ``glue --startup=iris_quicklook`` does, adds irispy's
+radiometric calibration of the raster, which needs irispy's response files, saves and restores the session, which
+needs asdf's schemas, and prints when the window showed and the seconds each step took. It exits 1 at the first
+failure.
 """
 
 import os
@@ -30,6 +31,8 @@ from matplotlib import animation
 from matplotlib.figure import Figure
 from qtpy import QtCore, QtGui
 
+from sunpy.util.sysinfo import find_dependencies
+
 
 def check(app):
     try:  # an import that fails would leave glue's window open
@@ -44,6 +47,7 @@ def check(app):
         assert {"IRIS: browse observations…", "IRIS: quicklook…", "IRIS: restore last session"} <= entries, entries
         assert app.has_terminal()
         assert _has_line_ratio()
+        assert not find_dependencies(extras=["map"])[0]  # reproject's metadata
         ffmpeg = shutil.which(animation.FFMpegWriter.bin_path())  # as 'IRIS: save frames or movie…' offers MP4
         assert str(ffmpeg).startswith(sys._MEIPASS), ffmpeg
         subprocess.run([ffmpeg, "-version"], check=True, capture_output=True)  # with its own libraries
