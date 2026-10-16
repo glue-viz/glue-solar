@@ -2828,7 +2828,8 @@ def test_the_iris_fitter_fits_the_c_ii_pair_as_two_lines(qtbot, monkeypatch, iri
     [c_ii] = raster_data(irispy_data("iris_l2_20250613_123658_3620107423_raster.tar.gz")[:1], ["C II 1336"])
     two, same, _ = _fit_two_lines(qtbot, monkeypatch, c_ii, (1334.1, 1336.2))
     centers = [float(report[f"center_{line}"].split(",")[0]) for report in (two, same) for line in (1, 2)]
-    assert centers == pytest.approx([1334.5958, 1335.7652, 1334.5966, 1335.7651], abs=1e-4)
+    # within 0.1 km / s: the fitter's step differs between astropy versions
+    assert centers == pytest.approx([1334.5958, 1335.7652, 1334.5966, 1335.7651], abs=5e-4)
     # both from the window's rest wavelength, C II 1335.7079 Å for the 1336 it is named for (D11)
     assert [two[f"center_{line}"].split(", ")[1] for line in (1, 2)] == [
         "-249.60 km / s from 1335.7079 Å",
