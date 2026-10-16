@@ -10,21 +10,18 @@ import numpy as np
 import pytest
 from glue.core import Data
 from glue.core.component import Component
-from glue_qt.app.application import GlueApplication
 from irispy.utils.density import density_diagnostic, map_ratio_to_quantity
 from qtpy import QtWidgets
 
 import astropy.units as u
 from astropy.wcs import WCS
 
-import glue_solar
-from glue_solar.conftest import find_irispy_test_file
+from glue_solar.conftest import SCAN, find_irispy_test_file
 from glue_solar.sources.line_ratio import O_IV, TEMPERATURES, o_iv_density
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.moments import line_moments
 from glue_solar.tests.helpers import refused
-from glue_solar.tests.test_quicklook import SCAN
 
 ACTION = "IRIS: line ratio diagnostic…"
 # A synthetic theoretical ratio, increasing with log10 n_e in cm^-3
@@ -32,14 +29,6 @@ LOG_NE = np.linspace(9, 13, 41)
 CURVE = 0.15 + 0.3 / (1 + np.exp(4 * (11 - LOG_NE)))
 # The O IV preset's densities before it took typed ones, in cm^-3
 DENSITIES = np.logspace(8, 13, 51)
-
-
-@pytest.fixture
-def app(qtbot):
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    return app
 
 
 @pytest.fixture

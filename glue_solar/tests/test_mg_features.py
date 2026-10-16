@@ -7,7 +7,6 @@ session keeps of them.
 import numpy as np
 import pytest
 from glue.core import Data, DataCollection
-from glue_qt.app.application import GlueApplication
 from irispy.spectrograph import SpectrogramCube
 from irispy.utils.constants import DN_UNIT
 from irispy.utils.mg_features import _REST_WAVELENGTH, calculate_mg_features
@@ -17,16 +16,15 @@ from qtpy import QtWidgets
 import astropy.units as u
 from astropy import constants
 
-import glue_solar
-from glue_solar.conftest import find_irispy_test_file
+from glue_solar.conftest import SCAN, find_irispy_test_file, int16_copy
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import mg_features
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
-from glue_solar.tests.helpers import refused
-from glue_solar.tests.test_lazy import SJI, int16_copy, int16_raster_copy
+from glue_solar.tests import helpers
+from glue_solar.tests.helpers import refused, run_action
+from glue_solar.tests.test_lazy import SJI
 from glue_solar.tests.test_moments import dn_per_second_cube
-from glue_solar.tests.test_quicklook import SCAN
 from glue_solar.tests.test_sessions import twice
 
 ACTION = "IRIS: Mg II features… (Mg II)"
@@ -35,55 +33,15 @@ FEATURES = "iris_l2_20130902_182935_4000005156_raster_t000_r00000_mg_features.fi
 KH = ("k", "h")
 
 
-@pytest.fixture
-def app(qtbot):
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    return app
-
-
-@pytest.fixture
-def scan_path(tmp_path, irispy_test_files):
-    """Scan 0 of 3860258481, stored as int16; its Mg II k window covers h too."""
-    return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
-
-
-def answer(monkeypatch, velocities=None, ticks=None, accept=True):
-    """
-    Make each Mg II features dialog return as if any ``velocities`` were typed and the lines ticked as ``ticks``, and
-    OK, or Cancel, pressed; returns the velocities and ticks each dialog opened with.
-    """
-    opened = []
-
-    def exec_(dialog):
-        boxes = [dialog.findChild(QtWidgets.QDoubleSpinBox, name) for name in ("from", "to")]
-        lines = [dialog.findChild(QtWidgets.QCheckBox, line) for line in KH]
-        opened.append((*(box.value() for box in boxes), *(tick.isChecked() for tick in lines)))
-        for box, value in zip(boxes, velocities or ()):
-            box.setValue(value)
-        for tick, value in zip(lines, ticks or ()):
-            tick.setChecked(value)
-        return QtWidgets.QDialog.Accepted if accept else QtWidgets.QDialog.Rejected
-
-    monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
-    return opened
+def answer(monkeypatch, velocities=(), ticks=(), accept=True):
+    """`helpers.answer` for the Mg II features dialog, ``velocities`` from and to, and ``ticks`` k and h."""
+    return helpers.answer(monkeypatch, accept, **dict(zip(("from", "to"), velocities)), **dict(zip(KH, ticks)))
 
 
 def run(app, qtbot, data, message=""):
-    """
-    Trigger the action on ``data`` and wait for the dataset it adds and for its thread to end, the status bar then
-    saying ``message``.
-    """
-    collection, tree = app.data_collection, app._layer_widget
-    count = len(collection)
-    tree.ui.layerTree.set_selected_layers([data])
-    tree._actions[ACTION].trigger()
-    assert iris._RUNNING  # on glue-qt's worker
-    assert app.statusBar().currentMessage() == f"Computing Mg II features of {data.label}…"
-    qtbot.waitUntil(lambda: len(collection) == count + 1 and not iris._RUNNING)
-    assert app.statusBar().currentMessage() == message
-    return collection[-1]
+    """Trigger the action on ``data``; returns the dataset it adds, the status bar then saying ``message``."""
+    [maps] = run_action(app, qtbot, data, ACTION, f"Computing Mg II features of {data.label}…", message)
+    return maps
 
 
 def assert_irispys(maps, raster, velocities=(-40, 40), lines=KH, cube=None):
@@ -113,7 +71,7 @@ def test_the_action_adds_irispys_maps_as_one_linked_dataset_and_no_viewer(
     opened = answer(monkeypatch)
     monkeypatch.setattr("glue_solar.sources.moments.SLAB", 3 * 109 * 33)  # slabs of 3 steps on the crop of both lines
     maps = run(app, qtbot, raster)
-    assert opened == [(-40.0, 40.0, True, True)]  # irispy's defaults
+    assert opened == [{"from": -40.0, "to": 40.0, "k": True, "h": True}]  # irispy's defaults
     assert maps.label == f"{raster.label} Mg II features"
     assert maps.shape == raster.shape[:2]
     assert maps.meta == {
@@ -297,7 +255,10 @@ def test_the_lines_ticked_at_first_are_those_covered_and_the_typed_values(app, q
     assert maps.meta["mg_features_lines"] == ("k",)
     assert_irispys(maps, k, lines=("k",))
     assert_irispys(run(app, qtbot, h), h, lines=("h",))
-    assert opened == [(-40.0, 40.0, True, False), (-40.0, 40.0, False, True)]
+    assert opened == [
+        {"from": -40.0, "to": 40.0, "k": True, "h": False},
+        {"from": -40.0, "to": 40.0, "k": False, "h": True},
+    ]
     answer(monkeypatch, (-30, 35), (True, True))  # h ticked too: left out, as the window does not cover it
     maps = run(app, qtbot, k)
     assert maps.meta["mg_features_velocities"] == (-30, 35)

@@ -437,8 +437,8 @@ def _start(data_collection, text, title, function, *args, said=None, add=None):
     worker = Worker(function, *args)
     status = _status_bar(data_collection)
     worker.result.connect(partial(_add, data_collection, status, said, add))
-    # glue-qt's decorator, as its GLUE_TESTING bypass is in it alone; or a handler, as tools.py's SaveSequenceTool passes
-    worker.error.connect(title if callable(title) else messagebox_on_error(title)(_reraise))
+    # glue-qt's decorator, as its GLUE_TESTING bypass is in it alone
+    worker.error.connect(messagebox_on_error(title)(_reraise))
     if status is not None:  # until the dataset is added or the error shown (D46)
         status.showMessage(text)
         worker.finished.connect(partial(_clear, status, text))

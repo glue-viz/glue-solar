@@ -6,74 +6,36 @@ irispy's maps, of a scan or a stack.
 import numpy as np
 import pytest
 from glue.core import Data
-from glue_qt.app.application import GlueApplication
 from irispy.utils.constants import DN_UNIT
 from irispy.utils.red_blue import RBAQualityFlag, calculate_red_blue_asymmetry
 from qtpy import QtWidgets
 
 import astropy.units as u
 
-import glue_solar
-from glue_solar.conftest import find_irispy_test_file
+from glue_solar.conftest import find_irispy_test_file, int16_copy
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import moments
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.red_blue import red_blue_asymmetry
-from glue_solar.tests.helpers import refused
-from glue_solar.tests.test_lazy import SJI, int16_copy, int16_raster_copy
+from glue_solar.tests import helpers
+from glue_solar.tests.helpers import refused, run_action
+from glue_solar.tests.test_lazy import SJI
 from glue_solar.tests.test_moments import dn_per_second_cube
-from glue_solar.tests.test_quicklook import SCAN
 
 ACTION = "IRIS: red-blue asymmetry…"
 BOXES = ("below", "above", "from", "to", "step")
 
 
-@pytest.fixture
-def app(qtbot):
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    return app
-
-
-@pytest.fixture
-def scan_path(tmp_path, irispy_test_files):
-    """Scan 0 of 3860258481, stored as int16."""
-    return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
-
-
 def answer(monkeypatch, rest, values=(), accept=True):
-    """
-    Make each red-blue dialog return as if ``rest`` and any ``values`` of its boxes were typed and OK, or Cancel,
-    pressed; returns the rest wavelength and values each dialog opened with.
-    """
-    opened = []
-
-    def exec_(dialog):
-        boxes = [dialog.findChild(QtWidgets.QDoubleSpinBox, name) for name in BOXES]
-        field = dialog.findChild(QtWidgets.QLineEdit, "rest")
-        opened.append((field.text(), *(box.value() for box in boxes)))
-        field.setText(rest)
-        for box, value in zip(boxes, values):
-            box.setValue(value)
-        return QtWidgets.QDialog.Accepted if accept else QtWidgets.QDialog.Rejected
-
-    monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
-    return opened
+    """`helpers.answer` for the red-blue dialog, ``values`` those of its `BOXES`."""
+    return helpers.answer(monkeypatch, accept, rest=rest, **dict(zip(BOXES, values)))
 
 
 def run(app, qtbot, data):
-    """Trigger the action on ``data`` and wait for the dataset it adds and for its thread to end."""
-    collection, tree = app.data_collection, app._layer_widget
-    count = len(collection)
-    tree.ui.layerTree.set_selected_layers([data])
-    tree._actions[ACTION].trigger()
-    assert iris._RUNNING  # on glue-qt's worker
-    assert app.statusBar().currentMessage() == f"Computing red-blue asymmetry of {data.label}…"
-    qtbot.waitUntil(lambda: len(collection) == count + 1 and not iris._RUNNING)
-    assert app.statusBar().currentMessage() == ""
-    return collection[-1]
+    """Trigger the action on ``data``; returns the dataset it adds."""
+    [maps] = run_action(app, qtbot, data, ACTION, f"Computing red-blue asymmetry of {data.label}…")
+    return maps
 
 
 def assert_irispys(maps, raster, rest, wavelengths=(1, 1), velocities=(30, 55), step=5, unit=DN_UNIT["FUV"]):
@@ -104,7 +66,8 @@ def test_the_action_adds_irispys_maps_as_one_linked_dataset_and_no_viewer(
     keep_hpc_linked(collection)
     opened = answer(monkeypatch, "1402.77")
     maps = run(app, qtbot, raster)
-    assert opened == [("1402.77", 1.0, 1.0, 30.0, 55.0, 5.0)]  # the window's main line; iris_xfiles' wing velocities
+    # the window's main line; iris_xfiles' wing velocities
+    assert opened == [{"rest": "1402.77", "below": 1.0, "above": 1.0, "from": 30.0, "to": 55.0, "step": 5.0}]
     assert maps.label == f"{raster.label} red-blue asymmetry 1402.77"
     assert maps.shape == raster.shape[:2]
     assert maps.meta == {

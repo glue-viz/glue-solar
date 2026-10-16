@@ -7,7 +7,6 @@ from glue.config import viewer_tool
 from glue.core import Data
 from glue.icons import icon_path
 from glue.plugins.tools.path_slicer.matplotlib_mode import BasePathSlicerCrosshairMode, BasePathSlicerMode
-from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 
@@ -34,10 +33,7 @@ def _icon_file(icon):
     return icon if os.path.exists(icon) else icon_path(icon)
 
 
-def test_icons_are_glue_solars_own(qtbot):
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
+def test_icons_are_glue_solars_own(app):
     cube = Data(label="cube", x=np.zeros((3, 4, 5)))
     app.data_collection.append(cube)
     viewers = [app.new_data_viewer(viewer, data=cube) for viewer in (ImageViewer, ProfileViewer)]

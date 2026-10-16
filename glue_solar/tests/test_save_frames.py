@@ -3,7 +3,6 @@
 import numpy as np
 import pytest
 from glue.viewers.image.frb_artist import FRBArtist
-from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
 from matplotlib import animation, rcParams
 from matplotlib.image import imread
@@ -11,26 +10,23 @@ from PIL import Image
 from qtpy import QtWidgets
 from qtpy.QtCore import QTimer
 
-import glue_solar
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.sources.loaders.iris import image_data
+from glue_solar.tests.helpers import resized
 from glue_solar.tests.test_lazy import SJI
 from glue_solar.tests.test_quicklook import refusals, saved, type_in_dialog
 
 
 @pytest.fixture
-def viewer(qtbot, monkeypatch, tmp_path, irispy_test_files):
+def viewer(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
     """An Image viewer of 3620258102's SJI 1400 at frame 20, shown, saving into ``tmp_path``."""
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
     app.data_collection.append(sji)
     viewer = app.new_data_viewer(ImageViewer, data=sji)
     viewer.state.slices = (20, 0, 0)
     app.resize(1200, 800)
     app.show()  # for resizes to reach the canvas
-    qtbot.wait(600)  # and mpl-scatter-density's redraw, 0.5 s after the viewer is laid out
+    resized(qtbot, [viewer])
     monkeypatch.setitem(rcParams, "savefig.directory", str(tmp_path))
     return viewer
 
@@ -50,7 +46,7 @@ def test_each_frame_is_the_image_at_its_index_just_after_a_resize(viewer, qtbot,
     assert [image._pressed for image in viewer.axes.images if isinstance(image, FRBArtist)] == [True]
     save(monkeypatch, viewer, tmp_path / "sji.png")
     qtbot.waitUntil(saved)
-    qtbot.wait(600)
+    resized(qtbot, [viewer])
     for frame in range(5):
         viewer.state.slices = (frame, 0, 0)
         viewer.figure.savefig(tmp_path / "plot.png")

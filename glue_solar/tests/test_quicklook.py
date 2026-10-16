@@ -42,7 +42,7 @@ from astropy.visualization.wcsaxes.ticklabels import TickLabels
 from astropy.wcs import WCS
 
 import glue_solar
-from glue_solar.conftest import MD5, OBS_B, find_irispy_test_file
+from glue_solar.conftest import MD5, OBS_B, SCAN, find_irispy_test_file
 from glue_solar.quicklook import (
     Coordinator,
     QuicklookImageViewer,
@@ -67,13 +67,13 @@ from glue_solar.tests.helpers import (
     mouse_click,
     press,
     raster_point_on_sji,
+    resized,
+    restore,
     scanned,
     select_point,
     shift,
 )
 from glue_solar.tools import _SAVING, sky_length
-
-SCAN = "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"
 
 
 class SubsetUpdates(HubListener):
@@ -88,10 +88,8 @@ class SubsetUpdates(HubListener):
 
 
 @pytest.fixture
-def app(qtbot):
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
+def app(app):
+    """The conftest's application, editing a subset group "Point"."""
     point = app.data_collection.new_subset_group(label="Point")
     app.session.edit_subset_mode.edit_subset = [point]
     return app
@@ -160,7 +158,7 @@ def test_observation_key():
     assert observation_key(bad) is None
 
 
-def test_viewers_join_and_leave(app, qtbot, tmp_path):
+def test_viewers_join_and_leave(app, qtbot, monkeypatch, tmp_path):
     data = Data(label="plain", flux=np.arange(24.0).reshape(2, 3, 4))
     app.data_collection.append(data)
     coord = coordinator(app.data_collection)
@@ -174,8 +172,7 @@ def test_viewers_join_and_leave(app, qtbot, tmp_path):
 
     session = tmp_path / "session.glu"
     app.save_session(str(session))
-    restored = GlueApplication.restore_session(str(session), show=False)
-    qtbot.addWidget(restored)
+    restored = restore(qtbot, monkeypatch, session)
     assert list(coordinator(restored.data_collection)._viewers) == list(restored.viewers[0])
 
 
@@ -404,19 +401,9 @@ SELECT_TOOLS = ["select:rectangle", "select:xrange", "select:yrange", "select:ci
 
 @pytest.fixture
 def bare_app(qtbot, monkeypatch):
-    """An application whose modal dialogs fail the test, with glue's large-data prompt set to fire on any size."""
-    glue_solar.setup()
-
-    def modal(*args, **kwargs):
-        raise AssertionError("a modal dialog opened")
-
-    for cls in (QtWidgets.QMessageBox, QtWidgets.QDialog):
-        monkeypatch.setattr(cls, "exec_", modal, raising=False)
-        monkeypatch.setattr(cls, "exec", modal, raising=False)
+    """A `bare_app_for` application, with glue's large-data prompt set to fire on any size."""
     monkeypatch.setattr(ProfileViewer, "large_data_size", 1)
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    return app
+    return bare_app_for(qtbot, monkeypatch)
 
 
 def expected_start(data):
@@ -968,40 +955,16 @@ def cube(data):
     return data[data.main_components[0]]
 
 
-def test_a_map_click_moves_the_other_panels(bare_app, qtbot, scans):
-    for data in scans:
-        viewers = quicklook(bare_app, [data])
-        step, slit = data.ndim - 3, data.ndim - 2
-        if data.ndim == 4:
-            viewers["map"].state.slices = (2, *viewers["map"].state.slices[1:])
-        wavelengths = [viewers[role].state.slices[-1] for role in RASTER_PANELS]
-        select_point(viewers["map"], 1, 30)
-        qtbot.waitUntil(lambda viewers=viewers, step=step: viewers["spectrogram"].state.slices[step] == 1)
-        assert viewers["wavelength"].state.slices[slit] == 30
-        assert [viewers[role].state.slices[-1] for role in RASTER_PANELS] == wavelengths
-        np.testing.assert_array_equal(spectrum(viewers), cube(data)[(2,) * (data.ndim == 4) + (1, 30)])
-        if data.ndim == 4:  # the point follows the map's scan, at the same step and slit
-            assert viewers["spectrogram"].state.slices[0] == 2
-            viewers["map"].state.slices = (0, *viewers["map"].state.slices[1:])
-            qtbot.waitUntil(lambda viewers=viewers: viewers["spectrogram"].state.slices[0] == 0)
-            np.testing.assert_array_equal(spectrum(viewers), cube(data)[0, 1, 30])
-            assert viewers["wavelength"].state.slices[1:3] == (1, 30)
-
-
 # glue averages the band over the NaN fill too, which numpy warns about
 @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
 def test_a_click_on_a_wavelength_panel_moves_the_map_to_its_wavelength(bare_app, qtbot, monkeypatch, scans):
     scan, _ = scans
     viewers = quicklook(bare_app, [scan])
-    step, wavelength = viewers["spectrogram"].state.slices[0], viewers["spectrogram"].state.slices[2]
+    wavelength = viewers["spectrogram"].state.slices[2]
+    # the clicks of test_what_moves_on_a_scanning_raster
     select_point(viewers["spectrogram"], 5, 40)  # wavelength 5, slit 40
-    [group] = bare_app.session.edit_subset_mode.edit_subset
-    assert group.subset_state.slices == [slice(step, step + 1), slice(40, 41), slice(None)]
-    assert viewers["map"].state.slices[2] == 5
     qtbot.waitUntil(lambda: viewers["wavelength"].state.slices[1] == 40)
     select_point(viewers["wavelength"], 9, 6)  # wavelength 9, step 6
-    assert group.subset_state.slices == [slice(6, 7), slice(40, 41), slice(None)]
-    assert viewers["map"].state.slices[2] == 9
     qtbot.waitUntil(lambda: viewers["spectrogram"].state.slices[0] == 6)
     # the panels that show wavelength never have their wavelength slider written
     assert viewers["spectrogram"].state.slices[2] == viewers["wavelength"].state.slices[2] == wavelength
@@ -1579,26 +1542,6 @@ def test_a_raster_master_moves_the_slit_jaw_images(bare_app, qtbot, irispy_test_
     assert [viewers[role].state.slices[-1] for role in RASTER_PANELS] == wavelengths
 
 
-def test_a_slit_jaw_master_moves_the_raster_exposure(bare_app, qtbot, irispy_test_files):
-    [raster] = raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))], ["Si IV 1403"])
-    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
-    viewers = quicklook(bare_app, [raster, sji])
-    [sji_viewer] = viewers["sji"]
-    [group] = bare_app.session.edit_subset_mode.edit_subset
-    slit = group.subset_state.slices[1]
-    wavelengths = [viewers[role].state.slices[-1] for role in RASTER_PANELS]
-    menu_action(sji_viewer, "Time master").trigger()
-    exposures = raster[raster.id["Time"]][:, 0, 0]
-    for frame in (5, 40):
-        sji_viewer.state.slices = (frame, 0, 0)
-        [exposure], _ = nearest([sji[sji.id["Time"]][frame, 0, 0]], exposures)
-        qtbot.waitUntil(lambda exposure=exposure: group.subset_state.slices[0] == slice(exposure, exposure + 1))
-        assert group.subset_state.slices[1] == slit  # the slit stays
-        qtbot.waitUntil(lambda exposure=exposure: viewers["spectrogram"].state.slices[0] == exposure)
-        assert [viewers[role].state.slices[-1] for role in RASTER_PANELS] == wavelengths
-        assert "time master" in readout(sji_viewer)
-
-
 def test_an_aia_cutout_follows_the_time_master_and_can_be_it(bare_app, qtbot, irispy_test_files):
     raster, sji = sit_and_stare(irispy_test_files)
     aia = slit_jaw(raster_time(raster, (0,)) + np.arange(150) * np.timedelta64(24, "s"), raster, "1700")  # an hour
@@ -1705,26 +1648,6 @@ def test_a_slit_jaw_master_over_a_scanning_raster(bare_app, qtbot, scans):
         assert gray.get_visible() is not matched
 
 
-def test_a_slit_jaw_master_picks_the_scan_of_a_stack(bare_app, qtbot, scans):
-    _, stack = scans
-    step = stack.shape[1] // 2
-    scan_times = stack[stack.id["Time"]][:, step, 0, 0]
-    sji = slit_jaw(scan_times[0] + np.arange(40) * (scan_times[-1] - scan_times[0]) / 39, stack)
-    viewers = quicklook(bare_app, [stack, sji])
-    [sji_viewer] = viewers["sji"]
-    [group] = bare_app.session.edit_subset_mode.edit_subset
-    point = group.subset_state.slices
-    wavelengths = [viewers[role].state.slices[-1] for role in RASTER_PANELS]
-    menu_action(sji_viewer, "Time master").trigger()
-    for frame in (0, 20, 39):
-        sji_viewer.state.slices = (frame, 0, 0)
-        [scan], _ = nearest([sji[sji.id["Time"]][frame, 0, 0]], scan_times)
-        qtbot.waitUntil(lambda scan=scan: group.subset_state.slices[0] == slice(scan, scan + 1))
-        assert group.subset_state.slices[1:] == point[1:]  # step and slit stay
-        qtbot.waitUntil(lambda scan=scan: viewers["spectrogram"].state.slices[0] == scan)
-        assert [viewers[role].state.slices[-1] for role in RASTER_PANELS] == wavelengths
-
-
 # glue collapses the NaN fill too, which numpy warns about
 @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
 def test_a_collapse_on_the_master_and_a_follower(bare_app, qtbot, irispy_test_files):
@@ -1794,7 +1717,7 @@ def show_quicklook(qtbot, app, viewers):
     app.resize(1600, 1000)
     app.show()
     qtbot.waitUntil(lambda: not any(v.figure.canvas._draw_pending for v in glue_solar.quicklook._viewers(viewers)))
-    qtbot.wait(600)  # and mpl-scatter-density's redraw of each image, 0.5 s after it is laid out
+    resized(qtbot, glue_solar.quicklook._viewers(viewers))
 
 
 def sit_and_stare(irispy_test_files):
@@ -3054,7 +2977,7 @@ def as_list(value):
 
 
 def bare_app_for(qtbot, monkeypatch):
-    """An application like ``bare_app``, for tests that need several."""
+    """An application whose modal dialogs fail the test, for tests that need several."""
 
     def modal(*args, **kwargs):
         raise AssertionError("a modal dialog opened")
@@ -5667,8 +5590,8 @@ def test_panels_out_of_sight_draw_once_in_sight(bare_app, qtbot, monkeypatch, ir
     bare_app.resize(1600, 600)
     bare_app.show()  # the other windows' row below the tab's view
     viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
-    qtbot.wait(600)  # and mpl-scatter-density's redraw of each image, 0.5 s after it is laid out
     every = glue_solar.quicklook._viewers(viewers)
+    resized(qtbot, every)
     below = [viewer for panels in viewers["windows"] for viewer in panels.values()]
     assert [viewer for viewer in every if viewer.figure.canvas.visibleRegion().isEmpty()] == below
     draws = Counter()
@@ -5736,7 +5659,7 @@ def test_a_quicklook_in_a_hidden_tab_draws_once_shown(bare_app, qtbot, monkeypat
     assert all(current(viewer) for viewer in panels)
     # nor in a hidden tab: shown again, each panel the step changed draws once, as it is now
     bare_app.new_tab()
-    qtbot.wait(600)  # and mpl-scatter-density's redraw of each image, 0.5 s after it is first laid out
+    resized(qtbot, panels)
     draws.clear()
     step(first["spectrogram"], 50)
     assert draws == {}

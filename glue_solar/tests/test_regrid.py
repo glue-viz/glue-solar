@@ -10,16 +10,23 @@ import numpy as np
 import pytest
 from glue.core import Data
 from glue.core.component_link import CoordinateComponentLink
-from glue_qt.app.application import GlueApplication
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 from scipy.interpolate import make_interp_spline
 
 from astropy.io import fits
 
-import glue_solar
 from glue_solar import regrid
-from glue_solar.conftest import OBS_A, _header, _write_image, find_irispy_test_file, startobs
+from glue_solar.conftest import (
+    OBS_A,
+    SCAN,
+    _header,
+    _write_image,
+    find_irispy_test_file,
+    int16_copy,
+    int16_raster_copy,
+    startobs,
+)
 from glue_solar.quicklook import quicklook
 from glue_solar.regrid import north_up, north_up_iris, rebin, regrid_on_time
 from glue_solar.sources.loaders import iris
@@ -27,8 +34,8 @@ from glue_solar.sources.loaders.iris import _SJI_POINTING, image_data, keep_hpc_
 from glue_solar.sources.loaders.lazy import LazyData, RawComponent
 from glue_solar.sources.moments import line_moments
 from glue_solar.tests.helpers import press, refused
-from glue_solar.tests.test_lazy import RASTER, SJI, int16_copy, int16_raster_copy, zero_exposure
-from glue_solar.tests.test_quicklook import SCAN, expected_nearest, menu_action, readout
+from glue_solar.tests.test_lazy import RASTER, SJI, zero_exposure
+from glue_solar.tests.test_quicklook import expected_nearest, menu_action, readout
 from glue_solar.tools import _exposure_label
 
 GAP = 100  # the first exposure of the sit-and-stare raster after the 10 left out
@@ -165,28 +172,18 @@ def test_a_stack_regrids_its_scans(irispy_data):
     assert regridded.shape[0] == 29
 
 
-def test_a_scanning_raster_and_other_data_are_refused(tmp_path, irispy_test_files):
-    path = int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
-    [scan] = raster_data([path], ["C II 1336"])
+def test_a_scanning_raster_and_other_data_are_refused(scan_path):
+    [scan] = raster_data([scan_path], ["C II 1336"])
     with pytest.raises(ValueError, match="steps of a scanning raster are places on the Sun"):
         regrid_on_time(scan)
     with pytest.raises(ValueError, match="not an IRIS sit-and-stare raster, slit-jaw image or stack"):
         regrid_on_time(Data(label="plain", x=np.zeros((3, 4, 5))))
 
 
-@pytest.fixture
-def app(qtbot):
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    return app
-
-
-def test_the_action_adds_one_linked_dataset_and_no_viewer(app, monkeypatch, tmp_path, irispy_test_files):
+def test_the_action_adds_one_linked_dataset_and_no_viewer(app, monkeypatch, tmp_path, irispy_test_files, scan_path):
     raster = sit_and_stare(tmp_path, irispy_test_files)
     sji = image_data(int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0]))
-    scan = raster_data([int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)],
-                       ["C II 1336"])[0]
+    [scan] = raster_data([scan_path], ["C II 1336"])
     collection = app.data_collection
     collection.extend([sji, raster, scan])
     keep_hpc_linked(collection)
@@ -448,10 +445,8 @@ def test_rebin_takes_each_bins_mean_of_its_values_and_keeps_the_finite_mean(
     )
 
 
-def test_rebin_refuses_other_data_and_bins_that_do_not_fit(tmp_path, irispy_test_files):
-    [scan] = raster_data(
-        [int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)], ["Si IV 1403"]
-    )
+def test_rebin_refuses_other_data_and_bins_that_do_not_fit(scan_path):
+    [scan] = raster_data([scan_path], ["Si IV 1403"])
     with pytest.raises(ValueError, match="plain is not an IRIS raster window, slit-jaw image, AIA cutout or SOT cube"):
         rebin(Data(label="plain", x=np.zeros((3, 4, 5))), (1, 2, 2))
     for bins in ((2, 2), (0, 2, 1), (9, 2, 1)):

@@ -11,7 +11,6 @@ import irispy.utils.moments
 import numpy as np
 import pytest
 from glue.core import Data
-from glue_qt.app.application import GlueApplication
 from glue_qt.core.data_exporters import dialog
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
@@ -28,17 +27,16 @@ from astropy.wcs import WCS
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
-import glue_solar
-from glue_solar.conftest import find_irispy_test_file
+from glue_solar.conftest import SCAN, find_irispy_test_file, int16_copy, int16_raster_copy
 from glue_solar.lines import rest_wavelength
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import moments
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import _HPC, _GlueWCS, image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.moments import line_moments
-from glue_solar.tests.helpers import refused, select_point
-from glue_solar.tests.test_lazy import RASTER, SJI, int16_copy, int16_raster_copy, zero_exposure
-from glue_solar.tests.test_quicklook import SCAN
+from glue_solar.tests import helpers
+from glue_solar.tests.helpers import refused, run_action, select_point
+from glue_solar.tests.test_lazy import RASTER, SJI, zero_exposure
 
 ACTION = "IRIS: line moments…"
 MEAN = "IRIS: subtract mean spectrum"
@@ -46,42 +44,10 @@ EXPORT = "IRIS FITS (coordinates and Time)"
 C = constants.c.to_value(u.km / u.s)
 
 
-@pytest.fixture
-def app(qtbot):
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    return app
-
-
-@pytest.fixture
-def scan_path(tmp_path, irispy_test_files):
-    """Scan 0 of 3860258481, stored as int16: its Si IV 1403 window misses every sample of 24 pixels about 1402.77."""
-    return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
-
-
 def answer(monkeypatch, center, velocities=(), continuum="", accept=True, errors=False):
-    """
-    Make each line dialog return as if ``center``, any ``velocities``, from and to, and ``continuum`` were typed,
-    "Error maps" ticked with ``errors``, and OK, or Cancel, pressed; returns the center, velocities, continuum and tick
-    each dialog opened with.
-    """
-    opened = []
-
-    def exec_(dialog):
-        boxes = [dialog.findChild(QtWidgets.QDoubleSpinBox, name) for name in ("from", "to")]
-        windows, field = (dialog.findChild(QtWidgets.QLineEdit, name) for name in ("continuum", "center"))
-        tick = dialog.findChild(QtWidgets.QCheckBox, "errors")
-        opened.append((field.text(), *(box.value() for box in boxes), windows.text(), tick.isChecked()))
-        field.setText(center)
-        windows.setText(continuum)
-        tick.setChecked(errors)
-        for box, velocity in zip(boxes, velocities):
-            box.setValue(velocity)
-        return QtWidgets.QDialog.Accepted if accept else QtWidgets.QDialog.Rejected
-
-    monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
-    return opened
+    """`helpers.answer` for the line dialogs, ``velocities`` from and to."""
+    typed = dict(zip(("from", "to"), velocities))
+    return helpers.answer(monkeypatch, accept, center=center, continuum=continuum, errors=errors, **typed)
 
 
 def ends(center, low=-107, high=107):
@@ -96,19 +62,9 @@ def missing(raster, low, high):
 
 
 def run(app, qtbot, data, message=""):
-    """
-    Trigger the action on ``data`` and wait for the dataset it adds and for its thread to end, the status bar then
-    saying ``message``.
-    """
-    collection, tree = app.data_collection, app._layer_widget
-    count = len(collection)
-    tree.ui.layerTree.set_selected_layers([data])
-    tree._actions[ACTION].trigger()
-    assert iris._RUNNING  # on glue-qt's worker
-    assert app.statusBar().currentMessage() == f"Computing line moments of {data.label}…"
-    qtbot.waitUntil(lambda: len(collection) == count + 1 and not iris._RUNNING, timeout=60_000)  # error maps take seconds
-    assert app.statusBar().currentMessage() == message
-    return collection[-1]
+    """Trigger the action on ``data``; returns the dataset it adds, the status bar then saying ``message``."""
+    [maps] = run_action(app, qtbot, data, ACTION, f"Computing line moments of {data.label}…", message)
+    return maps
 
 
 def test_the_action_adds_one_linked_dataset_and_no_viewer(
@@ -121,7 +77,8 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     keep_hpc_linked(collection)
     opened = answer(monkeypatch, "1402.77")
     maps = run(app, qtbot, raster)
-    assert opened == [("1402.77", -107.0, 107.0, "", False)]  # Si IV 1402.77, the window's main line
+    # Si IV 1402.77, the window's main line
+    assert opened == [{"center": "1402.77", "from": -107.0, "to": 107.0, "continuum": "", "errors": False}]
     assert maps.label == f"{raster.label} moments 1402.77"
     assert maps.shape == raster.shape[:2]
     assert [(cid.label, maps.get_component(cid).units) for cid in maps.main_components] == [
@@ -223,7 +180,7 @@ def test_a_stacks_error_maps_are_each_scans_own(app, qtbot, monkeypatch, stack_p
     app.data_collection.append(stack)
     opened = answer(monkeypatch, "1402.77", errors=True)
     maps = run(app, qtbot, stack)
-    assert opened == [("1402.77", -107.0, 107.0, "", False)]
+    assert opened == [{"center": "1402.77", "from": -107.0, "to": 107.0, "continuum": "", "errors": False}]
     assert np.isnan(maps["intensity error"][1, 3]).all()
     assert not np.isnan(maps["intensity error"][[0, 2], 3]).all()
     for k, path in enumerate(stack_paths):
@@ -254,8 +211,8 @@ def test_a_profile_range_gives_the_velocity_range_from_a_center_within_it(app, q
         raster.meta["rest_wavelength"] = rest
         opened = answer(monkeypatch, "1402.77")
         assert run(app, qtbot, raster).meta["moments_velocity_range"] == reach
-        [(center, *velocities, continuum, errors)] = opened
-        assert (center, velocities, continuum, errors) == (*opens, "", False)
+        [box] = opened
+        assert (box["center"], [box["from"], box["to"]], box["continuum"], box["errors"]) == (*opens, "", False)
     # one wider than the window is cut to it, as the dialog says, and irispy takes every wavelength of the window
     raster.meta["rest_wavelength"] = None
     shown = []
@@ -456,7 +413,7 @@ def test_ticked_error_maps_are_irispys_from_its_readers_uncertainty(app, qtbot, 
     app.data_collection.append(raster)
     opened = answer(monkeypatch, "1402.77", continuum=continuum, errors=True)
     maps = run(app, qtbot, raster)
-    assert opened == [("1402.77", -107.0, 107.0, "", False)]
+    assert opened == [{"center": "1402.77", "from": -107.0, "to": 107.0, "continuum": "", "errors": False}]
     cube = read_files([scan_path], spectral_windows=["Si IV 1403"], uncertainty=True)["Si IV 1403"][0]
     cube = cube.apply_exposure_time_correction()
     if continuum:
