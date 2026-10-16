@@ -13,7 +13,7 @@ Then change directory to glue-solar and install with::
 
     pip install -e .
 
-This installs glue and PyQt6 (glue-solar needs Qt 6), and registers the plugin with glue.
+This installs glue and PyQt6 6.11 or later (glue-solar needs Qt 6), and registers the plugin with glue.
 
 Using
 -----
