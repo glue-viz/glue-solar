@@ -152,10 +152,11 @@ percentile chosen in a layer's style editor holds until the Stokes slider moves.
 limits" on, in a map's "View" menu, each frame takes glue's 99.5 % of its own values instead, Q, U
 and V's from the next move of the Stokes slider. The spectra fit their own ranges.
 
-Cubes whose scan times overlap share one time, a scan timed at its line core, such as the CRISP and
-CHROMIS cubes of one morning, while a cube from another part of the day keeps its own; a cube that
-overlaps two cubes which do not overlap each other puts all three in one time. The archive's obs
-492, 495 and 498 cubes share one time, as do those of obs 167 and 171. The quicklook shown leads
+Cubes whose scan times overlap, or lie within the longer of the two cubes' times between scans of
+each other, share one time, a scan timed at its line core, such as the CRISP and CHROMIS cubes of one
+morning, while a cube from another part of the day keeps its own; a cube that does so with two cubes
+which do not with each other puts all three in one time. The archive's obs 492, 495 and 498 cubes
+share one time, as do those of obs 167 and 171. The quicklook shown leads
 it: its cube is the time master, unless one is chosen with "Time master" in the "Coordinate" menu.
 Showing another cube's quicklook moves that cube to its scan nearest the time the last one was left
 at, unless it is within half the longer of the two cubes' times between scans already, and a new

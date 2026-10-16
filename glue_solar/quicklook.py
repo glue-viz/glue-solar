@@ -367,24 +367,28 @@ class Coordinator(HubListener):
 
     def _share_times(self, *_):
         """
-        Give each SST cube of the collection its time key (`observation_key`): cubes whose scan times overlap, or overlap
-        those of one that does, share ``('SST', the first of their times)``, so co-temporal CRISP and CHROMIS cubes keep
-        one time and a cube from another part of the day its own (230-9). A linked cube's times count too, though it
-        takes its IRIS observation's key.
+        Give each SST cube of the collection its time key (`observation_key`): cubes whose scan times overlap or lie
+        within the larger of their scan cadences of each other (253-2), or of one that does, share ``('SST', the first
+        of their times)``, so co-temporal CRISP and CHROMIS cubes keep one time and a cube from another part of the day
+        its own (230-9). A linked cube's times count too, though it takes its IRIS observation's key.
         """
         spans = []
         for data in self.data_collection:
             if _role(data) == "sst" and _timed(data):
                 index = (slice(None), *[0] * (data.ndim - 4), slice(None), 0, 0)  # every scan and tuning
                 times = data[data.find_component_id("Time"), index]
-                spans.append((times.min(), times.max(), data))
-        key = end = None
-        for first, last, cube in sorted(spans, key=lambda span: span[0]):
-            if end is None or first > end:  # after every cube before it
-                key, end = ("SST", first), last
-            end = max(end, last)
+                spans.append((times.min(), times.max(), _cadence(_times(data, None)), data))
+        spans.sort(key=lambda span: span[0])
+        starts = {}  # cube -> the first time of its group
+        for i, (first, _, cadence, cube) in enumerate(spans):
+            # the groups of the cubes before it that it overlaps or follows within the larger cadence merge into one
+            near = {starts[other] for _, last, step, other in spans[:i] if first - last <= max(cadence, step)}
+            start = min(near, default=first)
+            starts = {other: start if when in near else when for other, when in starts.items()}
+            starts[cube] = start
+        for cube, start in starts.items():
             old = observation_key(cube)
-            cube._solar_time_key = key
+            cube._solar_time_key = ("SST", start)
             if self.masters.get(old) is cube:  # a chosen time master stays one under its group's new key
                 self.masters[observation_key(cube)] = self.masters.pop(old)
 
