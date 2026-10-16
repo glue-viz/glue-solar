@@ -1,0 +1,1 @@
+The calibration tooltip and the guides write each component's unit as its astropy string, such as erg / (Angstrom s sr cm2).
