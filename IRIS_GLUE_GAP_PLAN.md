@@ -28,10 +28,10 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 98aa006 (#289). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
+**Resume here.** Main is at 289817b (#290). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
 
 **Next** (D81, D82), three at a time with disjoint files (tests in the file named). Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. Running: `wp11-l-lean-tools-quicklook`; shipping: `wp10-l-lean-patches` and `wp6-l-fit-lines`.
+  1. Running: `wp11-l-lean-tools-quicklook`; shipping: #290 and `wp6-l-fit-lines`.
   2. Then, as files come free: `wp10-l-lean-loaders-analysis`, `wp9-l-app-reproject-metadata`, and `wp10-l-lean-tests` last and alone.
 
   Held for the user (D82): `wp4-l-restored-strip`, `wp13-l-restored-second-map`, `wp3-l-autosave-quit` and `wp3-l-restore-irispy-meta`.
@@ -156,7 +156,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP6: `wp6-l-fit-lines`
 - WP9: `wp9-l-app-reproject-metadata`
-- WP10: `wp10-l-lean-patches`, `wp10-l-lean-loaders-analysis`, `wp10-l-lean-tests`
+- WP10: `wp10-l-lean-loaders-analysis`, `wp10-l-lean-tests`
 - WP11: `wp11-l-lean-tools-quicklook`
 - WP13: `wp13-l-restored-second-map`
 
@@ -333,7 +333,6 @@ Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on file
 
 - [ ] **L** `wp10-l-lean-tests` (D82; `audit2/code/report.md`): the tests: shared `app`, `answer`, `run_action` and `restore` helpers (T1-T5), tests the move/stay matrix covers (T6), dead tests and helpers (T8), and fixed 600 ms waits (T9). No user-visible change. Done when the suites pass in both envs with the same tests (less any duplicate removed), ruff and the docs build pass, and the lines removed are reported.
 - [ ] **L** `wp10-l-lean-loaders-analysis` (D82; `audit2/code/report.md`): the loaders, `sources/` and regrid.py: docstrings (S1), `stack_spectrogram_sequence` folded into the lazy read (S3), one error path, dialog opener and slab loop (S4, S10, S8), the failing file named at the read (S9) and the small duplicates (S11). No user-visible change. Done when the suites pass in both envs with the same tests (less any duplicate removed), ruff and the docs build pass, and the lines removed are reported.
-- [ ] **L** `wp10-l-lean-patches` (D82; `audit2/code/report.md`): glue_patches.py: docstrings cut to the reason and a register pointer (S1), the unused `__all__` (S2), and a probe that raises installs its patch rather than unloading glue-solar (the audit's R-P first step). No user-visible change. Done when the suites pass in both envs with the same tests (less any duplicate removed), ruff and the docs build pass, and the lines removed are reported.
 
 Notes:
 - IRIS Level 2 image HDUs are int16 (BSCALE 0.25, BZERO 7992; fill is raw -32768/-32764). glue-solar reads SJIs and AIA cutouts through irispy main's `read_sji_lvl2(memmap=True)`, whose raw int16 keeps the fill under a lazy mask; a `.fits.gz` is decompressed once into bytes that irispy views (#140).
