@@ -208,17 +208,22 @@ raster, pick "Gaussian + constant (IRIS)" on the "Fit" tab, drag a range over th
 1355.4 to 1355.8 Å for O I or 2799.3 to 2799.65 Å for Ni I, and press "Fit". It fits irispy's
 ``irispy.utils.fitting.profiles_on_background`` model, a ``Gaussian1D`` on a ``Const1D``, with
 astropy's ``TRFLSQFitter`` to the samples in the range, the NaN fill left out, from the constant at
-their median and the line at the sample farthest from it, so an absorption line fits too. "Settings"
+their median and the line at the peak farthest from it, so an absorption line fits too. "Settings"
 ticks irispy's two options, "Linear background", a ``Linear1D`` starting flat, and "Lorentzian
-profile", a ``Lorentz1D``; the fitter keeps them, with the estimates, fixed parameters and bounds
-set there, for every fit in that Profile viewer until cleared there, and lists the parameters of a
-model just chosen when "Settings" opens again; a parameter fixed with no estimate stays at its start
-from the data. It needs a sample in the range for each parameter not fixed, four with
-none fixed and five with a linear background, and with fewer the report ends with how many it has.
-The report lists the background's ``amplitude_0``, or ``slope_0`` and ``intercept_0``, its value at
-0 Å, and the line's ``amplitude_1``, ``mean_1`` and ``stddev_1``, or a Lorentzian's ``x_0_1`` and
-``fwhm_1``, then the center and, within 0.5 Å of a main IRIS line with the x unit ``Angstrom``, its
-velocity from that line, (center / rest - 1) c; Ni I is not one. Add the offset,
+profile", a ``Lorentz1D``, and sets the "Number of lines", 1 to 4: they start at the most prominent
+peaks and each stays an emission or absorption line as it starts, so a blend does not fit as one line
+up and one down, and "Same width" gives them one width. For the C II pair, 1334.53 and 1335.71 Å, drag
+over about 1334.1 to 1336.2 Å with 2 lines. The fitter keeps these, with the estimates, fixed
+parameters and bounds set there, for every fit in that Profile viewer until cleared there, and lists
+the parameters of the model just chosen, each line's, when "Settings" opens again; a parameter fixed
+with no estimate stays at its start from the data. It needs a sample in the range for each parameter
+not fixed, four for one line with none fixed and five with a linear background, and with fewer the
+report ends with how many it has. The report lists the background's ``amplitude_0``, or ``slope_0``
+and ``intercept_0``, its value at 0 Å, and each line's ``amplitude_1``, ``mean_1`` and ``stddev_1``,
+or a Lorentzian's ``x_0_1`` and ``fwhm_1``, numbered from the shortest wavelength, then each center
+and its velocity from the window's rest wavelength, (center / rest - 1) c, as the ``km / s`` axis
+gives it: from O I 1355.5977 Å in ``O I 1356``, but from Mg II k in ``Mg II k 2796``, so Ni I's
+offset is its center minus 2799.474 Å. Add the offset,
 the center minus the measured line's rest wavelength, to the rest wavelength of a line on the same
 detector and set that with "IRIS: set rest wavelength…" on its window, so both the
 :ref:`line moments <glue_solar_users_guide_iris_line_moments>` and red-blue asymmetry start from it,
