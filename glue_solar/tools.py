@@ -66,7 +66,7 @@ from astropy.coordinates import Angle, SkyCoord, angular_separation
 from astropy.table import Column, Table, hstack
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
-from glue_solar.lines import KM_S, rest_wavelength
+from glue_solar.lines import KM_S, _icon, rest_wavelength
 from glue_solar.quicklook import (
     _across,
     _check_cut,
@@ -735,6 +735,7 @@ class BandTool(Tool):
     axes is, offered while a wavelength axis has a slider.
     """
 
+    icon = _icon("solar_wavelength_band")
     tool_id = "solar:band"
     action_text = "Wavelength band…"
     tool_tip = "Show the mean over 5, 9 or 15 wavelength pixels about the slider's"
@@ -941,6 +942,7 @@ class ZoomOneToOneTool(Tool):
     per inch (``wp0-perf-core-draw``). A plain tool, as 'Hide axes' is, which leaves the mouse mode on.
     """
 
+    icon = _icon("solar_zoom_1_1")
     tool_id = "solar:zoom_1_1"
     action_text = "Zoom 1:1"
     tool_tip = "Zoom about the view center to one data pixel per screen pixel"
@@ -1011,6 +1013,7 @@ class ColourBarTool(Tool):
     leaves the mouse mode on.
     """
 
+    icon = _icon("solar_color_bar")
     tool_id = "solar:colour_bar"
     action_text = "Color bar"
     tool_tip = "Show or hide a color bar of the displayed data's colors"
@@ -1411,7 +1414,7 @@ class PathTool(BasePathSlicerMode, HubListener):
     other data…" or a restored session.
     """
 
-    icon = "glue_path"
+    icon = _icon("solar_path_diagram")  # glue_path is glue's "Show position on original path"
     tool_id = "solar:path"
     action_text = "Path diagram"
     tool_tip = "Draw a path, then press Enter for the data along it (Esc clears the path)"
@@ -1504,7 +1507,6 @@ class PathCrosshairTool(BasePathSlicerCrosshairMode):
     scan.
     """
 
-    icon = None  # glue-core's is Path diagram's
     tool_id = "solar:path_crosshair"
 
     def _on_move(self, mode):
@@ -1717,6 +1719,7 @@ class SlopeTool(PathMode):
     far, and of the last row.
     """
 
+    icon = _icon("solar_slope")
     tool_id = "solar:slope"
     action_text = "Slope"
     tool_tip = "Click points along a track on a distance-time diagram, then press Enter for its speed (Esc clears them)"

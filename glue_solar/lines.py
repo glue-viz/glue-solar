@@ -6,6 +6,8 @@ Wavelengths are NIST ASD vacuum wavelengths in Angstrom: the observed one where 
 (D44). irispy's line database is to replace this table (`wp5-irispy-line-database` in the plan).
 """
 
+import os
+
 import numpy as np
 from glue.config import viewer_tool
 from glue.core import Subset
@@ -46,6 +48,11 @@ MAIN_LINES = (
 
 MERGE = 0.01  # lines closer than this fraction of the plotted range share a label
 KM_S = u.km / u.s
+
+
+def _icon(name):
+    """The file of glue-solar's icon ``name``: glue-qt's toolbar takes a path as a tool's ``icon``."""
+    return os.path.join(os.path.dirname(__file__), "icons", f"{name}.png")
 
 
 def _check(tool):
@@ -198,6 +205,8 @@ class VelocityTool(Tool, HubListener):
     wavelength, switches the axis off and on; it starts off.
     """
 
+    #: :meta hide-value:
+    icon = _icon("solar_velocity_axis")
     tool_id = "solar:velocity"
     action_text = "Velocity axis"
     tool_tip = "Show or hide a top axis of the Doppler velocity from the rest wavelength"
