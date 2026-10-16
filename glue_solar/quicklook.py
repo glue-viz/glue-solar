@@ -1148,6 +1148,26 @@ class QuicklookImageViewer(ImageViewer):
     selection and empty the edit subset rather than move the point.
     """
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # before the mouse modes' own presses, which glue connects as each is turned on
+        self.figure.canvas.mpl_connect("button_press_event", self._edit_point)
+
+    def _edit_point(self, event):
+        """
+        Make the panel's point the edit subset as a Pixel click starts while a dataset is selected in the data
+        collection: glue-qt empties the edit subset then, and the click made a new subset (D82). After glue's
+        "None/Create New", which leaves nothing selected there, the click still makes one.
+        """
+        session = self.session
+        mode, groups = session.edit_subset_mode, session.data_collection.subset_groups
+        if mode.edit_subset or not _pixel_tool_on(self) or not session.application._layer_widget.selected_layers():
+            return
+        owners = coordinator(session.data_collection)._owners
+        point = next((group for group, viewers in owners.items() if self in viewers and group in groups), None)
+        if point is not None:
+            mode.edit_subset = [point]
+
     def set_focus(self, state):  # glue-qt's call once it has turned the last active viewer's mouse mode off
         super().set_focus(state)
         if state and self.toolbar.active_tool is None:
