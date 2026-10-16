@@ -162,7 +162,7 @@ Lines mark the wavelength and the time. The wavelength panel has a dashed white 
 wavelength and a dotted white line at the step, exposure or scan nearest the time master's time,
 hidden when none is within half its time step; under a slit-jaw master, which leaves a scanning
 raster's step alone, it marks the step taken at the time of the frame shown. The spectrum panel has
-a dashed gray line at the map's wavelength, in its "x unit" (Å, or nm when chosen in its plot
+a dashed gray line at the map's wavelength, in its "x unit" (``Angstrom``, or ``nm`` when chosen in its plot
 options), while its x axis is the raster's wavelength or wavelength pixel. A raster panel turned to
 show another axis than wavelength, such as the spectrogram turned into a map, adds a line at its own
 wavelength to both, and one turned to show wavelength against the wavelength panel's step, exposure
@@ -173,7 +173,7 @@ reproduce plot". Zooming, panning or typing limits on the spectrum panel's x axi
 wavelength panel the same wavelength range.
 On the "Navigate" tab of the spectrum panel's "Options" (see :ref:`the 1D Profile guide
 <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`), a click on the spectrum moves the map, and
-its lines, to the nearest wavelength; with glue-qt 0.4.2 only while the x unit is Å, the data's own.
+its lines, to the nearest wavelength; with glue-qt 0.4.2 only while the x unit is ``Angstrom``, the data's own.
 
 The "Coordinate" menu also has "Go to UTC…" and "Loop…", each where it can act. "Go to UTC…" asks
 for a UTC time, such as ``2013-09-02T17:00:00``, starting from the time master's, and moves the time

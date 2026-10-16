@@ -40,8 +40,9 @@ to N for the N bursts, and its ``meta`` holds the observation's ``OBSID`` and ``
 ``bursts_velocity_range`` and ``bursts_median_factor``. ``<label> burst events`` has a row for
 each burst, irispy's columns: its ``label``, ``raster``, 0, and ``npix``, its number of pixels,
 and the ``step``, ``y`` (the slit pixel), ``time``, ``coordinate.Tx`` and ``coordinate.Ty`` in
-arcsec, and ``intensity``, the mean in DN / s, of its brightest pixel; its ``meta`` is the map's,
-with the pointing keys below. On the 1600 steps of OBSID 4000255147's Si IV 1403 it takes 0.2 s.
+arcsec, and ``intensity``, the mean in DN / s, irispy's ``DN_IRIS_FUV / s``, of its brightest pixel;
+its ``meta`` is the map's, with the pointing keys below. On the 1600 steps of OBSID 4000255147's
+Si IV 1403 it takes 0.2 s.
 
 irispy finds a stack's bursts scan by scan, each scan's as that scan alone gives them, at its own
 coordinates, times and exposure times. A threshold left blank is that of the stack's ``DATE_OBS``,
@@ -67,11 +68,11 @@ recommend a threshold chosen for each observation. A slit-jaw image with its dus
 slit-jaw image's coordinates, with its ``Time``, per-frame pointing and ``meta``, so that the time
 sync and the helioprojective links reach it, and ``bursts_sigma_factor`` and ``bursts_min_pixels``
 in its ``meta``. ``<label> burst events`` has a row for each burst, irispy's columns: its
-``label``, ``frame``, ``npix`` and the frame's ``threshold`` in DN, and the ``y``, ``x``, ``time``,
-``coordinate.Tx``, ``coordinate.Ty`` and ``intensity`` of its brightest pixel; its ``meta`` holds
-the observation's ``OBSID`` and ``STARTOBS``, the parameters and the pointing keys below. irispy
-takes every frame at once: on the 400 frames of OBSID 4000255147's SJI 1400 it takes 1.3 s and
-about 1.6 GB more memory at its peak.
+``label``, ``frame``, ``npix`` and the frame's ``threshold`` in DN, irispy's ``DN_IRIS_SJI``, and
+the ``y``, ``x``, ``time``, ``coordinate.Tx``, ``coordinate.Ty`` and ``intensity`` of its brightest
+pixel; its ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``, the parameters and the
+pointing keys below. irispy takes every frame at once: on the 400 frames of OBSID 4000255147's SJI
+1400 it takes 1.3 s and about 1.6 GB more memory at its peak.
 
 The labels and tables are irispy's own, as its functions give them on the files read in memory,
 but for a pointing shifted by :ref:`"IRIS: shift pointing…" <glue_solar_users_guide_iris_pointing>`,

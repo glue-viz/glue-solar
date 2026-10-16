@@ -43,8 +43,8 @@ The maps
   window's DN / s by its detector: those of the window's ``<label> DN / s``, its DN over each raster
   step's exposure time (NaN at a step whose exposure time is 0 s), or of the window's own values, in
   their unit, for data without one;
-- ``centroid``, the line's intensity-weighted mean wavelength, in Å;
-- ``width``, its standard deviation about the centroid, in Å, not its full width at half maximum:
+- ``centroid``, the line's intensity-weighted mean wavelength, in Angstrom;
+- ``width``, its standard deviation about the centroid, in Angstrom, not its full width at half maximum:
   for a Gaussian line within the velocity range, the FWHM is 2√(2 ln 2) ≈ 2.355 times the width,
   and a range that cuts the line off gives a smaller width;
 - ``velocity`` and ``velocity_width``, the centroid's Doppler velocity from the center and the width

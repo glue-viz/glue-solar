@@ -146,7 +146,7 @@ def radiometric_calibration(data):
     Add ``<label> radiance per DN / s`` to ``data``, an IRIS raster window of one scan or a stack of its scans,
     rebinned by 'IRIS: rebin…' or not: irispy's factor from DN / s to radiance at each of its wavelengths, held as one
     spectrum, a stack's one for each scan; and ``<label> radiance``, its ``<label> DN / s`` times it, a glue derived
-    component, in irispy's ``RADIANCE_UNIT``, erg / (Å cm2 s sr).
+    component, in irispy's ``RADIANCE_UNIT``, erg / (Angstrom s sr cm2).
 
     The factor is irispy's ``radiometric_calibration``'s: ``calculate_dn_to_radiance_factor`` of the window's
     wavelengths, detector, spectral dispersion and pixel solid angle, with the effective area of irispy's latest
@@ -210,7 +210,9 @@ def radiometric_calibration(data):
     single=True,
     data=True,
     check=_check_radiance,
-    tooltip="Add this raster window's or stack's DN / s in radiance, erg / (Å cm2 s sr), with irispy's calibration",
+    tooltip=(
+        "Add this raster window's or stack's DN / s in radiance, erg / (Angstrom s sr cm2), with irispy's calibration"
+    ),
 )
 @messagebox_on_error("Could not calibrate the radiance")
 def radiometric_calibration_iris(data, data_collection):
