@@ -1544,7 +1544,7 @@ def quicklook(app, datasets, window=None, main=None):
     tab = app.current_tab
     names = app.tab_names
     if not shown:
-        names[-1] = f"SST {_sst_line(cubes[0])}" if _role(cubes[0]) == "sst" else cubes[0].label
+        names[-1] = f"SST {_sst_line(cubes[0])}" if _role(cubes[0]) == "sst" else cubes[0].label.replace("&", "and")
         app.tab_names = names
         return _fill(app, tab, _cube_table(app, cubes[0]))
     key = observation_key(shown[0])
@@ -1647,7 +1647,7 @@ def _cube_table(app, cube):
         name, core = _sst_line(cube), cube.coords.core
     else:
         t, s, w, y, x = _cube_axes(cube)
-        name, core = cube.label, cube.shape[w] // 2
+        name, core = cube.label.replace("&", "and"), cube.shape[w] // 2
     start = [0] * cube.ndim
     start[w], start[y], start[x] = core, cube.shape[y] // 2, cube.shape[x] // 2
     if t is not None:

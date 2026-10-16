@@ -1,7 +1,7 @@
 """
 IRIS Level 2 support: a file reader for File → Open Data Set, the observation browser, the Plugins menu's quicklooks, of
-IRIS data and of SST cubes, 'IRIS: shift pointing…', an exporter of derived maps with their coordinates, and one of 1-D
-data, such as light curves, with their times.
+IRIS data and of SST cubes, the quicklook of a spectral cube of another instrument, 'IRIS: shift pointing…', an exporter
+of derived maps with their coordinates, and one of 1-D data, such as light curves, with their times.
 """
 
 import re
@@ -22,8 +22,9 @@ from astropy.time import Time
 from astropy.wcs.utils import celestial_frame_to_wcs
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
-from glue_solar.glue_patches import export_fits, layer_action
+from glue_solar.glue_patches import _application, export_fits, layer_action
 from glue_solar.quicklook import (
+    _cube_axes,
     _pick_sjis,
     _pick_windows,
     _role,
@@ -54,6 +55,7 @@ __all__ = [
     "iris_image_layer",
     "iris_quicklook",
     "link_iris",
+    "quicklook_cube",
     "quicklook_iris",
     "quicklook_sst",
     "read_iris_file",
@@ -353,6 +355,31 @@ def _open_chosen(app, instrument, choices, kind):
             return
         labels = [label]
     quicklook(app, choices[labels[0]])
+
+
+def _check_cube(data):
+    """Raise why ``data`` has no quicklook of a cube of another instrument: it is IRIS or SST data, or of other axes."""
+    if _role(data) is not None or _cube_axes(data) is None:
+        raise ValueError(
+            f"{data.label} is not a cube of another instrument with one wavelength axis and two spatial axes."
+        )
+
+
+@layer_action(
+    "Quicklook…",
+    single=True,
+    data=True,
+    check=_check_cube,
+    tooltip="Open the quicklook of this spectral cube, its panels chosen from its axes",
+)
+@messagebox_on_error("Could not open the quicklook")
+def quicklook_cube(data, data_collection):
+    """
+    Open the quicklook of ``data`` (`~glue_solar.quicklook.quicklook`), a spectral cube of neither IRIS nor the SST,
+    whose own quicklooks the Plugins menu opens; offered only for such a cube.
+    """
+    _check_cube(data)
+    quicklook(_application(data_collection), [data])
 
 
 @menubar_plugin("IRIS: user guide and issues")

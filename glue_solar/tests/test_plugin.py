@@ -81,6 +81,7 @@ from glue_solar.sources.iris import (
     iris_quicklook,
     is_iris_fits,
     link_iris,
+    quicklook_cube,
     quicklook_iris,
     quicklook_sst,
     shift_pointing_iris,
@@ -92,6 +93,7 @@ from glue_solar.sources.mg_features import mg_features_iris
 from glue_solar.sources.moments import line_moments, mean_spectrum_iris, moments_iris
 from glue_solar.sources.red_blue import red_blue_iris
 from glue_solar.tests.helpers import count_tick_work, mouse, press, raster_point_on_sji
+from glue_solar.tests.test_cube_quicklook import spectral_cube
 from glue_solar.tests.test_lazy import RASTER, SJI
 from glue_solar.tests.test_quicklook import drifting_stack
 from glue_solar.tools import AxesPreferences, PathData, sky_length
@@ -113,6 +115,7 @@ def test_setup_registers_hooks():
     # the data actions by data kind: the spectral analyses, the image actions, then the coordinates
     ours = [(item.label, item.callback) for item in layer_action if item.callback.__module__[:10] == "glue_solar"]
     assert ours == [
+        ("Quicklook…", quicklook_cube),
         ("IRIS: set rest wavelength…", rest_wavelength_iris),
         ("IRIS: radiometric calibration", radiometric_calibration_iris),
         ("IRIS: subtract mean spectrum", mean_spectrum_iris),
@@ -154,7 +157,7 @@ def test_setup_registers_hooks():
         assert iris.priority > (other.priority or 0)
 
 
-def test_data_actions_show_only_for_the_data_they_take(qtbot, monkeypatch, irispy_test_files, iris_tree):
+def test_data_actions_show_only_for_the_data_they_take(qtbot, monkeypatch, tmp_path, irispy_test_files, iris_tree):
     """Each data action is offered only where its own guard takes the data selected."""
     windows = ["C II 1336", "Si IV 1403", "Mg II k 2796"]
     sns = raster_data([find_irispy_test_file(irispy_test_files, RASTER)], windows)  # sit-and-stare
@@ -166,9 +169,10 @@ def test_data_actions_show_only_for_the_data_they_take(qtbot, monkeypatch, irisp
     aia = image_data(next(iris_tree.rglob("aia_l2_*.fits")))
     maps = line_moments(sns[1], 1402.77)
     plain = Data(label="plain table", x=[1.0, 2.0])
+    cube, _ = spectral_cube(tmp_path / "cube.fits", (7, 12, 16))
     app = GlueApplication()
     qtbot.addWidget(app)
-    app.data_collection.extend([*sns, scanning, stack, sji, sot, aia, maps, plain])
+    app.data_collection.extend([*sns, scanning, stack, sji, sot, aia, maps, plain, cube])
     group = app.data_collection.new_subset_group()
     raster = [
         "IRIS: set rest wavelength…",
@@ -184,6 +188,7 @@ def test_data_actions_show_only_for_the_data_they_take(qtbot, monkeypatch, irisp
     rebin, shift = "IRIS: rebin…", "IRIS: shift pointing…"
     expected = [
         ([plain], []),
+        ([cube], ["Quicklook…", raster[0]]),  # a cube of another instrument; IRIS and SST data have the Plugins menu's
         ([sns[0]], [*raster, regrid, rebin, shift]),  # sit-and-stare C II
         ([sns[1]], [*raster, bursts, regrid, rebin, shift]),  # Si IV
         ([sns[2]], [*raster, mg_ii, regrid, rebin, shift]),  # Mg II k
