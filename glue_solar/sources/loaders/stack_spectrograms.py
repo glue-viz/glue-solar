@@ -1,7 +1,4 @@
-"""Stack a series of IRIS raster scans into one NDCube."""
-
-import tempfile
-from pathlib import Path
+"""The coordinates and times of a stack of IRIS raster scans."""
 
 import numpy as np
 
@@ -10,53 +7,6 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper, SlicedLowLevelWCS
 
 # IRIS Level 2 missing-data codes, as in iris_raster_browser (missing=[-200, -199])
 MISSING_VALUES = (-200, -199)
-
-
-def stack_spectrogram_sequence(cube_sequence, memmap=True):
-    """
-    Given a sequence of IRIS rasters stack them into a single `ndcube.NDCube`.
-
-    Parameters
-    ----------
-    cube_sequence : `irispy.spectrograph.SpectrogramCubeSequence`
-        The raster scans to stack. They must have identical shapes.
-    memmap : `bool`
-        Use a temporary file to store the stacked data rather than memory.
-
-    Returns
-    -------
-    tuple
-        A 4D cube with a leading scan dimension, plus its `stack_times`.
-        Each scan keeps its own WCS (`stack_wcs`).
-    """
-    from ndcube import NDCube  # with the first stack rather than at glue's launch
-
-    if len(cube_sequence) == 1:
-        raise ValueError("No point doing this to one raster")
-
-    target_shape = cube_sequence[0].data.shape
-    if any(cube.data.shape != target_shape for cube in cube_sequence):
-        raise ValueError("All raster scans must have the same shape to be stacked")
-
-    cube_shape = (len(cube_sequence), *target_shape)
-    dtype = np.result_type(cube_sequence[0].data.dtype, np.float32)
-    if memmap:
-        temporary = None if isinstance(memmap, Path) else tempfile.TemporaryFile()
-        output = np.memmap(memmap if isinstance(memmap, Path) else temporary, dtype, "w+", shape=cube_shape)
-        if temporary is not None:
-            temporary.close()
-    else:
-        output = np.empty(cube_shape, dtype=dtype)
-
-    for i, cube in enumerate(cube_sequence):
-        scan = output[i]
-        scan[...] = cube.data
-        # irispy's eager read leaves the missing codes in a raster's values
-        scan[np.isin(scan, MISSING_VALUES)] = np.nan
-
-    wcs = stack_wcs([cube.wcs for cube in cube_sequence])
-    cube = NDCube(output, wcs, meta=dict(cube_sequence[0].meta), unit=cube_sequence[0].unit)
-    return cube, stack_times(cube_sequence)
 
 
 def stack_times(cube_sequence):

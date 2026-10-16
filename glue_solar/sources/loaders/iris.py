@@ -11,6 +11,7 @@ import threading
 import traceback
 import warnings
 from collections import OrderedDict
+from contextlib import contextmanager
 from functools import cached_property, partial, wraps
 from operator import attrgetter
 from pathlib import Path
@@ -40,8 +41,8 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper, SlicedLowLevelWCS
 
 from ..maps import _Style
 from .lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask
-from .scan import _primary_header, extract_archive, scan_directory
-from .stack_spectrograms import MISSING_VALUES, _PerScanWCS, stack_spectrogram_sequence, stack_times, stack_wcs
+from .scan import _gzipped, _observation, _primary_header, extract_archive, scan_directory
+from .stack_spectrograms import MISSING_VALUES, _PerScanWCS, stack_times, stack_wcs
 
 __all__ = [
     "WCS_LOCK",
@@ -448,10 +449,8 @@ def _add_exposure(data, exposure):
 
 def _dataset(wcs, meta, unit, values, label, *, color=None, cmap=None, missing=MISSING_VALUES, scaling=None):
     """
-    A Glue dataset of ``values`` and their mask, with the ``missing`` data codes as NaN.
-
-    ``scaling`` is the ``(BSCALE, BZERO)`` of ``values`` that are a file's raw int16 (`_raw_scaling`), which then
-    stay where they are and are scaled where glue reads them, IRIS data's at irispy's ``SATURATION_LIMIT`` as +Inf.
+    A Glue dataset of ``values`` and their mask, the ``missing`` codes NaN; ``scaling``, the ``(BSCALE, BZERO)`` of a
+    file's raw int16 (`_raw_scaling`), leaves them in the file, scaled where glue reads them (`RawComponent`).
     """
     data = (Data if scaling is None else LazyData)(label=label)
     data.coords = _GlueWCS(wcs)
@@ -511,8 +510,7 @@ def _frame_times(cube):
 
 
 def _observation_label(meta):
-    obsid = str(meta["OBSID"]).split("_")[-1]
-    return "-".join(filter(None, (obsid, str(meta.get("STARTOBS", ""))[:19])))
+    return "-".join(filter(None, _observation(meta["OBSID"], meta.get("STARTOBS", ""))))
 
 
 def _warn_repeated_positions(datasets):
@@ -544,50 +542,53 @@ def _raw_scaling(header):
     return None
 
 
+@contextmanager
+def _naming(path):
+    """Name the file ``path`` on an error reading it, which irispy's and astropy's do not, for the browser (`_load`)."""
+    try:
+        yield
+    except Exception as error:
+        error._iris_file = Path(path).name
+        raise
+
+
 def _window_scaling(path):
     """
     The `_raw_scaling` of each spectral window of a raster file by its ``TDESC`` name, or None unless every window
     loads lazily.
     """
-    with fits.open(path) as hdulist:  # headers only
+    with _naming(path), fits.open(path) as hdulist:  # headers only
         header = hdulist[0].header
         scaling = {header[f"TDESC{i}"]: _raw_scaling(hdulist[i].header) for i in range(1, header["NWIN"] + 1)}
     return None if None in scaling.values() else scaling
 
 
-def _raster_collection_data(collection, windows=None, stack=False, scaling=None):
+def _raster_collection_data(collection, stack=False, scaling=None):
     """``scaling``: each window's ``(BSCALE, BZERO)`` when the collection holds the files' raw int16."""
     from irispy.utils.constants import DN_UNIT
 
     datasets = []
     for window, sequence in collection.items():
-        name = str(window).replace(" ", "_")
+        name, scaled = str(window).replace(" ", "_"), scaling and scaling[window]
         # glue reads the raw int16 scaled to DN, which irispy's unit for them does not say
         unit = DN_UNIT[sequence[0].meta.detector_band] if scaling else None
         cmap = f"irissji{sequence[0].meta.detector_band}"  # sunpy's slit-jaw colormap of its detector, FUV or NUV
         if stack and len(sequence) > 1:
             label = f"{name}-{_observation_label(sequence[0].meta)}-stack"
-            if scaling:
-                raw = RawStack([scan.data for scan in sequence])
-                wcs = stack_wcs([scan.wcs for scan in sequence])
-                data = _dataset(wcs, dict(sequence[0].meta), unit, raw, label,
-                                color="#7A617C", cmap=cmap, scaling=scaling[window])
-                times = stack_times(sequence)
-            else:
-                cube, times = stack_spectrogram_sequence(sequence)
-                # the stack already holds NaN
-                data = _dataset(cube.wcs.low_level_wcs, cube.meta, cube.unit, cube.data, label, color="#7A617C",
-                                cmap=cmap, missing=())
+            values = RawStack([scan.data for scan in sequence])  # which checks their shapes
+            if not scaling:  # in memory, as irispy's eager read holds each scan
+                values, unit = np.stack(values.scans), sequence[0].unit
+            wcs, meta = stack_wcs([scan.wcs for scan in sequence]), dict(sequence[0].meta)
+            data = _dataset(wcs, meta, unit, values, label, color="#7A617C", cmap=cmap, scaling=scaled)
             # its meta is scan 0's, so exposure times and raster files come per scan
             _add_exposure(data, np.stack([scan.exposure_time.to_value(u.s) for scan in sequence]))
             data.meta["raster files"] = tuple(name for scan in sequence for name in scan.meta.get("raster files", ()))
-            data.add_component(_per_frame(times, data.shape), "Time")
+            data.add_component(_per_frame(stack_times(sequence), data.shape), "Time")
             datasets.append(data)
             continue
         for i, scan in enumerate(sequence):
             label = f"{name}-{_observation_label(scan.meta)}-scan-{i}"
-            datasets.append(_cube_data(scan, label, unit=unit, color="#5A4FCF", cmap=cmap,
-                                       scaling=scaling and scaling[window]))
+            datasets.append(_cube_data(scan, label, unit=unit, color="#5A4FCF", cmap=cmap, scaling=scaled))
     return datasets
 
 
@@ -623,10 +624,9 @@ def _image_cube_data(cube, path, scaling=None):
 
 def _irispy_meta(data, scan=()):
     """
-    irispy's metadata of ``data``, an IRIS raster window of one scan, or of its ``scan`` of a stack, as its analyses
-    read it: its own, or irispy's class made again from the dict a glue session restores for data held in memory, or
-    from a stack's, scan 0's, with the scan's exposure times; its ``DATE_OBS``, scan 0's, which only picks irispy's
-    response, is every scan's.
+    irispy's metadata of ``data``, a raster window, or of its ``scan`` of a stack with that scan's exposure times, as
+    its analyses read it: made again from the dict a session restores, or a stack's, scan 0's, whose ``DATE_OBS`` only
+    picks irispy's response.
     """
     from irispy.meta import SGMeta
 
@@ -661,20 +661,12 @@ def last_directory():
 
 def image_data(path):
     """
-    Load an SJI, AIA-cutout or Hinode/SOT file through irispy.
-
-    Data stored as int16, as Level 2 files store them, stay in the file and are scaled where glue reads them
-    (`LAZY`); a ``.fits.gz`` file is decompressed once, and its data held in memory as int16. A glue session refers to
-    the file rather than holding the values.
-
-    Returns
-    -------
-    `~glue.core.data.Data`
+    Load an SJI, AIA-cutout or Hinode/SOT file through irispy as one `~glue.core.data.Data`, int16 data lazily
+    (`LAZY`; a ``.fits.gz`` decompressed once into memory), which a session reads from the file again.
     """
     from irispy.io.sji import read_sji_lvl2  # with the first file rather than at glue's launch
 
-    with open(path, "rb") as file:
-        gzipped = file.read(2) == b"\x1f\x8b"
+    gzipped = _gzipped(path)
     if gzipped:  # as bytes, whose raw int16 irispy's memmap=True read views rather than copies
         with gzip.open(path) as file:
             content = file.read()
@@ -687,10 +679,8 @@ def image_data(path):
 
 def iris_data(path):
     """
-    Load one IRIS Level 2 file through irispy and convert its return shape.
-
-    A raster file's windows are labeled by its raster number (``…-r00003``), so that the files of a
-    multi-scan observation opened one by one keep distinct labels.
+    Load one IRIS Level 2 file through irispy, a raster file's windows labeled by its raster number (``…-r00003``), so
+    that the files of one observation opened one by one keep distinct labels.
     """
     if _primary_header(path).get("INSTRUME") != "SPEC":
         return image_data(path)
@@ -704,32 +694,11 @@ def iris_data(path):
 
 def raster_data(files, windows=None, stack=False):
     """
-    Load the given spectral windows from a set of raster files of one observation.
-
-    Parameters
-    ----------
-    files : list of path-like
-        Raster files (``*_raster_t000_r*.fits``) of one observation.
-    windows : list of str, optional
-        ``TDESC`` names of the spectral windows to load; all of them if omitted.
-    stack : bool
-        Stack two or more scans of each window without resampling and return a single 4D cube
-        with a leading ``Scan`` axis. Each scan keeps its own coordinates (`stack_wcs`) and exact
-        acquisition times are stored in the ``Time`` component. A window containing one scan
-        loads normally as a 3D dataset.
-
-    Returns
-    -------
-    list of `~glue.core.data.Data`
-        One per scan and window, or one per window when ``stack`` is set. Windows stored as int16, as Level 2
-        files store them, stay in their files and are scaled where glue reads them (`LAZY`), if every file stores
-        them alike. A glue session refers to the files of each window (`raster_files_data`) rather than holding the
-        values.
-
-    Warns
-    -----
-    UserWarning
-        If the rasters take several exposures at each position (``NEXP_PRP``), as world to pixel gives the first.
+    Load the spectral ``windows``, by ``TDESC`` name (all if None), of ``files``, raster files of one observation: a
+    `~glue.core.data.Data` per scan and window, or with ``stack`` per window of two or more scans, stacked without
+    resampling along a leading ``Scan`` axis, each scan at its own coordinates (`stack_wcs`) and times. int16 windows
+    load lazily (`LAZY`), and a session reads them from their files again (`raster_files_data`). Warns of rasters that
+    take several exposures at each position (``NEXP_PRP``), as world to pixel gives the first.
     """
     datasets = [data for datasets in _raster_windows_data(files, windows, stack).values() for data in datasets]
     _warn_repeated_positions(datasets)
@@ -738,10 +707,8 @@ def raster_data(files, windows=None, stack=False):
 
 def raster_files_data(path, files=(), windows=None, stack=False):
     """
-    `raster_data` as a glue data factory, which a session's load log calls: ``path`` is the first raster file, and
-    ``files`` every one by its path relative to the folder of ``path``, so that a session with relative paths finds
-    them all where it finds ``path``. A session's restore reads them once for every copy of the windows it logs of them
-    (`_read_logged_windows_together`).
+    `raster_data` as the glue data factory a session's load log calls, ``files`` relative to the folder of ``path``,
+    the first, so that a session with relative paths finds them; read once a restore (`_read_logged_windows_together`).
     """
     paths = [Path(path).parent / name for name in files] or [path]
     slots = _RESTORING.get(windows[0]) if len(windows or ()) == 1 else None
@@ -796,9 +763,8 @@ def _read_logged_windows_together(session):
 
 def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None):
     """
-    `raster_data` by window name, from one read of each file for every window, which maps each file once.
-
-    None once ``stop``, a `threading.Event`, is set between files; ``step()`` is called after each file.
+    `raster_data` by window name, from one read of each file for every window, which maps each file once; None once
+    ``stop``, a `threading.Event`, is set between files; ``step()`` is called after each file.
     """
     scaling = _window_scaling(files[0])
     if any(_window_scaling(path) != scaling for path in files[1:]):
@@ -811,8 +777,9 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None)
     for path in sorted(files):  # as irispy orders them
         if stop is not None and stop.is_set():
             return None
-        for window, sequence in read_files([path], spectral_windows=windows, memmap=bool(scaling),
-                                           uncertainty=False).items():
+        with _naming(path):
+            read = read_files([path], spectral_windows=windows, memmap=bool(scaling), uncertainty=False)
+        for window, sequence in read.items():
             for scan in sequence:
                 scan.meta["raster files"] = (Path(path).name,)  # which tell the files of an observation apart
             scans.setdefault(window, []).extend(sequence)
@@ -854,44 +821,13 @@ class _ScanAt:
 
 def link_hpc(data_collection, others=()):
     """
-    Links pairing the helioprojective longitude and latitude of every IRIS dataset, a raster, slit-jaw image or data
-    made from them, and of the other datasets of ``others``, such as an AIA cutout, a Hinode/SOT cube, a sunpy map or
-    an SST cube, with those of the first IRIS dataset, whatever the order they loaded in, and giving every stack of
-    raster scans its ``Scan`` on each of those read through irispy with a ``Time`` but a stack.
-
-    Datasets are matched by world axis physical type, not by component name. Data read through irispy, AIA cutouts and
-    SOT cubes too, are in arcsec and linked with `~glue.core.link_helpers.LinkSame`; others, such as a sunpy map in
-    degrees, with `~glue.core.link_helpers.LinkSameWithUnits`, which converts. Without IRIS data nothing is linked:
-    glue's own WCS autolinker links sunpy maps to each other. No link pairs times, so a slit-jaw image frame is placed
-    with its own pointing, and an AIA cutout or SOT cube shares its observation's time sync
-    (`glue_solar.quicklook.observation_key`) linked or not. Pairs that are already linked, either way round, are
-    skipped, so calling this again after loading more data is safe. The plain astropy WCS of each other dataset linked,
-    now or before, which IRIS data's profile workers then call, is put behind `WCS_LOCK` in place (`_LockedWCS`); an
-    SST cube's keeps its own lock, and the link patches hold `WCS_LOCK` around its links
-    (`glue_solar.sources.sst._LockedTabularWCS`). The caller adds the links::
-
-        data_collection.add_link(link_hpc(data_collection, others=data_collection))  # every dataset
-
-    Every dataset links to the first, not to every other: glue rediscovers all links at each change, which
-    takes 0.3 s for the 70 links of 36 datasets but 4 s for the 1260 links of every pair. Removing the first
-    dataset drops the links of all the others; `keep_hpc_linked` links them again.
-
-    A stack's pixel at a place depends on its scan, each with its own pointing (`stack_wcs`), so the frames, exposures
-    or steps of each linked dataset read through irispy with a ``Time`` but a stack get the scan nearest their time,
-    however far, and those without a time none, scans timed by their middle raster step as the quicklook times them: a
-    `~glue.core.component_link.ComponentLink` from the dataset's first pixel axis to the stack's ``Scan``. An SST cube's
-    pointing depends on its scan too (`glue_solar.sources.sst`): once it is linked, now or before, the frames,
-    exposures, steps or scans of each of those datasets with a ``Time`` give the cube their time, in its seconds since
-    ``DATEREF``, which its coordinates place in the scan nearest it, and the time axis of a slit-jaw image or AIA cutout
-    takes the time of each of the cube's scans, at its line core, so that a point on the cube reaches the frame
-    nearest it. The cube then shares the time sync of the IRIS observation whose times come nearest its middle scan's,
-    as its ``meta['IRIS observation']``, ``(OBSID, STARTOBS)`` (`glue_solar.quicklook.observation_key`), which each call
-    drops from a cube with no such link, as once the IRIS data are removed, so that it shares its SST cubes' again.
-
-    Returns
-    -------
-    list of `~glue.core.link_helpers.LinkSame`, `~glue.core.link_helpers.LinkSameWithUnits` and
-    `~glue.core.component_link.ComponentLink`
+    The links, for the caller to add, of the helioprojective longitude and latitude of every IRIS dataset and of those
+    of ``others`` to the first IRIS dataset's, by physical type, in arcsec (`LinkSame`) or converted
+    (`LinkSameWithUnits`), and of each stack's scan and each SST cube's time to the frames of the others (`_ScanAt`),
+    skipping pairs linked already; see the loading guide's Linking. Each links to the first, not to every other: glue
+    rediscovers every link at each change, 0.3 s for the 70 links of 36 datasets but 4 s for every pair's 1260. The
+    plain WCS of each other dataset linked, which IRIS data's profile workers then call, goes behind `WCS_LOCK` in place
+    (`_LockedWCS`); each SST cube's ``meta['IRIS observation']`` names the IRIS observation timed nearest it, if linked.
     """
     from glue_solar.quicklook import _role, _times, nearest, observation_key  # which imports this module
     from glue_solar.sources.sst import _LockedTabularWCS, _TabularWCS  # which imports this module
@@ -1033,17 +969,10 @@ def _relinker(data_collection):
 
 def keep_hpc_linked(data_collection, others=()):
     """
-    Add the `link_hpc` links of the IRIS datasets of ``data_collection`` and of ``others``, other datasets of it, and
-    add them again after any dataset is removed, those of ``others`` given to any call too, and those of the other
-    datasets already linked to the first IRIS dataset, as a session restores them (`_LinkedCollection`).
-
-    Data outside the IRIS observations, such as a sunpy map or an SST cube, and the AIA cutouts and SOT cubes of an
-    observation's own tarballs, are linked only on request ('IRIS: link helioprojective coordinates'), not as data
-    load or a quicklook opens: every quicklook panel and profile then inverts their WCS, and beside a linked SST cube,
-    whose WCS is tabulated, a quicklook took about 4 minutes to open, not 6 s.
-
-    Removing the dataset the others are linked through drops their links, so they are then linked
-    through the new first dataset. Datasets loaded later need another call.
+    Add the `link_hpc` links of the IRIS datasets and of ``others``, and again once a dataset is removed, which drops
+    the links through it (`_relinker`). Other data are linked only on request ('IRIS: link helioprojective
+    coordinates'): every quicklook panel and profile then inverts their WCS, and beside a linked SST cube a quicklook
+    took about 4 minutes to open, not 6 s. Datasets loaded later need another call.
     """
     requested = _relinker(data_collection).others
     requested.update(others)
@@ -1076,13 +1005,8 @@ def _keep_restored_links(session):
 
 def load_entry(observation, kind, name, stack=False):
     """
-    Load one entry of the observation browser: a slit-jaw channel, an AIA cutout, a Hinode/SOT cube, an SST cube, or a
-    raster window.
-
-    Returns
-    -------
-    list of `~glue.core.data.Data`
-        One per scan of a raster window (one stack with ``stack``), else one.
+    The datasets of one entry of the observation browser: one per scan of a raster window (one stack with ``stack``),
+    else one.
     """
     if kind == "raster":
         return raster_data(observation.rasters, [name], stack=stack)
@@ -1093,32 +1017,11 @@ def load_entry(observation, kind, name, stack=False):
     return [image_data(getattr(observation, kind)[name])]  # its sji, sdo or sot
 
 
-def _failing_file(observation, kind, name, windows, stop):
-    """
-    The name of the file of a browser entry that failed to load: for a raster window, the first raster file that fails
-    on its own, as the error does not name it, looked for until ``stop`` is set.
-    """
-    if kind != "raster":
-        return getattr(observation, kind)[name].name
-    for path in observation.rasters:
-        if stop.is_set():
-            break
-        try:
-            _raster_windows_data([path], windows)
-        except Exception:  # noqa: BLE001 - whatever the read of every file raised
-            return path.name
-    return f"{len(observation.rasters)} raster files"  # each loads on its own but not together, or Stop ended the look
-
-
 def _load(load, observations, picks, stack, shown, stop, report):
     """
-    Read the browser's ticked entries on glue-qt's worker thread, until ``stop`` is set: ``report(load, percent)``
-    after each raster, slit-jaw or AIA file, and after the count of the color limits of the datasets
-    ``shown(loaded)`` gives, unless it is None, which the GUI thread would otherwise count as their first viewers
-    open. What Stop keeps is counted too.
-
-    Returns ``(load, loaded, error)``: the entries read in full, as `QtIRISImporter.loaded` holds them, and the text
-    of a reader error, which loads nothing.
+    Read the browser's ticked entries on glue-qt's worker thread until ``stop`` is set, ``report(load, percent)`` after
+    each file, and count the color limits of the datasets ``shown(loaded)`` gives, else counted on the GUI thread as
+    their first viewers open; returns ``(load, loaded, error)``, ``error`` the text of a reader error, loading nothing.
     """
     windows, rasters, loaded = {}, {}, []  # each observation's ticked raster windows, read together
     for i, kind, name in picks:
@@ -1146,7 +1049,8 @@ def _load(load, observations, picks, stack, shown, stop, report):
                 datasets = load_entry(obs, kind, name)
                 step()
         except Exception as error:  # noqa: BLE001 - third-party reader errors must stay inside the dialog
-            failing = _failing_file(obs, kind, name, windows.get(i), stop)
+            named = getattr(error, "_iris_file", f"{len(obs.rasters)} raster files")  # else they failed together
+            failing = named if kind == "raster" else getattr(obs, kind)[name].name
             return load, [], f"Loading {name} from {failing} failed: {error}"
         loaded.append((obs, kind, name, datasets))
     for data in shown(loaded) if shown else ():
@@ -1159,10 +1063,8 @@ def _load(load, observations, picks, stack, shown, stop, report):
 
 def _extract(load, archives, stop, report):
     """
-    Unpack the browser's ticked archives on glue-qt's worker thread, until ``stop`` is set: ``report(load, percent)``
-    after each.
-
-    Returns ``(load, extracted, error)``: how many were unpacked, and the text of an extraction error.
+    Unpack the browser's ticked archives on glue-qt's worker thread until ``stop`` is set, ``report(load, percent)``
+    after each; returns ``(load, extracted, error)``, how many and the text of an extraction error.
     """
     for n, archive in enumerate(archives):
         if stop.is_set():
@@ -1177,10 +1079,8 @@ def _extract(load, archives, stop, report):
 
 def _scan(load, directory, recursive, start, end, stop, report):
     """
-    `scan_directory` from ``start`` to ``end`` on glue-qt's worker thread, until ``stop`` is set: ``report(load,
-    percent)`` before each file.
-
-    Returns ``(load, observations, skipped)``: what it found, and the raster files that are not Level 2.
+    `scan_directory` from ``start`` to ``end`` on glue-qt's worker thread until ``stop`` is set, ``report(load,
+    percent)`` before each file; returns ``(load, observations, skipped)``, ``skipped`` the raster files not Level 2.
     """
     skipped = []
     return load, scan_directory(directory, recursive, skipped, stop, partial(report, load), start, end), skipped
@@ -1210,42 +1110,10 @@ def _window_time(text, end=False):
 
 class QtIRISImporter(QtWidgets.QDialog):
     """
-    Browse a folder of IRIS Level 2 files by observation and load a selection.
-
-    After ``exec()`` returns ``Accepted``, ``datasets`` holds the loaded
-    `~glue.core.data.Data` objects and ``first_image`` the first SJI/AIA cube
-    (the natural thing to open in an image viewer). ``loaded`` records what each
-    ticked entry gave, as ``(observation, kind, name, datasets)``.
-
-    Load selected reads in the background, a file at a time, and the progress bar
-    counts the files. Meanwhile Cancel reads Stop, which closes the dialog with the
-    entries read in full; Esc or closing the dialog drops the load. ``shown``, if
-    given, names the datasets the first viewers will show of what is loaded, as
-    ``shown(loaded, quicklooks, main)`` with whether Open quicklook is ticked and
-    the Main window chosen: their color limits are counted in the background too.
-
-    Main window lists the ticked raster windows, by name, showing the one last
-    chosen there while it is ticked, else Mg II k 2796, else the first: each
-    quicklook shows it with its map, spectrogram and wavelength panel, where ticked.
-
-    The folder is scanned in the background as well, a header at a time, where
-    Stop lists what the scan found so far.
-
-    The Filter field lists only the observations whose row or entries contain its
-    text, in any case, across rescans, a moment after typing stops; Load selected
-    still loads the ticks it hides.
-
-    Start and End list only the observations that run at some time between them:
-    the scan reads the headers only of the files whose names are stamped from a day
-    before Start to End, and of those with no stamp. The saved folders and the last
-    10 searches, each a folder with its Start and End, are kept in the settings, and
-    the latest search's Start and End fill the next browser's. Its tick boxes open
-    as the last browser left them.
-
-    A folder typed in the Folder field is searched once Return is pressed or the
-    field is left; elsewhere Return presses Load selected. A double-click on an entry
-    loads it alone, whatever is ticked, and one on its tick box only ticks and
-    un-ticks it; on an observation of several entries it expands or collapses the row.
+    The observation browser (see the loading guide), which scans a folder and loads the selection on glue-qt's worker
+    thread. After ``exec()`` returns ``Accepted``, ``datasets`` holds the loaded data, ``first_image`` the first SJI or
+    AIA cube and ``loaded`` each ticked entry's ``(observation, kind, name, datasets)``. ``shown(loaded, quicklooks,
+    main)``, if given, names the datasets the first viewers will show, whose color limits are counted there too.
     """
 
     progressed = Signal(int, int)  # (load, percent), from the worker thread
@@ -1465,7 +1333,10 @@ class QtIRISImporter(QtWidgets.QDialog):
         return item
 
     def _ticked_windows(self, item):
-        """List the ticked raster windows in Main window (see the class) as ``item`` is ticked or un-ticked."""
+        """
+        List the ticked raster windows in Main window as ``item`` is ticked or un-ticked, showing the one last chosen
+        there while ticked, else `DEFAULT_WINDOW`, else the first.
+        """
         from glue_solar.quicklook import DEFAULT_WINDOW  # which imports this module
 
         i = item.data(0, Qt.UserRole)

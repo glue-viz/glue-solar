@@ -3,9 +3,6 @@
 stack of its scans, as a new dataset.
 """
 
-import gc
-import itertools
-
 import numpy as np
 from glue.core.component import Component
 from glue_qt.utils.decorators import messagebox_on_error
@@ -16,7 +13,7 @@ import astropy.units as u
 from glue_solar.glue_patches import layer_action
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources.loaders.iris import WCS_LOCK
-from glue_solar.sources.moments import SLAB, _accepted, _check, _cube, _dataset, _read, _start, _unit
+from glue_solar.sources.moments import _accepted, _check, _cube, _dataset, _form, _slabs, _start, _unit
 
 __all__ = ["mg_features", "mg_features_iris"]
 
@@ -95,11 +92,7 @@ def _mg_features(data, velocities, lines, crop, shift, unit, rest=None):
 
     maps = {}
     # irispy measures each step on its own, so a slab of steps gives what the whole window would
-    steps = max(1, SLAB // (data.shape[-2] * (crop.stop - crop.start)))
-    # each scan of a stack, as its own WCS and exposure times give it
-    for scan, start in itertools.product(np.ndindex(data.shape[:-3]), range(0, data.shape[-3], steps)):
-        rows = (*scan, slice(start, start + steps), slice(None))
-        values, _ = _read(data, rows, crop)
+    for rows, values, _ in _slabs(data, crop):
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
             # a line's features are NaN where a sample it searches is saturated, +Inf, as its saturated map says
             slab = calculate_mg_features(
@@ -107,7 +100,6 @@ def _mg_features(data, velocities, lines, crop, shift, unit, rest=None):
             )
         for name, feature in slab.items():
             maps.setdefault(name, []).append((feature.data, feature.unit))
-        gc.collect(0)  # ndcube's cubes are reference cycles, and irispy's hold the slab's values
     features = _dataset(data, f"{data.label} Mg II features")
     features.meta.update(mg_features_velocities=tuple(velocities), mg_features_lines=lines)
     if rest is not None:
@@ -168,9 +160,7 @@ def _ask(data, lines):
     The velocities typed for ``data``, from and to, in km / s, and the lines ticked, at first ``lines``; or None for
     none ticked or Cancel.
     """
-    dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
-    dialog.setWindowTitle(f"IRIS: Mg II features of {data.label}")
-    form = QtWidgets.QFormLayout(dialog)
+    dialog, form = _form(f"IRIS: Mg II features of {data.label}")
     boxes = []
     for name, value in zip(("from", "to"), VELOCITIES):
         box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, minimum=-1000, maximum=1000, suffix=" km / s")
@@ -184,11 +174,6 @@ def _ask(data, lines):
         return None
     lines = tuple(line for line, tick in zip(LINES, ticks) if tick.isChecked())
     return (tuple(box.value() for box in boxes), lines) if lines else None
-
-
-@messagebox_on_error("Could not compute Mg II features")
-def _failed(exc_info):
-    raise exc_info[1]
 
 
 def _saturated(features):
@@ -211,19 +196,13 @@ def _saturated(features):
 )
 @messagebox_on_error("Could not compute Mg II features")
 def mg_features_iris(data, data_collection):
-    """
-    Add the `mg_features` of ``data`` within typed velocities, of the lines ticked, at first those it covers, to the
-    data collection, with its helioprojective coordinates linked, and no viewer; offered only for a raster window or
-    stack covering Mg II k or h, and glue shows why for typed values it cannot take or a rest wavelength set over 1 Å
-    from irispy's k. irispy computes them in the background, while glue's status bar says so, and then how many pixels
-    saturated, if any.
-    """
+    """Add the `mg_features` of ``data`` for the values typed (`_ask`), computed in the background (`_start`)."""
     _check(data)  # before asking
     rest = _rest(data)
     chosen = _ask(data, _crop(data, VELOCITIES, LINES, rest)[0])
     if chosen is None:
         return
     velocities, lines = chosen
-    text = f"Computing Mg II features of {data.label}…"
+    text, title = f"Computing Mg II features of {data.label}…", "Could not compute Mg II features"
     line = velocities, *_crop(data, velocities, lines, rest)
-    _start(data_collection, text, _failed, _mg_features, data, *line, _unit(data), rest, said=_saturated)
+    _start(data_collection, text, title, _mg_features, data, *line, _unit(data), rest, said=_saturated)

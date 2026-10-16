@@ -16,7 +16,7 @@ import astropy.units as u
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.quicklook import _wavelengths
-from glue_solar.sources import red_blue
+from glue_solar.sources import moments
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.red_blue import red_blue_asymmetry
@@ -151,7 +151,7 @@ def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatc
     A lazy stack of 3860258481's three scans, in slabs of 3 steps, gives one dataset whose maps and coordinates at
     each scan are those of the scan loaded alone.
     """
-    monkeypatch.setattr(red_blue, "SLAB", 3 * 109 * 8)  # slabs of 3 steps on the crop of ±1 Å
+    monkeypatch.setattr(moments, "SLAB", 3 * 109 * 8)  # slabs of 3 steps on the crop of ±1 Å
     [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
     collection = app.data_collection
     collection.append(stack)

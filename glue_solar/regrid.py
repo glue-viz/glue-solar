@@ -19,7 +19,7 @@ from scipy.interpolate import make_interp_spline
 from astropy.wcs import WCS
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper, SlicedLowLevelWCS
 
-from glue_solar.glue_patches import layer_action
+from glue_solar.glue_patches import _application, layer_action
 from glue_solar.quicklook import _cadence, _placeable, _role, _spectral_axes, _time_axis, _timed, _times, nearest
 from glue_solar.sources.loaders.iris import (
     _SJI_POINTING,
@@ -31,7 +31,7 @@ from glue_solar.sources.loaders.iris import (
     keep_hpc_linked,
 )
 from glue_solar.sources.loaders.lazy import RawComponent, RawStack
-from glue_solar.sources.moments import SLAB, _accepted, _start
+from glue_solar.sources.moments import SLAB, _accepted, _form, _start
 
 __all__ = ["north_up", "north_up_iris", "rebin", "rebin_iris", "regrid_iris", "regrid_on_time"]
 
@@ -154,11 +154,7 @@ def regrid_on_time(data):
 )
 @messagebox_on_error("Could not regrid on time")
 def regrid_iris(data, data_collection):
-    """
-    Add ``data`` regridded on time (`regrid_on_time`) to the data collection, with its helioprojective coordinates
-    linked, and no viewer; offered only for data it takes (`_check_timed`), and glue shows why for one without two
-    different times.
-    """
+    """Add ``data`` regridded on time (`regrid_on_time`), its helioprojective coordinates linked."""
     data_collection.append(regrid_on_time(data))
     keep_hpc_linked(data_collection)
 
@@ -242,12 +238,7 @@ def north_up(data):
 )
 @messagebox_on_error("Could not show north up")
 def north_up_iris(data, data_collection):
-    """
-    Add the `north_up` grid of ``data`` to the data collection, its helioprojective coordinates linked with the others'
-    and ``data``'s, an AIA cutout's or SOT cube's too, as glue shows ``data`` on it through them, and its time and
-    frames with ``data``'s, and open an Image viewer of it showing ``data``, its own layer hidden; offered only for a
-    slit-jaw image, AIA cutout or SOT cube.
-    """
+    """Add the `north_up` grid of ``data``, linked to it, and open an Image viewer of the grid showing ``data``."""
     grid = north_up(data)
     data_collection.append(grid)
     keep_hpc_linked(data_collection, others=[data])
@@ -258,8 +249,7 @@ def north_up_iris(data, data_collection):
             LinkSame(grid.pixel_component_ids[0], data.pixel_component_ids[0]),
         ]
     )
-    windows = QtWidgets.QApplication.topLevelWidgets()
-    app = next((window for window in windows if getattr(window, "data_collection", None) is data_collection), None)
+    app = _application(data_collection)
     if app is not None:
         viewer = app.new_data_viewer(ImageViewer, data=grid)
         viewer.add_data(data)
@@ -360,9 +350,7 @@ def _ask(data):
     The pixels per bin typed for each axis of ``data``, at first 2 along its last two axes but wavelength, the map or
     image, and 1 along the others; or None for Cancel.
     """
-    dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
-    dialog.setWindowTitle(f"Rebin {data.label}")
-    form = QtWidgets.QFormLayout(dialog)
+    dialog, form = _form(f"Rebin {data.label}")
     image = sorted(set(range(data.ndim)) - _spectral_axes(data))[-2:]
     boxes = []
     for axis, (cid, length) in enumerate(zip(data.world_component_ids, data.shape)):
@@ -371,11 +359,6 @@ def _ask(data):
         form.addRow(f"{cid.label} ({length} pixels):", box)
         boxes.append(box)
     return tuple(box.value() for box in boxes) if _accepted(dialog, form) else None
-
-
-@messagebox_on_error("Could not rebin")
-def _failed(exc_info):
-    raise exc_info[1]
 
 
 @layer_action(
@@ -387,12 +370,8 @@ def _failed(exc_info):
 )
 @messagebox_on_error("Could not rebin")
 def rebin_iris(data, data_collection):
-    """
-    Add ``data`` binned by the pixels typed for each axis (`rebin`) to the data collection, with its helioprojective
-    coordinates linked, and no viewer; offered only for an IRIS raster window or slit-jaw image, an AIA cutout or a
-    SOT cube. It is binned in the background, while glue's status bar says so.
-    """
+    """Add ``data`` binned by the pixels typed for each axis (`rebin`), in the background (`_start`)."""
     _check(data)  # before asking
     bins = _ask(data)
     if bins is not None:
-        _start(data_collection, f"Rebinning {data.label}…", _failed, rebin, data, bins)
+        _start(data_collection, f"Rebinning {data.label}…", "Could not rebin", rebin, data, bins)

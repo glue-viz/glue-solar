@@ -12,7 +12,7 @@ import astropy.units as u
 
 from glue_solar.glue_patches import layer_action
 from glue_solar.lines import _wavelength
-from glue_solar.sources.moments import _accepted, _check, _dataset, _read, _rest_field, _start, _unit
+from glue_solar.sources.moments import _accepted, _check, _dataset, _form, _read, _rest_field, _start, _unit
 
 __all__ = ["doppler_image", "doppler_iris"]
 
@@ -115,9 +115,7 @@ def _ask(data):
     The rest wavelength typed for ``data``, at first its `rest_wavelength`, in Angstrom, the velocities typed, in
     km / s, increasing, and whether the normalized maps are ticked; or None for a blank rest wavelength or Cancel.
     """
-    dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
-    dialog.setWindowTitle(f"IRIS: Doppler image of {data.label}")
-    form = QtWidgets.QFormLayout(dialog)
+    dialog, form = _form(f"IRIS: Doppler image of {data.label}")
     rest = _rest_field(data, "rest")  # D11: never the window's TWAVE
     form.addRow("Rest wavelength [Å]:", rest)
     velocities = QtWidgets.QLineEdit(", ".join(f"{v:g}" for v in VELOCITIES), objectName="velocities")
@@ -137,11 +135,6 @@ def _ask(data):
     return _wavelength(text), speeds, normalized.isChecked()
 
 
-@messagebox_on_error("Could not compute the Doppler image")
-def _failed(exc_info):
-    raise exc_info[1]
-
-
 @layer_action(
     "IRIS: Doppler image…",
     single=True,
@@ -151,17 +144,12 @@ def _failed(exc_info):
 )
 @messagebox_on_error("Could not compute the Doppler image")
 def doppler_iris(data, data_collection):
-    """
-    Add the `doppler_image` of ``data`` about a typed rest wavelength at typed velocities, normalized too if ticked,
-    to the data collection, with its helioprojective coordinates linked, and no viewer; offered only for a raster
-    window or stack, and glue shows why for typed values it cannot take. It is computed in the background, while
-    glue's status bar says so.
-    """
+    """Add the `doppler_image` of ``data`` for the values typed (`_ask`), computed in the background (`_start`)."""
     _check(data)  # before asking
     asked = _ask(data)
     if asked is None:
         return
     rest, velocities, normalized = asked
     wings = _wings(data, rest, velocities)
-    text = f"Computing the Doppler image of {data.label}…"
-    _start(data_collection, text, _failed, _doppler, data, rest, velocities, normalized, wings, _unit(data))
+    text, title = f"Computing the Doppler image of {data.label}…", "Could not compute the Doppler image"
+    _start(data_collection, text, title, _doppler, data, rest, velocities, normalized, wings, _unit(data))
