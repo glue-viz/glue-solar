@@ -28,10 +28,10 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at b93cd8e (#287). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
+**Resume here.** Main is at 51f777e (#288). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
 
 **Next** (D81, D82), three at a time with disjoint files (tests in the file named). Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. Running: `wp4-l-point-edit-subset` (test_quicklook), `wp3-l-restore-irispy-meta` (test_sessions) and `wp6-l-fit-lines` (test_plugin).
+  1. Running: #288 (test_quicklook), `wp3-l-restore-irispy-meta` (test_sessions) and `wp6-l-fit-lines` (test_plugin).
   2. Then, as files come free: `wp2-l-radiance-factor-saver`, `wp9-l-app-reproject-metadata` and the `-lean-` items, `wp10-l-lean-tests` last and alone.
 
   Held for the user (D82): `wp4-l-restored-strip`, `wp13-l-restored-second-map` and `wp3-l-autosave-quit`.
@@ -133,7 +133,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 - **D80:** The choice review's fifth pass (#276-#283's 28 choices, chunks h3-i0): 27 kept; on 283-3 (prose says `DN / s` too) the user noted "Make it all match". Changed: 283-4 → #284.
 - **D81:** Sessions stay (D74's first option), so the held session items go ahead; `wp0-core-session-reports` and `wp0-core-quantity-saver` stay M4. Fitting (`briefs/fitting.md` in the session archive): one fitter per Profile viewer as a glue-solar stopgap (#287, 259-2); the glue-qt fix, the check-box one-liner included, on a branch of the user's fork with no PR (`wp0-qt-fitter-settings`), the check-box shim staying (259-3); the check boxes stay and 'Number of lines' is added (`wp6-l-fit-lines`, 259-1), while fits from the line list or a line table of the fitter's own wait. The flaky SST thread test is fixed (#285).
 
-- **D82:** User (2026-10-16): keep the plan concise and the code lean; port CRISPEX's ideas to glue better, faster, sleeker and nicer, not one to one. The plan keeps rules and open items only (git keeps the history; Current state gets no per-PR line), and items with nothing to do are dropped (wp0-optional-proposals, wp0-track-qt66, wp0-track-line-layers, wp8-m3-level3-input, wp1-m3-multi-instrument, wp13-height-cubes; wp0-qt68-cocoa joins wp0-qt68-macos-pass). The audits (`audit2/` in the session archive) found about 820 source and 500 test lines that can go with no visible change (the four `-lean-` items) and one bug (`wp4-l-point-edit-subset`). Held for the user: `wp4-l-restored-strip`, `wp13-l-restored-second-map` and `wp3-l-autosave-quit`, which a quicklook restored by re-running `quicklook()`, or dropping 'IRIS: restore last session', would replace; and every feature cut or redesign in the audits.
+- **D82:** User (2026-10-16): keep the plan concise and the code lean; port CRISPEX's ideas to glue better, faster, sleeker and nicer, not one to one. The plan keeps rules and open items only (git keeps the history; Current state gets no per-PR line), and items with nothing to do are dropped (wp0-optional-proposals, wp0-track-qt66, wp0-track-line-layers, wp8-m3-level3-input, wp1-m3-multi-instrument, wp13-height-cubes; wp0-qt68-cocoa joins wp0-qt68-macos-pass). The audits (`audit2/` in the session archive) found about 820 source and 500 test lines that can go with no visible change (the four `-lean-` items) and one bug (#288). Held for the user: `wp4-l-restored-strip`, `wp13-l-restored-second-map` and `wp3-l-autosave-quit`, which a quicklook restored by re-running `quicklook()`, or dropping 'IRIS: restore last session', would replace; and every feature cut or redesign in the audits.
 
 ## Milestones
 
@@ -152,7 +152,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP3: `wp2-l-radiance-factor-saver`, `wp3-l-autosave-quit`, `wp3-l-restore-irispy-meta`
-- WP4: `wp4-l-restored-strip`, `wp4-l-point-edit-subset`
+- WP4: `wp4-l-restored-strip`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP6: `wp6-l-fit-lines`
 - WP9: `wp9-l-app-reproject-metadata`
@@ -269,7 +269,6 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 
 **L**
 
-- [ ] **L** `wp4-l-point-edit-subset` (D82): a Pixel click on a quicklook panel moves that tab's Point even when a dataset is selected in the Data Collection; today that selection makes glue's edit subset target the dataset, so the next click makes 'Subset 2' and blanks the Point window. Done when selecting a dataset and clicking the map moves the Point, in a test.
 - [ ] **L** `wp4-l-restored-strip` (D66; after #228): A restored quicklook gets its Point window and Panels list back, and a session keeps the panels turned off, restored hidden; today a session leaves them out. Its panels draw only in sight, as `_arrange`'s do since #235 (`_draw_in_sight`; restored panels draw everything). Its PR also makes the quicklook guide's restored-session paragraph and changelog/235 read as the code (D73). Done when a session of the 9-window 4000255147 quicklook saved with panels off restores them hidden, the Panels list turns each on unchanged, the Point window shows the restored point, and a step of the restored quicklook leaves its panels out of sight undrawn.
 
 Notes:
