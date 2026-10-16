@@ -917,6 +917,21 @@ def test_each_quicklook_edits_its_own_point(bare_app, scans):
     assert bare_app.session.edit_subset_mode.edit_subset == [first_point]
 
 
+def test_a_pixel_click_moves_the_point_with_a_dataset_selected(bare_app, scans):
+    # glue-qt's data collection empties the edit subset as a dataset is selected there, as for an analysis, and a
+    # Pixel click made a new subset (D82)
+    scan, _ = scans
+    viewers = quicklook(bare_app, [scan])
+    collection, mode = bare_app.data_collection, bare_app.session.edit_subset_mode
+    [point] = mode.edit_subset
+    bare_app._layer_widget.ui.layerTree.set_selected_layers([scan])
+    assert mode.edit_subset == []
+    select_point(viewers["map"], 1, 30)
+    assert [s.start for s in point.subset_state.slices[:2]] == [1, 30]
+    assert (mode.edit_subset, collection.subset_groups) == ([point], (point,))
+    assert bare_app._layer_widget.selected_layers() == [point]
+
+
 def test_no_turn_of_the_event_loop_as_a_quicklook_opens_takes_clicks_or_keys(bare_app, monkeypatch, scans):
     # they wait until it is open, so that closing a panel or a tab meanwhile cannot break it; glue still draws
     turns, turn = [], QtWidgets.QApplication.processEvents

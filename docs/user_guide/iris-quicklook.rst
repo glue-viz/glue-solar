@@ -94,7 +94,9 @@ tool active: drag it on the map, and the spectrum panel shows its spectrum. Each
 Pixel tool as its window becomes active, so the first click on any panel moves the point, or, in a
 quicklook of slit-jaw images alone, which has no point, makes a pixel subset; another mouse mode
 chosen in its toolbar, such as "Zoom" or a region tool, stays on until another window
-becomes active, as glue-qt then turns it off. With "Follow/lock" chosen
+becomes active, as glue-qt then turns it off. A Pixel click on a panel moves the point also while
+a dataset is selected in the data collection, as for an analysis, and selects "Point" there
+instead. With "Follow/lock" chosen
 in a panel's toolbar instead, the point follows the mouse over that panel, and on a slit-jaw viewer
 moves to the raster pixel under the mouse, as a click there does (below), until a left click locks
 it; a right click or Esc unlocks it (see :ref:`Viewer tools and windows
