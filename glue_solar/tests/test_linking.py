@@ -54,6 +54,7 @@ from glue_solar.sources.loaders.iris import (
 from glue_solar.sources.mg_features import mg_features
 from glue_solar.sources.moments import line_moments
 from glue_solar.sources.red_blue import red_blue_asymmetry
+from glue_solar.sources.sst import sst_data
 from glue_solar.tests.helpers import (
     angles,
     inversions,
@@ -66,6 +67,7 @@ from glue_solar.tests.helpers import (
 )
 from glue_solar.tests.test_bursts import SI_IV, SJI_1400
 from glue_solar.tests.test_quicklook import SCAN, drifting_stack
+from glue_solar.tests.test_sessions import twice
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
 RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
@@ -311,6 +313,36 @@ def test_link_hpc_links_every_iris_dataset_to_the_first(qtbot, sns, irispy_test_
     dc.clear()  # one relink after all the removals, with nothing left to link
     qtbot.wait(10)
     assert not dc.external_links
+
+
+@pytest.mark.parametrize("opened", [False, True])
+def test_a_restored_session_keeps_the_data_linked_on_request_linked(qtbot, tmp_path, irispy_test_files, sns, opened):
+    # D73: a session saves the links 'IRIS: link helioprojective coordinates' made, not that they were asked for: once
+    # the IRIS dataset they went through was removed, a restored SST cube, SOT cube or map was left unlinked, quicklook
+    # opened first or not
+    from glue_solar.tests.test_sst import write_sst_cube  # which imports this module
+
+    write_sst_cube(tmp_path / "cube.fits")
+    [path] = [path for path in irispy_test_files if "_Gband4305_FG_" in path.name]
+    lon, lat, _ = sns[0].coords.pixel_to_world_values(18, 20, 0)
+    others = [sst_data(tmp_path / "cube.fits"), image_data(path), _sunpy_map(lon, lat, 0.6, (80, 160), "aia")]
+    collection = DataCollection([*sns, *others])
+    link_iris(None, collection)
+    restored = next(twice(collection))
+    sji, raster, *others = restored
+    if opened:
+        glue_solar.setup()
+        app = GlueApplication(restored)
+        qtbot.addWidget(app)
+        quicklook(app, [raster, sji])
+    restored.remove(sji)  # the others were linked through it
+
+    def linked():  # by longitude and latitude, not only by time
+        links = [link for link in restored.external_links if hasattr(link, "cids1")]
+        return {(link.cids1[0].parent, link.cids2[0].parent) for link in links}
+
+    qtbot.waitUntil(lambda: linked() == {(raster, data) for data in others})
+    np.testing.assert_allclose(others[1][_cid(raster, HPC[1])], others[1][_cid(others[1], HPC[1])])
 
 
 def test_a_sot_cube_loaded_first_is_linked_on_request_to_the_raster(sns, irispy_test_files):
