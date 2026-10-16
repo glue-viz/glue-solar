@@ -153,18 +153,18 @@ limits" on, in a map's "View" menu, each frame takes glue's 99.5 % of its own va
 and V's from the next move of the Stokes slider. The spectra fit their own ranges.
 
 Cubes whose scan times overlap, or lie within the longer of the two cubes' times between scans of
-each other, share one time, a scan timed at its line core, such as the CRISP and CHROMIS cubes of one
-morning, while a cube from another part of the day keeps its own; a cube that does so with two cubes
-which do not with each other puts all three in one time. The archive's obs 492, 495 and 498 cubes
-share one time, as do those of obs 167 and 171. The quicklook shown leads
-it: its cube is the time master, unless one is chosen with "Time master" in the "Coordinate" menu.
-Showing another cube's quicklook moves that cube to its scan nearest the time the last one was left
-at, unless it is within half the longer of the two cubes' times between scans already, and a new
-quicklook starts there; a quicklook not shown keeps its time until it is shown. Once linked to IRIS
-data, the cube shares the time of that IRIS observation instead: the IRIS quicklook, shown, moves its
-raster to the exposure nearest the cube's scan in the same way, and the cube moves to the scan nearest
-the IRIS time when its quicklook is shown again, each when the other's time falls within its scans or
-exposures. Once those IRIS data are removed, the cube shares its overlapping cubes' time again.
+each other, share one time, a scan timed at its line core, such as the CRISP and CHROMIS cubes of
+one morning, while a cube from another part of the day keeps its own; a cube near two cubes that are
+not near each other puts all three in one time. The archive's obs 492, 495 and 498 cubes share one
+time, as do those of obs 167 and 171. The quicklook shown leads it: its cube is the time master,
+unless one is chosen with "Time master" in the "Coordinate" menu. Showing another cube's quicklook
+moves that cube to its scan nearest the time the last one was left at, unless it is within half the
+longer of the two cubes' times between scans already, and a new quicklook starts there; a quicklook
+not shown keeps its time until it is shown. Once linked to IRIS data, the cube shares the time of
+that IRIS observation instead: the IRIS quicklook, shown, moves its raster to the exposure nearest
+the cube's scan in the same way, and the cube moves to the scan nearest the IRIS time when its
+quicklook is shown again, each when the other's time falls within its scans or exposures. Once those
+IRIS data are removed, the cube shares its SST cubes' time again.
 
 A saved session opens the quicklook again with its point and its time master, the spectra and the
 light curve following the point again; as in the IRIS quicklook, the Point window, the Panels list,

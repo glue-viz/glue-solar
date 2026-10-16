@@ -195,7 +195,7 @@ def test_file_open_gives_the_cube_alone_memory_mapped(tmp_path):
     assert stokes.meta["VAR-EXT"]["DATE-AVG"].shape == (3, 1, 5, 1, 1)
     assert data.meta["SPECSYS"] == "TOPOCENT"  # SST2: astropy needs one beside OBSGEO
     assert _role(data) == "sst"
-    assert _timed(data)  # in the time sync of the SST cubes whose scan times overlap its own (230-9)
+    assert _timed(data)  # in the time sync of the SST cubes whose scans lie within a cadence of its own (230-9)
 
 
 def test_time_and_wavelengths_are_the_table_s_at_every_pixel(tmp_path):
@@ -828,9 +828,9 @@ def show_tab(app, qtbot, index):
 
 
 def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
-    # D68: one cube to a tab, the SST cubes whose scan times overlap in one time sync (230-9): the cube shown leads the
-    # time, and one shown next starts at its scan nearest that time, unless within half the longer cadence of it; a cube
-    # from later in the day keeps its own
+    # D68: one cube to a tab, the SST cubes whose scan times overlap or lie within a cadence of each other in one time
+    # sync (230-9): the cube shown leads the time, and one shown next starts at its scan nearest that time, unless
+    # within half the longer cadence of it; a cube from later in the day keeps its own
     write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16), start=1200.0, cadence=60.0)  # 1200 to 1381 s
     write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), start=1170.0, cadence=50.0)  # 1170 to 1370.5 s
     write_sst_cube(tmp_path / "c.fits", (3, 1, 5, 12, 16), start=5000.0, cadence=60.0)  # 5000 to 5121 s

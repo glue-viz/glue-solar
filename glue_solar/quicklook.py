@@ -81,8 +81,8 @@ def observation_key(data):
 
     The OBSID alone names an observing program, which runs many times, so both are needed. An SST cube's is that of the
     IRIS observation it is linked to (`~glue_solar.sources.loaders.iris.link_hpc`), else the one it shares with the SST
-    cubes whose scan times overlap its own (`Coordinator`), or before its collection has a coordinator ``('SST',
-    DATE-OBS)``.
+    cubes whose scan times overlap, or lie within a cadence of, its own (`Coordinator`), or before its collection has a
+    coordinator ``('SST', DATE-OBS)``.
     """
     meta = getattr(data, "meta", None) or {}
     obsid, start = meta.get("OBSID"), meta.get("STARTOBS")
