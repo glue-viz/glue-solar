@@ -1,0 +1,1 @@
+A Coordinate menu 'Point' entry whose check fails unexpectedly stays shown, so choosing it shows the error.

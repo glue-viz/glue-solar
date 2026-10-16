@@ -43,7 +43,8 @@ is on its file, and "Blink" once "Set blink partner here" gives it a partner. In
 "Frame time" is offered for data with a time, "Wavelength band…" while a wavelength axis has a
 slider and "Raster overlays" where a raster of the viewer's observation is loaded. On a plain
 array, of no observation and with no time, the Coordinate menu holds "Clear point" and the blink
-entries only.
+entries only. A "Point" entry whose check fails with an error other than its own refusal stays
+shown, so that choosing it shows the error.
 
 Besides glue's "Home" (H), "Pan" (M) and "Zoom" (Z), and its region selection tools, "Rectangular
 ROI" (R), "X range" (X), "Y range" (Y), "Circular ROI" (C) and "Polygonal ROI" (G), the Image Viewer

@@ -1952,11 +1952,16 @@ class _TimeMasterEntry(_CoordinateEntry):
 
 
 def _takes(check, *args, **kwargs):
-    """Whether ``check``, the guard an entry's run calls too (D61), takes these arguments, raising no ValueError."""
+    """
+    Whether ``check``, the guard an entry's run calls too (D61), takes these arguments, raising no ValueError: also
+    true for any other error, so that running the entry shows it in the entry's own error box (D72 223-5).
+    """
     try:
         check(*args, **kwargs)
-    except ValueError:
+    except ValueError:  # the guard's refusal
         return False
+    except Exception:  # noqa: BLE001 - a fault, not a refusal
+        return True
     return True
 
 
