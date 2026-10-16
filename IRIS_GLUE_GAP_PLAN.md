@@ -28,10 +28,10 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 07bfc5e (#294). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
+**Resume here.** Main is at 23b0c3f (#295). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
 
 **Next** (D81, D82), three at a time with disjoint files (tests in the file named). Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. Running: `wp10-l-lean-tests`, alone.
+  1. Running: #295, alone.
 
   Held for the user (D82): `wp4-l-restored-strip`, `wp13-l-restored-second-map`, `wp3-l-autosave-quit` and `wp3-l-restore-irispy-meta`.
 
@@ -153,7 +153,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP3: `wp3-l-autosave-quit`, `wp3-l-restore-irispy-meta`
 - WP4: `wp4-l-restored-strip`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP10: `wp10-l-lean-tests`
 - WP13: `wp13-l-restored-second-map`
 
 **M4**
@@ -318,10 +317,6 @@ Notes:
 ### WP10: Loader robustness and performance
 
 Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on files up to 20 GB.
-
-**L**
-
-- [ ] **L** `wp10-l-lean-tests` (D82; `audit2/code/report.md`): the tests: shared `app`, `answer`, `run_action` and `restore` helpers (T1-T5), tests the move/stay matrix covers (T6), dead tests and helpers (T8), and fixed 600 ms waits (T9). Also `tools._ASPECT_HOOKS`/`_hooked` (S7, always taken on glue 1.27) with the `test_plugin.py` test that sets them. And `tools.SaveSequenceTool` passes its title to `moments._start`, so `_start`'s handler branch goes. No user-visible change. Done when the suites pass in both envs with the same tests (less any duplicate removed), ruff and the docs build pass, and the lines removed are reported.
 
 Notes:
 - IRIS Level 2 image HDUs are int16 (BSCALE 0.25, BZERO 7992; fill is raw -32768/-32764). glue-solar reads SJIs and AIA cutouts through irispy main's `read_sji_lvl2(memmap=True)`, whose raw int16 keeps the fill under a lazy mask; a `.fits.gz` is decompressed once into bytes that irispy views (#140).
