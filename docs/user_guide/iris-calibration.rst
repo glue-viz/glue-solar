@@ -41,9 +41,6 @@ on 2014-03-29). Its ``<label> DN / s`` is over each scan's own exposure times, s
 is that of the scan alone within 0.2 %; on the 99 scans of OBSID 3602506433, over 68 minutes, it is
 the same, as irispy's response holds the effective area constant from mid-2023 on.
 ``glue_solar.sources.calibration.radiometric_calibration(data)`` adds them in glue's terminal too.
-A session saves the factor as its spectra, not one value a pixel: the seven windows of a 3602506433
-scan, calibrated, add 31 kB, so glue-solar keeps the session as glue closes (see "Saving sessions" in
-:ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`).
 
 A window rebinned with "IRIS: rebin…" (see :ref:`Rebinning <glue_solar_users_guide_iris_rebinning>`)
 is calibrated too. Each bin is the mean of the window's pixels, so the factor takes their spectral

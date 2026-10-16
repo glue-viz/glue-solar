@@ -161,7 +161,9 @@ def test_a_calibrated_session_is_kept_and_restores_the_radiance(app, qtbot, monk
     restored = GlueApplication.restore_session(str(last), show=False)
     qtbot.addWidget(restored)
     for data, back, radiance in zip(windows, restored.data_collection, radiances, strict=True):
-        assert not any(back.get_component(f"{radiance.label} per DN / s").data.strides[:-1])
+        factor = back.get_component(f"{radiance.label} per DN / s")
+        assert factor.units == "erg / (Angstrom DN sr cm2)"
+        assert not any(factor.data.strides[:-1])
         np.testing.assert_array_equal(back[radiance.label], data[radiance])
 
 
