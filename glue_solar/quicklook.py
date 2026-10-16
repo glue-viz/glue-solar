@@ -309,9 +309,10 @@ class Coordinator(HubListener):
 
     The point is the Pixel tool's selection: the coordinator follows the last subset group given a
     `~glue.viewers.image.pixel_selection_subset_state.PixelSubsetState` on IRIS data, an SST cube or, in its quicklook,
-    any cube (`_cube_table`), and a quicklook's point group again once it is the edit subset alone, as after picking it as glue's Active Subset. On a
-    spectral cube the point is a detector pixel at every wavelength: a click takes the axes the
-    clicked viewer does not show, such as a stack's scan or an SST cube's scan and Stokes parameter, from its sliders.
+    any cube (`_cube_table`), and a quicklook's point group again once it is the edit subset alone, as after picking it
+    as glue's Active Subset. On a spectral cube the point is a detector pixel at every wavelength: a click takes the
+    axes the clicked viewer does not show, such as a stack's scan or an SST cube's scan and Stokes parameter, from its
+    sliders.
     A click on a panel that shows wavelength moves the cube's maps to the clicked wavelength instead of fixing it. Every
     other viewer of the cube, or of another window of its file (`_same_file`), then shows the point's
     step, exposure, scan and slit, after a drag only its last position, and editing one of those
@@ -1588,8 +1589,8 @@ def _iris_table(app, datasets, window, main):
 def _cube_axes(data):
     """
     The array axes of ``data`` by the world coordinates along them, ``(time, Stokes, wavelength, y, x)``, None for
-    those it does not have: one wavelength axis, two others of position, on the sky or the Sun, and any of time and
-    Stokes parameter; or None for data of other axes.
+    those it does not have: one wavelength axis, of two wavelengths or more, two others of position, on the sky or the
+    Sun, and any of time and Stokes parameter; or None for data of other axes.
     """
     types = [str(kind) for kind in getattr(data.coords, "world_axis_physical_types", None) or ()]
     matrix = getattr(data.coords, "axis_correlation_matrix", None)
@@ -1605,8 +1606,8 @@ def _cube_axes(data):
     time = along("time") - wave - stokes  # a moving pointing's position depends on time too
     place = along("pos.", "custom:pos.") - wave - stokes - time
     sizes = len(time), len(stokes), len(wave), len(place)
-    if sizes[2:] != (1, 2) or max(sizes[:2]) > 1 or sum(sizes) != data.ndim:
-        return None
+    if sizes[2:] != (1, 2) or max(sizes[:2]) > 1 or sum(sizes) != data.ndim or data.shape[min(wave)] < 2:
+        return None  # one wavelength has no spectrum
     return (next(iter(time), None), next(iter(stokes), None), *wave, *sorted(place))
 
 
@@ -2318,7 +2319,8 @@ class _SpectralLines(QObject):
     none is within half its cadence. The spectrum panel has a dashed gray line at each of those wavelengths, in its x
     unit, while its x axis is the raster's wavelength or wavelength pixel; whenever its x range changes, the wavelength
     panel takes it. The lines follow the point, the time master, the sliders, axis changes and the x unit, and are
-    plain matplotlib lines: 'Save plot' shows them, and sessions and Python scripts leave them out.
+    plain matplotlib lines: 'Save plot' shows them, and sessions and Python scripts leave them out. Of a cube of neither
+    instrument, the wavelength panel is the one against its time axis, if any (`_cube_axes`).
     """
 
     def __init__(self, coordinator, group, panels, spectrum, tab):
@@ -2326,6 +2328,7 @@ class _SpectralLines(QObject):
         self.coordinator, self.group, self.panels, self.spectrum = coordinator, group, panels, spectrum
         self.data = panels[0].state.reference_data
         [self.axis] = _spectral_axes(self.data)
+        self.along = 0 if _role(self.data) else (_cube_axes(self.data) or (None,))[0]
         self.lines = {
             viewer: {
                 name: viewer.axes.add_line(Line2D([], [], gid=f"solar:{name}", zorder=99, visible=False, **style))
@@ -2404,9 +2407,9 @@ class _SpectralLines(QObject):
                 [other] = _shown(state) - {axis}
                 if point is not None and point.slices[other].start is not None:
                     xy["point"] = _across(state, other, [point.slices[other].start])
-                if other == 0 and wavelengths:
+                if other == self.along and wavelengths:
                     xy["wavelength"] = _across(state, axis, wavelengths)
-                if other == 0 and time is not None:
+                if other == self.along and time is not None:
                     xy["time"] = _across(state, other, [time])
             if any([_place(lines[name], xy[name]) for name in lines]):  # every line, not up to the first changed
                 viewer.figure.canvas.draw_idle()
@@ -2431,7 +2434,7 @@ class _SpectralLines(QObject):
             ends = np.interp(ends, values, np.arange(len(values)))
         for viewer in self._raster_panels():
             panel = viewer.state
-            if _shown(panel) == {self.axis, 0}:
+            if _shown(panel) == {self.axis, self.along}:
                 xy = "x" if panel.x_att.axis == self.axis else "y"
                 with delay_callback(panel, f"{xy}_min", f"{xy}_max"):
                     setattr(panel, f"{xy}_min", ends[0])

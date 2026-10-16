@@ -480,10 +480,11 @@ Other spectral cubes
 --------------------
 
 A cube of neither IRIS nor the SST, such as a FITS file that glue's own "FITS file" reader opens,
-has a quicklook when its coordinates give it one wavelength axis and two axes of position, on the
-sky or the Sun, besides any time and Stokes axes; a frequency or velocity axis is not taken. Open it
-from glue's Terminal with ``glue_solar.quicklook.quicklook(application, [cube])``, in a new tab
-named after the cube's label. Its panels are an SST cube's (see "The SST quicklook" in
+has a quicklook when its coordinates give it one wavelength axis, of two wavelengths or more, and
+two axes of position, on the sky or the Sun, besides any time and Stokes axes; a frequency or
+velocity axis is not taken. Open it from glue's Terminal with
+``glue_solar.quicklook.quicklook(application, [cube])``, in a new tab named after the cube's label.
+Its panels are an SST cube's (see "The SST quicklook" in
 :ref:`glue_solar_users_guide_loading_sst_cubes`), chosen from its axes:
 
 - the map, at the middle wavelength, with sliders for the wavelength and any time and Stokes axes,

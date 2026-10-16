@@ -9,6 +9,7 @@ import warnings
 import numpy as np
 import pytest
 from glue.core.data_factories import load_data
+from glue_qt.app import GlueApplication
 from glue_qt.viewers.profile import ProfileViewer
 
 from astropy.io import fits
@@ -19,6 +20,7 @@ from glue_solar.tests.helpers import select_point
 from glue_solar.tests.test_quicklook import (
     bare_app_for,
     changes,
+    drawn,
     entries,
     panels_list,
     point_window,
@@ -35,14 +37,16 @@ def cube_app(qtbot, monkeypatch):
     return bare_app_for(qtbot, monkeypatch)
 
 
-def spectral_cube(path, shape, spectral=("WAVE", "Angstrom", 0.1, 6562.5)):
+WAVE, TIME = ("WAVE", "Angstrom", 0.1, 6562.5), ("TIME", "s", 10, 0)
+
+
+def spectral_cube(path, shape, axes=(WAVE, ("STOKES", "", 1, 1), TIME)):
     """
-    A cube of ``shape``, (wavelength, y, x) or (time, Stokes, wavelength, y, x), written as a FITS file of right
-    ascension, declination, wavelength (``spectral``'s CTYPE, CUNIT, CDELT and value at the first pixel) and any Stokes
-    and time axes, opened by glue's own reader, and its values.
+    A cube of ``shape``, such as (wavelength, y, x) or (time, Stokes, wavelength, y, x), written as a FITS file of right
+    ascension, declination and as many of ``axes`` (each a CTYPE, CUNIT, CDELT and value at the first pixel) as it has
+    others, opened by glue's own reader, and its values.
     """
-    axes = [("RA---TAN", "deg", -1e-4, 150), ("DEC--TAN", "deg", 1e-4, 2), spectral]
-    axes += [("STOKES", "", 1, 1), ("TIME", "s", 10, 0)][: len(shape) - 3]
+    axes = [("RA---TAN", "deg", -1e-4, 150), ("DEC--TAN", "deg", 1e-4, 2), *axes][: len(shape)]
     header = fits.Header({"DATEREF": "2021-09-05T00:00:00", "TIMESYS": "UTC"})
     for n, (ctype, unit, step, value) in enumerate(axes, 1):
         header.update({f"CTYPE{n}": ctype, f"CUNIT{n}": unit, f"CDELT{n}": step, f"CRPIX{n}": 1, f"CRVAL{n}": value})
@@ -148,7 +152,45 @@ def test_a_time_and_stokes_axes_add_their_panels(cube_app, qtbot, tmp_path):
     assert rows(window)[0][1] == "time 2, Stokes 1, λ 4, y 7, x 3"
 
 
+def test_the_lines_find_a_time_axis_after_the_wavelength_axis(cube_app, qtbot, tmp_path):
+    # FITS (RA, DEC, TIME, WAVE): wavelength, time, y and x
+    cube, _ = spectral_cube(tmp_path / "cube.fits", (5, 3, 12, 16), [TIME, WAVE])
+    viewers = quicklook(cube_app, [cube])
+    panel = viewers["wavelength"].state
+    assert (panel.x_att, panel.y_att) == tuple(cube.pixel_component_ids[:2])
+    assert drawn(viewers["wavelength"], "wavelength") == ("x", [2])  # the map's wavelength
+    assert drawn(viewers["slit"], "wavelength") is None
+    spectrum = viewers["spectra"][0].state
+    spectrum.x_display_unit = "Angstrom"
+    spectrum.x_min, spectrum.x_max = 6562.6, 6562.8
+    assert (panel.x_min, panel.x_max) == (pytest.approx(1), pytest.approx(3))
+
+
+def test_a_session_restores_the_quicklook(cube_app, qtbot, tmp_path):
+    cube, values = spectral_cube(tmp_path / "cube.fits", (3, 2, 5, 12, 16))
+    quicklook(cube_app, [cube])
+    cube_app.save_session(str(tmp_path / "cube.glu"))
+    with warnings.catch_warnings(action="ignore", category=FITSFixedWarning):  # it reads the file again
+        restored = GlueApplication.restore_session(str(tmp_path / "cube.glu"), show=False)
+    qtbot.addWidget(restored)
+    qtbot.wait(20)
+    panels = {viewer.state.title: viewer for viewer in restored.viewers[-1]}
+    assert isinstance(panels["cube map"], QuicklookImageViewer)
+    [group] = restored.session.edit_subset_mode.edit_subset
+    # a click moves the point, and the spectra and the light curve with it
+    select_point(panels["cube map"], 5, 9)
+    qtbot.wait(20)
+    assert group.subset_state.slices == [slice(0, 1), slice(0, 1), slice(None), slice(9, 10), slice(5, 6)]
+    np.testing.assert_array_equal(
+        [panels[f"cube Stokes {name}"].state.layers[0].profile[1] for name in "IQ"], values[0, :, :, 9, 5]
+    )
+    np.testing.assert_array_equal(panels["cube light curve"].state.layers[0].profile[1], values[:, 0, 2, 9, 5])
+
+
 def test_a_cube_without_a_wavelength_axis_has_no_quicklook(cube_app, tmp_path):
-    cube, _ = spectral_cube(tmp_path / "cube.fits", (7, 12, 16), ("FREQ", "Hz", 1e9, 4.5e14))
+    cube, _ = spectral_cube(tmp_path / "cube.fits", (7, 12, 16), [("FREQ", "Hz", 1e9, 4.5e14)])
     with pytest.raises(ValueError, match="no raster or slit-jaw image for a quicklook"):
         quicklook(cube_app, [cube])
+    plane, _ = spectral_cube(tmp_path / "plane.fits", (1, 12, 16))  # one wavelength: no spectrum
+    with pytest.raises(ValueError, match="no raster or slit-jaw image for a quicklook"):
+        quicklook(cube_app, [plane])
