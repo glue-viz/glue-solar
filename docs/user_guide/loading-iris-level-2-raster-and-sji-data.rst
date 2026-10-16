@@ -133,7 +133,7 @@ elsewhere.
 
 Hinode/SOT cubes load as AIA cutouts do, each frame with its own time and pointing, in the unit
 irispy reads from their ``BUNIT``: DN for filtergrams and the SP continuum, dimensionless for
-narrowband magnetograms (Stokes V/I × 4096), and G, km / s, degrees or dimensionless for the other SP
+narrowband magnetograms (Stokes V/I × 4096), and G, km / s, deg or dimensionless for the other SP
 maps, which have no ``<label> DN / s``. Their values are float32, NaN where missing, and no other
 value is fill, as negative fields are data. The quicklook gives them no panel; an Image viewer of
 one follows its observation's time and can be its master, as one of an AIA cutout does (see
