@@ -28,18 +28,12 @@ class GaussianConstantFitter(AstropyFitter1D):
     where they are beyond half of that, a Gaussian's standard deviation or a Lorentzian's full width at half maximum.
     The summary adds the center and, within `NEAR` of a main IRIS line (`lines.MAIN_LINES`) for an x axis in Angstrom,
     its Doppler velocity from that line.
-
-    glue-qt's Profile tools call the fitter registered for a new one at each Settings and each fit, so the one
-    registered returns itself, keeping its Settings for every fit (report candidate).
     """
 
     label = "Gaussian + constant (IRIS)"
     linear_background = BoolOption(label="Linear background")
     lorentzian = BoolOption(label="Lorentzian profile")
     fitting_cls = fitting.TRFLSQFitter
-
-    def __call__(self):
-        return self
 
     def set_constraint(self, parameter_name, value=None, fixed=None, limits=None):
         # Settings' row replaces the entry, as glue's keeps an estimate or bounds cleared there (report candidate)
@@ -105,9 +99,6 @@ class GaussianConstantFitter(AstropyFitter1D):
         return text
 
 
-FITTER = GaussianConstantFitter()  # the one in glue's Fit tab
-
-
 def setup():
-    if FITTER not in fit_plugin:  # glue_solar.setup() may run more than once
-        fit_plugin.add(FITTER)
+    if GaussianConstantFitter not in fit_plugin:  # glue_solar.setup() may run more than once
+        fit_plugin.add(GaussianConstantFitter)

@@ -27,6 +27,7 @@ from glue.config import (
 from glue.core import Data
 from glue.core.component import DerivedComponent
 from glue.core.data_factories import load_data
+from glue.core.fitters import PolynomialFitter
 from glue.core.link_helpers import LinkSame
 from glue.core.roi import RectangularROI
 from glue.core.subset import RoiSubsetState, SliceSubsetState
@@ -68,7 +69,7 @@ from astropy.wcs import WCS
 import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
-from glue_solar.fitters import FITTER, GaussianConstantFitter
+from glue_solar.fitters import GaussianConstantFitter
 from glue_solar.lines import rest_wavelength_iris
 from glue_solar.quicklook import QuicklookImageViewer, _role, _wavelengths
 from glue_solar.regrid import north_up_iris, rebin_iris, regrid_iris, regrid_on_time
@@ -2659,7 +2660,7 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
 def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot, monkeypatch, tmp_path):
     glue_solar.setup()
     glue_solar.setup()
-    assert list(fit_plugin).count(FITTER) == 1
+    assert list(fit_plugin).count(GaussianConstantFitter) == 1
     wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 1355, "CDELT1": 0.025})
     x = 1355 + 0.025 * np.arange(49)
     y = 3 + 40 * np.exp(-0.5 * ((x - 1355.62) / 0.04) ** 2)
@@ -2673,7 +2674,7 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot, monkeypatch, tmp_p
     viewer.state.x_display_unit = "Angstrom"
     viewer.toolbar.active_tool = "profile-analysis"
     tools = viewer.toolbar.tools["profile-analysis"]._profile_tools
-    tools.fit_function = FITTER
+    tools.fit_function = GaussianConstantFitter
     tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 1354, 1356.5
 
     def fit():
@@ -2689,10 +2690,8 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot, monkeypatch, tmp_p
     assert model.parameters == pytest.approx([3, 40, 1355.62, 0.04])
     model, _ = GaussianConstantFitter().build_and_fit(x, 50 - y)
     assert model.parameters == pytest.approx([47, -40, 1355.62, 0.04])  # absorption
-    # both options ticked in glue's Settings reach the next fit
-    for option in ("linear_background", "lorentzian"):
-        monkeypatch.setattr(FITTER, option, False)  # put back after the test, as the dialog sets the one fitter
 
+    # both options ticked in glue's Settings reach the next fit
     def tick(dialog):
         dialog.widgets["linear_background"].setChecked(True)
         dialog.widgets["lorentzian"].setChecked(True)
@@ -2719,6 +2718,48 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot, monkeypatch, tmp_p
     restored = GlueApplication.restore_session(str(tmp_path / "fit.glu"))
     qtbot.addWidget(restored)
     assert [type(viewer) for viewer in restored.viewers[0]] == [ProfileViewer]
+
+
+def test_profile_viewers_keep_their_own_fitter_settings(qtbot, monkeypatch):
+    glue_solar.setup()
+    wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 1355, "CDELT1": 0.025})
+    x = 1355 + 0.025 * np.arange(49)
+    data = Data(label="O I", flux=3 + 40 * np.exp(-0.5 * ((x - 1355.62) / 0.04) ** 2), coords=wcs)
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewers = [app.new_data_viewer(ProfileViewer, data=data) for _ in range(2)]
+    for viewer in viewers:
+        viewer.state.x_att = data.world_component_ids[0]
+        viewer.state.x_display_unit = "Angstrom"
+        viewer.toolbar.active_tool = "profile-analysis"
+    first, second = [viewer.toolbar.tools["profile-analysis"]._profile_tools for viewer in viewers]
+
+    def fit(tools):
+        tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 1354, 1356.5
+        tools.ui.text_log.clear()
+        tools.ui.button_fit.click()
+        tools.wait_for_fit()
+        qtbot.waitUntil(lambda: bool(tools.text_log.toPlainText()))
+        return tools.text_log.toPlainText().splitlines()
+
+    def settings(tools, fitter, change):
+        tools.fit_function = fitter
+        monkeypatch.setattr(profile_tools.FitSettingsWidget, "exec_", lambda dialog: change(dialog) or dialog.accept())
+        tools.ui.button_settings.click()
+
+    def bound(dialog):
+        _, _, _, bounded, lower, upper = dialog.constraints._widgets["mean_1"]
+        bounded.setChecked(True)
+        lower.setText("1355.623")  # above the line's center, below its sample at 1355.625 that the fit starts from
+        upper.setText("1355.7")
+
+    settings(first, GaussianConstantFitter, bound)
+    assert float(fit(first)[-2].removeprefix("center = ")) == pytest.approx(1355.623, abs=1e-5)
+    second.fit_function = GaussianConstantFitter
+    assert fit(second)[-2] == "center = 1355.620000"  # the other viewer's bound left out
+    settings(second, PolynomialFitter, lambda dialog: dialog.widgets["degree"].setValue(1))
+    assert len(fit(second)[2:]) == 2  # a line's coefficients, not those of glue's default degree, 3
 
 
 @pytest.mark.remote_data
