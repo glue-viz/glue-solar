@@ -14,7 +14,7 @@ from qtpy import QtWidgets
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
-from glue_solar.regrid import rebin
+from glue_solar.regrid import rebin, regrid_on_time
 from glue_solar.sources import calibration
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
@@ -236,13 +236,14 @@ def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
     dust = calibration.remove_dust(sji)
     rebinned = rebin(dust, (1, 2, 2))  # data made from it keep its meta['dust_removed']
+    regridded = regrid_on_time(dust)
     collection = app.data_collection
-    collection.extend([sji, raster, plain, dust, rebinned])
+    collection.extend([sji, raster, plain, dust, rebinned, regridded])
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
-    for action, datasets in ((DUST, (raster, plain, dust, rebinned)), (RADIANCE, (sji, plain))):
+    for action, datasets in ((DUST, (raster, plain, dust, rebinned, regridded)), (RADIANCE, (sji, plain))):
         for data in datasets:
             tree.ui.layerTree.set_selected_layers([data])
             refused(tree._actions[action])
@@ -255,8 +256,9 @@ def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
         "Could not remove dust\nplain is not an IRIS slit-jaw image.",
         f"Could not remove dust\n{dust.label} has its dust removed already.",
         f"Could not remove dust\n{rebinned.label} has its dust removed already.",
+        f"Could not remove dust\n{regridded.label} has its dust removed already.",
         f"Could not calibrate the radiance\n{sji.label} is not an IRIS raster window.",
         "Could not calibrate the radiance\nplain is not an IRIS raster window.",
         f"Could not calibrate the radiance\n{raster.label} has its radiance already.",
     ]
-    assert len(collection) == 5
+    assert len(collection) == 6
