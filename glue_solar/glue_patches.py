@@ -1,7 +1,9 @@
 """
 Gated fixes for glue-core and glue-qt bugs that IRIS data hits.
 
-Each fix installs, or acts, only when a probe finds the bug, and names the upstream change that retires it.
+Each fix installs, or acts, only when its probe finds the bug (a `needs_*` probe that raises counts as finding it:
+`_needs`), and names its PR, whose row in the plan's Workaround register names the switch and the upstream change that
+retires it.
 """
 
 import builtins
@@ -77,66 +79,26 @@ from sunpy.visualization.colormaps import cmlist
 
 from glue_solar.sources.loaders.iris import WCS_LOCK, _HeldWCS, _LockedWCS
 
-__all__ = [
-    "add_tool",
-    "aggregate_slice_init",
-    "apply_subset_state",
-    "canvas_init",
-    "close_event",
-    "datetime64_to_mpl",
-    "derived_datetime",
-    "export_fits",
-    "load_link_with_units",
-    "load_quantity",
-    "find_combo_data",
-    "get_filter_mask",
-    "layer_action",
-    "link_with_units_init",
-    "mpl_to_datetime64",
-    "needs_axis_label_workaround",
-    "needs_combo_match_workaround",
-    "needs_crosshair_workaround",
-    "needs_date_epoch_workaround",
-    "needs_derived_datetime_workaround",
-    "needs_empty_collapse_workaround",
-    "needs_fits_export_dask_workaround",
-    "needs_icon_cache_workaround",
-    "needs_inverse_workaround",
-    "needs_layer_action_applies_workaround",
-    "needs_link_editor_workaround",
-    "needs_link_restore_workaround",
-    "needs_pixel_point_workaround",
-    "needs_profile_restore_workaround",
-    "needs_pv_dask_workaround",
-    "needs_pv_slice_workaround",
-    "needs_redo_workaround",
-    "needs_reference_crosshair_workaround",
-    "needs_table_time_workaround",
-    "path_link_init",
-    "pv_slice_from_path",
-    "refresh_layer_actions",
-    "reset_wcs",
-    "save_link_with_units",
-    "save_quantity",
-    "sync_pv_slice",
-    "update_icons",
-    "update_x_axislabel",
-    "update_y_axislabel",
-    "user_action_can_trigger",
-    "world2pixel_single_axis",
-]
+
+def _needs(probe):
+    """
+    ``probe()``, or True where it raises, as on a glue change it did not foresee: the patch installs rather than the
+    import failing, which glue logs at info level only, without glue-solar (D82).
+    """
+    try:
+        return probe()
+    except Exception:  # noqa: BLE001 - any failure installs the patch
+        return True
+
 
 _original_world2pixel_single_axis = coordinate_helpers.world2pixel_single_axis
 
 
 def world2pixel_single_axis(wcs, *world, pixel_axis=None):
     """
-    glue-core's ``world2pixel_single_axis`` with the fix from glue-viz/glue#2598 (draft).
-
-    glue-core 1.27.0 keeps only the world axes that depend on ``pixel_axis`` and collapses the others
-    to their first element. The longitude and latitude of an IRIS slit-jaw image depend on time, so
-    every frame was inverted at exposure 0. The fix also keeps the world axes that share a pixel axis
-    with those; the rest is unchanged from glue-core. Installed holding `WCS_LOCK` (`_hold_wcs_lock`).
+    glue-core's ``world2pixel_single_axis``, also keeping the world axes that share a pixel axis with those of
+    ``pixel_axis``: glue-core 1.27.0 inverted each slit-jaw frame, whose pointing moves with time, at exposure 0 (#71,
+    glue-viz/glue#2598). Installed holding `WCS_LOCK` (`_hold_wcs_lock`).
     """
     if pixel_axis is None:
         raise ValueError("pixel_axis needs to be set")
@@ -176,12 +138,8 @@ _original_reset_wcs = WCSAxes.reset_wcs
 
 def reset_wcs(self, wcs=None, *args, **kwargs):
     """
-    astropy's ``WCSAxes.reset_wcs``, holding the lock of a WCS that has one: `WCS_LOCK` for one that `link_hpc` locked,
-    and an SST cube's own.
-
-    It calls wcslib's ``wcsset`` on an astropy WCS, which glue does at each slice of a cube whose sky axes depend on it,
-    such as an SST cube, and which frees what a profile worker's world to pixel of the same WCS reads. Retired with
-    `WCS_LOCK` (astropy/astropy#19174).
+    astropy's ``WCSAxes.reset_wcs``, holding the lock of a WCS that has one (`_HeldWCS`): its ``wcsset``, at each slice
+    of an SST cube, frees what a profile worker's transform of the same WCS reads (#226, #251, astropy/astropy#19174).
     """
     with wcs._held() if isinstance(wcs, _HeldWCS) else nullcontext():
         return _original_reset_wcs(self, wcs, *args, **kwargs)
@@ -196,12 +154,8 @@ _original_sync_slice = pv_slicer.PVSliceWidget._sync_slice
 @defer_draw
 def sync_pv_slice(self, event):
     """
-    glue-qt's ``PVSliceWidget._sync_slice``, keeping the Image viewer's own numbers on its displayed axes.
-
-    A click in glue-qt 0.4.2's PV slice window moves the Image viewer to the clicked slice, but writes
-    WCSAxes' ``'x'`` and ``'y'`` markers into ``state.slices`` on the displayed axes. They then break the
-    next axis change (``int('y')`` in the slice sliders) and every reader of ``slices``. No upstream fix
-    exists yet.
+    glue-qt's ``PVSliceWidget._sync_slice``, keeping the Image viewer's own slices on its displayed axes: glue-qt 0.4.2
+    writes WCSAxes' ``'x'`` and ``'y'`` there, which break the slice sliders' next axis change (#81).
     """
     s = list(self._slc)
     _, _, z = self._pos_in_parent(event)
@@ -218,7 +172,7 @@ def needs_pv_slice_workaround(func=_original_sync_slice):
     return any(isinstance(value, str) for value in state.slices)
 
 
-if needs_pv_slice_workaround():
+if _needs(needs_pv_slice_workaround):
     pv_slicer.PVSliceWidget._sync_slice = sync_pv_slice
 
 
@@ -247,12 +201,9 @@ _original_slice_from_path = pv_slicer._slice_from_path
 
 def pv_slice_from_path(x, y, data, attribute, slc):
     """
-    glue-qt's PV slice (``_slice_from_path``) of a dataset of a dask array, as lazily loaded IRIS data are.
-
-    glue-qt 0.4.2 passes the values it reads, here a dask array, to pvextractor, which takes anything but a NumPy
-    array for a spectral cube and fails on its missing WCS. The slice reads the whole cube, as for eager data.
-    The probe runs on the first slice, not at plugin load: pvextractor imports spectral-cube where it is installed
-    (0.3-0.4 s). Retired once glue-qt passes NumPy values; no upstream fix exists yet.
+    glue-qt's ``_slice_from_path``, reading lazily loaded values as NumPy: glue-qt 0.4.2 passes pvextractor a dask
+    array, which it takes for a spectral cube (#96). Probed at the first slice, as pvextractor imports spectral-cube
+    (0.3-0.4 s, #168).
     """
     if _pv_needs_workaround():
         data = _NumpyValues(data)
@@ -271,7 +222,7 @@ def needs_pv_dask_workaround(func=_original_slice_from_path):
 
 @cache
 def _pv_needs_workaround():
-    return needs_pv_dask_workaround()
+    return _needs(needs_pv_dask_workaround)
 
 
 pv_slicer._slice_from_path = pv_slice_from_path
@@ -282,14 +233,9 @@ _original_fits_writer = gridded_fits.fits_writer
 
 def export_fits(filename, data, components=None, data_header=None, extensions=()):
     """
-    glue-core's "FITS (1 component/HDU)" exporter (``fits_writer``), reading each component as a NumPy array.
-
-    glue-core 1.27.0 sets the values outside an exported subset to NaN in place, which a dask array, as a lazily
-    loaded IRIS component is, refuses with ``IndexError``. The rest is glue-core's, except that a subset's unsigned
-    components, such as the mask, are exported unmasked where glue-core fails on them. Its registration as glue's
-    exporter is retired once glue exports a DaskComponent's subset, no upstream fix exists yet; the function stays for
-    `glue_solar.sources.iris.export_iris_fits`, with ``data_header`` in place of the data's astropy WCS header and
-    ``extensions`` appended.
+    glue-core's "FITS (1 component/HDU)" exporter, reading each component as NumPy: glue-core 1.27.0 masks a subset in
+    place, which a dask array refuses; a subset's unsigned components, such as the mask, go unmasked (#96). Also for
+    `glue_solar.sources.iris.export_iris_fits`, with ``data_header`` for the WCS header and ``extensions`` appended.
     """
     mask = None
     if isinstance(data, Subset):
@@ -335,7 +281,7 @@ def needs_fits_export_dask_workaround(func=_original_fits_writer):
     return False
 
 
-if needs_fits_export_dask_workaround():
+if _needs(needs_fits_export_dask_workaround):
     for i, exporter in enumerate(data_exporter.members):
         if exporter.function is _original_fits_writer:
             data_exporter.members[i] = exporter._replace(function=export_fits)
@@ -346,18 +292,10 @@ _original_to_linked_pixel_coords = PixelSubsetState._to_linked_pixel_coords
 
 def _to_linked_pixel_coords(self, data):
     """
-    glue-core's ``PixelSubsetState._to_linked_pixel_coords``, with a point off ``data`` incompatible with it, and a
-    point whose fixed axes reach no pixel axis of ``data`` placed on it.
-
-    glue-core 1.27.0 rounds the point's linked pixel position with ``int()``, so a point that lies
-    outside a linked dataset, where the position is NaN, raises ``ValueError`` and glue shows an error
-    box, for its crosshair or its spectrum. Retired by the ``core-translate-pixel`` report's fix. glue also wants the
-    axes of ``data`` the point's fixed axes reach to reach back to exactly those, so the SST quicklook's point, whose
-    scan and Stokes parameter reach no IRIS axis, reached no IRIS data (D73). This places a point whose reached axes
-    reach back to fixed axes only, at least one, at the point's own slices, a free axis at its first pixel as glue's:
-    the scan gives the cube's pointing there and the slit-jaw frame nearest it. One whose reached axes reach a free axis
-    stays incompatible, as glue's. Retired by glue's check taking a subset (report candidate). Installed holding
-    `WCS_LOCK` (`_hold_wcs_lock`).
+    glue-core's ``PixelSubsetState._to_linked_pixel_coords``: a point off ``data``, at a NaN pixel, is incompatible
+    rather than a ValueError (#76, #85), and one is placed where the axes its fixed axes reach reach back to fixed axes
+    only, at least one, not to exactly those, as the SST quicklook's scan and Stokes reach no IRIS axis (#246, D73).
+    Installed holding `WCS_LOCK` (`_hold_wcs_lock`).
     """
     dimensions = [axis for axis, s in enumerate(self.slices) if s.start is not None]
     try:
@@ -405,15 +343,13 @@ def needs_pixel_point_workaround(method=_original_to_linked_pixel_coords):
 
 def _hold_wcs_lock():
     """
-    Install glue's ``world2pixel_single_axis`` and ``PixelSubsetState._to_linked_pixel_coords``, or their fixes here
-    where the probes find glue's faulty, holding `WCS_LOCK`: glue's profile workers call them through the WCS of each
-    dataset a link reaches, beside the GUI thread, which crashed glue beside an SST cube. Installed whatever the probes
-    say, so that only astropy/astropy#19174's fix retires the lock (D73). A point to or on a dataset with a WCS
-    `~glue_solar.sources.loaders.iris.link_hpc` has not locked, as it does once it links it, takes no lock: no IRIS
-    data's WCS is linked to it, so an unlinked map or SST cube never waits for IRIS data's threads.
+    Install glue's ``world2pixel_single_axis`` and ``PixelSubsetState._to_linked_pixel_coords``, or their fixes here,
+    holding `WCS_LOCK` whatever the probes say: glue's profile workers call them beside the GUI thread (#232, D73,
+    astropy/astropy#19174). A point to or on a WCS ``link_hpc`` has not locked takes none, so no unlinked map or SST
+    cube waits for IRIS data's threads.
     """
-    inverse = world2pixel_single_axis if needs_inverse_workaround() else _original_world2pixel_single_axis
-    point = _to_linked_pixel_coords if needs_pixel_point_workaround() else _original_to_linked_pixel_coords
+    inverse = world2pixel_single_axis if _needs(needs_inverse_workaround) else _original_world2pixel_single_axis
+    point = _to_linked_pixel_coords if _needs(needs_pixel_point_workaround) else _original_to_linked_pixel_coords
 
     @wraps(inverse)
     def locked_inverse(*args, **kwargs):
@@ -440,13 +376,9 @@ _original_apply_subset_state = ApplySubsetState.do
 
 def apply_subset_state(self, session):
     """
-    glue-core's ``ApplySubsetState.do``, whose Redo puts back the subset states its first run made.
-
-    glue-core 1.27.0 applies the subset state again on Redo, to the edit subset and in the selection mode of then, and
-    listeners rewrite it from the viewers of then: the quicklook places a slit-jaw click on the raster with the frame
-    shown, so Redo after the frame moved gave another exposure or scan. A Redo whose subsets Undo deleted, as those of a
-    new subset group, stays glue's. Retired by glue's ``ApplySubsetState`` keeping the subset states it made (report
-    candidate).
+    glue-core's ``ApplySubsetState.do``, whose Redo puts back the subset states its first run made: glue-core 1.27.0
+    applies the state again, from the viewers of then, so a Redo after the quicklook's frame moved gave another exposure
+    (#182). A Redo whose subsets Undo deleted, as a new subset group's, stays glue's.
     """
     made = getattr(self, "_solar_made", None)
     if made is None or any(subset not in subset.data.subsets for subset in made):
@@ -475,7 +407,7 @@ def needs_redo_workaround(do=_original_apply_subset_state):
     return first.subset_state is not made
 
 
-if needs_redo_workaround():
+if _needs(needs_redo_workaround):
     ApplySubsetState.do = apply_subset_state
 
 
@@ -485,12 +417,8 @@ _original_update_visual_attributes = ImageSubsetLayerArtist._update_visual_attri
 @defer_draw
 def _update_visual_attributes(self, redraw=True):
     """
-    glue-core's ``ImageSubsetLayerArtist._update_visual_attributes``, keeping a Pixel crosshair hidden
-    where the point has no position.
-
-    glue-core 1.27.0 hides the crosshair of a Pixel point that has no position on a displayed axis, as
-    a raster point has none in wavelength, then shows it again here, at (0, 0) or where it last was.
-    Retired by the ``core-pixel-crosshair`` fix (``wp0-core-image-artist-bugs``).
+    glue-core's ``ImageSubsetLayerArtist._update_visual_attributes``, keeping hidden the Pixel crosshair of a point
+    with no position on a displayed axis, as a raster point in wavelength, which glue-core 1.27.0 shows at (0, 0) (#87).
     """
     if not self.enabled:
         return
@@ -527,7 +455,7 @@ def needs_crosshair_workaround(method=_original_update_visual_attributes):
     return line_x.get_visible()
 
 
-if needs_crosshair_workaround():
+if _needs(needs_crosshair_workaround):
     ImageSubsetLayerArtist._update_visual_attributes = _update_visual_attributes
 
 
@@ -537,13 +465,9 @@ _original_update_data = ImageSubsetLayerArtist._update_data
 @defer_draw
 def _update_data(self):
     """
-    glue-core's ``ImageSubsetLayerArtist._update_data``, placing a Pixel crosshair where the point lies in the
-    viewer's reference data.
-
-    glue-core 1.27.0 places each subset layer's crosshair at the point's pixel in the layer's own dataset, along the
-    reference data's axes: a sunpy map linked to IRIS data and shown over a raster map adds a crosshair elsewhere, and
-    over a slit-jaw image, which has one more axis, glue raises IndexError. Retired by the
-    ``wp0-core-image-artist-bugs`` fix.
+    glue-core's ``ImageSubsetLayerArtist._update_data``, placing a Pixel crosshair where the point lies in the reference
+    data: glue-core 1.27.0 places it from the layer's own dataset, elsewhere for a linked sunpy map, and raises
+    IndexError over a slit-jaw image (#107).
     """
     viewer, point = self._viewer_state, self.state.layer.subset_state
     try:
@@ -579,7 +503,7 @@ def needs_reference_crosshair_workaround(method=_original_update_data):
     return line_x.get_visible()
 
 
-if needs_reference_crosshair_workaround():
+if _needs(needs_reference_crosshair_workaround):
     ImageSubsetLayerArtist._update_data = _update_data
 
 
@@ -606,16 +530,9 @@ def _set_axislabel(viewer, axis):
 @defer_draw
 def update_x_axislabel(self, *event):
     """
-    glue-qt's ``ImageViewer.update_x_axislabel``, labeling the WCSAxes coordinate of the x axis directly.
-
-    glue-core 1.27.0 labels an Image viewer's axes with ``WCSAxes.set_xlabel`` and ``set_ylabel``, which
-    place every tick at once to find the coordinate to label, and the next draw places them again. glue
-    sets both labels twice whenever it resets the axes, as at each slit-jaw frame step, so that is four
-    extra tick placements per step. The label goes to the coordinate glue already maps the axis to for
-    its tick label sizes instead. That is the coordinate ``set_xlabel`` finds on the bottom spine, except
-    where WCSAxes puts another one there, as latitude past a 45° roll: glue then names that one after
-    the x axis, and here each coordinate keeps its own name. Retired by the ``wp0-perf-core-draw`` fix
-    in glue-core, or by an astropy release whose ``set_xlabel`` places no ticks.
+    glue-qt's ``ImageViewer.update_x_axislabel``, labeling the WCSAxes coordinate glue maps the x axis to: WCSAxes'
+    ``set_xlabel``, which glue-core 1.27.0 calls, places every tick to find it, four extra placements a slit-jaw frame
+    step (#90). Past a 45° roll, where WCSAxes puts latitude on the bottom spine, each coordinate keeps its own name.
     """
     if not hasattr(self.axes, "coords"):  # not WCSAxes
         return _original_update_axislabels[0](self, *event)
@@ -655,12 +572,12 @@ def needs_axis_label_workaround(updates=_original_update_axislabels):
     return bool(evaluated)
 
 
-if needs_axis_label_workaround():
+if _needs(needs_axis_label_workaround):
     ImageViewer.update_x_axislabel, ImageViewer.update_y_axislabel = update_x_axislabel, update_y_axislabel
 
 
 # glue-core #2599: glue 1.27.0 counts dates in days from 0001-01-01, matplotlib's epoch before 3.3, so a Scatter or
-# Histogram of 2021 times ticks in year 3990. The modules that import the conversions by name, glue.utils first.
+# Histogram of 2021 times ticks in year 3990 (#128). The modules that import the conversions by name, glue.utils first.
 _DATE_MODULES = (glue.utils, glue.utils.matplotlib, scatter_viewer, scatter_layer_artist, matplotlib_viewer,
                  histogram_viewer, histogram_state)
 _original_datetime64_to_mpl = glue.utils.datetime64_to_mpl
@@ -683,7 +600,7 @@ def needs_date_epoch_workaround(func=_original_datetime64_to_mpl):
     return float(func(when)) != dates.date2num(when)
 
 
-if needs_date_epoch_workaround():
+if _needs(needs_date_epoch_workaround):
     for module in _DATE_MODULES:
         for name, function in (("datetime64_to_mpl", datetime64_to_mpl), ("mpl_to_datetime64", mpl_to_datetime64)):
             if hasattr(module, name):
@@ -691,7 +608,7 @@ if needs_date_epoch_workaround():
 
 
 # A Profile Collapse range inside one sample gives glue-qt's `AggregateSlice` an empty range, which glue 1.27.0's image
-# refuses to draw ("Number of steps in bounds should be >=1") in every redraw. Report candidate for glue.
+# refuses to draw ("Number of steps in bounds should be >=1") in every redraw (#132). Report candidate for glue.
 _original_aggregate_init = AggregateSlice.__init__
 
 
@@ -713,13 +630,12 @@ def needs_empty_collapse_workaround():
     return False
 
 
-if needs_empty_collapse_workaround():
+if _needs(needs_empty_collapse_workaround):
     AggregateSlice.__init__ = aggregate_slice_init
 
 
-# glue 1.27.0 saves an astropy Quantity, such as the exposure times in irispy's metadata, as the ndarray it subclasses,
-# which numpy.save refuses, so no session with an IRIS raster saves. Saved as its values and unit instead, a record for
-# glue's own loader to take over (report candidate for glue), only while glue has no saver of its own.
+# glue 1.27.0 saves an astropy Quantity, as irispy's exposure times, as the ndarray it subclasses, which numpy.save
+# refuses, so no session with an IRIS raster saved (#186, D13)
 def save_quantity(quantity, context):
     """
     A session's record of ``quantity``: its values, as nested lists, and its unit as glue saves one, which raises
@@ -738,9 +654,8 @@ if u.Quantity not in GlueSerializer.dispatch:
     loader(u.Quantity)(load_quantity)
 
 
-# glue 1.27.0 saves a `LinkSameWithUnits`, such as `link_hpc` gives a sunpy map, with its conversions, methods of the
-# link itself, so no session holding one opens ("Circular Reference detected"). Saved by its two components instead,
-# as glue saves a `LinkSame` (report candidate for glue, ``wp0-core-session-reports``).
+# glue 1.27.0 saves a `LinkSameWithUnits`, as `link_hpc` gives a sunpy map, with its conversions, methods of the link
+# itself, so no session holding one opened ("Circular Reference detected", #205)
 def save_link_with_units(self, context):
     """A session's record of a `LinkSameWithUnits`: its two components, from which it makes its conversions again."""
     return {"cid1": context.id(self._cid1), "cid2": context.id(self._cid2)}
@@ -763,18 +678,14 @@ def needs_link_restore_workaround():
     return False
 
 
-if needs_link_restore_workaround():
+if _needs(needs_link_restore_workaround):
     LinkSameWithUnits.__gluestate__ = save_link_with_units
     LinkSameWithUnits.__setgluestate__ = classmethod(load_link_with_units)
 
 
-# glue 1.27.0 names both ends of a `LinkSameWithUnits`, such as `link_hpc` gives a sunpy map or SST cube, ``values``,
-# and both of the `PathRelativeLink` between two path diagrams ``k``. Its link editor keeps one choice per name, so once
-# there was one, Link Data and Link Suggestions raised ValueError ("value Helioprojective Latitude is not in valid
-# choices") and never opened. Each end gets its own name, and a `LinkSameWithUnits` also takes the ``cids1`` and
-# ``cids2`` from which the editor's OK makes every link again. That OK makes a `PathRelativeLink` a `ComponentLink`
-# without its names, read then off its bound conversions, ``self`` too, so the next Link Data raised TypeError; they
-# take one name each, as `_ScanAt` does (report candidate for glue).
+# glue 1.27.0 names both ends of a `LinkSameWithUnits` ``values`` and of a `PathRelativeLink` ``k``, and its link editor
+# keeps one choice per name, so Link Data raised ValueError; its OK remakes a `LinkSameWithUnits` from ``cids1`` and
+# ``cids2``, and a `PathRelativeLink` as a `ComponentLink` named from its conversions, ``self`` too (#245)
 _original_link_with_units_init = LinkSameWithUnits.__init__
 _original_path_link_init = PathRelativeLink.__init__
 
@@ -815,17 +726,15 @@ def needs_link_editor_workaround(units_init=_original_link_with_units_init, path
     return False
 
 
-if needs_link_editor_workaround():
+if _needs(needs_link_editor_workaround):
     LinkSameWithUnits.__init__ = link_with_units_init
     PathRelativeLink.__init__ = path_link_init
     PathRelativeLink._forward.__signature__ = inspect.signature(lambda k_from: None)
     PathRelativeLink._backward.__signature__ = inspect.signature(lambda k_to: None)
 
 
-# glue 1.27.0 gives a time linked from another dataset, such as the first light curve's ``Time`` on the others (a
-# `LinkSame`), no kind ("Unknown data kind"): it reads whether a derived component is numeric from its first value,
-# which a datetime is not, and never whether it is a datetime. So no Scatter plot shows two datasets against linked
-# times (report candidate for glue).
+# glue 1.27.0 gives a time linked from another dataset, as the first light curve's ``Time`` on the others, no kind: it
+# reads whether a derived component is numeric, never a datetime, so no Scatter plot showed linked times (#208)
 _original_datetime = DerivedComponent.datetime
 
 
@@ -841,7 +750,7 @@ def needs_derived_datetime_workaround(datetime=_original_datetime):
     return not datetime.fget(second.get_component(first.id["t"]))
 
 
-if needs_derived_datetime_workaround():
+if _needs(needs_derived_datetime_workaround):
     DerivedComponent.datetime = property(derived_datetime)
 
 
@@ -850,12 +759,8 @@ _original_get_filter_mask = DataTableModel.get_filter_mask
 
 def get_filter_mask(self):
     """
-    glue-qt's ``DataTableModel.get_filter_mask``, searching each value of the search column as the table shows it.
-
-    glue-qt 0.4.2 searches each value as text, which a time is not, and glue lists times among the columns to search:
-    so a Table viewer refused a dataset whose first such column is a time, such as a table of burst events, as it
-    searches it with the box empty ("argument of type 'numpy.datetime64' is not iterable"), and raised on a time picked
-    to search. Retired by a glue-qt fix (report candidate).
+    glue-qt's ``DataTableModel.get_filter_mask``, searching each value as the text the table shows: glue-qt 0.4.2
+    refused a dataset whose first searchable column is a time, as a burst table, even with the box empty (#260).
     """
     if self._state.filter is None or self._state.filter_att is None:
         self.filter_mask = np.ones(self.order.shape, dtype=bool)
@@ -880,7 +785,7 @@ def needs_table_time_workaround(method=_original_get_filter_mask):
     return False
 
 
-if needs_table_time_workaround():
+if _needs(needs_table_time_workaround):
     DataTableModel.get_filter_mask = get_filter_mask
 
 
@@ -889,13 +794,8 @@ _original_update_priority = ProfileViewerState._update_priority
 
 def _update_priority(self, name):
     """
-    glue-core's ``ProfileViewerState._update_priority``, restoring the display units after ``x_att``.
-
-    glue-core 1.27.0 restores a Profile viewer's ``x_display_unit`` with its ``x_att``, while the units listed are still
-    those of the reference data's first axis, so a session with a spectrum of an IRIS raster, whose wavelength is its
-    last axis, does not open ("value Angstrom is not in valid choices"). The units now come between ``x_att`` and the
-    limits, as glue's Matplotlib viewer states rank ``_log``. Retired by glue ranking the display units after ``x_att``
-    (``core-profile-restore-priority`` report candidate).
+    glue-core's ``ProfileViewerState._update_priority``, restoring the display units between ``x_att`` and the limits:
+    glue-core 1.27.0 restores them with ``x_att``, so a session with a raster's spectrum did not open (#197).
     """
     if name.endswith("_display_unit"):
         return 0.5
@@ -920,7 +820,7 @@ def needs_profile_restore_workaround(method=_original_update_priority):
     return False
 
 
-if needs_profile_restore_workaround():
+if _needs(needs_profile_restore_workaround):
     ProfileViewerState._update_priority = _update_priority
 
 
@@ -929,12 +829,8 @@ _original_close_event = ImageViewer.closeEvent
 
 def close_event(self, event):
     """
-    glue-qt's ``ImageViewer.closeEvent``, stopping the playback of the viewer's slice sliders once it closes.
-
-    glue-qt 0.4.2 leaves a slider's play timer running when its viewer closes: the viewer's options, sliders
-    included, stay in the application's options panel, and the timer goes on stepping the closed viewer. Each close
-    probes for a slider still playing after glue-qt's own close, so this stops nothing once glue-qt does. Retired by
-    a glue-qt fix (report candidate).
+    glue-qt's ``ImageViewer.closeEvent``, stopping its slice sliders' playback: glue-qt 0.4.2 leaves their timers
+    stepping the closed viewer, whose options stay in the options panel (#115).
     """
     _original_close_event(self, event)
     if not event.isAccepted():
@@ -967,17 +863,9 @@ def _matplotlib_keys(event):
 
 def canvas_init(self, *args, **kwargs):
     """
-    glue-qt's ``MplCanvas.__init__``, leaving F and S over a viewer to glue-solar's frame and wavelength keys
-    (`glue_solar.tools.KEYS`), which glue-qt gives them whatever the modifiers, and dropping matplotlib's grid, log
-    scale, pan and zoom keys, keeping the grid keys on a Profile viewer.
-
-    glue-qt 0.4.2 gives each canvas a matplotlib figure manager, which connects matplotlib's own key bindings: F shows
-    the manager's empty window full screen, S opens matplotlib's save dialog, G and Shift+G raise from WCSAxes and
-    clash with glue's Polygonal ROI, L, K and Shift+L set a log axis behind glue's options, and P and O switch on
-    matplotlib's own pan and zoom beside glue's mouse mode. The others, such as Home, stay, and a Profile viewer, with
-    no WCSAxes and no glue key on G, keeps G and Shift+G, its grids. Each canvas probes for the manager's bindings, so
-    this changes nothing once glue-qt connects none. Retired by glue-qt dropping matplotlib's bindings from its
-    canvases (report candidate).
+    glue-qt's ``MplCanvas.__init__``, without matplotlib's keys of `_DROPPED_KEYMAPS`: glue-qt 0.4.2 binds F and S over
+    glue-solar's (`glue_solar.tools.KEYS`), grid keys that raise from WCSAxes, and log-scale, pan and zoom keys behind
+    glue's options; a Profile viewer keeps its grid keys (#120, #222, #257).
     """
     _original_canvas_init(self, *args, **kwargs)
     manager = getattr(self, "manager", None)
@@ -994,12 +882,8 @@ _original_add_tool = BasicToolbar.add_tool
 
 def add_tool(self, tool):
     """
-    glue-qt's ``BasicToolbar.add_tool``, with a menu tool's tooltip on its button and its entries' tooltips shown.
-
-    glue-qt 0.4.2 sets a menu tool's tooltip, such as the Save menu's, on the action that holds its button, which
-    shows none, and leaves its menu's tooltips hidden, so the tooltips of its entries never show either. Each is
-    probed on its own, so this changes nothing once glue-qt does either. Retired by a glue-qt fix (report
-    candidate).
+    glue-qt's ``BasicToolbar.add_tool``, with a menu tool's tooltip on its button and its entries' tooltips shown,
+    which glue-qt 0.4.2 hides (#222).
     """
     action = _original_add_tool(self, tool)
     button = self.widgetForAction(action)
@@ -1016,12 +900,8 @@ BasicToolbar.add_tool = add_tool
 
 class BoolFormItem(simpleforms.BoolFormItem):
     """
-    glue-qt's ``BoolFormItem``, its check box giving its state as ``value()``.
-
-    glue-qt 0.4.2's fit Settings dialog (``FitSettingsWidget.update_fitter_from_settings``) reads each option's
-    widget's ``value()``, which a check box lacks, so OK raises for a fitter with a ``BoolOption``, such as the
-    IRIS fitter's linear background. Each box probes for it, so this changes nothing once Qt or glue-qt gives one.
-    Retired by glue-qt reading the form item's ``value`` (report candidate).
+    glue-qt's ``BoolFormItem``, its check box giving ``value()``, which glue-qt 0.4.2's fit Settings read, so OK raised
+    for a fitter with a ``BoolOption``, as the IRIS fitter's linear background (#259).
     """
 
     def __init__(self, instance, option):
@@ -1067,11 +947,9 @@ _icons = {}  # (id(colormap), width): (colormap, icon), the colormap kept so tha
 
 def update_icons(self):
     """
-    glue-qt's ``QColormapCombo._update_icons``, with the icons of each colormap and width shared by every combo.
-
-    glue-qt 0.4.2 draws the icon of every colormap listed whenever it builds or resizes a combo, as for each Image
-    layer's style editor: 0.3 ms a colormap, 30 ms with every sunpy colormap listed. The probe runs at the first combo,
-    which needs Qt's application. Retired by glue-qt caching icons (``wp0-perf-qt``).
+    glue-qt's ``QColormapCombo._update_icons``, sharing each colormap's icon at each width between combos: glue-qt 0.4.2
+    draws every listed colormap at each build or resize, 30 ms with sunpy's (#177). Probed at the first combo, which
+    needs Qt's application.
     """
     if not _icons_need_workaround():
         return _original_update_icons(self)
@@ -1106,7 +984,7 @@ def needs_icon_cache_workaround(method=_original_update_icons):
 
 @cache
 def _icons_need_workaround():
-    return needs_icon_cache_workaround()
+    return _needs(needs_icon_cache_workaround)
 
 
 colors.QColormapCombo._update_icons = update_icons
@@ -1117,14 +995,9 @@ _original_find_combo_data = connect._find_combo_data
 
 def find_combo_data(widget, value):
     """
-    echo's ``_find_combo_data``, matching a colormap to the entry that is it, then to one of its name or of the sunpy
-    colormap of that key, before an earlier entry of equal colors.
-
-    sunpy has colormaps of equal colors, such as AIA 171, SUVI 171 and EUI 174, and echo 0.15 matches the first
-    listed: an AIA 171 map's menu showed SUVI 171, and picking AIA 171 gave SUVI 171 back. A sunpy map's colormap and
-    the one glue restores from a session are matplotlib's copies, named by sunpy's key or by the saved name. Retired by
-    echo matching the entry that is the value first (report candidate), once the readers and glue's restore give the
-    listed colormap rather than a copy.
+    echo's ``_find_combo_data``, matching a colormap to the entry that is it, then to one of its name or sunpy key,
+    before an earlier one of equal colors: echo 0.15 matched an AIA 171 map to SUVI 171 (#194). A map's colormap and a
+    restored one are matplotlib's copies, named by sunpy's key or the saved name.
     """
     index = _original_find_combo_data(widget, value)
     if isinstance(value, Colormap):
@@ -1143,7 +1016,7 @@ def needs_combo_match_workaround(find=_original_find_combo_data):
     return find(combo, colormaps["sdoaia171"]) == 0
 
 
-if needs_combo_match_workaround():
+if _needs(needs_combo_match_workaround):
     connect._find_combo_data = find_combo_data
 
 
@@ -1153,11 +1026,8 @@ _APPLIES = {}  # a layer action's callback: its ``applies``, where glue-qt's lay
 
 def user_action_can_trigger(self):
     """
-    glue-qt's ``UserAction._can_trigger``, also false where the action's ``applies`` (`layer_action`) is.
-
-    glue-qt 0.4.2 shows a layer action by the kind of layer selected only, so each of glue-solar's showed on every
-    dataset and mostly ended in an error box. Retired by glue-qt's layer actions taking ``applies`` (upstream candidate,
-    ``layer-action-applies``).
+    glue-qt's ``UserAction._can_trigger``, also false where the action's ``applies`` (`layer_action`) is: glue-qt 0.4.2
+    shows each layer action on every layer of its kind, mostly ending in an error box (#223, #257).
     """
     if not _original_can_trigger(self):
         return False
@@ -1174,7 +1044,7 @@ def needs_layer_action_applies_workaround():
     return False
 
 
-_needs_applies_workaround = needs_layer_action_applies_workaround()
+_needs_applies_workaround = _needs(needs_layer_action_applies_workaround)
 if _needs_applies_workaround:
     UserAction._can_trigger = user_action_can_trigger
 

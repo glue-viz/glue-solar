@@ -1,0 +1,1 @@
+glue_patches' docstrings are shorter, and a patch whose probe raises installs rather than glue-solar failing to load.
