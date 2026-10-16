@@ -28,10 +28,10 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 51f777e (#288). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
+**Resume here.** Main is at 98aa006 (#289). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
 
 **Next** (D81, D82), three at a time with disjoint files (tests in the file named). Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. Running: `wp6-l-fit-lines` (test_plugin), `wp10-l-lean-patches` and `wp2-l-radiance-factor-saver` (test_calibration).
+  1. Running: `wp6-l-fit-lines` (test_plugin), `wp10-l-lean-patches` and #289 (test_calibration).
   2. Then, as files come free: `wp9-l-app-reproject-metadata` and the `-lean-` items, `wp10-l-lean-tests` last and alone.
 
   Held for the user (D82): `wp4-l-restored-strip`, `wp13-l-restored-second-map`, `wp3-l-autosave-quit` and `wp3-l-restore-irispy-meta`.
@@ -125,7 +125,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 - **D72:** The choice review (2026-10-11; `choices/` in the session archive): every PROVISIONAL of #100-#232 not changed stands and is no longer provisional. The changes are on main, except 206-3 and 206-7 (`wp3-l-autosave-quit`), 205-1 (`wp3-l-restore-irispy-meta`), 160-x1 (`wp9-m4-release-updates`) and 216-2 (`wp0-qt-run-script`); D56, D59, D61 and D64 read as they changed. Other rules: the analyses keep DN/s in float64 (213-3); the mean spectrum leaves saturated samples out and counts them (213-7); calibration takes rebinned windows (220-5); menu help stays as tooltips (222-3); the cavity error stays in nm, the guide giving km/s (227-2); panel toggles keep their 0 ms layout (228-6); the app has its own icon (216-9); every patch or override on main has a register row with its upstream route, updated by the PR that adds or retires it (D63-2).
 - **D73:** After the audit of #226-#235 (`audit/` in the session archive): an SST point reaches linked IRIS data through the widened `_to_linked_pixel_coords` patch (#246); the WCS locks around glue's `world2pixel_single_axis` and `_to_linked_pixel_coords` are lock-only wrappers installed whatever the probes say, retiring with astropy#19174's fix only (#251); an SST cube's WCS has its own `RLock`, linked or not (#240); overrides fixing no upstream fault get 'none: glue-solar feature' or 'kept by decision' rows; 'Glue Session including data' failing on SST cubes and lazy IRIS windows is documented, not a defect.
 - **D74:** Whether to drop glue-solar's session support: settled by D81 (kept).
-- **D75:** The real-data acceptance run (2026-10-12, main 838d64a; `acceptance/` in the session archive) followed every user guide on full-size data; its fixes are on main, and its session items are `wp2-l-radiance-factor-saver`, `wp13-l-restored-second-map` and `wp3-l-autosave-quit`'s path-diagram case. On macOS `QSettings('glue-solar', 'glue-solar')` ignores a temporary HOME: glue-solar's conftest patches `iris.QSettings`, and probes must too.
+- **D75:** The real-data acceptance run (2026-10-12, main 838d64a; `acceptance/` in the session archive) followed every user guide on full-size data; its fixes are on main, and its session items are #289, `wp13-l-restored-second-map` and `wp3-l-autosave-quit`'s path-diagram case. On macOS `QSettings('glue-solar', 'glue-solar')` ignores a temporary HOME: glue-solar's conftest patches `iris.QSettings`, and probes must too.
 - **D76:** The choice review's third pass (#233-#240's 44 choices, chunks d0-d7): 36 kept, every other PROVISIONAL of #233-#240 included; calibration keeps the first scan's dispersion and solid angle but refuses a stack whose scans' CDELT1-3 differ (237-1, 238-6). The changes are on main.
 - **D77:** The PyQt6 6.11 floor env keeps the astropy 8.0.0 and ndcube 2.4.0 floors. The glue team allows copying glue-standalone-apps' spec and hooks (216-8, #275). App checks may launch the built app on the user's desktop with `open`, as the Finder does.
 - **D78:** One fill builds every quicklook from a panel table per data kind: IRIS raster, slit-jaw only, SST and generic (#277). The generic table follows the cube's WCS axes (spectral, celestial, time, Stokes), giving SST-like panels, with λ–time and the light curve only for a time axis, from a 'Quicklook…' layer action on any cube with one spectral and two spatial axes.
@@ -151,7 +151,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
-- WP3: `wp2-l-radiance-factor-saver`, `wp3-l-autosave-quit`, `wp3-l-restore-irispy-meta`
+- WP3: `wp3-l-autosave-quit`, `wp3-l-restore-irispy-meta`
 - WP4: `wp4-l-restored-strip`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP6: `wp6-l-fit-lines`
@@ -257,7 +257,6 @@ Makes Save and Open Session work for the quicklook and every glue-solar dataset 
 
 **L**
 
-- [ ] **L** `wp2-l-radiance-factor-saver` (D75, D81): `<label> radiance per DN / s` is a broadcast view of one spectrum in memory, but glue's Component saver writes it in full, so a session after a calibration holds a float64 cube per window (10.9 MB a 3602506433 scan; 2 GB and 6.3 GB sessions in the acceptance run), and the autosave skips every session after one. A `Component` subclass saves the spectra and the shape and restores the broadcast, and the autosave's count takes that size. Done when the scan's session grows under 0.1 MB after calibration, the restored radiance equals main's, and the calibration test round-trips a session.
 - [ ] **L** `wp3-l-autosave-quit` (D72): The last session is saved on quit only, not on Open Session, Reset Session or 'IRIS: restore last session', so a restore never swaps sessions (206-3). A skipped save (over 1 MB, data glue cannot save, a failed write) is reported in the window, on close or in 'IRIS: restore last session', not only in the terminal, which the macOS app lacks (206-7). With a path diagram loaded no last session is kept today: `_save_last_session` counts values with `data.get_component`, which a `PathData` lacks; count only `Data` (D75). Done when restoring twice in a row gives the same session, and the app shows a skipped save's reason.
 - [ ] **L** `wp3-l-restore-irispy-meta` (D72, D82; 205-1; held for the user): local branch `wp3-l-restore-irispy-meta` (a85bd0c, not pushed) restores a one-scan raster held in memory as a `_Raster(Data)` whose `__setgluestate__` gives back irispy's `SGMeta` (+18 lines). The item's premise failed: `_irispy_meta`'s dict path must stay for rebinned windows (a dict meta) and older sessions, and bursts and radiance were already right, so the branch adds code with no change in behavior. Merge it, or drop the item.
 
