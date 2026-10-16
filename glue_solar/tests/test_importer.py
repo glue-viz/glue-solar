@@ -1211,13 +1211,14 @@ def test_reader_failure_stays_in_dialog(qtbot, tmp_path, name, instrume, band):
     assert dialog.cancel.text() == "Cancel"  # and Load selected is back
 
 
-def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_test_files):
+@pytest.mark.parametrize("keep", [lambda n: n // 2, lambda n: n - 5000], ids=["headers", "data"])
+def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_test_files, keep):
     scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r0000" in path.name)[:2]
     for scan in scans:
         shutil.copy2(scan, tmp_path / scan.name)
     truncated = tmp_path / scans[1].name
     data = truncated.read_bytes()
-    truncated.write_bytes(data[: len(data) // 2])  # as an interrupted download leaves it
+    truncated.write_bytes(data[: keep(len(data))])  # as an interrupted download leaves it
 
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
