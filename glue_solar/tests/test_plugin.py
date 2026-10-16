@@ -94,7 +94,7 @@ from glue_solar.sources.red_blue import red_blue_iris
 from glue_solar.tests.helpers import count_tick_work, mouse, press, raster_point_on_sji
 from glue_solar.tests.test_lazy import RASTER, SJI
 from glue_solar.tests.test_quicklook import drifting_stack
-from glue_solar.tools import PathData, sky_length
+from glue_solar.tools import AxesPreferences, PathData, sky_length
 
 
 def test_setup_registers_hooks():
@@ -735,6 +735,36 @@ def test_sessions_keep_each_viewers_axes(qtbot, monkeypatch, tmp_path):
         (False, False),
         (True, True),
     ]
+
+
+def test_axes_preference_is_saved(qtbot, monkeypatch, tmp_path):
+    import configparser
+
+    import glue.config
+    from glue_qt.app.preferences import PreferencesDialog
+
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    image = Data(label="image", flux=np.arange(20.0).reshape(4, 5))
+    app.data_collection.append(image)
+    monkeypatch.setattr(glue.config, "CFG_DIR", str(tmp_path / ".glue"))  # glue's settings folder, not the user's
+    monkeypatch.setattr(settings, "_save_to_disk", True, raising=False)  # which a test run may turn off
+    for name in ("FOREGROUND_COLOR", "BACKGROUND_COLOR", "DATA_COLOR", "DATA_ALPHA", "FONT_SIZE", "SOLAR_SHOW_AXES"):
+        monkeypatch.setattr(settings, name, getattr(settings, name))  # restored after the dialog's OK sets them
+    dialog = PreferencesDialog(app)
+    qtbot.addWidget(dialog)
+    [pane] = [pane for pane in dialog.panes if isinstance(pane, AxesPreferences)]
+    assert dialog.ui.tab_widget.tabText(dialog.ui.tab_widget.indexOf(pane)) == "glue-solar"
+    assert pane.show_axes.isChecked()
+    pane.show_axes.setChecked(False)
+    dialog.ui.ok.click()
+    assert settings.SOLAR_SHOW_AXES is False
+    viewer = app.new_data_viewer(ImageViewer, data=image)
+    assert (viewer.state.show_axes, viewer.axes.axison) == (False, False)
+    saved = configparser.ConfigParser()
+    saved.read(tmp_path / ".glue" / "settings.cfg")
+    assert saved["main"]["solar_show_axes"] == "false"  # which glue reads on its next start, after loading plugins
 
 
 def test_sessions_with_per_frame_limits_fail_to_restore(qtbot, tmp_path):

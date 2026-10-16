@@ -189,10 +189,11 @@ toolbar has:
   coordinates. A saved session keeps each viewer's choice. A quicklook's image panels open without
   axes, and "Axes" in its Panels list shows or hides them on all of them at once, partly ticked while
   the panels differ (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). To open every
-  other new Image viewer without axes, add ``solar_show_axes = false`` to the ``[main]`` section
-  of glue's settings file, ``~/.glue/settings.cfg``, or type
-  ``from glue.config import settings; settings.SOLAR_SHOW_AXES = False`` in glue's terminal for the
-  rest of the session ("OK" in glue's Preferences then saves it to that file).
+  other new Image viewer without axes, untick "Show axes on new Image viewers" in the "glue-solar" tab
+  of glue's Preferences (the "Preferences" button in the toolbar at the top of the main window) and
+  press "OK". glue saves it with its other preferences in ``~/.glue/settings.cfg`` while "Save
+  preferences to disk", below the tabs, is ticked, as it is by default, and reads it when it starts.
+  Viewers already open keep their axes, and quicklooks still open theirs hidden.
 - "Per-frame limits", in the View menu: takes the color limits of the displayed dataset from the
   displayed slice, at the layer's percentile (99.5 % on the quicklook panels), so each slice step,
   such as a wavelength step of a raster map, gets that slice's limits; choose it again for the whole
