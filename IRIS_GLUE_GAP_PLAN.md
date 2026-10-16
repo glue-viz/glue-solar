@@ -28,10 +28,10 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 041229c (#285). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
+**Resume here.** Main is at 5058533 (#286). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
 
 **Next** (D81, D82), three at a time with disjoint files (tests in the file named). Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. Running: `wp1-l-relink-restored-request` (test_linking), `wp6-l-fitter-per-viewer` (test_plugin) and `wp4-l-point-edit-subset` (test_quicklook).
+  1. Running: #286 (test_linking), `wp6-l-fitter-per-viewer` (test_plugin) and `wp4-l-point-edit-subset` (test_quicklook).
   2. Then, as files come free: `wp3-l-restore-irispy-meta`, `wp6-l-fit-lines`, `wp2-l-radiance-factor-saver`, `wp9-l-app-reproject-metadata` and the `-lean-` items, `wp10-l-lean-tests` last and alone.
 
   Held for the user (D82): `wp4-l-restored-strip`, `wp13-l-restored-second-map` and `wp3-l-autosave-quit`.
@@ -151,7 +151,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
-- WP1: `wp1-l-relink-restored-request`
 - WP3: `wp2-l-radiance-factor-saver`, `wp3-l-autosave-quit`, `wp3-l-restore-irispy-meta`
 - WP4: `wp4-l-restored-strip`, `wp4-l-point-edit-subset`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
@@ -237,10 +236,6 @@ Notes:
 ### WP1: Coordinates, units and links
 
 The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links between IRIS datasets and sunpy maps.
-
-**L**
-
-- [ ] **L** `wp1-l-relink-restored-request` (D73; #226): The datasets 'IRIS: link helioprojective coordinates' linked are kept only in `_Relinker.others`, a WeakSet no session saves, so after a restore, once the IRIS dataset they were linked through is removed, `link_hpc` skips them and the cube is quietly unlinked, where a live session relinks it through the next IRIS dataset. `keep_hpc_linked` adds to `others` every non-IRIS dataset whose helioprojective components already have a `link_hpc` link to IRIS data, an IRIS observation's AIA cutouts and SOT cubes included (#256). A reopened session also locks a linked map's WCS only at the next `link_hpc`. Done when a restored session's cube stays linked to the raster after the SJI is removed, as a live one does, with and without a quicklook opened first, and a session or linking test covers it.
 
 **M4**
 
