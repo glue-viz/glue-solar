@@ -22,6 +22,7 @@ from glue.core.component import Component
 from glue.core.component_id import ComponentID
 from glue.core.component_link import ComponentLink
 from glue.core.data import Data
+from glue.core.data_collection import DataCollection
 from glue.core.data_factories import LoadLog
 from glue.core.hub import HubListener
 from glue.core.link_helpers import LinkSame, LinkSameWithUnits
@@ -974,7 +975,7 @@ def link_hpc(data_collection, others=()):
 class _Relinker(HubListener):
     """
     Link the IRIS datasets of a collection again, once, after datasets are removed from it, and the other datasets
-    `keep_hpc_linked` was asked to link, ``others``.
+    `keep_hpc_linked` was asked to link or found linked, ``others``.
     """
 
     def __init__(self, data_collection):
@@ -994,10 +995,47 @@ class _Relinker(HubListener):
         keep_hpc_linked(self.data_collection)
 
 
+def _linked_to_iris(data_collection):
+    """
+    The datasets of ``data_collection`` other than IRIS data, AIA cutouts and SOT cubes among them, whose
+    helioprojective longitude or latitude a link pairs with the first IRIS dataset's, as `link_hpc` links them on
+    request; not one linked by hand, in glue's Link Data dialog, to another IRIS dataset.
+    """
+    from glue_solar.quicklook import _role  # which imports this module
+
+    anchors, others = {}, {}
+    for data in data_collection:
+        physical_types = getattr(data.coords, "world_axis_physical_types", None) or ()
+        for physical_type, cid in zip(physical_types[::-1], data.world_component_ids):
+            if physical_type and physical_type.startswith("custom:pos.helioprojective."):
+                if isinstance(data.coords, _GlueWCS) and _role(data) != "aia":
+                    anchors.setdefault(physical_type, cid)  # as `link_hpc` picks them
+                else:
+                    others[cid] = data
+    anchors, linked = set(anchors.values()), set()
+    for link in data_collection.links:
+        ends = {link.get_to_id(), *link.get_from_ids()}
+        if ends & anchors:
+            linked.update(others[cid] for cid in ends & others.keys())
+    return linked
+
+
+def _relinker(data_collection):
+    """
+    The `_Relinker` of ``data_collection``, made on first use, which also links again the datasets already linked to
+    the first IRIS dataset (`_linked_to_iris`): a session keeps their links, not that they were asked for.
+    """
+    if not hasattr(data_collection, "_solar_relinker"):
+        data_collection._solar_relinker = _Relinker(data_collection)  # the hub holds its listeners weakly
+    data_collection._solar_relinker.others.update(_linked_to_iris(data_collection))
+    return data_collection._solar_relinker
+
+
 def keep_hpc_linked(data_collection, others=()):
     """
     Add the `link_hpc` links of the IRIS datasets of ``data_collection`` and of ``others``, other datasets of it, and
-    add them again after any dataset is removed, those of ``others`` given to any call too.
+    add them again after any dataset is removed, those of ``others`` given to any call too, and those of the other
+    datasets already linked to the first IRIS dataset, as a session restores them (`_LinkedCollection`).
 
     Data outside the IRIS observations, such as a sunpy map or an SST cube, and the AIA cutouts and SOT cubes of an
     observation's own tarballs, are linked only on request ('IRIS: link helioprojective coordinates'), not as data
@@ -1007,13 +1045,33 @@ def keep_hpc_linked(data_collection, others=()):
     Removing the dataset the others are linked through drops their links, so they are then linked
     through the new first dataset. Datasets loaded later need another call.
     """
-    if not hasattr(data_collection, "_solar_relinker"):
-        data_collection._solar_relinker = _Relinker(data_collection)  # the hub holds its listeners weakly
-    requested = data_collection._solar_relinker.others
+    requested = _relinker(data_collection).others
     requested.update(others)
     links = link_hpc(data_collection, requested)
     if links:  # glue rediscovers every dataset's links on each add_link, even an empty one
         data_collection.add_link(links)
+
+
+class _LinkedCollection:
+    """
+    glue's data collection as a session restores it (`_keep_restored_links`), with its links as saved and its
+    `_Relinker`, as a live one's, quicklook or not: the datasets 'IRIS: link helioprojective coordinates' linked are
+    linked again through the next IRIS dataset once the one they were linked through is removed.
+    """
+
+    @staticmethod
+    def __setgluestate__(rec, context):
+        collection = context.dispatch.get_version(DataCollection, rec.get("_protocol", 1))(rec, context)
+        _relinker(collection)
+        return collection
+
+
+@session_patch()
+def _keep_restored_links(session):
+    """Restore a session's data collection as `_LinkedCollection`, through glue's own loader."""
+    for record in session.values():
+        if isinstance(record, dict) and record.get("_type") == f"{DataCollection.__module__}.DataCollection":
+            record["_type"] = f"{__name__}.{_LinkedCollection.__name__}"
 
 
 def load_entry(observation, kind, name, stack=False):

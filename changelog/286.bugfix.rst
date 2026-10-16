@@ -1,0 +1,1 @@
+In a reopened session, data linked with 'IRIS: link helioprojective coordinates' stay linked when the IRIS dataset they were linked through is removed.

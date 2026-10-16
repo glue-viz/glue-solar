@@ -388,8 +388,8 @@ slit-jaw frame step 0.1 s rather than 0.03 s. The menu entry only adds links tha
 running it again after loading more data is safe. Glue's "Link Data" dialog, and its link
 suggestions when more data are opened, list these links (a map's or SST cube's as a "Collection of
 links") and keep them on OK. Removing a dataset leaves the others linked, those linked on request
-included. A reopened session restores those links, but choose the menu entry again after reopening
-it: until then, removing a dataset drops the links of the datasets linked on request, and a map's viewer and Glue's spectrum
+included, in a reopened session too, which restores those links. Choose the menu entry again after
+reopening a session with a map linked, though: until then, a map's viewer and Glue's spectrum
 threads can reach its coordinates at once, which can crash Glue. The links pair coordinates as they
 are: they do not allow for the Sun's rotation between a map and the IRIS data, or for a map taken
 far from Earth; an IRIS dataset's own pointing can be corrected with "IRIS: shift pointing…" (see
