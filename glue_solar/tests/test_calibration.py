@@ -3,6 +3,7 @@
 files: what glue gets of irispy's own calls.
 """
 
+import glue.config
 import numpy as np
 import pytest
 from glue.core import Data
@@ -140,6 +141,30 @@ def test_the_radiance_is_irispys_radiometric_calibration(app, request, which, wi
     values, kept = raster[radiance], ~direct.mask
     np.testing.assert_array_equal(np.isnan(values), direct.mask)
     np.testing.assert_allclose(values[kept], direct.data[kept], rtol=1e-6, atol=0)
+
+
+def test_a_calibrated_session_is_kept_and_restores_the_radiance(app, qtbot, monkeypatch, tmp_path, scan_path):
+    """
+    The calibration of the nine windows of 3860258481's scan grows the session glue-solar keeps as glue closes by under
+    0.1 MB, not by their factors' 1.3 MB of float64 values, over the 1 MB it keeps, and the session restores each
+    factor as one spectrum held and the same radiance (D75).
+    """
+    monkeypatch.setattr(glue.config, "CFG_DIR", str(tmp_path))  # glue's settings folder, not the user's
+    windows = raster_data([scan_path])
+    app.data_collection.extend(windows)
+    app.save_session(str(tmp_path / "before.glu"))
+    radiances = [calibration.radiometric_calibration(data) for data in windows]
+    app.show()
+    glue_solar._save_last_session(app)  # as glue's window closes
+    last = tmp_path / "glue-solar-last-session.glu"
+    assert last.stat().st_size - (tmp_path / "before.glu").stat().st_size < 1e5
+    restored = GlueApplication.restore_session(str(last), show=False)
+    qtbot.addWidget(restored)
+    for data, back, radiance in zip(windows, restored.data_collection, radiances, strict=True):
+        factor = back.get_component(f"{radiance.label} per DN / s")
+        assert factor.units == "erg / (Angstrom DN sr cm2)"
+        assert not any(factor.data.strides[:-1])
+        np.testing.assert_array_equal(back[radiance.label], data[radiance])
 
 
 def test_a_stacks_radiance_is_each_scans_own(app, stack_paths):
