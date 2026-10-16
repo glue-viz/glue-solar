@@ -195,7 +195,7 @@ def test_file_open_gives_the_cube_alone_memory_mapped(tmp_path):
     assert stokes.meta["VAR-EXT"]["DATE-AVG"].shape == (3, 1, 5, 1, 1)
     assert data.meta["SPECSYS"] == "TOPOCENT"  # SST2: astropy needs one beside OBSGEO
     assert _role(data) == "sst"
-    assert _timed(data)  # in the time sync of the SST cubes whose scan times overlap its own (230-9)
+    assert _timed(data)  # in the time sync of the SST cubes whose scans lie within a cadence of its own (230-9)
 
 
 def test_time_and_wavelengths_are_the_table_s_at_every_pixel(tmp_path):
@@ -828,9 +828,9 @@ def show_tab(app, qtbot, index):
 
 
 def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
-    # D68: one cube to a tab, the SST cubes whose scan times overlap in one time sync (230-9): the cube shown leads the
-    # time, and one shown next starts at its scan nearest that time, unless within half the longer cadence of it; a cube
-    # from later in the day keeps its own
+    # D68: one cube to a tab, the SST cubes whose scan times overlap or lie within a cadence of each other in one time
+    # sync (230-9): the cube shown leads the time, and one shown next starts at its scan nearest that time, unless
+    # within half the longer cadence of it; a cube from later in the day keeps its own
     write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16), start=1200.0, cadence=60.0)  # 1200 to 1381 s
     write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), start=1170.0, cadence=50.0)  # 1170 to 1370.5 s
     write_sst_cube(tmp_path / "c.fits", (3, 1, 5, 12, 16), start=5000.0, cadence=60.0)  # 5000 to 5121 s
@@ -864,12 +864,16 @@ def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
 
 
 def test_sst_time_keys_follow_overlapping_scans(qtbot, tmp_path):
-    # 230-9: a cube overlapping only the tail of a group's earliest cube joins the group, and a chosen time master stays
-    # one as cubes come and go and its group's key moves
+    # 230-9, 253-2: cubes share a key when their scans overlap or lie within the larger of their cadences of each other,
+    # transitively: d, within b's cadence of only the tail of b, the group's earliest cube, joins it; and a chosen time
+    # master stays one as cubes come and go and its group's key moves
     write_sst_cube(tmp_path / "a.fits", (3, 1, 5, 12, 16), start=1200.0, cadence=60.0)  # 1200 to 1321 s
     write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), start=1170.0, cadence=57.5)  # 1170 to 1400.5 s
-    write_sst_cube(tmp_path / "d.fits", (3, 1, 5, 12, 16), start=1340.0, cadence=60.0)  # 1340 to 1461 s
-    a, b, d = (sst_data(tmp_path / f"{name}.fits") for name in "abd")
+    write_sst_cube(tmp_path / "d.fits", (3, 1, 5, 12, 16), start=1440.0, cadence=30.0)  # 1440 to 1501 s
+    write_sst_cube(tmp_path / "e.fits", (2, 1, 5, 12, 16), start=1601.0, cadence=120.0)  # 1601 to 1722 s
+    write_sst_cube(tmp_path / "f.fits", (2, 1, 5, 12, 16), start=1872.0, cadence=100.0)  # 1872 to 1973 s
+    write_sst_cube(tmp_path / "g.fits", (2, 1, 5, 12, 16), start=1450.0, cadence=200.0)  # 1450 to 1651 s
+    a, b, d, e, f, g = (sst_data(tmp_path / f"{name}.fits") for name in "abdefg")
     collection = DataCollection([a])
     coord = coordinator(collection)
     coord.set_master(a)
@@ -877,11 +881,16 @@ def test_sst_time_keys_follow_overlapping_scans(qtbot, tmp_path):
     collection.append(b)
     assert observation_key(a) == ("SST", day + np.timedelta64(1170, "s"))
     assert coord.masters.get(observation_key(a)) is a
-    collection.append(d)
-    assert observation_key(d) == observation_key(b)
-    collection.remove(b)
+    collection.extend([d, e, f])
+    # 39.5 s after b and 100 s after d, each within the larger cadence only; 150 s after e, within neither
+    assert observation_key(d) == observation_key(e) == observation_key(b)
+    assert observation_key(f) == ("SST", day + np.timedelta64(1872, "s"))
+    collection.remove(b)  # d is 119 s after a
     assert observation_key(a) == ("SST", day + np.timedelta64(1200, "s")) != observation_key(d)
+    assert observation_key(e) == ("SST", day + np.timedelta64(1440, "s"))
     assert coord.masters.get(observation_key(a)) is a
+    collection.append(g)  # 129 s after a, within its own cadence, and overlapping d and e: one group again
+    assert observation_key(a) == observation_key(d) == observation_key(e) == observation_key(g) != observation_key(f)
 
 
 def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_path, sns):

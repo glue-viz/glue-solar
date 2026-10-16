@@ -1,0 +1,1 @@
+Unlinked SST cubes share a time when their scans overlap or lie within the larger of their two scan cadences of each other.
