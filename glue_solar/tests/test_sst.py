@@ -1066,17 +1066,16 @@ def test_a_cube_linked_mid_transform_neither_hangs_nor_races(tmp_path):
     # held that and waited for the cube's lock
     cube, _ = stokes_cube(tmp_path / "cube.fits")
     wcs, pixel = cube.coords, [np.linspace(0, n - 1, 20_000) for n in cube.shape[::-1]]
-    expected, results, started, linked = wcs.pixel_to_world_values(*pixel), [], threading.Event(), threading.Event()
+    expected, results, started = wcs.pixel_to_world_values(*pixel), [], threading.Event()
 
-    def worker():  # a profile worker
-        while not linked.is_set():
+    def worker():  # a profile worker; a fixed number of transforms, as it can take the lock again before the link does
+        for _ in range(20):
             results.append(wcs.pixel_to_world_values(*pixel))
             started.set()
 
     def link():  # link_hpc, then the GUI thread
         wcs.__class__ = _LockedTabularWCS
         results.append(wcs.pixel_to_world_values(*pixel))
-        linked.set()
 
     threads = [threading.Thread(target=target, daemon=True) for target in (worker, link)]
     threads[0].start()
