@@ -89,8 +89,8 @@ class GaussianConstantFitter(AstropyFitter1D):
                 constraints[name]["value"] = start
         model, fitter = self._get_model_fitter(x, y, dy, constraints)
         # astropy's analytic Jacobian drops a tied width's part (fitting.py `_wrap_deriv`, report candidate), so tied
-        # widths fit with an estimated one, its step 1e-6 of each parameter on astropy 8.0, which takes the square
-        # root, and 1e-12 after astropy#20462: 8.0's default, 1e-4, is wider than a line at 1335 Å
+        # widths fit with an estimated one, its step 1e-6 of each parameter up to astropy 8.0.1, which takes the square
+        # root, and 1e-12 from 8.0.2 (astropy#20462): 8.0.1's default, 1e-4, is wider than a line at 1335 Å
         tied = {"estimate_jacobian": True, "epsilon": 1e-12} if model.has_tied else {}
         return fitter(model, x, y, weights=self._sigma_to_weights(dy), **tied), fitter
 

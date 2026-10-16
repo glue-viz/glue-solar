@@ -222,9 +222,8 @@ report ends with how many it has. The report lists the background's ``amplitude_
 and ``intercept_0``, its value at 0 Å, and each line's ``amplitude_1``, ``mean_1`` and ``stddev_1``,
 or a Lorentzian's ``x_0_1`` and ``fwhm_1``, numbered from the shortest wavelength, then each center
 and its velocity from the window's rest wavelength, (center / rest - 1) c, as the ``km / s`` axis
-gives it: from O I 1355.5977 Å in ``O I 1356``, but from Mg II k in ``Mg II k 2796``, so Ni I's
-offset is its center minus 2799.474 Å. Add the offset,
-the center minus the measured line's rest wavelength, to the rest wavelength of a line on the same
+gives it: from O I 1355.5977 Å in ``O I 1356``, but from Mg II k in ``Mg II k 2796``, not Ni I's.
+Add the offset, the center minus the measured line's rest wavelength, to the rest wavelength of a line on the same
 detector and set that with "IRIS: set rest wavelength…" on its window, so both the
 :ref:`line moments <glue_solar_users_guide_iris_line_moments>` and red-blue asymmetry start from it,
 and :ref:`Mg II features <glue_solar_users_guide_iris_mg_features>` measure k from it
