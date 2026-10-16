@@ -28,16 +28,21 @@ SLAB = 2**23
 
 
 def _check_sji(data):
-    """Raise why ``data`` is not an IRIS slit-jaw image, (frame, y, x)."""
+    """
+    Raise why ``data`` is not an IRIS slit-jaw image, (frame, y, x), whose dust can be removed: one whose dust is
+    removed already, or data made from it, whose ``meta['dust_removed']`` says so.
+    """
     if _role(data) != "sji" or data.ndim != 3:
         raise ValueError(f"{data.label} is not an IRIS slit-jaw image.")
+    if data.meta.get("dust_removed"):
+        raise ValueError(f"{data.label} has its dust removed already.")
 
 
 def remove_dust(data):
     """
     ``data``, an IRIS slit-jaw image, with irispy's dust removed, as a new dataset ``<label> dust removed`` on its
     coordinates, at its pointing offset, which it follows, with its ``Time``, ``Exposure time``, ``<label> DN/s``
-    and ``meta``.
+    and ``meta``, ``meta['dust_removed']`` added, which data made from it keep.
 
     irispy's ``SJICube.remove_dust`` is given the scaled values, NaN masked, a slab of frames at a time with the
     `FRAMES` on either side it takes replacements from, and each frame's exposure time. It finds dust where a value
@@ -48,7 +53,7 @@ def remove_dust(data):
     Raises
     ------
     ValueError
-        For other data than an IRIS slit-jaw image.
+        For other data than an IRIS slit-jaw image, or one whose dust is removed already.
     """
     from irispy.sji import SJICube
 
@@ -70,7 +75,7 @@ def remove_dust(data):
     lead = (slice(None), 0, 0)
     dust = _dataset(
         data.coords._wcs,
-        dict(data.meta),
+        dict(data.meta, dust_removed=True),
         data.get_component(cid).units,
         values,
         f"{data.label} dust removed",
@@ -100,8 +105,8 @@ def _failed(exc_info):
 def remove_dust_iris(data, data_collection):
     """
     Add ``data`` with its dust removed (`remove_dust`) to the data collection, with its helioprojective coordinates
-    linked, and no viewer; offered only for a slit-jaw image. irispy removes it in the background, while glue's status
-    bar says so.
+    linked, and no viewer; offered only for a slit-jaw image whose dust is not removed already. irispy removes it in
+    the background, while glue's status bar says so.
     """
     _check_sji(data)
     _start(data_collection, f"Removing dust from {data.label}…", _failed, remove_dust, data)

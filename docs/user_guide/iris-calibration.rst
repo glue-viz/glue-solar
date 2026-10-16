@@ -52,9 +52,12 @@ within 0.036 %, where the factor changes by up to 0.072 % across a bin. A bin al
 adds the rebinned ``<label> DN/s``'s own difference, the bin's mean DN over its mean exposure time
 rather than the mean of each step's: up to 0.003 % there.
 
-Removing dust is offered only for a slit-jaw image, and the calibration only for a raster window or
-stack that is not calibrated already (its entry is gone from the menu as soon as it has run): irispy
-has no radiometric calibration of slit-jaw images. Nor is it offered for a stack with a scan whose
+Removing dust is offered only for a slit-jaw image whose dust is not removed already: not for its
+``<label> dust removed``, which glue selects as it is added, nor for data made from it, rebinned,
+regridded on time or its UV bursts, which keep its ``meta['dust_removed']``; ``remove_dust``
+refuses one. The calibration is offered only for a raster window or stack that is not calibrated
+already (its entry is gone from the menu as soon as it has run): irispy has no radiometric
+calibration of slit-jaw images. Nor is it offered for a stack with a scan whose
 ``CDELT1`` to ``CDELT3``, the pixel sizes of its coordinates, differ from its first scan's, which
 give every scan's spectral dispersion and solid angle: ``radiometric_calibration`` refuses one,
 naming the first scan that differs. The scans of one observation, which the observation browser
