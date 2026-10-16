@@ -18,7 +18,7 @@ from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 from glue_solar.glue_patches import layer_action
 from glue_solar.quicklook import _role, _wavelengths
 from glue_solar.sources.loaders.iris import WCS_LOCK, _GlueWCS, _irispy_meta, _per_frame
-from glue_solar.sources.moments import _accepted, _check, _dataset, _start
+from glue_solar.sources.moments import _accepted, _check, _dataset, _form, _start
 
 __all__ = ["bursts_iris", "si_iv_bursts", "sji_bursts"]
 
@@ -225,9 +225,7 @@ def sji_bursts(data, sigma_factor=SIGMA_FACTOR, min_pixels=MIN_PIXELS):
 
 def _ask(data, sji):
     """irispy's parameters typed for ``data``, a slit-jaw image's if ``sji``, by name; or None for Cancel."""
-    dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
-    dialog.setWindowTitle(f"IRIS: UV bursts in {data.label}")
-    form = QtWidgets.QFormLayout(dialog)
+    dialog, form = _form(f"IRIS: UV bursts in {data.label}")
     if sji:
         sigma = QtWidgets.QDoubleSpinBox(objectName="sigma_factor", decimals=1, maximum=1000)
         sigma.setValue(SIGMA_FACTOR)
@@ -255,11 +253,6 @@ def _ask(data, sji):
     return {"threshold": value, "velocity_range": velocity.value(), "median_factor": median.value() or None}
 
 
-@messagebox_on_error("Could not detect UV bursts")
-def _failed(exc_info):
-    raise exc_info[1]
-
-
 def _found(datasets):
     """What glue's status bar says of the bursts found."""
     count = datasets[1].size
@@ -275,19 +268,14 @@ def _found(datasets):
 )
 @messagebox_on_error("Could not detect UV bursts")
 def bursts_iris(data, data_collection):
-    """
-    Add the `si_iv_bursts` of a raster window or stack, or the `sji_bursts` of a 1400 Å slit-jaw image, with irispy's
-    parameters typed, to the data collection, the map's helioprojective coordinates linked, and no viewer; offered
-    only for a raster window or stack covering Si IV 1402.77 Å and a 1400 Å slit-jaw image. irispy finds them in the
-    background, while glue's status bar says so, and then how many.
-    """
+    """Add the `si_iv_bursts` or `sji_bursts` of ``data`` for the values typed (`_ask`), in the background (`_start`)."""
     sji = _check_bursts(data)  # before asking
     parameters = _ask(data, sji)
     if parameters is None:
         return
-    text = f"Detecting UV bursts in {data.label}…"
+    text, title = f"Detecting UV bursts in {data.label}…", "Could not detect UV bursts"
     if sji:
-        _start(data_collection, text, _failed, sji_bursts, data, *parameters.values(), said=_found)
+        _start(data_collection, text, title, sji_bursts, data, *parameters.values(), said=_found)
     else:
         crop = _crop(data, parameters["velocity_range"])
-        _start(data_collection, text, _failed, _si_iv_bursts, data, crop, *parameters.values(), said=_found)
+        _start(data_collection, text, title, _si_iv_bursts, data, crop, *parameters.values(), said=_found)

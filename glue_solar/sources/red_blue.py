@@ -3,9 +3,6 @@
 dataset.
 """
 
-import gc
-import itertools
-
 import numpy as np
 from glue.core.component import Component
 from glue_qt.utils.decorators import messagebox_on_error
@@ -16,7 +13,7 @@ import astropy.units as u
 from glue_solar.glue_patches import layer_action
 from glue_solar.lines import _wavelength
 from glue_solar.sources.loaders.iris import WCS_LOCK
-from glue_solar.sources.moments import SLAB, _accepted, _check, _cube, _dataset, _read, _rest_field, _start, _window
+from glue_solar.sources.moments import _accepted, _check, _cube, _dataset, _form, _rest_field, _slabs, _start, _window
 
 __all__ = ["red_blue_asymmetry", "red_blue_iris"]
 
@@ -45,11 +42,7 @@ def _red_blue(data, rest, wavelengths, velocities, step, crop, unit):
 
     maps = {}
     # irispy measures each pixel on its own, so a slab of steps gives what the whole window would
-    steps = max(1, SLAB // (data.shape[-2] * (crop.stop - crop.start)))
-    # each scan of a stack, as its own WCS and exposure times give it
-    for scan, start in itertools.product(np.ndindex(data.shape[:-3]), range(0, data.shape[-3], steps)):
-        rows = (*scan, slice(start, start + steps), slice(None))
-        values, _ = _read(data, rows, crop)
+    for rows, values, _ in _slabs(data, crop):
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
             slab = calculate_red_blue_asymmetry(
                 _cube(data, values, rows, crop, unit),
@@ -60,7 +53,6 @@ def _red_blue(data, rest, wavelengths, velocities, step, crop, unit):
             )
         for name, part in slab.items():
             maps.setdefault(name, []).append(part.data)
-        gc.collect(0)  # ndcube's cubes are reference cycles, and irispy's hold the slab's values
     asymmetry = _dataset(data, f"{data.label} red-blue asymmetry {rest}")
     asymmetry.meta.update(
         red_blue_rest=rest,
@@ -118,9 +110,7 @@ def _ask(data):
     it, in Angstrom, and the wing velocities and the velocity step, in km / s; or None for a blank rest wavelength or
     Cancel.
     """
-    dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
-    dialog.setWindowTitle(f"IRIS: red-blue asymmetry of {data.label}")
-    form = QtWidgets.QFormLayout(dialog)
+    dialog, form = _form(f"IRIS: red-blue asymmetry of {data.label}")
     rest = _rest_field(data, "rest")  # D11: never the window's TWAVE
     form.addRow("Rest wavelength [Å]:", rest)
     boxes = []
@@ -143,11 +133,6 @@ def _ask(data):
     return _wavelength(text), (below, above), (low, high), step
 
 
-@messagebox_on_error("Could not compute red-blue asymmetry")
-def _failed(exc_info):
-    raise exc_info[1]
-
-
 @layer_action(
     "IRIS: red-blue asymmetry…",
     single=True,
@@ -157,15 +142,10 @@ def _failed(exc_info):
 )
 @messagebox_on_error("Could not compute red-blue asymmetry")
 def red_blue_iris(data, data_collection):
-    """
-    Add the `red_blue_asymmetry` of ``data`` about a typed rest wavelength, with typed wing velocities, to the data
-    collection, with its helioprojective coordinates linked, and no viewer; offered only for a raster window or stack,
-    and glue shows why for typed values it cannot take. irispy computes it in the background, while glue's status bar
-    says so.
-    """
+    """Add the `red_blue_asymmetry` of ``data`` for the values typed (`_ask`), computed in the background (`_start`)."""
     _check(data)  # before asking
     line = _ask(data)
     if line is None:
         return
-    text = f"Computing red-blue asymmetry of {data.label}…"
-    _start(data_collection, text, _failed, _red_blue, data, *line, *_taken(data, *line[:2]))
+    text, title = f"Computing red-blue asymmetry of {data.label}…", "Could not compute red-blue asymmetry"
+    _start(data_collection, text, title, _red_blue, data, *line, *_taken(data, *line[:2]))

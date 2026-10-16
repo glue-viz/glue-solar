@@ -14,7 +14,7 @@ from astropy.io import ascii
 
 from glue_solar.glue_patches import layer_action
 from glue_solar.sources.loaders.iris import keep_hpc_linked
-from glue_solar.sources.moments import _accepted, _start
+from glue_solar.sources.moments import _accepted, _form, _start
 
 __all__ = ["line_ratio", "line_ratio_iris", "o_iv_density"]
 
@@ -173,9 +173,7 @@ def _ask(datasets):
     table and the quantity's name, or None and the typed densities and temperature of the `O_IV` preset; or None for a
     blank path or name, or Cancel.
     """
-    dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
-    dialog.setWindowTitle("IRIS: line ratio diagnostic")
-    form = QtWidgets.QFormLayout(dialog)
+    dialog, form = _form("IRIS: line ratio diagnostic")
     cids = [cid for data in datasets for cid in data.main_components]
     intensities = [index for index, cid in enumerate(cids) if cid.label == "intensity"]
     boxes = []
@@ -232,11 +230,6 @@ def _ask(datasets):
     return *picked, path, name
 
 
-@messagebox_on_error("Could not map the line ratio")
-def _failed(exc_info):
-    raise exc_info[1]
-
-
 def _maps(layers):
     """The 2-D datasets of ``layers``; raise why they do not hold two components between them."""
     datasets = [layer for layer in layers if isinstance(layer, Data) and layer.ndim == 2]
@@ -253,13 +246,7 @@ def _maps(layers):
 )
 @messagebox_on_error("Could not map the line ratio")
 def line_ratio_iris(layers, data_collection):
-    """
-    Add the `line_ratio` of two components picked among those of the selected maps, on the first two columns of a
-    picked text table, or their `o_iv_density` at typed densities and temperature, to the data collection, with its
-    helioprojective coordinates linked, and no viewer; glue shows why for fewer than two components, a table without
-    two columns, or densities that do not increase. fiasco and irispy map the O IV density in the background, while
-    glue's status bar says so.
-    """
+    """Add the `line_ratio` of the components picked (`_ask`) on a table, or their `o_iv_density`, in the background."""
     picked = _ask(_maps(layers))
     if picked is None:
         return
@@ -269,8 +256,8 @@ def line_ratio_iris(layers, data_collection):
 
         _o_iv_grid(*name)  # refused before anything starts
         first = "" if fiasco.defaults["hdf5_dbase_root"].is_file() else "; fiasco first builds CHIANTI, for minutes"
-        text = f"Mapping the O IV density{first}…"
-        _start(data_collection, text, _failed, o_iv_density, numerator, denominator, *name)
+        text, title = f"Mapping the O IV density{first}…", "Could not map the line ratio"
+        _start(data_collection, text, title, o_iv_density, numerator, denominator, *name)
         return
     table = ascii.read(path)  # spaces or commas, an optional header line and # comments
     if len(table.colnames) < 2:

@@ -145,6 +145,21 @@ def _cube(data, values, rows, wavelengths, unit, sigma=None, shift=0):
     return SpectrogramCube(values, view, uncertainty, unit, mask=np.isnan(values) | np.isneginf(values))
 
 
+def _slabs(data, crop, factor=1):
+    """
+    ``(rows, values, seconds)``, `_read` at ``crop``, for each slab of ``data``: raster steps of one scan, about `SLAB`
+    / ``factor`` samples; on any thread.
+    """
+    steps = max(1, SLAB // (data.shape[-2] * (crop.stop - crop.start) * factor))
+    # each scan of a stack, as its own WCS and exposure times give it
+    for scan, start in itertools.product(np.ndindex(data.shape[:-3]), range(0, data.shape[-3], steps)):
+        rows = (*scan, slice(start, start + steps), slice(None))
+        yield rows, *_read(data, rows, crop)
+        # ndcube's cubes are reference cycles, and irispy's hold the slab's values: else every slab's stay until
+        # Python's collector runs
+        gc.collect(0)
+
+
 def _dataset(data, label):
     """
     A new dataset ``label`` on the scans of a stack, raster steps and slit pixels of ``data``, following its pointing
@@ -171,14 +186,10 @@ def _moments(data, center, velocity_range, continuum, crop, unit, errors=False):
     if errors and "rebinned" in data.meta:  # 'IRIS: rebin…'
         raise ValueError(f"{data.label} is rebinned: irispy would give each bin the noise of one sample.")
     maps, saturated = {}, 0
+    degree = 1 if len(continuum or ()) > 1 else 0  # a constant for one continuum window, a straight line for more
     # a slab takes about 100 bytes per sample, 150 with a continuum or errors: half the steps then, generously, keeps
     # a small window's cold peak under 3x
-    steps = max(1, SLAB // (data.shape[-2] * (crop.stop - crop.start) * (2 if continuum or errors else 1)))
-    degree = 1 if len(continuum or ()) > 1 else 0  # a constant for one continuum window, a straight line for more
-    # each scan of a stack, as its own WCS and exposure times give it
-    for scan, start in itertools.product(np.ndindex(data.shape[:-3]), range(0, data.shape[-3], steps)):
-        rows = (*scan, slice(start, start + steps), slice(None))
-        values, seconds = _read(data, rows, crop)
+    for rows, values, seconds in _slabs(data, crop, 2 if continuum or errors else 1):
         # irispy's uncertainty of the values, which its background leaves as they are
         cube = _cube(data, values, rows, crop, unit, _sigma(values, unit, seconds) if errors else None)
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
@@ -194,9 +205,6 @@ def _moments(data, center, velocity_range, continuum, crop, unit, errors=False):
                 maps.setdefault(f"{name} error", []).append(
                     (np.where(moment.mask, np.nan, moment.uncertainty.array), moment.unit)
                 )
-        # ndcube's cubes are reference cycles, and irispy's hold the slab's values: else every slab's stay until
-        # Python's collector runs
-        gc.collect(0)
     moments = _dataset(data, f"{data.label} moments {center}")
     moments.meta.update(moments_center=center, moments_velocity_range=tuple(velocity_range))
     if continuum:
@@ -270,6 +278,13 @@ def _accepted(dialog, form):
     return accepted
 
 
+def _form(title):
+    """A dialog ``title`` on glue's window and its form, for `_accepted`."""
+    dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
+    dialog.setWindowTitle(title)
+    return dialog, QtWidgets.QFormLayout(dialog)
+
+
 def _rest_field(data, name):
     """A line edit ``name`` holding the `rest_wavelength` of ``data``, if any, its tooltip saying where it is from."""
     rest = rest_wavelength(data)
@@ -305,9 +320,7 @@ def _ask(data, drawn=None):
     center or Cancel. The velocities stop at the window's wavelengths about a center within them, at first or typed.
     With ``drawn``, a Profile range, the velocity range reaches its ends, cut to the window, from a center within it.
     """
-    dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
-    dialog.setWindowTitle(f"IRIS: line moments of {data.label}")
-    form = QtWidgets.QFormLayout(dialog)
+    dialog, form = _form(f"IRIS: line moments of {data.label}")
     center = _rest_field(data, "center")  # D11: never the window's TWAVE
     form.addRow("Line center [Å]:", center)
     wavelengths, _ = _wavelengths(data)
@@ -379,11 +392,6 @@ def _ask(data, drawn=None):
     return *line, windows, errors.isChecked()
 
 
-@messagebox_on_error("Could not compute line moments")
-def _failed(exc_info):
-    raise exc_info[1]
-
-
 def _add(data_collection, status, said, add, result):
     if add is None:
         data_collection.append(result)
@@ -415,16 +423,22 @@ def _clear(status, text):
         status.clearMessage()
 
 
-def _start(data_collection, text, failed, function, *args, said=None, add=None):
+def _reraise(exc_info):
+    raise exc_info[1]
+
+
+def _start(data_collection, text, title, function, *args, said=None, add=None):
     """
     Compute ``function(*args)`` on glue-qt's `Worker`, while glue's status bar says ``text``, and add it, a dataset, to
     ``data_collection``, or give it to ``add``, on the main thread, the status bar then saying ``said(result)``, if
-    anything; or show its error with ``failed``; then refresh the right-click entries (`refresh_layer_actions`).
+    anything; or show its error in glue-qt's error box ``title``; then refresh the right-click entries
+    (`refresh_layer_actions`).
     """
     worker = Worker(function, *args)
     status = _status_bar(data_collection)
     worker.result.connect(partial(_add, data_collection, status, said, add))
-    worker.error.connect(failed)
+    # glue-qt's decorator, as its GLUE_TESTING bypass is in it alone; or a handler, as tools.py's SaveSequenceTool passes
+    worker.error.connect(title if callable(title) else messagebox_on_error(title)(_reraise))
     if status is not None:  # until the dataset is added or the error shown (D46)
         status.showMessage(text)
         worker.finished.connect(partial(_clear, status, text))
@@ -448,14 +462,7 @@ def _start(data_collection, text, failed, function, *args, said=None, add=None):
 )
 @messagebox_on_error("Could not compute line moments")
 def moments_iris(data, data_collection):
-    """
-    Add the `line_moments` of ``data`` about a typed line center, within a typed velocity range, or one to the ends of
-    the range shown on a Profile of its wavelength, either stopping at the window's wavelengths, less any background
-    fitted to typed continuum windows, with their errors if ticked, to the data collection, with its helioprojective
-    coordinates linked, and no viewer; offered only for a raster window or stack, and glue shows why for typed values
-    it cannot take. irispy computes them in the background, while glue's status bar says so, and then how many pixels
-    saturated, if any.
-    """
+    """Add the `line_moments` of ``data`` for the values typed (`_ask`), computed in the background (`_start`)."""
     _check(data)  # before asking
     asked = _ask(data, _profile_range(data, data_collection))
     if asked is None:
@@ -463,8 +470,8 @@ def moments_iris(data, data_collection):
     center, velocity_range, continuum, errors = asked
     window = _window(data, *_ends(center, velocity_range), continuum)
     line = center, velocity_range, continuum
-    text = f"Computing line moments of {data.label}…"
-    _start(data_collection, text, _failed, _moments, data, *line, *window, errors, said=_saturated)
+    text, title = f"Computing line moments of {data.label}…", "Could not compute line moments"
+    _start(data_collection, text, title, _moments, data, *line, *window, errors, said=_saturated)
 
 
 def _mean_spectrum(data, cid):
@@ -537,11 +544,6 @@ def _left_out(data, mean):
     return None
 
 
-@messagebox_on_error("Could not subtract the mean spectrum")
-def _mean_failed(exc_info):
-    raise exc_info[1]
-
-
 @layer_action(
     "IRIS: subtract mean spectrum",
     single=True,
@@ -551,13 +553,9 @@ def _mean_failed(exc_info):
 )
 @messagebox_on_error("Could not subtract the mean spectrum")
 def mean_spectrum_iris(data, data_collection):
-    """
-    Add the `subtract_mean_spectrum` components to ``data``; offered only for a raster window or stack not subtracted
-    already nor being subtracted. The mean is computed in the background, while glue's status bar says so, and then
-    how many saturated samples it left out, if any.
-    """
+    """Add the `subtract_mean_spectrum` components to ``data``, the mean computed in the background (`_start`)."""
     _check_mean(data)
     cid = data.main_components[0]
-    text = f"Computing the mean spectrum of {data.label}…"
+    text, title = f"Computing the mean spectrum of {data.label}…", "Could not subtract the mean spectrum"
     said, add = partial(_left_out, data), lambda mean: _subtract(data, cid, mean[0])  # on the main thread
-    _start(data_collection, text, _mean_failed, _mean_spectrum, data, cid, said=said, add=add)
+    _start(data_collection, text, title, _mean_spectrum, data, cid, said=said, add=add)

@@ -111,11 +111,6 @@ def remove_dust(data):
     return dust
 
 
-@messagebox_on_error("Could not remove dust")
-def _failed(exc_info):
-    raise exc_info[1]
-
-
 @layer_action(
     "IRIS: remove dust (SJI)",
     single=True,
@@ -125,13 +120,9 @@ def _failed(exc_info):
 )
 @messagebox_on_error("Could not remove dust")
 def remove_dust_iris(data, data_collection):
-    """
-    Add ``data`` with its dust removed (`remove_dust`) to the data collection, with its helioprojective coordinates
-    linked, and no viewer; offered only for a slit-jaw image whose dust is not removed already. irispy removes it in
-    the background, while glue's status bar says so.
-    """
+    """Add ``data`` with its dust removed (`remove_dust`), in the background (`_start`)."""
     _check_sji(data)
-    _start(data_collection, f"Removing dust from {data.label}…", _failed, remove_dust, data)
+    _start(data_collection, f"Removing dust from {data.label}…", "Could not remove dust", remove_dust, data)
 
 
 def _scan_wcses(data):
@@ -238,8 +229,5 @@ def radiometric_calibration(data):
 )
 @messagebox_on_error("Could not calibrate the radiance")
 def radiometric_calibration_iris(data, data_collection):
-    """
-    Add the `radiometric_calibration` components to ``data``; offered only for a raster window or stack not calibrated
-    already whose scans' CDELT1-3 are its first scan's.
-    """
+    """Add the `radiometric_calibration` components to ``data``."""
     radiometric_calibration(data)

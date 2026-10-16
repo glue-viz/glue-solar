@@ -89,12 +89,12 @@ quicklook of its own (see :ref:`glue_solar_users_guide_loading_sst_cubes`). "Mai
 ticked raster windows and shows Mg II k 2796 when ticked, else the first, until you choose one.
 Otherwise the first slit-jaw (or AIA) cube opens in an Image Viewer, where its ``Time (Utc)`` slider
 steps through time; nothing opens for rasters alone. If an entry fails to load, the browser stays open and its progress bar names
-the file and the error; for a raster window, the first raster file that fails to load on its own, or
-how many raster files there are if each loads on its own but not together.
+the file and the error; for a raster window, the raster file it failed on, or how many raster files
+there are if each loads but not together.
 Tick "Stack sequential raster scans" to place two or more raster scans of a window into a single
 4D cube without resampling their detector values. Each scan stays in its own file, as a single scan
 does (see `Memory and open files`_); scans stored as floating point, such as irispy's test files,
-are copied into a temporary file (a NumPy memmap) instead. Its leading ``Scan`` coordinate
+are copied into memory instead. Its leading ``Scan`` coordinate
 selects the original raster scan, and its ``Time`` component contains the exact acquisition time of
 every pixel. Each scan keeps its own coordinates, so a pixel's helioprojective longitude and
 latitude are those its scan gives it, and placing a stack on other data takes a scan as well: the

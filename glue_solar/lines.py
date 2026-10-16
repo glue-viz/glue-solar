@@ -306,11 +306,7 @@ def _check_wavelength(data):
 )
 @messagebox_on_error("Could not set the rest wavelength")
 def rest_wavelength_iris(data, data_collection):
-    """
-    Set ``meta['rest_wavelength']`` of ``data`` to a main line within it picked or a wavelength typed in Angstrom, or
-    remove it for a blank one; the dialog starts at its `rest_wavelength`. It is offered only for data with one
-    wavelength axis, and glue shows why for a typed wavelength that is not a number.
-    """
+    """Set ``meta['rest_wavelength']`` of ``data`` to a main line picked or a wavelength typed, or remove it for none."""
     _check_wavelength(data)
     choices = {f"{name} {wave}": wave for name, wave in _within(data)}
     rest = rest_wavelength(data)

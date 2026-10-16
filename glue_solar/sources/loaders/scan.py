@@ -29,15 +29,18 @@ _FITS = (".fits", ".fits.gz")
 _LONGEST = 1 * u.day
 
 
+def _gzipped(path):
+    """Whether the file ``path`` is gzipped, by its first bytes rather than its name."""
+    with open(path, "rb") as file:
+        return file.read(2) == b"\x1f\x8b"
+
+
 def _primary_header(path):
     """
     The primary header of the FITS file ``path``, gzipped or not. astropy's ``getheader`` decompresses all of a
     gzipped file to find where the next HDU starts.
     """
-    with open(path, "rb") as file:
-        gzipped = file.read(2) == b"\x1f\x8b"
-        file.seek(0)
-        stream = gzip.GzipFile(fileobj=file) if gzipped else file
+    with gzip.open(path) if _gzipped(path) else open(path, "rb") as stream:
         # as astropy does: a header is read up to its END card, so any other file would be read to its end
         if stream.read(6) != b"SIMPLE":
             raise OSError(f"{path} is not a FITS file")
@@ -117,12 +120,14 @@ def _key_from_name(name):
     return m["obsid"], f"{d[:4]}-{d[4:6]}-{d[6:]}T{t[:2]}:{t[2:4]}:{t[4:]}"
 
 
+def _observation(obsid, startobs):
+    """``OBSID`` and ``STARTOBS`` as the files' names give them: AIA cutouts store the full stem in OBSID."""
+    return str(obsid).split("_")[-1], str(startobs)[:19]
+
+
 def _key_from_header(header):
     obsid, startobs = header.get("OBSID"), header.get("STARTOBS")
-    if not obsid or not startobs:
-        return None
-    # AIA cutouts store the full "YYYYMMDD_HHMMSS_OBSID" stem in OBSID
-    return str(obsid).split("_")[-1], str(startobs)[:19]
+    return _observation(obsid, startobs) if obsid and startobs else None
 
 
 def _fill(obs, header):

@@ -33,7 +33,6 @@ from glue_solar.sources.loaders.iris import (
     raster_data,
 )
 from glue_solar.sources.loaders.scan import extract_archive, find_observation_files, scan_directory
-from glue_solar.sources.loaders.stack_spectrograms import stack_spectrogram_sequence
 from glue_solar.tests.helpers import load_selected, scanned
 
 # The unit glue is shown each world axis in, by physical type; time, scan and the others keep their own
@@ -254,7 +253,7 @@ def test_stop_keeps_every_window_of_a_raster_read_in_full(dialog, qtbot, monkeyp
     assert [name for _, _, name, _ in dialog.loaded] == ["C II 1336", "Mg II k 2796"]
 
 
-def test_stop_ends_the_look_for_the_file_that_fails(dialog, qtbot, monkeypatch):
+def test_a_failure_once_the_files_are_read_reads_none_again(dialog, qtbot, monkeypatch):
     tick(dialog, "Mg II k")
     dialog.stack.setChecked(True)
 
@@ -264,14 +263,9 @@ def test_stop_ends_the_look_for_the_file_that_fails(dialog, qtbot, monkeypatch):
         return _raster_collection_data(collection, **kwargs)
 
     monkeypatch.setattr("glue_solar.sources.loaders.iris._raster_collection_data", fail)
-
-    def stop_in_the_first_read_again(n):
-        if n == 3:  # files 1 and 2 were read; the look for the one that fails reads them again
-            from_the_worker(dialog.cancel, "click")
-
-    reads = counted_reads(monkeypatch, stop_in_the_first_read_again)
+    reads = counted_reads(monkeypatch)
     load_selected(qtbot, dialog)
-    assert len(reads) == 3
+    assert len(reads) == 2  # each file once: none again to find the one that fails
     assert dialog.progress.format() == "Loading Mg II k 2796 from 2 raster files failed: the scans differ"
 
 
@@ -902,7 +896,7 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
         np.testing.assert_allclose(actual, expected, atol=3e-6)
 
     with pytest.raises(ValueError, match="same shape"):
-        stack_spectrogram_sequence([sequence[0], sequence[1][:-1]], memmap=False)
+        _raster_collection_data({"C II 1336": [sequence[0], sequence[1][:-1]]}, stack=True)
 
 
 def test_real_raster_fill_values_become_nan(irispy_test_files):
@@ -1217,13 +1211,14 @@ def test_reader_failure_stays_in_dialog(qtbot, tmp_path, name, instrume, band):
     assert dialog.cancel.text() == "Cancel"  # and Load selected is back
 
 
-def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_test_files):
+@pytest.mark.parametrize("keep", [lambda n: n // 2, lambda n: n - 5000], ids=["headers", "data"])
+def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_test_files, keep):
     scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r0000" in path.name)[:2]
     for scan in scans:
         shutil.copy2(scan, tmp_path / scan.name)
     truncated = tmp_path / scans[1].name
     data = truncated.read_bytes()
-    truncated.write_bytes(data[: len(data) // 2])  # as an interrupted download leaves it
+    truncated.write_bytes(data[: keep(len(data))])  # as an interrupted download leaves it
 
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
@@ -1240,7 +1235,7 @@ def test_raster_load_failure_of_files_that_load_alone_names_how_many(qtbot, tmp_
     def fail(_sequence):
         raise ValueError("the scans differ")
 
-    monkeypatch.setattr("glue_solar.sources.loaders.iris.stack_spectrogram_sequence", fail)
+    monkeypatch.setattr("glue_solar.sources.loaders.iris.stack_wcs", fail)
     for scan in sorted(path for path in irispy_test_files if "3860258481_raster_t000_r0000" in path.name)[:2]:
         shutil.copy2(scan, tmp_path / scan.name)
 
