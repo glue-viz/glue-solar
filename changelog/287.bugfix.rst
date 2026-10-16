@@ -1,0 +1,1 @@
+The Fit tab's Settings reach that Profile viewer's fits and no other viewer's, for glue's own fitters too.
