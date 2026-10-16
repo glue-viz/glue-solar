@@ -51,7 +51,7 @@ def _wings(data, rest, velocities):
     return wings
 
 
-def _doppler(data, rest, velocities, normalised, wings, unit):
+def _doppler(data, rest, velocities, normalized, wings, unit):
     """`doppler_image` given its `_wings` and ``unit`` the unit of the values read (`_read`); on any thread."""
     planes = []
     for scan, crop, below, weight in wings:
@@ -67,7 +67,7 @@ def _doppler(data, rest, velocities, normalised, wings, unit):
     difference = red - blue
     for k, v in enumerate(velocities):
         doppler.add_component(Component(difference[..., k], units=str(unit)), f"red - blue {v:g} km / s")
-    if normalised:
+    if normalized:
         positive = (red > 0) & (blue > 0)  # else the ratio is not one of intensities, and unbounded
         ratio = np.divide(difference, red + blue, out=np.full(red.shape, np.nan), where=positive)
         for k, v in enumerate(velocities):
@@ -75,16 +75,16 @@ def _doppler(data, rest, velocities, normalised, wings, unit):
     return doppler
 
 
-def doppler_image(data, rest, velocities=VELOCITIES, normalised=False):
+def doppler_image(data, rest, velocities=VELOCITIES, normalized=False):
     """
     The red wing less the blue wing of a line in ``data``, an IRIS raster window of one scan or a stack of its scans,
     at each of ``velocities`` from ``rest``, as one dataset on the window's scans, raster steps and slit pixels, each
     scan's at its own coordinates.
 
-    Each wing is the window's ``<label> DN/s`` where it has one, else its values, interpolated linearly at
+    Each wing is the window's ``<label> DN / s`` where it has one, else its values, interpolated linearly at
     ``rest * (1 ± v / c)``, the optical Doppler shift of velocity v, between the two samples about it, each scan at its
     own wavelengths; NaN where either sample is missing or saturated, +Inf, as the loader reads the Level 2 ceiling. Its
-    components are ``red - blue <v> km / s``, in that unit, positive for a brighter red wing, and with ``normalised``,
+    components are ``red - blue <v> km / s``, in that unit, positive for a brighter red wing, and with ``normalized``,
     ``(red - blue) / (red + blue) <v> km / s``, NaN where a wing is not positive. ``meta`` holds the observation's
     ``OBSID`` and ``STARTOBS``, ``doppler_rest``, ``doppler_velocities`` and ``doppler_sign``, ``"red - blue"``. The
     window is read a raster step at a time.
@@ -98,7 +98,7 @@ def doppler_image(data, rest, velocities=VELOCITIES, normalised=False):
         The rest wavelength of the line, in Angstrom.
     velocities : sequence of float
         The velocities of the wings from ``rest``, positive, in km / s.
-    normalised : bool
+    normalized : bool
         Whether to add each map over the sum of its wings too.
 
     Raises
@@ -107,7 +107,7 @@ def doppler_image(data, rest, velocities=VELOCITIES, normalised=False):
         For other data than an IRIS raster window or stack, a velocity that is not positive, or a wing outside the
         window.
     """
-    return _doppler(data, rest, velocities, normalised, _wings(data, rest, velocities), _unit(data))
+    return _doppler(data, rest, velocities, normalized, _wings(data, rest, velocities), _unit(data))
 
 
 def _ask(data):
@@ -122,8 +122,8 @@ def _ask(data):
     form.addRow("Rest wavelength [Å]:", rest)
     velocities = QtWidgets.QLineEdit(", ".join(f"{v:g}" for v in VELOCITIES), objectName="velocities")
     form.addRow("Velocities [km / s]:", velocities)
-    normalised = QtWidgets.QCheckBox("(red - blue) / (red + blue) too", objectName="normalised")
-    form.addRow(normalised)
+    normalized = QtWidgets.QCheckBox("(red - blue) / (red + blue) too", objectName="normalized")
+    form.addRow(normalized)
     text = rest.text().strip() if _accepted(dialog, form) else ""
     if not text:
         return None
@@ -134,7 +134,7 @@ def _ask(data):
         speeds = []
     if not speeds:
         raise ValueError(f"'{typed}' is not a list of velocities in km / s, such as 10, 20, 30.")
-    return _wavelength(text), speeds, normalised.isChecked()
+    return _wavelength(text), speeds, normalized.isChecked()
 
 
 @messagebox_on_error("Could not compute the Doppler image")
@@ -161,7 +161,7 @@ def doppler_iris(data, data_collection):
     asked = _ask(data)
     if asked is None:
         return
-    rest, velocities, normalised = asked
+    rest, velocities, normalized = asked
     wings = _wings(data, rest, velocities)
     text = f"Computing the Doppler image of {data.label}…"
-    _start(data_collection, text, _failed, _doppler, data, rest, velocities, normalised, wings, _unit(data))
+    _start(data_collection, text, _failed, _doppler, data, rest, velocities, normalized, wings, _unit(data))

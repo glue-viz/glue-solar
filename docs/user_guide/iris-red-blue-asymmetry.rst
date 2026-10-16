@@ -14,7 +14,7 @@ each profile about its peak every velocity step and divides the mean of its red 
 to the second wing velocity above the peak, less the mean of its blue wing, as far below it, by the
 peak: positive for excess red emission. The wing velocities, 30 to 55 km / s, and the step, 5 km / s,
 unless changed, are those of SolarSoft's iris_xfiles (its double Gaussian fit,
-``iris_moment__dgf.pro``). irispy computes the map on a worker thread from the window's DN/s, a slab
+``iris_moment__dgf.pro``). irispy computes the map on a worker thread from the window's DN / s, a slab
 of raster steps of one scan at a time, while glue's status bar says "Computing red-blue asymmetry of
 <label>…", and adds ``<label> red-blue asymmetry <rest>`` on the window's raster steps and slit
 pixels, with their helioprojective coordinates in arcsec linked with the other IRIS datasets. No
@@ -55,7 +55,7 @@ To map a line's red wing less its blue wing at chosen velocities, as CRISPEX's D
 select a raster window, of one scan or a stack of its scans, and choose "IRIS: Doppler image…" from
 its right-click menu. The rest wavelength starts as above; the velocities, 10, 20, 30, 40, 50 km / s
 unless changed, are any positive velocities in km / s, separated by commas or spaces. At each velocity
-v, each wing is the window's DN/s interpolated linearly at rest × (1 ± v/c), the optical Doppler
+v, each wing is the window's DN / s interpolated linearly at rest × (1 ± v/c), the optical Doppler
 shift, between the two samples about it, and its map, ``red - blue <v> km / s``, is the red wing less
 the blue: positive where the red wing is brighter, as for a redshift. "(red - blue) / (red + blue)
 too" adds each map over the sum of its wings, ``(red - blue) / (red + blue) <v> km / s``, NaN where a
@@ -72,7 +72,7 @@ interpolation leaves a small difference. Velocities are relative to the uncorrec
 wavelength scale, as the line moments' are (see :ref:`Line moments
 <glue_solar_users_guide_iris_line_moments>`). The new dataset's ``meta`` holds the observation's
 ``OBSID`` and ``STARTOBS``, ``doppler_rest``, ``doppler_velocities`` and ``doppler_sign``,
-``"red - blue"``. ``glue_solar.sources.doppler.doppler_image(data, rest, velocities, normalised)``
+``"red - blue"``. ``glue_solar.sources.doppler.doppler_image(data, rest, velocities, normalized)``
 computes the dataset in glue's terminal too. The entry is offered only for a raster window or
 stack; glue says why, and adds nothing, for a velocity that is not positive, or a wing outside the
 window.

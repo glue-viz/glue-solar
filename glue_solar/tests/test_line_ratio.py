@@ -93,7 +93,7 @@ def test_the_action_adds_irispys_map_of_two_moments_maps_as_one_linked_dataset_a
     app, monkeypatch, irispy_test_files, table
 ):
     [raster] = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["Si IV 1403"])
-    lines = [line_moments(raster, centre) for centre in (1399.77, 1401.16)]  # O IV
+    lines = [line_moments(raster, center) for center in (1399.77, 1401.16)]  # O IV
     collection = app.data_collection
     collection.extend([raster, *lines])
     keep_hpc_linked(collection)
@@ -137,8 +137,8 @@ def test_a_synthetic_ratio_gives_irispys_quantity(app, monkeypatch, tmp_path):
     known = np.array([[CURVE[0], CURVE[13], CURVE[20], CURVE[40]], [0.1, 0.5, 0.3, 0.3]])
     values = np.array([[2.0, 4.0, 8.0, 0.5], [1.0, 16.0, 0.0, np.nan]])  # powers of 2: the ratio is exactly known
     over, under = Data(label="over"), Data(label="under")
-    over.add_component(Component(known * values, units="DN/s"), "intensity")
-    under.add_component(Component(values, units="DN/s"), "intensity")
+    over.add_component(Component(known * values, units="DN / s"), "intensity")
+    under.add_component(Component(values, units="DN / s"), "intensity")
     app.data_collection.extend([under, over])
     opened = answer(monkeypatch, str(path), (1, 0), "log T", browse=True)
     result = run(app, [under, over])
@@ -258,7 +258,7 @@ def test_the_o_iv_preset_adds_irispys_density_diagnostic_of_two_moments_maps(
     app, monkeypatch, qtbot, irispy_test_files, fiasco
 ):
     [raster] = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["Si IV 1403"])
-    lines = [line_moments(raster, centre) for centre in (1399.77, 1401.16)]
+    lines = [line_moments(raster, center) for center in (1399.77, 1401.16)]
     collection = app.data_collection
     collection.extend([raster, *lines])
     keep_hpc_linked(collection)

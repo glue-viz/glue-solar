@@ -88,7 +88,7 @@ def run(app, qtbot, data, message=""):
 
 def assert_irispys(maps, raster, velocities=(-40, 40), lines=KH, cube=None):
     """
-    ``maps`` are irispy's own, in one call, on the whole of ``raster``'s DN/s, or on ``cube``, its saturated maps as
+    ``maps`` are irispy's own, in one call, on the whole of ``raster``'s DN / s, or on ``cube``, its saturated maps as
     glue's int64 named 'k saturated' and 'h saturated'.
     """
     if cube is None:

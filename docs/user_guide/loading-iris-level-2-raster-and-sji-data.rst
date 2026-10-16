@@ -107,11 +107,11 @@ and also exposes its exact per-step ``Time`` values.
 Every raster, stack, slit-jaw and AIA dataset has these components: the data (named after the
 dataset), ``Time`` and ``Exposure time`` (a stack lists ``Exposure time`` before ``Time``),
 ``<label> mask``, which Glue computes from the data as it reads them and so lists under "Derived
-components" (files stored as floating point keep it in memory, listed second), and ``<label> DN/s``,
+components" (files stored as floating point keep it in memory, listed second), and ``<label> DN / s``,
 also derived. ``Time`` is the UTC acquisition time as a datetime64, one value per raster step,
 slit-jaw, AIA or SOT frame (per scan and step for stacks). ``Exposure time`` is in seconds, one
-value per raster step or frame (per scan and step for stacks). ``<label> DN/s`` is the data divided
-by the exposure time, with the unit DN/s (the 1D Profile viewer's "y_unit" menu labels its axis
+value per raster step or frame (per scan and step for stacks). ``<label> DN / s`` is the data divided
+by the exposure time, with the unit DN / s (the 1D Profile viewer's "y_unit" menu labels its axis
 with it), and NaN where an exposure took 0 s, as step 157 of OBSID 3610108077's Si IV windows did.
 The "Frame time" tool, in the Image Viewer toolbar's View menu, shows the displayed frame's time
 and exposure in the status bar, as a range when the image spans several frames; for a single
@@ -134,7 +134,7 @@ elsewhere.
 Hinode/SOT cubes load as AIA cutouts do, each frame with its own time and pointing, in the unit
 irispy reads from their ``BUNIT``: DN for filtergrams and the SP continuum, dimensionless for
 narrowband magnetograms (Stokes V/I × 4096), and G, km / s, degrees or dimensionless for the other SP
-maps, which have no ``<label> DN/s``. Their values are float32, NaN where missing, and no other
+maps, which have no ``<label> DN / s``. Their values are float32, NaN where missing, and no other
 value is fill, as negative fields are data. The quicklook gives them no panel; an Image viewer of
 one follows its observation's time and can be its master, as one of an AIA cutout does (see
 :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). Like AIA cutouts, they are linked to
@@ -211,7 +211,7 @@ of a window takes its color limits from a count of every stored value (of evenly
 steps or frames of a window over 512 MiB), which takes up to about half a second, and the "99.5%"
 and other presets of the layer's style editor use the same count; "Per-frame limits" (see
 :ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`) count every value of the
-displayed slice. ``<label> DN/s`` and other derived
+displayed slice. ``<label> DN / s`` and other derived
 attributes take theirs from 10,000 random samples, as glue does for data in memory, so they are
 approximate. Memory still grows as you view a window, since the parts of the file read are kept, and
 a Profile or Histogram of a whole cube, a

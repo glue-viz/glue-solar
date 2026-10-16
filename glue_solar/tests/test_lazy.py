@@ -146,7 +146,7 @@ def test_views_scale_only_what_they_select(int16_raster):
                 np.testing.assert_array_equal(*buffers)
 
 
-def test_colour_limits_count_every_raw_value(int16_raster):
+def test_color_limits_count_every_raw_value(int16_raster):
     data, cid, _ = lazy_data(raw_of(int16_raster, WINDOW))
     oracle = expected(int16_raster, WINDOW)
     # exactly what glue computes from every value of eager data: glue's 99.5% and 90% presets, and the median
@@ -176,7 +176,7 @@ def test_colour_limits_count_every_raw_value(int16_raster):
         assert small.compute_statistic("percentile", cid, percentile=percentile, random_subset=10000) == exact
 
 
-def test_colour_limits_of_a_slice_count_its_values(int16_raster):
+def test_color_limits_of_a_slice_count_its_values(int16_raster):
     # per-frame color limits (glue's stretch_global off) of a raster map at one wavelength, a slice subset of more
     # values than the 10,000 glue picks at random: exactly those of every value, as for a view of the same slice
     raw = np.concatenate([raw_of(int16_raster, WINDOW)] * 2, axis=1)
@@ -197,7 +197,7 @@ def test_colour_limits_of_a_slice_count_its_values(int16_raster):
             data.compute_statistic("maximum", cid, subset_state=SliceSubsetState(Data(x=oracle), list(view)))
 
 
-def test_colour_limits_of_a_large_window_count_evenly_spaced_planes(monkeypatch, int16_raster):
+def test_color_limits_of_a_large_window_count_evenly_spaced_planes(monkeypatch, int16_raster):
     raw, oracle = raw_of(int16_raster, WINDOW), expected(int16_raster, WINDOW)
     monkeypatch.setattr(lazy, "SAMPLE_BYTES", 3 * raw[0].nbytes)  # three of the 187 steps: the first, middle and last
     data, cid, _ = lazy_data(raw)
@@ -207,7 +207,7 @@ def test_colour_limits_of_a_large_window_count_evenly_spaced_planes(monkeypatch,
         assert limit == np.nanpercentile(sample, percentile)
 
 
-def test_colour_limits_of_a_derived_attribute_sample_random_points(int16_raster):
+def test_color_limits_of_a_derived_attribute_sample_random_points(int16_raster):
     # a rate, as glue's arithmetic attribute editor makes it; glue's own sample of its ten dask chunk corners is fill
     [data] = raster_data([int16_raster], ["Si IV 1403"])
     rate = ComponentID("rate", parent=data)
@@ -274,8 +274,8 @@ def lazy_and_eager(monkeypatch, load):
 def assert_loads_as_before(lazy, eager):
     """
     ``lazy`` holds raw int16 and its mask is a glue derived component, while ``eager`` is laid out as before; every
-    value, NaN, +Inf, mask sample, time, exposure and DN/s, and glue's image buffers of every pair of axes, are the
-    same. DN/s, a glue derived component of both, is the data over a positive exposure time, else NaN, in float32.
+    value, NaN, +Inf, mask sample, time, exposure and DN / s, and glue's image buffers of every pair of axes, are the
+    same. DN / s, a glue derived component of both, is the data over a positive exposure time, else NaN, in float32.
     """
     assert type(lazy) is LazyData
     assert type(eager) is Data
@@ -284,8 +284,8 @@ def assert_loads_as_before(lazy, eager):
     assert [type(eager.get_component(cid)) for cid in eager.main_components[:2]] == [Component, Component]
     assert [cid.label for cid in lazy.components] == [cid.label for cid in eager.components]
     assert lazy.get_component(science).units == eager.get_component(eager.main_components[0]).units
-    assert rate.label == f"{science.label} DN/s"
-    assert [data.get_component(data.id[rate.label]).units for data in (lazy, eager)] == ["DN/s", "DN/s"]
+    assert rate.label == f"{science.label} DN / s"
+    assert [data.get_component(data.id[rate.label]).units for data in (lazy, eager)] == ["DN / s", "DN / s"]
     assert [data[rate.label].dtype for data in (lazy, eager)] == [np.float32, np.float32]  # the data's precision
     assert lazy[mask].dtype == np.uint8
     pairs = [(science, eager.main_components[0]), (mask, eager.main_components[1])]
@@ -512,7 +512,7 @@ def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path
     np.testing.assert_array_equal(restored.data_collection[0][data.main_components[0].label], oracle)
     layer.attribute = data.derived_components[0]  # the mask draws too
     viewer.figure.canvas.draw()
-    # and DN/s, with color limits from random points, whose unit labels a profile
+    # and DN / s, with color limits from random points, whose unit labels a profile
     rate = data.derived_components[1]
     rates = np.asarray(data[rate])
     layer.attribute = rate
@@ -521,8 +521,8 @@ def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path
     viewer.figure.canvas.draw()
     profile = app.new_data_viewer(ProfileViewer, data=data)
     profile.state.layers[0].attribute = rate
-    profile.state.y_display_unit = "DN/s"  # which glue offers, as it refuses units it does not
-    assert profile.state.y_axislabel == "Data values [DN/s]"
+    profile.state.y_display_unit = "DN / s"  # which glue offers, as it refuses units it does not
+    assert profile.state.y_axislabel == "Data values [DN / s]"
     histogram = app.new_data_viewer(HistogramViewer, data=data)
     histogram.state.x_att = data.main_components[0]
     assert [histogram.state.hist_x_min, histogram.state.hist_x_max] == [np.nanmin(oracle), np.nanmax(oracle)]

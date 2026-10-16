@@ -56,9 +56,9 @@ class GaussianConstantFitter(AstropyFitter1D):
         return list(profiles_on_background(0, **self._kinds()).param_names)
 
     def model_cls(self, **starts):  # glue's hook, given each parameter's start
-        *_, level, amplitude, centre, width = self.param_names
+        *_, level, amplitude, center, width = self.param_names
         model = profiles_on_background(
-            starts[centre],
+            starts[center],
             amplitudes=[starts[amplitude]],
             widths=[starts[width]],
             background_level=starts[level],
@@ -87,21 +87,21 @@ class GaussianConstantFitter(AstropyFitter1D):
         peak = np.argmax(np.abs(y - constant))
         amplitude = y[peak] - constant
         fwhm = np.count_nonzero(np.abs(y - constant) >= np.abs(amplitude) / 2) * np.ptp(x) / (len(x) - 1)
-        *_, level, height, centre, width = self.param_names
+        *_, level, height, center, width = self.param_names
         return {
             level: constant,
             height: amplitude,
-            centre: x[peak],
+            center: x[peak],
             width: fwhm if self.lorentzian else fwhm / np.sqrt(8 * np.log(2)),
         }
 
     def summarize(self, fit_result, x, y, dy=None):
         model = fit_result[0]
-        centre = getattr(model, model.param_names[-2]).value
-        text = f"{super().summarize(fit_result, x, y, dy)}\n\ncenter = {centre:.6f}"
-        name, rest = min(MAIN_LINES, key=lambda line: abs(line[1] - centre))
-        if abs(centre - rest) <= NEAR:
-            text += f"\n{name} {rest} Å: {(centre / rest - 1) * constants.c.to_value(KM_S):+.2f} {KM_S}"
+        center = getattr(model, model.param_names[-2]).value
+        text = f"{super().summarize(fit_result, x, y, dy)}\n\ncenter = {center:.6f}"
+        name, rest = min(MAIN_LINES, key=lambda line: abs(line[1] - center))
+        if abs(center - rest) <= NEAR:
+            text += f"\n{name} {rest} Å: {(center / rest - 1) * constants.c.to_value(KM_S):+.2f} {KM_S}"
         return text
 
 

@@ -44,21 +44,21 @@ def scan_path(tmp_path, irispy_test_files):
     return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
 
 
-def answer(monkeypatch, rest, velocities=None, normalised=False, accept=True):
+def answer(monkeypatch, rest, velocities=None, normalized=False, accept=True):
     """
     Make each Doppler image dialog return as if ``rest`` and any ``velocities`` were typed, "(red - blue) / (red +
-    blue) too" ticked with ``normalised``, and OK, or Cancel, pressed; returns what each dialog opened with.
+    blue) too" ticked with ``normalized``, and OK, or Cancel, pressed; returns what each dialog opened with.
     """
     opened = []
 
     def exec_(dialog):
         fields = [dialog.findChild(QtWidgets.QLineEdit, name) for name in ("rest", "velocities")]
-        tick = dialog.findChild(QtWidgets.QCheckBox, "normalised")
+        tick = dialog.findChild(QtWidgets.QCheckBox, "normalized")
         opened.append((*(field.text() for field in fields), tick.isChecked()))
         fields[0].setText(rest)
         if velocities is not None:
             fields[1].setText(velocities)
-        tick.setChecked(normalised)
+        tick.setChecked(normalized)
         return QtWidgets.QDialog.Accepted if accept else QtWidgets.QDialog.Rejected
 
     monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
@@ -80,7 +80,7 @@ def run(app, qtbot, data):
 
 def numpys(raster, rest, velocities):
     """
-    The red and the blue wing of ``raster``'s DN/s at each of ``velocities`` from ``rest``, by numpy's `~numpy.interp`
+    The red and the blue wing of ``raster``'s DN / s at each of ``velocities`` from ``rest``, by numpy's `~numpy.interp`
     of each pixel's spectrum, velocity first.
     """
     wavelengths, _ = _wavelengths(raster)
@@ -95,16 +95,16 @@ def numpys(raster, rest, velocities):
     ]
 
 
-def assert_numpys(maps, raster, rest, velocities=VELOCITIES, normalised=False):
-    """``maps`` are numpy's red less blue wing of ``raster``'s DN/s, and with ``normalised``, over their sum."""
+def assert_numpys(maps, raster, rest, velocities=VELOCITIES, normalized=False):
+    """``maps`` are numpy's red less blue wing of ``raster``'s DN / s, and with ``normalized``, over their sum."""
     red, blue = numpys(raster, rest, velocities)
     names = [f"red - blue {v:g} km / s" for v in velocities]
-    if normalised:
+    if normalized:
         names += [f"(red - blue) / (red + blue) {v:g} km / s" for v in velocities]
     assert [cid.label for cid in maps.main_components] == names
     for k, v in enumerate(velocities):
         np.testing.assert_allclose(maps[names[k]], red[k] - blue[k], rtol=1e-12, atol=1e-12)
-        if normalised:
+        if normalized:
             with np.errstate(invalid="ignore"):
                 expected = np.where((red[k] > 0) & (blue[k] > 0), (red[k] - blue[k]) / (red[k] + blue[k]), np.nan)
             np.testing.assert_allclose(maps[names[len(velocities) + k]], expected, rtol=1e-12, atol=1e-12)
@@ -143,14 +143,14 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     assert np.isnan(maps["red - blue 10 km / s"]).sum() == 32  # where either sample interpolated is missing
 
 
-def test_the_typed_velocities_normalised_and_a_blank_or_cancelled_rest(app, qtbot, monkeypatch, scan_path):
+def test_the_typed_velocities_normalized_and_a_blank_or_canceled_rest(app, qtbot, monkeypatch, scan_path):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     collection = app.data_collection
     collection.append(raster)
-    answer(monkeypatch, " 1402.77 ", " 25,5 5", normalised=True)
+    answer(monkeypatch, " 1402.77 ", " 25,5 5", normalized=True)
     maps = run(app, qtbot, raster)
     assert maps.meta["doppler_velocities"] == (5, 25)
-    assert_numpys(maps, raster, 1402.77, (5, 25), normalised=True)
+    assert_numpys(maps, raster, 1402.77, (5, 25), normalized=True)
     # nothing more is added
     tree = app._layer_widget
     tree.ui.layerTree.set_selected_layers([raster])  # glue selects the dataset added
@@ -174,10 +174,10 @@ def test_a_symmetric_line_gives_zero_a_redshift_a_positive_map_and_a_saturated_s
     k = np.argmin(abs(wavelengths - 1402.77))
     rest = wavelengths[k]  # on a sample: a symmetric line's samples are symmetric about it
     for shift in (0, 5):
-        centre = rest * (1 + shift / constants.c.to_value(u.km / u.s))
-        line = 1000 * np.exp(-0.5 * ((wavelengths - centre) / 0.3) ** 2) + 50
+        center = rest * (1 + shift / constants.c.to_value(u.km / u.s))
+        line = 1000 * np.exp(-0.5 * ((wavelengths - center) / 0.3) ** 2) + 50
         raster.update_components({cid: np.broadcast_to(line, raster.shape).astype(np.float32)})
-        maps = doppler_image(raster, rest, normalised=True)
+        maps = doppler_image(raster, rest, normalized=True)
         for name in maps.main_components:
             if shift:
                 assert (maps[name] > 0).all()
@@ -278,6 +278,6 @@ def test_a_full_mg_ii_k_window_gives_numpys_maps(irispy_data):
     """3400109360's Mg II k, at full resolution, read lazily and its steps negative, gives numpy's maps."""
     [path] = irispy_data("iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz")
     [raster] = raster_data([path], ["Mg II k 2796"])
-    maps = doppler_image(raster, 2796.352, normalised=True)
+    maps = doppler_image(raster, 2796.352, normalized=True)
     assert maps.get_component("red - blue 10 km / s").units == "DN_IRIS_NUV / s"
-    assert_numpys(maps, raster, 2796.352, normalised=True)
+    assert_numpys(maps, raster, 2796.352, normalized=True)

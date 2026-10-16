@@ -80,7 +80,7 @@ def test_the_action_adds_irispys_dust_removed_slit_jaw_image_linked_and_no_viewe
         ("Time", ""),
         ("Exposure time", "s"),
     ]
-    assert dust.get_component(f"{label} DN/s").units == "DN/s"
+    assert dust.get_component(f"{label} DN / s").units == "DN / s"
     assert_irispys_dust_removed(dust, sji_path)
     assert not any(app.viewers)
     assert tree.ui.layerTree.selected_layers() == [dust]
@@ -132,7 +132,7 @@ def test_the_radiance_is_irispys_radiometric_calibration(app, request, which, wi
     tree.ui.layerTree.set_selected_layers([raster])
     tree._actions[RADIANCE].trigger()
     cid = raster.main_components[0]
-    radiance, factor = raster.id[f"{cid.label} radiance"], raster.id[f"{cid.label} radiance per DN/s"]
+    radiance, factor = raster.id[f"{cid.label} radiance"], raster.id[f"{cid.label} radiance per DN / s"]
     assert raster.get_component(radiance).units == "erg / (Angstrom s sr cm2)"
     assert raster.get_component(factor).units == "erg / (Angstrom DN sr cm2)"
     assert not any(raster.get_component(factor).data.strides[:-1])  # one spectrum held
@@ -153,7 +153,7 @@ def test_a_stacks_radiance_is_each_scans_own(app, stack_paths):
     tree.ui.layerTree.set_selected_layers([stack])
     tree._actions[RADIANCE].trigger()
     cid = stack.main_components[0]
-    radiance, factor = stack.id[f"{cid.label} radiance"], stack.id[f"{cid.label} radiance per DN/s"]
+    radiance, factor = stack.id[f"{cid.label} radiance"], stack.id[f"{cid.label} radiance per DN / s"]
     assert not any(stack.get_component(factor).data.strides[1:-1])  # a spectrum a scan held
     assert len({tuple(spectrum) for spectrum in stack[factor][:, 0, 0]}) == 1  # the scans share their wavelengths
     for k, path in enumerate(stack_paths):
@@ -214,19 +214,19 @@ def test_a_rebinned_windows_radiance_is_its_radiance_rebinned(app, scan_path, st
     tree._actions[RADIANCE].trigger()
     cid, label = rebinned.main_components[0], data.main_components[0].label
     radiance = data[calibration.radiometric_calibration(data)]
-    factor = data[f"{label} radiance per DN/s"]
+    factor = data[f"{label} radiance per DN / s"]
     covered = tuple(slice(0, n * b) for n, b in zip(rebinned.shape, bins))
     shape = [m for n, b in zip(rebinned.shape, bins) for m in (n, b)]
 
     def binned(values, operation=np.nanmean):  # as 'IRIS: rebin…' bins them
         return operation(values[covered].reshape(shape), axis=tuple(range(1, len(shape), 2)))
 
-    np.testing.assert_allclose(rebinned[f"{cid.label} radiance per DN/s"], binned(factor, np.mean), rtol=1e-4, atol=0)
+    np.testing.assert_allclose(rebinned[f"{cid.label} radiance per DN / s"], binned(factor, np.mean), rtol=1e-4, atol=0)
     change = (binned(factor, np.max) - binned(factor, np.min)) / binned(factor, np.mean)
     got, expected = rebinned[f"{cid.label} radiance"], binned(radiance)
     np.testing.assert_array_equal(np.isnan(got), np.isnan(expected))
     kept = ~np.isnan(expected)
-    # and 1e-5: the rebinned DN/s is a bin's mean DN over its mean exposure time, its steps' 1e-6 apart
+    # and 1e-5: the rebinned DN / s is a bin's mean DN over its mean exposure time, its steps' 1e-6 apart
     assert np.all(np.abs(got - expected)[kept] <= ((change + 1e-5) * binned(np.abs(radiance)))[kept])
 
 

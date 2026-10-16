@@ -76,7 +76,7 @@ def sns(irispy_test_files):
 def write_sst_cube(
     path,
     shape=(3, 1, 5, 12, 16),
-    centre=(-55.0, -400.0),
+    center=(-55.0, -400.0),
     drift=(0.0, 0.0),
     scale=1.0,
     roll=0.0,
@@ -88,7 +88,7 @@ def write_sst_cube(
 ):
     """
     Write an SST cube as SSTRED exports one, of ``shape`` (scans, Stokes, tunings, y, x): its pixel (x, y) at scan t is
-    at ``centre + t * drift + R(roll) @ scale * (x - centre pixel, y - centre pixel)``, in arcsec, and its tuning k at
+    at ``center + t * drift + R(roll) @ scale * (x - center pixel, y - center pixel)``, in arcsec, and its tuning k at
     scan t at ``start + t * cadence + 0.25 * k`` s since 2021-09-05 UTC, as its DATE-AVG table gives it too, and
     656.28 nm, H-alpha's, at tuning ``core``, the middle one by default, 0.01 nm apart. ``prefilters`` are the tunings of
     each cavity map, all of them in one map without OFFSET.3 and SCALE.3 by default; the map of extension version v is v
@@ -100,7 +100,7 @@ def write_sst_cube(
     t, k, j, i = np.indices((scans, tunings, 2, knots), dtype=float)
     dx, dy = (i / (knots - 1) - 0.5) * (columns - 1) * scale, (j * (rows - 1) - (rows - 1) / 2) * scale
     cos, sin = np.cos(np.deg2rad(roll)), np.sin(np.deg2rad(roll))
-    lon, lat = centre[0] + t * drift[0] + cos * dx - sin * dy, centre[1] + t * drift[1] + sin * dx + cos * dy
+    lon, lat = center[0] + t * drift[0] + cos * dx - sin * dy, center[1] + t * drift[1] + sin * dx + cos * dy
     coord = np.stack([lon, lat, 656.28 + 0.01 * (k - core), start + t * cadence + 0.25 * k], -1)
     header = fits.Header({"DATEREF": DATEREF, "DATE-OBS": DATEREF, "INSTRUME": "CRISP", "TIMESYS": "UTC"})
     header.update({"OBSGEO-X": 5327403, "OBSGEO-Y": -1718726, "OBSGEO-Z": 3051730})  # the SST's
@@ -301,7 +301,7 @@ def _views(monkeypatch):
     return views
 
 
-def test_colour_limits_sample_evenly_spaced_planes_rows_and_columns(monkeypatch, tmp_path):
+def test_color_limits_sample_evenly_spaced_planes_rows_and_columns(monkeypatch, tmp_path):
     # SST10: glue's 10,000 random values each lie on another page of the file
     write_sst_cube(tmp_path / "cube.fits", (2, 1, 23, 49, 97))
     cube, values = sst_data(tmp_path / "cube.fits"), fits.getdata(tmp_path / "cube.fits")
@@ -337,7 +337,7 @@ def test_colour_limits_sample_evenly_spaced_planes_rows_and_columns(monkeypatch,
 
 
 @pytest.mark.parametrize("stokes", [1, 4])
-def test_colour_limits_of_a_line_are_glue_s_when_15_divides_the_scans(monkeypatch, tmp_path, stokes):
+def test_color_limits_of_a_line_are_glue_s_when_15_divides_the_scans(monkeypatch, tmp_path, stokes):
     # D73: planes evenly spaced over the scan, Stokes and tuning together were each the first or last tuning, and the
     # line-core map opened black
     path, shape = tmp_path / "cube.fits", (30, stokes, 13, 40, 40)

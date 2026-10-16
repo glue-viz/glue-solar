@@ -1,0 +1,1 @@
+glue-solar's own code names use American spelling (line_moments(center=), doppler_image(normalized=), ColorBarTool), and its units are astropy's strings, such as DN / s.

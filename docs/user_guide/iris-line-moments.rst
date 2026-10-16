@@ -40,7 +40,7 @@ The maps
 --------
 
 - ``intensity``, the sum of the samples, in irispy's ``DN_IRIS_FUV / s`` or ``DN_IRIS_NUV / s``, the
-  window's DN/s by its detector: those of the window's ``<label> DN/s``, its DN over each raster
+  window's DN / s by its detector: those of the window's ``<label> DN / s``, its DN over each raster
   step's exposure time (NaN at a step whose exposure time is 0 s), or of the window's own values, in
   their unit, for data without one;
 - ``centroid``, the line's intensity-weighted mean wavelength, in Å;
@@ -71,11 +71,11 @@ pixel saturated across its continuum windows too has no background but keeps its
 counted: the X1 flare's rasters r00172-r00174 of 3860258481 have 839 saturated Si IV 1402.77
 pixels within ±107 km / s, with or without continuum windows 1401.6-1402.1 and 1403.5-1404.3 Å.
 
-The new dataset's ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``, ``moments_centre``
+The new dataset's ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``, ``moments_center``
 and ``moments_velocity_range``, and with a continuum also ``moments_continuum``, the windows, and
 ``moments_continuum_degree``, the degree of the background; maps made before glue-solar took a
 velocity range keep their ``moments_wings``, in Å, in sessions.
-``glue_solar.sources.moments.line_moments(data, centre, velocity_range, continuum, errors)``
+``glue_solar.sources.moments.line_moments(data, center, velocity_range, continuum, errors)``
 computes the dataset in glue's terminal too, ``velocity_range`` a ``(lower, upper)`` pair in km / s
 and ``continuum`` a list of ``(lower, upper)`` wavelengths in Å.
 
@@ -86,7 +86,7 @@ Tick "Error maps" in the dialog, unticked at first, to add each map's error, ``<
 map's unit: irispy's standard deviation of it, which ``calculate_moments`` propagates to first order
 from that of each sample its reader gives with ``uncertainty=True``, the photon noise of its DN,
 through the detector's gain and yield, and the read noise, over the raster step's exposure time for
-DN/s. Samples are taken as independent, and a fitted background's own error is left out. An error is
+DN / s. Samples are taken as independent, and a fitted background's own error is left out. An error is
 NaN where its map is, and where irispy leaves it undefined: the intensity's where no sample is left,
 the centroid's and the velocity's where fewer than two are, and the widths' where the width is 0. The
 errors are statistical only, unreliable below a signal-to-noise ratio of about 5, and leave out the

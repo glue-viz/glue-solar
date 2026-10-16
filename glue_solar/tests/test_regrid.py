@@ -88,7 +88,7 @@ def check_regrid(source, regridded):
     values[gaps] = np.nan
     np.testing.assert_array_equal(regridded[cid], values)
     np.testing.assert_array_equal(regridded[f"{cid.label} mask"], np.isnan(values))
-    assert f"{cid.label} DN/s" in [component.label for component in regridded.derived_components]
+    assert f"{cid.label} DN / s" in [component.label for component in regridded.derived_components]
     lead = (slice(None),) * (source.ndim - 2) + (0, 0)  # per exposure, frame, or scan and step
     for name, gap in (("Time", np.datetime64("NaT", "ns")), ("Exposure time", np.nan)):
         expected = source[source.id[name], lead][np.maximum(index, 0)]
@@ -423,16 +423,16 @@ def test_rebin_takes_each_bins_mean_of_its_values_and_keeps_the_finite_mean(
     # a pixel at its bin's center
     pixels = [np.arange(length) for length in rebinned.shape[::-1]]
     pixels = np.meshgrid(*pixels, indexing="ij")
-    centres = [(pixel + 0.5) * n - 0.5 for pixel, n in zip(pixels, bins[::-1])]
+    centers = [(pixel + 0.5) * n - 0.5 for pixel, n in zip(pixels, bins[::-1])]
     np.testing.assert_allclose(
-        rebinned.coords.pixel_to_world_values(*pixels), data.coords.pixel_to_world_values(*centres), rtol=1e-12
+        rebinned.coords.pixel_to_world_values(*pixels), data.coords.pixel_to_world_values(*centers), rtol=1e-12
     )
     zeros = [0] * (data.ndim - 1)
     np.testing.assert_allclose(  # given pixels that broadcast, as the quicklook gives a slit-jaw image's frames
         rebinned.coords.pixel_to_world_values(*zeros, np.arange(2)),
         rebinned.coords.pixel_to_world_values(*np.zeros((len(zeros), 2)), np.arange(2)),
     )
-    # the mean time and exposure time of each bin, NaN where one is 0 s, over which its DN/s are its values
+    # the mean time and exposure time of each bin, NaN where one is 0 s, over which its DN / s are its values
     lead, along = (slice(None),) * (data.ndim - 2) + (0, 0), bins[:-2]  # per exposure, frame, or scan and step
     times = data[data.id["Time"]][lead]
     start = times.flat[0]
@@ -443,7 +443,9 @@ def test_rebin_takes_each_bins_mean_of_its_values_and_keeps_the_finite_mean(
     zero = binned(seconds == 0, along)[0] > 0
     np.testing.assert_allclose(exposure, np.where(zero, np.nan, binned(seconds, along)[0]), rtol=1e-6)
     assert list(np.flatnonzero(np.isnan(exposure))) == ([1] if kind == "raster" else [])
-    np.testing.assert_allclose(rebinned[f"{label} DN/s"], values / exposure[..., None, None], rtol=1e-6, equal_nan=True)
+    np.testing.assert_allclose(
+        rebinned[f"{label} DN / s"], values / exposure[..., None, None], rtol=1e-6, equal_nan=True
+    )
 
 
 def test_rebin_refuses_other_data_and_bins_that_do_not_fit(tmp_path, irispy_test_files):

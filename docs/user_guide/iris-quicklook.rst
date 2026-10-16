@@ -520,7 +520,7 @@ NaN, with ``Time`` NaT, ``Exposure time`` NaN and the missing-data mask 1. The 1
   the quicklook.
 - A scanning raster is not offered it: its steps are places on the Sun, not times. Stack its scans
   in the observation browser and regrid the stack instead.
-- The new dataset has the original's other axes, units, colormap, ``<label> DN/s`` and metadata,
+- The new dataset has the original's other axes, units, colormap, ``<label> DN / s`` and metadata,
   ``meta['time_step']`` adding the step in seconds, and its coordinates: along the regridded axis,
   those at each pixel's time, so that a slit-jaw image's time coordinate is regular, and those of
   the last time for a last pixel past it. Its helioprojective coordinates are linked with the other
@@ -552,7 +552,7 @@ or exposures and slit pixels, or y and x, and 1 along wavelength, frames and sca
 samples left out, and NaN where every one is missing; pixels past the last whole bin along an axis
 are left out. Its coordinates are at each bin's center, its ``Time`` is the mean of the bin's times,
 and its ``Exposure time`` the mean of the bin's exposure times, NaN where one is 0 s, over which
-``<label> DN/s`` is its mean DN. It has the original's units, colormap, pointing offset and
+``<label> DN / s`` is its mean DN. It has the original's units, colormap, pointing offset and
 metadata, ``meta['rebinned']`` adding the bins, but not a slit-jaw image's per-frame pointing, so a
 quicklook draws no slit on it and its "Frame time" tooltip gives none; a dataset regridded on time
 has its ``meta['time_step']``, the seconds per pixel of its axis label, multiplied by the bin along

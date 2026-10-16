@@ -296,7 +296,7 @@ def test_closing_the_dialog_drops_the_load(dialog, qtbot, monkeypatch):
 @pytest.mark.parametrize(
     ("quicklook", "shown"), [(True, ["SJI_1400", "C_II_1336", "Mg_II_k_2796"]), (False, ["SJI_1400"])]
 )
-def test_colour_limits_of_what_browse_iris_shows_are_counted_in_the_background(qtbot, monkeypatch, iris_tree, quicklook,
+def test_color_limits_of_what_browse_iris_shows_are_counted_in_the_background(qtbot, monkeypatch, iris_tree, quicklook,
                                                                               shown):
     from glue_solar.sources.iris import _shown, browse_iris
 
@@ -793,8 +793,8 @@ def test_real_sji_adapter_preserves_mask_units_and_coordinates(irispy_test_files
             np.testing.assert_array_equal(data.meta[key], aux.data[:, aux.header[column]])
     assert data.get_component(science).units == str(cube.unit)
     [rate] = data.derived_components
-    assert rate.label == f"{science.label} DN/s"
-    assert data.get_component(rate).units == "DN/s"
+    assert rate.label == f"{science.label} DN / s"
+    assert data.get_component(rate).units == "DN / s"
     np.testing.assert_allclose(data[rate], data[science] / data[exposure], rtol=1e-6)
     mask = data.get_component(mask).data
     assert mask.dtype == np.uint8
@@ -876,7 +876,7 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
     for i, scan in enumerate(sequence):  # each scan's own exposure times, not scan 0's
         exposure = scan.meta["exposure time"].to_value(u.s)
         np.testing.assert_array_equal(data["Exposure time"][i, :, 0, 0], exposure)
-        np.testing.assert_allclose(data[f"{data.label} DN/s"][i], values[i] / exposure[:, None, None], rtol=1e-6)
+        np.testing.assert_allclose(data[f"{data.label} DN / s"][i], values[i] / exposure[:, None, None], rtol=1e-6)
     np.testing.assert_array_equal(
         data.coords.pixel_to_world_values(0, 0, 0, np.arange(len(paths)))[-1], np.arange(len(paths))
     )

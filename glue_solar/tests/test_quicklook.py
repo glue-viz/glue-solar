@@ -425,10 +425,10 @@ def expected_start(data):
     wave = wave.to_value(u.AA)
     twaves = [data.meta[f"TWAVE{n}"] for n in range(1, data.meta["NWIN"] + 1)]
     [twave] = [t for t in twaves if wave.min() <= t <= wave.max()]
-    centre = [n // 2 for n in data.shape[:-1]]
+    center = [n // 2 for n in data.shape[:-1]]
     if data.ndim == 4:
-        centre[0] = 0
-    return (*centre, int(np.argmin(np.abs(wave - twave))))
+        center[0] = 0
+    return (*center, int(np.argmin(np.abs(wave - twave))))
 
 
 def check_panels(app, viewers, data, rows):
@@ -1532,11 +1532,11 @@ def check_follower(app, qtbot, master_time, follower, viewer):
     if matched:
         qtbot.waitUntil(lambda: f" · Δt {delta:+.1f} s" in readout(viewer))
         assert viewer.state.slices[0] == index
-        assert not viewer.toolbar.tools["solar:frame_time"]._grey.get_visible()
+        assert not viewer.toolbar.tools["solar:frame_time"]._gray.get_visible()
     else:
         qtbot.waitUntil(lambda: f"NO MATCH Δt = {delta:+.1f} s" in readout(viewer))
         assert viewer.state.slices[0] == before
-        assert viewer.toolbar.tools["solar:frame_time"]._grey.get_visible()
+        assert viewer.toolbar.tools["solar:frame_time"]._gray.get_visible()
     return matched
 
 
@@ -1636,7 +1636,7 @@ def test_an_unmatched_slit_jaw_keeps_its_frame(bare_app, qtbot, scans):
     delta = (late[0] - raster_time(scan, (2,))) / np.timedelta64(1, "s")
     qtbot.waitUntil(lambda: f"NO MATCH Δt = {delta:+.1f} s" in readout(sji_viewer))
     assert sji_viewer.state.slices[0] == 3
-    assert sji_viewer.toolbar.tools["solar:frame_time"]._grey.get_visible()
+    assert sji_viewer.toolbar.tools["solar:frame_time"]._gray.get_visible()
 
 
 def test_a_stack_master_moves_the_slit_jaw_image_by_scan_and_step(bare_app, qtbot, scans):
@@ -1680,14 +1680,14 @@ def test_a_slit_jaw_master_over_a_scanning_raster(bare_app, qtbot, scans):
     [sji_viewer] = viewers["sji"]
     menu_action(sji_viewer, "Time master").trigger()
     step = scan.shape[0] // 2  # the point's
-    grey = viewers["map"].toolbar.tools["solar:frame_time"]._grey
+    gray = viewers["map"].toolbar.tools["solar:frame_time"]._gray
     # the offset at the timing step, NO MATCH only outside the steps' span and half a cadence
     for frame, matched in enumerate((False, True, True, False)):
         sji_viewer.state.slices = (frame, 0, 0)
         delta = (times[step] - frames[frame]) / second
         text = f" · Δt {delta:+.1f} s" if matched else f"NO MATCH Δt = {delta:+.1f} s"
         qtbot.waitUntil(lambda text=text: text in readout(viewers["map"]))
-        assert grey.get_visible() is not matched
+        assert gray.get_visible() is not matched
 
 
 def test_a_slit_jaw_master_picks_the_scan_of_a_stack(bare_app, qtbot, scans):
@@ -4972,7 +4972,7 @@ def test_the_point_window_reads_the_raster_at_the_point(bare_app, qtbot, scans, 
     event(lambda: select_point(viewers["spectrogram"], 5, 40), (*scan, 3, 40, 5))
     # the value is that of the component the map shows
     [layer] = [layer for layer in viewers["map"].state.layers if layer.layer is data]
-    layer.attribute = data.id[f"{data.label} DN/s"]
+    layer.attribute = data.id[f"{data.label} DN / s"]
     settle(qtbot, window)
     pixel = (*scan, 3, 40, 5)
     assert rows(window)[0][5] == f"{data[layer.attribute, pixel]:.6g}" != read_at(data, names, pixel, "")[5]
@@ -5278,7 +5278,7 @@ def switch(qtbot, panel):
     return tab._solar_quicklook[2]
 
 
-def colours(app):
+def colors(app):
     """The stretch and percentile of each Image viewer of the last tab, by title."""
     states = [viewer.state for viewer in app.viewers[-1] if isinstance(viewer, ImageViewer)]
     return {state.title: (state.layers[0].stretch, state.layers[0].percentile) for state in states}
@@ -5312,9 +5312,9 @@ def test_a_switch_gives_the_quicklook_opened_with_that_window_first(
     lines = glue_solar.quicklook._SpectralLines
     assert len(bare_app.tab().findChildren(lines)) == len(first.tab().findChildren(lines))
     if lambda_t is not None:
-        assert colours(bare_app) == {**colours(first), lambda_t.state.title: ("linear", 99.5)}
+        assert colors(bare_app) == {**colors(first), lambda_t.state.title: ("linear", 99.5)}
     else:
-        assert colours(bare_app) == colours(first)
+        assert colors(bare_app) == colors(first)
     # one point, its group, offered now on Mg II k 2796 and C II 1336; the Row follows it at the old map's band
     assert [group.label for group in bare_app.data_collection.subset_groups].count("Point") == 1
     assert bare_app.session.edit_subset_mode.edit_subset == [point]
@@ -5327,7 +5327,7 @@ def test_a_switch_gives_the_quicklook_opened_with_that_window_first(
     assert (cut.subset_state.reference_data, cut.subset_state.slices[-2:]) == (mg, [slice(10, 11), band])
 
 
-def test_a_switch_keeps_the_point_the_time_master_and_the_colours(bare_app, qtbot, monkeypatch, irispy_test_files):
+def test_a_switch_keeps_the_point_the_time_master_and_the_colors(bare_app, qtbot, monkeypatch, irispy_test_files):
     c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
     path = find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000"))
     bare_app.show()  # the Point window's size
@@ -5451,8 +5451,8 @@ def look(viewer):
     """An Image panel's limits and its data layer's colors, which turning it off and on again keeps."""
     state = viewer.state
     layer = state.layers[0]
-    colours = tuple(getattr(layer, att) for att in ("stretch", "percentile", "v_min", "v_max", "contrast", "bias"))
-    return (state.x_min, state.x_max, state.y_min, state.y_max, *colours, layer.cmap.name)
+    colors = tuple(getattr(layer, att) for att in ("stretch", "percentile", "v_min", "v_max", "contrast", "bias"))
+    return (state.x_min, state.x_max, state.y_min, state.y_max, *colors, layer.cmap.name)
 
 
 @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")

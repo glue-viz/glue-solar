@@ -60,9 +60,9 @@ def scan_path(tmp_path, irispy_test_files):
     return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
 
 
-def answer(monkeypatch, centre, velocities=(), continuum="", accept=True, errors=False):
+def answer(monkeypatch, center, velocities=(), continuum="", accept=True, errors=False):
     """
-    Make each line dialog return as if ``centre``, any ``velocities``, from and to, and ``continuum`` were typed,
+    Make each line dialog return as if ``center``, any ``velocities``, from and to, and ``continuum`` were typed,
     "Error maps" ticked with ``errors``, and OK, or Cancel, pressed; returns the center, velocities, continuum and tick
     each dialog opened with.
     """
@@ -70,10 +70,10 @@ def answer(monkeypatch, centre, velocities=(), continuum="", accept=True, errors
 
     def exec_(dialog):
         boxes = [dialog.findChild(QtWidgets.QDoubleSpinBox, name) for name in ("from", "to")]
-        windows, field = (dialog.findChild(QtWidgets.QLineEdit, name) for name in ("continuum", "centre"))
+        windows, field = (dialog.findChild(QtWidgets.QLineEdit, name) for name in ("continuum", "center"))
         tick = dialog.findChild(QtWidgets.QCheckBox, "errors")
         opened.append((field.text(), *(box.value() for box in boxes), windows.text(), tick.isChecked()))
-        field.setText(centre)
+        field.setText(center)
         windows.setText(continuum)
         tick.setChecked(errors)
         for box, velocity in zip(boxes, velocities):
@@ -84,9 +84,9 @@ def answer(monkeypatch, centre, velocities=(), continuum="", accept=True, errors
     return opened
 
 
-def ends(centre, low=-107, high=107):
-    """The wavelengths, in Angstrom, at ``low`` and ``high`` km / s from ``centre``, as irispy's moments take them."""
-    return centre * (1 + low / C), centre * (1 + high / C)
+def ends(center, low=-107, high=107):
+    """The wavelengths, in Angstrom, at ``low`` and ``high`` km / s from ``center``, as irispy's moments take them."""
+    return center * (1 + low / C), center * (1 + high / C)
 
 
 def missing(raster, low, high):
@@ -125,7 +125,7 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     assert maps.label == f"{raster.label} moments 1402.77"
     assert maps.shape == raster.shape[:2]
     assert [(cid.label, maps.get_component(cid).units) for cid in maps.main_components] == [
-        ("intensity", "DN_IRIS_FUV / s"),  # of the window's DN/s
+        ("intensity", "DN_IRIS_FUV / s"),  # of the window's DN / s
         ("centroid", "Angstrom"),
         ("width", "Angstrom"),
         ("velocity", "km / s"),
@@ -134,7 +134,7 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     assert maps.meta == {
         "OBSID": raster.meta["OBSID"],
         "STARTOBS": raster.meta["STARTOBS"],
-        "moments_centre": 1402.77,
+        "moments_center": 1402.77,
         "moments_velocity_range": (-107.0, 107.0),
     }
     assert not any(app.viewers)
@@ -152,20 +152,20 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     assert np.isnan(maps["velocity"][fill]).all()
 
 
-def test_the_typed_velocity_range_and_a_blank_or_cancelled_centre(app, qtbot, monkeypatch, scan_path):
+def test_the_typed_velocity_range_and_a_blank_or_canceled_center(app, qtbot, monkeypatch, scan_path):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     collection = app.data_collection
     collection.append(raster)
     answer(monkeypatch, " 1402.77 ", velocities=(-40, 200))
     maps = run(app, qtbot, raster)
-    assert (maps.meta["moments_centre"], maps.meta["moments_velocity_range"]) == (1402.77, (-40, 200))
+    assert (maps.meta["moments_center"], maps.meta["moments_velocity_range"]) == (1402.77, (-40, 200))
     np.testing.assert_array_equal(np.isnan(maps["intensity"]), missing(raster, *ends(1402.77, -40, 200)))
     # nothing more is added
     tree = app._layer_widget
     tree.ui.layerTree.set_selected_layers([raster])  # glue selects the dataset added
     action = tree._actions[ACTION]
-    for centre, accept in (("", True), ("1402.77", False)):
-        answer(monkeypatch, centre, accept=accept)
+    for center, accept in (("", True), ("1402.77", False)):
+        answer(monkeypatch, center, accept=accept)
         action.trigger()
         assert not iris._RUNNING  # and no thread started
         assert len(collection) == 2
@@ -234,7 +234,7 @@ def test_a_stacks_error_maps_are_each_scans_own(app, qtbot, monkeypatch, stack_p
             np.testing.assert_array_equal(maps[cid.label][k], alone[cid], err_msg=cid.label)
 
 
-def test_a_profile_range_gives_the_velocity_range_from_a_centre_within_it(app, qtbot, monkeypatch, scan_path):
+def test_a_profile_range_gives_the_velocity_range_from_a_center_within_it(app, qtbot, monkeypatch, scan_path):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)
     profile = app.new_data_viewer(ProfileViewer, data=raster)
@@ -254,8 +254,8 @@ def test_a_profile_range_gives_the_velocity_range_from_a_centre_within_it(app, q
         raster.meta["rest_wavelength"] = rest
         opened = answer(monkeypatch, "1402.77")
         assert run(app, qtbot, raster).meta["moments_velocity_range"] == reach
-        [(centre, *velocities, continuum, errors)] = opened
-        assert (centre, velocities, continuum, errors) == (*opens, "", False)
+        [(center, *velocities, continuum, errors)] = opened
+        assert (center, velocities, continuum, errors) == (*opens, "", False)
     # one wider than the window is cut to it, as the dialog says, and irispy takes every wavelength of the window
     raster.meta["rest_wavelength"] = None
     shown = []
@@ -285,34 +285,34 @@ def test_a_profile_range_gives_the_velocity_range_from_a_centre_within_it(app, q
     assert run(app, qtbot, raster).meta["moments_velocity_range"] == (-107, 107)
 
 
-def assert_beyond(raster, centre, low, high):
+def assert_beyond(raster, center, low, high):
     """
-    Assert that ``low`` and ``high``, in km / s from ``centre``, lie beyond the first and last wavelengths of ``raster``
+    Assert that ``low`` and ``high``, in km / s from ``center``, lie beyond the first and last wavelengths of ``raster``
     by less than a thousandth of a km / s; a ``low`` of None is not checked.
     """
     wavelengths, _ = _wavelengths(raster)
     if low is not None:
-        inner, outer = ends(centre, low + 1e-3, low)
+        inner, outer = ends(center, low + 1e-3, low)
         assert outer <= wavelengths[0] < inner
-    inner, outer = ends(centre, high - 1e-3, high)
+    inner, outer = ends(center, high - 1e-3, high)
     assert inner < wavelengths[-1] <= outer
 
 
-def assert_cut(maps, raster, centre, low):
+def assert_cut(maps, raster, center, low):
     """
-    Assert that ``maps`` of ``raster`` about ``centre`` were computed from ``low`` to the window's last wavelength, cut
+    Assert that ``maps`` of ``raster`` about ``center`` were computed from ``low`` to the window's last wavelength, cut
     to the thousandth of a km / s beyond it, and are those from ``low`` to 10,000 km / s; a ``low`` beyond the first
     wavelength is cut likewise.
     """
     start, stop = maps.meta["moments_velocity_range"]
-    assert_beyond(raster, centre, start if low < start else None, stop)
+    assert_beyond(raster, center, start if low < start else None, stop)
     assert start == max(low, start)
-    wide = line_moments(raster, centre, (low, 1e4))
+    wide = line_moments(raster, center, (low, 1e4))
     for cid in wide.main_components:
         np.testing.assert_array_equal(maps[cid.label], wide[cid], err_msg=cid.label)
 
 
-def test_the_velocities_stop_at_the_windows_wavelengths_about_the_centre(app, qtbot, monkeypatch, scan_path):
+def test_the_velocities_stop_at_the_windows_wavelengths_about_the_center(app, qtbot, monkeypatch, scan_path):
     """
     The velocity boxes stop at the window's first and last wavelengths about the center, the one the dialog starts
     at, one whose editing is finished or, on OK, one typed, to the thousandth of a km / s beyond them, a center outside
@@ -323,7 +323,7 @@ def test_the_velocities_stop_at_the_windows_wavelengths_about_the_centre(app, qt
     limits = []
 
     def exec_(dialog):
-        field = dialog.findChild(QtWidgets.QLineEdit, "centre")
+        field = dialog.findChild(QtWidgets.QLineEdit, "center")
         boxes = [dialog.findChild(QtWidgets.QDoubleSpinBox, name) for name in ("from", "to")]
         limits.append((boxes[0].minimum(), boxes[1].maximum()))  # about the window's Si IV 1402.77
         for typed in ("1400", "3000"):
@@ -338,8 +338,8 @@ def test_the_velocities_stop_at_the_windows_wavelengths_about_the_centre(app, qt
 
     monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
     assert_cut(run(app, qtbot, raster), raster, 1402.77, -250)  # 1000 km / s cut from 1400 Å's limits on OK
-    for centre, (low, high) in zip((1402.77, 1400), limits[::2]):
-        assert_beyond(raster, centre, low, high)
+    for center, (low, high) in zip((1402.77, 1400), limits[::2]):
+        assert_beyond(raster, center, low, high)
     assert limits[1] == limits[0]
     assert limits[2] == limits[3] == limits[4]  # 3000 Å, outside the window: as they were
 
@@ -360,7 +360,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
         tree.ui.layerTree.set_selected_layers([data])
         refused(action)
     assert opened == []  # refused before asking
-    for centre, continuum, velocities in (
+    for center, continuum, velocities in (
         ("3000", "", ()),
         ("Si IV", "", ()),
         ("1402.77", "", (50, -50)),
@@ -369,7 +369,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
         ("1402.77", "1401.5-1402, 1402-1402.5", ()),
         ("1402.77", "1300-1301", ()),
     ):
-        answer(monkeypatch, centre, velocities, continuum)
+        answer(monkeypatch, center, velocities, continuum)
         tree.ui.layerTree.set_selected_layers([raster])
         action.trigger()
     assert all(text.startswith("Could not compute line moments\n") for text in shown)
@@ -448,7 +448,7 @@ def test_a_continuum_window_is_irispys_background(app, qtbot, monkeypatch, scan_
 def test_ticked_error_maps_are_irispys_from_its_readers_uncertainty(app, qtbot, monkeypatch, scan_path, continuum):
     """
     "Error maps", unticked at first, adds each map's error, a slab of steps at a time: irispy's own, of the window read
-    with its ``uncertainty=True``, in DN/s, less any background, but NaN where every sample within the velocity range
+    with its ``uncertainty=True``, in DN / s, less any background, but NaN where every sample within the velocity range
     is missing.
     """
     monkeypatch.setattr(moments, "SLAB", 3 * 109 * 4)  # slabs of 1 step: halved with errors
@@ -515,11 +515,11 @@ def test_lazy_data_give_the_moments_of_data_in_memory(monkeypatch, scan_path, co
 
 
 def test_the_dn_per_second_of_a_window_that_has_it(scan_path):
-    """The maps of the window's DN/s are those of its DN over each step's exposure time, NaN at a step of 0 s."""
+    """The maps of the window's DN / s are those of its DN over each step's exposure time, NaN at a step of 0 s."""
     [raster] = raster_data([zero_exposure(scan_path, 3)], ["Si IV 1403"])
-    maps = line_moments(raster, 1402.77)
+    maps = line_moments(raster, center=1402.77)
     seconds = raster["Exposure time"][:, :1, 0]
-    raster.remove_component(raster.id[f"{raster.label} DN/s"])
+    raster.remove_component(raster.id[f"{raster.label} DN / s"])
     dn = line_moments(raster, 1402.77)
     assert maps.get_component("intensity").units == "DN_IRIS_FUV / s"
     assert dn.get_component("intensity").units == "DN_IRIS_FUV"
@@ -584,22 +584,22 @@ def test_saturated_pixels_within_the_velocity_range_are_nan_and_counted(app, qtb
 
 
 def dn_per_second_cube(raster, unit):
-    """The whole of ``raster``'s DN/s in ``unit`` / s for irispy, in float64 as it is given them, its mask their NaN."""
+    """The whole of ``raster``'s DN / s in ``unit`` / s for irispy, in float64 as it takes them, its mask their NaN."""
     window = iris.per_second(np.asarray(raster[raster.main_components[0]], dtype=float), raster["Exposure time"])
     return SpectrogramCube(window, raster.coords._wcs, unit=unit / u.s, mask=np.isnan(window))
 
 
-def assert_irispys(maps, raster, centre, velocities, unit):
+def assert_irispys(maps, raster, center, velocities, unit):
     """
-    ``maps`` are irispy's own on ``raster``'s DN/s in ``unit`` / s, but NaN where every sample within ``velocities``
+    ``maps`` are irispy's own on ``raster``'s DN / s in ``unit`` / s, but NaN where every sample within ``velocities``
     is missing.
     """
     cube = dn_per_second_cube(raster, unit)
     direct = irispy.utils.moments.calculate_moments(
-        cube, rest_wavelength=centre * u.AA, velocity_range=velocities * u.km / u.s
+        cube, rest_wavelength=center * u.AA, velocity_range=velocities * u.km / u.s
     )
     direct.pop("saturated")
-    fill = missing(raster, *ends(centre, *velocities))
+    fill = missing(raster, *ends(center, *velocities))
     assert [cid.label for cid in maps.main_components] == list(direct)
     for name, moment in direct.items():
         expected = np.where(fill | moment.mask, np.nan, moment.data)
@@ -620,9 +620,9 @@ def test_gaussian_lines_give_irispys_maps_their_width_a_standard_deviation(monke
     velocity = np.linspace(-20, 20, raster.shape[0])[:, None]  # km / s, by step
     fwhm = np.linspace(0.6, 0.9, raster.shape[1])  # Å, by slit pixel: sampled by the window's 0.25 Å, within ±2.5 Å
     velocities = (-535, 535)  # ±2.5 Å
-    centre = 1402.77 * (1 + velocity / constants.c.to_value(u.km / u.s))
+    center = 1402.77 * (1 + velocity / constants.c.to_value(u.km / u.s))
     sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
-    gaussians = 1000 * np.exp(-0.5 * ((wavelengths - centre[..., None]) / sigma[:, None]) ** 2)
+    gaussians = 1000 * np.exp(-0.5 * ((wavelengths - center[..., None]) / sigma[:, None]) ** 2)
     raster.update_components({raster.main_components[0]: gaussians.astype(np.float32)})
     maps = line_moments(raster, 1402.77, velocity_range=velocities)
     assert_irispys(maps, raster, 1402.77, velocities, DN_UNIT["FUV"])
@@ -841,7 +841,7 @@ def test_the_line_dialogs_start_at_the_rest_wavelength(app, monkeypatch, irispy_
     opened = []
 
     def exec_(dialog):
-        field = dialog.findChild(QtWidgets.QLineEdit, "centre") or dialog.findChild(QtWidgets.QLineEdit, "rest")
+        field = dialog.findChild(QtWidgets.QLineEdit, "center") or dialog.findChild(QtWidgets.QLineEdit, "rest")
         opened.append((field.text(), field.toolTip()))
         return QtWidgets.QDialog.Rejected
 

@@ -79,7 +79,7 @@ def red_blue_asymmetry(data, rest, wavelengths=WAVELENGTHS, velocities=VELOCITIE
     its wavelengths within ``wavelengths`` of ``rest``, as one dataset on the window's scans, raster steps and slit
     pixels, each scan's as that scan alone gives them, at its own coordinates.
 
-    irispy is given the window's ``<label> DN/s`` where it has one, else its values, NaN, -Inf and negative samples
+    irispy is given the window's ``<label> DN / s`` where it has one, else its values, NaN, -Inf and negative samples
     left out, a slab of raster steps of one scan at a time. For each pixel it interpolates the profile about its peak
     every ``step`` and divides the mean red wing, from ``velocities[0]`` to ``velocities[1]`` above the peak, less the
     mean blue wing, as far below it, by the peak. Its components are irispy's: ``red_blue_asymmetry``, NaN where it is not

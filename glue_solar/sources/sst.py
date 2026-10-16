@@ -41,9 +41,9 @@ def _line_core(waves, wavelnth=None):
     the middle tuning. With no line within them, the tuning nearest ``wavelnth``.
     """
     waves = np.asarray(waves)
-    centre = waves[len(waves) // 2] if wavelnth is None else wavelnth
+    center = waves[len(waves) // 2] if wavelnth is None else wavelnth
     lines = _LINES[(waves.min() <= _LINES) & (_LINES <= waves.max())]
-    line = lines[np.argmin(abs(lines - centre))] if len(lines) else centre
+    line = lines[np.argmin(abs(lines - center))] if len(lines) else center
     offset = abs(waves - line)
     near = np.flatnonzero(offset <= offset.min() + 5e-5)
     return int(near[np.argmin(abs(near - (len(waves) - 1) / 2))])

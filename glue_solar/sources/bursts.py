@@ -152,7 +152,7 @@ def si_iv_bursts(data, threshold=None, velocity_range=VELOCITY_RANGE, median_fac
     and finds a burst pixel where their mean over the step's exposure time reaches ``threshold`` and stays below
     ``median_factor`` times their median; pixels that touch, diagonally too, are one burst. The map,
     ``<label> bursts``, has ``label``, 0 outside bursts and 1 to N for the N bursts, and ``meta`` with the
-    observation's ``OBSID`` and ``STARTOBS``, ``bursts_threshold``, irispy's in DN/s per wavelength bin,
+    observation's ``OBSID`` and ``STARTOBS``, ``bursts_threshold``, irispy's in DN / s per wavelength bin,
     ``bursts_velocity_range`` and ``bursts_median_factor``. The table, ``<label> burst events``, has irispy's columns a
     row a burst: ``label``, ``raster``, the scan, ``npix``, and the ``step``, ``y``, ``time``, ``coordinate.Tx``,
     ``coordinate.Ty`` and ``intensity`` of its brightest pixel; and the map's ``meta``.
@@ -163,8 +163,8 @@ def si_iv_bursts(data, threshold=None, velocity_range=VELOCITY_RANGE, median_fac
         An IRIS raster window of one scan, (raster step, slit, wavelength), or a stack of its scans, (scan, raster
         step, slit, wavelength).
     threshold : float, optional
-        In DN/s per wavelength bin of data summed by 2 in wavelength, which irispy scales by the data's summing; None
-        for irispy's, 500 DN/s scaled by the effective area at the observation's date, a stack's first scan's.
+        In DN / s per wavelength bin of data summed by 2 in wavelength, which irispy scales by the data's summing; None
+        for irispy's, 500 DN / s scaled by the effective area at the observation's date, a stack's first scan's.
     velocity_range : float
         The half-width averaged, in km / s.
     median_factor : float or None
@@ -237,7 +237,7 @@ def _ask(data, sji):
         form.addRow("Fewest pixels of a burst:", pixels)
         return {"sigma_factor": sigma.value(), "min_pixels": pixels.value()} if _accepted(dialog, form) else None
     threshold = QtWidgets.QLineEdit(objectName="threshold", placeholderText="irispy's, from the effective area")
-    form.addRow("Threshold [DN/s, summed by 2]:", threshold)
+    form.addRow("Threshold [DN / s, summed by 2]:", threshold)
     velocity = QtWidgets.QDoubleSpinBox(objectName="velocity_range", decimals=1, maximum=1000, suffix=" km / s")
     velocity.setValue(VELOCITY_RANGE)
     form.addRow("Velocities averaged, ±:", velocity)
@@ -251,7 +251,7 @@ def _ask(data, sji):
     try:
         value = float(text) if text else None
     except ValueError:
-        raise ValueError(f"'{text}' is not a threshold in DN/s, such as 500.") from None
+        raise ValueError(f"'{text}' is not a threshold in DN / s, such as 500.") from None
     return {"threshold": value, "velocity_range": velocity.value(), "median_factor": median.value() or None}
 
 

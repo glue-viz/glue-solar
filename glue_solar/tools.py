@@ -104,7 +104,7 @@ from glue_solar.sources.moments import _accepted, _start
 __all__ = [
     "AxesPreferences",
     "BandTool",
-    "ColourBarTool",
+    "ColorBarTool",
     "CoordinateTool",
     "CursorReadoutTool",
     "FollowLockTool",
@@ -384,7 +384,7 @@ class FrameTimeTool(Tool, HubListener):
         self.label.setContentsMargins(0, 0, 12, 0)  # keep clear of the window edge and size grip
         viewer.statusBar().addPermanentWidget(self.label)
         # grays a follower with no frame near the time master's
-        self._grey = viewer.axes.add_patch(
+        self._gray = viewer.axes.add_patch(
             Rectangle((0, 0), 1, 1, transform=viewer.axes.transAxes, color="0.6", alpha=0.6, zorder=1000, visible=False)
         )
         self.coordinator = coordinator(viewer._data)
@@ -513,8 +513,8 @@ class FrameTimeTool(Tool, HubListener):
         self.enabled = data is not None and _time_component(data) is not None
         status = self.coordinator.time_status(self.viewer)
         unmatched = status is not None and status[0] == "no match"
-        if self._grey.get_visible() != unmatched:
-            self._grey.set_visible(unmatched)
+        if self._gray.get_visible() != unmatched:
+            self._gray.set_visible(unmatched)
             self.viewer.figure.canvas.draw_idle()
         self.label.setStyleSheet("color: gray" if unmatched else "")
         view = _shown_slice(state)
@@ -990,7 +990,7 @@ _BAR = (0.1, 0.15)
 _BAR_ROOM = 0.9
 
 
-class _ColourBarAxes(Axes):
+class _ColorBarAxes(Axes):
     """
     The axes of a color bar, which take the colors of the viewer's reference data from glue's own image as they draw:
     whatever glue draws the image with, they draw the bar with.
@@ -1027,12 +1027,12 @@ class _ColourBarAxes(Axes):
 
 
 @viewer_tool
-class ColourBarTool(Tool):
+class ColorBarTool(Tool):
     """
     Show or hide a color bar right of the Image viewer's image: the colors of its reference data from one color
     limit to the other, with value ticks.
 
-    The bar takes glue's own coloring of the reference data's layer as it draws (`_ColourBarAxes`), so it follows
+    The bar takes glue's own coloring of the reference data's layer as it draws (`_ColorBarAxes`), so it follows
     the limits, per frame too, the stretch, contrast and bias, the colormap, or the color in 'One color per layer'
     mode, and the slices; it is part of the figure, so saved plots show it. Its room comes from the axes, as from a
     resize, so 'Square Pixels' and 'Physical aspect' keep their proportions. A plain tool, as 'Hide axes' is, which
@@ -1040,7 +1040,7 @@ class ColourBarTool(Tool):
     """
 
     icon = _icon("solar_color_bar")
-    tool_id = "solar:colour_bar"
+    tool_id = "solar:color_bar"
     action_text = "Color bar"
     tool_tip = "Show or hide a color bar of the displayed data's colors"
 
@@ -1059,7 +1059,7 @@ class ColourBarTool(Tool):
             right = axes.figure.dpi_scale_trans + ScaledTranslation(1, 0, axes.transAxes)  # inches right of the axes
             gap, width = _BAR
             where = blended_transform_factory(right, axes.transAxes)
-            self.bar = axes.inset_axes([gap, 0, width, 1], transform=where, axes_class=_ColourBarAxes, visible=False)
+            self.bar = axes.inset_axes([gap, 0, width, 1], transform=where, axes_class=_ColorBarAxes, visible=False)
             self.bar.viewer = self.viewer
             self.bar.imshow(np.zeros((1, 1, 4)), origin="lower", aspect="auto", interpolation="nearest")
             self.bar.set_xticks([])
@@ -1692,7 +1692,7 @@ def _track(viewer, x, y):
     The motion along the path of a feature whose track passes through the points ``x, y`` (two or more) of the Image
     viewer's `PathData` diagram, shown with the path along x and one ``Time`` on each row, as a slit-jaw image's frames
     against its path: the times of the earliest and latest points, their distances along the path in km, and the speed
-    along the path in km / s at the earliest point and the acceleration in m/s², of the least-squares straight line
+    along the path in km / s at the earliest point and the acceleration in m / s2, of the least-squares straight line
     through the distances against time of points at two times, with NaN acceleration, or parabola through points at
     three or more. A distance is that from the path's first sample, measured as `sky_length` measures, on the data's
     coordinates at the point's row. None unless each point is on a row of one time with sky coordinates and the data
@@ -1732,7 +1732,7 @@ def _track(viewer, x, y):
 
 
 # The columns of a diagram's table of slopes
-_SLOPES = ("t0 (UTC)", "t1 (UTC)", "d0 (km)", "d1 (km)", "speed (km / s)", "acceleration (m/s²)")
+_SLOPES = ("t0 (UTC)", "t1 (UTC)", "d0 (km)", "d1 (km)", "speed (km / s)", "acceleration (m / s2)")
 
 
 @viewer_tool
@@ -1792,7 +1792,7 @@ class SlopeTool(PathMode):
             return None
         speed, acceleration = motion[-2:]
         text = f"Speed {speed:,.2f} km / s"
-        self.label.setText(text if np.isnan(acceleration) else f"{text} · acceleration {acceleration:,.1f} m/s²")
+        self.label.setText(text if np.isnan(acceleration) else f"{text} · acceleration {acceleration:,.1f} m / s2")
         return motion
 
     def _add_row(self, mode):

@@ -77,7 +77,7 @@ def run(app, qtbot, data):
 
 
 def assert_irispys(maps, raster, rest, wavelengths=(1, 1), velocities=(30, 55), step=5, unit=DN_UNIT["FUV"]):
-    """``maps`` are irispy's own, in one call, on ``raster``'s DN/s within ``wavelengths`` of ``rest``."""
+    """``maps`` are irispy's own, in one call, on ``raster``'s DN / s within ``wavelengths`` of ``rest``."""
     window, _ = _wavelengths(raster)
     taken = np.flatnonzero((window >= rest - wavelengths[0]) & (window <= rest + wavelengths[1]))
     direct = calculate_red_blue_asymmetry(
@@ -126,7 +126,7 @@ def test_the_action_adds_irispys_maps_as_one_linked_dataset_and_no_viewer(
     assert_irispys(maps, raster, 1402.77)
 
 
-def test_the_typed_values_and_a_blank_or_cancelled_rest(app, qtbot, monkeypatch, scan_path):
+def test_the_typed_values_and_a_blank_or_canceled_rest(app, qtbot, monkeypatch, scan_path):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     collection = app.data_collection
     collection.append(raster)
@@ -210,7 +210,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
 
 def test_a_saturated_sample_taken_flags_its_pixel(monkeypatch, scan_path):
     """
-    irispy flags a pixel saturated where a sample of the wavelengths taken is saturated, +Inf, in DN or DN/s alike.
+    irispy flags a pixel saturated where a sample of the wavelengths taken is saturated, +Inf, in DN or DN / s alike.
     """
     monkeypatch.setattr(iris, "LAZY", False)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
@@ -222,7 +222,7 @@ def test_a_saturated_sample_taken_flags_its_pixel(monkeypatch, scan_path):
     raster.update_components({cid: values})
     for rate in (True, False):
         if not rate:  # irispy is given the DN themselves
-            raster.remove_component(raster.id[f"{raster.label} DN/s"])
+            raster.remove_component(raster.id[f"{raster.label} DN / s"])
         maps = red_blue_asymmetry(raster, 1402.77)
         saturated = maps["quality"] == RBAQualityFlag.SATURATED
         assert np.flatnonzero(saturated).tolist() == [10]  # step 0, slit pixel 10

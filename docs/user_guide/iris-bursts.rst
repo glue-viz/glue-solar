@@ -26,9 +26,9 @@ irispy's ``find_si_iv_bursts``, a port of SolarSoft's ``iris_burst_check.pro`` (
 averages the wavelengths within the velocities typed, ±50 km / s unless changed, of Si IV 1402.77 Å
 in each spectrum, over its raster step's exposure time, and finds a burst pixel where the mean
 reaches the threshold and stays below the particle-hit test's factor times their median, 10 unless
-changed ("off" switches the test off). The threshold is in DN/s per wavelength bin of data summed
+changed ("off" switches the test off). The threshold is in DN / s per wavelength bin of data summed
 by 2 in wavelength, which irispy scales by the window's summing; left blank, it is irispy's: 500
-DN/s times the ratio of the 1402.77 Å effective area at the observation's date to that on
+DN / s times the ratio of the 1402.77 Å effective area at the observation's date to that on
 2013-10-22. Pixels that touch, diagonally too, are one burst; in a sit-and-stare window, whose
 steps are times, a burst then links in time too. irispy is given the window's scaled DN, missing
 samples masked, and only the wavelengths within the velocities.
@@ -36,11 +36,11 @@ samples masked, and only the wavelengths within the velocities.
 ``<label> bursts`` lies on the window's raster steps and slit pixels, with their helioprojective
 coordinates in arcsec linked with the other IRIS datasets. Its ``label`` is 0 outside bursts and 1
 to N for the N bursts, and its ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``,
-``bursts_threshold``, the threshold irispy applied, in DN/s per wavelength bin of the window,
+``bursts_threshold``, the threshold irispy applied, in DN / s per wavelength bin of the window,
 ``bursts_velocity_range`` and ``bursts_median_factor``. ``<label> burst events`` has a row for
 each burst, irispy's columns: its ``label``, ``raster``, 0, and ``npix``, its number of pixels,
 and the ``step``, ``y`` (the slit pixel), ``time``, ``coordinate.Tx`` and ``coordinate.Ty`` in
-arcsec, and ``intensity``, the mean in DN/s, of its brightest pixel; its ``meta`` is the map's,
+arcsec, and ``intensity``, the mean in DN / s, of its brightest pixel; its ``meta`` is the map's,
 with the pointing keys below. On the 1600 steps of OBSID 4000255147's Si IV 1403 it takes 0.2 s.
 
 irispy finds a stack's bursts scan by scan, each scan's as that scan alone gives them, at its own

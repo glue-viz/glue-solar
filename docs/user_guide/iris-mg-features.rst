@@ -14,7 +14,7 @@ wavelengths, so no rest wavelength is typed (but see `Rest wavelength`_). irispy
 interpolates each profile within 3 km / s of those velocities, finds the line center, k3 or h3, at its
 central reversal and the blue and red emission peaks, k2v and k2r or h2v and h2r, about it, and
 redoes line centers that jump along the slit from their neighbors. It computes the maps on a worker
-thread from the window's DN/s, a slab
+thread from the window's DN / s, a slab
 of raster steps of one scan at a time, while glue's status bar says "Computing Mg II features of
 <label>…", and adds ``<label> Mg II features`` on the window's raster steps and slit pixels, with
 their helioprojective coordinates in arcsec linked with the other IRIS datasets. No viewer opens:
@@ -29,7 +29,7 @@ For each line measured, ``k2v``, ``k3`` and ``k2r`` or ``h2v``, ``h3`` and ``h2r
 
 - ``<feature>_velocity``, in km / s from the line's rest wavelength, on the uncorrected Level 2
   wavelength scale, which can be off by about 5-10 km / s;
-- ``<feature>_intensity``, in the window's DN/s, irispy's ``DN_IRIS_NUV / s``;
+- ``<feature>_intensity``, in the window's DN / s, irispy's ``DN_IRIS_NUV / s``;
 
 NaN where irispy finds no such feature, or a sample within the velocities searched for the line is
 missing (NaN or -Inf) or saturated: +Inf, as glue-solar reads 16182 DN, the Level 2 ceiling
