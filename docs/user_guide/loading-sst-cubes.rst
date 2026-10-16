@@ -114,6 +114,9 @@ Its panels are laid out in three rows, maps on top:
   or a "Wavelength band…" (see :ref:`Viewer tools and windows
   <glue_solar_users_guide_viewer_tools_and_windows>`).
 
+A spectral cube of another instrument gets these panels from its axes, but the second map (see "Other
+spectral cubes" in :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`).
+
 The point, the edit subset "Point", starts at the map's center in the first scan and Stokes I, with
 the Pixel tool on the map, and is a pixel at every wavelength, as in the IRIS quicklook (see
 :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). Each image panel takes the Pixel tool as
