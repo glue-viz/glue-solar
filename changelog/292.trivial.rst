@@ -1,0 +1,1 @@
+tools.py and quicklook.py are about 390 lines shorter, with no change in behavior.

@@ -95,7 +95,7 @@ def iris_image_layer(viewer, data):
     if not isinstance(viewer, MatplotlibImageMixin) or "OBSID" not in getattr(data, "meta", {}):
         return None  # not an image viewer, a subset, or not an IRIS dataset: glue's default artist
     artist = viewer.get_data_layer_artist(data)
-    if hasattr(artist.state, "cmap_bad"):
+    if hasattr(artist.state, "cmap_bad"):  # a 1-D dataset's scatter layer has none
         artist.state.cmap_bad = (0, 0, 0, 0)
     return artist
 

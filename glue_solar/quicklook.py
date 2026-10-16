@@ -221,10 +221,8 @@ def sji_to_raster(sji, frame, x, y, raster):
 
 def _time_axis(data):
     """
-    The axis along which ``data`` steps through time, or None for a scanning raster, which has none.
-
-    A slit-jaw image or AIA cutout steps through frames, a sit-and-stare raster through exposures and
-    a stack or an SST cube through scans; a scanning raster's steps are places on the Sun.
+    The axis along which ``data`` steps through time (frames, exposures or scans), or None for a scanning raster, whose
+    steps are places on the Sun.
     """
     role = _role(data)
     if role in ("sji", "aia", "sst") or (role == "raster" and (data.ndim == 4 or _is_sit_and_stare(data))):
@@ -367,10 +365,8 @@ class Coordinator(HubListener):
 
     def _share_times(self, *_):
         """
-        Give each SST cube of the collection its time key (`observation_key`): cubes whose scan times overlap or lie
-        within the larger of their scan cadences of each other (253-2), or of one that does, share ``('SST', the first
-        of their times)``, so co-temporal CRISP and CHROMIS cubes keep one time and a cube from another part of the day
-        its own (230-9). A linked cube's times count too, though it takes its IRIS observation's key.
+        Give each SST cube its time key (`observation_key`): cubes whose scan times overlap or lie within the larger
+        cadence of each other share ``('SST', their first time)``, so co-temporal CRISP and CHROMIS share one (253-2).
         """
         spans = []
         for data in self.data_collection:
@@ -599,11 +595,8 @@ class Coordinator(HubListener):
 
     def _pin(self, state):
         """
-        Make a click the point: a detector pixel at every wavelength.
-
-        The point's other free axes come from the sliders of the viewer it was clicked in. A click on
-        a panel showing wavelength frees the wavelength and moves the cube's maps to it, but an SST quicklook's second
-        map (`_wing`).
+        Make a click the point, a detector pixel at every wavelength, its other free axes from the clicked viewer's
+        sliders; a click on a panel showing wavelength moves the maps, but the second (`_wing`), to it instead.
         """
         data = state.reference_data
         spectral = _spectral_axes(data)
@@ -632,12 +625,9 @@ class Coordinator(HubListener):
 
     def _to_raster(self, state):
         """
-        Make a click on a slit-jaw image of a quicklook the point of the quicklook's raster there, placed with the frame
-        the clicked viewer shows (`sji_to_raster`). Under a raster time master that frame stays while the point is the
-        click's, rather than move to the time the click gave the raster, and an Undo or Redo back to the click's point
-        moves the viewer back to it. A click outside the raster leaves the point as
-        it was, and the viewer's readout says so (`outside_raster`). A click on an image showing its frame axis, or
-        outside a quicklook, stays a slit-jaw point.
+        Make a click on a quicklook's slit-jaw frame the point of its raster there (`sji_to_raster`, D19, #114); outside
+        the raster the point stays (`outside_raster`), and under a raster master the frame clicked stays while the point
+        is the click's, Undo and Redo too (#182, #193).
         """
         sji, owners = state.reference_data, self._owners.get(self.group, ())
         clicked = {axis for axis, s in enumerate(state.slices) if s.start is not None}
@@ -704,12 +694,8 @@ class Coordinator(HubListener):
                 listener(None, None, None)
 
     def _datasets(self, key):
-        seen = {}
-        for viewer in self._viewers:
-            data = viewer.state.reference_data
-            if data is not None and observation_key(data) == key and _timed(data):
-                seen.setdefault(id(data), data)
-        return list(seen.values())
+        shown = dict.fromkeys(viewer.state.reference_data for viewer in self._viewers)
+        return [data for data in shown if data is not None and observation_key(data) == key and _timed(data)]
 
     def _master(self, key):
         """
@@ -728,8 +714,8 @@ class Coordinator(HubListener):
         # else a raster of the followed point's viewers, as after Clear point, not one of a hidden tab
         rasters = [data for data in datasets if _role(data) == "raster"]
         rasters += [data for data in datasets if _role(data) == "sst"]
-        followed = {id(viewer.state.reference_data) for viewer in self._viewers if self._follows(viewer)}
-        return next((data for data in rasters if id(data) in followed), next(iter(rasters), None))
+        followed = {viewer.state.reference_data for viewer in self._viewers if self._follows(viewer)}
+        return next((data for data in rasters if data in followed), next(iter(rasters), None))
 
     def master_time(self, key):
         """The time of observation ``key``'s time master now, as the coming time sync takes it, or None."""
@@ -742,11 +728,8 @@ class Coordinator(HubListener):
 
     def _timing(self, data):
         """
-        The index of ``data``'s time along its first axis and, for rasters, the timing step.
-
-        A raster's timing step is the point's step, or the one it had when the point left the raster
-        (mid-raster before any); a sit-and-stare's exposure and a stack's scan otherwise come from the
-        sliders. A slit-jaw image's time is its frame.
+        The index of ``data``'s time along its first axis and, for a raster, its timing step: the point's step, or the
+        one it had when the point left (mid-raster before any), the sliders giving the rest (D22).
         """
         point = self.point
         if _role(data) != "raster":
@@ -842,11 +825,8 @@ class Coordinator(HubListener):
 
     def _mark(self, key, time, seconds):
         """
-        Select the exposure of observation ``key``'s time master, from ``time`` for ``seconds``, on the first open
-        datetime Scatter plot of an observation's data (by OBSID and STARTOBS) while that observation is ``key``: as
-        the subset group 'Master exposure', glue's own range on that axis, as a range dragged there gives. The group
-        is a session's, found by its label, or made at the first such sync and removed from the other viewers open
-        then; deleting it stops it.
+        Select the time master's exposure, ``time`` for ``seconds``, as glue's own range subset 'Master exposure' on the
+        first open datetime Scatter plot of observation ``key`` (D27, #207), found by its label; deleted, not remade.
         """
         groups = self.data_collection.subset_groups
         if self.marker is not None and self.marker not in groups:
@@ -865,10 +845,7 @@ class Coordinator(HubListener):
         if self.marker is None:
             self.marker = next((group for group in groups if group.label == "Master exposure"), None)
         if self.marker is None:
-            mode = app.session.edit_subset_mode
-            edit = mode.edit_subset
-            self.marker = self.data_collection.new_subset_group(label="Master exposure", subset_state=state)
-            mode.edit_subset = edit  # glue-qt makes a new group the edit subset
+            self.marker = _new_group(app.session, self.data_collection, label="Master exposure", subset_state=state)
             for viewer in viewers:
                 if not isinstance(viewer.state, ScatterViewerState):
                     _show(viewer, self.marker, False)  # as a light curve is: they would update it at each step
@@ -1041,13 +1018,9 @@ def _within_half_turn(lon, lat):
 
 def _outline_region(raster, roi, x_axis, y_axis, slices):
     """
-    ``roi``, drawn on the pixel axes ``x_axis`` and ``y_axis`` of ``raster`` at ``slices``, as a region of
-    helioprojective longitude and latitude.
-
-    Its outline runs within the raster's first and last pixel centers, past which glue's inverse of its coordinates
-    places nothing, and has a corner wherever it crosses a whole step: between steps those coordinates are linear.
-    ``raster`` can also be a slit-jaw image, at the frame in ``slices``: across a frame its coordinates are linear to
-    1.3e-4 pixel, so the outline has no other corners.
+    ``roi`` on ``raster``'s pixel axes at ``slices`` as a helioprojective region (#116): within the outer pixel centers,
+    past which glue's inverse places nothing, with a corner at each step crossed, between which the coordinates are
+    linear; a slit-jaw frame's are linear throughout.
     """
     margin = 1e-6  # so that pixel centers on the edge, such as another window's of the raster, are inside
     box = Bbox([[-margin, -margin], [raster.shape[x_axis] - 1 + margin, raster.shape[y_axis] - 1 + margin]])
@@ -1076,10 +1049,8 @@ def _outline_region(raster, roi, x_axis, y_axis, slices):
 
 class _RasterRoiSubsetState(RoiSubsetState):
     """
-    A region drawn on a raster map or a slit-jaw frame: that dataset's pixels inside it, as glue's own region, also in
-    data whose pixels glue links to them as the same (`_link_windows`), and on other data ``world``, the region inside
-    its outline (`_outline_region`). glue places that without inverting the raster's coordinates at each of their
-    pixels, and would place a slit-jaw image's own region nowhere else, as time is not linked.
+    A region on a raster map or slit-jaw frame: glue's own on that data and data linked to its pixels, and elsewhere
+    ``world``, its outline (`_outline_region`), which glue places without inverting the coordinates at each pixel (D39).
     """
 
     def __init__(self, xatt, yatt, roi, world):
@@ -1106,21 +1077,25 @@ class _RasterRoiSubsetState(RoiSubsetState):
         return _RasterRoiSubsetState(self.xatt, self.yatt, self.roi, self.world)
 
 
+def _new_group(session, collection, **kwargs):
+    """A new subset group of ``collection``, leaving the edit subset, which glue-qt makes the new group, as it was."""
+    mode = session.edit_subset_mode
+    edit, group = mode.edit_subset, collection.new_subset_group(**kwargs)
+    mode.edit_subset = edit
+    return group
+
+
 class _NewSubset(Command):
     """
-    A new subset group of ``subset_state``, leaving the edit subset as it is; undo removes the group.
-
-    glue-qt's data collection selects every new group, which makes it the edit subset, and empties the edit subset
-    when a group is removed; glue's undo of a new subset leaves its emptied group there.
+    A new subset group, the edit subset left as it is (D38); undo removes the group, which glue's undo leaves emptied,
+    and keeps the edit subset, which glue-qt's removal empties.
     """
 
     kwargs = ["data_collection", "subset_state"]
     label = "new subset"
 
     def do(self, session):
-        edit = session.edit_subset_mode.edit_subset
-        self.group = self.data_collection.new_subset_group(subset_state=self.subset_state.copy())
-        session.edit_subset_mode.edit_subset = edit
+        self.group = _new_group(session, self.data_collection, subset_state=self.subset_state.copy())
 
     def undo(self, session):
         edit = session.edit_subset_mode.edit_subset
@@ -1249,10 +1224,8 @@ def _role(data):
 
 def _same_file(data, other):
     """
-    Whether ``data`` and ``other`` are windows of one raster file, or of one stack of the same scans, which share their
-    scans, steps or exposures and slit pixels: rasters of one observation, shaped alike but for wavelength, from the
-    same DATE_OBS and the same raster files in the same order (the loader's ``meta['raster files']``). A dataset is a
-    window of its own file.
+    Whether ``data`` and ``other`` are windows of one raster file or stack, which share their scans, steps or exposures
+    and slit pixels: one observation, shape but wavelength, DATE_OBS and ``meta['raster files']``.
     """
     if data is other:
         return data is not None
@@ -1275,10 +1248,8 @@ def _wavelengths(data):
 
 def _window(data):
     """
-    The name and TWAVE of the spectral window ``data`` holds.
-
-    The window keywords of every raster window describe window 1, so this takes the TWAVEn that
-    lies inside the data's own wavelength range. (None, None) if none does.
+    The name and TWAVE of the window ``data`` holds, from the TWAVEn inside its wavelengths, as every window's keywords
+    describe window 1; (None, None) if none is.
     """
     meta = data.meta
     wave, _ = _wavelengths(data)
@@ -1303,9 +1274,9 @@ def _is_sit_and_stare(data):
 
 def _pick_raster(rasters, window):
     """The raster to show: of the browser's window, else Mg II k, else the first; a stack before a scan."""
-    windows = {id(data): _window(data)[0] for data in rasters}
-    for name in (window, DEFAULT_WINDOW, windows[id(rasters[0])]):
-        chosen = [data for data in rasters if name is not None and windows[id(data)] == name]
+    windows = {data: _window(data)[0] for data in rasters}
+    for name in (window, DEFAULT_WINDOW, windows[rasters[0]]):
+        chosen = [data for data in rasters if name is not None and windows[data] == name]
         if chosen:
             return next((data for data in chosen if data.ndim == 4), chosen[0])
     return rasters[0]
@@ -1413,11 +1384,9 @@ def _stretch(data):
 
 class _Panel(NamedTuple):
     """
-    A row of a quicklook's panel table (`_fill`): an Image panel ``role`` of ``data``, titled ``title``, showing its
-    array axes ``x`` and ``y`` at the indices ``at``; without ``x`` a Profile, of the point's spectrum of ``data``
-    (`_profile`), or with ``cut``, ``(label, axis, at, band, x_att)``, of the subset group ``label`` along array axis
-    ``axis`` at the indices ``at`` (`_Cut`), over the band of the panel ``band``, if any, against ``x_att``. A panel of
-    another raster window ``window`` is among that window's.
+    A row of a quicklook's panel table (`_fill`, D78): an Image panel showing array axes ``x`` and ``y`` at ``at``;
+    without ``x`` a spectrum (`_profile`), or with ``cut``, ``(label, axis, at, band, x_att)``, a `_Cut` Profile;
+    ``window`` names another raster window's panel.
     """
 
     role: str
@@ -1463,12 +1432,9 @@ def _raster_panels(raster, window, roles=("map", "spectrogram", "wavelength"), o
 @layer_artist_maker("IRIS: Profiles without a large cube's own")
 def hidden_cube_profile(viewer, data):
     """
-    Add a cube to a Profile viewer hidden, so glue never computes its profile of the whole cube: the raster of a
-    quicklook's spectrum panel, which would only hide it again (0.4 s of opening a quicklook on 4000255147, a full read
-    of lazily loaded data), and a cube of glue's large-data size or more, 1e8 values, that the IRIS reader did not read,
-    such as an SST cube, which glue profiles on the main thread first (30 s and 11 GB read on obs 492 Ca II 8542), with
-    a note in the main window's status bar, or the viewer's outside one. The viewer fits its range to the first of its
-    subsets' profiles, as glue fits it to a shown cube's; ticking it in the layer list shows its own.
+    Add a quicklook spectrum panel's raster, and a non-IRIS cube of ``large_data_size`` or more, hidden, so glue never
+    profiles the whole cube on the main thread (30 s and 11 GB on SST obs 492; #95, #233); the viewer fits its range
+    to its first subset profile instead.
     """
     if getattr(viewer, "_solar_hidden", None) is not data:
         large = isinstance(viewer, ProfileViewer) and isinstance(data, Data) and viewer.large_data_size is not None
@@ -1579,10 +1545,8 @@ def quicklook(app, datasets, window=None, main=None):
 
 def _iris_table(app, datasets, window, main):
     """
-    The panel table (`_fill`) of IRIS ``datasets`` (`quicklook`): the map, spectrogram and wavelength panels and the
-    spectrum of the raster of ``window`` or ``main`` (`_pick_windows`), each other window's wavelength panel, if timed,
-    and spectrum, and a panel per slit-jaw channel (`_pick_sjis`); with no raster, the slit-jaw panels alone and no
-    point. The windows' pixels are linked (`_link_windows`).
+    The panel table (`_fill`) of IRIS ``datasets``: the main window's panels and spectrum, each other window's
+    wavelength panel (if timed) and spectrum, linked (`_link_windows`), and a panel per slit-jaw channel (D42, D60).
     """
     rasters = [data for data in datasets if _role(data) == "raster"]
     sjis, offered = _pick_sjis([data for data in datasets if _role(data) == "sji"])
@@ -1645,24 +1609,9 @@ def _sst_line(cube):
 
 def _cube_table(app, cube):
     """
-    The panel table (`_fill`) of a cube's quicklook (`quicklook`). Of an SST cube (D68), in a top row the map, at the
-    line core (`~glue_solar.sources.sst.sst_data`), a second map, at the first tuning, and the virtual slit, wavelength
-    against y through the point; below them the spectrum at the point of each Stokes parameter, or the one spectrum of a
-    cube of intensities; and below those wavelength against scan at the point and the light curve at the point over the
-    map's wavelength or band. Of a cube of neither instrument, the same from its axes (`_cube_axes`), titled by its
-    label, without the second map, at its middle wavelength, with wavelength against time and the light curve only for a
-    time axis, and a spectrum of each Stokes parameter only for a Stokes axis. The point starts at the map's center in
-    Stokes I and the first scan or time, or the scan nearest the time of its observation's time master, such as another
-    cube's in its own quicklook (`Coordinator.following`). The spectra and the light curve are subset groups that follow
-    it (`_Cut`): no panel profiles the whole cube. An SST cube's image panels show Q, U and V with limits of their own
-    (`_stokes_limits`).
-
-    Returns
-    -------
-    dict
-        The table, whose viewers `_fill` gives: ``map``, ``wing`` (the second map), ``slit``, ``spectra`` (Stokes I, Q,
-        U and V, or one), ``wavelength`` (wavelength against scan) and ``curve``, and ``rows``, the rows they are laid
-        out in; of a cube of neither instrument, no ``wing``, nor ``wavelength`` and ``curve`` without a time axis.
+    The panel table (`_fill`) of a cube's quicklook (D65, D68, D78): ``map``, ``wing`` (SST only) and ``slit``; the
+    ``spectra`` of the point's Stokes parameters; for a time axis ``wavelength`` and ``curve``; laid out in ``rows``.
+    The spectra and curve are `_Cut` groups following the point, so no panel profiles the whole cube.
     """
     sst = _role(cube) == "sst"
     if sst:  # scan, Stokes, wavelength, y and x, or a cube of intensities' scan, wavelength, y and x
@@ -1705,15 +1654,9 @@ def _cube_table(app, cube):
 
 def _fill(app, tab, table, group=None):
     """
-    Open the panels of ``table``, a quicklook's panel table (`_iris_table`, `_cube_table`), in ``tab``, the current tab,
-    and return their viewers (`quicklook`): the Image panels and spectra in the table's order; with its point, the
-    point's subset group, ``group`` or a new 'Point', the Profiles of the cuts that follow it, the Point window, the
-    Panels list and the lines (`_SpectralLines`) of the main panels and of each other window's; and the layout
-    (`_arrange`).
-
-    The table holds the ``panels`` (`_Panel`), the ``point`` or None and the ``viewers`` to return, with the lists its
-    panels join; of IRIS data the status bar's ``notes`` and what `_switch` opens again (``switch``), and of a cube the
-    roles of each of its ``rows`` and whether its Stokes parameters take limits of their own (``limits``).
+    Open the panels of a panel ``table`` (`_iris_table`, `_cube_table`; D78) in ``tab`` and return their viewers
+    (`quicklook`); with a point, its group (``group`` or a new 'Point'), the cut Profiles, the Point window, the Panels
+    list and the lines (`_SpectralLines`), then lay them out (`_arrange`).
     """
     collection = app.data_collection
     coord = coordinator(collection)  # before the point, so it follows it
@@ -1768,10 +1711,13 @@ def _fill(app, tab, table, group=None):
             rows = ([viewer for panel, viewer in made if panel.role in row] for row in table["rows"])
             viewers["rows"] = [row for row in rows if row]
         main = [viewer for panel, viewer in made if panel.window is None and panel.x is not None]
-        _point_window(app, tab, group, point.reference_data, main)
+        _add_window(tab, _PointWindow(coord, group, point.reference_data, main), "Point")  # filled by `_arrange`
         entries = _viewers({**viewers, "windows": []})  # each main panel and each slit-jaw image
         entries += [(name, list(panels.values())) for name, panels in windows.items()]
-        _panels_list(tab, entries, group, viewers)
+        sub = _add_window(tab, _Panels(entries, group, partial(_arrange, tab, viewers)), "Panels")
+        # a click on a box leaves the panel active, with its tool: glue-qt resets both for the window Qt focuses
+        for widget in (sub, sub.widget(), sub.widget().viewport()):
+            widget.setFocusPolicy(Qt.NoFocus)
         for name in (None, *windows):
             panels = [(panel, viewer) for panel, viewer in made if panel.window == name]
             images = [viewer for panel, viewer in panels if panel.x is not None and _spectral_axes(panel.data)]
@@ -1797,11 +1743,8 @@ def _fill(app, tab, table, group=None):
 
 def _stokes_limits(layer, slices):
     """
-    Give ``layer``, an SST quicklook image panel's of a cube with Stokes parameters, the color limits of the Stokes
-    parameter of ``slices``: glue's 99.5% over the whole cube for I, and for Q, U and V limits symmetric about 0, the
-    99.5th percentile of the parameter's absolute values in 16 planes of it, as glue's sample is taken
-    (`~glue_solar.sources.sst._Cube`), where glue's over the whole cube, I's values mostly, showed them flat (230-6);
-    with 'Per-frame limits' on, glue's 99.5% of each frame for all four.
+    Give ``layer`` the limits of the Stokes parameter of ``slices``: glue's 99.5% for I, and for Q, U and V symmetric
+    ones from 16 planes, as glue samples (`~glue_solar.sources.sst._Cube`), where the cube's showed them flat (230-6).
     """
     # ponytail: set as the Stokes parameter changes, over limits chosen in the style editor, and I takes glue's 99.5%
     # again; keep each parameter's last limits if that matters
@@ -1831,12 +1774,9 @@ _COLORS = ("cmap", "stretch", "percentile", "v_min", "v_max", "contrast", "bias"
 
 def _switch(viewer):
     """
-    Make the window of ``viewer``, a quicklook's spectrum panel of another window, the quicklook's main window: open the
-    quicklook again in its tab, in place of its viewers, as `quicklook` opens it with that window as ``main``, with its
-    point's group, the point at the same pixel of that window, the time master at the same frame, exposure, step or
-    scan, the colors of each Image panel that shows the same data on the same axes again, and their axes if the Axes
-    box was ticked; every panel shows, the Panels list's other choices left behind. The links stay, as do the viewers
-    added to the tab but the path diagrams drawn on a panel, which close with it.
+    Make the window of ``viewer``, another window's spectrum panel, the main window (D60, #225): the quicklook opens
+    again in its tab with that window as ``main``, keeping the point group and pixel, the master's index, each Image
+    panel's colors and the Axes box.
     """
     app = viewer.session.application
     tab, collection = viewer.parent().mdiArea(), app.data_collection
@@ -1924,11 +1864,8 @@ def _wing(viewer):
 
 def _turn(viewer, on, group):
     """
-    Show ``viewer``, a quicklook panel whose point is ``group``, or hide it. Hidden, it draws nothing and does no work:
-    the coordinator leaves it, as it does a closed one, its lines and tools leave it as they are, and glue only notes
-    the subsets that change, so that once shown it updates their layers and the coordinator moves it to the point and
-    the time; a slit-jaw time master, which hands the time to the raster while hidden, takes it back at its frame
-    nearest the raster's.
+    Show ``viewer``, a quicklook panel of point ``group``, or hide it (D66, #228): hidden, the coordinator leaves it and
+    glue only notes the subsets that change, which it updates once shown, as the coordinator moves it to the point.
     """
     session = viewer.session
     coord = coordinator(session.data_collection)
@@ -1956,11 +1893,8 @@ def _turn(viewer, on, group):
 
 def _show_point(app, group, own):
     """
-    Show the point only in its quicklook's raster and spectrum panels, and no other subset there.
-
-    Elsewhere glue 1.27.0 would draw its crosshair on a dataset it does not belong to, and an
-    earlier quicklook's point would show in this one's panels. Quicklook points are removed where
-    they must not show, as they move at every click; other subsets are only hidden.
+    Show the point only in its quicklook's raster and spectrum panels, and no other subset there: glue 1.27.0 draws
+    a crosshair on data it does not belong to (D19). Points are removed, as they move at every click; others hidden.
     """
     points = coordinator(app.data_collection)._owners  # every quicklook's point
     for viewer in (viewer for tab in app.viewers for viewer in tab):
@@ -2027,11 +1961,9 @@ def _fit_spectrum(viewer, group):
 
 class _Cut(HubListener):
     """
-    Keep a cut's subset group (`_cut`) along array axis ``axis`` at the point's other axes but wavelength, and on the
-    wavelength or band its map ``band`` shows: a Collapse, a Wavelength band or the slider's wavelength; without a map,
-    a spectrum of ``data``, along wavelength. The axes of ``at``, such as an SST cube's Stokes axis, stay at its
-    indices. While the point is no Pixel selection on the data's file, or the map shows other data, it stays where it
-    was.
+    Keep a cut's subset group along ``axis`` at the point's other axes, on the wavelength or band its map ``band`` shows
+    (without one, a spectrum of ``data``), and the axes of ``at`` at its indices (D58, #183); it stays put while the
+    point is off the data's file or the map shows other data.
     """
 
     def __init__(self, group, point, band, axis, data=None, at=None):
@@ -2066,29 +1998,15 @@ class _Cut(HubListener):
             self.group.subset_state = SliceSubsetState(data, slices)
 
 
-def _cut_map(viewer):
-    """Whether ``viewer``, an Image viewer, shows a raster with a wavelength slider."""
-    data = viewer.state.reference_data
-    return _role(data) == "raster" and not _spectral_axes(data) & _shown(viewer.state)
-
-
-def _curve_map(viewer):
-    """Whether ``viewer``, an Image viewer, shows a sit-and-stare raster or a stack with a wavelength slider."""
-    return _cut_map(viewer) and _time_axis(viewer.state.reference_data) == 0
-
-
 def _check_cut(viewer, curve=False):
-    """
-    Raise why ``viewer``, an Image viewer, has no cut through the point (`_cut`), or with ``curve`` no light curve
-    (`_light_curve`): it shows no raster with a wavelength slider, nor for a light curve a sit-and-stare raster or a
-    stack, or the point is not on its file.
-    """
+    """Raise why the Image viewer ``viewer`` has no cut through the point (`_cut`), or with ``curve`` no light curve."""
     data = viewer.state.reference_data
-    if curve and not _curve_map(viewer):
+    on_map = _role(data) == "raster" and not _spectral_axes(data) & _shown(viewer.state)  # with a wavelength slider
+    if curve and not (on_map and _time_axis(data) == 0):
         raise ValueError(
             "Choose it on the map of a sit-and-stare raster or a stack, whose wavelength or band it averages."
         )
-    if not _cut_map(viewer):
+    if not on_map:
         raise ValueError("Choose it on the map of a raster, whose wavelength or band it averages.")
     point = coordinator(viewer.session.data_collection).point
     if point is None or not _same_file(point.reference_data, data):
@@ -2097,11 +2015,8 @@ def _check_cut(viewer, curve=False):
 
 def _cut(viewer, axis, label, curve=False):
     """
-    Open a Profile of the cut through the point along array axis ``axis``: the mean, NaN left out, over the
-    wavelength or band that ``viewer``, an Image viewer of a raster with a wavelength slider, shows, at the point's
-    other axes, against ``axis``. The cut is the new subset group ``label``, a `~glue.core.subset.SliceSubsetState`
-    that follows the point and the band (`_Cut`), shown in that Profile and removed from the other viewers open then.
-    ``curve`` checks it as a light curve (`_check_cut`).
+    Open a Profile of the cut through the point along ``axis``, over the wavelength or band ``viewer`` shows, as the new
+    subset group ``label`` that a `_Cut` keeps (D58); ``curve`` checks it as a light curve (`_check_cut`).
     """
     _check_cut(viewer, curve)
     app, data = viewer.session.application, viewer.state.reference_data
@@ -2116,10 +2031,7 @@ def _cut_profile(app, label, cut, x_att, title):
     A Profile, the mean, NaN left out, against ``x_att``, titled ``title``, of the new subset group ``label`` that
     ``cut(group)``, a `_Cut`, keeps, removed from the other viewers open then.
     """
-    mode = app.session.edit_subset_mode
-    edit = mode.edit_subset
-    group = app.data_collection.new_subset_group(label=label)
-    mode.edit_subset = edit  # glue-qt makes a new group the edit subset
+    group = _new_group(app.session, app.data_collection, label=label)
     # glue 1.27.0 profiles a slice subset with only its band's samples, which a spectrum panel cannot draw
     for viewers in app.viewers:
         for other in viewers:
@@ -2134,21 +2046,11 @@ def _cut_profile(app, label, cut, x_att, title):
     return profile
 
 
-def _light_curve(viewer):
-    """
-    Open the light curve at the point (`_cut` along exposure or scan, 'Light curve') on ``viewer``, the map of a
-    sit-and-stare raster or a stack.
-    """
-    return _cut(viewer, 0, "Light curve", curve=True)
-
-
 def _curve(source, raster, pixel, wavelength):
     """
-    The times and values of ``source`` at ``pixel``, a pixel of ``raster`` but its wavelength: a raster window's along
-    its first axis at the pixel's slit position, and a stack's step, and at wavelength pixel ``wavelength``; a slit-jaw
-    image's in each frame at the place of the raster's pixel at the exposure, or a stack's scan at that step, nearest
-    the frame's time, placed with the frame's own pointing, NaN past half the raster's cadence (D7) or off the frame. A
-    scanning raster's pixel is one place at every frame.
+    The times and values of ``source`` at ``pixel`` of ``raster`` (wavelength aside, D53): a raster window's along its
+    first axis at wavelength pixel ``wavelength``; a slit-jaw image's at the raster pixel's place in each frame at the
+    nearest exposure or scan, NaN past half a cadence (D7) or off the frame.
     """
     main = source.main_components[0]
     if _role(source) == "raster":
@@ -2217,11 +2119,9 @@ def _curve_pixel(group, raster):
 
 def _curve_sources(app):
     """
-    The point's raster, its pixel there (`_curve_pixel`, what `_curve` takes) and the datasets of its light curves
-    (`_point_curves`): each window of the raster's file with exposures or scans, then one slit-jaw image of each
-    channel of its observation (`_pick_sjis`), each in data collection order, that a panel of the point's quicklook
-    shows, those turned off left out; for a point of no quicklook, the raster itself and every slit-jaw image.
-    ValueError for no point on a raster, or none of them.
+    The point's raster, its pixel (`_curve_pixel`) and the light curves' datasets that the point's quicklook shows, or
+    without one the raster and every slit-jaw image: each window of its file with a time axis, then one slit-jaw image
+    a channel (`_pick_sjis`); ValueError for none (D53).
     """
     collection = app.data_collection
     coord = coordinator(collection)
@@ -2247,13 +2147,9 @@ def _curve_sources(app):
 
 def _point_curves(viewer):
     """
-    Add the light curves at the point, a raster pixel, as 1-D datasets of ``Time`` and ``Value`` (`_curve`), and plot
-    them against time in a new Scatter viewer: one of each window of the point's raster file with exposures or scans
-    that its quicklook shows, at the wavelength the map shows or else nearest its TWAVE, and one of each slit-jaw
-    channel of its observation shown (`_curve_sources`). Each takes its dataset's OBSID and STARTOBS, so that the time
-    master's exposure marks them (`Coordinator._mark`), and the first's ``Time`` and ``Value`` are the others' through
-    `~glue.core.link_helpers.LinkSame`. They follow the point (`_PointCurves`); ``viewer`` is any Image viewer of the
-    data collection.
+    Add the light curves at the point (`_curve_sources`, `_curve`) as 1-D datasets of ``Time`` and ``Value``, linked as
+    the same and with their data's OBSID and STARTOBS for the master's exposure mark, in a new Scatter viewer; they
+    follow the point (`_PointCurves`, D53, #208).
     """
     app = viewer.session.application
     collection = app.data_collection
@@ -2333,18 +2229,9 @@ def _place(artist, xy):
 
 class _SpectralLines(QObject):
     """
-    A quicklook's lines on its raster and spectrum panels, and its spectrum panel's wavelength range on the wavelength
-    panel.
-
-    A raster panel showing wavelength against another axis has a thin red line at the point there: its slit on the
-    spectrogram, its step, exposure or scan on the wavelength panel. One showing wavelength against step, exposure or
-    scan, the wavelength panel, also has a dashed white line at the wavelength of each raster panel with a wavelength
-    slider, the map, and a dotted white line at the step, exposure or scan nearest the time master's time, hidden when
-    none is within half its cadence. The spectrum panel has a dashed gray line at each of those wavelengths, in its x
-    unit, while its x axis is the raster's wavelength or wavelength pixel; whenever its x range changes, the wavelength
-    panel takes it. The lines follow the point, the time master, the sliders, axis changes and the x unit, and are
-    plain matplotlib lines: 'Save plot' shows them, and sessions and Python scripts leave them out. Of a cube of neither
-    instrument, the wavelength panel is the one against its time axis, if any (`_cube_axes`).
+    A quicklook's lines (D23, D39, #118): the point on panels showing wavelength, the maps' wavelengths and the time
+    master's time on the wavelength panel and the wavelengths on the spectrum panel, whose x range the wavelength panel
+    takes; plain matplotlib lines, which sessions leave out.
     """
 
     def __init__(self, coordinator, group, panels, spectrum, tab):
@@ -2467,10 +2354,9 @@ class _SpectralLines(QObject):
 
 def _arrange(tab, viewers):
     """
-    The panels shown, those neither closed nor turned off: raster panels in a top row, slit-jaw viewers and the spectrum
-    in a second row, each other window's wavelength panel and spectrum in rows of four below, or a cube's quicklook's
-    ``rows``, at least 400 pixels tall each and 800 together; and below them the Point window, with the Panels list on
-    its right, both as tall as the longer one's rows. A panel out of sight draws once in sight (`_draw_in_sight`).
+    Lay out the panels shown (D15): raster panels, then slit-jaw images and spectrum, other windows' in fours, or a
+    cube's ``rows``, at least 400 pixels tall each; the Point window and Panels list below. Out of sight, they draw
+    once in sight (`_draw_in_sight`).
     """
 
     def shown(panels):
@@ -2511,11 +2397,8 @@ def _arrange(tab, viewers):
 
 def _draw_in_sight(canvas, tab):
     """
-    matplotlib's deferred draw of ``canvas``, a quicklook panel's in ``tab``, unless the panel is shown in the tab but
-    out of sight, such as in a row scrolled below the tab's view, in a tab behind another or in a window not yet shown,
-    which matplotlib would draw at every step and move all the same: its draw then stays due, and Qt's paint of it once
-    in sight makes it, as it is then. A panel hidden itself, turned off, minimized or closed, which no paint may follow,
-    draws at once as before.
+    matplotlib's deferred draw of ``canvas`` unless its panel is shown in ``tab`` but out of sight, which matplotlib
+    would draw at every step: the draw stays due until Qt paints it in sight (#235, #254; register).
     """
     try:
         out_of_sight = canvas.isVisibleTo(tab) and canvas.visibleRegion().isEmpty()  # none while the tab is hidden
@@ -2568,15 +2451,8 @@ _POSITION = ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat",
 
 class _PointWindow(QTableWidget):
     """
-    A quicklook's read-only 'Point' window: a row for each dataset its Image panels show, with the point's pixel in
-    that dataset, the pixel's helioprojective position and wavelength, time, exposure time and value (of the panel's
-    displayed component), and the dataset's time sync, as the readouts give them.
-
-    On the point's own dataset, the axes the point leaves free, the wavelength, are those of the first panel that does
-    not show them, the map; on a slit-jaw image the point of a raster is placed in the displayed frame, as its cross
-    is (`Coordinator.point_on`). A dataset of another observation than ``data``'s, the quicklook's raster or cube,
-    shows 'no match'. The window refreshes once for each change of the point, the time sync or its panels' sliders or
-    layers, only while its tab is shown.
+    A quicklook's read-only 'Point' window (D38, #113): per dataset its Image panels show, the point's pixel, position,
+    time, exposure, value and time sync as the readouts give them, refreshed once a change while its tab is shown.
     """
 
     def __init__(self, coordinator, group, data, viewers):
@@ -2688,13 +2564,9 @@ class _PointWindow(QTableWidget):
 
 class _Panels(QTreeWidget):
     """
-    A quicklook's 'Panels' list: a check box for each of ``entries``, a panel, or a label and the panels whose boxes its
-    own box sets together, such as another window's. A change turns the panels on or off (`_turn`) and ``arrange``
-    lays out those shown, once for all the changes made at once. A panel closed by hand leaves the list.
-
-    The 'Axes' box above them shows or hides the axes of every Image panel shown, as each one's 'Hide axes' does, and a
-    panel turned on takes its choice. Unticked as the panels open without axes (`_image`, D71), it is partly ticked
-    while the panels shown differ.
+    A quicklook's 'Panels' list (D66, #228): a box per panel, or per label of panels, turning them on or off (`_turn`),
+    laid out once for changes made together, and an 'Axes' box for every Image panel shown (D71), partly ticked while
+    they differ.
     """
 
     def __init__(self, entries, group, arrange):
@@ -2804,16 +2676,3 @@ def _add_window(tab, widget, title):
     tab.addSubWindow(sub)
     sub.show()
     return sub
-
-
-def _panels_list(tab, entries, group, viewers):
-    """Add the Panels list (`_Panels`) of ``entries`` to a quicklook's tab, laying out its ``viewers`` (`_arrange`)."""
-    sub = _add_window(tab, _Panels(entries, group, partial(_arrange, tab, viewers)), "Panels")
-    # a click on a box leaves the panel active, with its tool: glue-qt resets both for the window Qt focuses
-    for widget in (sub, sub.widget(), sub.widget().viewport()):
-        widget.setFocusPolicy(Qt.NoFocus)
-
-
-def _point_window(app, tab, group, data, viewers):
-    """Add the Point window (`_PointWindow`) of the quicklook of ``data`` to its tab, filled by `_arrange`."""
-    _add_window(tab, _PointWindow(coordinator(app.data_collection), group, data, viewers), "Point")

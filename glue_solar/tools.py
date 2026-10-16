@@ -22,7 +22,7 @@ from glue.core.message import (
     NumericalDataChangedMessage,
     SettingsChangeMessage,
 )
-from glue.core.state import GlueSerializer, loader, saver
+from glue.core.state import loader, saver
 from glue.core.subset import SliceSubsetState, SubsetState
 from glue.core.util import disambiguate
 from glue.plugins.tools.path_slicer.common import open_slice_viewer_for
@@ -75,7 +75,6 @@ from glue_solar.quicklook import (
     _cut,
     _half_cadence,
     _is_sit_and_stare,
-    _light_curve,
     _off,
     _place,
     _point_curves,
@@ -143,16 +142,8 @@ _FLAT = 0.05
 
 def _throttle_slice_sliders(viewer):
     """
-    Make the viewer's slice sliders follow a drag with its latest position instead of every position.
-
-    glue-qt applies every value a slider passes through, and each one recomputes and redraws the
-    image, so on a large cube a drag queues redraws and lags behind the mouse. With tracking off a
-    drag reports only its release, and a 0 ms timer applies the latest dragged position in between, as
-    soon as Qt has handled the input queued behind the previous one. Keys, clicks and playback still
-    apply at once.
-
-    Always on, until glue-qt coalesces a drag itself (``wp0-perf-qt``). It finds the sliders by glue-qt's
-    object name ``value_slice_center``, which the drag test pins.
+    Make a slider drag apply its latest position once Qt is idle: glue-qt redraws at every value a slider passes, so a
+    drag on a large cube lags (``wp0-perf-qt``). The sliders are glue-qt's ``value_slice_center``, as a test pins.
     """
     for slider in viewer.options_widget().findChildren(QtWidgets.QSlider, "value_slice_center"):
         if not slider.hasTracking():
@@ -205,13 +196,8 @@ def _hovered(state, x, y):
 
 def _world_position(axes, x, y, keep=None, rest=None):
     """
-    The world position WCSAxes reads out at ``x, y`` of the WCSAxes ``axes``, with each coordinate it shows in arcsec
-    (a helioprojective longitude or latitude) to 0.01" and each it shows in Å (an IRIS wavelength) to 0.001 Å, a tenth
-    of an IRIS pixel or finer, where WCSAxes gives each the precision of its ticks (2834 for a wavelength of an NUV
-    window, of 0.025 Å pixels); other coordinates, such as a right ascension or a Carrington longitude, keep WCSAxes'
-    text. Given ``keep``, one of the coordinates of ``axes``, the other angles are left out. Given ``rest``, a rest
-    wavelength in Å, the Doppler velocity of the wavelength shown follows, as the Profile's velocity axis gives it
-    (`~glue_solar.lines.VelocityTool`), in km / s to 0.1 km / s.
+    WCSAxes' world readout at ``x, y``, arcsec to 0.01" and Å to 0.001 Å where WCSAxes gives its ticks' precision (D31);
+    ``keep``, a coordinate of ``axes``, leaves the other angles out, and ``rest`` (Å) adds the Doppler velocity (#264).
     """
     world = axes.coords[0].transform.transform(np.array([[x, y]]))[0]
     wavelength = axes.coords["em.wl"] if rest is not None and "em.wl" in axes.coords else None  # by physical type
@@ -253,13 +239,9 @@ def _exposure_label(data):
 
 def _index_ticks(axes, index, shown):
     """
-    Give the x (``index`` 0) or y (1) axis of the WCSAxes ``axes`` integer pixel-index ticks, instead of
-    the world coordinates, and return that axis' coordinate helper.
-
-    The ticks are a pixel overlay of WCSAxes. Of the world coordinates only ``shown``, glue's coordinate
-    along the other axis, keeps ticks, at fixed places on that axis; left to WCSAxes' automatic
-    placement, the others would move to free edges as the limits change, and glue's labels to
-    whichever coordinate holds an axis' edge.
+    Give the x (``index`` 0) or y (1) axis of ``axes`` integer pixel ticks and return their coordinate helper (D29);
+    only ``shown``, the world coordinate along the other axis, keeps ticks, fixed there, as WCSAxes would move the
+    others and glue's labels to whichever edge is free.
     """
     near, far = "bt" if index == 0 else "lr"
     other_near, other_far = "lr" if index == 0 else "bt"
@@ -279,13 +261,9 @@ def _index_ticks(axes, index, shown):
 
 def _hide_flat_angles(axes, shape):
     """
-    Hide the tick labels of a longitude or latitude, of any celestial frame, of the WCSAxes ``axes`` that barely
-    changes across the displayed array of ``shape`` (x, y) while another coordinate, such as wavelength or time, is
-    shown beside the two, as the latitude along a raster's steps does: pointing jitter takes it back and forth across
-    each tick value, and WCSAxes labels every crossing, one over another. Beside two other coordinates, such as a
-    stack's wavelength and scan, along which only each scan's pointing moves them, both angles lose their tick labels.
-    An image of the two angles alone, such as a map or a slit-jaw image, keeps both. Decided on the array's edges, so
-    zooming keeps it, with a longitude across 0° unwrapped rather than 360° wide.
+    Hide the tick labels of an angle that barely changes across the ``shape`` (x, y) shown beside another coordinate,
+    such as a raster's latitude along its steps, whose jitter WCSAxes labels at every crossing; beside two others both
+    angles go. Decided on the array's edges, so zooming keeps it.
     """
     shown = [coord for coord in axes.coords if coord.coord_index is not None]  # the others are not on these axes
     angles = [coord for coord in shown if coord.coord_type in ("longitude", "latitude")]
@@ -342,35 +320,9 @@ def _frame_time(data, view, decimals=3):
 @viewer_tool
 class FrameTimeTool(Tool, HubListener):
     """
-    Show the acquisition time of the displayed frame in the Image Viewer's status bar.
-
-    The readout follows the sliders and reads the first datetime component of the reference
-    data, whichever loader attached it (the IRIS loaders add ``Time``, one per SJI exposure or
-    raster step); its entry of the View menu (`ViewTool`), offered for data with one, hides and shows it. A frame
-    spanning several exposures, such as a raster shown as step against slit, shows the range. Data with an
-    ``Exposure time`` component also show it, and an SJI frame's pointing is in the tooltip. For an IRIS observation
-    the readout also says which dataset is the time master (with its timing step for a raster), the
-    signed offset of a matched follower's time from the master's, or NO MATCH with that offset,
-    when the follower keeps its frame and is grayed.
-
-    The tool exists for every Image viewer, so it also throttles the viewer's slice sliders, labels
-    a displayed sit-and-stare exposure axis 'Exposure (acquisition order)' with the UTC range of its
-    exposures, in glue's own axis label, with integer exposure ticks instead of the helioprojective
-    coordinates glue would show along it, and hides the tick labels of a longitude or latitude that
-    barely changes across an image showing another coordinate beside the two, such as the latitude on
-    a raster's wavelength-against-step panel (`_hide_flat_angles`). glue resets these whenever it resets
-    the axes (an axis or data change, or a slice the displayed coordinates depend on, such as the slit
-    on the wavelength panel), and the tool applies them again; a label typed in the viewer's axes
-    options is kept until then, as glue's own labels are.
-
-    It also gives the mouse-over readout (the axes' ``format_coord``, which glue-solar's Cursor readout and
-    glue-qt's own show), which follows the mouse, the hovered pixel's time and exposure, from the same
-    components: on a raster map each step's, on a slit-jaw image or a sit-and-stare raster the frame's or
-    exposure's. Its position has fixed precision (`_world_position`), and on a displayed sit-and-stare
-    exposure axis reads only the coordinate along the other axis, as the ticks do, with the time and
-    exposure in place of the slit's position along the exposures. Where it shows a wavelength of data with a rest
-    wavelength (`~glue_solar.lines.rest_wavelength`), the Doppler velocity from it follows the position. The View
-    menu entry hides the frame time only.
+    The frame time and time sync in the status bar (D21), and each Image viewer's setup glue lacks: throttled sliders,
+    sit-and-stare exposure labels and ticks (D29) and flat-angle labels, set again as glue resets the axes, and the
+    mouse-over readout with time, exposure and Doppler velocity (D31, #264).
     """
 
     icon = "window_tab"
@@ -399,7 +351,7 @@ class FrameTimeTool(Tool, HubListener):
             viewer.state.add_callback(prop, self._throttle_sliders)
         self._exposure_ticks = (None, None)  # the WCSAxes coordinates they were added to, and their helper
         self._flat_checked = None  # the WCSAxes coordinates last checked for a flat angle
-        self._rest = (None, None)  # the data's uuid and rest wavelength override, and its rest wavelength
+        self._placed = None  # the WCSAxes coordinates, view and size for which the readout placed the ticks
         for prop in _LABELS:
             viewer.state.add_callback(prop, self._label_exposures)
         # glue's Preferences restyle only the WCS coordinates
@@ -431,15 +383,20 @@ class FrameTimeTool(Tool, HubListener):
 
     def _readout(self, x, y):
         """The mouse-over readout at ``x, y`` of the displayed axes (see the class)."""
+        axes = self.viewer.axes
+        placed = (axes.coords, axes.viewLim.bounds, axes.bbox.bounds)
+        if placed != self._placed:  # WCSAxes formats as its last ticks, unplaced on hidden axes or after a reset (#90)
+            axes._update_tick_and_label_positions()
+            self._placed = placed
         text, state = self._format_coord(x, y), self.viewer.state
         data = state.reference_data
         if data is None or state.x_att is None or state.y_att is None:
             return text
         if text.endswith(" (world)"):  # not a pixel position or an overlay, which W switches to
-            axes, shown = self.viewer.axes, (state.x_att.axis, state.y_att.axis)
+            shown = (state.x_att.axis, state.y_att.axis)
             # glue's own mapping of the axis beside the exposures to its world coordinate, as for the ticks
             keep = axes.coords[data.ndim - 1 - max(shown)] if 0 in shown and _sit_and_stare_raster(data) else None
-            text = _world_position(axes, x, y, keep, self._rest_wavelength(data))
+            text = _world_position(axes, x, y, keep, rest_wavelength(data))
         pixel = _hovered(state, x, y)
         if pixel is None:
             return text
@@ -449,17 +406,6 @@ class FrameTimeTool(Tool, HubListener):
         if exposure is not None:
             text += f" · exp {_seconds_text(data[exposure, pixel])}"
         return text
-
-    def _rest_wavelength(self, data):
-        """
-        The `~glue_solar.lines.rest_wavelength` of ``data``, worked out again only for other data or another override:
-        it takes 0.2 to 0.4 ms, and each mouse move asks for it three times (matplotlib's hidden toolbars and the
-        readout's).
-        """
-        key = (data.uuid, data.meta.get("rest_wavelength"))
-        if self._rest[0] != key:
-            self._rest = (key, rest_wavelength(data))
-        return self._rest[1]
 
     def _label_exposures(self, *_):
         """
@@ -554,14 +500,8 @@ def _pointing(meta, frame):
 @viewer_tool
 class CursorReadoutTool(Tool):
     """
-    Show the world position and the data value under the mouse in the Image Viewer's status bar.
-
-    The position is whatever the reference data's WCS maps the displayed axes to (helioprojective
-    position, wavelength, ...), as the viewer's WCSAxes reads it out, with the Doppler velocity, time
-    and exposure the Frame time tool adds; the value is the reference layer's displayed attribute at
-    that pixel of the current slice. Pressing ``w`` over the image switches WCSAxes between world and
-    pixel positions.
-    Its View menu entry hides and shows the readout.
+    The mouse-over readout and the value under the mouse in the status bar, which glue-qt 0.4.2 never shows
+    (glue-viz/glue-qt#74, draft, adds its own; #109).
     """
 
     icon = "glue_cross"
@@ -610,15 +550,8 @@ class CursorReadoutTool(Tool):
 @viewer_tool
 class HideAxesTool(Tool):
     """
-    Hide or show the Image viewer's axes: their ticks, tick labels, axis labels and frame.
-
-    Its entry switches glue's own ``show_axes`` viewer state, which glue-qt 0.4.2 has no control for
-    and sessions save; a new viewer starts from the ``SOLAR_SHOW_AXES`` glue setting. Without its axes
-    WCSAxes places no ticks when the viewer draws, so slice steps and redraws are faster. The image,
-    subsets, links and the readouts are unchanged; the mouse-over position stays in world coordinates.
-    A plain tool, since a checkable glue tool is a mouse mode, which would end Pixel; glue-qt ends the
-    mouse mode before running a plain tool too, so the tool switches it back on, as glue-solar's
-    other tools do.
+    Switch glue's ``show_axes``, which glue-qt 0.4.2 has no control for, so draws place no ticks (D30, D71); a new
+    viewer starts from ``SOLAR_SHOW_AXES``. A plain tool, as a checkable one is a mouse mode, which would end Pixel.
     """
 
     icon = "glue_image"
@@ -632,9 +565,6 @@ class HideAxesTool(Tool):
             viewer.state.show_axes = settings.SOLAR_SHOW_AXES
         viewer.state.add_callback("show_axes", self._show)
         self._show()
-        self._placed = None  # the WCSAxes coordinates, view and size for which the readout placed the ticks
-        self._format_coord = viewer.axes.format_coord  # WCSAxes' world readout, set on the axes
-        viewer.axes.format_coord = self._readout
 
     @property
     def checked(self):
@@ -647,22 +577,7 @@ class HideAxesTool(Tool):
 
     def close(self):
         self.viewer.state.remove_callback("show_axes", self._show)
-        self.viewer.axes.format_coord = self._format_coord
         super().close()
-
-    def _readout(self, x, y):
-        """
-        WCSAxes' mouse-over readout, which formats each world coordinate as its last tick placement does.
-        Without axes no draw places the ticks, and before its first draw nothing places those of the
-        coordinates glue makes when it resets the axes, so the first readout after a reset, a zoom, a pan
-        or a resize places them once. Always on, with no upstream change tracked.
-        """
-        axes = self.viewer.axes
-        placed = (axes.coords, axes.viewLim.bounds, axes.bbox.bounds)
-        if placed != self._placed:
-            axes._update_tick_and_label_positions()
-            self._placed = placed
-        return self._format_coord(x, y)
 
     def _show(self, *_):
         axes, shown = self.viewer.axes, self.viewer.state.show_axes
@@ -698,17 +613,9 @@ preference_panes.add("glue-solar", AxesPreferences)
 @viewer_tool
 class PerFrameLimitsTool(Tool):
     """
-    Take the color limits of the Image viewer's reference data from the displayed slice, so each slice step, such as
-    a wavelength step of a raster map, gives that slice's limits, or again from the whole cube.
-
-    Its entry switches glue's own ``stretch_global`` of each layer of the reference data, which glue-qt 0.4.2 has no
-    control for: to per frame for every layer unless all already are. The layer's percentile, such as 99.5%, applies
-    to the slice, and on lazily loaded IRIS data the limits count every value of it (`LazyData`). A layer of another
-    dataset keeps its limits, and one of the previous reference data takes its whole cube's again, since glue would
-    take them from its values at the reference data's slice indices: the wrong slice, or an IndexError for a cube of
-    another shape. A plain tool, as Hide axes is, since a checkable glue tool is a mouse mode, which would end
-    Pixel; it leaves the mouse mode on. glue-core 1.27.0 fails to restore a session saved with per-frame limits on
-    (``wp0-core-session-reports``).
+    Switch glue's ``stretch_global`` of the reference data's layers, which glue-qt 0.4.2 has no control for; other data
+    take their whole cube's limits again, as glue would take theirs at the reference data's slice indices (an
+    IndexError for another shape). glue-core 1.27.0 cannot restore it (``wp0-core-session-reports``).
     """
 
     icon = "glue_rainbow"
@@ -750,15 +657,9 @@ class PerFrameLimitsTool(Tool):
 @viewer_tool
 class BandTool(Tool):
     """
-    Show the Image viewer's map as the mean over a band of 5, 9 or 15 wavelength pixels about the wavelength slider, or
-    again at the slider's wavelength alone.
-
-    The band is glue's own ``AggregateSlice`` with ``np.nanmean``, which the Profile viewer's Collapse with Mean sets,
-    on each wavelength axis of the reference data the viewer does not show, cut at the ends of the axis. glue-qt
-    0.4.2 makes it a single wavelength again whenever any slider moves (``wp0-qt-aggregate-slice``), so a validator
-    of the viewer's ``slices`` turns a wavelength index into the band about it: the slider, A and S, scan and step
-    moves and the time sync keep the band. A session saves the band shown, not the choice. A plain tool, as Hide
-    axes is, offered while a wavelength axis has a slider.
+    The map as glue's own ``AggregateSlice`` mean over 5, 9 or 15 wavelength pixels about the slider's (#169), made
+    again by a ``slices`` validator, as glue-qt 0.4.2 makes it one wavelength at any slider move
+    (``wp0-qt-aggregate-slice``).
     """
 
     icon = _icon("solar_wavelength_band")
@@ -865,16 +766,8 @@ _ASPECT_HOOKS = ("_set_axes_aspect_ratio", "_axes_aspect_ratio", "_adjust_limits
 @viewer_tool
 class PhysicalAspectTool(Tool):
     """
-    Show the Image viewer's image in its proportions on the sky: an arcsecond as long on screen along x as along y.
-
-    Its entry switches glue's 'Square Pixels' aspect on, scaled by the angle a pixel spans along y over the angle
-    along x (`_arcsec_ratio`), so that a raster map of 2″ steps along a slit of 0.17″ pixels shows each step 12 times
-    as wide as a slit pixel. glue keeps these proportions as it keeps square pixels, through resizes, zooms, pans and
-    slices; the ratio is taken again when the displayed axes change, as glue shows the whole image again. On axes
-    other than a longitude and a latitude alone, such as a spectrogram's or a sit-and-stare raster's exposures against
-    its slit, the pixels are square. Pressed again, or with 'Automatic' chosen in the viewer's options, the viewer
-    returns to the aspect it had; back to 'Automatic' from the entry, the image fills the axes again, keeping a
-    zoom. A plain tool, as 'Hide axes' is, which leaves the mouse mode on.
+    glue's 'Square Pixels' scaled by `_arcsec_ratio`, so an arcsec spans as far along x as y (#103): through glue's
+    private aspect hooks, glue keeps it through resizes, zooms and slices. Square pixels off the sky.
     """
 
     icon = "glue_move_x"
@@ -957,15 +850,8 @@ class PhysicalAspectTool(Tool):
 @viewer_tool
 class ZoomOneToOneTool(Tool):
     """
-    Zoom the Image viewer about the view center so that one pixel of its reference data along x spans one screen pixel.
-
-    A screen pixel is a device pixel, as matplotlib's display coordinates are: on a HiDPI screen, with a device pixel
-    ratio of 2, the image shows at half its size in Qt's logical pixels. glue's x and y limits are in the pixels of
-    whichever axes are shown, so a wavelength or swapped axis zooms the same way. A y pixel also spans one screen pixel,
-    unless 'Physical aspect' is on, which keeps the sky's proportions: there it spans the angle it covers over that of
-    an x pixel, such as 1/12 of a screen pixel on a raster map of 2″ steps along a slit of 0.17″ pixels. glue draws
-    the image through a buffer of 72 dots per inch, so at 1:1 it skips data pixels, 28 in 100 on a figure of 100 dots
-    per inch (``wp0-perf-core-draw``). A plain tool, as 'Hide axes' is, which leaves the mouse mode on.
+    Zoom about the view center to one reference-data x pixel per device pixel, y as 'Physical aspect' keeps it (D50,
+    #148); glue's 72-dpi image buffer still skips data pixels at 1:1 (``wp0-perf-core-draw``).
     """
 
     icon = _icon("solar_zoom_1_1")
@@ -1029,14 +915,8 @@ class _ColorBarAxes(Axes):
 @viewer_tool
 class ColorBarTool(Tool):
     """
-    Show or hide a color bar right of the Image viewer's image: the colors of its reference data from one color
-    limit to the other, with value ticks.
-
-    The bar takes glue's own coloring of the reference data's layer as it draws (`_ColorBarAxes`), so it follows
-    the limits, per frame too, the stretch, contrast and bias, the colormap, or the color in 'One color per layer'
-    mode, and the slices; it is part of the figure, so saved plots show it. Its room comes from the axes, as from a
-    resize, so 'Square Pixels' and 'Physical aspect' keep their proportions. A plain tool, as 'Hide axes' is, which
-    leaves the mouse mode on.
+    A color bar right of the image, which glue lacks (D50, #144): glue's own coloring of the reference layer
+    (`_ColorBarAxes`), its room taken from the axes' margins so that the aspect keeps its proportions.
     """
 
     icon = _icon("solar_color_bar")
@@ -1077,11 +957,8 @@ class ColorBarTool(Tool):
 @viewer_tool
 class RasterOverlaysTool(Tool):
     """
-    Show or hide the raster overlays of the viewer's observation on all its viewers: on each slit-jaw image the slit of
-    each raster step or exposure, a stack's at the scan its panels show, placed through the frame nearest that step's
-    time, and on each map of the raster, its steps or exposures against slit, a dashed line at the one nearest the time
-    master's time, hidden beyond half their cadence. Plain matplotlib lines: 'Save plot' shows them, and sessions and
-    Python scripts leave them out. Its View menu entry shows where a raster of the observation is loaded.
+    Show or hide the raster overlays of the viewer's observation on all its viewers (D40, #257): plain matplotlib
+    lines, which sessions leave out.
     """
 
     tool_id = "solar:raster_overlays"
@@ -1106,12 +983,8 @@ class RasterOverlaysTool(Tool):
 
 def sky_length(viewer, x, y):
     """
-    The length of the line through the points ``x``, ``y`` (two or more) of the Image viewer's displayed axes, as
-    ``(pixels, arcsec, km)``: in data pixels; on the sky, the great-circle angles between the world coordinates at the
-    ends of its segments, added up; and on the Sun, that angle in radians times the reference data's ``DSUN_OBS``, the
-    observer's distance from the Sun's center: a length in the plane of the sky through the Sun's center, with no
-    correction for foreshortening. The arcsec are None off the sky (`_sky_coords`) or past the outer steps of a -TAB
-    raster, which has no coordinates there; the km also without ``DSUN_OBS``.
+    The length of the line through ``x``, ``y`` on the viewer's axes as ``(pixels, arcsec, km)``: great-circle arcsec,
+    and km at ``DSUN_OBS`` in the plane of the sky, without foreshortening (#147); None off the sky (`_sky_coords`).
     """
     x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
     pixels = float(np.hypot(np.diff(x), np.diff(y)).sum())
@@ -1130,12 +1003,7 @@ def sky_length(viewer, x, y):
 @viewer_tool
 class MeasureTool(ToolbarModeBase):
     """
-    Measure a line dragged on the Image viewer's image: its length in data pixels, on the sky in arcsec and on the Sun
-    in km (`sky_length`), in the status bar beside the mouse-over readout, which each mouse move replaces. Where the
-    displayed axes are not a longitude and a latitude alone, such as a spectrogram, a slit-jaw image's x against time
-    or a sit-and-stare raster's exposures against its slit, in pixels only. The line and its length stay until the
-    next drag, or until other axes or reference data are shown, which they would not describe; another mouse mode
-    hides them while it is on.
+    The length of a dragged line (`sky_length`) in the status bar (#147), until the next drag or other axes or data.
     """
 
     icon = "pencil"
@@ -1209,21 +1077,9 @@ class MeasureTool(ToolbarModeBase):
 
 class PathData(PathSlicedData):
     """
-    glue-core's `~glue.plugins.tools.path_slicer.path_sliced_data.PathSlicedData`, a dataset's values along a path, for
-    IRIS data: NaN where the path leaves the data, and ``Time`` as times, NaT there, where glue-core 1.27.0 gives 0 and
-    casts times to float; its own world coordinates, which glue-core asks the parent for; a scalar for one pixel. The
-    positions given are the path's samples, which `PathTool` places in each dataset's own pixels, not vertices to
-    sample. A slit-jaw image's longitude and latitude depend on its frame, so its diagram, with more world axes than
-    pixel axes, on which glue-core's coordinates fail, has pixel coordinates only; a raster's keeps its wavelength, and
-    a stack's its scan too, from scan 0's WCS, as its longitude and latitude depend on its scan.
-
-    ``sampling`` is one of `SAMPLINGS`: 'truncate', glue-core's, the pixel whose index each position rounds down to;
-    'nearest', the nearest pixel, halfway up, as `scipy.ndimage.map_coordinates` with ``order=0``, NaN beyond half a
-    pixel off the data; 'linear', bilinear between the four pixels around each sample, as ``order=1`` with
-    ``mode="constant"``, NaN where any is NaN or off the data, with times and categories the nearest pixel's.
-
-    A session keeps the path, its parent and its sampling, where glue-core 1.27.0 cannot save a diagram, and the
-    restored diagram reads its values from the parent again.
+    glue-core's ``PathSlicedData`` of `PathTool`'s samples as given: NaN and NaT off the data, where glue-core 1.27.0
+    gives 0 and casts times to float, its own world coordinates (none where glue-core's fail), a ``sampling``
+    (`SAMPLINGS`: glue-core's, or scipy's ``map_coordinates`` order 0 or 1) and a session record (#151, #191, #218).
     """
 
     SAMPLINGS = ("truncate", "nearest", "linear")
@@ -1356,24 +1212,20 @@ class PathData(PathSlicedData):
 
 # glue-core 1.27.0 saves the link between two diagrams' paths as a ComponentLink through its own methods, which no
 # session opens: save the diagrams it links instead
-if PathRelativeLink not in GlueSerializer.dispatch:
+@saver(PathRelativeLink)
+def _save_path_link(link, context):
+    return {"paths": [context.id(link._slice_from), context.id(link._slice_to)]}
 
-    @saver(PathRelativeLink)
-    def _save_path_link(link, context):
-        return {"paths": [context.id(link._slice_from), context.id(link._slice_to)]}
 
-    @loader(PathRelativeLink)
-    def _load_path_link(rec, context):
-        return PathRelativeLink(*map(context.object, rec["paths"]))
+@loader(PathRelativeLink)
+def _load_path_link(rec, context):
+    return PathRelativeLink(*map(context.object, rec["paths"]))
 
 
 def _placed(viewer, data, x, y):
     """
-    The two pixel components of ``data`` along which the path of samples ``x, y`` on the Image viewer's displayed axes
-    runs, each with the path's positions along it (NaN where the path leaves ``data``), through glue's links from the
-    reference data at the viewer's slices; None if glue cannot place them from the reference data. A stack's scan,
-    its first axis, which `~glue_solar.sources.loaders.iris.link_hpc` makes the one nearest the time shown, is not
-    along the path.
+    The two pixel components of ``data`` the path ``x, y`` on the viewer's axes runs along, each with the path's
+    positions (NaN off ``data``), through glue's links at the viewer's slices, or None; a stack's scan is not along it.
     """
     state = viewer.state
     if data is state.reference_data:
@@ -1394,10 +1246,8 @@ def _placed(viewer, data, x, y):
 
 def _diagrams(collection, placed, sampling, made=()):
     """
-    glue-core's create_trace, of samples: a `PathData` diagram, sampled with ``sampling``, of each dataset of
-    ``placed`` with its two pixel components and the positions along them (`_placed`), added to ``collection`` and
-    linked to its parent and sample by sample to the others. Each is numbered past its parent's diagrams in the
-    collection, such as a restored session's or another viewer's, and ``made``, kept or deleted.
+    glue-core's ``create_trace`` of samples: a `PathData` of each of ``placed`` (`_placed`), linked to its parent and
+    sample by sample to the others, numbered past its parent's diagrams in ``collection`` and ``made``.
     """
     trace = []
     for data, ((cid_x, x), (cid_y, y)) in placed:
@@ -1425,19 +1275,9 @@ def _drawn(state, collection):
 @viewer_tool
 class PathTool(BasePathSlicerMode, HubListener):
     """
-    glue-core's path slicer, for 3D and 4D data: draw a path on the Image viewer's image and press Enter for a dataset
-    of the values along it, of each dataset shown, the reference data's opened in a new Image viewer and the others' in
-    the data collection, as glue cannot show them on its axes; a slit-jaw image gives frames against the path, a raster
-    window wavelength against the path, a stack scans and wavelength against the path. The path is sampled once a pixel
-    of the reference data and placed in each other dataset through glue's links, such as
-    `~glue_solar.sources.loaders.iris.link_hpc`'s, at the frame shown, so a time-synced viewer samples them at the time
-    master's exposure; a dataset glue cannot place from the reference data, as a slit-jaw image on a raster's axes, has
-    no diagram. Each Enter makes a new set of diagrams, in a new viewer, sampled as `PathData` is with ``sampling``,
-    which the "Path sampling" submenu of `ModesTool` sets, as does a path opened from ECSV with its own sampling.
-
-    The path of each diagram of the image in the data collection, on the axes shown, is drawn as glue-core draws its
-    paths, the latest brightest: in every Image viewer of it, whichever made it, Enter, "Open path from ECSV…", "Path on
-    other data…" or a restored session.
+    glue-core's path slicer for 3D and 4D data (#151, #165): sampled once a reference-data pixel and placed in each
+    other dataset shown through glue's links (`_placed`), a new set of diagrams at each Enter; every viewer of an image
+    draws the paths of its diagrams in the collection (#175), where glue-core draws only its own viewer's.
     """
 
     icon = _icon("solar_path_diagram")  # glue_path is glue's "Show position on original path"
@@ -1526,11 +1366,8 @@ class PathTool(BasePathSlicerMode, HubListener):
 @viewer_tool
 class PathCrosshairTool(BasePathSlicerCrosshairMode):
     """
-    glue-core's crosshair of a `PathTool` diagram: drag along the diagram to mark the point on the path in the viewer
-    it was drawn in, which moves that viewer's slider of every axis but the path's to the index the diagram's y axis
-    shows, as glue-core's ``drive_parent_slice`` moves its off-screen ones, so on a stack the scan and the wavelength
-    together; each to the nearest index within its axis, where glue-core 1.27.0 truncates and goes past a stack's last
-    scan.
+    glue-core's diagram crosshair, also moving the parent viewer's other sliders to the diagram's y index, rounded
+    within each axis, where glue-core 1.27.0 truncates and passes a stack's last scan (#262).
     """
 
     tool_id = "solar:path_crosshair"
@@ -1566,11 +1403,8 @@ def _path_sky(path, row):
 
 def _path_table(path):
     """
-    The samples of the `PathData` diagram ``path`` as a table: ``x`` and ``y``, the parent's pixels along its axes
-    ``meta["axes"]``, and, on the parent's coordinates at the first index of its other axes, such as a slit-jaw
-    image's first frame, ``lon`` and ``lat`` and the ``distance`` along the path from its first sample, in arcsec, as
-    `sky_length` measures it, and with ``DSUN_OBS`` in km, ``distance_km``. Its meta also give the parent's label and
-    the ``sampling``, with which `PathTool` makes the diagram again.
+    The samples of ``path`` as a table: ``x`` and ``y``, and on the parent's coordinates at the first index of its other
+    axes ``lon``, ``lat``, ``distance`` and ``distance_km``; its meta keep what `PathTool` remakes the diagram from.
     """
     data = path.original_data
     meta = {"data": data.label, "axes": list(path.sliced_dims), "sampling": path.sampling}
@@ -1616,10 +1450,8 @@ _SKY = ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat")
 
 def _on_sky(data, lon, lat, when):
     """
-    The two pixel components of ``data`` along which its helioprojective longitude and latitude vary and no other world
-    coordinate does, each with the positions along it of the longitudes and latitudes ``lon, lat`` (Quantity), on its
-    coordinates at its first pixel along its other axes but the frame or scan with the ``Time`` nearest ``when``, where
-    its pointing changes; None if there are not two, as on a raster's wavelengths against its slit.
+    The two pixel components of ``data`` along which only its helioprojective angles vary, each with the positions of
+    ``lon, lat`` along it at the frame or scan nearest ``when``; None unless there are two.
     """
     types = list(getattr(data.coords, "world_axis_physical_types", None) or ())
     if not set(_SKY) <= set(types):
@@ -1652,10 +1484,8 @@ def _reused(viewer):
 @messagebox_on_error("Could not place the path on other data")
 def _reuse_path(viewer):
     """
-    Make a diagram of the path `_reused` gives on each 3D or 4D dataset ticked of those it can be placed in (`_on_sky`)
-    by its longitudes and latitudes as `_save_path` saves them, at the parent's first index of its other axes, and the
-    ``Time`` of its first sample on the data there: each opened in a new Image viewer, sampled as the path is and linked
-    to it sample by sample.
+    Diagrams of `_reused`'s path on each ticked dataset it can be placed in by longitude and latitude (`_on_sky`), each
+    in a new viewer and linked to it sample by sample (#200).
     """
     path, collection = _reused(viewer), viewer.session.data_collection
     table = _path_table(path)
@@ -1689,14 +1519,9 @@ def _reuse_path(viewer):
 
 def _track(viewer, x, y):
     """
-    The motion along the path of a feature whose track passes through the points ``x, y`` (two or more) of the Image
-    viewer's `PathData` diagram, shown with the path along x and one ``Time`` on each row, as a slit-jaw image's frames
-    against its path: the times of the earliest and latest points, their distances along the path in km, and the speed
-    along the path in km / s at the earliest point and the acceleration in m / s2, of the least-squares straight line
-    through the distances against time of points at two times, with NaN acceleration, or parabola through points at
-    three or more. A distance is that from the path's first sample, measured as `sky_length` measures, on the data's
-    coordinates at the point's row. None unless each point is on a row of one time with sky coordinates and the data
-    have ``DSUN_OBS``, at two times or more.
+    The motion through ``x, y`` on a distance-time `PathData` diagram (path along x, one time a row): the first and last
+    times and km, and the speed (km / s) and acceleration (m / s2, NaN at two times) of the least-squares line or
+    parabola; None without times, sky coordinates or ``DSUN_OBS`` (#175).
     """
     state, path = viewer.state, viewer.state.reference_data
     if not isinstance(path, PathData) or getattr(state.x_att, "axis", None) != path.ndim - 1:
@@ -1738,11 +1563,8 @@ _SLOPES = ("t0 (UTC)", "t1 (UTC)", "d0 (km)", "d1 (km)", "speed (km / s)", "acce
 @viewer_tool
 class SlopeTool(PathMode):
     """
-    glue's path drawing mode on a `PathTool` diagram: click points along a feature's track on a distance-time diagram,
-    such as a slit-jaw image's frames against its path, or drag along it, and press Enter for its motion (`_track`) as
-    a row of the diagram's table, the dataset '<diagram> slopes', which the first row adds to the data collection and
-    opens in a Table viewer; Esc clears the points. The status bar gives the speed and acceleration of the points so
-    far, and of the last row.
+    glue's path mode on a distance-time diagram: Enter adds the track's motion (`_track`) as a row of the dataset
+    '<diagram> slopes', shown in a Table viewer (#175).
     """
 
     icon = _icon("solar_slope")
@@ -1853,15 +1675,8 @@ class _LockPoint(ApplySubsetState):
 @viewer_tool
 class FollowLockTool(PixelSelectionTool):
     """
-    Move the point with the mouse, as CRISPEX's cursor does, and lock it with a click.
-
-    While the edit subset is an unlocked point, or empty, the mouse moving over the image moves it to the pixel under
-    the mouse, as a Pixel click there would, with no Undo step and at most once in 50 ms, to the latest position: a
-    quicklook's panels and spectrum follow, and on a quicklook's slit-jaw image the point moves to the raster pixel
-    there (`~glue_solar.quicklook.sji_to_raster`). A left click moves it there and locks it, in one Undo step, which
-    unlocks it too; a right click, or Esc once a click has given the image the keyboard, unlocks it. A locked point
-    stays as the mouse moves over any viewer, and stays locked as sliders or Pixel clicks move it or Clear point
-    empties it. The mouse alone never moves a region being edited; a click replaces it, as a Pixel click does.
+    CRISPEX's cursor (D6, D39, #119): the mouse moves an unlocked or empty edit subset as a Pixel click would, with no
+    Undo step and at most once in 50 ms; a left click locks it in one Undo step, a right click or Esc unlocks it.
     """
 
     icon = "glue_point"
@@ -1981,7 +1796,7 @@ class _LightCurveEntry(_CoordinateEntry):
 
     @messagebox_on_error("Could not open the light curve")
     def run(self, coordinator):
-        _light_curve(self.viewer)
+        _cut(self.viewer, 0, "Light curve", curve=True)  # along exposure or scan
 
     def offered(self):
         return _takes(_check_cut, self.viewer, curve=True)
@@ -2034,12 +1849,8 @@ def _first_slider(viewer):
 
 class _GoToUTCEntry(_CoordinateEntry):
     """
-    Move the time master of the viewer's observation, typed in any of its viewers, to its frame, exposure, step or
-    scan nearest a typed UTC time, the earlier of two as near: the others follow it, as after a move of its slider. A
-    stack's scans are timed at the point's step. A viewer of an observation without a time master moves its own
-    frame, exposure, step or scan slider instead. The dialog opens on the time master's time, or the viewer's own; a
-    time more than half the master's cadence from its nearest moves nothing (D7), and glue says why, as for a viewer
-    with neither a time master nor such a slider.
+    Move the observation's time master, or without one the viewer's first slider, to its index nearest a typed UTC
+    time; nothing past half its cadence (D7, D38).
     """
 
     tool_id = "solar:go_to_utc"
@@ -2092,11 +1903,8 @@ class _GoToUTCEntry(_CoordinateEntry):
 
 def _loop(slider, lo, hi, every=1, bounce=False):
     """
-    Make the playback of ``slider``, a glue-qt slice slider, go round ``lo`` to ``hi`` only, both included, either way,
-    ``every`` indices a step: past an end it starts again at ``lo`` forwards and ``hi`` backwards, or with ``bounce``
-    turns back at the last index it reaches; from outside them it starts at ``lo`` forwards and ``hi`` backwards.
-    glue-qt's play timer steps through the slider's ``_browse_slice``, which this replaces; its buttons keep the method
-    they were connected to.
+    Make glue-qt's playback of ``slider`` go round ``lo`` to ``hi``, ``every`` indices a step, or turn back with
+    ``bounce`` (#166), replacing the ``_browse_slice`` its play timer calls; its step buttons keep glue-qt's.
     """
 
     def step(action, play=True):
@@ -2145,10 +1953,8 @@ class _LoopEntry(_CoordinateEntry):
 
 def _ask_range(viewer, title, slider, *rows):
     """
-    The first and last index of ``slider``, a glue-qt slice slider, typed in a dialog that opens on its loop (Loop…)
-    or else its whole range, or None if the dialog is canceled; ``±N`` (or ``+-N``) types the N indices either side
-    of the current one, cut to 0 and the last. ``rows``, each the arguments of a ``QFormLayout.addRow``, go below; read
-    their widgets as soon as this returns.
+    The first and last index of ``slider`` typed in a dialog, or ``±N`` about the current one, or None if canceled;
+    ``rows``, ``QFormLayout.addRow`` arguments, go below, their widgets to read as soon as this returns.
     """
     last, current = slider.value_slice_center.maximum(), slider.value_slice_center.value()
     lo, hi = getattr(slider, "_solar_loop", (0, last))[:2]
@@ -2185,10 +1991,8 @@ _SCALE_BARS = (1, 2, 5, 10, 20, 50, 100, 200, 500, 1000)
 
 def _place_scale_bar(viewer, line, label):
     """
-    Put ``line`` and ``label``, in data x and axes y, at the Image viewer's lower right, as a scale bar ending at 95 %
-    of the axes' width: the largest of `_SCALE_BARS` the right quarter of the view spans, at the angle an x pixel
-    spans on the sky (`sky_length`) at the slice shown, on average across the image through the view center, as
-    `_arcsec_ratio` takes it, so a rolled or stretched image gets it too; hidden off the sky.
+    Place ``line`` and ``label`` as a scale bar at the viewer's lower right: the largest of `_SCALE_BARS` the right
+    quarter of the view spans at an x pixel's angle across the image (`sky_length`); hidden off the sky.
     """
     state, axes = viewer.state, viewer.axes
     nx, ny = (state.reference_data.shape[att.axis] - 1 for att in (state.x_att, state.y_att))
@@ -2213,25 +2017,9 @@ def _save_failed(exc_info):
 @viewer_tool
 class SaveSequenceTool(Tool):
     """
-    Save the Image viewer's figure at each index of one slider, from a first to a last, as PNG files or a movie.
-
-    An entry of glue's save menu. Each PNG frame is what 'Save plot to file' writes at that index, named after the file
-    chosen with the index added (``sji_0007.png`` for ``sji.png``); a movie is an MP4 through matplotlib's
-    ``FFMpegWriter``, offered where ffmpeg is installed, or a GIF through its ``PillowWriter``, at 10 frames per
-    second. Of several sliders one is picked, the first (an IRIS dataset's frames, exposures, steps or scans) offered
-    first, and the indices are typed as for Loop…, whose range the dialog opens on. Its playback, and the time
-    master's, stops; the slider moves as in playback, a frame at each turn of the event loop, so glue stays usable, and
-    each frame is saved once Qt has run the time sync, so the other viewers follow and the overlays are drawn. ffmpeg
-    encodes an MP4 in its own process as the frames come; the writer's finish, which waits for ffmpeg or encodes the
-    GIF, runs on glue-qt's `Worker`. The viewer and its options are grayed, and per-frame limits off, during the run,
-    so every frame has the same color limits; one viewer saves at a time. Ticked in the range dialog, 'UTC time on
-    each frame' draws the frame's time (`_frame_time`, to 0.01 s) at the image's lower left during the run only, 'Frame
-    numbers' the slider's index and last index at its upper left (``frame 7/399``), and 'Scale bar' a bar of a round
-    length in arcsec at its lower right (`_place_scale_bar`), or, where the displayed axes are not a longitude and a
-    latitude, a message in the application's status bar. The file dialog offers a name from the reference data's label
-    and the indices. Cancel, closing the viewer, or resizing it from outside its grayed window (glue's Gather Windows,
-    or the main window's with it maximized) keeps the frames saved so far, a movie of them too, and the viewer returns
-    to its slice and limits.
+    Save the figure at each index of one slider as PNG frames, an MP4 (where ffmpeg is) or a GIF, which glue lacks
+    (#145, #265): a frame a turn of the event loop, after the time sync, so glue stays usable, with the viewer grayed
+    and its limits fixed; Cancel, a close or a resize keeps the frames so far.
     """
 
     icon = "glue_filesave"
@@ -2399,19 +2187,9 @@ class SaveSequenceTool(Tool):
 
 def _profile_table(viewer):
     """
-    The profiles of the Profile viewer's visible layers as one astropy table, the labels of the hidden layers but those
-    glue-solar hides itself, even once shown and hidden again (``_solar_own``: a quicklook spectrum panel's raster and
-    other subsets, a large cube), and those of the visible layers without a profile (empty, disabled or still
-    computing), all left out. Each layer kept gives columns named after its label as glue's `as_variable_name` names a
-    variable (``Si IV 1403`` gives ``Si_IV_1403``), a repeat made unique as glue's `disambiguate` does (``Point``,
-    ``Point_01``): ``<label>_x`` and ``<label>_y`` as glue computes them, in the viewer's x and y units, described by
-    the x axis's name and the layer's label, ``<label>_y`` with its attribute and, for a Pixel subset, the pixel of each
-    axis it fixes, and with normalize on ``<label>_y_normalized``, as drawn; a shorter profile is padded with masked
-    values. Where x is the axis along which the data step through time (`_time_axis`: a sit-and-stare raster's
-    exposures, a stack's scans, a slit-jaw image's frames), ``<label>_time`` gives each sample's ``Time``, at the pixel
-    or slice of a Pixel subset or light curve, else at the first index of the other axes. A Pixel subset or light curve
-    gives the sky position of each sample there, ``<label>_lon`` and ``<label>_lat``, in arcsec. Its meta give the
-    function.
+    The Profile viewer's visible profiles as one table, ``<label>_x`` and ``<label>_y`` as glue computes them, with
+    ``_y_normalized``, ``_time`` and ``_lon``/``_lat`` where they apply (#209, #239), and the labels left out: hidden
+    layers but glue-solar's own (``_solar_own``), and visible ones without a profile.
     """
     state = viewer.state
     tables, names, hidden, skipped = [], [], [], []
@@ -2472,10 +2250,8 @@ def _profile_table(viewer):
 @viewer_tool
 class SaveProfileTool(Tool):
     """
-    Save the Profile viewer's visible profiles, as glue draws them, to one ECSV table (`_profile_table`), its ``Time``
-    columns as `~astropy.time.Time` and the reference data's OBSID and STARTOBS in its meta. An entry of glue's save
-    menu, which suggests the name ``<OBSID> <function> profiles.ecsv``, or the reference data's label for the OBSID; the
-    application's status bar names the layers left out.
+    Save the visible profiles (`_profile_table`) to ECSV, with the OBSID and STARTOBS (#209); the application's status
+    bar names the layers left out.
     """
 
     icon = "glue_filesave"
@@ -2543,12 +2319,9 @@ def _layers_of(state, data):
 
 def _show_position(viewer, coordinator, data, slices):
     """
-    Show ``data`` at ``slices`` in the Image viewer as a blink flip: the shown axes, by pixel axis, the zoom, the point
-    and the time sync stay. Another dataset that follows the time master shows the frame, exposure or scan the time
-    sync gives it now instead of its own, a collapse staying, so two slit-jaw channels blink at one time in playback.
-    For another dataset glue resets the axes, slices and limits, so they are set again after it, x before y; the
-    dataset left is hidden, since glue would retry its disabled layer at every draw through the helioprojective link,
-    about a second on a full raster.
+    Show ``data`` at ``slices`` as a blink flip (D41): axes, zoom, point and time sync stay, a follower at its time
+    sync index; glue resets them for other data, so they are set again, and the data left is hidden, as glue would
+    retry its disabled layer at every draw (about a second on a full raster).
     """
     state = viewer.state
     shown = state.reference_data
@@ -2651,10 +2424,8 @@ def _wavelength_key(delta, session):
 
 def _play_key(session):
     """
-    Space: play the time forwards, as glue-qt's play button does, or pause it. The time is the first slider of a viewer
-    of the time master of the active viewer's observation, one with a loop (Loop…), which it goes round, before the
-    active viewer's own, or without a time master, the active Image viewer's own. Space pauses any of these playing,
-    the active viewer's own too.
+    Space: play the first slider of a viewer of the time master, one with a loop first, or without one the active
+    viewer's, or pause any of these playing (D61).
     """
     viewer, sync, master = _pressed(session)
     viewers = dict.fromkeys([viewer, *([] if master is None else sync._viewers_of(master))])
@@ -2680,13 +2451,9 @@ KEYS = {
 
 class _ToolMenu(SimpleToolMenu):
     """
-    A toolbar menu of glue-solar tools, glue's own kind of menu: the viewer's ``subtools`` name its tools, or the menu
-    makes them itself as Coordinate does, and glue-qt 0.4.2 makes them its entries. Once glue-qt has built it, each tool is also in the toolbar's ``tools`` and
-    ``actions`` with its entry, as a button's would be, so glue-qt switches a mouse mode of the menu on and off and
-    scripts find a tool by its id as before. An entry shows only while its tool is ``enabled``, which glue-qt does for
-    buttons only (glue-viz/glue-qt#72, draft, adds it), set from its ``offered`` as the menu opens where it has one,
-    has a check mark for a tool with a ``checked`` state, and takes its tool's key while the toolbar has the keyboard,
-    as a button does.
+    glue's tool menu, its tools also in the toolbar's ``tools`` and ``actions`` as a button's are (#222): an entry shows
+    while ``enabled``, as glue-qt 0.4.2 does for buttons only (glue-viz/glue-qt#72, draft), from ``offered`` as the menu
+    opens, with a check mark from ``checked`` and its key while the toolbar has the keyboard.
     """
 
     def __init__(self, viewer, subtools=None):
@@ -2732,19 +2499,9 @@ def _submenu(menu, title, tool_tip):
 @viewer_tool
 class CoordinateTool(_ToolMenu):
     """
-    Coordinate the Image viewer with the others of its IRIS observation.
-
-    The tool registers its viewer with the data collection's
-    `~glue_solar.quicklook.Coordinator`, which keeps the viewers on the point selected with the
-    Pixel tool, and unregisters it when the viewer closes. Its menu makes the displayed dataset the
-    time master of its observation, moves the time master to a typed UTC time, or makes the frame, exposure, step or
-    scan slider's playback loop over a range; its "Point" submenu clears the point,
-    opens the light curve at the point, plots the light curves of the windows and slit-jaw images shown at the point, or
-    opens a raster map's row or column through the point;
-    its "Blink" submenu blinks the viewer between its position and a stored partner. An entry shows only where it can
-    act, as the menu opens (`_CoordinateEntry.offered`): "Blink" once it has a partner. On a
-    slit-jaw image it draws the displayed frame's slit, and the point of a raster of the same
-    observation placed with that frame's coordinates while it is on the image.
+    Register the viewer with its collection's `~glue_solar.quicklook.Coordinator` (D9), with the menu of time entries
+    and the 'Point' and 'Blink' submenus (D61); on a slit-jaw image draw the frame's slit, the raster point and the
+    raster overlays.
     """
 
     icon = "glue_link"
@@ -2910,10 +2667,8 @@ class CoordinateTool(_ToolMenu):
 @viewer_tool
 class ModesTool(_ToolMenu):
     """
-    The Image viewer's menu of glue-solar's mouse modes: Measure, Path diagram, its crosshair and Slope; "Save path as
-    ECSV…" on a diagram (`_save_path`), "Open path from ECSV…" (`_open_path`) and "Path on other data…" on a diagram
-    or an image with a path drawn (`_reuse_path`); and the "Path sampling" submenu, which sets `PathTool`'s
-    ``sampling`` for the next Enter.
+    The menu of glue-solar's mouse modes, with the path entries (`_save_path`, `_open_path`, `_reuse_path`) and the
+    'Path sampling' submenu of `PathTool`'s ``sampling``.
     """
 
     icon = "pencil"
