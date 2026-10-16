@@ -1,0 +1,1 @@
+A session saved after 'IRIS: radiometric calibration' stores each factor as its spectra, so it stays small and the last session is kept.
