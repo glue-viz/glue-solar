@@ -31,8 +31,8 @@ Out of scope:
 **Resume here.** Main is at 98aa006 (#289). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
 
 **Next** (D81, D82), three at a time with disjoint files (tests in the file named). Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. Running: `wp6-l-fit-lines` (test_plugin), `wp10-l-lean-patches` and #289 (test_calibration).
-  2. Then, as files come free: `wp9-l-app-reproject-metadata` and the `-lean-` items, `wp10-l-lean-tests` last and alone.
+  1. Running: `wp11-l-lean-tools-quicklook`; shipping: `wp10-l-lean-patches` and `wp6-l-fit-lines`.
+  2. Then, as files come free: `wp10-l-lean-loaders-analysis`, `wp9-l-app-reproject-metadata`, and `wp10-l-lean-tests` last and alone.
 
   Held for the user (D82): `wp4-l-restored-strip`, `wp13-l-restored-second-map`, `wp3-l-autosave-quit` and `wp3-l-restore-irispy-meta`.
 
