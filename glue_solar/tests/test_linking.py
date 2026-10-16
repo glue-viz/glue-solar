@@ -345,6 +345,20 @@ def test_a_restored_session_keeps_the_data_linked_on_request_linked(qtbot, tmp_p
     np.testing.assert_allclose(others[1][_cid(raster, HPC[1])], others[1][_cid(others[1], HPC[1])])
 
 
+def test_a_map_linked_by_hand_to_another_iris_dataset_is_not_linked_on_request(qtbot, sns):
+    # D73: only a link to the IRIS dataset `link_hpc` links to is taken as one made on request, not one made in glue's
+    # Link Data dialog to another
+    sji, raster = sns
+    lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)
+    aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia")
+    dc = DataCollection([sji, raster, aia])
+    keep_hpc_linked(dc)
+    dc.add_link([LinkSameWithUnits(_cid(raster, h), _cid(aia, m)) for h, m in zip(HPC, ["Hpln", "Hplt"])])
+    keep_hpc_linked(dc)
+    assert type(aia.coords) is WCS
+    assert not dc._solar_relinker.others
+
+
 def test_a_sot_cube_loaded_first_is_linked_on_request_to_the_raster(sns, irispy_test_files):
     # D72: a Hinode/SOT cube's longitude and latitude, each frame at its own pointing, as IRIS data read them, linked
     # only on request, and to the IRIS raster loaded after it, never the raster to it

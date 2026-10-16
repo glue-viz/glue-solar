@@ -998,23 +998,24 @@ class _Relinker(HubListener):
 def _linked_to_iris(data_collection):
     """
     The datasets of ``data_collection`` other than IRIS data, AIA cutouts and SOT cubes among them, whose
-    helioprojective longitude or latitude a link pairs with IRIS data's, as `link_hpc` links them on request.
+    helioprojective longitude or latitude a link pairs with the first IRIS dataset's, as `link_hpc` links them on
+    request; not one linked by hand, in glue's Link Data dialog, to another IRIS dataset.
     """
     from glue_solar.quicklook import _role  # which imports this module
 
-    iris, others = set(), {}
+    anchors, others = {}, {}
     for data in data_collection:
         physical_types = getattr(data.coords, "world_axis_physical_types", None) or ()
         for physical_type, cid in zip(physical_types[::-1], data.world_component_ids):
             if physical_type and physical_type.startswith("custom:pos.helioprojective."):
                 if isinstance(data.coords, _GlueWCS) and _role(data) != "aia":
-                    iris.add(cid)
+                    anchors.setdefault(physical_type, cid)  # as `link_hpc` picks them
                 else:
                     others[cid] = data
-    linked = set()
+    anchors, linked = set(anchors.values()), set()
     for link in data_collection.links:
         ends = {link.get_to_id(), *link.get_from_ids()}
-        if ends & iris:
+        if ends & anchors:
             linked.update(others[cid] for cid in ends & others.keys())
     return linked
 
@@ -1022,7 +1023,7 @@ def _linked_to_iris(data_collection):
 def _relinker(data_collection):
     """
     The `_Relinker` of ``data_collection``, made on first use, which also links again the datasets already linked to
-    IRIS data (`_linked_to_iris`): a session keeps their links, not that they were asked for.
+    the first IRIS dataset (`_linked_to_iris`): a session keeps their links, not that they were asked for.
     """
     if not hasattr(data_collection, "_solar_relinker"):
         data_collection._solar_relinker = _Relinker(data_collection)  # the hub holds its listeners weakly
@@ -1034,7 +1035,7 @@ def keep_hpc_linked(data_collection, others=()):
     """
     Add the `link_hpc` links of the IRIS datasets of ``data_collection`` and of ``others``, other datasets of it, and
     add them again after any dataset is removed, those of ``others`` given to any call too, and those of the other
-    datasets already linked to IRIS data, as a session restores them (`_LinkedCollection`).
+    datasets already linked to the first IRIS dataset, as a session restores them (`_LinkedCollection`).
 
     Data outside the IRIS observations, such as a sunpy map or an SST cube, and the AIA cutouts and SOT cubes of an
     observation's own tarballs, are linked only on request ('IRIS: link helioprojective coordinates'), not as data
