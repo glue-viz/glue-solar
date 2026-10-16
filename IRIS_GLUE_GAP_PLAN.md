@@ -28,10 +28,10 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 520e7b8 (#292). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
+**Resume here.** Main is at 43c2701 (#293). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
 
 **Next** (D81, D82), three at a time with disjoint files (tests in the file named). Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. Running: #292, `wp10-l-lean-loaders-analysis` and `wp9-l-app-reproject-metadata`.
+  1. Running: #292, `wp10-l-lean-loaders-analysis` and #293.
   2. Then `wp10-l-lean-tests`, last and alone.
 
   Held for the user (D82): `wp4-l-restored-strip`, `wp13-l-restored-second-map`, `wp3-l-autosave-quit` and `wp3-l-restore-irispy-meta`.
@@ -154,7 +154,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP3: `wp3-l-autosave-quit`, `wp3-l-restore-irispy-meta`
 - WP4: `wp4-l-restored-strip`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP9: `wp9-l-app-reproject-metadata`
 - WP10: `wp10-l-lean-loaders-analysis`, `wp10-l-lean-tests`
 - WP13: `wp13-l-restored-second-map`
 
@@ -307,10 +306,6 @@ Notes:
 ### WP9: Documentation and tutorials
 
 Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides and recipes.
-
-**L**
-
-- [ ] **L** `wp9-l-app-reproject-metadata` (#275): The macOS app warns at each launch that sunpy.map lacks reproject, as reproject's package metadata isn't bundled (one hook line; on main before #275 too). Done when the built app starts without the warning.
 
 **M4**
 
