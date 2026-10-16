@@ -2684,8 +2684,11 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot, monkeypatch, tmp_p
         qtbot.waitUntil(lambda: "km / s" in tools.text_log.toPlainText())
         return tools.text_log.toPlainText().splitlines()
 
-    # the fill left out, its center and its velocity from O I 1355.5977, (1355.62 / 1355.5977 - 1) c
-    assert fit()[-2:] == ["center = 1355.620000", "O I 1355.5977 Å: +4.93 km / s"]
+    # the fill left out, its center and its velocity from the rest wavelength, O I 1355.5977, or one set (D11)
+    assert fit()[-1] == "center_1 = 1355.620000, +4.93 km / s from 1355.5977 Å"
+    data.meta["rest_wavelength"] = 1355.65
+    assert fit()[-1] == "center_1 = 1355.620000, -6.63 km / s from 1355.65 Å"
+    del data.meta["rest_wavelength"]
     model, _ = GaussianConstantFitter().build_and_fit(x, y)
     assert model.parameters == pytest.approx([3, 40, 1355.62, 0.04])
     model, _ = GaussianConstantFitter().build_and_fit(x, 50 - y)
@@ -2701,7 +2704,7 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot, monkeypatch, tmp_p
     tools.ui.button_settings.click()
     lines = fit()
     assert [line.split(" ")[0] for line in lines[3:8]] == ["amplitude_1", "fwhm_1", "intercept_0", "slope_0", "x_0_1"]
-    assert float(lines[-2].removeprefix("center = ")) == pytest.approx(1355.62, abs=1e-3)  # a Lorentzian's
+    assert float(lines[-1].split()[2].strip(",")) == pytest.approx(1355.62, abs=1e-3)  # a Lorentzian's
     x = 1355 + 0.025 * np.arange(49)
     y = 3 + 0.5 * (x - 1355) + 40 / (1 + ((x - 1355.62) / 0.03) ** 2)
     model, _ = GaussianConstantFitter(linear_background=True, lorentzian=True).build_and_fit(x, y)
@@ -2755,11 +2758,85 @@ def test_profile_viewers_keep_their_own_fitter_settings(qtbot, monkeypatch):
         upper.setText("1355.7")
 
     settings(first, GaussianConstantFitter, bound)
-    assert float(fit(first)[-2].removeprefix("center = ")) == pytest.approx(1355.623, abs=1e-5)
+    assert float(fit(first)[-1].split()[2].strip(",")) == pytest.approx(1355.623, abs=1e-5)
     second.fit_function = GaussianConstantFitter
-    assert fit(second)[-2] == "center = 1355.620000"  # the other viewer's bound left out
+    assert fit(second)[-1].startswith("center_1 = 1355.620000,")  # the other viewer's bound left out
     settings(second, PolynomialFitter, lambda dialog: dialog.widgets["degree"].setValue(1))
     assert len(fit(second)[2:]) == 2  # a line's coefficients, not those of glue's default degree, 3
+
+
+def _fit_two_lines(qtbot, monkeypatch, data, x_range):
+    """
+    The mean profile of ``data`` over ``x_range`` fitted in a Profile viewer with 'Number of lines' 2, then 'Same width'
+    too, the reports' values by name, and the parameter rows of each Settings opened (D81).
+    """
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ProfileViewer, data=data)
+    viewer.state.x_att = data.world_component_ids[data.ndim - 1]  # wavelength
+    viewer.state.x_display_unit = "Angstrom"
+    viewer.state.function = "mean"
+    viewer.toolbar.active_tool = "profile-analysis"
+    tools = viewer.toolbar.tools["profile-analysis"]._profile_tools
+    tools.fit_function = GaussianConstantFitter
+    tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = x_range
+    rows, reports = [], []
+
+    def run(dialog):
+        rows.append(sorted(dialog.constraints._widgets))
+        dialog.widgets["n_lines"].setValue(2)
+        dialog.widgets["same_width"].setChecked(len(rows) > 1)
+        dialog.accept()
+
+    monkeypatch.setattr(profile_tools.FitSettingsWidget, "exec_", run)
+    for _ in range(2):
+        tools.ui.button_settings.click()
+        tools.ui.text_log.clear()
+        tools.ui.button_fit.click()
+        tools.wait_for_fit()
+        qtbot.waitUntil(lambda: "center_" in tools.text_log.toPlainText())
+        lines = [line.split(" = ") for line in tools.text_log.toPlainText().splitlines() if " = " in line]
+        reports.append({name.strip(): value for name, value in lines})  # glue pads the names
+    tools.ui.button_settings.click()
+    return *reports, rows
+
+
+def test_the_iris_fitter_fits_the_number_of_lines_set_in_settings(qtbot, monkeypatch):
+    wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 1334, "CDELT1": 0.026})
+    x = 1334 + 0.026 * np.arange(90)
+    y = 5 + 30 * np.exp(-0.5 * ((x - 1334.55) / 0.05) ** 2) + 50 * np.exp(-0.5 * ((x - 1335.7) / 0.06) ** 2)
+    data = Data(label="C II", flux=y, coords=wcs)
+    data.meta["rest_wavelength"] = 1335.7079
+    two, same, rows = _fit_two_lines(qtbot, monkeypatch, data, (1334, 1336.3))
+    # each at its peak, the bluer first, its velocity from the window's rest wavelength
+    assert two["center_1"] == "1334.550000, -259.88 km / s from 1335.7079 Å"
+    assert two["center_2"] == "1335.700000, -1.77 km / s from 1335.7079 Å"
+    assert [float(two[width]) for width in ("stddev_1", "stddev_2")] == pytest.approx([0.05, 0.06])
+    assert same["stddev_1"] == same["stddev_2"]
+    assert 0.05 < float(same["stddev_1"]) < 0.06
+    tied = ["amplitude_0", "amplitude_1", "amplitude_2", "mean_1", "mean_2", "stddev_1"]  # stddev_2 is stddev_1
+    assert rows == [["amplitude_0", "amplitude_1", "mean_1", "stddev_1"], [*tied, "stddev_2"], tied]
+    model, _ = GaussianConstantFitter(n_lines=2).build_and_fit(x, y)
+    assert [model.bounds[name] for name in ("amplitude_1", "amplitude_2")] == [(0, None), (0, None)]
+
+
+@pytest.mark.remote_data
+def test_the_iris_fitter_fits_the_c_ii_pair_as_two_lines(qtbot, monkeypatch, irispy_data):
+    """The mean C II 1336 of 3620107423's first scan, its 1334.53 and 1335.71 Å lines, of one width with 'Same width'."""
+    [c_ii] = raster_data(irispy_data("iris_l2_20250613_123658_3620107423_raster.tar.gz")[:1], ["C II 1336"])
+    two, same, _ = _fit_two_lines(qtbot, monkeypatch, c_ii, (1334.1, 1336.2))
+    centers = [float(report[f"center_{line}"].split(",")[0]) for report in (two, same) for line in (1, 2)]
+    # within 0.1 km / s: the fitter's step differs between astropy versions
+    assert centers == pytest.approx([1334.5958, 1335.7652, 1334.5966, 1335.7651], abs=5e-4)
+    # both from the window's rest wavelength, C II 1335.7079 Å for the 1336 it is named for (D11)
+    assert [two[f"center_{line}"].split(", ")[1] for line in (1, 2)] == [
+        "-249.60 km / s from 1335.7079 Å",
+        "+12.85 km / s from 1335.7079 Å",
+    ]
+    assert two["stddev_1"] != two["stddev_2"]
+    assert same["stddev_1"] == same["stddev_2"]
 
 
 @pytest.mark.remote_data
@@ -2783,6 +2860,7 @@ def test_the_iris_fitter_fits_irispys_line_on_a_background(irispy_data, linear_b
         background="linear" if linear_background else "constant",
         background_level=starts[level],
         profile="lorentzian" if lorentzian else "gaussian",
+        bounds={amplitude: (0, None)},  # an emission line's
     )
     expected = TRFLSQFitter()(irispys, x, y)
     assert isinstance(fitted_with, TRFLSQFitter)
@@ -2807,3 +2885,5 @@ def test_gaussian_on_a_constant_says_when_the_range_holds_too_few_samples():
     assert np.abs(fitter.build_and_fit(x, y)[0].parameters) == pytest.approx([1, 4, 1, 0.5])
     fitter.set_constraint("amplitude_0", value=None, fixed=False, limits=None)  # as Settings sends a row cleared
     assert fitter.constraints["amplitude_0"] == {"value": None, "fixed": False, "limits": None}
+    with pytest.raises(ValueError, match="needs a peak in the range per line, 1, and finds 0: widen the range or"):
+        GaussianConstantFitter().build_and_fit(np.arange(5.0), np.ones(5))
