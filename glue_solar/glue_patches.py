@@ -1,8 +1,9 @@
 """
 Gated fixes for glue-core and glue-qt bugs that IRIS data hits.
 
-Each fix installs, or acts, only when a probe finds the bug or raises (`_needs`), and names its PR, whose row in the
-plan's Workaround register names the switch and the upstream change that retires it.
+Each fix installs, or acts, only when its probe finds the bug (a `needs_*` probe that raises counts as finding it:
+`_needs`), and names its PR, whose row in the plan's Workaround register names the switch and the upstream change that
+retires it.
 """
 
 import builtins
@@ -529,9 +530,9 @@ def _set_axislabel(viewer, axis):
 @defer_draw
 def update_x_axislabel(self, *event):
     """
-    glue-qt's ``ImageViewer.update_x_axislabel``, labeling the WCSAxes coordinate glue maps the x axis to: glue-core
-    1.27.0's ``set_xlabel`` places every tick to find it, four extra placements a slit-jaw frame step (#90). Past a 45°
-    roll, where WCSAxes puts latitude on the bottom spine, each coordinate keeps its own name.
+    glue-qt's ``ImageViewer.update_x_axislabel``, labeling the WCSAxes coordinate glue maps the x axis to: WCSAxes'
+    ``set_xlabel``, which glue-core 1.27.0 calls, places every tick to find it, four extra placements a slit-jaw frame
+    step (#90). Past a 45° roll, where WCSAxes puts latitude on the bottom spine, each coordinate keeps its own name.
     """
     if not hasattr(self.axes, "coords"):  # not WCSAxes
         return _original_update_axislabels[0](self, *event)
@@ -576,7 +577,7 @@ if _needs(needs_axis_label_workaround):
 
 
 # glue-core #2599: glue 1.27.0 counts dates in days from 0001-01-01, matplotlib's epoch before 3.3, so a Scatter or
-# Histogram of 2021 times ticks in year 3990. The modules that import the conversions by name, glue.utils first.
+# Histogram of 2021 times ticks in year 3990 (#128). The modules that import the conversions by name, glue.utils first.
 _DATE_MODULES = (glue.utils, glue.utils.matplotlib, scatter_viewer, scatter_layer_artist, matplotlib_viewer,
                  histogram_viewer, histogram_state)
 _original_datetime64_to_mpl = glue.utils.datetime64_to_mpl
@@ -607,7 +608,7 @@ if _needs(needs_date_epoch_workaround):
 
 
 # A Profile Collapse range inside one sample gives glue-qt's `AggregateSlice` an empty range, which glue 1.27.0's image
-# refuses to draw ("Number of steps in bounds should be >=1") in every redraw. Report candidate for glue.
+# refuses to draw ("Number of steps in bounds should be >=1") in every redraw (#132). Report candidate for glue.
 _original_aggregate_init = AggregateSlice.__init__
 
 
