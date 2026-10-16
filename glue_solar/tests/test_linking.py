@@ -40,7 +40,7 @@ from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
 from glue_solar.sources.calibration import remove_dust
 from glue_solar.sources.doppler import doppler_image
-from glue_solar.sources.iris import browse_iris, link_iris
+from glue_solar.sources.iris import browse_iris, link_iris, shift_pointing_iris
 from glue_solar.sources.loaders.iris import (
     WCS_LOCK,
     QtIRISImporter,
@@ -462,19 +462,40 @@ def test_data_made_from_a_dataset_follow_every_shift_of_it(qtbot, monkeypatch, i
         np.testing.assert_array_equal(region().to_mask(maps), selected)
     # a north-up grid stays, and the slit-jaw image moves across it
     np.testing.assert_array_equal(angles(grid), before[grid.label])
-    # one shifted on its own moves what is made from it, until what it is made from is shifted again
-    shift(monkeypatch, rebinned, collection, (1.0, 1.0))
-    assert_followed([rebinned, rebinned_maps], (1.0, 1.0), of=before)
-    assert_followed([si_iv, maps], (0.5, 0.25), of=before)
-    shift(monkeypatch, si_iv, collection, (0.5, 0.25))
-    assert_followed([rebinned, rebinned_maps], (0.5, 0.25), of=before)
-    # once removed, what it was made from moves it no more, while what that was made from still does
+    # one made from another shifts the furthest one it is made from instead, which the dialog names, and so the whole
+    # family: the raster file's other windows, what is made from any of them and the events tables
+    asked = []
+
+    def cancel(dialog):
+        asked.append((dialog.windowTitle(), dialog.findChild(QtWidgets.QLabel, "source").text()))
+
+    monkeypatch.setattr(QtWidgets.QDialog, "exec", cancel)
+    shift_pointing_iris(rebinned_maps, collection)
+    assert asked == [(f"Shift pointing of {si_iv.label}", f"{rebinned_maps.label} is made from it and moves with it.")]
+    assert shift(monkeypatch, rebinned_maps, collection, (1.0, 1.0)) == (0.5, 0.25)
+    assert_followed([si_iv, *of_si_iv], (1.0, 1.0))
+    assert_events(events, (1.0, 1.0))
+    shift(monkeypatch, features, collection, (2.0, -1.0))
+    assert_followed([c_ii, mg_ii, features], (2.0, -1.0))
+    shift(monkeypatch, sji_labels, collection, (-1.5, 0.5))
+    assert_followed([sji, *of_sji], (-1.5, 0.5))
+    assert_events(sji_events, (-1.5, 0.5))
+    # once removed, what it was made from moves it no more, while what that was made from still does, and a dataset
+    # none of whose sources is left shifts on its own, with what is made from it
     collection.remove(rebinned)
     collection.remove(mg_ii)
-    shift(monkeypatch, si_iv, collection, (2.0, 2.0))
+    collection.remove(sji)
+    shift(monkeypatch, rebinned_maps, collection, (2.0, 2.0))
     shift(monkeypatch, c_ii, collection, (3.0, 3.0))
-    assert_followed([rebinned_maps], (2.0, 2.0), of=before)
+    assert_followed([si_iv, maps, rebinned_maps], (2.0, 2.0), of=before)
+    assert_followed([features], (2.0, -1.0), of=before)
+    shift(monkeypatch, features, collection, (0.25, 0.5))
     assert_followed([features], (0.25, 0.5), of=before)
+    assert_followed([c_ii], (3.0, 3.0), of=before)
+    shift(monkeypatch, sji_labels, collection, (1.0, 0.0))  # its dust-removed image is the furthest left
+    assert_followed([dust, sji_labels], (1.0, 0.0), of=before)
+    assert_followed([of_sji[0]], (-1.5, 0.5), of=before)
+    assert_events(sji_events, (1.0, 0.0))
 
 
 def test_raster_pixels_reach_a_sunpy_map_whose_longitudes_run_from_0_to_360(sns):

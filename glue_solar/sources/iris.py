@@ -186,11 +186,13 @@ def link_iris(session, data_collection):
     keep_hpc_linked(data_collection, others=data_collection)
 
 
-def _ask_offset(data):
-    """The pointing offset typed for ``data``, in arcsec, from its current one; or None for Cancel."""
+def _ask_offset(data, chosen):
+    """The pointing offset typed for ``data``, in arcsec, from its current one, asked on ``chosen``; or None for Cancel."""
     dialog = QtWidgets.QDialog(QtWidgets.QApplication.activeWindow())
     dialog.setWindowTitle(f"Shift pointing of {data.label}")
     form = QtWidgets.QFormLayout(dialog)
+    if chosen is not data:
+        form.addRow(QtWidgets.QLabel(f"{chosen.label} is made from it and moves with it.", objectName="source"))
     boxes = []
     for name, label, value in zip(("dx", "dy"), ("Δx (longitude):", "Δy (latitude):"), data.coords.pointing_offset):
         box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=2, minimum=-1000, maximum=1000, singleStep=0.1)
@@ -199,6 +201,12 @@ def _ask_offset(data):
         form.addRow(label, box)
         boxes.append(box)
     return tuple(box.value() for box in boxes) if _accepted(dialog, form) else None
+
+
+def _source(data, data_collection):
+    """The furthest dataset ``data`` is made from (`_GlueWCS.follows`) still in ``data_collection``, else ``data``."""
+    loaded = {other.uuid: other for other in data_collection}
+    return next((loaded[uuid] for uuid in reversed(data.coords.follows) if uuid in loaded), data)
 
 
 def _check_iris(data):
@@ -212,18 +220,23 @@ def _check_iris(data):
     single=True,
     data=True,
     check=_check_iris,
-    tooltip="Offset this IRIS dataset's helioprojective longitude and latitude by a typed number of arcsec",
+    tooltip=(
+        "Offset the helioprojective longitude and latitude of this IRIS dataset, or of the dataset it was made from, "
+        "by a typed number of arcsec"
+    ),
 )
 @messagebox_on_error("Could not shift the pointing")
 def shift_pointing_iris(data, data_collection):
     """
-    Add a typed offset, in arcsec, to the helioprojective longitude and latitude of ``data``, of the other windows of
-    its raster file and of the data made from any of them that follow it (`_GlueWCS.follow`), a burst events table's
-    coordinates too, in place of any before (0, 0 removes it), and place everything in every viewer, the readouts,
-    links and a quicklook's point and raster overlays again; offered only for data with IRIS coordinates.
+    Add a typed offset, in arcsec, to the helioprojective longitude and latitude of ``data``, or of the furthest
+    dataset it is made from still loaded (`_source`), which the dialog names, of the other windows of its raster file
+    and of the data made from any of them that follow it (`_GlueWCS.follow`), a burst events table's coordinates too,
+    in place of any before (0, 0 removes it), and place everything in every viewer, the readouts, links and a
+    quicklook's point and raster overlays again; offered only for data with IRIS coordinates.
     """
     _check_iris(data)
-    offset = _ask_offset(data)
+    chosen, data = data, _source(data, data_collection)
+    offset = _ask_offset(data, chosen)
     if offset is None:
         return
     shifted = {other.uuid for other in data_collection if _same_file(data, other)}  # one slit, one pointing

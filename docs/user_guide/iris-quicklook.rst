@@ -594,10 +594,15 @@ position. On OBSID 4000005156's deconvolved SJI 2796, (+2, −1) turns the reado
   moments, red-blue asymmetry, Doppler images, Mg II features or UV bursts, take its offset and
   follow every later shift of it, as do data made from those in turn, such as a rebinned window's
   line moments, and a burst events table's ``coordinate.Tx`` and ``coordinate.Ty``; a saved
-  session keeps them following. Data shifted on their own move with the data made from them,
-  until the dataset they were made from is shifted again, and once it is removed they keep their
-  offset. A line ratio shares its numerator's coordinates and shifts with it; a north-up grid
-  stays where it was made, and the slit-jaw image moves across it.
+  session keeps them following. Chosen on data made from another dataset, "IRIS: shift pointing…"
+  shifts the furthest dataset they were made from still in the data collection, which the dialog
+  names, so its raster file's windows and everything made from them move together: on OBSID
+  4000255147, a (+3, −2) shift chosen on the line moments of a 2×2×1 rebinned copy of the Si IV
+  1403 window moves that window, the file's eight other windows, the copy and the moments by
+  exactly +3″ and −2″. Once removed, a dataset moves the data made from it no more; they keep
+  their offset, and once none of the datasets they were made from is left, they shift on their
+  own, with the data made from them. A line ratio shares its numerator's coordinates and shifts
+  with it; a north-up grid stays where it was made, and the slit-jaw image moves across it.
 - A region drawn on a quicklook's map or slit-jaw image keeps the outline it had in longitude and
   latitude, so draw it again after shifting the dataset it was drawn on.
 - The "Frame time" tooltip keeps the file's pointing. A saved session keeps the offset (see "Saving
