@@ -52,12 +52,6 @@ def _row(dialog, obsid):
     return next(tree.topLevelItem(i) for i in range(tree.topLevelItemCount()) if tree.topLevelItem(i).text(1) == obsid)
 
 
-@pytest.mark.parametrize("suffix", ["", "_test"])
-def test_find_irispy_test_file(tmp_path, suffix):
-    path = tmp_path / f"iris_l2_example{suffix}.fits"
-    assert find_irispy_test_file([path], "iris_l2_example.fits") == path
-
-
 def test_tests_keep_off_the_users_settings(tmp_path):
     from glue import config
 
@@ -415,7 +409,7 @@ def test_filter_waits_for_a_pause_in_typing(dialog, qtbot):
     filters = []
     dialog._filter_timer.timeout.connect(lambda: filters.append(dialog.filter.text()))
     QTest.keyClicks(dialog.filter, "mg")  # a keystroke at a time, faster than the pause
-    qtbot.wait(100)
+    qtbot.wait(300)  # beyond a coarse timer's 5% (100 ms) slack, so a restart reads longer
     left = dialog._filter_timer.remainingTime()
     QTest.keyClicks(dialog.filter, " II")
     assert dialog._filter_timer.remainingTime() > left  # each keystroke starts the pause over
@@ -1251,9 +1245,8 @@ def test_raster_load_failure_of_files_that_load_alone_names_how_many(qtbot, tmp_
 
 
 @pytest.mark.remote_data
-def test_negative_step_raster_keeps_irispys_orientation(qtbot, irispy_data):
+def test_negative_step_raster_keeps_irispys_orientation(app, irispy_data):
     # D10: a STEPS_AV < 0 raster keeps irispy's orientation, unflipped, and longitude grows with step
-    from glue_qt.app.application import GlueApplication
     from glue_qt.viewers.image import ImageViewer
 
     [path] = irispy_data("iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz")
@@ -1274,8 +1267,6 @@ def test_negative_step_raster_keeps_irispys_orientation(qtbot, irispy_data):
     assert (np.diff(times) < np.timedelta64(0, "s")).all()  # acquired from the last step to the first
     assert np.datetime_as_string(times[[0, 63]], unit="s").tolist() == ["2025-03-28T23:06:15", "2025-03-28T22:56:32"]
 
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(scan)
     viewer = app.new_data_viewer(ImageViewer, data=scan)
     viewer.state.x_att, viewer.state.y_att = scan.pixel_component_ids[0], scan.pixel_component_ids[1]

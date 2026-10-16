@@ -36,7 +36,7 @@ from sunpy.visualization.colormaps import cmlist
 
 import glue_solar
 from glue_solar import glue_patches
-from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
+from glue_solar.conftest import MD5, OBS_A, SCAN, find_irispy_test_file
 from glue_solar.quicklook import coordinator, quicklook
 from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.bursts import si_iv_bursts
@@ -53,12 +53,11 @@ from glue_solar.sources.loaders.iris import (
 from glue_solar.sources.loaders.lazy import LazyData
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments
-from glue_solar.tests.helpers import angles, load_selected, mouse, scanned, select_point, shift
+from glue_solar.tests.helpers import angles, load_selected, mouse, restore, scanned, select_point, shift
 from glue_solar.tests.test_bursts import SI_IV
 from glue_solar.tests.test_importer import _row, counted_reads
 from glue_solar.tests.test_quicklook import (
     POINT_CURVES,
-    SCAN,
     SNS,
     THREE,
     drifting_stack,
@@ -75,6 +74,13 @@ from glue_solar.tests.test_quicklook import (
 from glue_solar.tools import _pointing
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1330_t000.fits"
+
+
+@pytest.fixture
+def app(app, monkeypatch):
+    """The conftest's application, whose errors fail the test rather than open glue's modal dialog."""
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))
+    return app
 
 
 def twice(obj):
@@ -272,23 +278,18 @@ def test_a_stack_held_in_memory_gives_its_bursts_and_radiance_once_restored_and_
             np.testing.assert_array_equal(data[radiometric_calibration(data)], expected)
 
 
-def test_an_aia_map_session_restores_its_colormap(qtbot, monkeypatch, tmp_path):
-    glue_solar.setup()  # every sunpy colormap listed
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
+def test_an_aia_map_session_restores_its_colormap(app, qtbot, monkeypatch, tmp_path):
     aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))
     app.data_collection.append(aia)
     app.new_data_viewer(ImageViewer, data=aia)
     app.save_session(str(tmp_path / "aia.glu"))  # glue-core 1.27.0 alone fails on the map's colormap
-    restored = GlueApplication.restore_session(str(tmp_path / "aia.glu"))
-    qtbot.addWidget(restored)
+    restored = restore(qtbot, monkeypatch, tmp_path / "aia.glu", show=True)
     assert restored.data_collection[0].style.preferred_cmap.name == "sdoaia171"  # glue's restore drops it
     # its colors: glue's menu shows the first sunpy colormap of the same colors, here GOES-R SUVI 171's
     assert restored.viewers[0][0].layers[0].state.cmap == cmlist["sdoaia171"]
 
 
-def test_a_session_restores_a_profile_along_the_last_axis_in_its_unit(qtbot, monkeypatch, tmp_path):
+def test_a_session_restores_a_profile_along_the_last_axis_in_its_unit(app, qtbot, monkeypatch, tmp_path):
     installed = ProfileViewerState._update_priority is glue_patches._update_priority
     assert installed == glue_patches.needs_profile_restore_workaround()  # probes glue's own method
     assert not glue_patches.needs_profile_restore_workaround(glue_patches._update_priority)
@@ -298,9 +299,6 @@ def test_a_session_restores_a_profile_along_the_last_axis_in_its_unit(qtbot, mon
     wcs.wcs.cdelt = [0.025, 0.33, 2]
     wcs.wcs.crval = [1335.7, 0, 0]
     cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5), coords=wcs)
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))
     app.data_collection.append(cube)
     saved = []
     for unit, limits in (("Angstrom", (1335.72, 1335.77)), ("nm", (133.572, 133.577))):
@@ -309,14 +307,13 @@ def test_a_session_restores_a_profile_along_the_last_axis_in_its_unit(qtbot, mon
         state.x_min, state.x_max = limits
         saved.append((state.x_att.label, state.x_display_unit, state.x_min, state.x_max))
     app.save_session(str(tmp_path / "profile.glu"))
-    restored = GlueApplication.restore_session(str(tmp_path / "profile.glu"))  # glue-core 1.27.0 alone raises
-    qtbot.addWidget(restored)
+    restored = restore(qtbot, monkeypatch, tmp_path / "profile.glu", show=True)  # glue-core 1.27.0 alone raises
     states = [viewer.state for viewer in restored.viewers[0]]
     assert [(s.x_att.label, s.x_display_unit, s.x_min, s.x_max) for s in states] == saved
 
 
 def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_move(
-    qtbot, monkeypatch, tmp_path, iris_tree
+    app, qtbot, monkeypatch, tmp_path, iris_tree
 ):
     shutil.copytree(iris_tree, tmp_path / "first" / "data")
     dialog = QtIRISImporter(tmp_path / "first" / "data")
@@ -330,9 +327,6 @@ def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_mo
     row.setCheckState(0, Qt.Checked)  # its slit-jaw image, AIA cutout and two raster windows
     dialog.stack.setChecked(True)  # of its two raster files
     load_selected(qtbot, dialog)
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
     app.data_collection.extend(dialog.datasets)
     dialog.datasets[0].coords.pointing_offset = (1.5, -2.25)
     dialog.datasets[0].meta["rest_wavelength"] = 2796.35
@@ -362,9 +356,7 @@ def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_mo
     meta = [records[data.label]["meta"]["contents"] for data in dialog.datasets]
     assert meta == [{"st__rest_wavelength": 2796.35}, {}, {}, {}]
     (tmp_path / "first").rename(tmp_path / "moved")
-    restored = GlueApplication.restore_session(str(tmp_path / "moved" / "session.glu"), show=False)
-    qtbot.addWidget(restored)
-    monkeypatch.setattr(restored, "report_error", lambda message, detail: pytest.fail(detail))
+    restored = restore(qtbot, monkeypatch, tmp_path / "moved" / "session.glu")
     for data, expected in zip(restored.data_collection, dialog.datasets, strict=True):
         assert data.label == expected.label
         for cid, expected_cid in zip(data.components, expected.components, strict=True):
@@ -385,7 +377,7 @@ def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_mo
     assert json.loads((tmp_path / "moved" / "again.glu").read_text()).keys() == records.keys()
 
 
-def test_a_quicklook_session_stays_small_and_opens(qtbot, monkeypatch, tmp_path, iris_tree):
+def test_a_quicklook_session_stays_small_and_opens(app, qtbot, monkeypatch, tmp_path, iris_tree):
     def load(dialog):
         qtbot.addWidget(dialog)
         scanned(qtbot, dialog)
@@ -394,10 +386,6 @@ def test_a_quicklook_session_stays_small_and_opens(qtbot, monkeypatch, tmp_path,
         load_selected(qtbot, dialog)
         return QDialog.Accepted
 
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
     monkeypatch.setattr(QtIRISImporter, "exec", load)
     browse_iris(app.session, app.data_collection)  # a quicklook of its slit-jaw image and two stacked windows
@@ -409,8 +397,7 @@ def test_a_quicklook_session_stays_small_and_opens(qtbot, monkeypatch, tmp_path,
     records = json.loads((tmp_path / "quicklook.glu").read_text())
     # nothing saved with its values
     assert not any(record["_type"].endswith("Component") and "data" in record for record in records.values())
-    restored = GlueApplication.restore_session(str(tmp_path / "quicklook.glu"), show=False)
-    qtbot.addWidget(restored)
+    restored = restore(qtbot, monkeypatch, tmp_path / "quicklook.glu")
     assert restored.tab_names == app.tab_names
     assert [[type(viewer) for viewer in tab] for tab in restored.viewers] == [
         [type(viewer) for viewer in tab] for tab in app.viewers
@@ -451,7 +438,7 @@ SNS_FILES = ("raster_t000_r00000", "SJI_1400_t000", "SJI_2796_t000")
 
 @pytest.mark.parametrize("kind", ["sit-and-stare", "scanning"])
 def test_a_restored_quicklook_keeps_its_time_master_and_follows_a_pixel_drag(
-    qtbot, monkeypatch, tmp_path, irispy_test_files, kind
+    app, qtbot, monkeypatch, tmp_path, irispy_test_files, kind
 ):
     if kind == "sit-and-stare":
         files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES]
@@ -460,18 +447,12 @@ def test_a_restored_quicklook_keeps_its_time_master_and_follows_a_pixel_drag(
         datasets = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["C II 1336"])
         times = datasets[0][datasets[0].id["Time"]][:, 0, 0]
         datasets.append(slit_jaw(times[0] + np.arange(4) * (times[-1] - times[0]) / 3, datasets[0]))
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
     viewers = quicklook(app, datasets)
     menu_action(viewers["sji"][0], "Time master").trigger()
     viewers["sji"][0].state.slices = (2, 0, 0)
     qtbot.waitUntil(lambda: " · Δt " in readout(viewers["map"]))  # the raster follows
     app.save_session(str(tmp_path / "quicklook.glu"), absolute_paths=False)
-    restored = GlueApplication.restore_session(str(tmp_path / "quicklook.glu"), show=False)
-    qtbot.addWidget(restored)
-    monkeypatch.setattr(restored, "report_error", lambda message, detail: pytest.fail(detail))
+    restored = restore(qtbot, monkeypatch, tmp_path / "quicklook.glu")
     for drag in (False, True):
         if drag:  # with the Pixel tool, on each quicklook's map
             for application in (app, restored):
@@ -486,20 +467,14 @@ def test_a_restored_quicklook_keeps_its_time_master_and_follows_a_pixel_drag(
             np.testing.assert_allclose(got, expected, rtol=1e-12)
 
 
-def test_a_restored_quicklook_keeps_its_switched_main_window(qtbot, monkeypatch, tmp_path, irispy_test_files):
+def test_a_restored_quicklook_keeps_its_switched_main_window(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
     files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
     viewers = quicklook(app, [*raster_data(files[:1], THREE), image_data(files[1])], window=THREE)
     menu_action(viewers["sji"][0], "Time master").trigger()
     viewers["sji"][0].state.slices = (2, 0, 0)
     switch(qtbot, viewers["windows"][1]["spectrum"])  # Si IV 1403
     app.save_session(str(tmp_path / "switched.glu"), absolute_paths=False)
-    restored = GlueApplication.restore_session(str(tmp_path / "switched.glu"), show=False)
-    qtbot.addWidget(restored)
-    monkeypatch.setattr(restored, "report_error", lambda message, detail: pytest.fail(detail))
+    restored = restore(qtbot, monkeypatch, tmp_path / "switched.glu")
     rows = [[(*row[:4], row[4] and tuple(row[4])) for row in viewer_rows(each)] for each in (restored, app)]
     assert rows[0][0][1] == "Si IV 1403 slit vs time"
     assert rows[0] == rows[1]  # slices restore as lists
@@ -512,12 +487,10 @@ def test_a_restored_quicklook_keeps_its_switched_main_window(qtbot, monkeypatch,
         np.testing.assert_allclose(got, expected, rtol=1e-12)
 
 
-def test_a_restored_quicklook_has_the_panels_shown_with_their_axes(qtbot, monkeypatch, tmp_path, irispy_test_files):
+def test_a_restored_quicklook_has_the_panels_shown_with_their_axes(
+    app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
     files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
     viewers = quicklook(app, [*raster_data(files[:1], THREE), image_data(files[1])], window=THREE)
     panels = panels_list(app)
     tick(panels, "C II 1336", "SJI 1400", on=False)
@@ -527,8 +500,7 @@ def test_a_restored_quicklook_has_the_panels_shown_with_their_axes(qtbot, monkey
     shown = [row for row, viewer in zip(viewer_rows(app), app.viewers[-1]) if not viewer.parent().isHidden()]
     assert len(shown) == len(app.viewers[-1]) - 3
     app.save_session(str(tmp_path / "panels.glu"), absolute_paths=False)
-    restored = GlueApplication.restore_session(str(tmp_path / "panels.glu"), show=False)
-    qtbot.addWidget(restored)
+    restored = restore(qtbot, monkeypatch, tmp_path / "panels.glu")
     # slices restore as lists
     assert [(*row[:4], row[4] and tuple(row[4])) for row in viewer_rows(restored)] == shown
     # each Image panel with or without its axes, as saved
@@ -536,12 +508,8 @@ def test_a_restored_quicklook_has_the_panels_shown_with_their_axes(qtbot, monkey
     assert axes == [True, False, True, True]  # Mg II k's map, spectrogram and λ–time, Si IV's λ–time
 
 
-def test_a_restored_quicklook_marks_its_master_exposure_again(qtbot, monkeypatch, tmp_path, irispy_test_files):
+def test_a_restored_quicklook_marks_its_master_exposure_again(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
     files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
     viewers = quicklook(app, [*raster_data(files[:1], ["Si IV 1403"]), image_data(files[1])])
     raster = viewers["map"].state.reference_data
     time_series(app, raster)
@@ -550,9 +518,7 @@ def test_a_restored_quicklook_marks_its_master_exposure_again(qtbot, monkeypatch
     session = tmp_path / "quicklook.glu"
     app.save_session(str(session), absolute_paths=False)
     for step in (100, 50):  # opened, and that saved and opened again: one group, which follows the master
-        opened = GlueApplication.restore_session(str(session), show=False)
-        qtbot.addWidget(opened)
-        monkeypatch.setattr(opened, "report_error", lambda message, detail: pytest.fail(detail))
+        opened = restore(qtbot, monkeypatch, session)
         spectrogram = opened.viewers[-1][1]  # the quicklook's
         raster = spectrogram.state.reference_data
         spectrogram.state.slices = (step, *spectrogram.state.slices[1:])
@@ -560,12 +526,10 @@ def test_a_restored_quicklook_marks_its_master_exposure_again(qtbot, monkeypatch
         opened.save_session(str(session), absolute_paths=False)
 
 
-def test_a_restored_quicklook_keeps_its_light_curves_where_they_were(qtbot, monkeypatch, tmp_path, irispy_test_files):
+def test_a_restored_quicklook_keeps_its_light_curves_where_they_were(
+    app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
     files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
     viewers = quicklook(app, [*raster_data(files[:1], ["Si IV 1403"]), image_data(files[1])])
     menu_action(viewers["map"], POINT_CURVES).trigger()
 
@@ -580,9 +544,7 @@ def test_a_restored_quicklook_keeps_its_light_curves_where_they_were(qtbot, monk
     assert len(saved) == 2
     session = tmp_path / "curves.glu"
     app.save_session(str(session), absolute_paths=False)
-    opened = GlueApplication.restore_session(str(session), show=False)
-    qtbot.addWidget(opened)
-    monkeypatch.setattr(opened, "report_error", lambda message, detail: pytest.fail(detail))
+    opened = restore(qtbot, monkeypatch, session)
     restored = curves(opened)
     assert restored.keys() == saved.keys()
     for label, (times, values, units, meta) in restored.items():
@@ -608,12 +570,8 @@ def test_a_restored_quicklook_keeps_its_light_curves_where_they_were(qtbot, monk
         np.testing.assert_array_equal(values, saved[label][1])
 
 
-def test_a_restored_quicklook_keeps_its_cuts_where_they_were(qtbot, monkeypatch, tmp_path, irispy_test_files):
+def test_a_restored_quicklook_keeps_its_cuts_where_they_were(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
     files = sorted(str(path) for path in irispy_test_files if "3860258481_raster" in path.name)
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
     viewers = quicklook(app, raster_data(files, ["C II 1336"], stack=True))
     for text in ("Light curve of this window", "Row at the point", "Column at the point"):
         menu_action(viewers["map"], text).trigger()
@@ -633,9 +591,7 @@ def test_a_restored_quicklook_keeps_its_cuts_where_they_were(qtbot, monkeypatch,
     assert saved.keys() == {"Light curve", "Row", "Column"}
     session = tmp_path / "cuts.glu"
     app.save_session(str(session), absolute_paths=False)
-    opened = GlueApplication.restore_session(str(session), show=False)
-    qtbot.addWidget(opened)
-    monkeypatch.setattr(opened, "report_error", lambda message, detail: pytest.fail(detail))
+    opened = restore(qtbot, monkeypatch, session)
     select_point(opened.viewers[-1][0], 2, 10)  # leaves them where they were
     [point] = opened.session.edit_subset_mode.edit_subset
     assert point.subset_state.slices[1:3] == [slice(2, 3), slice(10, 11)]
@@ -673,7 +629,7 @@ def shown(app):
 
 # glue averages the band over the NaN fill too, which numpy warns about
 @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
-def test_two_quicklooks_restore_twice_from_their_files(qtbot, monkeypatch, tmp_path, irispy_test_files, iris_tree):
+def test_two_quicklooks_restore_twice_from_their_files(app, qtbot, monkeypatch, tmp_path, irispy_test_files, iris_tree):
     def load(dialog):
         qtbot.addWidget(dialog)
         scanned(qtbot, dialog)
@@ -682,10 +638,6 @@ def test_two_quicklooks_restore_twice_from_their_files(qtbot, monkeypatch, tmp_p
         load_selected(qtbot, dialog)
         return QDialog.Accepted
 
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
     # a sit-and-stare raster and two slit-jaw images, held in memory, and a stack and slit-jaw image of the
     # observation browser, read from their files as they are viewed
     files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES]
@@ -711,9 +663,7 @@ def test_two_quicklooks_restore_twice_from_their_files(qtbot, monkeypatch, tmp_p
     app.save_session(str(session), absolute_paths=False)
     restored = []
     for name in ("again.glu", "third.glu"):
-        opened = GlueApplication.restore_session(str(session), show=False)
-        qtbot.addWidget(opened)
-        monkeypatch.setattr(opened, "report_error", lambda message, detail: pytest.fail(detail))
+        opened = restore(qtbot, monkeypatch, session)
         restored.append(opened)
         session = tmp_path / name
         opened.save_session(str(session), absolute_paths=False)

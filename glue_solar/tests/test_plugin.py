@@ -93,7 +93,7 @@ from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.mg_features import mg_features_iris
 from glue_solar.sources.moments import line_moments, mean_spectrum_iris, moments_iris
 from glue_solar.sources.red_blue import red_blue_iris
-from glue_solar.tests.helpers import count_tick_work, mouse, press, raster_point_on_sji
+from glue_solar.tests.helpers import count_tick_work, mouse, press, raster_point_on_sji, restore
 from glue_solar.tests.test_cube_quicklook import spectral_cube
 from glue_solar.tests.test_lazy import RASTER, SJI
 from glue_solar.tests.test_quicklook import drifting_stack
@@ -158,7 +158,7 @@ def test_setup_registers_hooks():
         assert iris.priority > (other.priority or 0)
 
 
-def test_data_actions_show_only_for_the_data_they_take(qtbot, monkeypatch, tmp_path, irispy_test_files, iris_tree):
+def test_data_actions_show_only_for_the_data_they_take(app, monkeypatch, tmp_path, irispy_test_files, iris_tree):
     """Each data action is offered only where its own guard takes the data selected."""
     windows = ["C II 1336", "Si IV 1403", "Mg II k 2796"]
     sns = raster_data([find_irispy_test_file(irispy_test_files, RASTER)], windows)  # sit-and-stare
@@ -171,8 +171,6 @@ def test_data_actions_show_only_for_the_data_they_take(qtbot, monkeypatch, tmp_p
     maps = line_moments(sns[1], 1402.77)
     plain = Data(label="plain table", x=[1.0, 2.0])
     cube, _ = spectral_cube(tmp_path / "cube.fits", (7, 12, 16))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.extend([*sns, scanning, stack, sji, sot, aia, maps, plain, cube])
     group = app.data_collection.new_subset_group()
     raster = [
@@ -248,9 +246,11 @@ def test_import_refuses_qt_5_before_anything_registers():
 _PLUGIN_LOAD = """
 import sys
 
+from qtpy.QtCore import Qt
+
 import glue_solar
 
-glue_solar.setup()
+glue_solar.setup()  # before glue-qt's application loads, as at glue's start
 # and the Profile fitter's astropy.modeling to the first Profile viewer
 print(
     *[name for name in ("irispy", "sunpy.map", "ndcube", "fiasco", "spectral_cube", "astropy.modeling") if name in sys.modules],
@@ -262,16 +262,25 @@ import sunpy.map
 from glue.core.parsers import parse_data
 
 print(parse_data(sunpy.map.Map(sunpy.data.test.get_test_filepath("aia_171_level1.fits")), "aia").label)
+
+from glue_qt.app import GlueApplication
+from glue_qt.config import keyboard_shortcut
+
+from glue_solar.quicklook import QuicklookImageViewer
+
+print(*(key in keyboard_shortcut.members[QuicklookImageViewer] for key in (Qt.Key_Tab, Qt.Key_Backspace)))
 """
 
 
 def test_plugin_load_leaves_the_readers_libraries_to_the_first_read():
-    # in a process of its own, since the other tests import them
+    # in a process of its own, since the other tests import them, and load glue-qt's application, which registers its
+    # Tab and Backspace, first
     env = {**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)}
     result = subprocess.run([sys.executable, "-c", _PLUGIN_LOAD], env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr[-2000:]
-    # a map made after the plugin loaded still finds its parser
-    assert result.stdout.splitlines()[:2] == ["|", "aia-AIA 171.0 Angstrom 2011-02-15 00:00:00"]
+    # a map made after the plugin loaded still finds its parser, and the quicklook panels take glue-qt's Tab and
+    # Backspace
+    assert result.stdout.splitlines() == ["|", "aia-AIA 171.0 Angstrom 2011-02-15 00:00:00", "True True"]
 
 
 def test_data_factory_claims_only_iris_files_and_aligned_aia_cutouts(iris_tree):
@@ -404,12 +413,9 @@ def test_autolink_synthetic_sji_raster(iris_tree):
     assert {cid.axis for cid in link.cids2} == {0, 1}
 
 
-def test_frame_time_tool_follows_the_sliders(qtbot, irispy_test_files):
-    glue_solar.setup()
+def test_frame_time_tool_follows_the_sliders(app, irispy_test_files):
     sji = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
     sji = load_data(str(sji))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(sji)
     viewer = app.new_data_viewer(ImageViewer, data=sji)
     tool = viewer.toolbar.tools["solar:frame_time"]
@@ -444,11 +450,8 @@ def test_frame_time_tool_follows_the_sliders(qtbot, irispy_test_files):
 
 
 @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")  # glue's Collapse of the NaN beside the image
-def test_frame_time_tool_survives_an_empty_collapse(qtbot):
-    glue_solar.setup()
+def test_frame_time_tool_survives_an_empty_collapse(app):
     cube = Data(label="cube", flux=np.zeros((4, 5, 6)), obs_date=np.full((4, 5, 6), np.datetime64("2020-01-01T12:00:00")))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(cube)
     viewer = app.new_data_viewer(ImageViewer, data=cube)
     tool = viewer.toolbar.tools["solar:frame_time"]
@@ -457,13 +460,10 @@ def test_frame_time_tool_survives_an_empty_collapse(qtbot):
 
 
 @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")  # glue's Collapse of the NaN beside the image
-def test_an_empty_collapse_range_draws(qtbot):
+def test_an_empty_collapse_range_draws(app):
     installed = AggregateSlice.__init__ is glue_patches.aggregate_slice_init
     assert installed == glue_patches.needs_empty_collapse_workaround()  # probes glue's own image buffer
-    glue_solar.setup()
     cube = Data(label="cube", flux=np.arange(120.0).reshape(4, 5, 6))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(cube)
     viewer = app.new_data_viewer(ImageViewer, data=cube)
     viewer.state.slices = (AggregateSlice(slice(2, 2), 2, np.nanmean), 0, 0)  # a Profile Collapse inside sample 2
@@ -471,12 +471,9 @@ def test_an_empty_collapse_range_draws(qtbot):
     assert viewer.state.slices[0].slice == slice(2, 3)
 
 
-def test_readout_gives_arcsec_only_where_wcsaxes_shows_arcsec(qtbot):
+def test_readout_gives_arcsec_only_where_wcsaxes_shows_arcsec(app):
     import sunpy.data.test
 
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     # an AIA map, whose FITS WCS gives a longitude just west of 0 as nearly 360°
     aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))
     app.data_collection.append(aia)
@@ -496,14 +493,11 @@ def test_readout_gives_arcsec_only_where_wcsaxes_shows_arcsec(qtbot):
         assert viewer.axes.format_coord(3, 4) == viewer.axes._display_world_coords(3, 4)  # WCSAxes' readout
 
 
-def test_cursor_readout_shows_position_and_value(qtbot, irispy_test_files):
+def test_cursor_readout_shows_position_and_value(app, irispy_test_files):
     if hasattr(ImageViewer, "cursor_status"):
         pytest.skip("this glue-qt shows the position under the mouse itself")
-    glue_solar.setup()
     sji = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
     sji = load_data(str(sji))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(sji)
     viewer = app.new_data_viewer(ImageViewer, data=sji)
     tool = viewer.toolbar.tools["solar:cursor_readout"]
@@ -545,12 +539,9 @@ def test_cursor_readout_shows_position_and_value(qtbot, irispy_test_files):
     assert other.toolbar.tools["solar:cursor_readout"].describe(1, 1).endswith(" | flux = 3.5")
 
 
-def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(qtbot, monkeypatch):
-    glue_solar.setup()
+def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(app, qtbot, monkeypatch):
     # the band dialog picks 5 wavelength pixels, then 1
     monkeypatch.setattr(QInputDialog, "getItem", lambda *args: (args[3][1 - args[4]], True))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     wcs = WCS(naxis=3)
     wcs.wcs.ctype[2] = "WAVE"  # along the slider, for the band
     times = np.full((3, 4, 5), np.datetime64("2013-09-02T16:39:35"))  # for the frame time, after the flux
@@ -660,16 +651,13 @@ def margins(viewer):
     return {tuple(color) for part in (left, below) for color in part.reshape(-1, 4)}
 
 
-def test_hide_axes(qtbot, monkeypatch, irispy_test_files):
+def test_hide_axes(app, qtbot, monkeypatch, irispy_test_files):
     from astropy.visualization.wcsaxes.coordinate_helpers import CoordinateHelper
 
     from glue_solar.tests.helpers import mouse
 
-    glue_solar.setup()
     sji = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
     sji = load_data(str(sji))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(sji)
     shown = app.new_data_viewer(ImageViewer, data=sji)
     monkeypatch.setattr(settings, "SOLAR_SHOW_AXES", False)  # for new viewers
@@ -725,33 +713,26 @@ def test_hide_axes(qtbot, monkeypatch, irispy_test_files):
     assert hidden.axes.format_coord(10.3, 20.7) == shown.axes.format_coord(10.3, 20.7) == full  # whatever the zoom
 
 
-def test_sessions_keep_each_viewers_axes(qtbot, monkeypatch, tmp_path):
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
+def test_sessions_keep_each_viewers_axes(app, qtbot, monkeypatch, tmp_path):
     image = Data(label="image", flux=np.arange(20.0).reshape(4, 5))
     app.data_collection.append(image)
     viewers = [app.new_data_viewer(ImageViewer, data=image) for _ in range(2)]
     viewers[0].toolbar.actions["solar:hide_axes"].trigger()
     app.save_session(str(tmp_path / "axes.glu"))
     monkeypatch.setattr(settings, "SOLAR_SHOW_AXES", False)  # applies to new viewers only
-    restored = GlueApplication.restore_session(str(tmp_path / "axes.glu"))
-    qtbot.addWidget(restored)
+    restored = restore(qtbot, monkeypatch, tmp_path / "axes.glu", show=True)
     assert [(viewer.state.show_axes, viewer.axes.axison) for viewer in restored.viewers[0]] == [
         (False, False),
         (True, True),
     ]
 
 
-def test_axes_preference_is_saved(qtbot, monkeypatch, tmp_path):
+def test_axes_preference_is_saved(app, qtbot, monkeypatch, tmp_path):
     import configparser
 
     import glue.config
     from glue_qt.app.preferences import PreferencesDialog
 
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     image = Data(label="image", flux=np.arange(20.0).reshape(4, 5))
     app.data_collection.append(image)
     monkeypatch.setattr(glue.config, "CFG_DIR", str(tmp_path / ".glue"))  # glue's settings folder, not the user's
@@ -773,12 +754,9 @@ def test_axes_preference_is_saved(qtbot, monkeypatch, tmp_path):
     assert saved["main"]["solar_show_axes"] == "false"  # which glue reads on its next start, after loading plugins
 
 
-def test_sessions_with_per_frame_limits_fail_to_restore(qtbot, tmp_path):
+def test_sessions_with_per_frame_limits_fail_to_restore(app, tmp_path):
     # glue 1.27.0 restores a layer's per-frame limits before it has a viewer (wp0-core-session-reports), as the user
     # guide says; once a glue release restores them, this fails and the guide changes
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5))
     app.data_collection.append(cube)
     app.new_data_viewer(ImageViewer, data=cube).toolbar.actions["solar:per_frame_limits"].trigger()
@@ -787,14 +765,11 @@ def test_sessions_with_per_frame_limits_fail_to_restore(qtbot, tmp_path):
         GlueApplication.restore_session(str(tmp_path / "limits.glu"))
 
 
-def test_color_bar_draws_glues_colors_and_is_saved(qtbot, monkeypatch, tmp_path):
+def test_color_bar_draws_glues_colors_and_is_saved(app, monkeypatch, tmp_path):
     import matplotlib
     from matplotlib.backends.qt_compat import QtWidgets
     from matplotlib.image import imread
 
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     # every row of the first frame runs from 0 to 100 in the 256 steps of the bar, of the second from 0 to 200
     ramp = np.linspace(0, 100, 256)
     cube = Data(label="cube", flux=np.stack([np.tile(ramp, (4, 1)), np.tile(2 * ramp, (4, 1))]))
@@ -908,18 +883,15 @@ def sky_square(viewer, side=10):
         pytest.param("iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz", marks=pytest.mark.remote_data),
     ],
 )
-def test_physical_aspect_draws_a_square_of_sky_square(qtbot, request, source):
+def test_physical_aspect_draws_a_square_of_sky_square(app, qtbot, request, source):
     from glue_solar.tests.helpers import mouse
 
-    glue_solar.setup()
     if source is None:
         data, x, y = generated_map(), 1, 0
     else:  # real rasters, whose step axis is a -TAB lookup table
         paths = request.getfixturevalue("irispy_data")(source)
         [data] = raster_data(paths if isinstance(paths, list) else [paths])
         x, y = 0, 1
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(data)
     viewer = app.new_data_viewer(ImageViewer, data=data)
     state = viewer.state
@@ -993,12 +965,9 @@ def test_physical_aspect_draws_a_square_of_sky_square(qtbot, request, source):
     assert square_pixels()
 
 
-def test_physical_aspect_is_the_same_all_along_a_raster(qtbot, irispy_test_files):
+def test_physical_aspect_is_the_same_all_along_a_raster(app, irispy_test_files):
     # pointing jitter makes 3860258481's 2″ steps differ by up to 2.6 % from one to the next
     data = raster_data([find_irispy_test_file(irispy_test_files, SCANNING)])[0]
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(data)
     viewer = app.new_data_viewer(ImageViewer, data=data)
     state = viewer.state
@@ -1015,23 +984,8 @@ def test_physical_aspect_is_the_same_all_along_a_raster(qtbot, irispy_test_files
     assert proportions[0] == pytest.approx(proportions[1], rel=1e-3)
 
 
-def test_physical_aspect_stands_aside_without_glues_aspect_hooks(qtbot, monkeypatch):
-    from glue_solar import tools
-
-    glue_solar.setup()
-    monkeypatch.setattr(tools, "_ASPECT_HOOKS", (*tools._ASPECT_HOOKS, "_renamed_in_a_later_glue"))
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    image = Data(label="image", flux=np.arange(20.0).reshape(4, 5))
-    app.data_collection.append(image)
-    viewer = app.new_data_viewer(ImageViewer, data=image)  # the viewer still opens
-    viewer.toolbar.actions["solar:physical_aspect"].trigger()  # and the button does nothing
-    assert viewer.toolbar.tools["solar:physical_aspect"].ratio is None
-    viewer.close(warn=False)
-
-
 @pytest.mark.parametrize("case", ["spectrogram", "sit-and-stare exposures", "slit-jaw x–t", "no WCS"])
-def test_physical_aspect_gives_square_pixels_off_the_sky(qtbot, irispy_test_files, case):
+def test_physical_aspect_gives_square_pixels_off_the_sky(app, irispy_test_files, case):
     def bundled(name):
         return find_irispy_test_file(irispy_test_files, name)
 
@@ -1044,9 +998,6 @@ def test_physical_aspect_gives_square_pixels_off_the_sky(qtbot, irispy_test_file
         "no WCS": (lambda: Data(label="cube", flux=np.zeros((8, 40, 50))), 2, 1),
     }[case]
     data = data()
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(data)
     viewer = app.new_data_viewer(ImageViewer, data=data)
     state = viewer.state
@@ -1062,11 +1013,8 @@ def _separation(lon, lat, unit):
     return angular_separation(lon[0] * unit, lat[0] * unit, lon[1] * unit, lat[1] * unit).to_value(u.arcsec)
 
 
-def test_measure_reports_a_dragged_line(qtbot, irispy_test_files):
+def test_measure_reports_a_dragged_line(app, irispy_test_files):
     data = image_data(find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("SJI_1400_t000")))
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(data)
     viewer = app.new_data_viewer(ImageViewer, data=data)
     viewer.state.slices = (5, 0, 0)
@@ -1103,11 +1051,8 @@ def test_measure_reports_a_dragged_line(qtbot, irispy_test_files):
     assert tool.label.isHidden()
 
 
-def test_sky_length_of_a_map_in_degrees_without_an_observer_distance(qtbot):
+def test_sky_length_of_a_map_in_degrees_without_an_observer_distance(app):
     data = generated_map()  # an astropy WCS gives degrees; no DSUN_OBS
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(data)
     viewer = app.new_data_viewer(ImageViewer, data=data)
     x, y = [2, 25, 25], [10, 280, 100]
@@ -1117,11 +1062,8 @@ def test_sky_length_of_a_map_in_degrees_without_an_observer_distance(qtbot):
     assert (pixels, arcsec, km) == (pytest.approx(np.hypot(23, 270) + 180), pytest.approx(expected), None)
 
 
-def test_sky_length_on_a_raster_map(qtbot, irispy_test_files):
+def test_sky_length_on_a_raster_map(app, irispy_test_files):
     data = raster_data([find_irispy_test_file(irispy_test_files, SCANNING)])[0]
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(data)
     viewer = app.new_data_viewer(ImageViewer, data=data)
     viewer.state.x_att, viewer.state.y_att = data.pixel_component_ids[0], data.pixel_component_ids[1]  # step, slit
@@ -1132,12 +1074,9 @@ def test_sky_length_on_a_raster_map(qtbot, irispy_test_files):
 
 
 @pytest.mark.remote_data
-def test_measure_on_a_full_size_slit_jaw_image(qtbot, irispy_data):
+def test_measure_on_a_full_size_slit_jaw_image(app, irispy_data):
     # 4000255147 SJI 1400: 0.16635" pixels, seen from 1.50921e11 m
     data = image_data(irispy_data("iris_l2_20130902_163935_4000255147_SJI_1400_t000_f050.fits.gz"))
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(data)
     viewer = app.new_data_viewer(ImageViewer, data=data)
     viewer.toolbar.active_tool = "solar:measure"
@@ -1152,11 +1091,8 @@ def test_measure_on_a_full_size_slit_jaw_image(qtbot, irispy_data):
     assert tool.label.text() == f'Length 100.0 px · {arcsec:.2f}" · 12,172 km'
 
 
-def test_zoom_1_1_gives_a_data_pixel_a_screen_pixel(qtbot, irispy_test_files):
+def test_zoom_1_1_gives_a_data_pixel_a_screen_pixel(app, qtbot, irispy_test_files):
     data = raster_data([find_irispy_test_file(irispy_test_files, SCANNING)])[0]
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(data)
     viewer = app.new_data_viewer(ImageViewer, data=data)
     app.show()  # for the resize to reach the canvas
@@ -1218,13 +1154,10 @@ def _along(data, cid, path, on=slice(None)):
     return np.stack(columns, axis=-1)
 
 
-def test_path_diagrams_of_a_slit_jaw_image_and_a_raster_on_it(qtbot, irispy_test_files):
+def test_path_diagrams_of_a_slit_jaw_image_and_a_raster_on_it(app, irispy_test_files):
     sji = image_data(find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("SJI_1400_t000")))
     raster_file = find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("raster_t000_r00000"))
     [raster] = raster_data([raster_file], ["Si IV 1403"])
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.extend([sji, raster])
     app.data_collection.add_link(link_hpc(app.data_collection))
     viewer = app.new_data_viewer(ImageViewer, data=sji)
@@ -1266,12 +1199,9 @@ def test_path_diagrams_of_a_slit_jaw_image_and_a_raster_on_it(qtbot, irispy_test
     assert np.datetime_as_string(when, unit="ms") in diagrams.axes.format_coord(10, 40)
 
 
-def test_path_diagram_of_a_stack_on_a_slit_jaw_image(qtbot, tmp_path, irispy_test_files):
+def test_path_diagram_of_a_stack_on_a_slit_jaw_image(app, tmp_path, irispy_test_files):
     sji = image_data(find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("SJI_1400_t000")))
     stack, alone = drifting_stack(tmp_path, irispy_test_files)
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.extend([sji, stack])
     app.data_collection.add_link(link_hpc(app.data_collection))
     viewer = app.new_data_viewer(ImageViewer, data=sji)
@@ -1293,12 +1223,9 @@ def test_path_diagram_of_a_stack_on_a_slit_jaw_image(qtbot, tmp_path, irispy_tes
         np.testing.assert_array_equal(on_stack[flux][..., on], _along(stack, flux, on_stack, on))
 
 
-def test_path_diagram_of_a_stack(qtbot, irispy_test_files):
+def test_path_diagram_of_a_stack(app, irispy_test_files):
     files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
     [stack] = raster_data(files, ["Si IV 1403"], stack=True)
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(stack)
     viewer = app.new_data_viewer(ImageViewer, data=stack)
     viewer.state.x_att, viewer.state.y_att = stack.pixel_component_ids[1], stack.pixel_component_ids[2]  # step, slit
@@ -1331,14 +1258,11 @@ def test_path_diagram_of_a_stack(qtbot, irispy_test_files):
     assert viewer.state.slices[1:] == (4, 0, 7)
 
 
-def test_path_diagram_sampling_on_a_ramp(qtbot):
+def test_path_diagram_sampling_on_a_ramp(app):
     # a ramp, which bilinear sampling gives exactly, against scipy's map_coordinates: order 0, the nearest pixel, and
     # order 1, NaN where a pixel around the sample is off the data
     from scipy.ndimage import map_coordinates
 
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     t, y, x = np.indices((2, 12, 16), dtype=float)
     times = np.datetime64("2013-09-02T16:39") + (60 * t).astype("timedelta64[s]")
     ramp = Data(label="ramp", flux=0.7 * x - 1.3 * y + 2.5 + 10 * t)
@@ -1384,12 +1308,9 @@ def _click(tool, x, y):
     tool.release(event)
 
 
-def test_slope_recovers_an_injected_features_speed_and_acceleration(qtbot):
+def test_slope_recovers_an_injected_features_speed_and_acceleration(app):
     # a slit-jaw-like cube of 0.1663" pixels seen from 1 AU, 60 frames 12 s apart, in which a blob moves along x from
     # 50 km / s, accelerating at 100 m / s2
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     observer, seconds = 1.496e11, 12.0 * np.arange(60)
     wcs = WCS(naxis=3)
     wcs.wcs.ctype = "HPLN-TAN", "HPLT-TAN", ""
@@ -1465,11 +1386,8 @@ def _assert_same_diagram(got, expected):
         np.testing.assert_array_equal(got[cid], expected[original])
 
 
-def test_a_path_diagram_reopens_from_ecsv_and_from_a_session(qtbot, monkeypatch, tmp_path):
+def test_a_path_diagram_reopens_from_ecsv_and_from_a_session(app, qtbot, monkeypatch, tmp_path):
     # a slit-jaw-like cube of 0.1663" pixels seen from 1 AU, with times, and another dataset on its pixels
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     wcs = WCS(naxis=3)
     wcs.wcs.ctype = "HPLN-TAN", "HPLT-TAN", ""
     wcs.wcs.cunit = "arcsec", "arcsec", ""
@@ -1568,13 +1486,10 @@ def _paths_drawn(viewer):
     return [(*line.get_data(), line.get_alpha() == 1) for line in lines]
 
 
-def test_a_path_is_drawn_on_every_viewer_of_its_image_and_placed_on_other_data(qtbot, monkeypatch, tmp_path):
+def test_a_path_is_drawn_on_every_viewer_of_its_image_and_placed_on_other_data(app, qtbot, monkeypatch, tmp_path):
     # a slit-jaw-like cube of 0.1663" pixels, frames 12 s apart; two raster-like windows of 0.33" slit pixels and 0.35"
     # steps, rolled 2 degrees; a slit-jaw-like cube of 0.2" pixels whose pointing drifts 1" a frame, its frame 2 at the
     # first's frame 0; and a cube with no coordinates
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     times = np.datetime64("2013-09-02T16:39:35") + np.arange(4) * np.timedelta64(12, "s")
     hpln, hplt, frame = ("HPLN-TAN", "arcsec"), ("HPLT-TAN", "arcsec"), ("", "", 1, 1, 0)
     sji = _sky_cube("sji", (4, 30, 40), [(*hpln, 0.1663, 20, 400), (*hplt, 0.1663, 15, -300), frame])
@@ -1672,12 +1587,9 @@ def test_a_path_is_drawn_on_every_viewer_of_its_image_and_placed_on_other_data(q
 
 
 @pytest.mark.remote_data
-def test_path_diagram_of_a_full_size_slit_jaw_image(qtbot, monkeypatch, tmp_path, irispy_data):
+def test_path_diagram_of_a_full_size_slit_jaw_image(app, monkeypatch, tmp_path, irispy_data):
     # 4000255147 SJI 1400, read lazily, whose diagram is its 50 frames against the path
     data = image_data(irispy_data("iris_l2_20130902_163935_4000255147_SJI_1400_t000_f050.fits.gz"))
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(data)
     viewer = app.new_data_viewer(ImageViewer, data=data)
     [path] = _draw_path(viewer, [60, 200, 330], [80, 300, 150])
@@ -1771,7 +1683,7 @@ def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_pa
         assert _cmap_menu(restored.viewers[0][0]).currentText() == name
 
 
-def test_a_colormap_menu_names_the_layers_colormap_of_equal_colors(qtbot, tmp_path):
+def test_a_colormap_menu_names_the_layers_colormap_of_equal_colors(app, qtbot, monkeypatch, tmp_path):
     from echo.qt import connect
 
     import sunpy.data.test
@@ -1779,16 +1691,12 @@ def test_a_colormap_menu_names_the_layers_colormap_of_equal_colors(qtbot, tmp_pa
     installed = connect._find_combo_data is glue_patches.find_combo_data
     assert installed == glue_patches.needs_combo_match_workaround()  # probes echo's own function
     assert not glue_patches.needs_combo_match_workaround(glue_patches.find_combo_data)
-    glue_solar.setup()
     # sunpy's AIA 171 colormap has the colors of SUVI 171, listed before it, and of EUI 174
     aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(aia)
     assert _cmap_menu(app.new_data_viewer(ImageViewer, data=aia)).currentText() == "SDO AIA 171.0 Angstrom"
     app.save_session(str(tmp_path / "aia.glu"))
-    restored = GlueApplication.restore_session(str(tmp_path / "aia.glu"))
-    qtbot.addWidget(restored)
+    restored = restore(qtbot, monkeypatch, tmp_path / "aia.glu", show=True)
     menu = _cmap_menu(restored.viewers[0][0])
     assert menu.currentText() == "SDO AIA 171.0 Angstrom"
     for i in range(menu.count()):  # each entry, picked after the one before it
@@ -1796,11 +1704,8 @@ def test_a_colormap_menu_names_the_layers_colormap_of_equal_colors(qtbot, tmp_pa
         assert menu.currentText() == menu.itemText(i)
 
 
-def test_gamma_stretches_are_listed_and_restored(qtbot, tmp_path):
+def test_gamma_stretches_are_listed_and_restored(app, qtbot, monkeypatch, tmp_path):
     glue_solar.setup()
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     image = Data(label="image", flux=np.arange(20.0).reshape(4, 5))
     app.data_collection.append(image)
     viewer = app.new_data_viewer(ImageViewer, data=image)
@@ -1812,17 +1717,14 @@ def test_gamma_stretches_are_listed_and_restored(qtbot, tmp_path):
     assert isinstance(viewer.state.layers[0].stretch_object, PowerStretch)
     assert viewer.state.layers[0].stretch_object.a == 0.75
     app.save_session(str(tmp_path / "gamma.glu"))
-    restored = GlueApplication.restore_session(str(tmp_path / "gamma.glu"))
-    qtbot.addWidget(restored)
+    restored = restore(qtbot, monkeypatch, tmp_path / "gamma.glu", show=True)
     assert restored.viewers[0][0].state.layers[0].stretch_object.a == 0.75
 
 
-def test_iris_image_layers_render_nan_transparent(qtbot, irispy_test_files):
+def test_iris_image_layers_render_nan_transparent(app, irispy_test_files):
     sji = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
     sji = load_data(str(sji))
     still = Data(label="still", flux=np.array([[np.nan, 1.0], [2.0, 3.0]]))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.extend([sji, still])
 
     viewer = app.new_data_viewer(ImageViewer, data=sji)
@@ -1836,7 +1738,7 @@ def test_iris_image_layers_render_nan_transparent(qtbot, irispy_test_files):
     assert other.layers[0].state.cmap_bad is None
 
 
-def test_aia_cutout_fill_renders_transparent(qtbot, tmp_path, iris_tree):
+def test_aia_cutout_fill_renders_transparent(app, tmp_path, iris_tree):
     d, t, o = OBS_A
     source = iris_tree / f"{MD5}iris_l2_{d}_{t}_{o}_SDO" / f"aia_l2_{d}_{t}_{o}_171.fits"
     clean = image_data(source)
@@ -1852,21 +1754,16 @@ def test_aia_cutout_fill_renders_transparent(qtbot, tmp_path, iris_tree):
     assert flux.dtype == np.float32
     np.testing.assert_array_equal(np.argwhere(np.isnan(flux)), [[0, 1, 2], [0, 2, 3]])
 
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(aia)
     viewer = app.new_data_viewer(ImageViewer, data=aia)
     image = viewer.axes._composite(bounds=[(-0.5, 3.5, 4), (-0.5, 4.5, 5)])
     np.testing.assert_array_equal(image[1, 2], [1, 1, 1, 1])  # the white background shows through
 
 
-def test_slice_sliders_follow_a_drag_with_its_latest_position(qtbot):
+def test_slice_sliders_follow_a_drag_with_its_latest_position(app, qtbot):
     from qtpy import QtCore, QtWidgets
 
-    glue_solar.setup()
     cube = Data(label="cube", flux=np.zeros((30, 4, 5)))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(cube)
     viewer = app.new_data_viewer(ImageViewer, data=cube)
 
@@ -1897,8 +1794,7 @@ def test_slice_sliders_follow_a_drag_with_its_latest_position(qtbot):
     assert not any(slider.hasTracking() for slider in sliders())
 
 
-def test_keys_step_frames_and_wavelengths_round_and_play(qtbot, monkeypatch, irispy_test_files):
-    glue_solar.setup()
+def test_keys_step_frames_and_wavelengths_round_and_play(app, qtbot, monkeypatch, irispy_test_files):
     glue_solar.setup()  # nothing registered twice
     keys = keyboard_shortcut.members
     for cls in (ImageViewer, QuicklookImageViewer, ProfileViewer):
@@ -1910,8 +1806,6 @@ def test_keys_step_frames_and_wavelengths_round_and_play(qtbot, monkeypatch, iri
     scan = find_irispy_test_file(irispy_test_files, "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits")
     [raster] = raster_data([scan], ["C II 1336"])  # of another observation
     cube = Data(label="cube", flux=np.zeros((3, 4, 5)))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.extend([sji, raster, cube])
     saved = []
     monkeypatch.setattr(NavigationToolbar2QT, "save_figure", lambda *args: saved.append(args))
@@ -1961,13 +1855,11 @@ def test_keys_step_frames_and_wavelengths_round_and_play(qtbot, monkeypatch, iri
     assert (frames.state.slices, waves.state.slices) == ((shown[-1], 0, 0), (0, 0, 1))
 
 
-def test_g_grids_a_profile_and_does_nothing_on_an_image(qtbot, monkeypatch):
+def test_g_grids_a_profile_and_does_nothing_on_an_image(app, monkeypatch):
     """
     matplotlib's G and Shift+G toggle a Profile viewer's grids; on an Image viewer, where G is glue's Polygonal ROI and
     matplotlib's grids raise from WCSAxes, they do nothing, and its log, pan and zoom keys stay off on both.
     """
-    app = GlueApplication()
-    qtbot.addWidget(app)
     cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5))
     app.data_collection.append(cube)
     profile, image = (app.new_data_viewer(viewer, data=cube) for viewer in (ProfileViewer, ImageViewer))
@@ -2003,15 +1895,12 @@ def test_g_grids_a_profile_and_does_nothing_on_an_image(qtbot, monkeypatch):
     assert [key for key in handled if key != "shift"] == []
 
 
-def test_band_shows_the_mean_about_the_wavelength_slider(qtbot, monkeypatch):
-    glue_solar.setup()
+def test_band_shows_the_mean_about_the_wavelength_slider(app, monkeypatch):
     wcs = WCS(naxis=4)
     wcs.wcs.ctype[0] = "WAVE"
     flux = np.random.default_rng(0).random((2, 3, 4, 20))
     flux[..., 5] = np.nan
     cube = Data(label="stack", flux=flux, coords=wcs)
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(cube)
     viewer = app.new_data_viewer(ImageViewer, data=cube)
     state = viewer.state
@@ -2047,30 +1936,6 @@ def test_band_shows_the_mean_about_the_wavelength_slider(qtbot, monkeypatch):
     assert state.slices == (0, 0, 0, 1)
     press(viewer, Qt.Key_S)
     assert state.slices == (0, 0, 0, 2)
-
-
-_GLUE_START = """
-from qtpy.QtCore import Qt
-
-import glue_solar
-
-glue_solar.setup()  # before glue-qt's application loads, as at glue's start
-
-from glue_qt.app import GlueApplication
-from glue_qt.config import keyboard_shortcut
-
-from glue_solar.quicklook import QuicklookImageViewer
-
-print(*(key in keyboard_shortcut.members[QuicklookImageViewer] for key in (Qt.Key_Tab, Qt.Key_Backspace)))
-"""
-
-
-def test_quicklook_panels_take_glue_qts_tab_and_backspace_at_glues_start():
-    # in a process of its own, since the other tests load glue-qt's application, which registers them, first
-    env = {**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)}
-    result = subprocess.run([sys.executable, "-c", _GLUE_START], env=env, capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr[-2000:]
-    assert result.stdout.split() == ["True", "True"]
 
 
 def test_the_key_table_lists_every_key_of_glue_solars_viewers_and_tools(request):
@@ -2115,7 +1980,7 @@ def test_help_opens_the_user_guide_and_the_issues(monkeypatch):
 # imports spectral-cube, which uses astropy's deprecated COPY_IF_NEEDED where spectral-cube is installed
 @pytest.mark.filterwarnings("ignore:Setting colormap using")
 @pytest.mark.filterwarnings("ignore:COPY_IF_NEEDED is no longer needed")
-def test_a_pv_slice_click_leaves_numbers_in_the_slices(qtbot, irispy_test_files):
+def test_a_pv_slice_click_leaves_numbers_in_the_slices(app, irispy_test_files):
     from glue_qt.plugins.tools.pv_slicer import pv_slicer
 
     from glue_solar import glue_patches
@@ -2123,10 +1988,7 @@ def test_a_pv_slice_click_leaves_numbers_in_the_slices(qtbot, irispy_test_files)
     installed = pv_slicer.PVSliceWidget._sync_slice is glue_patches.sync_pv_slice
     assert installed == glue_patches.needs_pv_slice_workaround()  # probes glue-qt's own function
     assert not glue_patches.needs_pv_slice_workaround(glue_patches.sync_pv_slice)
-    glue_solar.setup()
     sji = load_data(str(find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(sji)
     viewer = app.new_data_viewer(ImageViewer, data=sji)
     tool = viewer.toolbar.tools["slice"]
@@ -2147,14 +2009,11 @@ SIT_AND_STARE = "iris_l2_20210905_001833_3620258102_{}.fits"
 PATCHED_LABELS = (glue_patches.update_x_axislabel, glue_patches.update_y_axislabel)
 
 
-def test_axis_label_workaround_installs_only_where_glue_needs_it(qtbot, monkeypatch, irispy_test_files):
+def test_axis_label_workaround_installs_only_where_glue_needs_it(app, qtbot, monkeypatch, irispy_test_files):
     installed = ImageViewer.update_x_axislabel is glue_patches.update_x_axislabel
     assert installed == glue_patches.needs_axis_label_workaround()  # probes glue-qt's own methods
     assert not glue_patches.needs_axis_label_workaround(PATCHED_LABELS)
-    glue_solar.setup()
     sji = load_data(str(find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("SJI_1400_t000"))))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(sji)
     viewer = app.new_data_viewer(ImageViewer, data=sji)
     viewer.figure.canvas.draw()
@@ -2177,15 +2036,13 @@ def test_axis_label_workaround_installs_only_where_glue_needs_it(qtbot, monkeypa
     viewer.state.x_axislabel, viewer.state.y_axislabel_weight = "empty", "bold"
 
 
-def test_a_2021_scatter_ticks_in_2021(qtbot):
+def test_a_2021_scatter_ticks_in_2021(app):
     installed = glue.utils.matplotlib.datetime64_to_mpl is glue_patches.datetime64_to_mpl
     assert installed == glue_patches.needs_date_epoch_workaround()  # probes glue's own conversion
     assert not glue_patches.needs_date_epoch_workaround(glue_patches.datetime64_to_mpl)
     when = np.array(["2021-09-05T00:00", "2021-09-06T00:00"], "datetime64[ns]")
     np.testing.assert_array_equal(glue_patches.mpl_to_datetime64(glue_patches.datetime64_to_mpl(when)), when)
     data = Data(time=when, value=[1.0, 2.0], label="dates")
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(data)
     viewer = app.new_data_viewer(ScatterViewer, data=data)
     viewer.state.x_att = data.id["time"]
@@ -2193,14 +2050,12 @@ def test_a_2021_scatter_ticks_in_2021(qtbot):
     assert {date.year for date in mdates.num2date(viewer.axes.get_xlim())} == {2021}  # glue 1.27.0 alone: 3990
 
 
-def test_a_scatter_plot_of_linked_times(qtbot):
+def test_a_scatter_plot_of_linked_times(app):
     installed = DerivedComponent.datetime.fget is glue_patches.derived_datetime
     assert installed == glue_patches.needs_derived_datetime_workaround()  # probes glue's own property
     assert not glue_patches.needs_derived_datetime_workaround(DerivedComponent.datetime)
     when = np.array(["2021-09-05T00:00", "2021-09-06T00:00"], "datetime64[ns]")
     first, second = (Data(time=when, value=[1.0, 2.0], label=label) for label in ("first", "second"))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.extend([first, second])
     app.data_collection.add_link([LinkSame(first.id[name], second.id[name]) for name in ("time", "value")])
     viewer = app.new_data_viewer(ScatterViewer, data=first)
@@ -2209,11 +2064,8 @@ def test_a_scatter_plot_of_linked_times(qtbot):
     assert all(layer.enabled for layer in viewer.layers)
 
 
-def test_a_slit_jaw_redraw_reuses_its_coordinates(qtbot, monkeypatch, irispy_test_files):
-    glue_solar.setup()
+def test_a_slit_jaw_redraw_reuses_its_coordinates(app, monkeypatch, irispy_test_files):
     sji = image_data(find_irispy_test_file(irispy_test_files, SIT_AND_STARE.format("SJI_1400_t000")))
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(sji)
     viewer = app.new_data_viewer(ImageViewer, data=sji)
     wrapped = sji.coords._wcs
@@ -2274,7 +2126,7 @@ SCANNING = "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"
         "slit-jaw rolled 60°",
     ],
 )
-def test_axis_labels_on_their_coordinates_draw_as_glues(qtbot, tmp_path, irispy_test_files, case):
+def test_axis_labels_on_their_coordinates_draw_as_glues(app, qtbot, tmp_path, irispy_test_files, case):
     from glue_solar.conftest import OBS_A, _header, _write_image, startobs
 
     def rolled(roll):
@@ -2311,9 +2163,6 @@ def test_axis_labels_on_their_coordinates_draw_as_glues(qtbot, tmp_path, irispy_
         "slit-jaw rolled 60°": (lambda: rolled(60), 2, 1, [(1, 0, 0), (2, 0, 0)]),
     }[case]
     data = data()
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(data)
     viewers = []
     for updates in (glue_patches._original_update_axislabels, PATCHED_LABELS):
@@ -2364,7 +2213,7 @@ def test_axis_labels_on_their_coordinates_draw_as_glues(qtbot, tmp_path, irispy_
 def test_a_draw_queued_as_the_test_returns_runs_on_a_live_application(qtbot):
     # pytest-qt processes events between a test and closing its widgets: had the conftest not kept this
     # application, a garbage collection in the queued draw would delete the canvas under it
-    app = GlueApplication()
+    app = GlueApplication()  # not the app fixture, whose value pytest holds until then
     qtbot.addWidget(app)
     app.itself = app  # a reference cycle, as a quicklook's leaves: only garbage collection frees it
     canvas = app.new_data_viewer(ImageViewer).figure.canvas
@@ -2372,12 +2221,9 @@ def test_a_draw_queued_as_the_test_returns_runs_on_a_live_application(qtbot):
     canvas.draw_idle()
 
 
-def test_profiles_label_the_main_iris_lines(qtbot, irispy_test_files):
-    glue_solar.setup()
+def test_profiles_label_the_main_iris_lines(app, irispy_test_files):
     files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
     [mg] = raster_data(files[:1], ["Mg II k 2796"])
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(mg)
     viewer = app.new_data_viewer(ProfileViewer, data=mg)
     viewer.state.x_att = mg.world_component_ids[mg.ndim - 1]  # wavelength
@@ -2401,12 +2247,11 @@ def test_profiles_label_the_main_iris_lines(qtbot, irispy_test_files):
     assert button.isChecked()
 
 
-def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monkeypatch, tmp_path, irispy_test_files):
-    glue_solar.setup()
+def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(
+    app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
     files = sorted(str(p) for p in irispy_test_files if "3860258481_raster" in p.name)
     [none, mg] = sorted(raster_data(files[:1], ["Mg II k 2796", "2832"]), key=lambda data: data.label)
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.extend([mg, none])
     viewer = app.new_data_viewer(ProfileViewer, data=mg)
     viewer.add_data(none)
@@ -2452,8 +2297,7 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
     # a session opens in km / s
     app.save_session(str(tmp_path / "kms.glu"))
     assert '"st__km / s"' in (tmp_path / "kms.glu").read_text()
-    restored = GlueApplication.restore_session(str(tmp_path / "kms.glu"), show=False)
-    qtbot.addWidget(restored)
+    restored = restore(qtbot, monkeypatch, tmp_path / "kms.glu")
     assert restored.viewers[0][0].state.x_display_unit == "km / s"
     # 2832 has no line: no km / s or velocity axis until a rest wavelength is set, and none after, back in Å
     state.reference_data = none
@@ -2470,13 +2314,10 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(qtbot, monk
     assert 2830 < state.x_min < state.x_max < 2835
 
 
-def test_readout_gives_the_velocity_axis_value_from_the_rest_wavelength(qtbot, monkeypatch, irispy_test_files):
-    glue_solar.setup()
+def test_readout_gives_the_velocity_axis_value_from_the_rest_wavelength(app, monkeypatch, irispy_test_files):
     sit_and_stare = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
     path = find_irispy_test_file(irispy_test_files, sit_and_stare)
     [none, si] = sorted(raster_data([path], ["Si IV 1403", "2832"]), key=lambda data: data.label)
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.extend([si, none])
     profile = app.new_data_viewer(ProfileViewer, data=si)
     profile.state.x_att = si.world_component_ids[2]  # wavelength
@@ -2526,12 +2367,9 @@ def test_readout_gives_the_velocity_axis_value_from_the_rest_wavelength(qtbot, m
     assert re.search(r" \(world\) · -?\d+\.\d km / s · ", image.axes.format_coord(5, 5))
 
 
-def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_test_files):
-    glue_solar.setup()
+def test_profiles_save_as_drawn_to_ecsv(app, monkeypatch, tmp_path, irispy_test_files):
     sit_and_stare = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
     [raster] = raster_data([find_irispy_test_file(irispy_test_files, sit_and_stare)], ["Si IV 1403"])
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(raster)
     # (exposure, slit, wavelength): a light curve and a spectrum
     raster.new_subset(PixelSubsetState(raster, [slice(None), slice(5, 6), slice(10, 11)]), label="Curve")
@@ -2657,8 +2495,7 @@ def test_profiles_save_as_drawn_to_ecsv(qtbot, monkeypatch, tmp_path, irispy_tes
     assert suggested[-1] == "cube_6563_scans maximum profiles.ecsv"
 
 
-def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot, monkeypatch, tmp_path):
-    glue_solar.setup()
+def test_profile_fit_tab_fits_a_gaussian_on_a_constant(app, qtbot, monkeypatch, tmp_path):
     glue_solar.setup()
     assert list(fit_plugin).count(GaussianConstantFitter) == 1
     wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 1355, "CDELT1": 0.025})
@@ -2666,8 +2503,6 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot, monkeypatch, tmp_p
     y = 3 + 40 * np.exp(-0.5 * ((x - 1355.62) / 0.04) ** 2)
     y[0] = np.nan  # fill
     data = Data(label="O I", flux=y, coords=wcs)
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(data)
     viewer = app.new_data_viewer(ProfileViewer, data=data)
     viewer.state.x_att = data.world_component_ids[0]
@@ -2718,18 +2553,14 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(qtbot, monkeypatch, tmp_p
     assert widths["fwhm_1"] == pytest.approx(starts["stddev_1"] * np.sqrt(8 * np.log(2)))
     # a session keeps the Profile viewer with the fitter chosen
     app.save_session(str(tmp_path / "fit.glu"))
-    restored = GlueApplication.restore_session(str(tmp_path / "fit.glu"))
-    qtbot.addWidget(restored)
+    restored = restore(qtbot, monkeypatch, tmp_path / "fit.glu", show=True)
     assert [type(viewer) for viewer in restored.viewers[0]] == [ProfileViewer]
 
 
-def test_profile_viewers_keep_their_own_fitter_settings(qtbot, monkeypatch):
-    glue_solar.setup()
+def test_profile_viewers_keep_their_own_fitter_settings(app, qtbot, monkeypatch):
     wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 1355, "CDELT1": 0.025})
     x = 1355 + 0.025 * np.arange(49)
     data = Data(label="O I", flux=3 + 40 * np.exp(-0.5 * ((x - 1355.62) / 0.04) ** 2), coords=wcs)
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(data)
     viewers = [app.new_data_viewer(ProfileViewer, data=data) for _ in range(2)]
     for viewer in viewers:

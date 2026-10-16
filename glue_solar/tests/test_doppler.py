@@ -8,74 +8,29 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 from glue.core import Data
-from glue_qt.app.application import GlueApplication
 from qtpy import QtWidgets
 
 import astropy.units as u
 from astropy import constants
 from astropy.io import fits
 
-import glue_solar
-from glue_solar.conftest import find_irispy_test_file
+from glue_solar.conftest import find_irispy_test_file, int16_copy
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import doppler
 from glue_solar.sources.doppler import doppler_image
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
-from glue_solar.tests.helpers import refused
-from glue_solar.tests.test_lazy import SJI, int16_copy, int16_raster_copy
-from glue_solar.tests.test_quicklook import SCAN
+from glue_solar.tests.helpers import answer, refused, run_action
+from glue_solar.tests.test_lazy import SJI
 
 ACTION = "IRIS: Doppler image…"
 VELOCITIES = (10, 20, 30, 40, 50)
 
 
-@pytest.fixture
-def app(qtbot):
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    return app
-
-
-@pytest.fixture
-def scan_path(tmp_path, irispy_test_files):
-    """Scan 0 of 3860258481, stored as int16: its Si IV 1403 window misses every sample of 24 pixels about 1402.77."""
-    return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
-
-
-def answer(monkeypatch, rest, velocities=None, normalized=False, accept=True):
-    """
-    Make each Doppler image dialog return as if ``rest`` and any ``velocities`` were typed, "(red - blue) / (red +
-    blue) too" ticked with ``normalized``, and OK, or Cancel, pressed; returns what each dialog opened with.
-    """
-    opened = []
-
-    def exec_(dialog):
-        fields = [dialog.findChild(QtWidgets.QLineEdit, name) for name in ("rest", "velocities")]
-        tick = dialog.findChild(QtWidgets.QCheckBox, "normalized")
-        opened.append((*(field.text() for field in fields), tick.isChecked()))
-        fields[0].setText(rest)
-        if velocities is not None:
-            fields[1].setText(velocities)
-        tick.setChecked(normalized)
-        return QtWidgets.QDialog.Accepted if accept else QtWidgets.QDialog.Rejected
-
-    monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
-    return opened
-
-
 def run(app, qtbot, data):
-    """Trigger the action on ``data`` and wait for the dataset it adds and for its thread to end."""
-    collection, tree = app.data_collection, app._layer_widget
-    count = len(collection)
-    tree.ui.layerTree.set_selected_layers([data])
-    tree._actions[ACTION].trigger()
-    assert iris._RUNNING  # on glue-qt's worker
-    assert app.statusBar().currentMessage() == f"Computing the Doppler image of {data.label}…"
-    qtbot.waitUntil(lambda: len(collection) == count + 1 and not iris._RUNNING)
-    assert app.statusBar().currentMessage() == ""
-    return collection[-1]
+    """Trigger the action on ``data``; returns the dataset it adds."""
+    [maps] = run_action(app, qtbot, data, ACTION, f"Computing the Doppler image of {data.label}…")
+    return maps
 
 
 def numpys(raster, rest, velocities):
@@ -118,9 +73,9 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     collection = app.data_collection
     collection.extend([sji, raster])
     keep_hpc_linked(collection)
-    opened = answer(monkeypatch, "1402.77")
+    opened = answer(monkeypatch, rest="1402.77")
     maps = run(app, qtbot, raster)
-    assert opened == [("1402.77", "10, 20, 30, 40, 50", False)]  # the window's main line
+    assert opened == [{"rest": "1402.77", "velocities": "10, 20, 30, 40, 50", "normalized": False}]  # the main line
     assert maps.label == f"{raster.label} Doppler image 1402.77"
     assert maps.shape == raster.shape[:2]
     assert {maps.get_component(cid).units for cid in maps.main_components} == {"DN_IRIS_FUV / s"}
@@ -147,7 +102,7 @@ def test_the_typed_velocities_normalized_and_a_blank_or_canceled_rest(app, qtbot
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     collection = app.data_collection
     collection.append(raster)
-    answer(monkeypatch, " 1402.77 ", " 25,5 5", normalized=True)
+    answer(monkeypatch, rest=" 1402.77 ", velocities=" 25,5 5", normalized=True)
     maps = run(app, qtbot, raster)
     assert maps.meta["doppler_velocities"] == (5, 25)
     assert_numpys(maps, raster, 1402.77, (5, 25), normalized=True)
@@ -156,7 +111,7 @@ def test_the_typed_velocities_normalized_and_a_blank_or_canceled_rest(app, qtbot
     tree.ui.layerTree.set_selected_layers([raster])  # glue selects the dataset added
     action = tree._actions[ACTION]
     for rest, accept in (("", True), ("1402.77", False)):
-        answer(monkeypatch, rest, accept=accept)
+        answer(monkeypatch, accept, rest=rest)
         action.trigger()
         assert not iris._RUNNING  # and no thread started
         assert len(collection) == 2
@@ -192,26 +147,22 @@ def test_a_symmetric_line_gives_zero_a_redshift_a_positive_map_and_a_saturated_s
         assert np.flatnonzero(np.isnan(maps[name])).tolist() == [0, 1]  # step 0, slit pixels 0 and 1
 
 
-def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
+def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatch, stack_paths):
     """
     A lazy stack of 3860258481's three scans, the second's Si IV 1403 a third of a sample redder, gives one dataset
     whose maps at each scan are the scan's alone.
     """
-    paths = [
-        int16_raster_copy(path, tmp_path / path.name)
-        for path in sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)
-    ]
-    with fits.open(paths[1], mode="update") as hdulist:
+    with fits.open(stack_paths[1], mode="update") as hdulist:
         hdulist[5].header["CRVAL1"] += hdulist[5].header["CDELT1"] / 3
-    [stack] = raster_data(paths, ["Si IV 1403"], stack=True)
+    [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
     collection = app.data_collection
     collection.append(stack)
     keep_hpc_linked(collection)
-    answer(monkeypatch, "1402.77")
+    answer(monkeypatch, rest="1402.77")
     maps = run(app, qtbot, stack)
     assert maps.shape == stack.shape[:-1]
     assert link_hpc(collection) == []
-    for k, path in enumerate(paths):
+    for k, path in enumerate(stack_paths):
         [scan] = raster_data([path], ["Si IV 1403"])
         alone = doppler_image(scan, 1402.77)
         assert maps.meta == alone.meta
@@ -232,27 +183,26 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
     action = tree._actions[ACTION]
-    opened = answer(monkeypatch, "1402.77")
+    opened = answer(monkeypatch, rest="1402.77")
     for data in (sji, plain):
         tree.ui.layerTree.set_selected_layers([data])
         refused(action)
     assert opened == []  # refused before asking
     tree.ui.layerTree.set_selected_layers([raster])
     for rest, velocities in (
-        ("3000", None),
-        ("Si IV", None),
+        ("3000", "10, 20, 30, 40, 50"),
+        ("Si IV", "10, 20, 30, 40, 50"),
         ("1402.77", "0, 10"),
         ("1402.77", "nan"),
         ("1402.77", "10 fast"),
         ("1402.77", ""),
+        ("1399", "50, 200, 300"),
     ):
-        answer(monkeypatch, rest, velocities)
+        answer(monkeypatch, rest=rest, velocities=velocities)
         action.trigger()
-    answer(monkeypatch, "1399", "50, 200, 300")
-    action.trigger()
     # and an error on the thread
     monkeypatch.setattr(doppler, "_read", Mock(side_effect=RuntimeError("unreadable")))
-    answer(monkeypatch, "1402.77")
+    answer(monkeypatch, rest="1402.77")
     action.trigger()
     qtbot.waitUntil(lambda: len(shown) == 10 and not iris._RUNNING)
     assert all(text.startswith("Could not compute the Doppler image\n") for text in shown)

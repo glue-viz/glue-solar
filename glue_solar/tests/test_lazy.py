@@ -26,7 +26,7 @@ from matplotlib.backend_bases import KeyEvent
 
 from astropy.io import fits
 
-from glue_solar.conftest import find_irispy_test_file
+from glue_solar.conftest import BSCALE, BZERO, find_irispy_test_file, int16_copy, int16_raster_copy
 from glue_solar.sources.loaders import iris, lazy
 from glue_solar.sources.loaders.iris import image_data, iris_data, raster_data
 from glue_solar.sources.loaders.lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask
@@ -34,35 +34,6 @@ from glue_solar.sources.loaders.lazy import LazyData, RawComponent, RawStack, al
 RASTER = "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits"
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
 WINDOW = 5  # Si IV 1403, which holds missing data
-BSCALE, BZERO = 0.25, 7992
-
-
-def int16_copy(source, path, hdus, **header):
-    """
-    ``source`` written to ``path`` with the image HDUs ``hdus`` stored as Level 2 files store them, int16 with
-    BSCALE 0.25 and BZERO 7992, and with -199 (missing), -199.5 and -5.25 (data) planted in each. ``header`` updates
-    the primary header.
-    """
-    with fits.open(source) as hdulist:
-        hdulist[0].header.update(header)
-        for i in hdus:
-            values = hdulist[i].data
-            fill = values == -200
-            values = np.clip(values, -199.75, 16000)
-            values[fill] = -200
-            values.flat[[1, 2, 3]] = -199, -199.5, -5.25  # raw -32764, -32766 and -31989
-            hdulist[i].data = values
-            hdulist[i].scale("int16", bscale=BSCALE, bzero=BZERO)
-        hdulist.writeto(path)
-    return path
-
-
-def int16_raster_copy(source, path, **header):
-    """The raster file ``source`` with every window stored as int16 (`int16_copy`)."""
-    with fits.open(source) as hdulist:
-        windows = range(1, hdulist[0].header["NWIN"] + 1)
-    path.parent.mkdir(exist_ok=True)
-    return int16_copy(source, path, windows, **header)
 
 
 def zero_exposure(path, step):
@@ -489,16 +460,15 @@ def test_scripting_recipe_computes_spectra_of_lazy_data(int16_raster):
     np.testing.assert_array_equal(point_spectrum, expected(int16_raster, WINDOW)[step, slit])
 
 
-def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path, int16_raster):
-    from glue_qt.app.application import GlueApplication
+def test_lazy_rasters_in_glues_viewers_and_sessions(app, qtbot, monkeypatch, tmp_path, int16_raster):
     from glue_qt.viewers.histogram import HistogramViewer
     from glue_qt.viewers.image import ImageViewer
     from glue_qt.viewers.profile import ProfileViewer
 
+    from glue_solar.tests.helpers import restore
+
     [data] = raster_data([int16_raster], ["Si IV 1403"])
     oracle = expected(int16_raster, WINDOW)
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(data)
     viewer = app.new_data_viewer(ImageViewer, data=data)
     layer = viewer.state.layers[0]
@@ -507,8 +477,7 @@ def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path
     # a session refers to the file, which it reads again, rather than holding the values
     monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
     app.save_session(str(tmp_path / "lazy.glu"))
-    restored = GlueApplication.restore_session(str(tmp_path / "lazy.glu"), show=False)
-    qtbot.addWidget(restored)
+    restored = restore(qtbot, monkeypatch, tmp_path / "lazy.glu")
     np.testing.assert_array_equal(restored.data_collection[0][data.main_components[0].label], oracle)
     layer.attribute = data.derived_components[0]  # the mask draws too
     viewer.figure.canvas.draw()
@@ -528,17 +497,12 @@ def test_lazy_rasters_in_glues_viewers_and_sessions(qtbot, monkeypatch, tmp_path
     assert [histogram.state.hist_x_min, histogram.state.hist_x_max] == [np.nanmin(oracle), np.nanmax(oracle)]
 
 
-def test_per_frame_limits_follow_the_wavelength_lazily_and_as_before(qtbot, monkeypatch, int16_raster):
-    from glue_qt.app.application import GlueApplication
+def test_per_frame_limits_follow_the_wavelength_lazily_and_as_before(app, monkeypatch, int16_raster):
     from glue_qt.viewers.image import ImageViewer
 
-    import glue_solar
     from glue_solar.tests.helpers import select_point
 
-    glue_solar.setup()
     oracle = expected(int16_raster, WINDOW)
-    app = GlueApplication()
-    qtbot.addWidget(app)
     datasets = lazy_and_eager(monkeypatch, lambda: raster_data([int16_raster], ["Si IV 1403"])[0])
     stack = Data(label="stack", values=np.zeros((2, *oracle.shape)))
     app.data_collection.extend([*datasets, stack])
@@ -575,9 +539,8 @@ def test_per_frame_limits_follow_the_wavelength_lazily_and_as_before(qtbot, monk
     assert (layer.stretch_global, [layer.v_min, layer.v_max]) == (True, whole)
 
 
-def test_raster_windows_and_stacks_open_in_their_detectors_colormap(qtbot, monkeypatch, tmp_path, int16_raster,
+def test_raster_windows_and_stacks_open_in_their_detectors_colormap(app, monkeypatch, tmp_path, int16_raster,
                                                                     irispy_test_files):
-    from glue_qt.app.application import GlueApplication
     from glue_qt.viewers.image import ImageViewer
 
     from sunpy.visualization.colormaps import cmlist
@@ -595,8 +558,6 @@ def test_raster_windows_and_stacks_open_in_their_detectors_colormap(qtbot, monke
     cmaps = [bands[data.label.split("-")[0]] for data in datasets]
     assert len(datasets) == 2 * (8 + 4)
     assert [data.style.preferred_cmap.name for data in datasets] == cmaps
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.extend(datasets[-4:])  # the stacks, as before
     for data, cmap in zip(datasets[-4:], cmaps[-4:]):
         assert app.new_data_viewer(ImageViewer, data=data).layers[0].state.cmap == cmlist[cmap]
@@ -616,22 +577,17 @@ def time_and_exposure(data, pixel):
     return f" (world) · {utc} UTC · exp {data['Exposure time'][pixel]:.4g} s"
 
 
-def test_readout_gives_the_hovered_raster_steps_time_and_exposure(qtbot, tmp_path, irispy_test_files):
-    from glue_qt.app.application import GlueApplication
+def test_readout_gives_the_hovered_raster_steps_time_and_exposure(app, tmp_path, irispy_test_files):
     from glue_qt.viewers.image import ImageViewer
 
-    import glue_solar
     from glue_solar.tests.helpers import select_point
 
-    glue_solar.setup()
     sources = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)[:3]
     paths = [int16_raster_copy(source, tmp_path / source.name) for source in sources]
     zero_exposure(paths[2], 5)
     [scan] = raster_data(paths[:1], ["C II 1336"])
     [stack] = raster_data(paths, ["C II 1336"], stack=True)
     assert stack["Exposure time"][2, 5, 0, 0] == 0  # so the readout must give the hovered scan's exposure
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.extend([scan, stack])
     k = 8
     for data, scans in ((scan, ()), (stack, (2,))):
@@ -658,20 +614,15 @@ def test_readout_gives_the_hovered_raster_steps_time_and_exposure(qtbot, tmp_pat
     assert [(s.start, s.stop) for s in group.subset_state.slices[1:3]] == [(5, 6), (50, 51)]
 
 
-def test_readout_reads_the_time_along_sit_and_stare_exposures_and_slit_jaw_frames(qtbot, tmp_path, int16_raster,
+def test_readout_reads_the_time_along_sit_and_stare_exposures_and_slit_jaw_frames(app, tmp_path, int16_raster,
                                                                                     irispy_test_files):
-    from glue_qt.app.application import GlueApplication
     from glue_qt.viewers.image import ImageViewer
 
-    import glue_solar
 
-    glue_solar.setup()
     [raster] = raster_data([int16_raster], ["Si IV 1403"])
     sji = image_data(int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0]))
     assert isinstance(raster, LazyData)
     assert isinstance(sji, LazyData)
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.extend([raster, sji])
     viewer = app.new_data_viewer(ImageViewer, data=raster)
     slit, k = 20, 14

@@ -7,43 +7,28 @@ import glue.config
 import numpy as np
 import pytest
 from glue.core import Data
-from glue_qt.app.application import GlueApplication
 from irispy.io.sji import read_sji_lvl2
 from irispy.io.spectrograph import read_spectrograph_lvl2
 from irispy.utils.spectrograph import radiometric_calibration as irispys_calibration
 from qtpy import QtWidgets
 
 import glue_solar
-from glue_solar.conftest import find_irispy_test_file
+from glue_solar.conftest import find_irispy_test_file, int16_copy
 from glue_solar.regrid import rebin, regrid_on_time
 from glue_solar.sources import calibration
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
-from glue_solar.tests.helpers import refused
-from glue_solar.tests.test_lazy import SJI, int16_copy, int16_raster_copy
-from glue_solar.tests.test_quicklook import SCAN
+from glue_solar.tests.helpers import refused, restore
+from glue_solar.tests.test_lazy import SJI
 
 DUST = "IRIS: remove dust (SJI)"
 RADIANCE = "IRIS: radiometric calibration"
 
 
 @pytest.fixture
-def app(qtbot):
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    return app
-
-
-@pytest.fixture
 def sji_path(tmp_path, irispy_test_files):
     """3620258102's SJI 1400, 62 frames, stored as int16: lazy in glue."""
     return int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0])
-
-
-@pytest.fixture
-def scan_path(tmp_path, irispy_test_files):
-    return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
 
 
 def assert_irispys_dust_removed(dust, path):
@@ -158,8 +143,7 @@ def test_a_calibrated_session_is_kept_and_restores_the_radiance(app, qtbot, monk
     glue_solar._save_last_session(app)  # as glue's window closes
     last = tmp_path / "glue-solar-last-session.glu"
     assert last.stat().st_size - (tmp_path / "before.glu").stat().st_size < 1e5
-    restored = GlueApplication.restore_session(str(last), show=False)
-    qtbot.addWidget(restored)
+    restored = restore(qtbot, monkeypatch, last)
     for data, back, radiance in zip(windows, restored.data_collection, radiances, strict=True):
         factor = back.get_component(f"{radiance.label} per DN / s")
         assert factor.units == "erg / (Angstrom DN sr cm2)"

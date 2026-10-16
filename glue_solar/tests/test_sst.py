@@ -44,11 +44,11 @@ from glue_solar.quicklook import (
     quicklook,
 )
 from glue_solar.sources.iris import iris_quicklook, link_iris, quicklook_iris, quicklook_sst
-from glue_solar.sources.loaders.iris import WCS_LOCK, _LockedWCS, image_data, keep_hpc_linked, link_hpc, raster_data
+from glue_solar.sources.loaders.iris import WCS_LOCK, _LockedWCS, keep_hpc_linked, link_hpc
 from glue_solar.sources.loaders.scan import scan_directory
 from glue_solar.sources.sst import _Cube, _line_core, _LockedTabularWCS, _TabularWCS, sst_data
-from glue_solar.tests.helpers import linked_data, mouse_click, press, select_point
-from glue_solar.tests.test_linking import RASTER, SJI, _real, _sunpy_map
+from glue_solar.tests.helpers import linked_data, mouse_click, press, restore, select_point
+from glue_solar.tests.test_linking import _sunpy_map
 from glue_solar.tests.test_quicklook import (
     bare_app_for,
     browse,
@@ -64,13 +64,6 @@ from glue_solar.tests.test_quicklook import (
 )
 
 DATEREF = "2021-09-05T00:00:00"
-
-
-@pytest.fixture
-def sns(irispy_test_files):
-    """irispy's sit-and-stare SJI 1400 and Si IV 1403 raster, of 2021-09-05."""
-    [raster] = raster_data([_real(irispy_test_files, RASTER)], ["Si IV 1403"])
-    return image_data(_real(irispy_test_files, SJI)), raster
 
 
 def write_sst_cube(
@@ -367,13 +360,10 @@ def test_color_limits_of_a_line_are_glue_s_when_15_divides_the_scans(monkeypatch
             np.testing.assert_array_equal(u[axis], views[-1][axis])
 
 
-def test_an_image_viewer_shows_a_cube_without_specsys(qtbot, tmp_path):
+def test_an_image_viewer_shows_a_cube_without_specsys(app, qtbot, tmp_path):
     # SST2: astropy refuses an empty SPECSYS beside the observatory's place, and no viewer took the cube
     path = tmp_path / "cube.fits"
     write_sst_cube(path, drift=(5.0, -3.0))
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     data = app.load_data(str(path))  # File → Open Data Set
     viewer = app.new_data_viewer(ImageViewer, data=data)
     readout = viewer.toolbar.tools["solar:frame_time"].label
@@ -440,8 +430,7 @@ def test_a_session_and_the_last_session_restore_a_cube_and_its_viewer(qtbot, mon
         assert tuple(restored.viewers[0][0].state.slices) == (2, 3, 0, 0)
     monkeypatch.setattr(restored, "report_error", lambda message, detail: pytest.fail(detail))
     restored.save_session(str(tmp_path / "again.glu"))  # from a restored session
-    again = GlueApplication.restore_session(str(tmp_path / "again.glu"))
-    qtbot.addWidget(again)
+    again = restore(qtbot, monkeypatch, tmp_path / "again.glu", show=True)
     [cube] = again.data_collection
     np.testing.assert_array_equal(cube.meta["VAR-EXT"]["DATE-AVG"], data.meta["VAR-EXT"]["DATE-AVG"])
 
@@ -953,15 +942,14 @@ def test_a_cube_shares_its_sst_cubes_time_again_once_the_iris_data_go(sst_app, q
 
 
 @pytest.mark.parametrize("stokes", [4, 1])
-def test_a_session_restores_the_sst_quicklook(sst_app, qtbot, tmp_path, stokes):
+def test_a_session_restores_the_sst_quicklook(sst_app, qtbot, monkeypatch, tmp_path, stokes):
     cube, values = stokes_cube(tmp_path / "cube.fits", (3, stokes, 5, 12, 16), core=1)
     viewers = quicklook(sst_app, [cube])
     select_point(viewers["map"], 3, 7)
     slide(viewers["map"], 0, 2)
     qtbot.wait(20)
     sst_app.save_session(str(tmp_path / "sst.glu"))
-    restored = GlueApplication.restore_session(str(tmp_path / "sst.glu"), show=False)
-    qtbot.addWidget(restored)
+    restored = restore(qtbot, monkeypatch, tmp_path / "sst.glu")
     qtbot.wait(20)
     panels = {viewer.state.title.split(" ", 1)[1]: viewer for viewer in restored.viewers[1]}
     again = {role: panels[title] for role, title in (("map", "map"), ("wing", "second map"), ("slit", "virtual slit"))}

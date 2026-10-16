@@ -5,26 +5,11 @@ Helpers that drive glue's viewers the way a user does, and read the expected ans
 from collections import Counter
 
 import numpy as np
+import pytest
 from matplotlib.backend_bases import MouseEvent
 from qtpy import QtWidgets
 from qtpy.QtCore import QPoint, Qt
 from qtpy.QtTest import QTest
-
-__all__ = [
-    "angles",
-    "count_tick_work",
-    "inversions",
-    "linked_data",
-    "load_selected",
-    "mouse",
-    "mouse_click",
-    "press",
-    "raster_point_on_sji",
-    "refused",
-    "scanned",
-    "select_point",
-    "shift",
-]
 
 
 def angles(data):
@@ -34,6 +19,39 @@ def angles(data):
     types = list(data.coords.world_axis_physical_types)
     world = data.coords.pixel_to_world_values(*zip([0] * data.ndim, np.subtract(data.shape[::-1], 1)))
     return np.array([world[types.index(kind)] for kind in _HPC])
+
+
+def answer(monkeypatch, accept=True, **typed):
+    """
+    Make each dialog return as if ``typed`` were entered in its boxes of those names, a check box ticked or not, and
+    OK, or Cancel, pressed; returns what each dialog's boxes opened with, by name.
+    """
+    kinds = (QtWidgets.QLineEdit, QtWidgets.QAbstractSpinBox, QtWidgets.QCheckBox)
+    opened = []
+
+    def shown(box):
+        if isinstance(box, QtWidgets.QCheckBox):
+            return box.isChecked()
+        return box.text() if isinstance(box, QtWidgets.QLineEdit) else box.value()
+
+    def enter(box, value):
+        if isinstance(box, QtWidgets.QCheckBox):
+            box.setChecked(value)
+        elif isinstance(box, QtWidgets.QLineEdit):
+            box.setText(value)
+        else:
+            box.setValue(value)
+
+    def exec_(dialog):
+        boxes = {box.objectName(): box for box in dialog.findChildren(QtWidgets.QWidget) if isinstance(box, kinds)}
+        boxes = {name: box for name, box in boxes.items() if name and not name.startswith("qt_")}
+        opened.append({name: shown(box) for name, box in boxes.items()})
+        for name, value in typed.items():
+            enter(boxes[name], value)
+        return QtWidgets.QDialog.Accepted if accept else QtWidgets.QDialog.Rejected
+
+    monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
+    return opened
 
 
 def count_tick_work(monkeypatch, axes):
@@ -74,6 +92,35 @@ def inversions(monkeypatch, data):
     calls, inverse = [], data.coords.world_to_pixel_values
     monkeypatch.setattr(data.coords, "world_to_pixel_values", lambda *world: calls.append(1) or inverse(*world))
     return calls
+
+
+def restore(qtbot, monkeypatch, path, show=False):
+    """glue's application restored from the session ``path``, whose errors fail the test rather than open its dialog."""
+    from glue_qt.app.application import GlueApplication
+
+    app = GlueApplication.restore_session(str(path), show=show)
+    qtbot.addWidget(app)
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))
+    return app
+
+
+def run_action(app, qtbot, data, action, status, message="", added=1):
+    """
+    Trigger glue-qt's layer ``action`` on ``data`` and wait for its thread to end and the ``added`` datasets, glue's
+    status bar saying ``status`` meanwhile and ``message`` then; returns the datasets added.
+    """
+    from glue_solar.sources.loaders.iris import _RUNNING
+
+    collection, tree = app.data_collection, app._layer_widget
+    count = len(collection)
+    tree.ui.layerTree.set_selected_layers([data])
+    tree._actions[action].trigger()
+    assert _RUNNING  # on glue-qt's worker
+    assert app.statusBar().currentMessage() == status
+    # error maps take seconds
+    qtbot.waitUntil(lambda: len(collection) == count + added and not _RUNNING, timeout=60_000)
+    assert app.statusBar().currentMessage() == message
+    return collection[count:]
 
 
 def scanned(qtbot, dialog):
@@ -137,6 +184,23 @@ def raster_point_on_sji(raster, sji, step, slit, frame=0, scan=0):
     world[types.index("time")] = sji.coords.pixel_to_world_values(0, 0, frame)[types.index("time")]
     x, y, _ = sji.coords.world_to_pixel_values(*world)
     return x, y
+
+
+def resized(qtbot, viewers):
+    """
+    Wait until ``viewers`` are done resizing, on private timers: glue-qt's canvas ends a resize 250 ms after the last
+    one, and mpl-scatter-density draws each image again 0.5 s after it.
+    """
+    from mpl_scatter_density.base_image_artist import BaseImageArtist
+
+    canvases = [viewer.figure.canvas for viewer in viewers]
+    images = [image for viewer in viewers for image in viewer.axes.images if isinstance(image, BaseImageArtist)]
+    qtbot.waitUntil(
+        lambda: (
+            not any(canvas._resize_timer.isActive() for canvas in canvases)
+            and all(image._make_image_called and not image._timer._timer.isActive() for image in images)
+        )
+    )
 
 
 def refused(action):

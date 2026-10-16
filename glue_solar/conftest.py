@@ -89,6 +89,20 @@ def _isolated_settings(tmp_path, monkeypatch):
     monkeypatch.setattr(IsolatedQSettings, "directory", str(tmp_path))
     monkeypatch.setattr(iris, "QSettings", IsolatedQSettings)
 
+
+@pytest.fixture
+def app(qtbot):
+    """glue's application, with glue-solar set up."""
+    from glue_qt.app.application import GlueApplication
+
+    import glue_solar
+
+    glue_solar.setup()
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    return app
+
+
 MD5 = "0123456789abcdef0123456789abcdef-"
 # (date, time, obsid): raster + SJI + AIA cutout, split across pooch-style dirs
 OBS_A = ("20250328", "225628", "3400109360")
@@ -148,8 +162,7 @@ def _source_filename_hdu(start, column):
 
 
 def _write_image(path, header, roll=1.0):
-    # A small real rotation by default avoids irispy 0.8.1 treating zero
-    # off-diagonal PC entries as missing pointing samples.
+    # a small rotation by default, as real slit-jaw files have
     angle = np.deg2rad(roll)
     # real SJI files spell the units this way; astropy's WCS warns unless they are normalized
     header["CUNIT1"], header["CUNIT2"], header["CUNIT3"] = "arcsecs", "arcsecs", "seconds"
@@ -263,7 +276,7 @@ def iris_tree(tmp_path_factory):
 
 
 def find_irispy_test_file(files, name):
-    """Match both 0.8.1 filenames and irispy's later explicit _test suffix."""
+    """irispy's test file ``name``, which irispy names with a ``_test`` suffix."""
     return next(path for path in files if path.name.replace("_test.fits", ".fits") == name)
 
 
@@ -322,10 +335,64 @@ def irispy_test_files():
     return files
 
 
+BSCALE, BZERO = 0.25, 7992
+
+
+def int16_copy(source, path, hdus, **header):
+    """
+    ``source`` written to ``path`` with the image HDUs ``hdus`` stored as Level 2 files store them, int16 with
+    BSCALE 0.25 and BZERO 7992, and with -199 (missing), -199.5 and -5.25 (data) planted in each. ``header`` updates
+    the primary header.
+    """
+    with fits.open(source) as hdulist:
+        hdulist[0].header.update(header)
+        for i in hdus:
+            values = hdulist[i].data
+            fill = values == -200
+            values = np.clip(values, -199.75, 16000)
+            values[fill] = -200
+            values.flat[[1, 2, 3]] = -199, -199.5, -5.25  # raw -32764, -32766 and -31989
+            hdulist[i].data = values
+            hdulist[i].scale("int16", bscale=BSCALE, bzero=BZERO)
+        hdulist.writeto(path)
+    return path
+
+
+def int16_raster_copy(source, path, **header):
+    """The raster file ``source`` with every window stored as int16 (`int16_copy`)."""
+    with fits.open(source) as hdulist:
+        windows = range(1, hdulist[0].header["NWIN"] + 1)
+    path.parent.mkdir(exist_ok=True)
+    return int16_copy(source, path, windows, **header)
+
+
+# scan 0 of irispy's 3 test scans of 3860258481
+SCAN = "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits"
+
+
+@pytest.fixture
+def scan_path(tmp_path, irispy_test_files):
+    """
+    Scan 0 of 3860258481, stored as int16: its Si IV 1403 window misses every sample of 24 pixels about 1402.77, and its
+    Mg II k window covers h too.
+    """
+    return int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
+
+
 @pytest.fixture
 def stack_paths(tmp_path, irispy_test_files):
     """The three scans of 3860258481, stored as int16."""
-    from glue_solar.tests.test_lazy import int16_raster_copy
-
     files = sorted(p for p in irispy_test_files if "3860258481_raster" in p.name)
     return [int16_raster_copy(p, tmp_path / p.name) for p in files]
+
+
+@pytest.fixture
+def sns(irispy_test_files):
+    """The matched sit-and-stare SJI 1400 + Si IV 1403 raster pair shipped with irispy."""
+    from glue_solar.sources.loaders.iris import image_data, raster_data
+
+    def path(name):
+        return find_irispy_test_file(irispy_test_files, f"iris_l2_20210905_001833_3620258102_{name}.fits")
+
+    [raster] = raster_data([path("raster_t000_r00000")], ["Si IV 1403"])
+    return image_data(path("SJI_1400_t000")), raster

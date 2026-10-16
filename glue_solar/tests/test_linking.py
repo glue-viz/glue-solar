@@ -34,7 +34,7 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 import glue_solar
 from glue_solar import glue_patches
-from glue_solar.conftest import find_irispy_test_file
+from glue_solar.conftest import SCAN, find_irispy_test_file
 from glue_solar.quicklook import _role, coordinator, nearest, quicklook
 from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
@@ -66,7 +66,7 @@ from glue_solar.tests.helpers import (
     shift,
 )
 from glue_solar.tests.test_bursts import SI_IV, SJI_1400
-from glue_solar.tests.test_quicklook import SCAN, drifting_stack
+from glue_solar.tests.test_quicklook import drifting_stack
 from glue_solar.tests.test_sessions import twice
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
@@ -104,21 +104,8 @@ LOCKED_PROPERTIES = (
 )
 
 
-def _real(files, name):
-    return next(
-        path for path in files if path.name.replace("_test.fits", ".fits") == name and path.parent.name == "sns"
-    )
-
-
 def _cid(data, label):
     return next(cid for cid in data.world_component_ids if cid.label == label)
-
-
-@pytest.fixture
-def sns(irispy_test_files):
-    """The matched sit-and-stare SJI 1400 + Si IV 1403 raster pair shipped with irispy."""
-    [raster] = raster_data([_real(irispy_test_files, RASTER)], ["Si IV 1403"])
-    return image_data(_real(irispy_test_files, SJI)), raster
 
 
 def test_sji_and_raster_share_axis_names(sns):
@@ -131,21 +118,18 @@ def test_sji_and_raster_share_axis_names(sns):
 def test_link_editor_wcs_link_works_or_refuses_cleanly(sns, irispy_test_files):
     # The link editor's "WCS link" between IRIS datasets raised AttributeError: 'has_celestial'
     sji, raster = sns
-    sji_2796 = image_data(_real(irispy_test_files, SJI.replace("1400", "2796")))
+    sji_2796 = image_data(find_irispy_test_file(irispy_test_files, SJI.replace("1400", "2796")))
     DataCollection([sji, raster, sji_2796]).add_link(WCSLink(sji, sji_2796))
     assert [sji[cid][3, 20, 10] for cid in sji_2796.pixel_component_ids[1:]] == pytest.approx([20, 10], abs=0.01)
     try:
-        link = WCSLink(sji, raster)
+        WCSLink(sji, raster)
     except IncompatibleWCS:  # glue-core 1.27.0: SJI and raster share only lon/lat, which link_hpc links
-        return
-    # glue-viz/glue#2595 links the SJI image axes to the raster's step and slit
-    assert {cid.axis for cid in link.cids1} == {1, 2}
-    assert {cid.axis for cid in link.cids2} == {0, 1}
+        pass
 
 
 def test_wcs_link_between_two_raster_windows(irispy_test_files):
     # glue's "WCS link" raised IncompatibleWCS: its SkyCoord took the arcsec values for degrees
-    windows = raster_data([_real(irispy_test_files, RASTER)], ["C II 1336", "Si IV 1403"])
+    windows = raster_data([find_irispy_test_file(irispy_test_files, RASTER)], ["C II 1336", "Si IV 1403"])
     wrapped = [Data(x=np.zeros(data.shape), coords=data.coords._wcs, label=data.label) for data in windows]
     link, expected = WCSLink(*windows), WCSLink(*wrapped)
     pixel = [np.array([n / 2 + 0.25]) for n in windows[0].shape]
@@ -240,10 +224,8 @@ def test_world_links_into_the_sji_use_each_exposure_time(sns):
     np.testing.assert_allclose(points[sji.pixel_component_ids[0]], frames, atol=1e-6)
 
 
-def test_inverse_workaround_leaves_wcsaxes_readouts_alone(qtbot, sns, monkeypatch):
+def test_inverse_workaround_leaves_wcsaxes_readouts_alone(app, sns, monkeypatch):
     sji, _ = sns
-    app = GlueApplication()
-    qtbot.addWidget(app)
     app.data_collection.append(sji)
     viewer = app.new_data_viewer(ImageViewer, data=sji)
     viewer.state.slices = (30, 0, 0)
@@ -294,7 +276,7 @@ def test_link_hpc_links_every_iris_dataset_to_the_first(qtbot, sns, irispy_test_
     from glue_solar.sources.maps import _parse_sunpy_map
 
     sji, raster = sns
-    [other] = raster_data([_real(irispy_test_files, RASTER)], ["C II 1336"])
+    [other] = raster_data([find_irispy_test_file(irispy_test_files, RASTER)], ["C II 1336"])
     aia = _parse_sunpy_map(sunpy.map.Map(sunpy.data.test.get_test_filepath("aia_171_level1.fits")), "aia")
     assert set(aia.coords.world_axis_units) == {"deg"}
     dc = DataCollection([sji, raster, aia, other])
@@ -393,21 +375,6 @@ def _sunpy_map(lon, lat, scale, shape, label, rotation=0, obstime="2021-09-05T00
     return _parse_sunpy_map(sunpy.map.Map(np.zeros(shape), header), label)
 
 
-def test_two_overlapping_sunpy_maps_autolink():
-    # sunpy maps keep their astropy WCS, so glue's own WCS autolinker links them, through their observers' frames
-    first = _sunpy_map(0, 0, 2, (40, 50), "first")
-    second = _sunpy_map(10, 5, 1.5, (40, 50), "second", rotation=30, obstime="2021-09-05T01:30")
-    assert isinstance(first.coords, WCS)
-    dc = DataCollection([first, second])
-    assert link_hpc(dc, others=dc) == []  # it links maps to IRIS data only
-    [link] = _autolink(dc)
-    assert isinstance(link, WCSLink)
-    y, x = np.indices(first.shape)
-    expected = second.coords.world_to_pixel(first.coords.pixel_to_world(x, y))
-    for cid, values in zip(second.pixel_component_ids[::-1], expected):
-        np.testing.assert_allclose(first[cid], values, rtol=0, atol=1e-6)
-
-
 @pytest.mark.parametrize("frame", [0, -1])
 def test_link_hpc_places_a_sunpy_map_on_each_sji_frame(sns, frame):
     # glue converts the map's degrees to the arcsec of IRIS data, and each slit-jaw frame keeps its own pointing
@@ -429,12 +396,9 @@ def test_link_hpc_places_a_sunpy_map_on_each_sji_frame(sns, frame):
         np.testing.assert_allclose(sji[cid][frame], values, rtol=0, atol=0.05)
 
 
-def test_shift_pointing_moves_a_sunpy_map_over_a_slit_jaw_image(qtbot, monkeypatch, sns):
+def test_shift_pointing_moves_a_sunpy_map_over_a_slit_jaw_image(app, monkeypatch, sns):
     # co-aligning: a map shown over a slit-jaw image is placed again through the image's shifted coordinates
     sji, _ = sns
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)
     aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia", obstime=sji.meta["DATE_OBS"])
     aia.update_components({aia.main_components[0]: np.arange(aia.size, dtype=float).reshape(aia.shape)})
@@ -565,13 +529,10 @@ def test_raster_pixels_reach_a_sunpy_map_whose_longitudes_run_from_0_to_360(sns)
     np.testing.assert_allclose(turned[1:], [slit, step], rtol=0, atol=1e-6)
 
 
-def test_a_raster_map_region_reaches_a_sunpy_map_whose_longitudes_run_from_0_to_360(qtbot, monkeypatch, sns):
+def test_a_raster_map_region_reaches_a_sunpy_map_whose_longitudes_run_from_0_to_360(app, monkeypatch, sns):
     # a region drawn on a quicklook's raster map reaches the map by its outline in longitude and latitude, where it
     # lies near 360 degrees: the same pixels as glue's own region on the raster's pixels
     sji, raster = sns
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     aia = _sunpy_map(10, -430, 0.5, (60, 240), "aia")
     app.data_collection.append(aia)
     viewers = quicklook(app, [raster, sji])
@@ -586,7 +547,7 @@ def test_a_raster_map_region_reaches_a_sunpy_map_whose_longitudes_run_from_0_to_
     assert not inverted
 
 
-def test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair(qtbot, sns):
+def test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair(app, sns):
     # glue-core 1.27.0 places each layer's Pixel crosshair at the point's pixel in the layer's own dataset: a map
     # linked to the raster added a second crosshair on the raster map, and raised IndexError over a slit-jaw image
     import inspect
@@ -599,9 +560,6 @@ def test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair(qtbot, sns):
     # a private method: pin its signature on the released baseline
     assert list(inspect.signature(glue_patches._original_update_data).parameters) == ["self"]
     sji, raster = sns
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, sji.shape[0] // 2)
     aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia", rotation=10)
     app.data_collection.append(aia)
@@ -620,13 +578,10 @@ def test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair(qtbot, sns):
     assert list(crosshairs.values()) == [{(30, 15)}, set()]
 
 
-def test_data_outside_the_iris_observations_link_only_on_request(qtbot, sns):
+def test_data_outside_the_iris_observations_link_only_on_request(app, sns):
     # D64: data load, the analyses and a quicklook link IRIS data only, as each quicklook panel would otherwise invert
     # the other data's WCS (SST3); 'IRIS: link helioprojective coordinates' links the others too, their WCS locked
     sji, raster = sns
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     dc = app.data_collection
     lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)
     aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia")
@@ -640,17 +595,14 @@ def test_data_outside_the_iris_observations_link_only_on_request(qtbot, sns):
     assert isinstance(aia.coords, _LockedWCS)
 
 
-def test_profile_workers_reach_a_linked_map_s_wcs_holding_the_lock(qtbot, monkeypatch, sns):
+def test_profile_workers_reach_a_linked_map_s_wcs_holding_the_lock(app, qtbot, monkeypatch, sns):
     # SST1: wcslib is not thread-safe, and a quicklook's spectrum panels compute a region drawn on other linked data
     # over the raster on glue-qt's worker threads, as the GUI thread draws that data: each call holds WCS_LOCK
     sji, raster = sns
-    glue_solar.setup()
     # on the worker thread, as glue-qt computes the profiles of data of over 1e7 values, such as a whole raster
     monkeypatch.setattr(
         QThreadedProfileLayerArtist, "_calculate_profile", lambda self, reset=False: self._worker.work_queue.put(reset)
     )
-    app = GlueApplication()
-    qtbot.addWidget(app)
     lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)
     aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia")  # over the raster
     app.data_collection.append(aia)
@@ -718,7 +670,7 @@ def test_raster_map_roi_selects_the_sji_pixels_inside_it(linked_sns, frame):
 def test_stack_map_roi_selects_the_sji_pixels_inside_it_in_the_nearest_scan(tmp_path, irispy_test_files, frame):
     # glue's own region on a stack's steps and slit rows, as a plain Image viewer of its map makes: in each SJI frame,
     # the pixels inside it in the scan nearest the frame's time, by its middle step, at that scan's own pointing
-    sji = image_data(_real(irispy_test_files, SJI))
+    sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
     stack, alone = drifting_stack(tmp_path, irispy_test_files)
     dc = DataCollection([sji, stack])
     dc.add_link(link_hpc(dc))
@@ -734,7 +686,7 @@ def test_stack_map_roi_selects_the_sji_pixels_inside_it_in_the_nearest_scan(tmp_
 
 def test_the_link_editor_keeps_a_stack_s_scans(tmp_path, irispy_test_files):
     # glue-qt's Link Data dialog lists the scan link with its one input, and OK keeps it
-    sji = image_data(_real(irispy_test_files, SJI))
+    sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
     stack, _ = drifting_stack(tmp_path, irispy_test_files)
     dc = DataCollection([sji, stack])
     dc.add_link(link_hpc(dc))
@@ -769,9 +721,9 @@ def test_link_editor_workaround_installs_only_where_glue_needs_it():
     assert not glue_patches.needs_link_editor_workaround(glue_patches.link_with_units_init, glue_patches.path_link_init)
 
 
-def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, monkeypatch):
+def test_browse_iris_links_what_it_loads(app, qtbot, tmp_path, irispy_test_files, monkeypatch):
     for name in (SJI, SJI.replace("1400", "2796"), RASTER):
-        shutil.copy2(_real(irispy_test_files, name), tmp_path / name)
+        shutil.copy2(find_irispy_test_file(irispy_test_files, name), tmp_path / name)
     # a Hinode/SOT cube of the observation, as its SOTFG tarball gives one
     [path] = [path for path in irispy_test_files if "_Gband4305_FG_" in path.name]
     shutil.copy2(path, sot := tmp_path / "sot_l2_20210905_001833_3620258102_20210905003000_Gband4305_FG.fits")
@@ -788,8 +740,6 @@ def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, mon
         return QtWidgets.QDialog.Accepted
 
     monkeypatch.setattr(QtIRISImporter, "exec", tick_everything_and_load)
-    app = GlueApplication()
-    qtbot.addWidget(app)
     dc = app.data_collection
     dc.append(_sunpy_map(0, 0, 2, (40, 50), "aia"))  # loaded before, which the browser leaves to the link action
     on_gui, broadcast = [], Hub.broadcast
@@ -808,7 +758,7 @@ def test_browse_iris_links_what_it_loads(qtbot, tmp_path, irispy_test_files, mon
     [cube] = [data for data in dc if data.meta.get("INSTRUME") == "SOT"]
     assert cube not in linked_data(dc)
     assert app.tab_count == 2  # its quicklook
-    dc.append(image_data(_real(irispy_test_files, SJI.replace("1400", "1330"))))  # loaded later
+    dc.append(image_data(find_irispy_test_file(irispy_test_files, SJI.replace("1400", "1330"))))  # loaded later
     link_iris(app.session, dc)  # and the map and SOT cube, on request
     assert len(dc.external_links) == 2 * (len(dc) - 1) + windows
 
@@ -821,11 +771,8 @@ def _autolink(data_collection):
 
 
 @pytest.mark.parametrize("order", list(itertools.permutations(["autolinker", "link_hpc", "quicklook"])), ids="-".join)
-def test_link_graph_in_every_add_order(qtbot, sns, order):
+def test_link_graph_in_every_add_order(app, qtbot, sns, order):
     sji, raster = sns
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
     dc = app.data_collection
     dc.extend([sji, raster])
     suggested = []

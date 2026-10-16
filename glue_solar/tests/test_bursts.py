@@ -7,7 +7,6 @@ import numpy as np
 import pytest
 from glue.core import Data
 from glue.core.subset import RangeSubsetState
-from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.table import TableViewer
 from glue_qt.viewers.table.data_viewer import DataTableModel
 from irispy.io.sji import read_sji_lvl2
@@ -18,16 +17,14 @@ from qtpy import QtCore, QtWidgets
 
 import astropy.units as u
 
-import glue_solar
 from glue_solar import glue_patches
-from glue_solar.conftest import find_irispy_test_file
+from glue_solar.conftest import SCAN, find_irispy_test_file
 from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
 from glue_solar.sources.calibration import remove_dust
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
-from glue_solar.tests.helpers import refused
+from glue_solar.tests.helpers import answer, refused, run_action
 from glue_solar.tests.test_lazy import SJI
-from glue_solar.tests.test_quicklook import SCAN
 
 ACTION = "IRIS: detect UV bursts… (Si IV, SJI 1400)"
 # irispy's cutouts of 4000005156's Si IV 1403 and 4000255147's SJI 1400, stored as int16: lazy in glue
@@ -37,48 +34,10 @@ SJI_1400 = "iris_l2_20130902_163935_4000255147_SJI_1400_t000.fits"
 POSITION = ["time", "coordinate.Tx", "coordinate.Ty", "intensity"]
 
 
-@pytest.fixture
-def app(qtbot):
-    glue_solar.setup()
-    app = GlueApplication()
-    qtbot.addWidget(app)
-    return app
-
-
-def answer(monkeypatch, accept=True, **typed):
-    """
-    Make each bursts dialog return as if the ``typed`` values were entered in the boxes of those names and OK, or
-    Cancel, pressed; returns the values each dialog opened with.
-    """
-    opened = []
-
-    def exec_(dialog):
-        boxes = {box.objectName(): box for box in dialog.findChildren(QtWidgets.QWidget) if box.objectName()}
-        boxes = {name: box for name, box in boxes.items() if not name.startswith("qt_")}
-        opened.append({name: box.text() if hasattr(box, "setText") else box.value() for name, box in boxes.items()})
-        for name, value in typed.items():
-            boxes[name].setText(value) if isinstance(value, str) else boxes[name].setValue(value)
-        return QtWidgets.QDialog.Accepted if accept else QtWidgets.QDialog.Rejected
-
-    monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
-    return opened
-
-
 def run(app, qtbot, data, count):
-    """
-    Trigger the action on ``data`` and wait for the two datasets it adds and for its thread to end, the status bar
-    then saying ``count`` bursts.
-    """
-    collection, tree = app.data_collection, app._layer_widget
-    before = len(collection)
-    tree.ui.layerTree.set_selected_layers([data])
-    tree._actions[ACTION].trigger()
-    assert iris._RUNNING  # on glue-qt's worker
-    assert app.statusBar().currentMessage() == f"Detecting UV bursts in {data.label}…"
-    qtbot.waitUntil(lambda: len(collection) == before + 2 and not iris._RUNNING)
-    labels, table = collection[-2:]
-    assert app.statusBar().currentMessage() == f"{labels.label}: {count} bursts"
-    return labels, table
+    """Trigger the action on ``data``; returns the two datasets it adds, the status bar then saying ``count`` bursts."""
+    status, said = f"Detecting UV bursts in {data.label}…", f"{data.label} bursts: {count} bursts"
+    return run_action(app, qtbot, data, ACTION, status, said, added=2)
 
 
 def assert_irispys(labels, table, direct, events):
