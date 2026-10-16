@@ -409,7 +409,7 @@ def test_filter_waits_for_a_pause_in_typing(dialog, qtbot):
     filters = []
     dialog._filter_timer.timeout.connect(lambda: filters.append(dialog.filter.text()))
     QTest.keyClicks(dialog.filter, "mg")  # a keystroke at a time, faster than the pause
-    qtbot.wait(100)
+    qtbot.wait(300)  # beyond a coarse timer's 5% (100 ms) slack, so a restart reads longer
     left = dialog._filter_timer.remainingTime()
     QTest.keyClicks(dialog.filter, " II")
     assert dialog._filter_timer.remainingTime() > left  # each keystroke starts the pause over
