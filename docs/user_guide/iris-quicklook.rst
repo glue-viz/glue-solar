@@ -14,7 +14,8 @@ The quicklook is a CRISPEX-style set of viewers for one observation, in a new ta
 - from the command line, with ``glue --startup=iris_quicklook`` followed by the files. Files given
   this way load one by one, so each raster file keeps its raster number in its label
   (``…-r00003``) and the quicklook shows the first; to stack the scans, use the browser;
-- from glue's Terminal, with ``glue_solar.quicklook.quicklook(application, datasets)``.
+- from glue's Terminal, with ``glue_solar.quicklook.quicklook(application, datasets)``, which also
+  opens a spectral cube of another instrument (see `Other spectral cubes`_).
 
 Clicks and keys wait until a quicklook is open.
 
@@ -474,6 +475,29 @@ diagram drawn on a panel closes with it, as with any viewer it was drawn in. It 
 2.5 s on 4000255147's C II 1336, Si IV 1403 and Mg II k 2796 with its SJI 1400, and 2.4 s on a stack
 of 4000005156's two scans of the same windows. A saved session keeps the switched quicklook, but a
 quicklook restored from a session does not offer the switch: open it again from the browser.
+
+Other spectral cubes
+--------------------
+
+A cube of neither IRIS nor the SST, such as a FITS file that glue's own "FITS file" reader opens,
+has a quicklook when its coordinates give it one wavelength axis, of two wavelengths or more, and
+two axes of position, on the sky or the Sun, besides any time and Stokes axes; a frequency or
+velocity axis is not taken. Open it with "Quicklook…" in the cube's right-click menu in the data
+collection, offered for such a cube only, or from glue's Terminal with
+``glue_solar.quicklook.quicklook(application, [cube])``, in a new tab named after the cube's label.
+Its panels are an SST cube's (see "The SST quicklook" in
+:ref:`glue_solar_users_guide_loading_sst_cubes`), chosen from its axes:
+
+- the map, at the middle wavelength, with sliders for the wavelength and any time and Stokes axes,
+  and the virtual slit, wavelength against y at the point's x;
+- the spectrum at the point, or one for each Stokes parameter, taken as I, Q, U and V in that order;
+- with a time axis, wavelength against time at the point ("λ–time") and the light curve at the point,
+  against the time index.
+
+There is no second map. The point, its clicks and sliders, the lines, the Point window and the
+Panels list behave as in the SST quicklook, and a saved session opens it again in the same way. The
+Point window gives a position only in helioprojective coordinates, besides the wavelength, and no
+time. The cube shares its time with no other data, and its point is its own.
 
 Regridding on time
 ------------------
