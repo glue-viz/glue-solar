@@ -31,8 +31,8 @@ Out of scope:
 **Resume here.** Main is at b264281 (#291). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
 
 **Next** (D81, D82), three at a time with disjoint files (tests in the file named). Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. Running: `wp11-l-lean-tools-quicklook` and `wp10-l-lean-loaders-analysis`; shipping: #291.
-  2. Then: `wp9-l-app-reproject-metadata`, and `wp10-l-lean-tests` last and alone.
+  1. Running: `wp11-l-lean-tools-quicklook`, `wp10-l-lean-loaders-analysis` and `wp9-l-app-reproject-metadata`.
+  2. Then `wp10-l-lean-tests`, last and alone.
 
   Held for the user (D82): `wp4-l-restored-strip`, `wp13-l-restored-second-map`, `wp3-l-autosave-quit` and `wp3-l-restore-irispy-meta`.
 
@@ -220,6 +220,8 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
   - echo's `_find_combo_data` returns the first equal combo entry, so equal-color colormaps show and save another's name (#194).
   - with glue #2595, raster pixel ROIs in an SJI take #2595's frame-0 WCSLink instead of `link_hpc`'s per-frame path; amend #2595 or document it.
   - glue-qt's data collection sets the edit subset from its selection, so a selected dataset makes the next Pixel click a new subset (#288).
+  - glue-qt gives a fitter's `summarize` neither the layer nor the viewer (#291).
+  - astropy's analytic Jacobian (`fitting.py` `_wrap_deriv`) drops a tied parameter's part, so tied fits need an estimated one (#291).
   - glue's axis labels on SST cubes: `''` for Stokes, and `Hplt` from a glue indexing bug (#227).
 - [ ] **M4** `wp0-perf-core-draw`: Profiling survey 2026-10-01 (every finding with its measurements, causes, fixes and scripts: `GLUE_SPEED.md`; ranked page: https://claude.ai/artifact/JgL2D9fjWp72GrXsrSx1nN), glue-core draw path, measured only: (1) `_set_wcs` on every slice change resets the axis labels through WCSAxes `set_xlabel`/`set_ylabel`, 4 eager tick placements, 66% of an SJI frame step (R1); (2) hidden subset layers still update and redraw (R4); (3) a Pixel point is drawn as a full-view RGBA image (R7); (4) a collapsed map re-aggregates on every redraw (R10); (5) float64 composite and 72-dpi FRB on large or HiDPI panels (R19); (6) image-only changes (contrast, a wavelength step) redraw the whole WCSAxes figure (R18). astrofrog's draft glue #2507 speeds up slicing. Done when each is filed, merged or declined on the user's direction.
 - [ ] **M4** `wp0-core-wcslink-lists`: Core PR: `WCSLink.__init__` (`glue/plugins/wcs_autolinking/wcs_autolinking.py`, 1.27.0 and main) binds `slicing_axes1 = slicing_axes2 = []`, and the two physical-type lists the same way, so without two celestial WCSes both datasets' axes go into one list: a map opened after an SST cube raises ValueError 'Cannot slice WCS', not `IncompatibleWCS`, and glue shows 'Could not load data' though the map loads (glue-solar documents opening the map first, #227); a 5-axis Stokes cube opened before a 4-axis intensity cube raises IndexError at wcs_autolinking.py:206 on that and every later File > Open (D75). Done when merged and released, and glue-solar's note is dropped.
@@ -400,6 +402,7 @@ Gated workarounds on main. Raw-WCS readers hold `WCS_LOCK` or use a deep copy; n
 | Profile display units restored after `x_att` (`ProfileViewerState._update_priority`, #197) | `needs_profile_restore_workaround()` | glue ranking the display units after `x_att` (`wp0-report-candidates`) |
 | Toolbar menu tooltips on the button and its entries (`BasicToolbar.add_tool`, #222) | Per button: no tooltip, or menu tooltips hidden | a glue-qt fix (report candidate) |
 | One fitter per Profile viewer and fitter class for glue-qt's Fit Settings and fits (`glue_patches._get_fitter`, `_on_settings`, `_fit`, #287) | While `ProfileTools` has no `_get_fitter` | glue-qt's `ProfileTools._get_fitter` (`wp0-qt-fitter-settings`) |
+| glue-qt's `ProfileTools._fit` wrapped to give an IRIS fit's model its layer's rest wavelength and x unit for `summarize` (`fitters._fit`, #291) | Always on | glue-qt passing the layer to a fitter's `summarize` (`wp0-report-candidates`) |
 | A quicklook panel makes its Point the edit subset at a Pixel or Follow/lock press while a dataset is selected (`QuicklookImageViewer._edit_point`, #288) | Always on | glue-qt's data collection leaving the edit subset alone when a dataset is selected (`wp0-report-candidates`) |
 | Check boxes of glue-qt's fit Settings given `value()` (`glue_patches.BoolFormItem` via `simpleforms.register`, #259) | Per box: one without `value` | glue-qt's `FitSettingsWidget.update_fitter_from_settings` reading the form item's value (`wp0-qt-fitter-settings`) |
 | The IRIS fitter's `set_constraint` replacing a parameter's entry, so a value or bound cleared in Settings clears (#259) | Always on | glue-core's `BaseFitter1D.set_constraint` taking None as a clear (report candidate) |
