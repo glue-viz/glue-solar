@@ -7,6 +7,7 @@ import gc
 
 import numpy as np
 from glue.core.component import Component
+from glue.core.state import loader, saver
 from glue_qt.utils.decorators import messagebox_on_error
 
 import astropy.units as u
@@ -25,6 +26,27 @@ FRAMES = 2
 # Samples per irispy call, which holds about 25 bytes for each: four times the line moments' slab, since each slab
 # reads `FRAMES` more on either side (17 s, not 22 s, for the 400 frames of 4000255147's SJI 1400; 15 s in one call)
 SLAB = 2**23
+
+
+class _Spectra(Component):
+    """
+    ``spectra`` broadcast over ``shape`` without copying, which a session saves as they are: glue's Component saver
+    writes the broadcast in full, a float64 cube a calibrated window (D75).
+    """
+
+    def __init__(self, spectra, shape, units):
+        super().__init__(np.broadcast_to(spectra, shape), units=units)
+        self.spectra = spectra
+
+
+@saver(_Spectra)
+def _save_spectra(component, context):
+    return {"spectra": context.do(component.spectra), "shape": list(component.shape), "units": component.units}
+
+
+@loader(_Spectra)
+def _load_spectra(rec, context):
+    return _Spectra(context.object(rec["spectra"]), tuple(rec["shape"]), rec["units"])
 
 
 def _check_sji(data):
@@ -199,7 +221,7 @@ def radiometric_calibration(data):
             )
     factor = (unit.to(u.photon / u.s) * u.photon / u.s * u.Quantity(factors)).to_value(RADIANCE_UNIT)  # of 1 DN / s
     factor = factor.reshape(*data.shape[:-3], 1, 1, -1)  # a spectrum for each scan
-    per_rate = Component(np.broadcast_to(factor, data.shape), units=str(RADIANCE_UNIT / (u.DN / u.s)))
+    per_rate = _Spectra(factor, data.shape, str(RADIANCE_UNIT / (u.DN / u.s)))
     radiance = rate * data.add_component(per_rate, f"{cid.label} radiance per DN / s")  # a view: a spectrum a scan held
     data.add_component_link(radiance, label).units = str(RADIANCE_UNIT)
     return radiance.get_to_id()

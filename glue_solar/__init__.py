@@ -102,7 +102,7 @@ def _save_last_session(app):
         return
     try:
         held = sum(  # the values glue would save, not their files: less than the session, measured before encoding
-            component.data.nbytes
+            getattr(component, "spectra", component.data).nbytes  # a calibration's factor saves its spectra alone
             for data in app.data_collection
             for component in map(data.get_component, data.main_components)
             if not hasattr(component, "_load_log")
