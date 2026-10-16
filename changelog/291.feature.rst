@@ -1,0 +1,1 @@
+The IRIS fitter fits up to four lines, with one width if chosen, and gives each line's velocity from the layer's rest wavelength.
