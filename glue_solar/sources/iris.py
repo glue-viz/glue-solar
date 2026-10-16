@@ -220,7 +220,10 @@ def _check_iris(data):
     single=True,
     data=True,
     check=_check_iris,
-    tooltip="Offset this IRIS dataset's helioprojective longitude and latitude by a typed number of arcsec",
+    tooltip=(
+        "Offset the helioprojective longitude and latitude of this IRIS dataset, or of the dataset it was made from, "
+        "by a typed number of arcsec"
+    ),
 )
 @messagebox_on_error("Could not shift the pointing")
 def shift_pointing_iris(data, data_collection):
