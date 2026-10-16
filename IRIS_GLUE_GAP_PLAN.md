@@ -31,8 +31,8 @@ Out of scope:
 **Resume here.** Main is at b93cd8e (#287). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, waits on astropy 8.0.2; Later items are under way. No PR is open.
 
 **Next** (D81, D82), three at a time with disjoint files (tests in the file named). Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. Running: #287 (test_plugin), `wp4-l-point-edit-subset` (test_quicklook) and `wp3-l-restore-irispy-meta` (test_sessions).
-  2. Then, as files come free: `wp6-l-fit-lines`, `wp2-l-radiance-factor-saver`, `wp9-l-app-reproject-metadata` and the `-lean-` items, `wp10-l-lean-tests` last and alone.
+  1. Running: `wp4-l-point-edit-subset` (test_quicklook), `wp3-l-restore-irispy-meta` (test_sessions) and `wp6-l-fit-lines` (test_plugin).
+  2. Then, as files come free: `wp2-l-radiance-factor-saver`, `wp9-l-app-reproject-metadata` and the `-lean-` items, `wp10-l-lean-tests` last and alone.
 
   Held for the user (D82): `wp4-l-restored-strip`, `wp13-l-restored-second-map` and `wp3-l-autosave-quit`.
 
@@ -406,7 +406,7 @@ Gated workarounds on main. Raw-WCS readers hold `WCS_LOCK` or use a deep copy; n
 | A time linked from another dataset kept a datetime (`DerivedComponent.datetime`, #208) | `needs_derived_datetime_workaround()` | glue reading a derived component's datetime kind (report candidate) |
 | Profile display units restored after `x_att` (`ProfileViewerState._update_priority`, #197) | `needs_profile_restore_workaround()` | glue ranking the display units after `x_att` (`wp0-report-candidates`) |
 | Toolbar menu tooltips on the button and its entries (`BasicToolbar.add_tool`, #222) | Per button: no tooltip, or menu tooltips hidden | a glue-qt fix (report candidate) |
-| The IRIS fitter registered in `fit_plugin` as one instance that returns itself when called (`fitters.FITTER`, `GaussianConstantFitter.__call__`, #259) | Always on | glue-qt's Profile tools keeping the fitter its Settings set, not a new one per Settings and fit (`wp0-qt-fitter-settings`) |
+| One fitter per Profile viewer and fitter class for glue-qt's Fit Settings and fits (`glue_patches._get_fitter`, `_on_settings`, `_fit`, #287) | While `ProfileTools` has no `_get_fitter` | glue-qt's `ProfileTools._get_fitter` (`wp0-qt-fitter-settings`) |
 | Check boxes of glue-qt's fit Settings given `value()` (`glue_patches.BoolFormItem` via `simpleforms.register`, #259) | Per box: one without `value` | glue-qt's `FitSettingsWidget.update_fitter_from_settings` reading the form item's value (`wp0-qt-fitter-settings`) |
 | The IRIS fitter's `set_constraint` replacing a parameter's entry, so a value or bound cleared in Settings clears (#259) | Always on | glue-core's `BaseFitter1D.set_constraint` taking None as a clear (report candidate) |
 | Colormap icons drawn once per colormap and width (`QColormapCombo._update_icons`, #177) | `needs_icon_cache_workaround()`, at the first combo | glue-qt caching icons (`wp0-perf-qt`; fork branch `perf-q3-cmap-icon-cache`) |
