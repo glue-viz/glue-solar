@@ -1099,121 +1099,9 @@ About 0.28 s for non-Qt users; nothing for IRIS Qt users.
 
 ## glue-solar's own costs
 
+Entries fixed on main or cited by no open item were removed on 2026-10-17; they are in `git show 7b0234a:GLUE_SPEED.md`.
+
 These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
-
-### S1. Exposure labels from #87 slow slider steps on origin/main 5eae565 (confirmed by the draw and events verifiers on a git-archive copy).
-
-- [ ] Re-verified
-- [x] Fixed in glue-solar (#90, 2026-10-01)
-
-- Cause: FrameTimeTool._label_exposures (tools.py) sets the exposure-axis label again after every glue _set_wcs, and each set_ylabel is a full WCSAxes tick placement.
-- Cost: the λ-time slit step's set phase grows from 47 to 73-76 ms (_set_wcs 65.5 ms with 4 set_ylabel calls). A Pixel click grows from 368 to 401 ms; _set_wcs per click from 135 to 166 ms (8 y-label callbacks instead of 6).
-- Fix: put the label on the coordinate helper with axes.coords[i].set_axislabel instead of calling set_ylabel, and stop reacting to glue's ''-then-label round trip. This is still needed after the glue-core rank-1 fix.
-- Untested: the map's new pixel-index tick overlay raised the map draw from 17.6 to 21 ms.
-
-### S2. The coordinator's 0 ms QTimer moves the sliders after glue has already drawn the Point change (confirmed, events#5, gain corrected from -39 ms; draw#8 untested).
-
-- [ ] Re-verified
-- [x] Fixed in glue-solar (#90, 2026-10-01)
-
-- Code: quicklook.py:216-219 (timer), _subset_changed 318-331, _update 386-402.
-- Cost: the spectrogram, λ and SJI panels draw twice per Pixel click (10 draws instead of 7). About 20 ms of extra λ-scan draw per stack raster step (draw, untested).
-- Fix: for clicks, apply the point synchronously inside the same defer_draw; keep the timer only while dragging.
-- Gain: -25 ms wall per click today (6-7%), and the image panels are final 84 ms sooner. The wall gain grows once the profile-worker fix (rank 3) lands.
-
-### S3. Workaround for glue-core rank 4: the quicklook hides the Point layer instead of removing it (confirmed, events#3).
-
-- [ ] Re-verified
-- [x] Fixed in glue-solar (#90, 2026-10-01)
-
-- Code: quicklook.py:399-402 and 857-870 hide the layer on the SJI panel and on other quicklooks' panels. glue still updates and redraws hidden subset layers.
-- Fix: remove the layer with viewer.remove_subset where it must not show (re-add it when needed), or apply item 2.
-- Gain: about -35 ms per click and -14 to -27 ms per time step. The glue-core fix itself gives -33% per point move with a second quicklook open.
-
-### S4. Plugin load imports irispy and sunpy.map, which pull in reproject, dask, scipy.signal/stats, dkist and aiohttp (confirmed, startup#1 plus the verifier's ndcube correction).
-
-- [ ] Re-verified
-- [x] Fixed in glue-solar (#98, 2026-10-02)
-
-- A second chain: stack_spectrograms.py:7-8 imports ndcube, which imports gwcs and through it scipy.optimize.
-- Cost: 0.51-0.56 s of a 2.45 s launch. The fix applied in memory gave 2.446 -> 1.934 s, 596 fewer modules and 49 MB less RSS. Deferring ndcube saves another 0.075 s.
-- Fix: import read_files inside image_data, iris_data and raster_data (loaders/iris.py:16). Register the GenericMap qglue parser without importing sunpy.map (sources/maps.py:10-11). Import ndcube inside stack_spectrogram_sequence.
-- This also unlocks glue-core's startup gains for scipy.optimize (0.17 s) and dask (about 0.1 s).
-
-### S5. Header reads decompress whole .fits.gz files (confirmed, startup#3 and io-model#4).
-
-- [ ] Re-verified
-- [x] Fixed in glue-solar (#98, 2026-10-02)
-
-- Code: scan_directory (sources/loaders/scan.py:154, fits.getheader) and is_iris_fits (sources/iris.py:19-21).
-- Cost: opening the IRIS browser on /Users/nabil/DATA/IRIS takes 0.98 s, of which the 7 gz files take 0.89 s, on every open and rescan. File > Open identification takes 0.39 s (SJI 1400 of 4000255147) and 0.16 s (SJI 2796 deconvolved).
-- Fix: read only the primary header with fits.Header.fromfile(gzip.open(p, 'rb')).
-- Gain: browser open 0.98 -> 0.18 s (-0.80 s); -0.39 s per gzipped SJI opened.
-
-### S6. Slider drag throttle (confirmed, hidpi-many#2).
-
-- [ ] Re-verified
-- [x] Fixed in glue-solar (#98, 2026-10-02)
-
-- Code: tools.py:21-44 at 2fdb847 (29-52 on main). It waits a fixed 100 ms after the first sliderMoved, so the period is 100 ms plus the tick cost.
-- Cost: SJI 5 draws/s at 108-113 ms lag; Si IV 6 draws/s at 64-73 ms lag.
-- Fix: replace the 100 ms interval with a 0 ms single-shot timer that applies slider.sliderPosition() (coalesce to the latest position).
-- Gain: SJI 9.7 draws/s at 110 ms lag. Si IV 16-17 draws/s, but lag rises from 65 to 120-127 ms, a smoothness-for-latency trade. About 26-33 draws/s once glue-core rank 1 lands.
-
-### S7. _GlueWCS.pixel_to_world_values recomputes per-axis metadata on every call (untested: draw#7 and hidpi-many#8 measured it independently; the memo variant was confirmed by the draw#2 verifier).
-
-- [ ] Re-verified
-- [x] Fixed in glue-solar (#90, 2026-10-01)
-
-- Code: sources/loaders/iris.py:86-97. Each call rebuilds u.Unit per axis and world_axis_physical_types, and round-trips through Quantity.
-- Cost: 0.056-0.059 ms per call, against 0.017 ms for the wrapped FITS WCS. That is 12.5 ms per Si IV tick (21%) and 7.8 ms per SJI tick.
-- Fix: precompute the arcsec factors and the longitude wrap once per wrapper.
-- Gain from the cached-factor what-if: exposure step 203 -> 184 ms, λ-time slit 212 -> 188 ms, SJI frame 105 -> 96 ms, map contrast 18.2 -> 16.0 ms. About 2.5 ms per tick remains after glue-core rank 1.
-- Optional stopgap for astropy rank 5: memoize identical calls within one draw or tick update. The draw verifier's memo in this wrapper gave SJI draw 28.1 -> 21.4 ms and SJI frame step 104.9 -> 71.9 ms.
-
-### S8. A wavelength-slider step runs the full time sync, and the SJI point is projected twice per sync (confirmed, events#6).
-
-- [ ] Re-verified
-- [x] Fixed in glue-solar (#90, 2026-10-01)
-
-- Code: quicklook.py:253-254 starts the timer on any slider change of the time master's viewer, wavelength included. _sync (464-495) then calls every listener, and point_on calls _sji_pixels twice per sync (1.84 ms each; tools.py:108-150 and 310-338).
-- Cost: Coordinator._update takes 11 ms of a 35 ms map wavelength step (31%).
-- Fix: start the timer only when the time-axis slider changed, or return early when master, time, step and point are unchanged. Memoize point_on per (point, SJI frame).
-- Gain: 35.1 -> 23.9 ms per wavelength step (-32%, measured); about -2 ms per sync from the memo.
-
-### S9. quicklook() appends datasets one at a time (confirmed, io-model#6).
-
-- [ ] Re-verified
-- [x] Fixed in glue-solar (#90, 2026-10-01)
-
-- Code: quicklook.py:791-794 appends each dataset not yet in the collection, and each append runs a full link update.
-- Cost: 5.38 s for 99 new scans, against 0.158 s with one extend. It only applies when quicklook() is given new datasets; the IRIS browser extends first.
-- Fix: collection.extend([d for d in datasets if d not in collection]).
-
-### S10. setup() registers all 87 sunpy colormaps (confirmed, startup#5; events#4's numbers were inflated by a double setup() in its harness).
-
-- [ ] Re-verified
-- [x] Fixed in glue-solar (#98, 2026-10-02)
-
-- Code: __init__.py:14-17, 102 colormaps in total.
-- Cost: each QColormapCombo build or resize takes 28-30 ms, against 4.3 ms with glue's 15. That is 57 ms against 8.5 ms per new image viewer, and 0.24 s at quicklook open.
-- Fix: register only the colormaps IRIS and AIA use (irissji*, sdoaia*, about 34 in total). Saves about 20 ms per combo call; glue-qt's pixmap cache (rank 17) removes most of the rest.
-
-### S11. Session save fails for glue-solar data (confirmed, io-model#3).
-
-- [ ] Re-verified
-- [ ] Fixed in glue-solar
-
-- _GlueWCS has no saver (GlueSerializeError), and Quantity meta raises TypeError in np.save.
-- Browser-loaded datasets have no LoadLog, so even include_data=False writes every array: 1412 MiB for 2 scans of 4000005156.
-- This matches the plan's D13 and wp3-file-references items.
-
-### S12. glue_patches.py:52-54 carries a gated copy of glue's world2pixel_single_axis with the same full-inversion-per-axis behaviour (confirmed as part of links#1). When glue-core fixes rank 2's single inversion, this copy must follow or be dropped; otherwise the linked ROI mask keeps the 2x cost.
-
-- [ ] Re-verified
-- [ ] Fixed in glue-solar
-
-
 
 ### S13. The quicklook adds the raster to the spectrum panel and then hides it (confirmed, profile-stats#2).
 
@@ -1222,17 +1110,6 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 
 - glue's _reset_y_limits computes the hidden layer's whole-cube profile on the main thread first: 368-400 ms of quicklook open on the sit-and-stare cube, 119 ms on the stack.
 - No glue-solar workaround was tested; the fix is glue-core rank 14.
-
-### S14. Turning an Image viewer's axes off skips WCSAxes in every draw (measured 2026-10-01, not a survey finding).
-
-- [ ] Re-verified
-- [x] Fixed in glue-solar (#90, 2026-10-01)
-
-- Code: WCSAxes.draw_wcsaxes returns at once when `axison` is False (astropy main core.py:585-587). Hiding a coordinate's ticks and labels saves nothing: `_update_tick_and_label_positions` (core.py:555-582) still updates every coordinate, and astropy #20499 only keeps hidden coordinates off the spines. glue-core has a `show_axes` state on Matplotlib viewers (glue/viewers/matplotlib/state.py:135) that glue-qt never connects.
-- Cost measured: the quicklook on 4000255147 (Si IV 1403 and SJI 1400), offscreen 640x480 canvases, axes on and off alternated in one process while two other jobs ran (ratios hold, absolute times are inflated). One panel's redraw: map 25.5 -> 10.6 ms, spectrogram 29.3 -> 10.8, λ-t 35.0 -> 11.2, SJI 30.6 -> 7.7 (−58 to −75 %). A step with every panel's axes off and every panel redrawn: map wavelength 168 -> 73 ms (−56 %), spectrogram raster step 392 -> 233 (−41 %), λ-t slit 353 -> 189 (−46 %), SJI frame 229 -> 124 (−46 %).
-- What remains with the axes off: 12-28 CoordinateHelper._update_ticks calls per step, from glue's _set_wcs label round trip (WCSAxes.set_xlabel and set_ylabel place ticks eagerly and do not check `axison`, core.py:596-615 in 8.0.1). Ranked item R1 (glue) or a lazy set_xlabel (astropy) removes them.
-- Fix: an opt-in 'Hide axes' in glue-solar, connecting `show_axes` to `set_axis_off`/`set_axis_on` (#90); upstream, an axes-options checkbox in glue-qt (`wp0-perf-qt`).
-- Scripts: wcsaxes_study_20261001.tar.gz, `axesoff/ab.py` (one panel at a time) and `axesoff/ab_all.py` (all panels).
 
 ## SST and IRIS stress survey, 2026-10-10
 
@@ -1373,34 +1250,6 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 - **Cause:** glue saves the WCS as a header string and rebuilds it with `WCS(Header)` without the HDUList (`glue/core/state.py` `_save_wcs`/`_load_wcs`).
 - **Fix:** a saver or session patch that rebuilds the WCS from the logged file.
 
-### SST6. Restoring a multi-window stack reads every raster file once per window
-
-- [x] Re-verified (2026-10-10; cost corrected)
-- [x] Fixed in glue-solar (#234, 2026-10-11): a restore reads each raster file once for all its logged windows. 3602506433 with 7 windows restores in 7.1-7.2 s with 99 `read_files` calls, against 11.9-12.2 s and 693 calls on main 3cfac20, with the same data; main had already dropped from 19.8 s to 12 s since the survey.
-
-- **Cost:** 3602506433 with 7 windows and 99 files restores in 19.8 s. Of that, 13.8 s is data, in 693 `read_files` calls (99 × 7). The browser loads it in 10.9 s with 99 calls. The survey's 49.3 s, and its 70.7 s for 3630104144, ran under cProfile.
-- **Cause:** each window has its own load log, and restoring it (`raster_files_data` → `_raster_windows_data(files, [window])`) opens every file for that one window.
-- **Fix:** read each file once for all logged windows of one restore, with a session patch that groups the raster logs or a per-restore cache. Tested directly: one call for all 7 windows takes 5.6-6.3 s against 13.5 s for one per window, so the restore should drop to about 12 s.
-
-### SST7. Each ticked window multiplies the quicklook's redraws: about 4× per step with 9 windows
-
-- [x] Re-verified (2026-10-10)
-- [x] Worked around in glue-solar for panels out of sight (#235, 2026-10-11): they draw once in sight. 9-window 4000255147 at 1600×1000, axes hidden: step 270-278 → 196-201 ms (47 → 17 draws), move 312-322 → 213-220 ms; axes shown: step 497 → 246-249 ms. With every row in sight the cost is main's: of what is left, the repeated draws (glue drawing the point layer before the time sync, and R3's second worker run, about 55% of a step with axes hidden) and the per-draw cost R1, R5, R18
-
-- **Cost:** on 4000255147, going from 1 window to 9:
-
-  | Action | 1 window | 9 windows |
-  |---|---|---|
-  | Exposure step | 194-207 ms, 7 draws | 865-875 ms, 47 draws |
-  | Click | 248-264 ms | 760-887 ms |
-  | Move | 235-240 ms | 985-991 ms |
-  | Open | 3.4-4.35 s | 13.4-13.6 s |
-
-  The map λ step (95 ms) and the SJI frame step (48 ms) do not change. With the point curves, row and column open, a move takes 1668 ms.
-- **Cause:** every other window's spectrum panel and λ panel redraws on each step and move.
-- **Workaround (#228, 2026-10-10):** turning the other windows' panels off in the quicklook's Panels list brings the 9-window step to 188-195 ms (7 draws, none on hidden panels), a one-window quicklook's cost. With every panel shown, the step is unchanged (532-540 ms on today's main).
-- **Fix:** blit the moving time and point markers, refresh images only when their slice changes, or redraw only the visible rows.
-
 ### SST8. An SST Pixel drag with a Profile open costs about 190 ms per move
 
 - [x] Re-verified (2026-10-10; split corrected)
@@ -1429,26 +1278,6 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 - **Cost:** 1.75-1.82 s cold against 0.53-0.55 s warm, reading 0.68-0.74 GB in about 10,000 page-ins. `compute_statistic` takes 1.17-1.25 s.
 - **Cause:** `StateAttributeLimitsHelper` (`glue/core/state_objects.py:405-422`) calls `random_subset`, which draws 10,000 uniform random indices with one `np.random.randint` per axis (`glue/core/data.py:1849-1851`, `glue/utils/array.py:756`). Each index lands on a different page of the mapped file.
 - **Fix:** sample whole planes or rows, as glue-solar's `RawComponent._sample` does, or sort the indices by page.
-
-### SST11. 'Light curves of every window and SJI…' is offered on a single-scan raster with no SJI, then refuses
-
-- [x] Re-verified (2026-10-10, on 75b7a73)
-- [x] Fixed in glue-solar (#236, 2026-10-11): the entry, now 'Light curves of the shown windows and SJI', runs `_point_curves`' own check and is not offered on 3824262996's raster alone; a 4000255147 quicklook of two windows and SJI 1400 gives those three curves in 0.47 s, against ten in 0.85 s.
-
-- **Cost:** an error box on 3824262996 ('… has no exposures or scans, and its observation no slit-jaw image loaded').
-- **Cause:** `_PointCurvesEntry.offered` checks only for an IRIS role.
-- **Fix:** make `offered` run `_point_curves`' own check (D61: entries hide where they cannot act).
-
-### SST12. File > Open makes 33 datasets per SST cube
-
-- [x] Re-verified (2026-10-10; description corrected)
-- [x] Fixed (#227, 2026-10-10)
-
-- **What it makes:** glue's `fits_reader` (priority 100) reads every HDU; glue-solar's IRIS factory declines in 1.3 ms. The 33 datasets are:
-  - the cube, 5-D and memory-mapped;
-  - `WCSDVARR`, 5-D with its own WCS, which looks like data;
-  - 31 empty 0-D datasets with no components: `WCS-TAB` and the 30 `VAR-EXT` tables, whose multi-dimensional columns glue drops with about 30 warnings.
-- **Cost:** the open takes 0.24-0.25 s and reads 0 bytes.
 
 ### SST13. A cold sit-and-stare in the browser reads the whole raster file
 
