@@ -59,8 +59,8 @@ What a dataset holds
 
 Each raster window, stack, slit-jaw image and AIA cutout has these attributes:
 
-- ``<label>``, the data, in DN, with fill values as NaN and the Level 2 ceiling as +Inf (see
-  `Missing and saturated samples`_);
+- ``<label>``, the data, in DN, with fill values as NaN; a raster window's or slit-jaw image's
+  samples at the Level 2 ceiling are +Inf (see `Missing and saturated samples`_);
 - ``Time``, the UTC time of each raster step, exposure or frame;
 - ``Exposure time``, in s;
 - ``<label> DN / s``, the data over the exposure time;

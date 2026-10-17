@@ -4,12 +4,12 @@
 Analyses
 ========
 
-Each analysis is in the right-click menu of a dataset in the data collection. It runs in the background while glue's status bar says so, adds its result as a new
-dataset, linked with the other IRIS data, and opens it in an Image viewer in the current tab, with
-the quicklook's point. A stack's result has a scan slider, each scan's as that scan alone gives it.
-The result's ``meta`` holds the observation's ``OBSID`` and ``STARTOBS`` and the settings used. To
-save a map with its coordinates, see :ref:`Exporting derived data
-<glue_solar_users_guide_exporting_derived_data>`.
+Each analysis is in the right-click menu of a dataset in the data collection. It runs in the
+background while glue's status bar says so, adds its result as a new dataset, linked with the other
+IRIS data, and opens it in an Image viewer in the current tab, with the quicklook's point. A stack's
+result has a scan slider, each scan's as that scan alone gives it. The result's ``meta`` holds the
+observation's ``OBSID`` and ``STARTOBS`` and the settings used. To save a map with its coordinates,
+see :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`.
 
 Should an analysis refuse its data or settings, glue says why and adds nothing.
 
@@ -42,8 +42,8 @@ range's ends about a rest wavelength within it.
      - Attributes
    * - Line moments
      - ``<label> moments <rest>``
-     - ``intensity``, in DN / s; ``centroid`` and ``width``, in Angstrom; ``velocity`` and
-       ``velocity_width``, in km / s
+     - ``intensity``, the sum over the velocities, in DN / s; ``centroid`` and ``width``, in
+       Angstrom; ``velocity`` and ``velocity_width``, in km / s
    * - Doppler image
      - ``<label> Doppler image <rest>``
      - ``red - blue <v> km / s`` at 10, 20, 30, 40 and 50 km / s
@@ -66,10 +66,10 @@ for a rebinned window, as irispy would give each bin the noise of one sample.
 **Doppler images**, as CRISPEX makes them, are the red wing less the blue wing, each interpolated at
 rest × (1 ± v / c): positive where the red wing is brighter, as for a redshift.
 
-**Red-blue asymmetry** is irispy's ``calculate_red_blue_asymmetry`` of the wavelengths within 1 Å
-of the rest wavelength: the mean of the red wing, 30 to 55 km / s above the peak, less that of the
-blue wing as far below, over the peak, with the wings and step of SolarSoft's iris_xfiles. It is positive for
-excess red emission. ``quality`` is irispy's ``RBAQualityFlag``, 0 where computed and 8 where a
+**Red-blue asymmetry** is irispy's ``calculate_red_blue_asymmetry`` of the wavelengths within 1 Å of
+the rest wavelength: the mean of the red wing, 30 to 55 km / s above the peak, less that of the blue
+wing as far below, over the peak, with the wings and step of SolarSoft's iris_xfiles. It is positive
+for excess red emission. ``quality`` is irispy's ``RBAQualityFlag``, 0 where computed and 8 where a
 sample is saturated. On Mg II and C II, the peak is the brighter of the two about the central
 reversal.
 
@@ -128,12 +128,12 @@ theoretical ratio there, monotonic in it, such as one computed with CHIANTI. iri
 outside the table's.
 
 The O IV preset uses irispy's ``density_diagnostic`` on CHIANTI's ratio, which fiasco computes at
-the densities typed and at the temperature typed, 8 to 13 log cm⁻³ and log T 5.15 unless changed. It needs fiasco, in the
-``density`` extra (see :ref:`Installing glue-solar <glue-solar-index>`); without it, it is grayed
-out. On its first use, fiasco downloads and builds the CHIANTI database, a few GB, in ``~/.fiasco``,
-while the status bar says so. Keep ``em`` and ``ip`` out of that folder's path, as in a folder named
-emily or Temp, or the build finds no ions. If glue quits during the build, delete the unfinished
-``chianti_dbase.h5`` before the next use.
+the densities typed and at the temperature typed, 8 to 13 log cm⁻³ and log T 5.15 unless changed. It
+needs fiasco, in the ``density`` extra (see :ref:`Installing glue-solar <glue-solar-index>`);
+without it, it is grayed out. On its first use, fiasco downloads and builds the CHIANTI database, a
+few GB, in ``~/.fiasco``, while the status bar says so. Keep ``em`` and ``ip`` out of that folder's
+path, as in a folder named emily or Temp, or the build finds no ions. If glue quits during the
+build, delete the unfinished ``chianti_dbase.h5`` before the next use.
 
 In glue's terminal, ``glue_solar.sources.line_ratio.line_ratio(numerator, denominator, quantity,
 ratio, name)`` and ``glue_solar.sources.line_ratio.o_iv_density(numerator, denominator,

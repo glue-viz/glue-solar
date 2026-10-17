@@ -378,8 +378,9 @@ def test_the_level_2_ceiling_loads_as_irispy_reads_it(monkeypatch, tmp_path, int
 
 def test_the_saturation_recipe_selects_the_ceiling(int16_raster):
     """
-    'Was it saturated?' (loading guide): glue's arithmetic attribute ``np.isinf({<label>}) * 1``, and one faceted
-    subset of it from 1 to 1, select the samples at the Level 2 ceiling.
+    'Missing and saturated samples' (docs/user_guide/loading-data.rst): glue's arithmetic attribute
+    ``np.isinf({<label>}) * 1``, and one faceted subset of it from 1 to 1, select the samples at the Level 2
+    ceiling.
     """
     with fits.open(int16_raster, mode="update", do_not_scale_image_data=True) as hdulist:
         hdulist[WINDOW].data[:2, 5, 7] = 32760
