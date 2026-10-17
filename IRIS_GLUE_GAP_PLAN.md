@@ -30,7 +30,7 @@ Out of scope:
 
 **Resume here.** Main is at 5d1eddb (#302). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
-**Next** (D83). On main since 2026-10-16: #296-#301. Left, each one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI: #302, then `wp9-l-guide-quicklook`, `wp9-l-guide-data` and `wp9-l-guide-rest` in turn (the user stopped here on 2026-10-17 to take stock).
+**Next** (D83). On main since 2026-10-16: #296-#302. Left, one at a time, each one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI: `wp9-l-guide-quicklook`, `wp9-l-guide-data` and `wp9-l-guide-rest`.
 
 **Waiting on the user.** `wp0-qt68-macos-pass`; filing `wp0-qt-fitter-settings`'s PR from its pushed branch (text in the archive's `briefs/glue-qt-fitter-pr.md`); the audits' other proposals (`audit2/` in the archive); the drag-into-/Applications check of the app (`~/Downloads/Glue Solar.dmg`, built from f073033's recipe; a dmg from #275's recipe would also check Finder and Dock opening); an exact report of the linking and slider-sync problems the user saw in the app (2026-10-09), whose steps, rerun with `glue` from `iris-plan-qt6`, tell an app problem from a Qt 6 or glue-solar one; raising the matplotlib-free WCSAxes core prototype in person (no PR, issue or upstream notice); M4 and OM work. Offered, not started: `wp0-restore-full-ci`, and #207's leftover (viewers opened after the time marker exists get its layer: about 10% slower steps with a second quicklook).
 
