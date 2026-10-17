@@ -1,0 +1,1 @@
+One 'IRIS: line maps…' dialog makes line moments, a Doppler image and a red-blue asymmetry map, in place of three actions.
