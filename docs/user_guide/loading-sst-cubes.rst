@@ -167,7 +167,8 @@ IRIS data are removed, the cube shares its SST cubes' time again.
 
 A saved session opens the quicklook again as it does the IRIS quicklook, from its recipe: with its
 point, its time master, the second map's wavelength, its Point window, its Panels list, the panels
-turned off staying off, and its lines, the spectra and the light curve following the point again.
+turned off staying off (one closed by hand opens again, turned on), and its lines, the spectra and
+the light curve following the point again.
 Obs 171's H-alpha quicklook opens again in about 1.3 s.
 
 On obs 492 Ca II 8542, 9.9 GB with four Stokes parameters, the quicklook opens in 2.4 s from a cold

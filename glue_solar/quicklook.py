@@ -42,7 +42,7 @@ from matplotlib.colors import to_hex
 from matplotlib.lines import Line2D
 from matplotlib.path import Path
 from matplotlib.transforms import Bbox
-from qtpy.QtCore import QCoreApplication, QEventLoop, QObject, Qt, QTimer
+from qtpy.QtCore import QCoreApplication, QEvent, QEventLoop, QObject, Qt, QTimer
 from qtpy.QtWidgets import (
     QAbstractItemView,
     QAbstractScrollArea,
@@ -1169,6 +1169,8 @@ class QuicklookImageViewer(ImageViewer):
     def __gluestate__(self, context):
         """glue's record of the panel; its quicklook's first Image panel's holds the quicklook's recipe (`_recipe`)."""
         rec, tab = super().__gluestate__(context), self.parent().mdiArea()
+        if not hasattr(tab, "_solar_quicklook"):  # a panel of a session saved before D83, saved as a plain viewer
+            return rec
         first = next(p for p in _viewers(tab._solar_quicklook[-1]) if isinstance(p, ImageViewer) and not p._closed)
         return {**rec, "quicklook": _recipe(self.session.application, tab, context)} if self is first else rec
 
@@ -1824,7 +1826,6 @@ def _reopen(app, tab, recipe, context=None):
         panel.state.update_from_dict(state)
         for layer in panel.state.layers:
             layer.update_from_dict(next((each for each in layers if each["layer"] is layer.layer), {}))
-    QTimer(tab, singleShot=True, interval=0, timeout=partial(_arrange, tab, viewers)).start()  # once glue shows it
 
 
 @session_patch()
@@ -1849,9 +1850,23 @@ class _Application:
             if i in rec["quicklooks"]:
                 app.tab_widget.setCurrentIndex(i)  # glue opens viewers in the current tab
                 _reopen(app, app.tab(i), rec["quicklooks"][i], context)
+                app.tab(i).installEventFilter(_ArrangeShown(app.tab(i)))
             for name in names:  # as glue-qt adds them, over the panels
                 app.add_widget(context.object(name), tab=i, hold_position=True)
         return app
+
+
+class _ArrangeShown(QObject):
+    """
+    Lay out a restored quicklook's tab once shown: Qt sizes a hidden tab only as it shows it, and glue-qt's
+    ``restore_session_and_close`` sizes the window after showing it, hence the timer.
+    """
+
+    def eventFilter(self, tab, event):
+        if event.type() == QEvent.Type.Resize:
+            tab.removeEventFilter(self)
+            QTimer(self, singleShot=True, interval=0, timeout=partial(_arrange, tab, tab._solar_quicklook[-1])).start()
+        return False
 
 
 def _edit_in_tab(app, tab, group):

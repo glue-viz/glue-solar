@@ -37,7 +37,7 @@ from sunpy.visualization.colormaps import cmlist
 import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, SCAN, find_irispy_test_file
-from glue_solar.quicklook import _off, _viewers, coordinator, quicklook
+from glue_solar.quicklook import _off, _PointWindow, _viewers, coordinator, quicklook
 from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.bursts import si_iv_bursts
 from glue_solar.sources.calibration import radiometric_calibration
@@ -496,6 +496,8 @@ def test_a_restored_quicklook_has_its_panels_off_and_their_axes(app, qtbot, monk
     tick(panels, "C II 1336", "SJI 1400", on=False)
     tick(panels, "Axes")  # and the spectrogram's hidden again by hand
     viewers["spectrogram"].toolbar.actions["solar:hide_axes"].trigger()
+    look = viewers["map"].layers[0].state
+    look.cmap, look.stretch, look.v_min = colormaps["viridis"], "sqrt", 5.0
     qtbot.waitUntil(lambda: not panels._timer.isActive())
     app.save_session(str(tmp_path / "panels.glu"), absolute_paths=False)
     restored = restore(qtbot, monkeypatch, tmp_path / "panels.glu")
@@ -507,6 +509,29 @@ def test_a_restored_quicklook_has_its_panels_off_and_their_axes(app, qtbot, monk
     assert panels_of(restored) == panels_of(app)
     assert sum(off for *_, off, _ in panels_of(app)) == 3  # C II 1336's spectrum and λ–time, and SJI 1400
     assert entries(panels_list(restored)) == entries(panels)
+    again = restored.viewers[-1][0].layers[0].state  # the map's
+    assert (again.cmap.name, again.stretch, again.v_min, again.v_max) == ("viridis", "sqrt", 5.0, look.v_max)
+
+
+def test_two_restored_quicklooks_are_laid_out_as_they_were(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
+    files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
+    app.resize(1800, 1100)  # over the 1200×560 the panels take at least
+    app.show()
+    quicklook(app, [*raster_data(files[:1], ["Si IV 1403"]), image_data(files[1])])
+    quicklook(app, raster_data(files[:1], ["C II 1336"]))
+    app.save_session(str(tmp_path / "two.glu"), absolute_paths=False)
+    restored = restore(qtbot, monkeypatch, tmp_path / "two.glu")
+    restored.resize(app.size())
+    restored.show()
+
+    def layout(app, tab):  # its Point window's place and each panel's, the tab shown
+        app.tab_widget.setCurrentIndex(tab)
+        [point] = app.tab(tab).findChildren(_PointWindow)
+        return [point.parentWidget().geometry(), *(viewer.parentWidget().geometry() for viewer in app.viewers[tab])]
+
+    for tab in (1, 2):  # the first laid out only as it is shown
+        expected = layout(app, tab)
+        qtbot.waitUntil(lambda: layout(restored, tab) == expected)
 
 
 def test_a_restored_quicklook_marks_its_master_exposure_again(app, qtbot, monkeypatch, tmp_path, irispy_test_files):

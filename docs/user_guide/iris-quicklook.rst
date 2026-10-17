@@ -425,7 +425,8 @@ the point 0.22 s against 0.3 s, or with every row in sight 0.29 s against 0.54 s
 the same window, a scan step takes 0.21 s against 0.25 s, and a move 0.21 s against 0.3 s.
 
 A saved session keeps each quicklook as a recipe: its datasets and windows, its point and time
-master, and each panel's settings and whether it is off. Opening the session opens the quicklook
+master, and each panel's settings and whether it is off; a panel closed by hand opens again, turned
+on. Opening the session opens the quicklook
 again from it as the browser does, with its Point window, its Panels list, the panels turned off
 staying off, its lines and "Show this window's panels", laid out anew. Its tab makes "Point" the
 edit subset whenever it is shown, the panels follow the time master to the frames they showed, with
