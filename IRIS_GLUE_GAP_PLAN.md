@@ -179,7 +179,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 **M1**
 
 - [ ] **M1** `wp0-release-tracking`: After each glue-core, glue-qt or astropy release past 1.27.0/0.4.2/8.0.2, raise floors and retire workarounds; raise the astropy floor to the first release bundling WCSLIB 8.9 (astropy main 777e811427), whose `wcserr_set` no longer leaks 64 B per pixel outside a -TAB table. Done when each release has a line here naming its PRs, floors and retired workarounds.
-  - astropy 8.0.2 (2026-10-15): no PR; floors unchanged (still WCSLIB 8.6); env `iris-plan-qt6-a802` (iris-plan-qt6 plus astropy 8.0.2) passes the suite as 8.0.1 does; #20221 fixes the wrong second-crossing longitude ticks (seen on sit-and-stare 3660259102, not rolled SJIs), the '#' auto-placement TypeError and the `simplify_labels` IndexError; #19174 still crashes without the lock; no workaround retired.
+  - astropy 8.0.2 (2026-10-15): no PR; floors unchanged (still WCSLIB 8.6); the baseline envs move to it (`iris-plan-qt6-802`, D83) and pass the suite as on 8.0.1; #20221 fixes the wrong second-crossing longitude ticks (seen on sit-and-stare 3660259102, not rolled SJIs), the '#' auto-placement TypeError and the `simplify_labels` IndexError; #19174 still crashes without the lock; no workaround retired.
 
 **L**
 
@@ -329,7 +329,7 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 
 Notes:
 - The IRIS user guide is five pages: loading, `iris-quicklook`, `viewer-tools-and-windows`, the Profile guide and `scripting-iris-data`; `docs/make_screenshots.py` regenerates its three IRIS images.
-- `docs/` PRs build warning-free in `iris-plan-docs-qt6`, test no glue behavior, and never present planned features as shipped.
+- `docs/` PRs build warning-free in `iris-plan-docs-qt6-802`, test no glue behavior, and never present planned features as shipped.
 - Later: a SPECTFILE-style mean-spectrum reference (F031; a full-dataset Profile with function Mean) and scripting beyond #77's recipe (F033).
 
 ### WP10: Loader robustness and performance
@@ -438,8 +438,8 @@ Gated workarounds on main. Raw-WCS readers hold `WCS_LOCK` or use a deep copy; n
 
 Run all Python in a micromamba env, never a `.venv`; create a new env rather than change one.
 
-- `iris-plan-qt6` and `iris-plan-floor-qt6-611` (D56; the floor env since #266, D77): the baseline and the floors, PyQt6 6.11.0 on Qt 6.11 in both (astropy 8.0.1 and 8.0.0, ndcube 2.4.2 and 2.4.0, sunpy 8.0.0; glue-core 1.27.0, glue-qt 0.4.2 `--no-deps`, irispy git main 8c220d4 `--no-deps`, conda-forge's `qtconsole-base`, since `qtconsole` pulls PyQt5); every PR passes in both. `iris-plan-docs-qt6` builds the docs (pip's `sphinx-changelog` and `sunpy-sphinx-theme`). The floor env was made with `micromamba create -n iris-plan-floor-qt6-611 -c conda-forge python=3.13 astropy=8.0.0 ndcube=2.4.0 sunpy=8.0.0 glue-core=1.27.0 pyqt6=6.11.0 qt6-main=6.11.2 qtpy qtconsole-base ...` (the full list in #266's run), then glue-qt 0.4.2 and irispy 8c220d4 by pip `--no-deps`.
-- `glue-solar-app-pin`: builds the macOS app since #275 (the docs recipe's `glue-solar-app`, with fiasco main, plasmapy, h5py and ffmpeg, and irispy pinned at 8c220d4); the envs `glue-solar-app` (#216) and `glue-solar-app-l` (#268) are older.
+- `iris-plan-qt6-802` (since 2026-10-16, D83) and `iris-plan-floor-qt6-611` (D56; since #266, D77): the baseline and the floors, PyQt6 6.11.0 on Qt 6.11 in both (astropy 8.0.2 and 8.0.0, ndcube 2.4.2 and 2.4.0, sunpy 8.0.0; glue-core 1.27.0, glue-qt 0.4.2 `--no-deps`, irispy git main 8c220d4 `--no-deps`, conda-forge's `qtconsole-base`, since `qtconsole` pulls PyQt5); every PR passes in both. `iris-plan-docs-qt6-802` builds the docs (pip's `sphinx-changelog` and `sunpy-sphinx-theme`). The `-802` envs are `micromamba create --file` of their 8.0.1 sources' explicit lists with astropy and astropy-base at 8.0.2, then the same pip packages `--no-deps` (recipes in the session archive's `items/envs-802/`); the 8.0.1 envs `iris-plan-qt6`, `iris-plan-docs-qt6` and `glue-solar-app-pin` stay as they were. The floor env was made with `micromamba create -n iris-plan-floor-qt6-611 -c conda-forge python=3.13 astropy=8.0.0 ndcube=2.4.0 sunpy=8.0.0 glue-core=1.27.0 pyqt6=6.11.0 qt6-main=6.11.2 qtpy qtconsole-base ...` (the full list in #266's run), then glue-qt 0.4.2 and irispy 8c220d4 by pip `--no-deps`.
+- `glue-solar-app-pin-802` (astropy 8.0.2; `glue-solar-app-pin` before): builds the macOS app since #275 (the docs recipe's `glue-solar-app`, with fiasco main, plasmapy, h5py and ffmpeg, and irispy pinned at 8c220d4); the envs `glue-solar-app` (#216) and `glue-solar-app-l` (#268) are older.
 - `ruff-0161`: glue-solar's pinned Ruff.
 - `irispy-ports`: irispy development; its editable irispy points at the removed `~/Git/irispy-bursts`, so always run it with `PYTHONPATH=<worktree>` from a neutral cwd, never from `~/Git/irispy`.
 - Retired: `iris-plan-floor-qt6` (PyQt6 6.8.1, #266) and the PyQt5 envs `iris-plan-main`, `iris-plan-floor-main`, `iris-plan`, `iris-plan-floor` and `iris-plan-docs` (#214; left at irispy ca27ee9). The `glue-solar` and `astropy-wcsaxes-core` envs are editable installs of removed checkouts and no baseline; reinstall before use.
@@ -448,7 +448,7 @@ Headless runs use a scratch `HOME` (glue rewrites `~/.glue/settings.cfg`), offsc
 
 ```sh
 P=~/Git/glue-solar/IRIS_PLAN_PROTOTYPES
-env PYTHONPATH=$P ~/mamba/envs/iris-plan-qt6/bin/python -B $P/run_checks.py \
+env PYTHONPATH=$P ~/mamba/envs/iris-plan-qt6-802/bin/python -B $P/run_checks.py \
   "$PWD:$P" glue_solar --remote-data=any
 ```
 
