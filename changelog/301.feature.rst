@@ -1,0 +1,1 @@
+A restored session rebuilds each quicklook from a saved recipe, with its Point window, Panels list, panels turned off, point and panel settings.

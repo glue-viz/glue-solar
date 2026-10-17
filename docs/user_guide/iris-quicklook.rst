@@ -401,8 +401,8 @@ the time, its zoom, colors and other settings as they were; a map keeps its wave
 slit-jaw image that is the time master hands the time to the raster while its panel is off and, once
 on, takes it back at its frame nearest the raster's time. A panel closed by hand leaves the list.
 Like the Point window, the list closed by hand stays closed, and the panels it had turned off stay
-off until "Show this window's panels" (below), which shows every panel again; a saved session leaves
-out the panels turned off. On 4000255147 with its nine windows and SJI 1400, with the axes shown, an
+off until "Show this window's panels" (below), which shows every panel again; a saved session keeps
+them off. On 4000255147 with its nine windows and SJI 1400, with the axes shown, an
 exposure step takes 0.17 s with the other windows' panels off, as with the main window alone, against
 0.25 s with every panel on in a 1600×1000 window and 0.54 s with every row in sight (see `Several
 windows`_), and a click and a move take 0.2 s against 0.36 and 0.3 s, and 0.47 and 0.59 s; turning
@@ -424,17 +424,20 @@ the point 0.22 s against 0.3 s, or with every row in sight 0.29 s against 0.54 s
 0.59 s; ticking the box takes 0.1 s and unticking it 0.03 s. On a stack of 4000005156's two scans, in
 the same window, a scan step takes 0.21 s against 0.25 s, and a move 0.21 s against 0.3 s.
 
-A saved session opens the quicklook again with its point and its time master: its tab makes
-"Point" the edit subset whenever it is shown, the panels follow the time master to the frames they
-showed, with the same Δt, and a click or drag with the Pixel tool moves the other panels, the
-slit-jaw cross and the spectrum as before. Glue restores no viewer's mouse mode, but each image
-panel takes the Pixel tool as its window becomes active. The Point window, the Panels list and the
-lines are not restored, nor are the panels turned off, and a light curve, a row, a
-column and the light curves at a point stay where they were (choose the entry again for ones that
-follow the point); "Master exposure" follows the time master again, and one deleted before saving
-comes back at the first time sync with its Scatter plot open (see "Saving sessions" in :ref:`Viewer
-tools and windows <glue_solar_users_guide_viewer_tools_and_windows>` for what a session keeps of the
-data).
+A saved session keeps each quicklook as a recipe: its datasets and windows, its point and time
+master, and each panel's settings and whether it is off; a panel closed by hand opens again, turned
+on. Opening the session opens the quicklook
+again from it as the browser does, with its Point window, its Panels list, the panels turned off
+staying off, its lines and "Show this window's panels", laid out anew. Its tab makes "Point" the
+edit subset whenever it is shown, the panels follow the time master to the frames they showed, with
+the same Δt, and a click or drag with the Pixel tool moves the other panels, the slit-jaw cross and
+the spectrum as before. Glue restores no viewer's mouse mode, but each image panel takes the Pixel
+tool as its window becomes active. A light curve, a row, a column and the light curves at a point
+stay where they were (choose the entry again for ones that follow the point); "Master exposure"
+follows the time master again, and one deleted before saving comes back at the first time sync with
+its Scatter plot open (see "Saving sessions" in :ref:`Viewer tools and windows
+<glue_solar_users_guide_viewer_tools_and_windows>` for what a session keeps of the data). On
+4000255147's nine windows with SJI 1400 and two other windows shown, the session opens in about 4 s.
 
 Several windows
 ---------------
@@ -474,16 +477,15 @@ scan step likewise draws none of the second quicklook's panels, against ten.
 in no other Profile viewer), makes that window the main window: the quicklook opens again in its tab
 as the browser opens it with that window chosen, and the window shown before joins the other windows
 shown in the rows below. The point stays at the same pixel, now of that window, in the same "Point"
-subset, the time master stays at its frame, exposure, step or scan, and each panel that shows the
-same data on
-the same axes again keeps its stretch, color limits and colormap; its other settings, such as a
-zoom or a spectrum panel's unit, are a new quicklook's, every panel shows, and with their axes if
-"Axes" was ticked. The links stay, and so do the viewers you added to the tab, where a light curve,
+subset, the time master stays at its frame, exposure, step or scan, and each panel that keeps its
+title, such as a slit-jaw image or a spectrum panel, keeps its settings, its colors, zoom and unit
+among them; the others are a new quicklook's, every panel shows, and with their axes if "Axes" was
+ticked. The links stay, and so do the viewers you added to the tab, where a light curve,
 a row or a column goes on following the point at the wavelength or band the old map showed, but a path
 diagram drawn on a panel closes with it, as with any viewer it was drawn in. It takes
 2.5 s on 4000255147's C II 1336, Si IV 1403 and Mg II k 2796 with its SJI 1400, and 2.4 s on a stack
-of 4000005156's two scans of the same windows. A saved session keeps the switched quicklook, but a
-quicklook restored from a session does not offer the switch: open it again from the browser.
+of 4000005156's two scans of the same windows. A saved session keeps the switched quicklook, which
+offers the switch again.
 
 Other spectral cubes
 --------------------
