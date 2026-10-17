@@ -1,0 +1,1 @@
+Hide axes is a quicklook's one axes control; the Panels list's Axes row, the glue-solar Preferences pane and Zoom 1:1 are removed.

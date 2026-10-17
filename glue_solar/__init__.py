@@ -179,7 +179,6 @@ def setup():
             tools.PerFrameLimitsTool,
             tools.BandTool,
             tools.PhysicalAspectTool,
-            tools.ZoomOneToOneTool,
             tools.ColorBarTool,
             tools.RasterOverlaysTool,
         ],

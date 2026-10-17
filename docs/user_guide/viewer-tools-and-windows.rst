@@ -24,8 +24,8 @@ diagram" below; the link icon is the "Coordinate" menu, with "Time master", "Go 
 "Light curves of the shown windows and SJI", "Row at the point" and "Column at the point", and its
 "Blink" submenu, with "Set blink partner here", "Blink" and "Blink interval"; and
 the gear icon is the View menu, with "Frame time", "Hide axes", "Per-frame limits", "Wavelength
-band…", "Physical aspect", "Zoom 1:1", "Color bar", "Raster overlays" and "Cursor readout", each
-but "Zoom 1:1" checked while it is on.
+band…", "Physical aspect", "Color bar", "Raster overlays" and "Cursor readout", each checked while
+it is on.
 After a View or Coordinate entry the mouse mode, such as Pixel, stays on. Resting the mouse on a
 menu entry shows its tooltip, in glue's save and window menus too, and a menu shows an entry's
 single-key shortcut beside it, which works while the toolbar has the keyboard, as a button's does.
@@ -188,13 +188,9 @@ toolbar has:
   redraw is faster, since no ticks are placed; the image, subsets, links, the slit and point of
   slit-jaw viewers and the readouts work as before, and the mouse-over position stays in world
   coordinates. A saved session keeps each viewer's choice. A quicklook's image panels open without
-  axes, and "Axes" in its Panels list shows or hides them on all of them at once, partly ticked while
-  the panels differ (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). To open every
-  other new Image viewer without axes, untick "Show axes on new Image viewers" in the "glue-solar" tab
-  of glue's Preferences (the "Preferences" button in the toolbar at the top of the main window) and
-  press "OK". glue saves it with its other preferences in ``~/.glue/settings.cfg`` while "Save
-  preferences to disk", below the tabs, is ticked, as it is by default, and reads it when it starts.
-  Viewers already open keep their axes, and quicklooks still open theirs hidden.
+  axes, and "Hide axes" on any of them shows or hides them on all of its image panels at once (see
+  :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). Other new Image viewers open with
+  their axes, as glue opens them.
 - "Per-frame limits", in the View menu: takes the color limits of the displayed dataset from the
   displayed slice, at the layer's percentile (99.5 % on the quicklook panels), so each slice step,
   such as a wavelength step of a raster map, gets that slice's limits; choose it again for the whole
@@ -225,14 +221,6 @@ toolbar has:
   against time. Choosing "Automatic" in the viewer's options switches it off too. Chosen again on
   a quicklook raster panel, whose aspect is "Automatic", the image fills the panel again, keeping a
   zoom. A saved session restores the viewer with "Square Pixels".
-- "Zoom 1:1", in the View menu: zooms about the center of the view so that one pixel of the displayed
-  dataset spans one pixel of the screen, along whichever axes are shown, wavelength included;
-  "Home" (H) shows the whole image again. A screen pixel is a physical
-  one, so on a HiDPI (Retina) screen the image shows at half the size it would in the screen's
-  points. With "Physical aspect" on, x is at 1:1 and y keeps the proportions on the sky: on a map
-  of 2″ steps along a slit of 0.17″ pixels, 12 slit pixels share each screen pixel. glue draws an
-  image through a buffer of 72 dots per inch, so at 1:1 it shows only some of the rows and columns,
-  72 of every 100 at matplotlib's 100 dots per inch and 36 on a HiDPI screen.
 - "Color bar", in the View menu: shows a color bar right of the image, from one color limit of the
   displayed dataset (the viewer's reference data) to the other, with value ticks, and chosen again
   hides it. Its colors are glue's own for that dataset's layer, so it

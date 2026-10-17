@@ -20,7 +20,6 @@ from glue.config import (
     fit_plugin,
     layer_action,
     menubar_plugin,
-    settings,
     startup_action,
     viewer_tool,
 )
@@ -95,7 +94,7 @@ from glue_solar.tests.test_cube_quicklook import spectral_cube
 from glue_solar.tests.test_lazy import RASTER, SJI
 from glue_solar.tests.test_quicklook import drifting_stack
 from glue_solar.tests.test_sst import write_sst_cube
-from glue_solar.tools import AxesPreferences, PathData, sky_length
+from glue_solar.tools import PathData, sky_length
 
 
 def test_setup_registers_hooks():
@@ -133,7 +132,7 @@ def test_setup_registers_hooks():
     assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
     assert ImageViewer.subtools["solar:modes"] == ["solar:measure", "solar:path", "solar:path_crosshair", "solar:slope"]
     view = ["solar:frame_time", "solar:hide_axes", "solar:per_frame_limits", "solar:band", "solar:physical_aspect"]
-    view += ["solar:zoom_1_1", "solar:color_bar", "solar:raster_overlays"]
+    view += ["solar:color_bar", "solar:raster_overlays"]
     if not hasattr(ImageViewer, "cursor_status"):
         view.append("solar:cursor_readout")
     assert ImageViewer.subtools["solar:view"] == view
@@ -621,7 +620,7 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(app, qtbot, monkey
         if tool_id == "solar:raster_overlays":
             continue  # offered with a raster of the viewer's observation, as the quicklook tests check
         tool, entry = toolbar.tools[tool_id], toolbar.actions[tool_id]
-        assert entry.isCheckable() == (tool_id != "solar:zoom_1_1")
+        assert entry.isCheckable()
         for _ in range(2):
             was = getattr(tool, "checked", None)
             entry.trigger()
@@ -665,11 +664,10 @@ def test_hide_axes(app, qtbot, monkeypatch, irispy_test_files):
     sji = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
     sji = load_data(str(sji))
     app.data_collection.append(sji)
-    shown = app.new_data_viewer(ImageViewer, data=sji)
-    monkeypatch.setattr(settings, "SOLAR_SHOW_AXES", False)  # for new viewers
-    hidden = app.new_data_viewer(ImageViewer, data=sji)
-    assert (shown.state.show_axes, shown.axes.axison) == (True, True)
-    assert (hidden.state.show_axes, hidden.axes.axison) == (False, False)
+    shown, hidden = (app.new_data_viewer(ImageViewer, data=sji) for _ in range(2))
+    assert (hidden.state.show_axes, hidden.axes.axison) == (True, True)  # glue's default for a new viewer (D83)
+    hidden.state.show_axes = False  # as 'Hide axes' sets it
+    assert (shown.state.show_axes, shown.axes.axison, hidden.axes.axison) == (True, True, False)
     placed = Counter()
     update_ticks = CoordinateHelper._update_ticks
 
@@ -725,39 +723,11 @@ def test_sessions_keep_each_viewers_axes(app, qtbot, monkeypatch, tmp_path):
     viewers = [app.new_data_viewer(ImageViewer, data=image) for _ in range(2)]
     viewers[0].toolbar.actions["solar:hide_axes"].trigger()
     app.save_session(str(tmp_path / "axes.glu"))
-    monkeypatch.setattr(settings, "SOLAR_SHOW_AXES", False)  # applies to new viewers only
     restored = restore(qtbot, monkeypatch, tmp_path / "axes.glu", show=True)
     assert [(viewer.state.show_axes, viewer.axes.axison) for viewer in restored.viewers[0]] == [
         (False, False),
         (True, True),
     ]
-
-
-def test_axes_preference_is_saved(app, qtbot, monkeypatch, tmp_path):
-    import configparser
-
-    import glue.config
-    from glue_qt.app.preferences import PreferencesDialog
-
-    image = Data(label="image", flux=np.arange(20.0).reshape(4, 5))
-    app.data_collection.append(image)
-    monkeypatch.setattr(glue.config, "CFG_DIR", str(tmp_path / ".glue"))  # glue's settings folder, not the user's
-    monkeypatch.setattr(settings, "_save_to_disk", True, raising=False)  # which a test run may turn off
-    for name in ("FOREGROUND_COLOR", "BACKGROUND_COLOR", "DATA_COLOR", "DATA_ALPHA", "FONT_SIZE", "SOLAR_SHOW_AXES"):
-        monkeypatch.setattr(settings, name, getattr(settings, name))  # restored after the dialog's OK sets them
-    dialog = PreferencesDialog(app)
-    qtbot.addWidget(dialog)
-    [pane] = [pane for pane in dialog.panes if isinstance(pane, AxesPreferences)]
-    assert dialog.ui.tab_widget.tabText(dialog.ui.tab_widget.indexOf(pane)) == "glue-solar"
-    assert pane.show_axes.isChecked()
-    pane.show_axes.setChecked(False)
-    dialog.ui.ok.click()
-    assert settings.SOLAR_SHOW_AXES is False
-    viewer = app.new_data_viewer(ImageViewer, data=image)
-    assert (viewer.state.show_axes, viewer.axes.axison) == (False, False)
-    saved = configparser.ConfigParser()
-    saved.read(tmp_path / ".glue" / "settings.cfg")
-    assert saved["main"]["solar_show_axes"] == "false"  # which glue reads on its next start, after loading plugins
 
 
 def test_sessions_with_per_frame_limits_fail_to_restore(app, tmp_path):
@@ -1095,42 +1065,6 @@ def test_measure_on_a_full_size_slit_jaw_image(app, irispy_data):
     assert arcsec == pytest.approx(16.635, abs=0.01)
     assert km == pytest.approx(12172, rel=1e-3)
     assert tool.label.text() == f'Length 100.0 px · {arcsec:.2f}" · 12,172 km'
-
-
-def test_zoom_1_1_gives_a_data_pixel_a_screen_pixel(app, qtbot, irispy_test_files):
-    data = raster_data([find_irispy_test_file(irispy_test_files, SCANNING)])[0]
-    app.data_collection.append(data)
-    viewer = app.new_data_viewer(ImageViewer, data=data)
-    app.show()  # for the resize to reach the canvas
-    viewer.viewer_size = (600, 400)
-    box = viewer.axes.bbox  # in screen pixels
-    qtbot.waitUntil(lambda: box.width > box.height)
-    state, button = viewer.state, viewer.toolbar.actions["solar:zoom_1_1"]
-    viewer.toolbar.active_tool = "image:point_selection"
-    pixel = viewer.toolbar.active_tool
-    # step against slit, slit against step, and wavelength against slit; 'Automatic' and 'Square Pixels'
-    for x, y, aspect in ((0, 1, "auto"), (1, 0, "equal"), (2, 1, "equal")):
-        state.x_att, state.y_att = data.pixel_component_ids[x], data.pixel_component_ids[y]
-        state.aspect = aspect
-        center = ((state.x_min + state.x_max) / 2, (state.y_min + state.y_max) / 2)
-        for _ in range(2):  # and again, at 1:1 already
-            button.trigger()
-            assert viewer.toolbar.active_tool is pixel
-            assert (state.x_max - state.x_min, state.y_max - state.y_min) == pytest.approx((box.width, box.height))
-            assert ((state.x_min + state.x_max) / 2, (state.y_min + state.y_max) / 2) == pytest.approx(center)
-    # with 'Physical aspect', a y pixel spans the sky's proportion of an x pixel
-    state.x_att, state.y_att = data.pixel_component_ids[0], data.pixel_component_ids[1]
-    viewer.toolbar.actions["solar:physical_aspect"].trigger()
-    ratio = viewer.toolbar.tools["solar:physical_aspect"].ratio
-    assert ratio != pytest.approx(1)
-    for _ in range(2):
-        button.trigger()
-        assert (state.x_max - state.x_min, state.y_max - state.y_min) == pytest.approx((box.width, box.height / ratio))
-    # a screen pixel is a device pixel: on a HiDPI screen the view spans twice the data pixels
-    width = box.width
-    viewer.figure.canvas._set_device_pixel_ratio(2)
-    button.trigger()
-    assert state.x_max - state.x_min == pytest.approx(box.width) == pytest.approx(2 * width)
 
 
 def _key(viewer, key):

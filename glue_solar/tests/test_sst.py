@@ -59,7 +59,6 @@ from glue_solar.tests.test_quicklook import (
     rows,
     settle,
     slide,
-    tick,
 )
 
 DATEREF = "2021-09-05T00:00:00"
@@ -591,12 +590,13 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
     assert tops[0].pop() < tops[1].pop() < tops[2].pop()
     window = point_window(sst_app)
     assert window.parent().y() > viewers["curve"].parent().y()
-    assert entries(panels_list(sst_app)) == [("Axes", False), *((title, True) for row in titles for title in row)]
-    # the image panels without axes, until the Axes box shows them (D71); the spectra and light curve keep theirs
+    assert entries(panels_list(sst_app)) == [(title, True) for row in titles for title in row]
+    # the image panels without axes, until 'Hide axes' on one shows them all (D71, D83); the spectra and light curve
+    # keep theirs
     images = [viewers[role] for role in ("map", "wing", "slit", "wavelength")]
     profiles = [*viewers["spectra"], viewers["curve"]]
     assert [viewer.axes.axison for viewer in images + profiles] == [False] * 4 + [True] * 5
-    tick(panels_list(sst_app), "Axes")
+    viewers["wing"].toolbar.actions["solar:hide_axes"].trigger()
     assert all(viewer.axes.axison for viewer in images)
     settle(qtbot, window)
     lon, lat, wavelength, _, _ = cube.coords.pixel_to_world_values(8, 6, 2, 0, 0)
@@ -989,7 +989,7 @@ def test_an_unlinked_cube_never_takes_the_wcs_lock(sst_app, qtbot, monkeypatch, 
     single, values = stokes_cube(tmp_path / "single.fits", (3, 1, 5, 12, 16))
     for data in (cube, single):  # the second's viewers also show the first's point
         viewers = quicklook(sst_app, [data])
-        tick(panels_list(sst_app), "Axes")
+        viewers["map"].toolbar.actions["solar:hide_axes"].trigger()
         select_point(viewers["map"], 3, 7)
         slide(viewers["map"], 0, 2)
         select_point(viewers["slit"], 2, 4)
@@ -1015,7 +1015,7 @@ def test_every_wcslib_call_on_an_unlinked_cube_holds_its_own_lock(sst_app, qtbot
     cube, _ = stokes_cube(tmp_path / "cube.fits")
     wcs, struct = cube.coords, cube.coords.wcs
     viewers = quicklook(sst_app, [cube])
-    tick(panels_list(sst_app), "Axes")
+    viewers["map"].toolbar.actions["solar:hide_axes"].trigger()
     files = {astropy.wcs.wcs.__file__, astropy.wcs.wcsapi.fitswcs.__file__}
     calls = []  # (on the GUI thread, the function, holding the cube's lock, holding the WCS lock)
 

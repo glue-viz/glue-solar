@@ -135,7 +135,7 @@ a zoom on its x axis gives wavelength against scan the same wavelength range. Th
 gives the point's scan, any Stokes parameter, wavelength (λ, the map's), y and x, its position, the
 time of that tuning and the value there, and the "Panels" list beside it turns each panel off and on.
 As in the IRIS quicklook, the maps, the virtual slit and wavelength against scan open without their
-axes, and "Axes", at the top of the Panels list, shows or hides them on all four; the spectra and the
+axes, and "Hide axes" on any of them shows or hides them on all four; the spectra and the
 light curve keep theirs. On obs 498 CHROMIS 4846 a scan step and a move of the point take 0.19 s with
 or without axes, as they wait for the spectrum and the light curve, which glue computes on a worker
 thread; the panels' own redraws are faster without axes.

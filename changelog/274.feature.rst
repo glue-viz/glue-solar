@@ -1,1 +1,1 @@
-Path diagram, Velocity axis, Wavelength band, Color bar, Zoom 1:1 and Slope have icons of glue-solar's own, so 'Show position on original path' has glue's path icon again and the Profile toolbar is narrower.
+Path diagram, Velocity axis, Wavelength band, Color bar and Slope have icons of glue-solar's own, so 'Show position on original path' has glue's path icon again and the Profile toolbar is narrower.
