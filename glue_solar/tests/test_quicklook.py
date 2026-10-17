@@ -5614,7 +5614,9 @@ def test_hide_axes_on_a_panel_is_every_image_panels(bare_app, qtbot, monkeypatch
     assert not viewers["map"].state.show_axes
     assert applied(bare_app, qtbot, viewers, panels, lambda: tick(panels, "C II 1336")) == {}
     assert axes() == [(False, False, False)] * 6
-    # a switch of the main window keeps them
+    # a switch of the main window keeps them, a panel off that kept the old axes (last in `_viewers` order) too
+    tick(panels, "Mg II k 2796 λ–time", on=False)
+    qtbot.waitUntil(lambda: not panels._timer.isActive())
     hide(viewers["map"])
     switched = switch(qtbot, viewers["windows"][1]["spectrum"])  # Si IV 1403
     images = [viewer for viewer in glue_solar.quicklook._viewers(switched) if isinstance(viewer, ImageViewer)]
