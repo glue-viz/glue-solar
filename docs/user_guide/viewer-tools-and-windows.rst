@@ -82,8 +82,8 @@ Image viewer
        the slider.
      -
    * - View → "Physical aspect"
-     - Show the image in its proportions on the sky: a raster's 2″ steps 12 times as wide as its
-       0.17″ slit pixels.
+     - Show the image in its proportions on the sky: a raster with 2″ steps shows each 12 times as
+       wide as its 0.17″ slit pixels.
      -
    * - View → "Color bar"
      - Show a color bar right of the image.

@@ -57,7 +57,7 @@ The raster opens as three panels, chosen from the observation:
 Each slit-jaw channel gets a viewer titled with its channel, such as "SJI 1400". It draws the slit of
 the frame shown as a dashed line and the point as a red cross. The spectrum panel shows the spectrum
 at the point. Below the panels, the Point window gives the point's pixel, position, time, exposure,
-value and time offset in each dataset, and the Panels list turns each panel on and off.
+value and time sync in each dataset, and the Panels list turns each panel on and off.
 
 The map shows the wavelength nearest the window's reference wavelength. The panels use 99.5 % limits
 and a stretch for their band: log in the FUV, square root about Mg II k and h, linear elsewhere in

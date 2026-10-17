@@ -21,6 +21,8 @@ from PIL import Image
 from qtpy import QtWidgets
 from qtpy.QtCore import QSettings, Qt
 
+from astropy.io import fits
+
 from glue_solar.quicklook import quicklook
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import QtIRISImporter
@@ -98,7 +100,9 @@ def main(folder):
     # 3. the default quicklook of OBSID 4000255147 (Mg II k 2796 and SJI 1400), with a point placed
     raster = next(Path(folder).glob(f"*_{QUICKLOOK}_raster/*_r00000.fits"))
     sji = next(Path(folder).glob(f"*_{QUICKLOOK}_SJI_1400_t000.fits*"))
-    viewers = quicklook(app, [*iris.iris_data(str(raster)), iris.iris_data(str(sji))])
+    header = fits.getheader(raster)  # every window, as ticking the observation in the browser passes them
+    windows = [header[f"TDESC{i}"] for i in range(1, header["NWIN"] + 1)]
+    viewers = quicklook(app, [*iris.iris_data(str(raster)), iris.iris_data(str(sji))], window=windows)
     panels = [viewers["map"], viewers["spectrogram"], viewers["wavelength"], viewers["spectrum"], *viewers["sji"]]
     wait(viewers=panels)
     select_point(viewers["map"], *POINT)
