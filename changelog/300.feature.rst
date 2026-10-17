@@ -1,0 +1,1 @@
+Each analysis opens its result in an Image viewer in the current tab, showing the quicklook's point.
