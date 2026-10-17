@@ -9,8 +9,8 @@ Saving
 Sessions
 --------
 
-Save a session with File → Save Session as "Glue Session with relative paths to data", the type glue
-offers first (see glue's `guide
+Save a session with File → Export Session as "Glue Session with relative paths to data", the type the
+dialog starts with (see glue's `guide
 <http://docs.glueviz.org/en/stable/getting_started/index.html#saving-your-work>`__). It refers to the
 IRIS and SST files rather than holding their values, and opens wherever the files keep their place
 relative to it. Datasets made from them, such as line maps, are saved with their values: export a
