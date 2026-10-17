@@ -1,6 +1,6 @@
 """
-IRIS Level 2 support: a file reader for File → Open Data Set, the observation browser, the Plugins menu's quicklooks, of
-IRIS data and of SST cubes, the quicklook of a spectral cube of another instrument, 'IRIS: shift pointing…', an exporter
+IRIS Level 2 support: a file reader for File → Open Data Set, the observation browser, the 'Quicklook…' data action, of
+IRIS data, SST cubes and other spectral cubes, 'IRIS: shift pointing…', an exporter
 of derived maps with their coordinates, and one of 1-D data, such as light curves, with their times.
 """
 
@@ -29,7 +29,6 @@ from glue_solar.quicklook import (
     _pick_windows,
     _role,
     _same_file,
-    _sst_line,
     _time_axis,
     coordinator,
     observation_key,
@@ -56,8 +55,6 @@ __all__ = [
     "iris_quicklook",
     "link_iris",
     "quicklook_cube",
-    "quicklook_iris",
-    "quicklook_sst",
     "read_iris_file",
     "shift_pointing_iris",
 ]
@@ -334,47 +331,12 @@ def _observations(data_collection):
     return {key: datasets for key, datasets in observations.items() if _has_quicklook(datasets)}
 
 
-@menubar_plugin("IRIS: quicklook…")
-def quicklook_iris(session, data_collection):
-    """
-    Open the quicklook of an IRIS observation that is already loaded, with a raster or slit-jaw image, asking which when
-    several are.
-    """
-    choices = {
-        f"{obsid} {str(start)[:19]}": datasets for (obsid, start), datasets in _observations(data_collection).items()
-    }
-    _open_chosen(session.application, "IRIS", choices, "IRIS observation with a raster or slit-jaw image")
-
-
-@menubar_plugin("SST: quicklook…")
-def quicklook_sst(session, data_collection):
-    """Open the SST quicklook of a CRISP or CHROMIS cube that is already loaded, asking which when several are."""
-    choices = {}
-    for cube in [data for data in data_collection if _role(data) == "sst"]:
-        label = f"SST {_sst_line(cube)}"
-        choices[f"{label} ({cube.label})" if label in choices else label] = [cube]  # its file's stem for a repeat
-    _open_chosen(session.application, "SST", choices, "SST cube")
-
-
-def _open_chosen(app, instrument, choices, kind):
-    """Open the quicklook of the datasets of one of ``choices``, by label, asking which when several, or say none is."""
-    if not choices:
-        QtWidgets.QMessageBox.information(app, f"{instrument} quicklook", f"No {kind} is loaded.")
-        return
-    labels = list(choices)
-    if len(labels) > 1:
-        label, chosen = QtWidgets.QInputDialog.getItem(app, f"{instrument} quicklook", "Observation:", labels, 0, False)
-        if not chosen:
-            return
-        labels = [label]
-    quicklook(app, choices[labels[0]])
-
-
-def _check_cube(data):
-    """Raise why ``data`` has no quicklook of a cube of another instrument: it is IRIS or SST data, or of other axes."""
-    if _role(data) is not None or _cube_axes(data) is None:
+def _check_quicklook(data):
+    """Raise why ``data`` has no quicklook: it is no IRIS raster or slit-jaw image, SST cube or other spectral cube."""
+    role = _role(data)
+    if role not in ("raster", "sji", "sst") and (role is not None or _cube_axes(data) is None):
         raise ValueError(
-            f"{data.label} is not a cube of another instrument with one wavelength axis and two spatial axes."
+            f"{data.label} is no IRIS raster or slit-jaw image, SST cube or cube of one wavelength and two spatial axes."
         )
 
 
@@ -382,17 +344,20 @@ def _check_cube(data):
     "Quicklook…",
     single=True,
     data=True,
-    check=_check_cube,
-    tooltip="Open the quicklook of this spectral cube, its panels chosen from its axes",
+    check=_check_quicklook,
+    tooltip="Open the quicklook of this IRIS observation, SST cube or spectral cube",
 )
 @messagebox_on_error("Could not open the quicklook")
 def quicklook_cube(data, data_collection):
     """
-    Open the quicklook of ``data`` (`~glue_solar.quicklook.quicklook`), a spectral cube of neither IRIS nor the SST,
-    whose own quicklooks the Plugins menu opens; offered only for such a cube.
+    Open the quicklook (`~glue_solar.quicklook.quicklook`) of ``data``: of an IRIS raster or slit-jaw image, its
+    observation's loaded datasets; of an SST or other spectral cube, the cube alone (D83).
     """
-    _check_cube(data)
-    quicklook(_application(data_collection), [data])
+    _check_quicklook(data)
+    datasets = [data]
+    if _role(data) in ("raster", "sji"):
+        datasets = _observations(data_collection).get(observation_key(data), datasets)
+    quicklook(_application(data_collection), datasets)
 
 
 @menubar_plugin("IRIS: user guide and issues")

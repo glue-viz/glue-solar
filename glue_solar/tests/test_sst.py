@@ -25,7 +25,6 @@ from glue_qt.app import GlueApplication
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from glue_qt.viewers.profile.layer_artist import QThreadedProfileLayerArtist
-from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 
 import astropy.wcs.wcsapi.fitswcs
@@ -43,7 +42,7 @@ from glue_solar.quicklook import (
     observation_key,
     quicklook,
 )
-from glue_solar.sources.iris import iris_quicklook, link_iris, quicklook_iris, quicklook_sst
+from glue_solar.sources.iris import iris_quicklook, link_iris, quicklook_cube
 from glue_solar.sources.loaders.iris import WCS_LOCK, _LockedWCS, keep_hpc_linked, link_hpc
 from glue_solar.sources.loaders.scan import scan_directory
 from glue_solar.sources.sst import _Cube, _line_core, _LockedTabularWCS, _TabularWCS, sst_data
@@ -1076,8 +1075,7 @@ def test_a_cube_linked_mid_transform_neither_hangs_nor_races(tmp_path):
 
 
 def test_the_browser_lists_and_opens_each_sst_cube(qtbot, monkeypatch, tmp_path):
-    # D68: an archive folder's observation, an entry per cube, a quicklook per cube; and the Plugins menu's SST entry,
-    # IRIS's offering none (230-13)
+    # D68: an archive folder's observation, an entry per cube, a quicklook per cube; and 'Quicklook…' (D83)
     folder = tmp_path / "SST-archive_obs492_20230919_CRISP_stokes"
     folder.mkdir()
     for name, line, stokes in (("nb_8542_im.fits", "Ca II 8542", 4), ("nb_6173_im.fits", "Fe I 6173", 1)):
@@ -1094,20 +1092,8 @@ def test_the_browser_lists_and_opens_each_sst_cube(qtbot, monkeypatch, tmp_path)
     browse(qtbot, app, monkeypatch, tmp_path, [0])
     assert app.tab_names[1:] == ["SST Ca II 8542", "SST Fe I 6173"]
     assert [len(app.viewers[tab]) for tab in (1, 2)] == [9, 6]
-    choice = {}
-
-    def choose(parent, title, label, items, *args):
-        choice["items"] = items
-        return items[1], True
-
-    monkeypatch.setattr(QtWidgets.QInputDialog, "getItem", choose)
-    quicklook_sst(app.session, app.data_collection)  # 'SST: quicklook…'
-    assert choice["items"] == ["SST Ca II 8542", "SST Fe I 6173"]
-    assert app.tab_names[-1] == "SST Fe I 6173"
-    messages = []
-    monkeypatch.setattr(QtWidgets.QMessageBox, "information", lambda parent, title, text: messages.append(text))
-    quicklook_iris(app.session, app.data_collection)  # 'IRIS: quicklook…'
-    assert messages == ["No IRIS observation with a raster or slit-jaw image is loaded."]
+    fe = next(data for data in app.data_collection if data.meta.get("WAVEBAND") == "Fe I 6173")
+    quicklook_cube(fe, app.data_collection)  # 'Quicklook…'
     assert app.tab_names[-1] == "SST Fe I 6173"
     iris_quicklook(app.session, app.data_collection)  # glue --startup=iris_quicklook
     assert app.tab_names[-2:] == ["SST Ca II 8542", "SST Fe I 6173"]
