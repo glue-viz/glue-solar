@@ -28,10 +28,10 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at a8082ba (#297). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
+**Resume here.** Main is at b6e5e77 (#298). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
 **Next** (D83), three at a time with disjoint files. Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. #296, `wp4-l-panels-on-demand` and #297; the astropy 8.0.2 envs are rebuilt beside them.
+  1. #296, #298 and #297; the astropy 8.0.2 envs are rebuilt beside them.
   2. As files come free: `wp2-l-results-in-viewer`, `wp4-l-one-quicklook-entry`, `wp11-l-view-menu-trim`, then `wp4-l-quicklook-recipe`.
   3. Then `wp9-l-guide-quicklook`, `wp9-l-guide-data` and `wp9-l-guide-rest`, in turn.
 
@@ -134,7 +134,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D82:** User (2026-10-16): keep the plan concise and the code lean; port CRISPEX's ideas to glue better, faster, sleeker and nicer, not one to one. The plan keeps rules and open items only (git keeps the history; Current state gets no per-PR line), and items with nothing to do are dropped (wp0-optional-proposals, wp0-track-qt66, wp0-track-line-layers, wp8-m3-level3-input, wp1-m3-multi-instrument, wp13-height-cubes; wp0-qt68-cocoa joins wp0-qt68-macos-pass). The audits (`audit2/` in the session archive) found about 820 source and 500 test lines that can go with no visible change (the four `-lean-` items) and one bug (#288). Held for the user: wp13-l-restored-second-map and #297, which a quicklook restored by re-running `quicklook()`, or dropping 'IRIS: restore last session', would replace; and every feature cut or redesign in the audits.
 
-- **D83:** User (2026-10-16), on the audits: a session restores a quicklook by re-running `quicklook()` from a saved recipe (`wp4-l-quicklook-recipe`, replacing the restored-strip and second-map items); 'IRIS: restore last session' stays, so #297 goes ahead; the irispy-meta branch is dropped. Four consolidations (reopening D4, D24, D45, D48): #296, `wp4-l-one-quicklook-entry`, `wp4-l-panels-on-demand` and `wp2-l-results-in-viewer`; and `wp11-l-view-menu-trim` (one axes control, reopening D71 and 221-6; no Zoom 1:1, reopening D50). The user guide is rewritten as task pages of about 9,700 words in all (the wp9-l-guide- items, after the features). astropy 8.0.2 becomes the baseline: its envs are rebuilt conda-native; the floors stay.
+- **D83:** User (2026-10-16), on the audits: a session restores a quicklook by re-running `quicklook()` from a saved recipe (`wp4-l-quicklook-recipe`, replacing the restored-strip and second-map items); 'IRIS: restore last session' stays, so #297 goes ahead; the irispy-meta branch is dropped. Four consolidations (reopening D4, D24, D45, D48): #296, `wp4-l-one-quicklook-entry`, #298 and `wp2-l-results-in-viewer`; and `wp11-l-view-menu-trim` (one axes control, reopening D71 and 221-6; no Zoom 1:1, reopening D50). The user guide is rewritten as task pages of about 9,700 words in all (the wp9-l-guide- items, after the features). astropy 8.0.2 becomes the baseline: its envs are rebuilt conda-native; the floors stay.
 
 - **D84:** User (2026-10-16), the choice review's sixth pass: the 54 choices of #276-#295 (chunks h3-j2), all kept; 283-4 was done as #284.
 
@@ -155,7 +155,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP2: `wp2-l-results-in-viewer`
-- WP4: `wp4-l-quicklook-recipe`, `wp4-l-panels-on-demand`, `wp4-l-one-quicklook-entry`
+- WP4: `wp4-l-quicklook-recipe`, `wp4-l-one-quicklook-entry`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP9: `wp9-l-guide-quicklook`, `wp9-l-guide-data`, `wp9-l-guide-rest`
 - WP11: `wp11-l-view-menu-trim`
@@ -271,7 +271,6 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 **L**
 
 - [ ] **L** `wp4-l-one-quicklook-entry` (D83; audit C2): one 'Quicklook…' data action opens the quicklook of an IRIS raster or SJI, an SST cube or any spectral cube, in place of 'IRIS: quicklook…', 'SST: quicklook…' and the generic action; the browser's tick stays. Done when each kind opens from it and the Plugins menu loses the two entries.
-- [ ] **L** `wp4-l-panels-on-demand` (D83; audit P2): a quicklook makes the panels of windows other than the main one when they are ticked in the Panels list, and its rows shrink so the strip stays in sight. Done when the 9-window 4000255147 quicklook opens in about 2 s (8.1 s on main) with the strip in sight at 1800×1100.
 - [ ] **L** `wp4-l-quicklook-recipe` (D83): a saved session keeps each quicklook as a recipe (its datasets, windows, panels turned off, point and panel styles), and restoring calls `quicklook()` with it, in place of glue restoring each panel; the `_gluestate` patch goes. Done when sessions of the 9-window 4000255147 quicklook and of obs171's SST quicklook restore with their Point window, Panels list (panels off stay off), point and second-map tuning, by Open Session and 'IRIS: restore last session', and the code is smaller than on main.
 
 Notes:
