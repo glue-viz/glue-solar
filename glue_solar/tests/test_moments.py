@@ -157,6 +157,7 @@ def test_the_maps_ticked_are_their_functions_at_their_defaults(app, qtbot, monke
         added, (line_moments(raster, 1402.77), doppler_image(raster, 1402.77), red_blue_asymmetry(raster, 1402.77))
     ):
         assert (maps.label, maps.meta) == (alone.label, alone.meta)
+        assert [cid.label for cid in maps.main_components] == [cid.label for cid in alone.main_components]
         for cid in alone.main_components:
             np.testing.assert_array_equal(maps[cid.label], alone[cid])
     enabled = []
