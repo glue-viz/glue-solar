@@ -70,6 +70,7 @@ from glue_solar.tests.test_quicklook import (
     tick,
     time_series,
     viewer_rows,
+    with_windows,
 )
 from glue_solar.tools import PathData, _pointing
 
@@ -469,7 +470,7 @@ def test_a_restored_quicklook_keeps_its_time_master_and_follows_a_pixel_drag(
 
 def test_a_restored_quicklook_keeps_its_switched_main_window(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
     files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
-    viewers = quicklook(app, [*raster_data(files[:1], THREE), image_data(files[1])], window=THREE)
+    viewers = with_windows(qtbot, quicklook(app, [*raster_data(files[:1], THREE), image_data(files[1])], window=THREE))
     menu_action(viewers["sji"][0], "Time master").trigger()
     viewers["sji"][0].state.slices = (2, 0, 0)
     switch(qtbot, viewers["windows"][1]["spectrum"])  # Si IV 1403
@@ -491,7 +492,7 @@ def test_a_restored_quicklook_has_the_panels_shown_with_their_axes(
     app, qtbot, monkeypatch, tmp_path, irispy_test_files
 ):
     files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
-    viewers = quicklook(app, [*raster_data(files[:1], THREE), image_data(files[1])], window=THREE)
+    viewers = with_windows(qtbot, quicklook(app, [*raster_data(files[:1], THREE), image_data(files[1])], window=THREE))
     panels = panels_list(app)
     tick(panels, "C II 1336", "SJI 1400", on=False)
     tick(panels, "Axes")  # and the spectrogram's hidden again by hand

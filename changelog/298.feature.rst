@@ -1,0 +1,1 @@
+A quicklook makes other windows' panels when they are ticked in the Panels list, so a nine-window quicklook opens in about 2 s with its strip in sight.

@@ -321,12 +321,13 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
         labels = [layer.layer.label for layer in bare_app.viewers[-1][-1].layers if isinstance(layer.layer, Data)]
         return [re.sub(r"( \S+ Å)? light curve$", "", label) for label in labels]
 
-    # the light curves of the windows and slit-jaw images the quicklook shows, but those whose panels are turned off
-    assert curves(viewers["map"]) == ["C II 1336", "Si IV 1403", "SJI 1400"]
-    panels = panels_list(bare_app)
-    tick(panels, "C II 1336", on=False)
-    panels.apply()  # as the list does at the next turn of the event loop
+    # the light curves of the windows and slit-jaw images the quicklook shows, not those not shown yet or turned off
     assert curves(viewers["map"]) == ["Si IV 1403", "SJI 1400"]
+    panels = panels_list(bare_app)
+    for on, expected in ((True, ["C II 1336", "Si IV 1403", "SJI 1400"]), (False, ["Si IV 1403", "SJI 1400"])):
+        tick(panels, "C II 1336", on=on)
+        panels.apply()  # as the list does at the next turn of the event loop
+        assert curves(viewers["map"]) == expected
     # none without a point, nor the window's light curve and the cuts
     menu_action(viewers["map"], "Clear point").trigger()
     assert offered(viewers["map"]) == [*time, "Clear point", *blink, *overlaid(banded)]
@@ -521,6 +522,7 @@ def check_exposure_axis(viewer, axis, label, exposures):
 
 def test_a_sit_and_stare_exposure_axis(bare_app, monkeypatch, irispy_test_files):
     raster, _ = sit_and_stare(irispy_test_files)
+    bare_app.resize(1800, 1100)  # rows over about 330 pixels: below, the label along y runs off the panel (D83)
     bare_app.show()  # the quicklook's own panel sizes
     viewers = quicklook(bare_app, [raster])
     tick(panels_list(bare_app), "Axes")  # the panels open without axes (D71)
@@ -1138,7 +1140,8 @@ def test_light_curves_at_the_point(bare_app, qtbot, tmp_path, irispy_test_files)
     file = find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))
     c_ii, mg_ii = raster_data([file], ["C II 1336", "Mg II k 2796"])
     sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
-    viewers = quicklook(bare_app, [c_ii, mg_ii, sji], window=["C II 1336", "Mg II k 2796"])  # Mg II k, C II beside it
+    # Mg II k, C II beside it
+    viewers = with_windows(qtbot, quicklook(bare_app, [c_ii, mg_ii, sji], window=["C II 1336", "Mg II k 2796"]))
     raster_map, spectrogram = viewers["map"], viewers["spectrogram"]
     [point] = bare_app.session.edit_subset_mode.edit_subset
     k = expected_start(mg_ii)[-1] + 3
@@ -4320,6 +4323,7 @@ def test_the_first_click_on_any_panel_moves_the_point(bare_app, qtbot, irispy_te
     # glue-qt turns a viewer's mouse mode off as another window becomes active, and a click with none empties the edit
     # subset: each panel takes the Pixel tool as its window becomes active, so a click there moves the point (D75)
     raster, sji = sit_and_stare(irispy_test_files)
+    bare_app.resize(1800, 1100)  # rows taller than 280 pixels, in which a click can land on the next exposure (D83)
     bare_app.show()
     qtbot.waitUntil(bare_app.isActiveWindow)  # for a click to make its window the active one
     viewers = quicklook(bare_app, [raster, sji])
@@ -5041,11 +5045,62 @@ def windows_of(irispy_test_files, kind):
     return raster_data(files[:1] if kind == "scan" else files, THREE, stack=kind == "stack")
 
 
+def with_windows(qtbot, viewers, *names):
+    """A quicklook's ``viewers`` once its other windows ``names``, or every one, are ticked in its Panels list (D83)."""
+    [panels] = viewers["map"].parent().mdiArea().findChildren(glue_solar.quicklook._Panels)
+    root = panels.invisibleRootItem()
+    for item in [root.child(i) for i in range(root.childCount())]:
+        if item.childCount() and item.text(0) in (names or [item.text(0)]):
+            item.setCheckState(0, Qt.Checked)
+    qtbot.waitUntil(lambda: not panels._timer.isActive())
+    return viewers
+
+
+def test_other_windows_open_once_ticked_below_rows_that_keep_the_strip_in_sight(bare_app, qtbot, irispy_test_files):
+    c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
+    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    bare_app.resize(1800, 1000)  # where rows 400 pixels tall would push the strip out of sight
+    bare_app.show()
+    viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
+    panels, tab = panels_list(bare_app), bare_app.tab()
+    # D83: the other windows unticked and not made, and the rows shrunk to keep the Point window and the list in sight
+    assert viewers["windows"] == []
+    assert entries(panels)[-2:] == [
+        ("C II 1336", False, [("C II 1336 λ–time", False), ("C II 1336 spectrum", False)]),
+        ("Si IV 1403", False, [("Si IV 1403 λ–time", False), ("Si IV 1403 spectrum", False)]),
+    ]
+    strip = (panels.parent(), point_window(bare_app).parent())
+    assert tab.verticalScrollBar().maximum() == 0
+    assert all(sub.geometry().bottom() < tab.viewport().height() for sub in strip)
+    assert viewers["map"].viewer_size[1] < 400
+    # a box ticked makes its window's panels at the point, those unticked turned off, and they follow the point
+    select_point(viewers["map"], 78, 10)
+    qtbot.wait(20)
+    count = len(bare_app.viewers[-1])
+    tick(panels, "C II 1336 λ–time")
+    qtbot.waitUntil(lambda: not panels._timer.isActive())
+    [made] = viewers["windows"]
+    assert (len(bare_app.viewers[-1]), made["spectrum"].parent().isHidden()) == (count + 2, True)
+    # shown not active, as glue-qt shows a viewer not in focus, and the active panel as it was
+    assert (made["wavelength"].toolbar.isEnabled(), tab.activeSubWindow().widget().toolbar.isEnabled()) == (False, True)
+    assert sliders(bare_app, viewers)["point"] == (mg.label, (78, 10, None))
+    assert sliders(bare_app, viewers)["wavelength1"] == (None, 10, None)
+    assert drawn(made["wavelength"], "point") == ("y", [78])
+    select_point(viewers["map"], 60, 12)
+    tick(panels, "C II 1336 spectrum")
+    qtbot.waitUntil(lambda: not panels._timer.isActive())
+    qtbot.wait(20)
+    assert sliders(bare_app, viewers)["wavelength1"] == (None, 12, None)
+    [line] = [artist.plot_artist for artist in made["spectrum"].layers if artist.state.visible]
+    np.testing.assert_array_equal(line.get_ydata(), cube(c2)[60, 12])
+    assert len(bare_app.viewers[-1]) == count + 2  # made once
+
+
 @pytest.mark.parametrize("kind", ["scan", "sit-and-stare", "stack"])
 def test_each_window_of_the_file_joins_the_quicklook(bare_app, qtbot, irispy_test_files, kind):
     rasters = windows_of(irispy_test_files, kind)
     others, mg = rasters[:2], rasters[2]
-    viewers = quicklook(bare_app, rasters, window=THREE)
+    viewers = with_windows(qtbot, quicklook(bare_app, rasters, window=THREE))
     collection = bare_app.data_collection
     assert viewers["map"].state.reference_data is mg
     # a spectrum for each other window, and a λ–time or λ–scan panel where it has a time axis, laid out apart
@@ -5083,7 +5138,7 @@ def test_each_window_of_the_file_joins_the_quicklook(bare_app, qtbot, irispy_tes
 
 def test_what_moves_with_other_windows_of_a_sit_and_stare(bare_app, qtbot, irispy_test_files):
     c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
-    viewers = quicklook(bare_app, [c2, si4, mg], window=THREE)
+    viewers = with_windows(qtbot, quicklook(bare_app, [c2, si4, mg], window=THREE))
     c2_panel = viewers["windows"][0]["wavelength"]
 
     def event(action):
@@ -5130,7 +5185,7 @@ def test_what_moves_with_other_windows_of_a_sit_and_stare(bare_app, qtbot, irisp
 
 def test_what_moves_with_other_windows_of_a_stack(bare_app, qtbot, irispy_test_files):
     c2, si4, mg = windows_of(irispy_test_files, "stack")
-    viewers = quicklook(bare_app, [c2, si4, mg], window=THREE)
+    viewers = with_windows(qtbot, quicklook(bare_app, [c2, si4, mg], window=THREE))
     wave = expected_start(mg)[-1]
 
     def event(action):
@@ -5182,7 +5237,7 @@ def test_a_stack_of_other_scans_is_not_a_window_of_the_stack(bare_app, irispy_te
 @pytest.mark.parametrize("chosen", [True, False])
 def test_time_moves_a_point_on_another_window(bare_app, qtbot, monkeypatch, irispy_test_files, chosen):
     c2, _, mg = windows_of(irispy_test_files, "sit-and-stare")
-    viewers = quicklook(bare_app, [c2, mg], window=THREE[::2])
+    viewers = with_windows(qtbot, quicklook(bare_app, [c2, mg], window=THREE[::2]))
     c2_panel = viewers["windows"][0]["wavelength"]
     if chosen:
         menu_action(viewers["map"], "Time master").trigger()
@@ -5228,7 +5283,7 @@ def test_a_switch_gives_the_quicklook_opened_with_that_window_first(
     bare_app, qtbot, monkeypatch, irispy_test_files, kind
 ):
     c2, si4, mg = windows_of(irispy_test_files, kind)
-    viewers = quicklook(bare_app, [c2, si4, mg], window=THREE)
+    viewers = with_windows(qtbot, quicklook(bare_app, [c2, si4, mg], window=THREE))
     spectra = [viewers["spectrum"], *(panels["spectrum"] for panels in viewers["windows"])]
     assert [panel.toolbar.actions["solar:main_window"].isVisible() for panel in spectra] == [False, True, True]
     [point] = bare_app.session.edit_subset_mode.edit_subset
@@ -5242,6 +5297,7 @@ def test_a_switch_gives_the_quicklook_opened_with_that_window_first(
     # the panels of Si IV 1403 as a quicklook opened with it first, the Row added and the C II stretch kept
     first = bare_app_for(qtbot, monkeypatch)
     expected = quicklook(first, windows_of(irispy_test_files, kind), window=THREE, main="Si IV 1403")
+    with_windows(qtbot, expected)  # C II 1336 and Mg II k 2796, as the switch keeps them
     select_point(expected["map"], 5, 20)
     qtbot.wait(20)
     assert viewer_rows(bare_app) == [row, *viewer_rows(first)]
@@ -5270,7 +5326,7 @@ def test_a_switch_keeps_the_point_the_time_master_and_the_colors(bare_app, qtbot
     c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
     path = find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000"))
     bare_app.show()  # the Point window's size
-    viewers = quicklook(bare_app, [c2, si4, mg, image_data(path)], window=THREE)
+    viewers = with_windows(qtbot, quicklook(bare_app, [c2, si4, mg, image_data(path)], window=THREE))
     [sji_viewer] = viewers["sji"]
     menu_action(sji_viewer, "Time master").trigger()
     select_point(viewers["map"], 50, 20)
@@ -5289,13 +5345,14 @@ def test_a_switch_keeps_the_point_the_time_master_and_the_colors(bare_app, qtbot
     # the Point window as tall as its rows, as in a quicklook opened with C II 1336 first
     first = bare_app_for(qtbot, monkeypatch)
     first.show()
-    quicklook(first, [*windows_of(irispy_test_files, "sit-and-stare"), image_data(path)], window=THREE, main="C II 1336")
+    datasets = [*windows_of(irispy_test_files, "sit-and-stare"), image_data(path)]
+    with_windows(qtbot, quicklook(first, datasets, window=THREE, main="C II 1336"))
     assert point_window(bare_app).parent().geometry() == point_window(first).parent().geometry()
 
 
 def test_a_switch_after_the_point_is_deleted_gives_a_new_point(bare_app, qtbot, irispy_test_files):
     c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
-    viewers = quicklook(bare_app, [c2, si4, mg], window=THREE)
+    viewers = with_windows(qtbot, quicklook(bare_app, [c2, si4, mg], window=THREE))
     collection = bare_app.data_collection
     collection.remove_subset_group(collection.subset_groups[0])
     switch(qtbot, viewers["windows"][1]["spectrum"])  # Si IV 1403
@@ -5317,7 +5374,7 @@ def path_diagram(viewer):
 def test_path_diagrams_close_unasked_with_their_panels(bare_app, qtbot, monkeypatch, irispy_test_files):
     c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
     sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
-    viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
+    viewers = with_windows(qtbot, quicklook(bare_app, [c2, si4, mg, sji], window=THREE))
     asked = []
 
     def warning(parent, title, text, buttons, defaultButton):
@@ -5399,7 +5456,7 @@ def test_panels_turned_off_do_nothing_and_come_back_as_they_were(bare_app, qtbot
     c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
     sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
     bare_app.show()  # Qt activates the windows it shows
-    viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
+    viewers = with_windows(qtbot, quicklook(bare_app, [c2, si4, mg, sji], window=THREE))
     panels = panels_list(bare_app)
     assert entries(panels) == [
         ("Axes", False),
@@ -5524,7 +5581,7 @@ def test_the_panels_open_without_axes_which_the_axes_box_shows(bare_app, qtbot, 
     c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
     sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
     bare_app.show()  # for clicks on the list
-    viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
+    viewers = with_windows(qtbot, quicklook(bare_app, [c2, si4, mg, sji], window=THREE))
     panels = panels_list(bare_app)
     every = glue_solar.quicklook._viewers(viewers)
     images = [viewer for viewer in every if isinstance(viewer, ImageViewer)]
@@ -5586,14 +5643,15 @@ def current(viewer):
 
 
 def test_panels_out_of_sight_draw_once_in_sight(bare_app, qtbot, monkeypatch, irispy_test_files):
-    c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
+    names = [*THREE, "O I 1356"]  # three other windows, in two rows of four panels
+    rasters = raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))], names)
     sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
     bare_app.resize(1600, 600)
-    bare_app.show()  # the other windows' row below the tab's view
-    viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
+    bare_app.show()  # the other windows' second row below the tab's view
+    viewers = with_windows(qtbot, quicklook(bare_app, [*rasters, sji], window=names))
     every = glue_solar.quicklook._viewers(viewers)
     resized(qtbot, every)
-    below = [viewer for panels in viewers["windows"] for viewer in panels.values()]
+    below = [viewer for panels in viewers["windows"] for viewer in panels.values()][4:]
     assert [viewer for viewer in every if viewer.figure.canvas.visibleRegion().isEmpty()] == below
     draws = Counter()
     for viewer in every:
@@ -5706,16 +5764,16 @@ def test_the_browser_shows_each_ticked_window(qtbot, monkeypatch, tmp_path, iris
         "Mg II k 2796 spectrogram",
         "Mg II k 2796 λ–time",
         "Mg II k 2796 spectrum",
-        "C II 1336 λ–time",
-        "C II 1336 spectrum",
     ]
+    offered = [("C II 1336 λ–time", False), ("C II 1336 spectrum", False)]
+    assert entries(panels_list(app))[-1] == ("C II 1336", False, offered)  # made once ticked (D83)
 
 
-def test_each_band_opens_with_its_stretch(bare_app, irispy_test_files):
+def test_each_band_opens_with_its_stretch(bare_app, qtbot, irispy_test_files):
     rasters = windows_of(irispy_test_files, "sit-and-stare")
     sjis = [image_data(find_irispy_test_file(irispy_test_files, SNS.format(f"SJI_{band}_t000")))
             for band in (1330, 1400, 2796, 2832)]
-    viewers = quicklook(bare_app, [*rasters, *sjis], window=THREE)
+    viewers = with_windows(qtbot, quicklook(bare_app, [*rasters, *sjis], window=THREE))
     # D43: log in the FUV, sqrt about Mg II k and h, linear for slit-jaw 2832; glue's controls change them
     stretches = {role: viewers[role].state.layers[0].stretch for role in ("map", "spectrogram", "wavelength")}
     assert stretches == dict.fromkeys(stretches, "sqrt")  # Mg II k 2796
