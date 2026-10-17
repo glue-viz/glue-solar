@@ -28,9 +28,9 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 77e795d (#303). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
+**Resume here.** Main is at ebd4027 (#304). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
-**Next** (D83). On main since 2026-10-16: #296-#302. Left, one at a time, each one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI: #303, `wp9-l-guide-data` and `wp9-l-guide-rest`.
+**Next** (D83). On main since 2026-10-16: #296-#302. Left, one at a time, each one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI: #303, #304 and `wp9-l-guide-rest`.
 
 **Waiting on the user.** `wp0-qt68-macos-pass`; filing `wp0-qt-fitter-settings`'s PR from its pushed branch (text in the archive's `briefs/glue-qt-fitter-pr.md`); the audits' other proposals (`audit2/` in the archive); the drag-into-/Applications check of the app (`~/Downloads/Glue Solar.dmg`, built from f073033's recipe; a dmg from #275's recipe would also check Finder and Dock opening); an exact report of the linking and slider-sync problems the user saw in the app (2026-10-09), whose steps, rerun with `glue` from `iris-plan-qt6-802`, tell an app problem from a Qt 6 or glue-solar one; raising the matplotlib-free WCSAxes core prototype in person (no PR, issue or upstream notice); M4 and OM work. Offered, not started: `wp0-restore-full-ci`, and #207's leftover (viewers opened after the time marker exists get its layer: about 10% slower steps with a second quicklook).
 
@@ -154,7 +154,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP9: `wp9-l-guide-data`, `wp9-l-guide-rest`
+- WP9: `wp9-l-guide-rest`
 - WP10: `wp10-l-saturation-shown`
 
 **M4**
@@ -301,8 +301,7 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 
 **L**
 
-- [ ] **L** `wp9-l-guide-rest` (D83): 'Saving' (sessions, frames and movies, exports), 'Scripting' and 'Known issues', about 1,950 words, the index and toctree for the nine pages, and the dev guide's manual checks (2,900 words) cut to what no test covers. After `wp9-l-guide-data`. Done when the docs build with `-W` and the guide is about 9,700 words.
-- [ ] **L** `wp9-l-guide-data` (D83): 'Loading data' (IRIS, SST, AIA/HMI and SOT), 'Analyses' (one page for the five analysis pages) and 'Data actions' (regrid, rebin, shift pointing, north up, dust, calibration), about 4,000 words. After #303. Done when the docs build with `-W` and the pages read as tasks.
+- [ ] **L** `wp9-l-guide-rest` (D83): 'Saving' (sessions, frames and movies, exports), 'Scripting' and 'Known issues', about 1,950 words, the index and toctree for the nine pages, and the dev guide's manual checks (2,900 words) cut to what no test covers. After #304. Done when the docs build with `-W` and the guide is about 9,700 words.
 
 **M4**
 
