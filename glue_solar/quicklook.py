@@ -1488,11 +1488,11 @@ def quicklook(app, datasets, window=None, main=None):
     (`_cube_axes`), alone in ``datasets``, it opens that cube's quicklook instead (`_cube_table`), one cube to a tab,
     whose panels follow the point, and an SST cube's the time, as the IRIS quicklook's do.
 
-    Each other window named in ``window`` adds the spectrum of the point and, on a sit-and-stare raster
-    or a stack, its own wavelength panel (λ–time or λ–scan), to a row below. Its scan, step or exposure,
-    and slit pixels are linked to the shown window's with `~glue.core.link_helpers.LinkSame` (once,
-    however often the quicklook opens), so the point is the same pixel in every window. Its spectrum
-    panel's 'Show this window's panels' makes it the main window (`_switch`).
+    Each other window named in ``window`` gets an unticked box in the Panels list, which adds the spectrum of the point
+    and, on a sit-and-stare raster or a stack, its own wavelength panel (λ–time or λ–scan), to a row below once ticked
+    (D83). Its scan, step or exposure, and slit pixels are linked to the shown window's with
+    `~glue.core.link_helpers.LinkSame` (once, however often the quicklook opens), so the point is the same pixel in
+    every window. Its spectrum panel's 'Show this window's panels' makes it the main window (`_switch`).
 
     Parameters
     ----------
@@ -1510,8 +1510,8 @@ def quicklook(app, datasets, window=None, main=None):
     -------
     dict
         The viewers: ``map``, ``spectrogram``, ``wavelength``, ``spectrum`` (absent without a raster),
-        ``sji``, a list, and ``windows``, a list of each other window's ``spectrum`` and any ``wavelength``; of a cube,
-        those `_cube_table` gives.
+        ``sji``, a list, and ``windows``, a list of each other window's ``spectrum`` and any ``wavelength``, joined as
+        the Panels list makes them; of a cube, those `_cube_table` gives.
 
     Raises
     ------
@@ -1652,11 +1652,12 @@ def _cube_table(app, cube):
     }
 
 
-def _fill(app, tab, table, group=None):
+def _fill(app, tab, table, group=None, shown=()):
     """
     Open the panels of a panel ``table`` (`_iris_table`, `_cube_table`; D78) in ``tab`` and return their viewers
     (`quicklook`); with a point, its group (``group`` or a new 'Point'), the cut Profiles, the Point window, the Panels
-    list and the lines (`_SpectralLines`), then lay them out (`_arrange`).
+    list and the lines (`_SpectralLines`), then lay them out (`_arrange`). Other windows' panels, the windows ``shown``
+    aside, wait until ticked in the Panels list, as each viewer takes about 0.34 s to open (D83).
     """
     collection = app.data_collection
     coord = coordinator(collection)  # before the point, so it follows it
@@ -1673,9 +1674,7 @@ def _fill(app, tab, table, group=None):
         else:
             into[panel.role] = viewer
 
-    for panel in table["panels"]:
-        if panel.cut is not None:
-            continue  # once the point is there
+    def make(panel):
         if panel.x is None:
             viewer, note = _profile(app, panel.data, panel.title)
             notes.append(note)
@@ -1688,6 +1687,29 @@ def _fill(app, tab, table, group=None):
             if table.get("limits"):
                 viewer.state.add_callback("slices", partial(_stokes_limits, viewer.state.layers[0]))
         add(panel, viewer)
+        return viewer
+
+    def open_window(name):
+        """Make the panels of window ``name`` with the point, the spectrum's fit and the lines; by their rows."""
+        state, new = group.subset_state, {}
+        for row in [panel for panel in table["panels"] if panel.window == name]:
+            at = row.at
+            if at is not None and isinstance(state, PixelSubsetState) and _same_file(state.reference_data, row.data):
+                # at the point, which its sliders would move otherwise (`Coordinator._move_point`)
+                at = tuple(index if s.start is None else s.start for s, index in zip(state.slices, at))
+            new[row] = make(row._replace(at=at))
+        images = [viewer for row, viewer in new.items() if row.x is not None]
+        coord.own(group, images)
+        _show_point(app, group, [viewer for panel, viewer in made if _same_file(panel.data, point.reference_data)])
+        spectrum = next(viewer for row, viewer in new.items() if row.x is None)
+        _fit_spectrum(spectrum, group)
+        if images:
+            _SpectralLines(coord, group, images, spectrum, tab)
+        return new
+
+    for panel in table["panels"]:
+        if panel.cut is None and panel.window is None:  # cuts once the point is there
+            make(panel)
     if "wing" in viewers:
         viewers["wing"]._solar_wing = True  # its wavelength stays (`_wing`)
     QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # and after the last (see _image)
@@ -1713,17 +1735,17 @@ def _fill(app, tab, table, group=None):
         main = [viewer for panel, viewer in made if panel.window is None and panel.x is not None]
         _add_window(tab, _PointWindow(coord, group, point.reference_data, main), "Point")  # filled by `_arrange`
         entries = _viewers({**viewers, "windows": []})  # each main panel and each slit-jaw image
-        entries += [(name, list(panels.values())) for name, panels in windows.items()]
-        sub = _add_window(tab, _Panels(entries, group, partial(_arrange, tab, viewers)), "Panels")
+        for name in dict.fromkeys(panel.window for panel in table["panels"] if panel.window is not None):
+            rows = [panel for panel in table["panels"] if panel.window == name]
+            entries.append((name, list(open_window(name).values()) if name in shown else rows))
+        sub = _add_window(tab, _Panels(entries, group, partial(_arrange, tab, viewers), open_window), "Panels")
         # a click on a box leaves the panel active, with its tool: glue-qt resets both for the window Qt focuses
         for widget in (sub, sub.widget(), sub.widget().viewport()):
             widget.setFocusPolicy(Qt.NoFocus)
-        for name in (None, *windows):
-            panels = [(panel, viewer) for panel, viewer in made if panel.window == name]
-            images = [viewer for panel, viewer in panels if panel.x is not None and _spectral_axes(panel.data)]
-            spectrum = next(viewer for panel, viewer in panels if panel.x is None)
-            if images:
-                _SpectralLines(coord, group, images, spectrum, tab)
+        panels = [(panel, viewer) for panel, viewer in made if panel.window is None]
+        images = [viewer for panel, viewer in panels if panel.x is not None and _spectral_axes(panel.data)]
+        if images:
+            _SpectralLines(coord, group, images, next(viewer for panel, viewer in panels if panel.x is None), tab)
     if "notes" in table:
         app.statusBar().showMessage(" ".join(notes + table["notes"]))
     if point is not None:  # first, as glue-qt then fills its side panels for the map, which can widen them
@@ -1776,7 +1798,7 @@ def _switch(viewer):
     """
     Make the window of ``viewer``, another window's spectrum panel, the main window (D60, #225): the quicklook opens
     again in its tab with that window as ``main``, keeping the point group and pixel, the master's index, each Image
-    panel's colors and the Axes box.
+    panel's colors, the Axes box and the other windows made.
     """
     app = viewer.session.application
     tab, collection = viewer.parent().mdiArea(), app.data_collection
@@ -1785,6 +1807,8 @@ def _switch(viewer):
     group, raster = app._solar_points[tab], viewer.state.reference_data
     master = coord._master(observation_key(raster))
     index, _ = coord._timing(master)
+    data = [panel.state.reference_data for panel in _viewers(viewers)]  # the main window joins the others made
+    shown = {_window(each)[0] for each in data if _role(each) == "raster"}
     colors = {}
     for panel in _viewers(viewers):
         state = panel.state
@@ -1801,7 +1825,7 @@ def _switch(viewer):
         lines.deleteLater()
     point = group.subset_state
     datasets = [data for data in datasets if data in collection]
-    viewers = _fill(app, tab, _iris_table(app, datasets, window, _window(raster)[0]), group)
+    viewers = _fill(app, tab, _iris_table(app, datasets, window, _window(raster)[0]), group, shown)
     group = app._solar_points[tab]  # a new one if the user deleted it
     if isinstance(point, PixelSubsetState) and _same_file(point.reference_data, raster):  # wavelength is last
         point = PixelSubsetState(raster, [*point.slices[:-1], slice(None)])
@@ -2355,8 +2379,8 @@ class _SpectralLines(QObject):
 def _arrange(tab, viewers):
     """
     Lay out the panels shown (D15): raster panels, then slit-jaw images and spectrum, other windows' in fours, or a
-    cube's ``rows``, at least 400 pixels tall each; the Point window and Panels list below. Out of sight, they draw
-    once in sight (`_draw_in_sight`).
+    cube's ``rows``, at least 280 pixels tall each, so that two IRIS rows or an SST cube's three keep the Point window
+    and Panels list below in sight at 1800×1100 (D83). Out of sight, they draw once in sight (`_draw_in_sight`).
     """
 
     def shown(panels):
@@ -2379,7 +2403,7 @@ def _arrange(tab, viewers):
         strip[_PointWindow].widget().refresh()  # the rows of the panels shown, which its height follows
     tall = max((sub.sizeHint().height() for sub in strip.values()), default=0)  # no scroll bar in the list
     size = tab.maximumViewportSize()  # without the scroll bars, which the layout decides
-    height = max(size.height() - tall, 400 * max(len(rows), 2))
+    height = max(size.height() - tall, 280 * max(len(rows), 2))
     width = max(size.width(), 1200)
     bar = tab.verticalScrollBar()
     if height + tall > size.height() and not tab.style().styleHint(QStyle.SH_ScrollBar_Transient, None, bar):
@@ -2566,12 +2590,13 @@ class _Panels(QTreeWidget):
     """
     A quicklook's 'Panels' list (D66, #228): a box per panel, or per label of panels, turning them on or off (`_turn`),
     laid out once for changes made together, and an 'Axes' box for every Image panel shown (D71), partly ticked while
-    they differ.
+    they differ. A panel not made yet, its `_Panel` row, is unticked: ``make`` makes its label's panels once one is
+    ticked (D83).
     """
 
-    def __init__(self, entries, group, arrange):
+    def __init__(self, entries, group, arrange, make):
         super().__init__()
-        self.group, self.arrange, self.panels = group, arrange, []  # (its item, panel)
+        self.group, self.arrange, self.make, self.panels = group, arrange, make, []  # (its item, panel or row)
         self.setHeaderHidden(True)
         self.header().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.header().setStretchLastSection(False)
@@ -2579,6 +2604,8 @@ class _Panels(QTreeWidget):
         self.axes_box = QTreeWidgetItem(self.invisibleRootItem(), ["Axes"])
         self.axes_box.setFlags(self.axes_box.flags() | Qt.ItemIsUserCheckable)
         self.axes_box.setToolTip(0, "Show or hide the axes of every image panel")
+        self._followed = []  # the Image panels whose axes the box follows (`_follow`)
+        self.destroyed.connect(partial(self._detach, self._followed, self._agree))  # closed alone or with its tab
         for entry in entries:
             label, panels = entry if isinstance(entry, tuple) else (None, [entry])
             parent = self.invisibleRootItem()
@@ -2586,15 +2613,13 @@ class _Panels(QTreeWidget):
                 parent = QTreeWidgetItem(parent, [label])
                 parent.setFlags(parent.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsAutoTristate)
             for panel in panels:
-                item = QTreeWidgetItem(parent, [panel.state.title])
+                made = not isinstance(panel, _Panel)
+                item = QTreeWidgetItem(parent, [panel.state.title if made else panel.title])
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-                item.setCheckState(0, Qt.Checked)
+                item.setCheckState(0, Qt.Checked if made else Qt.Unchecked)
                 self.panels.append((item, panel))
-                panel.window_closed.connect(self._forget)
-        images = [panel for _, panel in self.panels if isinstance(panel, ImageViewer)]
-        for panel in images:  # their own 'Hide axes' too
-            panel.state.add_callback("show_axes", self._agree)
-        self.destroyed.connect(partial(self._detach, images, self._agree))  # closed alone or with its tab
+                if made:
+                    self._follow(panel)
         self._agree()
         # a label's box changes each of its panels' boxes
         self._timer = QTimer(self)
@@ -2602,6 +2627,13 @@ class _Panels(QTreeWidget):
         self._timer.setInterval(0)
         self._timer.timeout.connect(self.apply)
         self.itemChanged.connect(lambda item, _: self._show_axes() if item is self.axes_box else self._timer.start())
+
+    def _follow(self, panel):
+        """Take ``panel`` off the list once closed, and follow an Image panel's axes, its own 'Hide axes' too."""
+        panel.window_closed.connect(self._forget)
+        if isinstance(panel, ImageViewer):
+            panel.state.add_callback("show_axes", self._agree)
+            self._followed.append(panel)
 
     @staticmethod
     def _detach(images, agree):
@@ -2633,14 +2665,23 @@ class _Panels(QTreeWidget):
 
     def apply(self):
         """Turn each panel on or off as its box says, then lay out the panels shown if any changed."""
+        self._timer.stop()  # if called directly: the pending call would run mid-way, as making panels processes events
         tab = self.parentWidget().mdiArea()
         active, changed = tab.activeSubWindow(), False
         # Qt activates each window shown, and glue-qt would restyle every viewer and fill its side panels for each
         blocked = tab.blockSignals(True)
         try:
+            ticked = [row for item, row in self.panels if isinstance(row, _Panel) and item.checkState(0) == Qt.Checked]
+            for name in dict.fromkeys(row.window for row in ticked):  # each window's panels, made once
+                made = self.make(name)
+                self.panels = [(item, made.get(panel, panel)) for item, panel in self.panels]
+                for panel in made.values():
+                    self._follow(panel)
+                    panel.set_focus(False)  # as glue-qt shows a viewer not active, which these signals would tell it
+                changed = True
             for item, panel in self.panels:
                 on = item.checkState(0) == Qt.Checked
-                if on == _off(panel):
+                if not isinstance(panel, _Panel) and on == _off(panel):
                     _turn(panel, on, self.group)
                     changed = True
             if active is not None and not active.isHidden():
