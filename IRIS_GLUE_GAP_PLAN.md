@@ -135,6 +135,8 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D84:** User (2026-10-16), the choice review's sixth pass: the 54 choices of #276-#295 (chunks h3-j2), all kept; 283-4 was done as #284.
 
+- **D85:** User (2026-10-17): saturated samples show everywhere (images, spectra, light curves) at their stored value, 16182 DN or its DN / s, not +Inf, which glue skips; irispy keeps the value and marks saturation in its mask, as a draft PR on LM-SAL/irispy from the user's fork (`wp0-irispy-saturation-mask`), and glue-solar follows once it merges (`wp10-l-saturation-shown`). Reverses D57's +Inf.
+
 ## Milestones
 
 A milestone is done when it has no items left. M0, M2 (analysis, display and export) and M3 (specialist) are done.
@@ -153,9 +155,10 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP9: `wp9-l-guide-data`, `wp9-l-guide-rest`
+- WP10: `wp10-l-saturation-shown`
 
 **M4**
-- WP0: `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-restore-full-ci`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
+- WP0: `wp0-irispy-saturation-mask`, `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-restore-full-ci`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
 - WP1: `wp1-m4-autolink-matrix`
 - WP6: `wp6-glue-fit-tool`
 - WP9: `wp9-m4-release-updates`
@@ -180,6 +183,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 
 **M4**
 
+- [ ] **M4** `wp0-irispy-saturation-mask` (D85): irispy's scaled reads keep a saturated sample's value (raw 32760, 16182 DN) and set it in the NDCube mask, and its analyses (moments, Mg II features, red-blue, bursts, `subtract_background`) take saturation from the mask instead of +Inf; a draft PR on LM-SAL/irispy from the user's fork. Done when irispy's tests pass and the draft is open for the user.
 - [ ] **M4** `wp0-irispy-requests`: Get irispy's merged #197-#199, #201 and #205-#207 released (0.10.0; changelog fragments in place; D47) and settle the irispy-side checks (exposure times, rolled-SJI gWCS, binned `slit x position`, per-step pointing). Also ask irispy to write `km / s` in its messages, as astropy does (267-7, D79), and match `test_mg_features` to the new text. Done when a release has them and each check has a test or user decision.
 - [ ] **M4** `wp0-restore-full-ci`: #130 cut CI to one test job (py313-online, `-n auto`) beside `build_docs` while the work only needs to show it works. Before the release, restore the full matrix: a core job at the `requires-python` floor (py313) that the test (py314, py313-online) and docs jobs wait for, all with `-n auto`. Done when CI runs every job again.
 - [ ] **M4** `wp0-core-image-artist-bugs`: Core PR: a hidden Pixel crosshair reappears at (0, 0), `translate_pixel` raises a bare `Exception`, and a linked-layer Pixel crosshair uses its own dataset instead of the viewer's reference data (#107). Done when all three reproducers pass on a release.
@@ -312,6 +316,10 @@ Notes:
 ### WP10: Loader robustness and performance
 
 Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on files up to 20 GB.
+
+**L**
+
+- [ ] **L** `wp10-l-saturation-shown` (D85): glue-solar's lazy and in-memory reads keep raw 32760 at its value with saturation in the window's mask, so images, spectra and light curves show saturated samples at 16182 DN (or DN / s), and the analyses pass irispy the mask. Done when a saturated flare raster under `~/DATA/IRIS/saturated/` shows its saturated samples in a light curve and the analyses' saturation counts are unchanged. Depends: wp0-irispy-saturation-mask.
 
 Notes:
 - IRIS Level 2 image HDUs are int16 (BSCALE 0.25, BZERO 7992; fill is raw -32768/-32764). glue-solar reads SJIs and AIA cutouts through irispy main's `read_sji_lvl2(memmap=True)`, whose raw int16 keeps the fill under a lazy mask; a `.fits.gz` is decompressed once into bytes that irispy views (#140).
