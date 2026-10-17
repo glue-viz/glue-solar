@@ -426,15 +426,15 @@ Datasets made from IRIS data, such as line moments or rebinned and north-up data
 their values, which can make a session large (36 MB with line moments of that Si IV 1403 window):
 save derived products separately rather than relying on a Glue session as their only copy.
 
-As glue's window closes with data loaded, on quit and when Open Session or Reset Session replaces
-the session, glue-solar keeps it as a "Glue Session with absolute paths to data" in glue's settings
-folder (``~/.glue/glue-solar-last-session.glu``), and Plugins → "IRIS: restore last session" opens it as
-File → Open Session does, so restoring from a session with data keeps that one in its place. The
-4000255147 quicklook above is kept in under 0.01 s and restored from the menu in about 2 s; if its
-files have moved, glue says which it cannot find. A session glue cannot save, or of over 1 MB, such
-as one with those line moments, is not kept: the one kept before stays, and the terminal glue
-started from says why ("glue-solar kept no last session: its data hold 26.7 MB of values, over 1 MB"),
-without delaying the quit, as the values are counted before glue saves them.
+As glue quits with data loaded, glue-solar keeps the session as a "Glue Session with absolute paths
+to data" in glue's settings folder (``~/.glue/glue-solar-last-session.glu``), and Plugins → "IRIS:
+restore last session" opens it as File → Open Session does. Open Session, Reset Session and the
+restore itself keep nothing, so restoring twice gives the same session. The 4000255147 quicklook
+above is kept in under 0.01 s and restored from the menu in about 2 s; if its files have moved,
+glue says which it cannot find. A session glue cannot save, or of over 1 MB, such as one with those
+line moments, is not kept: the one kept before stays, and a message says why as glue quits ("Could
+not keep this session for 'IRIS: restore last session'", "its data hold 26.7 MB of values, over 1
+MB"), the values being counted before glue saves them.
 
 Not saved yet:
 

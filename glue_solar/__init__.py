@@ -6,9 +6,11 @@ from functools import partialmethod
 import glue.config
 import qtpy
 from glue.config import fit_plugin, menubar_plugin, session_patch, stretches, unit_converter
+from glue.core import Data
 from glue.core.state import GlueSerializer
 from glue.logger import logger
 from glue_qt.config import keyboard_shortcut, layer_action
+from glue_qt.utils.decorators import messagebox_on_error
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.image.profile_viewer_tool import ProfileViewerTool
 from glue_qt.viewers.profile import ProfileViewer
@@ -90,41 +92,48 @@ def _last_session():
     return os.path.join(glue.config.CFG_DIR, "glue-solar-last-session.glu")
 
 
+@messagebox_on_error("Could not keep this session for 'IRIS: restore last session'")  # the app has no terminal (206-7)
 def _save_last_session(app):
     """
     Keep the session of ``app``, a shown glue application with data, as the last session, as glue's Export Session
-    writes it with absolute paths to the files; one over 1 MB or that glue cannot save leaves the last session as it
-    was, and the log says why.
+    writes it with absolute paths to the files; one over 1 MB or that glue cannot save raises, leaving the last session
+    as it was.
     """
     if not app.isVisible() or not len(app.data_collection):
         return
-    try:
-        held = sum(  # the values glue would save, not their files: less than the session, measured before encoding
-            getattr(component, "spectra", component.data).nbytes  # a calibration's factor saves its spectra alone
-            for data in app.data_collection
-            for component in map(data.get_component, data.main_components)
-            if not hasattr(component, "_load_log")
-        )
-        if held > 1e6:
-            raise ValueError(f"its data hold {held / 1e6:.1f} MB of values, over 1 MB")
-        state = GlueSerializer(app, absolute_paths=True).dumps(indent=2)
-        if len(state) > 1e6:  # data saved with their values, not their files
-            raise ValueError(f"the session is {len(state) / 1e6:.1f} MB, over 1 MB")
-        os.makedirs(glue.config.CFG_DIR, exist_ok=True)
-        with tempfile.NamedTemporaryFile("w", dir=glue.config.CFG_DIR, suffix=".glu", delete_on_close=False) as file:
-            file.write(state)
-            file.close()
-            os.replace(file.name, _last_session())  # whole or not at all
-    except Exception as error:  # glue closes whatever happens
-        logger.warning(f"glue-solar kept no last session: {error}")
+    held = sum(  # the values glue would save, not their files: less than the session, measured before encoding
+        getattr(component, "spectra", component.data).nbytes  # a calibration's factor saves its spectra alone
+        for data in app.data_collection
+        if isinstance(data, Data)  # a path diagram (`tools.PathData`) saves its path, and has no components (D75)
+        for component in map(data.get_component, data.main_components)
+        if not hasattr(component, "_load_log")
+    )
+    if held > 1e6:
+        raise ValueError(f"its data hold {held / 1e6:.1f} MB of values, over 1 MB")
+    state = GlueSerializer(app, absolute_paths=True).dumps(indent=2)
+    if len(state) > 1e6:  # data saved with their values, not their files
+        raise ValueError(f"the session is {len(state) / 1e6:.1f} MB, over 1 MB")
+    os.makedirs(glue.config.CFG_DIR, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", dir=glue.config.CFG_DIR, suffix=".glu", delete_on_close=False) as file:
+        file.write(state)
+        file.close()
+        os.replace(file.name, _last_session())  # whole or not at all
 
 
 _glue_close_event = None  # glue-qt's ``GlueApplication.closeEvent``, once `setup` wraps it
 
 
 def _close_event(self, event):
-    """glue-qt's ``GlueApplication.closeEvent``, keeping the session first, while its viewers are open."""
-    _save_last_session(self)
+    """
+    glue-qt's ``GlueApplication.closeEvent``, keeping the session first, while its viewers are open, on quit only: the
+    window another session replaces (Open Session, Reset Session, 'IRIS: restore last session') has glue-qt's
+    ``_new_application``, and keeping it would swap sessions at each restore (206-3).
+    """
+    if not hasattr(self, "_new_application"):
+        try:
+            _save_last_session(self)
+        except Exception as error:  # glue closes whatever happens
+            logger.warning(f"glue-solar kept no last session: {error}")
     _glue_close_event(self, event)
 
 
@@ -141,14 +150,14 @@ def _gluestate(self, context):
 @menubar_plugin("IRIS: restore last session")
 def restore_last_session(session, data_collection):
     """
-    Open the session glue-solar kept as glue's window last closed with data, as File → Open Session opens one.
+    Open the session glue-solar kept as glue last quit with data, as File → Open Session opens one.
     """
     app = session.application
     if not os.path.exists(_last_session()):
         QtWidgets.QMessageBox.information(
             app,
             "IRIS: restore last session",
-            "No session kept yet: glue-solar keeps one as glue's window closes with data.",
+            "No session kept yet: glue-solar keeps one as glue quits with data.",
         )
         return
     app.restore_session_and_close(_last_session())
@@ -226,7 +235,7 @@ def setup():
     for viewer in (ImageViewer, ProfileViewer):
         _add_keys(viewer, tools.KEYS)
     _add_keys(QuicklookImageViewer, keyboard_shortcut.members[ImageViewer])
-    # The last session, kept as glue's window closes: on quit, and when another session replaces it
+    # The last session, kept as glue quits
     from glue_qt.app.application import GlueApplication
 
     if GlueApplication.closeEvent is not _close_event:
