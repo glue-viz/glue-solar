@@ -7,7 +7,7 @@ Usage (headless; glue rewrites ``~/.glue/settings.cfg``, so give it a scratch HO
 
 The folder is searched for observations like the observation browser does. It must hold the extracted raster
 archive of OBSID 3400109360 (``iris_l2_20250328_225628_3400109360_raster``), whose eight scans have the
-``C II 1336`` and ``Mg II k 2796`` spectral windows.
+``C II 1336`` and ``Mg II k 2796`` spectral windows, and OBSID 4000255147's extracted raster archive and SJI 1400 file.
 """
 
 import faulthandler
@@ -15,22 +15,22 @@ import sys
 import time
 from pathlib import Path
 
-import numpy as np
 from glue.config import settings
 from glue_qt.app import GlueApplication
-from glue_qt.viewers.image import ImageViewer
-from glue_qt.viewers.profile import ProfileViewer
-from matplotlib import colormaps
+from PIL import Image
 from qtpy import QtWidgets
 from qtpy.QtCore import QSettings, Qt
-from scipy.ndimage import uniform_filter
 
+from astropy.io import fits
+
+from glue_solar.quicklook import quicklook
 from glue_solar.sources.loaders import iris
-from glue_solar.sources.loaders.iris import QtIRISImporter, keep_hpc_linked
+from glue_solar.sources.loaders.iris import QtIRISImporter
 from glue_solar.tests.helpers import select_point
 
 OBSID = "3400109360"
 WINDOWS = ("C II 1336", "Mg II k 2796")
+QUICKLOOK, POINT = "4000255147", (800, 200)  # an exposure and slit pixel of its Mg II k map
 OUT = Path(__file__).parent / "user_guide" / "images"
 
 
@@ -47,7 +47,7 @@ def main(folder):
     iris.QSettings = lambda org, app: QSettings(str(Path.home() / f"{org}-{app}.ini"), QSettings.IniFormat)
     settings.SHOW_LARGE_DATA_WARNING = False
     app = GlueApplication()
-    app.resize(1800, 1200)
+    app.resize(1600, 1000)
     app.show()
 
     def wait(done=lambda: True, viewers=()):
@@ -95,45 +95,20 @@ def main(folder):
     dialog.resize(1400, 340)
     dialog.show()
     shot("choosing-iris-level-2-data-cubes-and-stacking-raster-cubes.png", dialog)
-    dialog.ok.click()
-    wait(lambda: dialog.ok.isEnabled() and not iris._RUNNING)
-    app.data_collection.extend(dialog.datasets)
-    keep_hpc_linked(app.data_collection)
+    dialog.close()
 
-    # 3. a pixel of the Mg II k map at its line core, and its spectrum
-    data = next(d for d in app.data_collection if d.label.startswith("Mg_II_k_2796"))
-    v = app.new_data_viewer(ImageViewer, data=data)
-    v.viewer_size = (1000, 560)
-    v.layers[0].state.percentile = 99
-    v.layers[0].state.cmap = colormaps["viridis"]
-    scan0 = np.asarray(data[data.main_components[0]][0])  # (raster step, slit, wavelength)
-    core = int(np.nanargmax(np.nanmean(scan0, axis=(0, 1))))
-    v.state.x_att, v.state.y_att = data.pixel_component_ids[1], data.pixel_component_ids[2]
-    v.state.slices = (0, 0, 0, core)
-    v.state.aspect = "auto"
-    v.state.reset_limits()
-    # a bright region, not a hot pixel or saturated plage, off the masked slit ends and the frame edges
-    image = uniform_filter(np.nan_to_num(scan0[:, :, core], nan=0.0), size=5)
-    image[image > np.percentile(image, 99)] = 0
-    image[np.isfinite(scan0).mean(axis=2) < 0.9] = 0
-    image[:3] = image[-3:] = 0
-    image[:, :40] = image[:, -40:] = 0
-    step, slit = np.unravel_index(np.argmax(image), image.shape)
-    wait(viewers=[v])
-    select_point(v, step, slit)
-
-    pv = app.new_data_viewer(ProfileViewer, data=data)
-    pv.viewer_size = (1000, 460)
-    pv.position = (0, 575)
-    pv.state.function = "mean"
-    pv.state.x_att = next(c for c in pv.state.x_att_helper.choices if getattr(c, "label", None) == "Wavelength")
-    wait(viewers=[pv])
-    for layer in pv.layers:  # recompute: a layer drawn while the settings changed can keep a stale line
-        layer.state.reset_cache()
-        layer._calculate_profile(reset=True)
-    wait(viewers=[pv])
-    pv.state.reset_limits()
-    shot("spectrum-at-the-selected-pixel.png", app, [v, pv])
+    # 3. the default quicklook of OBSID 4000255147 (Mg II k 2796 and SJI 1400), with a point placed
+    raster = next(Path(folder).glob(f"*_{QUICKLOOK}_raster/*_r00000.fits"))
+    sji = next(Path(folder).glob(f"*_{QUICKLOOK}_SJI_1400_t000.fits*"))
+    header = fits.getheader(raster)  # every window, as ticking the observation in the browser passes them
+    windows = [header[f"TDESC{i}"] for i in range(1, header["NWIN"] + 1)]
+    viewers = quicklook(app, [*iris.iris_data(str(raster)), iris.iris_data(str(sji))], window=windows)
+    panels = [viewers["map"], viewers["spectrogram"], viewers["wavelength"], viewers["spectrum"], *viewers["sji"]]
+    wait(viewers=panels)
+    select_point(viewers["map"], *POINT)
+    shot("quicklook.png", app, panels)
+    shot_file = OUT / "quicklook.png"
+    Image.open(shot_file).convert("RGB").quantize(256).save(shot_file, optimize=True)  # a palette keeps it < 300 kB
     app.close()
 
 

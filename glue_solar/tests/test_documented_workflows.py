@@ -118,7 +118,7 @@ def test_browser_stacks_scans_into_4d_data_with_per_pixel_time(qtbot, irispy_tes
     load_selected(qtbot, dialog)
     [stack] = dialog.datasets
     assert stack.ndim == 4
-    # docs/user_guide/guide-to-glue-1dprofile-viewer-for-iris-data.rst: the terminal's mean over scans is the Profile's
+    # docs/user_guide/iris-quicklook.rst: the terminal's mean over scans is the Profile's
     # Mean of an X range over them
     cid = stack.main_components[0]
     np.testing.assert_array_equal(

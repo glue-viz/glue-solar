@@ -46,8 +46,8 @@ range alone, and glue adds them as ``<label> moments <rest>``.
 
 To take the velocity range from a Profile, drag a range over the line on the "Collapse" or "Fit"
 tab of the "Options" of a Profile viewer of the window against its wavelength, such as a
-quicklook's spectrum panel (see :ref:`the Profile guide
-<glue_solar_user_guide_1dprofile_viewer_for_iris_data>`). While the range shows, the dialog shows it
+quicklook's spectrum panel (see :ref:`The spectrum panel
+<glue_solar_users_guide_iris_spectrum_panel>`). While the range shows, the dialog shows it
 too, and a rest wavelength within it, the one the dialog starts at or one typed, sets the
 velocities to its ends, whatever the Profile's "x unit"; they can still be changed afterwards. A
 range reaching past the window is cut to it, and the dialog says so, such as "1390.000 to 1415.000
@@ -70,8 +70,8 @@ The maps are:
 Velocities are relative to the uncorrected Level 2 wavelength scale, which can be off by about 5-10
 km / s; for a FUV window, a rest wavelength shifted by a fitted O I 1355.5977 Å makes them relative
 to a line at rest, and for a NUV window, one shifted by a fitted Ni I 2799.474 Å (see "Rest
-wavelength from a measured line" in :ref:`the Profile guide
-<glue_solar_user_guide_1dprofile_viewer_for_iris_data>`). Mg II h and k and C II are optically
+wavelength from a measured line" in :ref:`The spectrum panel
+<glue_solar_users_guide_iris_spectrum_panel>`). Mg II h and k and C II are optically
 thick: their profiles, often with two peaks about a central reversal, form over a range of heights,
 so their centroid and width are proxies for the motions and broadening of the plasma, not
 measurements of them.
@@ -183,7 +183,7 @@ Rest wavelength
 
 The rest wavelength of a spectral window, at which the line maps dialog starts, and from which a
 Profile viewer gives the :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>` and the
-Image viewer's "Cursor readout" (:ref:`Viewer tools and windows
+Image viewer's "Cursor readout" (:ref:`Viewer tools
 <glue_solar_users_guide_viewer_tools_and_windows>`) the velocity under the mouse, is:
 
 - the one set with "IRIS: set rest wavelength…" from the window's right-click menu, which lists the main

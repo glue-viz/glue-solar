@@ -110,15 +110,15 @@ Its panels are laid out in three rows, maps on top:
   intensities such as CHROMIS's;
 - wavelength against scan at the point ("λ–time"), and the light curve at the point: the cube's value
   at each scan, against the scan index, at the map's wavelength, or the mean over its band, a Collapse
-  or a "Wavelength band…" (see :ref:`Viewer tools and windows
+  or a "Wavelength band…" (see :ref:`Viewer tools
   <glue_solar_users_guide_viewer_tools_and_windows>`).
 
 A spectral cube of another instrument gets these panels from its axes, but the second map (see "Other
-spectral cubes" in :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`).
+spectral cubes" in :ref:`Quicklook <glue_solar_users_guide_iris_quicklook>`).
 
 The point, the edit subset "Point", starts at the map's center in the first scan and Stokes I, with
 the Pixel tool on the map, and is a pixel at every wavelength, as in the IRIS quicklook (see
-:ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). Each image panel takes the Pixel tool as
+:ref:`Quicklook <glue_solar_users_guide_iris_quicklook>`). Each image panel takes the Pixel tool as
 its window becomes active. A click on either map moves it, the
 virtual slit to its x and wavelength against scan to its y and x; a click on the virtual slit or on
 wavelength against scan moves it there and the map, not the second map, to the wavelength clicked. The
@@ -197,8 +197,8 @@ diagram settles about 0.6 s after Enter rather than 4 to 5 s.
 Saving sessions
 ---------------
 
-A session refers to the cube's file, as it does to IRIS data's (see "Saving sessions" in
-:ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`), and reads it again
+A session refers to the cube's file, as it does to IRIS data's (see
+:ref:`Saving sessions <glue_solar_users_guide_saving_sessions>`), and reads it again
 as it opens; "IRIS: restore last session" opens the one glue-solar keeps as glue quits.
 
 What is not supported
