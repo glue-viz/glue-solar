@@ -2307,7 +2307,6 @@ These behave the same with and without every prototype. All were found on 8.0.1;
 - [ ] **Zero-width or zero-height axes** raise `LinAlgError: Singular matrix` on draw. main?
 - [ ] **Pickling.** A WCSAxes figure cannot be unpickled (`TypeError: BaseFrame.__init__() missing parent_axes and transform`). main?
 - [ ] **First draw against second draw.** They differ in the last bits of one axis-label y position and one label bbox. A cache across draws must reproduce the second draw.
-- [ ] **Wrong second crossing (8.0.1 only, fixed on main by #20221).** `t *= _coord_scale_to_deg` mutates the loop variable (8.0.1 coordinate_helpers.py:1178). A second crossing of an arcsec longitude on one spine therefore gets a wrong value. IRIS longitudes are arcsec, so rolled IRIS views on 8.0.1 can show it.
 
 ### Open questions
 
