@@ -1,6 +1,6 @@
 """
-'IRIS: red-blue asymmetry…', on int16 copies of irispy's test raster and one irispy-data cutout: what glue gets of
-irispy's maps, of a scan or a stack.
+'IRIS: line maps…' and its red-blue asymmetry, on int16 copies of irispy's test raster and one irispy-data cutout: what
+glue gets of irispy's maps, of a scan or a stack.
 """
 
 import numpy as np
@@ -18,23 +18,20 @@ from glue_solar.sources import moments
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.red_blue import red_blue_asymmetry
-from glue_solar.tests import helpers
+from glue_solar.tests import test_moments
 from glue_solar.tests.helpers import refused, run_action
 from glue_solar.tests.test_lazy import SJI
-from glue_solar.tests.test_moments import dn_per_second_cube
-
-ACTION = "IRIS: red-blue asymmetry…"
-BOXES = ("below", "above", "from", "to", "step")
+from glue_solar.tests.test_moments import ACTION, dn_per_second_cube
 
 
-def answer(monkeypatch, rest, values=(), accept=True):
-    """`helpers.answer` for the red-blue dialog, ``values`` those of its `BOXES`."""
-    return helpers.answer(monkeypatch, accept, rest=rest, **dict(zip(BOXES, values)))
+def answer(monkeypatch, rest, accept=True):
+    """`test_moments.answer` with red-blue asymmetry alone ticked."""
+    return test_moments.answer(monkeypatch, rest, accept=accept, moments=False, red_blue=True)
 
 
 def run(app, qtbot, data):
     """Trigger the action on ``data``; returns the dataset it adds."""
-    [maps] = run_action(app, qtbot, data, ACTION, f"Computing red-blue asymmetry of {data.label}…")
+    [maps] = run_action(app, qtbot, data, ACTION, f"Computing line maps of {data.label}…")
     return maps
 
 
@@ -66,8 +63,7 @@ def test_the_action_adds_irispys_maps_as_one_linked_dataset_and_no_viewer(
     keep_hpc_linked(collection)
     opened = answer(monkeypatch, "1402.77")
     maps = run(app, qtbot, raster)
-    # the window's main line; iris_xfiles' wing velocities
-    assert opened == [{"rest": "1402.77", "below": 1.0, "above": 1.0, "from": 30.0, "to": 55.0, "step": 5.0}]
+    assert opened[0]["rest"] == "1402.77"  # the window's main line
     assert maps.label == f"{raster.label} red-blue asymmetry 1402.77"
     assert maps.shape == raster.shape[:2]
     assert maps.meta == {
@@ -89,24 +85,23 @@ def test_the_action_adds_irispys_maps_as_one_linked_dataset_and_no_viewer(
     assert_irispys(maps, raster, 1402.77)
 
 
-def test_the_typed_values_and_a_blank_or_canceled_rest(app, qtbot, monkeypatch, scan_path):
+def test_other_values_and_a_blank_or_canceled_rest(app, qtbot, monkeypatch, scan_path):
+    """Other wavelengths, wing velocities and step are the function's; a blank rest wavelength or Cancel adds nothing."""
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     collection = app.data_collection
     collection.append(raster)
-    answer(monkeypatch, " 1402.77 ", (0.6, 1.2, 20, 60, 2.5))
-    maps = run(app, qtbot, raster)
+    maps = red_blue_asymmetry(raster, 1402.77, (0.6, 1.2), (20, 60), 2.5)
     assert maps.meta["red_blue_wavelengths"] == (0.6, 1.2)
     assert (maps.meta["red_blue_velocities"], maps.meta["red_blue_step"]) == ((20, 60), 2.5)
     assert_irispys(maps, raster, 1402.77, (0.6, 1.2), (20, 60), 2.5)
-    # nothing more is added
     tree = app._layer_widget
-    tree.ui.layerTree.set_selected_layers([raster])  # glue selects the dataset added
+    tree.ui.layerTree.set_selected_layers([raster])
     action = tree._actions[ACTION]
     for rest, accept in (("", True), ("1402.77", False)):
         answer(monkeypatch, rest, accept=accept)
         action.trigger()
         assert not iris._RUNNING  # and no thread started
-        assert len(collection) == 2
+        assert len(collection) == 1
 
 
 def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatch, stack_paths):
@@ -153,17 +148,12 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
     for rest in ("3000", "Si IV"):
         answer(monkeypatch, rest)
         action.trigger()
-    # and an error of irispy's, on the thread
-    answer(monkeypatch, "1402.77", (1, 1, 60, 30))
-    action.trigger()
-    qtbot.waitUntil(lambda: len(shown) == 5 and not iris._RUNNING)
-    assert all(text.startswith("Could not compute red-blue asymmetry\n") for text in shown)
+    assert all(text.startswith("Could not compute line maps\n") for text in shown)
     assert [text.split("\n", 1)[1] for text in shown] == [
         f"{sji.label} is not an IRIS raster window.",
         "plain is not an IRIS raster window.",
         f"No wavelength of {raster.label} (1398.63 to 1405.75 Å) lies within 1.0 Å below and 1.0 Å above 3000.0 Å.",
         "'Si IV' is not a wavelength in Angstrom, such as 1402.77.",
-        "velocity_range must be positive and increasing",
     ]
     assert app.statusBar().currentMessage() == ""
     assert len(collection) == 3

@@ -1,43 +1,58 @@
 .. _glue_solar_users_guide_iris_line_moments:
 
-============
-Line moments
-============
+=========
+Line maps
+=========
 
 To map a spectral line, select a raster window, of one scan or a stack of its scans, in the data
-collection and choose "IRIS: line moments…" from its right-click menu. The line center, the rest
-wavelength of the velocities in Å, starts at the window's :ref:`rest wavelength
-<glue_solar_users_guide_iris_rest_wavelength>`, such as 2796.352 for Mg II k, or blank for a window
-without one; type another to change it. The velocity range, the Doppler velocities of the
-wavelengths taken, from and to, in km / s from the center, is -107 to 107 km / s unless changed, ±0.5 Å
-at Si IV 1402.77 and ±1.0 Å at Mg II k; a blank center adds nothing. The velocities stop at the
-window's first and last wavelengths about a center within them, the one the dialog starts at, or
-one typed once its editing finishes, or on OK: -726.906 to 692.126 km / s about Si IV 1402.77 in
-4000255147's window, 1399.369 to 1406.009 Å, rounded outwards to the thousandth of a km / s, so
-irispy still takes every wavelength of the window. Continuum windows are
-optional: line-free wavelength ranges outside the velocity range, such as
-``1401.6-1402.1, 1403.5-1404.3``, to which irispy's ``subtract_background`` fits the background of
-each spectrum, a constant to one window or a straight line to more, and subtracts it; left blank,
-nothing is subtracted, and any continuum within the velocity range adds to every map. irispy's
-``calculate_moments`` computes the maps on a worker thread from the wavelengths within the velocity
-range alone, while glue's status bar says "Computing line moments of <label>…", and adds
-``<label> moments <center>`` on the window's raster steps and slit pixels, with their
-helioprojective coordinates in arcsec linked with the other IRIS datasets. No viewer opens: drag
-it onto an Image viewer and pick a map as its attribute. A stack's maps are one dataset on its
-scans, raster steps and slit pixels, each scan's as that scan alone gives them, at its own
-coordinates and exposure times; the scan slider picks the scan.
+collection and choose "IRIS: line maps…" from its right-click menu. The rest wavelength, in Å,
+starts at the window's :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`, such as
+2796.352 for Mg II k, or blank for a window without one; type another to change it. Tick the maps to
+make:
+
+- "Line moments", ticked at first: the intensity, centroid, width and velocity of the line within
+  its velocity range, with optional continuum windows and error maps, grayed out unless it is ticked
+  (see below);
+- "Doppler image": the red wing less the blue wing at 10, 20, 30, 40 and 50 km / s;
+- "Red-blue asymmetry": irispy's, of the wavelengths within 1 Å of the rest wavelength, the wings 30
+  to 55 km / s from the peak.
+
+A blank rest wavelength, or no map ticked, adds nothing. Glue checks every map ticked first, and
+should it refuse one, says why and adds none (see `What is refused`_). It then computes them in turn
+on a worker thread, while its status bar says "Computing line maps of <label>…", and adds each as a
+dataset on the window's raster steps and slit pixels, with their helioprojective coordinates in
+arcsec linked with the other IRIS datasets. No viewer opens: drag one onto an Image viewer and pick
+a map as its attribute. A stack's maps are one dataset on its scans, raster steps and slit pixels,
+each scan's as that scan alone gives them, at its own coordinates and exposure times; the scan
+slider picks the scan. The functions named below take other settings in glue's terminal.
+
+Line moments
+------------
+
+The velocity range, the Doppler velocities of the wavelengths taken, from and to, in km / s from the
+rest wavelength, is -107 to 107 km / s unless changed, ±0.5 Å at Si IV 1402.77 and ±1.0 Å at Mg II
+k; it is the line moments' alone. The velocities stop at the window's first and last wavelengths
+about a rest wavelength within them, the one the dialog starts at, or one typed once its editing
+finishes, or on OK: -726.906 to 692.126 km / s about Si IV 1402.77 in 4000255147's window, 1399.369
+to 1406.009 Å, rounded outwards to the thousandth of a km / s, so irispy still takes every
+wavelength of the window. Continuum windows are optional: line-free wavelength ranges outside the
+velocity range, such as ``1401.6-1402.1, 1403.5-1404.3``, to which irispy's ``subtract_background``
+fits the background of each spectrum, a constant to one window or a straight line to more, and
+subtracts it; left blank, nothing is subtracted, and any continuum within the velocity range adds to
+every map. irispy's ``calculate_moments`` computes the maps from the wavelengths within the velocity
+range alone, and glue adds them as ``<label> moments <rest>``.
 
 To take the velocity range from a Profile, drag a range over the line on the "Collapse" or "Fit"
 tab of the "Options" of a Profile viewer of the window against its wavelength, such as a
 quicklook's spectrum panel (see :ref:`the Profile guide
 <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`). While the range shows, the dialog shows it
-too, and a center within it, the one the dialog starts at or one typed, sets the velocities to its
-ends, whatever the Profile's "x unit"; they can still be changed afterwards. A range reaching past
-the window is cut to it, and the dialog says so, such as "1390.000 to 1415.000 Å, cut to the
-window: 1399.369 to 1406.009 Å"; one wholly outside it says "outside the window" and sets nothing.
+too, and a rest wavelength within it, the one the dialog starts at or one typed, sets the
+velocities to its ends, whatever the Profile's "x unit"; they can still be changed afterwards. A
+range reaching past the window is cut to it, and the dialog says so, such as "1390.000 to 1415.000
+Å, cut to the window: 1399.369 to 1406.009 Å"; one wholly outside it says "outside the window" and
+sets nothing.
 
-The maps
---------
+The maps are:
 
 - ``intensity``, the sum of the samples, in irispy's ``DN_IRIS_FUV / s`` or ``DN_IRIS_NUV / s``, the
   window's DN / s by its detector: those of the window's ``<label> DN / s``, its DN over each raster
@@ -47,17 +62,17 @@ The maps
 - ``width``, its standard deviation about the centroid, in Angstrom, not its full width at half maximum:
   for a Gaussian line within the velocity range, the FWHM is 2√(2 ln 2) ≈ 2.355 times the width,
   and a range that cuts the line off gives a smaller width;
-- ``velocity`` and ``velocity_width``, the centroid's Doppler velocity from the center and the width
-  as a velocity, in km / s.
+- ``velocity`` and ``velocity_width``, the centroid's Doppler velocity from the rest wavelength and
+  the width as a velocity, in km / s.
 
-Velocities are relative to the uncorrected Level 2 wavelength scale, which can be off by about
-5-10 km / s; for a FUV window, a center shifted by a fitted O I 1355.5977 Å makes them relative to a
-line at rest, and for a NUV window, one shifted by a fitted Ni I 2799.474 Å (see "Rest wavelength
-from a measured line" in
-:ref:`the Profile guide <glue_solar_user_guide_1dprofile_viewer_for_iris_data>`). Mg II h and k and
-C II are optically thick: their profiles, often with two peaks about a central reversal, form over
-a range of heights, so their centroid and width are proxies for the motions and broadening of the
-plasma, not measurements of them.
+Velocities are relative to the uncorrected Level 2 wavelength scale, which can be off by about 5-10
+km / s; for a FUV window, a rest wavelength shifted by a fitted O I 1355.5977 Å makes them relative
+to a line at rest, and for a NUV window, one shifted by a fitted Ni I 2799.474 Å (see "Rest
+wavelength from a measured line" in :ref:`the Profile guide
+<glue_solar_user_guide_1dprofile_viewer_for_iris_data>`). Mg II h and k and C II are optically
+thick: their profiles, often with two peaks about a central reversal, form over a range of heights,
+so their centroid and width are proxies for the motions and broadening of the plasma, not
+measurements of them.
 
 A pixel whose every sample within the velocity range is missing (NaN or -Inf), or with too few
 samples in the continuum windows to fit its background, is NaN in every map; irispy counts other
@@ -97,27 +112,77 @@ better with or without a continuum. A rebinned window's (see :ref:`Rebinning
 sample, not of their mean. A stack's errors are each scan's, as that scan alone gives them, from its
 own exposure times.
 
+.. _glue_solar_users_guide_iris_doppler:
+
+Doppler images
+--------------
+
+A Doppler image maps a line's red wing less its blue wing, as CRISPEX's Doppler images do. At each
+velocity v, each wing is the window's DN / s interpolated linearly at rest × (1 ± v/c), the optical
+Doppler shift, between the two samples about it, each scan of a stack at its own wavelengths, and
+its map, ``red - blue <v> km / s``, is the red wing less the blue: positive where the red wing is
+brighter, as for a redshift. Glue adds them as ``<label> Doppler image <rest>``. A map is NaN where
+either sample about a wing is missing, or saturated: +Inf, as glue-solar reads 16182 DN, the Level 2
+ceiling saturated samples are clipped to (see :ref:`Was it saturated?
+<glue_solar_users_guide_iris_saturation>`). A line symmetric about the rest wavelength gives 0, to
+float precision, where the rest wavelength is a sample's or halfway between two; elsewhere the
+interpolation leaves a small difference. Velocities are relative to the uncorrected Level 2
+wavelength scale, as the line moments' are. The new dataset's ``meta`` holds the observation's
+``OBSID`` and ``STARTOBS``, ``doppler_rest``, ``doppler_velocities`` and ``doppler_sign``,
+``"red - blue"``. ``glue_solar.sources.doppler.doppler_image(data, rest, velocities, normalized)``
+computes the dataset in glue's terminal too, at any positive ``velocities`` in km / s, and with
+``normalized`` adds each map over the sum of its wings, ``(red - blue) / (red + blue) <v> km / s``,
+NaN where a wing is not positive.
+
+.. _glue_solar_users_guide_iris_red_blue:
+
+Red-blue asymmetry
+------------------
+
+Red-blue asymmetry compares the red and blue wings of a line. irispy is given the window's DN / s
+within 1 Å of the rest wavelength, so a Mg II k window's h line is left out, a slab of raster steps
+of one scan at a time. Its ``calculate_red_blue_asymmetry`` interpolates each profile about its peak
+every 5 km / s and divides the mean of its red wing, from 30 to 55 km / s above the peak, less the
+mean of its blue wing, as far below it, by the peak: positive for excess red emission. These are the
+wing velocities and step of SolarSoft's iris_xfiles (its double Gaussian fit,
+``iris_moment__dgf.pro``). Glue adds ``<label> red-blue asymmetry <rest>``, with the maps:
+
+- ``red_blue_asymmetry``, NaN where irispy does not compute it;
+- ``quality``, irispy's ``RBAQualityFlag``: 0 computed, 1 no finite sample, 2 the peak at an end of
+  the wavelengths taken, 3 too few samples, 4 the interpolation failed, 5 a peak of 0, 6 a wing not
+  covered, 8 saturated: a sample taken is +Inf, as glue-solar reads 16182 DN (see :ref:`Was it
+  saturated? <glue_solar_users_guide_iris_saturation>`); 7, below a minimum intensity, is never set.
+
+Missing (NaN or -Inf) and negative samples are left out. The wings are measured from the peak,
+which for the two peaks of Mg II or C II about their central reversal is the brighter one; the rest
+wavelength sets the wavelengths taken and their velocities. The new dataset's ``meta`` holds the
+observation's ``OBSID`` and ``STARTOBS``, ``red_blue_rest``, ``red_blue_wavelengths``,
+``red_blue_velocities`` and ``red_blue_step``.
+``glue_solar.sources.red_blue.red_blue_asymmetry(data, rest, wavelengths, velocities, step)``
+computes the dataset in glue's terminal too, with other wavelengths taken, ``(below, above)`` in Å,
+wing velocities and step.
+
 What is refused
 ---------------
 
 The entry is offered only for an IRIS raster window or a stack of its scans. Glue says why, and adds
 nothing, for:
 
-- a center or continuum window that is not a wavelength, or a list of ranges, in Å;
+- a rest wavelength or continuum window that is not a wavelength, or a list of ranges, in Å;
 - a velocity range that does not increase, or with no wavelength of the window within it about the
-  center, a continuum window with none, or one that overlaps the velocity range.
+  rest wavelength, a continuum window with none, or one that overlaps the velocity range;
+- a Doppler image's wing outside the window, or red-blue asymmetry with no wavelength of the window
+  within 1 Å of the rest wavelength.
 
 .. _glue_solar_users_guide_iris_rest_wavelength:
 
 Rest wavelength
 ---------------
 
-The rest wavelength of a spectral window, at which the line center here and the rest wavelength of
-:ref:`red-blue asymmetry <glue_solar_users_guide_iris_red_blue>` and
-:ref:`Doppler images <glue_solar_users_guide_iris_doppler>` start, and from which a Profile viewer
-gives the :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>` and the Image viewer's
-"Cursor readout" (:ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`)
-the velocity under the mouse, is:
+The rest wavelength of a spectral window, at which the line maps dialog starts, and from which a
+Profile viewer gives the :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>` and the
+Image viewer's "Cursor readout" (:ref:`Viewer tools and windows
+<glue_solar_users_guide_viewer_tools_and_windows>`) the velocity under the mouse, is:
 
 - the one set with "IRIS: set rest wavelength…" from the window's right-click menu, which lists the main
   IRIS lines within the window and takes a wavelength typed in Å, a blank one removing it. It is

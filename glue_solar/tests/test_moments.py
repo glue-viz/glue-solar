@@ -1,8 +1,8 @@
 """
-'IRIS: line moments…', on int16 copies of irispy's test files, Gaussian lines and one irispy-data cutout: what glue
-gets of irispy's maps, of a scan or a stack, and the velocity range a Profile range gives; 'IRIS: subtract mean
-spectrum', as a Profile shows it; the maps exported with their coordinates; and the rest wavelength the line dialogs
-start at.
+'IRIS: line maps…' and its line moments, on int16 copies of irispy's test files, Gaussian lines and one irispy-data
+cutout: what glue gets of irispy's maps, of a scan or a stack, and the velocity range a Profile range gives; 'IRIS:
+subtract mean spectrum', as a Profile shows it; the maps exported with their coordinates; and the rest wavelength the
+dialog starts at.
 """
 
 from unittest.mock import Mock
@@ -31,23 +31,38 @@ from glue_solar.conftest import SCAN, find_irispy_test_file, int16_copy, int16_r
 from glue_solar.lines import rest_wavelength
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import moments
+from glue_solar.sources.doppler import doppler_image
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import _HPC, _GlueWCS, image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.moments import line_moments
+from glue_solar.sources.red_blue import red_blue_asymmetry
 from glue_solar.tests import helpers
 from glue_solar.tests.helpers import refused, run_action, select_point
 from glue_solar.tests.test_lazy import RASTER, SJI, zero_exposure
 
-ACTION = "IRIS: line moments…"
+ACTION = "IRIS: line maps…"
 MEAN = "IRIS: subtract mean spectrum"
 EXPORT = "IRIS FITS (coordinates and Time)"
 C = constants.c.to_value(u.km / u.s)
 
 
-def answer(monkeypatch, center, velocities=(), continuum="", accept=True, errors=False):
-    """`helpers.answer` for the line dialogs, ``velocities`` from and to."""
+# what the dialog opens with about Si IV 1402.77: the line moments alone ticked
+OPENED = {
+    "rest": "1402.77",
+    "moments": True,
+    "from": -107.0,
+    "to": 107.0,
+    "continuum": "",
+    "errors": False,
+    "doppler": False,
+    "red_blue": False,
+}
+
+
+def answer(monkeypatch, center, velocities=(), continuum="", accept=True, errors=False, **ticked):
+    """`helpers.answer` for the dialog, ``velocities`` from and to, and ``ticked`` the maps ticked or not."""
     typed = dict(zip(("from", "to"), velocities))
-    return helpers.answer(monkeypatch, accept, center=center, continuum=continuum, errors=errors, **typed)
+    return helpers.answer(monkeypatch, accept, rest=center, continuum=continuum, errors=errors, **typed, **ticked)
 
 
 def ends(center, low=-107, high=107):
@@ -63,7 +78,7 @@ def missing(raster, low, high):
 
 def run(app, qtbot, data, message=""):
     """Trigger the action on ``data``; returns the dataset it adds, the status bar then saying ``message``."""
-    [maps] = run_action(app, qtbot, data, ACTION, f"Computing line moments of {data.label}…", message)
+    [maps] = run_action(app, qtbot, data, ACTION, f"Computing line maps of {data.label}…", message)
     return maps
 
 
@@ -77,8 +92,7 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     keep_hpc_linked(collection)
     opened = answer(monkeypatch, "1402.77")
     maps = run(app, qtbot, raster)
-    # Si IV 1402.77, the window's main line
-    assert opened == [{"center": "1402.77", "from": -107.0, "to": 107.0, "continuum": "", "errors": False}]
+    assert opened == [OPENED]  # Si IV 1402.77, the window's main line
     assert maps.label == f"{raster.label} moments 1402.77"
     assert maps.shape == raster.shape[:2]
     assert [(cid.label, maps.get_component(cid).units) for cid in maps.main_components] == [
@@ -126,6 +140,40 @@ def test_the_typed_velocity_range_and_a_blank_or_canceled_center(app, qtbot, mon
         action.trigger()
         assert not iris._RUNNING  # and no thread started
         assert len(collection) == 2
+
+
+def test_the_maps_ticked_are_their_functions_at_their_defaults(app, qtbot, monkeypatch, scan_path):
+    """
+    Every map ticked adds the line moments, the Doppler image and the red-blue asymmetry, in turn, each its function's
+    at its defaults (D83); the line moments' velocity range, continuum and error maps grayed out without them, and none
+    ticked adds nothing.
+    """
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    collection = app.data_collection
+    collection.append(raster)
+    answer(monkeypatch, "1402.77", doppler=True, red_blue=True)
+    added = run_action(app, qtbot, raster, ACTION, f"Computing line maps of {raster.label}…", added=3)
+    for maps, alone in zip(
+        added, (line_moments(raster, 1402.77), doppler_image(raster, 1402.77), red_blue_asymmetry(raster, 1402.77))
+    ):
+        assert (maps.label, maps.meta) == (alone.label, alone.meta)
+        for cid in alone.main_components:
+            np.testing.assert_array_equal(maps[cid.label], alone[cid])
+    enabled = []
+
+    def exec_(dialog):
+        dialog.findChild(QtWidgets.QCheckBox, "moments").setChecked(False)
+        boxes = ("from", "to", "continuum", "errors")
+        enabled.extend(dialog.findChild(QtWidgets.QWidget, name).isEnabled() for name in boxes)
+        return QtWidgets.QDialog.Accepted
+
+    monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
+    tree = app._layer_widget
+    tree.ui.layerTree.set_selected_layers([raster])  # glue selects a dataset added
+    tree._actions[ACTION].trigger()
+    assert enabled == [False] * 4
+    assert not iris._RUNNING
+    assert len(collection) == 4
 
 
 def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatch, stack_paths):
@@ -180,7 +228,7 @@ def test_a_stacks_error_maps_are_each_scans_own(app, qtbot, monkeypatch, stack_p
     app.data_collection.append(stack)
     opened = answer(monkeypatch, "1402.77", errors=True)
     maps = run(app, qtbot, stack)
-    assert opened == [{"center": "1402.77", "from": -107.0, "to": 107.0, "continuum": "", "errors": False}]
+    assert opened == [OPENED]
     assert np.isnan(maps["intensity error"][1, 3]).all()
     assert not np.isnan(maps["intensity error"][[0, 2], 3]).all()
     for k, path in enumerate(stack_paths):
@@ -212,7 +260,7 @@ def test_a_profile_range_gives_the_velocity_range_from_a_center_within_it(app, q
         opened = answer(monkeypatch, "1402.77")
         assert run(app, qtbot, raster).meta["moments_velocity_range"] == reach
         [box] = opened
-        assert (box["center"], [box["from"], box["to"]], box["continuum"], box["errors"]) == (*opens, "", False)
+        assert (box["rest"], [box["from"], box["to"]], box["continuum"], box["errors"]) == (*opens, "", False)
     # one wider than the window is cut to it, as the dialog says, and irispy takes every wavelength of the window
     raster.meta["rest_wavelength"] = None
     shown = []
@@ -280,7 +328,7 @@ def test_the_velocities_stop_at_the_windows_wavelengths_about_the_center(app, qt
     limits = []
 
     def exec_(dialog):
-        field = dialog.findChild(QtWidgets.QLineEdit, "center")
+        field = dialog.findChild(QtWidgets.QLineEdit, "rest")
         boxes = [dialog.findChild(QtWidgets.QDoubleSpinBox, name) for name in ("from", "to")]
         limits.append((boxes[0].minimum(), boxes[1].maximum()))  # about the window's Si IV 1402.77
         for typed in ("1400", "3000"):
@@ -329,7 +377,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
         answer(monkeypatch, center, velocities, continuum)
         tree.ui.layerTree.set_selected_layers([raster])
         action.trigger()
-    assert all(text.startswith("Could not compute line moments\n") for text in shown)
+    assert all(text.startswith("Could not compute line maps\n") for text in shown)
     span = f"{raster.label} (1398.63 to 1405.75 Å)"
     assert [text.split("\n", 1)[1] for text in shown] == [
         f"{sji.label} is not an IRIS raster window.",
@@ -348,7 +396,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
     answer(monkeypatch, "1402.77")
     action.trigger()
     qtbot.waitUntil(lambda: len(shown) == 10 and not iris._RUNNING)
-    assert shown[-1] == "Could not compute line moments\nirispy failed"
+    assert shown[-1] == "Could not compute line maps\nirispy failed"
     assert app.statusBar().currentMessage() == ""
     assert len(collection) == 3
     tree.ui.layerTree.set_selected_layers([raster, sji])  # one dataset at a time
@@ -413,7 +461,7 @@ def test_ticked_error_maps_are_irispys_from_its_readers_uncertainty(app, qtbot, 
     app.data_collection.append(raster)
     opened = answer(monkeypatch, "1402.77", continuum=continuum, errors=True)
     maps = run(app, qtbot, raster)
-    assert opened == [{"center": "1402.77", "from": -107.0, "to": 107.0, "continuum": "", "errors": False}]
+    assert opened == [OPENED]
     cube = read_files([scan_path], spectral_windows=["Si IV 1403"], uncertainty=True)["Si IV 1403"][0]
     cube = cube.apply_exposure_time_correction()
     if continuum:
@@ -790,31 +838,30 @@ def test_the_rest_wavelength_of_a_window():
         assert rest_wavelength(data) == 2796.2
 
 
-def test_the_line_dialogs_start_at_the_rest_wavelength(app, monkeypatch, irispy_test_files):
-    """Both line dialogs start at the window's rest wavelength, their tooltip saying where it is from, else blank."""
+def test_the_dialog_starts_at_the_rest_wavelength(app, monkeypatch, irispy_test_files):
+    """The dialog starts at the window's rest wavelength, its tooltip saying where it is from, else blank."""
     windows = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["Mg II k 2796", "2832"])
     [none, mg] = sorted(windows, key=lambda data: data.label)  # 2832 first
     app.data_collection.extend([mg, none])
     opened = []
 
     def exec_(dialog):
-        field = dialog.findChild(QtWidgets.QLineEdit, "center") or dialog.findChild(QtWidgets.QLineEdit, "rest")
+        field = dialog.findChild(QtWidgets.QLineEdit, "rest")
         opened.append((field.text(), field.toolTip()))
         return QtWidgets.QDialog.Rejected
 
     monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
     tree = app._layer_widget
 
-    def both(data):
+    def opens(data):
         tree.ui.layerTree.set_selected_layers([data])
-        for action in (ACTION, "IRIS: red-blue asymmetry…"):
-            tree._actions[action].trigger()
-        return [opened.pop(0) for _ in range(2)]
+        tree._actions[ACTION].trigger()
+        return opened.pop()
 
-    assert both(mg) == [("2796.352", "Mg II k, of the main IRIS lines")] * 2  # not the TWAVE, 2796.2
-    assert both(none) == [("", "")] * 2
+    assert opens(mg) == ("2796.352", "Mg II k, of the main IRIS lines")  # not the TWAVE, 2796.2
+    assert opens(none) == ("", "")
     mg.meta["rest_wavelength"] = 2796.2
-    assert both(mg) == [("2796.2", f"{mg.label}'s, set with 'IRIS: set rest wavelength…'")] * 2
+    assert opens(mg) == ("2796.2", f"{mg.label}'s, set with 'IRIS: set rest wavelength…'")
 
 
 def test_set_rest_wavelength(app, monkeypatch, irispy_test_files):

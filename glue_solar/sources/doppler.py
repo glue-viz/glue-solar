@@ -1,22 +1,18 @@
 """
-'IRIS: Doppler image…': the red wing less the blue wing of a line at typed velocities in a raster window or a stack of
-its scans, as a new dataset (D16).
+The red wing less the blue wing of a line at given velocities in a raster window or a stack of its scans, as a new
+dataset (D16), for 'IRIS: line maps…' (`~glue_solar.sources.moments`).
 """
 
 import numpy as np
 from glue.core.component import Component
-from glue_qt.utils.decorators import messagebox_on_error
-from qtpy import QtWidgets
 
 import astropy.units as u
 
-from glue_solar.glue_patches import layer_action
-from glue_solar.lines import _wavelength
-from glue_solar.sources.moments import _accepted, _check, _dataset, _form, _read, _rest_field, _start, _unit
+from glue_solar.sources.moments import _check, _dataset, _read, _unit
 
-__all__ = ["doppler_image", "doppler_iris"]
+__all__ = ["doppler_image"]
 
-# The velocities the dialog takes at first, in km / s from the rest wavelength
+# The velocities 'IRIS: line maps…' takes, in km / s from the rest wavelength
 VELOCITIES = (10.0, 20.0, 30.0, 40.0, 50.0)
 
 
@@ -108,48 +104,3 @@ def doppler_image(data, rest, velocities=VELOCITIES, normalized=False):
         window.
     """
     return _doppler(data, rest, velocities, normalized, _wings(data, rest, velocities), _unit(data))
-
-
-def _ask(data):
-    """
-    The rest wavelength typed for ``data``, at first its `rest_wavelength`, in Angstrom, the velocities typed, in
-    km / s, increasing, and whether the normalized maps are ticked; or None for a blank rest wavelength or Cancel.
-    """
-    dialog, form = _form(f"IRIS: Doppler image of {data.label}")
-    rest = _rest_field(data, "rest")  # D11: never the window's TWAVE
-    form.addRow("Rest wavelength [Å]:", rest)
-    velocities = QtWidgets.QLineEdit(", ".join(f"{v:g}" for v in VELOCITIES), objectName="velocities")
-    form.addRow("Velocities [km / s]:", velocities)
-    normalized = QtWidgets.QCheckBox("(red - blue) / (red + blue) too", objectName="normalized")
-    form.addRow(normalized)
-    text = rest.text().strip() if _accepted(dialog, form) else ""
-    if not text:
-        return None
-    typed = velocities.text()
-    try:
-        speeds = sorted({float(part) for part in typed.replace(",", " ").split()})
-    except ValueError:
-        speeds = []
-    if not speeds:
-        raise ValueError(f"'{typed}' is not a list of velocities in km / s, such as 10, 20, 30.")
-    return _wavelength(text), speeds, normalized.isChecked()
-
-
-@layer_action(
-    "IRIS: Doppler image…",
-    single=True,
-    data=True,
-    check=_check,
-    tooltip="Add red minus blue wing maps of a line at typed velocities in this raster window or stack",
-)
-@messagebox_on_error("Could not compute the Doppler image")
-def doppler_iris(data, data_collection):
-    """Add the `doppler_image` of ``data`` for the values typed (`_ask`), computed in the background (`_start`)."""
-    _check(data)  # before asking
-    asked = _ask(data)
-    if asked is None:
-        return
-    rest, velocities, normalized = asked
-    wings = _wings(data, rest, velocities)
-    text, title = f"Computing the Doppler image of {data.label}…", "Could not compute the Doppler image"
-    _start(data_collection, text, title, _doppler, data, rest, velocities, normalized, wings, _unit(data))

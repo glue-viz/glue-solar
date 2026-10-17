@@ -27,7 +27,6 @@ menus have no prefix.
    loading-sst-cubes
    iris-quicklook
    iris-line-moments
-   iris-red-blue-asymmetry
    iris-mg-features
    iris-calibration
    iris-bursts

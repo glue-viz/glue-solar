@@ -619,18 +619,15 @@ here" and "Blink" in the "Coordinate" menu's "Blink" submenu), and read the feat
 each the same way. A "Measure" line from the feature in one to the feature in the other then
 checks the shift: it should be under a pixel long.
 
-Line moments
-------------
+Line maps
+---------
 
-"IRIS: line moments…" in a raster window's right-click menu maps the intensity, centroid, width and
-velocity of a line: see :ref:`Line moments <glue_solar_users_guide_iris_line_moments>`.
-"IRIS: red-blue asymmetry…" compares its red and blue wings: see
-:ref:`Red-blue asymmetry <glue_solar_users_guide_iris_red_blue>`.
-"IRIS: Doppler image…" maps its red wing less its blue wing at chosen velocities: see
-:ref:`Doppler images <glue_solar_users_guide_iris_doppler>`.
+"IRIS: line maps…" in a raster window's right-click menu maps the intensity, centroid, width and
+velocity of a line, its red wing less its blue wing, and its red-blue asymmetry: see
+:ref:`Line maps <glue_solar_users_guide_iris_line_moments>`.
 "IRIS: Mg II features… (Mg II)" maps the line centers and emission peaks of Mg II k and h: see
 :ref:`Mg II features <glue_solar_users_guide_iris_mg_features>`.
 "IRIS: line ratio diagnostic…" maps the electron density or the temperature from two lines' maps:
-see :ref:`Line moments <glue_solar_users_guide_iris_line_moments>`.
+see :ref:`Line maps <glue_solar_users_guide_iris_line_moments>`.
 "IRIS: detect UV bursts… (Si IV, SJI 1400)" finds UV bursts in a Si IV raster window or a 1400 Å
 slit-jaw image: see :ref:`UV bursts <glue_solar_users_guide_iris_bursts>`.
