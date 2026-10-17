@@ -20,11 +20,13 @@ make:
 A blank rest wavelength, or no map ticked, adds nothing. Glue checks every map ticked first, and
 should it refuse one, says why and adds none (see `What is refused`_). It then computes them in turn
 on a worker thread, while its status bar says "Computing line maps of <label>…", and adds each as a
-dataset on the window's raster steps and slit pixels, with their helioprojective coordinates in
-arcsec linked with the other IRIS datasets. No viewer opens: drag one onto an Image viewer and pick
-a map as its attribute. A stack's maps are one dataset on its scans, raster steps and slit pixels,
-each scan's as that scan alone gives them, at its own coordinates and exposure times; the scan
-slider picks the scan. The functions named below take other settings in glue's terminal.
+dataset on the window's raster steps and slit pixels, linked to the window's, with their
+helioprojective coordinates in arcsec linked with the other IRIS datasets, and opens each in an
+Image viewer in the current tab: its first map, longitude along x as on a quicklook's map, and, in a
+quicklook's tab, the point's crosshair; pick another map as its attribute. A stack's maps are one
+dataset on its scans, raster steps and slit pixels, each scan's as that scan alone gives them, at
+its own coordinates and exposure times; the scan slider picks the scan. The functions named below
+take other settings in glue's terminal.
 
 Line moments
 ------------
@@ -214,11 +216,11 @@ commas, after an optional header line and ``#`` comments, are the quantity, such
 electron density in cm⁻³, and the ratio of the numerator's line to the denominator's there,
 monotonic in it, such as one computed with CHIANTI. irispy's ``map_ratio_to_quantity`` interpolates
 the maps' ratio on it, linearly in the quantity, and glue adds ``<numerator> / <denominator> <name>``
-on the maps' grid, with their helioprojective coordinates linked with the other IRIS datasets, and
-no viewer. Its maps are ``ratio``, the numerator over the denominator, NaN where the denominator is
-0, and the quantity, NaN where the ratio is missing or outside the table's. Its ``meta`` holds the
-numerator's ``OBSID`` and ``STARTOBS``, ``ratio_numerator`` and ``ratio_denominator``, each
-``<label>: <attribute>``, and ``ratio_table``, the table's path.
+on the maps' grid, with their helioprojective coordinates linked with the other IRIS datasets, in
+an Image viewer, as the line maps open. Its maps are ``ratio``, the numerator over the denominator,
+NaN where the denominator is 0, and the quantity, NaN where the ratio is missing or outside the
+table's. Its ``meta`` holds the numerator's ``OBSID`` and ``STARTOBS``, ``ratio_numerator`` and
+``ratio_denominator``, each ``<label>: <attribute>``, and ``ratio_table``, the table's path.
 ``glue_solar.sources.line_ratio.line_ratio(numerator, denominator, quantity, ratio, name)`` maps two
 attributes, such as ``dc["<label>"].id["intensity"]``, on arrays in glue's terminal too.
 

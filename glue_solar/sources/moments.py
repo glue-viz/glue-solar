@@ -11,9 +11,11 @@ from functools import partial
 import numpy as np
 from glue.core.component import Component
 from glue.core.data import Data
+from glue.core.link_helpers import LinkSame
 from glue.core.units import UnitConverter
 from glue_qt.utils.decorators import messagebox_on_error
 from glue_qt.utils.threading import Worker
+from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from qtpy import QtWidgets
 
@@ -25,7 +27,7 @@ from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 from glue_solar.glue_patches import _application, layer_action, refresh_layer_actions
 from glue_solar.lines import MAIN_LINES, _wavelength, rest_wavelength
 from glue_solar.quicklook import _role, _spectral_axes, _wavelengths
-from glue_solar.sources.loaders.iris import _RUNNING, WCS_LOCK, _GlueWCS, keep_hpc_linked, per_second
+from glue_solar.sources.loaders.iris import _AXIS_NAMES, _HPC, _RUNNING, WCS_LOCK, _GlueWCS, keep_hpc_linked, per_second
 
 __all__ = ["line_maps_iris", "line_moments", "mean_spectrum_iris", "subtract_mean_spectrum"]
 
@@ -415,12 +417,39 @@ def _ask(data, drawn=None):
     return *line, windows, errors.isChecked(), ticked
 
 
-def _add(data_collection, status, said, add, result):
+def _view(data_collection, result):
+    """
+    Open each map of ``result``, a dataset or a list, in a glue Image viewer in the current tab, at its first component
+    and with its subsets, a quicklook's Point among them, longitude along x as on a quicklook's map; a table, such as
+    the burst events, opens none (D83). Its pixels are linked to those of the dataset it is made from: through the
+    helioprojective links alone, glue inverts the WCS for the Point, 5 exposures off and 0.2 s more a step on
+    4000255147's sit-and-stare.
+    """
+    app = _application(data_collection)
+    if app is None:  # its window closed meanwhile
+        return
+    for data in result if isinstance(result, list) else [result]:
+        if data.ndim < 2:
+            continue
+        made_from = getattr(data.coords, "follows", ())[:1]  # none for a line ratio of maps without coordinates
+        source = next((other for other in data_collection if other.uuid in made_from), None)
+        if source is not None:  # its leading axes are the map's
+            pairs = zip(source.pixel_component_ids, data.pixel_component_ids)
+            data_collection.add_link([LinkSame(*pair) for pair in pairs])
+        state = app.new_data_viewer(ImageViewer, data=data).state
+        for cid in data.world_component_ids:
+            if cid.label == _AXIS_NAMES[_HPC[0]]:  # glue puts a raster's slit along x
+                state.x_att_world = cid
+
+
+def _add(data_collection, status, said, add, view, result):
     if add is None:
-        data_collection.append(result)
+        data_collection.append(result)  # a list too
         keep_hpc_linked(data_collection)
     else:
         add(result)
+    if view:
+        _view(data_collection, result)
     message = said(result) if said else None
     if message and status is not None:  # in place of what it says while it is computed
         status.showMessage(message)
@@ -450,16 +479,16 @@ def _reraise(exc_info):
     raise exc_info[1]
 
 
-def _start(data_collection, text, title, function, *args, said=None, add=None):
+def _start(data_collection, text, title, function, *args, said=None, add=None, view=False):
     """
-    Compute ``function(*args)`` on glue-qt's `Worker`, while glue's status bar says ``text``, and add it, a dataset, to
-    ``data_collection``, or give it to ``add``, on the main thread, the status bar then saying ``said(result)``, if
-    anything; or show its error in glue-qt's error box ``title``; then refresh the right-click entries
-    (`refresh_layer_actions`).
+    Compute ``function(*args)`` on glue-qt's `Worker`, while glue's status bar says ``text``, and add it, a dataset or
+    a list, to ``data_collection``, or give it to ``add``, on the main thread, with ``view``, an analysis's, opening its
+    maps (`_view`), the status bar then saying ``said(result)``, if anything; or show its error in glue-qt's error box
+    ``title``; then refresh the right-click entries (`refresh_layer_actions`).
     """
     worker = Worker(function, *args)
     status = _status_bar(data_collection)
-    worker.result.connect(partial(_add, data_collection, status, said, add))
+    worker.result.connect(partial(_add, data_collection, status, said, add, view))
     # glue-qt's decorator, as its GLUE_TESTING bypass is in it alone
     worker.error.connect(messagebox_on_error(title)(_reraise))
     if status is not None:  # until the dataset is added or the error shown (D46)
@@ -512,13 +541,9 @@ def line_maps_iris(data, data_collection):
     def compute():
         return [job() for job in jobs]
 
-    def add(maps):
-        data_collection.extend(maps)
-        keep_hpc_linked(data_collection)
-
     text, title = f"Computing line maps of {data.label}…", "Could not compute line maps"
     # the moments first, if ticked: the other maps have no saturated count
-    _start(data_collection, text, title, compute, said=lambda maps: _saturated(maps[0]), add=add)
+    _start(data_collection, text, title, compute, said=lambda maps: _saturated(maps[0]), view=True)
 
 
 def _mean_spectrum(data, cid):

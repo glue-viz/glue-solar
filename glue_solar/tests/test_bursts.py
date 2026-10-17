@@ -55,7 +55,7 @@ def assert_irispys(labels, table, direct, events):
             assert table.get_component(name).units == str(getattr(column, "unit", None) or "")
 
 
-def test_a_raster_window_gives_irispys_labels_and_events_linked_and_no_viewer(
+def test_a_raster_window_gives_irispys_labels_and_events_linked_and_the_labels_in_a_viewer(
     app, qtbot, monkeypatch, irispy_test_files
 ):
     path = find_irispy_test_file(irispy_test_files, SI_IV)
@@ -65,7 +65,8 @@ def test_a_raster_window_gives_irispys_labels_and_events_linked_and_no_viewer(
     opened = answer(monkeypatch, threshold=" 80 ")
     labels, table = run(app, qtbot, raster, 3)
     assert opened == [{"threshold": "", "velocity_range": 50.0, "median_factor": 10.0}]
-    assert not any(app.viewers)
+    [[viewer]] = app.viewers  # glue's Image viewer of the labels, none of the table (D83)
+    assert viewer.state.layers[0].attribute is labels.main_components[0]
     cube = read_spectrograph_lvl2(path)["Si IV 1403"][0]
     direct, events = find_si_iv_bursts(cube, threshold=80)
     assert_irispys(labels, table, direct, events)
@@ -196,7 +197,8 @@ def test_a_slit_jaw_image_gives_irispys_labels_and_events_on_its_coordinates(
     opened = answer(monkeypatch)
     labels, table = run(app, qtbot, sji, 26)
     assert opened == [{"sigma_factor": 10.0, "min_pixels": 2}]
-    assert not any(app.viewers)
+    [[viewer]] = app.viewers  # glue's Image viewer of the labels, none of the table (D83)
+    assert viewer.state.layers[0].attribute is labels.main_components[0]
     assert_irispys(labels, table, *find_sji_bursts(read_sji_lvl2(path)))
     assert [cid.label for cid in table.main_components] == ["label", "frame", "npix", "threshold", "y", "x", *POSITION]
     assert table.meta == {

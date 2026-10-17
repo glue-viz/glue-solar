@@ -78,7 +78,7 @@ def direct(numerator, denominator, quantity=LOG_NE, curve=CURVE):
     return ratio, map_ratio_to_quantity(ratio, quantity, curve).value
 
 
-def test_the_action_adds_irispys_map_of_two_moments_maps_as_one_linked_dataset_and_no_viewer(
+def test_the_action_adds_irispys_map_of_two_moments_maps_as_one_linked_dataset_in_a_viewer(
     app, monkeypatch, irispy_test_files, table
 ):
     [raster] = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["Si IV 1403"])
@@ -102,7 +102,8 @@ def test_the_action_adds_irispys_map_of_two_moments_maps_as_one_linked_dataset_a
         ("ratio", ""),
         ("log n_e", ""),
     ]
-    assert not any(app.viewers)
+    [[viewer]] = app.viewers  # glue's Image viewer of its first map (D83)
+    assert viewer.state.layers[0].attribute is result.main_components[0]
     # on the maps' raster steps and slit pixels, their helioprojective coordinates linked with the others'
     assert result.coords is lines[0].coords
     assert link_hpc(collection) == []
@@ -276,7 +277,8 @@ def test_the_o_iv_preset_adds_irispys_density_diagnostic_of_two_moments_maps(
         ("ratio", ""),
         ("log n_e", ""),
     ]
-    assert not any(app.viewers)
+    [[viewer]] = app.viewers  # glue's Image viewer of its first map (D83)
+    assert viewer.state.layers[0].attribute is result.main_components[0]
     assert result.coords is lines[0].coords
     assert link_hpc(collection) == []
     # fiasco's O IV, never asking on stdin, and its ratio of irispy's O IV lines on the densities, as before they were
