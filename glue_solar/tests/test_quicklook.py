@@ -522,7 +522,7 @@ def check_exposure_axis(viewer, axis, label, exposures):
 
 def test_a_sit_and_stare_exposure_axis(bare_app, monkeypatch, irispy_test_files):
     raster, _ = sit_and_stare(irispy_test_files)
-    bare_app.resize(1800, 1100)  # rows taller than 280 pixels, which the label along y would overflow (D83)
+    bare_app.resize(1800, 1100)  # rows over about 330 pixels: below, the label along y runs off the panel (D83)
     bare_app.show()  # the quicklook's own panel sizes
     viewers = quicklook(bare_app, [raster])
     tick(panels_list(bare_app), "Axes")  # the panels open without axes (D71)
@@ -5059,7 +5059,7 @@ def with_windows(qtbot, viewers, *names):
 def test_other_windows_open_once_ticked_below_rows_that_keep_the_strip_in_sight(bare_app, qtbot, irispy_test_files):
     c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
     sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
-    bare_app.resize(1800, 1100)
+    bare_app.resize(1800, 1000)  # where rows 400 pixels tall would push the strip out of sight
     bare_app.show()
     viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
     panels, tab = panels_list(bare_app), bare_app.tab()
@@ -5072,6 +5072,7 @@ def test_other_windows_open_once_ticked_below_rows_that_keep_the_strip_in_sight(
     strip = (panels.parent(), point_window(bare_app).parent())
     assert tab.verticalScrollBar().maximum() == 0
     assert all(sub.geometry().bottom() < tab.viewport().height() for sub in strip)
+    assert viewers["map"].viewer_size[1] < 400
     # a box ticked makes its window's panels at the point, those unticked turned off, and they follow the point
     select_point(viewers["map"], 78, 10)
     qtbot.wait(20)
@@ -5080,6 +5081,8 @@ def test_other_windows_open_once_ticked_below_rows_that_keep_the_strip_in_sight(
     qtbot.waitUntil(lambda: not panels._timer.isActive())
     [made] = viewers["windows"]
     assert (len(bare_app.viewers[-1]), made["spectrum"].parent().isHidden()) == (count + 2, True)
+    # shown not active, as glue-qt shows a viewer not in focus, and the active panel as it was
+    assert (made["wavelength"].toolbar.isEnabled(), tab.activeSubWindow().widget().toolbar.isEnabled()) == (False, True)
     assert sliders(bare_app, viewers)["point"] == (mg.label, (78, 10, None))
     assert sliders(bare_app, viewers)["wavelength1"] == (None, 10, None)
     assert drawn(made["wavelength"], "point") == ("y", [78])

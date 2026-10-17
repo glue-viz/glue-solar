@@ -362,9 +362,9 @@ a frame with no exposure within half its cadence, leaves the point where it was,
 which changes nothing. A click on a slit-jaw viewer showing its frame axis, which is no place on the
 Sun, is marked only there, and the spectrum panel is empty until the next raster click.
 
-Below the panels, whose rows shrink to 280 pixels to keep it in sight (scroll the tab down past
-that), the read-only "Point" window gives the point in each dataset the quicklook shows, one row
-each, as the readouts give it:
+Below the panels, whose rows shrink, to 280 pixels at the least, to keep it in sight (scroll the
+tab down past that), the read-only "Point" window gives the point in each dataset the quicklook
+shows, one row each, as the readouts give it:
 
 - Pixel: the point's indices in the dataset: step (exposure on a sit-and-stare raster, scan and step
   on a stack), slit and wavelength pixel (λ, the one the map shows) on the raster; frame, y and x
@@ -389,9 +389,9 @@ the main window (the map, the spectrogram, the wavelength panel and the spectrum
 image, and one for each other window (see `Several windows`_), which turns all its panels on or off;
 expand it for a box per panel. Other windows open unticked, and their panels are made the first time
 they are ticked: 4000255147's quicklook with its nine windows and SJI 1400 opens in 1.9 s, as with
-one window, against 7 s with every window's panels made, in an 1800×1100 window. A click on a box
-leaves the active panel and its tool as they were, and the list takes no keys. At each change the
-panels shown are laid out again in their rows, an
+one window, in an 1800×1100 window, and ticking a window makes its panels in 0.6 to 0.9 s, the eight
+others at once in 2.9 to 3.7 s. A click on a box leaves the active panel and its tool as they were,
+and the list takes no keys. At each change the panels shown are laid out again in their rows, an
 empty row going and panels moved or resized by hand taking their place again, once for all the boxes
 changed at once, such as a window's; a panel that keeps its size is not drawn again. A panel turned
 off is hidden and does nothing: it neither moves, draws nor computes as the point, the sliders and
@@ -412,11 +412,13 @@ with its other windows off as alone.
 
 "Axes", above the panels' boxes and unticked as the quicklook opens, shows the axes of every Image
 panel shown, their ticks, tick labels and axis labels, the exposure axis's label with its UTC range
-among them, and hides them again. A panel's own "Hide axes" leaves the box partly ticked while the
-panels differ, and a click on it then shows every panel's. A panel turned on again takes the box's
-choice, as those turned off neither change nor draw while it changes; "Show this window's panels"
-keeps it when ticked (partly ticked, the panels open again without axes), and a saved session keeps
-each panel's axes shown or hidden. On 4000255147 with every panel on, in a 1600×1000 window (see
+among them, and hides them again; in rows under about 330 pixels, as in a 1440×900 window, the
+exposure label along a wavelength panel's y axis runs off the panel. A panel's own "Hide axes"
+leaves the box partly ticked while the panels differ, and a click on it then shows every panel's. A
+panel turned on again takes the box's choice, as those turned off neither change nor draw while it
+changes; "Show this window's panels" keeps it when ticked (partly ticked, the panels open again
+without axes), and a saved session keeps each panel's axes shown or hidden. On 4000255147 with
+every panel on, in a 1600×1000 window (see
 `Several windows`_), an exposure step takes 0.2 s without axes against 0.25 s with them, and a move of
 the point 0.22 s against 0.3 s, or with every row in sight 0.29 s against 0.54 s and 0.34 s against
 0.59 s; ticking the box takes 0.1 s and unticking it 0.03 s. On a stack of 4000005156's two scans, in
