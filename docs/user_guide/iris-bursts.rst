@@ -10,14 +10,15 @@ image in the data collection and choose "IRIS: detect UV bursts… (Si IV, SJI 1
 right-click menu, which offers it only for those. Type irispy's parameters, its defaults unless
 changed; Cancel adds nothing. irispy finds the bursts on a worker thread, while glue's status bar
 says "Detecting UV bursts in <label>…", which then says how many it found, and adds two datasets:
-``<label> bursts``, a map of their labels, and ``<label> burst events``, a table of them. No viewer
-opens: drag the map onto an Image viewer and the table onto a Table viewer, a row a burst, its
-``time`` in UTC to the nanosecond. Click a column's header to sort by it; the search box shows the
-rows whose search column, ``time`` unless changed, holds the text typed, such as ``T17:2`` for the
-bursts from 17:20 to 17:29. A Scatter viewer plots them, such as ``time`` against ``intensity`` or
-``coordinate.Tx`` against ``coordinate.Ty``. glue-qt 0.4.2's Table viewer refuses this table, whose
-search column is a time, as its search reads each value as text; glue-solar searches the text each
-shows instead.
+``<label> bursts``, a map of their labels, which opens in an Image viewer in the current tab, as
+:ref:`line maps <glue_solar_users_guide_iris_line_moments>` do (a slit-jaw image's without the
+point's crosshair), and ``<label> burst events``, a table of them: drag it onto a Table viewer, a
+row a burst, its ``time`` in UTC to the nanosecond. Click a column's header to sort by it; the
+search box shows the rows whose search column, ``time`` unless changed, holds the text typed, such
+as ``T17:2`` for the bursts from 17:20 to 17:29. A Scatter viewer plots them, such as ``time``
+against ``intensity`` or ``coordinate.Tx`` against ``coordinate.Ty``. glue-qt 0.4.2's Table viewer
+refuses this table, whose search column is a time, as its search reads each value as text;
+glue-solar searches the text each shows instead.
 
 In a raster window
 ------------------

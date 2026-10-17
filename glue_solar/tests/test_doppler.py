@@ -15,15 +15,16 @@ from astropy import constants
 from astropy.io import fits
 
 from glue_solar.conftest import find_irispy_test_file, int16_copy
-from glue_solar.quicklook import _wavelengths
+from glue_solar.quicklook import _wavelengths, quicklook
 from glue_solar.sources import doppler
 from glue_solar.sources.doppler import doppler_image
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.tests import test_moments
-from glue_solar.tests.helpers import refused, run_action
+from glue_solar.tests.helpers import mouse_click, refused, run_action
 from glue_solar.tests.test_lazy import SJI
 from glue_solar.tests.test_moments import ACTION
+from glue_solar.tests.test_quicklook import crosshair
 
 VELOCITIES = (10, 20, 30, 40, 50)
 
@@ -71,14 +72,14 @@ def assert_numpys(maps, raster, rest, velocities=VELOCITIES, normalized=False):
             np.testing.assert_allclose(maps[names[len(velocities) + k]], expected, rtol=1e-12, atol=1e-12)
 
 
-def test_the_action_adds_one_linked_dataset_and_no_viewer(
+def test_the_action_adds_one_linked_dataset_in_a_viewer_with_the_quicklooks_point(
     app, qtbot, monkeypatch, tmp_path, scan_path, irispy_test_files
 ):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     sji = image_data(int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0]))
     collection = app.data_collection
-    collection.extend([sji, raster])
-    keep_hpc_linked(collection)
+    viewers = quicklook(app, [sji, raster])
+    [point] = collection.subset_groups
     opened = answer(monkeypatch, "1402.77")
     maps = run(app, qtbot, raster)
     assert opened[0]["rest"] == "1402.77"  # the main line
@@ -92,7 +93,18 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
         "doppler_velocities": (10, 20, 30, 40, 50),
         "doppler_sign": "red - blue",
     }
-    assert not any(app.viewers)
+    # glue's Image viewer of its first map in the quicklook's tab, the point's crosshair at its step and slit (D83)
+    [viewer] = [viewer for viewer in app.viewers[-1] if viewer.state.reference_data is maps]
+    assert viewer.state.layers[0].attribute is maps.main_components[0]
+    assert crosshair(viewer) == (raster.shape[0] // 2, raster.shape[1] // 2)
+    # a plain click on it leaves the point the edit subset, so a click on the map moves it (#244)
+    app.show()
+    qtbot.waitUntil(app.isActiveWindow)
+    mouse_click(viewer, 4, 50)
+    assert app.session.edit_subset_mode.edit_subset == [point]
+    mouse_click(viewers["map"], 2, 3)
+    assert collection.subset_groups == (point,)
+    assert [index.start for index in point.subset_state.slices[:2]] == [2, 3]
     # on the raster's steps and slit pixels, its helioprojective coordinates linked with the others'
     assert maps.coords.world_axis_units == ("arcsec", "arcsec")
     for cid, raster_cid in zip(maps.world_component_ids, raster.world_component_ids):
@@ -100,6 +112,8 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     assert link_hpc(collection) == []
     linked = {cid for link in collection.links for cid in (link.get_to_id(), *link.get_from_ids())}
     assert set(maps.world_component_ids) <= linked
+    pairs = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in collection.links}
+    assert all(frozenset(pair) in pairs for pair in zip(raster.pixel_component_ids, maps.pixel_component_ids))  # D83
     assert_numpys(maps, raster, 1402.77)
     assert np.isnan(maps["red - blue 10 km / s"]).sum() == 32  # where either sample interpolated is missing
 

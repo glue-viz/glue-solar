@@ -275,7 +275,7 @@ def bursts_iris(data, data_collection):
         return
     text, title = f"Detecting UV bursts in {data.label}…", "Could not detect UV bursts"
     if sji:
-        _start(data_collection, text, title, sji_bursts, data, *parameters.values(), said=_found)
+        _start(data_collection, text, title, sji_bursts, data, *parameters.values(), said=_found, view=True)
     else:
         crop = _crop(data, parameters["velocity_range"])
-        _start(data_collection, text, title, _si_iv_bursts, data, crop, *parameters.values(), said=_found)
+        _start(data_collection, text, title, _si_iv_bursts, data, crop, *parameters.values(), said=_found, view=True)

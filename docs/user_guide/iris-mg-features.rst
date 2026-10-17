@@ -17,10 +17,10 @@ redoes line centers that jump along the slit from their neighbors. It computes t
 thread from the window's DN / s, a slab
 of raster steps of one scan at a time, while glue's status bar says "Computing Mg II features of
 <label>…", and adds ``<label> Mg II features`` on the window's raster steps and slit pixels, with
-their helioprojective coordinates in arcsec linked with the other IRIS datasets. No viewer opens:
-drag it onto an Image viewer and pick a map as its attribute. A stack's maps are one dataset on its
-scans, raster steps and slit pixels, each scan's as that scan alone gives them, at its own
-coordinates and exposure times; the scan slider picks the scan.
+their helioprojective coordinates in arcsec linked with the other IRIS datasets, and opens it in an
+Image viewer in the current tab, as :ref:`line maps <glue_solar_users_guide_iris_line_moments>` do.
+A stack's maps are one dataset on its scans, raster steps and slit pixels, each scan's as that scan
+alone gives them, at its own coordinates and exposure times; the scan slider picks the scan.
 
 The maps
 --------

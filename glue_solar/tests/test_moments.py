@@ -82,7 +82,7 @@ def run(app, qtbot, data, message=""):
     return maps
 
 
-def test_the_action_adds_one_linked_dataset_and_no_viewer(
+def test_the_action_adds_one_linked_dataset_in_a_viewer(
     app, qtbot, monkeypatch, tmp_path, scan_path, irispy_test_files
 ):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
@@ -108,7 +108,9 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
         "moments_center": 1402.77,
         "moments_velocity_range": (-107.0, 107.0),
     }
-    assert not any(app.viewers)
+    [[viewer]] = app.viewers  # glue's Image viewer of its first map (D83)
+    assert viewer.state.layers[0].attribute is maps.main_components[0]
+    assert viewer.state.x_att is maps.pixel_component_ids[0]  # the steps, as on a quicklook's map
     # on the raster's steps and slit pixels, its helioprojective coordinates linked with the others'
     assert maps.coords.world_axis_units == ("arcsec", "arcsec")
     for cid, raster_cid in zip(maps.world_component_ids, raster.world_component_ids):
@@ -190,7 +192,8 @@ def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatc
     answer(monkeypatch, "1402.77")
     maps = run(app, qtbot, stack)
     assert maps.shape == stack.shape[:-1]
-    assert not any(app.viewers)
+    [[viewer]] = app.viewers
+    assert viewer.state.x_att is maps.pixel_component_ids[1]  # the steps
     assert link_hpc(collection) == []
     for k, path in enumerate(stack_paths):
         [scan] = raster_data([path], ["Si IV 1403"])

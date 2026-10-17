@@ -14,7 +14,7 @@ from astropy.io import ascii
 
 from glue_solar.glue_patches import layer_action
 from glue_solar.sources.loaders.iris import keep_hpc_linked
-from glue_solar.sources.moments import _accepted, _form, _start
+from glue_solar.sources.moments import _accepted, _form, _start, _view
 
 __all__ = ["line_ratio", "line_ratio_iris", "o_iv_density"]
 
@@ -257,7 +257,7 @@ def line_ratio_iris(layers, data_collection):
         _o_iv_grid(*name)  # refused before anything starts
         first = "" if fiasco.defaults["hdf5_dbase_root"].is_file() else "; fiasco first builds CHIANTI, for minutes"
         text, title = f"Mapping the O IV density{first}…", "Could not map the line ratio"
-        _start(data_collection, text, title, o_iv_density, numerator, denominator, *name)
+        _start(data_collection, text, title, o_iv_density, numerator, denominator, *name, view=True)
         return
     table = ascii.read(path)  # spaces or commas, an optional header line and # comments
     if len(table.colnames) < 2:
@@ -266,3 +266,4 @@ def line_ratio_iris(layers, data_collection):
     result.meta["ratio_table"] = path
     data_collection.append(result)
     keep_hpc_linked(data_collection)
+    _view(data_collection, result)

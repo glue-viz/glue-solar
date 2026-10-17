@@ -205,4 +205,4 @@ def mg_features_iris(data, data_collection):
     velocities, lines = chosen
     text, title = f"Computing Mg II features of {data.label}…", "Could not compute Mg II features"
     line = velocities, *_crop(data, velocities, lines, rest)
-    _start(data_collection, text, title, _mg_features, data, *line, _unit(data), rest, said=_saturated)
+    _start(data_collection, text, title, _mg_features, data, *line, _unit(data), rest, said=_saturated, view=True)

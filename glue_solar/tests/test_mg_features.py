@@ -60,7 +60,7 @@ def assert_irispys(maps, raster, velocities=(-40, 40), lines=KH, cube=None):
         assert maps[name].dtype == (np.int64 if name.endswith(" saturated") else cube.data.dtype)
 
 
-def test_the_action_adds_irispys_maps_as_one_linked_dataset_and_no_viewer(
+def test_the_action_adds_irispys_maps_as_one_linked_dataset_in_a_viewer(
     app, qtbot, monkeypatch, tmp_path, scan_path, irispy_test_files
 ):
     [raster] = raster_data([scan_path], ["Mg II k 2796"])
@@ -80,7 +80,8 @@ def test_the_action_adds_irispys_maps_as_one_linked_dataset_and_no_viewer(
         "mg_features_velocities": (-40.0, 40.0),
         "mg_features_lines": KH,
     }
-    assert not any(app.viewers)
+    [[viewer]] = app.viewers  # glue's Image viewer of its first map (D83)
+    assert viewer.state.layers[0].attribute is maps.main_components[0]
     # on the raster's steps and slit pixels, its helioprojective coordinates linked with the others'
     assert maps.coords.world_axis_units == ("arcsec", "arcsec")
     for cid, raster_cid in zip(maps.world_component_ids, raster.world_component_ids):
