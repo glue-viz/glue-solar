@@ -100,7 +100,7 @@ def test_scripting_recipe(qtbot, irispy_test_files):
 
 
 def test_browser_stacks_scans_into_4d_data_with_per_pixel_time(qtbot, irispy_test_files):
-    # docs/user_guide/loading-iris-level-2-raster-and-sji-data.rst: "Stack sequential raster scans"
+    # docs/user_guide/loading-data.rst: "Stack sequential raster scans"
     scans = [path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name]
     dialog = QtIRISImporter(scans[0].parent)
     qtbot.addWidget(dialog)

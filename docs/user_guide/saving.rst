@@ -144,3 +144,55 @@ In Python, for a "Point" subset::
     profiles["Point_lon"]  # arcsec, at each exposure
     profiles["Point_y"]  # in the y unit
     profiles["Point_y_normalized"]  # from 0 to 1, saved with "normalize" ticked
+
+.. _glue_solar_users_guide_exporting_derived_data:
+
+Exporting derived data
+----------------------
+
+To save a map with its coordinates, such as the line moments, a line ratio, a red-blue asymmetry or
+the Mg II features, choose "Export Data/Subsets" in glue's toolbar, or "Export data values" from the
+map's right-click menu, and "IRIS FITS (coordinates and Time)". As with glue's "FITS (1
+component/HDU)", each attribute is an image named after it, with its unit in ``BUNIT``, and here
+also the observation's ``OBSID`` and ``STARTOBS`` and the map's coordinates as a FITS-TAB WCS: the
+helioprojective longitude and latitude of every pixel as glue gives them, shifted pointing included,
+in degrees, in the ``WCS-TABLE`` extension, with the observer and time of their frame. A ``Time``
+attribute is the ``TIME`` image, seconds since its ``DATEREF``, UTC. astropy reads them back, and
+with sunpy imported gives positions in the observer's helioprojective frame::
+
+    import astropy.units as u
+    import sunpy.coordinates  # noqa: F401
+    from astropy.io import fits
+    from astropy.time import Time
+    from astropy.wcs import WCS
+
+    with fits.open("moments.fits") as hdus:
+        wcs = WCS(hdus["INTENSITY"].header, fobj=hdus)
+        position = wcs.pixel_to_world(slit, step)  # FITS order: the fastest axis first
+        # for a map with a Time attribute
+        times = Time(hdus["TIME"].header["DATEREF"], scale="utc") + hdus["TIME"].data * u.s
+
+``glue_solar.sources.iris.export_iris_fits(filename, data)`` writes the file in glue's terminal too.
+Only 2-D maps on helioprojective coordinates export so: glue says why for a raster window, a
+slit-jaw image or other data, which glue's "FITS (1 component/HDU)" writes without their IRIS
+coordinates.
+
+1-D data, such as the light curves at a point (see :ref:`The quicklook
+<glue_solar_users_guide_iris_quicklook>`), export with "ECSV (with Time)" as an ECSV table: a
+column for each attribute, as glue's "Comma-separated table" writes them, with its unit, a time
+such as ``Time`` as UTC times to the nanosecond, which astropy reads back as a
+`~astropy.time.Time` (glue's "Comma-separated table" writes nanoseconds since 1970), and the
+observation's ``OBSID`` and ``STARTOBS`` in its header::
+
+    from astropy.table import Table
+
+    curve = Table.read("curve.ecsv")
+    curve["Time"]  # an astropy Time, UTC
+    curve["Value"]  # in the data's unit
+
+``glue_solar.sources.iris.export_ecsv(filename, data)`` writes the file in glue's terminal too, and
+glue says why for data that are not 1-D.
+
+The profiles a Profile viewer draws, such as a quicklook's spectrum panel, save with "IRIS: save
+profiles as ECSV…" in its save menu, a column for each layer's x, y, time and position, named after
+the layer (see :ref:`Saving the profiles <glue_solar_users_guide_iris_save_profiles>`).
