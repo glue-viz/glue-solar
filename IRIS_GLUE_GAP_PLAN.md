@@ -30,10 +30,7 @@ Out of scope:
 
 **Resume here.** Main is at df81bab (#301). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
-**Next** (D83), three at a time with disjoint files. Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. #296, #298 and #297; the astropy 8.0.2 envs are rebuilt beside them.
-  2. As files come free: #300, #299, `wp11-l-view-menu-trim`, then #301.
-  3. Then `wp9-l-guide-quicklook`, `wp9-l-guide-data` and `wp9-l-guide-rest`, in turn.
+**Next** (D83). On main since 2026-10-16: #296-#301. Left, each one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI: `wp11-l-view-menu-trim`, then `wp9-l-guide-quicklook`, `wp9-l-guide-data` and `wp9-l-guide-rest` in turn (the user stopped here on 2026-10-17 to take stock).
 
 **Waiting on the user.** `wp0-qt68-macos-pass`; filing `wp0-qt-fitter-settings`'s PR from its pushed branch (text in the archive's `briefs/glue-qt-fitter-pr.md`); the audits' other proposals (`audit2/` in the archive); the drag-into-/Applications check of the app (`~/Downloads/Glue Solar.dmg`, built from f073033's recipe; a dmg from #275's recipe would also check Finder and Dock opening); an exact report of the linking and slider-sync problems the user saw in the app (2026-10-09), whose steps, rerun with `glue` from `iris-plan-qt6`, tell an app problem from a Qt 6 or glue-solar one; raising the matplotlib-free WCSAxes core prototype in person (no PR, issue or upstream notice); M4 and OM work. Offered, not started: `wp0-restore-full-ci`, and #207's leftover (viewers opened after the time marker exists get its layer: about 10% slower steps with a second quicklook).
 
@@ -400,7 +397,7 @@ Gated workarounds on main. Raw-WCS readers hold `WCS_LOCK` or use a deep copy; n
 | `_TabularWCS.__gluestate__`/`__setgluestate__` in place of glue's `_save_wcs`/`_load_wcs`, which raise 'HDUList is required to retrieve -TAB coordinates' (`sst.py`, #227, SST5) | Always on (SST cubes) | glue saving a -TAB WCS with its tables (report candidate) |
 | `_TabularWCS.axis_correlation_matrix` from the tables, where astropy's says each -TAB world axis depends on its own pixel axis only (`sst.py`, #227) | Always on (SST cubes) | astropy computing a -TAB WCS's matrix from its tables (report candidate) |
 | The SST cube's own inverse, `_TabularWCS.world_to_pixel_values`, falling back to wcslib's (`sst.py`, #227, D67) | Always on (SST cubes) | kept by decision (D67; `wp0-wcslib-tab-inverse`) |
-| `GlueApplication.__gluestate__` wrapped to leave quicklook panels turned off out of sessions (`__init__.py`, #228) | Always on | none: glue-solar feature |
+| A quicklook saved as a recipe on its first panel's record and rebuilt by `_reopen` (`quicklook._recipe`, `_reopen_quicklooks` session patch, #301) | Always on | none: glue-solar feature |
 | `GlueApplication.closeEvent` wrapped to keep the last session on quit, telling a replaced window by glue-qt's private `_new_application` (`__init__.py`, #206, #297) | Always on | none: glue-solar feature |
 | glue's unit converter default set to `lines.DopplerConverter` (`__init__.py`) | Always on | none: glue-solar feature |
 | The mouse-over readout places WCSAxes ticks before formatting (`_readout`, `tools.py`, #90) | Always on | WCSAxes `format_coord` without a tick placement (report candidate) |
