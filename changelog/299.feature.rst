@@ -1,0 +1,1 @@
+One 'Quicklook…' data action opens the quicklook of an IRIS raster or SJI, an SST cube or any spectral cube, in place of the Plugins menu's IRIS and SST entries.

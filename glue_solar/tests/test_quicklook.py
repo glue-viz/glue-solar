@@ -2879,12 +2879,12 @@ def browse(qtbot, app, monkeypatch, folder, rows, only=None, main=None):
 def test_the_three_entry_points_open_the_same_quicklook(qtbot, monkeypatch, tmp_path, irispy_test_files):
     from glue.core.data_factories import load_data
 
-    from glue_solar.sources.iris import iris_quicklook, quicklook_iris
+    from glue_solar.sources.iris import iris_quicklook, quicklook_cube
 
     paths = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in ("raster_t000_r00000", "SJI_1400_t000")]
     folder = copy_files(tmp_path / "sns", paths)
     rows = []
-    for path in ("browser", "menu", "startup"):
+    for path in ("browser", "action", "startup"):
         app = bare_app_for(qtbot, monkeypatch)
         if path == "browser":  # one raster window ticked: the others would join its quicklook
             browse(qtbot, app, monkeypatch, folder, [0], only=("Mg II k", "SJI"))
@@ -2892,14 +2892,17 @@ def test_the_three_entry_points_open_the_same_quicklook(qtbot, monkeypatch, tmp_
             # glue loads command-line files with add_datasets, whose autolinker has nothing to suggest for
             # IRIS data on glue-core 1.27.0 (with glue-viz/glue#2595 it asks, before any startup action)
             app.data_collection.extend([data for p in sorted(folder.iterdir()) for data in as_list(load_data(str(p)))])
-            (quicklook_iris if path == "menu" else iris_quicklook)(app.session, app.data_collection)
+            if path == "action":  # 'Quicklook…' on the slit-jaw image
+                quicklook_cube(app.data_collection[0], app.data_collection)
+            else:
+                iris_quicklook(app.session, app.data_collection)
         rows.append(viewer_rows(app))
     assert rows[0] == rows[1] == rows[2]
     assert len(rows[0]) == 5  # map, spectrogram, wavelength, SJI 1400 and spectrum
 
 
-def test_the_browser_and_the_menu_open_the_chosen_observation(qtbot, monkeypatch, tmp_path, irispy_test_files):
-    from glue_solar.sources.iris import quicklook_iris
+def test_the_browser_and_the_data_action_open_the_chosen_observation(qtbot, monkeypatch, tmp_path, irispy_test_files):
+    from glue_solar.sources.iris import quicklook_cube
 
     sns = find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))
     other = find_irispy_test_file(irispy_test_files, SCAN)
@@ -2910,21 +2913,14 @@ def test_the_browser_and_the_menu_open_the_chosen_observation(qtbot, monkeypatch
     shown = app.viewers[-1][0].state.reference_data
     browsed = app.data_collection[0]
     assert observation_key(shown) == observation_key(browsed)
-    # both observations loaded: the menu asks, and opens the one chosen
+    # both observations loaded: 'Quicklook…' opens the observation of the data chosen
     browse(qtbot, app, monkeypatch, folder, [0])
     keys = [observation_key(data) for data in app.data_collection]
-    choice = {}
-
-    def choose(parent, title, label, items, *args):
-        choice["items"] = items
-        return items[1], True
-
-    monkeypatch.setattr(QtWidgets.QInputDialog, "getItem", choose)
+    second = sorted(set(keys), key=keys.index)[1]
     tabs = app.tab_count
-    quicklook_iris(app.session, app.data_collection)
-    assert len(choice["items"]) == 2
+    quicklook_cube(app.data_collection[keys.index(second)], app.data_collection)
     assert app.tab_count == tabs + 1
-    assert observation_key(app.viewers[-1][0].state.reference_data) == sorted(set(keys), key=keys.index)[1]
+    assert observation_key(app.viewers[-1][0].state.reference_data) == second
 
 
 def test_startup_shows_the_first_raster_file(qtbot, monkeypatch, irispy_test_files):
@@ -2947,7 +2943,7 @@ def test_startup_shows_the_first_raster_file(qtbot, monkeypatch, irispy_test_fil
 def test_an_observation_of_sot_alone_opens_in_an_image_viewer(qtbot, monkeypatch, tmp_path, irispy_test_files):
     from glue.core.data_factories import load_data
 
-    from glue_solar.sources.iris import iris_quicklook, quicklook_iris, quicklook_sst
+    from glue_solar.sources.iris import iris_quicklook
 
     [path] = [p for p in irispy_test_files if "_Gband4305_FG_" in p.name]
     app = bare_app_for(qtbot, monkeypatch)
@@ -2958,13 +2954,6 @@ def test_an_observation_of_sot_alone_opens_in_an_image_viewer(qtbot, monkeypatch
     [[viewer]] = app.viewers
     assert type(viewer) is ImageViewer
     assert viewer.state.reference_data is app.data_collection[0]
-    messages = []
-    monkeypatch.setattr(QtWidgets.QMessageBox, "information", lambda parent, title, text: messages.append(text))
-    quicklook_iris(app.session, app.data_collection)
-    assert app.tab_count == 1
-    assert messages == ["No IRIS observation with a raster or slit-jaw image is loaded."]
-    quicklook_sst(app.session, app.data_collection)  # 'SST: quicklook…'
-    assert messages[1:] == ["No SST cube is loaded."]
     with pytest.raises(ValueError, match="has no raster or slit-jaw image for a quicklook"):
         quicklook(app, list(app.data_collection))
     assert app.tab_count == 1

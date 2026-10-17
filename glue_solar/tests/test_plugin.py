@@ -82,8 +82,6 @@ from glue_solar.sources.iris import (
     is_iris_fits,
     link_iris,
     quicklook_cube,
-    quicklook_iris,
-    quicklook_sst,
     shift_pointing_iris,
 )
 from glue_solar.sources.line_ratio import line_ratio_iris
@@ -91,22 +89,22 @@ from glue_solar.sources.loaders.iris import _GlueWCS, image_data, link_hpc, rast
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.mg_features import mg_features_iris
 from glue_solar.sources.moments import line_maps_iris, line_moments, mean_spectrum_iris
+from glue_solar.sources.sst import sst_data
 from glue_solar.tests.helpers import count_tick_work, mouse, press, raster_point_on_sji, restore
 from glue_solar.tests.test_cube_quicklook import spectral_cube
 from glue_solar.tests.test_lazy import RASTER, SJI
 from glue_solar.tests.test_quicklook import drifting_stack
+from glue_solar.tests.test_sst import write_sst_cube
 from glue_solar.tools import AxesPreferences, PathData, sky_length
 
 
 def test_setup_registers_hooks():
     glue_solar.setup()
     glue_solar.setup()  # glue calls it once; tests and reloads must not duplicate the tool
-    # the Plugins menu's entries, as they register; SST's quicklook its own (230-13)
+    # the Plugins menu's entries, as they register; quicklooks open from 'Quicklook…' (D83)
     assert [(label, callback) for label, callback in menubar_plugin if callback.__module__[:10] == "glue_solar"] == [
         ("IRIS: browse observations…", browse_iris),
         ("IRIS: link helioprojective coordinates", link_iris),
-        ("IRIS: quicklook…", quicklook_iris),
-        ("SST: quicklook…", quicklook_sst),
         ("IRIS: user guide and issues", help_iris),
         ("IRIS: restore last session", glue_solar.restore_last_session),
     ]
@@ -178,16 +176,16 @@ def test_data_actions_show_only_for_the_data_they_take(app, monkeypatch, tmp_pat
     mg_ii, bursts = "IRIS: Mg II features… (Mg II)", "IRIS: detect UV bursts… (Si IV, SJI 1400)"
     ratio, dust, north_up = "IRIS: line ratio diagnostic…", "IRIS: remove dust (SJI)", "IRIS: north up (SJI, AIA, SOT)"
     regrid = "IRIS: regrid on time (sit-and-stare, stack, SJI, AIA, SOT)"
-    rebin, shift = "IRIS: rebin…", "IRIS: shift pointing…"
+    rebin, shift, quick = "IRIS: rebin…", "IRIS: shift pointing…", "Quicklook…"
     expected = [
         ([plain], []),
-        ([cube], ["Quicklook…", raster[0]]),  # a cube of another instrument; IRIS and SST data have the Plugins menu's
-        ([sns[0]], [*raster, regrid, rebin, shift]),  # sit-and-stare C II
-        ([sns[1]], [*raster, bursts, regrid, rebin, shift]),  # Si IV
-        ([sns[2]], [*raster, mg_ii, regrid, rebin, shift]),  # Mg II k
-        ([scanning], [*raster, rebin, shift]),  # scanning C II: not on time
-        ([stack], [*raster, mg_ii, regrid, rebin, shift]),
-        ([sji], [bursts, dust, north_up, regrid, rebin, shift]),  # 1400
+        ([cube], [quick, raster[0]]),  # a cube of another instrument
+        ([sns[0]], [quick, *raster, regrid, rebin, shift]),  # sit-and-stare C II
+        ([sns[1]], [quick, *raster, bursts, regrid, rebin, shift]),  # Si IV
+        ([sns[2]], [quick, *raster, mg_ii, regrid, rebin, shift]),  # Mg II k
+        ([scanning], [quick, *raster, rebin, shift]),  # scanning C II: not on time
+        ([stack], [quick, *raster, mg_ii, regrid, rebin, shift]),
+        ([sji], [quick, bursts, dust, north_up, regrid, rebin, shift]),  # 1400
         ([sot], [north_up, regrid, rebin, shift]),
         ([aia], [north_up, regrid, rebin, shift]),
         ([maps], [ratio, shift]),
@@ -213,6 +211,20 @@ def test_data_actions_show_only_for_the_data_they_take(app, monkeypatch, tmp_pat
     action.trigger()
     [text] = errors
     assert text.startswith("Could not shift the pointing\nisinstance() arg 2 must be a type")
+
+
+def test_quicklook_opens_each_kind(app, tmp_path, irispy_test_files):
+    """'Quicklook…' opens an IRIS raster's or slit-jaw image's observation, an SST cube or a spectral cube (D83)."""
+    sns = raster_data([find_irispy_test_file(irispy_test_files, RASTER)], ["Si IV 1403", "Mg II k 2796"])
+    sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
+    write_sst_cube(tmp_path / "sst.fits")
+    cube, _ = spectral_cube(tmp_path / "cube.fits", (7, 12, 16))
+    app.data_collection.extend([*sns, sji, sst_data(tmp_path / "sst.fits"), cube])
+    for data in [sns[0], sji, *app.data_collection[-2:]]:
+        quicklook_cube(data, app.data_collection)
+    assert app.tab_names[1:] == ["IRIS 3620258102", "IRIS 3620258102", "SST sst", "cube"]
+    for tab in (1, 2):  # the observation's quicklook from either, as the browser opens it
+        assert {viewer.state.reference_data.label for viewer in app.viewers[tab]} == {sns[1].label, sji.label}
 
 
 _QT_5_IMPORT = """

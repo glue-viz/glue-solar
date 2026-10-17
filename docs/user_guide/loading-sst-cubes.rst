@@ -97,8 +97,7 @@ A CRISP or CHROMIS cube opens in a quicklook of its own, in a new tab named afte
 - from the observation browser, which lists the SST archive's cubes (see
   :ref:`glue_solar_users_guide_loading_iris_level_2_raster_and_sji_files`), with "Open quicklook"
   ticked;
-- for a cube already loaded, with "SST: quicklook…" in the "Plugins" menu, which asks which when
-  several are loaded;
+- for a cube already loaded, with "Quicklook…" in its right-click menu in the data collection;
 - from the command line, with ``glue --startup=iris_quicklook`` followed by the cubes' files;
 - from glue's Terminal, with ``glue_solar.quicklook.quicklook(application, [cube])``.
 

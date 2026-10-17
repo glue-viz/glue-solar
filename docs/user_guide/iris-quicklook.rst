@@ -8,9 +8,9 @@ The quicklook is a CRISPEX-style set of viewers for one observation, in a new ta
 
 - from the observation browser, with "Open quicklook" ticked (the default): each observation you
   load opens in its own quicklook, showing the raster windows you ticked (see `Several windows`_);
-- for data already loaded, with "IRIS: quicklook…" in the "Plugins" menu, which asks which
-  observation when several are loaded; "SST: quicklook…" beside it opens SST cubes, each in its own
-  quicklook (see :ref:`glue_solar_users_guide_loading_sst_cubes`);
+- for data already loaded, with "Quicklook…" in the right-click menu of a raster window or slit-jaw
+  image in the data collection, which opens its observation's quicklook; of an SST cube, it opens the
+  cube's own quicklook (see :ref:`glue_solar_users_guide_loading_sst_cubes`);
 - from the command line, with ``glue --startup=iris_quicklook`` followed by the files. Files given
   this way load one by one, so each raster file keeps its raster number in its label
   (``…-r00003``) and the quicklook shows the first; to stack the scans, use the browser;
@@ -20,7 +20,7 @@ The quicklook is a CRISPEX-style set of viewers for one observation, in a new ta
 Clicks and keys wait until a quicklook is open.
 
 An observation with neither a raster nor a slit-jaw image, only AIA cutouts or SOT cubes, has no
-quicklook: "IRIS: quicklook…" does not offer it, and where no quicklook opens, the browser and the
+quicklook: "Quicklook…" is not offered for its data, and where no quicklook opens, the browser and the
 command line open its first cube in an Image viewer instead.
 
 For those used to CRISPEX:
@@ -455,8 +455,8 @@ point's crosshair, and their wavelength panels follow the point's slit (and a st
 its exposure or scan, and move it when you move their sliders. A Pixel click on another window's
 wavelength panel moves the point to that window, and the others follow; D, F and "Go to UTC…" still
 move it with the time master. The Point window lists the main window only, and the Panels list
-turns each window's panels off and on (see above). The "Plugins" menu entry and the command line
-open one window.
+turns each window's panels off and on (see above). "Quicklook…" and the command line open one
+window.
 
 A panel out of sight, such as one in the rows below the tab's view, or any panel of a quicklook in a
 tab behind another, is not drawn as the point and the time move: it is
@@ -540,7 +540,7 @@ NaN, with ``Time`` NaT, ``Exposure time`` NaN and the missing-data mask 1. The 1
   pixel)", with the UTC range of its exposures on a second line, and its ticks are pixel numbers. It
   follows and leads the time sync as its original does (see `The quicklook`_): a pixel in a gap has
   no time, so its "Frame time" readout is empty, the other datasets keep their frames and show "NO
-  MATCH", and a slit-jaw time master never moves it into a gap. "IRIS: quicklook…" shows the
+  MATCH", and a slit-jaw time master never moves it into a gap. "Quicklook…" shows the
   original; for a quicklook of the regridded raster, type
   ``from glue_solar.quicklook import quicklook`` in glue's terminal, then
   ``quicklook(application, [dc["<raster label> regridded"], dc["<slit-jaw label>"]])`` with the

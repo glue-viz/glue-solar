@@ -7,12 +7,11 @@ User Guide
 In glue, "IRIS: user guide and issues" in the "Plugins" menu opens this guide, and glue-solar's
 issues on GitHub to report a problem, in the web browser.
 
-glue-solar's six entries in the "Plugins" menu, its data actions in the data collection's
+glue-solar's four entries in the "Plugins" menu, its data actions in the data collection's
 right-click menu, which the "Data Manager" menu repeats, and its entries in glue's save menus,
 "IRIS: save frames or movie…" and "IRIS: save profiles as ECSV…", start with "IRIS: ", but for
-"SST: quicklook…", which opens SST cubes (see :ref:`glue_solar_users_guide_loading_sst_cubes`), and
-the data action "Quicklook…", which opens a spectral cube of another instrument (see
-:ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). The
+the data action "Quicklook…", which opens the quicklook of an IRIS raster or slit-jaw image, an SST
+cube or another spectral cube (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). The
 data actions are listed by data kind, the spectral analyses first, then the image actions and the
 coordinates, and each is offered only for data it takes; one that takes few kinds names them, as
 "IRIS: remove dust (SJI)" does. One whose check of the data fails with an error other than its own
