@@ -26,7 +26,7 @@ from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
 from glue_solar.glue_patches import _application, layer_action, refresh_layer_actions
 from glue_solar.lines import MAIN_LINES, _wavelength, rest_wavelength
-from glue_solar.quicklook import _role, _spectral_axes, _wavelengths
+from glue_solar.quicklook import _role, _show, _spectral_axes, _wavelengths, coordinator
 from glue_solar.sources.loaders.iris import _AXIS_NAMES, _HPC, _RUNNING, WCS_LOCK, _GlueWCS, keep_hpc_linked, per_second
 
 __all__ = ["line_maps_iris", "line_moments", "mean_spectrum_iris", "subtract_mean_spectrum"]
@@ -420,14 +420,15 @@ def _ask(data, drawn=None):
 def _view(data_collection, result):
     """
     Open each map of ``result``, a dataset or a list, in a glue Image viewer in the current tab, at its first component
-    and with its subsets, a quicklook's Point among them, longitude along x as on a quicklook's map; a table, such as
-    the burst events, opens none (D83). Its pixels are linked to those of the dataset it is made from: through the
+    and with its subsets, of the quicklooks' Points the followed one alone, longitude along x as on a quicklook's map;
+    a table, such as the burst events, opens none (D83). Its pixels are linked to those of the dataset it is made from: through the
     helioprojective links alone, glue inverts the WCS for the Point, 5 exposures off and 0.2 s more a step on
     4000255147's sit-and-stare.
     """
     app = _application(data_collection)
     if app is None:  # its window closed meanwhile
         return
+    coord = coordinator(data_collection)
     for data in result if isinstance(result, list) else [result]:
         if data.ndim < 2:
             continue
@@ -436,7 +437,14 @@ def _view(data_collection, result):
         if source is not None:  # its leading axes are the map's
             pairs = zip(source.pixel_component_ids, data.pixel_component_ids)
             data_collection.add_link([LinkSame(*pair) for pair in pairs])
-        state = app.new_data_viewer(ImageViewer, data=data).state
+        viewer = app.new_data_viewer(ImageViewer, data=data)
+        # glue-qt's default mouse mode empties the edit subset, the Point, at a click with no tool on (#244)
+        viewer.toolbar._default_mouse_mode.deactivate()
+        viewer.toolbar._default_mouse_mode = None
+        for group in coord._owners:  # the followed Point alone, as on the quicklook's panels (D19)
+            if group is not coord.group:
+                _show(viewer, group, False)
+        state = viewer.state
         for cid in data.world_component_ids:
             if cid.label == _AXIS_NAMES[_HPC[0]]:  # glue puts a raster's slit along x
                 state.x_att_world = cid
