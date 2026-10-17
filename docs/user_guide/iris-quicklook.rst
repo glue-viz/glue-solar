@@ -57,9 +57,9 @@ frame, as "Hide axes" in a viewer's View menu leaves them (see :ref:`Viewer tool
 <glue_solar_users_guide_viewer_tools_and_windows>`), which halves a map's wavelength step and a
 slit-jaw frame step on any quicklook, and each step and move of the point on one of several windows
 whose panels are all in sight (below); with one window a step waits for its spectrum panel and barely
-changes. The images, the point, the lines and the readouts are the same. "Axes", at the top of the
-Panels list (below), shows them on all of them at once; a quicklook of slit-jaw images alone has no
-Panels list, and "Hide axes" shows each one's. The spectrum panels keep their axes.
+changes. The images, the point, the lines and the readouts are the same. "Hide axes" on any of them
+shows them on all of them at once (below); on a quicklook of slit-jaw images alone, which has no
+Panels list, it shows each one's. The spectrum panels keep their axes.
 
 A sit-and-stare raster's exposure axis, in the quicklook once its axes are shown or in any Image
 viewer, is labeled "Exposure (acquisition order)" with the UTC range of its exposures on a second
@@ -410,18 +410,16 @@ a panel or a window off or on takes 0.05 to 0.1 s, and the eight other windows o
 on again 0.26 s. A stack of 4000005156's two scans of the same windows and SJI 2796 steps as fast
 with its other windows off as alone.
 
-"Axes", above the panels' boxes and unticked as the quicklook opens, shows the axes of every Image
-panel shown, their ticks, tick labels and axis labels, the exposure axis's label with its UTC range
-among them, and hides them again; in rows under about 330 pixels, as in a 1440×900 window, the
-exposure label along a wavelength panel's y axis runs off the panel. A panel's own "Hide axes"
-leaves the box partly ticked while the panels differ, and a click on it then shows every panel's. A
-panel turned on again takes the box's choice, as those turned off neither change nor draw while it
-changes; "Show this window's panels" keeps it when ticked (partly ticked, the panels open again
-without axes), and a saved session keeps each panel's axes shown or hidden. On 4000255147 with
+"Hide axes", in the View menu of any image panel, shows the axes of every Image panel on, their
+ticks, tick labels and axis labels, the exposure axis's label with its UTC range among them, and
+hides them again; in rows under about 330 pixels, as in a 1440×900 window, the exposure label along
+a wavelength panel's y axis runs off the panel. A panel turned on again takes the others' axes, as
+those turned off neither change nor draw meanwhile; "Show this window's panels" keeps them, and a
+saved session keeps them shown or hidden. On 4000255147 with
 every panel on, in a 1600×1000 window (see
 `Several windows`_), an exposure step takes 0.2 s without axes against 0.25 s with them, and a move of
 the point 0.22 s against 0.3 s, or with every row in sight 0.29 s against 0.54 s and 0.34 s against
-0.59 s; ticking the box takes 0.1 s and unticking it 0.03 s. On a stack of 4000005156's two scans, in
+0.59 s; showing the axes takes 0.1 s and hiding them 0.02 s. On a stack of 4000005156's two scans, in
 the same window, a scan step takes 0.21 s against 0.25 s, and a move 0.21 s against 0.3 s.
 
 A saved session keeps each quicklook as a recipe: its datasets and windows, its point and time
@@ -479,8 +477,8 @@ as the browser opens it with that window chosen, and the window shown before joi
 shown in the rows below. The point stays at the same pixel, now of that window, in the same "Point"
 subset, the time master stays at its frame, exposure, step or scan, and each panel that keeps its
 title, such as a slit-jaw image or a spectrum panel, keeps its settings, its colors, zoom and unit
-among them; the others are a new quicklook's, every panel shows, and with their axes if "Axes" was
-ticked. The links stay, and so do the viewers you added to the tab, where a light curve,
+among them; the others are a new quicklook's, every panel shows, and with their axes if they were
+shown. The links stay, and so do the viewers you added to the tab, where a light curve,
 a row or a column goes on following the point at the wavelength or band the old map showed, but a path
 diagram drawn on a panel closes with it, as with any viewer it was drawn in. It takes
 2.5 s on 4000255147's C II 1336, Si IV 1403 and Mg II k 2796 with its SJI 1400, and 2.4 s on a stack

@@ -84,7 +84,7 @@ def test_a_spectral_cube_opens_its_map_virtual_slit_and_spectrum(cube_app, qtbot
     assert (group.label, group.subset_state.slices) == ("Point", [slice(None), slice(6, 7), slice(8, 9)])
     assert viewers["map"].toolbar.active_tool.tool_id == "image:point_selection"
     np.testing.assert_array_equal(spectra(viewers), [values[:, 6, 8]])
-    assert entries(panels_list(cube_app)) == [("Axes", False), *((title, True) for row in titles for title in row)]
+    assert entries(panels_list(cube_app)) == [(title, True) for row in titles for title in row]
 
     def event(action):
         return changes(cube_app, qtbot, viewers, action)

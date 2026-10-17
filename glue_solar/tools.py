@@ -48,7 +48,6 @@ from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.matplotlib.mpl_axes import update_appearance_from_settings
 from glue.viewers.matplotlib.toolbar_mode import PathMode, ToolbarModeBase
-from glue_qt.config import preference_panes
 from glue_qt.utils.decorators import messagebox_on_error
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.table import TableViewer
@@ -101,7 +100,6 @@ from glue_solar.sources.loaders.stack_spectrograms import _PerScanWCS
 from glue_solar.sources.moments import _accepted, _start
 
 __all__ = [
-    "AxesPreferences",
     "BandTool",
     "ColorBarTool",
     "CoordinateTool",
@@ -122,12 +120,8 @@ __all__ = [
     "SaveSequenceTool",
     "SlopeTool",
     "ViewTool",
-    "ZoomOneToOneTool",
     "sky_length",
 ]
-
-# Whether a new Image viewer shows its axes, a check box in glue's Preferences (`AxesPreferences`)
-settings.add("SOLAR_SHOW_AXES", True, validator=bool)
 
 _WATCHED = ("reference_data", "x_att", "y_att", "slices")
 # glue sets both axis labels whenever it resets the WCSAxes, which also drops their tick settings
@@ -550,8 +544,9 @@ class CursorReadoutTool(Tool):
 @viewer_tool
 class HideAxesTool(Tool):
     """
-    Switch glue's ``show_axes``, which glue-qt 0.4.2 has no control for, so draws place no ticks (D30, D71); a new
-    viewer starts from ``SOLAR_SHOW_AXES``. A plain tool, as a checkable one is a mouse mode, which would end Pixel.
+    Switch glue's ``show_axes``, which glue-qt 0.4.2 has no control for, so draws place no ticks (D30, D71); on a
+    quicklook panel, every image panel's (`~glue_solar.quicklook._Panels`, D83). A plain tool, as a checkable one is a
+    mouse mode, which would end Pixel.
     """
 
     icon = "glue_image"
@@ -561,8 +556,6 @@ class HideAxesTool(Tool):
 
     def __init__(self, viewer):
         super().__init__(viewer)
-        if not viewer.state.layers:  # a new viewer; a restored one already has its session's layers and axes
-            viewer.state.show_axes = settings.SOLAR_SHOW_AXES
         viewer.state.add_callback("show_axes", self._show)
         self._show()
 
@@ -584,30 +577,6 @@ class HideAxesTool(Tool):
         if axes.axison != shown:
             axes.set_axis_on() if shown else axes.set_axis_off()
             self.viewer.figure.canvas.draw_idle()
-
-
-class AxesPreferences(QtWidgets.QWidget):
-    """
-    glue-solar's pane in glue's Preferences: whether new Image viewers show their axes (``SOLAR_SHOW_AXES``).
-    glue sets it on OK and saves it with its own settings, in ``~/.glue/settings.cfg``.
-    """
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.show_axes = QtWidgets.QCheckBox("Show axes on new Image viewers")
-        self.show_axes.setChecked(settings.SOLAR_SHOW_AXES)
-        note = QtWidgets.QLabel("A quicklook's image panels open without axes: 'Axes' in its Panels list shows them.")
-        note.setWordWrap(True)
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.addWidget(self.show_axes)
-        layout.addWidget(note)
-        layout.addStretch()
-
-    def finalize(self):
-        settings.SOLAR_SHOW_AXES = self.show_axes.isChecked()
-
-
-preference_panes.add("glue-solar", AxesPreferences)
 
 
 @viewer_tool
@@ -834,30 +803,6 @@ class PhysicalAspectTool(Tool):
         state = self.viewer.state
         state._axes_aspect_ratio = self.viewer.axes_ratio / (self.ratio or 1)
         state.reset_limits() if whole else state._adjust_limits_aspect()
-
-
-@viewer_tool
-class ZoomOneToOneTool(Tool):
-    """
-    Zoom about the view center to one reference-data x pixel per device pixel, y as 'Physical aspect' keeps it (D50,
-    #148); glue's 72-dpi image buffer still skips data pixels at 1:1 (``wp0-perf-core-draw``).
-    """
-
-    icon = _icon("solar_zoom_1_1")
-    tool_id = "solar:zoom_1_1"
-    action_text = "Zoom 1:1"
-    tool_tip = "Zoom about the view center to one data pixel per screen pixel"
-
-    def activate(self):
-        state, box = self.viewer.state, self.viewer.axes.bbox  # in device pixels
-        if None not in (state.x_min, state.x_max, state.y_min, state.y_max):
-            # under 'Square Pixels' glue fits y to x by this ratio, which 'Physical aspect' scales
-            height = box.width * state._axes_aspect_ratio if state.aspect == "equal" else box.height
-            x, y = (state.x_min + state.x_max) / 2, (state.y_min + state.y_max) / 2
-            with delay_callback(state, "x_min", "x_max", "y_min", "y_max"):
-                state.x_min, state.x_max = x - box.width / 2, x + box.width / 2
-                state.y_min, state.y_max = y - height / 2, y + height / 2
-        _keep_mouse_mode(self.viewer)
 
 
 # A color bar's gap from the Image viewer's axes and width, and the room it takes with its ticks, in inches

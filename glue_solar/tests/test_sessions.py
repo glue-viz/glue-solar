@@ -494,11 +494,10 @@ def test_a_restored_quicklook_has_its_panels_off_and_their_axes(app, qtbot, monk
     viewers = with_windows(qtbot, quicklook(app, [*raster_data(files[:1], THREE), image_data(files[1])], window=THREE))
     panels = panels_list(app)
     tick(panels, "C II 1336", "SJI 1400", on=False)
-    tick(panels, "Axes")  # and the spectrogram's hidden again by hand
-    viewers["spectrogram"].toolbar.actions["solar:hide_axes"].trigger()
+    qtbot.waitUntil(lambda: not panels._timer.isActive())
+    viewers["spectrogram"].toolbar.actions["solar:hide_axes"].trigger()  # the axes of every image panel on (D83)
     look = viewers["map"].layers[0].state
     look.cmap, look.stretch, look.v_min = colormaps["viridis"], "sqrt", 5.0
-    qtbot.waitUntil(lambda: not panels._timer.isActive())
     app.save_session(str(tmp_path / "panels.glu"), absolute_paths=False)
     restored = restore(qtbot, monkeypatch, tmp_path / "panels.glu")
 

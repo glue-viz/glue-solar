@@ -13,7 +13,7 @@ from glue_qt.viewers.profile import ProfileViewer
 import glue_solar
 
 # glue-solar's tools with an icon of glue-solar's own
-OWN = ("solar:path", "solar:velocity", "solar:band", "solar:color_bar", "solar:zoom_1_1", "solar:slope")
+OWN = ("solar:path", "solar:velocity", "solar:band", "solar:color_bar", "solar:slope")
 # glue's icons on glue-solar's tools: the path crosshair's is glue's own tool's, the others borrowed
 FROM_GLUE = {
     "solar:path_crosshair",
