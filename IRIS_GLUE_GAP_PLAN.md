@@ -28,10 +28,10 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 23b0c3f (#295). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
+**Resume here.** Main is at 9afc41d (#296). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
 **Next** (D83), three at a time with disjoint files. Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
-  1. `wp2-l-line-maps-dialog`, `wp4-l-panels-on-demand` and `wp3-l-autosave-quit`; the astropy 8.0.2 envs are rebuilt beside them.
+  1. #296, `wp4-l-panels-on-demand` and `wp3-l-autosave-quit`; the astropy 8.0.2 envs are rebuilt beside them.
   2. As files come free: `wp2-l-results-in-viewer`, `wp4-l-one-quicklook-entry`, `wp11-l-view-menu-trim`, then `wp4-l-quicklook-recipe`.
   3. Then `wp9-l-guide-quicklook`, `wp9-l-guide-data` and `wp9-l-guide-rest`, in turn.
 
@@ -134,7 +134,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D82:** User (2026-10-16): keep the plan concise and the code lean; port CRISPEX's ideas to glue better, faster, sleeker and nicer, not one to one. The plan keeps rules and open items only (git keeps the history; Current state gets no per-PR line), and items with nothing to do are dropped (wp0-optional-proposals, wp0-track-qt66, wp0-track-line-layers, wp8-m3-level3-input, wp1-m3-multi-instrument, wp13-height-cubes; wp0-qt68-cocoa joins wp0-qt68-macos-pass). The audits (`audit2/` in the session archive) found about 820 source and 500 test lines that can go with no visible change (the four `-lean-` items) and one bug (#288). Held for the user: wp13-l-restored-second-map and `wp3-l-autosave-quit`, which a quicklook restored by re-running `quicklook()`, or dropping 'IRIS: restore last session', would replace; and every feature cut or redesign in the audits.
 
-- **D83:** User (2026-10-16), on the audits: a session restores a quicklook by re-running `quicklook()` from a saved recipe (`wp4-l-quicklook-recipe`, replacing the restored-strip and second-map items); 'IRIS: restore last session' stays, so `wp3-l-autosave-quit` goes ahead; the irispy-meta branch is dropped. Four consolidations (reopening D4, D24, D45, D48): `wp2-l-line-maps-dialog`, `wp4-l-one-quicklook-entry`, `wp4-l-panels-on-demand` and `wp2-l-results-in-viewer`; and `wp11-l-view-menu-trim` (one axes control, reopening D71 and 221-6; no Zoom 1:1, reopening D50). The user guide is rewritten as task pages of about 9,700 words in all (the wp9-l-guide- items, after the features). astropy 8.0.2 becomes the baseline: its envs are rebuilt conda-native; the floors stay.
+- **D83:** User (2026-10-16), on the audits: a session restores a quicklook by re-running `quicklook()` from a saved recipe (`wp4-l-quicklook-recipe`, replacing the restored-strip and second-map items); 'IRIS: restore last session' stays, so `wp3-l-autosave-quit` goes ahead; the irispy-meta branch is dropped. Four consolidations (reopening D4, D24, D45, D48): #296, `wp4-l-one-quicklook-entry`, `wp4-l-panels-on-demand` and `wp2-l-results-in-viewer`; and `wp11-l-view-menu-trim` (one axes control, reopening D71 and 221-6; no Zoom 1:1, reopening D50). The user guide is rewritten as task pages of about 9,700 words in all (the wp9-l-guide- items, after the features). astropy 8.0.2 becomes the baseline: its envs are rebuilt conda-native; the floors stay.
 
 - **D84:** User (2026-10-16), the choice review's sixth pass: the 54 choices of #276-#295 (chunks h3-j2), all kept; 283-4 was done as #284.
 
@@ -154,7 +154,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
-- WP2: `wp2-l-line-maps-dialog`, `wp2-l-results-in-viewer`
+- WP2: `wp2-l-results-in-viewer`
 - WP3: `wp3-l-autosave-quit`
 - WP4: `wp4-l-quicklook-recipe`, `wp4-l-panels-on-demand`, `wp4-l-one-quicklook-entry`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
@@ -252,7 +252,6 @@ Products from IRIS spectra, as dataset `layer_action`s that add linked Data and 
 **L**
 
 - [ ] **L** `wp2-l-results-in-viewer` (D83; audit P3, reopening D4): each analysis opens its result in an Image viewer in the current tab, showing the Point. Done when a Doppler image made from a quicklook shows without a drag.
-- [ ] **L** `wp2-l-line-maps-dialog` (D83; audit C3): one 'IRIS: line maps…' action asks the rest wavelength, a velocity range and which maps to make (line moments, with error maps and a continuum window if ticked; Doppler; red-blue), in place of 'IRIS: line moments…', 'IRIS: Doppler image…' and 'IRIS: red-blue asymmetry…' and their 14 fields; other settings take their defaults, and the scripting functions stay. Done when each map it makes equals the old action's with defaults, and the guides describe it.
 
 Notes:
 - irispy's analysis functions take scaled cubes and raise on memmap ones (`check_scaled`, which trusts the lazy SJI meta's `scaled = True` over the dtype), so pass glue's scaled values, never the loaders' raw int16, and rebin scaled values.
@@ -361,9 +360,6 @@ Notes:
 ### WP13: Other missions
 
 Features only other missions need, planned with the user once suitable data exist.
-
-**L**
-
 
 **OM**
 
