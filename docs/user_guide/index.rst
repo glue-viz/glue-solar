@@ -22,15 +22,10 @@ menus have no prefix.
    :maxdepth: 2
 
    getting-started
-   loading-aia-and-hmi
-   loading-iris-level-2-raster-and-sji-data
-   loading-sst-cubes
+   loading-data
    iris-quicklook
    viewer-tools-and-windows
-   iris-line-moments
-   iris-mg-features
-   iris-calibration
-   iris-bursts
+   analyses
    data-actions
    saving
    scripting-iris-data

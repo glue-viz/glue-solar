@@ -36,7 +36,7 @@ is installed from the checkout as a package, not editable::
 Install glue-solar again after each change to the checkout. The app holds no PyQt5, PySide or tkinter. It holds
 fiasco, which glue-solar's ``density`` extra adds, so the line ratio diagnostic offers its O IV preset; as outside the
 app, fiasco downloads and builds the CHIANTI database in ``~/.fiasco`` on its first use (see
-:ref:`glue_solar_users_guide_iris_line_moments`). It holds the environment's ffmpeg, which ``start_glue_solar.py``
+:ref:`glue_solar_users_guide_iris_line_ratio`). It holds the environment's ffmpeg, which ``start_glue_solar.py``
 puts first on the ``PATH``, so that movies save as MP4 in an app opened from the Finder, which gives it no shell
 ``PATH``. Of matplotlib's backends it holds QtAgg and those that Save takes PNG, PDF, SVG, EPS and PS from: Save
 still lists PGF, which needs LaTeX and fails with "No module named". The spec leaves out botocore, pyarrow, bokeh and
