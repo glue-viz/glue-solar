@@ -28,11 +28,11 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 88dbe39 (#299). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
+**Resume here.** Main is at abf3c65 (#300). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
 **Next** (D83), three at a time with disjoint files. Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
   1. #296, #298 and #297; the astropy 8.0.2 envs are rebuilt beside them.
-  2. As files come free: `wp2-l-results-in-viewer`, #299, `wp11-l-view-menu-trim`, then `wp4-l-quicklook-recipe`.
+  2. As files come free: #300, #299, `wp11-l-view-menu-trim`, then `wp4-l-quicklook-recipe`.
   3. Then `wp9-l-guide-quicklook`, `wp9-l-guide-data` and `wp9-l-guide-rest`, in turn.
 
 **Waiting on the user.** `wp0-qt68-macos-pass`; filing `wp0-qt-fitter-settings`'s PR from its pushed branch (text in the archive's `briefs/glue-qt-fitter-pr.md`); the audits' other proposals (`audit2/` in the archive); the drag-into-/Applications check of the app (`~/Downloads/Glue Solar.dmg`, built from f073033's recipe; a dmg from #275's recipe would also check Finder and Dock opening); an exact report of the linking and slider-sync problems the user saw in the app (2026-10-09), whose steps, rerun with `glue` from `iris-plan-qt6`, tell an app problem from a Qt 6 or glue-solar one; raising the matplotlib-free WCSAxes core prototype in person (no PR, issue or upstream notice); M4 and OM work. Offered, not started: `wp0-restore-full-ci`, and #207's leftover (viewers opened after the time marker exists get its layer: about 10% slower steps with a second quicklook).
@@ -134,7 +134,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D82:** User (2026-10-16): keep the plan concise and the code lean; port CRISPEX's ideas to glue better, faster, sleeker and nicer, not one to one. The plan keeps rules and open items only (git keeps the history; Current state gets no per-PR line), and items with nothing to do are dropped (wp0-optional-proposals, wp0-track-qt66, wp0-track-line-layers, wp8-m3-level3-input, wp1-m3-multi-instrument, wp13-height-cubes; wp0-qt68-cocoa joins wp0-qt68-macos-pass). The audits (`audit2/` in the session archive) found about 820 source and 500 test lines that can go with no visible change (the four `-lean-` items) and one bug (#288). Held for the user: wp13-l-restored-second-map and #297, which a quicklook restored by re-running `quicklook()`, or dropping 'IRIS: restore last session', would replace; and every feature cut or redesign in the audits.
 
-- **D83:** User (2026-10-16), on the audits: a session restores a quicklook by re-running `quicklook()` from a saved recipe (`wp4-l-quicklook-recipe`, replacing the restored-strip and second-map items); 'IRIS: restore last session' stays, so #297 goes ahead; the irispy-meta branch is dropped. Four consolidations (reopening D4, D24, D45, D48): #296, #299, #298 and `wp2-l-results-in-viewer`; and `wp11-l-view-menu-trim` (one axes control, reopening D71 and 221-6; no Zoom 1:1, reopening D50). The user guide is rewritten as task pages of about 9,700 words in all (the wp9-l-guide- items, after the features). astropy 8.0.2 becomes the baseline: its envs are rebuilt conda-native; the floors stay.
+- **D83:** User (2026-10-16), on the audits: a session restores a quicklook by re-running `quicklook()` from a saved recipe (`wp4-l-quicklook-recipe`, replacing the restored-strip and second-map items); 'IRIS: restore last session' stays, so #297 goes ahead; the irispy-meta branch is dropped. Four consolidations (reopening D4, D24, D45, D48): #296, #299, #298 and #300; and `wp11-l-view-menu-trim` (one axes control, reopening D71 and 221-6; no Zoom 1:1, reopening D50). The user guide is rewritten as task pages of about 9,700 words in all (the wp9-l-guide- items, after the features). astropy 8.0.2 becomes the baseline: its envs are rebuilt conda-native; the floors stay.
 
 - **D84:** User (2026-10-16), the choice review's sixth pass: the 54 choices of #276-#295 (chunks h3-j2), all kept; 283-4 was done as #284.
 
@@ -154,7 +154,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
-- WP2: `wp2-l-results-in-viewer`
 - WP4: `wp4-l-quicklook-recipe`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP9: `wp9-l-guide-quicklook`, `wp9-l-guide-data`, `wp9-l-guide-rest`
@@ -247,10 +246,6 @@ The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links be
 ### WP2: Line moments and diagnostics
 
 Products from IRIS spectra, as dataset `layer_action`s that add linked Data and open no viewer, in `glue_solar/sources/moments.py`.
-
-**L**
-
-- [ ] **L** `wp2-l-results-in-viewer` (D83; audit P3, reopening D4): each analysis opens its result in an Image viewer in the current tab, showing the Point. Done when a Doppler image made from a quicklook shows without a drag.
 
 Notes:
 - irispy's analysis functions take scaled cubes and raise on memmap ones (`check_scaled`, which trusts the lazy SJI meta's `scaled = True` over the dtype), so pass glue's scaled values, never the loaders' raw int16, and rebin scaled values.
