@@ -1,6 +1,7 @@
 """
-'IRIS: line moments…': irispy's moment maps of a line in a raster window or a stack of its scans, as a new dataset;
-and 'IRIS: subtract mean spectrum': a raster window's values less its mean spectrum, as a glue derived component.
+'IRIS: line maps…': irispy's moment maps of a line in a raster window or a stack of its scans, its Doppler image
+(`~glue_solar.sources.doppler`) and red-blue asymmetry (`~glue_solar.sources.red_blue`), as new datasets (D83); and
+'IRIS: subtract mean spectrum': a raster window's values less its mean spectrum, as a glue derived component.
 """
 
 import gc
@@ -26,7 +27,7 @@ from glue_solar.lines import MAIN_LINES, _wavelength, rest_wavelength
 from glue_solar.quicklook import _role, _spectral_axes, _wavelengths
 from glue_solar.sources.loaders.iris import _RUNNING, WCS_LOCK, _GlueWCS, keep_hpc_linked, per_second
 
-__all__ = ["line_moments", "mean_spectrum_iris", "moments_iris", "subtract_mean_spectrum"]
+__all__ = ["line_maps_iris", "line_moments", "mean_spectrum_iris", "subtract_mean_spectrum"]
 
 # The velocity range the dialog takes at first, in km / s from the line center: ±0.5 Å at Si IV 1402.77 (D57)
 VELOCITY_RANGE = (-107.0, 107.0)
@@ -315,14 +316,19 @@ def _profile_range(data, data_collection):
 
 def _ask(data, drawn=None):
     """
-    The line center typed for ``data``, at first its `rest_wavelength`, in Angstrom, the velocity range about it, in
-    km / s, the continuum windows, or None for none, in Angstrom, and whether error maps are ticked; or None for a blank
-    center or Cancel. The velocities stop at the window's wavelengths about a center within them, at first or typed.
-    With ``drawn``, a Profile range, the velocity range reaches its ends, cut to the window, from a center within it.
+    The rest wavelength typed for ``data``, at first its `rest_wavelength`, in Angstrom, the line moments' velocity
+    range about it, in km / s, continuum windows, or None for none, in Angstrom, and whether error maps are ticked, and
+    the maps ticked, of ``moments``, ``doppler`` and ``red_blue``; or None for a blank rest wavelength, no map or
+    Cancel. The velocities stop at the window's wavelengths about a center within them, at first or typed. With
+    ``drawn``, a Profile range, the velocity range reaches its ends, cut to the window, from a center within it.
     """
-    dialog, form = _form(f"IRIS: line moments of {data.label}")
-    center = _rest_field(data, "center")  # D11: never the window's TWAVE
-    form.addRow("Line center [Å]:", center)
+    from glue_solar.sources import doppler, red_blue  # which import this module
+
+    dialog, form = _form(f"IRIS: line maps of {data.label}")
+    center = _rest_field(data, "rest")  # D11: never the window's TWAVE
+    form.addRow("Rest wavelength [Å]:", center)
+    moments = QtWidgets.QCheckBox("Line moments", objectName="moments", checked=True)
+    form.addRow(moments)
     wavelengths, _ = _wavelengths(data)
     first, last, c = wavelengths[0], wavelengths[-1], constants.c.to_value(u.km / u.s)
     boxes = []
@@ -373,14 +379,31 @@ def _ask(data, drawn=None):
     errors = QtWidgets.QCheckBox("Error maps", objectName="errors")  # off: irispy then takes about 1.7 times as long
     errors.setToolTip("Add each map's error, from irispy's photon and read noise of each sample")
     form.addRow(errors)
+    for widget in (*boxes, continuum, errors):  # the line moments' alone
+        moments.toggled.connect(widget.setEnabled)
+    # at their scripting functions' defaults (D83)
+    taken, wings = red_blue.WAVELENGTHS, red_blue.VELOCITIES
+    ticks = [moments]
+    for name, label, tooltip in (
+        ("doppler", "Doppler image", f"Red less blue wing at {', '.join(f'{v:g}' for v in doppler.VELOCITIES)} km / s"),
+        (
+            "red_blue",
+            "Red-blue asymmetry",
+            f"irispy's, from {taken[0]:g} Å below to {taken[1]:g} Å above the rest wavelength, the wings {wings[0]:g} "
+            f"to {wings[1]:g} km / s from the peak",
+        ),
+    ):
+        ticks.append(QtWidgets.QCheckBox(label, objectName=name, toolTip=tooltip))
+        form.addRow(ticks[-1])
     text = center.text().strip() if _accepted(dialog, form) else ""
-    if not text:
+    ticked = [box.objectName() for box in ticks if box.isChecked()]
+    if not text or not ticked:
         return None
     limit(text)  # as when its editing finished
     line = _wavelength(text), tuple(box.value() for box in boxes)
-    text = continuum.text().strip()
+    text = continuum.text().strip() if moments.isChecked() else ""
     if not text:
-        return *line, None, errors.isChecked()
+        return *line, None, errors.isChecked(), ticked
     try:
         windows = [
             tuple(sorted((float(low), float(high)))) for low, high in (part.split("-") for part in text.split(","))
@@ -389,7 +412,7 @@ def _ask(data, drawn=None):
         raise ValueError(
             f"'{text}' is not a list of continuum windows in Angstrom, such as 1401.5-1402, 1404-1405."
         ) from None
-    return *line, windows, errors.isChecked()
+    return *line, windows, errors.isChecked(), ticked
 
 
 def _add(data_collection, status, said, add, result):
@@ -454,24 +477,48 @@ def _start(data_collection, text, title, function, *args, said=None, add=None):
 
 
 @layer_action(
-    "IRIS: line moments…",
+    "IRIS: line maps…",
     single=True,
     data=True,
     check=_check,
-    tooltip="Add irispy's intensity, centroid, width and velocity maps of a line in this raster window or stack",
+    tooltip="Add irispy's line moments, a Doppler image or red-blue asymmetry of a line in this raster window or stack",
 )
-@messagebox_on_error("Could not compute line moments")
-def moments_iris(data, data_collection):
-    """Add the `line_moments` of ``data`` for the values typed (`_ask`), computed in the background (`_start`)."""
+@messagebox_on_error("Could not compute line maps")
+def line_maps_iris(data, data_collection):
+    """
+    Add the maps of ``data`` ticked (`_ask`): its `line_moments` for the values typed, and its
+    `~glue_solar.sources.doppler.doppler_image` and `~glue_solar.sources.red_blue.red_blue_asymmetry` at their defaults
+    (D83): each checked before any is computed, then computed in turn in the background (`_start`), so the memory peak
+    is one map's.
+    """
+    from glue_solar.sources import doppler, red_blue  # which import this module
+
     _check(data)  # before asking
     asked = _ask(data, _profile_range(data, data_collection))
     if asked is None:
         return
-    center, velocity_range, continuum, errors = asked
-    window = _window(data, *_ends(center, velocity_range), continuum)
-    line = center, velocity_range, continuum
-    text, title = f"Computing line moments of {data.label}…", "Could not compute line moments"
-    _start(data_collection, text, title, _moments, data, *line, *window, errors, said=_saturated)
+    rest, velocity_range, continuum, errors, ticked = asked
+    jobs = []
+    if "moments" in ticked:
+        window = _window(data, *_ends(rest, velocity_range), continuum)
+        jobs.append(partial(_moments, data, rest, velocity_range, continuum, *window, errors))
+    if "doppler" in ticked:
+        wings = doppler._wings(data, rest, doppler.VELOCITIES)
+        jobs.append(partial(doppler._doppler, data, rest, doppler.VELOCITIES, False, wings, _unit(data)))
+    if "red_blue" in ticked:
+        line = rest, red_blue.WAVELENGTHS, red_blue.VELOCITIES, red_blue.STEP
+        jobs.append(partial(red_blue._red_blue, data, *line, *red_blue._taken(data, rest, red_blue.WAVELENGTHS)))
+
+    def compute():
+        return [job() for job in jobs]
+
+    def add(maps):
+        data_collection.extend(maps)
+        keep_hpc_linked(data_collection)
+
+    text, title = f"Computing line maps of {data.label}…", "Could not compute line maps"
+    # the moments first, if ticked: the other maps have no saturated count
+    _start(data_collection, text, title, compute, said=lambda maps: _saturated(maps[0]), add=add)
 
 
 def _mean_spectrum(data, cid):

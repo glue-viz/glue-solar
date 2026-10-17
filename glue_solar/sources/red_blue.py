@@ -1,23 +1,19 @@
 """
-'IRIS: red-blue asymmetry…': irispy's red-blue asymmetry of a line in a raster window or a stack of its scans, as a new
-dataset.
+irispy's red-blue asymmetry of a line in a raster window or a stack of its scans, as a new dataset, for 'IRIS: line
+maps…' (`~glue_solar.sources.moments`).
 """
 
 import numpy as np
 from glue.core.component import Component
-from glue_qt.utils.decorators import messagebox_on_error
-from qtpy import QtWidgets
 
 import astropy.units as u
 
-from glue_solar.glue_patches import layer_action
-from glue_solar.lines import _wavelength
 from glue_solar.sources.loaders.iris import WCS_LOCK
-from glue_solar.sources.moments import _accepted, _check, _cube, _dataset, _form, _rest_field, _slabs, _start, _window
+from glue_solar.sources.moments import _check, _cube, _dataset, _slabs, _window
 
-__all__ = ["red_blue_asymmetry", "red_blue_iris"]
+__all__ = ["red_blue_asymmetry"]
 
-# The wavelengths the dialog takes at first, in Angstrom below and above the rest wavelength: irispy takes the peak of
+# The wavelengths 'IRIS: line maps…' takes, in Angstrom below and above the rest wavelength: irispy takes the peak of
 # all it is given, which in a Mg II k window can be Mg II h
 WAVELENGTHS = (1.0, 1.0)
 # iris_xfiles' red-blue settings, in km / s: its double Gaussian fit averages red minus blue over 5 km / s from each of 30,
@@ -102,50 +98,3 @@ def red_blue_asymmetry(data, rest, wavelengths=WAVELENGTHS, velocities=VELOCITIE
     """
     _check(data)
     return _red_blue(data, rest, wavelengths, velocities, step, *_taken(data, rest, wavelengths))
-
-
-def _ask(data):
-    """
-    The rest wavelength typed for ``data``, at first its `rest_wavelength`, and the wavelengths taken below and above
-    it, in Angstrom, and the wing velocities and the velocity step, in km / s; or None for a blank rest wavelength or
-    Cancel.
-    """
-    dialog, form = _form(f"IRIS: red-blue asymmetry of {data.label}")
-    rest = _rest_field(data, "rest")  # D11: never the window's TWAVE
-    form.addRow("Rest wavelength [Å]:", rest)
-    boxes = []
-    for name, label, value, unit in (
-        ("below", "Taken below the rest:", WAVELENGTHS[0], "Å"),
-        ("above", "Taken above the rest:", WAVELENGTHS[1], "Å"),
-        ("from", "Wing velocities from:", VELOCITIES[0], "km / s"),
-        ("to", "Wing velocities to:", VELOCITIES[1], "km / s"),
-        ("step", "Velocity step:", STEP, "km / s"),
-    ):
-        step = 0.1 if unit == "Å" else 1
-        box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, maximum=1000, singleStep=step, suffix=f" {unit}")
-        box.setValue(value)
-        form.addRow(label, box)
-        boxes.append(box)
-    text = rest.text().strip() if _accepted(dialog, form) else ""
-    if not text:
-        return None
-    below, above, low, high, step = (box.value() for box in boxes)
-    return _wavelength(text), (below, above), (low, high), step
-
-
-@layer_action(
-    "IRIS: red-blue asymmetry…",
-    single=True,
-    data=True,
-    check=_check,
-    tooltip="Add irispy's red-blue asymmetry map of a line in this raster window or stack",
-)
-@messagebox_on_error("Could not compute red-blue asymmetry")
-def red_blue_iris(data, data_collection):
-    """Add the `red_blue_asymmetry` of ``data`` for the values typed (`_ask`), computed in the background (`_start`)."""
-    _check(data)  # before asking
-    line = _ask(data)
-    if line is None:
-        return
-    text, title = f"Computing red-blue asymmetry of {data.label}…", "Could not compute red-blue asymmetry"
-    _start(data_collection, text, title, _red_blue, data, *line, *_taken(data, *line[:2]))

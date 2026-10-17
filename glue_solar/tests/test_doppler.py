@@ -1,6 +1,6 @@
 """
-'IRIS: Doppler image…', on int16 copies of irispy's test files, Gaussian lines and one irispy-data cutout: the maps
-glue gets, of a scan or a stack, against numpy's interpolation of each pixel's spectrum.
+'IRIS: line maps…' and its Doppler image, on int16 copies of irispy's test files, Gaussian lines and one irispy-data
+cutout: the maps glue gets, of a scan or a stack, against numpy's interpolation of each pixel's spectrum.
 """
 
 from unittest.mock import Mock
@@ -20,16 +20,22 @@ from glue_solar.sources import doppler
 from glue_solar.sources.doppler import doppler_image
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
-from glue_solar.tests.helpers import answer, refused, run_action
+from glue_solar.tests import test_moments
+from glue_solar.tests.helpers import refused, run_action
 from glue_solar.tests.test_lazy import SJI
+from glue_solar.tests.test_moments import ACTION
 
-ACTION = "IRIS: Doppler image…"
 VELOCITIES = (10, 20, 30, 40, 50)
+
+
+def answer(monkeypatch, rest, accept=True):
+    """`test_moments.answer` with the Doppler image alone ticked."""
+    return test_moments.answer(monkeypatch, rest, accept=accept, moments=False, doppler=True)
 
 
 def run(app, qtbot, data):
     """Trigger the action on ``data``; returns the dataset it adds."""
-    [maps] = run_action(app, qtbot, data, ACTION, f"Computing the Doppler image of {data.label}…")
+    [maps] = run_action(app, qtbot, data, ACTION, f"Computing line maps of {data.label}…")
     return maps
 
 
@@ -73,9 +79,9 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     collection = app.data_collection
     collection.extend([sji, raster])
     keep_hpc_linked(collection)
-    opened = answer(monkeypatch, rest="1402.77")
+    opened = answer(monkeypatch, "1402.77")
     maps = run(app, qtbot, raster)
-    assert opened == [{"rest": "1402.77", "velocities": "10, 20, 30, 40, 50", "normalized": False}]  # the main line
+    assert opened[0]["rest"] == "1402.77"  # the main line
     assert maps.label == f"{raster.label} Doppler image 1402.77"
     assert maps.shape == raster.shape[:2]
     assert {maps.get_component(cid).units for cid in maps.main_components} == {"DN_IRIS_FUV / s"}
@@ -98,23 +104,22 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(
     assert np.isnan(maps["red - blue 10 km / s"]).sum() == 32  # where either sample interpolated is missing
 
 
-def test_the_typed_velocities_normalized_and_a_blank_or_canceled_rest(app, qtbot, monkeypatch, scan_path):
+def test_other_velocities_normalized_and_a_blank_or_canceled_rest(app, qtbot, monkeypatch, scan_path):
+    """Other velocities and the normalized maps are the function's; a blank rest wavelength or Cancel adds nothing."""
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     collection = app.data_collection
     collection.append(raster)
-    answer(monkeypatch, rest=" 1402.77 ", velocities=" 25,5 5", normalized=True)
-    maps = run(app, qtbot, raster)
+    maps = doppler_image(raster, 1402.77, (5, 25), normalized=True)
     assert maps.meta["doppler_velocities"] == (5, 25)
     assert_numpys(maps, raster, 1402.77, (5, 25), normalized=True)
-    # nothing more is added
     tree = app._layer_widget
-    tree.ui.layerTree.set_selected_layers([raster])  # glue selects the dataset added
+    tree.ui.layerTree.set_selected_layers([raster])
     action = tree._actions[ACTION]
     for rest, accept in (("", True), ("1402.77", False)):
-        answer(monkeypatch, accept, rest=rest)
+        answer(monkeypatch, rest, accept)
         action.trigger()
         assert not iris._RUNNING  # and no thread started
-        assert len(collection) == 2
+        assert len(collection) == 1
 
 
 def test_a_symmetric_line_gives_zero_a_redshift_a_positive_map_and_a_saturated_sample_nan(monkeypatch, scan_path):
@@ -158,7 +163,7 @@ def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatc
     collection = app.data_collection
     collection.append(stack)
     keep_hpc_linked(collection)
-    answer(monkeypatch, rest="1402.77")
+    answer(monkeypatch, "1402.77")
     maps = run(app, qtbot, stack)
     assert maps.shape == stack.shape[:-1]
     assert link_hpc(collection) == []
@@ -183,44 +188,35 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
     action = tree._actions[ACTION]
-    opened = answer(monkeypatch, rest="1402.77")
+    opened = answer(monkeypatch, "1402.77")
     for data in (sji, plain):
         tree.ui.layerTree.set_selected_layers([data])
         refused(action)
     assert opened == []  # refused before asking
     tree.ui.layerTree.set_selected_layers([raster])
-    for rest, velocities in (
-        ("3000", "10, 20, 30, 40, 50"),
-        ("Si IV", "10, 20, 30, 40, 50"),
-        ("1402.77", "0, 10"),
-        ("1402.77", "nan"),
-        ("1402.77", "10 fast"),
-        ("1402.77", ""),
-        ("1399", "50, 200, 300"),
-    ):
-        answer(monkeypatch, rest=rest, velocities=velocities)
+    for rest in ("3000", "Si IV", "1398.7"):
+        answer(monkeypatch, rest)
         action.trigger()
     # and an error on the thread
     monkeypatch.setattr(doppler, "_read", Mock(side_effect=RuntimeError("unreadable")))
-    answer(monkeypatch, rest="1402.77")
+    answer(monkeypatch, "1402.77")
     action.trigger()
-    qtbot.waitUntil(lambda: len(shown) == 10 and not iris._RUNNING)
-    assert all(text.startswith("Could not compute the Doppler image\n") for text in shown)
+    qtbot.waitUntil(lambda: len(shown) == 6 and not iris._RUNNING)
+    assert all(text.startswith("Could not compute line maps\n") for text in shown)
     span = f"{raster.label} (1398.63 to 1405.75 Å)"
     assert [text.split("\n", 1)[1] for text in shown] == [
         f"{sji.label} is not an IRIS raster window.",
         "plain is not an IRIS raster window.",
         f"The wings at ±10, 20, 30, 40, 50 km / s from 3000.0 Å lie outside {span}.",
         "'Si IV' is not a wavelength in Angstrom, such as 1402.77.",
-        "The velocities must be positive, not 0, 10 km / s.",
-        "The velocities must be positive, not nan km / s.",
-        "'10 fast' is not a list of velocities in km / s, such as 10, 20, 30.",
-        "'' is not a list of velocities in km / s, such as 10, 20, 30.",
-        f"The wings at ±200, 300 km / s from 1399.0 Å lie outside {span}.",
+        f"The wings at ±20, 30, 40, 50 km / s from 1398.7 Å lie outside {span}.",
         "unreadable",
     ]
     assert app.statusBar().currentMessage() == ""
     assert len(collection) == 3
+    for velocities, said in (((0, 10), "0, 10"), ((np.nan,), "nan")):  # the function's
+        with pytest.raises(ValueError, match=f"^The velocities must be positive, not {said} km / s.$"):
+            doppler_image(raster, 1402.77, velocities)
 
 
 @pytest.mark.remote_data

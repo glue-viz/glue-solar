@@ -75,7 +75,6 @@ from glue_solar.quicklook import QuicklookImageViewer, _role, _wavelengths
 from glue_solar.regrid import north_up_iris, rebin_iris, regrid_iris, regrid_on_time
 from glue_solar.sources.bursts import bursts_iris
 from glue_solar.sources.calibration import radiometric_calibration_iris, remove_dust_iris
-from glue_solar.sources.doppler import doppler_iris
 from glue_solar.sources.iris import (
     browse_iris,
     help_iris,
@@ -91,8 +90,7 @@ from glue_solar.sources.line_ratio import line_ratio_iris
 from glue_solar.sources.loaders.iris import _GlueWCS, image_data, link_hpc, raster_data
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.mg_features import mg_features_iris
-from glue_solar.sources.moments import line_moments, mean_spectrum_iris, moments_iris
-from glue_solar.sources.red_blue import red_blue_iris
+from glue_solar.sources.moments import line_maps_iris, line_moments, mean_spectrum_iris
 from glue_solar.tests.helpers import count_tick_work, mouse, press, raster_point_on_sji, restore
 from glue_solar.tests.test_cube_quicklook import spectral_cube
 from glue_solar.tests.test_lazy import RASTER, SJI
@@ -120,9 +118,7 @@ def test_setup_registers_hooks():
         ("IRIS: set rest wavelength…", rest_wavelength_iris),
         ("IRIS: radiometric calibration", radiometric_calibration_iris),
         ("IRIS: subtract mean spectrum", mean_spectrum_iris),
-        ("IRIS: line moments…", moments_iris),
-        ("IRIS: Doppler image…", doppler_iris),
-        ("IRIS: red-blue asymmetry…", red_blue_iris),
+        ("IRIS: line maps…", line_maps_iris),
         ("IRIS: Mg II features… (Mg II)", mg_features_iris),
         ("IRIS: detect UV bursts… (Si IV, SJI 1400)", bursts_iris),
         ("IRIS: line ratio diagnostic…", line_ratio_iris),
@@ -177,9 +173,7 @@ def test_data_actions_show_only_for_the_data_they_take(app, monkeypatch, tmp_pat
         "IRIS: set rest wavelength…",
         "IRIS: radiometric calibration",
         "IRIS: subtract mean spectrum",
-        "IRIS: line moments…",
-        "IRIS: Doppler image…",
-        "IRIS: red-blue asymmetry…",
+        "IRIS: line maps…",
     ]
     mg_ii, bursts = "IRIS: Mg II features… (Mg II)", "IRIS: detect UV bursts… (Si IV, SJI 1400)"
     ratio, dust, north_up = "IRIS: line ratio diagnostic…", "IRIS: remove dust (SJI)", "IRIS: north up (SJI, AIA, SOT)"
