@@ -30,11 +30,12 @@ Out of scope:
 
 **Resume here.** Main is at 23b0c3f (#295). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
-**Next.** D81's and D82's items are on main (#278-#295, 2026-10-16), and no PR is open. Each new item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI, three at a time with disjoint files.
+**Next** (D83), three at a time with disjoint files. Each item is one run of `plan-item-workflow.js` (Opus implements, Fable reviews, Opus fixes), shipped with `ship_locked.sh` and merged on green CI.
+  1. `wp2-l-line-maps-dialog`, `wp4-l-panels-on-demand` and `wp3-l-autosave-quit`; the astropy 8.0.2 envs are rebuilt beside them.
+  2. As files come free: `wp2-l-results-in-viewer`, `wp4-l-one-quicklook-entry`, `wp11-l-view-menu-trim`, then `wp4-l-quicklook-recipe`.
+  3. Then `wp9-l-guide-quicklook`, `wp9-l-guide-data` and `wp9-l-guide-rest`, in turn.
 
-  Held for the user (D82): `wp4-l-restored-strip`, `wp13-l-restored-second-map`, `wp3-l-autosave-quit` and `wp3-l-restore-irispy-meta`.
-
-**Waiting on the user.** `wp0-qt68-macos-pass`; filing `wp0-qt-fitter-settings`'s PR from its pushed branch (text in the archive's `briefs/glue-qt-fitter-pr.md`); the audits' proposals (`audit2/` in the archive: feature cuts and redesigns, a user guide of about 9,700 words, a quicklook restored by re-running `quicklook()`); whether `iris-plan-qt6-a802` (astropy 8.0.2) becomes the baseline env, rebuilt conda-native, with the docs and app envs following; the review of the PROVISIONALs of #276-#295 (chunks h3-j2; 15 of #276-#277 and those after #283 not yet marked); the drag-into-/Applications check of the app (`~/Downloads/Glue Solar.dmg`, built from f073033's recipe; a dmg from #275's recipe would also check Finder and Dock opening); an exact report of the linking and slider-sync problems the user saw in the app (2026-10-09), whose steps, rerun with `glue` from `iris-plan-qt6`, tell an app problem from a Qt 6 or glue-solar one; raising the matplotlib-free WCSAxes core prototype in person (no PR, issue or upstream notice); M4 and OM work. Offered, not started: `wp0-restore-full-ci`, and #207's leftover (viewers opened after the time marker exists get its layer: about 10% slower steps with a second quicklook).
+**Waiting on the user.** `wp0-qt68-macos-pass`; filing `wp0-qt-fitter-settings`'s PR from its pushed branch (text in the archive's `briefs/glue-qt-fitter-pr.md`); the audits' other proposals (`audit2/` in the archive); the review of the PROVISIONALs of #276-#295 (chunks h3-j2; 15 of #276-#277 and those after #283 not yet marked); the drag-into-/Applications check of the app (`~/Downloads/Glue Solar.dmg`, built from f073033's recipe; a dmg from #275's recipe would also check Finder and Dock opening); an exact report of the linking and slider-sync problems the user saw in the app (2026-10-09), whose steps, rerun with `glue` from `iris-plan-qt6`, tell an app problem from a Qt 6 or glue-solar one; raising the matplotlib-free WCSAxes core prototype in person (no PR, issue or upstream notice); M4 and OM work. Offered, not started: `wp0-restore-full-ci`, and #207's leftover (viewers opened after the time marker exists get its layer: about 10% slower steps with a second quicklook).
 
 **Waiting on others.** irispy #209 (`wp5-irispy-line-database`, then `wp5-l-line-groups` and `wp5-l-lines-in-range`).
 
@@ -114,16 +115,16 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 - **D63:** The SST and IRIS stress survey (GLUE_SPEED.md 'SST and IRIS stress survey, 2026-10-10', SST1-SST13): its glue-solar fixes are on main; the rest is upstream, in `wp0-perf-qt` (SST8), `wp0-perf-core-links` (SST9), `wp0-perf-core-stats-io` (SST10 as R32, with D70's workaround only) and `wp0-astropy-19174` (SST1); SST13 gets no action.
 - **D64:** Link scope (SST3): data from outside the IRIS observations is linked to IRIS only on request, through 'IRIS: link helioprojective coordinates', never by `keep_hpc_linked` as data load or a quicklook opens: SST cubes, other FITS files, sunpy maps (#226), and, since D72, an IRIS observation's own AIA cutouts and SOT cubes (#256).
 - **D65:** A quicklook per instrument, SST first: CRISP and CHROMIS SSTRED SOLARNET cubes (D62; time, Stokes, wavelength, y, x, without a length-1 Stokes axis, #232) open one in its own tab from the browser and the Plugins menu, linked to an IRIS quicklook only on request (D64), time-synced, with D68's panels (a virtual slit in place of IRIS's spectrogram). Every panel of either quicklook turns on and off (#228). Other cubes get one from their axes (D78). `wp13-stokes` keeps only Stokes scaling and noise level.
-- **D66:** Panel toggles (#228): a checkable 'Panels' list right of the Point window in the quicklook's bottom strip, with an entry per main-window panel and slit-jaw image and a group per other window, on SST too. Shown panels re-tile at a toggle, empty rows go, and manual moves and resizes are lost; a burst of toggles gets one layout, and a panel of unchanged size does not redraw. Sessions leave out panels turned off, so they open shown (`wp4-l-restored-strip`). A slit-jaw time master turned back on moves to its frame nearest the raster's time.
+- **D66:** Panel toggles (#228): a checkable 'Panels' list right of the Point window in the quicklook's bottom strip, with an entry per main-window panel and slit-jaw image and a group per other window, on SST too. Shown panels re-tile at a toggle, empty rows go, and manual moves and resizes are lost; a burst of toggles gets one layout, and a panel of unchanged size does not redraw. Sessions leave out panels turned off, so they open shown (wp4-l-restored-strip). A slit-jaw time master turned back on moves to its frame nearest the raster's time.
 - **D67:** SST loader (#227): once linked, an SST region or point reaches IRIS data, which lack the cube's time and wavelength, at the scan nearest each IRIS frame's time and the line core. The wavelength axis keeps each scan's nominal values; the cavity-error lookup (CWDIS3) is its own documented component. As D54's one exception, the loader inverts its coordinates itself (a linear solve per scan and tuning of SSTRED's corner tables, wcslib for larger tables); wcslib's -TAB inverse is `wp0-wcslib-tab-inverse`.
 - **D68:** SST quicklook (#230): one cube per tab (the browser lists each cube of an archive folder; another opens in its own tab, time-synced). Row 1: the map (wavelength and Stokes sliders), a second wavelength map and the virtual slit (wavelength against y) through the point; row 2: the I, Q, U and V spectra at the point (I only on CHROMIS); row 3: wavelength against time and the light curve at the point; the Point window and Panels list below, as on IRIS.
 - **D69:** glue-solar is unreleased, so sessions saved by older glue-solar need not open: no back-compat patches or aliases. Sessions of the current code still save and restore, and items keep their session checks.
 - **D70:** SST10: as an exception to D63, SST cubes answer glue's sampled color-limit statistics from 16 evenly spaced planes of 25 rows and 25 columns (sampling: #248), tracked under R32 (`wp0-perf-core-stats-io`) until glue samples cheaply itself.
 - **D71:** Every quicklook, IRIS and SST, opens its image panels with the axes hidden, as 'Hide axes' does; an 'Axes' box at the top of the Panels list turns them on and off for all of its image panels; each panel's 'Hide axes' button stays (#231).
-- **D72:** The choice review (2026-10-11; `choices/` in the session archive): every PROVISIONAL of #100-#232 not changed stands and is no longer provisional. The changes are on main, except 206-3 and 206-7 (`wp3-l-autosave-quit`), 205-1 (`wp3-l-restore-irispy-meta`), 160-x1 (`wp9-m4-release-updates`) and 216-2 (`wp0-qt-run-script`); D56, D59, D61 and D64 read as they changed. Other rules: the analyses keep DN/s in float64 (213-3); the mean spectrum leaves saturated samples out and counts them (213-7); calibration takes rebinned windows (220-5); menu help stays as tooltips (222-3); the cavity error stays in nm, the guide giving km/s (227-2); panel toggles keep their 0 ms layout (228-6); the app has its own icon (216-9); every patch or override on main has a register row with its upstream route, updated by the PR that adds or retires it (D63-2).
+- **D72:** The choice review (2026-10-11; `choices/` in the session archive): every PROVISIONAL of #100-#232 not changed stands and is no longer provisional. The changes are on main, except 206-3 and 206-7 (`wp3-l-autosave-quit`), 205-1 (wp3-l-restore-irispy-meta), 160-x1 (`wp9-m4-release-updates`) and 216-2 (`wp0-qt-run-script`); D56, D59, D61 and D64 read as they changed. Other rules: the analyses keep DN/s in float64 (213-3); the mean spectrum leaves saturated samples out and counts them (213-7); calibration takes rebinned windows (220-5); menu help stays as tooltips (222-3); the cavity error stays in nm, the guide giving km/s (227-2); panel toggles keep their 0 ms layout (228-6); the app has its own icon (216-9); every patch or override on main has a register row with its upstream route, updated by the PR that adds or retires it (D63-2).
 - **D73:** After the audit of #226-#235 (`audit/` in the session archive): an SST point reaches linked IRIS data through the widened `_to_linked_pixel_coords` patch (#246); the WCS locks around glue's `world2pixel_single_axis` and `_to_linked_pixel_coords` are lock-only wrappers installed whatever the probes say, retiring with astropy#19174's fix only (#251); an SST cube's WCS has its own `RLock`, linked or not (#240); overrides fixing no upstream fault get 'none: glue-solar feature' or 'kept by decision' rows; 'Glue Session including data' failing on SST cubes and lazy IRIS windows is documented, not a defect.
 - **D74:** Whether to drop glue-solar's session support: settled by D81 (kept).
-- **D75:** The real-data acceptance run (2026-10-12, main 838d64a; `acceptance/` in the session archive) followed every user guide on full-size data; its fixes are on main, and its session items are #289, `wp13-l-restored-second-map` and `wp3-l-autosave-quit`'s path-diagram case. On macOS `QSettings('glue-solar', 'glue-solar')` ignores a temporary HOME: glue-solar's conftest patches `iris.QSettings`, and probes must too.
+- **D75:** The real-data acceptance run (2026-10-12, main 838d64a; `acceptance/` in the session archive) followed every user guide on full-size data; its fixes are on main, and its session items are #289 and `wp3-l-autosave-quit`'s path-diagram case. On macOS `QSettings('glue-solar', 'glue-solar')` ignores a temporary HOME: glue-solar's conftest patches `iris.QSettings`, and probes must too.
 - **D76:** The choice review's third pass (#233-#240's 44 choices, chunks d0-d7): 36 kept, every other PROVISIONAL of #233-#240 included; calibration keeps the first scan's dispersion and solid angle but refuses a stack whose scans' CDELT1-3 differ (237-1, 238-6). The changes are on main.
 - **D77:** The PyQt6 6.11 floor env keeps the astropy 8.0.0 and ndcube 2.4.0 floors. The glue team allows copying glue-standalone-apps' spec and hooks (216-8, #275). App checks may launch the built app on the user's desktop with `open`, as the Finder does.
 - **D78:** One fill builds every quicklook from a panel table per data kind: IRIS raster, slit-jaw only, SST and generic (#277). The generic table follows the cube's WCS axes (spectral, celestial, time, Stokes), giving SST-like panels, with λ–time and the light curve only for a time axis, from a 'Quicklook…' layer action on any cube with one spectral and two spatial axes.
@@ -131,7 +132,9 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 - **D80:** The choice review's fifth pass (#276-#283's 28 choices, chunks h3-i0): 27 kept; on 283-3 (prose says `DN / s` too) the user noted "Make it all match". Changed: 283-4 → #284.
 - **D81:** Sessions stay (D74's first option), so the held session items go ahead; `wp0-core-session-reports` and `wp0-core-quantity-saver` stay M4. Fitting (`briefs/fitting.md` in the session archive): one fitter per Profile viewer as a glue-solar stopgap (#287, 259-2); the glue-qt fix, the check-box one-liner included, on a branch of the user's fork with no PR (`wp0-qt-fitter-settings`), the check-box shim staying (259-3); the check boxes stay and 'Number of lines' is added (#291, 259-1), while fits from the line list or a line table of the fitter's own wait. The flaky SST thread test is fixed (#285).
 
-- **D82:** User (2026-10-16): keep the plan concise and the code lean; port CRISPEX's ideas to glue better, faster, sleeker and nicer, not one to one. The plan keeps rules and open items only (git keeps the history; Current state gets no per-PR line), and items with nothing to do are dropped (wp0-optional-proposals, wp0-track-qt66, wp0-track-line-layers, wp8-m3-level3-input, wp1-m3-multi-instrument, wp13-height-cubes; wp0-qt68-cocoa joins wp0-qt68-macos-pass). The audits (`audit2/` in the session archive) found about 820 source and 500 test lines that can go with no visible change (the four `-lean-` items) and one bug (#288). Held for the user: `wp4-l-restored-strip`, `wp13-l-restored-second-map` and `wp3-l-autosave-quit`, which a quicklook restored by re-running `quicklook()`, or dropping 'IRIS: restore last session', would replace; and every feature cut or redesign in the audits.
+- **D82:** User (2026-10-16): keep the plan concise and the code lean; port CRISPEX's ideas to glue better, faster, sleeker and nicer, not one to one. The plan keeps rules and open items only (git keeps the history; Current state gets no per-PR line), and items with nothing to do are dropped (wp0-optional-proposals, wp0-track-qt66, wp0-track-line-layers, wp8-m3-level3-input, wp1-m3-multi-instrument, wp13-height-cubes; wp0-qt68-cocoa joins wp0-qt68-macos-pass). The audits (`audit2/` in the session archive) found about 820 source and 500 test lines that can go with no visible change (the four `-lean-` items) and one bug (#288). Held for the user: wp13-l-restored-second-map and `wp3-l-autosave-quit`, which a quicklook restored by re-running `quicklook()`, or dropping 'IRIS: restore last session', would replace; and every feature cut or redesign in the audits.
+
+- **D83:** User (2026-10-16), on the audits: a session restores a quicklook by re-running `quicklook()` from a saved recipe (`wp4-l-quicklook-recipe`, replacing the restored-strip and second-map items); 'IRIS: restore last session' stays, so `wp3-l-autosave-quit` goes ahead; the irispy-meta branch is dropped. Four consolidations (reopening D4, D24, D45, D48): `wp2-l-line-maps-dialog`, `wp4-l-one-quicklook-entry`, `wp4-l-panels-on-demand` and `wp2-l-results-in-viewer`; and `wp11-l-view-menu-trim` (one axes control, reopening D71 and 221-6; no Zoom 1:1, reopening D50). The user guide is rewritten as task pages of about 9,700 words in all (the wp9-l-guide- items, after the features). astropy 8.0.2 becomes the baseline: its envs are rebuilt conda-native; the floors stay.
 
 ## Milestones
 
@@ -149,10 +152,12 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
-- WP3: `wp3-l-autosave-quit`, `wp3-l-restore-irispy-meta`
-- WP4: `wp4-l-restored-strip`
+- WP2: `wp2-l-line-maps-dialog`, `wp2-l-results-in-viewer`
+- WP3: `wp3-l-autosave-quit`
+- WP4: `wp4-l-quicklook-recipe`, `wp4-l-panels-on-demand`, `wp4-l-one-quicklook-entry`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP13: `wp13-l-restored-second-map`
+- WP9: `wp9-l-guide-quicklook`, `wp9-l-guide-data`, `wp9-l-guide-rest`
+- WP11: `wp11-l-view-menu-trim`
 
 **M4**
 - WP0: `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-restore-full-ci`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
@@ -242,6 +247,11 @@ The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links be
 
 Products from IRIS spectra, as dataset `layer_action`s that add linked Data and open no viewer, in `glue_solar/sources/moments.py`.
 
+**L**
+
+- [ ] **L** `wp2-l-results-in-viewer` (D83; audit P3, reopening D4): each analysis opens its result in an Image viewer in the current tab, showing the Point. Done when a Doppler image made from a quicklook shows without a drag.
+- [ ] **L** `wp2-l-line-maps-dialog` (D83; audit C3): one 'IRIS: line maps…' action asks the rest wavelength, a velocity range and which maps to make (line moments, with error maps and a continuum window if ticked; Doppler; red-blue), in place of 'IRIS: line moments…', 'IRIS: Doppler image…' and 'IRIS: red-blue asymmetry…' and their 14 fields; other settings take their defaults, and the scripting functions stay. Done when each map it makes equals the old action's with defaults, and the guides describe it.
+
 Notes:
 - irispy's analysis functions take scaled cubes and raise on memmap ones (`check_scaled`, which trusts the lazy SJI meta's `scaled = True` over the dtype), so pass glue's scaled values, never the loaders' raw int16, and rebin scaled values.
 - Velocities are relative to the uncorrected Level-2 wavelength scale (about 5-10 km/s); Mg II and C II are optically thick, so their centroids and widths are proxies.
@@ -254,7 +264,6 @@ Makes Save and Open Session work for the quicklook and every glue-solar dataset 
 **L**
 
 - [ ] **L** `wp3-l-autosave-quit` (D72): The last session is saved on quit only, not on Open Session, Reset Session or 'IRIS: restore last session', so a restore never swaps sessions (206-3). A skipped save (over 1 MB, data glue cannot save, a failed write) is reported in the window, on close or in 'IRIS: restore last session', not only in the terminal, which the macOS app lacks (206-7). With a path diagram loaded no last session is kept today: `_save_last_session` counts values with `data.get_component`, which a `PathData` lacks; count only `Data` (D75). Done when restoring twice in a row gives the same session, and the app shows a skipped save's reason.
-- [ ] **L** `wp3-l-restore-irispy-meta` (D72, D82; 205-1; held for the user): local branch `wp3-l-restore-irispy-meta` (a85bd0c, not pushed) restores a one-scan raster held in memory as a `_Raster(Data)` whose `__setgluestate__` gives back irispy's `SGMeta` (+18 lines). The item's premise failed: `_irispy_meta`'s dict path must stay for rebinned windows (a dict meta) and older sessions, and bursts and radiance were already right, so the branch adds code with no change in behavior. Merge it, or drop the item.
 
 Notes:
 - Sessions record `glue_solar` class and function paths; no aliases are kept when they move (D69); each new coords type adds a #181 case.
@@ -265,7 +274,9 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 
 **L**
 
-- [ ] **L** `wp4-l-restored-strip` (D66; after #228): A restored quicklook gets its Point window and Panels list back, and a session keeps the panels turned off, restored hidden; today a session leaves them out. Its panels draw only in sight, as `_arrange`'s do since #235 (`_draw_in_sight`; restored panels draw everything). Its PR also makes the quicklook guide's restored-session paragraph and changelog/235 read as the code (D73). Done when a session of the 9-window 4000255147 quicklook saved with panels off restores them hidden, the Panels list turns each on unchanged, the Point window shows the restored point, and a step of the restored quicklook leaves its panels out of sight undrawn.
+- [ ] **L** `wp4-l-one-quicklook-entry` (D83; audit C2): one 'Quicklook…' data action opens the quicklook of an IRIS raster or SJI, an SST cube or any spectral cube, in place of 'IRIS: quicklook…', 'SST: quicklook…' and the generic action; the browser's tick stays. Done when each kind opens from it and the Plugins menu loses the two entries.
+- [ ] **L** `wp4-l-panels-on-demand` (D83; audit P2): a quicklook makes the panels of windows other than the main one when they are ticked in the Panels list, and its rows shrink so the strip stays in sight. Done when the 9-window 4000255147 quicklook opens in about 2 s (8.1 s on main) with the strip in sight at 1800×1100.
+- [ ] **L** `wp4-l-quicklook-recipe` (D83): a saved session keeps each quicklook as a recipe (its datasets, windows, panels turned off, point and panel styles), and restoring calls `quicklook()` with it, in place of glue restoring each panel; the `_gluestate` patch goes. Done when sessions of the 9-window 4000255147 quicklook and of obs171's SST quicklook restore with their Point window, Panels list (panels off stay off), point and second-map tuning, by Open Session and 'IRIS: restore last session', and the code is smaller than on main.
 
 Notes:
 - Whisker polish (F143) and CRISPEX entry keywords (F020) are Later.
@@ -304,6 +315,12 @@ Notes:
 
 Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides and recipes.
 
+**L**
+
+- [ ] **L** `wp9-l-guide-rest` (D83): 'Saving' (sessions, frames and movies, exports), 'Scripting' and 'Known issues', about 1,950 words, and the index and toctree for the nine pages. After `wp9-l-guide-data`. Done when the docs build with `-W` and the guide is about 9,700 words.
+- [ ] **L** `wp9-l-guide-data` (D83): 'Loading data' (IRIS, SST, AIA/HMI and SOT), 'Analyses' (one page for the five analysis pages) and 'Data actions' (regrid, rebin, shift pointing, north up, dust, calibration), about 4,000 words. After `wp9-l-guide-quicklook`. Done when the docs build with `-W` and the pages read as tasks.
+- [ ] **L** `wp9-l-guide-quicklook` (D83; audit's docs plan): 'Getting started' (with a screenshot), 'Quicklook' (with a CRISPEX mapping table) and 'Viewer tools' (a table of entry, one line and key; the Keys table stays) replace the quicklook, viewer-tools and Profile pages, about 3,750 words; timings, upstream bugs and internals go or move to the dev guide. After the D83 feature items. Done when the docs build with `-W` and the pages read as tasks.
+
 **M4**
 
 - [ ] **M4** `wp9-m4-release-updates`: Update the guides as glue #2596/#2601 and glue-qt #70/#74 ship. Rebuild the macOS app (#216, `packaging/macos/build_app.sh`, D55) on the final releases as the plan's last deliverable. Once a release has the IRIS guide, 'IRIS: user guide and issues' opens the installed release's docs, not 'latest' (160-x1, D72). Done when each has shipped and no guide still names a glue-core 1.27.0 or glue-qt 0.4.2 caveat it lifts.
@@ -324,6 +341,10 @@ Notes:
 
 Display and inspection tools for stock Image and Profile viewers, in `glue_solar/tools.py` and `glue_solar/quicklook.py`.
 
+**L**
+
+- [ ] **L** `wp11-l-view-menu-trim` (D83): View → Hide axes applies across a quicklook and is its one axes control (the Panels list's Axes row and the 'glue-solar' Preferences pane go, reopening D71 and 221-6), and Zoom 1:1 goes (D50). Done when the View menu, Panels list and Preferences show this and the guides match.
+
 Notes:
 - glue-qt takes B, C, G, H, K, M, P, R, X, Y, Z, Tab and Backspace, and dispatches keys by exact viewer type; glue-solar takes D, F, A, S, U and Space, and drops matplotlib's canvas keys (D61, D72; register).
 - Not planned: zoom ×2/÷2, centering and a percentile menu (glue has them), or a CRISPEX control-panel clone.
@@ -341,7 +362,6 @@ Features only other missions need, planned with the user once suitable data exis
 
 **L**
 
-- [ ] **L** `wp13-l-restored-second-map` (D75, D81): a restored SST quicklook's second map follows the map's wavelength (A, S and Pixel clicks on the virtual slit and λ–time), because its `_solar_wing` mark is not in the viewer's session record. `__gluestate__` saves it and `__setgluestate__` sets it back. Done when, after Open Session and 'IRIS: restore last session' of obs171's quicklook, those keys and clicks leave the second map at its tuning, as a fresh quicklook does.
 
 **OM**
 
