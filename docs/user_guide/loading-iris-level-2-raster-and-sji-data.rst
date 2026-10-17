@@ -84,13 +84,18 @@ slit-jaw channel read before a raster window, or nothing if none was. Pressing E
 browser drops the load: nothing is loaded. With "Open quicklook" ticked, the default, each
 observation with a raster or slit-jaw image opens in a quicklook of the raster windows ticked,
 with the map, spectrogram and wavelength panels of the one chosen in "Main window" where it is
-ticked (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`), and each SST cube in a
+ticked (see :ref:`Quicklook <glue_solar_users_guide_iris_quicklook>`), and each SST cube in a
 quicklook of its own (see :ref:`glue_solar_users_guide_loading_sst_cubes`). "Main window" lists the
 ticked raster windows and shows Mg II k 2796 when ticked, else the first, until you choose one.
 Otherwise the first slit-jaw (or AIA) cube opens in an Image Viewer, where its ``Time (Utc)`` slider
 steps through time; nothing opens for rasters alone. If an entry fails to load, the browser stays open and its progress bar names
 the file and the error; for a raster window, the raster file it failed on, or how many raster files
 there are if each loads but not together.
+
+.. image:: images/choosing-iris-level-2-data-cubes-and-stacking-raster-cubes.png
+   :width: 800
+   :alt: Selecting two raster spectral windows of a multi-scan observation and ticking the stacking option
+
 Tick "Stack sequential raster scans" to place two or more raster scans of a window into a single
 4D cube without resampling their detector values. Each scan stays in its own file, as a single scan
 does (see `Memory and open files`_); scans stored as floating point, such as irispy's test files,
@@ -117,7 +122,7 @@ The "Frame time" tool, in the Image Viewer toolbar's View menu, shows the displa
 and exposure in the status bar, as a range when the image spans several frames; for a single
 slit-jaw frame its tooltip gives that frame's pointing (PZT offset, field-of-view center and slit
 position), which glue-solar keeps in the dataset's metadata. The mouse-over readout (see "Cursor readout" in
-:ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`)
+:ref:`Viewer tools <glue_solar_users_guide_viewer_tools_and_windows>`)
 gives the time and exposure of the pixel under the mouse: on a raster map those of the step it is
 on.
 
@@ -137,7 +142,7 @@ narrowband magnetograms (Stokes V/I × 4096), and G, km / s, deg or dimensionles
 maps, which have no ``<label> DN / s``. Their values are float32, NaN where missing, and no other
 value is fill, as negative fields are data. The quicklook gives them no panel; an Image viewer of
 one follows its observation's time and can be its master, as one of an AIA cutout does (see
-:ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`). Like AIA cutouts, they are linked to
+:ref:`Quicklook <glue_solar_users_guide_iris_quicklook>`). Like AIA cutouts, they are linked to
 the IRIS data only on request (see `Linking`_).
 
 Slit-jaw images open in sunpy's IRIS colormap of their channel, raster windows and stacks in its
@@ -181,10 +186,10 @@ over the map's wavelength or band, "Light curves of the shown windows and SJI", 
 raster window and slit-jaw image shown at the point against time, and "Row at the point" and
 "Column at the point", which open the map's row and column through the point; its "Blink" submenu
 has "Set blink partner here", "Blink" and "Blink interval", which alternate the viewer between two
-positions at the interval chosen (see :ref:`The quicklook <glue_solar_users_guide_iris_quicklook>`).
+positions at the interval chosen (see :ref:`Quicklook <glue_solar_users_guide_iris_quicklook>`).
 The View menu (the gear icon) has "Raster overlays", which shows or hides the raster's steps on
 every viewer of the observation. The menus show only the entries that can act on the viewer's data
-(see :ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`), and the
+(see :ref:`Viewer tools <glue_solar_users_guide_viewer_tools_and_windows>`), and the
 Pixel tool stays active after each entry.
 
 Downloads that are still packed (``*_raster.tar.gz``, ``*_SDO.tar.gz``, ``*_SOTFG.tar.gz``,
@@ -210,7 +215,7 @@ opens. The first image
 of a window takes its color limits from a count of every stored value (of evenly spaced raster
 steps or frames of a window over 512 MiB), which takes up to about half a second, and the "99.5%"
 and other presets of the layer's style editor use the same count; "Per-frame limits" (see
-:ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`) count every value of the
+:ref:`Viewer tools <glue_solar_users_guide_viewer_tools_and_windows>`) count every value of the
 displayed slice. ``<label> DN / s`` and other derived
 attributes take theirs from 10,000 random samples, as glue does for data in memory, so they are
 approximate. Memory still grows as you view a window, since the parts of the file read are kept, and
