@@ -605,7 +605,7 @@ def test_a_restored_sst_quicklook_keeps_its_second_map_point_and_panels_off(app,
     slide(viewers["wing"], 2, 4)  # its own wavelength
     select_point(viewers["map"], 3, 7)
     slide(viewers["map"], 0, 2)
-    qtbot.wait(20)
+    qtbot.waitUntil(lambda: viewers["slit"].state.slices[0] == viewers["wing"].state.slices[0] == 2)  # synced
     app.save_session(str(tmp_path / "sst.glu"))
     restored = restore(qtbot, monkeypatch, tmp_path / "sst.glu")
     again = restored.tab(1)._solar_quicklook[-1]
