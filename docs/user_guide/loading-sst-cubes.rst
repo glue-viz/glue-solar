@@ -199,7 +199,7 @@ Saving sessions
 
 A session refers to the cube's file, as it does to IRIS data's (see "Saving sessions" in
 :ref:`Viewer tools and windows <glue_solar_users_guide_viewer_tools_and_windows>`), and reads it again
-as it opens; "IRIS: restore last session" opens the one glue-solar keeps as glue closes.
+as it opens; "IRIS: restore last session" opens the one glue-solar keeps as glue quits.
 
 What is not supported
 ---------------------
