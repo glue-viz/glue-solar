@@ -2,7 +2,7 @@
 Sessions keep the coordinates and colormaps of every kind of dataset glue-solar makes from IRIS data, on irispy's test
 files, the links `link_hpc` gives, the colormap of a sunpy map, and a quicklook's time master and point; they refer to
 the files IRIS data are read from, each raster file read once for each copy of its windows, so a quicklook's stays
-small, and two quicklooks restore twice alike; glue-solar keeps the last one as glue closes, which its menu entry
+small, and two quicklooks restore twice alike; glue-solar keeps the last one as glue quits, which its menu entry
 restores.
 """
 
@@ -71,7 +71,7 @@ from glue_solar.tests.test_quicklook import (
     time_series,
     viewer_rows,
 )
-from glue_solar.tools import _pointing
+from glue_solar.tools import PathData, _pointing
 
 SJI = "iris_l2_20210905_001833_3620258102_SJI_1330_t000.fits"
 
@@ -731,7 +731,7 @@ def test_a_quicklook_kept_as_glue_quits_restores_from_the_menu(qtbot, monkeypatc
     app = GlueApplication()
     monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
     plugin_action(app, "IRIS: restore last session").trigger()
-    assert told == ["No session kept yet: glue-solar keeps one as glue's window closes with data."]
+    assert told == ["No session kept yet: glue-solar keeps one as glue quits with data."]
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
     monkeypatch.setattr(QtIRISImporter, "exec", load)
     browse_iris(app.session, app.data_collection)  # a quicklook of its slit-jaw image and two stacked windows
@@ -752,8 +752,30 @@ def test_a_quicklook_kept_as_glue_quits_restores_from_the_menu(qtbot, monkeypatc
     assert [data.label for data in restored.data_collection] == labels
 
 
+def test_the_last_session_with_a_path_diagram_restores_twice_alike(qtbot, monkeypatch, tmp_path):
+    monkeypatch.setattr(glue.config, "CFG_DIR", str(tmp_path))
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.Ok)  # glue's Confirm Close
+    glue_solar.setup()
+    app = GlueApplication()  # not given to qtbot, which cannot close it once glue-qt has deleted it as it closed
+    cube = Data(x=np.arange(24.0).reshape(2, 3, 4), label="cube")
+    app.data_collection.append(cube)
+    x, y = cube.pixel_component_ids[2], cube.pixel_component_ids[1]
+    app.data_collection.append(PathData(cube, x, np.array([0.0, 3.0]), y, np.array([0.0, 2.0]), label="path"))
+    app.show()
+    app.close()  # as File → Quit does
+    assert (tmp_path / "glue-solar-last-session.glu").exists()
+    app = GlueApplication()
+    app.data_collection.append(Data(x=np.ones(3), label="replaced"))
+    app.show()
+    for _ in range(2):  # each closing the window it replaces, which keeps no session
+        plugin_action(app, "IRIS: restore last session").trigger()
+        app = app._new_application
+        assert [data.label for data in app.data_collection] == ["cube", "path"]
+    qtbot.addWidget(app)
+
+
 @pytest.mark.parametrize("kind", ["empty", "values over 1 MB", "over 1 MB", "unserializable", "unwritable"])
-def test_a_session_glue_cannot_keep_leaves_the_last_one(qtbot, monkeypatch, tmp_path, caplog, kind):
+def test_a_session_glue_cannot_keep_leaves_the_last_one_and_shows_why(qtbot, monkeypatch, tmp_path, kind):
     monkeypatch.setattr(glue.config, "CFG_DIR", str(tmp_path))
     last = tmp_path / "glue-solar-last-session.glu"
     last.write_text("the session before")
@@ -773,16 +795,18 @@ def test_a_session_glue_cannot_keep_leaves_the_last_one(qtbot, monkeypatch, tmp_
             raise PermissionError("read-only")
 
         monkeypatch.setattr(os, "replace", replace)
+    shown = []
+    monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
+    monkeypatch.setattr(QMessageBox, "exec_", lambda box: shown.append(box.text()))
     app.show()
     app.close()
     assert [path.name for path in tmp_path.glob("*.glu")] == [last.name]  # nor a temporary file
     assert last.read_text() == "the session before"
-    logged = [record.getMessage() for record in caplog.records if "last session" in record.getMessage()]
-    assert len(logged) == (kind != "empty")
+    assert len(shown) == (kind != "empty")
     reasons = {
         "values over 1 MB": "MB of values, over 1 MB",
         "over 1 MB": "MB, over 1 MB",
         "unserializable": "serialize dask.array",
         "unwritable": "read-only",
     }
-    assert all(reasons[kind] in message for message in logged)
+    assert all(text.startswith("Could not keep this session") and reasons[kind] in text for text in shown)
