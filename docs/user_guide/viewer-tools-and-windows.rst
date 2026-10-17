@@ -415,10 +415,11 @@ the session holds little more than their offset; the others lose the time and fi
 irispy gives each raster step (``auxiliary times`` and ``exposure FOV center``), which neither UV
 bursts nor the radiometric calibration need. Each viewer opens again with its slices, a wavelength
 band included, and its colormaps, and a Profile viewer, such as a quicklook's spectrum panel, with
-its x axis, "x unit" (km / s too) and range. Each quicklook adds its viewers, point and time master:
-one of 4000255147's Si IV 1403 window and slit-jaw image, read as they are viewed, saves a 33 kB
-session (151 kB with all nine windows) in under 0.1 s, and with a stack of the eight scans of
-3400109360's Si IV 1403 window in a second quicklook, 85 kB, which opens in about 3 s and, saved
+its x axis, "x unit" (km / s too) and range. Each quicklook adds its viewers and the recipe it opens
+again from (see :ref:`the IRIS quicklook <glue_solar_users_guide_iris_quicklook>`): one of
+4000255147's Si IV 1403 window and slit-jaw image, read as they are viewed, saves a 45 kB session
+(199 kB with all nine windows shown) in under 0.1 s, and with a stack of the eight scans of
+3400109360's Si IV 1403 window in a second quicklook, 105 kB, which opens in about 2.5 s and, saved
 and opened again, gives the same quicklooks. A session reads each raster file once per copy of
 the windows it holds of it (twice for an observation opened twice), as the observation browser
 does: a quicklook of the seven windows of 3602506433's 99 scans, stacked, opens in about 7 s.
@@ -430,7 +431,7 @@ As glue quits with data loaded, glue-solar keeps the session as a "Glue Session 
 to data" in glue's settings folder (``~/.glue/glue-solar-last-session.glu``), and Plugins → "IRIS:
 restore last session" opens it as File → Open Session does. Open Session, Reset Session and the
 restore itself keep nothing, so restoring twice gives the same session. The 4000255147 quicklook
-above is kept in under 0.01 s and restored from the menu in about 2 s; if its files have moved,
+above is kept in about 0.03 s and restored from the menu in about 2 s; if its files have moved,
 glue says which it cannot find. A session glue cannot save, or of over 1 MB, such as one with those
 line moments, is not kept: the one kept before stays, and a message says why as glue quits ("Could
 not keep this session for 'IRIS: restore last session'", "its data hold 26.7 MB of values, over 1
@@ -438,10 +439,9 @@ MB"), the values being counted before glue saves them.
 
 Not saved yet:
 
-- A quicklook's Point window, its Panels list, whose panels turned off a session leaves out, its lines
-  and the raster overlays (see :ref:`the IRIS quicklook <glue_solar_users_guide_iris_quicklook>`), a
-  blink and its partner, and each viewer's mouse mode: choose the Pixel tool again, which a quicklook's
-  image panels take as their window becomes active.
+- A quicklook's raster overlays and its panels' moves and resizes (see :ref:`the IRIS quicklook
+  <glue_solar_users_guide_iris_quicklook>`), a blink and its partner, and each viewer's mouse mode:
+  choose the Pixel tool again, which a quicklook's image panels take as their window becomes active.
 - Data regridded on time from data read as they are viewed: a session holding them does not save
   ("Don't know how to serialize dask.array").
 - "Per-frame limits", with glue-core 1.27.0: a session saved while an Image viewer has them on,

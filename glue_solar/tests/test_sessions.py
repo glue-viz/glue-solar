@@ -1,9 +1,9 @@
 """
 Sessions keep the coordinates and colormaps of every kind of dataset glue-solar makes from IRIS data, on irispy's test
-files, the links `link_hpc` gives, the colormap of a sunpy map, and a quicklook's time master and point; they refer to
-the files IRIS data are read from, each raster file read once for each copy of its windows, so a quicklook's stays
-small, and two quicklooks restore twice alike; glue-solar keeps the last one as glue quits, which its menu entry
-restores.
+files, the links `link_hpc` gives and the colormap of a sunpy map; a quicklook opens again from its recipe with its
+point, time master, panels off and second map; sessions refer to the files IRIS data are read from, each raster file
+read once for each copy of its windows, so a quicklook's stays small, and two quicklooks restore twice alike; glue-solar
+keeps the last one as glue quits, which its menu entry restores.
 """
 
 import gc
@@ -37,7 +37,7 @@ from sunpy.visualization.colormaps import cmlist
 import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, SCAN, find_irispy_test_file
-from glue_solar.quicklook import coordinator, quicklook
+from glue_solar.quicklook import _off, _viewers, coordinator, quicklook
 from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.bursts import si_iv_bursts
 from glue_solar.sources.calibration import radiometric_calibration
@@ -61,10 +61,12 @@ from glue_solar.tests.test_quicklook import (
     SNS,
     THREE,
     drifting_stack,
+    entries,
     marks,
     menu_action,
     panels_list,
     readout,
+    slide,
     slit_jaw,
     switch,
     tick,
@@ -479,18 +481,15 @@ def test_a_restored_quicklook_keeps_its_switched_main_window(app, qtbot, monkeyp
     rows = [[(*row[:4], row[4] and tuple(row[4])) for row in viewer_rows(each)] for each in (restored, app)]
     assert rows[0][0][1] == "Si IV 1403 slit vs time"
     assert rows[0] == rows[1]  # slices restore as lists
-    # without its quicklook's viewers to open again, no spectrum panel offers 'Show this window's panels'
+    # the other windows' spectrum panels offer 'Show this window's panels' again
     profiles = [viewer for viewer in restored.viewers[-1] if isinstance(viewer, ProfileViewer)]
-    assert len(profiles) == 3
-    assert not any(viewer.toolbar.actions["solar:main_window"].isVisible() for viewer in profiles)
+    assert [viewer.toolbar.actions["solar:main_window"].isVisible() for viewer in profiles] == [False, True, True]
     qtbot.waitUntil(lambda: responses(restored)[0] == responses(app)[0])
     for got, expected in zip(responses(restored)[1], responses(app)[1], strict=True):
         np.testing.assert_allclose(got, expected, rtol=1e-12)
 
 
-def test_a_restored_quicklook_has_the_panels_shown_with_their_axes(
-    app, qtbot, monkeypatch, tmp_path, irispy_test_files
-):
+def test_a_restored_quicklook_has_its_panels_off_and_their_axes(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
     files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
     viewers = with_windows(qtbot, quicklook(app, [*raster_data(files[:1], THREE), image_data(files[1])], window=THREE))
     panels = panels_list(app)
@@ -498,15 +497,16 @@ def test_a_restored_quicklook_has_the_panels_shown_with_their_axes(
     tick(panels, "Axes")  # and the spectrogram's hidden again by hand
     viewers["spectrogram"].toolbar.actions["solar:hide_axes"].trigger()
     qtbot.waitUntil(lambda: not panels._timer.isActive())
-    shown = [row for row, viewer in zip(viewer_rows(app), app.viewers[-1]) if not viewer.parent().isHidden()]
-    assert len(shown) == len(app.viewers[-1]) - 3
     app.save_session(str(tmp_path / "panels.glu"), absolute_paths=False)
     restored = restore(qtbot, monkeypatch, tmp_path / "panels.glu")
-    # slices restore as lists
-    assert [(*row[:4], row[4] and tuple(row[4])) for row in viewer_rows(restored)] == shown
-    # each Image panel with or without its axes, as saved
-    axes = [viewer.axes.axison for viewer in restored.viewers[-1] if isinstance(viewer, ImageViewer)]
-    assert axes == [True, False, True, True]  # Mg II k's map, spectrogram and λ–time, Si IV's λ–time
+
+    def panels_of(app):  # each panel's row, with slices as a tuple, whether it is off and its axes
+        rows = [(*row[:4], row[4] and tuple(row[4])) for row in viewer_rows(app)]
+        return [(*row, v.parent().isHidden(), getattr(v.axes, "axison", None)) for row, v in zip(rows, app.viewers[-1])]
+
+    assert panels_of(restored) == panels_of(app)
+    assert sum(off for *_, off, _ in panels_of(app)) == 3  # C II 1336's spectrum and λ–time, and SJI 1400
+    assert entries(panels_list(restored)) == entries(panels)
 
 
 def test_a_restored_quicklook_marks_its_master_exposure_again(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
@@ -571,6 +571,35 @@ def test_a_restored_quicklook_keeps_its_light_curves_where_they_were(
         np.testing.assert_array_equal(values, saved[label][1])
 
 
+def test_a_restored_sst_quicklook_keeps_its_second_map_point_and_panels_off(app, qtbot, monkeypatch, tmp_path):
+    from glue_solar.tests.test_sst import stokes_cube  # which imports this module through test_linking
+
+    cube, values = stokes_cube(tmp_path / "cube.fits", core=1)
+    viewers = quicklook(app, [cube])
+    tick(panels_list(app), "H-alpha λ–time", "H-alpha Stokes Q", on=False)
+    slide(viewers["wing"], 2, 4)  # its own wavelength
+    select_point(viewers["map"], 3, 7)
+    slide(viewers["map"], 0, 2)
+    qtbot.wait(20)
+    app.save_session(str(tmp_path / "sst.glu"))
+    restored = restore(qtbot, monkeypatch, tmp_path / "sst.glu")
+    again = restored.tab(1)._solar_quicklook[-1]
+
+    def panels(viewers):  # each panel's title, whether it is off, and an Image panel's slices
+        return [(v.state.title, _off(v), tuple(getattr(v.state, "slices", ()))) for v in _viewers(viewers)]
+
+    assert panels(again) == panels(viewers)
+    assert entries(panels_list(restored)) == entries(panels_list(app))
+    [point], [expected] = restored.session.edit_subset_mode.edit_subset, app.session.edit_subset_mode.edit_subset
+    assert point.subset_state.slices == expected.subset_state.slices
+    # a click moves the point, the second map keeping its wavelength
+    select_point(again["map"], 10, 4)
+    qtbot.wait(20)
+    assert point.subset_state.slices == [slice(2, 3), slice(0, 1), slice(None), slice(4, 5), slice(10, 11)]
+    np.testing.assert_array_equal(again["wing"].state.layers[0].get_sliced_data(), values[2, 0, 4])
+    assert [group.label for group in restored.data_collection.subset_groups].count("H-alpha Stokes I at the point") == 1
+
+
 def test_a_restored_quicklook_keeps_its_cuts_where_they_were(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
     files = sorted(str(path) for path in irispy_test_files if "3860258481_raster" in path.name)
     viewers = quicklook(app, raster_data(files, ["C II 1336"], stack=True))
@@ -583,7 +612,7 @@ def test_a_restored_quicklook_keeps_its_cuts_where_they_were(app, qtbot, monkeyp
         for viewer in app.viewers[-1]:
             for layer in viewer.layers:
                 group = getattr(layer.state.layer, "group", None)
-                if group is not None and group.label != "Point":
+                if group is not None and group.label != "Point" and layer.state.visible:
                     assert group.label not in found
                     found[group.label] = group.subset_state.slices, viewer.state.x_att, layer.state.profile[1]
         return found
@@ -736,8 +765,11 @@ def test_a_quicklook_kept_as_glue_quits_restores_from_the_menu(qtbot, monkeypatc
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
     monkeypatch.setattr(QtIRISImporter, "exec", load)
     browse_iris(app.session, app.data_collection)  # a quicklook of its slit-jaw image and two stacked windows
+    panels = panels_list(app)
+    tick(panels, entries(panels)[1][0], on=False)  # its first panel off
+    qtbot.waitUntil(lambda: not panels._timer.isActive())
     expected = app.tab_names, [[type(viewer) for viewer in tab] for tab in app.viewers]
-    labels = [data.label for data in app.data_collection]
+    labels, shown = [data.label for data in app.data_collection], entries(panels)
     app.show()
     app.close()  # as File → Quit does
     records = json.loads((tmp_path / ".glue" / "glue-solar-last-session.glu").read_text())
@@ -751,6 +783,7 @@ def test_a_quicklook_kept_as_glue_quits_restores_from_the_menu(qtbot, monkeypatc
     monkeypatch.setattr(restored, "report_error", lambda message, detail: pytest.fail(detail))
     assert (restored.tab_names, [[type(viewer) for viewer in tab] for tab in restored.viewers]) == expected
     assert [data.label for data in restored.data_collection] == labels
+    assert entries(panels_list(restored)) == shown  # its Panels list, beside its Point window
 
 
 def test_the_last_session_with_a_path_diagram_restores_twice_alike(qtbot, monkeypatch, tmp_path):

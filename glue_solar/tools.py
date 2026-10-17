@@ -2269,8 +2269,7 @@ class SaveProfileTool(Tool):
 class MainWindowTool(Tool):
     """
     'Show this window's panels' on a quicklook's spectrum panel of a window other than its main one, which makes it the
-    main window (`~glue_solar.quicklook._switch`); hidden on every other Profile viewer, as on a quicklook restored from
-    a session.
+    main window (`~glue_solar.quicklook._switch`); hidden on every other Profile viewer.
     """
 
     icon = "glue_triangle_up"  # glue_slice is glue's Slice Extraction on the Image panels beside it

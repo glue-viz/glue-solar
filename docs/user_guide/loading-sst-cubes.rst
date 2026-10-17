@@ -165,10 +165,10 @@ the cube's scan in the same way, and the cube moves to the scan nearest the IRIS
 quicklook is shown again, each when the other's time falls within its scans or exposures. Once those
 IRIS data are removed, the cube shares its SST cubes' time again.
 
-A saved session opens the quicklook again with its point and its time master, the spectra and the
-light curve following the point again; as in the IRIS quicklook, the Point window, the Panels list,
-the lines and the panels turned off are not restored, nor are Q, U and V's own limits as the Stokes
-slider moves.
+A saved session opens the quicklook again as it does the IRIS quicklook, from its recipe: with its
+point, its time master, the second map's wavelength, its Point window, its Panels list, the panels
+turned off staying off, and its lines, the spectra and the light curve following the point again.
+Obs 171's H-alpha quicklook opens again in about 1.3 s.
 
 On obs 492 Ca II 8542, 9.9 GB with four Stokes parameters, the quicklook opens in 2.4 s from a cold
 disk, reading 0.2 GB, and in 2.0 s once read. A scan or Stokes step takes 0.6 s cold, as the virtual

@@ -5254,11 +5254,11 @@ def test_time_moves_a_point_on_another_window(bare_app, qtbot, monkeypatch, iris
 def switch(qtbot, panel):
     """Choose 'Show this window's panels' on a quicklook's spectrum ``panel``; the quicklook's viewers then."""
     tab = panel.parent().mdiArea()
-    viewers = tab._solar_quicklook[2]
+    viewers = tab._solar_quicklook[-1]
     panel.toolbar.actions["solar:main_window"].trigger()
-    qtbot.waitUntil(lambda: tab._solar_quicklook[2] is not viewers)
+    qtbot.waitUntil(lambda: tab._solar_quicklook[-1] is not viewers)
     qtbot.wait(20)  # glue-qt deletes the viewers closed
-    return tab._solar_quicklook[2]
+    return tab._solar_quicklook[-1]
 
 
 def colors(app):

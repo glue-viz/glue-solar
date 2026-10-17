@@ -12,7 +12,7 @@ from typing import NamedTuple
 
 import numpy as np
 from echo import delay_callback
-from glue.config import layer_artist_maker
+from glue.config import layer_artist_maker, session_patch
 from glue.core import Data, Subset
 from glue.core.command import Command
 from glue.core.hub import HubListener
@@ -1114,9 +1114,7 @@ class QuicklookImageViewer(ImageViewer):
     image selects its pixels inside it in every frame, as glue's own does, and on other data, such as the raster, what
     lies inside its outline at the pointing of the frame it was drawn on. A region on any other panel is glue's own.
     While a quicklook's point is the edit subset, a region on any panel is a new subset and the point stays the edit
-    subset, so the Pixel tool keeps moving it; a region picked to edit takes glue's selection mode. A session saves and
-    restores the viewer with its quicklook's point group and its observation's time master, and a cube's quicklook's map
-    with the subset groups of its spectra and light curve, which follow the point again (`_Cut`).
+    subset, so the Pixel tool keeps moving it; a region picked to edit takes glue's selection mode.
 
     The panel takes the Pixel tool whenever it becomes the active window, unless it has another mouse mode on: glue-qt
     turns a viewer's mouse mode off as another window becomes active, and a click with none would run glue-qt's region
@@ -1169,45 +1167,10 @@ class QuicklookImageViewer(ImageViewer):
         self.apply_subset_state(region, override_mode=override_mode)
 
     def __gluestate__(self, context):
-        """glue's record of the viewer, with its quicklook's point group and its observation's time master."""
-        rec = super().__gluestate__(context)
-        collection, data = self.session.data_collection, self.state.reference_data
-        coord = coordinator(collection)
-        point = next((group for group, viewers in coord._owners.items() if self in viewers), None)
-        master = coord.masters.get(observation_key(data)) if data is not None else None
-        cuts = [cut for cut in vars(self).get("_solar_cuts", ()) if cut.group in collection.subset_groups]
-        rec["solar_quicklook"] = {
-            "point": context.id(point) if point in collection.subset_groups else None,
-            "master": context.id(master) if master in collection else None,
-            "cuts": [[context.id(cut.group), cut.axis, list(cut.at.items()), cut.band is self] for cut in cuts],
-        }
-        return rec
-
-    @classmethod
-    def __setgluestate__(cls, rec, context):
-        viewer = super().__setgluestate__(rec, context)
-        saved = rec.get("solar_quicklook", {})
-        viewer._solar_restored = [context.object(saved.get(key)) for key in ("point", "master")]
-        viewer._solar_restored_cuts = [(context.object(group), *cut) for group, *cut in saved.get("cuts", ())]
-        return viewer
-
-    def __setgluestate_callback__(self, context):
-        """
-        Register the restored viewer with the coordinator as `__gluestate__` saved it, once glue has put it in its tab:
-        glue calls this after each object it restores until it passes.
-        """
-        app = self.session.application
-        [tab] = [app.tab(i) for i, viewers in enumerate(app.viewers) if self in viewers]  # ValueError until then
-        point, master = self._solar_restored
-        coord = coordinator(self.session.data_collection)
-        if master is not None:
-            coord.set_master(master)
-        if point is not None:
-            coord.own(point, [self])
-            _edit_in_tab(app, tab, point)
-            data = self.state.reference_data
-            for group, axis, at, banded in self._solar_restored_cuts:
-                group._solar_cut = _Cut(group, point, self if banded else None, axis, data, dict(at))
+        """glue's record of the panel; its quicklook's first Image panel's holds the quicklook's recipe (`_recipe`)."""
+        rec, tab = super().__gluestate__(context), self.parent().mdiArea()
+        first = next(p for p in _viewers(tab._solar_quicklook[-1]) if isinstance(p, ImageViewer) and not p._closed)
+        return {**rec, "quicklook": _recipe(self.session.application, tab, context)} if self is first else rec
 
 
 def _role(data):
@@ -1531,16 +1494,13 @@ def quicklook(app, datasets, window=None, main=None):
         collection.extend(new)
     keep_hpc_linked(collection)
     app.new_tab()
-    tab = app.current_tab
-    names = app.tab_names
-    if not shown:
+    names, key = app.tab_names, observation_key(shown[0]) if shown else None
+    if shown:
+        names[-1] = f"IRIS {key[0]}" if key else "IRIS"
+    else:
         names[-1] = f"SST {_sst_line(cubes[0])}" if _role(cubes[0]) == "sst" else cubes[0].label.replace("&", "and")
-        app.tab_names = names
-        return _fill(app, tab, _cube_table(app, cubes[0]))
-    key = observation_key(shown[0])
-    names[-1] = f"IRIS {key[0]}" if key else "IRIS"
     app.tab_names = names
-    return _fill(app, tab, _iris_table(app, datasets, window, main))
+    return _fill(app, app.current_tab, datasets if shown else cubes, window, main)
 
 
 def _iris_table(app, datasets, window, main):
@@ -1570,7 +1530,6 @@ def _iris_table(app, datasets, window, main):
         "point": point,
         "viewers": {"sji": [], "windows": []},
         "notes": [f"{data.label} is loaded too: drag it onto a slit-jaw viewer to see it." for data in offered],
-        "switch": (datasets, window),  # for `_switch`
     }
 
 
@@ -1652,13 +1611,15 @@ def _cube_table(app, cube):
     }
 
 
-def _fill(app, tab, table, group=None, shown=()):
+def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
     """
-    Open the panels of a panel ``table`` (`_iris_table`, `_cube_table`; D78) in ``tab`` and return their viewers
-    (`quicklook`); with a point, its group (``group`` or a new 'Point'), the cut Profiles, the Point window, the Panels
-    list and the lines (`_SpectralLines`), then lay them out (`_arrange`). Other windows' panels, the windows ``shown``
-    aside, wait until ticked in the Panels list, as each viewer takes about 0.34 s to open (D83).
+    Open the panels of the panel table of ``datasets`` (`_iris_table`, or a cube's `_cube_table`; D78) in ``tab`` and
+    return their viewers (`quicklook`); with a point, its group (``group`` or a new 'Point'), the cut Profiles, the
+    Point window, the Panels list and the lines (`_SpectralLines`), then lay them out (`_arrange`). Other windows'
+    panels, those of ``shown`` aside, wait until ticked in the Panels list, as each viewer takes 0.34 s to open (D83).
     """
+    iris = any(_role(data) in ("raster", "sji") for data in datasets)
+    table = _iris_table(app, datasets, window, main) if iris else _cube_table(app, datasets[0])
     collection = app.data_collection
     coord = coordinator(collection)  # before the point, so it follows it
     viewers, windows, made, notes = table["viewers"], {}, [], []
@@ -1726,14 +1687,11 @@ def _fill(app, tab, table, group=None, shown=()):
             label, axis, at, band, x_att = panel.cut
             cut = partial(_Cut, point=group, band=viewers.get(band), axis=axis, data=panel.data, at=at)
             add(panel, _cut_profile(app, label, cut, x_att, panel.title))
-        cuts = [viewer for panel, viewer in made if panel.cut is not None]
-        if cuts:  # for sessions
-            viewers["map"]._solar_cuts = [viewer.layers[0].layer.group._solar_cut for viewer in cuts]
         if "rows" in table:
             rows = ([viewer for panel, viewer in made if panel.role in row] for row in table["rows"])
             viewers["rows"] = [row for row in rows if row]
-        main = [viewer for panel, viewer in made if panel.window is None and panel.x is not None]
-        _add_window(tab, _PointWindow(coord, group, point.reference_data, main), "Point")  # filled by `_arrange`
+        mains = [viewer for panel, viewer in made if panel.window is None and panel.x is not None]
+        _add_window(tab, _PointWindow(coord, group, point.reference_data, mains), "Point")  # filled by `_arrange`
         entries = _viewers({**viewers, "windows": []})  # each main panel and each slit-jaw image
         for name in dict.fromkeys(panel.window for panel in table["panels"] if panel.window is not None):
             rows = [panel for panel in table["panels"] if panel.window == name]
@@ -1753,13 +1711,13 @@ def _fill(app, tab, table, group=None, shown=()):
         viewers["map"].toolbar.active_tool = "image:point_selection"
     QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # let the tab take its final size
     _arrange(tab, viewers)
-    if "switch" in table:
+    if "sji" in viewers:  # an IRIS quicklook
         # and the panels theirs, before the slit-jaw limits take the axes' aspect
         QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)
         for viewer in viewers["sji"]:
             if point is not None and _placeable(viewer.state.reference_data):
                 _footprint_limits(viewer, point.reference_data)
-        tab._solar_quicklook = (*table["switch"], viewers)  # for `_switch`
+    tab._solar_quicklook = (datasets, window, main, viewers)  # for `_recipe`
     return viewers
 
 
@@ -1790,56 +1748,110 @@ def _viewers(viewers):
     return roles + viewers["sji"] + [viewer for panels in viewers["windows"] for viewer in panels.values()]
 
 
-# what a switch of the main window keeps of each Image panel's layer (`_switch`)
-_COLORS = ("cmap", "stretch", "percentile", "v_min", "v_max", "contrast", "bias")
-
-
 def _switch(viewer):
     """
     Make the window of ``viewer``, another window's spectrum panel, the main window (D60, #225): the quicklook opens
-    again in its tab with that window as ``main``, keeping the point group and pixel, the master's index, each Image
-    panel's colors, the Axes box and the other windows made.
+    again with it as ``main`` (`_reopen`), every panel on, keeping the Axes box, the point's pixel and master's index.
     """
-    app = viewer.session.application
-    tab, collection = viewer.parent().mdiArea(), app.data_collection
-    coord = coordinator(collection)
-    datasets, window, viewers = tab._solar_quicklook
-    group, raster = app._solar_points[tab], viewer.state.reference_data
+    app, tab = viewer.session.application, viewer.parent().mdiArea()
+    coord, raster = coordinator(app.data_collection), viewer.state.reference_data
     master = coord._master(observation_key(raster))
     index, _ = coord._timing(master)
-    data = [panel.state.reference_data for panel in _viewers(viewers)]  # the main window joins the others made
-    shown = {_window(each)[0] for each in data if _role(each) == "raster"}
-    colors = {}
-    for panel in _viewers(viewers):
-        state = panel.state
-        layer = next((layer for layer in state.layers if layer.layer is state.reference_data), None)
-        if isinstance(panel, ImageViewer) and layer is not None:
-            colors[state.reference_data, state.x_att, state.y_att] = {att: getattr(layer, att) for att in _COLORS}
+    recipe, point = _recipe(app, tab), app._solar_points[tab].subset_state
+    recipe.update(main=_window(raster)[0], panels=[[*panel[:2], False, panel[3]] for panel in recipe["panels"]])
+    axes = any(panels.axes_box.checkState(0) == Qt.Checked for panels in tab.findChildren(_Panels))
+    for panel in _viewers(tab._solar_quicklook[-1]):
         panel.close(warn=False)
-    strip = [sub for sub in tab.subWindowList() if isinstance(sub.widget(), (_PointWindow, _Panels))]
-    axes = any(sub.widget().axes_box.checkState(0) == Qt.Checked for sub in strip if isinstance(sub.widget(), _Panels))
-    for sub in strip:
-        sub.close()
+    for widget in tab.findChildren((_PointWindow, _Panels)):
+        widget.parentWidget().close()
     for lines in tab.findChildren(_SpectralLines):
-        coord.remove_listener(lines._synced)
-        lines.deleteLater()
-    point = group.subset_state
-    datasets = [data for data in datasets if data in collection]
-    viewers = _fill(app, tab, _iris_table(app, datasets, window, _window(raster)[0]), group, shown)
-    group = app._solar_points[tab]  # a new one if the user deleted it
+        lines.deleteLater()  # its ``destroyed`` removes its listener
+    _reopen(app, tab, recipe)
     if isinstance(point, PixelSubsetState) and _same_file(point.reference_data, raster):  # wavelength is last
         point = PixelSubsetState(raster, [*point.slices[:-1], slice(None)])
-    group.subset_state = point
-    for panel in _viewers(viewers):
-        state = panel.state
-        if isinstance(panel, ImageViewer):
-            layer = next(layer for layer in state.layers if layer.layer is state.reference_data)
-            layer.update_from_dict(colors.get((state.reference_data, state.x_att, state.y_att), {}))
-            state.show_axes = axes
+    app._solar_points[tab].subset_state = point  # a new group if the user deleted it
+    tab.findChildren(_Panels)[-1].axes_box.setCheckState(0, Qt.Checked if axes else Qt.Unchecked)  # the new list's
     now = coord._master(observation_key(raster))
     if _same_file(now, master):  # the same, or another window of its file
         coord.move_master(now, index)
-    return viewers
+
+
+def _recipe(app, tab, context=None):
+    """What `_reopen` opens the quicklook of ``tab`` again from (D83), objects named by glue's ``context`` if any."""
+    name = getattr(context, "id", lambda value: value)
+    datasets, window, main, viewers = tab._solar_quicklook
+    shows = [panel.state.reference_data for panel in _viewers(viewers)]  # with the panels closed by hand, made again
+    panels = [panel for panel in _viewers(viewers) if not panel._closed]
+    point, collection = getattr(app, "_solar_points", {}).get(tab), app.data_collection
+    master = coordinator(collection).masters.get(observation_key(shows[0]))
+    firsts = [panel.layers[0].layer for panel in panels if panel.layers]  # a cube's spectra's and light curve's cuts
+
+    def ids(state):  # as glue's `State.__gluestate__`, but the layers
+        return {key: name(value) for key, value in state.as_dict().items() if key != "layers"}
+
+    return {
+        "datasets": [name(data) for data in datasets if data in collection],
+        "window": window,
+        "main": main,
+        "shown": [_window(data)[0] for data in shows if _role(data) == "raster"],  # the other windows made
+        "point": name(point if point in collection.subset_groups else None),
+        "master": name(master if master in collection else None),
+        "cuts": [name(first.group) for first in firsts if isinstance(first, Subset) and first.group is not point],
+        "panels": [
+            [name(panel), panel.state.title, _off(panel), [ids(panel.state), *map(ids, panel.state.layers)]]
+            for panel in panels
+        ],
+    }
+
+
+def _reopen(app, tab, recipe, context=None):
+    """Open the quicklook of ``recipe`` (`_recipe`) in ``tab`` as `quicklook` does, as it was."""
+    collection, find = app.data_collection, getattr(context, "object", lambda value: value)
+    datasets = [find(name) for name in recipe["datasets"]]
+    coordinator(collection).set_master(find(recipe["master"]))
+    for group in map(find, recipe["cuts"]):
+        collection.remove_subset_group(group)  # made again
+    viewers = _fill(app, tab, datasets, recipe["window"], recipe["main"], find(recipe["point"]), recipe["shown"])
+    saved = {title: (off, states) for _, title, off, states in recipe["panels"]}
+    for panels in tab.findChildren(_Panels)[-1:]:  # the new list; first, as a panel off's stale sliders move the point
+        for item, panel in panels.panels:
+            if not isinstance(panel, _Panel) and saved.get(panel.state.title, (False,))[0]:
+                item.setCheckState(0, Qt.Unchecked)
+        panels.apply()
+    for panel in _viewers(viewers):
+        _, states = saved.get(panel.state.title, (False, [{}]))
+        state, *layers = [{key: find(value) for key, value in each.items()} for each in states]
+        panel.state.update_from_dict(state)
+        for layer in panel.state.layers:
+            layer.update_from_dict(next((each for each in layers if each["layer"] is layer.layer), {}))
+    QTimer(tab, singleShot=True, interval=0, timeout=partial(_arrange, tab, viewers)).start()  # once glue shows it
+
+
+@session_patch()
+def _reopen_quicklooks(session):
+    """Restore a session's quicklooks from their recipes (`_recipe`), not their panels, through `_Application`."""
+    main = session.get("__main__", {})
+    for i, names in enumerate(main.get("viewers", ())):
+        for recipe in [session[name]["quicklook"] for name in names if "quicklook" in session[name]]:
+            main.setdefault("quicklooks", {})[i], main["_type"] = recipe, f"{__name__}.{_Application.__name__}"
+            main["viewers"][i] = [name for name in names if name not in [panel[0] for panel in recipe["panels"]]]
+
+
+class _Application:
+    """glue-qt's application as a session restores it, each quicklook opened again before its tab's other viewers."""
+
+    @staticmethod
+    def __setgluestate__(rec, context):
+        from glue_qt.app.application import GlueApplication
+
+        app = GlueApplication.__setgluestate__({**rec, "viewers": [[] for _ in rec["viewers"]]}, context)
+        for i, names in enumerate(rec["viewers"]):
+            if i in rec["quicklooks"]:
+                app.tab_widget.setCurrentIndex(i)  # glue opens viewers in the current tab
+                _reopen(app, app.tab(i), rec["quicklooks"][i], context)
+            for name in names:  # as glue-qt adds them, over the panels
+                app.add_widget(context.object(name), tab=i, hold_position=True)
+        return app
 
 
 def _edit_in_tab(app, tab, group):
