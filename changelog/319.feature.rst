@@ -1,0 +1,1 @@
+The quicklook's light curves come from one entry, 'Light curves at the point': every shown window and slit-jaw image against time, following the point, over the map's wavelength or band.

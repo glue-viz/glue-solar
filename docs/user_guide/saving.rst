@@ -78,7 +78,7 @@ name: ``Si IV 1403`` gives ``Si_IV_1403``.
      - The UTC time of each sample, when x is a sit-and-stare raster's exposures, a stack's scans or a
        slit-jaw image's frames.
    * - ``<label>_lon``, ``<label>_lat``
-     - The helioprojective position of each sample, in arcsec, for the point or a light curve.
+     - The helioprojective position of each sample, in arcsec, for the point or a cut through it.
 
 The table's meta hold the function and the observation's ``OBSID`` and ``STARTOBS``. A shorter
 profile is padded with empty values. Hidden layers are left out, and the status bar names them.

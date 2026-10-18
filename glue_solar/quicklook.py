@@ -30,6 +30,7 @@ from glue.core.message import (
 from glue.core.roi import PolygonalROI
 from glue.core.subset import RangeSubsetState, RoiSubsetState, SliceSubsetState, SubsetState
 from glue.core.units import UnitConverter
+from glue.utils import compute_statistic
 from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
@@ -780,6 +781,14 @@ class Coordinator(HubListener):
                 index = viewer.state.slices[axis]
                 return int(getattr(index, "center", index))
         return default
+
+    def _band(self, data, axis, default):
+        """The pixels along ``axis`` a viewer of ``data`` not showing it averages (a band or Collapse) or shows, a slice."""
+        for viewer in self._viewers_of(data):
+            if axis not in _shown(viewer.state) and len(viewer.state.slices) == data.ndim:
+                index = viewer.state.slices[axis]
+                return getattr(index, "slice", None) or slice(index, index + 1)
+        return slice(default, default + 1)
 
     def _pair(self, master, follower, master_step, follower_step):
         """nearest() of every master time among the follower's, cached per pair."""
@@ -2118,27 +2127,22 @@ class _Cut(HubListener):
             self.group.subset_state = SliceSubsetState(data, slices)
 
 
-def _check_cut(viewer, curve=False):
-    """Raise why the Image viewer ``viewer`` has no cut through the point (`_cut`), or with ``curve`` no light curve."""
+def _check_cut(viewer):
+    """Raise why the Image viewer ``viewer`` has no cut through the point (`_cut`)."""
     data = viewer.state.reference_data
-    on_map = _role(data) == "raster" and not _spectral_axes(data) & _shown(viewer.state)  # with a wavelength slider
-    if curve and not (on_map and _time_axis(data) == 0):
-        raise ValueError(
-            "Choose it on the map of a sit-and-stare raster or a stack, whose wavelength or band it averages."
-        )
-    if not on_map:
+    if _role(data) != "raster" or _spectral_axes(data) & _shown(viewer.state):  # with a wavelength slider
         raise ValueError("Choose it on the map of a raster, whose wavelength or band it averages.")
     point = coordinator(viewer.session.data_collection).point
     if point is None or not _same_file(point.reference_data, data):
         raise ValueError(f"Select a point on {data.label} first.")
 
 
-def _cut(viewer, axis, label, curve=False):
+def _cut(viewer, axis, label):
     """
     Open a Profile of the cut through the point along ``axis``, over the wavelength or band ``viewer`` shows, as the new
-    subset group ``label`` that a `_Cut` keeps (D58); ``curve`` checks it as a light curve (`_check_cut`).
+    subset group ``label`` that a `_Cut` keeps (D58).
     """
-    _check_cut(viewer, curve)
+    _check_cut(viewer)
     app, data = viewer.session.application, viewer.state.reference_data
     coord = coordinator(app.data_collection)
     title = f"{_window(data)[0] or data.label} {label.lower()}"
@@ -2166,16 +2170,18 @@ def _cut_profile(app, label, cut, x_att, title):
     return profile
 
 
-def _curve(source, raster, pixel, wavelength):
+def _curve(source, raster, pixel, band):
     """
     The times and values of ``source`` at ``pixel`` of ``raster`` (wavelength aside, D53): a raster window's along its
-    first axis at wavelength pixel ``wavelength``; a slit-jaw image's at the raster pixel's place in each frame at the
-    nearest exposure or scan, NaN past half a cadence (D7) or off the frame.
+    first axis, the mean, NaN left out, over the wavelength pixels ``band``, as a cut's Profile (#183); a slit-jaw
+    image's at the raster pixel's place in each frame at the nearest exposure or scan, NaN past half a cadence (D7) or
+    off the frame.
     """
     main = source.main_components[0]
     if _role(source) == "raster":
-        view = (slice(None), *pixel[1:], wavelength)
-        return source[source.id["Time"], view], source[main, view]
+        view = (slice(None), *pixel[1:])
+        values = compute_statistic("mean", source[main, (*view, band)], axis=-1)
+        return source[source.id["Time"], (*view, band.start)], values
     frames = np.arange(source.shape[0])
     times, lead, match = _times(source, None), list(pixel), True
     if _time_axis(raster) == 0:
@@ -2201,7 +2207,7 @@ class _PointCurves(QObject):
     def __init__(self, coordinator, group, raster):
         super().__init__()
         self.coordinator, self.group, self.raster = coordinator, group, raster
-        self.curves, self.pixel = [], None  # (curve, its dataset, its wavelength pixel), and the pixel they show
+        self.curves, self.pixel = [], None  # (curve, its dataset, its wavelength pixels), and the pixel they show
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(250)
@@ -2223,8 +2229,8 @@ class _PointCurves(QObject):
         if pixel in (None, self.pixel):
             return
         self.pixel = pixel
-        for curve, source, wavelength in self.curves:
-            times, values = _curve(source, self.raster, pixel, wavelength)
+        for curve, source, band in self.curves:
+            times, values = _curve(source, self.raster, pixel, band)
             curve.update_components({curve.id["Time"]: times, curve.id["Value"]: values})
 
 
@@ -2271,7 +2277,7 @@ def _point_curves(viewer):
     """
     Add the light curves at the point (`_curve_sources`, `_curve`) as 1-D datasets of ``Time`` and ``Value``, linked as
     the same and with their data's OBSID and STARTOBS for the master's exposure mark, in a new Scatter viewer; they
-    follow the point (`_PointCurves`, D53, #208).
+    follow the point (`_PointCurves`, D53, D90, #208).
     """
     app = viewer.session.application
     collection = app.data_collection
@@ -2281,16 +2287,18 @@ def _point_curves(viewer):
     for i, source in enumerate(sources):
         if _role(source) == "raster":
             [axis] = _spectral_axes(source)
-            wavelength = coord._slider(source, axis, _line_core(source))
-            label = f"{_window(source)[0] or source.label} {_wavelengths(source)[0][wavelength]:.2f} Å light curve"
+            band = coord._band(source, axis, _line_core(source))  # kept, as the label says, at later band changes
+            wave = _wavelengths(source)[0][band]
+            at = f"{wave[0]:.2f}–{wave[-1]:.2f}" if len(wave) > 1 else f"{wave[0]:.2f}"
+            label = f"{_window(source)[0] or source.label} {at} Å light curve"
         else:
-            wavelength, label = None, f"{_sji_title(source)} light curve"
-        times, values = _curve(source, raster, pixel, wavelength)
+            band, label = None, f"{_sji_title(source)} light curve"
+        times, values = _curve(source, raster, pixel, band)
         curve = Data(label=label, Time=times, Value=values)
         curve.get_component("Value").units = source.get_component(source.main_components[0]).units
         curve.meta = {name: source.meta[name] for name in ("OBSID", "STARTOBS")}
         curve.style.color = to_hex(f"C{i % 10}")  # glue gives every dataset the same gray
-        follower.curves.append((curve, source, wavelength))
+        follower.curves.append((curve, source, band))
     follower.pixel = pixel
     curves = [curve for curve, *_ in follower.curves]
     mode = app.session.edit_subset_mode

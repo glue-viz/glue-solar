@@ -135,14 +135,13 @@ Light curves, rows and columns
 
 The Coordinate menu's "Point" submenu plots the data through the point. Each plot follows the point.
 
-- **"Light curve of this window"**, on the map of a sit-and-stare raster or a stack: the mean over the
-  map's wavelength or band at the point, against exposure or scan, in a Profile viewer.
+- **"Light curves at the point"**, on any Image viewer of IRIS, AIA or SOT data: the value at the
+  point against time, for each window with exposures or scans (over the wavelength or band its map
+  shows when chosen, named in its label, else its line core) and each slit-jaw channel the quicklook
+  shows, in one Scatter viewer. Each curve is a new dataset, which "ECSV (with Time)" exports (see
+  :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`).
 - **"Row at the point"** and **"Column at the point"**, on any raster map: the map's row along x, or
   its column along the slit, through the point.
-- **"Light curves of the shown windows and SJI"**, on any Image viewer of IRIS, AIA or SOT data: the
-  value at the point against time, for each window with exposures or scans and each slit-jaw channel
-  the quicklook shows, in one Scatter viewer. Each curve is a new dataset, which "ECSV (with Time)" exports (see
-  :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`).
 
 A Scatter viewer with time on its x axis, such as those light curves, highlights the time master's
 exposure as the subset "Master exposure", and only there: on any other viewer its layer is removed at

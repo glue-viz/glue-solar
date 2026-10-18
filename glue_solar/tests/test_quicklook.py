@@ -262,7 +262,6 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
     submenus = {action.text(): action.menu() for action in button.menu().actions() if action.menu() is not None}
     assert [action.text() for action in submenus["Point"].actions()] == [
         "Clear point",
-        "Light curve of this window",
         POINT_CURVES,
         "Row at the point",
         "Column at the point",
@@ -272,10 +271,10 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
         "Blink",
         "Blink interval",
     ]
-    for tool_id in ("solar:time_master", "solar:light_curve", "solar:blink"):  # found by id, as a button
+    for tool_id in ("solar:time_master", "solar:point_curves", "solar:blink"):  # found by id, as a button
         assert viewers["map"].toolbar.tools[tool_id].tool_id == tool_id
     time = ["Time master", "Go to UTC…"]
-    point, curve = ["Clear point", POINT_CURVES], ["Clear point", "Light curve of this window", POINT_CURVES]
+    point = ["Clear point", POINT_CURVES]
     cuts = ["Row at the point", "Column at the point"]
     blink = ["Set blink partner here"]  # and "Blink" once a partner is set
     view = ["Hide axes", "Per-frame limits", "Physical aspect", "Color bar", "Cursor readout"]
@@ -285,9 +284,9 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
         """``entries`` with "Raster overlays", offered where a raster of the viewer's observation is loaded."""
         return [*entries[:-1], "Raster overlays", entries[-1]]
 
-    # the light curve on the map of a sit-and-stare raster or a stack and the cuts on any raster map, with a point on
-    # its file, the band where wavelength has a slider, a loop where the data's first axis has one
-    assert offered(viewers["map"]) == [*time, *curve, *cuts, *blink, *overlaid(banded)]
+    # the cuts on any raster map with a point on its file, the band where wavelength has a slider, a loop where the
+    # data's first axis has one
+    assert offered(viewers["map"]) == [*time, *point, *cuts, *blink, *overlaid(banded)]
     for panel in (viewers["spectrogram"], viewers["sji"][0]):
         assert offered(panel) == [*time, "Loop…", *point, *blink, *overlaid(["Frame time", *view])]
     assert offered(viewers["wavelength"]) == [*time, *point, *blink, *overlaid(["Frame time", *view])]
@@ -311,10 +310,10 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
     with monkeypatch.context() as patch:
         for module in ("tools", "quicklook"):  # the entry's check and its run's
             patch.setattr(f"glue_solar.{module}._check_cut", lambda *args, **kwargs: 1 / 0)
-        assert offered(viewers["map"]) == [*time, *curve, *cuts, *blink, *overlaid(banded)]
+        assert offered(viewers["map"]) == [*time, *point, *cuts, *blink, *overlaid(banded)]
         errors = refusals(patch)
-        menu_action(viewers["map"], "Light curve of this window").trigger()
-        assert errors == ["Could not open the light curve\ndivision by zero"]
+        menu_action(viewers["map"], "Row at the point").trigger()
+        assert errors == ["Could not open the cut\ndivision by zero"]
 
     def curves(viewer):
         """The windows and channels of the light curves the entry plots, as their labels name them."""
@@ -329,7 +328,7 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
         tick(panels, "C II 1336", on=on)
         panels.apply()  # as the list does at the next turn of the event loop
         assert curves(viewers["map"]) == expected
-    # none without a point, nor the window's light curve and the cuts
+    # none without a point, nor the cuts
     menu_action(viewers["map"], "Clear point").trigger()
     assert offered(viewers["map"]) == [*time, "Clear point", *blink, *overlaid(banded)]
     # of a point of no quicklook, its own window's and every slit-jaw image's
@@ -337,10 +336,10 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
     bare_app.session.edit_subset_mode.edit_subset = [bare_app.data_collection.new_subset_group(label="Other")]
     select_point(other, 3, 10)
     assert curves(other) == ["Si IV 1403", "SJI 2796", "SJI 1400"]
-    # the cuts on a scanning raster's map once the point is on its file, and the light curve too on a stack's
-    for viewer, shown in ((scan_map, cuts), (stack_map, [curve[1], *cuts])):
+    # the cuts on a scanning raster's or a stack's map once the point is on its file
+    for viewer in (scan_map, stack_map):
         select_point(viewer, 2, 40)
-        assert [entry for entry in offered(viewer) if entry in (curve[1], *cuts)] == shown
+        assert [entry for entry in offered(viewer) if entry in cuts] == cuts
     # none on 3824262996's single scan alone, which has no exposures or scans and no slit-jaw image loaded
     [drift] = [path for path in irispy_test_files if "3824262996_raster" in path.name]
     lone = quicklook(bare_app, raster_data([drift]))
@@ -1005,63 +1004,6 @@ def test_a_collapse_is_never_overwritten(bare_app, qtbot, scans):
     assert viewers["spectrogram"].state.slices[0] is collapse
 
 
-@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")  # as above, for the Collapse
-def test_a_light_curve_follows_the_point_and_the_band(bare_app, qtbot, monkeypatch, irispy_test_files):
-    raster, _ = sit_and_stare(irispy_test_files)
-    viewers = quicklook(bare_app, [raster])
-    raster_map, cube = viewers["map"], raster[raster.main_components[0]]
-    [point] = bare_app.session.edit_subset_mode.edit_subset
-    # opening it moves nothing, and the point stays the edit subset, with Pixel on
-    assert changes(bare_app, qtbot, viewers, menu_action(raster_map, "Light curve of this window").trigger) == {}
-    assert bare_app.session.edit_subset_mode.edit_subset == [point]
-    assert raster_map.toolbar.active_tool.tool_id == "image:point_selection"
-    profile = bare_app.viewers[-1][-1]
-    [subset] = [layer.layer for layer in profile.state.layers]
-    assert (subset.label, subset.data, profile.state.function) == ("Light curve", raster, "mean")
-    assert profile.state.x_att is raster.pixel_component_ids[0]
-    # and only there
-    shown = [layer.layer for viewer in bare_app.viewers[-1] if viewer is not profile for layer in viewer.state.layers]
-    assert subset.group not in [getattr(layer, "group", None) for layer in shown]
-
-    def check(slit, band):
-        _, values = profile.layers[0].state.profile
-        np.testing.assert_allclose(values, np.nanmean(cube[:, slit, band], axis=-1), rtol=1e-5, atol=1e-5)
-
-    _, slit, wl0 = expected_start(raster)
-    check(slit, slice(wl0, wl0 + 1))
-    select_point(raster_map, 50, 10)
-    check(10, slice(wl0, wl0 + 1))
-    # a Collapse on the spectrum panel, which leaves out the upper end of its range
-    spectrum = viewers["spectrum"]
-    spectrum.toolbar.active_tool = "profile-analysis"
-    tools = spectrum.toolbar.tools["profile-analysis"]._profile_tools
-    wave = raster[raster.world_component_ids[2], (0, 0, slice(None))]
-    tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = wave[8], wave[15]
-    tools.ui.button_collapse.click()
-    check(10, slice(8, 15))
-    raster_map.toolbar.tools["solar:band"].width = 5
-    raster_map.state.slices = (*raster_map.state.slices[:2], 20)
-    check(10, slice(18, 23))
-    menu_action(raster_map, "Clear point").trigger()
-    check(10, slice(18, 23))
-    shown = refusals(monkeypatch)
-    menu_action(viewers["spectrogram"], "Light curve of this window").trigger()
-    assert shown == [
-        "Could not open the light curve\nChoose it on the map of a sit-and-stare raster or a stack, whose wavelength or "
-        "band it averages."
-    ]
-    # a scripted subset with no group leaves it alone
-    raster.new_subset(label="plain").subset_state = raster.pixel_component_ids[0] > 0
-    check(10, slice(18, 23))
-    # deleted, the light curve stops following the point and the band
-    group, state = subset.group, subset.group.subset_state
-    bare_app.data_collection.remove_subset_group(group)
-    assert group not in coordinator(bare_app.data_collection)._before
-    point.subset_state = PixelSubsetState(raster, [slice(None), slice(12, 13), slice(None)])
-    raster_map.state.slices = (*raster_map.state.slices[:2], 25)
-    assert group.subset_state is state
-
-
 @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")  # as above, for the band
 @pytest.mark.parametrize("stacked", [False, True], ids=["scan", "stack"])
 def test_a_row_and_a_column_follow_the_point_and_the_band(bare_app, qtbot, monkeypatch, scans, stacked):
@@ -1107,9 +1049,19 @@ def test_a_row_and_a_column_follow_the_point_and_the_band(bare_app, qtbot, monke
     shown = refusals(monkeypatch)
     menu_action(viewers["spectrogram"], "Row at the point").trigger()
     assert shown == ["Could not open the cut\nChoose it on the map of a raster, whose wavelength or band it averages."]
+    # a scripted subset with no group leaves them alone; deleted, a cut stops following the point and the band
+    data.new_subset(label="plain").subset_state = data.pixel_component_ids[0] > 0
+    check(scan, 2, 10, slice(8, 13))
+    group = cuts[0].layers[0].state.layer.group
+    state = group.subset_state
+    bare_app.data_collection.remove_subset_group(group)
+    assert group not in coordinator(bare_app.data_collection)._before
+    point.subset_state = PixelSubsetState(data, [*(slice(i, i + 1) for i in (*scan, 3, 12)), slice(None)])
+    raster_map.state.slices = (*raster_map.state.slices[:-1], 12)
+    assert group.subset_state is state
 
 
-POINT_CURVES = "Light curves of the shown windows and SJI"
+POINT_CURVES = "Light curves at the point"
 
 
 def expected_sji_curve(raster, sji, slit, step=None):
@@ -1224,9 +1176,20 @@ def test_light_curves_at_the_point(bare_app, qtbot, tmp_path, irispy_test_files)
     select_point(raster_map, 5, 11)
     qtbot.waitUntil(lambda: check(11, (1, 2)))
     check(10, (0,))
+    # with a band on the map, a new run's curve is the band's mean at the point, named by its wavelengths (#183)
+    raster_map.toolbar.tools["solar:band"].width = 5
+    raster_map.state.slices = (*raster_map.state.slices[:2], k)
+    menu_action(raster_map, POINT_CURVES).trigger()
+    [_, band, _] = [layer.layer for layer in bare_app.viewers[-1][-1].state.layers if isinstance(layer.layer, Data)]
+    view = (slice(None), 11, slice(k - 2, k + 3))
+    expected = np.nanmean(mg_ii[mg_ii.main_components[0], view], axis=-1)
+    np.testing.assert_allclose(band[band.id["Value"]], expected, rtol=1e-6)  # glue's mean in float64
+    wavelengths = mg_ii[mg_ii.world_component_ids[-1], (0, 0, view[-1])] * u.Unit(mg_ii.coords.world_axis_units[0])
+    low, high = wavelengths[[0, -1]].to_value(u.AA)
+    assert band.label == f"Mg II k 2796 {low:.2f}–{high:.2f} Å light curve"
     # the raster removed, they let it and its curve go, and stop
     coord = coordinator(bare_app.data_collection)
-    [follower] = [f.__self__ for f in coord._listeners if isinstance(getattr(f, "__self__", None), _PointCurves)]
+    follower, _ = [f.__self__ for f in coord._listeners if isinstance(getattr(f, "__self__", None), _PointCurves)]
     bare_app.data_collection.remove(mg_ii)
     qtbot.waitUntil(lambda: follower._synced not in coord._listeners)
     assert [curve for curve, *_ in follower.curves] == [curves[2]]
