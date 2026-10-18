@@ -143,6 +143,8 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D86:** User (2026-10-17): units print as astropy's default (`str(unit)`: 'km / s', 'DN / s', and WCS `world_axis_units`' VOUnit), with no code overriding astropy's unit formatting anywhere; irispy's text stays as it is (drops 267-7's request, D79). `wp10-l-saturation-shown` is built on irispy #239's branch before it merges, its draft's CI pinned to that branch. Fitting goes toward models composed in glue's Fit tab and fitted over the window with `parallel_fit_dask`: first fitting every pixel from the Fit tab's fit (`wp6-fit-maps`), then a model builder in the Fit tab's Settings (`wp6-fit-builder`), with per-pixel starts in glue-solar first and then as an irispy draft (`wp0-irispy-fit-starts`); a jdaviz-style fitting panel is not planned. The design brief, with its probes, is `briefs/fit-tool/` in the session archive.
 
+- **D87:** User (2026-10-17), on D85's saturated samples in fits: a saturated sample is a lower bound, not a measurement, so fits leave it out: the Profile Fit tab drops samples the layer's mask marks saturated and its summary says how many it left out, as the window fit (`wp6-fit-maps`) and irispy do (a check: with the peak 4x over the ceiling, fitting them at their value gave 0.29x the amplitude and 1.56x the width; leaving them out gave both exactly, until the whole core saturates, where those spectra are flagged). A rebinned bin is saturated only when all its samples are (as implemented).
+
 ## Milestones
 
 A milestone is done when it has no items left. M0, M2 (analysis, display and export) and M3 (specialist) are done.
