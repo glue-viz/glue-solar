@@ -1,0 +1,1 @@
+'IRIS: line fit maps…' fits every spectrum of a raster window or stack with the model fitted on the Profile viewer's Fit tab, in parallel with progress and Cancel, giving velocity, width and intensity maps with errors and a quality flag; fits leave saturated samples out.
