@@ -1,6 +1,5 @@
 """
-IRIS data held as the file's raw 16-bit integers, scaled only where glue reads them, with the missing-data codes as NaN
-and IRIS data's Level 2 ceiling as +Inf.
+IRIS data held as the file's raw 16-bit integers, scaled only where glue reads them, with the missing-data codes as NaN.
 """
 
 from uuid import uuid4
@@ -13,7 +12,7 @@ from glue.core.state import GlueSerializeError, _load_data_5, _save_data_5
 from glue.core.subset import SliceSubsetState
 from glue.utils import random_indices_for_array
 
-__all__ = ["LazyData", "RawComponent", "RawStack", "allow_open_files", "fill_mask"]
+__all__ = ["LazyData", "RawComponent", "RawStack", "allow_open_files", "at_ceiling", "fill_mask", "iris_mask"]
 
 # Color limits count every raw value of a window up to this many bytes, else of evenly spaced planes (raster
 # steps or slit-jaw frames) up to it: exact on the acceptance windows, at most 0.6 s for the first Image layer
@@ -47,20 +46,33 @@ def fill_mask(values):
     return np.isnan(values).view(np.uint8)
 
 
+def at_ceiling(values):
+    """
+    Whether IRIS ``values``, in DN, are at the Level 2 ceiling, 16182 DN: saturated, which irispy's scaled reads keep
+    at their value and mask (D85).
+    """
+    from irispy.utils.constants import SATURATION_LIMIT  # with the first file rather than at glue's launch
+
+    return values >= SATURATION_LIMIT.value
+
+
+def iris_mask(values):
+    """`fill_mask` of IRIS ``values``, with their saturated samples (`at_ceiling`) 1 too, as irispy masks them."""
+    return (np.isnan(values) | at_ceiling(values)).view(np.uint8)
+
+
 class _Scaled:
     """
     What glue and dask read: ``raw[key]`` as float32 ``raw * bscale + bzero``, scaled as astropy scales, with the
-    ``fill`` codes NaN and the codes from ``top`` up, if any, +Inf. It has no ``copy`` method, which dask would call
-    and so read the whole file.
+    ``fill`` codes NaN. It has no ``copy`` method, which dask would call and so read the whole file.
     """
 
-    def __init__(self, raw, bscale, bzero, fill, top=None):
+    def __init__(self, raw, bscale, bzero, fill):
         # ponytail: raw is irispy's memory map, whose pages stay resident once viewed and which a file cut short or a
         # lost drive turns into SIGBUS; a reader of whole planes (os.pread) in its place bounds both
         self.raw = raw
         self.shape, self.ndim, self.dtype = raw.shape, raw.ndim, np.dtype(np.float32)
         self.bscale, self.bzero, self.fill = np.float32(bscale), np.float32(bzero), np.asarray(fill, np.int16)
-        self.top = top
 
     def __getitem__(self, key):
         raw = np.asarray(self.raw[key])
@@ -68,8 +80,6 @@ class _Scaled:
         values *= self.bscale
         values += self.bzero
         values[np.isin(raw, self.fill)] = np.nan
-        if self.top is not None:
-            values[raw >= self.top] = np.inf
         return values
 
 
@@ -79,16 +89,14 @@ class RawComponent(DaskComponent):
     for a ``.fits.gz`` file.
 
     A read with a view, as every image, profile and cursor readout asks, scales only what the view selects, index
-    arrays included; a read of the whole component goes through dask, a chunk at a time. Values at or above
-    ``ceiling``, if given, are +Inf, as irispy's scaled reads of IRIS data give its Level 2 ceiling (D57).
+    arrays included; a read of the whole component goes through dask, a chunk at a time.
     """
 
-    def __init__(self, raw, bscale, bzero, missing, ceiling=None, units=None):
+    def __init__(self, raw, bscale, bzero, missing, units=None):
         # the raw codes of the missing values (D12): exact integers only, as only those can be stored
         codes = [(value - bzero) / bscale for value in missing]
         fill = [int(code) for code in codes if float(code).is_integer() and -32768 <= code <= 32767]
-        top = None if ceiling is None else int(np.ceil((ceiling - bzero) / bscale))
-        self._source = _Scaled(raw, bscale, bzero, fill, top if top is not None and top <= 32767 else None)
+        self._source = _Scaled(raw, bscale, bzero, fill)
         self._counts = None
         values = da.from_array(
             self._source,
@@ -103,11 +111,9 @@ class RawComponent(DaskComponent):
         return self._source[key]
 
     def _count(self, key):
-        """How often each raw code occurs in ``raw[key]``, the fill codes and +Inf left out, as glue leaves them out."""
+        """How often each raw code occurs in ``raw[key]``, the fill codes left out, as glue leaves NaN out."""
         counts = np.bincount(np.asarray(self._source.raw[key]).ravel().astype(np.int32) + 32768, minlength=65536)
         counts[self._source.fill.astype(np.int32) + 32768] = 0
-        if self._source.top is not None:
-            counts[self._source.top + 32768 :] = 0
         return counts
 
     def _sample(self):

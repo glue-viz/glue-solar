@@ -12,6 +12,8 @@ from irispy.io.spectrograph import read_spectrograph_lvl2
 from irispy.utils.spectrograph import radiometric_calibration as irispys_calibration
 from qtpy import QtWidgets
 
+from astropy.io import fits
+
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file, int16_copy
 from glue_solar.regrid import rebin, regrid_on_time
@@ -27,16 +29,28 @@ RADIANCE = "IRIS: radiometric calibration"
 
 @pytest.fixture
 def sji_path(tmp_path, irispy_test_files):
-    """3620258102's SJI 1400, 62 frames, stored as int16: lazy in glue."""
-    return int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0])
+    """
+    3620258102's SJI 1400, 62 frames, stored as int16: lazy in glue; saturated, raw 32760, beside its dust at
+    (30, 4, 35) and in a block away from it.
+    """
+    path = int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0])
+    with fits.open(path, mode="update", do_not_scale_image_data=True) as hdulist:
+        hdulist[0].data[30, 5:7, 35] = hdulist[0].data[10, 20:23, 15:18] = 32760
+    return path
 
 
 def assert_irispys_dust_removed(dust, path):
-    """``dust`` is irispy's ``remove_dust`` of ``path`` read in memory, NaN where irispy masks it."""
+    """
+    ``dust`` is irispy's ``remove_dust`` of ``path`` read in memory, masked where irispy masks it: NaN, or saturated
+    at its value (D85).
+    """
     cube = read_sji_lvl2(path, memmap=False, uncertainty=False)
     direct = cube.remove_dust()
-    values, kept = dust[dust.main_components[0]], ~direct.mask
-    np.testing.assert_array_equal(np.isnan(values), direct.mask)
+    [cid, mask] = dust.main_components[:2]
+    values, kept = dust[cid], ~direct.mask
+    np.testing.assert_array_equal(dust[mask], direct.mask)
+    shown = direct.mask & (direct.data >= 16182)  # saturated, by irispy's read rather than glue's values
+    np.testing.assert_array_equal(values[shown], direct.data[shown])
     np.testing.assert_allclose(values[kept], direct.data[kept], rtol=1e-6, atol=0)
     assert (direct.data[kept] != cube.data[kept]).sum() > 1000  # dust replaced
 

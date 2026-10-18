@@ -95,7 +95,7 @@ def test_the_action_adds_irispys_maps_as_one_linked_dataset_in_a_viewer(
 
 def test_a_saturated_sample_blanks_its_lines_features_at_its_pixel(app, qtbot, monkeypatch, scan_path):
     """
-    A saturated sample, +Inf, among those searched for a line makes that line's features NaN at its pixel, as irispy
+    A saturated sample, 16182 DN, among those searched for a line makes that line's features NaN at its pixel, as irispy
     finds them; the status bar says how many pixels.
     """
     monkeypatch.setattr(iris, "LAZY", False)
@@ -107,8 +107,8 @@ def test_a_saturated_sample_blanks_its_lines_features_at_its_pixel(app, qtbot, m
     assert np.isfinite(clean["k3_velocity"].data[0, 30])
     cid = raster.main_components[0]
     values = np.array(raster[cid])
-    values[:, 10, 51] = np.inf  # h's core, at -6 km / s, at every step
-    values[0, 30, 23] = np.inf  # k's core, at -0.6 km / s
+    values[:, 10, 51] = 16182  # h's core, at -6 km / s, at every step
+    values[0, 30, 23] = 16182  # k's core, at -0.6 km / s
     raster.update_components({cid: values})
     answer(monkeypatch)
     message = "the k features at 1 saturated pixel and the h features at 8 saturated pixels are NaN"
@@ -156,8 +156,8 @@ def test_a_stacks_saturated_pixels_are_counted_over_its_scans(app, qtbot, monkey
     app.data_collection.append(stack)
     cid = stack.main_components[0]
     values = np.array(stack[cid])
-    values[[0, 2], :, 10, 51] = np.inf  # h's core, at every step of scans 0 and 2
-    values[1, 0, 30, 23] = np.inf  # k's core
+    values[[0, 2], :, 10, 51] = 16182  # h's core, at every step of scans 0 and 2
+    values[1, 0, 30, 23] = 16182  # k's core
     stack.update_components({cid: values})
     answer(monkeypatch)
     message = "the k features at 1 saturated pixel and the h features at 16 saturated pixels are NaN"
@@ -232,7 +232,7 @@ def test_a_session_keeps_the_maps_and_their_meta(monkeypatch, scan_path):
     [raster] = raster_data([scan_path], ["Mg II k 2796"])
     cid = raster.main_components[0]
     values = np.array(raster[cid])
-    values[0, 30, 23] = np.inf  # k's core
+    values[0, 30, 23] = 16182  # k's core
     raster.update_components({cid: values})
     raster.meta["rest_wavelength"] = 2796.36
     maps = mg_features.mg_features(raster)

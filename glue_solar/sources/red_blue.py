@@ -38,10 +38,10 @@ def _red_blue(data, rest, wavelengths, velocities, step, crop, unit):
 
     maps = {}
     # irispy measures each pixel on its own, so a slab of steps gives what the whole window would
-    for rows, values, _ in _slabs(data, crop):
+    for rows, values, _, saturated in _slabs(data, crop):
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
             slab = calculate_red_blue_asymmetry(
-                _cube(data, values, rows, crop, unit),
+                _cube(data, values, rows, crop, unit, saturated),
                 rest_wavelength=rest * u.AA,
                 velocity_range=velocities * u.km / u.s,
                 dv=step * u.km / u.s,
@@ -72,8 +72,8 @@ def red_blue_asymmetry(data, rest, wavelengths=WAVELENGTHS, velocities=VELOCITIE
     every ``step`` and divides the mean red wing, from ``velocities[0]`` to ``velocities[1]`` above the peak, less the
     mean blue wing, as far below it, by the peak. Its components are irispy's: ``red_blue_asymmetry``, NaN where it is not
     computed, and ``quality``, an `~irispy.utils.red_blue.RBAQualityFlag` code, 0 where it is; a pixel with a
-    saturated sample taken, +Inf, as the loader reads the Level 2 ceiling, 16182 DN, is flagged saturated. ``meta``
-    holds the observation's ``OBSID`` and ``STARTOBS``, ``red_blue_rest``, ``red_blue_wavelengths``,
+    saturated sample taken, as the window's mask marks the Level 2 ceiling, 16182 DN (D85), is flagged saturated.
+    ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``, ``red_blue_rest``, ``red_blue_wavelengths``,
     ``red_blue_velocities`` and ``red_blue_step``.
 
     Parameters

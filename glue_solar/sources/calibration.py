@@ -17,6 +17,7 @@ from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 from glue_solar.glue_patches import layer_action
 from glue_solar.quicklook import _role
 from glue_solar.sources.loaders.iris import WCS_LOCK, _add_exposure, _dataset, _irispy_meta, _per_frame
+from glue_solar.sources.loaders.lazy import at_ceiling
 from glue_solar.sources.moments import _check, _start, _unit
 
 __all__ = ["radiometric_calibration", "radiometric_calibration_iris", "remove_dust", "remove_dust_iris"]
@@ -66,11 +67,12 @@ def remove_dust(data):
     coordinates, at its pointing offset, which it follows, with its ``Time``, ``Exposure time``, ``<label> DN / s``
     and ``meta``, ``meta['dust_removed']`` added, which data made from it keep.
 
-    irispy's ``SJICube.remove_dust`` is given the scaled values, NaN masked, a slab of frames at a time with the
-    `FRAMES` on either side it takes replacements from, and each frame's exposure time. It finds dust where a value
-    lies above -199 and below 0.5 DN, and the pixels about it, and puts in the median of those pixels over the frames
-    on either side, scaled by the exposure times, else of the 5 by 5 pixels about it; dust it cannot replace is NaN.
-    The values are float32, as the loader's.
+    irispy's ``SJICube.remove_dust`` is given the scaled values, NaN and saturated ones masked, a slab of frames at a
+    time with the `FRAMES` on either side it takes replacements from, and each frame's exposure time. It finds dust
+    where a value lies above -199 and below 0.5 DN, and the pixels about it, and puts in the median of those pixels
+    over the frames on either side, scaled by the exposure times, else of the 5 by 5 pixels about it; dust it cannot
+    replace is NaN, and saturated samples keep their value unless they neighbour dust, which irispy replaces like any
+    neighbour. The values are float32, as the loader's.
 
     Raises
     ------
@@ -90,9 +92,11 @@ def remove_dust(data):
         meta = {"exposure time": data[exposure, (*rows, 0, 0)] * u.s}
         with WCS_LOCK:
             wcs = SlicedLowLevelWCS(data.coords._wcs, (*rows, slice(None), slice(None)))
-        clean = SJICube(slab, wcs, mask=np.isnan(slab), meta=meta).remove_dust(temporal_window=FRAMES)
+        # saturated samples masked, as irispy's reads mask them, so never a replacement, but kept at their value (D85)
+        saturated = at_ceiling(slab)
+        clean = SJICube(slab, wcs, mask=np.isnan(slab) | saturated, meta=meta).remove_dust(temporal_window=FRAMES)
         kept = slice(start - low, start - low + frames)
-        values[start : start + frames] = np.where(clean.mask[kept], np.nan, clean.data[kept])
+        values[start : start + frames] = np.where(clean.mask[kept] & ~saturated[kept], np.nan, clean.data[kept])
         gc.collect()  # ndcube's cubes are reference cycles, holding the slab's values, and irispy's work ages them
     lead = (slice(None), 0, 0)
     dust = _dataset(

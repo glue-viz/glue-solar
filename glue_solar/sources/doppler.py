@@ -52,11 +52,9 @@ def _doppler(data, rest, velocities, normalized, wings, unit):
     planes = []
     for scan, crop, below, weight in wings:
         for step in range(data.shape[-3]):  # a step at a time
-            values, _ = _read(data, (*scan, slice(step, step + 1), slice(None)), crop)
-            with np.errstate(invalid="ignore"):  # +Inf, saturated, at a weight of 0 gives NaN
-                wing = values[..., below] * (1 - weight) + values[..., below + 1] * weight
-            wing[np.isinf(wing)] = np.nan  # NaN where either sample is missing or saturated
-            planes.append(wing)
+            values, _, saturated = _read(data, (*scan, slice(step, step + 1), slice(None)), crop)
+            values = np.where(saturated, np.nan, values)  # NaN where either sample is missing or saturated
+            planes.append(values[..., below] * (1 - weight) + values[..., below + 1] * weight)
     red, blue = np.split(np.concatenate(planes).reshape(*data.shape[:-1], -1), 2, axis=-1)
     doppler = _dataset(data, f"{data.label} Doppler image {rest}")
     doppler.meta.update(doppler_rest=rest, doppler_velocities=tuple(velocities), doppler_sign="red - blue")
@@ -79,11 +77,11 @@ def doppler_image(data, rest, velocities=VELOCITIES, normalized=False):
 
     Each wing is the window's ``<label> DN / s`` where it has one, else its values, interpolated linearly at
     ``rest * (1 ± v / c)``, the optical Doppler shift of velocity v, between the two samples about it, each scan at its
-    own wavelengths; NaN where either sample is missing or saturated, +Inf, as the loader reads the Level 2 ceiling. Its
-    components are ``red - blue <v> km / s``, in that unit, positive for a brighter red wing, and with ``normalized``,
-    ``(red - blue) / (red + blue) <v> km / s``, NaN where a wing is not positive. ``meta`` holds the observation's
-    ``OBSID`` and ``STARTOBS``, ``doppler_rest``, ``doppler_velocities`` and ``doppler_sign``, ``"red - blue"``. The
-    window is read a raster step at a time.
+    own wavelengths; NaN where either sample is missing or saturated, as the window's mask marks the Level 2 ceiling,
+    16182 DN (D85). Its components are ``red - blue <v> km / s``, in that unit, positive for a brighter red wing, and
+    with ``normalized``, ``(red - blue) / (red + blue) <v> km / s``, NaN where a wing is not positive. ``meta`` holds
+    the observation's ``OBSID`` and ``STARTOBS``, ``doppler_rest``, ``doppler_velocities`` and ``doppler_sign``,
+    ``"red - blue"``. The window is read a raster step at a time.
 
     Parameters
     ----------
