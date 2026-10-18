@@ -12,8 +12,6 @@ from glue.core.state import GlueSerializeError, _load_data_5, _save_data_5
 from glue.core.subset import SliceSubsetState
 from glue.utils import random_indices_for_array
 
-__all__ = ["LazyData", "RawComponent", "RawStack", "allow_open_files", "at_ceiling", "fill_mask", "iris_mask"]
-
 # Color limits count every raw value of a window up to this many bytes, else of evenly spaced planes (raster
 # steps or slit-jaw frames) up to it: exact on the acceptance windows, at most 0.6 s for the first Image layer
 SAMPLE_BYTES = 512 * 2**20

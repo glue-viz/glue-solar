@@ -45,19 +45,6 @@ from .lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask,
 from .scan import _gzipped, _observation, _primary_header, extract_archive, scan_directory
 from .stack_spectrograms import MISSING_VALUES, _PerScanWCS, stack_times, stack_wcs
 
-__all__ = [
-    "WCS_LOCK",
-    "QtIRISImporter",
-    "image_data",
-    "iris_data",
-    "keep_hpc_linked",
-    "last_directory",
-    "load_entry",
-    "link_hpc",
-    "raster_data",
-    "raster_files_data",
-]
-
 # Load data stored as int16, as Level 2 files store it, lazily: the raw integers stay in the file (in memory for a
 # .fits.gz file) and are scaled where glue reads them. False loads everything in memory through irispy, as before
 # (float32 where fill becomes NaN).
@@ -745,6 +732,8 @@ def raster_files_data(path, files=(), windows=None, stack=False):
             pending = _RESTORING[str(window)]
             pending[pending.index(None)] = datasets
     datasets = slots.pop(0)  # held by the restore alone from now on
+    if datasets is None:  # the file was replaced by one without this window
+        raise ValueError(f"{windows[0]} is not in {path}")
     _warn_repeated_positions(datasets)
     return datasets
 

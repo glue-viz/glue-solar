@@ -11,10 +11,11 @@ import inspect
 import os
 import re
 from contextlib import nullcontext
-from functools import cache, wraps
+from functools import cache, partial, wraps
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
+import dask
 import dask.array as da
 import glue.utils.matplotlib
 import numpy as np
@@ -231,9 +232,21 @@ pv_slicer._slice_from_path = pv_slice_from_path
 _original_fits_writer = gridded_fits.fits_writer
 
 
+class _Sections:
+    """``data[cid]`` as dask reads it, a section at a time: glue reads a derived component, such as the mask, whole."""
+
+    def __init__(self, data, cid):
+        self.data, self.cid, self.shape, self.ndim = data, cid, data.shape, data.ndim
+        self.dtype = np.asarray(data[cid, (slice(0, 1),) * data.ndim]).dtype
+
+    def __getitem__(self, key):
+        return np.asarray(self.data[self.cid, key])
+
+
 def export_fits(filename, data, components=None, data_header=None, extensions=()):
     """
-    glue-core's "FITS (1 component/HDU)" exporter, reading each component as NumPy: glue-core 1.27.0 masks a subset in
+    glue-core's "FITS (1 component/HDU)" exporter, writing each component a section at a time, as astropy writes dask
+    to a file, so that a lazy window is never in memory whole (a subset's mask is): glue-core 1.27.0 masks a subset in
     place, which a dask array refuses; a subset's unsigned components, such as the mask, go unmasked (#96). Also for
     `glue_solar.sources.iris.export_iris_fits`, with ``data_header`` for the WCS header and ``extensions`` appended.
     """
@@ -247,15 +260,18 @@ def export_fits(filename, data, components=None, data_header=None, extensions=()
     for cid in data.main_components + data.derived_components:
         if (components is not None and cid not in components) or data.get_kind(cid) != "numerical":
             continue
-        values = np.asarray(data[cid])
+        sections = _Sections(data, cid)
+        if sections.dtype.kind == "u" and sections.dtype.itemsize > 1:  # astropy writes these from NumPy only
+            values = np.asarray(data[cid])
+        else:
+            values = da.from_array(sections, name=False, meta=np.empty((0,) * data.ndim, sections.dtype))
         blank = None
         if mask is not None:
-            values = values.copy()
             if values.dtype.kind == "f":
-                values[~mask] = np.nan
+                values = da.where(mask, values, values.dtype.type(np.nan))
             elif values.dtype.kind == "i":
                 blank = np.iinfo(values.dtype).min
-                values[~mask] = blank
+                values = da.where(mask, values, values.dtype.type(blank))
         if isinstance(data, Data):
             header = gridded_fits.make_component_header(data.get_component(cid), data_header)
         else:
@@ -265,7 +281,8 @@ def export_fits(filename, data, components=None, data_header=None, extensions=()
         hdus.append(fits.ImageHDU(values, name=cid.label, header=header))
     for hdu in extensions:
         hdus.append(hdu)
-    hdus.writeto(filename, overwrite=True)
+    with dask.config.set(scheduler="synchronous"):  # glue's reads on this thread, one section in memory at a time
+        hdus.writeto(filename, overwrite=True)
 
 
 def needs_fits_export_dask_workaround(func=_original_fits_writer):
@@ -1066,21 +1083,27 @@ def refresh_layer_actions(data_collection):
         action.update_enabled()
 
 
+def _takes(check, *args, **kwargs):
+    """
+    Whether ``check``, the guard an entry's run calls too (D61), takes these arguments, raising no ValueError: also
+    true for any other error, so that running the entry shows it in the entry's own error box (D72 223-5).
+    """
+    try:
+        check(*args, **kwargs)
+    except ValueError:  # the guard's refusal
+        return False
+    except Exception:  # noqa: BLE001 - a fault, not a refusal
+        return True
+    return True
+
+
 def layer_action(label, check, **kwargs):
     """
     glue-qt's ``layer_action``, shown only where ``check``, the action's own guard, takes the selection: the layer, or
     the layers of an action not ``single``; the entries are refreshed for the selection once it returns
     (`refresh_layer_actions`).
     """
-
-    def applies(selection):
-        try:
-            check(selection)
-        except ValueError:  # the guard's refusal
-            return False
-        except Exception:  # noqa: BLE001 - a fault, not a refusal: shown, so that running it shows the fault
-            return True
-        return True
+    applies = partial(_takes, check)
 
     def adder(func):
         @wraps(func)

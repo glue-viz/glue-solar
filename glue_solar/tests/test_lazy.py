@@ -7,6 +7,7 @@ import gzip
 import warnings
 from itertools import combinations
 
+import dask
 import dask.array as da
 import numpy as np
 import pytest
@@ -712,3 +713,25 @@ def test_pv_slices_and_subset_exports_of_lazy_data(monkeypatch, tmp_path, int16_
     mask = fits.getdata(tmp_path / "point.fits", lazy_result.derived_components[0].label)
     assert mask.dtype == np.uint8
     np.testing.assert_array_equal(mask, np.isnan(oracle))
+
+
+@pytest.mark.filterwarnings("ignore:Card is too long")  # glue's EXTNAME, the component's label
+def test_a_lazy_window_exports_a_section_at_a_time_as_glue_exports_it(monkeypatch, tmp_path, int16_raster):
+    from glue.core.data_exporters import gridded_fits
+
+    from glue_solar import glue_patches
+
+    [window] = raster_data([int16_raster], ["Si IV 1403"])
+    sizes, get_data = [], window.get_data
+
+    def recorded(cid, view=None):  # every read of a component, the mask's and DN / s's through their links too
+        values = get_data(cid, view)
+        sizes.append(values.size)
+        return values
+
+    monkeypatch.setattr(window, "get_data", recorded)
+    with dask.config.set({"array.chunk-size": "64KiB"}):  # sections of a window of 0.9 MB
+        glue_patches.export_fits(str(tmp_path / "sections.fits"), window)
+    assert 0 < max(sizes) < window.size
+    gridded_fits.fits_writer(str(tmp_path / "glue.fits"), window)  # which reads it whole
+    assert (tmp_path / "sections.fits").read_bytes() == (tmp_path / "glue.fits").read_bytes()

@@ -286,6 +286,19 @@ def test_a_failed_restore_keeps_no_raster_windows(monkeypatch, tmp_path, irispy_
     assert not any(ref() for ref in read)  # held by the restore alone
 
 
+def test_a_restore_whose_raster_file_lost_a_window_names_it(monkeypatch, irispy_test_files):
+    files = sorted(path for path in irispy_test_files if "3860258481_raster" in path.name)
+    session = GlueSerializer(DataCollection(raster_data(files[:1], THREE))).dumps()
+
+    def windows_data(*args):  # the file replaced since by one without Si IV 1403
+        return {window: datasets for window, datasets in _raster_windows_data(*args).items() if window != THREE[1]}
+
+    monkeypatch.setattr("glue_solar.sources.loaders.iris._raster_windows_data", windows_data)
+    with pytest.raises(ValueError, match=f"{THREE[1]} is not in .*{files[0].name}"):
+        GlueUnSerializer.loads(session).object("__main__")
+    assert not _RESTORING
+
+
 def test_a_raster_held_in_memory_gives_its_bursts_and_radiance_once_restored(monkeypatch, irispy_test_files):
     monkeypatch.setattr("glue_solar.sources.loaders.iris.LAZY", False)  # its metadata restored as glue's dict
     [raster] = raster_data([find_irispy_test_file(irispy_test_files, SI_IV)])
