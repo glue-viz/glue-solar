@@ -61,8 +61,7 @@ Image viewer
    * - Coordinate → Point → "Clear point"
      - Remove the point until the next click.
      -
-   * - Coordinate → Point → "Light curve of this window", "Row at the point", "Column at the point",
-       "Light curves of the shown windows and SJI"
+   * - Coordinate → Point → "Light curves at the point", "Row at the point", "Column at the point"
      - Plot the data through the point (see :ref:`Quicklook <glue_solar_users_guide_iris_quicklook>`).
      -
    * - Coordinate → Blink → "Set blink partner here", "Blink", "Blink interval"

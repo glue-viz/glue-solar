@@ -2118,27 +2118,22 @@ class _Cut(HubListener):
             self.group.subset_state = SliceSubsetState(data, slices)
 
 
-def _check_cut(viewer, curve=False):
-    """Raise why the Image viewer ``viewer`` has no cut through the point (`_cut`), or with ``curve`` no light curve."""
+def _check_cut(viewer):
+    """Raise why the Image viewer ``viewer`` has no cut through the point (`_cut`)."""
     data = viewer.state.reference_data
-    on_map = _role(data) == "raster" and not _spectral_axes(data) & _shown(viewer.state)  # with a wavelength slider
-    if curve and not (on_map and _time_axis(data) == 0):
-        raise ValueError(
-            "Choose it on the map of a sit-and-stare raster or a stack, whose wavelength or band it averages."
-        )
-    if not on_map:
+    if not (_role(data) == "raster" and not _spectral_axes(data) & _shown(viewer.state)):  # with a wavelength slider
         raise ValueError("Choose it on the map of a raster, whose wavelength or band it averages.")
     point = coordinator(viewer.session.data_collection).point
     if point is None or not _same_file(point.reference_data, data):
         raise ValueError(f"Select a point on {data.label} first.")
 
 
-def _cut(viewer, axis, label, curve=False):
+def _cut(viewer, axis, label):
     """
     Open a Profile of the cut through the point along ``axis``, over the wavelength or band ``viewer`` shows, as the new
-    subset group ``label`` that a `_Cut` keeps (D58); ``curve`` checks it as a light curve (`_check_cut`).
+    subset group ``label`` that a `_Cut` keeps (D58).
     """
-    _check_cut(viewer, curve)
+    _check_cut(viewer)
     app, data = viewer.session.application, viewer.state.reference_data
     coord = coordinator(app.data_collection)
     title = f"{_window(data)[0] or data.label} {label.lower()}"
@@ -2271,7 +2266,7 @@ def _point_curves(viewer):
     """
     Add the light curves at the point (`_curve_sources`, `_curve`) as 1-D datasets of ``Time`` and ``Value``, linked as
     the same and with their data's OBSID and STARTOBS for the master's exposure mark, in a new Scatter viewer; they
-    follow the point (`_PointCurves`, D53, #208).
+    follow the point (`_PointCurves`, D53, D90, #208).
     """
     app = viewer.session.application
     collection = app.data_collection

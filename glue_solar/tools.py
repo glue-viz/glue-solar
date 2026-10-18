@@ -1642,22 +1642,9 @@ class _ClearPointEntry(_CoordinateEntry):
         coordinator.clear_point()
 
 
-class _LightCurveEntry(_CoordinateEntry):
-    tool_id = "solar:light_curve"
-    action_text = "Light curve of this window"
-    tool_tip = "Open the mean over the wavelength or band shown here at the point, against exposure or scan"
-
-    @messagebox_on_error("Could not open the light curve")
-    def run(self, coordinator):
-        _cut(self.viewer, 0, "Light curve", curve=True)  # along exposure or scan
-
-    def offered(self):
-        return _takes(_check_cut, self.viewer, curve=True)
-
-
 class _PointCurvesEntry(_CoordinateEntry):
     tool_id = "solar:point_curves"
-    action_text = "Light curves of the shown windows and SJI"
+    action_text = "Light curves at the point"  # the only one, against Time (D90)
     tool_tip = "Plot each window and slit-jaw image shown at the point against time, as new datasets that follow it"
 
     @messagebox_on_error("Could not add the light curves")
@@ -2068,7 +2055,7 @@ def _profile_table(viewer):
         if isinstance(subset, PixelSubsetState):
             fixed = subset._to_linked_pixel_coords(data)
             meta["pixel"] = {c.label: p for c, p in zip(data.pixel_component_ids, fixed, strict=True) if p is not None}
-        elif isinstance(subset, SliceSubsetState) and subset.reference_data is data:  # a light curve
+        elif isinstance(subset, SliceSubsetState) and subset.reference_data is data:  # a cut (D58)
             fixed = [s.start for s in subset.slices]
         name = disambiguate(as_variable_name(layer.layer.label), names)
         names.append(name)
@@ -2360,7 +2347,7 @@ class CoordinateTool(_ToolMenu):
     SUBMENUS = {
         "Point": (
             "The point: clear it, its light curves, or the map's row and column through it",
-            (_ClearPointEntry, _LightCurveEntry, _PointCurvesEntry, _RowEntry, _ColumnEntry),
+            (_ClearPointEntry, _PointCurvesEntry, _RowEntry, _ColumnEntry),
         ),
         "Blink": ("Alternate the viewer between its position and a partner", (_PartnerEntry, _BlinkEntry)),
     }

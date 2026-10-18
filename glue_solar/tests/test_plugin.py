@@ -2377,7 +2377,7 @@ def test_profiles_save_as_drawn_to_ecsv(app, monkeypatch, tmp_path, irispy_test_
     [stack] = raster_data(files, ["Si IV 1403"], stack=True)
     app.data_collection.append(stack)
     stack.new_subset(PixelSubsetState(stack, [slice(None), slice(1, 2), slice(3, 4), slice(4, 5)]), label="Scans")
-    # a light curve, over a band, as "Light curve at the point" makes it
+    # a slice along scans over a band, as a cut through the point makes it (D58)
     stack.new_subset(SliceSubsetState(stack, [slice(None), slice(1, 2), slice(3, 4), slice(4, 8)]), label="Band")
     viewer = app.new_data_viewer(ProfileViewer, data=stack)
     viewer.state.x_att = stack.pixel_component_ids[0]

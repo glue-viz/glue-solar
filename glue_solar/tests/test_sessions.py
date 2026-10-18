@@ -673,7 +673,7 @@ def test_a_restored_sst_quicklook_keeps_its_second_map_point_and_panels_off(app,
 def test_a_restored_quicklook_keeps_its_cuts_where_they_were(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
     files = sorted(str(path) for path in irispy_test_files if "3860258481_raster" in path.name)
     viewers = quicklook(app, raster_data(files, ["C II 1336"], stack=True))
-    for text in ("Light curve of this window", "Row at the point", "Column at the point"):
+    for text in ("Row at the point", "Column at the point"):
         menu_action(viewers["map"], text).trigger()
 
     def cuts(app):
@@ -688,7 +688,7 @@ def test_a_restored_quicklook_keeps_its_cuts_where_they_were(app, qtbot, monkeyp
         return found
 
     saved = cuts(app)
-    assert saved.keys() == {"Light curve", "Row", "Column"}
+    assert saved.keys() == {"Row", "Column"}
     session = tmp_path / "cuts.glu"
     app.save_session(str(session), absolute_paths=False)
     opened = restore(qtbot, monkeypatch, session)
