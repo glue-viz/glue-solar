@@ -71,7 +71,8 @@ def remove_dust(data):
     time with the `FRAMES` on either side it takes replacements from, and each frame's exposure time. It finds dust
     where a value lies above -199 and below 0.5 DN, and the pixels about it, and puts in the median of those pixels
     over the frames on either side, scaled by the exposure times, else of the 5 by 5 pixels about it; dust it cannot
-    replace is NaN, and saturated samples keep their value. The values are float32, as the loader's.
+    replace is NaN, and saturated samples keep their value unless they neighbour dust, which irispy replaces like any
+    neighbour. The values are float32, as the loader's.
 
     Raises
     ------
