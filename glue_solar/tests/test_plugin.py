@@ -319,7 +319,7 @@ def test_data_factory_claims_only_iris_files_and_aligned_aia_cutouts(iris_tree):
 def test_open_real_sji_through_load_data(irispy_test_files):
     path = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
     data = load_data(str(path))
-    assert data.label == "SJI 1400 2021-09-05T00:18:33"
+    assert data.label == "SJI 1400 2021-09-05 00:18"
     assert data.shape == (62, 40, 37)
     assert data.style.preferred_cmap.name == "irissji1400"
     # SJI keeps time in its gWCS rather than an extra coordinate; every frame gets its UTC time
@@ -335,7 +335,7 @@ def test_open_real_aia_cutout_through_load_data(irispy_data):
     ]
     data, browser = load_data(path), image_data(path)  # File -> Open gives what the observation browser loads
     assert isinstance(data.coords, _GlueWCS)
-    assert data.label == browser.label == "AIA 1700 2025-05-19T16:59:24"
+    assert data.label == browser.label == "AIA 1700 2025-05-19 16:59"
     assert [cid.label for cid in data.components] == [cid.label for cid in browser.components]
     np.testing.assert_array_equal(data[data.id["Time"]], browser[browser.id["Time"]])
     assert _role(data) == "aia"
@@ -345,9 +345,9 @@ def test_open_real_aia_cutout_through_load_data(irispy_data):
 @pytest.mark.parametrize(
     ("name", "label", "units"),
     [
-        ("_Gband4305_FG_", "SOT G band 4305 2015-08-30T07:09:53", "DN"),
-        ("_TFNaI5896_MG_", "SOT TF Na I 5896 2016-01-08T19:12:11", ""),
-        ("_blapp_index_", "SOT 6302A B_LOS 18:50:06 2016-01-08T19:12:11", "G"),
+        ("_Gband4305_FG_", "SOT G band 4305 2015-08-30 07:09", "DN"),
+        ("_TFNaI5896_MG_", "SOT TF Na I 5896 2016-01-08 19:12", ""),
+        ("_blapp_index_", "SOT 6302A B_LOS 18:50:06 2016-01-08 19:12", "G"),
     ],
 )
 def test_open_sot_cube_through_load_data(tmp_path, irispy_test_files, name, label, units):
@@ -376,7 +376,7 @@ def test_open_real_raster_through_load_data(irispy_test_files):
     path = find_irispy_test_file(irispy_test_files, "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits")
     datasets = load_data(str(path))
     assert len(datasets) == 9
-    assert datasets[0].label == "C II 1336 2014-03-29T14:09:38 scan 0"  # its raster number
+    assert datasets[0].label == "C II 1336 2014-03-29 14:09 scan 0"  # its raster number, one of several
     assert datasets[0].shape == (8, 109, 17)
     assert datasets[0].find_component_id("Time") is not None
 

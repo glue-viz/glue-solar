@@ -107,7 +107,7 @@ def test_load_selected_real_sji(qtbot, tmp_path, irispy_test_files):
     assert len(dialog.datasets) == 1
     data = dialog.datasets[0]
     assert data is dialog.first_image
-    assert data.label == "SJI 1400 2021-09-05T00:18:33"
+    assert data.label == "SJI 1400 2021-09-05 00:18"
     assert data.shape == (62, 40, 37)
     assert data.style.preferred_cmap.name == "irissji1400"
 
@@ -234,7 +234,7 @@ def test_stop_keeps_the_entries_read_in_full(dialog, qtbot, monkeypatch):
     assert len(reads) == 1  # file 2 is not read
     assert dialog.result() == QDialog.Accepted
     assert [kind for _, kind, _, _ in dialog.loaded] == ["sji"]
-    assert [data.label for data in dialog.datasets] == ["SJI 1400 2025-03-28T22:56:28"]
+    assert [data.label for data in dialog.datasets] == ["SJI 1400 2025-03-28 22:56"]
     [data] = dialog.datasets
     assert data.get_component(data.main_components[0])._counts is not None  # not left to its first viewer
 
@@ -316,7 +316,7 @@ def test_color_limits_of_what_browse_iris_shows_are_counted_in_the_background(qt
     # the quicklook's slit-jaw image and scan 0 of each window, which has a λ–time panel, or the Image viewer's
     # slit-jaw image: no viewer has asked
     counted = [data.label for data in loaded if data.get_component(data.main_components[0])._counts is not None]
-    assert counted == [name.format("2025-03-28T22:56:28") for name in shown]
+    assert counted == [name.format("2025-03-28 22:56") for name in shown]
     assert _shown(entries, True, "C II 1336")[0].label.startswith("C II 1336")  # the browser's main window first
 
 
@@ -350,7 +350,7 @@ def test_deconvolved_sji_is_listed_and_loaded_beside_the_plain_one(qtbot, tmp_pa
     dialog.obs_tree.topLevelItem(0).setCheckState(0, Qt.Checked)
     load_selected(qtbot, dialog)
     labels = [data.label for data in dialog.datasets]
-    assert labels == ["SJI 1400 2021-09-05T00:18:33", "SJI 1400 deconvolved 2021-09-05T00:18:33"]
+    assert labels == ["SJI 1400 2021-09-05 00:18", "SJI 1400 deconvolved 2021-09-05 00:18"]
     assert read_iris_file(str(deconvolved)).label == labels[1]  # File -> Open labels it the same way
     assert read_iris_file(str(plain)).label == labels[0]
 
@@ -815,13 +815,14 @@ def test_aia_cube_uses_the_same_irispy_adapter(tmp_path, irispy_test_files):
         hdul[0].header["TWAVE1"] = 171
 
     data = image_data(path)
-    assert data.label == "AIA 171 THIN 2021-09-05T00:18:33"
+    assert data.label == "AIA 171 THIN 2021-09-05 00:18"
     assert data.style.preferred_cmap.name == "sdoaia171"
     assert len(data.main_components) == 4  # science, mask and the per-frame Time and Exposure time
 
 
 def test_labels_name_the_window_and_its_observation_and_results_follow_them(irispy_test_files):
-    # D90: '<window> <start> scan <n>' or '… stack', the components named after the window, and '<label> <result>'
+    # D90: '<window> <start>', then 'scan <n>' in an observation of several rasters or 'stack', the components named
+    # after the window, and '<label> <result>'
     from glue_solar.regrid import rebin
     from glue_solar.sources.moments import line_moments
 
@@ -830,11 +831,12 @@ def test_labels_name_the_window_and_its_observation_and_results_follow_them(iris
     first, second = raster_data(scans, ["Si IV 1403"])
     [stack], [another] = raster_data(scans, ["Si IV 1403"], stack=True), raster_data([other], ["Si IV 1403"])
     assert [data.label for data in (first, second, stack, another)] == [
-        "Si IV 1403 2014-03-29T14:09:38 scan 0",
-        "Si IV 1403 2014-03-29T14:09:38 scan 1",
-        "Si IV 1403 2014-03-29T14:09:38 stack",
-        "Si IV 1403 2021-09-05T00:18:33 scan 0",  # another observation, apart
+        "Si IV 1403 2014-03-29 14:09 scan 0",
+        "Si IV 1403 2014-03-29 14:09 scan 1",
+        "Si IV 1403 2014-03-29 14:09 stack",
+        "Si IV 1403 2021-09-05 00:18",  # another observation, apart, of one raster (RASNRPT 1)
     ]
+    assert raster_data(scans[:1], ["Si IV 1403"])[0].label == first.label  # one file of several rasters (RASNRPT)
     assert second.label in [data.label for data in read_iris_file(str(scans[1]))]  # as File -> Open labels it
     for data in (first, stack, another):
         assert {"Si IV 1403", "Si IV 1403 mask", "Si IV 1403 DN / s"} <= {cid.label for cid in data.components}
@@ -850,7 +852,7 @@ def test_real_raster_preserves_exact_exposure_times(irispy_test_files):
     expected_times = cube.axis_world_coords("time", wcs=cube.extra_coords)[0].utc.to_value("datetime64")
 
     assert len(data) == 1
-    assert data[0].label == "C II 1336 2014-03-29T14:09:38 scan 0"
+    assert data[0].label == "C II 1336 2014-03-29 14:09 scan 0"
     assert data[0].shape == (8, 109, 17)
     assert [c.label for c in data[0].world_component_ids] == [
         "Helioprojective Longitude",

@@ -552,10 +552,10 @@ def _observation_label(meta):
 
 def _label(name, meta, part=""):
     """
-    The label of a dataset of the window or channel ``name`` (D90): ``name``, its observation's start, as the browser's
-    Start gives it, which tells two observations apart, and ``part``: 'Si IV 1403 2013-09-02T18:29:35 scan 0'.
+    The label of a dataset of the window or channel ``name`` (D90): ``name``, its observation's start to the minute,
+    which tells two observations apart, and ``part``: 'Si IV 1403 2013-09-02 18:29 scan 0'.
     """
-    return " ".join(filter(None, (name, _observation(meta["OBSID"], meta.get("STARTOBS", ""))[1], part)))
+    return " ".join(filter(None, (name, str(meta.get("STARTOBS", ""))[:16].replace("T", " "), part)))
 
 
 def _warn_repeated_positions(datasets):
@@ -631,10 +631,11 @@ def _raster_collection_data(collection, stack=False, scaling=None):
             _add_time(data, stack_times(sequence))
             datasets.append(data)
             continue
+        several = len(sequence) > 1 or int(sequence[0].meta.get("RASNRPT") or 1) > 1  # its observation's rasters
         for i, scan in enumerate(sequence):
             # its file's raster number, which File -> Open, loading a file alone, gives it too
             number = re.search(r"_r(\d{5})", " ".join(scan.meta.get("raster files", ())))
-            label = _label(name, scan.meta, f"scan {int(number.group(1)) if number else i}")
+            label = _label(name, scan.meta, f"scan {int(number.group(1)) if number else i}" if several else "")
             datasets.append(_cube_data(scan, label, name=name, unit=unit, color="#5A4FCF", cmap=cmap, scaling=scaled))
     return datasets
 
@@ -727,8 +728,9 @@ def image_data(path):
 
 def iris_data(path):
     """
-    Load one IRIS Level 2 file through irispy, a raster file's windows labeled by its raster number (``… scan 3``), so
-    that the files of one observation opened one by one keep distinct labels.
+    Load one IRIS Level 2 file through irispy, a raster file's windows labeled by its raster number (``… scan 3``) in
+    an observation of several (``RASNRPT``), so that the files of one observation opened one by one keep distinct
+    labels.
     """
     if _primary_header(path).get("INSTRUME") != "SPEC":
         return image_data(path)

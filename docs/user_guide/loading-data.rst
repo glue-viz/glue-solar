@@ -58,12 +58,12 @@ scan, and each scan keeps its own coordinates and times.
 What a dataset holds
 --------------------
 
-Each dataset is labeled by its window or channel and its observation's start, as the browser's
-"Start" gives it, and a raster window by its scan: ``Si IV 1403 2013-09-02T18:29:35 scan 0``,
-``Mg II k 2796 2025-03-28T22:56:28 stack`` or ``SJI 1400 2013-09-02T16:39:35``. Data made from
-one are labeled after it, such as ``… scan 0 moments 2796.35``. Each raster window, stack,
-slit-jaw image and AIA cutout has these attributes, ``<window>`` being its window or channel, such
-as ``Si IV 1403``:
+Each dataset is labeled by its window or channel and its observation's start, to the minute, and a
+raster window of an observation of several rasters by its scan: ``Si IV 1403 2013-09-02 16:39``,
+``Si IV 1403 2013-09-02 18:29 scan 0``, ``Mg II k 2796 2025-03-28 22:56 stack`` or
+``SJI 1400 2013-09-02 16:39``. Data made from one are labeled after it, such as
+``… stack moments 2796.35``. Each raster window, stack, slit-jaw image and AIA cutout has these
+attributes, ``<window>`` being its window or channel, such as ``Si IV 1403``:
 
 - ``<window>``, the data, in DN, with fill values as NaN;
 - ``Time``, the UTC time of each raster step, exposure or frame;
@@ -89,7 +89,8 @@ Opening files
 terminal. With the file type "Auto":
 
 - an IRIS slit-jaw image, aligned AIA cutout or SOT cube loads as one cube;
-- an IRIS raster file loads a dataset per window, labeled with its raster number (``… scan 3``);
+- an IRIS raster file loads a dataset per window, labeled with its raster number (``… scan 3``) if
+  its observation has several;
 - an SST CRISP or CHROMIS cube loads as one cube.
 
 For AIA, HMI and other solar images, pick the file type "sunpy Map". Files loaded one by one cannot

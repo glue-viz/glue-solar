@@ -2949,7 +2949,7 @@ def test_startup_shows_the_first_raster_file(qtbot, monkeypatch, irispy_test_fil
     iris_quicklook(app.session, app.data_collection)
     shown = app.viewers[-1][0].state.reference_data
     assert shown.ndim == 3
-    assert shown.label == "Mg II k 2796 2014-03-29T14:09:38 scan 0"
+    assert shown.label == "Mg II k 2796 2014-03-29 14:09 scan 0"
     assert "stacks of scans need" in app.statusBar().currentMessage()
 
 
@@ -3766,7 +3766,7 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
     slider.button_forw.click()  # playing, which the export stops
     slider._play_timer.setInterval(1)
     save("IRIS: save frames or movie…", "sji.png")
-    assert offered == [str(tmp_path / "SJI_1400_2021-09-05T00_18_33_0-9")]  # its suffix the filter's
+    assert offered == [str(tmp_path / "SJI_1400_2021-09-05_00_18_0-9")]  # its suffix the filter's
     assert not slider._play_timer.isActive()
     assert exposures[:10] == [nearest_frame(raster, when) for when in times[:10]]  # then back to frame 20's
     # the viewer returns to its frame and per-frame limits
