@@ -6,6 +6,7 @@ seconds to start.
 """
 
 import gc
+import re
 import sys
 import weakref
 
@@ -14,6 +15,7 @@ import dask.multiprocessing
 import numpy as np
 import pytest
 from glue.core.fitters import PolynomialFitter
+from glue.core.link_helpers import LinkSame
 from glue_qt.viewers.profile import ProfileViewer
 from qtpy import QtWidgets
 
@@ -146,9 +148,11 @@ def test_the_viewer_keeps_the_last_fit_of_each_dataset(app, qtbot, scan_path):
     fit(qtbot, tools)
     assert set(tools._iris_fits) == {first, second}
     assert tools._iris_fits[first] is kept
+    assert fit_maps._viewer_fit(tools)[0] is second  # the newest
     # a dataset removed is not kept alive by its fit (D86)
     tools.viewer.remove_data(second)
     app.data_collection.remove(second)
+    assert fit_maps._viewer_fit(tools)[0] is first  # its fit, still kept, skipped
     state.x_att, state.x_display_unit = first.world_component_ids[-1], "Angstrom"
     fit(qtbot, tools)  # glue-qt holds its last fit's layers until the next
     removed = weakref.ref(second)
@@ -257,6 +261,9 @@ def test_a_tied_separation_reaches_the_window_in_angstrom():
     converted = fit_maps._in_angstrom(model, *fit_maps._to_angstrom("nm", None))
     assert converted.tied["mean_1"](converted) == pytest.approx(1403)
     assert converted.tied["amplitude_1"](converted) == 2  # a ratio, of no unit
+    background = models.Linear1D(bounds={"slope": (0, 5)}) + models.Gaussian1D()  # per nm, then per Å
+    converted = fit_maps._in_angstrom(background, *fit_maps._to_angstrom("nm", None))
+    assert converted.bounds["slope_0"] == pytest.approx((0, 0.5))
     # in km / s from the rest wavelength: 64 km / s is 0.2995 Å from it
     fitter.components[1][1]["mean"]["tie"] = (0, 64)
     model = fitter.model_cls(amplitude_0=4, mean_0=0, stddev_0=10, stddev_1=10)
@@ -552,3 +559,22 @@ def test_refusals_show_why(app, qtbot, monkeypatch, scan_path):
     ]
     assert len(collection) == 1
     assert not iris._RUNNING
+
+
+def test_a_km_s_fit_of_a_layer_not_the_reference_data_is_refused(app, qtbot, scan_path):
+    """glue converts every layer's x to km / s from the reference data's rest wavelength: another layer's has none."""
+    first, second = (raster_data([scan_path], ["Si IV 1403"])[0] for _ in range(2))
+    app.data_collection.extend([first, second])
+    app.data_collection.add_link(LinkSame(first.world_component_ids[-1], second.world_component_ids[-1]))
+    tools = profile(app, second, "km / s")
+    tools.viewer.add_data(first)  # its layer last, so its fit the newest
+    fit(qtbot, tools, (LINE * u.AA).to_value(u.km / u.s, u.doppler_optical(REST * u.AA)))
+    data, model = fit_maps._viewer_fit(tools)
+    assert data is first
+    assert model.meta["rest_wavelength"] is None
+    refusal = (
+        f"The last IRIS fit of {first.label} is against km / s from the viewer's reference data: make {first.label} "
+        "the reference data and fit again."
+    )
+    with pytest.raises(ValueError, match=f"^{re.escape(refusal)}$"):
+        fit_maps._last_fit(data, model)

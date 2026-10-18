@@ -19,7 +19,7 @@ import astropy.units as u
 from astropy import constants
 
 from glue_solar.glue_patches import _application
-from glue_solar.lines import rest_wavelength
+from glue_solar.lines import DopplerConverter, rest_wavelength
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources.loaders.iris import _RUNNING
 from glue_solar.sources.loaders.lazy import at_ceiling
@@ -137,6 +137,11 @@ def _last_fit(data, model):
     rate = f"{cid.label} DN / s"
     if meta["attribute"] not in (cid.label, rate):
         raise ValueError(f"{last} is of {meta['attribute']}: fit its values, in DN or DN / s.")
+    if meta["rest_wavelength"] is None and meta["x_unit"] == DopplerConverter.VELOCITY:
+        raise ValueError(
+            f"{last} is against {meta['x_unit']} from the viewer's reference data: make {data.label} the reference "
+            "data and fit again."
+        )
     try:
         scale, shift = _to_angstrom(meta["x_unit"], meta["rest_wavelength"])
     except (TypeError, ValueError):
