@@ -105,9 +105,9 @@ range dragged with astropy's ``parallel_fit_dask``, on all processor cores, whil
 shows the run; "Cancel" stops it and adds nothing. Where the window and a subset of it are both
 shown at the fit, the fit of the layer listed last, usually the subset, is the one taken. Each
 spectrum starts at its own background, its 10th percentile, and at each line's peak within two
-widths of the fitted center; the widths, fixed values and bounds are as fitted. Missing and
-saturated samples are left out. A full Si IV 1403 raster, 175,000 spectra, takes about 100 s on 12
-cores and 7 GB of memory.
+widths of the fitted center; the widths, fixed values and bounds are as fitted. Missing samples,
+and saturated ones, only a lower bound, are left out. A full Si IV 1403 raster, 175,000 spectra,
+takes about 100 s on 12 cores and 7 GB of memory.
 
 The result, ``<label> fit <rest>``, holds irispy's ``maps_from_fit`` maps of each line ``i``:
 ``velocity_i`` and ``fwhm_velocity_i`` in km / s, from the rest wavelength, ``fwhm_i`` in Angstrom

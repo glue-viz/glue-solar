@@ -2539,6 +2539,54 @@ def test_profile_viewers_keep_their_own_fitter_settings(app, qtbot, monkeypatch)
     assert len(fit(second)[2:]) == 2  # a line's coefficients, not those of glue's default degree, 3
 
 
+def test_the_iris_fit_leaves_saturated_samples_out(app, qtbot, monkeypatch):
+    """
+    A Point's spectrum of a raster window whose line peaks 4x over the Level 2 ceiling, its core stored at 16182 DN, a
+    lower bound only: the IRIS fit leaves those samples out, says how many and fits the line above the ceiling; a
+    Point's spectrum with none says nothing more (D87).
+    """
+    x = 1355 + 0.025 * np.arange(49)
+    line = 100 + 4 * 16182 * np.exp(-0.5 * ((x - 1355.6) / 0.04) ** 2)
+    values = np.stack([np.minimum(line, 16182), line / 100])[:, None]  # (step, slit, wavelength)
+    wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 1355, "CDELT1": 0.025, "CTYPE3": ""})
+    data = Data(label="O I", flux=values, coords=wcs)
+    data.meta["INSTRUME"] = "SPEC"
+    app.data_collection.append(data)
+    pixel = PixelSubsetState(data, [slice(0, 1), slice(0, 1), slice(None)])  # as the quicklook's Point
+    point = app.data_collection.new_subset_group("Point", pixel)
+    viewer = app.new_data_viewer(ProfileViewer, data=data)
+    viewer.state.x_att = data.world_component_ids[-1]
+    viewer.state.x_display_unit = "Angstrom"
+    viewer.state.layers[0].visible = False  # the Point's alone
+    viewer.toolbar.active_tool = "profile-analysis"
+    tools = viewer.toolbar.tools["profile-analysis"]._profile_tools
+    tools.fit_function = GaussianConstantFitter
+    tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 1354, 1356.5
+    seen, call = [], TRFLSQFitter.__call__
+
+    def recorded(self, model, x, *args, **kwargs):  # what astropy's fitter is given
+        seen.append(x)
+        return call(self, model, x, *args, **kwargs)
+
+    def report():
+        tools.ui.text_log.clear()
+        tools.ui.button_fit.click()
+        tools.wait_for_fit()
+        qtbot.waitUntil(lambda: "center_" in tools.text_log.toPlainText())
+        return tools.text_log.toPlainText().splitlines()
+
+    monkeypatch.setattr(TRFLSQFitter, "__call__", recorded)
+    saturated = line >= 16182
+    assert report()[-1] == f"{saturated.sum()} saturated samples left out"
+    np.testing.assert_allclose(seen[-1], x[~saturated])
+    model = tools._iris_fits[data]
+    assert model.meta["saturated"] == saturated.sum() > 1
+    assert model.amplitude_1.value == pytest.approx(4 * 16182, rel=1e-6)
+    point.subset_state = PixelSubsetState(data, [slice(1, 2), slice(0, 1), slice(None)])
+    assert report()[-1].startswith("center_1 = 1355.600000")
+    np.testing.assert_allclose(seen[-1], x)
+
+
 def _fit_two_lines(qtbot, monkeypatch, data, x_range):
     """
     The mean profile of ``data`` over ``x_range`` fitted in a Profile viewer with 'Number of lines' 2, then 'Same width'

@@ -4,10 +4,12 @@ viewer.
 """
 
 import time
+import weakref
 
 import numpy as np
 from glue.config import fit_plugin
 from glue.core.fitters import AstropyFitter1D
+from glue.core.link_manager import is_convertible_to_single_pixel_cid
 from glue.core.simpleforms import BoolOption, IntOption
 from glue_qt.viewers.profile.profile_tools import ProfileTools
 from irispy.utils.fitting import profiles_on_background
@@ -16,7 +18,10 @@ from scipy import signal
 import astropy.units as u
 from astropy.modeling import fitting
 
+from glue_solar.glue_patches import _get_fitter
 from glue_solar.lines import KM_S, _doppler_rest
+from glue_solar.quicklook import _role
+from glue_solar.sources.loaders.lazy import at_ceiling
 
 __all__ = ["GaussianConstantFitter"]
 
@@ -25,11 +30,13 @@ class GaussianConstantFitter(AstropyFitter1D):
     """
     irispy's ``profiles_on_background`` model of `n_lines` lines, Gaussians on a constant, or on a sloping background
     with `linear_background` and Lorentzians with `lorentzian`, fitted with astropy's ``TRFLSQFitter`` to the finite
-    samples, as an IRIS window's fill is NaN, one at least per free parameter. It starts from the data: the background
-    their median, flat, and the lines at their most prominent peaks from it, emission or absorption, each width at
-    half its peak, a Gaussian's standard deviation or a Lorentzian's full width at half maximum. Each amplitude keeps
-    its start's sign, as a blend otherwise fits as one line up and one down (D81), and `same_width` ties every width to
-    the first line's. The summary adds each center and its Doppler velocity from the layer's rest wavelength (D11).
+    samples, as an IRIS window's fill is NaN, one at least per free parameter, but for those ``saturated``, a lower
+    bound only, which place the starts alone (D87). It starts from the data: the background their median, flat, and
+    the lines at their most prominent peaks from it, emission or absorption, each width at half its peak, a Gaussian's
+    standard deviation or a Lorentzian's full width at half maximum. Each amplitude keeps its start's sign, as a blend
+    otherwise fits as one line up and one down (D81), and `same_width` ties every width to the first line's. The
+    summary adds each center and its Doppler velocity from the layer's rest wavelength (D11), and how many saturated
+    samples were left out.
     """
 
     label = "Gaussian + constant (IRIS)"
@@ -77,9 +84,10 @@ class GaussianConstantFitter(AstropyFitter1D):
             getattr(model, width).tied = lambda model: getattr(model, first).value
         return model
 
-    def fit(self, x, y, dy, constraints, **options):  # the options are read from the fitter
+    def fit(self, x, y, dy, constraints, saturated=False, **options):  # the options are read from the fitter
         keep = np.isfinite(y)
-        free, finite = sum(not constraint["fixed"] for constraint in constraints.values()), np.count_nonzero(keep)
+        fitted = (keep & np.logical_not(saturated))[keep]
+        free, finite = sum(not constraint["fixed"] for constraint in constraints.values()), np.count_nonzero(fitted)
         if finite < free:  # in place of scipy's "Improper input" traceback
             raise ValueError(
                 f"{self.label} needs at least {free} finite samples in the range, one per free parameter, and has "
@@ -90,6 +98,7 @@ class GaussianConstantFitter(AstropyFitter1D):
             if constraints[name]["fixed"] and constraints[name]["value"] is None:
                 constraints[name]["value"] = start
         model, fitter = self._get_model_fitter(x, y, dy, constraints)
+        x, y, dy = x[fitted], y[fitted], dy if dy is None else dy[fitted]
         return fitter(model, x, y, weights=self._sigma_to_weights(dy), **_jacobian(model)), fitter
 
     def parameter_guesses(self, x, y, dy):
@@ -120,6 +129,8 @@ class GaussianConstantFitter(AstropyFitter1D):
             if rest is not None:
                 velocity = (center * u.Unit(unit)).to_value(KM_S, u.doppler_optical(rest * u.AA))
                 text += f", {velocity:+.2f} {KM_S} from {rest} Å"
+        if count := model.meta.get("saturated"):
+            text += f"\n{count} saturated sample{'s' if count > 1 else ''} left out"
         return text
 
 
@@ -136,26 +147,52 @@ def _jacobian(model):
 _profile_fit = ProfileTools._fit
 
 
+def _saturated(layer, state):
+    """
+    Which samples of the profile of ``layer``, IRIS data or a subset of them, in a Profile viewer of ``state`` are
+    saturated, a lower bound only (D87): where any DN its function combines is at the ceiling (`at_ceiling`), from
+    glue's maximum of the DN over the same subset, which reads what the profile reads; none for other data.
+    """
+    data = layer.data
+    if _role(data) not in ("raster", "sji"):
+        return False
+    axis = is_convertible_to_single_pixel_cid(data, state.x_att_pixel).axis
+    axes = tuple(i for i in range(data.ndim) if i != axis)
+    subset_state = getattr(layer, "subset_state", None)
+    return at_ceiling(data.compute_statistic("maximum", data.main_components[0], axis=axes, subset_state=subset_state))
+
+
 def _fit(self, fitter, xlim=None):
     """
-    glue-qt's fit of each layer, an IRIS fit's model given what `GaussianConstantFitter.summarize`, which glue-qt
-    passes neither layer nor viewer, and 'IRIS: line fit maps' take: the layer's rest wavelength and attribute, the
-    viewer's x unit and function, and the range; the viewer keeps its last IRIS fit of each dataset (D86), of the
-    layer listed last where a dataset and a subset of it are both fitted.
+    glue-qt's fit of each layer, an IRIS fit with the layer's saturated samples left out (`_saturated`) and its model
+    given what `GaussianConstantFitter.summarize`, which glue-qt passes neither layer nor viewer, and 'IRIS: line fit
+    maps' take: the layer's rest wavelength and attribute, the viewer's x unit and function, the range and how many
+    saturated samples it left out; the viewer keeps its last IRIS fit of each dataset while the dataset lives (D86), of
+    the layer listed last where a dataset and a subset of it are both fitted.
     """
-    results, x, y = _profile_fit(self, fitter, xlim)
-    if isinstance(fitter, GaussianConstantFitter):
-        state, fits = self.viewer.state, vars(self).setdefault("_iris_fits", {})
-        for layer, (model, _) in results.items():
-            model.meta.update(
-                rest_wavelength=_doppler_rest(layer.layer, state.x_att),
-                x_unit=state.x_display_unit,
-                function=state.function,
-                attribute=layer.state.attribute.label,
-                x_range=tuple(sorted(xlim)),
-                fitted=time.monotonic(),
-            )
-            fits[layer.layer.data] = model  # a subset's data too
+    if not isinstance(fitter, GaussianConstantFitter):
+        return _profile_fit(self, fitter, xlim)
+    fitter = _get_fitter(self, type(fitter))  # as `_profile_fit`
+    state, fits = self.viewer.state, vars(self).setdefault("_iris_fits", weakref.WeakKeyDictionary())
+    results = {}
+    for layer in self.viewer.layers:  # glue-qt's loop, as it gives a fitter no layer
+        if layer.enabled and layer.visible:
+            x, y = (np.asarray(values) for values in layer.state.profile)
+            if len(x) > 0:
+                keep = (x >= min(xlim)) & (x <= max(xlim))
+                saturated = (keep & _saturated(layer.layer, state))[keep]
+                options = fitter.options  # as glue's ``build_and_fit``
+                model, _ = results[layer] = fitter.fit(x[keep], y[keep], None, fitter.constraints, saturated, **options)
+                model.meta.update(
+                    rest_wavelength=_doppler_rest(layer.layer, state.x_att),
+                    x_unit=state.x_display_unit,
+                    function=state.function,
+                    attribute=layer.state.attribute.label,
+                    x_range=tuple(sorted(xlim)),
+                    saturated=int(saturated.sum()),
+                    fitted=time.monotonic(),
+                )
+                fits[layer.layer.data] = model  # a subset's data too
     return results, x, y
 
 

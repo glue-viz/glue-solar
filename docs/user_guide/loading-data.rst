@@ -188,7 +188,8 @@ Level 2 clips every sample to -199 to 16182 DN, so a sample saturated in Level 1
 images, spectra and light curves show them, and marks them saturated in ``<label> mask``. Level 2
 cannot tell a saturated sample from one merely that bright, and its ``NSATPIX`` and ``TSATPXn`` are
 always 0: ignore them. The analyses blank a pixel where a sample they take is saturated, and the mean
-spectrum leaves such samples out; UV burst detection takes them at their value, as IDL does.
+spectrum and the IRIS fits leave such samples out; UV burst detection takes them at their value, as
+IDL does.
 
 To show missing or saturated samples as a subset, select the dataset itself in the data collection,
 not "Point", and in the "Data Manager" menu:

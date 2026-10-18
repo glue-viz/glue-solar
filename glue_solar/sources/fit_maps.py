@@ -19,7 +19,8 @@ import astropy.units as u
 from glue_solar.glue_patches import _application, layer_action
 from glue_solar.lines import rest_wavelength
 from glue_solar.quicklook import _wavelengths
-from glue_solar.sources.loaders.iris import _RUNNING, WCS_LOCK
+from glue_solar.sources.loaders.iris import _RUNNING
+from glue_solar.sources.loaders.lazy import at_ceiling
 from glue_solar.sources.moments import _check, _cube, _dataset, _read, _start, _window
 
 __all__ = ["line_fit_maps_iris"]
@@ -133,7 +134,7 @@ def _starts(model, wavelengths, spectra):
             sign = np.sign(value[amplitude]) or 1  # an emission or absorption line
             near = np.abs(wavelengths - value[center]) <= 2 * value[width]
             excess = np.where(near, sign * (spectra - level[..., None]), np.nan)
-            excess = np.where(np.isfinite(excess), excess, -np.inf)  # +Inf, saturated, is no peak
+            excess = np.where(np.isfinite(excess), excess, -np.inf)  # NaN, off the line or masked, is no peak
             peak = np.argmax(excess, axis=-1)
             height = np.take_along_axis(excess, peak[..., None], -1)[..., 0]
             found = np.isfinite(height)
@@ -173,9 +174,13 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
     try:
         for scan in np.ndindex(data.shape[:-3]):
             rows = (*scan, slice(None), slice(None))
-            values = _read(data, rows, crop)[0] if per_second else data[cid, (*rows, crop)]
-            cube = _cube(data, values, rows, crop, unit)
-            # masked samples left out as NaN, and saturated ones, +Inf (D57), by filter_non_finite
+            if per_second:
+                values, _, saturated = _read(data, rows, crop)
+            else:
+                values = data[cid, (*rows, crop)]
+                saturated = at_ceiling(values)
+            cube = _cube(data, values, rows, crop, unit, saturated)
+            # masked samples, missing or saturated, a lower bound only (D87), left out as NaN by filter_non_finite
             spectra = np.where(cube.mask, np.nan, values)
             fitter = TRFLSQFitter(calc_uncertainties=True)
             fitted = parallel_fit_dask(
@@ -189,10 +194,10 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
                 scheduler=scheduler,
                 fitter_kwargs={"filter_non_finite": True, **_jacobian(model)},
             )
-            with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
-                for name, part in maps_from_fit(fitted, cube, fitter=fitter, rest_wavelength=rest * u.AA).items():
-                    if name != "residual":  # a cube, not a map
-                        maps.setdefault(name, []).append(part)
+            # each wcslib call irispy makes holds WCS_LOCK for itself (`_GlueWCS`)
+            for name, part in maps_from_fit(fitted, cube, fitter=fitter, rest_wavelength=rest * u.AA).items():
+                if name != "residual":  # a cube, not a map
+                    maps.setdefault(name, []).append(part)
     except _Canceled:
         return None
     finally:

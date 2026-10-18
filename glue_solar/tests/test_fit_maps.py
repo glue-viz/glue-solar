@@ -4,6 +4,9 @@ to the window's fit, the dataset and links it adds, a stack scan by scan, Cancel
 scheduler stands in for its processes, which take seconds to start.
 """
 
+import gc
+import weakref
+
 import dask.local
 import dask.multiprocessing
 import numpy as np
@@ -13,8 +16,10 @@ from qtpy import QtWidgets
 
 import astropy.modeling.fitting
 import astropy.units as u
+from astropy.io import fits
 
 from glue_solar.fitters import GaussianConstantFitter
+from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import fit_maps
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import keep_hpc_linked, link_hpc, raster_data
@@ -75,12 +80,24 @@ def test_the_viewer_keeps_the_last_fit_of_each_dataset(app, qtbot, scan_path):
     tools = profile(app, first)
     kept = fit(qtbot, tools)
     state = tools.viewer.state
+    # no style editor: glue-qt keeps a removed layer's, and through it the data, for the viewer's life (report candidate)
+    tools.viewer._view.layer_style_widget_cls = None
     tools.viewer.add_data(second)
     state.reference_data, state.x_att = second, second.world_component_ids[-1]  # the first's layer not fitted
     state.x_display_unit = "Angstrom"
     fit(qtbot, tools)
-    assert tools._iris_fits.keys() == {first, second}
+    assert set(tools._iris_fits) == {first, second}
     assert tools._iris_fits[first] is kept
+    # a dataset removed is not kept alive by its fit (D86)
+    tools.viewer.remove_data(second)
+    app.data_collection.remove(second)
+    state.x_att, state.x_display_unit = first.world_component_ids[-1], "Angstrom"
+    fit(qtbot, tools)  # glue-qt holds its last fit's layers until the next
+    removed = weakref.ref(second)
+    del second
+    gc.collect()
+    assert removed() is None
+    assert list(tools._iris_fits) == [first]
 
 
 @pytest.mark.parametrize(
@@ -170,6 +187,26 @@ def test_the_profile_fit_of_a_window_maps_every_spectrum_into_one_linked_dataset
     assert link_hpc(collection) == []
     linked = {cid for link in collection.links for cid in (link.get_to_id(), *link.get_from_ids())}
     assert set(maps.world_component_ids) <= linked
+
+
+def test_saturated_samples_are_left_out_of_the_fits(app, qtbot, scan_path, calls):
+    """
+    A sample at the Level 2 ceiling, 16182 DN, a lower bound only, is left out of each spectrum's fit, and the
+    wavelength where the window's mean takes one out of its Profile fit (D87).
+    """
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    peak = np.argmin(np.abs(_wavelengths(raster)[0] - 1402.77))
+    with fits.open(scan_path, mode="update", do_not_scale_image_data=True) as hdulist:  # Si IV 1403's raw int16
+        hdulist[5].data[:, 10, peak] = 32760
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    app.data_collection.append(raster)
+    assert (raster[raster.main_components[0], :, 10, peak] == 16182).all()
+    assert fit(qtbot, profile(app, raster)).meta["saturated"] == 1
+    run(app, qtbot, raster)
+    [call] = calls
+    [wavelengths] = call["world"]
+    [sample] = np.flatnonzero(wavelengths.value == _wavelengths(raster)[0][peak])
+    assert np.isnan(call["data"][:, 10, sample]).all()
 
 
 def test_the_fit_reaches_the_window_in_angstrom_with_its_settings(app, qtbot, monkeypatch, scan_path, calls):

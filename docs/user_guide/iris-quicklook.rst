@@ -212,8 +212,10 @@ windows (C II, Si IV, O I), or Ni I 2799.474 Å in the Mg II k 2796 window for t
 
 On OBSID 3824262996, O I fits at 1355.6172 Å (+4.30 km / s), so Si IV 1402.77 Å becomes
 1402.789 Å. "Settings" on the "Fit" tab adds a linear background, a Lorentzian profile, or up to four
-lines. To fit the same model to every spectrum of the window, see :ref:`Line fit maps
-<glue_solar_users_guide_iris_line_fit_maps>`.
+lines. A saturated sample is only a lower bound, so the fit leaves out each wavelength where the
+spectrum takes one (see :ref:`Missing and saturated samples <glue_solar_users_guide_iris_saturation>`)
+and its report says how many. To fit the same model to every spectrum of the window, see
+:ref:`Line fit maps <glue_solar_users_guide_iris_line_fit_maps>`.
 
 **Mean spectrum.** "IRIS: subtract mean spectrum", in a raster window's right-click menu, adds
 ``<label> mean spectrum`` and ``<label> minus mean spectrum``. Set the "attribute" of "Point" in the
