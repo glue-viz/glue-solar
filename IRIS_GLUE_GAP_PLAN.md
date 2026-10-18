@@ -32,11 +32,11 @@ Out of scope:
 
 **Next.** 2026-10-17/18 (D85-D87): #306-#314 are on main (the full CI matrix again, saturated samples shown at their value, Stokes scaled with their noise, sessions at their values' size, per-wcslib-call locking, the review's lean pass, the coordinator forgetting removed data, 'IRIS: line fit maps' and the Fit tab's model builder). Every open item now waits on the user, on others or on a release: once the user merges irispy draft #241, glue-solar's `fit_maps._starts` gives way to `starts_from_model` (one small PR); then M4 work on the user's direction. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow the session archive's `RULES.md`. CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small (#313's stack test fits one iteration).
 
-**Waiting on the user.** In order (2026-10-18): (1) irispy draft #241 (`starts_from_model`; its blend commit kept or dropped), then removing `~/Git/irispy-saturation-mask` and the env `irispy-fit-starts`; (3) trying the fitting in the GUI (OBS 3610108077's C II and Si IV windows; the flare 3860258481 for saturation) and the builder's later options (D88); (4) `wp0-qt68-macos-pass`; (5) the app's drag-into-/Applications check (`~/Downloads/Glue Solar.dmg` is from f073033; a fresh dmg from main's #275 recipe on request); (6) an exact report of the linking and slider-sync problems seen in the app on 2026-10-09 (4000255147's raster and SJI 1400, or 4000005156's two scans and SJI 2796), rerun with `glue` from `iris-plan-qt6-802-9229`; (7) the audits' other proposals (`audit2/` in the archive), summarized for the user on 2026-10-18. After the glue-solar work: `wp0-upstream-review` (D89).
+**Waiting on the user.** In order (2026-10-18): (1) removing `~/Git/irispy-saturation-mask`, `~/Git/irispy-fit-starts` and the env `irispy-fit-starts` (#241 merged 2026-10-18), then reviewing the polynomial-starts irispy draft; (3) trying the fitting in the GUI (OBS 3610108077's C II and Si IV windows; the flare 3860258481 for saturation) and the builder's later options (D88); (4) `wp0-qt68-macos-pass`; (5) the app's drag-into-/Applications check (`~/Downloads/Glue Solar.dmg` is from f073033; a fresh dmg from main's #275 recipe on request); (6) an exact report of the linking and slider-sync problems seen in the app on 2026-10-09 (4000255147's raster and SJI 1400, or 4000005156's two scans and SJI 2796), rerun with `glue` from `iris-plan-qt6-802-9229`; (7) the audits' other proposals (`audit2/` in the archive), summarized for the user on 2026-10-18. After the glue-solar work: `wp0-upstream-review` (D89).
 
 **Waiting on others.** irispy #209 (`wp5-irispy-line-database`, then `wp5-l-line-groups` and `wp5-l-lines-in-range`); the user's upstream drafts, on their human reviewers (`wp0-stack-validation`, `wp0-user-review`); an irispy release (`wp0-irispy-requests`).
 
-**Versions.** glue-core 1.27.0 and glue-qt 0.4.2 (all fixes glue-solar needs). irispy from git main (D47): 9229d06 since 2026-10-18 (#239, #240; unreleased; its last release is 0.9.1), in the `-9229` envs; the user's drafts irispy #209 (line database) and #182 (gWCS rasters, D14) are open. The glue-qt change of #223 is f19f2bca on branch `layer-action-applies` of the user's fork nabobalis/glue-qt (no PR).
+**Versions.** glue-core 1.27.0 and glue-qt 0.4.2 (all fixes glue-solar needs). irispy from git main (D47): 1dc2fa6 since 2026-10-18 (#239, #240, #241; unreleased; its last release is 0.9.1); the `-9229` envs hold 9229d06 (#241 only adds `starts_from_model`); the user's drafts irispy #209 (line database) and #182 (gWCS rasters, D14) are open. The glue-qt change of #223 is f19f2bca on branch `layer-action-applies` of the user's fork nabobalis/glue-qt (no PR).
 
 **Environments and data.** The envs are in [Validation](#validation-environments-and-data). IRIS data is in `~/DATA/IRIS`, SST cubes in `~/DATA/SST/` (D62); the data disk has about 25 GB free, so keep session saves and extractions small. `/Applications/Glue Solar.app`, an older install under the old id `org.sunpy.glue-solar`, is the user's: leave it alone.
 
@@ -164,6 +164,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
+- WP6: `wp6-starts-from-irispy`
 - WP4: `wp4-light-curves-one`
 - WP8: `wp8-polish-names-browser`
 - WP9: `wp9-guide-screenshot`
@@ -171,7 +172,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP12: `wp12-one-path-tool`
 
 **M4**
-- WP0: `wp0-upstream-review`, `wp0-irispy-fit-starts`, `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
+- WP0: `wp0-upstream-review`, `wp0-irispy-polynomial-starts`, `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
 - WP1: `wp1-m4-autolink-matrix`
 - WP9: `wp9-m4-release-updates`
 
@@ -193,7 +194,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 **M4**
 
 - [ ] **M4** `wp0-upstream-review` (D89): once the plan's glue-solar items are done, a full review of glue-solar's code and the workaround register decides what goes upstream (glue, glue-qt, astropy, irispy) and what stays; every report candidate and `wp0-perf-*` finding is re-verified on current releases and mains first; then the upstream work follows on the user's direction. Candidates beyond the register include Loop's range options (glue-qt's slider playback), Follow/lock (a hover mode of glue's Pixel tool) and Blink (a viewer tool) (D90). Done when the user has the review and its list.
-- [ ] **M4** `wp0-irispy-fit-starts` (D86): draft LM-SAL/irispy#241 (branch `fit-starts`, worktree `~/Git/irispy-fit-starts`, test env `irispy-fit-starts`): `irispy.utils.fitting.starts_from_model(model, cube)`, #313' per-pixel starts as EISPAC's `scale_guess`, plus each line of a blend searching only samples nearer its own center (PROVISIONAL; Mg II k two Gaussians: 2,078 of 2,313 good fits against 1,885 without). glue-solar's `_starts` gives way to it once merged. Done when the user has reviewed it.
+- [ ] **M4** `wp0-irispy-polynomial-starts` (D86; user, 2026-10-18): an irispy draft PR giving `starts_from_model` (#241, on irispy main 1dc2fa6) per-spectrum starts for a polynomial background, as glue-solar's `fit_maps._starts` has since #314, with a test and a changelog fragment. Done when the user has reviewed it.
 - [ ] **M4** `wp0-irispy-requests`: Get irispy's merged #197-#199, #201 and #205-#207 released (0.10.0; changelog fragments in place; D47) and settle the irispy-side checks (exposure times, rolled-SJI gWCS, binned `slit x position`, per-step pointing). Done when a release has them and each check has a test or user decision.
 - [ ] **M4** `wp0-core-image-artist-bugs`: Core PR: a hidden Pixel crosshair reappears at (0, 0), `translate_pixel` raises a bare `Exception`, and a linked-layer Pixel crosshair uses its own dataset instead of the viewer's reference data (#107). Done when all three reproducers pass on a release.
 - [ ] **M4** `wp0-qt-large-data-cancel`: glue-qt report: cancelling the 'Add large data set?' modal breaks later viewers. Done when filed or declined.
@@ -296,6 +297,10 @@ The line list, rest wavelength, km/s, blink and Doppler images, in `glue_solar/l
 ### WP6: Fitting
 
 Map fitting of IRIS spectra on glue's Profile Fit tab, planned with the user when it starts.
+
+**L**
+
+- [ ] **L** `wp6-starts-from-irispy` (D86): glue-solar's `fit_maps._starts` gives way to irispy's `starts_from_model` (#241), once it seeds polynomial backgrounds too. Done when the window fit calls irispy's and its maps are unchanged. Depends: wp0-irispy-polynomial-starts.
 
 Notes:
 - irispy main has starting models for `parallel_fit_dask` (`irispy.utils.fitting`: `profiles_on_background`, `si_iv_1403_model`, `mg_ii_model`, #220) and `maps_from_fit` (#221); the fit items and #167 wrap them rather than writing their own. Models need analytic derivatives.
