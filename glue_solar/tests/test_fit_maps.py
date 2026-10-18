@@ -18,7 +18,7 @@ from glue_solar.fitters import GaussianConstantFitter
 from glue_solar.sources import fit_maps
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import keep_hpc_linked, link_hpc, raster_data
-from glue_solar.tests.helpers import run_action
+from glue_solar.tests.helpers import refused, run_action
 
 ACTION = "IRIS: line fit maps"
 LINE = (1401.9, 1403.7)  # Si IV 1402.77, in Angstrom: seven of the window's 0.25 Å samples
@@ -50,14 +50,15 @@ def profile(app, data, unit="Angstrom", function="mean"):
 
 
 def fit(qtbot, tools, x_range=LINE):
-    """Fit over ``x_range`` on ``tools``; returns the model the viewer keeps of its data."""
-    before = getattr(tools, "_iris_fits", None)
+    """Fit over ``x_range`` on ``tools``; returns the model the viewer keeps of its reference data."""
+    data = tools.viewer.state.reference_data
+    before = getattr(tools, "_iris_fits", {}).get(data)
     tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = x_range
     tools.ui.button_fit.click()
     tools.wait_for_fit()  # its thread, which keeps it
     qtbot.waitUntil(tools.ui.button_fit.isEnabled)  # for the next fit
-    assert tools._iris_fits is not before
-    [model] = tools._iris_fits.values()
+    model = tools._iris_fits[data]
+    assert model is not before
     return model
 
 
@@ -66,6 +67,57 @@ def run(app, qtbot, data):
     [maps] = run_action(app, qtbot, data, ACTION, f"Fitting every spectrum of {data.label}…")
     qtbot.waitUntil(lambda: not app.findChildren(QtWidgets.QProgressDialog))  # closed once done
     return maps
+
+
+def test_the_viewer_keeps_the_last_fit_of_each_dataset(app, qtbot, scan_path):
+    first, second = (raster_data([scan_path], ["Si IV 1403"])[0] for _ in range(2))
+    app.data_collection.extend([first, second])
+    tools = profile(app, first)
+    kept = fit(qtbot, tools)
+    state = tools.viewer.state
+    tools.viewer.add_data(second)
+    state.reference_data, state.x_att = second, second.world_component_ids[-1]  # the first's layer not fitted
+    state.x_display_unit = "Angstrom"
+    fit(qtbot, tools)
+    assert tools._iris_fits.keys() == {first, second}
+    assert tools._iris_fits[first] is kept
+
+
+@pytest.mark.parametrize(
+    ("options", "sign", "bounds"),
+    [
+        ({"linear_background": True}, 1, None),
+        ({"lorentzian": True}, -1, None),  # an absorption line
+        ({"n_lines": 2, "same_width": True}, 1, None),
+        ({}, 1, (1401.95, 1402.05)),  # a center bound that excludes most spectra's peaks
+    ],
+)
+def test_each_spectrum_starts_at_its_own_background_and_peaks(options, sign, bounds):
+    wavelengths = 1400 + 0.1 * np.arange(40)
+    shifts = np.array([[-1, 0, 1], [2, 0, -2]])  # each spectrum's lines, in samples
+    background = 10 + np.arange(6).reshape(2, 3)
+    spectra = np.broadcast_to(background[..., None], (2, 3, 40)).astype(float)
+    peaks = [20 + shifts, 32 + shifts][: options.get("n_lines", 1)]
+    for peak in peaks:
+        spectra = spectra + sign * 50 * np.exp(-0.5 * ((wavelengths - wavelengths[peak][..., None]) / 0.2) ** 2)
+    fitter = GaussianConstantFitter(**options)
+    if bounds:
+        fitter.set_constraint("mean_1", limits=bounds)
+    model, _ = fitter.build_and_fit(wavelengths, spectra[0, 1])
+    start = fit_maps._starts(model, wavelengths, spectra)
+    names = [name for name in start.param_names if name.startswith(("mean", "x_0"))]
+    for name, peak in zip(names, peaks, strict=True):
+        lower, upper = start.bounds[name]
+        np.testing.assert_array_equal(getattr(start, name).value, np.clip(wavelengths[peak], lower, upper))
+    if bounds:
+        assert (start.mean_1.value == bounds[1]).any()  # clipped
+    assert (np.sign(start.amplitude_1.value) == sign).all()
+    if "linear_background" in options:  # at the mean wavelength
+        level = start.intercept_0.value + start.slope_0.value * wavelengths.mean()
+        np.testing.assert_allclose(level, background, atol=1e-3)
+    elif sign > 0:  # an absorption line's core holds the 10th percentile
+        np.testing.assert_allclose(start.amplitude_0.value, background, atol=1e-3)
+    assert bool(start.tied.get("stddev_2")) == ("same_width" in options)
 
 
 def test_the_profile_fit_of_a_window_maps_every_spectrum_into_one_linked_dataset(app, qtbot, scan_path, calls):
@@ -163,6 +215,9 @@ def test_a_stack_is_fitted_scan_by_scan(app, qtbot, stack_paths, calls):
     maps = run(app, qtbot, stack)
     assert maps.shape == stack.shape[:-1]
     assert [call["data"].shape[:2] for call in calls] == [stack.shape[1:3]] * 3  # each scan alone
+    [pool] = {call["scheduler"].keywords["pool"] for call in calls}  # one for the run
+    with pytest.raises(RuntimeError, match="after shutdown"):
+        pool.submit(int)
     assert link_hpc(collection) == []
 
 
@@ -177,13 +232,15 @@ def test_cancel_adds_nothing(app, qtbot, monkeypatch, scan_path):
     tree = app._layer_widget
     tree.ui.layerTree.set_selected_layers([raster])
     tree._actions[ACTION].trigger()
+    refused(tree._actions[ACTION])  # while it runs: hidden at once, the row still selected
     [dialog] = app.findChildren(QtWidgets.QProgressDialog)
     assert dialog.isVisible()
+    qtbot.waitUntil(lambda: dialog.maximum() > 0)  # the tasks counted
     [cancel] = dialog.findChildren(QtWidgets.QPushButton)
     cancel.click()
     qtbot.waitUntil(lambda: not iris._RUNNING and not app.findChildren(QtWidgets.QProgressDialog))
     assert len(collection) == 1
-    assert shown == []
+    assert shown == [f"Could not fit the line maps\nThe line fit maps of {raster.label} are being computed."]
     assert app.statusBar().currentMessage() == ""
 
 

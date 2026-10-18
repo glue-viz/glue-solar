@@ -140,11 +140,12 @@ def _fit(self, fitter, xlim=None):
     """
     glue-qt's fit of each layer, an IRIS fit's model given what `GaussianConstantFitter.summarize`, which glue-qt
     passes neither layer nor viewer, and 'IRIS: line fit maps' take: the layer's rest wavelength and attribute, the
-    viewer's x unit and function, and the range; the viewer keeps its last IRIS fit of each dataset (D86).
+    viewer's x unit and function, and the range; the viewer keeps its last IRIS fit of each dataset (D86), of the
+    layer listed last where a dataset and a subset of it are both fitted.
     """
     results, x, y = _profile_fit(self, fitter, xlim)
     if isinstance(fitter, GaussianConstantFitter):
-        state, fits = self.viewer.state, {}
+        state, fits = self.viewer.state, vars(self).setdefault("_iris_fits", {})
         for layer, (model, _) in results.items():
             model.meta.update(
                 rest_wavelength=_doppler_rest(layer.layer, state.x_att),
@@ -155,7 +156,6 @@ def _fit(self, fitter, xlim=None):
                 fitted=time.monotonic(),
             )
             fits[layer.layer.data] = model  # a subset's data too
-        self._iris_fits = fits
     return results, x, y
 
 

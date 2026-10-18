@@ -5,6 +5,7 @@ irispy's ``maps_from_fit`` maps in one new dataset (D86).
 """
 
 import warnings
+from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 
 import numpy as np
@@ -18,7 +19,7 @@ import astropy.units as u
 from glue_solar.glue_patches import _application, layer_action
 from glue_solar.lines import rest_wavelength
 from glue_solar.quicklook import _wavelengths
-from glue_solar.sources.loaders.iris import WCS_LOCK
+from glue_solar.sources.loaders.iris import _RUNNING, WCS_LOCK
 from glue_solar.sources.moments import _check, _cube, _dataset, _read, _start, _window
 
 __all__ = ["line_fit_maps_iris"]
@@ -165,8 +166,9 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
 
     cid = data.main_components[0]
     wavelengths = _wavelengths(data)[0][crop]
-    # processes, as the fits on threads hold the GIL, slower than on one
-    scheduler = partial(dask.multiprocessing.get, callbacks=[progress.callbacks])
+    # processes, as the fits on threads hold the GIL, slower than on one; one pool a run, as one takes 1.4 s to start
+    pool = ProcessPoolExecutor(mp_context=dask.multiprocessing.get_context())
+    scheduler = partial(dask.multiprocessing.get, callbacks=[progress.callbacks], pool=pool)
     maps = {}
     try:
         for scan in np.ndindex(data.shape[:-3]):
@@ -194,6 +196,7 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
     except _Canceled:
         return None
     finally:
+        pool.shutdown(cancel_futures=True)
         progress.ended = True
     if progress.canceled:
         return None
@@ -219,11 +222,18 @@ def _shown(dialog, progress):
         dialog.setValue(progress.done)
 
 
+def _check_fit(data):
+    """Raise why ``data`` is not an IRIS raster window or stack, or has its line fit maps being computed."""
+    _check(data)
+    if any(worker.func is _fit_maps and worker.args[0] is data for worker in _RUNNING):  # a pool each
+        raise ValueError(f"The line fit maps of {data.label} are being computed.")
+
+
 @layer_action(
     "IRIS: line fit maps",
     single=True,
     data=True,
-    check=_check,
+    check=_check_fit,
     tooltip="Fit the last IRIS fit on a Profile viewer's Fit tab to every spectrum of this raster window or stack",
 )
 @messagebox_on_error("Could not fit the line maps")
@@ -232,7 +242,7 @@ def line_fit_maps_iris(data, data_collection):
     Add `_fit_maps` of ``data`` and `_last_fit`, fitted in the background (`_start`) while a progress dialog shows the
     tasks done, its Cancel stopping the run.
     """
-    _check(data)
+    _check_fit(data)
     model, crop, unit, per_second, rest = _last_fit(data, data_collection)
     progress = _Progress(int(np.prod(data.shape[:-3])))
     text = f"Fitting every spectrum of {data.label}…"
