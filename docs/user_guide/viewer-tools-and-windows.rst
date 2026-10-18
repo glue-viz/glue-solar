@@ -46,7 +46,7 @@ Image viewer
        Enter: the speed in km / s, and the acceleration from three times, as a row of the diagram's
        table.
      - Enter, Esc
-   * - Pencil → "Save path as ECSV…", "Open path from ECSV…", "Path on other data…", "Path sampling"
+   * - Pencil → "Save path as ECSV…", "Open path from ECSV…", "Path on other data…"
      - Save, reopen and reuse a path (see `Path diagrams`_).
      -
    * - Coordinate → "Time master"
@@ -129,9 +129,10 @@ Profile viewer
 Path diagrams
 -------------
 
-Choose "Path diagram" (:kbd:`L`), click the path's vertices on the image and press :kbd:`Enter`;
-:kbd:`Esc` clears the path. Each dataset shown gets a new dataset of its values along the path, and
-the image's opens in a new viewer with the path along x:
+Choose "Path diagram" (:kbd:`L`), glue-solar's path tool in place of glue's "Slice Extraction", click
+the path's vertices on the image and press :kbd:`Enter`; :kbd:`Esc` clears the path. Each dataset
+shown gets a new dataset of its values along the path, each sample the value of the nearest pixel,
+and the image's opens in a new viewer with the path along x:
 
 - a slit-jaw image gives its frames against the path, a distance-time diagram;
 - a raster window gives its wavelengths against the path;
@@ -139,12 +140,8 @@ the image's opens in a new viewer with the path along x:
 
 Other datasets shown, such as a raster window over a slit-jaw image, are sampled at the same places
 on the Sun, and their diagrams go to the data collection. Closing the viewer the path was drawn in
-closes its diagrams. glue's own "Slice Extraction" (:kbd:`P`) shows a path's data in a window that
-is not a dataset, and takes no stacks.
+closes its diagrams.
 
-- **Path sampling** takes each sample from the pixel the path's position rounds down to
-  ("Truncate", glue's own and the default), the nearest pixel ("Nearest"), or the four around it
-  ("Linear"). Times are never interpolated.
 - **Save path as ECSV…** writes a diagram's path, a row a sample: the pixels, the longitude and
   latitude in arcsec, and the distance along the path in arcsec and km. **Open path from ECSV…** makes
   the same diagrams from it.

@@ -988,17 +988,12 @@ class MeasureTool(ToolbarModeBase):
 
 class PathData(PathSlicedData):
     """
-    glue-core's ``PathSlicedData`` of `PathTool`'s samples as given: NaN and NaT off the data, where glue-core 1.27.0
-    gives 0 and casts times to float, its own world coordinates (none where glue-core's fail), a ``sampling``
-    (`SAMPLINGS`: glue-core's, or scipy's ``map_coordinates`` order 0 or 1) and a session record (#151, #191, #218).
+    glue-core's ``PathSlicedData`` of `PathTool`'s samples as given, each at its nearest pixel where glue-core 1.27.0
+    truncates (D90): NaN and NaT off the data, where glue-core gives 0 and casts times to float, its own world
+    coordinates (none where glue-core's fail) and a session record (#151, #191, #218).
     """
 
-    SAMPLINGS = ("truncate", "nearest", "linear")
-
-    def __init__(self, *args, sampling="truncate", **kwargs):
-        if sampling not in self.SAMPLINGS:
-            raise ValueError(f"sampling must be one of {self.SAMPLINGS}, not {sampling!r}")
-        self.sampling = sampling
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         stack = getattr(self.original_data.coords, "_wcs", None)
         if isinstance(stack, _PerScanWCS):  # scan 0's WCS with its Scan axis, which leaves no angles here
@@ -1017,7 +1012,6 @@ class PathData(PathSlicedData):
             "x": context.do(self.x),
             "y": context.do(self.y),
             "label": self.label,
-            "sampling": self.sampling,
             "pixel_component_ids": [context.id(cid) for cid in self.pixel_component_ids],
             "world_component_ids": [context.id(cid) for cid in self.world_component_ids],
             "subsets": [context.id(subset) for subset in self.subsets],
@@ -1027,7 +1021,7 @@ class PathData(PathSlicedData):
     def __setgluestate__(cls, rec, context):
         data = context.object(rec["original_data"])
         (cid_x, cid_y), x, y = map(context.object, rec["cids"]), context.object(rec["x"]), context.object(rec["y"])
-        path = cls(data, cid_x, x, cid_y, y, label=rec["label"], sampling=rec["sampling"])
+        path = cls(data, cid_x, x, cid_y, y, label=rec["label"])
         # its own components as saved, which its links, subsets and viewers name and may have restored first, as
         # glue's Data loader sets them
         pixel = [context.object(name) for name in rec["pixel_component_ids"]]
@@ -1070,45 +1064,14 @@ class PathData(PathSlicedData):
         ]
 
     def _get_pix_coords(self, view=None):
-        # glue-core's truncation, or the nearest pixel, floor(position + 0.5), as scipy's map_coordinates rounds
-        if self.sampling == "truncate":
-            return super()._get_pix_coords(view)
+        # the nearest pixel, floor(position + 0.5), as scipy's map_coordinates rounds
         pixel = [np.floor(position + 0.5) for position in self._pixels(self._cells(view), self.x, self.y)]
         keep = np.all([(p >= 0) & (p < n) for p, n in zip(pixel, self.original_data.shape, strict=True)], axis=0)
         return [p[keep].astype(int) for p in pixel], keep, keep.shape
 
-    def _linear(self, cid, view):
-        """
-        ``cid`` bilinear between the four pixels around each path position ``view`` selects: the diagram within the
-        cells' bounding box, as glue's fixed-resolution buffer reads dask data, from one read of the distinct pixels
-        around its samples, about twice the pixels truncation reads.
-        """
-        cells = self._cells(view)
-        if not cells[0].size:
-            return np.full(cells[0].shape, np.nan)
-        box = [np.arange(cell.min(), cell.max() + 1) for cell in cells]
-        corners, weights = [], 1
-        for path, axis, high in zip((self.x, self.y), self.sliced_dims, ([0, 1, 0, 1], [0, 0, 1, 1]), strict=True):
-            n, position = self.original_data.shape[axis], path[box[-1]]
-            inside = (position >= 0) & (position <= n - 1)  # not NaN
-            low = np.minimum(np.floor(np.where(inside, position, 0)), max(n - 2, 0))  # n - 1 is the upper pixel's
-            fraction = np.where(inside, position - low, np.nan)
-            corners.append(np.minimum(np.add.outer(high, low), n - 1).astype(int).ravel())
-            weights = weights * np.where(np.reshape(high, (4, 1)), fraction, 1 - fraction)
-        (x, y), inverse = np.unique(corners, axis=1, return_inverse=True)
-        # index arrays of one shape: glue-core 1.27.0's world coordinates, which a region's outline reads, take no other
-        pixels = np.broadcast_arrays(*self._pixels(np.ix_(*box[:-1], np.arange(x.size)), x, y))
-        values = self.original_data.get_data(cid, view=tuple(pixels))
-        values = np.asarray(values)
-        diagram = sum(weight * values[..., index] for weight, index in zip(weights, inverse.reshape(4, -1)))
-        diagram = diagram.astype(np.result_type(values.dtype, np.float32), copy=False)
-        return diagram[tuple(cell - axis[0] for cell, axis in zip(cells, box, strict=True))]
-
     def get_data(self, cid, view=None):
         if cid in self.pixel_component_ids or cid in self.world_component_ids:
             return BaseCartesianData.get_data(self, cid, view)
-        if self.sampling == "linear" and self.get_kind(cid) == "numerical":
-            return self._linear(cid, view)[()]
         pixel, keep, shape = self._get_pix_coords(view=view)
         values = np.asarray(self.original_data.get_data(cid, view=tuple(pixel)))
         if values.dtype.kind == "M":
@@ -1116,8 +1079,6 @@ class PathData(PathSlicedData):
         else:
             result = np.full(shape, np.nan, np.result_type(values.dtype, np.float32))
         result[keep] = values
-        if isinstance(view, tuple) and any(np.isscalar(index) for index in view):  # glue-core keeps their axes
-            result = result.reshape(np.broadcast_to(0, self.shape)[view].shape)
         return result[()]
 
 
@@ -1155,7 +1116,7 @@ def _placed(viewer, data, x, y):
     return placed if len(placed) == 2 else None
 
 
-def _diagrams(collection, placed, sampling, made=()):
+def _diagrams(collection, placed, made=()):
     """
     glue-core's ``create_trace`` of samples: a `PathData` of each of ``placed`` (`_placed`), linked to its parent and
     sample by sample to the others, numbered past its parent's diagrams in ``collection`` and ``made``.
@@ -1163,8 +1124,7 @@ def _diagrams(collection, placed, sampling, made=()):
     trace = []
     for data, ((cid_x, x), (cid_y, y)) in placed:
         count = sum(path.original_data is data for path in {*made, *(d for d in collection if isinstance(d, PathData))})
-        label = f"{data.label} [slice {count + 1}{'' if sampling == 'truncate' else ', ' + sampling}]"
-        path = PathData(data, cid_x, x, cid_y, y, label=label, sampling=sampling)
+        path = PathData(data, cid_x, x, cid_y, y, label=f"{data.label} [slice {count + 1}]")
         collection.append(path)
         link_path_sliced_to_parent(collection, path)
         for other in trace:  # sample by sample
@@ -1198,7 +1158,6 @@ class PathTool(BasePathSlicerMode, HubListener):
     status_tip = "CLICK the vertices of a path, then press ENTER for the data along it, or ESC to clear it"
     shortcut = "L"
     slice_viewer_cls = ImageViewer
-    sampling = "truncate"
 
     def __init__(self, viewer, **kwargs):
         super().__init__(viewer, **kwargs)
@@ -1246,9 +1205,9 @@ class PathTool(BasePathSlicerMode, HubListener):
             x, y = sample_points(vx, vy)
         except ValueError:  # fewer than two vertices, or under a pixel long
             return
-        self._extract(x, y, self.sampling)
+        self._extract(x, y)
 
-    def _extract(self, x, y, sampling):
+    def _extract(self, x, y):
         # PathData of the samples x, y placed in each dataset. Every Enter makes a new set: glue-qt 0.4.2 has no menu
         # to pick a path to update instead (glue-viz/glue-qt#66, draft, adds one)
         state = self.viewer.state
@@ -1257,7 +1216,7 @@ class PathTool(BasePathSlicerMode, HubListener):
         datasets.sort(key=lambda data: data is not state.reference_data)
         placed = [(data, at) for data in datasets if (at := _placed(self.viewer, data, x, y)) is not None]
         made = [path for old in self._traces for path in old]
-        trace = _diagrams(self.viewer.session.data_collection, placed, sampling, made)
+        trace = _diagrams(self.viewer.session.data_collection, placed, made)
         trace[0].parent_viewer = self.viewer
         self._traces.append(trace)
         # the reference data's only: glue cannot show the others on its axes, such as a raster window's wavelength
@@ -1318,7 +1277,7 @@ def _path_table(path):
     axes ``lon``, ``lat``, ``distance`` and ``distance_km``; its meta keep what `PathTool` remakes the diagram from.
     """
     data = path.original_data
-    meta = {"data": data.label, "axes": list(path.sliced_dims), "sampling": path.sampling}
+    meta = {"data": data.label, "axes": list(path.sliced_dims)}
     table = Table({"x": path.x, "y": path.y}, meta=meta)
     sky = None if data.coords is None else _path_sky(path, (0,) * (path.ndim - 1) + (slice(None),))
     if sky is not None:
@@ -1343,7 +1302,7 @@ def _save_path(viewer):
 def _open_path(tool):
     """
     Open a path `_save_path` saved on the viewer of `PathTool` ``tool``, which shows the dataset it was drawn on, and
-    make its diagrams as Enter does, sampled as before.
+    make its diagrams as Enter does.
     """
     start = os.path.expanduser(rcParams["savefig.directory"])
     name, _ = QtWidgets.QFileDialog.getOpenFileName(tool.viewer, "Open path from ECSV", start, "ECSV table (*.ecsv)")
@@ -1353,7 +1312,7 @@ def _open_path(tool):
     along = dict(zip(table.meta["axes"], (table["x"], table["y"]), strict=True))
     if {state.x_att.axis, state.y_att.axis} != set(along):
         raise ValueError(f"The path is on pixel axes {table.meta['axes']} of {table.meta['data']}: show those.")
-    tool._extract(np.asarray(along[state.x_att.axis]), np.asarray(along[state.y_att.axis]), table.meta["sampling"])
+    tool._extract(np.asarray(along[state.x_att.axis]), np.asarray(along[state.y_att.axis]))
 
 
 def _on_sky(data, lon, lat, when):
@@ -1420,7 +1379,7 @@ def _reuse_path(viewer):
     if not _accepted(dialog, form):
         return
     ticked = [placed for placed, tick in zip(offered, ticks, strict=True) if tick.isChecked()]
-    for diagram in _diagrams(collection, ticked, path.sampling):
+    for diagram in _diagrams(collection, ticked):
         link_path_sliced_pair_paths(collection, diagram, path)
         open_slice_viewer_for(viewer, ImageViewer, [diagram])
 
@@ -2177,7 +2136,7 @@ class MainWindowTool(Tool):
     main window (`~glue_solar.quicklook._switch`); hidden on every other Profile viewer.
     """
 
-    icon = "glue_triangle_up"  # glue_slice is glue's Slice Extraction on the Image panels beside it
+    icon = "glue_triangle_up"  # glue_slice is glue's Slice Extraction's
     tool_id = "solar:main_window"
     action_text = "Show this window's panels"
     tool_tip = "Make this window the quicklook's main window, with the map, spectrogram and wavelength panels"
@@ -2555,8 +2514,7 @@ class CoordinateTool(_ToolMenu):
 @viewer_tool
 class ModesTool(_ToolMenu):
     """
-    The menu of glue-solar's mouse modes, with the path entries (`_save_path`, `_open_path`, `_reuse_path`) and the
-    'Path sampling' submenu of `PathTool`'s ``sampling``.
+    The menu of glue-solar's mouse modes, with the path entries (`_save_path`, `_open_path`, `_reuse_path`).
     """
 
     icon = "pencil"
@@ -2594,25 +2552,6 @@ class ModesTool(_ToolMenu):
 
         modes.aboutToShow.connect(offer)
         offer()
-        # a submenu, which glue-qt 0.4.2's tool menus cannot hold, as the Coordinate menu's
-        menu = _submenu(modes, "Path sampling", "How the next Path diagram samples the data")
-        group = QtWidgets.QActionGroup(menu)
-        tips = {
-            "truncate": "The pixel each sample's position rounds down to, as glue samples",
-            "nearest": "The nearest pixel",
-            "linear": "Bilinear between the four pixels around each sample",
-        }
-        for sampling in PathData.SAMPLINGS:
-            action = group.addAction(sampling.capitalize())
-            action.setToolTip(tips[sampling])
-            action.setCheckable(True)
-            action.setChecked(sampling == path.sampling)
-            action.setData(sampling)
-            menu.addAction(action)
-        # not through glue-qt's toolbar, so the mouse mode stays
-        group.triggered.connect(lambda action: setattr(path, "sampling", action.data()))
-        add_callback(path, "enabled", menu.menuAction().setVisible)
-        menu.menuAction().setVisible(path.enabled)
 
 
 @viewer_tool
