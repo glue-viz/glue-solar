@@ -96,8 +96,8 @@ To fit a line in every spectrum of a raster window, or of each scan of a stack:
 1. On the "Fit" tab of a Profile viewer of the window, such as a quicklook's spectrum panel (see
    :ref:`The spectrum panel <glue_solar_users_guide_iris_spectrum_panel>`), fit one spectrum with
    "Gaussian + constant (IRIS)": drag over the line, with the function "Mean" or "Median" and a
-   length, such as ``Angstrom``, as the x unit, and press "Fit". "Settings" sets the lines, the
-   background, fixed values and bounds.
+   length, such as ``Angstrom``, as the x unit, and press "Fit". "Settings" builds the model (see
+   :ref:`Building the model <glue_solar_users_guide_iris_fit_settings>`).
 2. Select the window in the data collection and choose "IRIS: line fit maps".
 
 The window's last such fit, in any of its Profile viewers, is fitted to every spectrum over the
@@ -105,7 +105,8 @@ range dragged with astropy's ``parallel_fit_dask``, on all processor cores, whil
 shows the run; "Cancel" stops it and adds nothing. Where the window and a subset of it are both
 shown at the fit, the fit of the layer listed last, usually the subset, is the one taken. Each
 spectrum starts at its own background, its 10th percentile, and at each line's peak within two
-widths of the fitted center; the widths, fixed values and bounds are as fitted. Missing samples are
+widths of the fitted center, among the samples nearer it than any other line's; the widths, fixed
+values, bounds and ties are as fitted. Missing samples are
 left out, and saturated ones, which are only a lower bound. The fit of step 1 leaves a sample out
 where all the pixels it combines are saturated (for a Point, where it is), and notes the wavelengths
 whose mean includes saturated pixels. A full Si IV 1403 raster, 175,000 spectra, takes about 100 s

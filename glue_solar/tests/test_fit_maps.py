@@ -12,20 +12,21 @@ import dask.local
 import dask.multiprocessing
 import numpy as np
 import pytest
-from glue_qt.viewers.profile import ProfileViewer, profile_tools
+from glue_qt.viewers.profile import ProfileViewer
 from qtpy import QtWidgets
 
 import astropy.modeling.fitting
 import astropy.units as u
 import astropy.wcs.wcsapi.fitswcs
 from astropy.io import fits
+from astropy.modeling import models
 
-from glue_solar.fitters import GaussianConstantFitter
+from glue_solar.fitters import GaussianConstantFitter, _component
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import fit_maps
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import WCS_LOCK, keep_hpc_linked, link_hpc, raster_data
-from glue_solar.tests.helpers import refused, run_action
+from glue_solar.tests.helpers import add_component, fit_settings, refused, run_action
 
 ACTION = "IRIS: line fit maps"
 LINE = (1401.9, 1403.7)  # Si IV 1402.77, in Angstrom: seven of the window's 0.25 Å samples
@@ -103,23 +104,27 @@ def test_the_viewer_keeps_the_last_fit_of_each_dataset(app, qtbot, scan_path):
 
 
 @pytest.mark.parametrize(
-    ("options", "sign", "bounds"),
+    ("background", "line", "lines", "sign", "bounds"),
     [
-        ({"linear_background": True}, 1, None),
-        ({"lorentzian": True}, -1, None),  # an absorption line
-        ({"n_lines": 2, "same_width": True}, 1, None),
-        ({}, 1, (1401.95, 1402.05)),  # a center bound that excludes most spectra's peaks
+        (models.Linear1D, models.Gaussian1D, 1, 1, None),
+        (models.Polynomial1D, models.Gaussian1D, 1, 1, None),
+        (models.Const1D, models.Lorentz1D, 1, -1, None),  # an absorption line
+        (models.Const1D, models.Gaussian1D, 2, 1, None),  # of the same width
+        (models.Const1D, models.Gaussian1D, 1, 1, (1401.95, 1402.05)),  # a center bound excluding most peaks
     ],
 )
-def test_each_spectrum_starts_at_its_own_background_and_peaks(options, sign, bounds):
+def test_each_spectrum_starts_at_its_own_background_and_peaks(background, line, lines, sign, bounds):
     wavelengths = 1400 + 0.1 * np.arange(40)
     shifts = np.array([[-1, 0, 1], [2, 0, -2]])  # each spectrum's lines, in samples
-    background = 10 + np.arange(6).reshape(2, 3)
-    spectra = np.broadcast_to(background[..., None], (2, 3, 40)).astype(float)
-    peaks = [20 + shifts, 32 + shifts][: options.get("n_lines", 1)]
+    level = 10 + np.arange(6).reshape(2, 3)
+    spectra = np.broadcast_to(level[..., None], (2, 3, 40)).astype(float)
+    peaks = [20 + shifts, 32 + shifts][:lines]
     for peak in peaks:
         spectra = spectra + sign * 50 * np.exp(-0.5 * ((wavelengths - wavelengths[peak][..., None]) / 0.2) ** 2)
-    fitter = GaussianConstantFitter(**options)
+    leaves = [background(2) if background is models.Polynomial1D else background(), *(line() for _ in peaks)]
+    fitter = GaussianConstantFitter(components=[_component(leaf) for leaf in leaves])
+    if lines == 2:
+        fitter.components[2][1]["stddev"]["tie"] = (1, None)  # the same width
     if bounds:
         fitter.set_constraint("mean_1", limits=bounds)
     model, _ = fitter.build_and_fit(wavelengths, spectra[0, 1])
@@ -131,12 +136,44 @@ def test_each_spectrum_starts_at_its_own_background_and_peaks(options, sign, bou
     if bounds:
         assert (start.mean_1.value == bounds[1]).any()  # clipped
     assert (np.sign(start.amplitude_1.value) == sign).all()
-    if "linear_background" in options:  # at the mean wavelength
-        level = start.intercept_0.value + start.slope_0.value * wavelengths.mean()
-        np.testing.assert_allclose(level, background, atol=1e-3)
+    if background is not models.Const1D:  # at the mean wavelength, its shape kept
+        np.testing.assert_allclose(start[0](wavelengths.mean()), level, atol=1e-3)
+        for name in set(start[0].param_names) - {"intercept", "c0"}:
+            np.testing.assert_array_equal(getattr(start, f"{name}_0").value, getattr(model, f"{name}_0").value)
     elif sign > 0:  # an absorption line's core holds the 10th percentile
-        np.testing.assert_allclose(start.amplitude_0.value, background, atol=1e-3)
-    assert bool(start.tied.get("stddev_2")) == ("same_width" in options)
+        np.testing.assert_allclose(start.amplitude_0.value, level, atol=1e-3)
+    assert bool(start.tied.get("stddev_2")) == (lines == 2)
+
+
+def test_the_lines_of_a_blend_start_at_their_own_peaks():
+    """
+    C II 1335.66 and 1335.71 Å, a blend: each line, in one spectrum and in each of the window's, starts at its peak
+    among the samples nearer its center than the other's, not both at the blend's within two widths (as irispy draft
+    LM-SAL/irispy#241).
+    """
+    wavelengths = 1335.4 + 0.01 * np.arange(60)
+    lines = np.exp(-0.5 * ((wavelengths - np.array([[1335.66], [1335.71]])) / 0.03) ** 2)  # (line, wavelength)
+    spectra = 5 + np.array([[40, 60], [60, 40]]) @ lines
+    leaves = models.Const1D(), models.Gaussian1D(), models.Gaussian1D()
+    fitter = GaussianConstantFitter(components=[_component(leaf) for leaf in leaves])
+    for name, center in (("mean_1", 1335.66), ("mean_2", 1335.71)):
+        fitter.set_constraint(name, value=center)
+    starts = fitter.parameter_guesses(wavelengths, spectra[0], None)
+    assert starts["mean_1"] < 1335.685 < starts["mean_2"]
+    start = fit_maps._starts(fitter.model_cls(**{**starts, "mean_1": 1335.66, "mean_2": 1335.71}), wavelengths, spectra)
+    assert (start.mean_1.value < 1335.685).all()
+    assert (start.mean_2.value > 1335.685).all()
+
+
+def test_a_tied_separation_reaches_the_window_in_angstrom():
+    fitter = GaussianConstantFitter(components=[_component(models.Gaussian1D()), _component(models.Gaussian1D())])
+    fitter.components[1][1]["mean"]["tie"] = (0, 0.1)  # in nm, the x unit of the fit
+    fitter.components[1][1]["amplitude"]["tie"] = (0, 0.5)
+    model = fitter.model_cls(amplitude_0=4, mean_0=140.2, stddev_0=0.01, stddev_1=0.01)
+    assert model.tied["mean_1"](model) == pytest.approx(140.3)
+    converted = fit_maps._in_angstrom(model, "nm")
+    assert converted.tied["mean_1"](converted) == pytest.approx(1403)
+    assert converted.tied["amplitude_1"](converted) == 2  # a ratio, of no unit
 
 
 def test_the_profile_fit_of_a_window_maps_every_spectrum_into_one_linked_dataset(app, qtbot, scan_path, calls):
@@ -218,19 +255,16 @@ def test_the_fit_reaches_the_window_in_angstrom_with_its_settings(app, qtbot, mo
     app.data_collection.append(raster)
 
     def settings(dialog):
-        _, value, fixed, *_ = dialog.constraints._widgets["amplitude_0"]
-        value.setText("2")
+        start, fixed, *_ = dialog.rows["amplitude_0"]
+        start.setText("2")
         fixed.setChecked(True)
-        *_, bounded, lower, upper = dialog.constraints._widgets["mean_1"]
-        bounded.setChecked(True)
+        _, _, lower, upper, *_ = dialog.rows["mean_1"]
         lower.setText("140.27")
         upper.setText("140.29")
-        dialog.accept()
 
     tools = profile(app, raster, "nm")
     tools.viewer.state.layers[0].attribute = raster.id[f"{raster.main_components[0].label} DN / s"]
-    monkeypatch.setattr(profile_tools.FitSettingsWidget, "exec_", settings)
-    tools.ui.button_settings.click()
+    fit_settings(monkeypatch, tools, settings)
     fitted = fit(qtbot, tools, np.divide(LINE, 10))
     maps = run(app, qtbot, raster)
     [call] = calls
@@ -244,6 +278,51 @@ def test_the_fit_reaches_the_window_in_angstrom_with_its_settings(app, qtbot, mo
     assert LINE[0] <= wavelengths[0].value < wavelengths[-1].value <= LINE[1]
     assert str(call["data_unit"]) == "DN_IRIS_FUV / s"
     assert maps.get_component("integrated_intensity_1").units == str(call["data_unit"] * u.AA)
+
+
+@pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")  # a blend 0.05 Å apart, sampled every 0.26 Å
+def test_c_ii_built_in_settings_fits_one_spectrum_then_the_window(app, qtbot, monkeypatch, scan_path, calls):
+    """
+    C II's three lines built in Settings, 1334.53, 1335.66 and 1335.71 Å, the last two a blend: Gaussians on a
+    constant, the second's and third's centers tied to the first's by their separations and each amplitude at least 0,
+    fitted to the mean spectrum of the scan's C II window, then to the window with 'IRIS: line fit maps' (D86).
+    """
+    [raster] = raster_data([scan_path], ["C II 1336"])
+    app.data_collection.append(raster)
+    tools = profile(app, raster)
+
+    def build(dialog):
+        add_component(dialog, "Gaussian")
+        add_component(dialog, "Gaussian")
+        dialog.rows["mean_1"][0].setText("1334.53")
+        for line, separation in ((2, "1.1305"), (3, "1.1756")):
+            *_, tie, by = dialog.rows[f"mean_{line}"]
+            tie.setCurrentText("mean_1")
+            by.setText(separation)
+        for line in (1, 2, 3):
+            dialog.rows[f"amplitude_{line}"][2].setText("0")
+
+    fit_settings(monkeypatch, tools, build)
+    fitted = fit(qtbot, tools, (1333.5, 1336.5))
+    assert fitted.mean_2.value - fitted.mean_1.value == pytest.approx(1.1305)
+    assert fitted.mean_3.value - fitted.mean_1.value == pytest.approx(1.1756)
+    assert [fitted.bounds[f"amplitude_{line}"] for line in (1, 2, 3)] == [(0, None)] * 3
+    assert all(f"center_{line} = " in tools.text_log.toPlainText() for line in (1, 2, 3))
+    recorded = astropy.modeling.fitting.parallel_fit_dask  # one iteration each: this checks the model, not the fits
+    monkeypatch.setattr(
+        astropy.modeling.fitting,
+        "parallel_fit_dask",
+        lambda **kw: recorded(**{**kw, "fitter_kwargs": {**kw["fitter_kwargs"], "maxiter": 1}}),
+    )
+    maps = run(app, qtbot, raster)
+    [call] = calls
+    assert {name for name, tie in call["model"].tied.items() if tie} == {"mean_2", "mean_3"}
+    tied = {"filter_non_finite": True, "estimate_jacobian": True, "epsilon": 1e-12, "maxiter": 1}  # #291's Jacobian
+    assert call["fitter_kwargs"] == tied
+    assert {f"velocity_{line}" for line in (1, 2, 3)} <= {cid.label for cid in maps.main_components}
+    fits = np.isfinite(maps["mean_1"])
+    assert fits.any()
+    np.testing.assert_allclose((maps["mean_3"] - maps["mean_1"])[fits], 1.1756)
 
 
 def test_a_stack_is_fitted_scan_by_scan(app, qtbot, monkeypatch, stack_paths, calls):
