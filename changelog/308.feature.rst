@@ -1,0 +1,1 @@
+Saturated IRIS samples show at their value, 16182 DN or its DN / s, in images, spectra and light curves, and are marked in the window's mask, following irispy; the analyses leave them out or flag them as before.
