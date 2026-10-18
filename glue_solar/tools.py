@@ -66,6 +66,7 @@ from astropy.coordinates import Angle, SkyCoord, angular_separation
 from astropy.table import Column, Table, hstack
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
+from glue_solar.glue_patches import _takes
 from glue_solar.lines import KM_S, _icon, rest_wavelength
 from glue_solar.quicklook import (
     _across,
@@ -95,33 +96,9 @@ from glue_solar.quicklook import (
     observation_key,
 )
 from glue_solar.sources.iris import _write_ecsv
-from glue_solar.sources.loaders.iris import _GlueWCS
+from glue_solar.sources.loaders.iris import _HPC, _GlueWCS
 from glue_solar.sources.loaders.stack_spectrograms import _PerScanWCS
 from glue_solar.sources.moments import _accepted, _start
-
-__all__ = [
-    "BandTool",
-    "ColorBarTool",
-    "CoordinateTool",
-    "CursorReadoutTool",
-    "FollowLockTool",
-    "FrameTimeTool",
-    "HideAxesTool",
-    "MainWindowTool",
-    "MeasureTool",
-    "ModesTool",
-    "PathCrosshairTool",
-    "PathData",
-    "PathTool",
-    "PerFrameLimitsTool",
-    "PhysicalAspectTool",
-    "RasterOverlaysTool",
-    "SaveProfileTool",
-    "SaveSequenceTool",
-    "SlopeTool",
-    "ViewTool",
-    "sky_length",
-]
 
 _WATCHED = ("reference_data", "x_att", "y_att", "slices")
 # glue sets both axis labels whenever it resets the WCSAxes, which also drops their tick settings
@@ -1379,18 +1356,15 @@ def _open_path(tool):
     tool._extract(np.asarray(along[state.x_att.axis]), np.asarray(along[state.y_att.axis]), table.meta["sampling"])
 
 
-_SKY = ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat")
-
-
 def _on_sky(data, lon, lat, when):
     """
     The two pixel components of ``data`` along which only its helioprojective angles vary, each with the positions of
     ``lon, lat`` along it at the frame or scan nearest ``when``; None unless there are two.
     """
     types = list(getattr(data.coords, "world_axis_physical_types", None) or ())
-    if not set(_SKY) <= set(types):
+    if not set(_HPC) <= set(types):
         return None
-    wcs, sky = data.coords, [types.index(kind) for kind in _SKY]
+    wcs, sky = data.coords, [types.index(kind) for kind in _HPC]
     matrix = np.asarray(wcs.axis_correlation_matrix)[:, ::-1]  # numpy's axis order
     on_sky, other = matrix[sky].any(axis=0), np.delete(matrix, sky, axis=0).any(axis=0)
     axes = np.flatnonzero(on_sky & ~other)
@@ -1698,20 +1672,6 @@ class _TimeMasterEntry(_CoordinateEntry):
     def offered(self):
         data = self.viewer.state.reference_data
         return _timed(data) and observation_key(data) is not None
-
-
-def _takes(check, *args, **kwargs):
-    """
-    Whether ``check``, the guard an entry's run calls too (D61), takes these arguments, raising no ValueError: also
-    true for any other error, so that running the entry shows it in the entry's own error box (D72 223-5).
-    """
-    try:
-        check(*args, **kwargs)
-    except ValueError:  # the guard's refusal
-        return False
-    except Exception:  # noqa: BLE001 - a fault, not a refusal
-        return True
-    return True
 
 
 class _ClearPointEntry(_CoordinateEntry):

@@ -56,26 +56,6 @@ _DATA_ACTIONS = (
 )
 layer_action.members.sort(key=lambda item: _DATA_ACTIONS.index(item.callback) if item.callback in _DATA_ACTIONS else -1)
 
-__all__ = [
-    "setup",
-    "__version__",
-    "bursts",
-    "calibration",
-    "doppler",
-    "glue_patches",
-    "iris",
-    "line_ratio",
-    "lines",
-    "maps",
-    "mg_features",
-    "moments",
-    "red_blue",
-    "regrid",
-    "restore_last_session",
-    "sst",
-    "tools",
-]
-
 
 @session_patch()
 def _add_session_colormaps(session):

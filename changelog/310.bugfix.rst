@@ -1,0 +1,1 @@
+Exporting a lazily loaded IRIS window as FITS no longer reads the whole cube into memory, each integer component of a subset export keeps its own BLANK, and restoring a session whose raster file lost a window names the window.

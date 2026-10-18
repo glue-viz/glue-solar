@@ -58,7 +58,8 @@ from qtpy.QtWidgets import (
 
 import astropy.units as u
 
-from glue_solar.sources.loaders.iris import keep_hpc_linked
+from glue_solar.sources.loaders.iris import _HPC, keep_hpc_linked
+from glue_solar.sources.loaders.scan import _observation
 
 __all__ = [
     "Coordinator",
@@ -96,8 +97,7 @@ def observation_key(data):
         start = np.datetime64(str(start), "ns")
     except ValueError:
         return None
-    # AIA cutouts spell the OBSID as date_time_obsid
-    return None if np.isnat(start) else (str(obsid).split("_")[-1], start)
+    return None if np.isnat(start) else (_observation(obsid, start)[0], start)
 
 
 def nearest(query, reference):
@@ -141,16 +141,13 @@ def _lon_lat(data, pixel):
     """Helioprojective longitude and latitude (arcsec) of ``data`` at the numpy-ordered ``pixel``."""
     world = data.coords.pixel_to_world_values(*pixel[::-1])
     types = list(data.coords.world_axis_physical_types)
-    return (
-        np.asarray(world[types.index("custom:pos.helioprojective.lon")]),
-        np.asarray(world[types.index("custom:pos.helioprojective.lat")]),
-    )
+    return tuple(np.asarray(world[types.index(kind)]) for kind in _HPC)
 
 
 def _placeable(data):
     """Whether helioprojective positions can be placed in ``data``'s frames through its coordinates."""
     types = getattr(data.coords, "world_axis_physical_types", None) or ()
-    return {"custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat", "time"} <= set(types)
+    return {*_HPC, "time"} <= set(types)
 
 
 def _sji_pixels(sji, frame, lon, lat):
@@ -1062,8 +1059,7 @@ class _RasterRoiSubsetState(RoiSubsetState):
             return super().to_mask(data, view)
         view = (slice(None),) * data.ndim if view is None else view
         types = getattr(data.coords, "world_axis_physical_types", None) or ()
-        hpc = ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat")
-        angles = [i for i, kind in enumerate(types) if kind in hpc]
+        angles = [i for i, kind in enumerate(types) if kind in _HPC]
         if len(angles) != 2 or len(view) != data.ndim or not all(isinstance(s, slice) for s in view):
             return self.world.to_mask(data, view)
         # as glue does for a region of pixels, place one plane along the axes on which longitude and latitude do not
