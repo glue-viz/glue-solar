@@ -1,0 +1,1 @@
+The SST quicklook opens Stokes Q and U at ±5 and V at ±10 times their noise level, measured at the continuum, and marks the noise level on the Q, U and V spectra.
