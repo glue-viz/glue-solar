@@ -277,6 +277,8 @@ def test_a_stack_is_fitted_scan_by_scan(app, qtbot, monkeypatch, stack_paths, ca
     fit_ = astropy.modeling.fitting.parallel_fit_dask
 
     def untraced(**kw):  # the fits take no WCS, and traced take minutes on a slow runner
+        # one iteration each: this checks the scans, not the fits, whose three scans took CI's coverage run past 60 s
+        kw["fitter_kwargs"] = {**kw["fitter_kwargs"], "maxiter": 1}
         sys.setprofile(None)
         try:
             return fit_(**kw)
