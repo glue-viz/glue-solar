@@ -69,7 +69,7 @@ def test_the_action_adds_irispys_dust_removed_slit_jaw_image_linked_and_no_viewe
     tree._actions[DUST].trigger()
     assert iris._RUNNING  # on glue-qt's worker
     assert app.statusBar().currentMessage() == f"Removing dust from {sji.label}…"
-    qtbot.waitUntil(lambda: len(collection) == 3 and not iris._RUNNING)
+    qtbot.waitUntil(lambda: len(collection) == 3 and not iris._RUNNING, timeout=60000)  # irispy on a slow runner
     assert app.statusBar().currentMessage() == ""
     dust = collection[-1]
     label = f"{sji.label} dust removed"

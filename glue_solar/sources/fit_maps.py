@@ -1,9 +1,10 @@
 """
-'IRIS: line fit maps': the last IRIS fit of a spectrum of a raster window on the Fit tab of glue's Profile viewer,
-fitted to every spectrum of the window, or of each scan of a stack (D59), with astropy's ``parallel_fit_dask``, as
-irispy's ``maps_from_fit`` maps in one new dataset (D86).
+'Fit every spectrum' on the Fit tab of glue's Profile viewer: the viewer's last IRIS fit of a spectrum of a raster
+window fitted to every spectrum of the window, or of each scan of a stack (D59), with astropy's ``parallel_fit_dask``,
+as irispy's ``maps_from_fit`` maps in one new dataset (D86, D88).
 """
 
+import math
 import warnings
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
@@ -11,19 +12,20 @@ from functools import partial
 import numpy as np
 from glue.core.component import Component
 from glue_qt.utils.decorators import messagebox_on_error
-from glue_qt.viewers.profile import ProfileViewer
+from glue_qt.viewers.profile.profile_tools import ProfileTools
 from qtpy import QtCore, QtWidgets
 
 import astropy.units as u
+from astropy import constants
 
-from glue_solar.glue_patches import _application, layer_action
-from glue_solar.lines import rest_wavelength
+from glue_solar.glue_patches import _application
+from glue_solar.lines import DopplerConverter, rest_wavelength
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources.loaders.iris import _RUNNING
 from glue_solar.sources.loaders.lazy import at_ceiling
 from glue_solar.sources.moments import _check, _cube, _dataset, _read, _start, _window
 
-__all__ = ["line_fit_maps_iris"]
+__all__ = []
 
 
 class _Canceled(Exception):
@@ -52,44 +54,82 @@ class _Progress:
         self.canceled = True
 
 
-def _in_angstrom(model, x_unit):
+def _to_angstrom(x_unit, rest):
     """
-    ``model``, fitted against wavelengths in ``x_unit``, a length, against them in Angstrom, its bounds and the
-    separations of its ties (`glue_solar.fitters._tie`) too.
+    The ``scale`` and ``shift`` of λ = scale x + shift, in Angstrom, for x in ``x_unit``: a length, or a velocity, the
+    optical Doppler from ``rest`` of `glue_solar.lines.DopplerConverter`, λ = rest (1 + x / c); raises a TypeError or
+    ValueError for any other x, such as pixels.
     """
-    from glue_solar.fitters import _tie
+    unit = u.Unit(x_unit)
+    if unit.is_equivalent(u.AA):
+        return unit.to(u.AA), 0
+    return rest / constants.c.to_value(unit), rest
 
-    shown, taken = (model.with_units_from_data(x=1 * u.Unit(unit), y=1 * u.one) for unit in (x_unit, u.AA))
-    model = model.copy()
-    for name in model.param_names:
-        scale = getattr(shown, name).unit.to(getattr(taken, name).unit)  # 1 / x for a slope
-        parameter = getattr(model, name)
-        parameter.value = parameter.value * scale
-        parameter.bounds = tuple(None if bound is None else bound * scale for bound in parameter.bounds)
-        if args := getattr(parameter.tied, "args", None):
-            other, factor, offset = args
-            parameter.tied = _tie(other, factor, offset * scale)
+
+def _in_angstrom(model, scale, shift):
+    """
+    ``model``, fitted against x, against λ = scale x + shift in Angstrom (`_to_angstrom`), exactly, as the map is
+    linear (D88): each line's center at scale x + shift and its width times scale, their bounds and the separations of
+    their ties (`glue_solar.fitters._tie`) alike, and a linear or polynomial background re-expressed in λ, its terms'
+    bounds scaled for a length; raises why for such a background with a bound or a fixed term against a velocity,
+    which mixes its terms.
+    """
+    from astropy.modeling import models
+
+    from glue_solar.fitters import _LINES, _leaves, _tie
+
+    model, compound = model.copy(), model.n_submodels > 1
+    for index, leaf in enumerate(_leaves(model)):
+        parameters = [getattr(model, name + (f"_{index}" if compound else "")) for name in leaf.param_names]
+        if isinstance(leaf, _LINES):
+            _, center, width = parameters
+            for parameter, offset in ((center, shift), (width, 0)):
+                parameter.value = parameter.value * scale + offset
+                parameter.bounds = tuple(
+                    None if bound is None else bound * scale + offset for bound in parameter.bounds
+                )
+                if args := getattr(parameter.tied, "args", None):
+                    other, factor, separation = args
+                    parameter.tied = _tie(other, factor, separation * scale + (1 - factor) * offset)
+        elif not isinstance(leaf, models.Const1D):  # p(x) = p(a λ + b), its terms constant first
+            terms = parameters[::-1] if isinstance(leaf, models.Linear1D) else parameters
+            if shift and any(term.fixed or term.bounds != (None, None) for term in terms):
+                raise ValueError(
+                    "A linear or polynomial background with a bound or a fixed term takes a fit against a length, "
+                    "such as Angstrom: against km / s, each of its terms in Angstrom combines all of them."
+                )
+            a, b, values = 1 / scale, -shift / scale, [term.value for term in terms]
+            for j, term in enumerate(terms):
+                term.value = sum(values[i] * math.comb(i, j) * a**j * b ** (i - j) for i in range(j, len(terms)))
+                term.bounds = tuple(None if bound is None else bound * a**j for bound in term.bounds)
     return model
 
 
-def _last_fit(data, data_collection):
+def _viewer_fit(tools):
     """
-    The model of the last IRIS fit of a spectrum of ``data`` in its Profile viewers (`glue_solar.fitters`), in
-    Angstrom, the wavelength pixels within its range, the unit of the values it fits, whether they are DN / s, and the
-    rest wavelength of ``data``; raises why for none, or for one the window cannot take.
+    The data of the last IRIS fit on ``tools``, a Profile viewer's Fit tab (`glue_solar.fitters._fit`), of data in its
+    collection, and the fit's model; raises why for none, or for data that is not an IRIS raster window or stack.
     """
     from glue_solar.fitters import GaussianConstantFitter
 
-    app = _application(data_collection)
-    viewers = [viewer for tab in getattr(app, "viewers", ()) for viewer in tab if isinstance(viewer, ProfileViewer)]
-    fits = [getattr(v.toolbar.tools["profile-analysis"]._profile_tools, "_iris_fits", {}).get(data) for v in viewers]
-    fits = [model for model in fits if model is not None]
+    collection = tools.viewer.session.data_collection
+    fits = [(data, model) for data, model in vars(tools).get("_iris_fits", {}).items() if data in collection]
     if not fits:
         raise ValueError(
-            f"{data.label} has no IRIS fit: fit one of its spectra with '{GaussianConstantFitter.label}' on the Fit tab "
-            "of a Profile viewer first."
+            f"This viewer has no IRIS fit: fit a spectrum of a raster window with '{GaussianConstantFitter.label}' "
+            "first."
         )
-    model = max(fits, key=lambda model: model.meta["fitted"])
+    data, model = max(fits, key=lambda fit: fit[1].meta["fitted"])
+    _check(data)
+    return data, model
+
+
+def _last_fit(data, model):
+    """
+    ``model``, the last IRIS fit of a spectrum of ``data`` (`_viewer_fit`), in Angstrom, the wavelength pixels within
+    its range, the unit of the values it fits, whether they are DN / s, and the rest wavelength of ``data``; raises why
+    for one the window cannot take.
+    """
     meta, last = model.meta, f"The last IRIS fit of {data.label}"
     if meta["function"] == "sum":
         raise ValueError(f"{last} is of the sum of its spectra, which scales its amplitudes: fit their Mean or Median.")
@@ -97,22 +137,29 @@ def _last_fit(data, data_collection):
     rate = f"{cid.label} DN / s"
     if meta["attribute"] not in (cid.label, rate):
         raise ValueError(f"{last} is of {meta['attribute']}: fit its values, in DN or DN / s.")
+    if meta["rest_wavelength"] is None and meta["x_unit"] == DopplerConverter.VELOCITY:
+        raise ValueError(
+            f"{last} is against {meta['x_unit']} from the viewer's reference data: make {data.label} the reference "
+            "data and fit again."
+        )
     try:
-        scale = u.Unit(meta["x_unit"]).to(u.AA)
+        scale, shift = _to_angstrom(meta["x_unit"], meta["rest_wavelength"])
     except (TypeError, ValueError):
         raise ValueError(
-            f"{last} is against {meta['x_unit'] or 'pixels'}: fit against its wavelength in a length, such as Angstrom."
+            f"{last} is against {meta['x_unit'] or 'pixels'}: fit against its wavelength, in a length such as "
+            "Angstrom or in km / s."
         ) from None
+    model = _in_angstrom(model, scale, shift)
     rest = rest_wavelength(data)
     if rest is None:
         raise ValueError(f"{data.label} has no rest wavelength: set one with 'IRIS: set rest wavelength…'.")
-    low, high = np.multiply(meta["x_range"], scale)
+    low, high = np.multiply(meta["x_range"], scale) + shift
     crop, unit = _window(data, (low, high), f"the range of the last IRIS fit, {low:.3f} to {high:.3f} Å")
     per_second = meta["attribute"] == rate
     if not per_second and data.find_component_id(rate) is not None:  # `_window`'s unit is that of DN / s
         unit = unit * u.s
     # shortcut: the y unit is the attribute's own, glue's only choice for IRIS data; convert as x where it has others
-    return _in_angstrom(model, meta["x_unit"]), crop, unit, per_second, rest
+    return model, crop, unit, per_second, rest
 
 
 def _starts(model, wavelengths, spectra):
@@ -246,28 +293,22 @@ def _shown(dialog, progress):
         dialog.setValue(progress.done)
 
 
-def _check_fit(data):
-    """Raise why ``data`` is not an IRIS raster window or stack, or has its line fit maps being computed."""
-    _check(data)
-    if any(worker.func is _fit_maps and worker.args[0] is data for worker in _RUNNING):  # a pool each
+def _check_running(data):
+    """Raise why ``data`` has its line fit maps being computed: one run a dataset, each with its process pool."""
+    if any(worker.func is _fit_maps and worker.args[0] is data for worker in _RUNNING):
         raise ValueError(f"The line fit maps of {data.label} are being computed.")
 
 
-@layer_action(
-    "IRIS: line fit maps",
-    single=True,
-    data=True,
-    check=_check_fit,
-    tooltip="Fit the last IRIS fit on a Profile viewer's Fit tab to every spectrum of this raster window or stack",
-)
 @messagebox_on_error("Could not fit the line maps")
-def line_fit_maps_iris(data, data_collection):
+def _fit_every_spectrum(tools, *_):
     """
-    Add `_fit_maps` of ``data`` and `_last_fit`, fitted in the background (`_start`) while a progress dialog shows the
-    tasks done, its Cancel stopping the run.
+    Add `_fit_maps` of the last IRIS fit on ``tools`` (`_viewer_fit`), fitted in the background (`_start`) while a
+    progress dialog shows the tasks done, its Cancel stopping the run.
     """
-    _check_fit(data)
-    model, crop, unit, per_second, rest = _last_fit(data, data_collection)
+    data, model = _viewer_fit(tools)
+    _check_running(data)
+    model, crop, unit, per_second, rest = _last_fit(data, model)
+    data_collection = tools.viewer.session.data_collection
     progress = _Progress(int(np.prod(data.shape[:-3])))
     text = f"Fitting every spectrum of {data.label}…"
     dialog = QtWidgets.QProgressDialog(text, "Cancel", 0, 0, _application(data_collection))
@@ -278,3 +319,40 @@ def line_fit_maps_iris(data, data_collection):
     dialog.show()  # at once
     title = "Could not fit the line maps"
     _start(data_collection, text, title, _fit_maps, data, model, crop, unit, per_second, rest, progress, view=True)
+
+
+def _refresh(tools):
+    """'Fit every spectrum' on ``tools``, enabled where `_viewer_fit` takes the viewer's fit, else saying why."""
+    try:
+        data, _ = _viewer_fit(tools)
+        enabled, tip = True, f"Fit every spectrum of {data.label} with this viewer's last IRIS fit"
+    except ValueError as exc:
+        enabled, tip = False, str(exc)
+    tools.button_fit_every.setEnabled(enabled)
+    tools.button_fit_every.setToolTip(tip)
+
+
+_original_enable = ProfileTools.enable
+
+
+def _enable(self):
+    """glue-qt's Fit tab, with 'Fit every spectrum' beside Fit, as glue-qt has no hook for a fitter's actions (D88)."""
+    _original_enable(self)
+    button = self.button_fit_every = QtWidgets.QToolButton(text="Fit every spectrum")
+    button.clicked.connect(partial(_fit_every_spectrum, self))
+    row = next(row for row in self.ui.findChildren(QtWidgets.QHBoxLayout) if row.indexOf(self.ui.button_fit) >= 0)
+    row.insertWidget(row.indexOf(self.ui.button_fit) + 1, button)
+    _refresh(self)
+
+
+_original_report_fit = ProfileTools._report_fit
+
+
+def _report_fit(self, report):
+    """glue-qt's report of a fit, on the main thread once it ends, then 'Fit every spectrum' following it."""
+    _original_report_fit(self, report)
+    _refresh(self)
+
+
+ProfileTools.enable = _enable
+ProfileTools._report_fit = _report_fit

@@ -235,7 +235,10 @@ a tie to a tied line follows it, its separations adding up and its ratios multip
 
 The fit is drawn with each line on the background, dashed; "Clear" removes them. A line without a
 start begins at one of the most prominent peaks, and each line at its peak among the samples nearer
-its center than any other line's, so give a blend's lines starts or ties.
+its center than any other line's, so give a blend's lines starts or ties. The fit can be made with
+the x unit in Å or ``km / s``, the starts, bounds and separations then in it. "Fit every spectrum"
+then fits the model to every spectrum of the window (see :ref:`Line fit maps
+<glue_solar_users_guide_iris_line_fit_maps>`).
 
 **Mean spectrum.** "IRIS: subtract mean spectrum", in a raster window's right-click menu, adds
 ``<label> mean spectrum`` and ``<label> minus mean spectrum``. Set the "attribute" of "Point" in the
