@@ -19,7 +19,7 @@ from weakref import WeakSet
 
 import numpy as np
 from glue.config import session_patch
-from glue.core.component import Component
+from glue.core.component import Component, DateTimeComponent
 from glue.core.component_id import ComponentID
 from glue.core.component_link import ComponentLink
 from glue.core.data import Data
@@ -28,7 +28,8 @@ from glue.core.data_factories import LoadLog
 from glue.core.hub import HubListener
 from glue.core.link_helpers import LinkSame, LinkSameWithUnits
 from glue.core.message import DataCollectionDeleteMessage
-from glue.core.state import GlueSerializeError
+from glue.core.state import GlueSerializeError, _load_component, _save_component
+from glue.utils import unbroadcast
 from glue_qt.utils import load_ui
 from glue_qt.utils.threading import Worker
 from qtpy import QtGui, QtWidgets
@@ -429,6 +430,33 @@ def _per_frame(values, shape):
     return np.broadcast_to(values.reshape(values.shape + (1,) * (len(shape) - values.ndim)), shape)
 
 
+class _BroadcastComponent(Component):
+    """
+    Values broadcast without copying, as a frame's exposure time over its pixels, which a session saves as they are
+    before the broadcast: glue's Component saver writes the broadcast in full, as large as the data's values or more.
+    """
+
+    def __gluestate__(self, context):
+        if hasattr(self, "_load_log") and not context.include_data:  # read again from its file, as glue's (D25)
+            return _save_component(self, context)
+        return {"values": context.do(unbroadcast(self.data)), "shape": list(self.shape), "units": self.units}
+
+    @classmethod
+    def __setgluestate__(cls, rec, context):
+        if "log" in rec:
+            return _load_component(rec, context)
+        return cls(np.broadcast_to(context.object(rec["values"]), rec["shape"]), units=rec["units"])
+
+
+class _BroadcastTimes(_BroadcastComponent, DateTimeComponent):
+    """Times broadcast, as `_BroadcastComponent`: glue takes datetime64 values in a ``DateTimeComponent`` only."""
+
+
+def _add_time(data, times):
+    """Add ``Time``, ``times`` given for the leading axes of ``data`` (`_per_frame`), which a session saves as given."""
+    data.add_component(_BroadcastTimes(_per_frame(times, data.shape)), "Time")
+
+
 def per_second(flux, exposure):
     """``flux`` over a positive ``exposure`` time, else NaN, in the precision of ``flux`` (float32 for IRIS data)."""
     return flux / np.where(exposure > 0, exposure, np.nan).astype(np.float32)
@@ -439,7 +467,7 @@ def _add_exposure(data, exposure):
     Add ``Exposure time``, ``exposure`` in seconds over the leading axes, and ``<label> DN / s``, the data over it as a
     glue derived component, unless they are not in DN, as a Hinode/SOT magnetogram.
     """
-    seconds = data.add_component(Component(_per_frame(exposure, data.shape), units="s"), "Exposure time")
+    seconds = data.add_component(_BroadcastComponent(_per_frame(exposure, data.shape), units="s"), "Exposure time")
     flux = data.main_components[0]
     if not data.get_component(flux).units.startswith("DN"):
         return
@@ -485,7 +513,7 @@ def _cube_data(cube, label, *, values=None, unit=None, color=None, cmap=None, mi
                     scaling=scaling)
     times = _frame_times(cube)
     if times is not None:
-        data.add_component(_per_frame(times, cube.shape), "Time")
+        _add_time(data, times)
     if getattr(cube, "exposure_time", None) is not None:
         _add_exposure(data, cube.exposure_time.to_value(u.s))  # per raster step or SJI frame, in the data's order
     if cube.extra_coords and set(_SJI_POINTING) <= set(cube.extra_coords.keys()):
@@ -580,7 +608,7 @@ def _raster_collection_data(collection, stack=False, scaling=None):
             # its meta is scan 0's, so exposure times and raster files come per scan
             _add_exposure(data, np.stack([scan.exposure_time.to_value(u.s) for scan in sequence]))
             data.meta["raster files"] = tuple(name for scan in sequence for name in scan.meta.get("raster files", ()))
-            data.add_component(_per_frame(stack_times(sequence), data.shape), "Time")
+            _add_time(data, stack_times(sequence))
             datasets.append(data)
             continue
         for i, scan in enumerate(sequence):

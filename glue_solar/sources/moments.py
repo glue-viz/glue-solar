@@ -27,7 +27,16 @@ from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 from glue_solar.glue_patches import _application, layer_action, refresh_layer_actions
 from glue_solar.lines import MAIN_LINES, _wavelength, rest_wavelength
 from glue_solar.quicklook import _role, _show, _spectral_axes, _wavelengths, coordinator
-from glue_solar.sources.loaders.iris import _AXIS_NAMES, _HPC, _RUNNING, WCS_LOCK, _GlueWCS, keep_hpc_linked, per_second
+from glue_solar.sources.loaders.iris import (
+    _AXIS_NAMES,
+    _HPC,
+    _RUNNING,
+    WCS_LOCK,
+    _BroadcastComponent,
+    _GlueWCS,
+    keep_hpc_linked,
+    per_second,
+)
 from glue_solar.sources.loaders.lazy import at_ceiling
 
 __all__ = ["line_maps_iris", "line_moments", "mean_spectrum_iris", "subtract_mean_spectrum"]
@@ -592,7 +601,7 @@ def _subtract(data, cid, mean):
     """Add the components of `subtract_mean_spectrum` to ``data``, given ``mean``, the mean spectrum of ``cid``."""
     units = data.get_component(cid).units
     mean = np.broadcast_to(mean, data.shape)  # a view: one spectrum held
-    difference = cid - data.add_component(Component(mean, units=units), f"{cid.label} mean spectrum")
+    difference = cid - data.add_component(_BroadcastComponent(mean, units=units), f"{cid.label} mean spectrum")
     data.add_component_link(difference, f"{cid.label} minus mean spectrum").units = units
     return difference.get_to_id()
 

@@ -17,7 +17,7 @@ from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
 from glue_solar.glue_patches import layer_action
 from glue_solar.quicklook import _role, _wavelengths
-from glue_solar.sources.loaders.iris import WCS_LOCK, _GlueWCS, _irispy_meta, _per_frame
+from glue_solar.sources.loaders.iris import WCS_LOCK, _add_time, _GlueWCS, _irispy_meta
 from glue_solar.sources.moments import _accepted, _check, _dataset, _form, _start
 
 __all__ = ["bursts_iris", "si_iv_bursts", "sji_bursts"]
@@ -217,7 +217,7 @@ def sji_bursts(data, sigma_factor=SIGMA_FACTOR, min_pixels=MIN_PIXELS):
     bursts.coords.follow(data)
     bursts.meta = {**data.meta, **parameters}
     bursts.add_component(Component(labels.data), "label")
-    bursts.add_component(_per_frame(data[data.id["Time"], (slice(None), 0, 0)], bursts.shape), "Time")
+    _add_time(bursts, data[data.id["Time"], (slice(None), 0, 0)])
     meta = {key: data.meta[key] for key in ("OBSID", "STARTOBS") if key in data.meta}
     table = _table(events, f"{data.label} burst events", {**meta, **parameters}, bursts)
     return [bursts, table]

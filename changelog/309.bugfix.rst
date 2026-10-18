@@ -1,0 +1,1 @@
+Sessions save the mean spectrum, times, exposure times and other components an analysis broadcasts over a cube at the size of their own values, so saving a session after 'IRIS: subtract mean spectrum' on a full window no longer runs out of memory.

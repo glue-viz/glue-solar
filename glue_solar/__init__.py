@@ -9,6 +9,7 @@ from glue.config import fit_plugin, menubar_plugin, session_patch, stretches, un
 from glue.core import Data
 from glue.core.state import GlueSerializer
 from glue.logger import logger
+from glue.utils import unbroadcast
 from glue_qt.config import keyboard_shortcut, layer_action
 from glue_qt.utils.decorators import messagebox_on_error
 from glue_qt.viewers.image import ImageViewer
@@ -102,7 +103,7 @@ def _save_last_session(app):
     if not app.isVisible() or not len(app.data_collection):
         return
     held = sum(  # the values glue would save, not their files: less than the session, measured before encoding
-        getattr(component, "spectra", component.data).nbytes  # a calibration's factor saves its spectra alone
+        unbroadcast(component.data).nbytes  # a broadcast component saves its values before the broadcast
         for data in app.data_collection
         if isinstance(data, Data)  # a path diagram (`tools.PathData`) saves its path, and has no components (D75)
         for component in map(data.get_component, data.main_components)
