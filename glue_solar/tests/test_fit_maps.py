@@ -5,6 +5,7 @@ scheduler stands in for its processes, which take seconds to start.
 """
 
 import gc
+import sys
 import weakref
 
 import dask.local
@@ -16,13 +17,14 @@ from qtpy import QtWidgets
 
 import astropy.modeling.fitting
 import astropy.units as u
+import astropy.wcs.wcsapi.fitswcs
 from astropy.io import fits
 
 from glue_solar.fitters import GaussianConstantFitter
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import fit_maps
 from glue_solar.sources.loaders import iris
-from glue_solar.sources.loaders.iris import keep_hpc_linked, link_hpc, raster_data
+from glue_solar.sources.loaders.iris import WCS_LOCK, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.tests.helpers import refused, run_action
 
 ACTION = "IRIS: line fit maps"
@@ -191,8 +193,8 @@ def test_the_profile_fit_of_a_window_maps_every_spectrum_into_one_linked_dataset
 
 def test_saturated_samples_are_left_out_of_the_fits(app, qtbot, scan_path, calls):
     """
-    A sample at the Level 2 ceiling, 16182 DN, a lower bound only, is left out of each spectrum's fit, and the
-    wavelength where the window's mean takes one out of its Profile fit (D87).
+    A sample at the Level 2 ceiling, 16182 DN, a lower bound only, is left out of each spectrum's fit; the window's
+    mean, whose other pixels are not saturated there, keeps it in its Profile fit, which says so (D87).
     """
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     peak = np.argmin(np.abs(_wavelengths(raster)[0] - 1402.77))
@@ -201,7 +203,8 @@ def test_saturated_samples_are_left_out_of_the_fits(app, qtbot, scan_path, calls
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)
     assert (raster[raster.main_components[0], :, 10, peak] == 16182).all()
-    assert fit(qtbot, profile(app, raster)).meta["saturated"] == 1
+    meta = fit(qtbot, profile(app, raster)).meta
+    assert (meta["saturated"], meta["partly_saturated"]) == (0, 1)
     run(app, qtbot, raster)
     [call] = calls
     [wavelengths] = call["world"]
@@ -243,13 +246,39 @@ def test_the_fit_reaches_the_window_in_angstrom_with_its_settings(app, qtbot, mo
     assert maps.get_component("integrated_intensity_1").units == str(call["data_unit"] * u.AA)
 
 
-def test_a_stack_is_fitted_scan_by_scan(app, qtbot, stack_paths, calls):
+def test_a_stack_is_fitted_scan_by_scan(app, qtbot, monkeypatch, stack_paths, calls):
     [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
     collection = app.data_collection
     collection.append(stack)
     keep_hpc_linked(collection)
     fit(qtbot, profile(app, stack))
+    # each wcslib call on the scans' WCSes holds WCS_LOCK for itself, and irispy's maps_from_fit runs without it, as
+    # test_linking's analyses (#311)
+    raws = [*stack.coords._wcs._wcses, stack.coords._wcs._wcs._wcs[1]._wcs]
+    owners = {id(owner) for raw in raws for owner in (raw, raw.wcs)}  # each WCS and its wcslib struct
+    files = {astropy.wcs.wcs.__file__, astropy.wcs.wcsapi.fitswcs.__file__}
+    wcs_calls, entered, fit_maps_ = [], [], fit_maps._fit_maps
+
+    def trace(frame, event, arg):
+        if event == "c_call" and id(getattr(arg, "__self__", None)) in owners:
+            wcs_calls.append((arg.__name__, WCS_LOCK._is_owned()))
+        elif event == "call" and frame.f_code.co_filename in files and id(frame.f_locals.get("self")) in owners:
+            wcs_calls.append((frame.f_code.co_name, WCS_LOCK._is_owned()))
+        elif event == "call" and frame.f_code.co_name == "maps_from_fit":
+            entered.append(WCS_LOCK._is_owned())
+
+    def traced(*args):  # on glue-qt's Worker, a QThread, which threading.setprofile_all_threads does not reach
+        sys.setprofile(trace)
+        try:
+            return fit_maps_(*args)
+        finally:
+            sys.setprofile(None)
+
+    monkeypatch.setattr(fit_maps, "_fit_maps", traced)
     maps = run(app, qtbot, stack)
+    assert wcs_calls
+    assert {name for name, locked in wcs_calls if not locked} <= {"serialized_classes"}  # astropy's False, no wcslib
+    assert entered == [False] * 3
     assert maps.shape == stack.shape[:-1]
     assert [call["data"].shape[:2] for call in calls] == [stack.shape[1:3]] * 3  # each scan alone
     [pool] = {call["scheduler"].keywords["pool"] for call in calls}  # one for the run
