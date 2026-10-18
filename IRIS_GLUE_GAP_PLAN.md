@@ -28,15 +28,15 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 6f193c5 (#305). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
+**Resume here.** Main is at e80bf50 (#306). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
 **Next.** In flight since 2026-10-17's second session (D86), each item implemented by an Opus agent, reviewed by Fable, fixed by Opus, shipped with `ship_locked.sh`:
-  1. `wp0-restore-full-ci`: shipping (no changelog).
+  1. #306: shipping (no changelog).
   2. `wp10-l-saturation-shown`: built on irispy #239's branch in worktree `~/Git/glue-solar-wp10-l-saturation-shown`, tested in the `-sat` envs; its draft PR pins irispy to `saturation-mask` in one commit, reverted once #239 merges, and is merged only then.
   3. `wp13-stokes`: worktree `~/Git/glue-solar-wp13-stokes`.
   4. A Fable whole-code review of main (`~/Git/glue-solar-review`, detached), findings for the user to triage, and a design brief for `wp6-glue-fit-tool` (D86) to review with the user.
 
-**Waiting on the user.** Reviewing and merging irispy draft #239; the `wp6-glue-fit-tool` design review; `wp0-qt68-macos-pass`; filing `wp0-qt-fitter-settings`'s PR from its pushed branch (text in the archive's `briefs/glue-qt-fitter-pr.md`); the audits' other proposals (`audit2/` in the archive); the drag-into-/Applications check of the app (`~/Downloads/Glue Solar.dmg`, built from f073033's recipe; a dmg from #275's recipe would also check Finder and Dock opening); an exact report of the linking and slider-sync problems the user saw in the app (2026-10-09), whose steps, rerun with `glue` from `iris-plan-qt6-802`, tell an app problem from a Qt 6 or glue-solar one; raising the matplotlib-free WCSAxes core prototype in person (no PR, issue or upstream notice); M4 and OM work. Offered, not started: `wp0-restore-full-ci`, and #207's leftover (viewers opened after the time marker exists get its layer: about 10% slower steps with a second quicklook).
+**Waiting on the user.** Reviewing and merging irispy draft #239; the `wp6-glue-fit-tool` design review; `wp0-qt68-macos-pass`; filing `wp0-qt-fitter-settings`'s PR from its pushed branch (text in the archive's `briefs/glue-qt-fitter-pr.md`); the audits' other proposals (`audit2/` in the archive); the drag-into-/Applications check of the app (`~/Downloads/Glue Solar.dmg`, built from f073033's recipe; a dmg from #275's recipe would also check Finder and Dock opening); an exact report of the linking and slider-sync problems the user saw in the app (2026-10-09), whose steps, rerun with `glue` from `iris-plan-qt6-802`, tell an app problem from a Qt 6 or glue-solar one; raising the matplotlib-free WCSAxes core prototype in person (no PR, issue or upstream notice); M4 and OM work. Offered, not started: #306, and #207's leftover (viewers opened after the time marker exists get its layer: about 10% slower steps with a second quicklook).
 
 **Waiting on others.** irispy #209 (`wp5-irispy-line-database`, then `wp5-l-line-groups` and `wp5-l-lines-in-range`).
 
@@ -163,7 +163,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP10: `wp10-l-saturation-shown`
 
 **M4**
-- WP0: `wp0-irispy-saturation-mask`, `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-restore-full-ci`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
+- WP0: `wp0-irispy-saturation-mask`, `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
 - WP1: `wp1-m4-autolink-matrix`
 - WP6: `wp6-glue-fit-tool`
 - WP9: `wp9-m4-release-updates`
@@ -190,7 +190,6 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 
 - [ ] **M4** `wp0-irispy-saturation-mask` (D85): draft LM-SAL/irispy#239 (branch `saturation-mask`, worktree `~/Git/irispy-saturation-mask`): the readers (memmap=False) keep samples at the ceiling at 16182 DN and mark them in the mask and in `meta['saturated']`, and the analyses take saturation from both (the mask alone also holds samples users mask). Done when the user has reviewed and merged it, or chosen 'masked and above 0 means saturated' instead.
 - [ ] **M4** `wp0-irispy-requests`: Get irispy's merged #197-#199, #201 and #205-#207 released (0.10.0; changelog fragments in place; D47) and settle the irispy-side checks (exposure times, rolled-SJI gWCS, binned `slit x position`, per-step pointing). Done when a release has them and each check has a test or user decision.
-- [ ] **M4** `wp0-restore-full-ci`: #130 cut CI to one test job (py313-online, `-n auto`) beside `build_docs` while the work only needs to show it works. Before the release, restore the full matrix: a core job at the `requires-python` floor (py313) that the test (py314, py313-online) and docs jobs wait for, all with `-n auto`. Done when CI runs every job again.
 - [ ] **M4** `wp0-core-image-artist-bugs`: Core PR: a hidden Pixel crosshair reappears at (0, 0), `translate_pixel` raises a bare `Exception`, and a linked-layer Pixel crosshair uses its own dataset instead of the viewer's reference data (#107). Done when all three reproducers pass on a release.
 - [ ] **M4** `wp0-qt-large-data-cancel`: glue-qt report: cancelling the 'Add large data set?' modal breaks later viewers. Done when filed or declined.
 - [ ] **M4** `wp0-astropy-19174`: Add the IRIS -TAB WCS thread crash to astropy#19174, with the survey's non-IRIS reproducer: an SST cube beside an IRIS quicklook (SST1; `verify/beside.py` or `scripts/sst.py --iris sit` without a lock, in `sst_stress_20261010.tar.gz`). Also (#226): glue's `WCSLink.__init__` reads `wcs.wcs.lng` and `.lat` on the struct, outside any lock, when File > Open autolinks a dataset beside a linked SST cube or map; lock the WCS objects there, or include it in the report. Done when reproduced without `WCS_LOCK` and posted or declined.
