@@ -246,9 +246,11 @@ class GaussianConstantFitter(AstropyFitter1D):
                 if tie is not None:  # a center's separation, an amplitude's or width's ratio, blank for the same
                     target, by = tie
                     other = _name(self.components[target][0].param_names[position], target, self.components)
-                    parameter.tied = (
-                        _tie(other, 1, by or 0) if position == 1 else _tie(other, 1 if by is None else by, 0)
-                    )
+                    # to the root of a chain, through its target's tie, set above: astropy computes each tie from the
+                    # values before any tie (fitting.py `fitter_to_model_params_array`), so a tie to a tied one is stale
+                    root, factor, offset = getattr(getattr(model, other).tied, "args", (other, 1, 0))
+                    ratio, separation = (1, by or 0) if position == 1 else (1 if by is None else by, 0)
+                    parameter.tied = _tie(root, factor * ratio, offset * ratio + separation)
         return model
 
     def fit(self, x, y, dy, constraints, saturated=False, **options):  # the options are read from the fitter

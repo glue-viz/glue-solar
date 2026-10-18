@@ -189,7 +189,8 @@ def test_the_profile_fit_of_a_window_maps_every_spectrum_into_one_linked_dataset
     assert (start.param_names, start.bounds) == (fitted.param_names, fitted.bounds)
     assert start.mean_1.value.shape == raster.shape[:2]
     np.testing.assert_array_equal(start.stddev_1.value, fitted.stddev_1.value)  # the width kept
-    assert (call["fitting_axes"], call["fit_info"], call["fitter_kwargs"]) == (2, True, {"filter_non_finite": True})
+    assert (call["fitting_axes"], call["fitter_kwargs"]) == (2, {"filter_non_finite": True})
+    assert call["fit_info"] == ("param_cov", "success")  # what irispy reads, not every fit's Jacobian
     assert call["scheduler"].func is dask.local.get_sync  # dask.multiprocessing.get, patched
     assert str(call["data_unit"]) == "DN_IRIS_FUV"
     [wavelengths] = call["world"]

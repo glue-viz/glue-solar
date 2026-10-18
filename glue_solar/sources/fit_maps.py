@@ -204,10 +204,15 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
                 data_unit=unit,
                 fitting_axes=2,
                 world=(wavelengths * u.AA,),
-                fit_info=True,  # irispy's errors and quality need its param_cov and success
+                fit_info=("param_cov", "success"),  # irispy's errors and quality; all of it, a C II window took 6.5 GB
                 scheduler=scheduler,
                 fitter_kwargs={"filter_non_finite": True, **_jacobian(model)},
             )
+            # plain dicts: astropy's FitInfoSubset raises KeyError in FitInfoArrayContainer's hasattr (report candidate)
+            infos = fitter.fit_info._fit_info_array
+            for index in np.ndindex(infos.shape):
+                if isinstance(infos[index], dict):
+                    infos[index] = dict(infos[index])
             # each wcslib call irispy makes holds WCS_LOCK for itself (`_GlueWCS`)
             for name, part in maps_from_fit(fitted, cube, fitter=fitter, rest_wavelength=rest * u.AA).items():
                 if name != "residual":  # a cube, not a map

@@ -224,8 +224,9 @@ whose mean includes saturated pixels, biased low (see :ref:`Missing and saturate
 linear or polynomial background (with its degree) and press "Add"; "Remove" drops one. Each parameter
 has a start (blank: from the data), "Fixed", and a lower and an upper bound, either alone. A line's
 parameter can be "Tied to" the same parameter of a line above it: an amplitude or a width is that
-line's times the ratio (blank: the same), a center is that line's plus the separation, in the x unit.
-For C II 1334.53 Å and its 1335.66 and 1335.71 Å blend:
+line's times the ratio (blank: the same), a center is that line's plus the separation, in the x unit;
+a tie to a tied line follows it, its separations adding up and its ratios multiplying. For C II
+1334.53 Å and its 1335.66 and 1335.71 Å blend:
 
 1. Add two Gaussians and give ``mean_1`` the start 1334.53.
 2. Tie ``mean_2`` to ``mean_1`` by 1.1305, and ``mean_3`` to ``mean_1`` by 1.1756.

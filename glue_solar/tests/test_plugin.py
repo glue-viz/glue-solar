@@ -2538,12 +2538,12 @@ def test_profile_viewers_keep_their_own_fitter_settings(app, qtbot, monkeypatch)
 
     def bound(dialog):
         _, _, lower, upper, *_ = dialog.rows["mean_1"]
-        lower.setText("1355.623")  # above the line's center
+        lower.setText("1355.63")  # above the line's center and its start, the sample at 1355.625, clipped to it
         upper.setText("1355.7")
 
     first.fit_function = GaussianConstantFitter
     fit_settings(monkeypatch, first, bound)
-    assert float(fit(first)[-1].split()[2].strip(",")) == pytest.approx(1355.623, abs=1e-5)
+    assert float(fit(first)[-1].split()[2].strip(",")) == pytest.approx(1355.63, abs=1e-5)
     second.fit_function = GaussianConstantFitter
     assert fit(second)[-1].startswith("center_1 = 1355.620000,")  # the other viewer's bound left out
     second.fit_function = PolynomialFitter
@@ -2769,6 +2769,38 @@ def test_the_iris_fit_settings_compose_a_model(app, monkeypatch):
     assert len(fitter.components) == 4
 
 
+def test_removing_a_line_renumbers_the_ties_to_those_below_it(qtbot):
+    fitter = iris_fitter(models.Const1D(), *(models.Gaussian1D() for _ in range(3)))
+    fitter.components[3][1]["mean"]["tie"] = (2, 0.05)  # mean_3 to mean_2
+    dialog = _Settings(fitter)
+    qtbot.addWidget(dialog)
+    click(dialog.table, "Remove", 1)  # the first Gaussian
+    dialog.accept()
+    assert fitter.components[2][1]["mean"]["tie"] == (1, 0.05)  # mean_2 to mean_1, the same line
+
+
+def test_a_chain_of_ties_fits_from_its_root():
+    """
+    C II's lines, the third's center, amplitude and width tied to the second's and the second's to the first's: each
+    follows its chain to the first, as astropy computes a tie from the values before any; the first starts at its own
+    peak, not the stronger blend's, the second's center its separation away (D86).
+    """
+    x = 1334 + 0.01 * np.arange(250)
+    centers, amplitudes = (1334.53, 1335.66, 1335.71), (20, 40, 10)
+    y = 5 + sum(a * np.exp(-0.5 * ((x - c) / 0.03) ** 2) for a, c in zip(amplitudes, centers, strict=True))
+    fitter = iris_fitter(models.Const1D(), *(models.Gaussian1D() for _ in centers))
+    fitter.set_constraint("mean_1", value=1334.53)
+    for line, separation, ratio in ((2, 1.13, 2), (3, 0.05, 0.25)):
+        settings = fitter.components[line][1]
+        settings["mean"]["tie"], settings["amplitude"]["tie"] = (line - 1, separation), (line - 1, ratio)
+        settings["stddev"]["tie"] = line - 1, None
+    assert fitter.parameter_guesses(x, y, None)["mean_1"] == pytest.approx(1334.53)
+    model, _ = fitter.build_and_fit(x, y)
+    assert model.mean_3.value == pytest.approx(model.mean_1.value + 1.18)
+    assert model.amplitude_3.value == pytest.approx(model.amplitude_1.value / 2)
+    assert model.parameters == pytest.approx([5, 20, 1334.53, 0.03, 40, 1335.66, 0.03, 10, 1335.71, 0.03])
+
+
 def test_the_fit_tab_workarounds_install_only_where_glue_qt_needs_them():
     installed = ProfileTools._plot_fit is glue_patches._plot_fit
     assert installed == glue_patches.needs_fit_artists_workaround()  # probes glue-qt's own method
@@ -2776,6 +2808,7 @@ def test_the_fit_tab_workarounds_install_only_where_glue_qt_needs_them():
     installed = ProfileTools._on_settings is glue_patches._on_settings
     assert installed == (not hasattr(ProfileTools, "_get_fitter") or glue_patches.needs_fitter_settings_workaround())
     assert not glue_patches.needs_fitter_settings_workaround(glue_patches._on_settings)
+    assert glue_patches.needs_fitter_settings_workaround()  # glue-qt 0.4.2's opens its own dialog for every fitter
 
 
 @pytest.mark.remote_data
