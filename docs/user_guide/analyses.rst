@@ -109,8 +109,8 @@ widths of the fitted center, among the samples nearer it than any other line's; 
 values, bounds and ties are as fitted. Missing samples are
 left out, and saturated ones, which are only a lower bound. The fit of step 1 leaves a sample out
 where all the pixels it combines are saturated (for a Point, where it is), and notes the wavelengths
-whose mean includes saturated pixels. A full Si IV 1403 raster, 175,000 spectra, takes about 100 s
-on 12 cores and 7 GB of memory.
+whose mean includes saturated pixels. A full Si IV 1403 raster, 175,000 spectra, takes about a minute
+on 12 cores and 8 GB of memory, the worker processes included.
 
 The result, ``<label> fit <rest>``, holds irispy's ``maps_from_fit`` maps of each line ``i``:
 ``velocity_i`` and ``fwhm_velocity_i`` in km / s, from the rest wavelength, ``fwhm_i`` in Angstrom
