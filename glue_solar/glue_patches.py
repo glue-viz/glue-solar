@@ -273,7 +273,8 @@ def export_fits(filename, data, components=None, data_header=None, extensions=()
                 blank = np.iinfo(values.dtype).min
                 values = da.where(mask, values, values.dtype.type(blank))
         if isinstance(data, Data):
-            header = gridded_fits.make_component_header(data.get_component(cid), data_header)
+            # a copy: glue-core 1.27.0 updates and returns the header given, so a BLANK would reach later HDUs
+            header = gridded_fits.make_component_header(data.get_component(cid), data_header.copy())
         else:
             header = fits.Header()
         if blank is not None:

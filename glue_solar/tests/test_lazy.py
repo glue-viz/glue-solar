@@ -735,3 +735,13 @@ def test_a_lazy_window_exports_a_section_at_a_time_as_glue_exports_it(monkeypatc
     assert 0 < max(sizes) < window.size
     gridded_fits.fits_writer(str(tmp_path / "glue.fits"), window)  # which reads it whole
     assert (tmp_path / "sections.fits").read_bytes() == (tmp_path / "glue.fits").read_bytes()
+
+
+def test_a_subset_export_gives_each_integer_component_its_own_blank(tmp_path):
+    from glue_solar import glue_patches
+
+    data = Data(a=np.arange(6, dtype=np.int16).reshape(2, 3), b=np.arange(6, dtype=np.int32).reshape(2, 3), label="d")
+    data.add_component(np.ones((2, 3)), "c")
+    glue_patches.export_fits(str(tmp_path / "subset.fits"), data.new_subset(data.id["a"] > 2))
+    with fits.open(tmp_path / "subset.fits") as hdus:
+        assert [hdu.header.get("BLANK") for hdu in hdus] == [-32768, -(2**31), None]  # a, b and c
