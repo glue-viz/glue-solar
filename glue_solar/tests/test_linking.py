@@ -27,6 +27,7 @@ from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 
 import astropy.units as u
+import astropy.wcs.wcsapi.fitswcs
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.wcs import WCS
@@ -38,7 +39,7 @@ from glue_solar.conftest import SCAN, find_irispy_test_file
 from glue_solar.quicklook import _role, coordinator, nearest, quicklook
 from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
-from glue_solar.sources.calibration import remove_dust
+from glue_solar.sources.calibration import radiometric_calibration, remove_dust
 from glue_solar.sources.doppler import doppler_image
 from glue_solar.sources.iris import browse_iris, link_iris, shift_pointing_iris
 from glue_solar.sources.loaders.iris import (
@@ -633,6 +634,45 @@ def test_profile_workers_reach_a_linked_map_s_wcs_holding_the_lock(app, qtbot, m
     finally:
         threading.setprofile_all_threads(None)
     assert all(locked for *_, locked in calls)
+
+
+def test_the_analyses_hold_the_wcs_lock_in_each_wcslib_call_not_across_irispy(stack_paths):
+    # review F3: the analyses run on a worker beside the GUI thread's WCS calls, which waited about 1.4 s each as they
+    # held WCS_LOCK through irispy's whole slab; each wcslib call on a stack's scans' WCSes now holds it for itself
+    si, mg = raster_data(stack_paths, ["Si IV 1403", "Mg II k 2796"], stack=True)
+    raws = [*si.coords._wcs._wcses, *mg.coords._wcs._wcses]
+    assert {type(raw) for raw in raws} == {_LockedWCS}  # as `_GlueWCS` makes them
+    owners = {id(owner) for raw in raws for owner in (raw, raw.wcs)}  # each WCS and its wcslib struct
+    files = {astropy.wcs.wcs.__file__, astropy.wcs.wcsapi.fitswcs.__file__}
+    irispy = {
+        "calculate_red_blue_asymmetry",
+        "subtract_background",
+        "calculate_moments",
+        "calculate_mg_features",
+        "calculate_dn_to_radiance_factor",
+    }
+    calls, entered = [], []  # (the function, holding the lock)
+
+    def profile(frame, event, arg):
+        if event == "c_call" and id(getattr(arg, "__self__", None)) in owners:
+            calls.append((arg.__name__, WCS_LOCK._is_owned()))
+        elif event == "call" and frame.f_code.co_filename in files and id(frame.f_locals.get("self")) in owners:
+            calls.append((frame.f_code.co_name, WCS_LOCK._is_owned()))
+        elif event == "call" and frame.f_code.co_name in irispy:
+            entered.append((frame.f_code.co_name, WCS_LOCK._is_owned()))
+
+    threading.setprofile_all_threads(profile)
+    try:
+        red_blue_asymmetry(si, 1402.77)
+        line_moments(si, 1402.77, continuum=[(1400.0, 1400.5)])
+        mg_features(mg)
+        radiometric_calibration(si)  # which holds it to read the struct, irispy's spectral dispersion and solid angle
+    finally:
+        threading.setprofile_all_threads(None)
+    assert {"_all_pix2world", "pixel_to_world_values", "__deepcopy__"} <= {name for name, _ in calls}
+    assert {name for name, locked in calls if not locked} <= {"serialized_classes"}  # astropy's False, no wcslib
+    assert {name for name, _ in entered} == irispy
+    assert not any(locked for _, locked in entered)
 
 
 def _inside(sji, frame, raster, roi):

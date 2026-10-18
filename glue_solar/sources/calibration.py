@@ -179,25 +179,25 @@ def radiometric_calibration(data):
     label = f"{cid.label} radiance"
     rate, unit = data.id[f"{cid.label} DN / s"], _unit(data)
     scans, zeros = list(np.ndindex(data.shape[:-3])), np.broadcast_to(np.float32(0), data.shape[-3:])
-    with WCS_LOCK:  # irispy reads the window's astropy WCS
-        meta = _irispy_meta(data, scans[0])  # its DATE_OBS, a stack's first scan's, every scan's
-        response = get_latest_response(meta.date_reference)
-        # the window's own, a stack's first scan's, whose pixel sizes are every scan's (`_check_radiance`)
-        pixel = SpectrogramCube(zeros, _scan_wcses(data)[0])  # of the window's pixels, of which a bin is the mean
+    meta = _irispy_meta(data, scans[0])  # its DATE_OBS, a stack's first scan's, every scan's
+    response = get_latest_response(meta.date_reference)
+    # the window's own, a stack's first scan's, whose pixel sizes are every scan's (`_check_radiance`)
+    pixel = SpectrogramCube(zeros, _scan_wcses(data)[0])  # of the window's pixels, of which a bin is the mean
+    with WCS_LOCK:  # irispy reads these from the astropy WCS's struct, which no `_LockedWCS` call guards
+        dispersion, solid_angle = pixel.spectral_dispersion, pixel.solid_angle
     factors = []
     for scan in scans:  # each scan of a stack, at its own wavelengths (stack_wcs)
-        with WCS_LOCK:
-            cube = SpectrogramCube(zeros, SlicedLowLevelWCS(data.coords._wcs, (*scan, ...)))
-            factors.append(
-                calculate_dn_to_radiance_factor(
-                    iris_response=response,
-                    # irispy's values, 40 ms a scan sooner; a bin's at its middle, its pixels' mean
-                    wavelength=cube.axis_world_coords_values(cube.wavelength_axis)[0],
-                    detector_type=meta.detector_band,
-                    spectral_dispersion_per_pixel=pixel.spectral_dispersion,
-                    solid_angle=pixel.solid_angle,
-                )
+        cube = SpectrogramCube(zeros, SlicedLowLevelWCS(data.coords._wcs, (*scan, ...)))
+        factors.append(
+            calculate_dn_to_radiance_factor(
+                iris_response=response,
+                # irispy's values, 40 ms a scan sooner; a bin's at its middle, its pixels' mean
+                wavelength=cube.axis_world_coords_values(cube.wavelength_axis)[0],
+                detector_type=meta.detector_band,
+                spectral_dispersion_per_pixel=dispersion,
+                solid_angle=solid_angle,
             )
+        )
     factor = (unit.to(u.photon / u.s) * u.photon / u.s * u.Quantity(factors)).to_value(RADIANCE_UNIT)  # of 1 DN / s
     factor = factor.reshape(*data.shape[:-3], 1, 1, -1)  # a spectrum for each scan
     per_rate = _BroadcastComponent(np.broadcast_to(factor, data.shape), units=str(RADIANCE_UNIT / (u.DN / u.s)))

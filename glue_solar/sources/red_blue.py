@@ -8,7 +8,6 @@ from glue.core.component import Component
 
 import astropy.units as u
 
-from glue_solar.sources.loaders.iris import WCS_LOCK
 from glue_solar.sources.moments import _check, _cube, _dataset, _slabs, _window
 
 __all__ = ["red_blue_asymmetry"]
@@ -39,14 +38,13 @@ def _red_blue(data, rest, wavelengths, velocities, step, crop, unit):
     maps = {}
     # irispy measures each pixel on its own, so a slab of steps gives what the whole window would
     for rows, values, _, saturated in _slabs(data, crop):
-        with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
-            slab = calculate_red_blue_asymmetry(
-                _cube(data, values, rows, crop, unit, saturated),
-                rest_wavelength=rest * u.AA,
-                velocity_range=velocities * u.km / u.s,
-                dv=step * u.km / u.s,
-                return_profiles=False,
-            )
+        slab = calculate_red_blue_asymmetry(
+            _cube(data, values, rows, crop, unit, saturated),
+            rest_wavelength=rest * u.AA,
+            velocity_range=velocities * u.km / u.s,
+            dv=step * u.km / u.s,
+            return_profiles=False,
+        )
         for name, part in slab.items():
             maps.setdefault(name, []).append(part.data)
     asymmetry = _dataset(data, f"{data.label} red-blue asymmetry {rest}")

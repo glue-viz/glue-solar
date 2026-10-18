@@ -208,10 +208,9 @@ def _moments(data, center, velocity_range, continuum, crop, unit, errors=False):
     for rows, values, seconds, clipped in _slabs(data, crop, 2 if continuum or errors else 1):
         # irispy's uncertainty of the values, which its background leaves as they are
         cube = _cube(data, values, rows, crop, unit, clipped, _sigma(values, unit, seconds) if errors else None)
-        with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
-            if continuum:  # NaN where irispy fits no background, but for saturated samples
-                cube = subtract_background(cube, continuum * u.AA, degree=degree)
-            slab = calculate_moments(cube, rest_wavelength=center * u.AA, velocity_range=velocity_range * u.km / u.s)
+        if continuum:  # NaN where irispy fits no background, but for saturated samples
+            cube = subtract_background(cube, continuum * u.AA, degree=degree)
+        slab = calculate_moments(cube, rest_wavelength=center * u.AA, velocity_range=velocity_range * u.km / u.s)
         saturated += int(slab.pop("saturated").data.sum())
         for name, moment in slab.items():
             # irispy sums masked samples as 0, and masks a pixel with none in the velocity range, or with a saturated
