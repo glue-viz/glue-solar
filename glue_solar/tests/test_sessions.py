@@ -147,6 +147,7 @@ def test_a_session_restores_a_moments_map_on_its_raster_steps(irispy_test_files)
 @pytest.mark.parametrize(
     "make",
     [
+        lambda sji, raster: raster,
         lambda sji, raster: (subtract_mean_spectrum(raster), raster)[1],
         lambda sji, raster: rebin(raster, (1, 1, 2)),
         lambda sji, raster: north_up(sji),
@@ -154,19 +155,21 @@ def test_a_session_restores_a_moments_map_on_its_raster_steps(irispy_test_files)
         lambda sji, raster: regrid_on_time(sji),
         lambda sji, raster: sji_bursts(sji)[0],
     ],
-    ids=["mean spectrum", "rebin", "north up", "dust removed", "regridded", "bursts"],
+    ids=["loaded", "mean spectrum", "rebin", "north up", "dust removed", "regridded", "bursts"],
 )
 def test_the_components_an_analysis_broadcasts_save_as_given_and_restore(sns, make):
     """
-    A mean spectrum, ``Time``, ``Exposure time`` and ``empty``, broadcast over a dataset, save their values before the
-    broadcast, as glue does not (3 GB for the mean spectrum of a full Mg II window), and restore broadcast, equal.
+    A mean spectrum, ``Time``, ``Exposure time`` and ``empty``, broadcast over a dataset as loaded or by an analysis,
+    save their values before the broadcast in a session including data, as glue does not (3 GB for the mean spectrum of
+    a full Mg II window), and restore broadcast, equal.
     """
     data = make(*sns)
     broadcast = [cid for cid in data.main_components if 0 in data.get_component(cid).data.strides]
     assert "Time" in [cid.label for cid in broadcast]
     for cid in broadcast:
         component = data.get_component(cid)
-        assert len(GlueSerializer(component).dumps()) < 1000 + 2 * unbroadcast(component.data).nbytes, cid.label
+        size = len(GlueSerializer(component, include_data=True).dumps())
+        assert size < 1000 + 2 * unbroadcast(component.data).nbytes, cid.label
     for (restored,) in twice(DataCollection([data])):
         for cid in data.main_components:
             np.testing.assert_array_equal(restored[cid.label], data[cid], err_msg=cid.label)

@@ -513,7 +513,7 @@ def _cube_data(cube, label, *, values=None, unit=None, color=None, cmap=None, mi
                     scaling=scaling)
     times = _frame_times(cube)
     if times is not None:
-        data.add_component(_per_frame(times, cube.shape), "Time")
+        _add_time(data, times)
     if getattr(cube, "exposure_time", None) is not None:
         _add_exposure(data, cube.exposure_time.to_value(u.s))  # per raster step or SJI frame, in the data's order
     if cube.extra_coords and set(_SJI_POINTING) <= set(cube.extra_coords.keys()):
@@ -608,7 +608,7 @@ def _raster_collection_data(collection, stack=False, scaling=None):
             # its meta is scan 0's, so exposure times and raster files come per scan
             _add_exposure(data, np.stack([scan.exposure_time.to_value(u.s) for scan in sequence]))
             data.meta["raster files"] = tuple(name for scan in sequence for name in scan.meta.get("raster files", ()))
-            data.add_component(_per_frame(stack_times(sequence), data.shape), "Time")
+            _add_time(data, stack_times(sequence))
             datasets.append(data)
             continue
         for i, scan in enumerate(sequence):
