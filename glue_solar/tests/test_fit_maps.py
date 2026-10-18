@@ -274,7 +274,17 @@ def test_a_stack_is_fitted_scan_by_scan(app, qtbot, monkeypatch, stack_paths, ca
         finally:
             sys.setprofile(None)
 
+    fit_ = astropy.modeling.fitting.parallel_fit_dask
+
+    def untraced(**kw):  # the fits take no WCS, and traced take minutes on a slow runner
+        sys.setprofile(None)
+        try:
+            return fit_(**kw)
+        finally:
+            sys.setprofile(trace)
+
     monkeypatch.setattr(fit_maps, "_fit_maps", traced)
+    monkeypatch.setattr(astropy.modeling.fitting, "parallel_fit_dask", untraced)
     maps = run(app, qtbot, stack)
     assert wcs_calls
     assert {name for name, locked in wcs_calls if not locked} <= {"serialized_classes"}  # astropy's False, no wcslib
