@@ -46,7 +46,8 @@ Saving
 ------
 
 - **"Per-frame limits":** turn them off before saving a session. A session saved with them on in any
-  Image viewer does not open ("'NoneType' object has no attribute 'add_callback'").
+  Image viewer but a quicklook's panels does not open ("'NoneType' object has no attribute
+  'add_callback'").
 - **"Glue Session including data"** fails on IRIS data read from their files as they are viewed and
   on SST cubes: save with relative paths to data.
 - **Data regridded on time** from data read as they are viewed do not save ("Don't know how to

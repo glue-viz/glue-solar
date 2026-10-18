@@ -1,0 +1,1 @@
+The SST quicklook's second wavelength map opens with per-frame limits, and both maps open zoomed to the field, staying on it as panels turn on and off.

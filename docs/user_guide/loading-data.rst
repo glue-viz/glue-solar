@@ -113,6 +113,10 @@ tab named after its line, such as "SST Ca II 8542". Its panels are in three rows
 - the spectra at the point of Stokes I, Q, U and V;
 - wavelength against scan at the point, and the light curve at the point.
 
+Both maps open zoomed to the field, without a mosaic's NaN border, and stay on it as panels turn on
+or off until you pan or zoom. The second map opens with "Per-frame limits" on, as the whole cube's
+limits wash the brighter wing out.
+
 The point, clicks and keys work as in the IRIS quicklook, and the scan and Stokes sliders of either
 map move the other panels. Cubes with overlapping scan times, such as the CRISP and CHROMIS cubes of
 one morning, share one time.
@@ -122,7 +126,7 @@ Q, U and V show scaled with their noise level: their maps' limits are ±5 times 
 noise level shaded about 0. The noise level is the parameter's standard deviation at the continuum,
 the first or last tuning, whichever is farther from the line core, estimated from the median
 absolute deviation of a sample of rows and columns from up to 16 scans. View → "Per-frame limits"
-gives each frame its own limits instead.
+gives each frame its own limits instead; on the second map it changes I's only.
 
 For a spectrum in a Profile viewer, draw a region on the cube: a cube's own profile reads the whole
 file, so glue-solar adds the cube hidden. Open maps before SST cubes, and cubes without Stokes before
