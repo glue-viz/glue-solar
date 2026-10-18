@@ -121,8 +121,8 @@ Q, U and V show scaled with their noise level: their maps' limits are ±5 times 
 ±10 times for V, whose signal is the stronger, and their spectra span at least as much, with the
 noise level shaded about 0. The noise level is the parameter's standard deviation at the continuum,
 the first or last tuning, whichever is farther from the line core, estimated from the median
-absolute deviation of a sample of rows and columns of each scan. View → "Per-frame limits" gives
-each frame its own limits instead.
+absolute deviation of a sample of rows and columns from up to 16 scans. View → "Per-frame limits"
+gives each frame its own limits instead.
 
 For a spectrum in a Profile viewer, draw a region on the cube: a cube's own profile reads the whole
 file, so glue-solar adds the cube hidden. Open maps before SST cubes, and cubes without Stokes before

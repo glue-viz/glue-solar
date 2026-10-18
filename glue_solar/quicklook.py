@@ -1648,7 +1648,9 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
                 app, QuicklookImageViewer, panel.data, panel.x, panel.y, panel.at, panel.title, panel.aspect
             )
             if table.get("limits"):
-                viewer.state.add_callback("slices", partial(_stokes_limits, viewer.state.layers[0]))
+                layer = viewer.state.layers[0]
+                viewer.state.add_callback("slices", partial(_stokes_limits, layer))
+                layer.add_callback("stretch_global", lambda *_: _stokes_limits(layer, viewer.state.slices))
         add(panel, viewer)
         return viewer
 
@@ -1692,7 +1694,6 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
         if table.get("limits"):  # Q, U and V spectra at least the maps' range, their noise level shaded (F173)
             for stokes, spectrum in enumerate(viewers["spectra"][1:], 1):
                 noise = datasets[0]._noise[stokes]
-                # shortcut: in the cube's unit; stays put if the panel's y unit changes, until someone needs that
                 spectrum.axes.axhspan(-noise, noise, color="0.9", zorder=0, gid="solar:noise")
                 spectrum._solar_limit = _stokes_limit(datasets[0], stokes)
                 _fit(spectrum)
@@ -1743,12 +1744,13 @@ def _stokes_limits(layer, slices):
     Give ``layer`` the limits of the Stokes parameter of ``slices``: glue's 99.5% for I, and `_stokes_limit` about 0 for
     Q, U and V, which glue's over the whole cube, I's values mostly, showed flat (230-6).
     """
-    # ponytail: set as the Stokes parameter changes, over limits chosen in the style editor, and I takes glue's 99.5%
-    # again; keep each parameter's last limits if that matters
+    # ponytail: set as the Stokes parameter or 'Per-frame limits' changes, over limits chosen in the style editor, and I
+    # takes glue's 99.5% again; keep each parameter's last limits if that matters
     cube, stokes = layer.layer, slices[1]
-    if stokes == vars(layer).get("_solar_stokes", 0) or layer.attribute is not cube.main_components[0]:
+    shown = stokes, layer.stretch_global
+    if shown == vars(layer).get("_solar_stokes", (0, True)) or layer.attribute is not cube.main_components[0]:
         return
-    layer._solar_stokes = stokes
+    layer._solar_stokes = shown
     limit = _stokes_limit(cube, stokes) if stokes and layer.stretch_global else np.nan
     if not limit > 0:  # I, 'Per-frame limits', or a parameter constant or all NaN at the continuum
         layer.percentile = PERCENTILE

@@ -225,12 +225,16 @@ class _Cube(Data):
         """
         The noise level of Stokes Q, U and V, by index (F173): the standard deviation of each at the continuum, the end
         tuning farther from the line core, from the median absolute deviation, which the few polarized pixels leave
-        alone, of `_sample`'s 10,000 values of it there, NaN, such as a mosaic's edges, left out.
+        alone, of `_sample`'s 10,000 values of it there, NaN, such as a mosaic's edges, left out; 0 if all are NaN.
         """
         waves, core = self.coords._grid[5], self.coords.core
         tuning = max((0, len(waves) - 1), key=lambda k: abs(waves[k] - waves[core]))
         cid = self.main_components[0]
-        return {k: mad_std(self[cid, self._sample(10_000, k, tuning)], ignore_nan=True) for k in (1, 2, 3)}
+        with warnings.catch_warnings(action="ignore", category=RuntimeWarning):  # 'All-NaN slice encountered'
+            return {
+                k: np.nan_to_num(mad_std(self[cid, self._sample(10_000, k, tuning)], ignore_nan=True))
+                for k in (1, 2, 3)
+            }
 
     def __gluestate__(self, context):
         log = getattr(self, "_load_log", None)  # none on a cube restored with its data

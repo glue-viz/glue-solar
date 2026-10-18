@@ -677,12 +677,27 @@ def test_q_u_and_v_show_scaled_with_their_noise_level(sst_app, qtbot, tmp_path):
         for layer in layers:
             assert (layer.v_min, layer.v_max) == (pytest.approx(-limit), pytest.approx(limit))
         assert limit < 0.03 * (whole[0][1] - whole[0][0])  # the few % of glue's range they took
-    # with 'Per-frame limits' on, glue's 99.5% of the frame shown
-    layers[0].stretch_global = False
+    # 'Per-frame limits' on at V, then at Q: glue's 99.5% of the frame shown; off: ±5 times Q's noise level again
+    per_frame = viewers["map"].toolbar.actions["solar:per_frame_limits"]
     slide(viewers["map"], 1, 3)
     qtbot.waitUntil(lambda: layers[0].viewer_state.slices[1] == 3)
+    per_frame.trigger()
     frame = np.percentile(values[0, 3, 1], [0.25, 99.75])
     assert (layers[0].v_min, layers[0].v_max, layers[0].percentile) == (*map(pytest.approx, frame), 99.5)
+    slide(viewers["map"], 1, 1)
+    qtbot.waitUntil(lambda: layers[0].viewer_state.slices[1] == 1)
+    frame = np.percentile(values[0, 1, 1], [0.25, 99.75])
+    assert (layers[0].v_min, layers[0].v_max, layers[0].percentile) == (*map(pytest.approx, frame), 99.5)
+    per_frame.trigger()
+    assert (layers[0].v_min, layers[0].v_max) == (pytest.approx(-5 * noise[0]), pytest.approx(5 * noise[0]))
+    # V polarized everywhere and all NaN at the continuum: no noise level, and its spectrum's range still takes y = 0
+    with fits.open(path) as hdul:
+        hdul[0].data[:, 3] += 50
+        hdul[0].data[:, 3, 4] = np.nan
+        hdul.writeto(tmp_path / "nan.fits")
+    cube = sst_data(tmp_path / "nan.fits")
+    spectrum = quicklook(sst_app, [cube])["spectra"][3]
+    assert (cube._noise[3], spectrum.state.y_min) == (0, 0)
 
 
 def test_a_profile_viewer_adds_a_large_cube_hidden(sst_app, monkeypatch, tmp_path, sns):
