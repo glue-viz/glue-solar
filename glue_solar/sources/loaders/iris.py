@@ -648,14 +648,15 @@ def _image_cube_data(cube, path, scaling=None):
     desc, instrument = str(cube.meta["TDESC1"]).replace("_", " "), str(cube.meta["INSTRUME"])
     if "_deconvolved." in Path(path).name:  # the header does not say, the filename does
         desc += " deconvolved"
+    scan = ""
     if instrument == "SOT-SP":  # every SP map's TDESC1 is 6302A
         desc += f" {cube.meta['BTYPE']}"
-        # and an observation's sets of maps differ by the time in their files' names
+        # and an observation's sets of maps, each a slit scan, differ by the time in their files' names
         if stamp := re.search(r"_(\d\d)(\d\d)(\d\d)_[a-z0-9]+_index", Path(path).name):
-            desc += " {}:{}:{}".format(*stamp.groups())
+            scan = "scan {}:{}:{}".format(*stamp.groups())
     if instrument.startswith(("AIA", "SOT")):  # as the browser lists them
         desc = f"{instrument[:3]} {desc}"
-    wave, label = int(cube.meta["TWAVE1"]), _label(desc, cube.meta)
+    wave, label = int(cube.meta["TWAVE1"]), _label(desc, cube.meta, scan)
     cmap = f"irissji{wave}" if desc.startswith("SJI") else f"sdoaia{wave}"
     # irispy's FITS WCS header of each frame, in a tuple, which sessions save, rather than an array of objects
     # ponytail: a session restores each header as a dict, not irispy's MetaDict, so irispy's fits_wcs of one frame of a

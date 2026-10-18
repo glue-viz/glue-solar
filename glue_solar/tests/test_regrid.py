@@ -136,6 +136,7 @@ def test_a_sit_and_stare_regrids_at_its_median_exposure_step(monkeypatch, tmp_pa
     assert [np.may_share_memory(plane, raw) for plane in planes] == [i not in gaps for i in range(len(planes))]
     assert regridded.shape[0] == 198
     assert regridded.label == f"{raster.label} regridded"
+    assert regridded.main_components[0].label == raster.main_components[0].label
     assert regridded.meta["OBSID"] == raster.meta["OBSID"]
     # and as before from data loaded in memory
     monkeypatch.setattr(iris, "LAZY", False)

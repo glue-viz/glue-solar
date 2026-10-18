@@ -376,8 +376,12 @@ def test_sot_cubes_are_listed_by_observation_and_loaded(qtbot, tmp_path, irispy_
     row.setCheckState(0, Qt.Checked)
     load_selected(qtbot, dialog)
     # glue tells the SP maps apart by their file's time
-    labels = ["SOT 6302A B_LOS 18:50:06", "SOT 6302A B_LOS 19:00:00", "SOT TF Na I 5896"]
-    assert [data.main_components[0].label for data in dialog.datasets] == labels
+    assert [data.label for data in dialog.datasets] == [
+        "SOT 6302A B_LOS 2016-01-08 19:12 scan 18:50:06",
+        "SOT 6302A B_LOS 2016-01-08 19:12 scan 19:00:00",
+        "SOT TF Na I 5896 2016-01-08 19:12",
+    ]
+    assert [data.main_components[0].label for data in dialog.datasets] == ["SOT 6302A B_LOS"] * 2 + ["SOT TF Na I 5896"]
     assert dialog.first_image is dialog.datasets[0]
 
 

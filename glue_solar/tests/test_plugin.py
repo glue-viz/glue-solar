@@ -347,7 +347,7 @@ def test_open_real_aia_cutout_through_load_data(irispy_data):
     [
         ("_Gband4305_FG_", "SOT G band 4305 2015-08-30 07:09", "DN"),
         ("_TFNaI5896_MG_", "SOT TF Na I 5896 2016-01-08 19:12", ""),
-        ("_blapp_index_", "SOT 6302A B_LOS 18:50:06 2016-01-08 19:12", "G"),
+        ("_blapp_index_", "SOT 6302A B_LOS 2016-01-08 19:12 scan 18:50:06", "G"),  # a slit scan of its file's time
     ],
 )
 def test_open_sot_cube_through_load_data(tmp_path, irispy_test_files, name, label, units):
