@@ -12,7 +12,6 @@ import astropy.units as u
 
 from glue_solar.glue_patches import layer_action
 from glue_solar.quicklook import _wavelengths
-from glue_solar.sources.loaders.iris import WCS_LOCK
 from glue_solar.sources.moments import _accepted, _check, _cube, _dataset, _form, _slabs, _start, _unit
 
 __all__ = ["mg_features", "mg_features_iris"]
@@ -93,13 +92,12 @@ def _mg_features(data, velocities, lines, crop, shift, unit, rest=None):
     maps = {}
     # irispy measures each step on its own, so a slab of steps gives what the whole window would
     for rows, values, _, saturated in _slabs(data, crop):
-        with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
-            # a line's features are NaN where a sample it searches is saturated, as its saturated map says
-            slab = calculate_mg_features(
-                _cube(data, values, rows, crop, unit, saturated, shift=shift),
-                velocity_range=velocities * u.km / u.s,
-                lines=lines,
-            )
+        # a line's features are NaN where a sample it searches is saturated, as its saturated map says
+        slab = calculate_mg_features(
+            _cube(data, values, rows, crop, unit, saturated, shift=shift),
+            velocity_range=velocities * u.km / u.s,
+            lines=lines,
+        )
         for name, feature in slab.items():
             maps.setdefault(name, []).append((feature.data, feature.unit))
     features = _dataset(data, f"{data.label} Mg II features")

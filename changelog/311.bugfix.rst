@@ -1,0 +1,1 @@
+Slit-jaw frame steps, zooms and readouts no longer stall for about a second at a time while line moments, red-blue asymmetry, Mg II features or bursts run on a large raster.

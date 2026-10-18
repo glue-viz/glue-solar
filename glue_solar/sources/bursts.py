@@ -17,7 +17,7 @@ from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
 from glue_solar.glue_patches import layer_action
 from glue_solar.quicklook import _role, _wavelengths
-from glue_solar.sources.loaders.iris import WCS_LOCK, _add_time, _GlueWCS, _irispy_meta
+from glue_solar.sources.loaders.iris import _add_time, _GlueWCS, _irispy_meta
 from glue_solar.sources.moments import _accepted, _check, _dataset, _form, _start
 
 __all__ = ["bursts_iris", "si_iv_bursts", "sji_bursts"]
@@ -110,19 +110,18 @@ def _si_iv_bursts(data, crop, threshold, velocity_range, median_factor):
         rows = (*scan, slice(None), slice(None), crop)
         values = data[data.main_components[0], rows]  # scaled float32 DN, NaN where missing
         times = Time(data[data.id["Time"], (*scan, slice(None), 0, 0)], scale="utc")
-        with WCS_LOCK:  # irispy reads the wavelengths and positions through the raster's astropy WCS
-            meta = _irispy_meta(data, scan)
-            cube = SpectrogramCube(
-                values,
-                SlicedLowLevelWCS(data.coords._wcs, rows),
-                unit=DN_UNIT[meta.detector_band],
-                mask=np.isnan(values),
-                meta=meta.slice[rows[len(scan) :]],  # irispy's, with each step's exposure time
-            )
-            cube.extra_coords.add("time", 0, times, physical_types="time")
-            found, events = find_si_iv_bursts(
-                cube, threshold=threshold, velocity_range=velocity_range * u.km / u.s, median_factor=median_factor
-            )
+        meta = _irispy_meta(data, scan)
+        cube = SpectrogramCube(
+            values,
+            SlicedLowLevelWCS(data.coords._wcs, rows),
+            unit=DN_UNIT[meta.detector_band],
+            mask=np.isnan(values),
+            meta=meta.slice[rows[len(scan) :]],  # irispy's, with each step's exposure time
+        )
+        cube.extra_coords.add("time", 0, times, physical_types="time")
+        found, events = find_si_iv_bursts(
+            cube, threshold=threshold, velocity_range=velocity_range * u.km / u.s, median_factor=median_factor
+        )
         # numbered on through the scans, as irispy numbers a sequence's
         count = sum(len(table) for table in tables)
         labels.append(np.where(found.data > 0, found.data + count, 0))

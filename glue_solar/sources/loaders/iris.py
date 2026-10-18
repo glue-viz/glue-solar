@@ -71,8 +71,8 @@ _HPC = ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat")
 # wcslib is not thread-safe (astropy/astropy#19174), and Glue computes profiles and histograms in
 # worker threads while WCSAxes draws on the GUI thread, all through the same raster WCS. Re-entrant
 # because a _GlueWCS can wrap another; one lock for all, because derived datasets share a WCS.
-# Code that uses the astropy WCS directly must hold it too. Always on, since the race cannot be probed
-# safely; it can go once an astropy release fixes #19174 and the thread test passes without it.
+# Code that reads an astropy WCS's struct (wcs.wcs) directly must hold it too. Always on, since the race
+# cannot be probed safely; it can go once an astropy release fixes #19174 and the thread test passes without it.
 WCS_LOCK = threading.RLock()
 
 # WCSAxes converts the same pixels about twice in each draw, and all of them again at every redraw; one
@@ -100,9 +100,9 @@ class _HeldWCS(WCS):
 
 class _LockedWCS(_HeldWCS):
     """
-    An astropy WCS whose transforms and properties hold `WCS_LOCK`, as those of `_GlueWCS` do. `link_hpc` makes the WCS
-    of each other dataset it links one, in place: IRIS data's profile workers then call wcslib on it beside the GUI
-    thread, which crashed glue 8 times in 8 beside an SST cube.
+    An astropy WCS whose transforms and properties hold `WCS_LOCK`, as those of `_GlueWCS` do. `_GlueWCS` makes each
+    plain WCS it wraps one, and `link_hpc` the WCS of each other dataset it links, in place: IRIS data's profile workers
+    then call wcslib on it beside the GUI thread, which crashed glue 8 times in 8 beside an SST cube.
     """
 
     def _held(self):
@@ -159,6 +159,15 @@ def _shown_unit(physical_type):
     return None
 
 
+def _lock_wcslib(wcs):
+    """Make each plain astropy WCS in ``wcs`` and beneath it a `_LockedWCS`, in place: a stack's scans' too."""
+    if type(wcs) is WCS:
+        wcs.__class__ = _LockedWCS
+    inner = getattr(wcs, "_wcs", ())  # a wrapper's, a tuple in ndcube's CompoundLowLevelWCS
+    for wrapped in (*getattr(wcs, "_wcses", ()), *(inner if isinstance(inner, tuple) else (inner,))):
+        _lock_wcslib(wrapped)
+
+
 class _GlueWCS(BaseWCSWrapper):
     """
     Present named, signed helioprojective coordinates in arcseconds and wavelengths in Angstrom to Glue,
@@ -177,6 +186,9 @@ class _GlueWCS(BaseWCSWrapper):
 
     def __init__(self, wcs):
         super().__init__(wcs)
+        # each wcslib call holds WCS_LOCK for itself, so irispy's analyses on a worker hold it for no longer than a
+        # call: around a whole slab it kept the GUI thread's calls waiting about 1.4 s each (D46, D73)
+        _lock_wcslib(wcs)
         self._memo = OrderedDict()  # pixel_to_world_values by its exact inputs, least recently used first
         # glue converts on worker threads too. The memo has its own lock, held only to read or add an entry:
         # holding WCS_LOCK through the unit arithmetic as well lets a busy thread starve the others.
