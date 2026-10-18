@@ -28,13 +28,13 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at bd10bac (#311). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
+**Resume here.** Main is at ee2d972 (#312). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
 **Next.** In flight since 2026-10-17's second session (D86), each item implemented by an Opus agent, reviewed by Fable, fixed by Opus, shipped with `ship_locked.sh`:
   1. #308 first (main's CI is red on irispy main 9229d06 until it lands, D86), then D87's Fit tab change as its own PR; worktree `~/Git/glue-solar-wp10-l-saturation-shown`, tested in the `-9229` envs.
   2. #307: worktree `~/Git/glue-solar-wp13-stokes`.
   3. `wp6-fit-maps`: worktree `~/Git/glue-solar-wp6-fit-maps`; then `wp6-fit-builder` and `wp0-irispy-fit-starts`.
-  4. The review fixes the user chose (all of the Fable review, 2026-10-17): #309, #311, `wp4-coordinator-forget`, #310; worktrees from e80bf50; the first two started after the limit reset, the other two follow once CPU frees.
+  4. The review fixes the user chose (all of the Fable review, 2026-10-17): #309, #311, #312, #310; worktrees from e80bf50; the first two started after the limit reset, the other two follow once CPU frees.
 
 **Waiting on the user.** `wp0-qt68-macos-pass`; filing `wp0-qt-fitter-settings`'s PR from its pushed branch (text in the archive's `briefs/glue-qt-fitter-pr.md`); the audits' other proposals (`audit2/` in the archive); the drag-into-/Applications check of the app (`~/Downloads/Glue Solar.dmg`, built from f073033's recipe; a dmg from #275's recipe would also check Finder and Dock opening); an exact report of the linking and slider-sync problems the user saw in the app (2026-10-09), whose steps, rerun with `glue` from `iris-plan-qt6-802`, tell an app problem from a Qt 6 or glue-solar one; raising the matplotlib-free WCSAxes core prototype in person (no PR, issue or upstream notice); M4 and OM work. Offered, not started: #207's leftover (viewers opened after the time marker exists get its layer: about 10% slower steps with a second quicklook).
 
@@ -162,7 +162,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP4: `wp4-coordinator-forget`
 
 **M4**
 - WP0: `wp0-irispy-fit-starts`, `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
@@ -225,7 +224,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
   - glue-qt gives a fitter's `summarize` neither the layer nor the viewer (#291).
   - astropy's analytic Jacobian (`fitting.py` `_wrap_deriv`) drops a tied parameter's part, so tied fits need an estimated one (#291).
   - glue's axis labels on SST cubes: `''` for Stokes, and `Hplt` from a glue indexing bug (#227).
-  - glue-qt keeps any dataset an Image viewer showed alive after it is removed, the viewer closed or its tab closed (0.4.2 and main; `wp4-coordinator-forget`'s review): `GlueApplication._clear_dashboard` (application.py:678-688) only hides the reparented `options_widget()` (its `viewer_state` and `MultiSliceWidgetHelper._reference_data`, slice_widget.py:79-84) and `layer_view()`, and `LayerArtistView.on_artist_add` (layer_artist_model.py:356-373) adds a style editor per layer artist to a `QStackedLayout` that nothing empties; so a removed observation's memory map stays open. Fix: delete a closed viewer's options and layer widgets and a removed artist's style editor.
+  - glue-qt keeps any dataset an Image viewer showed alive after it is removed, the viewer closed or its tab closed (0.4.2 and main; #312's review): `GlueApplication._clear_dashboard` (application.py:678-688) only hides the reparented `options_widget()` (its `viewer_state` and `MultiSliceWidgetHelper._reference_data`, slice_widget.py:79-84) and `layer_view()`, and `LayerArtistView.on_artist_add` (layer_artist_model.py:356-373) adds a style editor per layer artist to a `QStackedLayout` that nothing empties; so a removed observation's memory map stays open. Fix: delete a closed viewer's options and layer widgets and a removed artist's style editor.
 - [ ] **M4** `wp0-perf-core-draw`: Profiling survey 2026-10-01 (every finding with its measurements, causes, fixes and scripts: `GLUE_SPEED.md`; ranked page: https://claude.ai/artifact/JgL2D9fjWp72GrXsrSx1nN), glue-core draw path, measured only: (1) `_set_wcs` on every slice change resets the axis labels through WCSAxes `set_xlabel`/`set_ylabel`, 4 eager tick placements, 66% of an SJI frame step (R1); (2) hidden subset layers still update and redraw (R4); (3) a Pixel point is drawn as a full-view RGBA image (R7); (4) a collapsed map re-aggregates on every redraw (R10); (5) float64 composite and 72-dpi FRB on large or HiDPI panels (R19); (6) image-only changes (contrast, a wavelength step) redraw the whole WCSAxes figure (R18). astrofrog's draft glue #2507 speeds up slicing. Done when each is filed, merged or declined on the user's direction.
 - [ ] **M4** `wp0-core-wcslink-lists`: Core PR: `WCSLink.__init__` (`glue/plugins/wcs_autolinking/wcs_autolinking.py`, 1.27.0 and main) binds `slicing_axes1 = slicing_axes2 = []`, and the two physical-type lists the same way, so without two celestial WCSes both datasets' axes go into one list: a map opened after an SST cube raises ValueError 'Cannot slice WCS', not `IncompatibleWCS`, and glue shows 'Could not load data' though the map loads (glue-solar documents opening the map first, #227); a 5-axis Stokes cube opened before a 4-axis intensity cube raises IndexError at wcs_autolinking.py:206 on that and every later File > Open (D75). Done when merged and released, and glue-solar's note is dropped.
 - [ ] **M4** `wp0-perf-core-links`: glue-core links, measured only: (1) a raster ROI on a linked SJI inverts the raster WCS per screen pixel once per attribute (R2); (2) `discover_links` restarts after each link, about O(N³) (R6); (3) any link change drops every linked mask (R11); (4) removing a dataset runs one update per link (R12); (5) each append runs a full update with an all-pairs pixel-cid pass (R24); (6) the WCS autolinker suggests every pair (R28). SST9: a Path diagram's link change makes the Profile recompute its whole-cube data layer (5.35 s on 8542), R11's Profile data-layer case (`data.py:640-660` → `viewer.py:288-307` → `ProfileLayerArtist.update`). Done when each is filed, merged or declined.
@@ -265,10 +264,6 @@ Notes:
 ### WP4: Quicklook preset and coordination
 
 Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_solar/quicklook.py`.
-
-**L**
-
-- [ ] **L** `wp4-coordinator-forget`: review F4, F5 and F7 (`review/FINDINGS.md` in `session_20261017.tar.gz`): a removed dataset stays alive in the coordinator (`_steps`, `_master_times`, `_placed`), with its memory map; `_pairs` is keyed by `id()`; deleted cuts and switched line panels keep their state callbacks. Done when a removed dataset is freed and the callbacks go, each with a test.
 
 Notes:
 - Whisker polish (F143) and CRISPEX entry keywords (F020) are Later.
