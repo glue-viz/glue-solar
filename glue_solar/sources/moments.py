@@ -590,9 +590,11 @@ def _check_mean(data):
 
 def _subtract(data, cid, mean):
     """Add the components of `subtract_mean_spectrum` to ``data``, given ``mean``, the mean spectrum of ``cid``."""
+    from glue_solar.sources.loaders.iris import _BroadcastComponent
+
     units = data.get_component(cid).units
     mean = np.broadcast_to(mean, data.shape)  # a view: one spectrum held
-    difference = cid - data.add_component(Component(mean, units=units), f"{cid.label} mean spectrum")
+    difference = cid - data.add_component(_BroadcastComponent(mean, units=units), f"{cid.label} mean spectrum")
     data.add_component_link(difference, f"{cid.label} minus mean spectrum").units = units
     return difference.get_to_id()
 

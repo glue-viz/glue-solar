@@ -1,9 +1,9 @@
 """
 Sessions keep the coordinates and colormaps of every kind of dataset glue-solar makes from IRIS data, on irispy's test
-files, the links `link_hpc` gives and the colormap of a sunpy map; a quicklook opens again from its recipe with its
-point, time master, panels off and second map; sessions refer to the files IRIS data are read from, each raster file
-read once for each copy of its windows, so a quicklook's stays small, and two quicklooks restore twice alike; glue-solar
-keeps the last one as glue quits, which its menu entry restores.
+files, the links `link_hpc` gives, the colormap of a sunpy map and the components analyses broadcast, as given; a
+quicklook opens again from its recipe with its point, time master, panels off and second map; sessions refer to the
+files IRIS data are read from, each raster file read once for each copy of its windows, so a quicklook's stays small,
+and two quicklooks restore twice alike; glue-solar keeps the last one as glue quits, which its menu entry restores.
 """
 
 import gc
@@ -19,6 +19,7 @@ import pytest
 from glue.core import Data, DataCollection
 from glue.core.link_helpers import LinkCollection
 from glue.core.state import GlueSerializer, GlueUnSerializer
+from glue.utils import unbroadcast
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.profile.state import ProfileViewerState
 from glue_qt.app.application import GlueApplication
@@ -39,8 +40,8 @@ from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, SCAN, find_irispy_test_file
 from glue_solar.quicklook import _off, _PointWindow, _viewers, coordinator, quicklook
 from glue_solar.regrid import north_up, rebin, regrid_on_time
-from glue_solar.sources.bursts import si_iv_bursts
-from glue_solar.sources.calibration import radiometric_calibration
+from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
+from glue_solar.sources.calibration import radiometric_calibration, remove_dust
 from glue_solar.sources.iris import browse_iris, link_iris
 from glue_solar.sources.loaders.iris import (
     _RESTORING,
@@ -52,7 +53,7 @@ from glue_solar.sources.loaders.iris import (
 )
 from glue_solar.sources.loaders.lazy import LazyData
 from glue_solar.sources.maps import read_sunpy_map
-from glue_solar.sources.moments import line_moments
+from glue_solar.sources.moments import line_moments, subtract_mean_spectrum
 from glue_solar.tests.helpers import angles, load_selected, mouse, restore, scanned, select_point, shift
 from glue_solar.tests.test_bursts import SI_IV
 from glue_solar.tests.test_importer import _row, counted_reads
@@ -141,6 +142,35 @@ def test_a_session_restores_a_moments_map_on_its_raster_steps(irispy_test_files)
         for cid, expected in zip(restored.world_component_ids, maps.world_component_ids, strict=True):
             assert cid.label == expected.label
             np.testing.assert_allclose(restored[cid], maps[expected], rtol=0, atol=1e-9)
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda sji, raster: (subtract_mean_spectrum(raster), raster)[1],
+        lambda sji, raster: rebin(raster, (1, 1, 2)),
+        lambda sji, raster: north_up(sji),
+        lambda sji, raster: remove_dust(sji),
+        lambda sji, raster: regrid_on_time(sji),
+        lambda sji, raster: sji_bursts(sji)[0],
+    ],
+    ids=["mean spectrum", "rebin", "north up", "dust removed", "regridded", "bursts"],
+)
+def test_the_components_an_analysis_broadcasts_save_as_given_and_restore(sns, make):
+    """
+    A mean spectrum, ``Time``, ``Exposure time`` and ``empty``, broadcast over a dataset, save their values before the
+    broadcast, as glue does not (3 GB for the mean spectrum of a full Mg II window), and restore broadcast, equal.
+    """
+    data = make(*sns)
+    broadcast = [cid for cid in data.main_components if 0 in data.get_component(cid).data.strides]
+    assert "Time" in [cid.label for cid in broadcast]
+    for cid in broadcast:
+        component = data.get_component(cid)
+        assert len(GlueSerializer(component).dumps()) < 1000 + 2 * unbroadcast(component.data).nbytes, cid.label
+    for (restored,) in twice(DataCollection([data])):
+        for cid in data.main_components:
+            np.testing.assert_array_equal(restored[cid.label], data[cid], err_msg=cid.label)
+        assert all(0 in restored.get_component(cid.label).data.strides for cid in broadcast)
 
 
 def test_a_session_keeps_data_following_the_dataset_they_are_made_from(qtbot, monkeypatch, irispy_test_files):

@@ -25,6 +25,8 @@ from glue_solar.sources.loaders.iris import (
     _SJI_POINTING,
     WCS_LOCK,
     _add_exposure,
+    _add_time,
+    _BroadcastComponent,
     _dataset,
     _GlueWCS,
     _per_frame,
@@ -137,8 +139,7 @@ def regrid_on_time(data):
                          scaling=scaling)
     regridded.coords.follow(data)
     lead = (slice(None),) * (data.ndim - 2) + (0, 0)  # one value per exposure, frame, or scan and step
-    regridded.add_component(_per_frame(_gather(data[data.id["Time"], lead], index, np.datetime64("NaT", "ns")),
-                                       regridded.shape), "Time")
+    _add_time(regridded, _gather(data[data.id["Time"], lead], index, np.datetime64("NaT", "ns")))
     exposure = data.find_component_id("Exposure time")
     if exposure is not None:
         _add_exposure(regridded, _gather(data[exposure, lead], index, np.nan))
@@ -224,8 +225,9 @@ def north_up(data):
     grid.coords = _GlueWCS(_NorthUp(data.coords, tan, data.coords.pixel_to_world_values(0, 0, np.arange(nt))[2]))
     grid.meta["DSUN_OBS"] = data.meta.get("DSUN_OBS")  # for Measure's km
     shape = (nt, *(np.round([y.max(), x.max()]) - first[::-1] + 1).astype(int))
-    grid.add_component(np.broadcast_to(np.float32(np.nan), shape), "empty")  # for glue's layer: a time cannot show
-    grid.add_component(_per_frame(data[data.id["Time"], (slice(None), 0, 0)], shape), "Time")
+    # for glue's layer: a time cannot show
+    grid.add_component(_BroadcastComponent(np.broadcast_to(np.float32(np.nan), shape)), "empty")
+    _add_time(grid, data[data.id["Time"], (slice(None), 0, 0)])
     return grid
 
 
@@ -337,7 +339,7 @@ def rebin(data, bins):
     lead, along = (*covered[:-2], 0, 0), bins[:-2]  # one value per exposure, frame, or scan and step
     times = data[data.id["Time"], lead]
     offsets = _rebinned(data, lead, (times - times.flat[0]) / np.timedelta64(1, "ns"), along)
-    rebinned.add_component(_per_frame(times.flat[0] + offsets.astype("timedelta64[ns]"), rebinned.shape), "Time")
+    _add_time(rebinned, times.flat[0] + offsets.astype("timedelta64[ns]"))
     exposure = data.find_component_id("Exposure time")
     if exposure is not None:
         seconds = data[exposure, lead]
