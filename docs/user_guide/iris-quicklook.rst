@@ -211,12 +211,30 @@ windows (C II, Si IV, O I), or Ni I 2799.474 Å in the Mg II k 2796 window for t
    line on the same detector, and set that with "IRIS: set rest wavelength…" on its window.
 
 On OBSID 3824262996, O I fits at 1355.6172 Å (+4.30 km / s), so Si IV 1402.77 Å becomes
-1402.789 Å. "Settings" on the "Fit" tab adds a linear background, a Lorentzian profile, or up to four
-lines. A saturated sample is only a lower bound, so the fit leaves a sample out where all the pixels
-it combines are saturated (for a Point, where it is), says how many, and notes the wavelengths whose
-mean includes saturated pixels, biased low (see :ref:`Missing and saturated samples
+1402.789 Å. A saturated sample is only a lower bound, so the fit leaves a sample out where all the
+pixels it combines are saturated (for a Point, where it is), says how many, and notes the wavelengths
+whose mean includes saturated pixels, biased low (see :ref:`Missing and saturated samples
 <glue_solar_users_guide_iris_saturation>`). To fit the same model to every spectrum of the window, see
 :ref:`Line fit maps <glue_solar_users_guide_iris_line_fit_maps>`.
+
+.. _glue_solar_users_guide_iris_fit_settings:
+
+**Building the model.** "Settings" on the "Fit" tab lists the components of "Gaussian + constant
+(IRIS)", at first a constant background and a Gaussian. Pick a Gaussian, a Lorentzian, or a constant,
+linear or polynomial background (with its degree) and press "Add"; "Remove" drops one. Each parameter
+has a start (blank: from the data), "Fixed", and a lower and an upper bound, either alone. A line's
+parameter can be "Tied to" the same parameter of a line above it: an amplitude or a width is that
+line's times the ratio (blank: the same), a center is that line's plus the separation, in the x unit;
+a tie to a tied line follows it, its separations adding up and its ratios multiplying. For C II
+1334.53 Å and its 1335.66 and 1335.71 Å blend:
+
+1. Add two Gaussians and give ``mean_1`` the start 1334.53.
+2. Tie ``mean_2`` to ``mean_1`` by 1.1305, and ``mean_3`` to ``mean_1`` by 1.1756.
+3. Give each amplitude the lower bound 0, press "OK", drag over 1334.1 to 1336.2 Å and press "Fit".
+
+The fit is drawn with each line on the background, dashed; "Clear" removes them. A line without a
+start begins at one of the most prominent peaks, and each line at its peak among the samples nearer
+its center than any other line's, so give a blend's lines starts or ties.
 
 **Mean spectrum.** "IRIS: subtract mean spectrum", in a raster window's right-click menu, adds
 ``<label> mean spectrum`` and ``<label> minus mean spectrum``. Set the "attribute" of "Point" in the

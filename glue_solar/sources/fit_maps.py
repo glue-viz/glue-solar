@@ -53,7 +53,12 @@ class _Progress:
 
 
 def _in_angstrom(model, x_unit):
-    """``model``, fitted against wavelengths in ``x_unit``, a length, against them in Angstrom, its bounds too."""
+    """
+    ``model``, fitted against wavelengths in ``x_unit``, a length, against them in Angstrom, its bounds and the
+    separations of its ties (`glue_solar.fitters._tie`) too.
+    """
+    from glue_solar.fitters import _tie
+
     shown, taken = (model.with_units_from_data(x=1 * u.Unit(unit), y=1 * u.one) for unit in (x_unit, u.AA))
     model = model.copy()
     for name in model.param_names:
@@ -61,6 +66,9 @@ def _in_angstrom(model, x_unit):
         parameter = getattr(model, name)
         parameter.value = parameter.value * scale
         parameter.bounds = tuple(None if bound is None else bound * scale for bound in parameter.bounds)
+        if args := getattr(parameter.tied, "args", None):
+            other, factor, offset = args
+            parameter.tied = _tie(other, factor, offset * scale)
     return model
 
 
@@ -110,10 +118,11 @@ def _last_fit(data, data_collection):
 def _starts(model, wavelengths, spectra):
     """
     ``model``, as fitted to one spectrum, with a start for each of ``spectra``, along their last axis at
-    ``wavelengths``, as EISPAC's ``scale_guess`` (D86): a constant or linear background at its 10th percentile, and
-    each Gaussian or Lorentzian line's center and amplitude at its peak above it within two widths of the fitted
-    center, its width kept; fixed and tied parameters as fitted, the others within their bounds. It takes a model and
-    arrays alone, to move to irispy.
+    ``wavelengths``, as EISPAC's ``scale_guess`` (D86): a constant, linear or polynomial background at its 10th
+    percentile at their mean, its shape kept, and each Gaussian or Lorentzian line's center and amplitude at its peak
+    above it within two widths of the fitted center, among the samples nearer that center than any other line's, so
+    that the lines of a blend start at their own peaks (as irispy draft LM-SAL/irispy#241), its width kept; fixed and
+    tied parameters as fitted, the others within their bounds. It takes a model and arrays alone, to move to irispy.
     """
     from astropy.modeling import models
 
@@ -121,18 +130,23 @@ def _starts(model, wavelengths, spectra):
         warnings.simplefilter("ignore", RuntimeWarning)  # an all-NaN spectrum, which astropy leaves unfitted
         level = np.nanpercentile(spectra, 10, axis=-1)
     compound = model.n_submodels > 1
+    leaves = [model[i] for i in range(model.n_submodels)] if compound else [model]
+    lines = (models.Gaussian1D, models.Lorentz1D)
+    centers = [leaf.parameters[1] for leaf in leaves if isinstance(leaf, lines)]
     starts = {}
-    for index, leaf in enumerate([model[i] for i in range(model.n_submodels)] if compound else [model]):
+    for index, leaf in enumerate(leaves):
         named = {name: name + (f"_{index}" if compound else "") for name in leaf.param_names}
         value = {name: getattr(model, full).value for name, full in named.items()}
         if isinstance(leaf, models.Const1D):
             starts[named["amplitude"]] = level
-        elif isinstance(leaf, models.Linear1D):  # its intercept at 0 Å
-            starts[named["intercept"]] = level - value["slope"] * wavelengths.mean()
-        elif isinstance(leaf, (models.Gaussian1D, models.Lorentz1D)):
+        elif isinstance(leaf, (models.Linear1D, models.Polynomial1D)):  # its constant term, the value at 0 Å
+            constant = "intercept" if isinstance(leaf, models.Linear1D) else "c0"
+            starts[named[constant]] = level - (leaf(wavelengths.mean()) - value[constant])
+        elif isinstance(leaf, lines):
             amplitude, center, width = leaf.param_names
             sign = np.sign(value[amplitude]) or 1  # an emission or absorption line
-            near = np.abs(wavelengths - value[center]) <= 2 * value[width]
+            distance = np.abs(wavelengths - value[center])
+            near = (distance <= 2 * value[width]) & np.all([distance <= np.abs(wavelengths - c) for c in centers], 0)
             excess = np.where(near, sign * (spectra - level[..., None]), np.nan)
             excess = np.where(np.isfinite(excess), excess, -np.inf)  # NaN, off the line or masked, is no peak
             peak = np.argmax(excess, axis=-1)
@@ -190,10 +204,15 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
                 data_unit=unit,
                 fitting_axes=2,
                 world=(wavelengths * u.AA,),
-                fit_info=True,  # irispy's errors and quality need its param_cov and success
+                fit_info=("param_cov", "success"),  # irispy's errors and quality; all of it, a C II window took 6.5 GB
                 scheduler=scheduler,
                 fitter_kwargs={"filter_non_finite": True, **_jacobian(model)},
             )
+            # plain dicts: astropy's FitInfoSubset raises KeyError in FitInfoArrayContainer's hasattr (report candidate)
+            infos = fitter.fit_info._fit_info_array
+            for index in np.ndindex(infos.shape):
+                if isinstance(infos[index], dict):
+                    infos[index] = dict(infos[index])
             # each wcslib call irispy makes holds WCS_LOCK for itself (`_GlueWCS`)
             for name, part in maps_from_fit(fitted, cube, fitter=fitter, rest_wavelength=rest * u.AA).items():
                 if name != "residual":  # a cube, not a map

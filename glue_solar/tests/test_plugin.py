@@ -41,7 +41,8 @@ from glue_qt.config import keyboard_shortcut
 from glue_qt.viewers.histogram import HistogramViewer
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.image.profile_viewer_tool import ProfileViewerTool
-from glue_qt.viewers.profile import ProfileViewer, profile_tools
+from glue_qt.viewers.profile import ProfileViewer
+from glue_qt.viewers.profile.profile_tools import ProfileTools
 from glue_qt.viewers.scatter import ScatterViewer
 from glue_qt.viewers.table import TableViewer
 from irispy.io import read_files
@@ -52,12 +53,13 @@ from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QCursor, QDesktopServices, QKeySequence
 from qtpy.QtTest import QTest
-from qtpy.QtWidgets import QCheckBox, QDialog, QFileDialog, QInputDialog, QMessageBox, QToolBar
+from qtpy.QtWidgets import QCheckBox, QDialog, QFileDialog, QInputDialog, QMessageBox, QPushButton, QToolBar
 
 import astropy.units as u
 from astropy import constants
 from astropy.coordinates import angular_separation
 from astropy.io import fits
+from astropy.modeling import models
 from astropy.modeling.fitting import TRFLSQFitter
 from astropy.table import QTable, Table
 from astropy.time import Time
@@ -68,7 +70,7 @@ from astropy.wcs import WCS
 import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
-from glue_solar.fitters import GaussianConstantFitter
+from glue_solar.fitters import GaussianConstantFitter, _component, _Settings
 from glue_solar.lines import rest_wavelength_iris
 from glue_solar.quicklook import QuicklookImageViewer, _role, _wavelengths
 from glue_solar.regrid import north_up_iris, rebin_iris, regrid_iris, regrid_on_time
@@ -90,7 +92,16 @@ from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.mg_features import mg_features_iris
 from glue_solar.sources.moments import line_maps_iris, line_moments, mean_spectrum_iris
 from glue_solar.sources.sst import sst_data
-from glue_solar.tests.helpers import count_tick_work, mouse, press, raster_point_on_sji, restore
+from glue_solar.tests.helpers import (
+    add_component,
+    click,
+    count_tick_work,
+    fit_settings,
+    mouse,
+    press,
+    raster_point_on_sji,
+    restore,
+)
 from glue_solar.tests.test_cube_quicklook import spectral_cube
 from glue_solar.tests.test_lazy import RASTER, SJI
 from glue_solar.tests.test_quicklook import drifting_stack
@@ -2438,6 +2449,11 @@ def test_profiles_save_as_drawn_to_ecsv(app, monkeypatch, tmp_path, irispy_test_
     assert suggested[-1] == "cube_6563_scans maximum profiles.ecsv"
 
 
+def iris_fitter(*leaves):
+    """The IRIS fitter of the components ``leaves``, astropy models."""
+    return GaussianConstantFitter(components=[_component(leaf) for leaf in leaves])
+
+
 def test_profile_fit_tab_fits_a_gaussian_on_a_constant(app, qtbot, monkeypatch, tmp_path):
     glue_solar.setup()
     assert list(fit_plugin).count(GaussianConstantFitter) == 1
@@ -2472,27 +2488,27 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(app, qtbot, monkeypatch, 
     model, _ = GaussianConstantFitter().build_and_fit(x, 50 - y)
     assert model.parameters == pytest.approx([47, -40, 1355.62, 0.04])  # absorption
 
-    # both options ticked in glue's Settings reach the next fit
-    def tick(dialog):
-        dialog.widgets["linear_background"].setChecked(True)
-        dialog.widgets["lorentzian"].setChecked(True)
-        dialog.accept()
+    # a Lorentzian on a linear background, composed in Settings, reaches the next fit
+    def compose(dialog):
+        for _ in range(2):
+            click(dialog.table, "Remove")
+        add_component(dialog, "Linear")
+        add_component(dialog, "Lorentzian")
 
-    monkeypatch.setattr(profile_tools.FitSettingsWidget, "exec_", tick)
-    tools.ui.button_settings.click()
+    fit_settings(monkeypatch, tools, compose)
     lines = fit()
     assert [line.split(" ")[0] for line in lines[3:8]] == ["amplitude_1", "fwhm_1", "intercept_0", "slope_0", "x_0_1"]
     assert float(lines[-1].split()[2].strip(",")) == pytest.approx(1355.62, abs=1e-3)  # a Lorentzian's
     x = 1355 + 0.025 * np.arange(49)
     y = 3 + 0.5 * (x - 1355) + 40 / (1 + ((x - 1355.62) / 0.03) ** 2)
-    model, _ = GaussianConstantFitter(linear_background=True, lorentzian=True).build_and_fit(x, y)
-    assert model.parameters == pytest.approx([0.5, 3 - 0.5 * 1355, 40, 1355.62, 0.06])  # irispy's intercept at 0 Å
-    fitter = GaussianConstantFitter(linear_background=True)
-    fitter.set_constraint("slope_0", value=0.25, fixed=True)  # irispy's starts flat
+    fitter = iris_fitter(models.Linear1D(), models.Lorentz1D())
+    model, _ = fitter.build_and_fit(x, y)
+    assert model.parameters == pytest.approx([0.5, 3 - 0.5 * 1355, 40, 1355.62, 0.06])  # the intercept at 0 Å
+    fitter.set_constraint("slope_0", value=0.25, fixed=True)  # it starts flat
     assert fitter.build_and_fit(x, y)[0].slope_0.value == 0.25
     # a Lorentzian starts from the width a Gaussian's standard deviation is from
     starts = GaussianConstantFitter().parameter_guesses(x, y, None)
-    widths = GaussianConstantFitter(lorentzian=True).parameter_guesses(x, y, None)
+    widths = iris_fitter(models.Const1D(), models.Lorentz1D()).parameter_guesses(x, y, None)
     assert widths["fwhm_1"] == pytest.approx(starts["stddev_1"] * np.sqrt(8 * np.log(2)))
     # a session keeps the Profile viewer with the fitter chosen
     app.save_session(str(tmp_path / "fit.glu"))
@@ -2520,22 +2536,18 @@ def test_profile_viewers_keep_their_own_fitter_settings(app, qtbot, monkeypatch)
         qtbot.waitUntil(lambda: bool(tools.text_log.toPlainText()))
         return tools.text_log.toPlainText().splitlines()
 
-    def settings(tools, fitter, change):
-        tools.fit_function = fitter
-        monkeypatch.setattr(profile_tools.FitSettingsWidget, "exec_", lambda dialog: change(dialog) or dialog.accept())
-        tools.ui.button_settings.click()
-
     def bound(dialog):
-        _, _, _, bounded, lower, upper = dialog.constraints._widgets["mean_1"]
-        bounded.setChecked(True)
-        lower.setText("1355.623")  # above the line's center, below its sample at 1355.625 that the fit starts from
+        _, _, lower, upper, *_ = dialog.rows["mean_1"]
+        lower.setText("1355.63")  # above the line's center and its start, the sample at 1355.625, clipped to it
         upper.setText("1355.7")
 
-    settings(first, GaussianConstantFitter, bound)
-    assert float(fit(first)[-1].split()[2].strip(",")) == pytest.approx(1355.623, abs=1e-5)
+    first.fit_function = GaussianConstantFitter
+    fit_settings(monkeypatch, first, bound)
+    assert float(fit(first)[-1].split()[2].strip(",")) == pytest.approx(1355.63, abs=1e-5)
     second.fit_function = GaussianConstantFitter
     assert fit(second)[-1].startswith("center_1 = 1355.620000,")  # the other viewer's bound left out
-    settings(second, PolynomialFitter, lambda dialog: dialog.widgets["degree"].setValue(1))
+    second.fit_function = PolynomialFitter
+    fit_settings(monkeypatch, second, lambda dialog: dialog.widgets["degree"].setValue(1))
     assert len(fit(second)[2:]) == 2  # a line's coefficients, not those of glue's default degree, 3
 
 
@@ -2600,8 +2612,9 @@ def test_the_iris_fit_leaves_saturated_samples_out(app, qtbot, monkeypatch):
 
 def _fit_two_lines(qtbot, monkeypatch, data, x_range):
     """
-    The mean profile of ``data`` over ``x_range`` fitted in a Profile viewer with 'Number of lines' 2, then 'Same width'
-    too, the reports' values by name, and the parameter rows of each Settings opened (D81).
+    The mean profile of ``data`` over ``x_range`` fitted in a Profile viewer with a second Gaussian added in Settings,
+    then with its width tied to the first's, the reports' values by name, the parameters each Settings opened with and
+    the Fit tab (D81, D86).
     """
     glue_solar.setup()
     app = GlueApplication()
@@ -2615,51 +2628,194 @@ def _fit_two_lines(qtbot, monkeypatch, data, x_range):
     tools = viewer.toolbar.tools["profile-analysis"]._profile_tools
     tools.fit_function = GaussianConstantFitter
     tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = x_range
-    rows, reports = [], []
+    opened, reports = [], []
 
-    def run(dialog):
-        rows.append(sorted(dialog.constraints._widgets))
-        dialog.widgets["n_lines"].setValue(2)
-        dialog.widgets["same_width"].setChecked(len(rows) > 1)
-        dialog.accept()
+    def two(dialog):
+        opened.append(list(dialog.rows))
+        add_component(dialog, "Gaussian")
 
-    monkeypatch.setattr(profile_tools.FitSettingsWidget, "exec_", run)
-    for _ in range(2):
-        tools.ui.button_settings.click()
+    def same_width(dialog):
+        opened.append(list(dialog.rows))
+        dialog.rows["stddev_2"][4].setCurrentText("stddev_1")
+
+    for change in (two, same_width):
+        fit_settings(monkeypatch, tools, change)
         tools.ui.text_log.clear()
         tools.ui.button_fit.click()
         tools.wait_for_fit()
         qtbot.waitUntil(lambda: "center_" in tools.text_log.toPlainText())
         lines = [line.split(" = ") for line in tools.text_log.toPlainText().splitlines() if " = " in line]
         reports.append({name.strip(): value for name, value in lines})  # glue pads the names
-    tools.ui.button_settings.click()
-    return *reports, rows
+    fit_settings(monkeypatch, tools, lambda dialog: opened.append(dialog.rows["stddev_2"][4].currentText()))
+    return *reports, opened, tools
 
 
-def test_the_iris_fitter_fits_the_number_of_lines_set_in_settings(qtbot, monkeypatch):
+def test_the_iris_fitter_fits_the_lines_added_in_settings(qtbot, monkeypatch):
     wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 1334, "CDELT1": 0.026})
     x = 1334 + 0.026 * np.arange(90)
     y = 5 + 30 * np.exp(-0.5 * ((x - 1334.55) / 0.05) ** 2) + 50 * np.exp(-0.5 * ((x - 1335.7) / 0.06) ** 2)
     data = Data(label="C II", flux=y, coords=wcs)
     data.meta["rest_wavelength"] = 1335.7079
-    two, same, rows = _fit_two_lines(qtbot, monkeypatch, data, (1334, 1336.3))
+    two, same, opened, tools = _fit_two_lines(qtbot, monkeypatch, data, (1334, 1336.3))
     # each at its peak, the bluer first, its velocity from the window's rest wavelength
     assert two["center_1"] == "1334.550000, -259.88 km / s from 1335.7079 Å"
     assert two["center_2"] == "1335.700000, -1.77 km / s from 1335.7079 Å"
     assert [float(two[width]) for width in ("stddev_1", "stddev_2")] == pytest.approx([0.05, 0.06])
     assert same["stddev_1"] == same["stddev_2"]
     assert 0.05 < float(same["stddev_1"]) < 0.06
-    tied = ["amplitude_0", "amplitude_1", "amplitude_2", "mean_1", "mean_2", "stddev_1"]  # stddev_2 is stddev_1
-    assert rows == [["amplitude_0", "amplitude_1", "mean_1", "stddev_1"], [*tied, "stddev_2"], tied]
-    model, _ = GaussianConstantFitter(n_lines=2).build_and_fit(x, y)
+    # Settings reopened shows the line added, then its tie
+    one = ["amplitude_0", "amplitude_1", "mean_1", "stddev_1"]
+    assert opened == [one, [*one, "amplitude_2", "mean_2", "stddev_2"], "stddev_1"]
+    model, _ = iris_fitter(models.Const1D(), models.Gaussian1D(), models.Gaussian1D()).build_and_fit(x, y)
     assert [model.bounds[name] for name in ("amplitude_1", "amplitude_2")] == [(0, None), (0, None)]
+    # the fit, then each line on the background, dashed, all cleared by Clear (glue_patches._plot_fit)
+    _, *lines = artists = tools._fit_artists[:]
+    assert [artist.get_linestyle() for artist in artists] == ["-", "--", "--"]
+    assert all(artist in tools.axes.lines for artist in artists)
+    model = tools._iris_fits[data]
+    for index, line in enumerate(lines, 1):
+        np.testing.assert_allclose(line.get_ydata(), model[0](line.get_xdata()) + model[index](line.get_xdata()))
+    tools.ui.button_clear.click()
+    assert not any(artist in tools.axes.lines for artist in artists)
+
+
+def test_the_iris_fit_settings_compose_a_model(app, monkeypatch):
+    """
+    The IRIS fitter's Settings (D86): components added and removed, a start, Fixed, one-sided bounds and ties of a
+    line to one above it reach the model and show on reopening; a removed line's ties are dropped, Cancel keeps the
+    settings, and a field that is not a number or no component is refused.
+    """
+    data = Data(label="spectrum", flux=np.ones(5))
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ProfileViewer, data=data)
+    viewer.toolbar.active_tool = "profile-analysis"
+    tools = viewer.toolbar.tools["profile-analysis"]._profile_tools
+    tools.fit_function = GaussianConstantFitter
+
+    def compose(dialog):
+        assert not dialog.degree.isEnabled()
+        for kind in ("Lorentzian", "Polynomial", "Gaussian", "Linear"):
+            add_component(dialog, kind, 3 if kind == "Polynomial" else None)
+        rows = dialog.rows
+        assert list(rows) == [
+            *("amplitude_0", "amplitude_1", "mean_1", "stddev_1", "amplitude_2", "x_0_2", "fwhm_2"),
+            *("c0_3", "c1_3", "c2_3", "c3_3", "amplitude_4", "mean_4", "stddev_4", "slope_5", "intercept_5"),
+        ]
+        # a line's parameter ties to the same of a line above it, a background's to none
+        tie = rows["x_0_2"][4]
+        assert [tie.itemText(i) for i in range(tie.count())] == ["", "mean_1"]
+        assert not rows["mean_1"][4].isEnabled()
+        assert not rows["c0_3"][4].isEnabled()
+        start, fixed, *_ = rows["amplitude_0"]
+        start.setText("3")
+        fixed.setChecked(True)
+        rows["amplitude_1"][2].setText("0")  # a lower bound alone
+        rows["x_0_2"][3].setText("1335.8")  # an upper bound alone
+        rows["amplitude_4"][4].setCurrentText("amplitude_2")  # to the Lorentzian, removed below
+        *_, tie, by = rows["mean_4"]
+        tie.setCurrentText("mean_1")
+        by.setText("1.13")  # a separation
+        rows["stddev_4"][4].setCurrentText("stddev_1")  # the same width
+        click(dialog.table, "Remove", 5)  # the linear background
+        click(dialog.table, "Remove", 2)  # the Lorentzian
+        removes = [button for button in dialog.findChildren(QPushButton) if button.text() == "Remove"]
+        assert len(removes) == 4  # the rows of the components removed gone at once
+
+    fit_settings(monkeypatch, tools, compose)
+    fitter = glue_patches._get_fitter(tools, GaussianConstantFitter)  # the viewer's (#287)
+    kinds = [models.Const1D, models.Gaussian1D, models.Polynomial1D, models.Gaussian1D]
+    assert [type(leaf) for leaf, _ in fitter.components] == kinds
+    assert fitter.components[2][0].degree == 3
+    constraints = fitter.constraints
+    assert constraints["amplitude_0"] == {"value": 3, "fixed": True, "limits": None}
+    assert constraints["amplitude_1"]["limits"] == (0, None)
+    assert constraints["amplitude_3"]["limits"] is None  # its tie to the Lorentzian dropped
+    assert "mean_3" not in constraints  # tied, which glue sets none of
+    model = fitter.model_cls(amplitude_1=40, mean_1=1334.53, stddev_1=0.05)
+    assert model.tied["mean_3"](model) == pytest.approx(1335.66)
+    assert model.tied["stddev_3"](model) == 0.05
+
+    def reopened(dialog):
+        rows = dialog.rows
+        assert len(rows) == 1 + 3 + 4 + 3
+        assert (rows["amplitude_0"][0].text(), rows["amplitude_0"][1].isChecked()) == ("3.0", True)
+        assert (rows["amplitude_1"][2].text(), rows["amplitude_1"][3].text()) == ("0.0", "")
+        assert (rows["mean_3"][4].currentText(), rows["mean_3"][5].text()) == ("mean_1", "1.13")
+        assert (rows["stddev_3"][4].currentText(), rows["stddev_3"][5].text()) == ("stddev_1", "")
+        assert rows["amplitude_3"][4].currentText() == ""
+        *_, tie, by = rows["amplitude_3"]
+        tie.setCurrentText("amplitude_1")
+        by.setText("0.5")  # a ratio
+
+    monkeypatch.setattr(_Settings, "exec_", lambda dialog: reopened(dialog) or dialog.reject())
+    tools.ui.button_settings.click()
+    assert "amplitude_3" in fitter.constraints  # Cancel kept it free
+    fit_settings(monkeypatch, tools, reopened)
+    model = fitter.model_cls(amplitude_1=40, mean_1=1334.53, stddev_1=0.05)
+    assert model.tied["amplitude_3"](model) == 20
+
+    def refused(dialog):
+        dialog.rows["amplitude_0"][0].setText("three")
+        with pytest.raises(ValueError, match="could not convert string to float: 'three'"):
+            dialog.accept()
+        dialog.rows["amplitude_0"][0].setText("")
+        for _ in range(4):
+            click(dialog.table, "Remove")
+        with pytest.raises(ValueError, match="Add a component to fit."):
+            dialog.accept()
+
+    monkeypatch.setattr(_Settings, "exec_", lambda dialog: refused(dialog) or dialog.reject())
+    tools.ui.button_settings.click()
+    assert len(fitter.components) == 4
+
+
+def test_removing_a_line_renumbers_the_ties_to_those_below_it(qtbot):
+    fitter = iris_fitter(models.Const1D(), *(models.Gaussian1D() for _ in range(3)))
+    fitter.components[3][1]["mean"]["tie"] = (2, 0.05)  # mean_3 to mean_2
+    dialog = _Settings(fitter)
+    qtbot.addWidget(dialog)
+    click(dialog.table, "Remove", 1)  # the first Gaussian
+    dialog.accept()
+    assert fitter.components[2][1]["mean"]["tie"] == (1, 0.05)  # mean_2 to mean_1, the same line
+
+
+def test_a_chain_of_ties_fits_from_its_root():
+    """
+    C II's lines, the third's center, amplitude and width tied to the second's and the second's to the first's: each
+    follows its chain to the first, as astropy computes a tie from the values before any; the first starts at its own
+    peak, not the stronger blend's, the second's center its separation away (D86).
+    """
+    x = 1334 + 0.01 * np.arange(250)
+    centers, amplitudes = (1334.53, 1335.66, 1335.71), (20, 40, 10)
+    y = 5 + sum(a * np.exp(-0.5 * ((x - c) / 0.03) ** 2) for a, c in zip(amplitudes, centers, strict=True))
+    fitter = iris_fitter(models.Const1D(), *(models.Gaussian1D() for _ in centers))
+    fitter.set_constraint("mean_1", value=1334.53)
+    for line, separation, ratio in ((2, 1.13, 2), (3, 0.05, 0.25)):
+        settings = fitter.components[line][1]
+        settings["mean"]["tie"], settings["amplitude"]["tie"] = (line - 1, separation), (line - 1, ratio)
+        settings["stddev"]["tie"] = line - 1, None
+    assert fitter.parameter_guesses(x, y, None)["mean_1"] == pytest.approx(1334.53)
+    model, _ = fitter.build_and_fit(x, y)
+    assert model.mean_3.value == pytest.approx(model.mean_1.value + 1.18)
+    assert model.amplitude_3.value == pytest.approx(model.amplitude_1.value / 2)
+    assert model.parameters == pytest.approx([5, 20, 1334.53, 0.03, 40, 1335.66, 0.03, 10, 1335.71, 0.03])
+
+
+def test_the_fit_tab_workarounds_install_only_where_glue_qt_needs_them():
+    installed = ProfileTools._plot_fit is glue_patches._plot_fit
+    assert installed == glue_patches.needs_fit_artists_workaround()  # probes glue-qt's own method
+    assert not glue_patches.needs_fit_artists_workaround(glue_patches._plot_fit)
+    installed = ProfileTools._on_settings is glue_patches._on_settings
+    assert installed == (not hasattr(ProfileTools, "_get_fitter") or glue_patches.needs_fitter_settings_workaround())
+    assert not glue_patches.needs_fitter_settings_workaround(glue_patches._on_settings)
+    assert glue_patches.needs_fitter_settings_workaround()  # glue-qt 0.4.2's opens its own dialog for every fitter
 
 
 @pytest.mark.remote_data
 def test_the_iris_fitter_fits_the_c_ii_pair_as_two_lines(qtbot, monkeypatch, irispy_data):
-    """The mean C II 1336 of 3620107423's first scan, its 1334.53 and 1335.71 Å lines, of one width with 'Same width'."""
+    """The mean C II 1336 of 3620107423's first scan, its 1334.53 and 1335.71 Å lines, then of one width."""
     [c_ii] = raster_data(irispy_data("iris_l2_20250613_123658_3620107423_raster.tar.gz")[:1], ["C II 1336"])
-    two, same, _ = _fit_two_lines(qtbot, monkeypatch, c_ii, (1334.1, 1336.2))
+    two, same, *_ = _fit_two_lines(qtbot, monkeypatch, c_ii, (1334.1, 1336.2))
     centers = [float(report[f"center_{line}"].split(",")[0]) for report in (two, same) for line in (1, 2)]
     # within 0.1 km / s: the fitter's step differs between astropy versions
     assert centers == pytest.approx([1334.5958, 1335.7652, 1334.5966, 1335.7651], abs=5e-4)
@@ -2682,7 +2838,10 @@ def test_the_iris_fitter_fits_irispys_line_on_a_background(irispy_data, linear_b
     y = np.asarray(raster[raster.main_components[0]][0, 237])
     keep = (1402.4 <= x) & (x <= 1403.2)
     x, y = x[keep], y[keep]
-    fitter = GaussianConstantFitter(linear_background=linear_background, lorentzian=lorentzian)
+    fitter = iris_fitter(
+        models.Linear1D() if linear_background else models.Const1D(),
+        models.Lorentz1D() if lorentzian else models.Gaussian1D(),
+    )
     model, fitted_with = fitter.build_and_fit(x, y)
     starts = fitter.parameter_guesses(x, y, None)
     *_, level, amplitude, center, width = model.param_names
@@ -2718,5 +2877,5 @@ def test_gaussian_on_a_constant_says_when_the_range_holds_too_few_samples():
     assert np.abs(fitter.build_and_fit(x, y)[0].parameters) == pytest.approx([1, 4, 1, 0.5])
     fitter.set_constraint("amplitude_0", value=None, fixed=False, limits=None)  # as Settings sends a row cleared
     assert fitter.constraints["amplitude_0"] == {"value": None, "fixed": False, "limits": None}
-    with pytest.raises(ValueError, match="needs a peak in the range per line, 1, and finds 0: widen the range or"):
+    with pytest.raises(ValueError, match="needs a peak in the range for each line without a start, 1, and finds 0"):
         GaussianConstantFitter().build_and_fit(np.arange(5.0), np.ones(5))

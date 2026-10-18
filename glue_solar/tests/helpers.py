@@ -228,3 +228,27 @@ def shift(monkeypatch, data, collection, offset):
     monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
     shift_pointing_iris(data, collection)
     return opened[0]
+
+
+def click(widget, text, index=0):
+    """Click the ``index``-th button labelled ``text`` in ``widget``."""
+    [button for button in widget.findChildren(QtWidgets.QPushButton) if button.text() == text][index].click()
+
+
+def fit_settings(monkeypatch, tools, change):
+    """Press "Settings" on the Fit tab of ``tools``, ``change(dialog)``, then OK, the IRIS fitter's dialog or glue's."""
+    from glue_qt.core.fitters import FitSettingsWidget
+
+    from glue_solar.fitters import _Settings
+
+    for cls in (_Settings, FitSettingsWidget):
+        monkeypatch.setattr(cls, "exec_", lambda dialog: change(dialog) or dialog.accept())
+    tools.ui.button_settings.click()
+
+
+def add_component(dialog, kind, degree=None):
+    """Add a component of ``kind`` in the IRIS fitter's Settings ``dialog``, a polynomial of ``degree``."""
+    dialog.kind.setCurrentText(kind)
+    if degree is not None:
+        dialog.degree.setValue(degree)
+    click(dialog, "Add")

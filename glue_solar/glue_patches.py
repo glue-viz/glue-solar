@@ -32,7 +32,6 @@ from glue.core.edit_subset_mode import EditSubsetMode
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.link_helpers import LinkSame, LinkSameWithUnits
 from glue.core.link_manager import pixel_cid_to_pixel_cid_matrix
-from glue.core.simpleforms import BoolOption
 from glue.core.state import GlueSerializeError, GlueSerializer, GlueUnSerializer, loader, saver
 from glue.core.subset import SubsetState
 from glue.dialogs.link_editor.state import LinkEditorState
@@ -53,7 +52,6 @@ from glue.viewers.table.state import TableViewerState
 from glue_qt.app.layer_tree_widget import LayerAction, UserAction
 from glue_qt.config import LayerActionRegistry
 from glue_qt.config import layer_action as glue_layer_action
-from glue_qt.core import simpleforms
 from glue_qt.core.fitters import FitSettingsWidget
 from glue_qt.plugins.tools.pv_slicer import pv_slicer
 from glue_qt.utils import colors
@@ -61,7 +59,7 @@ from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.common.toolbar import BasicToolbar
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.matplotlib.widget import MplCanvas
-from glue_qt.viewers.profile import ProfileViewer
+from glue_qt.viewers.profile import ProfileViewer, profile_tools
 from glue_qt.viewers.profile.profile_tools import ProfileTools
 from glue_qt.viewers.table.data_viewer import DataTableModel
 from matplotlib import colormaps, dates, rcParams
@@ -916,21 +914,6 @@ def add_tool(self, tool):
 BasicToolbar.add_tool = add_tool
 
 
-class BoolFormItem(simpleforms.BoolFormItem):
-    """
-    glue-qt's ``BoolFormItem``, its check box giving ``value()``, which glue-qt 0.4.2's fit Settings read, so OK raised
-    for a fitter with a ``BoolOption``, as the IRIS fitter's linear background (#259).
-    """
-
-    def __init__(self, instance, option):
-        super().__init__(instance, option)
-        if not hasattr(self.widget, "value"):
-            self.widget.value = self.widget.isChecked
-
-
-simpleforms.register(BoolOption, BoolFormItem)
-
-
 def _get_fitter(self, cls):
     """The one fitter of class ``cls`` for this ``ProfileTools``, so for this Profile viewer."""
     fitters = vars(self).setdefault("_fitters", {})
@@ -939,8 +922,28 @@ def _get_fitter(self, cls):
     return fitters[cls]
 
 
+_original_on_settings = ProfileTools._on_settings
+
+
 def _on_settings(self):
-    FitSettingsWidget(_get_fitter(self, self.fit_function)).exec_()
+    """
+    glue-qt's Settings, of `_get_fitter`'s fitter, in its own ``settings_widget`` where it has one, as the IRIS fitter's
+    component list (D86; glue-qt fork branch ``fitter-settings-widget``).
+    """
+    fitter = _get_fitter(self, self.fit_function)
+    getattr(fitter, "settings_widget", FitSettingsWidget)(fitter).exec_()
+
+
+def needs_fitter_settings_workaround(method=_original_on_settings):
+    """Whether ``method`` opens glue-qt's Settings dialog for a fitter with its own ``settings_widget``."""
+    opened, default = [], profile_tools.FitSettingsWidget
+    fitter = SimpleNamespace(settings_widget=lambda fitter: SimpleNamespace(exec_=lambda: opened.append(fitter)))
+    profile_tools.FitSettingsWidget = lambda fitter: SimpleNamespace(exec_=lambda: None)  # no dialog, nor QApplication
+    try:
+        method(SimpleNamespace(fit_function=lambda: fitter, _get_fitter=lambda: fitter))
+    finally:
+        profile_tools.FitSettingsWidget = default
+    return opened != [fitter]
 
 
 _original_fit = ProfileTools._fit
@@ -954,9 +957,50 @@ def _fit(self, fitter, xlim=None):
     return _original_fit(self, _get_fitter(self, type(fitter)), xlim)
 
 
-if not hasattr(ProfileTools, "_get_fitter"):
+if not hasattr(ProfileTools, "_get_fitter") or _needs(needs_fitter_settings_workaround):
     ProfileTools._on_settings = _on_settings
+if not hasattr(ProfileTools, "_get_fitter"):
     ProfileTools._fit = _fit
+
+_original_plot_fit = ProfileTools._plot_fit
+
+
+def _plot_fit(self, fitter, fit_result, x, y, normalize):
+    """
+    glue-qt's ``_plot_fit``, keeping every artist a fitter's ``plot`` returns, as glue's docstring asks, not only the
+    first, so that Clear removes each line's curve of the IRIS fit (D86; glue-qt fork branch ``fit-artists``).
+    """
+    self._clear_fit()
+    for layer in fit_result:
+        self._fit_artists.extend(
+            fitter.plot(
+                fit_result[layer],
+                self.axes,
+                x,
+                alpha=layer.state.alpha,
+                linewidth=layer.state.linewidth * 0.5,
+                color=layer.state.color,
+                normalize=normalize.get(layer, None),
+            )
+        )
+    self.canvas.draw_idle()
+
+
+def needs_fit_artists_workaround(method=_original_plot_fit):
+    """Whether ``method`` keeps fewer artists than a fitter's ``plot`` returns."""
+
+    class Layer:  # a dictionary key, as glue-qt's layer artists
+        state = SimpleNamespace(alpha=1, linewidth=1, color="k")
+
+    tools = SimpleNamespace(
+        _fit_artists=[], _clear_fit=lambda: None, axes=None, canvas=SimpleNamespace(draw_idle=lambda: None)
+    )
+    method(tools, SimpleNamespace(plot=lambda *args, **kwargs: ["first", "second"]), {Layer: None}, None, None, {})
+    return tools._fit_artists != ["first", "second"]
+
+
+if _needs(needs_fit_artists_workaround):
+    ProfileTools._plot_fit = _plot_fit
 
 
 _original_update_icons = colors.QColormapCombo._update_icons
