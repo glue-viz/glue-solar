@@ -38,6 +38,7 @@ from glue.viewers.profile.state import ProfileViewerState
 from glue_qt.app.application import GlueApplication
 from glue_qt.app.layer_tree_widget import UserAction
 from glue_qt.config import keyboard_shortcut
+from glue_qt.plugins.tools import pv_slicer
 from glue_qt.viewers.histogram import HistogramViewer
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.image.profile_viewer_tool import ProfileViewerTool
@@ -111,6 +112,10 @@ from glue_solar.tools import PathData, sky_length
 def test_setup_registers_hooks():
     glue_solar.setup()
     glue_solar.setup()  # glue calls it once; tests and reloads must not duplicate the tool
+    # glue-qt's Slice Extraction plugin, as glue loads it where its entry points list it after this one: Path diagram
+    # is the one path tool (D90)
+    pv_slicer.setup()
+    assert "slice" not in ImageViewer.tools
     # the Plugins menu's entries, as they register; quicklooks open from 'Quicklook…' (D83)
     assert [(label, callback) for label, callback in menubar_plugin if callback.__module__[:10] == "glue_solar"] == [
         ("IRIS: browse observations…", browse_iris),
@@ -565,7 +570,8 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(app, qtbot, monkey
     app.data_collection.append(cube)
     viewer = app.new_data_viewer(ImageViewer, data=cube)
     toolbar = viewer.toolbar
-    assert len(QToolBar.actions(toolbar)) <= 21  # of 26 buttons before, which needed a viewer 1200 px wide
+    assert len(QToolBar.actions(toolbar)) <= 20  # of 26 buttons before, which needed a viewer 1200 px wide
+    assert "slice" not in toolbar.tools  # glue-qt's Slice Extraction: Path diagram is the one path tool (D90)
     # glue-solar's buttons right after glue's Home, Pan and Zoom, so that a narrow viewer hides glue's tools first
     ids = {id(action): tool_id for tool_id, action in toolbar.actions.items()}
     order = [ids.get(id(action)) for action in QToolBar.actions(toolbar)]
@@ -599,19 +605,17 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(app, qtbot, monkey
     menus = {}
     for menu in ("solar:modes", "solar:view"):
         menus[menu] = toolbar.widgetForAction(toolbar.actions[menu]).menu()
-        # each tool's entry, by its id as for a button, and Path diagram's path entries and sampling
+        # each tool's entry, by its id as for a button, and Path diagram's path entries
         entries = [toolbar.actions[tool] for tool in ImageViewer.subtools[menu]]
-        extra = ["Save path as ECSV…", "Open path from ECSV…", "Path on other data…", "Path sampling"]
+        extra = ["Save path as ECSV…", "Open path from ECSV…", "Path on other data…"]
         extra = extra if menu == "solar:modes" else []
         assert menus[menu].actions()[: len(entries)] == entries
         assert [entry.text() for entry in menus[menu].actions()[len(entries) :]] == extra
-    sampling = menus["solar:modes"].actions()[-1]
-    assert sampling.text() == "Path sampling"
 
     # the mouse modes, checked while on, the crosshair, Slope and saving a path on a path diagram only, placing one
     # on other data once one is drawn, and Path diagram's L
     shown = [entry.isVisible() for entry in menus["solar:modes"].actions()]
-    assert shown == [True, True, False, False, False, True, False, True]
+    assert shown == [True, True, False, False, False, True, False]
     toolbar.active_tool = "image:point_selection"
     measure = toolbar.actions["solar:measure"]
     measure.trigger()
@@ -651,7 +655,6 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(app, qtbot, monkey
     viewer.add_data(still)
     viewer.state.reference_data = still
     assert not toolbar.actions["solar:path"].isEnabled()
-    assert not sampling.isVisible()
     assert not toolbar.actions["solar:band"].isEnabled()
     assert not toolbar.actions["solar:frame_time"].isEnabled()
     QTest.keyClick(toolbar, Qt.Key_L)
@@ -1095,12 +1098,13 @@ def _draw_path(viewer, x, y):
 
 def _along(data, cid, path, on=slice(None)):
     """
-    ``data``'s ``cid`` at the pixels glue-core samples the samples ``on`` of ``path`` at, its other axes kept in order,
-    the path's last.
+    ``data``'s ``cid`` at the pixels nearest the samples ``on`` of ``path``, its other axes kept in order, the path's
+    last.
     """
     index = [slice(None)] * data.ndim
     columns = []
-    for index[path.cid_x.axis], index[path.cid_y.axis] in zip(path.x[on].astype(int), path.y[on].astype(int)):
+    nearest = (np.floor(along[on] + 0.5).astype(int) for along in (path.x, path.y))
+    for index[path.cid_x.axis], index[path.cid_y.axis] in zip(*nearest):
         columns.append(data[cid, tuple(index)])
     return np.stack(columns, axis=-1)
 
@@ -1115,6 +1119,7 @@ def test_path_diagrams_of_a_slit_jaw_image_and_a_raster_on_it(app, irispy_test_f
     viewer.add_data(raster)
     viewer.state.slices = (5, 0, 0)
     assert viewer.toolbar.tools["solar:path"].enabled
+    assert "slice" not in viewer.toolbar.tools  # glue-qt's Slice Extraction (D90)
     path, on_raster = _draw_path(viewer, [5, 18, 30], [3, 20, 35])
     diagrams = viewer.toolbar.tools["solar:path"]._slice_viewer
     assert [layer.layer for layer in diagrams.layers] == [path]  # the raster's, on frames, would be disabled
@@ -1209,47 +1214,28 @@ def test_path_diagram_of_a_stack(app, irispy_test_files):
     assert viewer.state.slices[1:] == (4, 0, 7)
 
 
-def test_path_diagram_sampling_on_a_ramp(app):
-    # a ramp, which bilinear sampling gives exactly, against scipy's map_coordinates: order 0, the nearest pixel, and
-    # order 1, NaN where a pixel around the sample is off the data
-    from scipy.ndimage import map_coordinates
-
-    t, y, x = np.indices((2, 12, 16), dtype=float)
+def test_path_diagram_samples_the_nearest_pixel(app):
+    # each pixel's value its frame, row and column, 1000 t + 100 y + x
+    t, y, x = np.indices((2, 12, 16))
     times = np.datetime64("2013-09-02T16:39") + (60 * t).astype("timedelta64[s]")
-    ramp = Data(label="ramp", flux=0.7 * x - 1.3 * y + 2.5 + 10 * t)
-    ramp.add_component(times, "Time")
-    app.data_collection.append(ramp)
-    viewer = app.new_data_viewer(ImageViewer, data=ramp)
-    menu = viewer.toolbar.widgetForAction(viewer.toolbar.actions["solar:modes"]).menu().actions()[-1].menu()
-    assert [(entry.text(), entry.isChecked()) for entry in menu.actions()] == [
-        ("Truncate", True),
-        ("Nearest", False),
-        ("Linear", False),
-    ]
-    flux = ramp.id["flux"]
-    for count, (entry, order, mode) in enumerate(zip(menu.actions()[1:], (0, 1), ("grid-constant", "constant")), 1):
-        entry.trigger()
-        assert viewer.toolbar.active_tool is None  # the mouse mode stays
-        [path] = _draw_path(viewer, [0.3, 7.7, 15.3], [2.2, 10.9, 4.6])
-        sampling = entry.text().lower()
-        assert (path.sampling, path.label) == (sampling, f"ramp [slice {count}, {sampling}]")
-        frames = np.broadcast_to(np.arange(2.0)[:, None], (2, len(path.x)))
-        # times are not interpolated: the nearest pixel's
-        np.testing.assert_array_equal(path[ramp.id["Time"]], times[:, 0, :1].repeat(len(path.x), axis=1))
-        if order:  # the ramp itself, NaN past the last x center, where the last sample is
-            assert path.x[-1] > 15
-            ramp_values = np.where(path.x <= 15, 0.7 * path.x - 1.3 * path.y + 2.5 + 10 * frames, np.nan)
-            np.testing.assert_allclose(path[flux], ramp_values, atol=1e-6)
-        # the drawn diagram, which glue asks for by index arrays
-        view = [(0, 1, 2), (0, len(path.x) - 1, len(path.x))]
-        drawn = path.compute_fixed_resolution_buffer(view, target_data=path, target_cid=flux)
-        np.testing.assert_array_equal(drawn, path[flux])
-        for xs, ys in ((path.x, path.y), ([0.5, 1.5, 2.5, 3.5], [2.5] * 4)):  # then halfway, which rounds up
-            path.set_xy(xs, ys)
-            frames = np.broadcast_to(np.arange(2.0)[:, None], (2, len(path.x)))
-            pixels = [frames, np.broadcast_to(path.y, frames.shape), np.broadcast_to(path.x, frames.shape)]
-            reference = map_coordinates(ramp[flux], pixels, order=order, mode=mode, cval=np.nan)
-            np.testing.assert_allclose(path[flux], reference, atol=1e-6)
+    grid = Data(label="grid", flux=1000.0 * t + 100 * y + x)
+    grid.add_component(times, "Time")
+    app.data_collection.append(grid)
+    viewer = app.new_data_viewer(ImageViewer, data=grid)
+    [path] = _draw_path(viewer, [0.3, 7.7, 15.3], [2.2, 10.9, 4.6])
+    assert path.label == "grid [slice 1]"
+    flux = grid.id["flux"]
+    np.testing.assert_array_equal(path[flux], _along(grid, flux, path))
+    # halfway rounds up, and a sample nearest a pixel off the data is NaN, where glue-core's truncation gives 200, 201,
+    # 1115 and 315 on frame 0 (D90)
+    path.set_xy([0.5, 1.49, 15.4, 15.6], [2.5, 2.5, 11.4, 3.0])
+    np.testing.assert_array_equal(path[flux], [[301, 301, 1115, np.nan], [1301, 1301, 2115, np.nan]])
+    when = np.repeat(times[:, :1, 0], 4, axis=1)
+    when[:, -1] = "NaT"
+    np.testing.assert_array_equal(path[grid.id["Time"]], when)
+    # the drawn diagram, which glue asks for by index arrays
+    drawn = path.compute_fixed_resolution_buffer([(0, 1, 2), (0, 3, 4)], target_data=path, target_cid=flux)
+    np.testing.assert_array_equal(drawn, path[flux])
 
 
 def _click(tool, x, y):
@@ -1329,8 +1315,8 @@ def _modes_entry(viewer, text):
 
 
 def _assert_same_diagram(got, expected):
-    """The diagram ``got`` has the parent, path, sampling, values and coordinates of ``expected``."""
-    assert (got.original_data.label, got.sampling) == (expected.original_data.label, expected.sampling)
+    """The diagram ``got`` has the parent, path, values and coordinates of ``expected``."""
+    assert got.original_data.label == expected.original_data.label
     np.testing.assert_array_equal(np.stack([got.x, got.y]), np.stack([expected.x, expected.y]))
     for cid, original in zip(got.components, expected.components, strict=True):
         assert cid.label == original.label
@@ -1355,7 +1341,6 @@ def test_a_path_diagram_reopens_from_ecsv_and_from_a_session(app, qtbot, monkeyp
         app.data_collection.add_link(LinkSame(cid, same))
     viewer = app.new_data_viewer(ImageViewer, data=cube)
     viewer.add_data(other)
-    viewer.toolbar.tools["solar:path"].sampling = "linear"
     path, on_other = _draw_path(viewer, [0.3, 15.3], [4.6, 4.6])  # along x
     diagram = viewer.toolbar.tools["solar:path"]._slice_viewer
     entries = ("Save path as ECSV…", "Open path from ECSV…")
@@ -1373,18 +1358,19 @@ def test_a_path_diagram_reopens_from_ecsv_and_from_a_session(app, qtbot, monkeyp
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *args: (file, ""))
     _modes_entry(diagram, entries[0]).trigger()
     table = QTable.read(file)
-    assert dict(table.meta) == {"data": "cube", "axes": [2, 1], "sampling": "linear"}
+    assert dict(table.meta) == {"data": "cube", "axes": [2, 1]}
     np.testing.assert_array_equal(np.stack([table["x"], table["y"]]), np.stack([path.x, path.y]))
     lon, lat, _ = wcs.pixel_to_world_values(path.x, path.y, 0)
     np.testing.assert_allclose(table["lon"].to_value(u.arcsec), lon * 3600, rtol=0, atol=1e-6)
     np.testing.assert_allclose(table["lat"].to_value(u.arcsec), lat * 3600, rtol=0, atol=1e-6)
     np.testing.assert_allclose(table["distance"].to_value(u.arcsec), 0.1663 * np.arange(len(table)), rtol=1e-6)
     assert table["distance_km"][1].to_value(u.km) == pytest.approx(120.6143, rel=1e-6)
-    # opened on the cube, it makes the same diagrams again, with the saved sampling
-    viewer.toolbar.tools["solar:path"].sampling = "truncate"
+    # opened on the cube, it makes the same diagrams again, an older file's sampling ignored (D90)
+    table.meta["sampling"] = "linear"
+    table.write(file, overwrite=True)
     _modes_entry(viewer, entries[1]).trigger()
     again, again_on_other = viewer.toolbar.tools["solar:path"]._traces[-1]
-    assert again.label == "cube [slice 2, linear]"
+    assert again.label == "cube [slice 2]"
     for got, expected in ((again, path), (again_on_other, on_other)):
         _assert_same_diagram(got, expected)
 
@@ -1415,7 +1401,7 @@ def test_a_path_diagram_reopens_from_ecsv_and_from_a_session(app, qtbot, monkeyp
     # opened on the restored cube, numbered past its restored diagrams
     [image] = [shown for tab in app.viewers for shown in tab if shown.state.reference_data.label == "cube"]
     _modes_entry(image, entries[1]).trigger()
-    assert image.toolbar.tools["solar:path"]._traces[-1][0].label == "cube [slice 3, linear]"
+    assert image.toolbar.tools["solar:path"]._traces[-1][0].label == "cube [slice 3]"
 
 
 def _sky_cube(label, shape, axes, pc=None):
@@ -1462,7 +1448,6 @@ def test_a_path_is_drawn_on_every_viewer_of_its_image_and_placed_on_other_data(a
     assert not reuse.isVisible()  # no path drawn yet
 
     # drawn in one viewer, it is drawn in every viewer of the image, opened before or after
-    viewer.toolbar.tools["solar:path"].sampling = "linear"
     [path] = _draw_path(viewer, [3, 30], [5, 25])
     third = app.new_data_viewer(ImageViewer, data=sji)
     for shown, (x, y) in ((viewer, (path.x, path.y)), (other, (path.y, path.x)), (third, (path.x, path.y))):
@@ -1495,7 +1480,7 @@ def test_a_path_is_drawn_on_every_viewer_of_its_image_and_placed_on_other_data(a
     _modes_entry(diagram, reuse.text()).trigger()
     assert offered == ["Si IV", "Mg II k", "jaw"]
     made = [data for data in app.data_collection if isinstance(data, PathData)][1:]
-    assert [data.label for data in made] == [f"{name} [slice 1, linear]" for name in offered]
+    assert [data.label for data in made] == [f"{name} [slice 1]" for name in offered]
     assert [shown.state.reference_data for shown in app.viewers[0][count:]] == made
     links = [link for link in app.data_collection.external_links if isinstance(link, PathRelativeLink)]
     assert {frozenset((link._slice_from, link._slice_to)) for link in links} >= {frozenset((path, d)) for d in made}
@@ -1511,7 +1496,7 @@ def test_a_path_is_drawn_on_every_viewer_of_its_image_and_placed_on_other_data(a
             along = wcs.world_to_pixel_values(wcs.pixel_to_world_values(0, 0, 0)[0], lat, lon)[:0:-1]
         own = app.new_data_viewer(ImageViewer, data=data)
         own.state.x_att, own.state.y_att = (data.pixel_component_ids[axis] for axis in got.sliced_dims)
-        own.toolbar.tools["solar:path"]._extract(*along, "linear")
+        own.toolbar.tools["solar:path"]._extract(*along)
         expected = own.toolbar.tools["solar:path"]._traces[-1][0]
         np.testing.assert_allclose(np.stack([got.x, got.y]), np.stack([expected.x, expected.y]), rtol=0, atol=1e-9)
         assert 0 < np.isfinite(got[data.id["flux"]]).mean()
@@ -1925,35 +1910,6 @@ def test_help_opens_the_user_guide_and_the_issues(monkeypatch):
         "https://glue-solar.readthedocs.io/en/latest/user_guide/index.html",
         "https://github.com/glue-viz/glue-solar/issues",
     ]
-
-
-# glue-qt 0.4.2's PV slice window sets its colormap through glue's deprecated 'color' key, and its pvextractor
-# imports spectral-cube, which uses astropy's deprecated COPY_IF_NEEDED where spectral-cube is installed
-@pytest.mark.filterwarnings("ignore:Setting colormap using")
-@pytest.mark.filterwarnings("ignore:COPY_IF_NEEDED is no longer needed")
-def test_a_pv_slice_click_leaves_numbers_in_the_slices(app, irispy_test_files):
-    from glue_qt.plugins.tools.pv_slicer import pv_slicer
-
-    from glue_solar import glue_patches
-
-    installed = pv_slicer.PVSliceWidget._sync_slice is glue_patches.sync_pv_slice
-    assert installed == glue_patches.needs_pv_slice_workaround()  # probes glue-qt's own function
-    assert not glue_patches.needs_pv_slice_workaround(glue_patches.sync_pv_slice)
-    sji = load_data(str(find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")))
-    app.data_collection.append(sji)
-    viewer = app.new_data_viewer(ImageViewer, data=sji)
-    tool = viewer.toolbar.tools["slice"]
-    tool._build_from_vertices(np.array([5.0, 30.0]), np.array([10.0, 30.0]))  # a path drawn on the frame
-    widget = tool._slice_widget
-    canvas = widget.axes.figure.canvas
-    canvas.draw()
-    # a click in the PV slice window at frame 7 moves the viewer to it
-    click = MouseEvent("button_press_event", canvas, *widget.axes.transData.transform((3, 7)), button=1)
-    widget._sync_slice(click)
-    assert viewer.state.slices[0] == 7
-    assert not any(isinstance(s, str) for s in viewer.state.slices)
-    viewer.state.y_att_world = sji.world_component_ids[0]  # glue-qt 0.4.2 alone raises int('y') here
-    assert viewer.state.y_att.axis == 0
 
 
 SIT_AND_STARE = "iris_l2_20210905_001833_3620258102_{}.fits"

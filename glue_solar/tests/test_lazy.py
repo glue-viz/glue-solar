@@ -673,19 +673,13 @@ def test_level_2_slit_jaw_and_aia_cubes_load_lazily_as_before(monkeypatch, irisp
         assert_loads_as_before(*lazy_and_eager(monkeypatch, lambda path=path: image_data(path)))
 
 
-# pvextractor imports spectral-cube, which uses astropy's deprecated COPY_IF_NEEDED where spectral-cube is installed,
-# and glue's exporter names each HDU after its component, a longer EXTNAME than a FITS card holds with its comment
-@pytest.mark.filterwarnings("ignore:COPY_IF_NEEDED is no longer needed")
+# glue's exporter names each HDU after its component, a longer EXTNAME than a FITS card holds with its comment
 @pytest.mark.filterwarnings("ignore:Card is too long")
-def test_pv_slices_and_subset_exports_of_lazy_data(monkeypatch, tmp_path, int16_raster):
+def test_subset_exports_of_lazy_data(tmp_path, int16_raster):
     from glue.config import data_exporter
-    from glue_qt.plugins.tools.pv_slicer import pv_slicer
 
     from glue_solar import glue_patches
 
-    assert pv_slicer._slice_from_path is glue_patches.pv_slice_from_path  # always, probing on the first slice
-    assert glue_patches._pv_needs_workaround() == glue_patches.needs_pv_dask_workaround()  # glue-qt's own function
-    assert not glue_patches.needs_pv_dask_workaround(glue_patches.pv_slice_from_path)
     exporter = next(exporter for exporter in data_exporter if exporter.label == "FITS (1 component/HDU)")
     installed = exporter.function is glue_patches.export_fits
     assert installed == glue_patches.needs_fits_export_dask_workaround()  # probes glue's own exporter
@@ -697,11 +691,7 @@ def test_pv_slices_and_subset_exports_of_lazy_data(monkeypatch, tmp_path, int16_
 
     assert not glue_patches.needs_fits_export_dask_workaround(dask_export)
 
-    lazy_result, eager = lazy_and_eager(monkeypatch, lambda: raster_data([int16_raster], ["Si IV 1403"])[0])
-    path = (np.array([3.0, 25.0]), np.array([5.0, 30.0]))  # drawn on a spectrogram, slit against wavelength
-    pv = pv_slicer._slice_from_path
-    slices = [pv(*path, data, data.main_components[0], [0, "y", "x"]) for data in (lazy_result, eager)]
-    np.testing.assert_array_equal(slices[0][0], slices[1][0])
+    [lazy_result] = raster_data([int16_raster], ["Si IV 1403"])
     # a Pixel point exported: its spectrum, NaN elsewhere
     point = lazy_result.new_subset(PixelSubsetState(lazy_result, [slice(2, 3), slice(5, 6), slice(None)]))
     exporter.function(str(tmp_path / "point.fits"), point)

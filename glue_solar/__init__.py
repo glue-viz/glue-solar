@@ -179,10 +179,15 @@ def setup():
     # glue-qt with its own readout (glue-viz/glue-qt#74, draft) does not need ours
     if not hasattr(ImageViewer, "cursor_status"):
         menus[tools.ViewTool].append(tools.CursorReadoutTool)
-    # Right after glue's Home, Pan and Zoom, so that a narrow viewer moves glue's region tools, Pixel, Contrast/Bias,
-    # the Profile viewer button and Slice Extraction behind the toolbar's » button first
+    # Right after glue's Home, Pan and Zoom, so that a narrow viewer moves glue's region tools, Pixel, Contrast/Bias and
+    # the Profile viewer button behind the toolbar's » button first; without glue-qt's Slice Extraction ("slice"), as
+    # Path diagram replaces it (D90): glue loads its plugin before or after this one, in its entry points' order, so
+    # the plugin's setup does nothing once this one ran, and the tool it added already goes
+    from glue_qt.plugins.tools import pv_slicer as pv_slicer_plugin
+
+    pv_slicer_plugin.setup = lambda: None
     ours = [tool.tool_id for tool in (tools.FollowLockTool, tools.ModesTool, tools.CoordinateTool, tools.ViewTool)]
-    ImageViewer.tools[:] = ours + [tool for tool in ImageViewer.tools if tool not in ours]
+    ImageViewer.tools[:] = ours + [tool for tool in ImageViewer.tools if tool not in [*ours, "slice"]]
     # glue-qt 0.4.2's Profile viewer button has neither text nor tooltip
     if ProfileViewerTool.tool_tip is None:
         ProfileViewerTool.tool_tip = "Open a Profile viewer of this viewer's data along a slider's axis"

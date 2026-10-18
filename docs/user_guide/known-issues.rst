@@ -36,7 +36,6 @@ Viewers
 - **Navigate and Collapse:** keep the Profile viewer's "x unit" at ``Angstrom``, the data's own.
 - **Collapse:** drag over two samples or more, as the last is left out. The collapsed map lasts until
   a slider moves; for a band that follows the slider, use "Wavelength band…".
-- **Slice Extraction** (:kbd:`P`), glue's own, takes no stacks: use "Path diagram".
 - **Keys:** :kbd:`U` and :kbd:`L` act only while the toolbar has the keyboard: click the toolbar
   first.
 - **Backspace in the data collection** deletes the selected datasets and subsets at once, without
