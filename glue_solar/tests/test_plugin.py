@@ -74,6 +74,7 @@ from glue_solar.quicklook import QuicklookImageViewer, _role, _wavelengths
 from glue_solar.regrid import north_up_iris, rebin_iris, regrid_iris, regrid_on_time
 from glue_solar.sources.bursts import bursts_iris
 from glue_solar.sources.calibration import radiometric_calibration_iris, remove_dust_iris
+from glue_solar.sources.fit_maps import line_fit_maps_iris
 from glue_solar.sources.iris import (
     browse_iris,
     help_iris,
@@ -116,6 +117,7 @@ def test_setup_registers_hooks():
         ("IRIS: radiometric calibration", radiometric_calibration_iris),
         ("IRIS: subtract mean spectrum", mean_spectrum_iris),
         ("IRIS: line maps…", line_maps_iris),
+        ("IRIS: line fit maps", line_fit_maps_iris),
         ("IRIS: Mg II features… (Mg II)", mg_features_iris),
         ("IRIS: detect UV bursts… (Si IV, SJI 1400)", bursts_iris),
         ("IRIS: line ratio diagnostic…", line_ratio_iris),
@@ -171,6 +173,7 @@ def test_data_actions_show_only_for_the_data_they_take(app, monkeypatch, tmp_pat
         "IRIS: radiometric calibration",
         "IRIS: subtract mean spectrum",
         "IRIS: line maps…",
+        "IRIS: line fit maps",
     ]
     mg_ii, bursts = "IRIS: Mg II features… (Mg II)", "IRIS: detect UV bursts… (Si IV, SJI 1400)"
     ratio, dust, north_up = "IRIS: line ratio diagnostic…", "IRIS: remove dust (SJI)", "IRIS: north up (SJI, AIA, SOT)"

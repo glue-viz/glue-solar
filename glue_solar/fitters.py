@@ -3,6 +3,8 @@ irispy's lines on a background for the Fit tab of glue's Profile viewer, which g
 viewer.
 """
 
+import time
+
 import numpy as np
 from glue.config import fit_plugin
 from glue.core.fitters import AstropyFitter1D
@@ -88,11 +90,7 @@ class GaussianConstantFitter(AstropyFitter1D):
             if constraints[name]["fixed"] and constraints[name]["value"] is None:
                 constraints[name]["value"] = start
         model, fitter = self._get_model_fitter(x, y, dy, constraints)
-        # astropy's analytic Jacobian drops a tied width's part (fitting.py `_wrap_deriv`, report candidate), so tied
-        # widths fit with an estimated one, its step 1e-6 of each parameter up to astropy 8.0.1, which takes the square
-        # root, and 1e-12 from 8.0.2 (astropy#20462): 8.0.1's default, 1e-4, is wider than a line at 1335 Å
-        tied = {"estimate_jacobian": True, "epsilon": 1e-12} if model.has_tied else {}
-        return fitter(model, x, y, weights=self._sigma_to_weights(dy), **tied), fitter
+        return fitter(model, x, y, weights=self._sigma_to_weights(dy), **_jacobian(model)), fitter
 
     def parameter_guesses(self, x, y, dy):
         constant = np.median(y)
@@ -125,19 +123,39 @@ class GaussianConstantFitter(AstropyFitter1D):
         return text
 
 
+def _jacobian(model):
+    """
+    The fitter's options for ``model``: astropy's analytic Jacobian drops a tied width's part (fitting.py
+    `_wrap_deriv`, report candidate), so tied widths fit with an estimated one, its step 1e-6 of each parameter up to
+    astropy 8.0.1, which takes the square root, and 1e-12 from 8.0.2 (astropy#20462): 8.0.1's default, 1e-4, is wider
+    than a line at 1335 Å.
+    """
+    return {"estimate_jacobian": True, "epsilon": 1e-12} if model.has_tied else {}
+
+
 _profile_fit = ProfileTools._fit
 
 
 def _fit(self, fitter, xlim=None):
     """
-    glue-qt's fit of each layer, an IRIS fit's model given the layer's rest wavelength and the x unit for
-    `GaussianConstantFitter.summarize`, which glue-qt passes neither layer nor viewer.
+    glue-qt's fit of each layer, an IRIS fit's model given what `GaussianConstantFitter.summarize`, which glue-qt
+    passes neither layer nor viewer, and 'IRIS: line fit maps' take: the layer's rest wavelength and attribute, the
+    viewer's x unit and function, and the range; the viewer keeps its last IRIS fit of each dataset (D86).
     """
     results, x, y = _profile_fit(self, fitter, xlim)
     if isinstance(fitter, GaussianConstantFitter):
-        state = self.viewer.state
+        state, fits = self.viewer.state, {}
         for layer, (model, _) in results.items():
-            model.meta.update(rest_wavelength=_doppler_rest(layer.layer, state.x_att), x_unit=state.x_display_unit)
+            model.meta.update(
+                rest_wavelength=_doppler_rest(layer.layer, state.x_att),
+                x_unit=state.x_display_unit,
+                function=state.function,
+                attribute=layer.state.attribute.label,
+                x_range=tuple(sorted(xlim)),
+                fitted=time.monotonic(),
+            )
+            fits[layer.layer.data] = model  # a subset's data too
+        self._iris_fits = fits
     return results, x, y
 
 

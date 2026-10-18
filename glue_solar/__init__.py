@@ -32,7 +32,19 @@ if not qtpy.QT6:
 
 from glue_solar import glue_patches, lines, regrid, tools
 from glue_solar.quicklook import QuicklookImageViewer
-from glue_solar.sources import bursts, calibration, doppler, iris, line_ratio, maps, mg_features, moments, red_blue, sst
+from glue_solar.sources import (
+    bursts,
+    calibration,
+    doppler,
+    fit_maps,
+    iris,
+    line_ratio,
+    maps,
+    mg_features,
+    moments,
+    red_blue,
+    sst,
+)
 from glue_solar.sources.maps import _add_colormap
 
 from glue_solar.version import version as __version__
@@ -45,6 +57,7 @@ _DATA_ACTIONS = (
     calibration.radiometric_calibration_iris,
     moments.mean_spectrum_iris,
     moments.line_maps_iris,
+    fit_maps.line_fit_maps_iris,
     mg_features.mg_features_iris,
     bursts.bursts_iris,
     line_ratio.line_ratio_iris,
