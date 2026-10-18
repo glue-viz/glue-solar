@@ -32,7 +32,7 @@ Out of scope:
 
 **Next.** 2026-10-17/18 (D85-D87): #306-#314 are on main (the full CI matrix again, saturated samples shown at their value, Stokes scaled with their noise, sessions at their values' size, per-wcslib-call locking, the review's lean pass, the coordinator forgetting removed data, 'IRIS: line fit maps' and the Fit tab's model builder). Every open item now waits on the user, on others or on a release: once the user merges irispy draft #241, glue-solar's `fit_maps._starts` gives way to `starts_from_model` (one small PR); then M4 work on the user's direction. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow the session archive's `RULES.md`. CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small (#313's stack test fits one iteration).
 
-**Waiting on the user.** In order (2026-10-18): (1) irispy draft #241 (`starts_from_model`; its blend commit kept or dropped), then removing `~/Git/irispy-saturation-mask` and the env `irispy-fit-starts`; (2) #207's leftover, offered (viewers opened after the time marker exists get its layer); (3) trying the fitting in the GUI (OBS 3610108077's C II and Si IV windows; the flare 3860258481 for saturation) and the builder's later options (D88); (4) `wp0-qt68-macos-pass`; (5) the app's drag-into-/Applications check (`~/Downloads/Glue Solar.dmg` is from f073033; a fresh dmg from main's #275 recipe on request); (6) an exact report of the linking and slider-sync problems seen in the app on 2026-10-09 (4000255147's raster and SJI 1400, or 4000005156's two scans and SJI 2796), rerun with `glue` from `iris-plan-qt6-802-9229`; (7) the audits' other proposals (`audit2/` in the archive), summarized for the user on 2026-10-18. After the glue-solar work: `wp0-upstream-review` (D89).
+**Waiting on the user.** In order (2026-10-18): (1) irispy draft #241 (`starts_from_model`; its blend commit kept or dropped), then removing `~/Git/irispy-saturation-mask` and the env `irispy-fit-starts`; (3) trying the fitting in the GUI (OBS 3610108077's C II and Si IV windows; the flare 3860258481 for saturation) and the builder's later options (D88); (4) `wp0-qt68-macos-pass`; (5) the app's drag-into-/Applications check (`~/Downloads/Glue Solar.dmg` is from f073033; a fresh dmg from main's #275 recipe on request); (6) an exact report of the linking and slider-sync problems seen in the app on 2026-10-09 (4000255147's raster and SJI 1400, or 4000005156's two scans and SJI 2796), rerun with `glue` from `iris-plan-qt6-802-9229`; (7) the audits' other proposals (`audit2/` in the archive), summarized for the user on 2026-10-18. After the glue-solar work: `wp0-upstream-review` (D89).
 
 **Waiting on others.** irispy #209 (`wp5-irispy-line-database`, then `wp5-l-line-groups` and `wp5-l-lines-in-range`); the user's upstream drafts, on their human reviewers (`wp0-stack-validation`, `wp0-user-review`); an irispy release (`wp0-irispy-requests`).
 
@@ -165,7 +165,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP6: `wp6-fit-tab-button`
-- WP4: `wp4-light-curves-one`
+- WP4: `wp4-time-marker-layers`, `wp4-light-curves-one`
 - WP8: `wp8-polish-names-browser`
 - WP9: `wp9-guide-screenshot`
 - WP11: `wp11-polish-labels`, `wp11-polish-icons`
@@ -278,6 +278,7 @@ Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_
 
 **L**
 
+- [ ] **L** `wp4-time-marker-layers` (#207's leftover; user, 2026-10-18): viewers opened after the time master's marker exists no longer keep its layer. Done when a later Image viewer has none and steps cost what they do without it.
 - [ ] **L** `wp4-light-curves-one` (D90, C6): one 'Light curves at the point' entry, Time on x, following the point, for the shown windows and slit-jaw images (#208's), and the pixel-index 'Light curve of this window' (#183) goes; the row and column cuts stay (D58). Reopens D53. Done when one entry gives each shown window's and SJI's light curve against Time and the guide says so.
 
 Notes:
