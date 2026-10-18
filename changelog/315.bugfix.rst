@@ -1,0 +1,1 @@
+Viewers opened after the light curves' 'Master exposure' marker exists no longer redraw it at each step, which slowed steps by about 10% with a second quicklook.

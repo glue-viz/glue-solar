@@ -872,9 +872,11 @@ class Coordinator(HubListener):
             self.marker = next((group for group in groups if group.label == "Master exposure"), None)
         if self.marker is None:
             self.marker = _new_group(app.session, self.data_collection, label="Master exposure", subset_state=state)
-            for viewer in viewers:
-                if not isinstance(viewer.state, ScatterViewerState):
-                    _show(viewer, self.marker, False)  # as a light curve is: they would update it at each step
+        # off every other viewer before it moves, also those opened since, which glue gives every subset: they would
+        # update it at each step
+        for viewer in viewers:
+            if not isinstance(viewer.state, ScatterViewerState):
+                _show(viewer, self.marker, False)
         old = self.marker.subset_state
         if not (isinstance(old, RangeSubsetState) and old.att is x and old.lo == time and old.hi == end):
             self.marker.subset_state = state
