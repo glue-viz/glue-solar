@@ -5,7 +5,6 @@ as irispy's ``maps_from_fit`` maps in one new dataset (D86, D88).
 """
 
 import math
-import warnings
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 
@@ -162,65 +161,14 @@ def _last_fit(data, model):
     return model, crop, unit, per_second, rest
 
 
-def _starts(model, wavelengths, spectra):
-    """
-    ``model``, as fitted to one spectrum, with a start for each of ``spectra``, along their last axis at
-    ``wavelengths``, as EISPAC's ``scale_guess`` (D86): a constant, linear or polynomial background at its 10th
-    percentile at their mean, its shape kept, and each Gaussian or Lorentzian line's center and amplitude at its peak
-    above it within two widths of the fitted center, among the samples nearer that center than any other line's, so
-    that the lines of a blend start at their own peaks (as irispy draft LM-SAL/irispy#241), its width kept; fixed and
-    tied parameters as fitted, the others within their bounds. It takes a model and arrays alone, to move to irispy.
-    """
-    from astropy.modeling import models
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)  # an all-NaN spectrum, which astropy leaves unfitted
-        level = np.nanpercentile(spectra, 10, axis=-1)
-    compound = model.n_submodels > 1
-    leaves = [model[i] for i in range(model.n_submodels)] if compound else [model]
-    lines = (models.Gaussian1D, models.Lorentz1D)
-    centers = [leaf.parameters[1] for leaf in leaves if isinstance(leaf, lines)]
-    starts = {}
-    for index, leaf in enumerate(leaves):
-        named = {name: name + (f"_{index}" if compound else "") for name in leaf.param_names}
-        value = {name: getattr(model, full).value for name, full in named.items()}
-        if isinstance(leaf, models.Const1D):
-            starts[named["amplitude"]] = level
-        elif isinstance(leaf, (models.Linear1D, models.Polynomial1D)):  # its constant term, the value at 0 Å
-            constant = "intercept" if isinstance(leaf, models.Linear1D) else "c0"
-            starts[named[constant]] = level - (leaf(wavelengths.mean()) - value[constant])
-        elif isinstance(leaf, lines):
-            amplitude, center, width = leaf.param_names
-            sign = np.sign(value[amplitude]) or 1  # an emission or absorption line
-            distance = np.abs(wavelengths - value[center])
-            near = (distance <= 2 * value[width]) & np.all([distance <= np.abs(wavelengths - c) for c in centers], 0)
-            excess = np.where(near, sign * (spectra - level[..., None]), np.nan)
-            excess = np.where(np.isfinite(excess), excess, -np.inf)  # NaN, off the line or masked, is no peak
-            peak = np.argmax(excess, axis=-1)
-            height = np.take_along_axis(excess, peak[..., None], -1)[..., 0]
-            found = np.isfinite(height)
-            starts[named[center]] = np.where(found, wavelengths[peak], value[center])
-            starts[named[amplitude]] = np.where(found, sign * height, value[amplitude])
-    values = {}
-    for name in model.param_names:
-        value = getattr(model, name).value
-        if name in starts and not (model.fixed[name] or model.tied[name]):
-            lower, upper = model.bounds[name]
-            value = np.clip(starts[name], -np.inf if lower is None else lower, np.inf if upper is None else upper)
-        values[name] = np.broadcast_to(value, level.shape)
-    seeded = model.copy()
-    seeded._reset_parameters(**values)  # how astropy's parallel fitting makes a model of a start per spectrum
-    return seeded
-
-
 def _fit_maps(data, model, crop, unit, per_second, rest, progress):
     """
-    ``model`` fitted from `_starts` to every spectrum of ``data`` at ``crop``, in ``unit``, a scan at a time, on dask's
-    processes, and irispy's ``maps_from_fit`` of it about ``rest``: a dataset of every map but the residual, with
-    ``<name> error`` where irispy gives one, or None once ``progress`` is canceled; on any thread.
+    ``model`` fitted from irispy's ``starts_from_model`` to every spectrum of ``data`` at ``crop``, in ``unit``, a scan
+    at a time, on dask's processes, and irispy's ``maps_from_fit`` of it about ``rest``: a dataset of every map but the
+    residual, with ``<name> error`` where irispy gives one, or None once ``progress`` is canceled; on any thread.
     """
     import dask.multiprocessing
-    from irispy.utils.fitting import maps_from_fit
+    from irispy.utils.fitting import maps_from_fit, starts_from_model
 
     from astropy.modeling.fitting import TRFLSQFitter, parallel_fit_dask
 
@@ -245,7 +193,7 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
             spectra = np.where(cube.mask, np.nan, values)
             fitter = TRFLSQFitter(calc_uncertainties=True)
             fitted = parallel_fit_dask(
-                model=_starts(model, wavelengths, spectra),
+                model=starts_from_model(model, cube),  # in Angstrom and unit, as `_last_fit` gives it (D86)
                 fitter=fitter,
                 data=spectra,
                 data_unit=unit,
