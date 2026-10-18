@@ -641,6 +641,7 @@ def test_the_analyses_hold_the_wcs_lock_in_each_wcslib_call_not_across_irispy(st
     # held WCS_LOCK through irispy's whole slab; each wcslib call on a stack's scans' WCSes now holds it for itself
     si, mg = raster_data(stack_paths, ["Si IV 1403", "Mg II k 2796"], stack=True)
     raws = [*si.coords._wcs._wcses, *mg.coords._wcs._wcses]
+    raws += [w.coords._wcs._wcs._wcs[1]._wcs for w in (si, mg)]  # the scan axis's, which irispy copies and reads too
     assert {type(raw) for raw in raws} == {_LockedWCS}  # as `_GlueWCS` makes them
     owners = {id(owner) for raw in raws for owner in (raw, raw.wcs)}  # each WCS and its wcslib struct
     files = {astropy.wcs.wcs.__file__, astropy.wcs.wcsapi.fitswcs.__file__}
@@ -651,7 +652,7 @@ def test_the_analyses_hold_the_wcs_lock_in_each_wcslib_call_not_across_irispy(st
         "calculate_mg_features",
         "calculate_dn_to_radiance_factor",
     }
-    calls, entered = [], []  # (the function, holding the lock)
+    calls, entered, reads = [], [], []  # (the function, holding the lock); irispy's struct reads, holding it
 
     def profile(frame, event, arg):
         if event == "c_call" and id(getattr(arg, "__self__", None)) in owners:
@@ -660,6 +661,8 @@ def test_the_analyses_hold_the_wcs_lock_in_each_wcslib_call_not_across_irispy(st
             calls.append((frame.f_code.co_name, WCS_LOCK._is_owned()))
         elif event == "call" and frame.f_code.co_name in irispy:
             entered.append((frame.f_code.co_name, WCS_LOCK._is_owned()))
+        elif event == "call" and frame.f_code.co_name in ("spectral_dispersion", "solid_angle"):
+            reads.append(WCS_LOCK._is_owned())
 
     threading.setprofile_all_threads(profile)
     try:
@@ -673,6 +676,8 @@ def test_the_analyses_hold_the_wcs_lock_in_each_wcslib_call_not_across_irispy(st
     assert {name for name, locked in calls if not locked} <= {"serialized_classes"}  # astropy's False, no wcslib
     assert {name for name, _ in entered} == irispy
     assert not any(locked for _, locked in entered)
+    assert reads
+    assert all(reads)  # wcs.wcs.ctype, cdelt and cunit, which `_LockedWCS` cannot guard
 
 
 def _inside(sji, frame, raster, roi):
