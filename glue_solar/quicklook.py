@@ -1689,6 +1689,13 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
             label, axis, at, band, x_att = panel.cut
             cut = partial(_Cut, point=group, band=viewers.get(band), axis=axis, data=panel.data, at=at)
             add(panel, _cut_profile(app, label, cut, x_att, panel.title))
+        if table.get("limits"):  # Q, U and V spectra at least the maps' range, their noise level shaded (F173)
+            for stokes, spectrum in enumerate(viewers["spectra"][1:], 1):
+                noise = datasets[0]._noise[stokes]
+                # shortcut: in the cube's unit; stays put if the panel's y unit changes, until someone needs that
+                spectrum.axes.axhspan(-noise, noise, color="0.9", zorder=0, gid="solar:noise")
+                spectrum._solar_limit = _stokes_limit(datasets[0], stokes)
+                _fit(spectrum)
         if "rows" in table:
             rows = ([viewer for panel, viewer in made if panel.role in row] for row in table["rows"])
             viewers["rows"] = [row for row in rows if row]
@@ -1723,10 +1730,18 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
     return viewers
 
 
+def _stokes_limit(cube, stokes):
+    """
+    The limit about 0 of Stokes parameter ``stokes`` of an SST cube's panels: 5 times its noise level for Q and U, 10 for
+    V, as linear polarization is the weaker (`~glue_solar.sources.sst._Cube._noise`, F173).
+    """
+    return (5 if stokes < 3 else 10) * cube._noise[stokes]
+
+
 def _stokes_limits(layer, slices):
     """
-    Give ``layer`` the limits of the Stokes parameter of ``slices``: glue's 99.5% for I, and for Q, U and V symmetric
-    ones from 16 planes, as glue samples (`~glue_solar.sources.sst._Cube`), where the cube's showed them flat (230-6).
+    Give ``layer`` the limits of the Stokes parameter of ``slices``: glue's 99.5% for I, and `_stokes_limit` about 0 for
+    Q, U and V, which glue's over the whole cube, I's values mostly, showed flat (230-6).
     """
     # ponytail: set as the Stokes parameter changes, over limits chosen in the style editor, and I takes glue's 99.5%
     # again; keep each parameter's last limits if that matters
@@ -1734,10 +1749,10 @@ def _stokes_limits(layer, slices):
     if stokes == vars(layer).get("_solar_stokes", 0) or layer.attribute is not cube.main_components[0]:
         return
     layer._solar_stokes = stokes
-    if stokes == 0 or not layer.stretch_global:
+    limit = _stokes_limit(cube, stokes) if stokes and layer.stretch_global else np.nan
+    if not limit > 0:  # I, 'Per-frame limits', or a parameter constant or all NaN at the continuum
         layer.percentile = PERCENTILE
         return
-    limit = np.nanpercentile(abs(cube[layer.attribute, cube._sample(10_000, stokes)]), PERCENTILE)
     with delay_callback(layer, "v_min", "v_max"):
         layer.v_min, layer.v_max = -limit, limit
 
@@ -1965,10 +1980,10 @@ _THREADED_SIZE = 1e7
 
 
 def _fit(viewer):
-    """Fit the spectrum panel's y range to its profiles and the y = 0 line."""
-    state = viewer.state
+    """Fit the spectrum panel's y range to its profiles and the y = 0 line, and any Stokes limit about it (`_fill`)."""
+    state, limit = viewer.state, getattr(viewer, "_solar_limit", 0)
     state.reset_limits()
-    state.y_min, state.y_max = min(state.y_min, 0), max(state.y_max, 0)
+    state.y_min, state.y_max = min(state.y_min, -limit), max(state.y_max, limit)
 
 
 class _FitOnceComputed(HubListener):

@@ -29,6 +29,7 @@ from qtpy.QtCore import Qt
 
 import astropy.wcs.wcsapi.fitswcs
 from astropy.io import fits
+from astropy.stats import mad_std
 from astropy.wcs import WCS
 
 import glue_solar
@@ -351,10 +352,10 @@ def test_color_limits_of_a_line_are_glue_s_when_15_divides_the_scans(monkeypatch
     assert [len(np.unique(index)) for index in plane] == ([16, 4, 13] if stokes == 4 else [16, 13])
     if stokes == 4:
         assert plane[1].ravel().tolist() == [0, 1, 2, 3] * 4  # the Stokes parameters in turn
-        # the quicklook's limits of U from the same scans and tunings, all of U (230-6)
-        u = cube._sample(10000, 2)
-        assert u[1].ravel().tolist() == [2] * 16
-        for axis in (0, 2, 3, 4):
+        # U's noise level from the same scans, rows and columns, all at the continuum (F173)
+        u = cube._sample(10000, 2, 12)
+        assert [u[1].ravel().tolist(), u[2].ravel().tolist()] == [[2] * 16, [12] * 16]
+        for axis in (0, 3, 4):
             np.testing.assert_array_equal(u[axis], views[-1][axis])
 
 
@@ -639,16 +640,30 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
         quicklook(sst_app, [cube, single])
 
 
-def test_q_u_and_v_show_with_limits_symmetric_about_0(sst_app, qtbot, tmp_path):
-    # 230-6: glue's 99.5% over the whole cube, I's values mostly, showed Q, U and V flat
+def test_q_u_and_v_show_scaled_with_their_noise_level(sst_app, qtbot, tmp_path):
+    # F173: Q and U at ±5 times their noise level, V at ±10, the noise level their spectra show about 0; 230-6: glue's
+    # 99.5% over the whole cube, I's values mostly, showed them flat
     path = tmp_path / "cube.fits"
-    write_sst_cube(path, (3, 4, 5, 12, 16))
+    write_sst_cube(path, (3, 4, 5, 12, 16), core=1)  # the continuum is tuning 4, the farther end
     rng = np.random.default_rng(0)
     with fits.open(path, mode="update") as hdul:
         hdul[0].data[:, 0] = rng.normal(1000, 10, (3, 5, 12, 16))
         hdul[0].data[:, 1:] = rng.normal(0, 1, (3, 3, 5, 12, 16)) * np.array([1, 1.5, 2])[:, None, None, None]
+        hdul[0].data[:, 1:, :4, :6] += 20  # polarized in the line
+        hdul[0].data[:, 1:, 4, :, -2:] = np.nan  # a mosaic's edge
         values = hdul[0].data.copy()
     viewers = quicklook(sst_app, [sst_data(path)])
+    # the standard deviation from the median absolute deviation of every value at the continuum, as a cube of 16
+    # planes of it or fewer gives
+    noise = [mad_std(values[:, stokes, 4], ignore_nan=True) for stokes in (1, 2, 3)]
+    bands = [[p for p in viewer.axes.patches if p.get_gid() == "solar:noise"] for viewer in viewers["spectra"]]
+    assert [[(band.get_y(), band.get_y() + band.get_height()) for band in shown] for shown in bands] == [
+        [],
+        *[[(pytest.approx(-sigma), pytest.approx(sigma))] for sigma in noise],
+    ]
+    # the spectra at the point, noise alone, over the maps' range
+    for spectrum, limit in zip(viewers["spectra"][1:], np.multiply((5, 5, 10), noise)):
+        assert (spectrum.state.y_min, spectrum.state.y_max) == (pytest.approx(-limit), pytest.approx(limit))
     layers = [viewers[role].state.layers[0] for role in ("map", "wing", "slit", "wavelength")]
     whole = [(layer.v_min, layer.v_max) for layer in layers]
     assert [layer.percentile for layer in layers] == [99.5] * 4
@@ -658,16 +673,15 @@ def test_q_u_and_v_show_with_limits_symmetric_about_0(sst_app, qtbot, tmp_path):
         if stokes == 0:  # glue's again
             assert [(layer.v_min, layer.v_max, layer.percentile) for layer in layers] == [(*w, 99.5) for w in whole]
             continue
-        # every value of the parameter, as a cube of 16 planes of it or fewer gives
-        limit = np.percentile(abs(values[:, stokes]), 99.5)
+        limit = (5, 5, 10)[stokes - 1] * noise[stokes - 1]
         for layer in layers:
             assert (layer.v_min, layer.v_max) == (pytest.approx(-limit), pytest.approx(limit))
-        assert limit < 0.01 * (whole[0][1] - whole[0][0])  # the 1% of glue's range they took
+        assert limit < 0.03 * (whole[0][1] - whole[0][0])  # the few % of glue's range they took
     # with 'Per-frame limits' on, glue's 99.5% of the frame shown
     layers[0].stretch_global = False
     slide(viewers["map"], 1, 3)
     qtbot.waitUntil(lambda: layers[0].viewer_state.slices[1] == 3)
-    frame = np.percentile(values[0, 3, 2], [0.25, 99.75])
+    frame = np.percentile(values[0, 3, 1], [0.25, 99.75])
     assert (layers[0].v_min, layers[0].v_max, layers[0].percentile) == (*map(pytest.approx, frame), 99.5)
 
 

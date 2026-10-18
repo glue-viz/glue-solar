@@ -17,6 +17,7 @@ from glue.core.data import Data
 from glue.core.state import _load_data_5, _save_data_5
 
 from astropy.io import fits
+from astropy.stats import mad_std
 from astropy.wcs import WCS, FITSFixedWarning
 
 from glue_solar.sources.loaders.iris import _HeldWCS, _LockedWCS, _logged, _wcs_from_state, _wcs_state
@@ -196,28 +197,40 @@ class _Cube(Data):
             statistic, cid, subset_state=subset_state, axis=axis, view=view, random_subset=random_subset, **kwargs
         )
 
-    def _sample(self, size, stokes=None):
+    def _sample(self, size, stokes=None, tuning=None):
         """
-        The view of the sample of ``size`` values, or of as many of Stokes parameter ``stokes`` alone, from 16 planes of
-        it in the same way, as the SST quicklook's limits of Q, U and V take them.
+        The view of the sample of ``size`` values, or of as many of Stokes parameter ``stokes`` at ``tuning`` alone, from
+        16 planes of it in the same way, as the noise level takes them (`_noise`).
         """
         *axes, rows, columns = self.shape
         if stokes is not None:
-            axes[1] = 1  # the planes of a cube of one Stokes parameter, then moved to it
+            axes[1:] = 1, 1  # the planes of a cube of one Stokes parameter and tuning, then moved to them
         if np.prod(axes) <= 16:
             plane = list(np.indices(axes).reshape(len(axes), -1))
         else:
             k = np.arange(16)
             scan = np.linspace(0, axes[0] - 1, 16).round().astype(int)[k * 7 % 16]
-            tuning = np.linspace(0, axes[-1] - 1, 16).round().astype(int)
-            plane = [scan, k % axes[1], tuning] if len(axes) == 3 else [scan, tuning]
+            tunings = np.linspace(0, axes[-1] - 1, 16).round().astype(int)
+            plane = [scan, k % axes[1], tunings] if len(axes) == 3 else [scan, tunings]
         if stokes is not None:
-            plane[1] = plane[1] + stokes
+            plane[1:] = plane[1] + stokes, plane[2] + tuning
         side = max(1, round((size / len(plane[0])) ** 0.5))
         return tuple(index[:, None, None] for index in plane) + (
             np.linspace(0, rows - 1, min(rows, side)).round().astype(int)[:, None],
             np.linspace(0, columns - 1, min(columns, side)).round().astype(int),
         )
+
+    @cached_property
+    def _noise(self):
+        """
+        The noise level of Stokes Q, U and V, by index (F173): the standard deviation of each at the continuum, the end
+        tuning farther from the line core, from the median absolute deviation, which the few polarized pixels leave
+        alone, of `_sample`'s 10,000 values of it there, NaN, such as a mosaic's edges, left out.
+        """
+        waves, core = self.coords._grid[5], self.coords.core
+        tuning = max((0, len(waves) - 1), key=lambda k: abs(waves[k] - waves[core]))
+        cid = self.main_components[0]
+        return {k: mad_std(self[cid, self._sample(10_000, k, tuning)], ignore_nan=True) for k in (1, 2, 3)}
 
     def __gluestate__(self, context):
         log = getattr(self, "_load_log", None)  # none on a cube restored with its data
