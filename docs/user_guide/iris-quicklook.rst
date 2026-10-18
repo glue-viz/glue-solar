@@ -145,7 +145,8 @@ The Coordinate menu's "Point" submenu plots the data through the point. Each plo
   :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`).
 
 A Scatter viewer with time on its x axis, such as those light curves, highlights the time master's
-exposure as the subset "Master exposure".
+exposure as the subset "Master exposure", and only there: on any other viewer its layer is removed at
+the next step, since it would be redrawn at each one.
 
 Comparing windows
 -----------------
