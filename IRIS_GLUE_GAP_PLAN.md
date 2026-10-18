@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 9b07a46 (#316). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
+**Resume here.** Main is at a0a63a6 (#317). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
 **Next.** 2026-10-17/18 (D85-D87): #306-#314 are on main (the full CI matrix again, saturated samples shown at their value, Stokes scaled with their noise, sessions at their values' size, per-wcslib-call locking, the review's lean pass, the coordinator forgetting removed data, 'IRIS: line fit maps' and the Fit tab's model builder). Every open item now waits on the user, on others or on a release: once the user merges irispy draft #241, glue-solar's `fit_maps._starts` gives way to `starts_from_model` (one small PR); then M4 work on the user's direction. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow the session archive's `RULES.md`. CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small (#313's stack test fits one iteration).
 
@@ -141,7 +141,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D87:** User (2026-10-17), on D85's saturated samples in fits: a saturated sample is a lower bound, not a measurement, so fits leave it out: the Profile Fit tab drops samples the layer's mask marks saturated and its summary says how many it left out, as the window fit (#313) and irispy do (a check: with the peak 4x over the ceiling, fitting them at their value gave 0.29x the amplitude and 1.56x the width; leaving them out gave both exactly, until the whole core saturates, where those spectra are flagged). A rebinned bin is saturated only when all its samples are (as implemented). User (2026-10-18): for a profile combining several pixels (a region's Mean, Median or Sum, or a whole-data layer), a wavelength is left out only where every pixel it combines is saturated, and the fit notes the wavelengths whose mean includes saturated pixels (biased low): with any saturated pixel leaving a wavelength out, a flare window's Mean fit lost its core and gave every pixel of the window fit a broken start.
 
-- **D88:** User (2026-10-18), on this session's provisional choices: #307's Stokes limits (Q and U at ±5σ, V at ±10σ) stay as the quicklook's default, which glue's layer style and Per-frame limits change; #312's emptying of a Point on removed data stays; #314's model builder stays as built for now (presets from the line list, ties to any line and an editable polynomial degree may come later). Line fit maps: a fit made with the Profile x axis in km/s (the optical Doppler from the line core, linear in λ) converts exactly to Å, and the window fit starts from a 'Fit every spectrum' button beside Fit on the Fit tab, with that viewer's own fit (`wp6-fit-tab-button`).
+- **D88:** User (2026-10-18), on this session's provisional choices: #307's Stokes limits (Q and U at ±5σ, V at ±10σ) stay as the quicklook's default, which glue's layer style and Per-frame limits change; #312's emptying of a Point on removed data stays; #314's model builder stays as built for now (presets from the line list, ties to any line and an editable polynomial degree may come later). Line fit maps: a fit made with the Profile x axis in km/s (the optical Doppler from the line core, linear in λ) converts exactly to Å, and the window fit starts from a 'Fit every spectrum' button beside Fit on the Fit tab, with that viewer's own fit (#317).
 
 - **D89:** User (2026-10-18), on upstreaming: no PR to glue, glue-qt or astropy until the glue-solar work here is done; then a full review of the code decides what is upstreamed and what stays in glue-solar (`wp0-upstream-review`), re-verifying every report candidate and perf finding first. Meanwhile, smaller ports to glue or glue-qt go on branches of the user's forks for small PRs later. The matplotlib-free WCSAxes core is under way with astropy in person and is not tracked here; the upstream drafts wait on their human reviewers.
 
@@ -164,7 +164,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP6: `wp6-fit-tab-button`
 - WP4: `wp4-light-curves-one`
 - WP8: `wp8-polish-names-browser`
 - WP9: `wp9-guide-screenshot`
@@ -297,10 +296,6 @@ The line list, rest wavelength, km/s, blink and Doppler images, in `glue_solar/l
 ### WP6: Fitting
 
 Map fitting of IRIS spectra on glue's Profile Fit tab, planned with the user when it starts.
-
-**L**
-
-- [ ] **L** `wp6-fit-tab-button` (D88): the Fit tab gets a 'Fit every spectrum' button beside Fit, fitting the window with that viewer's own last IRIS fit (progress and Cancel as now; the data action 'IRIS: line fit maps…' goes, PROVISIONAL, D82), and a fit made in km/s (glue-solar's optical Doppler from the line core) converts exactly to Å: centers, widths, background terms and tie separations. Done when a C II fit made in km/s and one made in Å give the same maps from the button.
 
 Notes:
 - irispy main has starting models for `parallel_fit_dask` (`irispy.utils.fitting`: `profiles_on_background`, `si_iv_1403_model`, `mg_ii_model`, #220) and `maps_from_fit` (#221); the fit items and #167 wrap them rather than writing their own. Models need analytic derivatives.
