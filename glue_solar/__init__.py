@@ -57,7 +57,6 @@ _DATA_ACTIONS = (
     calibration.radiometric_calibration_iris,
     moments.mean_spectrum_iris,
     moments.line_maps_iris,
-    fit_maps.line_fit_maps_iris,
     mg_features.mg_features_iris,
     bursts.bursts_iris,
     line_ratio.line_ratio_iris,

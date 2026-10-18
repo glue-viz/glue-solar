@@ -1,7 +1,8 @@
 """
-'IRIS: line fit maps', on int16 copies of irispy's test scans: the last IRIS fit on a Profile viewer's Fit tab handed
-to the window's fit, the dataset and links it adds, a stack scan by scan, Cancel and the refusals. dask's synchronous
-scheduler stands in for its processes, which take seconds to start.
+'Fit every spectrum' on a Profile viewer's Fit tab, on int16 copies of irispy's test scans: the button, the viewer's
+own last IRIS fit handed to the window's fit, in Angstrom from a length or km / s, the dataset and links it adds, a
+stack scan by scan, Cancel and the refusals. dask's synchronous scheduler stands in for its processes, which take
+seconds to start.
 """
 
 import gc
@@ -12,12 +13,14 @@ import dask.local
 import dask.multiprocessing
 import numpy as np
 import pytest
+from glue.core.fitters import PolynomialFitter
 from glue_qt.viewers.profile import ProfileViewer
 from qtpy import QtWidgets
 
 import astropy.modeling.fitting
 import astropy.units as u
 import astropy.wcs.wcsapi.fitswcs
+from astropy import constants
 from astropy.io import fits
 from astropy.modeling import models
 
@@ -26,10 +29,10 @@ from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import fit_maps
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import WCS_LOCK, keep_hpc_linked, link_hpc, raster_data
-from glue_solar.tests.helpers import add_component, fit_settings, refused, run_action
+from glue_solar.tests.helpers import add_component, fit_settings
 
-ACTION = "IRIS: line fit maps"
 LINE = (1401.9, 1403.7)  # Si IV 1402.77, in Angstrom: seven of the window's 0.25 Å samples
+REST = 1402.77  # the window's rest wavelength
 
 
 @pytest.fixture(autouse=True)
@@ -43,6 +46,17 @@ def calls(monkeypatch):
     made, fit = [], astropy.modeling.fitting.parallel_fit_dask
     monkeypatch.setattr(astropy.modeling.fitting, "parallel_fit_dask", lambda **kw: made.append(kw) or fit(**kw))
     return made
+
+
+@pytest.fixture
+def once(monkeypatch, calls):
+    """One iteration of each spectrum's fit, where the fitted values do not matter, as CI's coverage run is slow."""
+    fit = astropy.modeling.fitting.parallel_fit_dask
+    monkeypatch.setattr(
+        astropy.modeling.fitting,
+        "parallel_fit_dask",
+        lambda **kw: fit(**{**kw, "fitter_kwargs": {**kw["fitter_kwargs"], "maxiter": 1}}),
+    )
 
 
 def profile(app, data, unit="Angstrom", function="mean"):
@@ -70,11 +84,52 @@ def fit(qtbot, tools, x_range=LINE):
     return model
 
 
-def run(app, qtbot, data):
-    """Trigger the action on ``data``; returns the dataset it adds."""
-    [maps] = run_action(app, qtbot, data, ACTION, f"Fitting every spectrum of {data.label}…")
+def run(app, qtbot, tools):
+    """Press 'Fit every spectrum' on ``tools``; returns the dataset it adds."""
+    collection, (data, _) = app.data_collection, fit_maps._viewer_fit(tools)
+    count = len(collection)
+    tools.button_fit_every.click()
+    assert iris._RUNNING  # on glue-qt's worker
+    assert app.statusBar().currentMessage() == f"Fitting every spectrum of {data.label}…"
+    qtbot.waitUntil(lambda: len(collection) == count + 1 and not iris._RUNNING, timeout=60_000)
     qtbot.waitUntil(lambda: not app.findChildren(QtWidgets.QProgressDialog))  # closed once done
-    return maps
+    return collection[-1]
+
+
+def test_the_button_follows_the_viewer_s_iris_fit(app, qtbot, scan_path):
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    app.data_collection.append(raster)
+    tools = profile(app, raster)
+    button = tools.button_fit_every
+    [row] = [row for row in tools.findChildren(QtWidgets.QHBoxLayout) if row.indexOf(button) >= 0]
+    assert row.indexOf(button) == row.indexOf(tools.ui.button_fit) + 1  # beside Fit
+    none = "This viewer has no IRIS fit: fit a spectrum of a raster window with 'Gaussian + constant (IRIS)' first."
+    assert (button.isEnabled(), button.toolTip()) == (False, none)
+    tools.fit_function = PolynomialFitter  # glue's own
+    tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = LINE
+    tools.ui.button_fit.click()
+    tools.wait_for_fit()
+    qtbot.waitUntil(tools.ui.button_fit.isEnabled)
+    assert (button.isEnabled(), button.toolTip()) == (False, none)
+    tools.fit_function = GaussianConstantFitter
+    fit(qtbot, tools)
+    assert button.isEnabled()
+    assert button.toolTip() == f"Fit every spectrum of {raster.label} with this viewer's last IRIS fit"
+
+
+def test_each_viewer_fits_the_window_with_its_own_fit(app, qtbot, scan_path, calls, once):
+    """Of two Profile viewers of a window, each button takes its own viewer's fit, the second's the newer (D88)."""
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    app.data_collection.append(raster)
+    first, second = profile(app, raster), profile(app, raster)
+    narrow = (1402.1, 1403.5)
+    fitted = fit(qtbot, first), fit(qtbot, second, narrow)
+    for tools in (first, second):
+        run(app, qtbot, tools)
+    wavelengths = _wavelengths(raster)[0]
+    for call, model, (low, high) in zip(calls, fitted, (LINE, narrow), strict=True):
+        np.testing.assert_array_equal(call["world"][0].value, wavelengths[(wavelengths >= low) & (wavelengths <= high)])
+        np.testing.assert_array_equal(call["model"].stddev_1.value, model.stddev_1.value)  # the width kept
 
 
 def test_the_viewer_keeps_the_last_fit_of_each_dataset(app, qtbot, scan_path):
@@ -165,15 +220,55 @@ def test_the_lines_of_a_blend_start_at_their_own_peaks():
     assert (start.mean_2.value > 1335.685).all()
 
 
+@pytest.mark.parametrize("background", [models.Linear1D(), models.Polynomial1D(2)])
+def test_a_fit_in_km_s_converts_to_the_same_fit_in_angstrom(background):
+    """
+    Two lines on a linear or a quadratic background, a center bounded, fitted against km / s from the rest wavelength
+    and against Angstrom: both in Angstrom are the same model, to rounding (D88).
+    """
+    wavelengths = 1402 + 0.025 * np.arange(64)
+    doppler = u.doppler_optical(REST * u.AA)
+    spectrum = background.copy()
+    spectrum.parameters = [12, 0.5, 3][: len(spectrum.parameters)]  # about 0 Å, 10 DN at the line
+    lines = [models.Gaussian1D(100, REST, 0.05), models.Gaussian1D(30, 1403.07, 0.06)]
+    spectrum = spectrum(wavelengths - REST) + sum(line(wavelengths) for line in lines)
+    converted = []
+    for unit in ("Angstrom", "km / s"):
+        leaves = background.copy(), models.Gaussian1D(), models.Gaussian1D()
+        fitter = GaussianConstantFitter(components=[_component(leaf) for leaf in leaves])
+        limits = (np.array([1402.7, 1402.85]) * u.AA).to_value(unit, doppler)
+        fitter.set_constraint("mean_1", limits=tuple(limits))
+        model, _ = fitter.build_and_fit((wavelengths * u.AA).to_value(unit, doppler), spectrum)
+        converted.append(fit_maps._in_angstrom(model, *fit_maps._to_angstrom(unit, REST)))
+    angstrom, km_s = converted
+    assert angstrom.mean_1.value == pytest.approx(REST)
+    for name in angstrom.param_names:
+        assert getattr(km_s, name).value == pytest.approx(getattr(angstrom, name).value, rel=1e-8)
+        # a width's lower bound is astropy's least positive float32, which converts as a width
+        assert km_s.bounds[name] == pytest.approx(angstrom.bounds[name], rel=1e-12, abs=1e-30)
+
+
 def test_a_tied_separation_reaches_the_window_in_angstrom():
     fitter = GaussianConstantFitter(components=[_component(models.Gaussian1D()), _component(models.Gaussian1D())])
     fitter.components[1][1]["mean"]["tie"] = (0, 0.1)  # in nm, the x unit of the fit
     fitter.components[1][1]["amplitude"]["tie"] = (0, 0.5)
     model = fitter.model_cls(amplitude_0=4, mean_0=140.2, stddev_0=0.01, stddev_1=0.01)
     assert model.tied["mean_1"](model) == pytest.approx(140.3)
-    converted = fit_maps._in_angstrom(model, "nm")
+    converted = fit_maps._in_angstrom(model, *fit_maps._to_angstrom("nm", None))
     assert converted.tied["mean_1"](converted) == pytest.approx(1403)
     assert converted.tied["amplitude_1"](converted) == 2  # a ratio, of no unit
+    # in km / s from the rest wavelength: 64 km / s is 0.2995 Å from it
+    fitter.components[1][1]["mean"]["tie"] = (0, 64)
+    model = fitter.model_cls(amplitude_0=4, mean_0=0, stddev_0=10, stddev_1=10)
+    converted = fit_maps._in_angstrom(model, *fit_maps._to_angstrom("km / s", REST))
+    assert converted.mean_0.value == REST
+    separation = converted.tied["mean_1"](converted) - REST
+    assert separation == pytest.approx(64 * REST / constants.c.to_value("km / s"), rel=1e-9)
+    assert converted.tied["amplitude_1"](converted) == 2
+    # a bound or a fixed term of a background, which km / s mixes, refused
+    for background in (models.Linear1D(bounds={"slope": (0, None)}), models.Polynomial1D(2, fixed={"c2": True})):
+        with pytest.raises(ValueError, match="with a bound or a fixed term takes a fit against a length"):
+            fit_maps._in_angstrom(background + models.Gaussian1D(), *fit_maps._to_angstrom("km / s", REST))
 
 
 def test_the_profile_fit_of_a_window_maps_every_spectrum_into_one_linked_dataset(app, qtbot, scan_path, calls):
@@ -181,8 +276,9 @@ def test_the_profile_fit_of_a_window_maps_every_spectrum_into_one_linked_dataset
     collection = app.data_collection
     collection.append(raster)
     keep_hpc_linked(collection)
-    fitted = fit(qtbot, profile(app, raster))
-    maps = run(app, qtbot, raster)
+    tools = profile(app, raster)
+    fitted = fit(qtbot, tools)
+    maps = run(app, qtbot, tools)
     # the Profile fit's model, a start per spectrum seeded from it, on dask's processes
     [call] = calls
     start = call["model"]
@@ -241,9 +337,10 @@ def test_saturated_samples_are_left_out_of_the_fits(app, qtbot, scan_path, calls
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)
     assert (raster[raster.main_components[0], :, 10, peak] == 16182).all()
-    meta = fit(qtbot, profile(app, raster)).meta
+    tools = profile(app, raster)
+    meta = fit(qtbot, tools).meta
     assert (meta["saturated"], meta["partly_saturated"]) == (0, 1)
-    run(app, qtbot, raster)
+    run(app, qtbot, tools)
     [call] = calls
     [wavelengths] = call["world"]
     [sample] = np.flatnonzero(wavelengths.value == _wavelengths(raster)[0][peak])
@@ -267,7 +364,7 @@ def test_the_fit_reaches_the_window_in_angstrom_with_its_settings(app, qtbot, mo
     tools.viewer.state.layers[0].attribute = raster.id[f"{raster.main_components[0].label} DN / s"]
     fit_settings(monkeypatch, tools, settings)
     fitted = fit(qtbot, tools, np.divide(LINE, 10))
-    maps = run(app, qtbot, raster)
+    maps = run(app, qtbot, tools)
     [call] = calls
     start = call["model"]
     assert start.fixed["amplitude_0"]
@@ -281,12 +378,30 @@ def test_the_fit_reaches_the_window_in_angstrom_with_its_settings(app, qtbot, mo
     assert maps.get_component("integrated_intensity_1").units == str(call["data_unit"] * u.AA)
 
 
+def test_a_fit_in_km_s_maps_as_the_same_fit_in_angstrom(app, qtbot, scan_path, calls, once):
+    """The window fit of a Profile fit made against km / s from the rest wavelength, as that of one against Angstrom."""
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    app.data_collection.append(raster)
+    velocities = (LINE * u.AA).to_value(u.km / u.s, u.doppler_optical(REST * u.AA))
+    maps = [
+        run(app, qtbot, (fit(qtbot, tools, x_range), tools)[1])
+        for tools, x_range in ((profile(app, raster), LINE), (profile(app, raster, "km / s"), velocities))
+    ]
+    angstrom, km_s = calls
+    np.testing.assert_array_equal(km_s["world"][0], angstrom["world"][0])  # the same wavelengths
+    for name in angstrom["model"].param_names:
+        np.testing.assert_allclose(getattr(km_s["model"], name).value, getattr(angstrom["model"], name).value, 1e-6)
+    assert [cid.label for cid in maps[1].main_components] == [cid.label for cid in maps[0].main_components]
+    for cid in maps[0].main_components:
+        np.testing.assert_allclose(maps[1][cid.label], maps[0][cid], rtol=1e-6, atol=1e-9, err_msg=cid.label)
+
+
 @pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")  # a blend 0.05 Å apart, sampled every 0.26 Å
 def test_c_ii_built_in_settings_fits_one_spectrum_then_the_window(app, qtbot, monkeypatch, scan_path, calls):
     """
     C II's three lines built in Settings, 1334.53, 1335.66 and 1335.71 Å, the last two a blend: Gaussians on a
     constant, the second's and third's centers tied to the first's by their separations and each amplitude at least 0,
-    fitted to the mean spectrum of the scan's C II window, then to the window with 'IRIS: line fit maps' (D86).
+    fitted to the mean spectrum of the scan's C II window, then to the window with 'Fit every spectrum' (D86).
     """
     [raster] = raster_data([scan_path], ["C II 1336"])
     app.data_collection.append(raster)
@@ -315,7 +430,7 @@ def test_c_ii_built_in_settings_fits_one_spectrum_then_the_window(app, qtbot, mo
         "parallel_fit_dask",
         lambda **kw: recorded(**{**kw, "fitter_kwargs": {**kw["fitter_kwargs"], "maxiter": 1}}),
     )
-    maps = run(app, qtbot, raster)
+    maps = run(app, qtbot, tools)
     [call] = calls
     assert {name for name, tie in call["model"].tied.items() if tie} == {"mean_2", "mean_3"}
     tied = {"filter_non_finite": True, "estimate_jacobian": True, "epsilon": 1e-12, "maxiter": 1}  # #291's Jacobian
@@ -331,7 +446,8 @@ def test_a_stack_is_fitted_scan_by_scan(app, qtbot, monkeypatch, stack_paths, ca
     collection = app.data_collection
     collection.append(stack)
     keep_hpc_linked(collection)
-    fit(qtbot, profile(app, stack))
+    tools = profile(app, stack)
+    fit(qtbot, tools)
     # each wcslib call on the scans' WCSes holds WCS_LOCK for itself, and irispy's maps_from_fit runs without it, as
     # test_linking's analyses (#311)
     raws = [*stack.coords._wcs._wcses, stack.coords._wcs._wcs._wcs[1]._wcs]
@@ -367,7 +483,7 @@ def test_a_stack_is_fitted_scan_by_scan(app, qtbot, monkeypatch, stack_paths, ca
 
     monkeypatch.setattr(fit_maps, "_fit_maps", traced)
     monkeypatch.setattr(astropy.modeling.fitting, "parallel_fit_dask", untraced)
-    maps = run(app, qtbot, stack)
+    maps = run(app, qtbot, tools)
     assert wcs_calls
     assert {name for name, locked in wcs_calls if not locked} <= {"serialized_classes"}  # astropy's False, no wcslib
     assert entered == [False] * 3
@@ -383,14 +499,13 @@ def test_cancel_adds_nothing(app, qtbot, monkeypatch, scan_path):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     collection = app.data_collection
     collection.append(raster)
-    fit(qtbot, profile(app, raster))
+    tools = profile(app, raster)
+    fit(qtbot, tools)
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
-    tree = app._layer_widget
-    tree.ui.layerTree.set_selected_layers([raster])
-    tree._actions[ACTION].trigger()
-    refused(tree._actions[ACTION])  # while it runs: hidden at once, the row still selected
+    tools.button_fit_every.click()
+    tools.button_fit_every.click()  # while it runs: one run a dataset
     [dialog] = app.findChildren(QtWidgets.QProgressDialog)
     assert dialog.isVisible()
     qtbot.waitUntil(lambda: dialog.maximum() > 0, timeout=60000)  # the tasks counted
@@ -410,39 +525,28 @@ def test_refusals_show_why(app, qtbot, monkeypatch, scan_path):
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
-    tree = app._layer_widget
-
-    def trigger():
-        tree.ui.layerTree.set_selected_layers([raster])
-        tree._actions[ACTION].trigger()
-
-    trigger()  # no fit yet
-    fit(qtbot, profile(app, raster, function="sum"))
-    trigger()
-    fit(qtbot, profile(app, raster, "km / s"), (-200, 200))  # the window's rest wavelength, Si IV 1402.77
-    trigger()
+    tools = profile(app, raster, function="sum")
+    fit(qtbot, tools)
+    tools.button_fit_every.click()
     tools = profile(app, raster)
     tools.viewer.state.x_att = raster.pixel_component_ids[-1]
     fit(qtbot, tools, (12, 20))  # about 1402.77 Å
-    trigger()
+    tools.button_fit_every.click()
     mask = raster.id[f"{raster.label} mask"]  # the fraction missing, which the 24 pixels missing make a line
     tools.viewer.state.x_att = raster.world_component_ids[-1]
     tools.viewer.state.layers[0].attribute = mask
     fit(qtbot, tools)
-    trigger()
+    tools.button_fit_every.click()
     tools.viewer.state.layers[0].attribute = raster.main_components[0]
     fit(qtbot, tools)
     monkeypatch.setattr(fit_maps, "rest_wavelength", lambda data: None)
-    trigger()
+    tools.button_fit_every.click()
     title = "Could not fit the line maps\n"
     assert all(text.startswith(title) for text in shown)
     last = f"The last IRIS fit of {raster.label}"
     assert [text.removeprefix(title) for text in shown] == [
-        f"{raster.label} has no IRIS fit: fit one of its spectra with 'Gaussian + constant (IRIS)' on the Fit tab of a "
-        "Profile viewer first.",
         f"{last} is of the sum of its spectra, which scales its amplitudes: fit their Mean or Median.",
-        f"{last} is against km / s: fit against its wavelength in a length, such as Angstrom.",
-        f"{last} is against pixels: fit against its wavelength in a length, such as Angstrom.",
+        f"{last} is against pixels: fit against its wavelength, in a length such as Angstrom or in km / s.",
         f"{last} is of {mask.label}: fit its values, in DN or DN / s.",
         f"{raster.label} has no rest wavelength: set one with 'IRIS: set rest wavelength…'.",
     ]

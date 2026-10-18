@@ -395,8 +395,8 @@ def _saturated(layer, state):
 def _fit(self, fitter, xlim=None):
     """
     glue-qt's fit of each layer, an IRIS fit with the layer's saturated samples left out (`_saturated`) and its model
-    given what `GaussianConstantFitter.summarize`, which glue-qt passes neither layer nor viewer, and 'IRIS: line fit
-    maps' take: the layer's rest wavelength and attribute, the viewer's x unit and function, the range, how many
+    given what `GaussianConstantFitter.summarize`, which glue-qt passes neither layer nor viewer, and 'Fit every
+    spectrum' take: the layer's rest wavelength and attribute, the viewer's x unit and function, the range, how many
     saturated samples it left out and how many it kept that include saturated DN; the viewer keeps its last IRIS fit of
     each dataset while the dataset lives (D86), of the layer listed last where a dataset and a subset of it are both
     fitted.
