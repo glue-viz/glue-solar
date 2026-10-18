@@ -145,6 +145,8 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D89:** User (2026-10-18), on upstreaming: no PR to glue, glue-qt or astropy until the glue-solar work here is done; then a full review of the code decides what is upstreamed and what stays in glue-solar (`wp0-upstream-review`), re-verifying every report candidate and perf finding first. Meanwhile, smaller ports to glue or glue-qt go on branches of the user's forks for small PRs later. The matplotlib-free WCSAxes core is under way with astropy in person and is not tracked here; the upstream drafts wait on their human reviewers.
 
+- **D90:** User (2026-10-18), on the earlier audits' other proposals (`audit2/` in the session archive): do all the polish (P4-P12: `wp11-polish-labels`, `wp8-polish-names-browser`, `wp11-polish-icons`, `wp13-sst-second-map`, `wp9-guide-screenshot`), one light-curves entry against Time (C6: `wp4-light-curves-one`), and one path tool on IRIS viewers (C5: `wp12-one-path-tool`); keep Loop, Blink and Follow/lock (upstream candidates for `wp0-upstream-review`: Loop's range options in glue-qt's slider playback, Follow/lock as a hover mode of glue's Pixel tool, Blink as a viewer tool), the browser, every colormap and gamma stretch, and every analysis, quicklook and tool extra (F1-F16); none of the internal changes (F9, F12, S12, R-K).
+
 ## Milestones
 
 A milestone is done when it has no items left. M0, M2 (analysis, display and export) and M3 (specialist) are done.
@@ -163,6 +165,12 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP6: `wp6-fit-tab-button`
+- WP4: `wp4-light-curves-one`
+- WP8: `wp8-polish-names-browser`
+- WP9: `wp9-guide-screenshot`
+- WP11: `wp11-polish-labels`, `wp11-polish-icons`
+- WP12: `wp12-one-path-tool`
+- WP13: `wp13-sst-second-map`
 
 **M4**
 - WP0: `wp0-upstream-review`, `wp0-irispy-fit-starts`, `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
@@ -186,7 +194,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 
 **M4**
 
-- [ ] **M4** `wp0-upstream-review` (D89): once the plan's glue-solar items are done, a full review of glue-solar's code and the workaround register decides what goes upstream (glue, glue-qt, astropy, irispy) and what stays; every report candidate and `wp0-perf-*` finding is re-verified on current releases and mains first; then the upstream work follows on the user's direction. Done when the user has the review and its list.
+- [ ] **M4** `wp0-upstream-review` (D89): once the plan's glue-solar items are done, a full review of glue-solar's code and the workaround register decides what goes upstream (glue, glue-qt, astropy, irispy) and what stays; every report candidate and `wp0-perf-*` finding is re-verified on current releases and mains first; then the upstream work follows on the user's direction. Candidates beyond the register include Loop's range options (glue-qt's slider playback), Follow/lock (a hover mode of glue's Pixel tool) and Blink (a viewer tool) (D90). Done when the user has the review and its list.
 - [ ] **M4** `wp0-irispy-fit-starts` (D86): draft LM-SAL/irispy#241 (branch `fit-starts`, worktree `~/Git/irispy-fit-starts`, test env `irispy-fit-starts`): `irispy.utils.fitting.starts_from_model(model, cube)`, #313' per-pixel starts as EISPAC's `scale_guess`, plus each line of a blend searching only samples nearer its own center (PROVISIONAL; Mg II k two Gaussians: 2,078 of 2,313 good fits against 1,885 without). glue-solar's `_starts` gives way to it once merged. Done when the user has reviewed it.
 - [ ] **M4** `wp0-irispy-requests`: Get irispy's merged #197-#199, #201 and #205-#207 released (0.10.0; changelog fragments in place; D47) and settle the irispy-side checks (exposure times, rolled-SJI gWCS, binned `slit x position`, per-step pointing). Done when a release has them and each check has a test or user decision.
 - [ ] **M4** `wp0-core-image-artist-bugs`: Core PR: a hidden Pixel crosshair reappears at (0, 0), `translate_pixel` raises a bare `Exception`, and a linked-layer Pixel crosshair uses its own dataset instead of the viewer's reference data (#107). Done when all three reproducers pass on a release.
@@ -268,6 +276,10 @@ Notes:
 
 Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_solar/quicklook.py`.
 
+**L**
+
+- [ ] **L** `wp4-light-curves-one` (D90, C6): one 'Light curves at the point' entry, Time on x, following the point, for the shown windows and slit-jaw images (#208's), and the pixel-index 'Light curve of this window' (#183) goes; the row and column cuts stay (D58). Reopens D53. Done when one entry gives each shown window's and SJI's light curve against Time and the guide says so.
+
 Notes:
 - Whisker polish (F143) and CRISPEX entry keywords (F020) are Later.
 - The move/stay matrix (`changes()` in `test_quicklook.py`) pins new coordination behavior: one quicklook per data kind, an exact dict per event. A hidden quicklook tab still refreshes its readouts and overlay (a cost only).
@@ -298,12 +310,20 @@ Notes:
 
 Covers the observation browser, the header scanner (`scan.py`) and the IRIS readers (`iris.py`).
 
+**L**
+
+- [ ] **L** `wp8-polish-names-browser` (D90, P5, P11): short dataset and component names (no '…-r00000' datasets with '…-scan-0' components) and one naming style for analysis results (D69: older sessions need not open); the browser's columns named in words, not FITS keywords, and 'Main window' shown only when two or more windows are ticked. Done when a loaded raster, its stack and each analysis result read short and alike, and the browser's columns are words.
+
 Notes:
 - WP1, WP3, WP4 and WP10 also edit `finalize`, `iris_loader.ui` and `test_importer.py`.
 
 ### WP9: Documentation and tutorials
 
 Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides and recipes.
+
+**L**
+
+- [ ] **L** `wp9-guide-screenshot` (D90, P12): a current screenshot atop the quicklook guide, and the guides' other screenshots regenerated (`docs/make_screenshots.py`), after the polish items. Done when the guide's images show the current quicklook. Depends: wp11-polish-labels, wp11-polish-icons, wp8-polish-names-browser, wp4-light-curves-one.
 
 **M4**
 
@@ -325,6 +345,11 @@ Notes:
 
 Display and inspection tools for stock Image and Profile viewers, in `glue_solar/tools.py` and `glue_solar/quicklook.py`.
 
+**L**
+
+- [ ] **L** `wp11-polish-labels` (D90, P4, P6, P7, P10): units on axis labels (Wavelength [Å], DN / s, Time; the SST time slider named Time); 'IRIS:' only on IRIS-only actions, without applicability parentheses (reopens D61's prefix rule); quicklook panels without glue's tool hints (the clipped 'CLI(' status), a shorter frame-time label and no 'Spectrum of … elements' status notes; less 'time master' wording in the UI. Done when each shows so on a 4000255147 quicklook.
+- [ ] **L** `wp11-polish-icons` (D90, P8): 16 px panel icons, glue-solar's own window icon, Mg II k and h line labels offset so they do not collide, and a compact Point window. Done when a Mg II quicklook shows them.
+
 Notes:
 - glue-qt takes B, C, G, H, K, M, P, R, X, Y, Z, Tab and Backspace, and dispatches keys by exact viewer type; glue-solar takes D, F, A, S, U and Space, and drops matplotlib's canvas keys (D61, D72; register).
 - Not planned: zoom ×2/÷2, centering and a percentile menu (glue has them), or a CRISPEX control-panel clone.
@@ -333,12 +358,20 @@ Notes:
 
 Frame, movie and data export plus path diagrams, built on glue's 'save' subtools, exporters and core's path slicer.
 
+**L**
+
+- [ ] **L** `wp12-one-path-tool` (D90, C5, F7): IRIS image viewers offer Path diagram only (glue's Slice Extraction hidden there) with one sampling, 'nearest', which also avoids glue's bias; ECSV save/open and path on other data stay. Done when an IRIS viewer shows one path tool and its guide matches.
+
 Notes:
 - Paths and curves sample at the master's exposure. Not rebuilt: phi-slit sliders, path width, PostScript, IDL save files.
 
 ### WP13: Other missions
 
 Features only other missions need, planned with the user once suitable data exist.
+
+**L**
+
+- [ ] **L** `wp13-sst-second-map` (D90, P9): the SST quicklook's second wavelength map opens with per-frame limits (not washed out), and both maps zoom to the field. Done when obs 492 and obs 171 open so.
 
 Notes:
 - Known SST limits, kept: a Pixel point on an SST cube reaches linked data at the first tuning (glue takes index 0 on free axes); on a mosaic cube, a point placed on IRIS data does not reach the SST cube.
