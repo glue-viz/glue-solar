@@ -28,11 +28,11 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 5a744a1 (#308). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
+**Resume here.** Main is at b4ba250 (#307). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
 **Next.** In flight since 2026-10-17's second session (D86), each item implemented by an Opus agent, reviewed by Fable, fixed by Opus, shipped with `ship_locked.sh`:
   1. #308 first (main's CI is red on irispy main 9229d06 until it lands, D86), then D87's Fit tab change as its own PR; worktree `~/Git/glue-solar-wp10-l-saturation-shown`, tested in the `-9229` envs.
-  2. `wp13-stokes`: worktree `~/Git/glue-solar-wp13-stokes`.
+  2. #307: worktree `~/Git/glue-solar-wp13-stokes`.
   3. `wp6-fit-maps`: worktree `~/Git/glue-solar-wp6-fit-maps`; then `wp6-fit-builder` and `wp0-irispy-fit-starts`.
   4. The review fixes the user chose (all of the Fable review, 2026-10-17): `wp3-session-broadcast`, `wp10-analysis-lock`, `wp4-coordinator-forget`, `wp10-lean-review`; worktrees from e80bf50; the first two started after the limit reset, the other two follow once CPU frees.
 
@@ -115,7 +115,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 - **D62:** SST data: the SST archive's SSTRED SOLARNET cubes (large, not co-aligned to IRIS), opened as FITS, the biggest testing speed, memory and I/O; the IRIS-SST database's custom Level 3 CRISPEX files are unsupported for now. `~/DATA/SST/` holds obs 492 (CRISP Ca II 8542, Fe I 6173 and 6302 full-Stokes mosaics), obs 495 (CHROMIS Ca II K), obs 498 (H-beta), obs 167 (Fe I 6173 Stokes) and obs 171 (H-alpha); the 2015-09-17 IRIS raster 3630104144 is in `~/DATA/IRIS`.
 - **D63:** The SST and IRIS stress survey (GLUE_SPEED.md 'SST and IRIS stress survey, 2026-10-10', SST1-SST13): its glue-solar fixes are on main; the rest is upstream, in `wp0-perf-qt` (SST8), `wp0-perf-core-links` (SST9), `wp0-perf-core-stats-io` (SST10 as R32, with D70's workaround only) and `wp0-astropy-19174` (SST1); SST13 gets no action.
 - **D64:** Link scope (SST3): data from outside the IRIS observations is linked to IRIS only on request, through 'IRIS: link helioprojective coordinates', never by `keep_hpc_linked` as data load or a quicklook opens: SST cubes, other FITS files, sunpy maps (#226), and, since D72, an IRIS observation's own AIA cutouts and SOT cubes (#256).
-- **D65:** A quicklook per instrument, SST first: CRISP and CHROMIS SSTRED SOLARNET cubes (D62; time, Stokes, wavelength, y, x, without a length-1 Stokes axis, #232) open one in its own tab from the browser and the Plugins menu, linked to an IRIS quicklook only on request (D64), time-synced, with D68's panels (a virtual slit in place of IRIS's spectrogram). Every panel of either quicklook turns on and off (#228). Other cubes get one from their axes (D78). `wp13-stokes` keeps only Stokes scaling and noise level.
+- **D65:** A quicklook per instrument, SST first: CRISP and CHROMIS SSTRED SOLARNET cubes (D62; time, Stokes, wavelength, y, x, without a length-1 Stokes axis, #232) open one in its own tab from the browser and the Plugins menu, linked to an IRIS quicklook only on request (D64), time-synced, with D68's panels (a virtual slit in place of IRIS's spectrogram). Every panel of either quicklook turns on and off (#228). Other cubes get one from their axes (D78). #307 keeps only Stokes scaling and noise level.
 - **D66:** Panel toggles (#228): a checkable 'Panels' list right of the Point window in the quicklook's bottom strip, with an entry per main-window panel and slit-jaw image and a group per other window, on SST too. Shown panels re-tile at a toggle, empty rows go, and manual moves and resizes are lost; a burst of toggles gets one layout, and a panel of unchanged size does not redraw. Sessions leave out panels turned off, so they open shown (wp4-l-restored-strip). A slit-jaw time master turned back on moves to its frame nearest the raster's time.
 - **D67:** SST loader (#227): once linked, an SST region or point reaches IRIS data, which lack the cube's time and wavelength, at the scan nearest each IRIS frame's time and the line core. The wavelength axis keeps each scan's nominal values; the cavity-error lookup (CWDIS3) is its own documented component. As D54's one exception, the loader inverts its coordinates itself (a linear solve per scan and tuning of SSTRED's corner tables, wcslib for larger tables); wcslib's -TAB inverse is `wp0-wcslib-tab-inverse`.
 - **D68:** SST quicklook (#230): one cube per tab (the browser lists each cube of an archive folder; another opens in its own tab, time-synced). Row 1: the map (wavelength and Stokes sliders), a second wavelength map and the virtual slit (wavelength against y) through the point; row 2: the I, Q, U and V spectra at the point (I only on CHROMIS); row 3: wavelength against time and the light curve at the point; the Point window and Panels list below, as on IRIS.
@@ -171,9 +171,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP1: `wp1-m4-autolink-matrix`
 - WP6: `wp6-fit-maps`, `wp6-fit-builder`
 - WP9: `wp9-m4-release-updates`
-
-**Other missions**
-- WP13: `wp13-stokes`
 
 ## Work packages
 
@@ -355,10 +352,6 @@ Notes:
 ### WP13: Other missions
 
 Features only other missions need, planned with the user once suitable data exist.
-
-**OM**
-
-- [ ] **OM** `wp13-stokes` (F171, F172, F173, F174): Stokes scaling and noise level; Stokes selection and multi-Stokes spectra are on main (#230, D65). Done when obs492's Stokes cubes show Q, U and V scaled with their noise level. Their default limits are #253 (230-6). Public SST Stokes cubes: archive obs 167 (Fe I 6173 IQUV, 1.9 GB, the obs 171 pointing; downloaded, `~/DATA/SST/SST-archive_obs167_20201016_CRISP_6173_stokes`) and obs 161 (Ca II 8542 IQUV, 1.7 GB; not downloaded); none under 1 GB.
 
 Notes:
 - Known SST limits, kept: a Pixel point on an SST cube reaches linked data at the first tuning (glue takes index 0 on free axes); on a mosaic cube, a point placed on IRIS data does not reach the SST cube.
