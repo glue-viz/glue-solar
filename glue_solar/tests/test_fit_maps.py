@@ -311,10 +311,11 @@ def test_cancel_adds_nothing(app, qtbot, monkeypatch, scan_path):
     refused(tree._actions[ACTION])  # while it runs: hidden at once, the row still selected
     [dialog] = app.findChildren(QtWidgets.QProgressDialog)
     assert dialog.isVisible()
-    qtbot.waitUntil(lambda: dialog.maximum() > 0)  # the tasks counted
+    qtbot.waitUntil(lambda: dialog.maximum() > 0, timeout=60000)  # the tasks counted
     [cancel] = dialog.findChildren(QtWidgets.QPushButton)
     cancel.click()
-    qtbot.waitUntil(lambda: not iris._RUNNING and not app.findChildren(QtWidgets.QProgressDialog))
+    # after the chunk being fitted, which a slow runner takes seconds over
+    qtbot.waitUntil(lambda: not iris._RUNNING and not app.findChildren(QtWidgets.QProgressDialog), timeout=60000)
     assert len(collection) == 1
     assert shown == [f"Could not fit the line maps\nThe line fit maps of {raster.label} are being computed."]
     assert app.statusBar().currentMessage() == ""
