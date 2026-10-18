@@ -164,15 +164,16 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
 
 def test_a_saturated_sample_taken_flags_its_pixel(monkeypatch, scan_path):
     """
-    irispy flags a pixel saturated where a sample of the wavelengths taken is saturated, +Inf, in DN or DN / s alike.
+    irispy flags a pixel saturated where a sample of the wavelengths taken is saturated, 16182 DN, in DN or DN / s
+    alike.
     """
     monkeypatch.setattr(iris, "LAZY", False)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     cid, (wavelengths, _) = raster.main_components[0], _wavelengths(raster)
     taken = np.flatnonzero(abs(wavelengths - 1402.77) <= 1)
     values = np.array(raster[cid])
-    values[0, 10, taken[4]] = np.inf
-    values[:, 20, wavelengths > 1404] = np.inf  # not taken
+    values[0, 10, taken[4]] = 16182
+    values[:, 20, wavelengths > 1404] = 16182  # not taken
     raster.update_components({cid: values})
     for rate in (True, False):
         if not rate:  # irispy is given the DN themselves

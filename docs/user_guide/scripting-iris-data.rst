@@ -91,8 +91,8 @@ Spectra
 The data values are ``raster[raster.main_components[0]]``, with NaN for missing samples. Data stored
 as 16-bit integers, as Level 2 files store them, are read from the file only when computed: a view in
 the brackets, such as ``raster[cid, step, slit]``, reads only what it selects. ``compute_statistic``
-gives the Profile viewer's Mean, which leaves out the missing and :ref:`saturated
-<glue_solar_users_guide_iris_saturation>` samples::
+gives the Profile viewer's Mean, which leaves out the missing samples and takes the :ref:`saturated
+<glue_solar_users_guide_iris_saturation>` ones at their value::
 
     cid = raster.main_components[0]
     mean_spectrum = raster.compute_statistic("mean", cid, axis=(0, 1))  # over every step and slit position

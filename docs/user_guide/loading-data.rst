@@ -59,12 +59,12 @@ What a dataset holds
 
 Each raster window, stack, slit-jaw image and AIA cutout has these attributes:
 
-- ``<label>``, the data, in DN, with fill values as NaN; a raster window's or slit-jaw image's
-  samples at the Level 2 ceiling are +Inf (see `Missing and saturated samples`_);
+- ``<label>``, the data, in DN, with fill values as NaN;
 - ``Time``, the UTC time of each raster step, exposure or frame;
 - ``Exposure time``, in s;
 - ``<label> DN / s``, the data over the exposure time;
-- ``<label> mask``, 1 where the data are missing.
+- ``<label> mask``, 1 where the data are missing or, in a raster window or slit-jaw image,
+  saturated (see `Missing and saturated samples`_).
 
 SOT cubes are in the unit of their ``BUNIT``, such as DN or G. AIA cutouts and SOT cubes get no
 quicklook panel, but an Image viewer of one follows its observation's time. Each dataset opens in
@@ -177,17 +177,18 @@ Missing and saturated samples
 -----------------------------
 
 Level 2 clips every sample to -199 to 16182 DN, so a sample saturated in Level 1 is stored at
-16182 DN. glue-solar, as irispy, reads raster and slit-jaw samples at that ceiling as +Inf: an Image
-viewer draws them in its top color, and a Profile leaves them out. Level 2 cannot tell a saturated
-sample from one merely that bright, and its ``NSATPIX`` and ``TSATPXn`` are always 0: ignore them.
-The analyses blank a pixel where a sample they take is +Inf.
+16182 DN. glue-solar, as irispy, keeps raster and slit-jaw samples at that ceiling at their value, so
+images, spectra and light curves show them, and marks them saturated in ``<label> mask``. Level 2
+cannot tell a saturated sample from one merely that bright, and its ``NSATPIX`` and ``TSATPXn`` are
+always 0: ignore them. The analyses blank a pixel where a sample they take is saturated, and the mean
+spectrum leaves such samples out; UV burst detection takes them at their value, as IDL does.
 
 To show missing or saturated samples as a subset, select the dataset itself in the data collection,
 not "Point", and in the "Data Manager" menu:
 
-- **Missing:** choose "Create faceted subsets", pick ``<label> mask``, and set the range from 0 to 1
-  and 2 subsets. The second subset holds the missing samples.
+- **Missing or saturated:** choose "Create faceted subsets", pick ``<label> mask``, and set the range
+  from 0 to 1 and 2 subsets. The second subset holds the masked samples.
 - **Saturated:** choose "Add/edit arithmetic attributes" and add ``saturated`` as
-  ``np.isinf({<label>}) * 1``, then "Create faceted subsets" of it from 1 to 1, with 1 subset.
+  ``({<label>} >= 16182) * 1``, then "Create faceted subsets" of it from 1 to 1, with 1 subset.
 
 Select "Point" again before moving a quicklook's point.

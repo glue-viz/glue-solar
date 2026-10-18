@@ -213,7 +213,7 @@ def test_a_stacks_saturated_pixels_are_counted_over_its_scans(app, qtbot, monkey
     low, high = ends(1402.77)
     inside = np.flatnonzero((wavelengths >= low) & (wavelengths <= high))
     values = np.array(stack[cid])
-    values[0, :, 10, inside[1]] = values[2, :, 20, inside[1]] = np.inf  # at every step of scans 0 and 2
+    values[0, :, 10, inside[1]] = values[2, :, 20, inside[1]] = 16182  # at every step of scans 0 and 2
     stack.update_components({cid: values})
     answer(monkeypatch, "1402.77")
     message = f"{stack.label} moments 1402.77: 16 pixels saturated within the velocity range are NaN"
@@ -566,9 +566,9 @@ def test_minus_infinity_is_missing(monkeypatch, scan_path):
 @pytest.mark.parametrize("continuum", ["", "1401.5-1402, 1403.5-1404"])
 def test_saturated_pixels_within_the_velocity_range_are_nan_and_counted(app, qtbot, monkeypatch, scan_path, continuum):
     """
-    A pixel with a sample at the Level 2 ceiling, raw 32760, which the loader reads as +Inf, within the velocity range
-    is NaN in every map, any background subtracted, and the status bar says how many; one outside it, here in a
-    continuum window, is not.
+    A pixel with a sample at the Level 2 ceiling, raw 32760, which the loader reads as 16182 DN and masks (D85), within
+    the velocity range is NaN in every map, any background subtracted, and the status bar says how many; one outside
+    it, here in a continuum window, is not.
     """
     monkeypatch.setattr(moments, "SLAB", 3 * 109 * 4)  # slabs of 3 steps, or of 1 with a continuum
     [raster] = raster_data([scan_path], ["Si IV 1403"])
@@ -582,7 +582,9 @@ def test_saturated_pixels_within_the_velocity_range_are_nan_and_counted(app, qtb
         hdulist[5].data[:, 20, outside] = 32760
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)
-    assert np.isposinf(raster[cid.label, (slice(None), 10, inside[1])]).all()
+    saturated = (slice(None), 10, inside[1])
+    assert (raster[cid.label, saturated] == 16182).all()
+    assert raster[f"{cid.label} mask", saturated].all()
     answer(monkeypatch, "1402.77", continuum=continuum)
     message = f"{raster.label} moments 1402.77: 8 pixels saturated within the velocity range are NaN"
     maps = run(app, qtbot, raster, message)
@@ -593,9 +595,14 @@ def test_saturated_pixels_within_the_velocity_range_are_nan_and_counted(app, qtb
 
 
 def dn_per_second_cube(raster, unit):
-    """The whole of ``raster``'s DN / s in ``unit`` / s for irispy, in float64 as it takes them, its mask their NaN."""
-    window = iris.per_second(np.asarray(raster[raster.main_components[0]], dtype=float), raster["Exposure time"])
-    return SpectrogramCube(window, raster.coords._wcs, unit=unit / u.s, mask=np.isnan(window))
+    """
+    The whole of ``raster``'s DN / s in ``unit`` / s for irispy, in float64 as it takes them, its mask their NaN and
+    their saturated samples, at 16182 DN, which ``meta['saturated']`` marks too, as irispy's reader marks them.
+    """
+    dn = np.asarray(raster[raster.main_components[0]], dtype=float)
+    window, saturated = iris.per_second(dn, raster["Exposure time"]), dn >= 16182
+    mask = np.isnan(window) | saturated
+    return SpectrogramCube(window, raster.coords._wcs, unit=unit / u.s, mask=mask, meta={"saturated": saturated})
 
 
 def assert_irispys(maps, raster, center, velocities, unit):
@@ -660,13 +667,13 @@ def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanm
     """
     On a raster window or a stack of 3860258481's three scans, both lazy, or 4000005156's full Si IV 1403, three steps
     a slab: a Pixel subset's Profile of ``<label> minus mean spectrum`` is the pixel's spectrum less numpy's nanmean
-    over every step, slit pixel and scan, within 1e-6, saturated samples, +Inf, left out as missing ones, and counted
-    in the status bar; the mean is computed on glue-qt's worker, as in glue's terminal.
+    over every step, slit pixel and scan, within 1e-6, saturated samples, 16182 DN, left out as missing ones, and
+    counted in the status bar; the mean is computed on glue-qt's worker, as in glue's terminal.
     """
     if which == "window":
         path = request.getfixturevalue("scan_path")
         with fits.open(path, mode="update", do_not_scale_image_data=True) as hdulist:
-            hdulist[5].data[0, :2, 4] = 32760  # Si IV 1403's raw int16 at the Level 2 ceiling, +Inf
+            hdulist[5].data[0, :2, 4] = 32760  # Si IV 1403's raw int16 at the Level 2 ceiling, 16182 DN
         [data] = raster_data([path], ["Si IV 1403"])
     elif which == "stack":
         [data] = raster_data(request.getfixturevalue("stack_paths"), ["Si IV 1403"], stack=True)
@@ -676,8 +683,8 @@ def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanm
     monkeypatch.setattr(moments, "SLAB", 3 * data.shape[-2] * data.shape[-1])
     cid = data.main_components[0]
     values = np.asarray(data[cid], dtype=float)
-    assert np.isposinf(values).any() == (which == "window")
-    nanmean = np.nanmean(np.where(np.isinf(values), np.nan, values), axis=tuple(range(data.ndim - 1)))
+    assert (values >= 16182).any() == (which == "window")
+    nanmean = np.nanmean(np.where(values >= 16182, np.nan, values), axis=tuple(range(data.ndim - 1)))
     collection, tree = app.data_collection, app._layer_widget
     collection.append(data)
     tree.ui.layerTree.set_selected_layers([data])

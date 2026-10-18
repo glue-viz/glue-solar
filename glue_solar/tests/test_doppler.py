@@ -139,8 +139,8 @@ def test_other_velocities_normalized_and_a_blank_or_canceled_rest(app, qtbot, mo
 def test_a_symmetric_line_gives_zero_a_redshift_a_positive_map_and_a_saturated_sample_nan(monkeypatch, scan_path):
     """
     A Gaussian line on a constant, centered at the rest wavelength, on a sample, gives 0 at every velocity to float
-    precision, and shifted by +5 km / s, a positive map; a saturated sample, +Inf, interpolated in either wing makes it
-    NaN.
+    precision, and shifted by +5 km / s, a positive map; a saturated sample, 16182 DN, interpolated in either wing
+    makes it NaN.
     """
     monkeypatch.setattr(iris, "LAZY", False)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
@@ -159,7 +159,7 @@ def test_a_symmetric_line_gives_zero_a_redshift_a_positive_map_and_a_saturated_s
                 np.testing.assert_allclose(maps[name], 0, rtol=0, atol=1e-9)
     # every wing up to 50 km / s, 0.23 Å, lies between sample k and one beside it
     values = np.array(raster[cid])
-    values[0, 0, k], values[0, 1, k + 1], values[0, 2, 0] = np.inf, np.inf, np.inf  # both wings, the red, neither
+    values[0, 0, k], values[0, 1, k + 1], values[0, 2, 0] = 16182, 16182, 16182  # both wings, the red, neither
     raster.update_components({cid: values})
     maps = doppler_image(raster, rest)
     for name in maps.main_components:

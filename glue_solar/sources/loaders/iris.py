@@ -40,7 +40,7 @@ from astropy.wcs import WCS, WCSHDO_P17, WCSHDO_all
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper, SlicedLowLevelWCS
 
 from ..maps import _Style
-from .lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask
+from .lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask, iris_mask
 from .scan import _gzipped, _observation, _primary_header, extract_archive, scan_directory
 from .stack_spectrograms import MISSING_VALUES, _PerScanWCS, stack_times, stack_wcs
 
@@ -456,14 +456,12 @@ def _dataset(wcs, meta, unit, values, label, *, color=None, cmap=None, missing=M
     data.coords = _GlueWCS(wcs)
     data.meta = meta
     data.style = _Style(color=color, preferred_cmap=cmap)
+    # saturated samples masked too where irispy's scaled reads mask them: raster windows and slit-jaw images (D85)
+    mask = iris_mask if str(meta.get("INSTRUME")) in ("SPEC", "SJI", "IRIS") else fill_mask
     if scaling is not None:
-        from irispy.utils.constants import SATURATION_LIMIT
-
-        # where irispy's scaled reads put +Inf: in raster windows and slit-jaw images, not AIA cutouts (D57)
-        ceiling = SATURATION_LIMIT.value if str(meta.get("INSTRUME")) in ("SPEC", "SJI", "IRIS") else None
-        cid = data.add_component(RawComponent(values, *scaling, missing, ceiling, units=str(unit)), label)
+        cid = data.add_component(RawComponent(values, *scaling, missing, units=str(unit)), label)
         # a glue derived component, computed from the values glue reads
-        data.add_component_link(ComponentLink([cid], ComponentID(f"{label} mask", parent=data), using=fill_mask))
+        data.add_component_link(ComponentLink([cid], ComponentID(f"{label} mask", parent=data), using=mask))
         return data
     # From the values: irispy's eager reads leave the missing codes in raster windows and -200 in integer AIA cutouts
     fill = np.isin(values, missing) if missing else None
@@ -472,8 +470,7 @@ def _dataset(wcs, meta, unit, values, label, *, color=None, cmap=None, missing=M
         values = values.astype(np.result_type(values.dtype, np.float32), copy=False)
         values[fill] = np.nan
     data.add_component(Component(values, units=str(unit)), label)
-    # Glue stores a bool component as int64, so view the NaN mask as one byte per sample
-    data.add_component(Component(np.isnan(values).view(np.uint8)), f"{label} mask")
+    data.add_component(Component(mask(values)), f"{label} mask")
     return data
 
 

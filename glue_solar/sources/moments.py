@@ -28,6 +28,7 @@ from glue_solar.glue_patches import _application, layer_action, refresh_layer_ac
 from glue_solar.lines import MAIN_LINES, _wavelength, rest_wavelength
 from glue_solar.quicklook import _role, _show, _spectral_axes, _wavelengths, coordinator
 from glue_solar.sources.loaders.iris import _AXIS_NAMES, _HPC, _RUNNING, WCS_LOCK, _GlueWCS, keep_hpc_linked, per_second
+from glue_solar.sources.loaders.lazy import at_ceiling
 
 __all__ = ["line_maps_iris", "line_moments", "mean_spectrum_iris", "subtract_mean_spectrum"]
 
@@ -104,17 +105,18 @@ def _unit(data):
 def _read(data, rows, wavelengths):
     """
     The values of ``data`` at ``rows``, the scan of a stack, raster steps and slit pixels, and ``wavelengths`` that
-    irispy is given, and each step's exposure time in s:
+    irispy is given, each step's exposure time in s, and which are saturated, as the window's mask marks them from the
+    DN (`at_ceiling`, D85):
     of a window with the loader's ``<label> DN / s``, its DN over each step's exposure time (D4), from the DN read here,
-    in float64, else its scaled float32 and None; NaN where missing, +Inf where saturated, on any thread.
+    in float64, else its scaled float32 and None; NaN where missing, on any thread.
     """
     cid = data.main_components[0]
     values = data[cid, (*rows, wavelengths)]  # scaled float32 of these steps and wavelengths only
     if data.find_component_id(f"{cid.label} DN / s") is None:
-        return values, None
+        return values, None, at_ceiling(values)
     # glue's derived component reads them again
     seconds = data["Exposure time", (*rows[:-1], slice(0, 1), slice(0, 1))].astype(np.float32)
-    return per_second(values.astype(float), seconds), seconds
+    return per_second(values.astype(float), seconds), seconds, at_ceiling(values)
 
 
 def _sigma(values, unit, seconds):
@@ -132,11 +134,12 @@ def _sigma(values, unit, seconds):
     return per_second(calculate_uncertainty(values * seconds, READOUT_NOISE[detector], DN_UNIT[detector]), seconds)
 
 
-def _cube(data, values, rows, wavelengths, unit, sigma=None, shift=0):
+def _cube(data, values, rows, wavelengths, unit, saturated, sigma=None, shift=0):
     """
-    irispy's cube of ``values`` in ``unit``, of ``data`` at ``rows`` and ``wavelengths``, NaN and -Inf masked, +Inf, in
-    which irispy finds saturation, not; with ``sigma``, each value's standard deviation (`_sigma`), and with ``shift``,
-    each wavelength that of the pixel ``shift`` pixels further along.
+    irispy's cube of ``values`` in ``unit``, of ``data`` at ``rows`` and ``wavelengths``, NaN, -Inf and ``saturated``
+    masked, and ``saturated`` in ``meta['saturated']`` too, where irispy finds saturation (#239); with ``sigma``, each
+    value's standard deviation (`_sigma`), and with ``shift``, each wavelength that of the pixel ``shift`` pixels
+    further along.
     """
     from irispy.spectrograph import SpectrogramCube
     from ndcube.wcs.wrappers import ResampledLowLevelWCS
@@ -145,13 +148,14 @@ def _cube(data, values, rows, wavelengths, unit, sigma=None, shift=0):
     if shift:  # the wavelength is the first pixel axis
         view = ResampledLowLevelWCS(view, 1, (shift, 0, 0))
     uncertainty = None if sigma is None else StdDevUncertainty(sigma)
-    return SpectrogramCube(values, view, uncertainty, unit, mask=np.isnan(values) | np.isneginf(values))
+    mask = np.isnan(values) | np.isneginf(values) | saturated
+    return SpectrogramCube(values, view, uncertainty, unit, mask=mask, meta={"saturated": saturated})
 
 
 def _slabs(data, crop, factor=1):
     """
-    ``(rows, values, seconds)``, `_read` at ``crop``, for each slab of ``data``: raster steps of one scan, about `SLAB`
-    / ``factor`` samples; on any thread.
+    ``(rows, values, seconds, saturated)``, `_read` at ``crop``, for each slab of ``data``: raster steps of one scan,
+    about `SLAB` / ``factor`` samples; on any thread.
     """
     steps = max(1, SLAB // (data.shape[-2] * (crop.stop - crop.start) * factor))
     # each scan of a stack, as its own WCS and exposure times give it
@@ -192,17 +196,17 @@ def _moments(data, center, velocity_range, continuum, crop, unit, errors=False):
     degree = 1 if len(continuum or ()) > 1 else 0  # a constant for one continuum window, a straight line for more
     # a slab takes about 100 bytes per sample, 150 with a continuum or errors: half the steps then, generously, keeps
     # a small window's cold peak under 3x
-    for rows, values, seconds in _slabs(data, crop, 2 if continuum or errors else 1):
+    for rows, values, seconds, clipped in _slabs(data, crop, 2 if continuum or errors else 1):
         # irispy's uncertainty of the values, which its background leaves as they are
-        cube = _cube(data, values, rows, crop, unit, _sigma(values, unit, seconds) if errors else None)
+        cube = _cube(data, values, rows, crop, unit, clipped, _sigma(values, unit, seconds) if errors else None)
         with WCS_LOCK:  # irispy reads the wavelengths through the raster's astropy WCS
-            if continuum:  # NaN where irispy fits no background; +Inf, saturated, stays +Inf
+            if continuum:  # NaN where irispy fits no background, but for saturated samples
                 cube = subtract_background(cube, continuum * u.AA, degree=degree)
             slab = calculate_moments(cube, rest_wavelength=center * u.AA, velocity_range=velocity_range * u.km / u.s)
         saturated += int(slab.pop("saturated").data.sum())
         for name, moment in slab.items():
-            # irispy sums masked samples, NaN and -Inf, as 0, and masks a pixel with none in the velocity range, or
-            # with +Inf there, saturated: NaN there (D17)
+            # irispy sums masked samples as 0, and masks a pixel with none in the velocity range, or with a saturated
+            # sample there: NaN there (D17)
             maps.setdefault(name, []).append((np.where(moment.mask, np.nan, moment.data), moment.unit))
             if errors:  # NaN too where irispy leaves them undefined
                 maps.setdefault(f"{name} error", []).append(
@@ -229,11 +233,11 @@ def line_moments(data, center, velocity_range=VELOCITY_RANGE, continuum=None, er
     scan's at its own coordinates; with ``continuum`` windows, of the line less irispy's background fitted to them: a
     constant to one window, a straight line to more.
 
-    irispy is given the window's ``<label> DN / s`` where it has one, else its values, with NaN and -Inf masked. Its
-    components are irispy's: ``intensity`` in that unit, ``centroid`` and ``width`` in Angstrom, and ``velocity`` and
-    ``velocity_width`` in km / s, relative to ``center``; all are NaN where every sample within the velocity range is
-    missing, no background could be fitted, or irispy finds a sample there saturated: +Inf, as the loader reads the
-    Level 2 ceiling, 16182 DN, which a background leaves +Inf. ``meta`` holds the observation's ``OBSID`` and
+    irispy is given the window's ``<label> DN / s`` where it has one, else its values, with NaN, -Inf and the samples
+    the window's mask marks saturated, at the Level 2 ceiling, 16182 DN, masked (D85). Its components are irispy's:
+    ``intensity`` in that unit, ``centroid`` and ``width`` in Angstrom, and ``velocity`` and ``velocity_width`` in
+    km / s, relative to ``center``; all are NaN where every sample within the velocity range is missing, no background
+    could be fitted, or a sample there is saturated. ``meta`` holds the observation's ``OBSID`` and
     ``STARTOBS``, ``moments_center`` and ``moments_velocity_range``, with a continuum ``moments_continuum`` and
     ``moments_continuum_degree``, the degree of the background, and with saturated pixels ``moments_saturated``, how
     many. irispy is given only the wavelengths from the first to the last within the velocity range or a continuum
@@ -556,19 +560,20 @@ def line_maps_iris(data, data_collection):
 
 def _mean_spectrum(data, cid):
     """
-    The mean of the finite values of ``cid`` over every axis of ``data`` but wavelength, its last, NaN where none is,
-    summed in float64 a slab of `SLAB` samples at a time, and how many saturated samples, +Inf, it left out; on any
-    thread.
+    The mean of the values of ``cid`` over every axis of ``data`` but wavelength, its last, missing and saturated ones
+    (`at_ceiling`) left out, NaN where every one is, summed in float64 a slab of `SLAB` samples at a time, and how many
+    saturated samples it left out (213-7); on any thread.
     """
     total, count, saturated = np.zeros(data.shape[-1]), np.zeros(data.shape[-1]), 0
     steps = max(1, SLAB // (data.shape[-2] * data.shape[-1]))
     for scan in np.ndindex(data.shape[:-3]):  # each scan of a stack
         for start in range(0, data.shape[-3], steps):
             values = data[cid, (*scan, slice(start, start + steps))]
-            valid = np.isfinite(values)  # +Inf, saturated, left out, as glue's Profile leaves it out
+            clipped = at_ceiling(values)
+            valid = ~np.isnan(values) & ~clipped
             total += values.sum((0, 1), dtype=float, where=valid)
             count += valid.sum((0, 1))
-            saturated += int(np.isposinf(values).sum())
+            saturated += int(clipped.sum())
     with np.errstate(invalid="ignore"):  # 0 / 0
         return total / count, saturated
 
@@ -595,8 +600,8 @@ def _subtract(data, cid, mean):
 def subtract_mean_spectrum(data):
     """
     Add ``<label> mean spectrum`` to ``data``, an IRIS raster window or a stack of its scans: the mean of its values at
-    each wavelength over every raster step or exposure, slit pixel and scan, missing and saturated (+Inf) samples left
-    out, NaN where every sample is; and ``<label> minus mean spectrum``, the values less it, a glue derived component.
+    each wavelength over every raster step or exposure, slit pixel and scan, missing and saturated samples left out,
+    NaN where every sample is; and ``<label> minus mean spectrum``, the values less it, a glue derived component.
     The mean is computed once, a slab of steps at a time, and held as one spectrum.
 
     Returns

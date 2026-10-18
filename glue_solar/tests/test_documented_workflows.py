@@ -70,11 +70,11 @@ def test_scripting_recipe(qtbot, irispy_test_files):
     assert index[0] == np.argmin(np.abs(times - sji["Time"][frame, 0, 0]))
     assert abs(raster_point_on_sji(raster, sji, *index, frame)[1] - y) <= 0.5
 
-    # the Profile viewer's Mean against Wavelength is the mean over every step and slit position, a saturated sample,
-    # +Inf, left out
+    # the Profile viewer's Mean against Wavelength is the mean over every step and slit position, a saturated sample at
+    # its value, 16182 DN (D85)
     cid = raster.main_components[0]
     values = np.array(raster[cid])
-    values[step, slit, pixel] = np.inf
+    values[step, slit, pixel] = 16182
     raster.update_components({cid: values})
     profile = app.new_data_viewer(ProfileViewer, data=raster)
     profile.state.function = "mean"
@@ -84,7 +84,7 @@ def test_scripting_recipe(qtbot, irispy_test_files):
     np.testing.assert_array_equal(mean_spectrum, mean)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)  # wavelengths with no valid sample give NaN
-        expected = np.nanmean(np.where(np.isinf(values), np.nan, values), axis=(0, 1), dtype=float)
+        expected = np.nanmean(values, axis=(0, 1), dtype=float)
     np.testing.assert_allclose(mean_spectrum, expected, rtol=1e-6)
     assert np.isfinite(mean_spectrum[pixel])
     np.testing.assert_array_equal(raster[cid, step, slit], raster[cid][step, slit])

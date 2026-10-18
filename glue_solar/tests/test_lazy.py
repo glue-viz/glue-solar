@@ -245,7 +245,7 @@ def lazy_and_eager(monkeypatch, load):
 def assert_loads_as_before(lazy, eager):
     """
     ``lazy`` holds raw int16 and its mask is a glue derived component, while ``eager`` is laid out as before; every
-    value, NaN, +Inf, mask sample, time, exposure and DN / s, and glue's image buffers of every pair of axes, are the
+    value, NaN, mask sample, time, exposure and DN / s, and glue's image buffers of every pair of axes, are the
     same. DN / s, a glue derived component of both, is the data over a positive exposure time, else NaN, in float32.
     """
     assert type(lazy) is LazyData
@@ -353,33 +353,33 @@ def test_int16_slit_jaw_and_aia_cubes_load_lazily(monkeypatch, tmp_path, irispy_
 
 def test_the_level_2_ceiling_loads_as_irispy_reads_it(monkeypatch, tmp_path, int16_raster, irispy_test_files):
     """
-    Raw 32760, 16182 DN, the Level 2 ceiling, loads as +Inf, unmasked and left out of the color limits, in raster
-    windows and slit-jaw images, and as 16182 DN in AIA cutouts, as irispy's scaled reads give them (D57).
+    Raw 32760, the Level 2 ceiling, loads as 16182 DN, in the color limits, and masked, saturated, in raster windows
+    and slit-jaw images, not in AIA cutouts, as irispy's scaled reads give them (D85).
     """
     source = find_irispy_test_file(irispy_test_files, SJI)
     sji = int16_copy(source, tmp_path / SJI, [0])
     aia = tmp_path / "aia_l2_20210905_001833_3620258102_171.fits"
     int16_copy(source, aia, [0], INSTRUME="AIA_3", OBSID="20210905_001833_3620258102", TDESC1="171_THIN", TWAVE1=171)
     cases = [
-        (int16_raster, WINDOW, lambda: raster_data([int16_raster], ["Si IV 1403"])[0], np.inf),
-        (sji, 0, lambda: image_data(sji), np.inf),
-        (aia, 0, lambda: image_data(aia), 16182),
+        (int16_raster, WINDOW, lambda: raster_data([int16_raster], ["Si IV 1403"])[0], 1),
+        (sji, 0, lambda: image_data(sji), 1),
+        (aia, 0, lambda: image_data(aia), 0),
     ]
-    for path, hdu, load, ceiling in cases:
+    for path, hdu, load, masked in cases:
         with fits.open(path, mode="update", do_not_scale_image_data=True) as hdulist:
             hdulist[hdu].data[0, 0, 4] = 32760
         lazy_result, eager = lazy_and_eager(monkeypatch, load)
         assert_loads_as_before(lazy_result, eager)
         science, mask = lazy_result.main_components[0], lazy_result.derived_components[0]
-        assert lazy_result[science, (0, 0, 4)] == ceiling
-        assert lazy_result[mask, (0, 0, 4)] == 0
-        assert np.isfinite(lazy_result.compute_statistic("maximum", science, random_subset=10000))
+        assert lazy_result[science, (0, 0, 4)] == 16182
+        assert lazy_result[mask, (0, 0, 4)] == masked
+        assert lazy_result.compute_statistic("maximum", science, random_subset=10000) == 16182
 
 
 def test_the_saturation_recipe_selects_the_ceiling(int16_raster):
     """
     'Missing and saturated samples' (docs/user_guide/loading-data.rst): glue's arithmetic attribute
-    ``np.isinf({<label>}) * 1``, and one faceted subset of it from 1 to 1, select the samples at the Level 2
+    ``({<label>} >= 16182) * 1``, and one faceted subset of it from 1 to 1, select the samples at the Level 2
     ceiling.
     """
     with fits.open(int16_raster, mode="update", do_not_scale_image_data=True) as hdulist:
@@ -387,7 +387,7 @@ def test_the_saturation_recipe_selects_the_ceiling(int16_raster):
     [raster] = raster_data([int16_raster], ["Si IV 1403"])
     collection = DataCollection([raster])
     cid = raster.main_components[0]
-    command = ParsedCommand(f"np.isinf({{{cid.label}}}) * 1", {cid.label: cid})
+    command = ParsedCommand(f"({{{cid.label}}} >= 16182) * 1", {cid.label: cid})
     raster.add_component_link(ParsedComponentLink(ComponentID("saturated", parent=raster), command))
     facet_subsets(collection, raster.id["saturated"], lo=1, hi=1, steps=1)
     [group] = collection.subset_groups

@@ -32,11 +32,17 @@ def sji_path(tmp_path, irispy_test_files):
 
 
 def assert_irispys_dust_removed(dust, path):
-    """``dust`` is irispy's ``remove_dust`` of ``path`` read in memory, NaN where irispy masks it."""
+    """
+    ``dust`` is irispy's ``remove_dust`` of ``path`` read in memory, masked where irispy masks it: NaN, or saturated
+    at its value (D85).
+    """
     cube = read_sji_lvl2(path, memmap=False, uncertainty=False)
     direct = cube.remove_dust()
-    values, kept = dust[dust.main_components[0]], ~direct.mask
-    np.testing.assert_array_equal(np.isnan(values), direct.mask)
+    [cid, mask] = dust.main_components[:2]
+    values, kept = dust[cid], ~direct.mask
+    np.testing.assert_array_equal(dust[mask], direct.mask)
+    shown = direct.mask & ~np.isnan(values)  # saturated
+    np.testing.assert_array_equal(values[shown], direct.data[shown])
     np.testing.assert_allclose(values[kept], direct.data[kept], rtol=1e-6, atol=0)
     assert (direct.data[kept] != cube.data[kept]).sum() > 1000  # dust replaced
 

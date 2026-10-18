@@ -23,10 +23,9 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
 3. ``lazy.py`` holds data stored as int16, as Level 2 files store it, without scaling it
    in memory. ``RawComponent``, a glue ``DaskComponent``, keeps the raw integers (a
    memory map, or an array for a ``.fits.gz`` file) and scales only what a view selects,
-   astropy's way, with the fill codes as NaN and, in raster windows and slit-jaw images, the
-   Level 2 ceiling, raw 32760, as +Inf, where irispy's scaled reads put it; a read of the whole
-   component goes through dask. ``LazyData`` answers glue's sampled statistics, such as color
-   limits, from a count of the raw values, NaN and +Inf left out as glue leaves them out.
+   astropy's way, with the fill codes as NaN; a read of the whole component goes through dask.
+   ``LazyData`` answers glue's sampled statistics, such as color limits, from a count of the raw
+   values, NaN left out as glue leaves it out.
    ``RawStack`` stacks scans along a new leading axis without copying them.
 4. ``stack_spectrograms.py`` gives a stack of two or more raster scans its WCS
    (``stack_wcs``, each scan's own with a leading scan-number axis on which the longitude
@@ -41,10 +40,11 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
 normalization, units, and each input cube's WCS and exposure times. The Glue adapter keeps
 those and changes only missing data: the IRIS fill values -200 and -199 become NaN, in aligned
 AIA cutouts too, while Hinode/SOT cubes keep every value, NaN where missing. Each dataset's
-``<label> mask`` component is ``isnan(data)`` as
-``uint8``, since Glue would store a boolean component as ``int64``, so saturated samples,
-which are +Inf, stay unmasked; for int16 data it is a glue derived component of the data
-(``lazy.fill_mask``). Raster times are a separate ``Time`` component.
+``<label> mask`` component is 1 where the data are NaN or, in raster windows and slit-jaw images,
+at the Level 2 ceiling, 16182 DN, which irispy's scaled reads keep at its value and mask as
+saturated. It is ``uint8``, since Glue would store a boolean component as ``int64``, and for int16
+data a glue derived component of the data (``lazy.fill_mask`` or ``lazy.iris_mask``). Raster times
+are a separate ``Time`` component.
 
 Data stored as int16 load through irispy's memory map (``memmap=True``), which gives the raw
 integers, fill included, of raster windows, flipped as irispy flips negative-step rasters, and of
