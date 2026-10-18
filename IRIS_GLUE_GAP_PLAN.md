@@ -141,6 +141,8 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D87:** User (2026-10-17), on D85's saturated samples in fits: a saturated sample is a lower bound, not a measurement, so fits leave it out: the Profile Fit tab drops samples the layer's mask marks saturated and its summary says how many it left out, as the window fit (#313) and irispy do (a check: with the peak 4x over the ceiling, fitting them at their value gave 0.29x the amplitude and 1.56x the width; leaving them out gave both exactly, until the whole core saturates, where those spectra are flagged). A rebinned bin is saturated only when all its samples are (as implemented). User (2026-10-18): for a profile combining several pixels (a region's Mean, Median or Sum, or a whole-data layer), a wavelength is left out only where every pixel it combines is saturated, and the fit notes the wavelengths whose mean includes saturated pixels (biased low): with any saturated pixel leaving a wavelength out, a flare window's Mean fit lost its core and gave every pixel of the window fit a broken start.
 
+- **D88:** User (2026-10-18), on this session's provisional choices: #307's Stokes limits (Q and U at ±5σ, V at ±10σ) stay as the quicklook's default, which glue's layer style and Per-frame limits change; #312's emptying of a Point on removed data stays; #314's model builder stays as built for now (presets from the line list, ties to any line and an editable polynomial degree may come later). Line fit maps: a fit made with the Profile x axis in km/s (the optical Doppler from the line core, linear in λ) converts exactly to Å, and the window fit starts from a 'Fit every spectrum' button beside Fit on the Fit tab, with that viewer's own fit (`wp6-fit-tab-button`).
+
 ## Milestones
 
 A milestone is done when it has no items left. M0, M2 (analysis, display and export) and M3 (specialist) are done.
@@ -158,6 +160,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
+- WP6: `wp6-fit-tab-button`
 
 **M4**
 - WP0: `wp0-irispy-fit-starts`, `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
@@ -280,6 +283,10 @@ The line list, rest wavelength, km/s, blink and Doppler images, in `glue_solar/l
 ### WP6: Fitting
 
 Map fitting of IRIS spectra on glue's Profile Fit tab, planned with the user when it starts.
+
+**L**
+
+- [ ] **L** `wp6-fit-tab-button` (D88): the Fit tab gets a 'Fit every spectrum' button beside Fit, fitting the window with that viewer's own last IRIS fit (progress and Cancel as now; the data action 'IRIS: line fit maps…' goes, PROVISIONAL, D82), and a fit made in km/s (glue-solar's optical Doppler from the line core) converts exactly to Å: centers, widths, background terms and tie separations. Done when a C II fit made in km/s and one made in Å give the same maps from the button.
 
 Notes:
 - irispy main has starting models for `parallel_fit_dask` (`irispy.utils.fitting`: `profiles_on_background`, `si_iv_1403_model`, `mg_ii_model`, #220) and `maps_from_fit` (#221); the fit items and #167 wrap them rather than writing their own. Models need analytic derivatives.
