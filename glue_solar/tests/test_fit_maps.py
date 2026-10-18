@@ -490,7 +490,8 @@ def test_refusals_show_why(app, qtbot, monkeypatch, scan_path):
     tools.viewer.state.x_att = raster.pixel_component_ids[-1]
     fit(qtbot, tools, (12, 20))  # about 1402.77 Å
     tools.button_fit_every.click()
-    mask = raster.id[f"{raster.label} mask"]  # the fraction missing, which the 24 pixels missing make a line
+    # the fraction missing, which the 24 pixels missing make a line
+    mask = raster.id[f"{raster.main_components[0].label} mask"]
     tools.viewer.state.x_att = raster.world_component_ids[-1]
     tools.viewer.state.layers[0].attribute = mask
     fit(qtbot, tools)

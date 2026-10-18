@@ -512,10 +512,7 @@ class CursorReadoutTool(Tool):
         layer = next((ls for ls in state.layers if ls.layer is data and ls.visible), None)
         if layer is None or view is None:
             return text
-        value = _value_text(data[layer.attribute, view])
-        # IRIS components are named after their dataset; say 'value' rather than repeat it
-        name = "value" if layer.attribute.label == data.label else layer.attribute.label
-        return f"{text} | {name} = {value}"
+        return f"{text} | {layer.attribute.label} = {_value_text(data[layer.attribute, view])}"
 
 
 @viewer_tool

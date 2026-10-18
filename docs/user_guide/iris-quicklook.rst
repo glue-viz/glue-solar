@@ -137,9 +137,10 @@ The Coordinate menu's "Point" submenu plots the data through the point. Each plo
 
 - **"Light curves at the point"**, on any Image viewer of IRIS, AIA or SOT data: the value at the
   point against time, for each window with exposures or scans (over the wavelength or band its map
-  shows when chosen, named in its label, else its line core) and each slit-jaw channel the quicklook
-  shows, in one Scatter viewer. Each curve is a new dataset, which "ECSV (with Time)" exports (see
-  :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`).
+  shows when chosen, else its line core) and each slit-jaw channel the quicklook shows, in one Scatter
+  viewer. Each curve is a new dataset, ``<label> light curve <wavelength>``, a band's written as
+  ``2796.17–2796.37``, or of a slit-jaw image ``<label> light curve``, which "ECSV (with Time)"
+  exports (see :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`).
 - **"Row at the point"** and **"Column at the point"**, on any raster map: the map's row along x, or
   its column along the slit, through the point.
 
@@ -240,7 +241,7 @@ then fits the model to every spectrum of the window (see :ref:`Line fit maps
 <glue_solar_users_guide_iris_line_fit_maps>`).
 
 **Mean spectrum.** "IRIS: subtract mean spectrum", in a raster window's right-click menu, adds
-``<label> mean spectrum`` and ``<label> minus mean spectrum``. Set the "attribute" of "Point" in the
+``<window> mean spectrum`` and ``<window> minus mean spectrum``. Set the "attribute" of "Point" in the
 spectrum panel to the difference to see the point's spectrum less the mean. As a map's attribute, it
 shows where each wavelength is brighter or fainter than the mean.
 
@@ -292,7 +293,7 @@ For CRISPEX users
        adds their mean spectrum. For the whole raster, see "Mean spectrum" in `The spectrum panel`_.
    * - Spectral scaling of a window
      - Each spectrum panel has its own y range. For one scale, choose an arithmetic attribute such as
-       ``{<label>} * 2`` as the attribute of "Point", or tick "normalize" in the panel's options.
+       ``{<window>} * 2`` as the attribute of "Point", or tick "normalize" in the panel's options.
    * - Doppler velocity axis
      - "Velocity axis", or ``km / s`` as the x unit (see `The spectrum panel`_).
    * - Timeslice along a drawn loop

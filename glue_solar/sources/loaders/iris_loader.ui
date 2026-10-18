@@ -200,7 +200,7 @@
      </property>
      <column>
       <property name="text">
-       <string>STARTOBS</string>
+       <string>Start</string>
       </property>
      </column>
      <column>
@@ -215,17 +215,12 @@
      </column>
      <column>
       <property name="text">
-       <string>XCEN</string>
+       <string>Pointing</string>
       </property>
      </column>
      <column>
       <property name="text">
-       <string>YCEN</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>SAT_ROT</string>
+       <string>Roll</string>
       </property>
      </column>
      <column>

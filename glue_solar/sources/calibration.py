@@ -90,6 +90,7 @@ def remove_dust(data):
         data.get_component(cid).units,
         values,
         f"{data.label} dust removed",
+        name=cid.label,
         color=data.style.color,
         cmap=data.style.preferred_cmap,
         missing=(),

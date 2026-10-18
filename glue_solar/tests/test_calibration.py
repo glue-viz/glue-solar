@@ -74,13 +74,14 @@ def test_the_action_adds_irispys_dust_removed_slit_jaw_image_linked_and_no_viewe
     dust = collection[-1]
     label = f"{sji.label} dust removed"
     assert dust.label == label
+    name = sji.main_components[0].label  # its values', as the slit-jaw image's
     assert [(cid.label, dust.get_component(cid).units) for cid in dust.main_components] == [
-        (label, "DN_IRIS_SJI"),
-        (f"{label} mask", ""),
+        (name, "DN_IRIS_SJI"),
+        (f"{name} mask", ""),
         ("Time", ""),
         ("Exposure time", "s"),
     ]
-    assert dust.get_component(f"{label} DN / s").units == "DN / s"
+    assert dust.get_component(f"{name} DN / s").units == "DN / s"
     assert_irispys_dust_removed(dust, sji_path)
     assert not any(app.viewers)
     assert tree.ui.layerTree.selected_layers() == [dust]
