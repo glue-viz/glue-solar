@@ -1,0 +1,1 @@
+The quicklook no longer keeps removed datasets alive itself, empties a Point that was on a removed dataset, and stops a deleted cut or light curve from following the point.

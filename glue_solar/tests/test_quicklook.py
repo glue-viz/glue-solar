@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 from echo import delay_callback
 from glue.config import data_exporter, settings
-from glue.core import Data
+from glue.core import Data, DataCollection
 from glue.core.component import DateTimeComponent
 from glue.core.edit_subset_mode import OrMode
 from glue.core.exceptions import IncompatibleAttribute
@@ -19,7 +19,7 @@ from glue.core.hub import HubListener
 from glue.core.link_manager import LinkManager
 from glue.core.message import NumericalDataChangedMessage, SettingsChangeMessage, SubsetUpdateMessage
 from glue.core.roi import CircularROI, PolygonalROI, RectangularROI, XRangeROI, YRangeROI
-from glue.core.subset import RangeSubsetState, SubsetState, roi_to_subset_state
+from glue.core.subset import RangeSubsetState, RoiSubsetState, SubsetState, roi_to_subset_state
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.profile.state import ProfileLayerState
@@ -48,6 +48,7 @@ from glue_solar.quicklook import (
     QuicklookImageViewer,
     _curve,
     _half_cadence,
+    _PointCurves,
     coordinator,
     nearest,
     observation_key,
@@ -1052,6 +1053,13 @@ def test_a_light_curve_follows_the_point_and_the_band(bare_app, qtbot, monkeypat
     # a scripted subset with no group leaves it alone
     raster.new_subset(label="plain").subset_state = raster.pixel_component_ids[0] > 0
     check(10, slice(18, 23))
+    # deleted, the light curve stops following the point and the band
+    group, state = subset.group, subset.group.subset_state
+    bare_app.data_collection.remove_subset_group(group)
+    assert group not in coordinator(bare_app.data_collection)._before
+    point.subset_state = PixelSubsetState(raster, [slice(None), slice(12, 13), slice(None)])
+    raster_map.state.slices = (*raster_map.state.slices[:2], 25)
+    assert group.subset_state is state
 
 
 @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")  # as above, for the band
@@ -1216,6 +1224,12 @@ def test_light_curves_at_the_point(bare_app, qtbot, tmp_path, irispy_test_files)
     select_point(raster_map, 5, 11)
     qtbot.waitUntil(lambda: check(11, (1, 2)))
     check(10, (0,))
+    # the raster removed, they let it and its curve go, and stop
+    coord = coordinator(bare_app.data_collection)
+    [follower] = [f.__self__ for f in coord._listeners if isinstance(getattr(f, "__self__", None), _PointCurves)]
+    bare_app.data_collection.remove(mg_ii)
+    qtbot.waitUntil(lambda: follower._synced not in coord._listeners)
+    assert [curve for curve, *_ in follower.curves] == [curves[2]]
 
 
 def test_light_curves_at_a_stack_point(bare_app, qtbot, monkeypatch, scans):
@@ -1769,6 +1783,55 @@ def test_time_sync_without_a_raster_point(bare_app, qtbot, irispy_test_files):
         viewers["spectrogram"].state.slices = (step, *viewers["spectrogram"].state.slices[1:])
         qtbot.wait(5)
     assert len(coord._pairs) == 1
+
+
+def test_a_new_dataset_never_gets_the_time_pairs_of_a_freed_one(qtbot, monkeypatch):
+    # CPython often gives a new dataset the address, so the id(), of one freed before: here always
+    monkeypatch.setattr(glue_solar.quicklook, "id", lambda obj: 0, raising=False)
+    like = Data(label="raster")
+    like.meta = {"OBSID": "1", "STARTOBS": "2021-01-01T00:00:00"}
+    coord, master = Coordinator(DataCollection()), slit_jaw(seconds(0, 10000, 20000), like)
+    coord._pair(master, slit_jaw(seconds(0, 10000, 20000), like), None, None)
+    later = slit_jaw(seconds(-10000, 0, 10000), like)
+    assert list(coord._pair(master, later, None, None)[0]) == [1, 2, 2]
+
+
+def test_the_coordinator_lets_a_removed_dataset_go(qtbot, irispy_test_files):
+    # with no viewer: glue-qt 0.4.2 itself keeps a dataset an Image viewer showed, even once closed
+    raster, sji = sit_and_stare(irispy_test_files)
+    collection = DataCollection([raster, sji])
+    coord = coordinator(collection)
+    point = collection.new_subset_group(
+        label="Point", subset_state=PixelSubsetState(raster, [slice(9, 10), slice(20, 21), slice(None)])
+    )
+    coord.own(point, [])
+    coord.set_master(sji)
+    coord.move_master(raster, 9)
+    coord._pair(sji, raster, None, None)
+    coord._kept = (sji, point.subset_state, None, 0)  # as a slit-jaw click leaves it
+    freed = [weakref.ref(data) for data in (raster, sji)]
+    collection.clear()
+    del raster, sji
+    gc.collect()
+    assert [ref() for ref in freed] == [None, None]
+    assert type(point.subset_state) is SubsetState  # emptied, as Clear point empties it
+
+
+def test_the_coordinator_lets_a_region_on_a_removed_raster_go(qtbot, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    collection = DataCollection([raster, sji])
+    coord = coordinator(collection)
+    region = RoiSubsetState(raster.pixel_component_ids[2], raster.pixel_component_ids[1], RectangularROI(1, 3, 1, 3))
+    point = collection.new_subset_group(label="Point", subset_state=region)
+    coord.own(point, [])
+    # a slit-jaw point, which a click outside the raster would take back to the region (`_to_raster`)
+    point.subset_state = PixelSubsetState(sji, [slice(None), slice(2, 3), slice(3, 4)])
+    freed = weakref.ref(raster)
+    collection.remove(raster)
+    del raster, region
+    gc.collect()
+    assert point not in coord._before
+    assert freed() is None
 
 
 def test_each_follower_viewer_reads_its_own_frame(bare_app, qtbot, irispy_test_files):

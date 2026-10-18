@@ -356,8 +356,35 @@ class Coordinator(HubListener):
         hub.subscribe(
             self, SubsetUpdateMessage, handler=self._subset_changed, filter=lambda m: m.attribute == "subset_state"
         )
-        for message in (DataCollectionAddMessage, DataCollectionDeleteMessage):
-            hub.subscribe(self, message, handler=self._share_times)
+        hub.subscribe(self, DataCollectionAddMessage, handler=self._share_times)
+        hub.subscribe(self, DataCollectionDeleteMessage, handler=self._forget)
+        self._share_times()
+
+    def _forget(self, message):
+        """
+        Let a removed dataset go, with its memory map and file handle: drop what names it, and empty a quicklook point
+        on it as Clear point does; then give the SST cubes left their time keys (`_share_times`).
+        """
+        data = message.data
+
+        def names(value):  # the dataset, a subset state on it or its components (a region), or a tuple holding either
+            items = value if isinstance(value, tuple) else (value,)
+            return any(
+                item is data
+                or getattr(item, "reference_data", None) is data
+                or any(cid.parent is data for cid in getattr(item, "attributes", ()))
+                for item in items
+            )
+
+        for cache in (self.masters, self._master_times, self._steps, self._pairs, self._before):
+            for key in [key for key, value in cache.items() if names(key) or names(value)]:
+                del cache[key]
+        for group in self._owners:
+            if names(group.subset_state):
+                group.subset_state = SubsetState()
+        if names(self._kept) or names(self._outside):
+            self._kept, self._outside = (None, None, None, None), (None, None)
+        self._placed = self._footprint = (None, None)
         self._share_times()
 
     def _share_times(self, *_):
@@ -583,7 +610,9 @@ class Coordinator(HubListener):
             self.follow(group)  # as picked in glue's Active Subset after a Pixel click on another group
 
     def _subset_deleted(self, message):
-        if getattr(message.subset, "group", None) is self.group:
+        group = getattr(message.subset, "group", None)
+        self._before.pop(group, None)  # not to hold a deleted group; glue-qt 0.4.2's style editors still keep a cut's
+        if group is self.group:
             self._timer.start()  # the point's group went: readouts follow
 
     def _viewers_of(self, data):
@@ -754,8 +783,8 @@ class Coordinator(HubListener):
 
     def _pair(self, master, follower, master_step, follower_step):
         """nearest() of every master time among the follower's, cached per pair."""
-        # only a stack's times depend on the raster step
-        key = (id(master), id(follower), master_step if master.ndim == 4 else None)
+        # only a stack's times depend on the raster step; keyed by the datasets, as a freed one's id() can be reused
+        key = (master, follower, master_step if master.ndim == 4 else None)
         key += (follower_step if follower.ndim == 4 else None,)
         if key not in self._pairs:
             self._pairs[key] = nearest(_times(master, master_step), _times(follower, follower_step))
@@ -2036,10 +2065,21 @@ class _Cut(HubListener):
         if band is not None:
             band.state.add_callback("slices", self.refresh)
         self.data.hub.subscribe(self, SubsetUpdateMessage, handler=self.refresh, filter=self._moved)
+        self.data.hub.subscribe(self, SubsetDeleteMessage, handler=self._deleted)
         self.refresh()
 
     def _moved(self, message):
         return getattr(message.subset, "group", None) is self.point and message.subset.data is self.data
+
+    def _deleted(self, message):
+        """
+        Stop once the group is deleted, which the band and the point would go on setting: glue-qt 0.4.2's style editors
+        keep its subsets' layer states, so the group and this `_Cut` are not freed.
+        """
+        if getattr(message.subset, "group", None) is self.group:
+            if self.band is not None:
+                self.band.state.remove_callback("slices", self.refresh)
+            self.data.hub.unsubscribe_all(self)
 
     def refresh(self, *_):
         point, data = self.point.subset_state, self.data
@@ -2138,7 +2178,8 @@ class _PointCurves(QObject):
     """
     Keep the light curves at the point (`_point_curves`) at the point of ``group`` while it is a Pixel selection on
     ``raster``'s file: a moment after the point moves to another slit position, or a stack's step, or a scanning
-    raster's step, so that a drag or playback does not wait for them. They stop once they leave the data collection.
+    raster's step, so that a drag or playback does not wait for them. Each stops once it or its dataset leaves the data
+    collection, and all once the raster does.
     """
 
     def __init__(self, coordinator, group, raster):
@@ -2154,8 +2195,9 @@ class _PointCurves(QObject):
         return _curve_pixel(self.group, self.raster)
 
     def _synced(self, *_):
-        self.curves = [entry for entry in self.curves if entry[0] in self.coordinator.data_collection]
-        if not self.curves:
+        collection = self.coordinator.data_collection
+        self.curves = [entry for entry in self.curves if entry[0] in collection and entry[1] in collection]
+        if not self.curves or self.raster not in collection:
             self.coordinator.remove_listener(self._synced)
         elif self.point() not in (None, self.pixel):
             self._timer.start()

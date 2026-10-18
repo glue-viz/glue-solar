@@ -86,7 +86,8 @@ detector pixel, a step or exposure and a slit position, at every wavelength.
 
 Each image panel takes the Pixel tool as it becomes active, so the first click on any panel moves
 the point. Undo (:kbd:`Ctrl+Z`, :kbd:`Cmd+Z` on macOS) takes a move back. "Clear point", in the
-Coordinate menu's "Point" submenu (the link icon), removes the point until the next click.
+Coordinate menu's "Point" submenu (the link icon), removes the point until the next click, as does
+removing the point's dataset from the data collection.
 
 Each quicklook has its own point. Drag "Point" from the data collection onto another viewer to show
 it there.
