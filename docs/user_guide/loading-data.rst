@@ -113,8 +113,9 @@ tab named after its line, such as "SST Ca II 8542". Its panels are in three rows
 - the spectra at the point of Stokes I, Q, U and V;
 - wavelength against scan at the point, and the light curve at the point.
 
-Both maps open zoomed to the field, without a mosaic's NaN border, and the second map with "Per-frame
-limits" on, as the whole cube's limits wash the brighter wing out.
+Both maps open zoomed to the field, without a mosaic's NaN border, and stay on it as panels turn on
+or off until you pan or zoom. The second map opens with "Per-frame limits" on, as the whole cube's
+limits wash the brighter wing out.
 
 The point, clicks and keys work as in the IRIS quicklook, and the scan and Stokes sliders of either
 map move the other panels. Cubes with overlapping scan times, such as the CRISP and CHROMIS cubes of

@@ -60,6 +60,7 @@ from glue_solar.tests.test_quicklook import (
     rows,
     settle,
     slide,
+    tick,
 )
 
 DATEREF = "2021-09-05T00:00:00"
@@ -643,24 +644,43 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
 
 
 def test_both_maps_open_on_the_field(sst_app, tmp_path):
-    # P9: not a mosaic's NaN border, the field from the color limits' sample, whose rows and columns are 2 or 3 apart
-    # here: the field's rows 10 to 50 and columns 20 to 59 within a step, never cropped
-    path = tmp_path / "mosaic.fits"
-    write_sst_cube(path, (16, 1, 2, 60, 60))
-    with fits.open(path, mode="update") as hdul:
+    # P9: not a mosaic's NaN border, the field from the color limits' sample's rows read whole, 2 or 3 apart here: the
+    # field's rows 10 to 50 and columns 20 to 59 within a row step, never cropped
+    path, rotated = tmp_path / "mosaic.fits", tmp_path / "rotated.fits"
+    for each in (path, rotated):
+        write_sst_cube(each, (16, 1, 2, 60, 60))
+    y, x = np.indices((60, 60))
+    with fits.open(path, mode="update") as hdul, fits.open(rotated, mode="update") as tilted:
         hdul[0].data[..., :10, :] = hdul[0].data[..., 51:, :] = hdul[0].data[..., :20] = np.nan
+        # a field at 45°, its corners at rows 10 and 50 and columns 11 and 51: sampled row 10's only finite value lies
+        # between sampled columns 30 and 32
+        tilted[0].data[..., abs(x - 31) + abs(y - 30) > 20] = np.nan
+    assert sst_data(rotated)._field == ((8, 51), (8, 54))
     cube = sst_data(path)
-    assert cube._field == ((8, 51), (18, 59))
+    assert cube._field == ((8, 51), (17, 59))
     (y0, y1), (x0, x1) = cube._field
+    sst_app.resize(1800, 1100)
+    sst_app.show()  # for resizes to reach the canvas
     viewers = quicklook(sst_app, [cube])
-    for viewer in (viewers["map"], viewers["wing"]):
-        state, box = viewer.state, viewer.axes.get_window_extent()
-        x, y = (state.x_min, state.x_max), (state.y_min, state.y_max)
-        # the field whole, its rows or its columns spanning the view at the axes' aspect
-        assert x[0] <= x0 - 0.5 < x1 + 0.5 <= x[1]
-        assert y[0] <= y0 - 0.5 < y1 + 0.5 <= y[1]
-        assert y == pytest.approx((y0 - 0.5, y1 + 0.5)) or x == pytest.approx((x0 - 0.5, x1 + 0.5))
-        assert np.ptp(y) / np.ptp(x) == pytest.approx(box.height / box.width)
+    panels = panels_list(sst_app)
+    # at open, and once the virtual slit off widens the maps and on again, as long as not moved by hand
+    for on in (None, False, True):
+        if on is not None:
+            tick(panels, viewers["slit"].state.title, on=on)
+            panels.apply()
+        for viewer in (viewers["map"], viewers["wing"]):
+            state, box = viewer.state, viewer.axes.get_window_extent()
+            x, y = (state.x_min, state.x_max), (state.y_min, state.y_max)
+            # the field whole, its rows or its columns spanning the view at the axes' aspect
+            assert x[0] <= x0 - 0.5 < x1 + 0.5 <= x[1]
+            assert y[0] <= y0 - 0.5 < y1 + 0.5 <= y[1]
+            assert y == pytest.approx((y0 - 0.5, y1 + 0.5)) or x == pytest.approx((x0 - 0.5, x1 + 0.5))
+            assert np.ptp(y) / np.ptp(x) == pytest.approx(box.height / box.width)
+    state = viewers["map"].state
+    state.x_min, state.x_max = 30, 40
+    tick(panels, viewers["slit"].state.title, on=False)
+    panels.apply()
+    assert (state.x_min + state.x_max) / 2 == pytest.approx(35)
 
 
 def test_q_u_and_v_show_scaled_with_their_noise_level(sst_app, qtbot, tmp_path):

@@ -240,19 +240,20 @@ class _Cube(Data):
     def _field(self):
         """
         The first and last row and column, ``((y0, y1), (x0, x1))``, that can hold the field, a mosaic's NaN border left
-        out (P9): those between the samples next to the outermost finite ones of `_sample`'s planes; None if all are NaN.
+        out (P9), from `_sample`'s rows of its planes read whole, the pages its sample reads: the rows between the
+        sampled rows next to the outermost with a finite value, and their finite values' columns widened by a row step,
+        as a rotated field's corner can lie between them; None if all are NaN.
         """
-        view = self._sample(10_000)
-        finite = np.isfinite(self[self.main_components[0], view]).any(axis=0)
+        *plane, rows, _ = self._sample(10_000)
+        rows = rows.ravel()
+        finite = np.isfinite(self[self.main_components[0], (*(p[..., 0] for p in plane), rows, slice(None))]).any(0)
         if not finite.any():
             return None
-        bounds = []
-        for index, inside, size in zip((view[-2].ravel(), view[-1]), (finite.any(1), finite.any(0)), self.shape[-2:]):
-            k = np.flatnonzero(inside)
-            first = index[k[0] - 1] + 1 if k[0] else 0
-            last = index[k[-1] + 1] - 1 if k[-1] + 1 < len(index) else size - 1
-            bounds.append((int(first), int(last)))
-        return tuple(bounds)
+        k, x = np.flatnonzero(finite.any(1)), np.flatnonzero(finite.any(0))
+        step = int(np.diff(rows).max(initial=0))
+        y0 = rows[k[0] - 1] + 1 if k[0] else 0
+        y1 = rows[k[-1] + 1] - 1 if k[-1] + 1 < len(rows) else self.shape[-2] - 1
+        return (int(y0), int(y1)), (max(int(x[0]) - step, 0), min(int(x[-1]) + step, self.shape[-1] - 1))
 
     def __gluestate__(self, context):
         log = getattr(self, "_load_log", None)  # none on a cube restored with its data

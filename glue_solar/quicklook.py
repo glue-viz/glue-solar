@@ -1329,7 +1329,8 @@ def _footprint_limits(viewer, raster):
 def _zoom(viewer, x, y, margin):
     """
     Zoom an Image viewer to pixel positions ``x`` and ``y`` with ``margin``, at the axes' aspect, so that glue's equal
-    aspect keeps the limits; a later resize keeps their area, so it can crop them.
+    aspect keeps the limits; a later resize keeps their area, which can crop them, so `_arrange` zooms again unless
+    they moved (P9).
     """
     box = viewer.axes.get_window_extent()
     ratio = box.height / box.width if box.width else 1.0
@@ -1339,6 +1340,7 @@ def _zoom(viewer, x, y, margin):
     with delay_callback(state, "x_min", "x_max", "y_min", "y_max"):
         state.x_min, state.x_max = x_mid - width / 2, x_mid + width / 2
         state.y_min, state.y_max = y_mid - width * ratio / 2, y_mid + width * ratio / 2
+    viewer._solar_zoom = (x, y, margin), (state.x_min, state.x_max, state.y_min, state.y_max)
 
 
 def _pick_sjis(sjis):
@@ -1762,9 +1764,9 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
         for viewer in viewers.get("sji", ()):
             if point is not None and _placeable(viewer.state.reference_data):
                 _footprint_limits(viewer, point.reference_data)
-        field = "wing" in viewers and datasets[0]._field
-        for viewer in (viewers["map"], viewers["wing"]) if field else ():  # the field, not a mosaic's frame (P9)
-            _zoom(viewer, *np.array(field[::-1], dtype=float), 0.5)
+        if "wing" in viewers and (field := datasets[0]._field):
+            for viewer in (viewers["map"], viewers["wing"]):  # the field, not a mosaic's frame (P9)
+                _zoom(viewer, *np.array(field[::-1], dtype=float), 0.5)
     tab._solar_quicklook = (datasets, window, main, viewers)  # for `_recipe`
     return viewers
 
@@ -2510,9 +2512,13 @@ def _arrange(tab, viewers):
             strip[kind].setGeometry(x, height, w, tall)
     for r, row in enumerate(rows):
         for c, viewer in enumerate(row):
+            zoom, state = vars(viewer).get("_solar_zoom"), viewer.state
+            kept = zoom and zoom[1] == (state.x_min, state.x_max, state.y_min, state.y_max)  # not panned or zoomed
             viewer.move(c * width // len(row), r * height // len(rows))
             viewer.viewer_size = (width // len(row), height // len(rows))
             viewer.figure.canvas._draw_idle = partial(_draw_in_sight, viewer.figure.canvas, tab)
+            if kept:
+                _zoom(viewer, *zoom[0])
 
 
 def _draw_in_sight(canvas, tab):
