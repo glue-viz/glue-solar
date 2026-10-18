@@ -136,9 +136,9 @@ Light curves, rows and columns
 The Coordinate menu's "Point" submenu plots the data through the point. Each plot follows the point.
 
 - **"Light curves at the point"**, on any Image viewer of IRIS, AIA or SOT data: the value at the
-  point against time, for each window with exposures or scans (at the wavelength its map shows, else
-  its line core) and each slit-jaw channel the quicklook shows, in one Scatter viewer. Each curve is a
-  new dataset, which "ECSV (with Time)" exports (see
+  point against time, for each window with exposures or scans (over the wavelength or band its map
+  shows when chosen, named in its label, else its line core) and each slit-jaw channel the quicklook
+  shows, in one Scatter viewer. Each curve is a new dataset, which "ECSV (with Time)" exports (see
   :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`).
 - **"Row at the point"** and **"Column at the point"**, on any raster map: the map's row along x, or
   its column along the slit, through the point.

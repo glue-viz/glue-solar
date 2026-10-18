@@ -1176,9 +1176,20 @@ def test_light_curves_at_the_point(bare_app, qtbot, tmp_path, irispy_test_files)
     select_point(raster_map, 5, 11)
     qtbot.waitUntil(lambda: check(11, (1, 2)))
     check(10, (0,))
+    # with a band on the map, a new run's curve is the band's mean at the point, named by its wavelengths (#183)
+    raster_map.toolbar.tools["solar:band"].width = 5
+    raster_map.state.slices = (*raster_map.state.slices[:2], k)
+    menu_action(raster_map, POINT_CURVES).trigger()
+    [_, band, _] = [layer.layer for layer in bare_app.viewers[-1][-1].state.layers if isinstance(layer.layer, Data)]
+    view = (slice(None), 11, slice(k - 2, k + 3))
+    expected = np.nanmean(mg_ii[mg_ii.main_components[0], view], axis=-1)
+    np.testing.assert_allclose(band[band.id["Value"]], expected, rtol=1e-6)  # glue's mean in float64
+    wavelengths = mg_ii[mg_ii.world_component_ids[-1], (0, 0, view[-1])] * u.Unit(mg_ii.coords.world_axis_units[0])
+    low, high = wavelengths[[0, -1]].to_value(u.AA)
+    assert band.label == f"Mg II k 2796 {low:.2f}–{high:.2f} Å light curve"
     # the raster removed, they let it and its curve go, and stop
     coord = coordinator(bare_app.data_collection)
-    [follower] = [f.__self__ for f in coord._listeners if isinstance(getattr(f, "__self__", None), _PointCurves)]
+    follower, _ = [f.__self__ for f in coord._listeners if isinstance(getattr(f, "__self__", None), _PointCurves)]
     bare_app.data_collection.remove(mg_ii)
     qtbot.waitUntil(lambda: follower._synced not in coord._listeners)
     assert [curve for curve, *_ in follower.curves] == [curves[2]]
