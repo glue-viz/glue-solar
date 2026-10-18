@@ -106,9 +106,8 @@ spectrum over the range dragged with astropy's ``parallel_fit_dask``, on all pro
 progress dialog shows the run; "Cancel" stops it and adds nothing. Where the window and a subset of it
 are both shown at the fit, the fit of the layer listed last, usually the subset, is the one taken. A
 linear or polynomial background with a bound or a fixed term needs a fit against a length. Each
-spectrum starts at its own background, its 10th percentile, and at each line's peak within two
-widths of the fitted center, among the samples nearer it than any other line's; the widths, fixed
-values, bounds and ties are as fitted. Missing samples are
+spectrum starts at its own background and line peaks, from irispy's ``starts_from_model``; the
+widths, fixed values, bounds and ties are as fitted. Missing samples are
 left out, and saturated ones, which are only a lower bound. The fit of step 1 leaves a sample out
 where all the pixels it combines are saturated (for a Point, where it is), and notes the wavelengths
 whose mean includes saturated pixels. A full Si IV 1403 raster, 175,000 spectra, takes about a minute
