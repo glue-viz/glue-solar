@@ -1,0 +1,1 @@
+'Fit every spectrum' starts each spectrum from irispy's starts_from_model.
