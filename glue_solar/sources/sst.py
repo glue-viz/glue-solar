@@ -236,6 +236,24 @@ class _Cube(Data):
                 for k in (1, 2, 3)
             }
 
+    @cached_property
+    def _field(self):
+        """
+        The first and last row and column, ``((y0, y1), (x0, x1))``, that can hold the field, a mosaic's NaN border left
+        out (P9): those between the samples next to the outermost finite ones of `_sample`'s planes; None if all are NaN.
+        """
+        view = self._sample(10_000)
+        finite = np.isfinite(self[self.main_components[0], view]).any(axis=0)
+        if not finite.any():
+            return None
+        bounds = []
+        for index, inside, size in zip((view[-2].ravel(), view[-1]), (finite.any(1), finite.any(0)), self.shape[-2:]):
+            k = np.flatnonzero(inside)
+            first = index[k[0] - 1] + 1 if k[0] else 0
+            last = index[k[-1] + 1] - 1 if k[-1] + 1 < len(index) else size - 1
+            bounds.append((int(first), int(last)))
+        return tuple(bounds)
+
     def __gluestate__(self, context):
         log = getattr(self, "_load_log", None)  # none on a cube restored with its data
         if context.include_data or log is None:

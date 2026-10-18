@@ -567,13 +567,15 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
     ]
     assert set(sst_app.viewers[-1]) == {viewer for row in viewers["rows"] for viewer in row}
     pixel = cube.pixel_component_ids
-    # the map at the line core, H-alpha's tuning, the second map at the first, the point at the map's center in scan 0
-    # and Stokes I
+    # the map at the line core, H-alpha's tuning, the second map at the first, with per-frame limits (P9), the point at
+    # the map's center in scan 0 and Stokes I
     for role, x, y, tuning in (("map", 4, 3, 2), ("wing", 4, 3, 0), ("slit", 2, 3, 2), ("wavelength", 2, 0, 2)):
         state = viewers[role].state
         assert isinstance(viewers[role], QuicklookImageViewer)
         assert (state.x_att, state.y_att, state.slices) == (pixel[x], pixel[y], (0, 0, tuning, 6, 8))
-        assert state.layers[0].percentile == 99.5
+        assert (state.layers[0].percentile, state.layers[0].stretch_global) == (99.5, role != "wing")
+    frame = np.percentile(values[0, 0, 0], [0.25, 99.75])
+    assert (viewers["wing"].state.layers[0].v_min, viewers["wing"].state.layers[0].v_max) == pytest.approx(tuple(frame))
     [group] = sst_app.session.edit_subset_mode.edit_subset
     assert group.label == "Point"
     assert group.subset_state.slices == [slice(0, 1), slice(0, 1), slice(None), slice(6, 7), slice(8, 9)]
@@ -638,6 +640,27 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
     check_sst_panels(viewers, values, group)
     with pytest.raises(ValueError, match="one cube"):
         quicklook(sst_app, [cube, single])
+
+
+def test_both_maps_open_on_the_field(sst_app, tmp_path):
+    # P9: not a mosaic's NaN border, the field from the color limits' sample, whose rows and columns are 2 or 3 apart
+    # here: the field's rows 10 to 50 and columns 20 to 59 within a step, never cropped
+    path = tmp_path / "mosaic.fits"
+    write_sst_cube(path, (16, 1, 2, 60, 60))
+    with fits.open(path, mode="update") as hdul:
+        hdul[0].data[..., :10, :] = hdul[0].data[..., 51:, :] = hdul[0].data[..., :20] = np.nan
+    cube = sst_data(path)
+    assert cube._field == ((8, 51), (18, 59))
+    (y0, y1), (x0, x1) = cube._field
+    viewers = quicklook(sst_app, [cube])
+    for viewer in (viewers["map"], viewers["wing"]):
+        state, box = viewer.state, viewer.axes.get_window_extent()
+        x, y = (state.x_min, state.x_max), (state.y_min, state.y_max)
+        # the field whole, its rows or its columns spanning the view at the axes' aspect
+        assert x[0] <= x0 - 0.5 < x1 + 0.5 <= x[1]
+        assert y[0] <= y0 - 0.5 < y1 + 0.5 <= y[1]
+        assert y == pytest.approx((y0 - 0.5, y1 + 0.5)) or x == pytest.approx((x0 - 0.5, x1 + 0.5))
+        assert np.ptp(y) / np.ptp(x) == pytest.approx(box.height / box.width)
 
 
 def test_q_u_and_v_show_scaled_with_their_noise_level(sst_app, qtbot, tmp_path):
@@ -987,6 +1010,7 @@ def test_a_session_restores_the_sst_quicklook(sst_app, qtbot, monkeypatch, tmp_p
     [data] = restored.data_collection
     assert isinstance(data, _Cube)  # its color limits' sample too
     assert data.coords.core == again["map"].state.slices[-3] == 1
+    assert not again["wing"].state.layers[0].stretch_global  # a quicklook's per-frame limits restore (P9)
     assert group.label == "Point"
     i = [slice(0, 1)] if stokes == 4 else []  # Stokes I, if any
     assert group.subset_state.slices[: 1 + len(i)] == [slice(2, 3), *i]

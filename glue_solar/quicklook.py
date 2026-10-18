@@ -1323,9 +1323,14 @@ def _footprint_limits(viewer, raster):
     x, y = _sji_pixels(viewer.state.reference_data, 0, lon, lat)
     if not (np.isfinite(x).all() and np.isfinite(y).all()):
         return
-    margin = max(10.0, 0.1 * max(np.ptp(x), np.ptp(y)))
-    # limits at the axes' aspect, so that glue's equal aspect keeps them; a later resize keeps their
-    # area, so it can crop the footprint
+    _zoom(viewer, x, y, max(10.0, 0.1 * max(np.ptp(x), np.ptp(y))))
+
+
+def _zoom(viewer, x, y, margin):
+    """
+    Zoom an Image viewer to pixel positions ``x`` and ``y`` with ``margin``, at the axes' aspect, so that glue's equal
+    aspect keeps the limits; a later resize keeps their area, so it can crop them.
+    """
     box = viewer.axes.get_window_extent()
     ratio = box.height / box.width if box.width else 1.0
     width = max(np.ptp(x) + 2 * margin, (np.ptp(y) + 2 * margin) / ratio)
@@ -1676,8 +1681,9 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
             )
             if table.get("limits"):
                 layer = viewer.state.layers[0]
-                viewer.state.add_callback("slices", partial(_stokes_limits, layer))
-                layer.add_callback("stretch_global", lambda *_: _stokes_limits(layer, viewer.state.slices))
+                limits = partial(_stokes_limits, layer, wing=panel.role == "wing")
+                viewer.state.add_callback("slices", limits)
+                layer.add_callback("stretch_global", lambda *_: limits(viewer.state.slices))
         add(panel, viewer)
         return viewer
 
@@ -1704,6 +1710,8 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
             make(panel)
     if "wing" in viewers:
         viewers["wing"]._solar_wing = True  # its wavelength stays (`_wing`)
+        # per frame, as glue's whole cube's limits, mostly the line's, washed the far brighter wing out (P9)
+        viewers["wing"].state.layers[0].stretch_global = False
     QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # and after the last (see _image)
     point = table["point"]
     if point is not None:
@@ -1748,12 +1756,15 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
         viewers["map"].toolbar.active_tool = "image:point_selection"
     QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # let the tab take its final size
     _arrange(tab, viewers)
-    if "sji" in viewers:  # an IRIS quicklook
-        # and the panels theirs, before the slit-jaw limits take the axes' aspect
+    if "sji" in viewers or "wing" in viewers:  # an IRIS or SST quicklook
+        # and the panels theirs, before the slit-jaw or map limits take the axes' aspect
         QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)
-        for viewer in viewers["sji"]:
+        for viewer in viewers.get("sji", ()):
             if point is not None and _placeable(viewer.state.reference_data):
                 _footprint_limits(viewer, point.reference_data)
+        field = "wing" in viewers and datasets[0]._field
+        for viewer in (viewers["map"], viewers["wing"]) if field else ():  # the field, not a mosaic's frame (P9)
+            _zoom(viewer, *np.array(field[::-1], dtype=float), 0.5)
     tab._solar_quicklook = (datasets, window, main, viewers)  # for `_recipe`
     return viewers
 
@@ -1766,10 +1777,11 @@ def _stokes_limit(cube, stokes):
     return (5 if stokes < 3 else 10) * cube._noise[stokes]
 
 
-def _stokes_limits(layer, slices):
+def _stokes_limits(layer, slices, wing=False):
     """
     Give ``layer`` the limits of the Stokes parameter of ``slices``: glue's 99.5% for I, and `_stokes_limit` about 0 for
-    Q, U and V, which glue's over the whole cube, I's values mostly, showed flat (230-6).
+    Q, U and V, which glue's over the whole cube, I's values mostly, showed flat (230-6); on the second map (``wing``),
+    per frame for its I (P9), those whatever its 'Per-frame limits' (D88).
     """
     # ponytail: set as the Stokes parameter or 'Per-frame limits' changes, over limits chosen in the style editor, and I
     # takes glue's 99.5% again; keep each parameter's last limits if that matters
@@ -1778,7 +1790,7 @@ def _stokes_limits(layer, slices):
     if shown == vars(layer).get("_solar_stokes", (0, True)) or layer.attribute is not cube.main_components[0]:
         return
     layer._solar_stokes = shown
-    limit = _stokes_limit(cube, stokes) if stokes and layer.stretch_global else np.nan
+    limit = _stokes_limit(cube, stokes) if stokes and (layer.stretch_global or wing) else np.nan
     if not limit > 0:  # I, 'Per-frame limits', or a parameter constant or all NaN at the continuum
         layer.percentile = PERCENTILE
         return
