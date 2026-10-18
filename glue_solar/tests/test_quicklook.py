@@ -1898,8 +1898,11 @@ def test_the_master_exposure_shows_on_a_datetime_scatter_plot(bare_app, qtbot, i
     assert len(layer.plot_artist.get_xdata()) == 1
     others = [layer.layer for viewer in bare_app.viewers[-1] if viewer is not scatter for layer in viewer.layers]
     assert group not in [getattr(layer, "group", None) for layer in others]
+    image = bare_app.new_data_viewer(ImageViewer, data=raster)  # nor on a viewer opened since, which glue gives it
     spectrogram.state.slices = (100, *spectrogram.state.slices[1:])  # it moves with the master
     qtbot.waitUntil(lambda: marks(bare_app, raster, 100))
+    assert group not in [getattr(layer.layer, "group", None) for layer in image.layers]
+    image.close(warn=False)
     [sji_viewer] = viewers["sji"]
     menu_action(sji_viewer, "Time master").trigger()  # and with a new master
     sji_viewer.state.slices = (3, 0, 0)
