@@ -10,6 +10,11 @@ root = Path(tempfile.mkdtemp(prefix="glue-fix-checks-"))
 atexit.register(shutil.rmtree, root, ignore_errors=True)  # its sunpy downloads are about 350 MB a run
 for directory in ("home", "mpl", "cache", "config", "sunpy"):
     (root / directory).mkdir()
+# astropy's cache kept between runs, so its IERS tables download about monthly, not each run (a DNS failure of
+# datacenter.iers.org failed test_quicklook_opens_each_kind)
+kept = Path(os.path.expanduser("~")) / "Library" / "Caches" / "glue-solar-checks" / "astropy"
+kept.mkdir(parents=True, exist_ok=True)
+(root / "cache" / "astropy").symlink_to(kept)
 paths, *args = sys.argv[1:]
 os.environ.update(
     HOME=str(root / "home"), QT_QPA_PLATFORM="offscreen", MPLBACKEND="agg", MPLCONFIGDIR=str(root / "mpl"),

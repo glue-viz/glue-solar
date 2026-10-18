@@ -435,7 +435,7 @@ Run all Python in a micromamba env, never a `.venv`; create a new env rather tha
 - `irispy-ports`: irispy development; its editable irispy points at the removed `~/Git/irispy-bursts`, so always run it with `PYTHONPATH=<worktree>` from a neutral cwd, never from `~/Git/irispy`.
 - Retired: `iris-plan-floor-qt6` (PyQt6 6.8.1, #266) and the PyQt5 envs `iris-plan-main`, `iris-plan-floor-main`, `iris-plan`, `iris-plan-floor` and `iris-plan-docs` (#214; left at irispy ca27ee9). The `glue-solar` and `astropy-wcsaxes-core` envs are editable installs of removed checkouts and no baseline; reinstall before use.
 
-Headless runs use a scratch `HOME` (glue rewrites `~/.glue/settings.cfg`), offscreen Qt and Agg; glue-solar's conftest keeps tests off macOS QSettings (D75). Regenerate upstream PR exports before use (macOS purges temporary directories). Run tests from a checkout of the code under test, never `~/Git/glue-solar` (on `plan`); `run_checks.py` makes its own HOME and caches and removes them when it ends:
+Headless runs use a scratch `HOME` (glue rewrites `~/.glue/settings.cfg`), offscreen Qt and Agg; glue-solar's conftest keeps tests off macOS QSettings (D75). Regenerate upstream PR exports before use (macOS purges temporary directories). Run tests from a checkout of the code under test, never `~/Git/glue-solar` (on `plan`); `run_checks.py` makes its own HOME and caches and removes them when it ends, but for astropy's cache, kept in `~/Library/Caches/glue-solar-checks/astropy` so the IERS tables download about monthly (a failed lookup of datacenter.iers.org failed a test each run before, 2026-10-18):
 
 ```sh
 P=~/Git/glue-solar/IRIS_PLAN_PROTOTYPES
