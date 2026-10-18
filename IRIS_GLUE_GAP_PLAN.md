@@ -28,13 +28,13 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 334d819 (#310). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
+**Resume here.** Main is at bd10bac (#311). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
 **Next.** In flight since 2026-10-17's second session (D86), each item implemented by an Opus agent, reviewed by Fable, fixed by Opus, shipped with `ship_locked.sh`:
   1. #308 first (main's CI is red on irispy main 9229d06 until it lands, D86), then D87's Fit tab change as its own PR; worktree `~/Git/glue-solar-wp10-l-saturation-shown`, tested in the `-9229` envs.
   2. #307: worktree `~/Git/glue-solar-wp13-stokes`.
   3. `wp6-fit-maps`: worktree `~/Git/glue-solar-wp6-fit-maps`; then `wp6-fit-builder` and `wp0-irispy-fit-starts`.
-  4. The review fixes the user chose (all of the Fable review, 2026-10-17): #309, `wp10-analysis-lock`, `wp4-coordinator-forget`, #310; worktrees from e80bf50; the first two started after the limit reset, the other two follow once CPU frees.
+  4. The review fixes the user chose (all of the Fable review, 2026-10-17): #309, #311, `wp4-coordinator-forget`, #310; worktrees from e80bf50; the first two started after the limit reset, the other two follow once CPU frees.
 
 **Waiting on the user.** `wp0-qt68-macos-pass`; filing `wp0-qt-fitter-settings`'s PR from its pushed branch (text in the archive's `briefs/glue-qt-fitter-pr.md`); the audits' other proposals (`audit2/` in the archive); the drag-into-/Applications check of the app (`~/Downloads/Glue Solar.dmg`, built from f073033's recipe; a dmg from #275's recipe would also check Finder and Dock opening); an exact report of the linking and slider-sync problems the user saw in the app (2026-10-09), whose steps, rerun with `glue` from `iris-plan-qt6-802`, tell an app problem from a Qt 6 or glue-solar one; raising the matplotlib-free WCSAxes core prototype in person (no PR, issue or upstream notice); M4 and OM work. Offered, not started: #207's leftover (viewers opened after the time marker exists get its layer: about 10% slower steps with a second quicklook).
 
@@ -162,7 +162,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP10: `wp10-analysis-lock`
 - WP4: `wp4-coordinator-forget`
 
 **M4**
@@ -321,10 +320,6 @@ Notes:
 ### WP10: Loader robustness and performance
 
 Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on files up to 20 GB.
-
-**L**
-
-- [ ] **L** `wp10-analysis-lock`: review F3 and F6 (`review/FINDINGS.md` in `session_20261017.tar.gz`): red-blue and Mg II features hold `WCS_LOCK` around each whole irispy call, so main-thread WCS calls wait about 1.4 s each for the whole run. Make the raster's raw WCS a `_LockedWCS` in `_GlueWCS.__init__`, as `link_hpc` does for maps, and drop the outer locks (D73's lock design: re-run the #251 lock tests and the SST race test). Done when a main-thread WCS call waits milliseconds during a red-blue run.
 
 Notes:
 - IRIS Level 2 image HDUs are int16 (BSCALE 0.25, BZERO 7992; fill is raw -32768/-32764). glue-solar reads SJIs and AIA cutouts through irispy main's `read_sji_lvl2(memmap=True)`, whose raw int16 keeps the fill under a lazy mask; a `.fits.gz` is decompressed once into bytes that irispy views (#140).
