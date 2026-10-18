@@ -34,7 +34,7 @@ Out of scope:
   1. `wp10-l-saturation-shown`: built on irispy #239's branch in worktree `~/Git/glue-solar-wp10-l-saturation-shown`, tested in the `-sat` envs; its draft PR pins irispy to `saturation-mask` in one commit, reverted once #239 merges, and is merged only then.
   2. `wp13-stokes`: worktree `~/Git/glue-solar-wp13-stokes`.
   3. `wp6-fit-maps`: worktree `~/Git/glue-solar-wp6-fit-maps`; then `wp6-fit-builder` and `wp0-irispy-fit-starts`.
-  4. A Fable whole-code review of main (`~/Git/glue-solar-review`, detached), findings for the user to triage.
+  4. The review fixes the user chose (all of the Fable review, 2026-10-17): `wp3-session-broadcast`, `wp10-analysis-lock`, `wp4-coordinator-forget`, `wp10-lean-review`; worktrees made from e80bf50, not started (the weekly limit was at 98%; Fable's was spent, so reviews run on the session model until it resets).
 
 **Waiting on the user.** Reviewing and merging irispy draft #239; `wp0-qt68-macos-pass`; filing `wp0-qt-fitter-settings`'s PR from its pushed branch (text in the archive's `briefs/glue-qt-fitter-pr.md`); the audits' other proposals (`audit2/` in the archive); the drag-into-/Applications check of the app (`~/Downloads/Glue Solar.dmg`, built from f073033's recipe; a dmg from #275's recipe would also check Finder and Dock opening); an exact report of the linking and slider-sync problems the user saw in the app (2026-10-09), whose steps, rerun with `glue` from `iris-plan-qt6-802`, tell an app problem from a Qt 6 or glue-solar one; raising the matplotlib-free WCSAxes core prototype in person (no PR, issue or upstream notice); M4 and OM work. Offered, not started: #207's leftover (viewers opened after the time marker exists get its layer: about 10% slower steps with a second quicklook).
 
@@ -160,7 +160,9 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP10: `wp10-l-saturation-shown`
+- WP10: `wp10-l-saturation-shown`, `wp10-analysis-lock`, `wp10-lean-review`
+- WP3: `wp3-session-broadcast`
+- WP4: `wp4-coordinator-forget`
 
 **M4**
 - WP0: `wp0-irispy-saturation-mask`, `wp0-irispy-fit-starts`, `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
@@ -260,12 +262,20 @@ Notes:
 
 Makes Save and Open Session work for the quicklook and every glue-solar dataset through glue's saver registry and LoadLog.
 
+**L**
+
+- [ ] **L** `wp3-session-broadcast`: review F1 and F2 (`review/FINDINGS.md` in `session_20261017.tar.gz`): analysis products save broadcast components in full ('subtract mean spectrum's mean; rebin, north up, dust, regrid and SJI bursts' `Time`, `Exposure time` and `empty`), so Export Session of a full Mg II window runs out of memory and 'restore last session' then refuses. One broadcast-aware component (#289's `_Spectra`) at each site. Done when the review's probes save in proportion to the data's own values.
+
 Notes:
 - Sessions record `glue_solar` class and function paths; no aliases are kept when they move (D69); each new coords type adds a #181 case.
 
 ### WP4: Quicklook preset and coordination
 
 Coordinates the stock glue viewers of the CRISPEX-style IRIS quicklook in `glue_solar/quicklook.py`.
+
+**L**
+
+- [ ] **L** `wp4-coordinator-forget`: review F4, F5 and F7 (`review/FINDINGS.md` in `session_20261017.tar.gz`): a removed dataset stays alive in the coordinator (`_steps`, `_master_times`, `_placed`), with its memory map; `_pairs` is keyed by `id()`; deleted cuts and switched line panels keep their state callbacks. Done when a removed dataset is freed and the callbacks go, each with a test.
 
 Notes:
 - Whisker polish (F143) and CRISPEX entry keywords (F020) are Later.
@@ -320,6 +330,8 @@ Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on file
 
 **L**
 
+- [ ] **L** `wp10-analysis-lock`: review F3 and F6 (`review/FINDINGS.md` in `session_20261017.tar.gz`): red-blue and Mg II features hold `WCS_LOCK` around each whole irispy call, so main-thread WCS calls wait about 1.4 s each for the whole run. Make the raster's raw WCS a `_LockedWCS` in `_GlueWCS.__init__`, as `link_hpc` does for maps, and drop the outer locks (D73's lock design: re-run the #251 lock tests and the SST race test). Done when a main-thread WCS call waits milliseconds during a red-blue run.
+- [ ] **L** `wp10-lean-review`: review F8, F9 and 'Can delete' (`review/FINDINGS.md` in `session_20261017.tar.gz`): about 60 unused lines (unpublished `__all__` lists, `tools._takes`); a restore whose file lost a logged window raises a TypeError instead of a message; 'FITS (1 component/HDU)' of a lazy window reads the whole cube as float32 on the main thread (write it chunk by chunk). Done when each has a test or is deleted.
 - [ ] **L** `wp10-l-saturation-shown` (D85): glue-solar's lazy and in-memory reads keep raw 32760 at its value with saturation in the window's mask, so images, spectra and light curves show saturated samples at 16182 DN (or DN / s), and the analyses pass irispy the mask. Per #239's notes: `lazy.py` and `loaders/iris.py` stop mapping raw 32760 to +Inf and mark it in the mask; `moments._cube` passes the mask and `meta['saturated']` (red-blue and Mg II reuse it); the mean spectrum, bursts and Doppler take saturation from the mask; the guides' +Inf wording goes. Done when a saturated flare raster under `~/DATA/IRIS/saturated/` shows its saturated samples in a light curve and the analyses' saturation counts are unchanged. Depends: wp0-irispy-saturation-mask.
 
 Notes:
