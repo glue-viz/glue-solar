@@ -28,13 +28,13 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at b4ba250 (#307). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
+**Resume here.** Main is at 6620bea (#309). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
 **Next.** In flight since 2026-10-17's second session (D86), each item implemented by an Opus agent, reviewed by Fable, fixed by Opus, shipped with `ship_locked.sh`:
   1. #308 first (main's CI is red on irispy main 9229d06 until it lands, D86), then D87's Fit tab change as its own PR; worktree `~/Git/glue-solar-wp10-l-saturation-shown`, tested in the `-9229` envs.
   2. #307: worktree `~/Git/glue-solar-wp13-stokes`.
   3. `wp6-fit-maps`: worktree `~/Git/glue-solar-wp6-fit-maps`; then `wp6-fit-builder` and `wp0-irispy-fit-starts`.
-  4. The review fixes the user chose (all of the Fable review, 2026-10-17): `wp3-session-broadcast`, `wp10-analysis-lock`, `wp4-coordinator-forget`, `wp10-lean-review`; worktrees from e80bf50; the first two started after the limit reset, the other two follow once CPU frees.
+  4. The review fixes the user chose (all of the Fable review, 2026-10-17): #309, `wp10-analysis-lock`, `wp4-coordinator-forget`, `wp10-lean-review`; worktrees from e80bf50; the first two started after the limit reset, the other two follow once CPU frees.
 
 **Waiting on the user.** `wp0-qt68-macos-pass`; filing `wp0-qt-fitter-settings`'s PR from its pushed branch (text in the archive's `briefs/glue-qt-fitter-pr.md`); the audits' other proposals (`audit2/` in the archive); the drag-into-/Applications check of the app (`~/Downloads/Glue Solar.dmg`, built from f073033's recipe; a dmg from #275's recipe would also check Finder and Dock opening); an exact report of the linking and slider-sync problems the user saw in the app (2026-10-09), whose steps, rerun with `glue` from `iris-plan-qt6-802`, tell an app problem from a Qt 6 or glue-solar one; raising the matplotlib-free WCSAxes core prototype in person (no PR, issue or upstream notice); M4 and OM work. Offered, not started: #207's leftover (viewers opened after the time marker exists get its layer: about 10% slower steps with a second quicklook).
 
@@ -163,7 +163,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP10: `wp10-analysis-lock`, `wp10-lean-review`
-- WP3: `wp3-session-broadcast`
 - WP4: `wp4-coordinator-forget`
 
 **M4**
@@ -259,10 +258,6 @@ Notes:
 ### WP3: Sessions
 
 Makes Save and Open Session work for the quicklook and every glue-solar dataset through glue's saver registry and LoadLog.
-
-**L**
-
-- [ ] **L** `wp3-session-broadcast`: review F1 and F2 (`review/FINDINGS.md` in `session_20261017.tar.gz`): analysis products save broadcast components in full ('subtract mean spectrum's mean; rebin, north up, dust, regrid and SJI bursts' `Time`, `Exposure time` and `empty`), so Export Session of a full Mg II window runs out of memory and 'restore last session' then refuses. One broadcast-aware component (#289's `_Spectra`) at each site. Done when the review's probes save in proportion to the data's own values.
 
 Notes:
 - Sessions record `glue_solar` class and function paths; no aliases are kept when they move (D69); each new coords type adds a #181 case.
