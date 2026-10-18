@@ -463,6 +463,8 @@ def _view(data_collection, result):
 
 
 def _add(data_collection, status, said, add, view, result):
+    if result is None:  # a run canceled
+        return
     if add is None:
         data_collection.append(result)  # a list too
         keep_hpc_linked(data_collection)

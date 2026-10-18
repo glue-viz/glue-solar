@@ -74,6 +74,7 @@ from glue_solar.quicklook import QuicklookImageViewer, _role, _wavelengths
 from glue_solar.regrid import north_up_iris, rebin_iris, regrid_iris, regrid_on_time
 from glue_solar.sources.bursts import bursts_iris
 from glue_solar.sources.calibration import radiometric_calibration_iris, remove_dust_iris
+from glue_solar.sources.fit_maps import line_fit_maps_iris
 from glue_solar.sources.iris import (
     browse_iris,
     help_iris,
@@ -116,6 +117,7 @@ def test_setup_registers_hooks():
         ("IRIS: radiometric calibration", radiometric_calibration_iris),
         ("IRIS: subtract mean spectrum", mean_spectrum_iris),
         ("IRIS: line maps…", line_maps_iris),
+        ("IRIS: line fit maps", line_fit_maps_iris),
         ("IRIS: Mg II features… (Mg II)", mg_features_iris),
         ("IRIS: detect UV bursts… (Si IV, SJI 1400)", bursts_iris),
         ("IRIS: line ratio diagnostic…", line_ratio_iris),
@@ -171,6 +173,7 @@ def test_data_actions_show_only_for_the_data_they_take(app, monkeypatch, tmp_pat
         "IRIS: radiometric calibration",
         "IRIS: subtract mean spectrum",
         "IRIS: line maps…",
+        "IRIS: line fit maps",
     ]
     mg_ii, bursts = "IRIS: Mg II features… (Mg II)", "IRIS: detect UV bursts… (Si IV, SJI 1400)"
     ratio, dust, north_up = "IRIS: line ratio diagnostic…", "IRIS: remove dust (SJI)", "IRIS: north up (SJI, AIA, SOT)"
@@ -2536,6 +2539,65 @@ def test_profile_viewers_keep_their_own_fitter_settings(app, qtbot, monkeypatch)
     assert len(fit(second)[2:]) == 2  # a line's coefficients, not those of glue's default degree, 3
 
 
+def test_the_iris_fit_leaves_saturated_samples_out(app, qtbot, monkeypatch):
+    """
+    A Point's spectrum of a raster window whose line peaks 4x over the Level 2 ceiling, its core stored at 16182 DN, a
+    lower bound only: the IRIS fit leaves those samples out, says how many and fits the line above the ceiling, as for
+    the Mean of a region where every pixel is so; a Point's spectrum with none says nothing more; the Mean of the
+    window, where some pixels are not saturated, keeps them, biased low, and says how many (D87).
+    """
+    x = 1355 + 0.025 * np.arange(49)
+    line = 100 + 4 * 16182 * np.exp(-0.5 * ((x - 1355.6) / 0.04) ** 2)
+    values = np.stack([np.minimum(line, 16182)] * 2 + [line / 100])[:, None]  # (step, slit, wavelength)
+    wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 1355, "CDELT1": 0.025, "CTYPE3": ""})
+    data = Data(label="O I", flux=values, coords=wcs)
+    data.meta["INSTRUME"] = "SPEC"
+    app.data_collection.append(data)
+    pixel = PixelSubsetState(data, [slice(0, 1), slice(0, 1), slice(None)])  # as the quicklook's Point
+    point = app.data_collection.new_subset_group("Point", pixel)
+    viewer = app.new_data_viewer(ProfileViewer, data=data)
+    viewer.state.x_att = data.world_component_ids[-1]
+    viewer.state.x_display_unit = "Angstrom"
+    viewer.state.function = "mean"
+    viewer.state.layers[0].visible = False  # the Point's alone
+    viewer.toolbar.active_tool = "profile-analysis"
+    tools = viewer.toolbar.tools["profile-analysis"]._profile_tools
+    tools.fit_function = GaussianConstantFitter
+    tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 1354, 1356.5
+    seen, call = [], TRFLSQFitter.__call__
+
+    def recorded(self, model, x, *args, **kwargs):  # what astropy's fitter is given
+        seen.append(x)
+        return call(self, model, x, *args, **kwargs)
+
+    def report():
+        tools.ui.text_log.clear()
+        tools.ui.button_fit.click()
+        tools.wait_for_fit()
+        qtbot.waitUntil(lambda: "center_" in tools.text_log.toPlainText())
+        return tools.text_log.toPlainText().splitlines()
+
+    monkeypatch.setattr(TRFLSQFitter, "__call__", recorded)
+    saturated = line >= 16182
+    assert report()[-1] == f"{saturated.sum()} saturated samples left out"
+    np.testing.assert_allclose(seen[-1], x[~saturated])
+    model = tools._iris_fits[data]
+    assert model.meta["saturated"] == saturated.sum() > 1
+    assert model.amplitude_1.value == pytest.approx(4 * 16182, rel=1e-6)
+    point.subset_state = data.pixel_component_ids[0] <= 1  # a region of the saturated steps
+    assert report()[-1] == f"{saturated.sum()} saturated samples left out"
+    assert tools._iris_fits[data].amplitude_1.value == pytest.approx(4 * 16182, rel=1e-6)
+    point.subset_state = PixelSubsetState(data, [slice(2, 3), slice(0, 1), slice(None)])
+    assert report()[-1].startswith("center_1 = 1355.600000")
+    np.testing.assert_allclose(seen[-1], x)
+    viewer.state.layers[0].visible, viewer.state.layers[1].visible = True, False  # the window's
+    *_, center, note = report()
+    assert center.startswith("center_1 = 1355.600000")
+    assert note == f"{saturated.sum()} wavelengths include saturated pixels"
+    np.testing.assert_allclose(seen[-1], x)
+    assert tools._iris_fits[data].meta["saturated"] == 0
+
+
 def _fit_two_lines(qtbot, monkeypatch, data, x_range):
     """
     The mean profile of ``data`` over ``x_range`` fitted in a Profile viewer with 'Number of lines' 2, then 'Same width'
@@ -2645,8 +2707,8 @@ def test_gaussian_on_a_constant_says_when_the_range_holds_too_few_samples():
     x = np.arange(4.0)
     y = 1 + 4 * np.exp(-0.5 * ((x - 1) / 0.5) ** 2)
     y[3] = np.nan  # three finite samples for four parameters
-    message = r"Gaussian \+ constant \(IRIS\) needs at least 4 finite samples in the range, one per free parameter, and"
-    with pytest.raises(ValueError, match=f"{message} has 3: widen the range"):
+    message = r"Gaussian \+ constant \(IRIS\) needs at least 4 finite, unsaturated samples in the range, one per free"
+    with pytest.raises(ValueError, match=f"{message} parameter, and has 3: widen the range"):
         GaussianConstantFitter().build_and_fit(x, y)
     fitter = GaussianConstantFitter()
     fitter.set_constraint("amplitude_0", value=1, fixed=True)

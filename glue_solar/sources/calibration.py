@@ -76,7 +76,8 @@ def remove_dust(data):
         meta = {"exposure time": data[exposure, (*rows, 0, 0)] * u.s}
         with WCS_LOCK:
             wcs = SlicedLowLevelWCS(data.coords._wcs, (*rows, slice(None), slice(None)))
-        # saturated samples masked, as irispy's reads mask them, so never a replacement, but kept at their value (D85)
+        # saturated samples masked, as irispy's reads mask them, so never a replacement; kept at their value unless next
+        # to dust, which irispy replaces like any neighbour (D85)
         saturated = at_ceiling(slab)
         clean = SJICube(slab, wcs, mask=np.isnan(slab) | saturated, meta=meta).remove_dust(temporal_window=FRAMES)
         kept = slice(start - low, start - low + frames)

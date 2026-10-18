@@ -86,6 +86,41 @@ continuum, errors)``, ``glue_solar.sources.doppler.doppler_image(data, rest, vel
 normalized)`` and ``glue_solar.sources.red_blue.red_blue_asymmetry(data, rest, wavelengths,
 velocities, step)`` make the same datasets, with other settings.
 
+.. _glue_solar_users_guide_iris_line_fit_maps:
+
+Line fit maps
+-------------
+
+To fit a line in every spectrum of a raster window, or of each scan of a stack:
+
+1. On the "Fit" tab of a Profile viewer of the window, such as a quicklook's spectrum panel (see
+   :ref:`The spectrum panel <glue_solar_users_guide_iris_spectrum_panel>`), fit one spectrum with
+   "Gaussian + constant (IRIS)": drag over the line, with the function "Mean" or "Median" and a
+   length, such as ``Angstrom``, as the x unit, and press "Fit". "Settings" sets the lines, the
+   background, fixed values and bounds.
+2. Select the window in the data collection and choose "IRIS: line fit maps".
+
+The window's last such fit, in any of its Profile viewers, is fitted to every spectrum over the
+range dragged with astropy's ``parallel_fit_dask``, on all processor cores, while a progress dialog
+shows the run; "Cancel" stops it and adds nothing. Where the window and a subset of it are both
+shown at the fit, the fit of the layer listed last, usually the subset, is the one taken. Each
+spectrum starts at its own background, its 10th percentile, and at each line's peak within two
+widths of the fitted center; the widths, fixed values and bounds are as fitted. Missing samples are
+left out, and saturated ones, which are only a lower bound. The fit of step 1 leaves a sample out
+where all the pixels it combines are saturated (for a Point, where it is), and notes the wavelengths
+whose mean includes saturated pixels. A full Si IV 1403 raster, 175,000 spectra, takes about 100 s
+on 12 cores and 7 GB of memory.
+
+The result, ``<label> fit <rest>``, holds irispy's ``maps_from_fit`` maps of each line ``i``:
+``velocity_i`` and ``fwhm_velocity_i`` in km / s, from the rest wavelength, ``fwhm_i`` in Angstrom
+and ``integrated_intensity_i``; then ``quality``, irispy's ``FitQualityFlag``: 0 for a good fit, 1
+for none (every sample missing), 2 where the fitter did not converge, 3 where a parameter stopped at
+a bound and 4 where the spectrum has missing samples; then each parameter of the model. Each map but
+``quality`` has ``<map> error``, from the fit's covariance.
+
+The fits run in Python processes that import the script that started glue: a script of your own
+that starts glue needs Python's ``if __name__ == "__main__":`` guard.
+
 .. _glue_solar_users_guide_iris_rest_wavelength:
 
 Rest wavelength
