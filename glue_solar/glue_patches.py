@@ -53,7 +53,6 @@ from glue_qt.app.layer_tree_widget import LayerAction, UserAction
 from glue_qt.config import LayerActionRegistry
 from glue_qt.config import layer_action as glue_layer_action
 from glue_qt.core.fitters import FitSettingsWidget
-from glue_qt.plugins.tools.pv_slicer import pv_slicer
 from glue_qt.utils import colors
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.common.toolbar import BasicToolbar
@@ -147,84 +146,11 @@ def reset_wcs(self, wcs=None, *args, **kwargs):
 WCSAxes.reset_wcs = reset_wcs
 
 
-_original_sync_slice = pv_slicer.PVSliceWidget._sync_slice
-
-
-@defer_draw
-def sync_pv_slice(self, event):
-    """
-    glue-qt's ``PVSliceWidget._sync_slice``, keeping the Image viewer's own slices on its displayed axes: glue-qt 0.4.2
-    writes WCSAxes' ``'x'`` and ``'y'`` there, which break the slice sliders' next axis change (#81).
-    """
-    s = list(self._slc)
-    _, _, z = self._pos_in_parent(event)
-    s[pv_slicer._slice_index(self._parent.state.reference_data, s)] = int(z)
-    current = self._parent.state.slices
-    self._parent.state.slices = tuple(current[i] if isinstance(value, str) else value for i, value in enumerate(s))
-
-
-def needs_pv_slice_workaround(func=_original_sync_slice):
-    """Whether ``func`` writes ``'x'`` or ``'y'`` into the Image viewer's slices."""
-    state = SimpleNamespace(reference_data=SimpleNamespace(ndim=3), slices=(0, 0, 0))
-    widget = SimpleNamespace(_slc=[0, "y", "x"], _parent=SimpleNamespace(state=state), _pos_in_parent=lambda e: (0, 0, 1))
-    func(widget, None)
-    return any(isinstance(value, str) for value in state.slices)
-
-
-if _needs(needs_pv_slice_workaround):
-    pv_slicer.PVSliceWidget._sync_slice = sync_pv_slice
-
-
 def _dask_probe(shape):
     """A dataset whose ``values`` are a glue DaskComponent of zeros, as lazily loaded IRIS values are."""
     data = Data(label="probe")
     data.add_component(DaskComponent(da.zeros(shape, chunks=2)), "values")
     return data
-
-
-class _NumpyValues:
-    """``data``, whose values come out as NumPy arrays."""
-
-    def __init__(self, data):
-        self._data = data
-
-    def __getattr__(self, name):
-        return getattr(self._data, name)
-
-    def __getitem__(self, key):
-        return np.asarray(self._data[key])
-
-
-_original_slice_from_path = pv_slicer._slice_from_path
-
-
-def pv_slice_from_path(x, y, data, attribute, slc):
-    """
-    glue-qt's ``_slice_from_path``, reading lazily loaded values as NumPy: glue-qt 0.4.2 passes pvextractor a dask
-    array, which it takes for a spectral cube (#96). Probed at the first slice, as pvextractor imports spectral-cube
-    (0.3-0.4 s, #168).
-    """
-    if _pv_needs_workaround():
-        data = _NumpyValues(data)
-    return _original_slice_from_path(x, y, data, attribute, slc)
-
-
-def needs_pv_dask_workaround(func=_original_slice_from_path):
-    """Whether ``func`` fails on a dataset of a glue DaskComponent."""
-    data = _dask_probe((3, 4, 5))
-    try:
-        func(np.array([0.0, 3.0]), np.array([1.0, 1.0]), data, data.id["values"], [0, "y", "x"])
-    except Exception:  # noqa: BLE001 - any failure means the patch is needed
-        return True
-    return False
-
-
-@cache
-def _pv_needs_workaround():
-    return _needs(needs_pv_dask_workaround)
-
-
-pv_slicer._slice_from_path = pv_slice_from_path
 
 
 _original_fits_writer = gridded_fits.fits_writer

@@ -38,6 +38,7 @@ from glue.viewers.profile.state import ProfileViewerState
 from glue_qt.app.application import GlueApplication
 from glue_qt.app.layer_tree_widget import UserAction
 from glue_qt.config import keyboard_shortcut
+from glue_qt.plugins.tools import pv_slicer
 from glue_qt.viewers.histogram import HistogramViewer
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.image.profile_viewer_tool import ProfileViewerTool
@@ -111,6 +112,10 @@ from glue_solar.tools import PathData, sky_length
 def test_setup_registers_hooks():
     glue_solar.setup()
     glue_solar.setup()  # glue calls it once; tests and reloads must not duplicate the tool
+    # glue-qt's Slice Extraction plugin, as glue loads it where its entry points list it after this one: Path diagram
+    # is the one path tool (D90)
+    pv_slicer.setup()
+    assert "slice" not in ImageViewer.tools
     # the Plugins menu's entries, as they register; quicklooks open from 'Quicklook…' (D83)
     assert [(label, callback) for label, callback in menubar_plugin if callback.__module__[:10] == "glue_solar"] == [
         ("IRIS: browse observations…", browse_iris),
@@ -1360,7 +1365,9 @@ def test_a_path_diagram_reopens_from_ecsv_and_from_a_session(app, qtbot, monkeyp
     np.testing.assert_allclose(table["lat"].to_value(u.arcsec), lat * 3600, rtol=0, atol=1e-6)
     np.testing.assert_allclose(table["distance"].to_value(u.arcsec), 0.1663 * np.arange(len(table)), rtol=1e-6)
     assert table["distance_km"][1].to_value(u.km) == pytest.approx(120.6143, rel=1e-6)
-    # opened on the cube, it makes the same diagrams again
+    # opened on the cube, it makes the same diagrams again, an older file's sampling ignored (D90)
+    table.meta["sampling"] = "linear"
+    table.write(file, overwrite=True)
     _modes_entry(viewer, entries[1]).trigger()
     again, again_on_other = viewer.toolbar.tools["solar:path"]._traces[-1]
     assert again.label == "cube [slice 2]"
@@ -1903,35 +1910,6 @@ def test_help_opens_the_user_guide_and_the_issues(monkeypatch):
         "https://glue-solar.readthedocs.io/en/latest/user_guide/index.html",
         "https://github.com/glue-viz/glue-solar/issues",
     ]
-
-
-# glue-qt 0.4.2's PV slice window sets its colormap through glue's deprecated 'color' key, and its pvextractor
-# imports spectral-cube, which uses astropy's deprecated COPY_IF_NEEDED where spectral-cube is installed
-@pytest.mark.filterwarnings("ignore:Setting colormap using")
-@pytest.mark.filterwarnings("ignore:COPY_IF_NEEDED is no longer needed")
-def test_a_pv_slice_click_leaves_numbers_in_the_slices(app, irispy_test_files):
-    from glue_qt.plugins.tools.pv_slicer import pv_slicer
-
-    from glue_solar import glue_patches
-
-    installed = pv_slicer.PVSliceWidget._sync_slice is glue_patches.sync_pv_slice
-    assert installed == glue_patches.needs_pv_slice_workaround()  # probes glue-qt's own function
-    assert not glue_patches.needs_pv_slice_workaround(glue_patches.sync_pv_slice)
-    sji = load_data(str(find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")))
-    app.data_collection.append(sji)
-    viewer = app.new_data_viewer(ImageViewer, data=sji)
-    tool = pv_slicer.PVSlicerMode(viewer)  # off glue-solar's toolbars (D90)
-    tool._build_from_vertices(np.array([5.0, 30.0]), np.array([10.0, 30.0]))  # a path drawn on the frame
-    widget = tool._slice_widget
-    canvas = widget.axes.figure.canvas
-    canvas.draw()
-    # a click in the PV slice window at frame 7 moves the viewer to it
-    click = MouseEvent("button_press_event", canvas, *widget.axes.transData.transform((3, 7)), button=1)
-    widget._sync_slice(click)
-    assert viewer.state.slices[0] == 7
-    assert not any(isinstance(s, str) for s in viewer.state.slices)
-    viewer.state.y_att_world = sji.world_component_ids[0]  # glue-qt 0.4.2 alone raises int('y') here
-    assert viewer.state.y_att.axis == 0
 
 
 SIT_AND_STARE = "iris_l2_20210905_001833_3620258102_{}.fits"
