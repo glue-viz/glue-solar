@@ -63,6 +63,7 @@ from glue_solar.tests.test_quicklook import (
     slide,
     tick,
 )
+from glue_solar.tools import PathData
 
 DATEREF = "2021-09-05T00:00:00"
 
@@ -870,6 +871,21 @@ def test_what_moves_on_an_sst_cube(sst_app, qtbot, tmp_path):
     assert event(lambda: menu_action(viewers["map"], "Clear point").trigger()) == {"point": None}
     assert event(lambda: slide(viewers["map"], 0, 2)) == {"map": (2, 3, 3, None, None)}
     assert leads() in viewers["map"].toolbar.tools["solar:frame_time"].label.text()
+
+
+def test_a_path_diagram_of_a_stokes_cube_labels_its_wavelength_alone(sst_app, qtbot, tmp_path):
+    # its tunings' axis has a wavelength and a scan time, as each tuning is timed: glue labels it without its unit, or
+    # 'World 2' on SSTRED's files, and WCSAxes put the time on the right edge, past the viewer's margin; a cube of one
+    # pointing, as a mosaic's diagram has no world coordinates
+    write_sst_cube(tmp_path / "cube.fits", (3, 4, 5, 12, 16))
+    cube = sst_data(tmp_path / "cube.fits")
+    viewers = quicklook(sst_app, [cube])
+    viewers["map"].toolbar.tools["solar:path"]._open_or_update(np.array([2.0, 12.0]), np.array([3.0, 9.0]))
+    qtbot.wait(20)
+    [diagram] = [v for v in sst_app.viewers[-1] if isinstance(v.state.reference_data, PathData)]
+    assert (diagram.state.x_axislabel, diagram.state.y_axislabel) == ("Offset", "Wave [nm]")  # its header's name
+    shown = [coord for coord in diagram.axes.coords if coord.coord_index is not None]
+    assert [coord.get_ticklabel_position() for coord in shown[2:]] == [[]]
 
 
 def test_the_first_click_on_any_sst_panel_moves_the_point(sst_app, qtbot, tmp_path):
