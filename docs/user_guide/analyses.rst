@@ -135,9 +135,9 @@ and the cursor readout's velocity take a window's rest wavelength:
 - the one set with "Set rest wavelength…" in the window's right-click menu, which lists the
   main IRIS lines within the window and takes a wavelength typed in Å, a blank one removing it. A
   script can set ``meta['rest_wavelength']``, in Å, too;
-- else the main IRIS line within the window nearest the wavelength it is named for, within 1 Å, at
-  its NIST vacuum wavelength: Mg II k 2796.352 Å in ``Mg II k 2796``, C II 1335.7079 Å in
-  ``C II 1336``;
+- else the main IRIS line of the window's ion nearest the wavelength it is named for, within 1 Å,
+  at its vacuum wavelength in irispy's line catalog: Mg II k 2796.352 Å in ``Mg II k 2796``, O I
+  1355.59767 Å in ``O I 1356``;
 - else none, as for ``2832``.
 
 The window's ``TWAVE`` is never taken: it is not the line's. The tooltip of the line maps' field

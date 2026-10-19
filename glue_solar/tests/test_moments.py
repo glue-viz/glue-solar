@@ -833,13 +833,14 @@ def window(low, high, name, twave=None):
 
 
 def test_the_rest_wavelength_of_a_window():
-    """The one main line within it, else of several the one nearest its name's wavelength, else None; never TWAVE."""
+    """The one main line within it, else of several the one of its ion nearest its name's wavelength; never TWAVE."""
     assert rest_wavelength(window(1398, 1406, "Si IV 1403", twave=1402.8)) == 1402.77
-    assert rest_wavelength(window(1398, 1406, None)) == 1402.77  # one line needs no name
+    assert rest_wavelength(window(1402, 1403, None)) == 1402.77  # one line needs no name
     assert rest_wavelength(window(2790, 2810, "Mg II k 2796", twave=2796.2)) == 2796.352  # k, h and the triplet
     assert rest_wavelength(window(2790, 2810, "Mg II h 2803")) == 2803.53
-    assert rest_wavelength(window(1332, 1358, "C II 1336")) == 1335.7079  # C II's three, Fe XII, Fe XXI and O I
-    for several in ("Mg II k", "Mg II 2800", None):  # a name without a wavelength, one within 1 Å of none, no name
+    assert rest_wavelength(window(1332, 1358, "C II 1336")) == 1335.7079  # C II's three and the lines beside them
+    assert rest_wavelength(window(1352, 1358, "O I 1356")) == 1355.59767  # its own ion, where C I 1355.85 is nearer
+    for several in ("Mg II k", "Mg II 2800", None):  # a name without a wavelength, 1 Å from no Mg II line, no name
         assert rest_wavelength(window(2790, 2810, several)) is None
     assert rest_wavelength(window(2831, 2834, "2832", twave=2832.7)) is None  # no line: not its TWAVE
     assert rest_wavelength(Data(label="plain", x=np.zeros(3))) is None
@@ -894,13 +895,20 @@ def test_set_rest_wavelength(app, monkeypatch, irispy_test_files):
         return rest_wavelength(mg), mg.meta.get("rest_wavelength")
 
     tree.ui.layerTree.set_selected_layers([mg])
-    lines = ["Mg II 2791.599", "Mg II k 2796.352", "Mg II 2798.754", "Mg II 2798.823", "Mg II h 2803.53"]
+    lines = [
+        "Mg II 2791.599",
+        "Mg II k 2796.352",
+        "Mg II 2798.754",
+        "Mg II 2798.823",
+        "Ni I 2799.47",
+        "Mg II h 2803.53",
+    ]
     assert pick("Mg II h 2803.53") == (2803.53, 2803.53)
     assert pick(" 2796.2 ") == (2796.2, 2796.2)
     assert pick("2800", ok=False) == (2796.2, 2796.2)  # Cancel
     assert pick("k") == (2796.2, 2796.2)
     assert pick(" ") == (2796.352, None)  # back to the main line
-    assert opened == [(lines, 1), (lines, 4), (["2796.2", *lines], 0), (["2796.2", *lines], 0), (["2796.2", *lines], 0)]
+    assert opened == [(lines, 1), (lines, 5), (["2796.2", *lines], 0), (["2796.2", *lines], 0), (["2796.2", *lines], 0)]
     tree.ui.layerTree.set_selected_layers([sji])
     refused(action)
     assert shown == [

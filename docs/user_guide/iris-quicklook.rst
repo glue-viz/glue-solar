@@ -186,7 +186,7 @@ The spectrum panel
 
 The spectrum panel is glue's 1D Profile viewer, with glue-solar's "IRIS lines" and "Velocity axis"
 buttons (see :ref:`Viewer tools <glue_solar_users_guide_viewer_tools_and_windows>`). "IRIS lines"
-marks the main IRIS lines at their NIST vacuum wavelengths. Its "Options" open glue's `profile tools
+marks the documented IRIS lines of irispy's line catalog at their vacuum wavelengths. Its "Options" open glue's `profile tools
 <http://docs.glueviz.org/en/stable/gui_guide/spectrum.html>`__:
 
 - **Navigate.** Click the spectrum to move the map to the nearest wavelength.
