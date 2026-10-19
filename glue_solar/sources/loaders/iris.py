@@ -669,7 +669,9 @@ def _image_cube_data(cube, path, scaling=None):
     from irispy.utils.constants import DN_UNIT
 
     cube.meta["scaled"] = True  # the values glue reads are; irispy's unit for the raw values says otherwise
-    return _cube_data(cube, label, name=desc, unit=DN_UNIT["SJI"], cmap=cmap, scaling=scaling)
+    # irispy's unit of a scaled read: the passband's DN, plain DN for one without published photons per DN, as AIA's
+    unit = DN_UNIT.get(cube.meta["TDESC1"], u.DN)
+    return _cube_data(cube, label, name=desc, unit=unit, cmap=cmap, scaling=scaling)
 
 
 def _irispy_meta(data, scan=()):

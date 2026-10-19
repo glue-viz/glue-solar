@@ -37,7 +37,7 @@ Finally, do the following while at the root (highest level) of the glue-solar di
 This installs PyQt6 6.11 or later: glue-solar needs Qt 6, and says so as glue starts under Qt 5.
 Where PyQt5 is installed too, set ``QT_API=pyqt6`` before starting glue, as qtpy takes PyQt5 first.
 
-The O IV density preset of the line ratio diagnostic needs fiasco from its git main, in the ``density`` extra::
+The O IV density preset of the line ratio diagnostic needs fiasco, in the ``density`` extra::
 
     $ pip install -e ".[density]"
 

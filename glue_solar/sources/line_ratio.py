@@ -104,7 +104,7 @@ def o_iv_density(numerator, denominator, log_densities=LOG_DENSITIES, log_temper
     holds ``ratio_preset`` in place of ``ratio_table``, with ``ratio_log_n_e`` and ``ratio_log_t``, the densities and
     temperature.
 
-    fiasco, from its git main (``pip install 'glue-solar[density]'``), downloads and builds the CHIANTI database on
+    fiasco (``pip install 'glue-solar[density]'``) downloads and builds the CHIANTI database on
     its first use, in ``~/.fiasco`` or where its ``~/.fiasco/fiascorc`` says.
 
     Raises
@@ -158,13 +158,13 @@ def _map(numerator, denominator, name, mapped):
     return result
 
 
-def _has_line_ratio():
-    """Whether fiasco is installed with ``line_ratio``, which irispy's density_diagnostic needs."""
+def _has_fiasco():
+    """Whether fiasco, which irispy's density_diagnostic needs, is installed."""
     try:
-        import fiasco
+        import fiasco  # noqa: F401
     except ImportError:
         return False
-    return hasattr(fiasco, "line_ratio")
+    return True
 
 
 def _ask(datasets):
@@ -209,11 +209,11 @@ def _ask(datasets):
         box.setEnabled(False)  # until the preset is ticked
         preset.toggled.connect(box.setEnabled)
     preset.toggled.connect(lambda on: [widget.setDisabled(on) for widget in (table, browse, quantity)])
-    if _has_line_ratio():  # imports fiasco, at the first dialog rather than at the plugin's load
+    if _has_fiasco():  # imports fiasco, at the first dialog rather than at the plugin's load
         preset.setToolTip("log n_e from irispy's density_diagnostic, in place of a table")
     else:
         preset.setEnabled(False)
-        preset.setToolTip("Needs fiasco's line_ratio: pip install 'glue-solar[density]'")
+        preset.setToolTip("Needs fiasco: pip install 'glue-solar[density]'")
     form.addRow("Or:", preset)
     form.addRow("Densities from [log cm⁻³]:", densities[0])
     form.addRow("Densities to [log cm⁻³]:", densities[1])

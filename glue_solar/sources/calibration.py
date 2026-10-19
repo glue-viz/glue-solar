@@ -56,7 +56,7 @@ def remove_dust(data):
     coordinates, at its pointing offset, which it follows, with its ``Time``, ``Exposure time``, ``<label> DN / s``
     and ``meta``, ``meta['dust_removed']`` added, which data made from it keep.
 
-    irispy's ``SJICube.remove_dust`` is given the scaled values, NaN and saturated ones masked, a slab of frames at a
+    irispy's ``remove_dust`` is given the scaled values, NaN and saturated ones masked, a slab of frames at a
     time with the `FRAMES` on either side it takes replacements from, each frame's exposure time and slit position, and
     the file's metadata. It takes the dust from the IRIS pipeline's bad-pixel table of the channel, placed in each
     frame by its slit position, and the pixels about it, and puts in the median of those pixels over the frames on
@@ -70,6 +70,7 @@ def remove_dust(data):
         For other data than an IRIS slit-jaw image, one whose dust is removed already, or one rebinned or regridded.
     """
     from irispy.sji import SJICube
+    from irispy.utils.dust import remove_dust as irispy_remove_dust
 
     _check_sji(data)
     cid, exposure = data.main_components[0], data.id["Exposure time"]
@@ -89,7 +90,7 @@ def remove_dust(data):
         cube = SJICube(slab, wcs, mask=np.isnan(slab) | saturated, meta=meta)
         for name in ("slit x position", "slit y position"):  # where the table goes in each frame, as irispy's reads
             cube.extra_coords.add(name, 0, np.asarray(data.meta[name])[rows] * u.pix)
-        clean = cube.remove_dust(temporal_window=FRAMES)
+        clean = irispy_remove_dust(cube, temporal_window=FRAMES)
         kept = slice(start - low, start - low + frames)
         values[start : start + frames] = np.where(clean.mask[kept] & ~saturated[kept], np.nan, clean.data[kept])
         gc.collect()  # ndcube's cubes are reference cycles, holding the slab's values, and irispy's work ages them
