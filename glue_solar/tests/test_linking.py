@@ -892,6 +892,21 @@ def test_wcs_autolinks_leave_link_hpc_unchanged(sns, autolink_first):
         np.testing.assert_array_equal(sji[_cid(raster, label)], sji[_cid(sji, label)])
 
 
+def test_a_pixel_click_off_the_image_leaves_the_point(app):
+    assert glue_patches.needs_pixel_off_image_workaround()  # glue's own Pixel tool makes one
+    assert not glue_patches.needs_pixel_off_image_workaround(glue_patches._select_pixel)
+    data = Data(x=np.zeros((3, 4)), label="image")
+    app.data_collection.append(data)
+    tool = app.new_data_viewer(ImageViewer, data=data).toolbar.tools["image:point_selection"]
+    tool._pressed = True
+    # a press, then a drag past the right, left and top edges, as in a quicklook panel's margin
+    for x, y in ((1.2, 2.4), (3.6, 1), (-0.6, 1), (1, 2.6)):
+        tool._event_xdata, tool._event_ydata = x, y
+        tool._move_callback(tool)
+    [subset] = data.subsets
+    assert subset.subset_state.slices == [slice(2, 3), slice(1, 2)]
+
+
 def test_pixel_point_workaround_installs_only_where_glue_needs_it(sns, tmp_path, irispy_test_files):
     import inspect
 

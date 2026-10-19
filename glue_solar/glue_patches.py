@@ -42,6 +42,7 @@ from glue.viewers.common.state import LayerState
 from glue.viewers.histogram import state as histogram_state
 from glue.viewers.histogram import viewer as histogram_viewer
 from glue.viewers.image.layer_artist import ImageSubsetLayerArtist
+from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.matplotlib import viewer as matplotlib_viewer
@@ -311,6 +312,34 @@ def _hold_wcs_lock():
 
 
 _hold_wcs_lock()
+
+_original_select_pixel = PixelSelectionTool._select_pixel
+
+
+def _select_pixel(self, mode):
+    """
+    glue's Pixel click or drag, skipped off the image, as Follow/lock skips it: in a panel's margin glue makes a point
+    outside the data, which no viewer can draw (an IndexError in ``PixelSubsetState._to_linked_pixel_coords``).
+    """
+    state, x, y = self.viewer.state, self._event_xdata, self._event_ydata
+    if None in (x, y) or all(
+        0 <= round(at) < state.reference_data.shape[att.axis] for at, att in ((x, state.x_att), (y, state.y_att))
+    ):
+        _original_select_pixel(self, mode)
+
+
+def needs_pixel_off_image_workaround(method=_original_select_pixel):
+    """Whether ``method``, glue's Pixel selection, makes a point off the image."""
+    data, done = Data(x=np.zeros((2, 2)), label="probe"), []
+    state = SimpleNamespace(reference_data=data, x_att=data.pixel_component_ids[1], y_att=data.pixel_component_ids[0])
+    session = SimpleNamespace(command_stack=SimpleNamespace(do=done.append))
+    viewer = SimpleNamespace(state=state, _data=DataCollection([data]), _session=session)
+    method(SimpleNamespace(_pressed=True, _event_xdata=2.0, _event_ydata=0.0, viewer=viewer), None)
+    return bool(done)
+
+
+if _needs(needs_pixel_off_image_workaround):
+    PixelSelectionTool._select_pixel = _select_pixel
 
 
 _original_apply_subset_state = ApplySubsetState.do
