@@ -660,7 +660,7 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(app, qtbot, monkey
         menus[menu] = toolbar.widgetForAction(toolbar.actions[menu]).menu()
         # each tool's entry, by its id as for a button, and Path diagram's path entries
         entries = [toolbar.actions[tool] for tool in ImageViewer.subtools[menu]]
-        extra = ["Save path as ECSV…", "Open path from ECSV…", "Path on other data…"]
+        extra = ["Save path as ECSV…", "Open path from ECSV…", "Path from points…", "Path on other data…"]
         extra = extra if menu == "solar:modes" else []
         assert menus[menu].actions()[: len(entries)] == entries
         assert [entry.text() for entry in menus[menu].actions()[len(entries) :]] == extra
@@ -668,7 +668,7 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(app, qtbot, monkey
     # the mouse modes, checked while on, the crosshair, Slope and saving a path on a path diagram only, placing one
     # on other data once one is drawn, and Path diagram's L
     shown = [entry.isVisible() for entry in menus["solar:modes"].actions()]
-    assert shown == [True, True, False, False, False, True, False]
+    assert shown == [True, True, False, False, False, True, True, False]  # typed points as opened ones
     toolbar.active_tool = "image:point_selection"
     measure = toolbar.actions["solar:measure"]
     measure.trigger()
