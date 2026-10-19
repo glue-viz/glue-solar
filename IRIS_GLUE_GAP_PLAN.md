@@ -165,6 +165,8 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D99:** User (2026-10-19): in future, all open data link when their fields overlap, IRIS or not, rather than on request (a bigger item, `wp1-l-link-all-overlapping`, reopening D64). A path's vertices can be typed, not only clicked (`wp12-path-from-points`). The model builder gets Save and Open of a model, for complex models such as 5 Gaussians with 2 negative, which it already fits from automatic starts; explicit emission or absorption, ties to any line and an editable degree are not worth adding (`wp6-builder-save-load`).
 
+- **D100:** User (2026-10-19): once the in-flight items land, re-run the SST stress survey of 2026-10-10 on current main, on this Mac (cubes up to 9.9 GB, 24 GB RAM) and on the user's Linux machine (larger cubes, 188 GB RAM), extended to the quicklook-era parts (`wp10-perf-survey-2`); the Linux run uses a script in `IRIS_PLAN_PROTOTYPES/scale_checks/` the user pulls and runs.
+
 ## Milestones
 
 A milestone is done when it has no items left. M0, M2 (analysis, display and export) and M3 (specialist) are done.
@@ -183,7 +185,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP4: `wp4-refit-on-point`
 - WP5: `wp5-line-checkboxes`
 - WP6: `wp6-fit-colour`, `wp6-mg-ii-preset`, `wp6-builder-save-load`
-- WP10: `wp10-gzip-raster-once`
+- WP10: `wp10-gzip-raster-once`, `wp10-perf-survey-2`
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
@@ -309,6 +311,7 @@ Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on file
 
 **M1**
 
+- [ ] **M1** `wp10-perf-survey-2` (D100): re-run GLUE_SPEED.md's 'SST and IRIS stress survey, 2026-10-10' on current main (open, a new Image viewer, slider steps, the Profile button, a Pixel drag, session save and restore) and add the quicklook-era parts (an SST quicklook's open, a point click and drag with its spectra, curve and slit following, a linked cube's point, a path diagram), on this Mac and the user's Linux machine (`scale_checks/sst_perf_survey.py`). Done when GLUE_SPEED.md has both machines' numbers beside the 2026-10-10 ones, and each slow spot an item or a decision. Depends: wp1-link-without-iris, wp4-refit-on-point, wp12-sst-path-diagram-axes, wp12-path-from-points.
 - [ ] **M1** `wp10-gzip-raster-once` (D97): a gzipped raster inflates once: first a draft irispy PR (D54) letting its raster reader take what a caller already opened (irispy #275), then glue-solar passing it once irispy merges it. Done when a gzipped raster opens with one inflation, as #329's test counts for slit-jaw images.
 
 Notes:
