@@ -153,6 +153,8 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D93 (provisional, 2026-10-19):** `wp6-fit-memory` keeps astropy's default `chunk_n_max` (500): slabs alone cut a Si IV window's pickled data from 28.8 to 3.1 GiB, and 5000 inside slabs left about 10 chunks for 12 workers, doubling the time (254 s against 131 s). The second review's R2 is answered by slabs. The alternative is `chunk_n_max=5000`.
 
+- **D94 (provisional, 2026-10-19):** after irispy #256 places dust by the bad-pixel table in a file's pixels, 'IRIS: remove dust' refuses a rebinned or regridded slit-jaw image up front (`wp10-follow-irispy-dust`), rather than failing after its background run. The alternative is to offer it and show irispy's error afterwards.
+
 ## Milestones
 
 A milestone is done when it has no items left. M0, M2 (analysis, display and export) and M3 (specialist) are done.
