@@ -1,0 +1,1 @@
+The loader no longer decompresses a gzipped slit-jaw or AIA file itself: irispy reads it, decompressing it once.
