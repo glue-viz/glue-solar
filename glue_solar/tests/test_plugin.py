@@ -2705,6 +2705,32 @@ def _fit_two_lines(qtbot, monkeypatch, data, x_range):
     return *reports, opened, tools
 
 
+def test_the_mg_ii_preset_fits_both_emission_peaks(qtbot, monkeypatch):
+    # D98: 'Mg II two peaks' sets two Gaussians on a constant, which start at the blue and red emission peaks of a
+    # Mg II k core, either side of its central reversal
+    glue_solar.setup()
+    wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 2795.8, "CDELT1": 0.025})
+    x = 2795.8 + 0.025 * np.arange(41)
+    y = 20 + 300 * np.exp(-0.5 * ((x - 2796.22) / 0.06) ** 2) + 250 * np.exp(-0.5 * ((x - 2796.48) / 0.06) ** 2)
+    app = GlueApplication()
+    qtbot.addWidget(app)
+    data = Data(label="Mg II k", flux=y, coords=wcs)
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ProfileViewer, data=data)
+    viewer.state.x_att, viewer.state.x_display_unit = data.world_component_ids[0], "Angstrom"
+    viewer.toolbar.active_tool = "profile-analysis"
+    tools = viewer.toolbar.tools["profile-analysis"]._profile_tools
+    tools.fit_function = GaussianConstantFitter
+    tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 2795.8, 2796.8
+    fit_settings(monkeypatch, tools, lambda dialog: click(dialog, "Mg II two peaks"))
+    tools.ui.button_fit.click()
+    tools.wait_for_fit()
+    qtbot.waitUntil(lambda: "center_2" in tools.text_log.toPlainText())
+    lines = [line.split(" = ") for line in tools.text_log.toPlainText().splitlines() if " = " in line]
+    report = {name.strip(): value.split(",")[0] for name, value in lines}
+    assert [float(report[name]) for name in ("center_1", "center_2")] == pytest.approx([2796.22, 2796.48], abs=1e-3)
+
+
 def test_the_iris_fitter_fits_the_lines_added_in_settings(qtbot, monkeypatch):
     wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 1334, "CDELT1": 0.026})
     x = 1334 + 0.026 * np.arange(90)

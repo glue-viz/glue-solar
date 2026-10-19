@@ -243,6 +243,11 @@ the x unit in Å or ``km / s``, the starts, bounds and separations then in it. "
 then fits the model to every spectrum of the window (see :ref:`Line fit maps
 <glue_solar_users_guide_iris_line_fit_maps>`).
 
+**Mg II.** Mg II k and h are each double-peaked. Drag the Fit range over one line's core, about
+±40 km/s, and press "Mg II two peaks" in Settings: two Gaussians on a constant, one for each emission
+peak (k2v and k2r, or h2v and h2r), each starting at its peak. Fit the other line in its own range.
+For the peaks' and line centers' positions without a fit, use "IRIS: Mg II features…".
+
 **Mean spectrum.** "IRIS: subtract mean spectrum", in a raster window's right-click menu, adds
 ``<window> mean spectrum`` and ``<window> minus mean spectrum``. Set the "attribute" of "Point" in the
 spectrum panel to the difference to see the point's spectrum less the mean. As a map's attribute, it
