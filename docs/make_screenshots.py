@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 from glue.config import settings
+from glue.main import load_plugins
 from glue_qt.app import GlueApplication
 from PIL import Image
 from qtpy import QtWidgets
@@ -46,6 +47,7 @@ def main(folder):
     # the browser remembers its folder in QSettings, which on macOS ignore HOME: keep it in HOME too
     iris.QSettings = lambda org, app: QSettings(str(Path.home() / f"{org}-{app}.ini"), QSettings.IniFormat)
     settings.SHOW_LARGE_DATA_WARNING = False
+    load_plugins(require_qt_plugins=True)  # before the application, as glue starts: glue-solar's icon wraps its init
     app = GlueApplication()
     app.resize(1600, 1000)
     app.show()
@@ -92,7 +94,7 @@ def main(folder):
         item.setCheckState(0, Qt.Checked)
     dialog.stack.setChecked(True)
     dialog.quicklook.setChecked(False)
-    dialog.resize(1400, 340)
+    dialog.resize(1400, 400)
     dialog.show()
     shot("choosing-iris-level-2-data-cubes-and-stacking-raster-cubes.png", dialog)
     dialog.close()
