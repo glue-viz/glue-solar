@@ -28,9 +28,9 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 86f5981 (#332). glue-solar runs on irispy main 30464e2, unpinned (D92; #329's CI passed on it). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
+**Resume here.** Main is at 151bc59 (#333). glue-solar runs on irispy main 30464e2, unpinned (D92; #329's CI passed on it). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
 
-**Next.** In flight: #332 (#332), `wp11-ui-wording`, `wp1-link-without-iris`, `wp4-refit-on-point`, `wp6-fit-colour`, `wp6-mg-ii-preset` and `wp5-line-checkboxes` (D97, D98); `wp10-gzip-raster-once` waits on irispy draft #275. #330 and these two were built and checked inline on Opus with no Fable review, as Fable's weekly limit ran out on 2026-10-19: give them a Fable review when it is back. **After the user's weekly usage reset** (user, 2026-10-19; no Fable until then): Fable reviews of #330 and every PR merged since without one (each PR body or this line names them), then `wp0-upstream`. Then what is left is the user's (below), upstream (`wp0-upstream`, from UPSTREAM_REVIEW.md, D89) or waiting on others. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
+**Next.** In flight: #332 (#332), #333, `wp1-link-without-iris`, `wp4-refit-on-point`, `wp6-fit-colour`, `wp6-mg-ii-preset` and `wp5-line-checkboxes` (D97, D98); `wp10-gzip-raster-once` waits on irispy draft #275. #330 and these two were built and checked inline on Opus with no Fable review, as Fable's weekly limit ran out on 2026-10-19: give them a Fable review when it is back. **After the user's weekly usage reset** (user, 2026-10-19; no Fable until then): Fable reviews of #330 and every PR merged since without one (each PR body or this line names them), then `wp0-upstream`. Then what is left is the user's (below), upstream (`wp0-upstream`, from UPSTREAM_REVIEW.md, D89) or waiting on others. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
 **Waiting on the user.** (1) Trying the fitting in the GUI ('Fit every spectrum', the model builder; OBS 3610108077's C II and Si IV windows, the flare 3860258481 for saturation) and the builder's later options (presets, ties to any line, an editable degree; D88). (2) `wp0-qt68-macos-pass`. (3) The app's drag-into-/Applications check: `~/Downloads/Glue Solar.dmg` is fresh, built 2026-10-19 from main cbe1196 with irispy 495f39d (env `glue-solar-app-495f`), smoke-checked headless and through `open`. (4) An exact report of the linking and slider-sync problems seen in the app on 2026-10-09 (4000255147's raster and SJI 1400, or 4000005156's two scans and SJI 2796), rerun with `glue` from `iris-plan-qt6-802-fb08`. Then UPSTREAM_REVIEW.md (`wp0-upstream`, D89).
 
@@ -159,7 +159,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D96:** User (2026-10-19), after irispy #261: glue-solar's main lines are irispy's documented ones (`get_lines(main_only=True)`, 25 lines), Mg II k and h named by glue-solar, and a window of several lines takes its own ion's line nearest its name (#330). Line groups by irispy's categories are dropped: ranked, a group adds 0-6 lines beyond the main ones in a window; unranked, coronal, transition region and cool metal put 150-550 lines in each. 'Lines in this range…' (#332) replaces them: irispy's ranked query for the quiet Sun, an active region or a flare at coronal abundances (irispy has no sunspot model); a click labels a line; coronal or photospheric abundances (D97).
 
-- **D97:** User (2026-10-19): SST cubes and other non-IRIS data link to each other without IRIS data ('Link helioprojective coordinates' anchors on the first dataset with helioprojective coordinates when no IRIS dataset is loaded), as glue-solar's GUI will serve other missions; a 'Link points across cubes' toggle in the Coordinate menu's Point submenu, on by default, moves the points of the other linked cubes of the observation to a point's place on the Sun (`wp1-link-without-iris`). 'Lines in this range…' offers coronal or photospheric abundances (replacing D96's PROVISIONAL). Gzipped rasters are to be inflated once, by a draft irispy fix first (`wp10-gzip-raster-once`). The UI's IRIS-only wording on features other data use is reviewed and fixed (`wp11-ui-wording`). `wp0-wcslib-tab-inverse` goes to WCSLIB's author by the user's email (text in the session archive).
+- **D97:** User (2026-10-19): SST cubes and other non-IRIS data link to each other without IRIS data ('Link helioprojective coordinates' anchors on the first dataset with helioprojective coordinates when no IRIS dataset is loaded), as glue-solar's GUI will serve other missions; a 'Link points across cubes' toggle in the Coordinate menu's Point submenu, on by default, moves the points of the other linked cubes of the observation to a point's place on the Sun (`wp1-link-without-iris`). 'Lines in this range…' offers coronal or photospheric abundances (replacing D96's PROVISIONAL). Gzipped rasters are to be inflated once, by a draft irispy fix first (`wp10-gzip-raster-once`). The UI's IRIS-only wording on features other data use is reviewed and fixed (#333). `wp0-wcslib-tab-inverse` goes to WCSLIB's author by the user's email (text in the session archive).
 
 - **D98:** User (2026-10-19), from trying the SST quicklook: its spectrum and light-curve panels refit their y range to the point's profiles as it moves, while they show the last fit's range or Home's, so a range typed, panned or zoomed stays (`wp4-refit-on-point`); IRIS fits draw in a darker shade of the layer's color (lighter for a dark one), 1.5 times its width, above the data (`wp6-fit-colour`); 'Lines in this range…' lists its lines with check boxes, the main lines ticked, so a line is labeled or hidden, per viewer and not saved (`wp5-line-checkboxes`); the IRIS fitter's Settings get an 'Mg II two peaks' preset, two Gaussians on a constant for the k or h line in the Fit range, as in IRIS Technical Note 39 (`wp6-mg-ii-preset`). PROVISIONAL (D97's linking): SOT and AIA cubes also link to each other without IRIS data, reversing 212-3; the alternative is limiting D97 to SST and data glue-solar does not read through irispy.
 
@@ -184,7 +184,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP5: `wp5-line-checkboxes`
 - WP6: `wp6-fit-colour`, `wp6-mg-ii-preset`, `wp6-builder-save-load`
 - WP10: `wp10-gzip-raster-once`
-- WP11: `wp11-ui-wording`
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
@@ -318,10 +317,6 @@ Notes:
 ### WP11: Display, readouts and inspection tools
 
 Display and inspection tools for stock Image and Profile viewers, in `glue_solar/tools.py` and `glue_solar/quicklook.py`.
-
-**M1**
-
-- [ ] **M1** `wp11-ui-wording` (D97): the browser's title says "IRIS observations" on SST folders too; review every window title, menu entry, tooltip and message for IRIS-only wording on a feature other data use, and fix them. Done when each such text names what it covers.
 
 Notes:
 - glue-qt takes B, C, G, H, K, M, P, R, X, Y, Z, Tab and Backspace, and dispatches keys by exact viewer type; glue-solar takes D, F, A, S, U and Space, and drops matplotlib's canvas keys (D61, D72; register).
