@@ -1,0 +1,400 @@
+2600 2026-09-25: RegionData overlay crashes when the image Data has WCS coords
+2583 2026-07-16: exception on CI runners
+2580 2026-05-28: `ValueError: Tool ID 'image:point_selection' already registered` on fresh `mamba` installation
+2574 2026-02-18: Component issue when using n-D data with an m-D coordinate system
+2562 2026-01-19: Link validation
+2550 2026-02-10: Submit Feedback is broken
+2549 2025-07-13: Display the number of elements in the subset data
+2548 2025-07-22: Regression with Astropy 7.2: WCSLink does not raise on WCS without physical_types
+2529 2025-01-23: Feature requests: when linked by ID, 1) allow cross-dataset visualization, and 2) merge datasets on ID
+2523 2025-05-14: Crash when opening four 3D scatter plots
+2522 2025-02-12: `conda` installation fails with python 3.13
+2508 2024-08-06: Glue will not open the Tutorial file w5.fits.
+2506 2025-07-17: GluViz application can't start from Anaconda Navigator
+2505 2024-07-24: After successful install of glue-wwt, the plugin does not appear anywhere in Glue
+2504 2024-07-21: Recording and rotating at the same time?
+2499 2024-07-12: Add a way to specify units in ``BaseData``
+2498 2024-07-20: Multiple error messages when using Glue immediately after install
+2495 2024-05-21: Data Load Error Trying to Open FITS Table
+2485 2024-04-22: TypeError: setValue expects int, gets float during splash screen progress update
+2474 2024-01-03: In some images, full-size masked subset can cause IndexError
+2473 2024-01-12: DOC: Conda installation
+2463 2023-11-17: Dropdown entry for "Actual Size" in plot layer options 
+2457 2023-12-01: Scatter Layer on Image Viewer breaks export-as-script
+2454 2023-12-07: data calculate in IPYTHON
+2449 2023-10-31: how to install Plugins in glue.exe
+2447 2023-10-18: Document and improve load_plugins
+2441 2023-10-31: Not starting from command prompt
+2440 2023-08-21: Include fast-histogram in dependencies
+2439 2023-08-18: Move documentation specific to glue-core to that repository
+2438 2023-08-17: qtconsole bug with Gluviz install
+2434 2023-08-16: Access the fitted model  with the in-built terminal
+2428 2023-08-09: Tests hanging with serialisation failure in `test_save_aggregate_slice`
+2419 2023-06-13: Release a new standalone version
+2416 2023-06-05: Load parquet files
+2413 2023-05-31: random_views_for_dask_array is not so random
+2402 2023-05-11: Updating subset bounds does not propagate to viewer
+2398 2023-05-13: Selecting subsets in Glue
+2395 2023-04-27: Remove blanket np.seterr and only use it as needed as context manager
+2390 2023-04-25: Is there a to_subset for subset_state_translator?
+2359 2023-03-23: Installing native glue for M1/M2 (MacOSX-arm64)
+2357 2023-09-16: Review public API
+2337 2022-11-07: 3D plots not able to show properly
+2332 2022-10-27: Dark Mode Improvement
+2330 2022-10-11: Pandas DataFrames with type == 'object' cannot be save/restored 
+2315 2022-10-18: Latest release not in conda?
+2314 2022-08-05: Verbose Import Errors
+2312 2022-10-14: data available to custom viewer
+2311 2022-07-27: 3d scatter fails to plot with PyQt5 and GL errors
+2309 2022-07-01: UnboundLocalError in new_data_viewer
+2295 2022-06-04: Roadmap for unit support in glue/glue-jupyter
+2291 2023-01-11: No OpenGL support PyQt5 again
+2283 2022-05-19: Plot axis title incorrectly capitalized when acronym is given
+2260 2022-04-01: Cannot launch application from Anaconda Navigator
+2254 2021-11-25: Support vector columns in table viewer
+2253 2021-11-25: Issue with subset visibility in profile viewer
+2251 2021-11-25: Memory leak in test_aspect_resize with Matplotlib 3.5
+2247 2022-04-01: Example file upload formats for 3D plots? 
+2246 2021-11-06: Enable Spectral Axis type conversion
+2245 2021-11-06: Export session without data seems to include data
+2244 2021-11-06: Profile Viewer doesn't update with subset
+2243 2022-04-01: Documentation: Startup
+2238 2022-02-03: MNT: Brute force keymap wipe triggers deprecation warning
+2230 2021-08-31: qglue misbehaviours
+2228 2022-04-01: compute_statistics on categorical variables
+2218 2021-08-05: Is it possible to pass in astropy.visualization to set intervals?
+2205 2022-04-01: Arithmetic Editor ? Button Useless
+2203 2021-06-30: VisualAttributes attribute setter allows invalid values
+2202 2021-06-30: Setting marker in VisualAttributes has no effect with bqplot backend
+2197 2021-06-03: No Message Class for editing data components
+2193 2021-05-31: log should not appear in axes labels
+2191 2022-02-07: Should glueviz & Glue versions match? 
+2186 2022-02-07: About terminal
+2183 2021-03-08: Loading .csv data is slow
+2182 2021-03-08: Deprecation warning when starting glue
+2179 2022-06-04: Subset GUI 
+2178 2022-02-07: Installing development version for glueviz with conda from source.
+2177 2022-02-03: NameError: name 'Qt' is not defined
+2176 2022-02-07: Missing 3-D visualization tools in Glue 1.0.0 in environment
+2173 2020-09-21: Axes/tick labels not saved to png figure when "white on black" layout is used
+2162 2020-07-17: Support data where WCS has different number of world and pixel coordinates
+2157 2020-06-20: layer color changes when changing "theme for viewers" under preferences
+2155 2020-05-31: Add auto-linker that matches by column names
+2154 2020-05-31: Bug when linking categorical attributes
+2153 2020-05-28: Make test suite more robust to plugin packages
+2152 2020-05-28: Add an APE-14 wrapper that preserves units
+2151 2020-05-28: Nearest-neighbor linking
+2142 2022-02-03: Glue doesn't start
+2138 2022-06-20: Make subset extraction more efficent for large datasets, using bounding box
+2135 2020-05-09: Implement Subset.get_object
+2133 2020-07-31: Allow data to specify statistics about the data to prevent it having to be computed
+2132 2020-05-06: Slider unit sometimes shows 'deg' for slider
+2129 2020-04-24: Support non-rectilinear axis projections in 2D scatter plots
+2126 2020-04-23: astropy coordinates issue with session from December & double title
+2124 2020-04-13: Provide a generic way of storing models
+2123 2020-04-13: Have a way of specifying the center in world coordinates and field of view for the image viewer
+2122 2020-04-13: Add the ability to specify wrapping in scatter plot
+2121 2020-04-13: Attribute arithmetic across datasets
+2114 2020-04-01: Ask user to locate data if it cannot be found
+2113 2020-04-01: Improve performance of profile viewer
+2111 2020-03-26: Group subsets in layer list
+2110 2020-04-06: Show only points in a given slice
+2109 2020-03-23: Preserve Import Data/Session Paths
+2108 2020-03-17: Plugin manager should show packages and versions
+2107 2020-03-17: Link to plugin install instructions from plugin list
+2093 2020-03-03: Preserve circular ROIs instead of converting to polygons
+2092 2020-03-03: Improve image viewer options
+2089 2020-02-20: Add glue-wwt as a dependency to the glueviz metapackage
+2088 2020-02-09: Make sure all custom viewer attribute options are documented
+2087 2020-02-09: Provide an easy way to combine selections
+2086 2020-02-09: Add support for recognizing geographical regions
+2085 2020-02-09: Add support for aggregation in scatter plot viewer
+2084 2020-02-09: Add support for stacked bar charts
+2083 2020-02-09: Error in link editor related to hub
+2074 2020-01-23: Improve handling of plot margins when font sizes are changed
+2073 2019-11-26: Suggestions from dotAstronomy.TO (user-function library online)
+2072 2019-11-26: Suggestion from dotAstronomy.TO (Galactic x-y-z)
+2071 2020-01-23: Suggestions from dotAstronomy.TO (aesthetics)
+2070 2022-02-07: Implementing "wrapping" of cubes in 3D volume rendering
+2067 2020-01-23: Consider supporting DATAMIN/DATAMAX in FITS files to avoiding computing min/max
+2066 2019-09-02: Provide a way to convert a subset to a dataset
+2065 2019-09-02: Improve performance of flood filling with C extension
+2059 2019-08-07: Automatically take into account units when linking
+2057 2022-02-07: BaseTestDataViewer has interactive tests causing CI to time out
+2054 2019-08-01: Issue with single pixel selection not propagating to linked datasets
+2051 2019-07-30: Add function to overlay basemap on image
+2050 2019-08-21: Linking past a one-on-one connection
+2048 2019-11-18: Profile Viewer Breaks with "Limits cannot be NaN or Infinity" Error
+2047 2019-11-18: Custom labels in scatter_3d
+2044 2019-07-12: keep_in_sync works in GUI's terminal but not as part of startup
+2043 2020-03-03: More informative error when setting x_att and y_att from terminal
+2042 2019-07-09: Allow for transpose of table
+2036 2019-06-27: Unnecessary attribute error when using custom importer
+2035 2019-11-18: Need to avoid resetting NaN values to 0
+2033 2019-06-26: Implement dark mode for Qt GUI
+2029 2019-07-08: Button to swap data in link editor broken
+2027 2019-11-18: Warnings about invalid values
+2014 2019-06-19: Have a way to save 'views' in viewers
+2011 2019-05-22: QColorDialog can cause segmentation fault
+2008 2019-05-13: Viewers sometimes 'jump' in top of other viewers
+2007 2019-05-13: Issue with image viewer zooming in to a single pixel
+2004 2020-01-31: Faceted subsets don't work with categorical attributes
+1997 2019-11-18: 2D Image viewer not redrawing image when aspect option set to "Automatic"
+1996 2019-11-18: Provide a way to specify whether origin is top left or bottom left
+1990 2020-04-15: Add support for asymmetric error bars
+1982 2019-06-19: Update how colors are set for scatter
+1979 2019-04-10: Provide the option to have hover-over information in viewers
+1977 2019-06-19: Allow longitudes/RAs to be wrapped
+1976 2019-04-03: Don't show viewers that don't make sense for a given dataset
+1968 2019-03-28: Show derived datasets nested inside the parent data
+1958 2021-03-04: Segmentation fault on 3d rendering cube fits data
+1955 2019-03-07: Optimize fixed resolution buffer parameters to allow regular array striding
+1954 2019-11-18: Link to glueconda instructions in the documentation
+1951 2019-03-06: Performance issue for large datasets on non-SSD drives with memory mapping
+1946 2019-06-19: Arithmetic dialog and units
+1943 2019-02-22: Investigate performance issues with plane ADS-B data
+1942 2019-02-22: Re-work syncing of properties between layers and global settings
+1941 2019-02-22: Add 'count' as a valid statistic in compute_statistic
+1940 2019-02-22: ApplicationBase.load_data not returning correct dataset when merged
+1938 2019-02-22: Refactor tests to only open application once
+1931 2020-04-02: Make "replace selection" be default button when creating new subset
+1926 2019-01-29: Possible memory leak in fixed resolution buffer cache
+1924 2019-01-31: Improve performance of image viewer
+1917 2019-01-11: Can't glue by string value
+1916 2019-01-08: Write documentation about fixed layout tab
+1909 2018-12-14: Better error when WCSAXES and NAXIS are mismatched in FITS files
+1906 2019-06-21: Make sure font size changes propagate to QTabWidgets
+1900 2018-11-21: Dendrogram data loses world coordinate information
+1885 2020-03-03: Add bin_by argument to compute_statistic
+1883 2020-03-03: Implement ability to show/hide axes
+1892 2018-11-29: Data doesn't store the native data type
+1869 2018-11-14: Feature request: configurable clicks, keys
+1868 2018-11-14: Explore volume rendering shaders used in yt IDV GUI
+1867 2018-08-30: Explore using asyncio for threading
+1861 2020-03-03: Make it so that histogram can be binned with weights
+1860 2018-08-29: contrast/bias editing sluggish with very large images
+1859 2018-11-14: Add corner-style multivariate distribution data viewer
+1858 2018-08-29: Make right-clicking activate contrast/stretch mode in image viewer by default
+1855 2018-11-14: Add violin plot data viewer
+1847 2018-08-27: Have a way of grouping points
+1846 2018-11-14: Restoring session: 'mean' undefined
+1835 2018-08-17: Expand selection along selected primary keys/categories
+1834 2018-08-16: Add the ability to rename viewers
+1833 2018-08-15: Make it so that users don't need to click OK twice to change the color
+1832 2019-11-18: Error when adding a second dataset to an image viewer
+1831 2018-08-14: Error from image viewer when selecting in 3D
+1830 2021-11-06: Give better credit to spectral-cube and pvextractor
+1826 2018-08-10: Profile collapse doesn't work properly when two cubes are present
+1825 2018-08-10: Sometimes subset layers appear even though subset was removed overall
+1824 2018-08-10: Have a way to specify which viewer to navigate/collapse in
+1823 2018-08-10: Image viewer slow with overplotted points
+1822 2018-08-10: Hide FITS BLANK keyword warning
+1821 2018-08-07: Categorical Component for discrete int/float values
+1820 2018-08-01: Crashes when trying to do PV diagram
+1819 2018-07-31: Give better errors when a plugin is missing when loading session files
+1818 2018-07-31: GeoTiff converting to uint8
+1817 2021-10-11: Feature Request: Compass
+1816 2018-07-24: Feature Request: PVSlicer "expanded slice" tool
+1815 2018-07-20: Make sure all viewers work correctly when given a dataset with no components
+1812 2018-07-09: Behavior of selections
+1798 2019-08-21: Issues loading files from external disk
+1781 2018-06-20: Implement outline vs data in image viewer
+1779 2018-06-20: Subsets should not be visible by default if data is not
+1777 2018-06-20: In Arithmetic editor, data combo should default to 'Choose data'
+1776 2018-06-15: Fix corrupt session files
+1772 2018-06-15: Closing a 'computing...' viewer temporarily hangs Glue
+1766 2018-06-14: Add tests for histogram state
+1765 2018-06-14: Tidy up thread code for layer artists
+1760 2018-06-14: Update the 'Getting started' tutorial
+1754 2018-06-07: Performance improvements for compute_statistic
+1753 2018-06-06: Add support for reading in GRIB2 data
+1752 2018-06-06: Give option to get rid of unnecessary padding when exporting subset
+1744 2018-05-24: Consider moving some of the ROI -> subset state logic to the state class
+1742 2018-05-24: Add example of exposing more state options in custom viewer tutorial
+1741 2018-05-24: Add documentation for how selection works in custom viewers
+1735 2018-05-20: Add support for reading NetCDF data
+1733 2018-07-24: Improve performance of profile viewer
+1731 2018-05-16: Do away with data merging
+1730 2018-05-16: Warning for large datasets for scatter viewer
+1729 2018-05-16: Layer name should include 'Full data' for data layers
+1728 2018-05-16: Too many warnings about big data in profile viewer
+1724 2018-05-16: Sliders in the image viewer should be a property of layers not of the viewer
+1722 2018-05-16: Don't reproject non-visible layers
+1721 2018-05-16: Layer icon should have thin grey border
+1720 2018-05-16: 'Rename' option in contextual menu for layers
+1719 2018-05-16: Better error in image viewer for disabled layers
+1718 2018-06-13: Table viewer is not sortable by index row
+1715 2018-05-15: Documentation: document how to install and load plugins
+1714 2018-05-29: Refactoring the data access layer
+1700 2018-05-05: Remove 'copy subset' and add 'duplicate subset'
+1699 2018-05-03: Colormaps for scatter density plot
+1697 2018-10-05: After running gather windows, windows jump around
+1696 2018-05-03: Arithmetic attributes not available for other arithmetic attributes
+1693 2018-05-02: Have a way to match subset scatter layer (except color) with data layer
+1691 2018-05-02: Show more labels on categorical histograms
+1690 2018-05-02: Reuse subset colors once a subset has been deleted
+1689 2018-05-02: Have a proper way to colormap categorical components
+1688 2018-05-02: Bar chart viewer
+1687 2018-05-02: Make it possible to reorder categorical components in plots
+1686 2018-05-03: New component/attribute type for geospatial regions
+1685 2018-05-02: Have a way to use the same colormap settings for all viewers
+1675 2018-04-26: When opening data, close file open dialog as soon as possible
+1673 2018-04-26: Distinguish between choices being updated and actual selection
+1664 2018-04-26: Write documentation/tests for subtools
+1658 2018-04-14: Add a documentation about different kinds of linking
+1656 2018-04-11: Make it possible to keep unmerged data when merging
+1655 2018-05-09: Bug in profile viewer with selection and multiple datasets
+1647 2018-04-05: Have a way to color subsets differently in profile viewer
+1646 2018-04-05: Dragging a subset up to the data list could make a new dataset
+1640 2018-04-03: Astropy table reader crashes when there is more than one table in a VO table file
+1632 2018-03-22: When a layer is added to a viewer, make sure it is selected
+1631 2018-04-04: Share colormap between 2D and 3D
+1629 2018-03-22: Better solution for #934
+1626 2018-03-22: Make it possible to read in regions from DS9 into glue
+1620 2018-03-21: Update checking of exceptions in tests
+1607 2018-03-21: Component Units
+1606 2018-03-16: Have a way to show subset statistics in a floating window
+1605 2018-03-16: Highlighting dendrogram branch pixels only works with idx
+1604 2018-03-21: Display ROIs as outlines instead of shaded regions
+1598 2018-03-21: Issue with errorbars when scatterpoints are overlaid on 2D image
+1596 2018-03-21: Make it possible to add legend to figures
+1595 2018-03-21: Have a way to show trend lines on scatter plot
+1593 2018-03-21: Have a way to export Jupyter notebooks
+1592 2018-03-21: Suggest to set up pixel links when adding multiple datasets to image viewer
+1591 2018-03-21: Have a way to hide axes in image viewer
+1590 2018-03-21: Have a way to save subset masks inside 'Save data' dialog
+1588 2018-03-21: Investigate performance issue after doing a table selection
+1587 2018-03-21: Improve slicing performance
+1586 2018-03-21: Combine 'Open' and 'Save' tools in toolbar
+1582 2018-03-21: Have a way to visualize where selections came from
+1579 2018-03-21: Expose the ability to select a layer artist in public API
+1572 2018-03-21: Issue with available components after linking
+1568 2018-03-21: Clarify 'Export' in File menu
+1563 2018-03-21: Warn if session file including data will be too large
+1545 2018-03-21: Consider adding back useful titles for viewers
+1543 2018-02-28: Links sometimes appear multiple times in link editor
+1542 2018-02-28: Show curved lines for link network
+1528 2018-02-16: Extend plot customization to custom and dendrogram viewers
+1527 2018-02-16: Further improvements to plot appearance customization
+1526 2018-03-21: Combine toolbar buttons
+1508 2018-03-21: Possible improvements to keyboard shortcuts
+1494 2018-01-03: Make it clearer that spectral-cube needs to be installed for splitting Stokes components
+1493 2018-01-03: Implement file formats for climate research
+1489 2024-05-08: Show note/warning when user needs to add dataset to image viewer multiple times
+1480 2017-11-27: Make selection tools and selection mode not be 'sticky' by default
+1478 2018-03-21: Bug with point visibility in 3D scatter plots
+1477 2018-03-21: Bugs + Feature Requests 
+1469 2018-03-21: Image transparency doesn't take into account viewer background color
+1463 2018-03-21: Reduce resolution of scatter density when resizing scatter viewer
+1440 2018-03-21: Make the 'open' dialogs more forgiving in terms of data vs session
+1438 2017-10-19: Link editor and new component editor should show units
+1437 2017-10-19: Glue icon is broken when using the command-line version of glue
+1431 2017-10-19: Issues with tick labels not showing when WCS is rotated 90 degrees
+1421 2017-10-10: Issues with strict comparisons
+1417 2018-05-09: glue.core.utils.update_ticks
+1415 2017-10-05: glue might overwrite the units in the header for ppv cubes to 'default' m/s
+1401 2017-09-09: Add documentation on embedding in existing Qt applications
+1400 2017-09-07: Make it easy to use functions to derive groups of new components
+1392 2018-11-13: Equal aspect ratio for scatter plots
+1384 2017-08-21: Determine whether large arrays in session files can be memory-mapped
+1382 2018-02-05: 2D histogram viewer
+1381 2017-08-21: Make it so warning dialogs can be ignored in future
+1348 2020-04-24: Recursion limit when combining too many selections
+1347 2017-07-14: Add tab= option to new_data_viewer
+1322 2017-07-04: Improve test coverage for new viewers
+1310 2017-06-24: Make it possible to see progress of and interrupt large operations
+1308 2017-06-24: Improve layout in left panel
+1305 2017-06-24: Add a show/hide toggle for subset in all figure panels
+1304 2017-06-19: Add PIL or scikit-image as formal dependency
+1302 2017-08-21: No axis labels or tick labels for 3D scatter plot in Windows?
+1298 2017-08-22: Support 'fusion' images
+1284 2017-08-22: Option to show multiple axes for histogram
+1283 2017-08-22: Add ability to 'lock/protect' subsets
+1276 2017-08-22: Add support for windrose plots
+1273 2017-08-22: Re-think how we deal with session file versions
+1264 2017-08-22: Add locale issue to known issues
+1261 2017-08-22: Viewer window scale becomes messy after switching display screens
+1258 2017-03-02: When adding a new subset, layer artist should get selected
+1255 2017-03-02: Make it a user option to go back to replace mode when doing selections
+1254 2017-08-22: Add a documentation page for 3D selection schemes
+1252 2017-08-22: glue-config fails with ImportError: cannot import name "input"
+1250 2017-02-22: Tidy up and expand importers exporters
+1245 2017-08-22: IndexError: list index out of range in layer tree widget
+1214 2017-02-02: Add ability to export to Vega Lite
+1209 2017-09-09: namespace polluting when launching from ipython console
+1198 2016-12-17: Add TIFF reader
+1182 2016-11-22: Show marker in PV slicer
+1181 2016-11-22: Allow mixed datasets in scatter viewer
+1179 2016-11-22: Make 'define new component' part of the same window as the 'link data' window
+1177 2016-11-22: Have a nicer way to select levels for images/cubes
+1175 2016-11-22: Consider moving plot layers and options to sidebar of each viewer
+1151 2017-01-23: Better faceted subsets for categorical components
+1129 2017-08-22: Make a viewer with an Aitoff projection
+1124 2016-09-02: Make it possible to adjust brightness/contrast settings with keys
+1121 2017-05-04: Add support for >1-dimensional arrays in Table viewer
+1109 2016-08-27: On Ubuntu, cannot minimize viewer once maximized
+1087 2017-08-22: Add colorbar to image viewer
+1086 2016-08-21: Document custom qglue parsers
+1073 2017-02-08: Create a dialog for simple selections
+1072 2017-08-22: Provide a way to convert a subset to a dataset
+1067 2016-08-08: Improve performance for join_on_key with multiple components
+1065 2016-08-07: Allow optional windowed mode for glue
+1062 2017-08-22: Automatically link data
+1053 2016-07-25: Have a way to mark a dataset as being derived or related to another dataset
+1052 2016-07-22: 3D PPV to 2D PP selection
+1051 2016-07-22: Include preview/screenshot in session files
+1048 2016-07-22: Consider adding a progress bar to the status bar
+1046 2016-07-20: Dragging subset onto canvas should not add full data to viewer
+1045 2016-07-20: Add a paragraph description in faceted subset window
+1044 2016-08-31: Make list of subsets nicer in terminal
+1042 2016-07-20: Add option to show layer in image viewer as points
+1041 2017-08-22: Advanced key join use case
+1040 2016-07-19: custom viewer slider widget doesn't handle floats well
+1031 2017-08-22: Have an easy way to see data info (e.g. shape) when hovering over
+1026 2017-08-22: Add '.fits' format as an output option
+1025 2017-08-22: Support for datetime format
+1009 2016-05-25: The data viewer selector should be smarter about which viewers to show
+1008 2016-05-25: Consider going back to having a single context-dependent menu bar at the top of the window
+985 2016-05-24: Make it possible to run non-GUI tests only
+982 2016-05-05: Create new specialized component types
+981 2017-02-08: Component editor window
+980 2016-05-20: Window to preview and select which data/components to read
+979 2016-05-04: Add an option to find a missing data-file when loading a session
+960 2016-05-05: Have a way to specify plugins to run once application starts up
+958 2016-05-03: Advanced use case of linking that it would be nice to support
+951 2016-05-05: Windows 10 issue with creating new data viewers
+947 2016-05-05: Add documentation for how to access viewer objects
+945 2016-05-05: Add a slider bar for controlling time dimension 
+944 2016-04-11: Make it clearer that layer checkbox controls visibility
+940 2016-05-05: Fix PV slicer for RGB images
+929 2017-02-10: Improve UI or button instructions
+899 2016-05-05: Give error if dataset passed to Dendrogram viewer is not dendrogram
+897 2016-05-05: Should RangeROI.min always be smaller than RangeROI.max?
+890 2016-05-05: Data loading for .txt file not properly read
+875 2016-05-05: Move glue.core.data_factories to glue.data_factories
+860 2017-08-22: Make is possible to view minimum spanning trees and other trees in Glue
+859 2016-05-05: Implement DICOM data reader
+858 2016-05-05: Plot.ly : no linking
+855 2016-05-05: Document how to write a custom selection tool for a custom data viewer
+849 2016-05-05: 'Customised cuts' for 2D image viewer
+836 2017-02-08: Implement ASCII table GUI tool
+811 2016-01-05: Add support for colormaps in visual properties
+807 2019-04-03: Allow grid to be toggled in viewers
+801 2015-11-20: Implement glue front-end with Bokeh
+800 2015-11-20: Investigate exporting session to Bokeh
+798 2016-04-02: More flexible linking of datasets
+773 2016-05-05: Enforce unique data labels in collection
+765 2015-11-20: Auto-discover/install plugins?
+746 2017-08-22: Allow unit conversions when plotting data that has units attached
+739 2019-09-02: Make color cycle for subsets colorblind-friendly
+735 2017-12-10: Make session files less prone to breaking with future changes
+728 2016-05-05: Implement flags for ``setup.py`` to use system installs of packages
+721 2016-05-05: Keep track of which plugins are needed/loaded when saving session
+716 2016-05-05: Implement importer for Google Big Query
+715 2016-05-05: Implement support for 2-d histograms
+702 2016-05-05: Selecting entries in a scatterplotted catalog fails sometimes
+695 2016-05-05: Full-fledge visual ROI tool
+693 2016-05-05: Make all ROIs work in pixel coordinates
+685 2016-05-05: Make documentation page on creating a plugin package
+670 2016-05-05: Implement blinking/sliding between datasets when in image viewer
+668 2016-05-05: Provide a simple API for defining custom key bindings

@@ -1,0 +1,8 @@
+=== release
+R13 36 MB FITS .gz: one decompression 0.12 s; glue load_data(auto) 0.37 s = 3.2 decompressions
+image_layer_state_round_trip (stretch_global=False, stretch_parameters): {'stretch_global=True': {'cmap': ('<matplotlib.colors.LinearSegmentedColormap object at 0x11e9bae10>', '<matplotlib.colors.LinearSegmentedColormap object at 0x15ae125d0>'), 'stretch_parameters': ('<CallbackDict with 1 elements>', '<CallbackDict with 0 elements>')}, 'stretch_global=False': "restore AttributeError: 'NoneType' object has no attribute 'add_callback'"}
+path_sliced_data_off_data_and_time (0 off the data; Time cast to float; one pixel shape): ERROR ValueError: Path is shorter than spacing
+=== main
+R13 36 MB FITS .gz: one decompression 0.16 s; glue load_data(auto) 0.52 s = 3.3 decompressions
+image_layer_state_round_trip (stretch_global=False, stretch_parameters): {'stretch_global=True': {'cmap': ('<matplotlib.colors.LinearSegmentedColormap object at 0x10c4cee10>', '<matplotlib.colors.LinearSegmentedColormap object at 0x70190a4c50>'), 'stretch_parameters': ('<CallbackDict with 1 elements>', '<CallbackDict with 0 elements>')}, 'stretch_global=False': "restore AttributeError: 'NoneType' object has no attribute 'add_callback'"}
+path_sliced_data_off_data_and_time (0 off the data; Time cast to float; one pixel shape): ERROR ValueError: Path is shorter than spacing

@@ -1,0 +1,30 @@
+2605 open Thanatos9404 2026-10-19: Place random dask views at a random position inside each chunk
+2604 open cruspy2004 2026-09-25: Fix displaying regions on an image that has a WCS
+2603 draft astrofrog 2026-09-15: Add layer artists for vertical and horizontal lines in viewers
+2601 draft nabobalis 2026-09-22: Add opt-in WCSAxes support to the profile viewer
+2599 draft nabobalis 2026-09-22: Use matplotlib's date epoch in datetime64 <-> mpl conversions
+2598 draft nabobalis 2026-09-22: Keep correlated world inputs in world2pixel_single_axis
+2597 draft nabobalis 2026-09-22: Serialize preferred_cmap by name and skip any unserializable meta value
+2596 draft nabobalis 2026-09-22: Add a 'slice' collapse function to the profile viewer
+2595 draft nabobalis 2026-09-22: Support APE-14 low-level WCS in WCSLink and wcs_autolink
+2592 open dhomeier 2026-07-31: Update visualtest references to latest Astropy and Matplotlib
+2569 draft astrofrog 2026-02-11: Rename cmap_mode in image viewer to color_mode for consistency
+2566 draft astrofrog 2026-02-07: Test improvements
+2547 open bmorris3 2025-07-29: bugfix: make the data translator registry prefer exact cls matches over isinstance matches
+2545 draft astrofrog 2025-06-12: Delay callbacks related to layers when adding datasets to viewers
+2509 draft astrofrog 2024-08-20: Initial work on supporting units in the scatter viewer
+2507 draft astrofrog 2025-03-19: Performance improvements for fixed resolution buffer
+2378 draft astrofrog 2023-03-28: Improvements to faciliate showing world coordinates in profile viewer in glue-jupyter
+2288 draft jfoster17 2023-05-12: Enable categorical subsets
+2276 open Carifio24 2022-10-24: Fix vector directions when overlaid on image
+2188 open astrofrog 2022-06-28: Fix issue with cube collapsing when 2-d and 3-d datasets were mixed in the image viewer
+2185 open tommy-mor 2026-10-14: let calculated attributes reference previous ones
+2140 draft jsub1 2024-09-05: Non-recursive composite subsets
+2130 draft jsub1 2022-06-28: (WIP) Add binby to compute_statistics
+2128 open jsub1 2026-06-04: Hide Matplotlib Axes checkbox
+1804 open astrofrog 2022-06-28: Use dark background for icon when layer is light
+1796 open astrofrog 2022-06-28: Add 'Select data' message to combos
+1761 open astrofrog 2022-06-28: Performance improvements
+1663 open astrofrog 2022-06-28: WIP: Refactor PV slicing tool
+1488 open astrofrog 2022-06-28: WIP: Fixed derived components
+1419 open astrofrog 2022-06-28: WIP: improvements to left sidebar

@@ -1,0 +1,33 @@
+=== release
+Matplotlib is building the font cache; this may take a moment.
+glue from /Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/__init__.py
+R6 update_externally_derivable_components, star N=36: 0.064 s
+R6/R24 append one dataset to a linked star of N=36: 0.065 s
+R12 remove a leaf from the star N=36: 0.120 s
+R6 update_externally_derivable_components, star N=99: 1.268 s
+R6/R24 append one dataset to a linked star of N=99: 1.280 s
+R12 remove a leaf from the star N=99: 2.411 s
+R24 append 102 unlinked datasets one at a time: 1.570 s
+R24 extend 102 unlinked datasets at once: 0.056 s
+R21 compute_statistic mean over float32 (200,300,400) = 92 MiB: 0.073 s, peak 435 MiB
+R23 compute_histogram of a one-pixel SliceSubsetState on the cube: 5.2 ms, peak 23 MiB
+R27 float32 * 2 derived dtype: float64
+R20 do() calls per object in one save: max 2, objects 11, total 12
+R20 session bytes for a (300,400,100) broadcast of 100 values: 122.1 MiB
+R10 view_shape with three index arrays on (333, 196, 100): 17.1 ms -> (333, 196, 100)
+=== main
+glue from /private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/__init__.py
+R6 update_externally_derivable_components, star N=36: 0.064 s
+R6/R24 append one dataset to a linked star of N=36: 0.065 s
+R12 remove a leaf from the star N=36: 0.120 s
+R6 update_externally_derivable_components, star N=99: 1.337 s
+R6/R24 append one dataset to a linked star of N=99: 1.329 s
+R12 remove a leaf from the star N=99: 2.437 s
+R24 append 102 unlinked datasets one at a time: 1.582 s
+R24 extend 102 unlinked datasets at once: 0.057 s
+R21 compute_statistic mean over float32 (200,300,400) = 92 MiB: 0.087 s, peak 435 MiB
+R23 compute_histogram of a one-pixel SliceSubsetState on the cube: 4.8 ms, peak 23 MiB
+R27 float32 * 2 derived dtype: float64
+R20 do() calls per object in one save: max 2, objects 11, total 12
+R20 session bytes for a (300,400,100) broadcast of 100 values: 122.1 MiB
+R10 view_shape with three index arrays on (333, 196, 100): 18.2 ms -> (333, 196, 100)
