@@ -209,7 +209,8 @@ def sji_bursts(data, sigma_factor=SIGMA_FACTOR, min_pixels=MIN_PIXELS):
     values = data[data.main_components[0], (slice(None),)]  # scaled float32, NaN where missing, read with a view
     # ponytail: one irispy call on every frame, about 6 times the image's float32 at its peak (1.6 GB for the 400
     # frames of 4000255147's SJI 1400); slabs of frames, their labels offset, if larger images need less
-    cube = SJICube(values, data.coords._wcs, unit=DN_UNIT["SJI"], mask=np.isnan(values), meta=data.meta)
+    unit = DN_UNIT.get(data.meta["TDESC1"], u.DN)  # the passband's, as irispy reads it
+    cube = SJICube(values, data.coords._wcs, unit=unit, mask=np.isnan(values), meta=data.meta)
     labels, events = find_bright_image_events(cube, sigma_factor=sigma_factor, min_pixels=min_pixels)
     parameters = {"bursts_sigma_factor": sigma_factor, "bursts_min_pixels": min_pixels}
     bursts = Data(label=f"{data.label} bursts", coords=_GlueWCS(data.coords._wcs))

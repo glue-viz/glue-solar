@@ -1,0 +1,1 @@
+glue-solar follows irispy main: slit-jaw images are in their passband's DN, dust removal calls irispy's remove_dust, and the O IV density preset needs released fiasco (0.5.0 or later) rather than its git main.

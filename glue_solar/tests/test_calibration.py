@@ -9,6 +9,7 @@ import pytest
 from glue.core import Data
 from irispy.io.sji import read_sji_lvl2
 from irispy.io.spectrograph import read_spectrograph_lvl2
+from irispy.utils.dust import remove_dust as irispy_remove_dust
 from irispy.utils.spectrograph import radiometric_calibration as irispys_calibration
 from qtpy import QtWidgets
 
@@ -45,7 +46,7 @@ def assert_irispys_dust_removed(dust, path):
     at its value (D85).
     """
     cube = read_sji_lvl2(path, memmap=False, uncertainty=False)
-    direct = cube.remove_dust()
+    direct = irispy_remove_dust(cube)
     [cid, mask] = dust.main_components[:2]
     values, kept = dust[cid], ~direct.mask
     np.testing.assert_array_equal(dust[mask], direct.mask)
@@ -76,7 +77,7 @@ def test_the_action_adds_irispys_dust_removed_slit_jaw_image_linked_and_no_viewe
     assert dust.label == label
     name = sji.main_components[0].label  # its values', as the slit-jaw image's
     assert [(cid.label, dust.get_component(cid).units) for cid in dust.main_components] == [
-        (name, "DN_IRIS_SJI"),
+        (name, "DN_IRIS_SJI_1400"),  # its passband's DN, as irispy reads it
         (f"{name} mask", ""),
         ("Time", ""),
         ("Exposure time", "s"),

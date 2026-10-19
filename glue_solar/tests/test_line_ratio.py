@@ -192,24 +192,28 @@ def test_refusals_and_errors_show_why(app, monkeypatch, tmp_path, irispy_test_fi
 @pytest.fixture
 def fiasco(monkeypatch, tmp_path):
     """
-    A stand-in for fiasco with ``line_ratio``, the synthetic curve at each temperature and density, shifted by the
-    temperature's log T less 5.15, the formation temperature of its O IV, as fiasco's is among `TEMPERATURES`, and no
-    CHIANTI database built; ``calls`` holds what its ``Ion`` and ``line_ratio`` were given.
+    A stand-in for fiasco whose O IV has the two lines of the preset as transitions, their contributions in the ratio
+    of a synthetic curve at each temperature and density, shifted by the temperature's log T less 5.15, the formation
+    temperature of its O IV, as fiasco's is among `TEMPERATURES`, and no CHIANTI database built; ``calls`` holds what
+    its ``Ion`` and each ion's ``contribution_function`` were given, the ion first.
     """
     calls = []
 
     def ion(*args, **kwargs):
         calls.append(("Ion", args, kwargs))
-        return SimpleNamespace(temperature=args[1], formation_temperature=args[1][13])
+        made = SimpleNamespace(temperature=args[1], formation_temperature=args[1][13])
+        made.transitions = SimpleNamespace(wavelength=[1399.780, 1401.157] * u.AA, is_bound_bound=np.ones(2, bool))
 
-    def line_ratio(*args, **kwargs):
-        calls.append(("line_ratio", args, kwargs))
-        shift = np.log10(args[0].temperature.to_value(u.K))[:, np.newaxis] - 5.15
-        return 0.15 + 0.3 / (1 + np.exp(4 * (11 + shift - np.log10(args[3].to_value(u.cm**-3)))))
+        def contribution_function(density, **options):
+            calls.append(("contribution_function", (made, density), options))
+            shift = np.log10(made.temperature.to_value(u.K))[:, np.newaxis] - 5.15
+            ratio = 0.15 + 0.3 / (1 + np.exp(4 * (11 + shift - np.log10(density.to_value(u.cm**-3)))))
+            return np.stack([ratio, np.ones_like(ratio)], axis=-1) * u.erg * u.cm**3 / u.s
 
-    fake = SimpleNamespace(
-        Ion=ion, line_ratio=line_ratio, defaults={"hdf5_dbase_root": tmp_path / "none.h5"}, calls=calls
-    )
+        made.contribution_function = contribution_function
+        return made
+
+    fake = SimpleNamespace(Ion=ion, defaults={"hdf5_dbase_root": tmp_path / "none.h5"}, calls=calls)
     monkeypatch.setitem(sys.modules, "fiasco", fake)
     return fake
 
@@ -287,8 +291,7 @@ def test_the_o_iv_preset_adds_irispys_density_diagnostic_of_two_moments_maps(
     assert ion_args[0] == "O IV"
     np.testing.assert_array_equal(ion_args[1], TEMPERATURES * u.K)
     assert ion_kwargs == {"ask_before": False, "show_progress": False}
-    assert ratio_args[1:3] == (1399.780 * u.AA, 1401.157 * u.AA)
-    np.testing.assert_array_equal(ratio_args[3], DENSITIES * u.cm**-3)
+    np.testing.assert_array_equal(ratio_args[1], DENSITIES * u.cm**-3)
     assert ratio_kwargs == {"use_two_ion_model": False}
     over, under = (maps["intensity"] for maps in lines)
     direct = density_diagnostic(
@@ -314,11 +317,11 @@ def test_the_o_iv_preset_adds_irispys_density_diagnostic_of_two_moments_maps(
     typed = collection[-1]
     assert typed.meta == {**result.meta, "ratio_log_n_e": (9, 12), "ratio_log_t": 5.4}
     [_, (_, ratio_args, _)] = fiasco.calls
-    np.testing.assert_array_equal(ratio_args[3], np.logspace(9, 12, 31) * u.cm**-3)
+    np.testing.assert_array_equal(ratio_args[1], np.logspace(9, 12, 31) * u.cm**-3)
     direct = density_diagnostic(
         over,
         under,
-        ratio_args[3],
+        ratio_args[1],
         ion=ratio_args[0],
         numerator=1399.780 * u.AA,
         denominator=1401.157 * u.AA,
@@ -354,12 +357,11 @@ def test_the_o_iv_preset_adds_irispys_density_diagnostic_of_two_moments_maps(
         o_iv_density(*(maps.id["intensity"] for maps in lines), log_temperature=6.5)
 
 
-@pytest.mark.parametrize("fake", [None, SimpleNamespace()], ids=["no fiasco", "fiasco without line_ratio"])
-def test_the_o_iv_preset_needs_fiascos_line_ratio(app, monkeypatch, fake):
-    monkeypatch.setitem(sys.modules, "fiasco", fake)  # None: import fiasco fails
+def test_the_o_iv_preset_needs_fiasco(app, monkeypatch):
+    monkeypatch.setitem(sys.modules, "fiasco", None)  # import fiasco fails
     over, under = Data(label="over", intensity=np.ones((2, 3))), Data(label="under", intensity=np.ones((2, 3)))
     app.data_collection.extend([over, under])
     opened = preset(monkeypatch)
     run(app, [over, under])
-    assert opened == [(False, "Needs fiasco's line_ratio: pip install 'glue-solar[density]'", (8, 13, 5.15))]
+    assert opened == [(False, "Needs fiasco: pip install 'glue-solar[density]'", (8, 13, 5.15))]
     assert len(app.data_collection) == 2  # unticked, with no table: nothing added
