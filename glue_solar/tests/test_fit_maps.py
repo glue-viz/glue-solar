@@ -29,7 +29,7 @@ from astropy.modeling import models
 
 from glue_solar.fitters import GaussianConstantFitter, _component
 from glue_solar.quicklook import _wavelengths
-from glue_solar.sources import fit_maps
+from glue_solar.sources import fit_maps, moments
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import WCS_LOCK, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.tests.helpers import add_component, click, fit_settings
@@ -451,6 +451,34 @@ def test_a_stack_is_fitted_scan_by_scan(app, qtbot, monkeypatch, stack_paths, ca
     with pytest.raises(RuntimeError, match="after shutdown"):
         pool.submit(int)
     assert link_hpc(collection) == []
+
+
+def test_a_window_is_fitted_slab_by_slab(app, qtbot, monkeypatch, scan_path, calls, once):
+    """
+    A window of more steps than a slab takes is fitted a slab at a time on one pool, its progress over every slab's
+    tasks, into the maps of one fit of the whole window; a slab of missing spectra only, which irispy gives no errors,
+    has NaN errors.
+    """
+    with fits.open(scan_path, mode="update", do_not_scale_image_data=True) as hdulist:  # Si IV 1403's raw int16
+        hdulist[5].data[:3] = -32768  # -200 DN, missing
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    app.data_collection.append(raster)
+    tools = profile(app, raster)
+    fit(qtbot, tools)
+    whole = run(app, qtbot, tools)
+    progresses, fit_maps_ = [], fit_maps._fit_maps
+    monkeypatch.setattr(fit_maps, "_fit_maps", lambda *args: progresses.append(args[-1]) or fit_maps_(*args))
+    _, slit, samples = calls[0]["data"].shape
+    monkeypatch.setattr(moments, "SLAB", 3 * slit * samples)  # steps 0-2, 3-5 and 6-7
+    slabs = run(app, qtbot, tools)
+    assert [call["data"].shape[0] for call in calls[1:]] == [3, 3, 2]
+    assert len({call["scheduler"].keywords["pool"] for call in calls[1:]}) == 1  # one for the run
+    [progress] = progresses
+    assert progress.done == progress.total > 0  # the dialog at 100% as it ends
+    assert [cid.label for cid in slabs.main_components] == [cid.label for cid in whole.main_components]
+    for cid in whole.main_components:
+        np.testing.assert_array_equal(slabs[cid.label], whole[cid], err_msg=cid.label)
+    assert np.isnan(slabs["mean_1 error"][:3]).all()
 
 
 def test_cancel_adds_nothing(app, qtbot, monkeypatch, scan_path):

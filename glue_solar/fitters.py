@@ -26,8 +26,6 @@ from glue_solar.lines import KM_S, _doppler_rest
 from glue_solar.quicklook import _role
 from glue_solar.sources.loaders.lazy import at_ceiling
 
-__all__ = ["GaussianConstantFitter"]
-
 _KINDS = {
     "Gaussian": models.Gaussian1D,
     "Lorentzian": models.Lorentz1D,

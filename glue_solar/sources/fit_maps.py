@@ -22,9 +22,7 @@ from glue_solar.lines import DopplerConverter, rest_wavelength
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources.loaders.iris import _RUNNING
 from glue_solar.sources.loaders.lazy import at_ceiling
-from glue_solar.sources.moments import _check, _cube, _dataset, _read, _start, _window
-
-__all__ = []
+from glue_solar.sources.moments import _check, _cube, _dataset, _read, _slab_rows, _start, _window
 
 
 class _Canceled(Exception):
@@ -33,16 +31,18 @@ class _Canceled(Exception):
 
 class _Progress:
     """
-    The tasks done of the fits of ``scans`` scans, one dask graph alike each, for the progress dialog, and its Cancel:
-    dask callbacks of each call, as dask swaps its global ones out while it computes, which glue's own reads would see.
+    The tasks done of the fits of ``slabs`` slabs, each slab left taken to have as many as the one starting, for the
+    progress dialog, and its Cancel: dask callbacks of each call, as dask swaps its global ones out while it computes,
+    which glue's own reads would see.
     """
 
-    def __init__(self, scans):
-        self.scans, self.done, self.total, self.canceled, self.ended = scans, 0, 0, False, False
+    def __init__(self, slabs):
+        self.left, self.done, self.total, self.canceled, self.ended = slabs, 0, 0, False, False
         self.callbacks = (None, self._start_state, None, self._posttask, None)  # dask's tuple of callbacks
 
     def _start_state(self, dsk, state):
-        self.total = self.scans * sum(len(state[key]) for key in ("ready", "waiting", "running", "finished"))
+        tasks = sum(len(state[key]) for key in ("ready", "waiting", "running", "finished"))
+        self.total, self.left = self.done + self.left * tasks, self.left - 1
 
     def _posttask(self, key, result, dsk, state, worker_id):
         self.done += 1
@@ -163,9 +163,10 @@ def _last_fit(data, model):
 
 def _fit_maps(data, model, crop, unit, per_second, rest, progress):
     """
-    ``model`` fitted from irispy's ``starts_from_model`` to every spectrum of ``data`` at ``crop``, in ``unit``, a scan
-    at a time, on dask's processes, and irispy's ``maps_from_fit`` of it about ``rest``: a dataset of every map but the
-    residual, with ``<name> error`` where irispy gives one, or None once ``progress`` is canceled; on any thread.
+    ``model`` fitted from irispy's ``starts_from_model`` to every spectrum of ``data`` at ``crop``, in ``unit``, a slab
+    of steps at a time (`~glue_solar.sources.moments._slab_rows`), on dask's processes, and irispy's ``maps_from_fit``
+    of it about ``rest``, without the residual cube: a dataset of its maps, with ``<name> error`` where irispy gives one,
+    or None once ``progress`` is canceled; on any thread.
     """
     import dask.multiprocessing
     from irispy.utils.fitting import maps_from_fit, starts_from_model
@@ -181,8 +182,8 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
     scheduler = partial(dask.multiprocessing.get, callbacks=[progress.callbacks], pool=pool)
     maps = {}
     try:
-        for scan in np.ndindex(data.shape[:-3]):
-            rows = (*scan, slice(None), slice(None))
+        # a slab at a time, as the moments: a whole scan's starts, fits and maps took 4 GB on a Si IV window
+        for rows in _slab_rows(data, crop):
             if per_second:
                 values, _, saturated = _read(data, rows, crop)
             else:
@@ -192,6 +193,7 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
             # masked samples, missing or saturated, a lower bound only (D87), left out as NaN by filter_non_finite
             spectra = np.where(cube.mask, np.nan, values)
             fitter = TRFLSQFitter(calc_uncertainties=True)
+            # astropy sends each chunk the slab's starts whole (ParameterContainer); chunks over its 500 fits idle processes
             fitted = parallel_fit_dask(
                 model=starts_from_model(model, cube),  # in Angstrom and unit, as `_last_fit` gives it (D86)
                 fitter=fitter,
@@ -209,9 +211,10 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
                 if isinstance(infos[index], dict):
                     infos[index] = dict(infos[index])
             # each wcslib call irispy makes holds WCS_LOCK for itself (`_GlueWCS`)
-            for name, part in maps_from_fit(fitted, cube, fitter=fitter, rest_wavelength=rest * u.AA).items():
-                if name != "residual":  # a cube, not a map
-                    maps.setdefault(name, []).append(part)
+            parts = maps_from_fit(fitted, cube, fitter=fitter, rest_wavelength=rest * u.AA, residual=False)
+            for name, part in parts.items():
+                error = None if part.uncertainty is None else part.uncertainty.array
+                maps.setdefault(name, []).append((part.data, error, part.unit))
     except _Canceled:
         return None
     finally:
@@ -223,12 +226,12 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
     fit.meta.update(fit_rest_wavelength=rest, fit_range=(float(wavelengths[0]), float(wavelengths[-1])))
     # each line's maps first, as glue shows a dataset's first, then irispy's quality, then the parameters
     for name in sorted(maps, key=lambda name: name in model.param_names):
-        parts = maps[name]
-        units = str(parts[0].unit)
-        fit.add_component(Component(np.reshape([part.data for part in parts], data.shape[:-1]), units=units), name)
-        if parts[0].uncertainty is not None:
-            errors = np.reshape([part.uncertainty.array for part in parts], data.shape[:-1])
-            fit.add_component(Component(errors, units=units), f"{name} error")
+        values, errors, units = zip(*maps[name], strict=True)
+        units = str(units[0])
+        fit.add_component(Component(np.concatenate(values).reshape(data.shape[:-1]), units=units), name)
+        if any(error is not None for error in errors):  # irispy gives none to a slab of missing spectra only
+            errors = [np.full(np.shape(v), np.nan) if e is None else e for v, e in zip(values, errors, strict=True)]
+            fit.add_component(Component(np.concatenate(errors).reshape(data.shape[:-1]), units=units), f"{name} error")
     return fit
 
 
@@ -257,7 +260,7 @@ def _fit_every_spectrum(tools, *_):
     _check_running(data)
     model, crop, unit, per_second, rest = _last_fit(data, model)
     data_collection = tools.viewer.session.data_collection
-    progress = _Progress(int(np.prod(data.shape[:-3])))
+    progress = _Progress(len(_slab_rows(data, crop)))
     text = f"Fitting every spectrum of {data.label}…"
     dialog = QtWidgets.QProgressDialog(text, "Cancel", 0, 0, _application(data_collection))
     dialog.canceled.connect(progress.cancel)
