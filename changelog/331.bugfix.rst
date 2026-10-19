@@ -1,0 +1,1 @@
+A Pixel click or drag in an Image panel's margin, just past the image's edge, no longer raises an IndexError: the point stays where it was.
