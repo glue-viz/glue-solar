@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 66f468a (#322). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
+**Resume here.** Main is at 168b27b (#323). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
 **Next.** 2026-10-17/18 (D85-D87): #306-#314 are on main (the full CI matrix again, saturated samples shown at their value, Stokes scaled with their noise, sessions at their values' size, per-wcslib-call locking, the review's lean pass, the coordinator forgetting removed data, 'IRIS: line fit maps' and the Fit tab's model builder). Every open item now waits on the user, on others or on a release: once the user merges irispy draft #241, glue-solar's `fit_maps._starts` gives way to `starts_from_model` (one small PR); then M4 work on the user's direction. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow the session archive's `RULES.md`. CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small (#313's stack test fits one iteration).
 
@@ -145,7 +145,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D89:** User (2026-10-18), on upstreaming: no PR to glue, glue-qt or astropy until the glue-solar work here is done; then a full review of the code decides what is upstreamed and what stays in glue-solar (`wp0-upstream-review`), re-verifying every report candidate and perf finding first. Meanwhile, smaller ports to glue or glue-qt go on branches of the user's forks for small PRs later. The matplotlib-free WCSAxes core is under way with astropy in person and is not tracked here; the upstream drafts wait on their human reviewers.
 
-- **D90:** User (2026-10-18), on the earlier audits' other proposals (`audit2/` in the session archive): do all the polish (P4-P12: `wp11-polish-labels`, #321, #322, #316, `wp9-guide-screenshot`), one light-curves entry against Time (C6: #319), and one path tool on IRIS viewers (C5: #318); keep Loop, Blink and Follow/lock (upstream candidates for `wp0-upstream-review`: Loop's range options in glue-qt's slider playback, Follow/lock as a hover mode of glue's Pixel tool, Blink as a viewer tool), the browser, every colormap and gamma stretch, and every analysis, quicklook and tool extra (F1-F16); none of the internal changes (F9, F12, S12, R-K).
+- **D90:** User (2026-10-18), on the earlier audits' other proposals (`audit2/` in the session archive): do all the polish (P4-P12: #323, #321, #322, #316, `wp9-guide-screenshot`), one light-curves entry against Time (C6: #319), and one path tool on IRIS viewers (C5: #318); keep Loop, Blink and Follow/lock (upstream candidates for `wp0-upstream-review`: Loop's range options in glue-qt's slider playback, Follow/lock as a hover mode of glue's Pixel tool, Blink as a viewer tool), the browser, every colormap and gamma stretch, and every analysis, quicklook and tool extra (F1-F16); none of the internal changes (F9, F12, S12, R-K).
 
 - **D91:** User (2026-10-19), as irispy's pre-beta PRs land: glue-solar pins irispy main at a commit it is tested with (`irispy-lmsal @ git+…@<sha>` in pyproject), and a 'follow irispy' PR moves the pin with glue-solar's fixes after each batch of irispy changes, so an irispy merge never turns glue-solar's CI red. Amends D47 (irispy's git main, now pinned).
 
@@ -170,7 +170,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP9: `wp9-guide-screenshot`
 - WP10: `wp10-follow-irispy-prebeta`
-- WP11: `wp11-polish-labels`
 
 **M4**
 - WP0: `wp0-upstream-review`, `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
@@ -312,7 +311,7 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 **L**
 
 - [ ] **L** `wp10-follow-irispy-prebeta` (D47): glue-solar follows irispy main (495f39d, D92) (the user's pre-beta review PRs #243-#246, 2026-10-19: files that are not IRIS level 2 by `INSTRUME` and `DATA_LEV` refused, tarballs extracted into irispy's cache, cube and slicing fixes, the SJI exposure correction, analysis helper fixes), which turned main's CI red: synthetic fixtures carry level 2 headers, and glue-solar's code and tests follow the behavior changes. Done when the full suite passes on irispy fe59e7a in both envs and CI is green.
-- [ ] **L** `wp9-guide-screenshot` (D90, P12): a current screenshot atop the quicklook guide, and the guides' other screenshots regenerated (`docs/make_screenshots.py`), after the polish items. Done when the guide's images show the current quicklook. Depends: wp11-polish-labels.
+- [ ] **L** `wp9-guide-screenshot` (D90, P12): a current screenshot atop the quicklook guide, and the guides' other screenshots regenerated (`docs/make_screenshots.py`), after the polish items. Done when the guide's images show the current quicklook.
 
 **M4**
 
@@ -333,10 +332,6 @@ Notes:
 ### WP11: Display, readouts and inspection tools
 
 Display and inspection tools for stock Image and Profile viewers, in `glue_solar/tools.py` and `glue_solar/quicklook.py`.
-
-**L**
-
-- [ ] **L** `wp11-polish-labels` (D90, P4, P6, P7, P10): units on axis labels (Wavelength [Å], DN / s, Time; the SST time slider named Time); 'IRIS:' only on IRIS-only actions, without applicability parentheses (reopens D61's prefix rule); quicklook panels without glue's tool hints (the clipped 'CLI(' status), a shorter frame-time label and no 'Spectrum of … elements' status notes; less 'time master' wording in the UI. Done when each shows so on a 4000255147 quicklook.
 
 Notes:
 - glue-qt takes B, C, G, H, K, M, P, R, X, Y, Z, Tab and Backspace, and dispatches keys by exact viewer type; glue-solar takes D, F, A, S, U and Space, and drops matplotlib's canvas keys (D61, D72; register).
