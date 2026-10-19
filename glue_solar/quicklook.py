@@ -2116,7 +2116,7 @@ def _refit(viewer):
     `_fit` the panel again while it shows the last fit's range or Home's, not one panned, zoomed or typed since (D98).
     """
     state = viewer.state
-    if (state.x_min, state.x_max, state.y_min, state.y_max) in getattr(viewer, "_solar_fitted", ()):
+    if not _off(viewer) and (state.x_min, state.x_max, state.y_min, state.y_max) in getattr(viewer, "_solar_fitted", ()):
         _fit(viewer)
 
 
