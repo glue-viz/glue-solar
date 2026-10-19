@@ -995,13 +995,13 @@ class Coordinator(HubListener):
 
     @staticmethod
     def slit_on(viewer):
-        """The slit's x pixel in ``viewer``'s slit-jaw frame, or None where the frame gives none (0 or NaN)."""
+        """The slit's x pixel in ``viewer``'s slit-jaw frame, or None where the frame gives none (-1 or NaN)."""
         sji = viewer.state.reference_data
         frame = _sji_frame(viewer.state)
         if frame is None or _role(sji) != "sji" or "slit x position" not in sji.meta:
             return None
         x = float(sji.meta["slit x position"][frame])
-        return None if x == 0 or np.isnan(x) else x - 1  # irispy gives the header's 1-based pixel
+        return None if x < 0 or np.isnan(x) else x  # 0-based since LM-SAL/irispy#247: a header's 0, no slit, is -1
 
     def _move_in_time(self, data, axis, frame):
         """

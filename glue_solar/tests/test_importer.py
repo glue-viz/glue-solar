@@ -788,7 +788,8 @@ def test_real_sji_adapter_preserves_mask_units_and_coordinates(irispy_test_files
         aux = hdul[1]
         np.testing.assert_array_equal(data[exposure][:, 0, 0], aux.data[:, aux.header["EXPTIMES"]])
         for key, column in (("pztx", "PZTX"), ("pzty", "PZTY"), ("xcenix", "XCENIX"), ("slit x position", "SLTPX1IX")):
-            np.testing.assert_array_equal(data.meta[key], aux.data[:, aux.header[column]])
+            # the slit's 0-based pixel, the header's less 1, since LM-SAL/irispy#247
+            np.testing.assert_array_equal(data.meta[key], aux.data[:, aux.header[column]] - (column == "SLTPX1IX"))
     assert data.get_component(science).units == str(cube.unit)
     [rate] = data.derived_components
     assert rate.label == f"{science.label} DN / s"

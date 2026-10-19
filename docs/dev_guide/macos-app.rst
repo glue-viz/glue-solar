@@ -4,7 +4,7 @@
 Building the macOS app
 ======================
 
-``packaging/macos/`` builds ``Glue Solar.app``: glue with glue-solar, the irispy commit it pins and sunpy on PyQt6, for Apple
+``packaging/macos/`` builds ``Glue Solar.app``: glue with glue-solar, irispy's git main and sunpy on PyQt6, for Apple
 silicon, and ``Glue Solar.dmg``, which holds the app beside a link to ``/Applications``. Its spec ``glue_solar.spec``
 and the PyInstaller hooks in ``hooks/``, which add the modules, data files and package metadata PyInstaller misses, are
 adapted from those of `glue-standalone-apps <https://github.com/glue-viz/glue-standalone-apps>`__, glue's own

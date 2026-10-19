@@ -2057,8 +2057,8 @@ def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files, 
     raster, sji = sit_and_stare(irispy_test_files)
     # the fixture keeps full-size slit positions for 10x smaller frames: give each frame its own
     n, ny, nx = sji.shape
-    slit = 1 + np.linspace(3, nx - 4, n)
-    slit[[5, 6]] = 0, np.nan  # frames without a slit position
+    slit = np.linspace(3, nx - 4, n)  # 0-based, as irispy gives them
+    slit[[5, 6]] = -1, np.nan  # frames without a slit position
     sji.meta["slit x position"] = slit
     viewers = quicklook(bare_app, [raster, sji])
     if show_axes:  # all the same with axes
@@ -2068,7 +2068,7 @@ def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files, 
     coord = coordinator(bare_app.data_collection)
     for frame in (0, n // 2, n - 1):
         sji_viewer.state.slices = (frame, 0, 0)
-        assert overlays(sji_viewer)[0] == [[slit[frame] - 1, -0.5], [slit[frame] - 1, ny - 0.5]]
+        assert overlays(sji_viewer)[0] == [[slit[frame], -0.5], [slit[frame], ny - 0.5]]
     for frame in (5, 6):
         sji_viewer.state.slices = (frame, 0, 0)
         assert overlays(sji_viewer)[0] is None
@@ -2083,7 +2083,7 @@ def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files, 
         assert where is not None
         assert -0.5 <= where[0] <= nx - 0.5
         assert -0.5 <= where[1] <= ny - 0.5
-        assert overlays(sji_viewer) == ([[slit[frame] - 1, -0.5], [slit[frame] - 1, ny - 0.5]], pytest.approx(where))
+        assert overlays(sji_viewer) == ([[slit[frame], -0.5], [slit[frame], ny - 0.5]], pytest.approx(where))
     sji_viewer.state.slices = (0, 0, 0)  # moved back by hand: the late exposure is off the first frame
     assert overlays(sji_viewer)[1] is None
     assert "outside SJI FOV" in readout(sji_viewer)
@@ -2093,7 +2093,7 @@ def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files, 
     # shown transposed, both swap; with the frame axis shown, neither shows
     sji_viewer.state.x_att, sji_viewer.state.y_att = sji.pixel_component_ids[1], sji.pixel_component_ids[2]
     sji_viewer.state.slices = (frame, 0, 0)
-    assert overlays(sji_viewer) == ([[-0.5, slit[frame] - 1], [ny - 0.5, slit[frame] - 1]], pytest.approx(where[::-1]))
+    assert overlays(sji_viewer) == ([[-0.5, slit[frame]], [ny - 0.5, slit[frame]]], pytest.approx(where[::-1]))
     sji_viewer.state.x_att = sji.pixel_component_ids[0]
     assert overlays(sji_viewer) == (None, None)
     sji_viewer.state.x_att, sji_viewer.state.y_att = sji.pixel_component_ids[2], sji.pixel_component_ids[1]
@@ -2914,7 +2914,7 @@ def test_the_slit_on_a_full_slit_jaw_image(bare_app, irispy_data):
     n, ny, _ = sji.shape
     for frame in (0, n // 2, n - 1):
         viewer.state.slices = (frame, 0, 0)
-        x = sji.meta["slit x position"][frame] - 1
+        x = sji.meta["slit x position"][frame]
         assert overlays(viewer)[0] == [[x, -0.5], [x, ny - 0.5]]
 
 
