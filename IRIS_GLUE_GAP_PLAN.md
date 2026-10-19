@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 168b27b (#323). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release. #325 (`wp10-follow-irispy-prebeta`) is open; once it merges, `wp9-guide-screenshot` is the last glue-solar item that needs nobody; everything else waits on the user, others or a release.
+**Resume here.** Main is at cbe1196 (#325). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release. #325 (#325) is open; once it merges, `wp9-guide-screenshot` is the last glue-solar item that needs nobody; everything else waits on the user, others or a release.
 
 **Next.** (1) #325 merges: glue-solar on irispy main 495f39d, unpinned (D92). (2) `wp9-guide-screenshot`: the guides' images regenerated after the D90 polish (#321-#323). (3) M4 on the user's direction, starting with `wp0-upstream-review` (D89). Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
@@ -169,7 +169,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP9: `wp9-guide-screenshot`
-- WP10: `wp10-follow-irispy-prebeta`
 
 **M4**
 - WP0: `wp0-upstream-review`, `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
@@ -324,10 +323,6 @@ Notes:
 ### WP10: Loader robustness and performance
 
 Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on files up to 20 GB.
-
-**L**
-
-- [ ] **L** `wp10-follow-irispy-prebeta` (D92, #325): glue-solar on irispy main 495f39d (the user's pre-beta PRs #243-#255), unpinned again: level 2 headers on its synthetic test files (irispy #244's check), the slit-jaw slit position taken as irispy's 0-based pixel (#247). Done when #325 merges.
 
 Notes:
 - IRIS Level 2 image HDUs are int16 (BSCALE 0.25, BZERO 7992; fill is raw -32768/-32764). glue-solar reads SJIs and AIA cutouts through irispy main's `read_sji_lvl2(memmap=True)`, whose raw int16 keeps the fill under a lazy mask; a `.fits.gz` is decompressed once into bytes that irispy views (#140).
