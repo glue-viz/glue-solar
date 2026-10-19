@@ -1,0 +1,1 @@
+The IRIS fitter's Settings get 'Mg II two peaks': two Gaussians on a constant for the emission peaks of the Mg II k or h line in the Fit range.
