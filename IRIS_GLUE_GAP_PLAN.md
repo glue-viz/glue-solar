@@ -28,9 +28,9 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at cbe1196 (#325): glue-solar on irispy main 495f39d, unpinned (D92). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
+**Resume here.** Main is at 089a5b5 (#326). glue-solar runs on irispy main 495f39d, unpinned (D92). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
 
-**Next.** In flight (2026-10-19, the user's choices; about 40% of the week's usage left until Wednesday): `wp9-guide-screenshot` (worktree `~/Git/glue-solar-wp9-guide-screenshot`), a second Fable whole-code review of main (`~/Git/glue-solar-review2`, findings for the user to triage), and two irispy drafts (the level 2 error naming 'filename', `maps_from_fit`'s at-bound flag; clone `~/Git/irispy-drafts`). Then `wp0-upstream-review` (D89), from the second review's findings. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
+**Next.** In flight (2026-10-19, the user's choices; about 40% of the week's usage left until Wednesday): #326 (worktree `~/Git/glue-solar-wp9-guide-screenshot`), a second Fable whole-code review of main (`~/Git/glue-solar-review2`, findings for the user to triage), and two irispy drafts (the level 2 error naming 'filename', `maps_from_fit`'s at-bound flag; clone `~/Git/irispy-drafts`). Then `wp0-upstream-review` (D89), from the second review's findings. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
 **Waiting on the user.** (1) Trying the fitting in the GUI ('Fit every spectrum', the model builder; OBS 3610108077's C II and Si IV windows, the flare 3860258481 for saturation) and the builder's later options (presets, ties to any line, an editable degree; D88). (2) `wp0-qt68-macos-pass`. (3) The app's drag-into-/Applications check: `~/Downloads/Glue Solar.dmg` is fresh, built 2026-10-19 from main cbe1196 with irispy 495f39d (env `glue-solar-app-495f`), smoke-checked headless and through `open`. (4) An exact report of the linking and slider-sync problems seen in the app on 2026-10-09 (4000255147's raster and SJI 1400, or 4000005156's two scans and SJI 2796), rerun with `glue` from `iris-plan-qt6-802-495f`. Then `wp0-upstream-review` (D89).
 
@@ -145,7 +145,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D89:** User (2026-10-18), on upstreaming: no PR to glue, glue-qt or astropy until the glue-solar work here is done; then a full review of the code decides what is upstreamed and what stays in glue-solar (`wp0-upstream-review`), re-verifying every report candidate and perf finding first. Meanwhile, smaller ports to glue or glue-qt go on branches of the user's forks for small PRs later. The matplotlib-free WCSAxes core is under way with astropy in person and is not tracked here; the upstream drafts wait on their human reviewers.
 
-- **D90:** User (2026-10-18), on the earlier audits' other proposals (`audit2/` in the session archive): do all the polish (P4-P12: #323, #321, #322, #316, `wp9-guide-screenshot`), one light-curves entry against Time (C6: #319), and one path tool on IRIS viewers (C5: #318); keep Loop, Blink and Follow/lock (upstream candidates for `wp0-upstream-review`: Loop's range options in glue-qt's slider playback, Follow/lock as a hover mode of glue's Pixel tool, Blink as a viewer tool), the browser, every colormap and gamma stretch, and every analysis, quicklook and tool extra (F1-F16); none of the internal changes (F9, F12, S12, R-K).
+- **D90:** User (2026-10-18), on the earlier audits' other proposals (`audit2/` in the session archive): do all the polish (P4-P12: #323, #321, #322, #316, #326), one light-curves entry against Time (C6: #319), and one path tool on IRIS viewers (C5: #318); keep Loop, Blink and Follow/lock (upstream candidates for `wp0-upstream-review`: Loop's range options in glue-qt's slider playback, Follow/lock as a hover mode of glue's Pixel tool, Blink as a viewer tool), the browser, every colormap and gamma stretch, and every analysis, quicklook and tool extra (F1-F16); none of the internal changes (F9, F12, S12, R-K).
 
 - **D91:** User (2026-10-19), as irispy's pre-beta PRs land: glue-solar pins irispy main at a commit it is tested with (`irispy-lmsal @ git+…@<sha>` in pyproject), and a 'follow irispy' PR moves the pin with glue-solar's fixes after each batch of irispy changes, so an irispy merge never turns glue-solar's CI red. Amends D47 (irispy's git main, now pinned).
 
@@ -168,7 +168,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP9: `wp9-guide-screenshot`
 
 **M4**
 - WP0: `wp0-upstream-review`, `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
@@ -306,10 +305,6 @@ Notes:
 ### WP9: Documentation and tutorials
 
 Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides and recipes.
-
-**L**
-
-- [ ] **L** `wp9-guide-screenshot` (D90, P12): a current screenshot atop the quicklook guide, and the guides' other screenshots regenerated (`docs/make_screenshots.py`), after the polish items. Done when the guide's images show the current quicklook.
 
 **M4**
 
