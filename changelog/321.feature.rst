@@ -1,0 +1,1 @@
+Datasets are labelled by their window and observation start, such as 'Si IV 1403 2013-09-02 18:29', with 'scan N' only where an observation has several rasters; components are named after the window, every analysis result after its source, and the observation browser's columns are in words.
