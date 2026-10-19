@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 151bc59 (#333). glue-solar runs on irispy main 30464e2, unpinned (D92; #329's CI passed on it). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
+**Resume here.** Main is at 8ed53df (#336). glue-solar runs on irispy main 30464e2, unpinned (D92; #329's CI passed on it). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
 
 **Next.** In flight: #332 (#332), #333, `wp1-link-without-iris`, `wp4-refit-on-point`, `wp6-fit-colour`, `wp6-mg-ii-preset` and `wp5-line-checkboxes` (D97, D98); `wp10-gzip-raster-once` waits on irispy draft #275. #330 and these two were built and checked inline on Opus with no Fable review, as Fable's weekly limit ran out on 2026-10-19: give them a Fable review when it is back. **After the user's weekly usage reset** (user, 2026-10-19; no Fable until then): Fable reviews of #330 and every PR merged since without one (each PR body or this line names them), then `wp0-upstream`. Then what is left is the user's (below), upstream (`wp0-upstream`, from UPSTREAM_REVIEW.md, D89) or waiting on others. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
@@ -179,7 +179,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 ### Checklist by milestone
 
 **M1**
-- WP0: `wp0-release-tracking`, `wp0-follow-irispy-eb0d`
+- WP0: `wp0-release-tracking`
 - WP1: `wp1-link-without-iris`
 - WP12: `wp12-path-from-points`, `wp12-sst-path-diagram-axes`
 - WP4: `wp4-refit-on-point`
@@ -204,7 +204,6 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 
 **M1**
 
-- [ ] **M1** `wp0-follow-irispy-eb0d` (D92): follow irispy main 0650517 (#263-#287, the user's last big batch before the gWCS spectrograph work resumes), which turns every glue-solar PR's CI red: a slit-jaw cube's unit is its passband's DN (`DN_UNIT["SJI_1400"]`, plain DN for AIA), dust removal is `irispy.utils.dust.remove_dust`, and the density curves need released fiasco (>=0.5.0) rather than its git main. Done when glue-solar main passes on irispy main.
 - [ ] **M1** `wp0-release-tracking`: After each glue-core, glue-qt or astropy release past 1.27.0/0.4.2/8.0.2, raise floors and retire workarounds; raise the astropy floor to the first release bundling WCSLIB 8.9 (astropy main 777e811427), whose `wcserr_set` no longer leaks 64 B per pixel outside a -TAB table; once glue releases its pytest plugin (glue #2587, on main), drop `conftest.py`'s `CFG_DIR` setup; once glue-qt releases a `glue -x` fix, the macOS app's check runs `smoke.py` with `-x` and `GLUE_SOLAR_APP_CHECK` goes (216-2). Done when each release has a line here naming its PRs, floors and retired workarounds.
   - astropy 8.0.2 (2026-10-15): no PR; floors unchanged (still WCSLIB 8.6); the baseline envs move to it (`iris-plan-qt6-802`, D83) and pass the suite as on 8.0.1; #20221 fixes the wrong second-crossing longitude ticks (seen on sit-and-stare 3660259102, not rolled SJIs), the '#' auto-placement TypeError and the `simplify_labels` IndexError; #19174 still crashes without the lock; no workaround retired.
 
