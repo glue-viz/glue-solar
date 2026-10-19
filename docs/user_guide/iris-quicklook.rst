@@ -236,12 +236,12 @@ a tie to a tied line follows it, its separations adding up and its ratios multip
 2. Tie ``mean_2`` to ``mean_1`` by 1.1305, and ``mean_3`` to ``mean_1`` by 1.1756.
 3. Give each amplitude the lower bound 0, press "OK", drag over 1334.1 to 1336.2 Å and press "Fit".
 
-The fit is drawn with each line on the background, dashed; "Clear" removes them. A line without a
-start begins at one of the most prominent peaks, and each line at its peak among the samples nearer
-its center than any other line's, so give a blend's lines starts or ties. The fit can be made with
-the x unit in Å or ``km / s``, the starts, bounds and separations then in it. "Fit every spectrum"
-then fits the model to every spectrum of the window (see :ref:`Line fit maps
-<glue_solar_users_guide_iris_line_fit_maps>`).
+The fit is drawn over the spectrum in a darker shade of its color, with each line on the background
+dashed; "Clear" removes them. A line without a start begins at one of the most prominent peaks, and
+each line at its peak among the samples nearer its center than any other line's, so give a blend's
+lines starts or ties. The fit can be made with the x unit in Å or ``km / s``, the starts, bounds and
+separations then in it. "Fit every spectrum" then fits the model to every spectrum of the window
+(see :ref:`Line fit maps <glue_solar_users_guide_iris_line_fit_maps>`).
 
 **Mg II.** Mg II k and h are each double-peaked. Drag the Fit range over one line's core, about
 ±40 km/s, and press "Mg II two peaks" in Settings: two Gaussians on a constant, one for each emission
