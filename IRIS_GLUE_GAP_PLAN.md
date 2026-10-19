@@ -165,6 +165,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP9: `wp9-guide-screenshot`
+- WP10: `wp10-follow-irispy-prebeta`
 - WP11: `wp11-polish-labels`, `wp11-polish-icons`
 
 **M4**
@@ -305,6 +306,7 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 
 **L**
 
+- [ ] **L** `wp10-follow-irispy-prebeta` (D47): glue-solar follows irispy main fe59e7a (the user's pre-beta review PRs #243-#246, 2026-10-19: files that are not IRIS level 2 by `INSTRUME` and `DATA_LEV` refused, tarballs extracted into irispy's cache, cube and slicing fixes, the SJI exposure correction, analysis helper fixes), which turned main's CI red: synthetic fixtures carry level 2 headers, and glue-solar's code and tests follow the behavior changes. Done when the full suite passes on irispy fe59e7a in both envs and CI is green.
 - [ ] **L** `wp9-guide-screenshot` (D90, P12): a current screenshot atop the quicklook guide, and the guides' other screenshots regenerated (`docs/make_screenshots.py`), after the polish items. Done when the guide's images show the current quicklook. Depends: wp11-polish-labels, wp11-polish-icons.
 
 **M4**
