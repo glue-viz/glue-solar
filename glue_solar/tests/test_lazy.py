@@ -427,16 +427,21 @@ def test_a_gzipped_slit_jaw_file_is_decompressed_once(monkeypatch, tmp_path, iri
     )
     expected = image_data(plain)
     assert expected.get_component(expected.main_components[0])._source.raw is reads[0][1].data  # irispy's memmap
-    opened = []
-    init = gzip.GzipFile.__init__
-    monkeypatch.setattr(gzip.GzipFile, "__init__", lambda self, *args, **kwargs: (
-        opened.append(True) or init(self, *args, **kwargs)
-    ))
+    inflated = {}  # the bytes each open of the gzip stream inflates, through GzipFile.read and seek alike
+    read = gzip._GzipReader.read
+
+    def counted(self, size=-1):
+        chunk = read(self, size)
+        inflated[self] = inflated.get(self, 0) + len(chunk)
+        return chunk
+
+    monkeypatch.setattr(gzip._GzipReader, "read", counted)
     data = image_data(gzipped)
-    assert opened == [True]
-    raw, [content, cube] = data.get_component(data.main_components[0])._source.raw, reads[1]
+    peek, whole = inflated.values()  # the loader's header peek, then irispy's read of all of it, once
+    assert peek < plain.stat().st_size == whole
+    raw, [path, cube] = data.get_component(data.main_components[0])._source.raw, reads[1]
+    assert path == gzipped
     assert raw is cube.data
-    assert np.shares_memory(raw, np.frombuffer(content, np.uint8))  # a view of the decompressed bytes, uncopied
     assert data.label == expected.label
     # values, mask, times, exposures and every pixel's coordinates
     assert [cid.label for cid in data.components] == [cid.label for cid in expected.components]
