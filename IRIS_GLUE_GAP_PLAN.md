@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 089a5b5 (#326). glue-solar runs on irispy main 495f39d, unpinned (D92). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
+**Resume here.** Main is at 8e4a3fb (#327). glue-solar runs on irispy main 495f39d, unpinned (D92). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
 
 **Next.** In flight (2026-10-19, the user's choices; about 40% of the week's usage left until Wednesday): `wp6-fit-memory` (the second whole-code review's two findings; `review2/FINDINGS.md` in the session archive); `wp0-upstream-review`'s result is UPSTREAM_REVIEW.md (D89), for the user to work through. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
@@ -153,7 +153,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D93 (provisional, 2026-10-19):** `wp6-fit-memory` keeps astropy's default `chunk_n_max` (500): slabs alone cut a Si IV window's pickled data from 28.8 to 3.1 GiB, and 5000 inside slabs left about 10 chunks for 12 workers, doubling the time (254 s against 131 s). The second review's R2 is answered by slabs. The alternative is `chunk_n_max=5000`.
 
-- **D94 (provisional, 2026-10-19):** after irispy #256 places dust by the bad-pixel table in a file's pixels, 'IRIS: remove dust' refuses a rebinned or regridded slit-jaw image up front (`wp10-follow-irispy-dust`), rather than failing after its background run. The alternative is to offer it and show irispy's error afterwards.
+- **D94 (provisional, 2026-10-19):** after irispy #256 places dust by the bad-pixel table in a file's pixels, 'IRIS: remove dust' refuses a rebinned or regridded slit-jaw image up front (#327), rather than failing after its background run. The alternative is to offer it and show irispy's error afterwards.
 
 ## Milestones
 
@@ -173,7 +173,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP6: `wp6-fit-memory`
-- WP10: `wp10-follow-irispy-dust`
 
 **M4**
 - WP0: `wp0-upstream-review`, `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
@@ -328,10 +327,6 @@ Notes:
 ### WP10: Loader robustness and performance
 
 Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on files up to 20 GB.
-
-**L**
-
-- [ ] **L** `wp10-follow-irispy-dust` (D92): glue-solar follows irispy main fb08f89 (#256: dust found from the pipeline's bad-pixel table, `calculate_dust_mask` taking a cube; #257, #258, #260), which broke its dust removal and the slit-jaw bursts test on main. Done when the full suite passes on irispy fb08f89 and CI is green.
 
 Notes:
 - IRIS Level 2 image HDUs are int16 (BSCALE 0.25, BZERO 7992; fill is raw -32768/-32764). glue-solar reads SJIs and AIA cutouts through irispy main's `read_sji_lvl2(memmap=True)`, whose raw int16 keeps the fill under a lazy mask; a `.fits.gz` is decompressed once into bytes that irispy views (#140).
