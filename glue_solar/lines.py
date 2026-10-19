@@ -67,8 +67,8 @@ class LineTool(Tool):
     """
     Label the main IRIS lines (`MAIN_LINES`) on a Profile viewer whose x axis is the wavelength of IRIS data: a thin
     marker at each line within the plotted range and its name at the top, in the axis's display unit. Lines too close
-    to tell apart at the plotted range share one label. The button, checked while they show, switches them off and
-    on; they start on.
+    to tell apart at the plotted range share one label; a label that would overlap another goes below it. The button,
+    checked while they show, switches them off and on; they start on.
     """
 
     icon = "glue_spectrum"
@@ -82,6 +82,7 @@ class LineTool(Tool):
         self.artists = []
         for prop in ("reference_data", "x_att", "x_display_unit", "x_min", "x_max"):
             viewer.state.add_callback(prop, self.refresh)
+        self._resized = viewer.figure.canvas.mpl_connect("resize_event", self.refresh)  # the labels' overlaps change
         self.refresh()
         viewer.toolbar_added.connect(lambda: _check(self))
 
@@ -93,6 +94,7 @@ class LineTool(Tool):
     def close(self):
         for prop in ("reference_data", "x_att", "x_display_unit", "x_min", "x_max"):
             self.viewer.state.remove_callback(prop, self.refresh)
+        self.viewer.figure.canvas.mpl_disconnect(self._resized)
         super().close()
 
     def positions(self):
@@ -126,6 +128,7 @@ class LineTool(Tool):
         self.artists = []
         axes = self.viewer.axes
         transform = blended_transform_factory(axes.transData, axes.transAxes)
+        boxes = []  # the labels' extents on screen
         for label, xs in self.positions():
             for at in xs:
                 line = Line2D([at, at], [0, 1], transform=transform, color="0.5", linewidth=0.5, zorder=0)
@@ -133,6 +136,13 @@ class LineTool(Tool):
             text = Text(np.mean(xs), 0.98, label, transform=transform, rotation=90, ha="right", va="top", fontsize=7,
                         color="0.35")
             self.artists.append(axes.add_artist(text))
+            box = text.get_window_extent()
+            # below the lowest label it would overlap, such as Mg II k's and the triplet's on a narrow panel (P8)
+            below = [other.y0 for other in boxes if other.x0 < box.x1 and box.x0 < other.x1]
+            if below:
+                text.set_y(axes.transAxes.inverted().transform((0, min(below) - 2))[1])
+                box = text.get_window_extent()
+            boxes.append(box)
         self.viewer.figure.canvas.draw_idle()
 
 

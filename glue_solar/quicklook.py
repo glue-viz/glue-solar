@@ -43,7 +43,7 @@ from matplotlib.colors import to_hex
 from matplotlib.lines import Line2D
 from matplotlib.path import Path
 from matplotlib.transforms import Bbox
-from qtpy.QtCore import QCoreApplication, QEvent, QEventLoop, QObject, Qt, QTimer
+from qtpy.QtCore import QCoreApplication, QEvent, QEventLoop, QObject, QSize, Qt, QTimer
 from qtpy.QtWidgets import (
     QAbstractItemView,
     QAbstractScrollArea,
@@ -1343,12 +1343,16 @@ def _zoom(viewer, x, y, margin):
     """
     box = viewer.axes.get_window_extent()
     ratio = box.height / box.width if box.width else 1.0
-    width = max(np.ptp(x) + 2 * margin, (np.ptp(y) + 2 * margin) / ratio)
+    width, height = np.ptp(x) + 2 * margin, np.ptp(y) + 2 * margin
+    if height > width * ratio:  # the rows span the view exactly, as a rounding would crop the field (P9)
+        width = height / ratio
+    else:
+        height = width * ratio
     x_mid, y_mid = (x.min() + x.max()) / 2, (y.min() + y.max()) / 2
     state = viewer.state
     with delay_callback(state, "x_min", "x_max", "y_min", "y_max"):
         state.x_min, state.x_max = x_mid - width / 2, x_mid + width / 2
-        state.y_min, state.y_max = y_mid - width * ratio / 2, y_mid + width * ratio / 2
+        state.y_min, state.y_max = y_mid - height / 2, y_mid + height / 2
     viewer._solar_zoom = (x, y, margin), (state.x_min, state.x_max, state.y_min, state.y_max)
 
 
@@ -1671,6 +1675,7 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
 
     def add(panel, viewer):
         made.append((panel, viewer))
+        viewer.toolbar.setIconSize(QSize(16, 16))  # glue-qt's are 25 px: more of the narrow panels' tools in sight (P8)
         if panel.window is not None and panel.window not in windows:
             windows[panel.window] = {}
             viewers["windows"].append(windows[panel.window])
@@ -2596,7 +2601,8 @@ class _PointWindow(QTableWidget):
         self.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.verticalHeader().hide()
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        self.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)  # the width left, labels elided
+        self.horizontalHeader().setSectionResizeMode(0, QHeaderView.Interactive)  # sized by `_fit_labels`
+        self.horizontalHeader().setStretchLastSection(True)  # the width left to the time sync
         self.setTextElideMode(Qt.ElideMiddle)  # on one line, keeping their ends, such as 'scan 0' or 'stack'
         self.setWordWrap(False)
         self.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
@@ -2614,6 +2620,17 @@ class _PointWindow(QTableWidget):
         self.destroyed.connect(partial(self._detach, coordinator, viewers, self._schedule))
 
     _PROPS = ("reference_data", "x_att", "y_att", "slices", "layers")  # layers: such as the shown component
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_labels()
+
+    def _fit_labels(self):
+        """Make the labels as wide as the widest, or as the readouts after them leave, elided in the middle (P8)."""
+        header = self.horizontalHeader()
+        widths = [max(self.sizeHintForColumn(i), header.sectionSizeHint(i)) for i in range(self.columnCount())]
+        left = self.viewport().width() - sum(widths[1:])
+        self.setColumnWidth(0, max(min(widths[0], left), header.minimumSectionSize()))
 
     @staticmethod
     def _detach(coordinator, viewers, schedule):
@@ -2639,6 +2656,7 @@ class _PointWindow(QTableWidget):
         for row, (data, viewers) in enumerate(shows.items()):
             for column, text in enumerate([data.label, *self._cells(point, data, viewers)]):
                 self.setItem(row, column, QTableWidgetItem(text))
+        self._fit_labels()
 
     def _cells(self, point, data, viewers):
         """The point's pixel, position, time, exposure and value in ``data``, and its time sync."""

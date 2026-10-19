@@ -15,7 +15,7 @@ from glue_qt.utils.decorators import messagebox_on_error
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.image.profile_viewer_tool import ProfileViewerTool
 from glue_qt.viewers.profile import ProfileViewer
-from qtpy import QtWidgets
+from qtpy import QtGui, QtWidgets
 
 from astropy.visualization import PowerStretch
 
@@ -114,6 +114,18 @@ def _save_last_session(app):
 
 
 _glue_close_event = None  # glue-qt's ``GlueApplication.closeEvent``, once `setup` wraps it
+_glue_init = None  # glue-qt's ``GlueApplication.__init__``, once `setup` wraps it
+
+
+def _init(self, *args, **kwargs):
+    """
+    glue-qt's ``GlueApplication.__init__``, then glue-solar's icon, the macOS app's, on the application and its
+    window, where glue-qt puts glue's after loading plugins (D90, P8); glue-qt puts the one before back as it closes.
+    """
+    _glue_init(self, *args, **kwargs)
+    icon = QtGui.QIcon(os.path.join(os.path.dirname(__file__), "icons", "glue_solar.png"))
+    self.app.setWindowIcon(icon)  # also the viewers' and, on macOS, the Dock's
+    self.setWindowIcon(icon)
 
 
 def _close_event(self, event):
@@ -154,7 +166,7 @@ def _add_keys(viewer, keys):
 
 
 def setup():
-    global _glue_close_event
+    global _glue_close_event, _glue_init
     # Every sunpy colormap, under its own name; glue-qt draws each one's icon once (`glue_patches.update_icons`)
     for name in sorted(cmlist):
         _add_colormap(name)
@@ -227,3 +239,5 @@ def setup():
 
     if GlueApplication.closeEvent is not _close_event:
         _glue_close_event, GlueApplication.closeEvent = GlueApplication.closeEvent, _close_event
+    if GlueApplication.__init__ is not _init:
+        _glue_init, GlueApplication.__init__ = GlueApplication.__init__, _init

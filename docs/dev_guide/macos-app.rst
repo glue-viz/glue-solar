@@ -9,7 +9,8 @@ silicon, and ``Glue Solar.dmg``, which holds the app beside a link to ``/Applica
 and the PyInstaller hooks in ``hooks/``, which add the modules, data files and package metadata PyInstaller misses, are
 adapted from those of `glue-standalone-apps <https://github.com/glue-viz/glue-standalone-apps>`__, glue's own
 installers, with the glue team's permission. ``start_glue_solar.py`` is the entry point, which runs glue's ``glue``
-command, ``icon.png`` the app's icon and ``build_app.sh`` the build.
+command, and ``build_app.sh`` the build. The app's icon is glue-solar's, ``glue_solar/icons/glue_solar.png``, which
+glue's windows show wherever glue-solar is installed.
 
 The app is not signed with a Developer ID or notarized; PyInstaller signs it ad hoc, as Apple silicon needs. It is
 for the Mac it is built on: macOS opens it from a disk image built there, but blocks a copy that was downloaded or
