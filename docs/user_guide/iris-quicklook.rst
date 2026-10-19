@@ -121,7 +121,7 @@ wavelength and a dotted one at the synced time; the spectrum panel has a dashed 
 map's wavelength. "Raster overlays" in the View menu draws each raster step's slit on the slit-jaw
 images, and the step at the synced time on the maps. A zoom on the spectrum panel's wavelength axis
 gives the wavelength panel the same range. Axis labels give their units, such as "Wavelength
-[Angstrom]", and the spectrum panel's y axis the data's unit.
+[Angstrom]", and the spectrum panel's y axis is "Data values" in the data's unit.
 
 Regions
 -------

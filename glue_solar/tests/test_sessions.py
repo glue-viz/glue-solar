@@ -614,6 +614,9 @@ def test_a_restored_quicklook_keeps_its_light_curves_where_they_were(
 
     saved = curves(app)
     assert len(saved) == 2
+    qtbot.waitUntil(lambda: any(group.label == MARK for group in app.data_collection.subset_groups))
+    [marker] = [group for group in app.data_collection.subset_groups if group.label == MARK]
+    marker.label = "Master exposure"  # as a session saved before D90 names it
     session = tmp_path / "curves.glu"
     app.save_session(str(session), absolute_paths=False)
     opened = restore(qtbot, monkeypatch, session)
@@ -627,12 +630,16 @@ def test_a_restored_quicklook_keeps_its_light_curves_where_they_were(
     layers = [layer for layer in plot.layers if layer.layer.label in saved]
     assert len(layers) == 2
     assert all(layer.enabled and layer.state.line_visible for layer in layers)
-    # the time master's exposure marks them again, and a click leaves them where they were
+    # the exposure of the dataset leading the time marks them again, in the session's own group, and a click leaves
+    # them where they were
     spectrogram, raster_map = opened.viewers[-1][1], opened.viewers[-1][0]
     raster = spectrogram.state.reference_data
     spectrogram.state.slices = (7, *spectrogram.state.slices[1:])
-    qtbot.waitUntil(lambda: marks(opened, raster, 7))
-    [marker] = [group for group in opened.data_collection.subset_groups if group.label == MARK]
+    [marker] = [group for group in opened.data_collection.subset_groups if group.label == "Master exposure"]
+    start = raster[raster.id["Time"]][7, 0, 0]
+    qtbot.waitUntil(lambda: getattr(marker.subset_state, "lo", None) == start)
+    assert coordinator(opened.data_collection).marker is marker
+    assert not [group for group in opened.data_collection.subset_groups if group.label == MARK]  # no second one
     assert marker.subset_state.att.parent.label in saved
     select_point(raster_map, 5, 3)
     [point] = opened.session.edit_subset_mode.edit_subset

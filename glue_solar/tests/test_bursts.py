@@ -133,7 +133,7 @@ def test_the_event_table_opens_in_a_table_viewer(app, irispy_test_files):
     viewer.state.filter = f"{times[0]}|{times[2]}"
     assert shown() == sorted([times[0], times[2]], reverse=True)
     viewer.state.filter = ""
-    # a range of times, as the time master's "Master exposure" gives, highlights their rows
+    # a range of times, as the "Current exposure" of the dataset leading the time gives, highlights their rows
     lo, hi = np.sort(table["time"])[[1, -1]]
     app.data_collection.new_subset_group("later", RangeSubsetState(lo, hi, table.id["time"]))
     rows = range(model.rowCount())

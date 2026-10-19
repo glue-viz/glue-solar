@@ -493,7 +493,7 @@ def test_lazy_rasters_in_glues_viewers_and_sessions(app, qtbot, monkeypatch, tmp
     profile = app.new_data_viewer(ProfileViewer, data=data)
     profile.state.layers[0].attribute = rate
     profile.state.y_display_unit = "DN / s"  # which glue offers, as it refuses units it does not
-    assert profile.state.y_axislabel == "DN / s"  # in place of glue's "Data values [DN / s]" (D90)
+    assert profile.state.y_axislabel == "Data values [DN / s]"
     histogram = app.new_data_viewer(HistogramViewer, data=data)
     histogram.state.x_att = data.main_components[0]
     assert [histogram.state.hist_x_min, histogram.state.hist_x_max] == [np.nanmin(oracle), np.nanmax(oracle)]

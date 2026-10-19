@@ -50,7 +50,6 @@ from glue_solar.quicklook import (
     _curve,
     _half_cadence,
     _PointCurves,
-    _sync_text,
     _viewers,
     coordinator,
     nearest,
@@ -84,7 +83,7 @@ LEAD = _TimeMasterEntry.action_text  # the Coordinate menu's entry that makes a 
 
 def leads(step=None):
     """The time sync of the dataset that leads the time, as the Frame time readout and the Point window give it."""
-    return _sync_text(("master", step))
+    return "leads time" + (f", step {step}" if step is not None else "")
 
 
 class SubsetUpdates(HubListener):
@@ -625,7 +624,7 @@ def test_the_quicklook_axes_give_their_units(bare_app, qtbot, irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
     spectrum = viewers["spectrum"].state
     unit = raster.get_component(raster.main_components[0]).units
-    assert (spectrum.x_axislabel, spectrum.y_axislabel) == ("Wavelength [Angstrom]", unit)
+    assert (spectrum.x_axislabel, spectrum.y_axislabel) == ("Wavelength [Angstrom]", f"Data values [{unit}]")
     spectrum.x_display_unit = "nm"
     assert spectrum.x_axislabel == "Wavelength [nm]"
     viewers["map"].toolbar.actions["solar:hide_axes"].trigger()  # the panels open without axes (D71)

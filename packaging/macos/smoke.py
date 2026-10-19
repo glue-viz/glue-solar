@@ -45,14 +45,14 @@ def check(app):
         assert qtpy.API_NAME == "PyQt6", qtpy.API_NAME
         assert "glue_solar" in list_loaded_plugins(), list_loaded_plugins()
         assert {
-            "IRIS: browse observations…",
-            "IRIS: link helioprojective coordinates",
-            "IRIS: restore last session",
+            "Browse observations…",
+            "Link helioprojective coordinates",
+            "Restore last session",
         } <= entries, entries
         assert app.has_terminal()
         assert _has_line_ratio()
         assert not find_dependencies(extras=["map"])[0]  # reproject's metadata
-        ffmpeg = shutil.which(animation.FFMpegWriter.bin_path())  # as 'IRIS: save frames or movie…' offers MP4
+        ffmpeg = shutil.which(animation.FFMpegWriter.bin_path())  # as 'Save frames or movie…' offers MP4
         assert str(ffmpeg).startswith(sys._MEIPASS), ffmpeg
         subprocess.run([ffmpeg, "-version"], check=True, capture_output=True)  # with its own libraries
         figure = Figure()
