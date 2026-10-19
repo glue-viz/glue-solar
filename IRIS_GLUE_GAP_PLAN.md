@@ -30,7 +30,7 @@ Out of scope:
 
 **Resume here.** Main is at 12da8cd (#328). glue-solar runs on irispy main fb08f89, unpinned (D92; followed in #327). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
 
-**Next.** Nothing in flight: every item that needs nobody is done (the last, #328, the second whole-code review's findings, 2026-10-19). `wp0-upstream-review`'s result is UPSTREAM_REVIEW.md (D89), for the user to work through; D93 and D94 are provisional, for the user to confirm. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
+**Next.** Nothing in flight: every item that needs nobody is done (the last, #328, the second whole-code review's findings, 2026-10-19). `wp0-upstream-review`'s result is UPSTREAM_REVIEW.md (D89), for the user to work through. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
 **Waiting on the user.** (1) Trying the fitting in the GUI ('Fit every spectrum', the model builder; OBS 3610108077's C II and Si IV windows, the flare 3860258481 for saturation) and the builder's later options (presets, ties to any line, an editable degree; D88). (2) `wp0-qt68-macos-pass`. (3) The app's drag-into-/Applications check: `~/Downloads/Glue Solar.dmg` is fresh, built 2026-10-19 from main cbe1196 with irispy 495f39d (env `glue-solar-app-495f`), smoke-checked headless and through `open`. (4) An exact report of the linking and slider-sync problems seen in the app on 2026-10-09 (4000255147's raster and SJI 1400, or 4000005156's two scans and SJI 2796), rerun with `glue` from `iris-plan-qt6-802-495f`. Then `wp0-upstream-review` (D89).
 
@@ -151,9 +151,9 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D92:** User (2026-10-19): irispy main has settled after the pre-beta PRs (its history was rewritten, main now 495f39d, so earlier SHAs such as 540e9e5 and fe59e7a are on no branch): glue-solar tracks irispy's git main again (D47), the follow-irispy PR unpinning it; D91's pin returns only while irispy changes in batches.
 
-- **D93 (provisional, 2026-10-19):** #328 keeps astropy's default `chunk_n_max` (500): slabs alone cut a Si IV window's pickled data from 28.8 to 3.1 GiB, and 5000 inside slabs left about 10 chunks for 12 workers, doubling the time (254 s against 131 s). The second review's R2 is answered by slabs. The alternative is `chunk_n_max=5000`.
+- **D93:** User (2026-10-19, confirming the provisional call): #328 keeps astropy's default `chunk_n_max` (500): slabs alone cut a Si IV window's pickled data from 28.8 to 3.1 GiB, and 5000 inside slabs left about 10 chunks for 12 workers, doubling the time (254 s against 131 s). The second review's R2 is answered by slabs. The alternative is `chunk_n_max=5000`.
 
-- **D94 (provisional, 2026-10-19):** after irispy #256 places dust by the bad-pixel table in a file's pixels, 'IRIS: remove dust' refuses a rebinned or regridded slit-jaw image up front (#327), rather than failing after its background run. The alternative is to offer it and show irispy's error afterwards.
+- **D94:** User (2026-10-19, confirming the provisional call): after irispy #256 places dust by the bad-pixel table in a file's pixels, 'IRIS: remove dust' refuses a rebinned or regridded slit-jaw image up front (#327), rather than failing after its background run. The alternative is to offer it and show irispy's error afterwards.
 
 ## Milestones
 
