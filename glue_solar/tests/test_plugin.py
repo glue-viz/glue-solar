@@ -56,7 +56,17 @@ from matplotlib.text import Text
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QCursor, QDesktopServices, QIcon, QKeySequence
 from qtpy.QtTest import QTest
-from qtpy.QtWidgets import QCheckBox, QDialog, QFileDialog, QInputDialog, QMessageBox, QPushButton, QToolBar
+from qtpy.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QInputDialog,
+    QListWidget,
+    QMessageBox,
+    QPushButton,
+    QToolBar,
+)
 
 import astropy.units as u
 from astropy import constants
@@ -2168,6 +2178,47 @@ def test_a_draw_queued_as_the_test_returns_runs_on_a_live_application(qtbot):
     canvas = app.new_data_viewer(ImageViewer).figure.canvas
     canvas.mpl_connect("draw_event", lambda event: gc.collect())
     canvas.draw_idle()
+
+
+def test_lines_in_this_range_lists_the_strongest_first_and_labels_a_click(app):
+    wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 1390, "CDELT1": 0.025})
+    data = Data(label="Si IV", flux=np.ones(641), coords=wcs)  # 1390 to 1406 Å
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ProfileViewer, data=data)
+    viewer.state.x_att = data.world_component_ids[0]
+    viewer.state.x_display_unit = "nm"
+    viewer.state.x_min, viewer.state.x_max = 139.8, 140.6
+    tool = viewer.toolbar.tools["solar:lines_in_range"]
+
+    def listed():
+        tool.activate()
+        listing = tool.dialog.findChild(QListWidget)
+        return listing, [listing.item(i).text() for i in range(listing.count())]
+
+    listing, texts = listed()  # the plotted range, in nm
+    assert tool.dialog.windowTitle() == "IRIS lines in 1398.00–1406.00 Å"
+    assert texts[0] == "Si IV 1402.770 Å, 0.5"  # the done-when, at half the passband's strongest, Si IV 1393.76
+    assert texts[-1].endswith(" Å")  # no predicted strength: last, with none shown
+    region, abundance = tool.dialog.findChildren(QComboBox)
+    region.setCurrentText("Flare")
+    assert listing.item(0).text().startswith("Si IV 1402.770 Å")
+    abundance.setCurrentText("Photospheric")  # each model's own strengths
+    assert [listing.item(i).text() for i in range(listing.count())] != texts
+    items = [listing.item(i) for i in range(listing.count())]
+    o_iv = next(item for item in items if item.text().startswith("O IV 1401.157"))
+    other = next(item for item in items if not item.text().startswith(("Si", "O", "S")))
+    lines = viewer.toolbar.tools["solar:lines"]
+    for item in (o_iv, other, other):  # a main line, already labeled, then another twice
+        listing.itemClicked.emit(item)
+    assert lines.labeled == [other.data(Qt.UserRole)]
+    assert other.data(Qt.UserRole)[0] in ", ".join(name for name, _ in lines.positions())
+    # glue's Fit and Collapse range first
+    viewer.toolbar.active_tool = "profile-analysis"
+    profile_tools = viewer.toolbar.tools["profile-analysis"]._profile_tools
+    profile_tools.ui.tabs.setCurrentIndex(1)  # Fit, which shows the range
+    profile_tools.rng_mode.state.x_min, profile_tools.rng_mode.state.x_max = 139.45, 139.3  # dragged leftwards
+    _, texts = listed()
+    assert texts[0].startswith("Si IV 1393.760 Å")
 
 
 def test_profiles_label_the_main_iris_lines(app, irispy_test_files):
