@@ -22,7 +22,7 @@ dependencies = [
   "PyQt6>=6.11",
   "sunpy[map,net]>=6.0.0",
   # irispy main at a commit glue-solar is tested with, until glue-solar is released; a PR moves it as irispy changes
-  "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@540e9e5f27c4ce73ae98be9e7e616c05d5609d2a",
+  "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@fe59e7a773bbb7a464bac61f6407f3b3a1c97f34",
   "ndcube>=2.0",
 ]
 dynamic = ["version"]
