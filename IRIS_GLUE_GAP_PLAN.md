@@ -28,9 +28,9 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 95c42c2 (#330). glue-solar runs on irispy main 30464e2, unpinned (D92; #329's CI passed on it). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
+**Resume here.** Main is at 2da2d0e (#331). glue-solar runs on irispy main 30464e2, unpinned (D92; #329's CI passed on it). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
 
-**Next.** In flight: `wp5-l-lines-in-range` (D96), `wp11-pixel-off-image`, then `wp11-ui-wording`, `wp1-link-without-iris` and `wp10-gzip-raster-once` (D97). #330 and these two were built and checked inline on Opus with no Fable review, as Fable's weekly limit ran out on 2026-10-19: give them a Fable review when it is back. **After the user's weekly usage reset** (user, 2026-10-19; no Fable until then): Fable reviews of #330 and every PR merged since without one (each PR body or this line names them), then `wp0-upstream`. Then what is left is the user's (below), upstream (`wp0-upstream`, from UPSTREAM_REVIEW.md, D89) or waiting on others. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
+**Next.** In flight: `wp5-l-lines-in-range` (D96), #331, then `wp11-ui-wording`, `wp1-link-without-iris` and `wp10-gzip-raster-once` (D97). #330 and these two were built and checked inline on Opus with no Fable review, as Fable's weekly limit ran out on 2026-10-19: give them a Fable review when it is back. **After the user's weekly usage reset** (user, 2026-10-19; no Fable until then): Fable reviews of #330 and every PR merged since without one (each PR body or this line names them), then `wp0-upstream`. Then what is left is the user's (below), upstream (`wp0-upstream`, from UPSTREAM_REVIEW.md, D89) or waiting on others. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
 **Waiting on the user.** (1) Trying the fitting in the GUI ('Fit every spectrum', the model builder; OBS 3610108077's C II and Si IV windows, the flare 3860258481 for saturation) and the builder's later options (presets, ties to any line, an editable degree; D88). (2) `wp0-qt68-macos-pass`. (3) The app's drag-into-/Applications check: `~/Downloads/Glue Solar.dmg` is fresh, built 2026-10-19 from main cbe1196 with irispy 495f39d (env `glue-solar-app-495f`), smoke-checked headless and through `open`. (4) An exact report of the linking and slider-sync problems seen in the app on 2026-10-09 (4000255147's raster and SJI 1400, or 4000005156's two scans and SJI 2796), rerun with `glue` from `iris-plan-qt6-802-fb08`. Then UPSTREAM_REVIEW.md (`wp0-upstream`, D89).
 
@@ -176,7 +176,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP0: `wp0-release-tracking`
 - WP1: `wp1-link-without-iris`
 - WP10: `wp10-gzip-raster-once`
-- WP11: `wp11-pixel-off-image`, `wp11-ui-wording`
+- WP11: `wp11-ui-wording`
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
@@ -300,7 +300,6 @@ Display and inspection tools for stock Image and Profile viewers, in `glue_solar
 **M1**
 
 - [ ] **M1** `wp11-ui-wording` (D97): the browser's title says "IRIS observations" on SST folders too; review every window title, menu entry, tooltip and message for IRIS-only wording on a feature other data use, and fix them. Done when each such text names what it covers.
-- [ ] **M1** `wp11-pixel-off-image` (user's report, 2026-10-19, an SST quicklook): glue's Pixel tool skips a press or drag off the image, as Follow/lock does, since glue makes a point outside the data there, which every viewer drawing it fails on (IndexError). Done when a drag past each edge leaves the point where it was.
 
 Notes:
 - glue-qt takes B, C, G, H, K, M, P, R, X, Y, Z, Tab and Backspace, and dispatches keys by exact viewer type; glue-solar takes D, F, A, S, U and Space, and drops matplotlib's canvas keys (D61, D72; register).
@@ -335,7 +334,7 @@ Gated workarounds on main. Raw-WCS readers hold `WCS_LOCK` or use a deep copy; n
 | Generic `solar:cursor_readout` | `not hasattr(ImageViewer, 'cursor_status')` | glue-qt #74 |
 | Slice-slider drag throttle (#68) | Always on | glue-qt slider coalescing (`wp0-upstream`) |
 | Pixel point off a linked dataset, or whose fixed axes reach no pixel axis of it (the SST quicklook's scan and Stokes), placed at its own slices (`PixelSubsetState._to_linked_pixel_coords`, #76/#85, #246) | `needs_pixel_point_workaround()` (either probe) | `wp0-upstream` for the NaN; glue's round-trip check accepting a subset of the fixed axes (report candidate: `set(check_dimensions) <= set(dimensions)` and either `check_dimensions` non-empty or no fixed axes) |
-| A Pixel click or drag off the image skipped, as Follow/lock skips it (`PixelSelectionTool._select_pixel`, `wp11-pixel-off-image`) | `needs_pixel_off_image_workaround()` | glue's Pixel tool ignoring positions off the image (report candidate) |
+| A Pixel click or drag off the image skipped, as Follow/lock skips it (`PixelSelectionTool._select_pixel`, #331) | `needs_pixel_off_image_workaround()` | glue's Pixel tool ignoring positions off the image (report candidate) |
 | FITS export of lazy data and of uint8 components in a subset (`export_fits`, #96) | `needs_fits_export_dask_workaround()` | glue-core's exporter writing dask arrays and uint8 subsets (report candidate) |
 | No (0,0) Pixel crosshair (`ImageSubsetLayerArtist._update_visual_attributes`, #87) | `needs_crosshair_workaround()` | `wp0-upstream` |
 | A linked layer's Pixel crosshair placed from the reference data (`ImageSubsetLayerArtist._update_data`, #107) | `needs_reference_crosshair_workaround()` | `wp0-upstream` |
