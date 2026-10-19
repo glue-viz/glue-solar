@@ -1,0 +1,1 @@
+'IRIS: remove dust' follows irispy's dust detection from the pipeline's bad-pixel table, placed by the slit's position, and refuses a rebinned or regridded slit-jaw image.
