@@ -528,7 +528,7 @@ def test_the_dn_per_second_of_a_window_that_has_it(scan_path):
     [raster] = raster_data([zero_exposure(scan_path, 3)], ["Si IV 1403"])
     maps = line_moments(raster, center=1402.77)
     seconds = raster["Exposure time"][:, :1, 0]
-    raster.remove_component(raster.id[f"{raster.label} DN / s"])
+    raster.remove_component(raster.id[f"{raster.main_components[0].label} DN / s"])
     dn = line_moments(raster, 1402.77)
     assert maps.get_component("intensity").units == "DN_IRIS_FUV / s"
     assert dn.get_component("intensity").units == "DN_IRIS_FUV"

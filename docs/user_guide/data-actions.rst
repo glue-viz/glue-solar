@@ -87,8 +87,8 @@ Radiometric calibration
 -----------------------
 
 "IRIS: radiometric calibration", on a raster window or stack, rebinned or not, adds two attributes
-to it: ``<label> radiance``, in erg / (Angstrom s sr cm2), and ``<label> radiance per DN / s``, the
-factor its ``<label> DN / s`` is multiplied by. The factor is irispy's ``radiometric_calibration``,
+to it: ``<window> radiance``, in erg / (Angstrom s sr cm2), and ``<window> radiance per DN / s``, the
+factor its ``<window> DN / s`` is multiplied by. The factor is irispy's ``radiometric_calibration``,
 from the effective area of irispy's latest response at the window's ``DATE_OBS``. Unlike SolarSoft's
 ``iris_calib``, it is per Angstrom, and it is NaN at wavelengths the response does not cover. irispy
 has no calibration of slit-jaw images.

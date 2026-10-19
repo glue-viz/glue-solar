@@ -16,7 +16,8 @@ Browsing IRIS observations
 1. Choose "IRIS: browse observations…" in the "Plugins" menu.
 2. Type a folder in "Folder" and press Return, or pick one with "Change…": a
    ``level2/yyyy/mm/dd/<obs>/`` tree, a download folder or a pooch cache. The browser lists each
-   observation in it and its subfolders, one row per OBSID and start time.
+   observation in it and its subfolders, one row per OBSID and start time, with its description,
+   pointing (``XCEN``, ``YCEN``), roll (``SAT_ROT``) and number of files.
 3. Expand an observation and tick what to load, or tick the observation for all of it:
 
    - a raster window, such as ``Mg II k 2796 — 8 raster file(s)``, with every scan;
@@ -31,8 +32,8 @@ Browsing IRIS observations
 
 With "Open quicklook" ticked, each observation opens in a quicklook (see :ref:`Quicklook
 <glue_solar_users_guide_iris_quicklook>`) with the map, spectrogram and wavelength panel of the
-window in "Main window", Mg II k 2796 unless changed. Unticked, the first slit-jaw image or AIA
-cutout opens in an Image viewer.
+window in "Main window", which shows once two or more windows are ticked, Mg II k 2796 unless
+changed. Unticked, the first slit-jaw image or AIA cutout opens in an Image viewer.
 
 "Stop" ends a search or a load with what has been read in full; :kbd:`Esc` drops it. If an entry
 fails to load, the progress bar names the file and the error.
@@ -57,13 +58,18 @@ scan, and each scan keeps its own coordinates and times.
 What a dataset holds
 --------------------
 
-Each raster window, stack, slit-jaw image and AIA cutout has these attributes:
+Each dataset is labeled by its window or channel and its observation's start, to the minute, and a
+raster window of an observation of several rasters by its scan: ``Si IV 1403 2013-09-02 16:39``,
+``Si IV 1403 2013-09-02 18:29 scan 0``, ``Mg II k 2796 2025-03-28 22:56 stack`` or
+``SJI 1400 2013-09-02 16:39``. Data made from one are labeled after it, such as
+``… stack moments 2796.35``. Each raster window, stack, slit-jaw image and AIA cutout has these
+attributes, ``<window>`` being its window or channel, such as ``Si IV 1403``:
 
-- ``<label>``, the data, in DN, with fill values as NaN;
+- ``<window>``, the data, in DN, with fill values as NaN;
 - ``Time``, the UTC time of each raster step, exposure or frame;
 - ``Exposure time``, in s;
-- ``<label> DN / s``, the data over the exposure time;
-- ``<label> mask``, 1 where the data are missing or, in a raster window or slit-jaw image,
+- ``<window> DN / s``, the data over the exposure time;
+- ``<window> mask``, 1 where the data are missing or, in a raster window or slit-jaw image,
   saturated (see `Missing and saturated samples`_).
 
 SOT cubes are in the unit of their ``BUNIT``, such as DN or G. AIA cutouts and SOT cubes get no
@@ -83,7 +89,8 @@ Opening files
 terminal. With the file type "Auto":
 
 - an IRIS slit-jaw image, aligned AIA cutout or SOT cube loads as one cube;
-- an IRIS raster file loads a dataset per window, labeled with its raster number (``…-r00003``);
+- an IRIS raster file loads a dataset per window, labeled with its raster number (``… scan 3``) if
+  its observation has several;
 - an SST CRISP or CHROMIS cube loads as one cube.
 
 For AIA, HMI and other solar images, pick the file type "sunpy Map". Files loaded one by one cannot
@@ -189,7 +196,7 @@ Missing and saturated samples
 
 Level 2 clips every sample to -199 to 16182 DN, so a sample saturated in Level 1 is stored at
 16182 DN. glue-solar, as irispy, keeps raster and slit-jaw samples at that ceiling at their value, so
-images, spectra and light curves show them, and marks them saturated in ``<label> mask``. Level 2
+images, spectra and light curves show them, and marks them saturated in ``<window> mask``. Level 2
 cannot tell a saturated sample from one merely that bright, and its ``NSATPIX`` and ``TSATPXn`` are
 always 0: ignore them. The analyses blank a pixel where a sample they take is saturated, and the mean
 spectrum leaves such samples out. The IRIS fits leave a sample out where all the pixels it combines
@@ -199,9 +206,9 @@ pixels. UV burst detection takes saturated samples at their value, as IDL does.
 To show missing or saturated samples as a subset, select the dataset itself in the data collection,
 not "Point", and in the "Data Manager" menu:
 
-- **Missing or saturated:** choose "Create faceted subsets", pick ``<label> mask``, and set the range
+- **Missing or saturated:** choose "Create faceted subsets", pick ``<window> mask``, and set the range
   from 0 to 1 and 2 subsets. The second subset holds the masked samples.
 - **Saturated:** choose "Add/edit arithmetic attributes" and add ``saturated`` as
-  ``({<label>} >= 16182) * 1``, then "Create faceted subsets" of it from 1 to 1, with 1 subset.
+  ``({<window>} >= 16182) * 1``, then "Create faceted subsets" of it from 1 to 1, with 1 subset.
 
 Select "Point" again before moving a quicklook's point.

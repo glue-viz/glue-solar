@@ -73,7 +73,12 @@ def test_tree_lists_observations_and_files(dialog):
     ]
     assert all(row.child(i).isFirstColumnSpanned() for i in range(row.childCount()))
     assert row.text(2) == "Test raster 1x2 3s"
-    assert row.text(6) == "4"
+    assert row.text(5) == "4"
+    # in words, not FITS keywords (D90)
+    header = dialog.obs_tree.headerItem()
+    columns = ["Start", "OBSID", "Description", "Pointing", "Roll", "Files"]
+    assert [header.text(i) for i in range(header.columnCount())] == columns
+    assert [row.text(i) for i in (0, 3, 4)] == ["2025-03-28T22:56:28", "1.5″, -2.5″", "0.0°"]
 
 
 def test_derived_raster_file_is_never_a_window_and_counted(dialog, qtbot, tmp_path):
@@ -102,7 +107,7 @@ def test_load_selected_real_sji(qtbot, tmp_path, irispy_test_files):
     assert len(dialog.datasets) == 1
     data = dialog.datasets[0]
     assert data is dialog.first_image
-    assert data.label == "SJI_1400-3620258102-2021-09-05T00:18:33"
+    assert data.label == "SJI 1400 2021-09-05 00:18"
     assert data.shape == (62, 40, 37)
     assert data.style.preferred_cmap.name == "irissji1400"
 
@@ -168,22 +173,25 @@ def tick(dialog, *entries):
             item.setCheckState(0, Qt.Checked)
 
 
-def test_main_window_lists_the_ticked_raster_windows(dialog):
+def test_main_window_lists_the_ticked_raster_windows_shown_for_two_or_more(dialog):
     combo, row = dialog.main_window, _row(dialog, OBS_A[2])
     windows = {row.child(i).text(0).split(" — ")[0]: row.child(i) for i in range(row.childCount())}
 
     def ticked(name, state=Qt.Checked):
+        """The windows listed, the one shown and whether Main window shows, a choice from two or more (D90)."""
         windows[name].setCheckState(0, state)
-        return [combo.itemText(i) for i in range(combo.count())], combo.currentText()
+        assert combo.isHidden() == dialog.main_window_label.isHidden()
+        return [combo.itemText(i) for i in range(combo.count())], combo.currentText(), not combo.isHidden()
 
-    assert ticked("C II 1336") == (["C II 1336"], "C II 1336")
-    assert ticked("Mg II k 2796") == (["C II 1336", "Mg II k 2796"], "Mg II k 2796")  # by default
+    assert (combo.isHidden(), dialog.main_window_label.isHidden()) == (True, True)
+    assert ticked("C II 1336") == (["C II 1336"], "C II 1336", False)
+    assert ticked("Mg II k 2796") == (["C II 1336", "Mg II k 2796"], "Mg II k 2796", True)  # by default
     combo.setCurrentText("C II 1336")
     combo.textActivated.emit("C II 1336")  # as the user chooses it
-    assert ticked("Mg II k 2796", Qt.Unchecked) == (["C II 1336"], "C II 1336")
-    assert ticked("Mg II k 2796") == (["C II 1336", "Mg II k 2796"], "C II 1336")  # kept while ticked
-    assert ticked("C II 1336", Qt.Unchecked) == (["Mg II k 2796"], "Mg II k 2796")
-    assert ticked("Mg II k 2796", Qt.Unchecked) == ([], "")
+    assert ticked("Mg II k 2796", Qt.Unchecked) == (["C II 1336"], "C II 1336", False)
+    assert ticked("Mg II k 2796") == (["C II 1336", "Mg II k 2796"], "C II 1336", True)  # kept while ticked
+    assert ticked("C II 1336", Qt.Unchecked) == (["Mg II k 2796"], "Mg II k 2796", False)
+    assert ticked("Mg II k 2796", Qt.Unchecked) == ([], "", False)
 
 
 def from_the_worker(widget, method):
@@ -226,7 +234,7 @@ def test_stop_keeps_the_entries_read_in_full(dialog, qtbot, monkeypatch):
     assert len(reads) == 1  # file 2 is not read
     assert dialog.result() == QDialog.Accepted
     assert [kind for _, kind, _, _ in dialog.loaded] == ["sji"]
-    assert [data.label for data in dialog.datasets] == [f"SJI_1400-{OBS_A[2]}-2025-03-28T22:56:28"]
+    assert [data.label for data in dialog.datasets] == ["SJI 1400 2025-03-28 22:56"]
     [data] = dialog.datasets
     assert data.get_component(data.main_components[0])._counts is not None  # not left to its first viewer
 
@@ -282,7 +290,8 @@ def test_closing_the_dialog_drops_the_load(dialog, qtbot, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("quicklook", "shown"), [(True, ["SJI_1400", "C_II_1336", "Mg_II_k_2796"]), (False, ["SJI_1400"])]
+    ("quicklook", "shown"),
+    [(True, ["SJI 1400 {}", "C II 1336 {} scan 0", "Mg II k 2796 {} scan 0"]), (False, ["SJI 1400 {}"])],
 )
 def test_color_limits_of_what_browse_iris_shows_are_counted_in_the_background(qtbot, monkeypatch, iris_tree, quicklook,
                                                                               shown):
@@ -307,8 +316,8 @@ def test_color_limits_of_what_browse_iris_shows_are_counted_in_the_background(qt
     # the quicklook's slit-jaw image and scan 0 of each window, which has a λ–time panel, or the Image viewer's
     # slit-jaw image: no viewer has asked
     counted = [data.label for data in loaded if data.get_component(data.main_components[0])._counts is not None]
-    assert counted == [f"{name}-{OBS_A[2]}-2025-03-28T22:56:28" + "-scan-0" * (name != "SJI_1400") for name in shown]
-    assert _shown(entries, True, "C II 1336")[0].label.startswith("C_II_1336")  # the browser's main window first
+    assert counted == [name.format("2025-03-28 22:56") for name in shown]
+    assert _shown(entries, True, "C II 1336")[0].label.startswith("C II 1336")  # the browser's main window first
 
 
 def test_a_failure_after_the_reads_stays_in_the_dialog(qtbot, iris_tree, capsys):
@@ -341,10 +350,7 @@ def test_deconvolved_sji_is_listed_and_loaded_beside_the_plain_one(qtbot, tmp_pa
     dialog.obs_tree.topLevelItem(0).setCheckState(0, Qt.Checked)
     load_selected(qtbot, dialog)
     labels = [data.label for data in dialog.datasets]
-    assert labels == [
-        "SJI_1400-3620258102-2021-09-05T00:18:33",
-        "SJI_1400_deconvolved-3620258102-2021-09-05T00:18:33",
-    ]
+    assert labels == ["SJI 1400 2021-09-05 00:18", "SJI 1400 deconvolved 2021-09-05 00:18"]
     assert read_iris_file(str(deconvolved)).label == labels[1]  # File -> Open labels it the same way
     assert read_iris_file(str(plain)).label == labels[0]
 
@@ -370,15 +376,19 @@ def test_sot_cubes_are_listed_by_observation_and_loaded(qtbot, tmp_path, irispy_
     row.setCheckState(0, Qt.Checked)
     load_selected(qtbot, dialog)
     # glue tells the SP maps apart by their file's time
-    labels = ["6302A B_LOS 18:50:06", "6302A B_LOS 19:00:00", "TF Na I 5896"]
-    assert [data.label.split("-")[0] for data in dialog.datasets] == labels
+    assert [data.label for data in dialog.datasets] == [
+        "SOT 6302A B_LOS 2016-01-08 19:12 scan 18:50:06",
+        "SOT 6302A B_LOS 2016-01-08 19:12 scan 19:00:00",
+        "SOT TF Na I 5896 2016-01-08 19:12",
+    ]
+    assert [data.main_components[0].label for data in dialog.datasets] == ["SOT 6302A B_LOS"] * 2 + ["SOT TF Na I 5896"]
     assert dialog.first_image is dialog.datasets[0]
 
 
 def test_single_entry_observation_is_ticked_on_its_own_row(dialog):
     row = _row(dialog, OBS_B[2])  # SJI only
     assert row.childCount() == 0
-    assert row.text(6) == "1 — SJI_2832"
+    assert row.text(5) == "1 — SJI_2832"
     row.setCheckState(0, Qt.Checked)
     assert [(kind, name) for _, kind, name in dialog.selected()] == [("sji", "SJI_2832")]
 
@@ -444,14 +454,14 @@ def test_return_in_the_list_loads_the_ticks(dialog, qtbot):
     QTest.keyClick(dialog.obs_tree, Qt.Key_Return)
     qtbot.waitUntil(lambda: not dialog.isVisible() and not _RUNNING, timeout=60_000)
     assert dialog.result() == QDialog.Accepted
-    assert [data.label.split("-")[0] for data in dialog.datasets] == ["SJI_2832"]
+    assert [data.main_components[0].label for data in dialog.datasets] == ["SJI 2832"]
 
 
 def test_filter_survives_a_rescan(dialog, qtbot):
     dialog.filter.setText("2025-03-28")
     dialog.recursive.setChecked(False)
     scanned(qtbot, dialog)
-    assert _row(dialog, OBS_A[2]).text(6) == "1 — SJI_1400"  # listed anew
+    assert _row(dialog, OBS_A[2]).text(5) == "1 — SJI_1400"  # listed anew
     assert _listed(dialog) == [OBS_A[2]]
 
 
@@ -460,7 +470,7 @@ def test_recursive_toggle_rescans(dialog, qtbot):
     scanned(qtbot, dialog)
     row = _row(dialog, OBS_A[2])
     assert row.childCount() == 0  # only the top-level SJI is left, so it collapses onto the row
-    assert row.text(6) == "1 — SJI_1400"
+    assert row.text(5) == "1 — SJI_1400"
 
 
 def test_start_and_end_scan_their_window_and_fill_the_next_browser(qtbot, monkeypatch, iris_tree, tmp_path):
@@ -551,7 +561,7 @@ def test_tick_boxes_open_as_the_last_browser_left_them(dialog, qtbot, iris_tree)
     qtbot.addWidget(again)
     scanned(qtbot, again)
     assert _boxes(again) == (False, True, False)
-    assert _row(again, OBS_A[2]).text(6) == "1 — SJI_1400"  # its first scan searches the one folder
+    assert _row(again, OBS_A[2]).text(5) == "1 — SJI_1400"  # its first scan searches the one folder
 
 
 def test_a_folder_typed_in_the_folder_field_is_searched(dialog, qtbot, iris_tree, tmp_path):
@@ -631,7 +641,7 @@ def test_stop_lists_what_the_scan_found_so_far(qtbot, monkeypatch, iris_tree):
     assert reads[-1].endswith("_SJI_1400_t000.fits.gz")  # no header is read after it
     tree = dialog.obs_tree
     assert [tree.topLevelItem(i).text(1) for i in range(tree.topLevelItemCount())] == [OBS_C[2], OBS_B[2], OBS_A[2]]
-    assert _row(dialog, OBS_A[2]).text(6) == "2"  # its slit-jaw image and AIA cutout, not its rasters
+    assert _row(dialog, OBS_A[2]).text(5) == "2"  # its slit-jaw image and AIA cutout, not its rasters
     assert dialog.progress.value() == 100 * 5 // 9  # 5 of the folder's 9 files were read
     assert dialog.progress.format().startswith("Scan stopped at %p% of the files")
     assert dialog.cancel.text() == "Cancel"
@@ -676,7 +686,7 @@ def test_extract_archive_then_lists_its_windows(qtbot, iris_tree, tmp_path):
     scanned(qtbot, dlg)
     row = _row(dlg, OBS_C[2])
     assert row.childCount() == 0
-    assert row.text(6).startswith("0 — Extract ")
+    assert row.text(5).startswith("0 — Extract ")
     row.setCheckState(0, Qt.Checked)
     load_selected(qtbot, dlg)
     assert dlg.result() == 0  # stays open
@@ -711,7 +721,7 @@ def test_stop_keeps_the_archives_unpacked_in_full(qtbot, iris_tree, tmp_path, mo
     qtbot.addWidget(dlg)
     scanned(qtbot, dlg)
     for row in map(dlg.obs_tree.topLevelItem, range(dlg.obs_tree.topLevelItemCount())):
-        if row.text(6).startswith("0 — Extract "):
+        if row.text(5).startswith("0 — Extract "):
             row.setCheckState(0, Qt.Checked)
     unpacked = []
 
@@ -724,8 +734,8 @@ def test_stop_keeps_the_archives_unpacked_in_full(qtbot, iris_tree, tmp_path, mo
     assert unpacked == [tree / f"{MD5}iris_l2_{'_'.join(OBS_C)}_raster"]
     assert dlg.result() == 0  # stays open, listing what it holds
     assert dlg.progress.format() == "Extracted 1 archive(s) — now tick what to load"
-    assert [row.text(6) for row in map(dlg.obs_tree.topLevelItem, range(dlg.obs_tree.topLevelItemCount()))
-            if row.text(6).startswith("0 — Extract ")] == [f"0 — Extract {later.name} (0 MB, next to the archive)"]
+    assert [row.text(5) for row in map(dlg.obs_tree.topLevelItem, range(dlg.obs_tree.topLevelItemCount()))
+            if row.text(5).startswith("0 — Extract ")] == [f"0 — Extract {later.name} (0 MB, next to the archive)"]
 
 
 def test_closing_the_dialog_drops_the_unpacking(dialog, qtbot, monkeypatch):
@@ -809,9 +819,34 @@ def test_aia_cube_uses_the_same_irispy_adapter(tmp_path, irispy_test_files):
         hdul[0].header["TWAVE1"] = 171
 
     data = image_data(path)
-    assert data.label == "171_THIN-3620258102-2021-09-05T00:18:33"
+    assert data.label == "AIA 171 THIN 2021-09-05 00:18"
     assert data.style.preferred_cmap.name == "sdoaia171"
     assert len(data.main_components) == 4  # science, mask and the per-frame Time and Exposure time
+
+
+def test_labels_name_the_window_and_its_observation_and_results_follow_them(irispy_test_files):
+    # D90: '<window> <start>', then 'scan <n>' in an observation of several rasters or 'stack', the components named
+    # after the window, and '<label> <result>'
+    from glue_solar.regrid import rebin
+    from glue_solar.sources.moments import line_moments
+
+    scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)[:2]
+    other = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits")
+    first, second = raster_data(scans, ["Si IV 1403"])
+    [stack], [another] = raster_data(scans, ["Si IV 1403"], stack=True), raster_data([other], ["Si IV 1403"])
+    assert [data.label for data in (first, second, stack, another)] == [
+        "Si IV 1403 2014-03-29 14:09 scan 0",
+        "Si IV 1403 2014-03-29 14:09 scan 1",
+        "Si IV 1403 2014-03-29 14:09 stack",
+        "Si IV 1403 2021-09-05 00:18",  # another observation, apart, of one raster (RASNRPT 1)
+    ]
+    assert raster_data(scans[:1], ["Si IV 1403"])[0].label == first.label  # one file of several rasters (RASNRPT)
+    assert second.label in [data.label for data in read_iris_file(str(scans[1]))]  # as File -> Open labels it
+    for data in (first, stack, another):
+        assert {"Si IV 1403", "Si IV 1403 mask", "Si IV 1403 DN / s"} <= {cid.label for cid in data.components}
+    results = line_moments(first, 1402.77), rebin(first, (2, 1, 1))
+    assert [data.label for data in results] == [f"{first.label} moments 1402.77", f"{first.label} rebinned 2x1x1"]
+    assert results[1].main_components[0].label == "Si IV 1403"
 
 
 def test_real_raster_preserves_exact_exposure_times(irispy_test_files):
@@ -821,7 +856,7 @@ def test_real_raster_preserves_exact_exposure_times(irispy_test_files):
     expected_times = cube.axis_world_coords("time", wcs=cube.extra_coords)[0].utc.to_value("datetime64")
 
     assert len(data) == 1
-    assert data[0].label == "C_II_1336-3860258481-2014-03-29T14:09:38-scan-0"
+    assert data[0].label == "C II 1336 2014-03-29 14:09 scan 0"
     assert data[0].shape == (8, 109, 17)
     assert [c.label for c in data[0].world_component_ids] == [
         "Helioprojective Longitude",
@@ -846,8 +881,8 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
     ]
     data = raster_data(paths, ["C II 1336"], stack=True)[0]
 
-    science = data.id[data.label]
-    mask = data.id[f"{data.label} mask"]
+    science = data.main_components[0]
+    mask = data.id[f"{science.label} mask"]
     values = data.get_component(science).data
     times = data["Time"]
     raw_last = np.asarray(sequence[-1].data, dtype=np.float32).copy()
@@ -864,7 +899,7 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
     for i, scan in enumerate(sequence):  # each scan's own exposure times, not scan 0's
         exposure = scan.meta["exposure time"].to_value(u.s)
         np.testing.assert_array_equal(data["Exposure time"][i, :, 0, 0], exposure)
-        np.testing.assert_allclose(data[f"{data.label} DN / s"][i], values[i] / exposure[:, None, None], rtol=1e-6)
+        np.testing.assert_allclose(data[f"{science.label} DN / s"][i], values[i] / exposure[:, None, None], rtol=1e-6)
     np.testing.assert_array_equal(
         data.coords.pixel_to_world_values(0, 0, 0, np.arange(len(paths)))[-1], np.arange(len(paths))
     )
@@ -900,7 +935,7 @@ def test_real_raster_fill_values_become_nan(irispy_test_files):
     assert values.size == 216_920
     assert not np.isin(values, (-200, -199)).any()
     assert np.isnan(values).sum() == 35_027
-    mask = data[f"{data.label} mask"]
+    mask = data[f"{data.main_components[0].label} mask"]
     assert mask.dtype == np.uint8
     np.testing.assert_array_equal(mask, np.isnan(values))
 
@@ -1117,7 +1152,7 @@ def test_negative_step_raster_fill_follows_the_flipped_data(tmp_path, irispy_tes
         fill = np.flip(np.isin(hdul[window].data, (-200, -199)), axis=0)
     scan = raster_data([path], ["Si IV 1403"])[0]
     np.testing.assert_array_equal(np.isnan(scan[scan.main_components[0]]), fill)
-    np.testing.assert_array_equal(scan[f"{scan.label} mask"], fill)
+    np.testing.assert_array_equal(scan[f"{scan.main_components[0].label} mask"], fill)
     stack = raster_data([path, path], ["Si IV 1403"], stack=True)[0]
     for values in stack[stack.main_components[0]]:
         np.testing.assert_array_equal(np.isnan(values), fill)
@@ -1163,7 +1198,7 @@ def test_duplicate_real_raster_is_listed_and_loaded_once(qtbot, tmp_path, irispy
     qtbot.addWidget(dialog)
     scanned(qtbot, dialog)
     row = dialog.obs_tree.topLevelItem(0)
-    assert row.text(6) == "1"
+    assert row.text(5) == "1"
     assert all("1 raster file(s)" in row.child(i).text(0) for i in range(row.childCount()))
     row.child(0).setCheckState(0, Qt.Checked)
     dialog.stack.setChecked(True)

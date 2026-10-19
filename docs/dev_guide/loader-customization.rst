@@ -40,7 +40,7 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
 normalization, units, and each input cube's WCS and exposure times. The Glue adapter keeps
 those and changes only missing data: the IRIS fill values -200 and -199 become NaN, in aligned
 AIA cutouts too, while Hinode/SOT cubes keep every value, NaN where missing. Each dataset's
-``<label> mask`` component is 1 where the data are NaN or, in raster windows and slit-jaw images,
+``<window> mask`` component is 1 where the data are NaN or, in raster windows and slit-jaw images,
 at the Level 2 ceiling, 16182 DN, which irispy's scaled reads keep at its value and mask as
 saturated. It is ``uint8``, since Glue would store a boolean component as ``int64``, and for int16
 data a glue derived component of the data (``lazy.fill_mask`` or ``lazy.iris_mask``). Raster times

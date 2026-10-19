@@ -474,10 +474,11 @@ def _add_exposure(data, exposure):
     data.add_component_link(rate).units = "DN / s"
 
 
-def _dataset(wcs, meta, unit, values, label, *, color=None, cmap=None, missing=MISSING_VALUES, scaling=None):
+def _dataset(wcs, meta, unit, values, label, *, name, color=None, cmap=None, missing=MISSING_VALUES, scaling=None):
     """
-    A Glue dataset of ``values`` and their mask, the ``missing`` codes NaN; ``scaling``, the ``(BSCALE, BZERO)`` of a
-    file's raw int16 (`_raw_scaling`), leaves them in the file, scaled where glue reads them (`RawComponent`).
+    A Glue dataset ``label`` of ``values``, the component ``name``, and their mask, the ``missing`` codes NaN;
+    ``scaling``, the ``(BSCALE, BZERO)`` of a file's raw int16 (`_raw_scaling`), leaves them in the file, scaled where
+    glue reads them (`RawComponent`).
     """
     data = (Data if scaling is None else LazyData)(label=label)
     data.coords = _GlueWCS(wcs)
@@ -486,9 +487,9 @@ def _dataset(wcs, meta, unit, values, label, *, color=None, cmap=None, missing=M
     # saturated samples masked too where irispy's scaled reads mask them: raster windows and slit-jaw images (D85)
     mask = iris_mask if str(meta.get("INSTRUME")) in ("SPEC", "SJI", "IRIS") else fill_mask
     if scaling is not None:
-        cid = data.add_component(RawComponent(values, *scaling, missing, units=str(unit)), label)
+        cid = data.add_component(RawComponent(values, *scaling, missing, units=str(unit)), name)
         # a glue derived component, computed from the values glue reads
-        data.add_component_link(ComponentLink([cid], ComponentID(f"{label} mask", parent=data), using=mask))
+        data.add_component_link(ComponentLink([cid], ComponentID(f"{name} mask", parent=data), using=mask))
         return data
     # From the values: irispy's eager reads leave the missing codes in raster windows and -200 in integer AIA cutouts
     fill = np.isin(values, missing) if missing else None
@@ -496,20 +497,32 @@ def _dataset(wcs, meta, unit, values, label, *, color=None, cmap=None, missing=M
         # In place for float data: this writes into irispy's cube, which the loader discards.
         values = values.astype(np.result_type(values.dtype, np.float32), copy=False)
         values[fill] = np.nan
-    data.add_component(Component(values, units=str(unit)), label)
-    data.add_component(Component(mask(values)), f"{label} mask")
+    data.add_component(Component(values, units=str(unit)), name)
+    data.add_component(Component(mask(values)), f"{name} mask")
     return data
 
 
-def _cube_data(cube, label, *, values=None, unit=None, color=None, cmap=None, missing=MISSING_VALUES, scaling=None):
+def _cube_data(
+    cube, label, *, name, values=None, unit=None, color=None, cmap=None, missing=MISSING_VALUES, scaling=None
+):
     """
     Convert one irispy cube into one Glue dataset (`_dataset`), with its times and exposure times.
 
     ``values`` and ``unit`` replace the cube's own data and unit.
     """
     values, unit = cube.data if values is None else values, cube.unit if unit is None else unit
-    data = _dataset(cube.wcs.low_level_wcs, cube.meta, unit, values, label, color=color, cmap=cmap, missing=missing,
-                    scaling=scaling)
+    data = _dataset(
+        cube.wcs.low_level_wcs,
+        cube.meta,
+        unit,
+        values,
+        label,
+        name=name,
+        color=color,
+        cmap=cmap,
+        missing=missing,
+        scaling=scaling,
+    )
     times = _frame_times(cube)
     if times is not None:
         _add_time(data, times)
@@ -535,6 +548,14 @@ def _frame_times(cube):
 
 def _observation_label(meta):
     return "-".join(filter(None, _observation(meta["OBSID"], meta.get("STARTOBS", ""))))
+
+
+def _label(name, meta, part=""):
+    """
+    The label of a dataset of the window or channel ``name`` (D90): ``name``, its observation's start to the minute,
+    which tells two observations apart, and ``part``: 'Si IV 1403 2013-09-02 18:29 scan 0'.
+    """
+    return " ".join(filter(None, (name, str(meta.get("STARTOBS", ""))[:16].replace("T", " "), part)))
 
 
 def _warn_repeated_positions(datasets):
@@ -593,26 +614,29 @@ def _raster_collection_data(collection, stack=False, scaling=None):
 
     datasets = []
     for window, sequence in collection.items():
-        name, scaled = str(window).replace(" ", "_"), scaling and scaling[window]
+        name, scaled = str(window), scaling and scaling[window]
         # glue reads the raw int16 scaled to DN, which irispy's unit for them does not say
         unit = DN_UNIT[sequence[0].meta.detector_band] if scaling else None
         cmap = f"irissji{sequence[0].meta.detector_band}"  # sunpy's slit-jaw colormap of its detector, FUV or NUV
         if stack and len(sequence) > 1:
-            label = f"{name}-{_observation_label(sequence[0].meta)}-stack"
+            label = _label(name, sequence[0].meta, "stack")
             values = RawStack([scan.data for scan in sequence])  # which checks their shapes
             if not scaling:  # in memory, as irispy's eager read holds each scan
                 values, unit = np.stack(values.scans), sequence[0].unit
             wcs, meta = stack_wcs([scan.wcs for scan in sequence]), dict(sequence[0].meta)
-            data = _dataset(wcs, meta, unit, values, label, color="#7A617C", cmap=cmap, scaling=scaled)
+            data = _dataset(wcs, meta, unit, values, label, name=name, color="#7A617C", cmap=cmap, scaling=scaled)
             # its meta is scan 0's, so exposure times and raster files come per scan
             _add_exposure(data, np.stack([scan.exposure_time.to_value(u.s) for scan in sequence]))
             data.meta["raster files"] = tuple(name for scan in sequence for name in scan.meta.get("raster files", ()))
             _add_time(data, stack_times(sequence))
             datasets.append(data)
             continue
+        several = len(sequence) > 1 or int(sequence[0].meta.get("RASNRPT") or 1) > 1  # its observation's rasters
         for i, scan in enumerate(sequence):
-            label = f"{name}-{_observation_label(scan.meta)}-scan-{i}"
-            datasets.append(_cube_data(scan, label, unit=unit, color="#5A4FCF", cmap=cmap, scaling=scaled))
+            # its file's raster number, which File -> Open, loading a file alone, gives it too
+            number = re.search(r"_r(\d{5})", " ".join(scan.meta.get("raster files", ())))
+            label = _label(name, scan.meta, f"scan {int(number.group(1)) if number else i}" if several else "")
+            datasets.append(_cube_data(scan, label, name=name, unit=unit, color="#5A4FCF", cmap=cmap, scaling=scaled))
     return datasets
 
 
@@ -621,29 +645,31 @@ def _image_cube_data(cube, path, scaling=None):
     A Glue dataset of irispy's SJI, AIA or Hinode/SOT cube; ``scaling`` is the ``(BSCALE, BZERO)`` of a cube irispy
     read with ``memmap=True``, whose data are the file's raw int16, fill included.
     """
-    desc, instrument = str(cube.meta["TDESC1"]), str(cube.meta["INSTRUME"])
+    desc, instrument = str(cube.meta["TDESC1"]).replace("_", " "), str(cube.meta["INSTRUME"])
     if "_deconvolved." in Path(path).name:  # the header does not say, the filename does
-        desc += "_deconvolved"
+        desc += " deconvolved"
+    scan = ""
     if instrument == "SOT-SP":  # every SP map's TDESC1 is 6302A
         desc += f" {cube.meta['BTYPE']}"
-        # and an observation's sets of maps differ by the time in their files' names
+        # and an observation's sets of maps, each a slit scan, differ by the time in their files' names
         if stamp := re.search(r"_(\d\d)(\d\d)(\d\d)_[a-z0-9]+_index", Path(path).name):
-            desc += " {}:{}:{}".format(*stamp.groups())
-    wave = int(cube.meta["TWAVE1"])
-    label = f"{desc}-{_observation_label(cube.meta)}"
+            scan = "scan {}:{}:{}".format(*stamp.groups())
+    if instrument.startswith(("AIA", "SOT")):  # as the browser lists them
+        desc = f"{instrument[:3]} {desc}"
+    wave, label = int(cube.meta["TWAVE1"]), _label(desc, cube.meta, scan)
     cmap = f"irissji{wave}" if desc.startswith("SJI") else f"sdoaia{wave}"
     # irispy's FITS WCS header of each frame, in a tuple, which sessions save, rather than an array of objects
     # ponytail: a session restores each header as a dict, not irispy's MetaDict, so irispy's fits_wcs of one frame of a
     # cube rebuilt from restored meta fails (glue-solar never does); a glue loader(MetaDict) if that is ever needed.
     cube.meta["frame_wcs_headers"] = tuple(cube.meta["frame_wcs_headers"])
     if instrument.startswith("SOT"):  # float32 in its own unit, NaN where missing: negative fields are data
-        return _cube_data(cube, label, cmap="hinodesotintensity", missing=())  # fields too, as sunpy's SOTMap
+        return _cube_data(cube, label, name=desc, cmap="hinodesotintensity", missing=())  # fields too, as SOTMap
     if scaling is None:
-        return _cube_data(cube, label, cmap=cmap)
+        return _cube_data(cube, label, name=desc, cmap=cmap)
     from irispy.utils.constants import DN_UNIT
 
     cube.meta["scaled"] = True  # the values glue reads are; irispy's unit for the raw values says otherwise
-    return _cube_data(cube, label, unit=DN_UNIT["SJI"], cmap=cmap, scaling=scaling)
+    return _cube_data(cube, label, name=desc, unit=DN_UNIT["SJI"], cmap=cmap, scaling=scaling)
 
 
 def _irispy_meta(data, scan=()):
@@ -703,17 +729,13 @@ def image_data(path):
 
 def iris_data(path):
     """
-    Load one IRIS Level 2 file through irispy, a raster file's windows labeled by its raster number (``…-r00003``), so
-    that the files of one observation opened one by one keep distinct labels.
+    Load one IRIS Level 2 file through irispy, a raster file's windows labeled by its raster number (``… scan 3``) in
+    an observation of several (``RASNRPT``), so that the files of one observation opened one by one keep distinct
+    labels.
     """
     if _primary_header(path).get("INSTRUME") != "SPEC":
         return image_data(path)
-    datasets = raster_data([path])
-    number = re.search(r"_r(\d{5})", Path(path).name)
-    if number:
-        for data in datasets:
-            data.label = data.label.replace("-scan-0", f"-r{number.group(1)}")
-    return datasets
+    return raster_data([path])
 
 
 def raster_data(files, windows=None, stack=False):
@@ -1116,8 +1138,8 @@ def _scan(load, directory, recursive, start, end, stop, report):
 _RUNNING = set()
 
 
-def _fmt(value):
-    return "" if value is None else f"{round(value, 1) + 0.0:.1f}"  # + 0.0 turns -0.0 into 0.0
+def _fmt(value, unit):
+    return "" if value is None else f"{round(value, 1) + 0.0:.1f}{unit}"  # + 0.0 turns -0.0 into 0.0
 
 
 def _window_time(text, end=False):
@@ -1188,6 +1210,7 @@ class QtIRISImporter(QtWidgets.QDialog):
         self._payloads = []
         self._load, self._stop = 0, threading.Event()  # the latest load, and its stop
         self.shown = shown
+        self._list_main()
         if directory:
             self.set_directory(directory)
 
@@ -1298,9 +1321,8 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     def populate(self):
         self.obs_tree.clear()
-        self._ticked = set()
-        self.main_window.clear()
-        self._payloads, children = [], []
+        self._ticked, self._payloads, children = set(), [], []
+        self._list_main()
         for i, obs in enumerate(self.observations):
             top = QtWidgets.QTreeWidgetItem(
                 self.obs_tree,
@@ -1308,9 +1330,8 @@ class QtIRISImporter(QtWidgets.QDialog):
                     obs.startobs,
                     obs.obsid,
                     obs.description,
-                    _fmt(obs.xcen),
-                    _fmt(obs.ycen),
-                    _fmt(obs.sat_rot),
+                    ", ".join(filter(None, (_fmt(obs.xcen, "″"), _fmt(obs.ycen, "″")))),
+                    _fmt(obs.sat_rot, "°"),
                     str(obs.nfiles),
                 ],
             )
@@ -1327,14 +1348,14 @@ class QtIRISImporter(QtWidgets.QDialog):
             if len(entries) == 1:
                 # one thing to load: the row itself is the tick box, no need for a child
                 text, payload = entries[0]
-                top.setText(6, f"{obs.nfiles} — {text}")
+                top.setText(5, f"{obs.nfiles} — {text}")
                 self._make_checkable(top, payload)
             else:
                 # ticking the observation ticks everything under it
                 top.setFlags(top.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsAutoTristate)
                 for text, payload in entries:
                     children.append(self._make_checkable(QtWidgets.QTreeWidgetItem(top, [text]), payload))
-        # don't squeeze their labels into the STARTOBS column; once every row is in, as Qt moves every spanned row at
+        # don't squeeze their labels into the Start column; once every row is in, as Qt moves every spanned row at
         # each row added after it (2 s for the 15000 rows of 5000 observations, against 0.05 s)
         for child in children:
             child.setFirstColumnSpanned(True)
@@ -1359,20 +1380,26 @@ class QtIRISImporter(QtWidgets.QDialog):
         return item
 
     def _ticked_windows(self, item):
-        """
-        List the ticked raster windows in Main window as ``item`` is ticked or un-ticked, showing the one last chosen
-        there while ticked, else `DEFAULT_WINDOW`, else the first.
-        """
-        from glue_solar.quicklook import DEFAULT_WINDOW  # which imports this module
-
+        """Keep the ticked raster windows as ``item`` is ticked or un-ticked, and list them (`_list_main`)."""
         i = item.data(0, Qt.UserRole)
         if i is None or (item.checkState(0) == Qt.Checked) == (i in self._ticked) or self._payloads[i][1] != "raster":
             return  # an unchanged tick, as for each entry `populate` adds before its payload
         self._ticked ^= {i}
+        self._list_main()
+
+    def _list_main(self):
+        """
+        List the ticked raster windows in Main window, showing the one last chosen there while ticked, else
+        `DEFAULT_WINDOW`, else the first; shown only for two or more, where it is a choice (D90).
+        """
+        from glue_solar.quicklook import DEFAULT_WINDOW  # which imports this module
+
         names = list(dict.fromkeys(self._payloads[j][2] for j in sorted(self._ticked)))
         self.main_window.clear()
         self.main_window.addItems(names)
         self.main_window.setCurrentText(next((n for n in (self._main, DEFAULT_WINDOW, *names) if n in names), ""))
+        for widget in (self.main_window_label, self.main_window):
+            widget.setVisible(len(names) > 1)
 
     def selected(self):
         """``(observation index, kind, name)`` for every ticked loadable entry."""

@@ -316,10 +316,11 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
         assert errors == ["Could not open the cut\ndivision by zero"]
 
     def curves(viewer):
-        """The windows and channels of the light curves the entry plots, as their labels name them."""
+        """The windows and channels of the light curves the entry plots, from their labels, '<source> light curve…'."""
         menu_action(viewer, POINT_CURVES).trigger()
         labels = [layer.layer.label for layer in bare_app.viewers[-1][-1].layers if isinstance(layer.layer, Data)]
-        return [re.sub(r"( \S+ Å)? light curve$", "", label) for label in labels]
+        collection = bare_app.data_collection
+        return [collection[label.split(" light curve")[0]].main_components[0].label for label in labels]
 
     # the light curves of the windows and slit-jaw images the quicklook shows, not those not shown yet or turned off
     assert curves(viewers["map"]) == ["Si IV 1403", "SJI 1400"]
@@ -461,7 +462,7 @@ def test_quicklook_of_a_sit_and_stare(bare_app, tmp_path, irispy_test_files):
     shutil.copy2(find_irispy_test_file(irispy_test_files, SNS.format("SJI_2796_t000")), deconvolved)
     sjis.append(image_data(deconvolved))
     viewers = quicklook(bare_app, rasters + sjis[::-1])  # the deconvolved SJI first
-    [mg] = [data for data in rasters if data.label.startswith("Mg_II_k_2796")]
+    [mg] = [data for data in rasters if data.label.startswith("Mg II k 2796")]
     check_panels(bare_app, viewers, mg, {"map": (0, 1), "spectrogram": (2, 1), "wavelength": (2, 0)})
     assert [viewers[role].state.title for role in ("map", "wavelength")] == [
         "Mg II k 2796 slit vs time",
@@ -486,7 +487,7 @@ def test_quicklook_of_a_sit_and_stare(bare_app, tmp_path, irispy_test_files):
 def test_quicklook_shows_the_chosen_window(bare_app, irispy_test_files):
     rasters = raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))])
     viewers = quicklook(bare_app, rasters, window="Si IV 1403")
-    assert viewers["map"].state.reference_data.label.startswith("Si_IV_1403")
+    assert viewers["map"].state.reference_data.label.startswith("Si IV 1403")
     assert viewers["map"].state.title == "Si IV 1403 slit vs time"
 
 
@@ -1115,10 +1116,10 @@ def test_light_curves_at_the_point(bare_app, qtbot, tmp_path, irispy_test_files)
     curves = [layer.layer for layer in layers]
     wavelength = mg_ii[mg_ii.world_component_ids[-1], (0, 0, k)] * u.Unit(mg_ii.coords.world_axis_units[0])
     assert [curve.label for curve in curves][1:] == [
-        f"Mg II k 2796 {wavelength.to_value(u.AA):.2f} Å light curve",
-        "SJI 1400 light curve",
+        f"{mg_ii.label} light curve {wavelength.to_value(u.AA):.2f}",
+        f"{sji.label} light curve",
     ]
-    assert curves[0].label.startswith("C II 1336 ")  # nearest its TWAVE
+    assert curves[0].label.startswith(f"{c_ii.label} light curve ")  # nearest its TWAVE
     assert all(layer.line_visible and not layer.markers_visible for layer in layers)
     assert len({layer.color for layer in layers}) == 3
     assert (plot.state.x_att, plot.state.y_att) == (curves[0].id["Time"], curves[0].id["Value"])
@@ -1186,7 +1187,7 @@ def test_light_curves_at_the_point(bare_app, qtbot, tmp_path, irispy_test_files)
     np.testing.assert_allclose(band[band.id["Value"]], expected, rtol=1e-6)  # glue's mean in float64
     wavelengths = mg_ii[mg_ii.world_component_ids[-1], (0, 0, view[-1])] * u.Unit(mg_ii.coords.world_axis_units[0])
     low, high = wavelengths[[0, -1]].to_value(u.AA)
-    assert band.label == f"Mg II k 2796 {low:.2f}–{high:.2f} Å light curve"
+    assert band.label == f"{mg_ii.label} light curve {low:.2f}–{high:.2f}"
     # the raster removed, they let it and its curve go, and stop
     coord = coordinator(bare_app.data_collection)
     follower, _ = [f.__self__ for f in coord._listeners if isinstance(getattr(f, "__self__", None), _PointCurves)]
@@ -2948,7 +2949,7 @@ def test_startup_shows_the_first_raster_file(qtbot, monkeypatch, irispy_test_fil
     iris_quicklook(app.session, app.data_collection)
     shown = app.viewers[-1][0].state.reference_data
     assert shown.ndim == 3
-    assert shown.label == "Mg_II_k_2796-3860258481-2014-03-29T14:09:38-r00000"
+    assert shown.label == "Mg II k 2796 2014-03-29 14:09 scan 0"
     assert "stacks of scans need" in app.statusBar().currentMessage()
 
 
@@ -3765,7 +3766,7 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
     slider.button_forw.click()  # playing, which the export stops
     slider._play_timer.setInterval(1)
     save("IRIS: save frames or movie…", "sji.png")
-    assert offered == [str(tmp_path / "SJI_1400-3620258102-2021-09-05T00_18_33_0-9")]  # its suffix the filter's
+    assert offered == [str(tmp_path / "SJI_1400_2021-09-05_00_18_0-9")]  # its suffix the filter's
     assert not slider._play_timer.isActive()
     assert exposures[:10] == [nearest_frame(raster, when) for when in times[:10]]  # then back to frame 20's
     # the viewer returns to its frame and per-frame limits
@@ -4870,7 +4871,7 @@ def read_at(data, names, pixel, sync):
         " ".join(position),
         f"{np.datetime_as_string(data[data.id['Time'], pixel], unit='ms')} UTC",
         f"{data[data.id['Exposure time'], pixel]:.4g} s",
-        f"{data[data.id[data.label], pixel]:.6g}",
+        f"{data[data.main_components[0], pixel]:.6g}",
         sync,
     ]
 
@@ -4916,7 +4917,7 @@ def test_the_point_window_reads_the_raster_at_the_point(bare_app, qtbot, scans, 
     event(lambda: select_point(viewers["spectrogram"], 5, 40), (*scan, 3, 40, 5))
     # the value is that of the component the map shows
     [layer] = [layer for layer in viewers["map"].state.layers if layer.layer is data]
-    layer.attribute = data.id[f"{data.label} DN / s"]
+    layer.attribute = data.id[f"{data.main_components[0].label} DN / s"]
     settle(qtbot, window)
     pixel = (*scan, 3, 40, 5)
     assert rows(window)[0][5] == f"{data[layer.attribute, pixel]:.6g}" != read_at(data, names, pixel, "")[5]
@@ -5107,7 +5108,7 @@ def test_each_window_of_the_file_joins_the_quicklook(bare_app, qtbot, irispy_tes
     # a spectrum for each other window, and a λ–time or λ–scan panel where it has a time axis, laid out apart
     title = {"scan": None, "sit-and-stare": "λ–time", "stack": "λ–scan"}[kind]
     for data, panels in zip(others, viewers["windows"], strict=True):
-        name = data.label.split("-")[0].replace("_", " ")
+        name = data.main_components[0].label
         assert panels["spectrum"].state.title == f"{name} spectrum"
         assert set(panels) == ({"spectrum"} if title is None else {"spectrum", "wavelength"})
         if title is not None:

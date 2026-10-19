@@ -404,6 +404,6 @@ def iris_quicklook(session, data_collection):
 
 
 def _raster_number(data):
-    """The ``rNNNNN`` of a raster window loaded from one file, else None."""
-    match = re.search(r"-r(\d{5})$", data.label)
-    return match.group(1) if match else None
+    """The raster number of a raster window loaded from one file of several rasters (`_label`), else None."""
+    match = re.search(r" scan (\d+)$", data.label)
+    return int(match.group(1)) if match else None

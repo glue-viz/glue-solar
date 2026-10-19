@@ -177,7 +177,7 @@ def test_a_saturated_sample_taken_flags_its_pixel(monkeypatch, scan_path):
     raster.update_components({cid: values})
     for rate in (True, False):
         if not rate:  # irispy is given the DN themselves
-            raster.remove_component(raster.id[f"{raster.label} DN / s"])
+            raster.remove_component(raster.id[f"{raster.main_components[0].label} DN / s"])
         maps = red_blue_asymmetry(raster, 1402.77)
         saturated = maps["quality"] == RBAQualityFlag.SATURATED
         assert np.flatnonzero(saturated).tolist() == [10]  # step 0, slit pixel 10

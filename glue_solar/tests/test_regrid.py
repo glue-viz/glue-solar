@@ -136,6 +136,7 @@ def test_a_sit_and_stare_regrids_at_its_median_exposure_step(monkeypatch, tmp_pa
     assert [np.may_share_memory(plane, raw) for plane in planes] == [i not in gaps for i in range(len(planes))]
     assert regridded.shape[0] == 198
     assert regridded.label == f"{raster.label} regridded"
+    assert regridded.main_components[0].label == raster.main_components[0].label
     assert regridded.meta["OBSID"] == raster.meta["OBSID"]
     # and as before from data loaded in memory
     monkeypatch.setattr(iris, "LAZY", False)
@@ -403,17 +404,17 @@ def test_rebin_takes_each_bins_mean_of_its_values_and_keeps_the_finite_mean(
     expected, covered = binned(data[cid], bins)
     assert rebinned.label == label
     assert rebinned.shape == expected.shape == tuple(length // n for n, length in zip(bins, data.shape))
-    assert rebinned.get_component(label).units == data.get_component(cid).units
+    assert rebinned.get_component(cid.label).units == data.get_component(cid).units
     assert rebinned.style.preferred_cmap == data.style.preferred_cmap
     assert rebinned.meta["rebinned"] == bins
     assert rebinned.meta["INSTRUME"] == data.meta["INSTRUME"]
     assert not set(_SJI_POINTING) & set(rebinned.meta)
     assert rebinned.coords.pointing_offset == (1.5, -0.5)
-    values = rebinned[label]
+    values = rebinned[cid.label]  # named as the data's
     assert values.dtype == np.float32
     assert np.isnan(expected).any()  # where every value is missing
     np.testing.assert_allclose(values, expected, rtol=1e-6, equal_nan=True)
-    np.testing.assert_array_equal(rebinned[f"{label} mask"], np.isnan(expected))
+    np.testing.assert_array_equal(rebinned[f"{cid.label} mask"], np.isnan(expected))
     # the mean of the values, missing ones left out: the bins' means, each weighted by how many values it holds
     counts = binned(np.isfinite(covered), bins)[0] * np.prod(bins)
     assert np.nansum(values * counts) / counts.sum() == pytest.approx(np.nanmean(covered), rel=1e-6)
@@ -441,7 +442,7 @@ def test_rebin_takes_each_bins_mean_of_its_values_and_keeps_the_finite_mean(
     np.testing.assert_allclose(exposure, np.where(zero, np.nan, binned(seconds, along)[0]), rtol=1e-6)
     assert list(np.flatnonzero(np.isnan(exposure))) == ([1] if kind == "raster" else [])
     np.testing.assert_allclose(
-        rebinned[f"{label} DN / s"], values / exposure[..., None, None], rtol=1e-6, equal_nan=True
+        rebinned[f"{cid.label} DN / s"], values / exposure[..., None, None], rtol=1e-6, equal_nan=True
     )
 
 

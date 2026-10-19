@@ -1315,7 +1315,7 @@ def _link_windows(collection, raster, others):
 def _sji_title(data):
     """'SJI 1400', or 'SJI 2796 (deconvolved)'."""
     title = str(data.meta.get("TDESC1") or data.label).replace("_", " ")
-    return f"{title} (deconvolved)" if "_deconvolved" in data.label else title
+    return f"{title} (deconvolved)" if " deconvolved" in data.label else title
 
 
 def _footprint_limits(viewer, raster):
@@ -1355,7 +1355,7 @@ def _zoom(viewer, x, y, margin):
 def _pick_sjis(sjis):
     """One slit-jaw cube per channel, the plain one before the deconvolved, and the ones left out."""
     chosen = {}
-    for data in sorted(sjis, key=lambda data: "_deconvolved" in data.label):
+    for data in sorted(sjis, key=lambda data: " deconvolved" in data.label):
         chosen.setdefault(str(data.meta.get("TDESC1")), data)
     shown = list(chosen.values())
     return shown, [data for data in sjis if data not in shown]
@@ -2290,9 +2290,9 @@ def _point_curves(viewer):
             band = coord._band(source, axis, _line_core(source))  # kept, as the label says, at later band changes
             wave = _wavelengths(source)[0][band]
             at = f"{wave[0]:.2f}–{wave[-1]:.2f}" if len(wave) > 1 else f"{wave[0]:.2f}"
-            label = f"{_window(source)[0] or source.label} {at} Å light curve"
+            label = f"{source.label} light curve {at}"
         else:
-            band, label = None, f"{_sji_title(source)} light curve"
+            band, label = None, f"{source.label} light curve"
         times, values = _curve(source, raster, pixel, band)
         curve = Data(label=label, Time=times, Value=values)
         curve.get_component("Value").units = source.get_component(source.main_components[0]).units
@@ -2597,7 +2597,7 @@ class _PointWindow(QTableWidget):
         self.verticalHeader().hide()
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)  # the width left, labels elided
-        self.setTextElideMode(Qt.ElideMiddle)  # on one line, keeping their ends, such as '-scan-0' or '-stack'
+        self.setTextElideMode(Qt.ElideMiddle)  # on one line, keeping their ends, such as 'scan 0' or 'stack'
         self.setWordWrap(False)
         self.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
         # a click or a slider step changes several panels, then syncs the time: one refresh for all

@@ -134,9 +134,17 @@ def regrid_on_time(data):
     for name in set(_SJI_POINTING) & set(meta):
         meta[name] = _gather(np.asarray(meta[name], float), index, np.nan)
     meta["time_step"] = step / np.timedelta64(1, "s")
-    regridded = _dataset(_Regridded(data.coords._wcs, positions), meta, component.units, values,
-                         f"{data.label} regridded", color=data.style.color, cmap=data.style.preferred_cmap,
-                         scaling=scaling)
+    regridded = _dataset(
+        _Regridded(data.coords._wcs, positions),
+        meta,
+        component.units,
+        values,
+        f"{data.label} regridded",
+        name=data.main_components[0].label,
+        color=data.style.color,
+        cmap=data.style.preferred_cmap,
+        scaling=scaling,
+    )
     regridded.coords.follow(data)
     lead = (slice(None),) * (data.ndim - 2) + (0, 0)  # one value per exposure, frame, or scan and step
     _add_time(regridded, _gather(data[data.id["Time"], lead], index, np.datetime64("NaT", "ns")))
@@ -331,6 +339,7 @@ def rebin(data, bins):
         data.get_component(cid).units,
         np.concatenate(values),
         f"{data.label} rebinned {'x'.join(map(str, bins))}",
+        name=cid.label,
         color=data.style.color,
         cmap=data.style.preferred_cmap,
         missing=(),
