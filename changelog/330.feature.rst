@@ -1,0 +1,1 @@
+The main IRIS lines, which the Profile viewer labels and rest wavelengths come from, are irispy's documented lines from its new line catalog, adding Cl I, C I, Mn XVIII, Fe II, Ni II, O IV, S IV and Ni I; a window of several lines takes its own ion's line.
