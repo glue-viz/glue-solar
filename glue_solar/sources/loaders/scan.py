@@ -57,8 +57,8 @@ def extract_archive(path):
     """
     Unpack a ``*.tar.gz`` next to itself, into ``<name without .tar.gz>/``.
 
-    This is the layout irispy and pooch use, so a later `scan_directory`
-    picks the files up under the same observation as the archive.
+    This is the layout pooch uses, so a later `scan_directory` picks the files up under the same observation as the
+    archive (irispy's ``read_files`` extracts into its own cache folder since LM-SAL/irispy#244).
 
     Returns
     -------
