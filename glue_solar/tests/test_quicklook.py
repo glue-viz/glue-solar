@@ -3591,7 +3591,7 @@ def test_what_moves_on_go_to_utc(bare_app, qtbot, monkeypatch, irispy_test_files
     for viewer, text, message in (
         (sji_viewer, utc(times[-1] + np.timedelta64(60, "s")), f"Nothing in {label} is within half a cadence"),
         (viewers["spectrogram"], "noon", "'noon' is not a UTC time"),
-        (bare_app.new_data_viewer(ImageViewer, data=plain), utc(when), "slider of IRIS data"),
+        (bare_app.new_data_viewer(ImageViewer, data=plain), utc(when), "slider of timed data"),
     ):
         assert go_to(viewer, text)[0] == {}
         assert shown[-1].startswith("Could not go to UTC\n")

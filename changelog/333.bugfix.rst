@@ -1,0 +1,1 @@
+The observation browser is titled 'Observations' and asks for a folder of IRIS Level 2 files or SST cubes, and the Coordinate button and 'Go to UTC' no longer name IRIS data only.
