@@ -349,7 +349,8 @@ def test_a_sot_cube_loaded_first_is_linked_on_request_to_the_raster(sns, irispy_
     [path] = [path for path in irispy_test_files if "_Gband4305_FG_" in path.name]
     sot = image_data(path)
     sots = DataCollection([image_data(path), image_data(path)])
-    assert link_hpc(sots, others=sots) == []  # nor one SOT cube to another, with no IRIS dataset (212-3)
+    # with no IRIS dataset, one SOT cube to the other on request (D97, reversing 212-3)
+    assert [type(link) for link in link_hpc(sots, others=sots)] == [LinkSame, LinkSame]
     dc = DataCollection([sot, raster])
     assert link_hpc(dc) == []
     link_iris(None, dc)

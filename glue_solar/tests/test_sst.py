@@ -936,6 +936,37 @@ def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
     assert [coord._master(observation_key(data)) for data in (first, second, later)] == [second, second, later]
 
 
+def test_sst_cubes_link_without_iris_data_and_link_their_points(sst_app, qtbot, tmp_path):
+    # D97: with no IRIS data, linking anchors on the first cube, and with 'Link points across cubes' on, a point on
+    # one cube moves the other quicklook's point to its place on the Sun, at that cube's own other slices
+    write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16), start=1200.0, cadence=60.0)
+    # half the pixel size, its center 1.75 arcsec off in both: the first's pixel (11, 6) is its (10, 8)
+    write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), center=(-53.25, -401.25), scale=0.5, start=1170.0)
+    first, second = (sst_data(tmp_path / f"{name}.fits") for name in "ab")
+    a, _ = quicklook(sst_app, [first]), quicklook(sst_app, [second])
+    dc = sst_app.data_collection
+    dc.add_link(link_hpc(dc, others=[first, second]))
+    assert linked_data(dc) == {first, second}
+    ours, theirs = sorted(coordinator(dc)._owners, key=lambda group: group.subset_state.reference_data is second)
+    scan = theirs.subset_state.slices[0]
+
+    def place(x, y):
+        slices = [slice(1, 2), slice(None), slice(y, y + 1), slice(x, x + 1)]  # scan, tuning, y and x
+        ours.subset_state = PixelSubsetState(first, slices)
+        return theirs.subset_state.slices
+
+    assert place(11, 6) == [scan, slice(None), slice(8, 9), slice(10, 11)]
+    assert place(0, 0)[2:] == [slice(8, 9), slice(10, 11)]  # off the second cube: its point stays
+    entry = a["map"].toolbar.tools["solar:link_points"]
+    assert entry.offered()
+    assert entry.checked
+    entry.activate()  # off
+    assert not entry.checked
+    assert place(12, 5)[2:] == [slice(8, 9), slice(10, 11)]
+    entry.activate()
+    assert place(12, 5)[2:] == [slice(6, 7), slice(12, 13)]
+
+
 def test_sst_time_keys_follow_overlapping_scans(qtbot, tmp_path):
     # 230-9, 253-2: cubes share a key when their scans overlap or lie within the larger of their cadences of each other,
     # transitively: d, within b's cadence of only the tail of b, the group's earliest cube, joins it; and a chosen time
