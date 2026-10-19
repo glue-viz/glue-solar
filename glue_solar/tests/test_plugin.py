@@ -1,5 +1,6 @@
 import gc
 import inspect
+import itertools
 import os
 import re
 import shutil
@@ -51,8 +52,9 @@ from irispy.io.sji import read_sji_lvl2
 from irispy.utils.fitting import profiles_on_background
 from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent, key_press_handler
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
+from matplotlib.text import Text
 from qtpy.QtCore import Qt
-from qtpy.QtGui import QCursor, QDesktopServices, QKeySequence
+from qtpy.QtGui import QCursor, QDesktopServices, QIcon, QKeySequence
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import QCheckBox, QDialog, QFileDialog, QInputDialog, QMessageBox, QPushButton, QToolBar
 
@@ -165,6 +167,20 @@ def test_setup_registers_hooks():
     for label in ("FITS file", "sunpy Map"):  # both also match IRIS files; ours must win
         other = next(f for f in data_factory if f.label == label)
         assert iris.priority > (other.priority or 0)
+
+
+def test_glue_shows_glue_solars_icon(app, tmp_path):
+    # the macOS app's icon on the application, its window, its viewers and a quicklook panel's title bar (D90, P8)
+    ours = QIcon(os.path.join(os.path.dirname(glue_solar.__file__), "icons", "glue_solar.png")).pixmap(32).toImage()
+    viewer = app.new_data_viewer(ImageViewer)
+    cube, _ = spectral_cube(tmp_path / "cube.fits", (7, 12, 16))
+    app.data_collection.append(cube)
+    quicklook_cube(cube, app.data_collection)
+    # each window in its tab, panels, Point window and Panels list, whose title bar draws Qt's logo unless given one
+    windows = app.current_tab.subWindowList()
+    assert all(window.testAttribute(Qt.WA_SetWindowIcon) for window in windows)
+    for icon in (app.app.windowIcon(), app.windowIcon(), viewer.windowIcon(), *(w.windowIcon() for w in windows)):
+        assert icon.pixmap(32).toImage() == ours
 
 
 def test_data_actions_show_only_for_the_data_they_take(app, monkeypatch, tmp_path, irispy_test_files, iris_tree):
@@ -2144,6 +2160,13 @@ def test_profiles_label_the_main_iris_lines(app, irispy_test_files):
     # the window's lines at their vacuum wavelengths; 2798.754 and 2798.823 Å share a label between them
     assert [name for name, _ in labels()] == ["Mg II", "Mg II k", "Mg II", "Mg II h"]
     assert [x for _, x in labels()] == pytest.approx([2791.599, 2796.352, 2798.7885, 2803.530])
+    # zoomed out, Mg II k and the triplet closer than a label is wide: the triplet's goes below k's (P8)
+    viewer.state.x_min, viewer.state.x_max = 2700, 2900
+    texts = [artist for artist in tool.artists if isinstance(artist, Text)]
+    _, k, triplet, _ = texts
+    assert triplet.get_window_extent().x0 < k.get_window_extent().x1
+    assert triplet.get_window_extent().y1 < k.get_window_extent().y0
+    assert not any(a.get_window_extent().overlaps(b.get_window_extent()) for a, b in itertools.combinations(texts, 2))
     viewer.state.x_display_unit = "nm"
     assert dict(labels())["Mg II k"] == pytest.approx(279.6352)
     button = viewer.toolbar.actions["solar:lines"]

@@ -1,0 +1,1 @@
+Quicklook panels use 16 px toolbar icons, glue shows glue-solar's icon, spectral line labels no longer overlap, and the Point window sizes its columns to fit.

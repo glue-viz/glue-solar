@@ -49,6 +49,7 @@ from glue_solar.quicklook import (
     _curve,
     _half_cadence,
     _PointCurves,
+    _viewers,
     coordinator,
     nearest,
     observation_key,
@@ -5792,6 +5793,26 @@ def test_the_spectrum_panel_labels_the_main_lines(bare_app, scans):
     viewers = quicklook(bare_app, [scans[0]])  # C II 1336
     tool = viewers["spectrum"].toolbar.tools["solar:lines"]
     assert sorted(x for _, xs in tool.positions() for x in xs) == pytest.approx([1334.5323, 1335.6628, 1335.7079])
+
+
+def test_the_panels_have_small_toolbar_icons(bare_app, scans):
+    viewers = quicklook(bare_app, [scans[1]])  # a stack, with its λ–scan panel
+    assert {panel.toolbar.iconSize().width() for panel in _viewers(viewers)} == {16}  # glue-qt's are 25 px (P8)
+
+
+def test_the_point_window_fits_its_columns(bare_app, qtbot, scans):
+    bare_app.show()  # the Point window's size
+    quicklook(bare_app, [scans[0]])
+    window = point_window(bare_app)
+    settle(qtbot, window)
+    # its label as wide as it is, not the width left (P8)
+    assert window.columnWidth(0) == window.sizeHintForColumn(0) < window.viewport().width() // 3
+    window.item(0, 0).setText(f"{scans[0].label} " * 10)  # a label too wide for the window
+    window.parentWidget().resize(900, window.parentWidget().height())
+    # the readouts whole, and the label in the width they leave, elided in the middle
+    assert [column for column in range(1, 7) if window.columnWidth(column) < window.sizeHintForColumn(column)] == []
+    assert 0 < window.columnWidth(0) < window.sizeHintForColumn(0)
+    assert window.horizontalHeader().length() <= window.viewport().width()  # no scrolling
 
 
 # Blink (D41): one viewer alternating two positions, each a dataset and its slider position
