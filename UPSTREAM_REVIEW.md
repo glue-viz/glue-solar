@@ -76,12 +76,14 @@ glue-qt main is 0.4.2 plus two. glue-qt main's CI has been red since 2026-02, wh
 
 ## Glue-solar changes now
 
-- **Drop the gzip-to-bytes step** in `loaders/iris.py` (about 15 lines): irispy main reads a `.gz` once itself.
-- **Strike from the plan's lists**: `translate_pixel`'s bare `Exception` (gone on main), the two WCSAxes cases that did
-  not reproduce, irispy's `py314-devdeps` failure (fixed by irispy #259).
-- **When glue releases its pytest plugin** (#2587, on main): drop `conftest.py`'s `CFG_DIR` setup.
-- **Follow irispy main** again for #256 (dust found from the pipeline's bad-pixel table; `calculate_dust_mask` takes a
-  cube), which glue-solar's dust removal calls.
+- **Drop the gzip-to-bytes step** in `loaders/iris.py` (about 15 lines): irispy main reads a `.gz` once itself (the
+  plan's `wp10-l-gzip-from-irispy`).
+- **When glue releases its pytest plugin** (#2587, on main): drop `conftest.py`'s `CFG_DIR` setup (in the plan's
+  `wp0-release-tracking`).
+
+Done since: glue-solar follows irispy #256's dust detection (#327); the plan's upstream items are folded into this
+review (`wp0-upstream`), which drops the stale entries (`translate_pixel`'s bare `Exception`, the two WCSAxes cases that
+did not reproduce, irispy's `py314-devdeps` failure).
 
 ## Keep in glue-solar
 
