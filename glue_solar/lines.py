@@ -2,11 +2,11 @@
 The main IRIS lines, a Profile viewer button that labels them, the rest wavelength of a spectral window (D11) and the
 Doppler velocity from it, as a Profile x unit and top axis.
 
-Wavelengths are NIST ASD vacuum wavelengths in Angstrom: the observed one where NIST gives one, else its Ritz value
-(D44). irispy's line database is to replace this table (`wp5-irispy-line-database` in the plan).
+The main lines are the documented IRIS lines of irispy's line catalog, at its vacuum wavelengths in Angstrom (D44).
 """
 
 import os
+from functools import cache
 
 import numpy as np
 from glue.config import viewer_tool
@@ -28,24 +28,20 @@ import astropy.units as u
 from glue_solar.glue_patches import layer_action
 from glue_solar.quicklook import _spectral_axes, _wavelengths, _window
 
-__all__ = ["MAIN_LINES", "DopplerConverter", "LineTool", "VelocityTool", "rest_wavelength", "rest_wavelength_iris"]
+__all__ = ["DopplerConverter", "LineTool", "VelocityTool", "main_lines", "rest_wavelength", "rest_wavelength_iris"]
 
-MAIN_LINES = (
-    ("C II", 1334.5323),
-    ("C II", 1335.6628),
-    ("C II", 1335.7079),
-    ("Fe XII", 1349.40),
-    ("Fe XXI", 1354.08),
-    ("O I", 1355.5977),  # Ritz
-    ("O I", 1358.5123),  # Ritz
-    ("Si IV", 1393.76),
-    ("Si IV", 1402.77),
-    ("Mg II", 2791.599),
-    ("Mg II k", 2796.352),
-    ("Mg II", 2798.754),  # Ritz
-    ("Mg II", 2798.823),
-    ("Mg II h", 2803.530),
-)
+_NAMES = {2796.352: "Mg II k", 2803.53: "Mg II h"}  # irispy names both "Mg II"
+
+
+@cache
+def main_lines():
+    """irispy's documented IRIS lines, as (name, wavelength in Angstrom), read at first use rather than at launch."""
+    from irispy.utils.lines import get_lines
+
+    lines = get_lines(main_only=True)
+    waves = lines["wavelength"].to_value(u.AA).tolist()
+    return tuple((_NAMES.get(wave, str(ion)), wave) for ion, wave in zip(lines["ion"], waves, strict=True))
+
 
 MERGE = 0.01  # lines closer than this fraction of the plotted range share a label
 KM_S = u.km / u.s
@@ -66,7 +62,7 @@ def _check(tool):
 @viewer_tool
 class LineTool(Tool):
     """
-    Label the main IRIS lines (`MAIN_LINES`) on a Profile viewer whose x axis is the wavelength of IRIS data: a thin
+    Label the main IRIS lines (`main_lines`) on a Profile viewer whose x axis is the wavelength of IRIS data: a thin
     marker at each line within the plotted range and its name at the top, in the axis's display unit. Lines too close
     to tell apart at the plotted range share one label; a label that would overlap another goes below it. The button,
     checked while they show, switches them off and on; they start on.
@@ -109,11 +105,11 @@ class LineTool(Tool):
         if state.x_att is not data.world_component_ids[axis]:
             return []
         native = u.Unit(data.get_component(state.x_att).units or "Angstrom")
-        waves = (np.array([wave for _, wave in MAIN_LINES]) * u.AA).to_value(native)
+        waves = (np.array([wave for _, wave in main_lines()]) * u.AA).to_value(native)
         x = np.asarray(UnitConverter().to_unit(data, state.x_att, waves, state.x_display_unit), float)
         low, high = sorted((state.x_min, state.x_max))
         labels = []
-        for (name, _), at in sorted(zip(MAIN_LINES, x), key=lambda pair: pair[1]):
+        for (name, _), at in sorted(zip(main_lines(), x), key=lambda pair: pair[1]):
             if low <= at <= high:
                 if labels and at - labels[-1][1][-1] < MERGE * (high - low):
                     if name not in labels[-1][0]:
@@ -150,28 +146,31 @@ class LineTool(Tool):
 def _within(data):
     """The main lines within the wavelengths of ``data``, which has one wavelength axis, as (name, wavelength)."""
     wavelengths, _ = _wavelengths(data)
-    return [(name, wave) for name, wave in MAIN_LINES if np.nanmin(wavelengths) <= wave <= np.nanmax(wavelengths)]
+    return [(name, wave) for name, wave in main_lines() if np.nanmin(wavelengths) <= wave <= np.nanmax(wavelengths)]
 
 
 def rest_wavelength(data):
     """
     The rest wavelength of the line in ``data``, in Angstrom, or None (D11): ``meta['rest_wavelength']`` where set,
-    else the one main line within its wavelengths or, of several, the one nearest the wavelength its window is named
-    for, such as 2796 in Mg II k 2796, if within 1 Å; never the window's TWAVE, which is not the line's.
+    else the one main line within its wavelengths or, of several, the one of the window's own ion (C I 1355.85 is
+    nearer 1356 than O I 1355.60) nearest the wavelength its window is named for, such as 2796 in Mg II k 2796, if
+    within 1 Å; never the window's TWAVE, which is not the line's.
     """
     if data.meta.get("rest_wavelength") is not None:
         return float(data.meta["rest_wavelength"])
     if len(_spectral_axes(data)) != 1:
         return None
-    within = [wave for _, wave in _within(data)]
+    within = _within(data)
     if len(within) > 1:
+        title = str(_window(data)[0])
         try:
-            named = float(str(_window(data)[0]).split()[-1])
+            named = float(title.split()[-1])
         except (IndexError, ValueError):  # no name, or no wavelength in it
             return None
-        nearest = min(within, key=lambda wave: abs(wave - named))
-        within = [nearest] if abs(nearest - named) <= 1 else []
-    return within[0] if within else None
+        within = [line for line in within if title.startswith(f"{line[0]} ")] or within
+        nearest = min((wave for _, wave in within), key=lambda wave: abs(wave - named))
+        return nearest if abs(nearest - named) <= 1 else None
+    return within[0][1] if within else None
 
 
 def _doppler_rest(data, cid):

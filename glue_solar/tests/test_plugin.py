@@ -2182,8 +2182,8 @@ def test_profiles_label_the_main_iris_lines(app, irispy_test_files):
         return [(text.get_text(), text.get_position()[0]) for text in viewer.axes.texts if text in tool.artists]
 
     # the window's lines at their vacuum wavelengths; 2798.754 and 2798.823 Å share a label between them
-    assert [name for name, _ in labels()] == ["Mg II", "Mg II k", "Mg II", "Mg II h"]
-    assert [x for _, x in labels()] == pytest.approx([2791.599, 2796.352, 2798.7885, 2803.530])
+    assert [name for name, _ in labels()] == ["Mg II", "Mg II k", "Mg II", "Ni I", "Mg II h"]
+    assert [x for _, x in labels()] == pytest.approx([2791.599, 2796.352, 2798.7885, 2799.47, 2803.530])
     # zoomed out, Mg II k and the triplet closer than a label is wide: the triplet's goes below k's (P8)
     viewer.state.x_min, viewer.state.x_max = 2700, 2900
     texts = [artist for artist in tool.artists if isinstance(artist, Text)]
@@ -2464,6 +2464,7 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(app, qtbot, monkeypatch, 
     y = 3 + 40 * np.exp(-0.5 * ((x - 1355.62) / 0.04) ** 2)
     y[0] = np.nan  # fill
     data = Data(label="O I", flux=y, coords=wcs)
+    data.meta.update(NWIN=1, TDESC1="O I 1356", TWAVE1=1355.6)  # a window named for its line, beside C I and Mn XVIII
     app.data_collection.append(data)
     viewer = app.new_data_viewer(ProfileViewer, data=data)
     viewer.state.x_att = data.world_component_ids[0]
@@ -2480,8 +2481,8 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(app, qtbot, monkeypatch, 
         qtbot.waitUntil(lambda: "km / s" in tools.text_log.toPlainText())
         return tools.text_log.toPlainText().splitlines()
 
-    # the fill left out, its center and its velocity from the rest wavelength, O I 1355.5977, or one set (D11)
-    assert fit()[-1] == "center_1 = 1355.620000, +4.93 km / s from 1355.5977 Å"
+    # the fill left out, its center and its velocity from the rest wavelength, O I 1355.59767, or one set (D11)
+    assert fit()[-1] == "center_1 = 1355.620000, +4.94 km / s from 1355.59767 Å"
     data.meta["rest_wavelength"] = 1355.65
     assert fit()[-1] == "center_1 = 1355.620000, -6.63 km / s from 1355.65 Å"
     del data.meta["rest_wavelength"]
@@ -2522,6 +2523,7 @@ def test_profile_viewers_keep_their_own_fitter_settings(app, qtbot, monkeypatch)
     wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 1355, "CDELT1": 0.025})
     x = 1355 + 0.025 * np.arange(49)
     data = Data(label="O I", flux=3 + 40 * np.exp(-0.5 * ((x - 1355.62) / 0.04) ** 2), coords=wcs)
+    data.meta.update(NWIN=1, TDESC1="O I 1356", TWAVE1=1355.6)
     app.data_collection.append(data)
     viewers = [app.new_data_viewer(ProfileViewer, data=data) for _ in range(2)]
     for viewer in viewers:

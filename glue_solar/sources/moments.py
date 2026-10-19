@@ -25,7 +25,7 @@ from astropy.nddata import StdDevUncertainty
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
 from glue_solar.glue_patches import _application, layer_action, refresh_layer_actions
-from glue_solar.lines import MAIN_LINES, _wavelength, rest_wavelength
+from glue_solar.lines import _wavelength, main_lines, rest_wavelength
 from glue_solar.quicklook import _role, _show, _spectral_axes, _wavelengths, coordinator
 from glue_solar.sources.loaders.iris import (
     _AXIS_NAMES,
@@ -309,7 +309,7 @@ def _rest_field(data, name):
     if data.meta.get("rest_wavelength") is not None:
         field.setToolTip(f"{data.label}'s, set with 'Set rest wavelength…'")
     elif rest is not None:
-        field.setToolTip(f"{next(line for line, wave in MAIN_LINES if wave == rest)}, of the main IRIS lines")
+        field.setToolTip(f"{next(line for line, wave in main_lines() if wave == rest)}, of the main IRIS lines")
     return field
 
 
