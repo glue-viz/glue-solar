@@ -232,7 +232,7 @@ def test_the_profile_fit_of_a_window_maps_every_spectrum_into_one_linked_dataset
     assert start.mean_1.value.shape == raster.shape[:2]
     np.testing.assert_array_equal(start.stddev_1.value, fitted.stddev_1.value)  # the width kept
     assert (call["fitting_axes"], call["fitter_kwargs"]) == (2, {"filter_non_finite": True})
-    assert call["fit_info"] == ("param_cov", "success")  # what irispy reads, not every fit's Jacobian
+    assert call["fit_info"] == ("param_cov", "success", "active_mask")  # what irispy reads, not every fit's Jacobian
     assert call["scheduler"].func is dask.local.get_sync  # dask.multiprocessing.get, patched
     assert str(call["data_unit"]) == "DN_IRIS_FUV"
     [wavelengths] = call["world"]
@@ -331,6 +331,23 @@ def test_the_fit_reaches_the_window_in_angstrom_with_its_settings(app, qtbot, mo
     assert LINE[0] <= wavelengths[0].value < wavelengths[-1].value <= LINE[1]
     assert str(call["data_unit"]) == "DN_IRIS_FUV / s"
     assert maps.get_component("integrated_intensity_1").units == str(call["data_unit"] * u.AA)
+
+
+def test_a_parameter_fitted_at_a_bound_of_0_has_quality_3(app, qtbot, monkeypatch, scan_path):
+    """
+    A background at most 0, below the window's: where the fitter stops at that bound, strictly within it, irispy flags
+    the spectrum from the fitter's active mask, as its relative tolerance flags none at 0.
+    """
+    [raster] = raster_data([scan_path], ["Si IV 1403"])
+    app.data_collection.append(raster)
+    tools = profile(app, raster)
+    fit_settings(monkeypatch, tools, lambda dialog: dialog.rows["amplitude_0"][3].setText("0"))  # its upper bound
+    fit(qtbot, tools)
+    maps = run(app, qtbot, tools)
+    # within scipy's tolerance of an active bound, and converged: irispy's 2 overrides its 3
+    at_bound = (maps["amplitude_0"] > -1e-9) & (maps["quality"] != 2)
+    assert at_bound.sum() > 100
+    assert (maps["quality"][at_bound] == 3).all()
 
 
 def test_a_fit_in_km_s_maps_as_the_same_fit_in_angstrom(app, qtbot, scan_path, calls, once):

@@ -201,7 +201,8 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
                 data_unit=unit,
                 fitting_axes=2,
                 world=(wavelengths * u.AA,),
-                fit_info=("param_cov", "success"),  # irispy's errors and quality; all of it, a C II window took 6.5 GB
+                # irispy's errors and quality, its bounds active included; all of it, a C II window took 6.5 GB
+                fit_info=("param_cov", "success", "active_mask"),
                 scheduler=scheduler,
                 fitter_kwargs={"filter_non_finite": True, **_jacobian(model)},
             )
