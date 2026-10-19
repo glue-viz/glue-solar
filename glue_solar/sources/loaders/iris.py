@@ -1,5 +1,4 @@
 import base64
-import gzip
 import inspect
 import io
 import itertools
@@ -42,7 +41,7 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper, SlicedLowLevelWCS
 
 from ..maps import _Style
 from .lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask, iris_mask
-from .scan import _gzipped, _observation, _primary_header, extract_archive, scan_directory
+from .scan import _observation, _primary_header, extract_archive, scan_directory
 from .stack_spectrograms import MISSING_VALUES, _PerScanWCS, stack_times, stack_wcs
 
 # Load data stored as int16, as Level 2 files store it, lazily: the raw integers stay in the file (in memory for a
@@ -713,18 +712,14 @@ def last_directory():
 def image_data(path):
     """
     Load an SJI, AIA-cutout or Hinode/SOT file through irispy as one `~glue.core.data.Data`, int16 data lazily
-    (`LAZY`; a ``.fits.gz`` decompressed once into memory), which a session reads from the file again.
+    (`LAZY`; irispy decompresses a ``.fits.gz`` once into memory), which a session reads from the file again.
     """
     from irispy.io.sji import read_sji_lvl2  # with the first file rather than at glue's launch
 
-    gzipped = _gzipped(path)
-    if gzipped:  # as bytes, whose raw int16 irispy's memmap=True read views rather than copies
-        with gzip.open(path) as file:
-            content = file.read()
-    scaling = _raw_scaling(fits.Header.fromfile(io.BytesIO(content) if gzipped else path))
+    scaling = _raw_scaling(_primary_header(path))
     if scaling:
         allow_open_files()
-    cube = read_sji_lvl2(content if gzipped else path, memmap=bool(scaling), uncertainty=False)
+    cube = read_sji_lvl2(path, memmap=bool(scaling), uncertainty=False)
     return _logged([_image_cube_data(cube, path, scaling)], path, image_data)[0]
 
 
