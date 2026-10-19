@@ -163,7 +163,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D98:** User (2026-10-19), from trying the SST quicklook: its spectrum and light-curve panels refit their y range to the point's profiles as it moves, while they show the last fit's range or Home's, so a range typed, panned or zoomed stays (`wp4-refit-on-point`); IRIS fits draw in a darker shade of the layer's color (lighter for a dark one), 1.5 times its width, above the data (`wp6-fit-colour`); 'Lines in this range…' lists its lines with check boxes, the main lines ticked, so a line is labeled or hidden, per viewer and not saved (`wp5-line-checkboxes`); the IRIS fitter's Settings get an 'Mg II two peaks' preset, two Gaussians on a constant for the k or h line in the Fit range, as in IRIS Technical Note 39 (`wp6-mg-ii-preset`). PROVISIONAL (D97's linking): SOT and AIA cubes also link to each other without IRIS data, reversing 212-3; the alternative is limiting D97 to SST and data glue-solar does not read through irispy.
 
-- **D99:** User (2026-10-19): in future, all open data link when their fields overlap, IRIS or not, rather than on request (a bigger item, `wp1-l-link-all-overlapping`, reopening D64). A path's vertices can be typed, not only clicked (`wp12-path-from-points`).
+- **D99:** User (2026-10-19): in future, all open data link when their fields overlap, IRIS or not, rather than on request (a bigger item, `wp1-l-link-all-overlapping`, reopening D64). A path's vertices can be typed, not only clicked (`wp12-path-from-points`). The model builder gets Save and Open of a model, for complex models such as 5 Gaussians with 2 negative, which it already fits from automatic starts; explicit emission or absorption, ties to any line and an editable degree are not worth adding (`wp6-builder-save-load`).
 
 ## Milestones
 
@@ -182,7 +182,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP12: `wp12-path-from-points`, `wp12-sst-path-diagram-axes`
 - WP4: `wp4-refit-on-point`
 - WP5: `wp5-line-checkboxes`
-- WP6: `wp6-fit-colour`, `wp6-mg-ii-preset`
+- WP6: `wp6-fit-colour`, `wp6-mg-ii-preset`, `wp6-builder-save-load`
 - WP10: `wp10-gzip-raster-once`
 - WP11: `wp11-ui-wording`
 
@@ -279,6 +279,7 @@ Fitting IRIS spectra from glue's Profile Fit tab: the IRIS fitter and its model 
 
 - [ ] **M1** `wp6-fit-colour` (D98): IRIS fits draw in a darker shade of the layer's color, wider and above the data. Done when a fit's curves differ from their spectrum's color and sit above it.
 - [ ] **M1** `wp6-mg-ii-preset` (D98): an 'Mg II two peaks' preset in the IRIS fitter's Settings. Done when it fits both emission peaks of an Mg II k core.
+- [ ] **M1** `wp6-builder-save-load` (D99): Save and Open in the IRIS fitter's Settings write and read a model's components and each parameter's start, Fixed, bounds and tie. Done when a model saved and opened again gives the same Settings. Depends: wp6-mg-ii-preset.
 
 Notes:
 - glue-solar wraps irispy's `starts_from_model`, `parallel_fit_dask` set-up and `maps_from_fit` (`irispy.utils.fitting`) rather than writing its own. Models need analytic derivatives.
