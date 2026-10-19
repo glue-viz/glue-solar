@@ -79,9 +79,11 @@ Removing dust
 -------------
 
 "IRIS: remove dust" runs irispy's ``SJICube.remove_dust``, after SolarSoft's
-``iris_dustbuster``: each dust pixel, between -199 and 0.5 DN, and those next to it take the median
-of that pixel over the two frames on either side, scaled by their exposure times, or else of the 5
-by 5 pixels about it. It adds ``<label> dust removed``, held in memory.
+``iris_dustbuster``: each dust pixel of the IRIS pipeline's bad-pixel table, placed in each frame by
+the slit's position, and those next to it take the median of that pixel over the two frames on
+either side, scaled by their exposure times, or else of the 5 by 5 pixels about it. It adds
+``<label> dust removed``, held in memory. A rebinned or regridded image is refused: irispy places
+the table in the pixels of the file.
 
 Radiometric calibration
 -----------------------

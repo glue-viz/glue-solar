@@ -230,7 +230,7 @@ def test_a_slit_jaw_image_gives_irispys_labels_and_events_on_its_coordinates(
     dust = remove_dust(sji)
     collection.append(dust)
     answer(monkeypatch)
-    labels, table = run(app, qtbot, dust, 25)
+    labels, table = run(app, qtbot, dust, 26)
     values = dust[dust.main_components[0]]
     clean = SJICube(values, cube.wcs, unit=cube.unit, mask=np.isnan(values), meta=cube.meta)
     assert_irispys(labels, table, *find_sji_bursts(clean))

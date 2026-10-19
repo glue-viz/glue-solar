@@ -21,7 +21,7 @@ from glue_solar.sources import calibration
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.tests.helpers import refused, restore
-from glue_solar.tests.test_lazy import SJI
+from glue_solar.tests.test_bursts import SJI_1400
 
 DUST = "IRIS: remove dust"
 RADIANCE = "IRIS: radiometric calibration"
@@ -30,12 +30,12 @@ RADIANCE = "IRIS: radiometric calibration"
 @pytest.fixture
 def sji_path(tmp_path, irispy_test_files):
     """
-    3620258102's SJI 1400, 62 frames, stored as int16: lazy in glue; saturated, raw 32760, beside its dust at
-    (30, 4, 35) and in a block away from it.
+    4000255147's SJI 1400, 3 frames, stored as int16: lazy in glue; saturated, raw 32760, across the edge of its dust
+    at (1, 319, 295) and in a block away from it; irispy's cutouts of 3620258102 hold no dust of its bad-pixel table.
     """
-    path = int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0])
+    path = int16_copy(find_irispy_test_file(irispy_test_files, SJI_1400), tmp_path / SJI_1400, [0])
     with fits.open(path, mode="update", do_not_scale_image_data=True) as hdulist:
-        hdulist[0].data[30, 5:7, 35] = hdulist[0].data[10, 20:23, 15:18] = 32760
+        hdulist[0].data[1, 317:321, 295] = hdulist[0].data[0, 200:203, 200:203] = 32760
     return path
 
 
@@ -52,13 +52,13 @@ def assert_irispys_dust_removed(dust, path):
     shown = direct.mask & (direct.data >= 16182)  # saturated, by irispy's read rather than glue's values
     np.testing.assert_array_equal(values[shown], direct.data[shown])
     np.testing.assert_allclose(values[kept], direct.data[kept], rtol=1e-6, atol=0)
-    assert (direct.data[kept] != cube.data[kept]).sum() > 1000  # dust replaced
+    assert (direct.data[kept] != cube.data[kept]).sum() > 100  # dust replaced
 
 
 def test_the_action_adds_irispys_dust_removed_slit_jaw_image_linked_and_no_viewer(
     app, qtbot, monkeypatch, sji_path, scan_path
 ):
-    monkeypatch.setattr(calibration, "SLAB", 5 * 40 * 37)  # slabs of 5 frames, each with 2 on either side
+    monkeypatch.setattr(calibration, "SLAB", 417 * 388)  # slabs of 1 frame, each with 2 on either side
     sji = image_data(sji_path)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     collection, tree = app.data_collection, app._layer_widget
@@ -260,14 +260,14 @@ def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
     dust = calibration.remove_dust(sji)
     rebinned = rebin(dust, (1, 2, 2))  # data made from it keep its meta['dust_removed']
-    regridded = regrid_on_time(dust)
+    regridded, binned = regrid_on_time(dust), rebin(sji, (1, 2, 2))  # whose pixels irispy cannot place dust in
     collection = app.data_collection
-    collection.extend([sji, raster, plain, dust, rebinned, regridded])
+    collection.extend([sji, raster, plain, dust, rebinned, regridded, binned])
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
-    for action, datasets in ((DUST, (raster, plain, dust, rebinned, regridded)), (RADIANCE, (sji, plain))):
+    for action, datasets in ((DUST, (raster, plain, dust, rebinned, regridded, binned)), (RADIANCE, (sji, plain))):
         for data in datasets:
             tree.ui.layerTree.set_selected_layers([data])
             refused(tree._actions[action])
@@ -281,8 +281,9 @@ def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
         f"Could not remove dust\n{dust.label} has its dust removed already.",
         f"Could not remove dust\n{rebinned.label} has its dust removed already.",
         f"Could not remove dust\n{regridded.label} has its dust removed already.",
+        f"Could not remove dust\n{binned.label} is rebinned or regridded: irispy finds dust in the pixels of a file only.",
         f"Could not calibrate the radiance\n{sji.label} is not an IRIS raster window.",
         "Could not calibrate the radiance\nplain is not an IRIS raster window.",
         f"Could not calibrate the radiance\n{raster.label} has its radiance already.",
     ]
-    assert len(collection) == 6
+    assert len(collection) == 7

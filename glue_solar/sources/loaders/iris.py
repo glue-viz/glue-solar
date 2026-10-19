@@ -419,8 +419,9 @@ def _wcs_from_state(state):
     return _Broadcast(wcs)
 
 
-# Per-frame SJI pointing that irispy keeps as extra coordinates; the frame time tool shows it
-_SJI_POINTING = ("pztx", "pzty", "xcenix", "ycenix", "slit x position")
+# Per-frame SJI pointing that irispy keeps as extra coordinates; the frame time tool shows it, and irispy places the
+# dust by the slit's (`remove_dust`)
+_SJI_POINTING = ("pztx", "pzty", "xcenix", "ycenix", "slit x position", "slit y position")
 
 
 def _per_frame(values, shape):
