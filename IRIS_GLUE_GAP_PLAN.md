@@ -147,6 +147,8 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D90:** User (2026-10-18), on the earlier audits' other proposals (`audit2/` in the session archive): do all the polish (P4-P12: `wp11-polish-labels`, #321, `wp11-polish-icons`, #316, `wp9-guide-screenshot`), one light-curves entry against Time (C6: #319), and one path tool on IRIS viewers (C5: #318); keep Loop, Blink and Follow/lock (upstream candidates for `wp0-upstream-review`: Loop's range options in glue-qt's slider playback, Follow/lock as a hover mode of glue's Pixel tool, Blink as a viewer tool), the browser, every colormap and gamma stretch, and every analysis, quicklook and tool extra (F1-F16); none of the internal changes (F9, F12, S12, R-K).
 
+- **D91:** User (2026-10-19), as irispy's pre-beta PRs land: glue-solar pins irispy main at a commit it is tested with (`irispy-lmsal @ git+…@<sha>` in pyproject), and a 'follow irispy' PR moves the pin with glue-solar's fixes after each batch of irispy changes, so an irispy merge never turns glue-solar's CI red. Amends D47 (irispy's git main, now pinned).
+
 ## Milestones
 
 A milestone is done when it has no items left. M0, M2 (analysis, display and export) and M3 (specialist) are done.
@@ -162,7 +164,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP0: `wp0-release-tracking`
 
 **Later**
-- WP0: `wp0-qt68-macos-pass`
+- WP0: `wp0-qt68-macos-pass`, `wp0-pin-irispy`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP9: `wp9-guide-screenshot`
 - WP10: `wp10-follow-irispy-prebeta`
@@ -306,7 +308,8 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 
 **L**
 
-- [ ] **L** `wp10-follow-irispy-prebeta` (D47): glue-solar follows irispy main fe59e7a (the user's pre-beta review PRs #243-#246, 2026-10-19: files that are not IRIS level 2 by `INSTRUME` and `DATA_LEV` refused, tarballs extracted into irispy's cache, cube and slicing fixes, the SJI exposure correction, analysis helper fixes), which turned main's CI red: synthetic fixtures carry level 2 headers, and glue-solar's code and tests follow the behavior changes. Done when the full suite passes on irispy fe59e7a in both envs and CI is green.
+- [ ] **L** `wp0-pin-irispy` (D91): pin irispy main at 540e9e5 in pyproject, so irispy merges stop reaching CI before glue-solar follows. Done when CI is green on main.
+- [ ] **L** `wp10-follow-irispy-prebeta` (D47): glue-solar moves its irispy pin (D91) to fe59e7a (the user's pre-beta review PRs #243-#246, 2026-10-19: files that are not IRIS level 2 by `INSTRUME` and `DATA_LEV` refused, tarballs extracted into irispy's cache, cube and slicing fixes, the SJI exposure correction, analysis helper fixes), which turned main's CI red: synthetic fixtures carry level 2 headers, and glue-solar's code and tests follow the behavior changes. Done when the full suite passes on irispy fe59e7a in both envs and CI is green.
 - [ ] **L** `wp9-guide-screenshot` (D90, P12): a current screenshot atop the quicklook guide, and the guides' other screenshots regenerated (`docs/make_screenshots.py`), after the polish items. Done when the guide's images show the current quicklook. Depends: wp11-polish-labels, wp11-polish-icons.
 
 **M4**
