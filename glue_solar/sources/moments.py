@@ -305,7 +305,7 @@ def _rest_field(data, name):
     rest = rest_wavelength(data)
     field = QtWidgets.QLineEdit("" if rest is None else str(rest), objectName=name)
     if data.meta.get("rest_wavelength") is not None:
-        field.setToolTip(f"{data.label}'s, set with 'IRIS: set rest wavelength…'")
+        field.setToolTip(f"{data.label}'s, set with 'Set rest wavelength…'")
     elif rest is not None:
         field.setToolTip(f"{next(line for line, wave in MAIN_LINES if wave == rest)}, of the main IRIS lines")
     return field

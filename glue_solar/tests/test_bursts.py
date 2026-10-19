@@ -26,7 +26,7 @@ from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hp
 from glue_solar.tests.helpers import answer, refused, run_action
 from glue_solar.tests.test_lazy import SJI
 
-ACTION = "IRIS: detect UV bursts… (Si IV, SJI 1400)"
+ACTION = "IRIS: detect UV bursts…"
 # irispy's cutouts of 4000005156's Si IV 1403 and 4000255147's SJI 1400, stored as int16: lazy in glue
 SI_IV = "iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits"
 SJI_1400 = "iris_l2_20130902_163935_4000255147_SJI_1400_t000.fits"

@@ -23,7 +23,7 @@ from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hp
 from glue_solar.tests.helpers import refused, restore
 from glue_solar.tests.test_lazy import SJI
 
-DUST = "IRIS: remove dust (SJI)"
+DUST = "IRIS: remove dust"
 RADIANCE = "IRIS: radiometric calibration"
 
 

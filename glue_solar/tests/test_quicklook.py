@@ -44,11 +44,13 @@ from astropy.wcs import WCS
 import glue_solar
 from glue_solar.conftest import MD5, OBS_B, SCAN, find_irispy_test_file
 from glue_solar.quicklook import (
+    MARK,
     Coordinator,
     QuicklookImageViewer,
     _curve,
     _half_cadence,
     _PointCurves,
+    _sync_text,
     _viewers,
     coordinator,
     nearest,
@@ -75,7 +77,14 @@ from glue_solar.tests.helpers import (
     select_point,
     shift,
 )
-from glue_solar.tools import _SAVING, sky_length
+from glue_solar.tools import _SAVING, MeasureTool, _TimeMasterEntry, sky_length
+
+LEAD = _TimeMasterEntry.action_text  # the Coordinate menu's entry that makes a dataset lead the time
+
+
+def leads(step=None):
+    """The time sync of the dataset that leads the time, as the Frame time readout and the Point window give it."""
+    return _sync_text(("master", step))
 
 
 class SubsetUpdates(HubListener):
@@ -228,9 +237,9 @@ def test_menu_entries_keep_the_pixel_tool(app, scans):
     select_point(raster_map, 3, 50)
     coord = coordinator(app.data_collection)
 
-    menu_action(raster_map, "Time master").trigger()
+    menu_action(raster_map, LEAD).trigger()
     assert coord.masters == {observation_key(scan): scan}
-    entries = ["Clear point", "Time master", "Set blink partner here", "Blink", "Blink"]
+    entries = ["Clear point", LEAD, "Set blink partner here", "Blink", "Blink"]
     intervals = menu_action(raster_map, "Blink interval").menu().actions()
     for action in [*(menu_action(raster_map, text) for text in entries), *intervals]:
         action.trigger()
@@ -254,7 +263,7 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
     # the Coordinate menu's time entries, then its Point and Blink submenus
     button = viewers["map"].toolbar.widgetForAction(viewers["map"].toolbar.actions["solar:coordinate"])
     assert [action.text() for action in button.menu().actions()] == [
-        "Time master",
+        LEAD,
         "Go to UTC…",
         "Loop…",
         "Point",
@@ -274,7 +283,7 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
     ]
     for tool_id in ("solar:time_master", "solar:point_curves", "solar:blink"):  # found by id, as a button
         assert viewers["map"].toolbar.tools[tool_id].tool_id == tool_id
-    time = ["Time master", "Go to UTC…"]
+    time = [LEAD, "Go to UTC…"]
     point = ["Clear point", POINT_CURVES]
     cuts = ["Row at the point", "Column at the point"]
     blink = ["Set blink partner here"]  # and "Blink" once a partner is set
@@ -452,7 +461,7 @@ def check_panels(app, viewers, data, rows):
     assert spectrum.x_display_unit == data.coords.world_axis_units[0]  # no display-unit override
     assert spectrum.y_min <= 0 <= spectrum.y_max
     assert [0, 0] in [list(line.get_ydata()) for line in viewers["spectrum"].axes.lines]
-    assert data.label in app.statusBar().currentMessage()
+    assert data.label not in app.statusBar().currentMessage()  # no note of the spectrum panel's data (D90)
     assert set(app.viewers[-1]) == {*[viewers[role] for role in rows], viewers["spectrum"], *viewers["sji"]}
 
 
@@ -557,8 +566,8 @@ def test_a_sit_and_stare_exposure_axis(bare_app, monkeypatch, irispy_test_files)
     wavelength.state.slices = (wavelength.state.slices[0], 5, wavelength.state.slices[2])  # the slit slider
     assert wavelength.axes.coords is not coords  # glue reset the axes
     check(wavelength, "y")
-    wavelength.state.y_att_world = raster.world_component_ids[1]  # the axis combo: slit
-    assert wavelength.state.y_axislabel == raster.world_component_ids[1].label  # glue's own
+    slit = wavelength.state.y_att_world = raster.world_component_ids[1]  # the axis combo: slit
+    assert wavelength.state.y_axislabel == f"{slit.label} [{raster.get_component(slit).units}]"  # glue's, its unit
     assert label not in drawn_ticks(wavelength, "l")
     wavelength.state.y_att_world = raster.world_component_ids[0]
     check(wavelength, "y")
@@ -607,6 +616,73 @@ def test_a_slit_step_relabels_the_exposure_axis_without_placing_its_ticks(bare_a
         assert list(drawn_ticks(wavelength, "l")) == ["Exposure"]
 
 
+def test_the_quicklook_axes_give_their_units(bare_app, qtbot, irispy_test_files):
+    """
+    The quicklook's axes give their units (D90): the spectrum panel's wavelength, in its display unit too, and values,
+    an Image panel's world coordinates once its axes show, and the light curves' values against Time.
+    """
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    spectrum = viewers["spectrum"].state
+    unit = raster.get_component(raster.main_components[0]).units
+    assert (spectrum.x_axislabel, spectrum.y_axislabel) == ("Wavelength [Angstrom]", unit)
+    spectrum.x_display_unit = "nm"
+    assert spectrum.x_axislabel == "Wavelength [nm]"
+    viewers["map"].toolbar.actions["solar:hide_axes"].trigger()  # the panels open without axes (D71)
+    assert viewers["sji"][0].state.x_axislabel == "Helioprojective Longitude [arcsec]"
+    menu_action(viewers["map"], POINT_CURVES).trigger()
+    plot = bare_app.viewers[-1][-1]
+    qtbot.waitUntil(lambda: bool(markers(bare_app)))  # glue labels the plot again as the exposure's subset joins
+    units = ", ".join(data.get_component(data.main_components[0]).units for data in (raster, sji))
+    assert (plot.state.x_axislabel, plot.state.y_axislabel) == ("Time", units)
+
+
+def test_the_quicklook_panels_status_lines_are_short(bare_app, irispy_test_files):
+    """
+    A quicklook panel's status line has no mouse-mode hint, which its frame time clipped, and gives the frame's time of
+    day; the quicklook leaves no note of its spectrum panel in the status bar (D90).
+    """
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    raster_map = viewers["map"]
+    for mode in ("image:point_selection", MeasureTool.tool_id):  # glue's and glue-solar's own
+        raster_map.toolbar.active_tool = mode
+        assert raster_map.statusBar().currentMessage() == ""
+    raster_map.set_status("readout")  # other messages, such as the cursor readout's
+    assert raster_map.statusBar().currentMessage() == "readout"
+    plain = bare_app.new_data_viewer(ImageViewer, data=raster)  # outside a quicklook, glue-qt's hint stays
+    plain.toolbar.active_tool = "image:point_selection"
+    assert plain.statusBar().currentMessage() == plain.toolbar.active_tool.status_tip
+    frame = viewers["sji"][0].state.slices[0]
+    clock = np.datetime_as_string(sji[sji.id["Time"]][frame, 0, 0], unit="s")[11:]
+    assert readout(viewers["sji"][0]).startswith(f"{clock} · exp ")
+    assert bare_app.statusBar().currentMessage() == ""
+
+
+def test_the_time_sync_reads_plainly(bare_app, qtbot, irispy_test_files):
+    """
+    The Coordinate and View menus, the frame time, the Point window and the light curves' exposure subset say which
+    dataset leads the time, in plain words, not 'time master' (D90).
+    """
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    sji_viewer = viewers["sji"][0]
+    texts = []
+    for menu in ("solar:coordinate", "solar:view"):
+        button = sji_viewer.toolbar.widgetForAction(sji_viewer.toolbar.actions[menu])
+        texts += [text for action in menu_actions(button.menu()) for text in (action.text(), action.toolTip())]
+    assert LEAD in texts
+    assert not [text for text in texts if "master" in text.lower()]
+    menu_action(sji_viewer, LEAD).trigger()
+    window = point_window(bare_app)
+    settle(qtbot, window)
+    assert readout(sji_viewer).endswith(f" · {leads()}")
+    assert leads() in [row[-1] for row in rows(window)]
+    menu_action(viewers["map"], POINT_CURVES).trigger()
+    qtbot.waitUntil(lambda: bool(markers(bare_app)))
+    assert not [group for group in bare_app.data_collection.subset_groups if "master" in group.label.lower()]
+
+
 def crosshair(viewer):
     """Where the Point's crosshair shows in an Image viewer, or None."""
     [artist] = [artist for artist in viewer.layers if artist.layer.label == "Point"]
@@ -651,8 +727,8 @@ def test_quicklook_of_a_raster_and_of_a_stack(bare_app, scans):
     viewers = quicklook(bare_app, [scan])
     check_panels(bare_app, viewers, scan, {"map": (0, 1), "spectrogram": (2, 1), "wavelength": (2, 0)})
     assert viewers["wavelength"].state.title == "C II 1336 λ–step"
-    # a scanning raster's steps are places on the Sun: glue's own label
-    assert viewers["map"].state.x_axislabel == scan.world_component_ids[0].label
+    # a scanning raster's steps are places on the Sun: glue's own label, with its unit (D90)
+    assert viewers["map"].state.x_axislabel == f"{scan.world_component_ids[0].label} [arcsec]"
     viewers = quicklook(bare_app, [scan, stack])  # a stack of the window is shown rather than one scan
     check_panels(bare_app, viewers, stack, {"map": (1, 2), "spectrogram": (3, 2), "wavelength": (3, 0)})
     assert viewers["map"].state.slices[0] == 0
@@ -1512,7 +1588,7 @@ def test_a_raster_master_moves_the_slit_jaw_images(bare_app, qtbot, irispy_test_
     for step in (93, 35, 0, 186, 1):
         viewers["spectrogram"].state.slices = (step, *viewers["spectrogram"].state.slices[1:])
         matched.append(check_follower(bare_app, qtbot, raster_time(raster, (step,)), sji, sji_viewer))
-        assert f"time master, step {step}" in readout(viewers["spectrogram"])
+        assert leads(step) in readout(viewers["spectrogram"])
     assert matched == [False, False, True, True, True]
     heard = []
     coordinator(bare_app.data_collection).add_listener(lambda *args: heard.append(args))
@@ -1536,19 +1612,19 @@ def test_an_aia_cutout_follows_the_time_master_and_can_be_it(bare_app, qtbot, ir
         viewers["spectrogram"].state.slices = (step, *viewers["spectrogram"].state.slices[1:])
         matched.append(check_follower(bare_app, qtbot, raster_time(raster, (step,)), aia, aia_viewer))
     assert matched == [True, True, False]
-    menu_action(aia_viewer, "Time master").trigger()
+    menu_action(aia_viewer, LEAD).trigger()
     for frame in (40, 7):
         aia_viewer.state.slices = (frame, 0, 0)
         [exposure], _ = nearest([aia[aia.id["Time"]][frame, 0, 0]], raster[raster.id["Time"]][:, 0, 0])
         qtbot.waitUntil(lambda exposure=exposure: viewers["spectrogram"].state.slices[0] == exposure)
-        assert "time master" in readout(aia_viewer)
+        assert leads() in readout(aia_viewer)
 
 
 def test_an_observation_s_aia_cutout_keeps_its_time_sync_until_and_once_linked(
     bare_app, qtbot, tmp_path, irispy_test_files
 ):
     # D72: a quicklook links neither an observation's AIA cutouts and SOT cubes nor a stack's scans to them, until
-    # 'IRIS: link helioprojective coordinates'; they follow its time master either way, by observation, not by links
+    # 'Link helioprojective coordinates'; they follow its time master either way, by observation, not by links
     stack, _ = drifting_stack(tmp_path, irispy_test_files)
     path = find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000"))
     sji, aia = image_data(path), image_data(path)
@@ -1590,7 +1666,7 @@ def test_a_stack_master_moves_the_slit_jaw_image_by_scan_and_step(bare_app, qtbo
     for scan, step in ((1, 4), (1, 0), (1, 7), (2, 7), (0, 0)):
         viewers["spectrogram"].state.slices = (scan, step, *viewers["spectrogram"].state.slices[2:])
         assert check_follower(bare_app, qtbot, raster_time(stack, (scan, step)), sji, sji_viewer)
-        qtbot.waitUntil(lambda step=step: f"time master, step {step}" in readout(viewers["map"]))
+        qtbot.waitUntil(lambda step=step: leads(step) in readout(viewers["map"]))
         assert heard[-1][2] == stack[stack.id["Exposure time"]][scan, step, 0, 0]
 
 
@@ -1618,7 +1694,7 @@ def test_a_slit_jaw_master_over_a_scanning_raster(bare_app, qtbot, scans):
     frames = np.array([times[0] - 60 * second, times[0] + 30 * second, times[-1] + 3 * second, times[-1] + 60 * second])
     viewers = quicklook(bare_app, [scan, slit_jaw(frames, scan)])
     [sji_viewer] = viewers["sji"]
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     step = scan.shape[0] // 2  # the point's
     gray = viewers["map"].toolbar.tools["solar:frame_time"]._gray
     # the offset at the timing step, NO MATCH only outside the steps' span and half a cadence
@@ -1642,7 +1718,7 @@ def test_a_collapse_on_the_master_and_a_follower(bare_app, qtbot, irispy_test_fi
     viewers["spectrogram"].state.slices = (120, *viewers["spectrogram"].state.slices[1:])
     qtbot.wait(20)
     assert sji_viewer.state.slices[0] is collapse
-    menu_action(sji_viewer, "Time master").trigger()  # a collapsed master's time is at its center
+    menu_action(sji_viewer, LEAD).trigger()  # a collapsed master's time is at its center
     [group] = bare_app.session.edit_subset_mode.edit_subset
     [exposure], _ = nearest([sji[sji.id["Time"]][2, 0, 0]], raster[raster.id["Time"]][:, 0, 0])
     qtbot.waitUntil(lambda: group.subset_state.slices[0] == slice(exposure, exposure + 1))
@@ -1668,7 +1744,7 @@ def test_time_sync_on_a_negative_step_raster(bare_app, qtbot, irispy_data):
         viewers["spectrogram"].state.slices = (step, *viewers["spectrogram"].state.slices[1:])
         check_follower(bare_app, qtbot, times[step], sji, sji_viewer)
     # the slit-jaw image as master: the scan's offset at its timing step, NO MATCH outside its span
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     step = scan.shape[0] - 1  # the point's, the scan's earliest
     for frame, matched in ((0, False), (1, True), (15, True), (len(frames) - 1, False)):
         sji_viewer.state.slices = (frame, 0, 0)
@@ -1686,7 +1762,7 @@ def test_time_sync_on_a_negative_step_raster(bare_app, qtbot, irispy_data):
     [sji_viewer] = viewers["sji"]
     [group] = bare_app.session.edit_subset_mode.edit_subset
     step = stack.shape[1] // 2  # the point's
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     for frame in (0, 19, 20, 39):
         sji_viewer.state.slices = (frame, 0, 0)
         scan = expected_nearest(sji[sji.id["Time"]][frame, 0, 0], later[:, step, 0, 0])
@@ -1743,7 +1819,7 @@ def test_time_sync_without_a_raster_point(bare_app, qtbot, irispy_test_files):
     viewers["spectrogram"].state.slices = (186, *viewers["spectrogram"].state.slices[1:])
     expected = expected_nearest(raster_time(raster, (186,)), sji[sji.id["Time"]][:, 0, 0])
     qtbot.waitUntil(lambda: sji_viewer.state.slices[0] == expected)
-    assert "time master, step 186" in readout(viewers["spectrogram"])
+    assert leads(186) in readout(viewers["spectrogram"])
     for step in range(0, 187, 11):  # one cached pair, whichever exposure
         viewers["spectrogram"].state.slices = (step, *viewers["spectrogram"].state.slices[1:])
         qtbot.wait(5)
@@ -1824,12 +1900,12 @@ def time_series(app, data):
 
 
 def markers(app):
-    """The 'Master exposure' groups of ``app``."""
-    return [group for group in app.data_collection.subset_groups if group.label == "Master exposure"]
+    """The `MARK` groups of ``app``."""
+    return [group for group in app.data_collection.subset_groups if group.label == MARK]
 
 
 def marks(app, data, index):
-    """Whether ``app``'s one 'Master exposure' selects the exposure of ``data`` at ``index`` along its first axis."""
+    """Whether ``app``'s one `MARK` selects the exposure of ``data`` at ``index`` along its first axis."""
     view = (index, *[0] * (data.ndim - 1))
     start = data[data.id["Time"]][view]
     end = start + np.timedelta64(int(data[data.id["Exposure time"]][view] * 1e9), "ns")
@@ -1869,7 +1945,7 @@ def test_the_master_exposure_shows_on_a_datetime_scatter_plot(bare_app, qtbot, i
     assert group not in [getattr(layer.layer, "group", None) for layer in image.layers]
     image.close(warn=False)
     [sji_viewer] = viewers["sji"]
-    menu_action(sji_viewer, "Time master").trigger()  # and with a new master
+    menu_action(sji_viewer, LEAD).trigger()  # and with a new master
     sji_viewer.state.slices = (3, 0, 0)
     qtbot.waitUntil(lambda: marks(bare_app, sji, 3))
     scatter.close(warn=False)  # a closed plot is left, a new one marked
@@ -1932,7 +2008,7 @@ def test_slit_jaw_panels(bare_app, qtbot, tmp_path, monkeypatch, irispy_test_fil
     group.subset_state = SubsetState()  # another selection replaces the point, and the label goes
     qtbot.waitUntil(lambda: "outside SJI FOV" not in readout(sji_viewer))
     group.subset_state = PixelSubsetState(raster, [slice(0, 1), *point.slices[1:]])
-    qtbot.waitUntil(lambda: "time master, step 0" in readout(spectrogram))
+    qtbot.waitUntil(lambda: leads(0) in readout(spectrogram))
     sji_viewer.state.slices = (n - 1, 0, 0)  # the first exposure is off the last frame
     assert coord.point_on(sji_viewer)[0] < -0.5 - 2
     assert "outside SJI FOV" in readout(sji_viewer)
@@ -2046,7 +2122,7 @@ def test_a_wavelength_step_leaves_the_time_sync_alone(bare_app, qtbot, monkeypat
         viewers["map"].state.slices = (*viewers["map"].state.slices[:2], wavelength)
         qtbot.wait(20)
     assert syncs == []
-    assert "time master" in readout(viewers["map"])
+    assert leads() in readout(viewers["map"])
     viewers["spectrogram"].state.slices = (1, *viewers["spectrogram"].state.slices[1:])  # its exposure slider
     assert check_follower(bare_app, qtbot, raster_time(raster, (1,)), sji, sji_viewer)
     assert syncs == [observation_key(raster)]
@@ -2187,7 +2263,7 @@ def test_lines_on_the_spectrogram_and_the_wavelength_panel(bare_app, qtbot, monk
     qtbot.wait(20)
     assert lines(panel)["wavelength"] == ("x", [5])
     assert draws == {"wavelength": 1, "spectrum": 1}  # for their lines alone
-    menu_action(viewers["map"], "Time master").trigger()  # a time sync that moves nothing: no draw
+    menu_action(viewers["map"], LEAD).trigger()  # a time sync that moves nothing: no draw
     qtbot.wait(20)
     assert draws == {"wavelength": 1, "spectrum": 1}
     # a Profile's collapse of the map's wavelengths, at its center
@@ -2200,13 +2276,13 @@ def test_lines_on_the_spectrogram_and_the_wavelength_panel(bare_app, qtbot, monk
     spectrogram.state.x_att = raster.pixel_component_ids[1]
     assert lines(spectrogram)["point"] == ("x", [10])
     # under a slit-jaw master the raster's exposure follows its frame, and both lines with it
-    menu_action(viewers["sji"][0], "Time master").trigger()
+    menu_action(viewers["sji"][0], LEAD).trigger()
     slide(viewers["sji"][0], 0, 5)
     qtbot.wait(20)
     exposure = expected_nearest(sji[sji.id["Time"]][5, 0, 0], raster[raster.id["Time"]][:, 0, 0])
     assert lines(panel) == {"point": ("x", [exposure]), "wavelength": ("y", [5]), "time": ("x", [exposure])}
     # after Clear point only the time line, following the exposure slider of the raster master
-    menu_action(viewers["map"], "Time master").trigger()
+    menu_action(viewers["map"], LEAD).trigger()
     menu_action(viewers["map"], "Clear point").trigger()
     slide(spectrogram, 0, 120)
     qtbot.wait(20)
@@ -2240,7 +2316,7 @@ def test_the_time_line_follows_a_slit_jaw_master(bare_app, qtbot, scans):
     assert lines(viewers["wavelength"])["time"] == ("y", [1])
     # a slit-jaw master moves nothing on a scanning raster: the line marks the step nearest its frame, hidden beyond
     # half a step's time
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     for frame in (10, 0, 23, 4):
         slide(sji_viewer, 0, frame)
         qtbot.wait(20)
@@ -2359,7 +2435,7 @@ def test_the_map_line_marks_the_step_at_the_master_time(bare_app, qtbot, irispy_
     assert drawn(viewers["map"], "step") is None  # off until chosen
     overlays_toggled(bare_app, qtbot, viewers, sji_viewer)
     assert drawn(viewers["map"], "step") == ("x", [1])  # the raster master's: the point's step
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     for frame in (1, 0, 2, 57):  # the step taken nearest the frame, hidden beyond half a step's time (NO MATCH)
         slide(sji_viewer, 0, frame)
         qtbot.wait(20)
@@ -2377,7 +2453,7 @@ def test_the_map_line_marks_the_step_at_the_master_time(bare_app, qtbot, irispy_
     [sji_viewer] = viewers["sji"]
     select_point(viewers["map"], 2, 30)
     overlays_toggled(bare_app, qtbot, viewers, viewers["map"])
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     shown_scans = set()
     for frame in (0, 1, 2, 3, 29, 30, 57):
         slide(sji_viewer, 0, frame)
@@ -3101,20 +3177,20 @@ def test_what_moves_on_a_scanning_raster(bare_app, qtbot, scans):
         "sji0": (frame(5), None, None),
     }
     # a slit-jaw master moves nothing on a scanning raster, whose time is the point's step
-    assert event(lambda: menu_action(sji_viewer, "Time master").trigger()) == {}
-    assert "time master" in readout(sji_viewer)
+    assert event(lambda: menu_action(sji_viewer, LEAD).trigger()) == {}
+    assert leads() in readout(sji_viewer)
     assert event(lambda: slide(sji_viewer, 0, 10)) == {"sji0": (10, None, None)}
     assert event(lambda: select_point(viewers["spectrogram"], 4, 60)) == {
         "point": (label, (5, 60, None)),
         "wavelength": (None, 60, None),
         "map": (None, None, 4),
     }
-    assert event(lambda: menu_action(viewers["map"], "Time master").trigger()) == {"sji0": (frame(5), None, None)}
+    assert event(lambda: menu_action(viewers["map"], LEAD).trigger()) == {"sji0": (frame(5), None, None)}
     # after Clear point the time stays at the last point's step, and nothing follows the sliders
     assert event(lambda: menu_action(viewers["map"], "Clear point").trigger()) == {"point": None}
     assert event(lambda: slide(viewers["spectrogram"], 0, 0)) == {"spectrogram": (0, None, None)}
     assert event(lambda: slide(viewers["wavelength"], 1, 20)) == {"wavelength": (None, 20, None)}
-    assert "time master, step 5" in readout(viewers["spectrogram"])
+    assert leads(5) in readout(viewers["spectrogram"])
     # until the next click
     assert event(lambda: select_point(viewers["map"], 2, 50)) == {
         "point": (label, (2, 50, None)),
@@ -3192,12 +3268,12 @@ def test_what_moves_on_a_stack(bare_app, qtbot, scans):
     # a slit-jaw master moves the point to the scan nearest its frame at the point's step; step and slit stay
     assert event(lambda: slide(sji_viewer, 0, 60)) == {"sji0": (60, None, None)}
     scan = scan_at(60, 6)
-    assert event(lambda: menu_action(sji_viewer, "Time master").trigger()) == {
+    assert event(lambda: menu_action(sji_viewer, LEAD).trigger()) == {
         "point": (label, (scan, 6, 70, None)),
         "map": (scan, None, None, 14),
         "spectrogram": (scan, 6, None, None),
     }
-    assert "time master" in readout(sji_viewer)
+    assert leads() in readout(sji_viewer)
     scan = scan_at(36, 6)
     assert event(lambda: slide(sji_viewer, 0, 36)) == {
         "point": (label, (scan, 6, 70, None)),
@@ -3210,7 +3286,7 @@ def test_what_moves_on_a_stack(bare_app, qtbot, scans):
     viewers["map"].state.add_callback("slices", lambda slices: shown.append(slices[0]))
     assert event(lambda: slide(viewers["map"], 0, 0)) == {}
     assert shown == [0, scan]
-    assert event(lambda: menu_action(viewers["map"], "Time master").trigger()) == {"sji0": (frame(scan, 6), None, None)}
+    assert event(lambda: menu_action(viewers["map"], LEAD).trigger()) == {"sji0": (frame(scan, 6), None, None)}
     # after Clear point the time follows the map's scan slider at the last point's step, and nothing else
     assert event(lambda: menu_action(viewers["map"], "Clear point").trigger()) == {"point": None}
     assert event(lambda: slide(viewers["spectrogram"], 0, 0)) == {"spectrogram": (0, 6, None, None)}
@@ -3219,7 +3295,7 @@ def test_what_moves_on_a_stack(bare_app, qtbot, scans):
         "map": (2, None, None, 14),
         "sji0": (frame(2, 6), None, None),
     }
-    assert "time master, step 6" in readout(viewers["map"])
+    assert leads(6) in readout(viewers["map"])
     # until the next click, at the map's scan
     assert event(lambda: select_point(viewers["map"], 3, 20)) == {
         "point": (label, (2, 3, 20, None)),
@@ -3238,7 +3314,7 @@ def test_a_click_on_another_scan_snaps_back_to_a_slit_jaw_master(bare_app, qtbot
     frames = scan_times[0] + np.arange(40) * (scan_times[-1] - scan_times[0]) / 39
     viewers = quicklook(bare_app, [stack, slit_jaw(frames, stack)])
     [sji_viewer] = viewers["sji"]
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     slide(sji_viewer, 0, 20)
     scan = expected_nearest(frames[20], scan_times)
     qtbot.waitUntil(lambda: viewers["map"].state.slices[0] == scan)
@@ -3317,8 +3393,8 @@ def test_what_moves_on_a_sit_and_stare(bare_app, qtbot, irispy_test_files):
     # SJI 1400 as time master: its frame already matches the exposure and SJI 2796's frame, so nothing moves
     assert expected_nearest(master_times[f1400[61]], times) == 61
     assert nearest_frame(sjis[1], master_times[f1400[61]]) == f2796[61]
-    assert event(lambda: menu_action(viewers["sji"][0], "Time master").trigger()) == {}
-    assert "time master" in readout(viewers["sji"][0])
+    assert event(lambda: menu_action(viewers["sji"][0], LEAD).trigger()) == {}
+    assert leads() in readout(viewers["sji"][0])
     # its frame, moved or typed, moves the raster's exposure, the point and SJI 2796 to the nearest of each
     for move, frame in ((slide, 5), (type_index, 40)):
         exposure = expected_nearest(master_times[frame], times)
@@ -3344,10 +3420,8 @@ def test_what_moves_on_a_sit_and_stare(bare_app, qtbot, irispy_test_files):
     # leaves SJI 1400 on frame 40
     assert event(lambda: slide(viewers["sji"][1], 0, 0)) == {"sji1": (0, None, None)}
     assert f1400[exposure] == 40
-    assert event(lambda: menu_action(viewers["map"], "Time master").trigger()) == {
-        "sji1": (f2796[exposure], None, None)
-    }
-    assert f"time master, step {exposure}" in readout(viewers["spectrogram"])
+    assert event(lambda: menu_action(viewers["map"], LEAD).trigger()) == {"sji1": (f2796[exposure], None, None)}
+    assert leads(exposure) in readout(viewers["spectrogram"])
 
     # after Clear point the exposure slider still drives the time, and nothing else follows
     assert event(lambda: menu_action(viewers["map"], "Clear point").trigger()) == {"point": None}
@@ -3356,7 +3430,7 @@ def test_what_moves_on_a_sit_and_stare(bare_app, qtbot, irispy_test_files):
         "sji0": (f1400[186], None, None),
         "sji1": (f2796[186], None, None),
     }
-    assert "time master, step 186" in readout(viewers["spectrogram"])
+    assert leads(186) in readout(viewers["spectrogram"])
     assert event(lambda: slide(viewers["wavelength"], 1, 25)) == {"wavelength": (None, 25, None)}
     # until the next click
     assert event(lambda: select_point(viewers["map"], 3, 12)) == {
@@ -3399,7 +3473,7 @@ def test_closing_the_slit_jaw_master_makes_the_raster_master_again(bare_app, qtb
     def event(action):
         return changes(bare_app, qtbot, viewers, action)
 
-    menu_action(viewers["sji"][0], "Time master").trigger()
+    menu_action(viewers["sji"][0], LEAD).trigger()
     exposure = expected_nearest(master_times[40], times)
     assert event(lambda: slide(viewers["sji"][0], 0, 40)) == {
         "sji0": (40, None, None),
@@ -3409,13 +3483,13 @@ def test_closing_the_slit_jaw_master_makes_the_raster_master_again(bare_app, qtb
     }
     # closing it moves nothing; the raster is master again, and SJI 2796 follows its exposure slider
     assert event(lambda: viewers["sji"][0].close(warn=False)) == {}
-    assert f"time master, step {exposure}" in readout(viewers["spectrogram"])
+    assert leads(exposure) in readout(viewers["spectrogram"])
     assert event(lambda: slide(viewers["spectrogram"], 0, 186)) == {
         "point": (label, (186, slit, None)),
         "spectrogram": (186, None, None),
         "sji1": (nearest_frame(sjis[1], times[186]), None, None),
     }
-    assert "time master, step 186" in readout(viewers["spectrogram"])
+    assert leads(186) in readout(viewers["spectrogram"])
 
 
 def type_in_dialog(monkeypatch, typed, tick=False, every=1):
@@ -3526,7 +3600,7 @@ def test_what_moves_on_go_to_utc(bare_app, qtbot, monkeypatch, irispy_test_files
     assert len(shown) == 3
 
     # SJI 1400 as time master goes to the frame nearest the typed time, here the later one, and the raster follows
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     qtbot.wait(20)
     exposure = nearest_frame(raster, frames[30])
     assert exposure is not None
@@ -3535,7 +3609,7 @@ def test_what_moves_on_go_to_utc(bare_app, qtbot, monkeypatch, irispy_test_files
         "point": (label, (exposure, slit, None)),
         "spectrogram": (exposure, None, None),
     }
-    assert "time master" in readout(sji_viewer)
+    assert leads() in readout(sji_viewer)
     # and typed in the spectrogram, the slit-jaw image goes, from its time, and the raster follows it
     frame = expected_nearest(times[10], frames)
     exposure = nearest_frame(raster, frames[frame])
@@ -3578,7 +3652,7 @@ def test_go_to_utc_on_a_stack_takes_the_scan_at_the_points_step(bare_app, qtbot,
         "sji0": (nearest_frame(sji, times[2, step]), None, None),
     }
     assert opened == [utc(times[0, step])]
-    assert f"time master, step {step}" in readout(viewers["spectrogram"])
+    assert leads(step) in readout(viewers["spectrogram"])
 
 
 def test_go_to_utc_on_a_scanning_raster_moves_its_step(bare_app, qtbot, monkeypatch, scans):
@@ -3603,7 +3677,7 @@ def test_go_to_utc_on_a_scanning_raster_moves_its_step(bare_app, qtbot, monkeypa
     # without a point too, though its step slider no longer moves the time
     menu_action(viewers["map"], "Clear point").trigger()
     assert go_to(times[6]) == {"spectrogram": (6, None, None), "sji0": (expected_nearest(times[6], frames), None, None)}
-    assert "time master, step 6" in readout(viewers["spectrogram"])
+    assert leads(6) in readout(viewers["spectrogram"])
 
 
 def test_go_to_utc_without_an_exposure_slider(bare_app, qtbot, monkeypatch, irispy_test_files):
@@ -3619,7 +3693,7 @@ def test_go_to_utc_without_an_exposure_slider(bare_app, qtbot, monkeypatch, iris
     assert changes(bare_app, qtbot, viewers, menu_action(sji_viewer, "Go to UTC…").trigger) == {
         "sji0": (nearest_frame(sji, times[100]), None, None)
     }
-    assert "time master, step 100" in readout(viewers["map"])
+    assert leads(100) in readout(viewers["map"])
 
 
 def play(qtbot, viewer, button, frames):
@@ -3643,7 +3717,7 @@ def test_a_loop_plays_only_its_frames(bare_app, qtbot, monkeypatch, irispy_test_
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
     [sji_viewer] = viewers["sji"]
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     sji_viewer.state.slices = (0, 0, 0)
     opened = type_in_dialog(monkeypatch, "20 25")
     menu_action(sji_viewer, "Loop…").trigger()
@@ -3676,7 +3750,7 @@ def test_a_loop_plays_every_nth_frame_round_or_back_and_forth(bare_app, qtbot, m
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
     [sji_viewer] = viewers["sji"]
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     sji_viewer.state.slices = (30, 0, 0)
     # every 3rd of the 5 frames either side of frame 30: on from 30, then round from 25
     type_in_dialog(monkeypatch, "±5", every=3)
@@ -3708,7 +3782,7 @@ def test_closing_the_master_stops_its_playback(bare_app, qtbot, monkeypatch, iri
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
     [sji_viewer] = viewers["sji"]
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     slider = sji_viewer.options_widget().slice_helper._sliders[0]
     shown = []
     sji_viewer.state.add_callback("slices", lambda slices: shown.append(slices[0]))
@@ -3735,7 +3809,7 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
     [sji_viewer] = viewers["sji"]
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     sji_viewer.state.slices = (20, 0, 0)
     sji_viewer.toolbar.actions["solar:per_frame_limits"].trigger()
     [layer] = [layer for layer in sji_viewer.state.layers if layer.layer is sji]
@@ -3766,7 +3840,7 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
     slider = sji_viewer.options_widget().slice_helper._sliders[0]
     slider.button_forw.click()  # playing, which the export stops
     slider._play_timer.setInterval(1)
-    save("IRIS: save frames or movie…", "sji.png")
+    save("Save frames or movie…", "sji.png")
     assert offered == [str(tmp_path / "SJI_1400_2021-09-05_00_18_0-9")]  # its suffix the filter's
     assert not slider._play_timer.isActive()
     assert exposures[:10] == [nearest_frame(raster, when) for when in times[:10]]  # then back to frame 20's
@@ -3793,7 +3867,7 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
         savefig(*args)
 
     monkeypatch.setattr(figure, "savefig", record)
-    save("IRIS: save frames or movie…", "utc.png", tick=True)
+    save("Save frames or movie…", "utc.png", tick=True)
     last, length = sji.shape[0] - 1, drawn[0][1]
     assert drawn == [
         ([f"{utc(when)[:-1]} UTC", f"frame {frame}/{last}"], length, pytest.approx(float(length[:-1])))
@@ -3804,19 +3878,19 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
     spectrogram = viewers["spectrogram"]
     button = spectrogram.toolbar.widgetForAction(spectrogram.toolbar.actions["save"])
     type_in_dialog(monkeypatch, "0 1", True)
-    next(action for action in button.menu().actions() if action.text() == "IRIS: save frames or movie…").trigger()
+    next(action for action in button.menu().actions() if action.text() == "Save frames or movie…").trigger()
     qtbot.waitUntil(saved)
     message = "No scale bar: the displayed axes are not a longitude and a latitude"
     assert bare_app.statusBar().currentMessage() == message
     monkeypatch.setattr(figure, "savefig", savefig)
-    save("IRIS: save frames or movie…", "sji.gif")
+    save("Save frames or movie…", "sji.gif")
     with Image.open(tmp_path / "sji.gif") as gif:
         assert gif.n_frames == 10
     # Cancel keeps the frames saved, the one being saved too
     cancel_at.append(3)
-    save("IRIS: save frames or movie…", "cut.png")
+    save("Save frames or movie…", "cut.png")
     assert sorted(path.name for path in tmp_path.glob("cut_*.png")) == [f"cut_{frame:04d}.png" for frame in range(4)]
-    save("IRIS: save frames or movie…", "cut.gif")
+    save("Save frames or movie…", "cut.gif")
     with Image.open(tmp_path / "cut.gif") as gif:
         assert gif.n_frames == 4
     assert sji_viewer.state.slices == (9, 0, 0)
@@ -3831,13 +3905,13 @@ def test_frames_and_movies_save_what_save_plot_saves(bare_app, qtbot, monkeypatc
             if canvas.get_width_height(physical=True)[1] % 2:
                 break
         before = canvas.get_width_height(), (state.x_min, state.x_max, state.y_min, state.y_max)
-        save("IRIS: save frames or movie…", "sji.mp4", "0 2")
+        save("Save frames or movie…", "sji.mp4", "0 2")
         assert (tmp_path / "sji.mp4").stat().st_size > 0
         assert (canvas.get_width_height(), (state.x_min, state.x_max, state.y_min, state.y_max)) == before
 
 
 def saved():
-    """Whether 'IRIS: save frames or movie…' has drawn its frames and encoded its movie."""
+    """Whether 'Save frames or movie…' has drawn its frames and encoded its movie."""
     return not _SAVING and not _RUNNING
 
 
@@ -3848,7 +3922,7 @@ def test_frames_and_movies_save_while_glue_runs(bare_app, qtbot, monkeypatch, tm
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
     [viewer] = viewers["sji"]
-    menu_action(viewer, "Time master").trigger()
+    menu_action(viewer, LEAD).trigger()
     state = viewer.state
     state.slices = (20, 0, 0)
     QtWidgets.QApplication.processEvents()  # the time sync of frame 20
@@ -3857,7 +3931,7 @@ def test_frames_and_movies_save_while_glue_runs(bare_app, qtbot, monkeypatch, tm
     monkeypatch.setitem(rcParams, "savefig.dpi", 50)
     monkeypatch.setitem(rcParams, "savefig.bbox", "tight")
     button = viewer.toolbar.widgetForAction(viewer.toolbar.actions["save"])
-    entry = next(action for action in button.menu().actions() if action.text() == "IRIS: save frames or movie…")
+    entry = next(action for action in button.menu().actions() if action.text() == "Save frames or movie…")
     encoders, writers, seen = [], [], []
     finish = animation.PillowWriter.finish  # which encodes the GIF
 
@@ -3966,7 +4040,7 @@ def test_what_the_keys_move_on_a_sit_and_stare(bare_app, qtbot, irispy_test_file
     assert key(viewers["wavelength"], Qt.Key_A) == {"map": (None, None, waves - 1)}
     assert key(viewers["wavelength"], Qt.Key_S) == {"map": (None, None, 0)}
     # under a slit-jaw master F and D move its frame, round from either end, and the raster follows
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     qtbot.wait(20)
     for pressed, frame in ((Qt.Key_F, 0), (Qt.Key_D, sji.shape[0] - 1)):
         exposure = expected_nearest(frames[frame], times)
@@ -4045,7 +4119,7 @@ def test_space_plays_the_time_master_round_its_loop(bare_app, qtbot, monkeypatch
     shown = space(viewers["map"], viewers["spectrogram"], 6)
     assert shown == [150 + i % 4 for i in range(len(shown))]
     # under a slit-jaw master, its frames, pressed on the spectrum panel; the raster follows
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     qtbot.wait(20)
     frame = sji_viewer.state.slices[0]
     shown = space(viewers["spectrum"], sji_viewer, 3)
@@ -4191,16 +4265,17 @@ def test_what_moves_on_a_negative_step_raster(bare_app, qtbot, irispy_data):
     }
     assert event(lambda: slide(viewers["map"], 2, 130)) == {"map": (None, None, 130)}
     # a slit-jaw master moves nothing on a single scan, whose time is the point's step, even to another step's frame
-    assert event(lambda: menu_action(sji_viewer, "Time master").trigger()) == {}
-    assert "time master" in readout(sji_viewer)
+    assert event(lambda: menu_action(sji_viewer, LEAD).trigger()) == {}
+    assert leads() in readout(sji_viewer)
     assert event(lambda: slide(sji_viewer, 0, frame(2))) == {"sji0": (frame(2), None, None)}
     # and a step moved by hand moves the point, not the master's time
     assert event(lambda: slide(viewers["spectrogram"], 0, 40)) == {
         "point": (label, (40, 400, None)),
         "spectrogram": (40, None, None),
     }
-    # the steps are places on the Sun, not a sit-and-stare's exposures: glue's own labels, the scanning titles
-    longitude = scan.world_component_ids[0].label
+    # the steps are places on the Sun, not a sit-and-stare's exposures: glue's own labels, with their unit (D90), the
+    # scanning titles
+    longitude = f"{scan.world_component_ids[0].label} [arcsec]"
     assert viewers["map"].state.x_axislabel == viewers["wavelength"].state.y_axislabel == longitude
     assert [viewers[role].state.title.split()[-1] for role in ("map", "wavelength")] == ["map", "λ–step"]
 
@@ -4313,7 +4388,7 @@ def test_what_a_slit_jaw_click_moves_on_a_sit_and_stare(bare_app, qtbot, irispy_
     }
     # under a slit-jaw time master, a click on another moves the point's slit row, while the master rules: the
     # exposure snaps back to the master's, and the image clicked follows the master too
-    assert event(lambda: menu_action(viewers["sji"][1], "Time master").trigger()) == {}
+    assert event(lambda: menu_action(viewers["sji"][1], LEAD).trigger()) == {}
     assert event(lambda: slide(viewers["sji"][0], 0, 40)) == {"sji0": (40, None, None)}
     assert event(lambda: select_point(viewers["sji"][0], x, y)) == {
         "point": (label, (exposure, 30, None)),
@@ -4451,7 +4526,7 @@ def test_redo_of_a_slit_jaw_click_puts_back_its_raster_pixel(bare_app, qtbot, ir
     qtbot.wait(20)
     assert sliders(bare_app, viewers)["point"] == before
     # under a slit-jaw time master the master rules: Redo puts back the click's slit row, and the frame stays
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     press(sji_viewer, Qt.Key_F)
     qtbot.wait(20)
     frame = sji_viewer.state.slices[0]
@@ -4903,7 +4978,7 @@ def test_the_point_window_reads_the_raster_at_the_point(bare_app, qtbot, scans, 
     def event(action, pixel):
         action()
         settle(qtbot, window)
-        assert rows(window) == [read_at(data, names, pixel, f"time master, step {pixel[-3]}"), no_match]
+        assert rows(window) == [read_at(data, names, pixel, leads(pixel[-3])), no_match]
 
     # it opens at the map's center and wavelength, and follows map clicks, the map's wavelength slider, and a
     # spectrogram click, which moves the map to its wavelength
@@ -4925,7 +5000,7 @@ def test_the_point_window_reads_the_raster_at_the_point(bare_app, qtbot, scans, 
     # Clear point leaves the time sync only
     menu_action(viewers["map"], "Clear point").trigger()
     settle(qtbot, window)
-    assert rows(window) == [unpointed(data, "time master, step 3"), no_match]
+    assert rows(window) == [unpointed(data, leads(3)), no_match]
 
 
 def test_the_point_window_places_the_point_on_each_slit_jaw_image(bare_app, qtbot, monkeypatch, irispy_test_files):
@@ -5243,7 +5318,7 @@ def test_time_moves_a_point_on_another_window(bare_app, qtbot, monkeypatch, iris
     viewers = with_windows(qtbot, quicklook(bare_app, [c2, mg], window=THREE[::2]))
     c2_panel = viewers["windows"][0]["wavelength"]
     if chosen:
-        menu_action(viewers["map"], "Time master").trigger()
+        menu_action(viewers["map"], LEAD).trigger()
     select_point(c2_panel, 3, 50)
     qtbot.wait(20)
     slit = sliders(bare_app, viewers)["point"][1][1]
@@ -5331,7 +5406,7 @@ def test_a_switch_keeps_the_point_the_time_master_and_the_colors(bare_app, qtbot
     bare_app.show()  # the Point window's size
     viewers = with_windows(qtbot, quicklook(bare_app, [c2, si4, mg, image_data(path)], window=THREE))
     [sji_viewer] = viewers["sji"]
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     select_point(viewers["map"], 50, 20)
     sji_viewer.state.slices = (2, 0, 0)
     layer = sji_viewer.state.layers[0]
@@ -5557,7 +5632,7 @@ def test_the_time_master_turned_off_hands_the_time_back_once_on(bare_app, qtbot,
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
     [sji_viewer] = viewers["sji"]
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     slide(sji_viewer, 0, 5)
     qtbot.wait(20)
     panels = panels_list(bare_app)
@@ -5574,7 +5649,7 @@ def test_the_time_master_turned_off_hands_the_time_back_once_on(bare_app, qtbot,
     }
     frame = nearest_frame(sji, raster_time(raster, (exposure + 10,)))
     assert event(lambda: tick(panels, "SJI 1400")) == {"sji0": (frame, None, None)}
-    assert "time master" in readout(sji_viewer)
+    assert leads() in readout(sji_viewer)
 
 
 def test_hide_axes_on_a_panel_is_every_image_panels(bare_app, qtbot, monkeypatch, irispy_test_files):
@@ -5943,7 +6018,7 @@ def test_blink_in_time(bare_app, qtbot, irispy_test_files):
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
     [sji_viewer] = viewers["sji"]
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     sji_viewer.state.slices = (10, 0, 0)
     menu_action(sji_viewer, "Set blink partner here").trigger()
     sji_viewer.state.slices = (40, 0, 0)

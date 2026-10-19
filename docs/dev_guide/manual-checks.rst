@@ -50,7 +50,7 @@ write down whether it does, and close it with either button.
    The terminal shows no traceback; write down any warning it prints, such as a font alias warning
    on macOS.
 
-6. In a glue started without files, choose "IRIS: browse observations…" in the "Plugins" menu, on
+6. In a glue started without files, choose "Browse observations…" in the "Plugins" menu, on
    macOS in the menu bar at the top of the screen. The system's folder dialog opens, in your home
    folder the first time. Choose ``$T/sns``, tick OBSID 3620258102 and press "Load selected": the
    quicklook of item 5 opens in a new tab.
@@ -75,7 +75,7 @@ Readouts, labels and themes
 ---------------------------
 
 10. At the size the quicklook of item 5 gives each panel, its "Frame time" readout, for example
-    "2021-09-05T… UTC · exp … s · Δt +… s", shows in full in the status bar beside the position and
+    "00:42:24 · exp … s · Δt +… s", shows in full in the status bar beside the position and
     value under the mouse, neither covering the other. Write down the narrowest panel at which it
     still fits.
 
@@ -123,6 +123,6 @@ Responsiveness
     "Blink": the map alternates between the two windows four times a second without skipping or
     lagging, at the same zoom and with the crosshair in place. Choose "Blink" again to stop it.
 
-18. In the quicklook of item 5, choose "IRIS: save frames or movie…" in the save menu of SJI 1400
+18. In the quicklook of item 5, choose "Save frames or movie…" in the save menu of SJI 1400
     (the disk icon). Keep the range offered and save as ``sji.mp4`` where ffmpeg is installed, else
     as ``sji.gif``. The file plays every frame at 10 a second in a movie player or web browser.

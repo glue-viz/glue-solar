@@ -54,6 +54,7 @@ from glue_solar.tests.test_quicklook import (
     browse,
     changes,
     entries,
+    leads,
     menu_action,
     panels_list,
     point_window,
@@ -360,6 +361,18 @@ def test_color_limits_of_a_line_are_glue_s_when_15_divides_the_scans(monkeypatch
             np.testing.assert_array_equal(u[axis], views[-1][axis])
 
 
+def test_the_time_axis_is_named_scan_time(tmp_path):
+    """glue names an SST cube's time axis, its sliders' and axes', 'Scan Time', not SSTRED's sentence (D90)."""
+    path = tmp_path / "cube.fits"
+    write_sst_cube(path)
+    names = ("Spatial X", "Spatial Y", "Wavelength", "Time since DATEREF, increases with dim. 3 and 5")
+    with fits.open(path, mode="update") as hdulist:  # as SSTRED names them
+        for axis, name in zip((1, 2, 3, 5), names):
+            hdulist[0].header[f"CNAME{axis}"] = name
+    cube = sst_data(path)
+    assert [cid.label for cid in cube.world_component_ids] == ["Scan Time", "Wavelength", "Spatial Y", "Spatial X"]
+
+
 def test_an_image_viewer_shows_a_cube_without_specsys(app, qtbot, tmp_path):
     # SST2: astropy refuses an empty SPECSYS beside the observatory's place, and no viewer took the cube
     path = tmp_path / "cube.fits"
@@ -370,7 +383,7 @@ def test_an_image_viewer_shows_a_cube_without_specsys(app, qtbot, tmp_path):
     for slices in ((0, 0, 0, 0), (2, 4, 0, 0)):  # the scan and tuning sliders, and that tuning's time
         viewer.state.slices = slices
         qtbot.wait(20)  # the time sync, which the readout gives too
-        assert readout.text() == f"{np.datetime_as_string(data['Time', slices], unit='ms')} UTC · time master"
+        assert readout.text() == f"{np.datetime_as_string(data['Time', slices], unit='s')[11:]} · {leads()}"
     assert viewer.layers[0].enabled
 
 
@@ -408,7 +421,7 @@ def test_a_session_and_the_last_session_restore_a_cube_and_its_viewer(qtbot, mon
     app.show()
     app.close()  # as File → Quit does, which keeps the last session
     fresh = GlueApplication()
-    next(action for action in fresh._actions["plugins"] if action.text() == "IRIS: restore last session").trigger()
+    next(action for action in fresh._actions["plugins"] if action.text() == "Restore last session").trigger()
     for restored in (GlueApplication.restore_session(str(tmp_path / "cube.glu")), fresh._new_application):
         qtbot.addWidget(restored)
         [cube] = restored.data_collection
@@ -484,7 +497,7 @@ def test_once_linked_an_sst_region_or_point_selects_the_iris_pixels_at_its_place
     with pytest.raises(IncompatibleAttribute):  # D64: linked on request only
         sji.get_mask(region)
     assert not isinstance(cube.coords, _LockedWCS)  # 227-9: nor behind the WCS lock until then
-    keep_hpc_linked(dc, others=dc)  # 'IRIS: link helioprojective coordinates'
+    keep_hpc_linked(dc, others=dc)  # 'Link helioprojective coordinates'
     assert isinstance(cube.coords, _LockedWCS)
     for data, mask in ((sji, sji.get_mask(region)), (raster, raster.get_mask(region)[..., 0])):
         index = np.indices(mask.shape)
@@ -586,7 +599,7 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
         assert layer.layer.group is not group
         assert layer.layer.data is cube
     np.testing.assert_allclose(viewers["spectra"][0].state.layers[0].profile[0], 656.28 + 0.01 * np.arange(-2, 3))
-    assert viewers["curve"].state.x_att is pixel[0]
+    assert viewers["curve"].state.x_att is cube.world_component_ids[0]  # time, not an index (D90)
     check_sst_panels(viewers, values, group)
     # in rows, the Point window and the Panels list below them
     tops = [{viewer.parent().y() for viewer in row} for row in viewers["rows"]]
@@ -607,7 +620,7 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
     position = f'{lon:.2f}" {lat:.2f}" {wavelength * 10:.3f} Å'
     time = f"{np.datetime_as_string(cube['Time', 0, 0, 2, 6, 8], unit='ms')} UTC"
     value = f"{values[0, 0, 2, 6, 8]:.6g}"
-    assert rows(window) == [[cube.label, "scan 0, Stokes 0, λ 2, y 6, x 8", position, time, "", value, "time master"]]
+    assert rows(window) == [[cube.label, "scan 0, Stokes 0, λ 2, y 6, x 8", position, time, "", value, leads()]]
     # a click, the scan, Stokes and wavelength sliders: every panel follows
     select_point(viewers["map"], 3, 7)
     slide(viewers["map"], 0, 2)
@@ -856,7 +869,7 @@ def test_what_moves_on_an_sst_cube(sst_app, qtbot, tmp_path):
     # after Clear point the panels stay, but for the time
     assert event(lambda: menu_action(viewers["map"], "Clear point").trigger()) == {"point": None}
     assert event(lambda: slide(viewers["map"], 0, 2)) == {"map": (2, 3, 3, None, None)}
-    assert "time master" in viewers["map"].toolbar.tools["solar:frame_time"].label.text()
+    assert leads() in viewers["map"].toolbar.tools["solar:frame_time"].label.text()
 
 
 def test_the_first_click_on_any_sst_panel_moves_the_point(sst_app, qtbot, tmp_path):
@@ -974,7 +987,7 @@ def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_p
     assert shown_scan(sst) == 3
     assert observation_key(cube) == ("SST", cube["Time"].min())  # its own, the only cube
     assert not isinstance(cube.coords, _LockedWCS)
-    link_iris(sst_app.session, sst_app.data_collection)  # 'IRIS: link helioprojective coordinates'
+    link_iris(sst_app.session, sst_app.data_collection)  # 'Link helioprojective coordinates'
     assert isinstance(cube.coords, _LockedWCS)
     key = observation_key(raster)
     assert observation_key(cube) == key
@@ -990,7 +1003,7 @@ def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_p
     [scan], [offset] = nearest([times[5]], scans)
     assert shown_scan(sst) == scan
     assert abs(offset) <= cadence / 2
-    assert "time master" in sst["map"].toolbar.tools["solar:frame_time"].label.text()
+    assert leads() in sst["map"].toolbar.tools["solar:frame_time"].label.text()
 
 
 def test_a_cube_shares_its_sst_cubes_time_again_once_the_iris_data_go(sst_app, qtbot, tmp_path, sns):
@@ -1003,7 +1016,7 @@ def test_a_cube_shares_its_sst_cubes_time_again_once_the_iris_data_go(sst_app, q
         write_sst_cube(tmp_path / f"{name}.fits", (4, 1, 5, 30, 40), (-55.0, -400.0), (4.0, -3.0), 1.1, 8.0, *seconds)
     linked, other = sst_data(tmp_path / "linked.fits"), sst_data(tmp_path / "other.fits")
     sst_app.data_collection.extend([sji, raster, linked])
-    link_iris(sst_app.session, sst_app.data_collection)  # 'IRIS: link helioprojective coordinates'
+    link_iris(sst_app.session, sst_app.data_collection)  # 'Link helioprojective coordinates'
     assert observation_key(linked) == observation_key(raster)
     sst_app.data_collection.remove(sji)
     sst_app.data_collection.remove(raster)
@@ -1070,7 +1083,7 @@ def test_an_unlinked_cube_never_takes_the_wcs_lock(sst_app, qtbot, monkeypatch, 
     check_sst_panels(viewers, values, sst_app.session.edit_subset_mode.edit_subset[0])
     assert taken == []
     sst_app.data_collection.extend(sns)
-    link_iris(sst_app.session, sst_app.data_collection)  # 'IRIS: link helioprojective coordinates'
+    link_iris(sst_app.session, sst_app.data_collection)  # 'Link helioprojective coordinates'
     taken.clear()  # as the links reach the IRIS data's coordinates
     slide(viewers["map"], 0, 1)
     settle(qtbot, point_window(sst_app))

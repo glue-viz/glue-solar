@@ -49,11 +49,11 @@ Image viewer
    * - Pencil → "Save path as ECSV…", "Open path from ECSV…", "Path on other data…"
      - Save, reopen and reuse a path (see `Path diagrams`_).
      -
-   * - Coordinate → "Time master"
+   * - Coordinate → "Lead the time"
      - Make this dataset's time the one the others follow.
      -
    * - Coordinate → "Go to UTC…"
-     - Move the time master to its frame nearest a typed time.
+     - Move the dataset that leads the time to its frame nearest a typed time.
      -
    * - Coordinate → "Loop…"
      - Play a range of the first slider, every Nth index, or back and forth.
@@ -68,7 +68,8 @@ Image viewer
      - Alternate the viewer between two positions.
      -
    * - View → "Frame time"
-     - Show the time of the frame shown under the image, and its offset from the time master.
+     - Show the time of day of the frame shown under the image, and its offset from the leading
+       dataset's time.
      -
    * - View → "Hide axes"
      - Hide or show the axes; on a quicklook panel, on all its panels.
@@ -88,7 +89,8 @@ Image viewer
      - Show a color bar right of the image.
      -
    * - View → "Raster overlays"
-     - Draw the raster's slit positions on the slit-jaw images, and the time master's step on the maps.
+     - Draw the raster's slit positions on the slit-jaw images, and the step at the synced time on the
+       maps.
      -
    * - View → "Cursor readout"
      - Show the position, time, exposure time and value under the mouse in the status bar, with the
@@ -97,7 +99,7 @@ Image viewer
    * - The spectrum icon
      - Open a Profile viewer of the image's data.
      -
-   * - Save → "IRIS: save frames or movie…"
+   * - Save → "Save frames or movie…"
      - Save the image at each index of a slider as PNG files or a movie (see :ref:`Saving frames or a
        movie <glue_solar_users_guide_iris_save_frames>`).
      -
@@ -121,7 +123,7 @@ Profile viewer
        window's rest wavelength.
    * - "Show this window's panels"
      - In a quicklook, on another window's spectrum panel: make it the main window.
-   * - Save → "IRIS: save profiles as ECSV…"
+   * - Save → "Save profiles as ECSV…"
      - Write the profiles shown to one table (see :ref:`Saving the profiles
        <glue_solar_users_guide_iris_save_profiles>`).
 
@@ -168,13 +170,14 @@ collection has the keyboard. The others act in the image, toolbar or browser las
      - Action
    * - :kbd:`D`, :kbd:`F`
      - A frame, exposure, step or scan back and on, round from the last to the first. On IRIS data
-       with a time master, they move the time master, whichever viewer of its observation you press
-       them in; otherwise the viewer's slider of the data's first axis.
+       whose time a dataset leads, they move that dataset, whichever viewer of its observation you
+       press them in; otherwise the viewer's slider of the data's first axis.
    * - :kbd:`A`, :kbd:`S`
      - A wavelength back and on: the viewer's own wavelength slider, and in a quicklook the map's.
    * - :kbd:`Space`
-     - Plays the time, as the time master's slider does, along its loop if "Loop…" gave it one;
-       pressed again, pauses. Without a time master, plays the viewer's slider of the data's first axis.
+     - Plays the time, as the leading dataset's slider does, along its loop if "Loop…" gave it one;
+       pressed again, pauses. With no dataset leading, plays the viewer's slider of the data's first
+       axis.
    * - :kbd:`U`, :kbd:`L`
      - "Measure" and "Path diagram", while the toolbar has the keyboard: click the toolbar first,
        such as its handle at the left end.

@@ -108,7 +108,7 @@ from glue_solar.tests.test_cube_quicklook import spectral_cube
 from glue_solar.tests.test_lazy import RASTER, SJI
 from glue_solar.tests.test_quicklook import drifting_stack
 from glue_solar.tests.test_sst import write_sst_cube
-from glue_solar.tools import PathData, sky_length
+from glue_solar.tools import PathData, SaveProfileTool, SaveSequenceTool, sky_length
 
 
 def test_setup_registers_hooks():
@@ -120,26 +120,26 @@ def test_setup_registers_hooks():
     assert "slice" not in ImageViewer.tools
     # the Plugins menu's entries, as they register; quicklooks open from 'Quicklook…' (D83)
     assert [(label, callback) for label, callback in menubar_plugin if callback.__module__[:10] == "glue_solar"] == [
-        ("IRIS: browse observations…", browse_iris),
-        ("IRIS: link helioprojective coordinates", link_iris),
-        ("IRIS: user guide and issues", help_iris),
-        ("IRIS: restore last session", glue_solar.restore_last_session),
+        ("Browse observations…", browse_iris),
+        ("Link helioprojective coordinates", link_iris),
+        ("glue-solar user guide and issues", help_iris),
+        ("Restore last session", glue_solar.restore_last_session),
     ]
     assert startup_action.members["iris_quicklook"] is iris_quicklook
     # the data actions by data kind: the spectral analyses, the image actions, then the coordinates
     ours = [(item.label, item.callback) for item in layer_action if item.callback.__module__[:10] == "glue_solar"]
     assert ours == [
         ("Quicklook…", quicklook_cube),
-        ("IRIS: set rest wavelength…", rest_wavelength_iris),
+        ("Set rest wavelength…", rest_wavelength_iris),
         ("IRIS: radiometric calibration", radiometric_calibration_iris),
         ("IRIS: subtract mean spectrum", mean_spectrum_iris),
         ("IRIS: line maps…", line_maps_iris),
-        ("IRIS: Mg II features… (Mg II)", mg_features_iris),
-        ("IRIS: detect UV bursts… (Si IV, SJI 1400)", bursts_iris),
-        ("IRIS: line ratio diagnostic…", line_ratio_iris),
-        ("IRIS: remove dust (SJI)", remove_dust_iris),
-        ("IRIS: north up (SJI, AIA, SOT)", north_up_iris),
-        ("IRIS: regrid on time (sit-and-stare, stack, SJI, AIA, SOT)", regrid_iris),
+        ("IRIS: Mg II features…", mg_features_iris),
+        ("IRIS: detect UV bursts…", bursts_iris),
+        ("Line ratio diagnostic…", line_ratio_iris),
+        ("IRIS: remove dust", remove_dust_iris),
+        ("IRIS: north up", north_up_iris),
+        ("IRIS: regrid on time", regrid_iris),
         ("IRIS: rebin…", rebin_iris),
         ("IRIS: shift pointing…", shift_pointing_iris),
     ]
@@ -199,14 +199,14 @@ def test_data_actions_show_only_for_the_data_they_take(app, monkeypatch, tmp_pat
     app.data_collection.extend([*sns, scanning, stack, sji, sot, aia, maps, plain, cube])
     group = app.data_collection.new_subset_group()
     raster = [
-        "IRIS: set rest wavelength…",
+        "Set rest wavelength…",
         "IRIS: radiometric calibration",
         "IRIS: subtract mean spectrum",
         "IRIS: line maps…",
     ]
-    mg_ii, bursts = "IRIS: Mg II features… (Mg II)", "IRIS: detect UV bursts… (Si IV, SJI 1400)"
-    ratio, dust, north_up = "IRIS: line ratio diagnostic…", "IRIS: remove dust (SJI)", "IRIS: north up (SJI, AIA, SOT)"
-    regrid = "IRIS: regrid on time (sit-and-stare, stack, SJI, AIA, SOT)"
+    mg_ii, bursts = "IRIS: Mg II features…", "IRIS: detect UV bursts…"
+    ratio, dust, north_up = "Line ratio diagnostic…", "IRIS: remove dust", "IRIS: north up"
+    regrid = "IRIS: regrid on time"
     rebin, shift, quick = "IRIS: rebin…", "IRIS: shift pointing…", "Quicklook…"
     expected = [
         ([plain], []),
@@ -242,6 +242,28 @@ def test_data_actions_show_only_for_the_data_they_take(app, monkeypatch, tmp_pat
     action.trigger()
     [text] = errors
     assert text.startswith("Could not shift the pointing\nisinstance() arg 2 must be a type")
+
+
+def test_only_entries_for_iris_data_alone_say_iris(app, tmp_path):
+    """
+    'IRIS: ' starts the data actions that take IRIS data alone, those a spectral cube of another instrument and two
+    plain maps are not offered, and no entry of glue-solar's names what it applies to in parentheses (D90).
+    """
+    cube, _ = spectral_cube(tmp_path / "cube.fits", (7, 12, 16))
+    maps = [Data(label=f"map {i}", values=np.ones((3, 4))) for i in range(2)]
+    app.data_collection.extend([cube, *maps])
+    tree = app._layer_widget.ui.layerTree
+    ours = [action.label for action in layer_action if action.callback.__module__[:10] == "glue_solar"]
+    offered = set()
+    for layers in ([cube], maps):
+        tree.set_selected_layers(layers)
+        offered |= {action.text() for action in tree.actions() if action.text() in ours and action.isVisible()}
+    assert offered == {"Quicklook…", "Set rest wavelength…", "Line ratio diagnostic…"}
+    assert [label for label in ours if label.startswith("IRIS: ")] == [label for label in ours if label not in offered]
+    plugins = [label for label, callback in menubar_plugin if callback.__module__[:10] == "glue_solar"]
+    saves = [SaveSequenceTool.action_text, SaveProfileTool.action_text]  # in glue's save menus
+    assert not any(label.startswith("IRIS") or "(" in label for label in [*plugins, *saves])
+    assert not any("(" in label for label in ours)
 
 
 def test_quicklook_opens_each_kind(app, tmp_path, irispy_test_files):
@@ -458,17 +480,19 @@ def test_frame_time_tool_follows_the_sliders(app, irispy_test_files):
     viewer = app.new_data_viewer(ImageViewer, data=sji)
     tool = viewer.toolbar.tools["solar:frame_time"]
     stamp = [np.datetime_as_string(t, unit="ms") for t in sji["Time"][:, 0, 0]]
+    clock = [time[11:19] for time in stamp]  # the time of day, the date and milliseconds in the tooltip (D90)
     exposure = sji["Exposure time"][:, 0, 0]
 
     viewer.state.slices = (5, 0, 0)
-    assert tool.label.text() == f"{stamp[5]} UTC · exp {exposure[5]:.4g} s"
+    assert tool.label.text() == f"{clock[5]} · exp {exposure[5]:.4g} s"
+    assert tool.label.toolTip().startswith(f"{stamp[5]} UTC\n")
     assert f"PZT offset {sji.meta['pztx'][5]:.2f}″, {sji.meta['pzty'][5]:.2f}″" in tool.label.toolTip()
 
     viewer.state.x_att = sji.pixel_component_ids[0]  # exposure against slit spans the whole sequence
     shortest, longest = f"{exposure.min():.4g}", f"{exposure.max():.4g}"
     span = shortest if shortest == longest else f"{shortest}–{longest}"
-    assert tool.label.text() == f"{stamp[0]} – {stamp[-1]} UTC · exp {span} s"
-    assert tool.label.toolTip() == ""  # no single frame, so no pointing
+    assert tool.label.text() == f"{clock[0]} – {clock[-1]} · exp {span} s"
+    assert tool.label.toolTip() == f"{stamp[0]} – {stamp[-1]} UTC"  # no single frame, so no pointing
 
     # the button leaves the mouse mode on, which glue-qt ends for a plain button
     viewer.toolbar.active_tool = "image:point_selection"
@@ -482,7 +506,7 @@ def test_frame_time_tool_follows_the_sliders(app, irispy_test_files):
     still = Data(label="still", flux=np.zeros((4, 5)), obs_date=np.full((4, 5), np.datetime64("2020-01-01T12:00:00")))
     app.data_collection.append(still)
     other = app.new_data_viewer(ImageViewer, data=still)
-    assert other.toolbar.tools["solar:frame_time"].label.text() == "2020-01-01T12:00:00.000 UTC"
+    assert other.toolbar.tools["solar:frame_time"].label.text() == "12:00:00"
     other.figure.canvas.draw()  # WCSAxes only formats positions once drawn
     assert other.axes.format_coord(1, 1).endswith(" (world) · 2020-01-01T12:00:00.000 UTC")  # the mouse-over readout
 
@@ -494,7 +518,7 @@ def test_frame_time_tool_survives_an_empty_collapse(app):
     viewer = app.new_data_viewer(ImageViewer, data=cube)
     tool = viewer.toolbar.tools["solar:frame_time"]
     viewer.state.slices = (AggregateSlice(slice(2, 2), 2, np.nanmean), 0, 0)  # sample 2 (`glue_patches`)
-    assert tool.label.text() == "2020-01-01T12:00:00.000 UTC"
+    assert tool.label.text() == "12:00:00"
 
 
 @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")  # glue's Collapse of the NaN beside the image
@@ -618,7 +642,7 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(app, qtbot, monkey
     save = toolbar.widgetForAction(toolbar.actions["save"]).menu()
     assert [entry.text() for entry in save.actions()][-2:] == [
         "Save Python script to reproduce plot",
-        "IRIS: save frames or movie…",
+        "Save frames or movie…",
     ]
     menus = {}
     for menu in ("solar:modes", "solar:view"):
@@ -2281,7 +2305,7 @@ def test_readout_gives_the_velocity_axis_value_from_the_rest_wavelength(app, mon
     show(si, 2, 1)  # the spectrogram, wavelength against slit
     velocities = [check(x) for x in (0, 20, len(_wavelengths(si)[0]) - 1)]
     assert velocities[0] < 0 < velocities[-1]
-    set_rest(si, "1402.5")  # 'IRIS: set rest wavelength…'
+    set_rest(si, "1402.5")  # 'Set rest wavelength…'
     assert tool.axis.get_xlabel() == "Velocity from 1402.5 Å [km / s]"
     assert check(20) > velocities[1] + 50  # 0.27 Å nearer the blue: 58 km / s more
     set_rest(si, "")  # back to Si IV 1402.77
@@ -2322,7 +2346,7 @@ def test_profiles_save_as_drawn_to_ecsv(app, monkeypatch, tmp_path, irispy_test_
     save = viewer.toolbar.widgetForAction(viewer.toolbar.actions["save"]).menu()  # after glue's entries
     assert [entry.text() for entry in save.actions()][-2:] == [
         "Save Python script to reproduce plot",
-        "IRIS: save profiles as ECSV…",
+        "Save profiles as ECSV…",
     ]
 
     def saved():

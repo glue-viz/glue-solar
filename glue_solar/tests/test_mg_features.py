@@ -27,7 +27,7 @@ from glue_solar.tests.test_lazy import SJI
 from glue_solar.tests.test_moments import dn_per_second_cube
 from glue_solar.tests.test_sessions import twice
 
-ACTION = "IRIS: Mg II features… (Mg II)"
+ACTION = "IRIS: Mg II features…"
 # 4000005156 cut to Mg II k and to Mg II h, the line's ±44 km / s only, as two windows; 150 spectra of each hold -200
 FEATURES = "iris_l2_20130902_182935_4000005156_raster_t000_r00000_mg_features.fits"
 KH = ("k", "h")
@@ -218,7 +218,7 @@ def test_a_rest_wavelength_set_shifts_the_wavelengths_irispy_is_given(app, qtbot
     tree._actions[ACTION].trigger()
     why = (
         f"The rest wavelength set for {raster.label}, 2803.53 Å, is not Mg II k's: Mg II features take one within 1 Å "
-        f"of 2796.351 Å. Change or clear it with 'IRIS: set rest wavelength…'."
+        f"of 2796.351 Å. Change or clear it with 'Set rest wavelength…'."
     )
     assert shown == [f"Could not compute Mg II features\n{why}"]
     assert opened == []

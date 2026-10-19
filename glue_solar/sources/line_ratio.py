@@ -1,5 +1,5 @@
 """
-'IRIS: line ratio diagnostic…': a quantity such as log n_e or log T, mapped by irispy from the ratio of two maps on the
+'Line ratio diagnostic…': a quantity such as log n_e or log T, mapped by irispy from the ratio of two maps on the
 same grid, as a new dataset; from a table, or from CHIANTI's O IV ratio through fiasco.
 """
 
@@ -173,7 +173,7 @@ def _ask(datasets):
     table and the quantity's name, or None and the typed densities and temperature of the `O_IV` preset; or None for a
     blank path or name, or Cancel.
     """
-    dialog, form = _form("IRIS: line ratio diagnostic")
+    dialog, form = _form("Line ratio diagnostic")
     cids = [cid for data in datasets for cid in data.main_components]
     intensities = [index for index, cid in enumerate(cids) if cid.label == "intensity"]
     boxes = []
@@ -239,7 +239,7 @@ def _maps(layers):
 
 
 @layer_action(
-    "IRIS: line ratio diagnostic…",
+    "Line ratio diagnostic…",
     single=False,
     check=_maps,
     tooltip="Add a quantity such as log n_e mapped by irispy from the ratio of two maps on the same grid",

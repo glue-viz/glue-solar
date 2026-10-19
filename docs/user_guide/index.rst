@@ -8,9 +8,9 @@ glue-solar adds solar data to glue: an observation browser for IRIS Level 2 file
 linked panels in the manner of CRISPEX, analyses through irispy, and SST cubes and AIA and HMI maps
 beside them. Start with :ref:`Getting started <glue_solar_users_guide_getting_started>`.
 
-glue-solar's entries in glue's "Plugins", data and save menus start with "IRIS: ", but for
-"Quicklook…". A data action shows only for the data it takes. "IRIS: user guide and issues" in the
-"Plugins" menu opens this guide.
+glue-solar's entries in glue's "Plugins", data and save menus start with "IRIS: " where they take
+IRIS data only. A data action shows only for the data it takes. "glue-solar user guide and issues"
+in the "Plugins" menu opens this guide.
 
 .. toctree::
    :maxdepth: 2

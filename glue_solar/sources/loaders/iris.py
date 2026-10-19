@@ -1018,8 +1018,8 @@ def _relinker(data_collection):
 def keep_hpc_linked(data_collection, others=()):
     """
     Add the `link_hpc` links of the IRIS datasets and of ``others``, and again once a dataset is removed, which drops
-    the links through it (`_relinker`). Other data are linked only on request ('IRIS: link helioprojective
-    coordinates'): every quicklook panel and profile then inverts their WCS, and beside a linked SST cube a quicklook
+    the links through it (`_relinker`). Other data are linked only on request ('Link helioprojective coordinates'):
+    every quicklook panel and profile then inverts their WCS, and beside a linked SST cube a quicklook
     took about 4 minutes to open, not 6 s. Datasets loaded later need another call.
     """
     requested = _relinker(data_collection).others
@@ -1032,7 +1032,7 @@ def keep_hpc_linked(data_collection, others=()):
 class _LinkedCollection:
     """
     glue's data collection as a session restores it (`_keep_restored_links`), with its links as saved and its
-    `_Relinker`, as a live one's, quicklook or not: the datasets 'IRIS: link helioprojective coordinates' linked are
+    `_Relinker`, as a live one's, quicklook or not: the datasets 'Link helioprojective coordinates' linked are
     linked again through the next IRIS dataset once the one they were linked through is removed.
     """
 

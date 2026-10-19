@@ -1,5 +1,5 @@
 """
-'IRIS: remove dust (SJI)': a slit-jaw image with irispy's dust removed, as a new dataset; and 'IRIS: radiometric
+'IRIS: remove dust': a slit-jaw image with irispy's dust removed, as a new dataset; and 'IRIS: radiometric
 calibration': a raster window's or stack's DN / s in radiance, as a glue derived component.
 """
 
@@ -102,7 +102,7 @@ def remove_dust(data):
 
 
 @layer_action(
-    "IRIS: remove dust (SJI)",
+    "IRIS: remove dust",
     single=True,
     data=True,
     check=_check_sji,

@@ -507,7 +507,7 @@ def test_refusals_show_why(app, qtbot, monkeypatch, scan_path):
         f"{last} is of the sum of its spectra, which scales its amplitudes: fit their Mean or Median.",
         f"{last} is against pixels: fit against its wavelength, in a length such as Angstrom or in km / s.",
         f"{last} is of {mask.label}: fit its values, in DN or DN / s.",
-        f"{raster.label} has no rest wavelength: set one with 'IRIS: set rest wavelength…'.",
+        f"{raster.label} has no rest wavelength: set one with 'Set rest wavelength…'.",
     ]
     assert len(collection) == 1
     assert not iris._RUNNING

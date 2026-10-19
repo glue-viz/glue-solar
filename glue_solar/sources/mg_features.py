@@ -1,5 +1,5 @@
 """
-'IRIS: Mg II features… (Mg II)': irispy's line centers and emission peaks of Mg II k and h in a raster window or a
+'IRIS: Mg II features…': irispy's line centers and emission peaks of Mg II k and h in a raster window or a
 stack of its scans, as a new dataset.
 """
 
@@ -23,7 +23,7 @@ LINES = ("k", "h")
 
 def _rest(data):
     """
-    The rest wavelength set for ``data`` with 'IRIS: set rest wavelength…', in Angstrom, or None; raises why for one
+    The rest wavelength set for ``data`` with 'Set rest wavelength…', in Angstrom, or None; raises why for one
     over 1 Å from irispy's Mg II k.
     """
     from irispy.utils.mg_features import _REST_WAVELENGTH
@@ -32,7 +32,7 @@ def _rest(data):
     if rest is not None and abs(rest - k) > 1:
         raise ValueError(
             f"The rest wavelength set for {data.label}, {rest} Å, is not Mg II k's: Mg II features take one within 1 Å "
-            f"of {k:.3f} Å. Change or clear it with 'IRIS: set rest wavelength…'."
+            f"of {k:.3f} Å. Change or clear it with 'Set rest wavelength…'."
         )
     return rest
 
@@ -127,7 +127,7 @@ def mg_features(data, velocities=VELOCITIES, lines=LINES):
     ``<feature>_intensity`` in the window's unit; NaN where irispy finds none, or a sample it searches for the line is
     missing or saturated, as the window's mask marks the Level 2 ceiling, 16182 DN (D85), where ``k saturated``
     (``h saturated``), irispy's ``k_saturated`` (``h_saturated``), is 1, else 0. With a rest wavelength set for
-    ``data`` with 'IRIS: set rest wavelength…', irispy is given its wavelengths shorter by the rest wavelength less
+    ``data`` with 'Set rest wavelength…', irispy is given its wavelengths shorter by the rest wavelength less
     irispy's k, as irispy advises for IDL's ``wave_comp``: k's velocities are then from the rest wavelength, and h's
     from irispy's h as far off. ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``,
     ``mg_features_velocities`` and ``mg_features_lines``, those measured, with a rest wavelength set
@@ -188,7 +188,7 @@ def _saturated(features):
 
 
 @layer_action(
-    "IRIS: Mg II features… (Mg II)",
+    "IRIS: Mg II features…",
     single=True,
     data=True,
     check=_covered,

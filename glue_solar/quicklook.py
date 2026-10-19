@@ -75,6 +75,9 @@ __all__ = [
 # The window the quicklook shows when the browser did not pick one
 DEFAULT_WINDOW = "Mg II k 2796"
 PERCENTILE = 99.5
+# The subset group of the exposure that leads the time, on the light curves (`Coordinator._mark`); sessions from before
+# D90 name it 'Master exposure'
+MARK = "Current exposure"
 
 
 def observation_key(data):
@@ -341,7 +344,7 @@ class Coordinator(HubListener):
         self._kept = (None, None, None, None)
         self._outside = (None, None)  # a slit-jaw viewer clicked outside the raster, and the point its click left
         self._busy = False
-        self.marker = None  # the 'Master exposure' subset group (`_mark`), once made
+        self.marker = None  # the `MARK` subset group (`_mark`), once made
         self._drag = None  # while a mouse button is down on a viewer: whether a point was clicked
         # a drag moves the point at every mouse event: show only its latest position. The application owns the timer:
         # PyQt frees the QObjects Python owns at exit in any order, then the application, so a viewer freed at exit
@@ -860,7 +863,7 @@ class Coordinator(HubListener):
 
     def _mark(self, key, time, seconds):
         """
-        Select the time master's exposure, ``time`` for ``seconds``, as glue's own range subset 'Master exposure' on the
+        Select the time master's exposure, ``time`` for ``seconds``, as glue's own range subset `MARK` on the
         first open datetime Scatter plot of observation ``key`` (D27, #207), found by its label; deleted, not remade.
         """
         groups = self.data_collection.subset_groups
@@ -878,9 +881,9 @@ class Coordinator(HubListener):
         end = time + np.timedelta64(int(np.nan_to_num((seconds or 0) * 1e9)), "ns")
         state = RangeSubsetState(time, end, x)
         if self.marker is None:
-            self.marker = next((group for group in groups if group.label == "Master exposure"), None)
+            self.marker = next((group for group in groups if group.label in (MARK, "Master exposure")), None)
         if self.marker is None:
-            self.marker = _new_group(app.session, self.data_collection, label="Master exposure", subset_state=state)
+            self.marker = _new_group(app.session, self.data_collection, label=MARK, subset_state=state)
         # off every other viewer before it moves, also those opened since, which glue gives every subset: they would
         # update it at each step
         for viewer in viewers:
@@ -1177,6 +1180,11 @@ class QuicklookImageViewer(ImageViewer):
         if point is not None:
             mode.edit_subset = [point]
 
+    def set_status(self, message):
+        """glue-qt's status line but for the mouse modes' hints, which a narrow panel's frame time clips (D90)."""
+        if self.toolbar is None or message != getattr(self.toolbar.active_tool, "status_tip", None):
+            super().set_status(message)
+
     def set_focus(self, state):  # glue-qt's call once it has turned the last active viewer's mouse mode off
         super().set_focus(state)
         if state and self.toolbar.active_tool is None:
@@ -1459,12 +1467,15 @@ def hidden_cube_profile(viewer, data):
         )
         viewer._solar_fit = _FitOnceComputed(viewer, data, fit=lambda viewer: viewer.state.reset_limits())
     state = ProfileLayerState(layer=data, viewer_state=viewer.state, visible=False)
-    state._solar_own = True  # hidden by glue-solar: 'IRIS: save profiles as ECSV…' does not name it
+    state._solar_own = True  # hidden by glue-solar: 'Save profiles as ECSV…' does not name it
     return viewer.get_data_layer_artist(data, state)
 
 
 def _profile(app, raster, title):
-    """A Profile of the point's mean spectrum, with the raster itself hidden and no large-data prompt."""
+    """
+    A Profile of the point's mean spectrum, with the raster itself hidden and no large-data prompt, and a status-bar note
+    if it could not add the raster, else None.
+    """
     QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # as before each Image viewer
     viewer = app.new_data_viewer(ProfileViewer)
     viewer.state.title = title
@@ -1478,7 +1489,7 @@ def _profile(app, raster, title):
         return viewer, f"The spectrum panel could not add {raster.label}."
     viewer.state.x_att = raster.world_component_ids[_wavelengths(raster)[1]]
     viewer.axes.axhline(0, color="0.5", lw=0.8, zorder=0)
-    return viewer, f"Spectrum of {raster.label} ({raster.size:.3g} elements)."
+    return viewer, None
 
 
 def quicklook(app, datasets, window=None, main=None):
@@ -1647,7 +1658,7 @@ def _cube_table(app, cube):
         cut = (f"{name} {label} at the point", w, at, None, cube.world_component_ids[w])
         panels.append(_Panel("spectra", cube, f"{name} {label}", cut=cut))
     if t is not None:
-        curve = (f"{name} light curve", t, None, "map", cube.pixel_component_ids[t])
+        curve = (f"{name} light curve", t, None, "map", cube.world_component_ids[t])  # its time, not index (D90)
         panels.append(_Panel("curve", cube, f"{name} light curve", cut=curve))
     slices = [slice(i, i + 1) for i in start]
     slices[w] = slice(None)  # a pixel at every wavelength
@@ -1767,7 +1778,7 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
         if images:
             _SpectralLines(coord, group, images, next(viewer for panel, viewer in panels if panel.x is None), tab)
     if "notes" in table:
-        app.statusBar().showMessage(" ".join(notes + table["notes"]))
+        app.statusBar().showMessage(" ".join(note for note in notes + table["notes"] if note))
     if point is not None:  # first, as glue-qt then fills its side panels for the map, which can widen them
         tab.setActiveSubWindow(viewers["map"].parent())
         viewers["map"].toolbar.active_tool = "image:point_selection"
@@ -2319,6 +2330,14 @@ def _point_curves(viewer):
         plot.add_data(curve)
     mode.edit_subset = edit  # glue-qt makes the last subset group the edit subset as data are added
     plot.state.title = "Light curves at the point"
+    units = ", ".join(unit for unit in dict.fromkeys(curve.get_component("Value").units for curve in curves) if unit)
+
+    def label(text):  # glue's 'Value', set again as layers join, as the curves' units (D90)
+        if units and text == "Value":
+            plot.state.y_axislabel = units
+
+    plot.state.add_callback("y_axislabel", label)
+    label(plot.state.y_axislabel)
     for layer in plot.state.layers:
         if isinstance(layer.layer, Data):
             layer.markers_visible, layer.line_visible = False, True
@@ -2577,7 +2596,7 @@ def _sync_text(status):
     """A `Coordinator.time_status` as the Frame time readout gives it."""
     kind, value = status
     if kind == "master":
-        return "time master" + (f", step {value}" if value is not None else "")
+        return "leads time" + (f", step {value}" if value is not None else "")
     if kind == "match":
         return f"Δt {value / np.timedelta64(1, 's'):+.1f} s"
     # a master in a gap of data regridded on time has no time, so no offset
