@@ -109,7 +109,7 @@ def browse_iris(session, data_collection):
     """
     app = session.application
     directory = QtWidgets.QFileDialog.getExistingDirectory(
-        app, "Select a folder containing IRIS Level 2 files", last_directory()
+        app, "Select a folder of IRIS Level 2 files or SST cubes", last_directory()
     )
     if not directory:
         return

@@ -6,8 +6,8 @@ Loading data
 
 .. _glue_solar_users_guide_loading_iris_level_2_raster_and_sji_files:
 
-Browsing IRIS observations
---------------------------
+Browsing observations
+---------------------
 
 .. image:: images/loading-iris-data-2.png
    :width: 800

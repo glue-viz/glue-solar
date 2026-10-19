@@ -1718,7 +1718,7 @@ class _GoToUTCEntry(_CoordinateEntry):
         data = state.reference_data
         master = self._master()
         if not self.offered():
-            raise ValueError("The viewer has no frame, exposure, step or scan slider of IRIS data.")
+            raise ValueError("The viewer has no frame, exposure, step or scan slider of timed data.")
         moved = data if master is None else master
         index, step = coordinator._timing(moved)
         if master is None:
@@ -2347,7 +2347,7 @@ class CoordinateTool(_ToolMenu):
     icon = "glue_link"
     tool_id = "solar:coordinate"
     # no action_text, which glue-qt would show beside the icon, to keep the toolbar short
-    tool_tip = "Coordinate this viewer with the others of its IRIS observation"
+    tool_tip = "Coordinate this viewer with the others of its observation"
     # the entries of the menu, then of each submenu, by its title, with its tooltip
     ENTRIES = (_TimeMasterEntry, _GoToUTCEntry, _LoopEntry)
     SUBMENUS = {

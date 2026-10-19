@@ -1220,7 +1220,7 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     def choose_directory(self):
         directory = QtWidgets.QFileDialog.getExistingDirectory(
-            self, "Select a folder containing IRIS Level 2 files", self.directory.text() or last_directory()
+            self, "Select a folder of IRIS Level 2 files or SST cubes", self.directory.text() or last_directory()
         )
         if directory:
             self.set_directory(directory)
