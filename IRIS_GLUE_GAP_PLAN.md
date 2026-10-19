@@ -163,6 +163,8 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D98:** User (2026-10-19), from trying the SST quicklook: its spectrum and light-curve panels refit their y range to the point's profiles as it moves, while they show the last fit's range or Home's, so a range typed, panned or zoomed stays (`wp4-refit-on-point`); IRIS fits draw in a darker shade of the layer's color (lighter for a dark one), 1.5 times its width, above the data (`wp6-fit-colour`); 'Lines in this range…' lists its lines with check boxes, the main lines ticked, so a line is labeled or hidden, per viewer and not saved (`wp5-line-checkboxes`); the IRIS fitter's Settings get an 'Mg II two peaks' preset, two Gaussians on a constant for the k or h line in the Fit range, as in IRIS Technical Note 39 (`wp6-mg-ii-preset`). PROVISIONAL (D97's linking): SOT and AIA cubes also link to each other without IRIS data, reversing 212-3; the alternative is limiting D97 to SST and data glue-solar does not read through irispy.
 
+- **D99:** User (2026-10-19): in future, all open data link when their fields overlap, IRIS or not, rather than on request (a bigger item, `wp1-l-link-all-overlapping`, reopening D64). A path's vertices can be typed, not only clicked (`wp12-path-from-points`).
+
 ## Milestones
 
 A milestone is done when it has no items left. M0, M2 (analysis, display and export) and M3 (specialist) are done.
@@ -177,6 +179,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **M1**
 - WP0: `wp0-release-tracking`
 - WP1: `wp1-link-without-iris`
+- WP12: `wp12-path-from-points`, `wp12-sst-path-diagram-axes`
 - WP4: `wp4-refit-on-point`
 - WP5: `wp5-line-checkboxes`
 - WP6: `wp6-fit-colour`, `wp6-mg-ii-preset`
@@ -185,6 +188,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
+- WP1: `wp1-l-link-all-overlapping`
 
 **M4**
 - WP0: `wp0-upstream`, `wp0-irispy-requests`, `wp0-stack-validation`, `wp0-user-review`, `wp0-wcslib-tab-inverse`
@@ -221,6 +225,10 @@ The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links be
 **M1**
 
 - [ ] **M1** `wp1-link-without-iris` (D97): 'Link helioprojective coordinates' links SST cubes and other helioprojective data to each other when no IRIS dataset is loaded, anchoring on the first; a 'Link points across cubes' toggle (Coordinate → Point, on by default) moves the other linked cubes' quicklook points of the observation to a point's place on the Sun. Done when two SST cubes of one observation, linked with no IRIS data, select the same place with a region, and a point in one tab moves the other tab's point there while the toggle is on, and not while off.
+
+**L**
+
+- [ ] **L** `wp1-l-link-all-overlapping` (D99): every open dataset links to the others whose fields overlap in space (and time, where they have it), IRIS or not, as they load, rather than on request; the cost of glue's link rediscovery and of -TAB inverses decides the design. Done when loading overlapping SST cubes, IRIS data and maps links them with no menu step, and non-overlapping data stays unlinked.
 
 **M4**
 
@@ -321,6 +329,11 @@ Notes:
 ### WP12: Export and derived diagrams
 
 Frame, movie and data export plus path diagrams, built on glue's 'save' subtools, exporters and core's path slicer.
+
+**M1**
+
+- [ ] **M1** `wp12-sst-path-diagram-axes` (user's report, 2026-10-19): on a Stokes SST cube's path diagram the wavelength axis is labelled 'World 2' and a third coordinate, Scan Time per tuning, takes the right edge, its label cut off (seen locally on obs 167's 6173 cube; a CHROMIS cube's diagram shows pixel axes instead). Done when SST diagrams label their wavelength and show no clipped third axis.
+- [ ] **M1** `wp12-path-from-points` (D99): 'Path from points…' in the Path diagram's menu takes typed vertices and makes the diagrams as a drawn path does. Done when typed vertices give the same diagram as the same path clicked.
 
 Notes:
 - Paths and curves sample at the master's exposure. Not rebuilt: phi-slit sliders, path width, PostScript, IDL save files.
