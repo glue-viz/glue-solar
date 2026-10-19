@@ -1344,7 +1344,7 @@ def _zoom(viewer, x, y, margin):
     box = viewer.axes.get_window_extent()
     ratio = box.height / box.width if box.width else 1.0
     width, height = np.ptp(x) + 2 * margin, np.ptp(y) + 2 * margin
-    if height > width * ratio:  # the rows span the view exactly, as a rounding would crop the field (P9)
+    if height > width * ratio:  # so the rows span the view exactly, not a rounding short of it (P9)
         width = height / ratio
     else:
         height = width * ratio
@@ -1676,6 +1676,7 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
     def add(panel, viewer):
         made.append((panel, viewer))
         viewer.toolbar.setIconSize(QSize(16, 16))  # glue-qt's are 25 px: more of the narrow panels' tools in sight (P8)
+        viewer.parent().setWindowIcon(viewer.windowIcon())  # glue-solar's (`_init`) on its title bar, not Qt's logo
         if panel.window is not None and panel.window not in windows:
             windows[panel.window] = {}
             viewers["windows"].append(windows[panel.window])
@@ -2830,6 +2831,7 @@ def _add_window(tab, widget, title):
     sub.setWidget(widget)
     sub.setAttribute(Qt.WA_DeleteOnClose)  # with its tab too, as glue closes every window of a tab it closes
     sub.setWindowTitle(title)
+    sub.setWindowIcon(QApplication.windowIcon())  # glue-solar's, as on the panels
     tab.addSubWindow(sub)
     sub.show()
     return sub

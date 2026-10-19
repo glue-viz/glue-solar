@@ -169,11 +169,17 @@ def test_setup_registers_hooks():
         assert iris.priority > (other.priority or 0)
 
 
-def test_glue_shows_glue_solars_icon(app):
-    # the macOS app's icon on the application, its window and its viewers, not glue's (D90, P8)
+def test_glue_shows_glue_solars_icon(app, tmp_path):
+    # the macOS app's icon on the application, its window, its viewers and a quicklook panel's title bar (D90, P8)
     ours = QIcon(os.path.join(os.path.dirname(glue_solar.__file__), "icons", "glue_solar.png")).pixmap(32).toImage()
     viewer = app.new_data_viewer(ImageViewer)
-    for icon in (app.app.windowIcon(), app.windowIcon(), viewer.windowIcon()):
+    cube, _ = spectral_cube(tmp_path / "cube.fits", (7, 12, 16))
+    app.data_collection.append(cube)
+    quicklook_cube(cube, app.data_collection)
+    # each window in its tab, panels, Point window and Panels list, whose title bar draws Qt's logo unless given one
+    windows = app.current_tab.subWindowList()
+    assert all(window.testAttribute(Qt.WA_SetWindowIcon) for window in windows)
+    for icon in (app.app.windowIcon(), app.windowIcon(), viewer.windowIcon(), *(w.windowIcon() for w in windows)):
         assert icon.pixmap(32).toImage() == ours
 
 
