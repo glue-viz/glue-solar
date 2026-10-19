@@ -80,7 +80,7 @@ class _Settings(QtWidgets.QDialog):
     The IRIS fitter's Settings, glue-qt's dialog for a fitter's ``settings_widget`` (`glue_patches._on_settings`):
     its components, added and removed, and each parameter's start, Fixed, either bound and, for a line, a tie to a line
     above it: its amplitude or width that line's times the ratio, blank for 1, or its center that line's plus the
-    separation, in the x unit (D86).
+    separation, in the x unit (D86); "Mg II two peaks" sets the components to two lines on a constant (D98).
     """
 
     def __init__(self, fitter, parent=None):
@@ -88,6 +88,12 @@ class _Settings(QtWidgets.QDialog):
         self.fitter, self.components, self.table = fitter, copy.deepcopy(fitter.components), None
         self.setWindowTitle(f"{fitter.label} settings")
         self.kind, self.degree, add = QtWidgets.QComboBox(), QtWidgets.QSpinBox(), QtWidgets.QPushButton("Add")
+        mg_ii = QtWidgets.QPushButton("Mg II two peaks")
+        mg_ii.setToolTip(
+            "Two Gaussians on a constant, for the blue and red emission peaks of the Mg II k or h line in the Fit range,"
+            " each starting at its peak (IRIS Technical Note 39)"
+        )
+        mg_ii.clicked.connect(self._mg_ii)
         self.kind.addItems(_KINDS)
         self.kind.currentTextChanged.connect(lambda kind: self.degree.setEnabled(kind == "Polynomial"))
         self.degree.setRange(2, 5)
@@ -95,7 +101,7 @@ class _Settings(QtWidgets.QDialog):
         self.degree.setEnabled(False)
         add.clicked.connect(self._add)
         bar = QtWidgets.QHBoxLayout()
-        for widget in (self.kind, self.degree, add):
+        for widget in (self.kind, self.degree, add, mg_ii):
             bar.addWidget(widget)
         bar.addStretch()
         buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
@@ -163,6 +169,12 @@ class _Settings(QtWidgets.QDialog):
         self._read()
         cls = _KINDS[self.kind.currentText()]
         self.components.append(_component(cls(self.degree.value()) if cls is models.Polynomial1D else cls()))
+        self._build()
+
+    def _mg_ii(self, *_):
+        self.components = [_component(leaf) for leaf in (models.Const1D(), models.Gaussian1D(), models.Gaussian1D())]
+        for _, settings in self.components[1:]:
+            settings["amplitude"]["limits"] = (0, None)  # emission peaks
         self._build()
 
     @messagebox_on_error("Could not remove the component")
