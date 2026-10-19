@@ -5,6 +5,7 @@ first Profile viewer (D86).
 
 import copy
 import functools
+import json
 import operator
 import time
 import weakref
@@ -81,7 +82,8 @@ class _Settings(QtWidgets.QDialog):
     The IRIS fitter's Settings, glue-qt's dialog for a fitter's ``settings_widget`` (`glue_patches._on_settings`):
     its components, added and removed, and each parameter's start, Fixed, either bound and, for a line, a tie to a line
     above it: its amplitude or width that line's times the ratio, blank for 1, or its center that line's plus the
-    separation, in the x unit (D86); "Mg II two peaks" sets the components to two lines on a constant (D98).
+    separation, in the x unit (D86); "Mg II two peaks" sets the components to two lines on a constant (D98); "Save…"
+    and "Open…" write and read them as JSON (D99).
     """
 
     def __init__(self, fitter, parent=None):
@@ -95,6 +97,11 @@ class _Settings(QtWidgets.QDialog):
             " each starting at its peak (IRIS Technical Note 39)"
         )
         mg_ii.clicked.connect(self._mg_ii)
+        save, load = QtWidgets.QPushButton("Save…"), QtWidgets.QPushButton("Open…")
+        save.setToolTip("Write the components and their settings to a file, in the x unit they are in")
+        load.setToolTip("Read components and their settings from a file Save… wrote")
+        save.clicked.connect(self._save)
+        load.clicked.connect(self._load)
         self.kind.addItems(_KINDS)
         self.kind.currentTextChanged.connect(lambda kind: self.degree.setEnabled(kind == "Polynomial"))
         self.degree.setRange(2, 5)
@@ -102,7 +109,7 @@ class _Settings(QtWidgets.QDialog):
         self.degree.setEnabled(False)
         add.clicked.connect(self._add)
         bar = QtWidgets.QHBoxLayout()
-        for widget in (self.kind, self.degree, add, mg_ii):
+        for widget in (self.kind, self.degree, add, mg_ii, save, load):
             bar.addWidget(widget)
         bar.addStretch()
         buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
@@ -177,6 +184,41 @@ class _Settings(QtWidgets.QDialog):
         for _, settings in self.components[1:]:
             settings["amplitude"]["limits"] = (0, None)  # emission peaks
         self._build()
+
+    @messagebox_on_error("Could not save the model")
+    def _save(self, *_):
+        self._read()
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save the model", "", "Model (*.json)")
+        if path:
+            kinds = [next(kind for kind, cls in _KINDS.items() if isinstance(leaf, cls)) for leaf, _ in self.components]
+            model = [
+                {"kind": kind, "degree": getattr(leaf, "degree", None), "parameters": settings}
+                for kind, (leaf, settings) in zip(kinds, self.components, strict=True)
+            ]
+            with open(path, "w") as file:
+                json.dump(model, file, indent=1)
+
+    @messagebox_on_error("Could not open the model")
+    def _load(self, *_):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open a model", "", "Model (*.json)")
+        if path:
+            with open(path) as file:
+                model = json.load(file)
+            components = []
+            for entry in model:
+                cls = _KINDS[entry["kind"]]
+                leaf, settings = _component(cls(entry["degree"]) if cls is models.Polynomial1D else cls())
+                for name in settings:  # a parameter the file lacks raises
+                    saved = entry["parameters"][name]
+                    settings[name] = {
+                        "value": saved["value"],
+                        "fixed": saved["fixed"],
+                        "limits": None if saved["limits"] is None else tuple(saved["limits"]),
+                        "tie": None if saved["tie"] is None else tuple(saved["tie"]),
+                    }
+                components.append((leaf, settings))
+            self.components = components
+            self._build()
 
     @messagebox_on_error("Could not remove the component")
     def _remove(self, index, *_):

@@ -84,7 +84,7 @@ from astropy.wcs import WCS
 import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
-from glue_solar.fitters import GaussianConstantFitter, _component, _Settings
+from glue_solar.fitters import GaussianConstantFitter, _component, _label, _Settings
 from glue_solar.lines import rest_wavelength_iris
 from glue_solar.quicklook import QuicklookImageViewer, _role, _wavelengths
 from glue_solar.regrid import north_up_iris, rebin_iris, regrid_iris, regrid_on_time
@@ -2736,6 +2736,32 @@ def test_the_mg_ii_preset_fits_both_emission_peaks(qtbot, monkeypatch):
     lines = [line.split(" = ") for line in tools.text_log.toPlainText().splitlines() if " = " in line]
     report = {name.strip(): value.split(",")[0] for name, value in lines}
     assert [float(report[name]) for name in ("center_1", "center_2")] == pytest.approx([2796.22, 2796.48], abs=1e-3)
+
+
+def test_a_model_saved_and_opened_again_gives_the_same_settings(qtbot, monkeypatch, tmp_path):
+    # D99: Save… writes the components and each parameter's settings, Open… reads them into another fitter's Settings
+    path = str(tmp_path / "model.json")
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (path, ""))
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *args: (path, ""))
+    saved = _Settings(GaussianConstantFitter())
+    qtbot.addWidget(saved)
+    for kind in ("Gaussian", "Gaussian", "Polynomial"):
+        add_component(saved, kind, 3)
+    start, fixed, lower, upper, tie, by = saved.rows["amplitude_2"]
+    start.setText("-5")  # an absorption line
+    upper.setText("0")
+    saved.rows["mean_1"][1].setChecked(True)
+    saved.rows["stddev_3"][4].setCurrentText("stddev_1")
+    saved.rows["stddev_3"][5].setText("2")
+    click(saved, "Save…")
+    opened = _Settings(GaussianConstantFitter())
+    qtbot.addWidget(opened)
+    click(opened, "Open…")
+    assert [(_label(leaf), settings) for leaf, settings in opened.components] == [
+        (_label(leaf), settings) for leaf, settings in saved.components
+    ]
+    assert _label(opened.components[-1][0]) == "Polynomial, degree 3"
+    assert opened.components[2][1]["amplitude"] == {"value": -5, "fixed": False, "limits": (None, 0), "tie": None}
 
 
 def test_the_iris_fitter_fits_the_lines_added_in_settings(qtbot, monkeypatch):
