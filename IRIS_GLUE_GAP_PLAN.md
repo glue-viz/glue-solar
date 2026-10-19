@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 14468fe (#320). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
+**Resume here.** Main is at 89edf76 (#321). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
 **Next.** 2026-10-17/18 (D85-D87): #306-#314 are on main (the full CI matrix again, saturated samples shown at their value, Stokes scaled with their noise, sessions at their values' size, per-wcslib-call locking, the review's lean pass, the coordinator forgetting removed data, 'IRIS: line fit maps' and the Fit tab's model builder). Every open item now waits on the user, on others or on a release: once the user merges irispy draft #241, glue-solar's `fit_maps._starts` gives way to `starts_from_model` (one small PR); then M4 work on the user's direction. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow the session archive's `RULES.md`. CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small (#313's stack test fits one iteration).
 
@@ -145,7 +145,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D89:** User (2026-10-18), on upstreaming: no PR to glue, glue-qt or astropy until the glue-solar work here is done; then a full review of the code decides what is upstreamed and what stays in glue-solar (`wp0-upstream-review`), re-verifying every report candidate and perf finding first. Meanwhile, smaller ports to glue or glue-qt go on branches of the user's forks for small PRs later. The matplotlib-free WCSAxes core is under way with astropy in person and is not tracked here; the upstream drafts wait on their human reviewers.
 
-- **D90:** User (2026-10-18), on the earlier audits' other proposals (`audit2/` in the session archive): do all the polish (P4-P12: `wp11-polish-labels`, `wp8-polish-names-browser`, `wp11-polish-icons`, #316, `wp9-guide-screenshot`), one light-curves entry against Time (C6: #319), and one path tool on IRIS viewers (C5: #318); keep Loop, Blink and Follow/lock (upstream candidates for `wp0-upstream-review`: Loop's range options in glue-qt's slider playback, Follow/lock as a hover mode of glue's Pixel tool, Blink as a viewer tool), the browser, every colormap and gamma stretch, and every analysis, quicklook and tool extra (F1-F16); none of the internal changes (F9, F12, S12, R-K).
+- **D90:** User (2026-10-18), on the earlier audits' other proposals (`audit2/` in the session archive): do all the polish (P4-P12: `wp11-polish-labels`, #321, `wp11-polish-icons`, #316, `wp9-guide-screenshot`), one light-curves entry against Time (C6: #319), and one path tool on IRIS viewers (C5: #318); keep Loop, Blink and Follow/lock (upstream candidates for `wp0-upstream-review`: Loop's range options in glue-qt's slider playback, Follow/lock as a hover mode of glue's Pixel tool, Blink as a viewer tool), the browser, every colormap and gamma stretch, and every analysis, quicklook and tool extra (F1-F16); none of the internal changes (F9, F12, S12, R-K).
 
 ## Milestones
 
@@ -164,7 +164,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP8: `wp8-polish-names-browser`
 - WP9: `wp9-guide-screenshot`
 - WP11: `wp11-polish-labels`, `wp11-polish-icons`
 
@@ -297,10 +296,6 @@ Notes:
 
 Covers the observation browser, the header scanner (`scan.py`) and the IRIS readers (`iris.py`).
 
-**L**
-
-- [ ] **L** `wp8-polish-names-browser` (D90, P5, P11): short dataset and component names (no '…-r00000' datasets with '…-scan-0' components) and one naming style for analysis results (D69: older sessions need not open); the browser's columns named in words, not FITS keywords, and 'Main window' shown only when two or more windows are ticked. Done when a loaded raster, its stack and each analysis result read short and alike, and the browser's columns are words.
-
 Notes:
 - WP1, WP3, WP4 and WP10 also edit `finalize`, `iris_loader.ui` and `test_importer.py`.
 
@@ -310,7 +305,7 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 
 **L**
 
-- [ ] **L** `wp9-guide-screenshot` (D90, P12): a current screenshot atop the quicklook guide, and the guides' other screenshots regenerated (`docs/make_screenshots.py`), after the polish items. Done when the guide's images show the current quicklook. Depends: wp11-polish-labels, wp11-polish-icons, wp8-polish-names-browser.
+- [ ] **L** `wp9-guide-screenshot` (D90, P12): a current screenshot atop the quicklook guide, and the guides' other screenshots regenerated (`docs/make_screenshots.py`), after the polish items. Done when the guide's images show the current quicklook. Depends: wp11-polish-labels, wp11-polish-icons.
 
 **M4**
 
