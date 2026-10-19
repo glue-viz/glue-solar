@@ -110,8 +110,9 @@ spectrum starts at its own background and line peaks, from irispy's ``starts_fro
 widths, fixed values, bounds and ties are as fitted. Missing samples are
 left out, and saturated ones, which are only a lower bound. The fit of step 1 leaves a sample out
 where all the pixels it combines are saturated (for a Point, where it is), and notes the wavelengths
-whose mean includes saturated pixels. A full Si IV 1403 raster, 175,000 spectra, takes about a minute
-on 12 cores and 8 GB of memory, the worker processes included.
+whose mean includes saturated pixels. A full Si IV 1403 raster of 1600 steps, 667,000 spectra over
+±0.6 Å, takes about two minutes on 12 cores and 7 GB of memory: 1.3 GB in glue, which fits a slab of
+steps at a time, and the rest in the worker processes, 4 GB of it their own Python.
 
 The result, ``<label> fit <rest>``, holds irispy's ``maps_from_fit`` maps of each line ``i``:
 ``velocity_i`` and ``fwhm_velocity_i`` in km / s, from the rest wavelength, ``fwhm_i`` in Angstrom

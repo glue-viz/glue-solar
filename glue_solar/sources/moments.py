@@ -161,15 +161,17 @@ def _cube(data, values, rows, wavelengths, unit, saturated, sigma=None, shift=0)
     return SpectrogramCube(values, view, uncertainty, unit, mask=mask, meta={"saturated": saturated})
 
 
-def _slabs(data, crop, factor=1):
-    """
-    ``(rows, values, seconds, saturated)``, `_read` at ``crop``, for each slab of ``data``: raster steps of one scan,
-    about `SLAB` / ``factor`` samples; on any thread.
-    """
+def _slab_rows(data, crop, factor=1):
+    """The ``rows`` of each slab of ``data`` at ``crop``: raster steps of one scan, about `SLAB` / ``factor`` samples."""
     steps = max(1, SLAB // (data.shape[-2] * (crop.stop - crop.start) * factor))
     # each scan of a stack, as its own WCS and exposure times give it
-    for scan, start in itertools.product(np.ndindex(data.shape[:-3]), range(0, data.shape[-3], steps)):
-        rows = (*scan, slice(start, start + steps), slice(None))
+    starts = itertools.product(np.ndindex(data.shape[:-3]), range(0, data.shape[-3], steps))
+    return [(*scan, slice(start, start + steps), slice(None)) for scan, start in starts]
+
+
+def _slabs(data, crop, factor=1):
+    """``(rows, values, seconds, saturated)``, `_read` at ``crop``, for each of `_slab_rows`; on any thread."""
+    for rows in _slab_rows(data, crop, factor):
         yield rows, *_read(data, rows, crop)
         # ndcube's cubes are reference cycles, and irispy's hold the slab's values: else every slab's stay until
         # Python's collector runs
