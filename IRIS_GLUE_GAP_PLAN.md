@@ -28,9 +28,9 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 8e4a3fb (#327). glue-solar runs on irispy main fb08f89, unpinned (D92; followed in #327). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
+**Resume here.** Main is at 12da8cd (#328). glue-solar runs on irispy main fb08f89, unpinned (D92; followed in #327). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
 
-**Next.** In flight (2026-10-19, the user's choices; about 40% of the week's usage left until Wednesday): `wp6-fit-memory` (the second whole-code review's two findings; `review2/FINDINGS.md` in the session archive); `wp0-upstream-review`'s result is UPSTREAM_REVIEW.md (D89), for the user to work through. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
+**Next.** In flight (2026-10-19, the user's choices; about 40% of the week's usage left until Wednesday): #328 (the second whole-code review's two findings; `review2/FINDINGS.md` in the session archive); `wp0-upstream-review`'s result is UPSTREAM_REVIEW.md (D89), for the user to work through. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
 **Waiting on the user.** (1) Trying the fitting in the GUI ('Fit every spectrum', the model builder; OBS 3610108077's C II and Si IV windows, the flare 3860258481 for saturation) and the builder's later options (presets, ties to any line, an editable degree; D88). (2) `wp0-qt68-macos-pass`. (3) The app's drag-into-/Applications check: `~/Downloads/Glue Solar.dmg` is fresh, built 2026-10-19 from main cbe1196 with irispy 495f39d (env `glue-solar-app-495f`), smoke-checked headless and through `open`. (4) An exact report of the linking and slider-sync problems seen in the app on 2026-10-09 (4000255147's raster and SJI 1400, or 4000005156's two scans and SJI 2796), rerun with `glue` from `iris-plan-qt6-802-495f`. Then `wp0-upstream-review` (D89).
 
@@ -151,7 +151,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D92:** User (2026-10-19): irispy main has settled after the pre-beta PRs (its history was rewritten, main now 495f39d, so earlier SHAs such as 540e9e5 and fe59e7a are on no branch): glue-solar tracks irispy's git main again (D47), the follow-irispy PR unpinning it; D91's pin returns only while irispy changes in batches.
 
-- **D93 (provisional, 2026-10-19):** `wp6-fit-memory` keeps astropy's default `chunk_n_max` (500): slabs alone cut a Si IV window's pickled data from 28.8 to 3.1 GiB, and 5000 inside slabs left about 10 chunks for 12 workers, doubling the time (254 s against 131 s). The second review's R2 is answered by slabs. The alternative is `chunk_n_max=5000`.
+- **D93 (provisional, 2026-10-19):** #328 keeps astropy's default `chunk_n_max` (500): slabs alone cut a Si IV window's pickled data from 28.8 to 3.1 GiB, and 5000 inside slabs left about 10 chunks for 12 workers, doubling the time (254 s against 131 s). The second review's R2 is answered by slabs. The alternative is `chunk_n_max=5000`.
 
 - **D94 (provisional, 2026-10-19):** after irispy #256 places dust by the bad-pixel table in a file's pixels, 'IRIS: remove dust' refuses a rebinned or regridded slit-jaw image up front (#327), rather than failing after its background run. The alternative is to offer it and show irispy's error afterwards.
 
@@ -172,7 +172,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
-- WP6: `wp6-fit-memory`
 
 **M4**
 - WP0: `wp0-upstream-review`, `wp0-qt-fitter-settings`, `wp0-irispy-requests`, `wp0-core-image-artist-bugs`, `wp0-core-wcslink-lists`, `wp0-qt-large-data-cancel`, `wp0-astropy-19174`, `wp0-stack-validation`, `wp0-user-review`, `wp0-own-draft-updates`, `wp0-core-quantity-saver`, `wp0-core-derived-units`, `wp0-qt-aggregate-slice`, `wp0-core-datetime-export`, `wp0-core-session-reports`, `wp0-report-candidates`, `wp0-perf-core-draw`, `wp0-astropy-wcsaxes-bugs`, `wp0-perf-core-links`, `wp0-perf-core-stats-io`, `wp0-perf-qt`, `wp0-perf-astropy-irispy`, `wp0-wcslib-tab-inverse`, `wp0-qt-run-script`
@@ -296,10 +295,6 @@ The line list, rest wavelength, km/s, blink and Doppler images, in `glue_solar/l
 ### WP6: Fitting
 
 Map fitting of IRIS spectra on glue's Profile Fit tab, planned with the user when it starts.
-
-**L**
-
-- [ ] **L** `wp6-fit-memory` (the second review's R1, R2; user, 2026-10-19): 'Fit every spectrum' fits a slab of raster steps at a time, as line moments do, with larger dask chunks, so a window's transient memory stays bounded (a Si IV window took 8.8 GB in all; a full Mg II window would take 15-20 GB). Done when that window's peak memory falls and its maps are unchanged.
 
 Notes:
 - irispy main has starting models for `parallel_fit_dask` (`irispy.utils.fitting`: `profiles_on_background`, `si_iv_1403_model`, `mg_ii_model`, #220) and `maps_from_fit` (#221); the fit items and #167 wrap them rather than writing their own. Models need analytic derivatives.
