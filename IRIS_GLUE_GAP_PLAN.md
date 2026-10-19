@@ -151,6 +151,8 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D92:** User (2026-10-19): irispy main has settled after the pre-beta PRs (its history was rewritten, main now 495f39d, so earlier SHAs such as 540e9e5 and fe59e7a are on no branch): glue-solar tracks irispy's git main again (D47), the follow-irispy PR unpinning it; D91's pin returns only while irispy changes in batches.
 
+- **D93 (provisional, 2026-10-19):** `wp6-fit-memory` keeps astropy's default `chunk_n_max` (500): slabs alone cut a Si IV window's pickled data from 28.8 to 3.1 GiB, and 5000 inside slabs left about 10 chunks for 12 workers, doubling the time (254 s against 131 s). The second review's R2 is answered by slabs. The alternative is `chunk_n_max=5000`.
+
 ## Milestones
 
 A milestone is done when it has no items left. M0, M2 (analysis, display and export) and M3 (specialist) are done.
