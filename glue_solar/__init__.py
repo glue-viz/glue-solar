@@ -215,7 +215,7 @@ def setup():
             save += [tool_id for tool_id in ("save:python", tool.tool_id) if tool_id not in save]
     for menu, entries in menus.items():
         ImageViewer.subtools[menu.tool_id] = [tool.tool_id for tool in entries]
-    for tool in (lines.LineTool, lines.VelocityTool):
+    for tool in (lines.LineTool, lines.LinesInRangeTool, lines.VelocityTool):
         if tool.tool_id not in ProfileViewer.tools:
             ProfileViewer.tools.append(tool.tool_id)
     # right after glue's Home, Pan and Zoom, as on Image viewers: a quicklook's narrow spectrum panels show it

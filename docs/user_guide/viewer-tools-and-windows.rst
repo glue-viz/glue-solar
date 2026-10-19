@@ -118,6 +118,11 @@ Profile viewer
      - What it does
    * - "IRIS lines"
      - Mark the main IRIS lines in the plotted wavelength range.
+   * - "Lines in this range…"
+     - List the lines of irispy's line catalog in the Fit or Collapse range, else in the plotted
+       range, strongest first for the quiet Sun, an active region or a flare at coronal or
+       photospheric abundances, and those with no predicted strength last. Clicking one marks it
+       beside the main lines.
    * - "Velocity axis"
      - Add a top axis of :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>` from the
        window's rest wavelength.

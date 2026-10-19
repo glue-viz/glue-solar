@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <!-- Lines in this range: a profile with two marked lines, and the list of them -->
+  <path d="M10,4 V44 M24,4 V44" stroke="#808080" stroke-width="2"/>
+  <path d="M3,40 C7,40 8,14 10,14 C12,14 13,40 17,40 C21,40 22,26 24,26 C26,26 27,40 31,40" fill="none" stroke="#1f86c8" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M33,10 H45 M33,20 H45 M33,30 H41" stroke="#d9472f" stroke-width="4" stroke-linecap="round"/>
+</svg>

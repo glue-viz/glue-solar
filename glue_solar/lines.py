@@ -22,13 +22,22 @@ from matplotlib.lines import Line2D
 from matplotlib.text import Text
 from matplotlib.transforms import blended_transform_factory
 from qtpy import QtWidgets
+from qtpy.QtCore import Qt
 
 import astropy.units as u
 
 from glue_solar.glue_patches import layer_action
 from glue_solar.quicklook import _spectral_axes, _wavelengths, _window
 
-__all__ = ["DopplerConverter", "LineTool", "VelocityTool", "main_lines", "rest_wavelength", "rest_wavelength_iris"]
+__all__ = [
+    "DopplerConverter",
+    "LineTool",
+    "LinesInRangeTool",
+    "VelocityTool",
+    "main_lines",
+    "rest_wavelength",
+    "rest_wavelength_iris",
+]
 
 _NAMES = {2796.352: "Mg II k", 2803.53: "Mg II h"}  # irispy names both "Mg II"
 
@@ -63,7 +72,8 @@ def _check(tool):
 class LineTool(Tool):
     """
     Label the main IRIS lines (`main_lines`) on a Profile viewer whose x axis is the wavelength of IRIS data: a thin
-    marker at each line within the plotted range and its name at the top, in the axis's display unit. Lines too close
+    marker at each line within the plotted range and its name at the top, in the axis's display unit, with the lines
+    'Lines in this range…' labels (`labeled`). Lines too close
     to tell apart at the plotted range share one label; a label that would overlap another goes below it. The button,
     checked while they show, switches them off and on; they start on.
     """
@@ -77,6 +87,7 @@ class LineTool(Tool):
         super().__init__(viewer)
         self.shown = True
         self.artists = []
+        self.labeled = []  # (name, wavelength in Angstrom) of lines picked in 'Lines in this range…'
         for prop in ("reference_data", "x_att", "x_display_unit", "x_min", "x_max"):
             viewer.state.add_callback(prop, self.refresh)
         self._resized = viewer.figure.canvas.mpl_connect("resize_event", self.refresh)  # the labels' overlaps change
@@ -97,19 +108,15 @@ class LineTool(Tool):
     def positions(self):
         """Each label and its x, within the plotted range, or none where the x axis is not an IRIS wavelength."""
         state = self.viewer.state
-        data = state.reference_data
-        axes = _spectral_axes(data) if data is not None and data.coords is not None else set()
-        if not self.shown or len(axes) != 1 or None in (state.x_min, state.x_max):
+        if not self.shown or not _shows_wavelength(state) or None in (state.x_min, state.x_max):
             return []
-        [axis] = axes
-        if state.x_att is not data.world_component_ids[axis]:
-            return []
+        data, lines = state.reference_data, [*main_lines(), *self.labeled]
         native = u.Unit(data.get_component(state.x_att).units or "Angstrom")
-        waves = (np.array([wave for _, wave in main_lines()]) * u.AA).to_value(native)
+        waves = (np.array([wave for _, wave in lines]) * u.AA).to_value(native)
         x = np.asarray(UnitConverter().to_unit(data, state.x_att, waves, state.x_display_unit), float)
         low, high = sorted((state.x_min, state.x_max))
         labels = []
-        for (name, _), at in sorted(zip(main_lines(), x), key=lambda pair: pair[1]):
+        for (name, _), at in sorted(zip(lines, x), key=lambda pair: pair[1]):
             if low <= at <= high:
                 if labels and at - labels[-1][1][-1] < MERGE * (high - low):
                     if name not in labels[-1][0]:
@@ -141,6 +148,76 @@ class LineTool(Tool):
                 box = text.get_window_extent()
             boxes.append(box)
         self.viewer.figure.canvas.draw_idle()
+
+
+def _shows_wavelength(state):
+    """Whether a Profile viewer plots against the one wavelength axis of its reference data."""
+    data = state.reference_data
+    axes = _spectral_axes(data) if data is not None and data.coords is not None else set()
+    return len(axes) == 1 and state.x_att is data.world_component_ids[next(iter(axes))]
+
+
+_REGIONS = {"Quiet Sun": "quiet_sun", "Active region": "active_region", "Flare": "flare"}
+
+
+@viewer_tool
+class LinesInRangeTool(Tool):
+    """
+    List the lines of irispy's catalog within a Profile viewer's Fit and Collapse range, else its plotted range,
+    strongest first in a region type's model at coronal or photospheric abundances, lines it predicts no strength for
+    after (D44, D97); a click labels one beside the main lines (`LineTool.labeled`).
+    """
+
+    icon = _icon("solar_lines_in_range")
+    tool_id = "solar:lines_in_range"
+    action_text = "Lines in this range…"
+    tool_tip = "List the IRIS lines in the Fit range, else in the plotted range, strongest first"
+
+    @messagebox_on_error("Could not list the lines")
+    def activate(self):
+        from irispy.utils.lines import get_lines
+
+        state = self.viewer.state
+        if not _shows_wavelength(state):
+            raise ValueError("Plot IRIS data against its wavelength first")
+        mode = self.viewer.toolbar.tools["profile-analysis"]._profile_tools.rng_mode
+        ends = mode.state.x_range if mode.active and None not in mode.state.x_range else (state.x_min, state.x_max)
+        data = state.reference_data
+        native = u.Unit(data.get_component(state.x_att).units or "Angstrom")
+        ends = UnitConverter().to_native(data, state.x_att, np.array(ends, float), state.x_display_unit) * native
+        low, high = sorted(ends.to_value(u.AA))
+        self.dialog = dialog = QtWidgets.QDialog(self.viewer, windowTitle=f"IRIS lines in {low:.2f}–{high:.2f} Å")
+        region, abundance, listing = QtWidgets.QComboBox(), QtWidgets.QComboBox(), QtWidgets.QListWidget()
+        region.addItems(_REGIONS)
+        abundance.addItems(["Coronal", "Photospheric"])
+        layout = QtWidgets.QFormLayout(dialog)
+        layout.addRow("Strongest in", region)
+        layout.addRow("Abundances", abundance)
+        layout.addRow(listing)
+
+        def fill(*_):
+            model = _REGIONS[region.currentText()], abundance.currentText().lower()
+            lines = get_lines([low, high] * u.AA, region=model[0], abundance=model[1], minimum_strength=0)
+            listing.clear()
+            strengths = np.asarray(lines["intensity_{}_{}".format(*model)], float)
+            for ion, wave, strength in zip(lines["ion"], lines["wavelength"].to_value(u.AA).tolist(), strengths):
+                item = QtWidgets.QListWidgetItem(f"{ion} {wave:.3f} Å" + (f", {strength:.2g}" if strength >= 0 else ""))
+                item.setData(Qt.UserRole, (str(ion), wave))
+                listing.addItem(item)
+
+        def label(item):
+            lines = self.viewer.toolbar.tools[LineTool.tool_id]
+            if item.data(Qt.UserRole)[1] not in [wave for _, wave in [*main_lines(), *lines.labeled]]:
+                lines.labeled.append(item.data(Qt.UserRole))
+            lines.shown = True
+            lines.refresh()
+            _check(lines)
+
+        region.currentTextChanged.connect(fill)
+        abundance.currentTextChanged.connect(fill)
+        listing.itemClicked.connect(label)
+        fill()
+        dialog.show()
 
 
 def _within(data):
