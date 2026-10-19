@@ -228,6 +228,7 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
   - with glue #2595, raster pixel ROIs in an SJI take #2595's frame-0 WCSLink instead of `link_hpc`'s per-frame path; amend #2595 or document it.
   - glue-qt's data collection sets the edit subset from its selection, so a selected dataset makes the next Pixel click a new subset (#288).
   - glue-qt gives a fitter's `summarize` neither the layer nor the viewer (#291).
+  - irispy's `read_sji_lvl2` names a file it refuses 'filename' when given bytes or an HDUList (`_check_level2(hdulist.filename() or "filename", …)`, irispy #244), which is how glue-solar passes a .fits.gz: 'filename is not an IRIS level 2 SJI file' (an irispy draft on the user's direction).
   - irispy's `maps_from_fit` flags a parameter as at a bound within 1e-8 of the map's largest absolute value, so a few runaway fits (amplitudes near 1e10 on a flare raster) mark most amplitudes up to about 100 DN as at their 0 bound (#313' review; an irispy draft on the user's direction).
   - astropy's analytic Jacobian (`fitting.py` `_wrap_deriv`) drops a tied parameter's part, so tied fits need an estimated one (#291).
   - astropy's `fitter_to_model_params_array` computes each tie from the parameters before any tie (the `Model.parameters` setter copies the array), so a tie to a tied parameter reads its stale start; the IRIS fitter follows each tie to its chain's root (#314).
