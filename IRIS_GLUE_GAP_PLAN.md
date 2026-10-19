@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 89edf76 (#321). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
+**Resume here.** Main is at defda7a (#324). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release (astropy 8.0.2 recorded); Later items are under way. No PR is open.
 
 **Next.** 2026-10-17/18 (D85-D87): #306-#314 are on main (the full CI matrix again, saturated samples shown at their value, Stokes scaled with their noise, sessions at their values' size, per-wcslib-call locking, the review's lean pass, the coordinator forgetting removed data, 'IRIS: line fit maps' and the Fit tab's model builder). Every open item now waits on the user, on others or on a release: once the user merges irispy draft #241, glue-solar's `fit_maps._starts` gives way to `starts_from_model` (one small PR); then M4 work on the user's direction. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow the session archive's `RULES.md`. CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small (#313's stack test fits one iteration).
 
@@ -164,7 +164,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP0: `wp0-release-tracking`
 
 **Later**
-- WP0: `wp0-qt68-macos-pass`, `wp0-pin-irispy`
+- WP0: `wp0-qt68-macos-pass`
 - WP5: `wp5-l-line-groups`, `wp5-l-lines-in-range`, `wp5-irispy-line-database`
 - WP9: `wp9-guide-screenshot`
 - WP10: `wp10-follow-irispy-prebeta`
@@ -308,7 +308,6 @@ Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides a
 
 **L**
 
-- [ ] **L** `wp0-pin-irispy` (D91): pin irispy main at 540e9e5 in pyproject, so irispy merges stop reaching CI before glue-solar follows. Done when CI is green on main.
 - [ ] **L** `wp10-follow-irispy-prebeta` (D47): glue-solar moves its irispy pin (D91) to fe59e7a (the user's pre-beta review PRs #243-#246, 2026-10-19: files that are not IRIS level 2 by `INSTRUME` and `DATA_LEV` refused, tarballs extracted into irispy's cache, cube and slicing fixes, the SJI exposure correction, analysis helper fixes), which turned main's CI red: synthetic fixtures carry level 2 headers, and glue-solar's code and tests follow the behavior changes. Done when the full suite passes on irispy fe59e7a in both envs and CI is green.
 - [ ] **L** `wp9-guide-screenshot` (D90, P12): a current screenshot atop the quicklook guide, and the guides' other screenshots regenerated (`docs/make_screenshots.py`), after the polish items. Done when the guide's images show the current quicklook. Depends: wp11-polish-labels, wp11-polish-icons.
 
