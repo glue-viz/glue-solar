@@ -28,9 +28,9 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at aa27724 (#329). glue-solar runs on irispy main 30464e2, unpinned (D92; #329's CI passed on it). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
+**Resume here.** Main is at 95c42c2 (#330). glue-solar runs on irispy main 30464e2, unpinned (D92; #329's CI passed on it). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
 
-**Next.** In flight: `wp5-irispy-line-database` (lines.py reads irispy's catalog) and, stacked on it, `wp5-l-lines-in-range` (D96). Both were built and checked inline on Opus with no Fable review, as Fable's weekly limit ran out on 2026-10-19: give them a Fable review when it is back. Then what is left is the user's (below), upstream (`wp0-upstream`, from UPSTREAM_REVIEW.md, D89) or waiting on others. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
+**Next.** In flight: #330 (lines.py reads irispy's catalog) and, stacked on it, `wp5-l-lines-in-range` (D96). Both were built and checked inline on Opus with no Fable review, as Fable's weekly limit ran out on 2026-10-19: give them a Fable review when it is back. Then what is left is the user's (below), upstream (`wp0-upstream`, from UPSTREAM_REVIEW.md, D89) or waiting on others. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
 **Waiting on the user.** (1) Trying the fitting in the GUI ('Fit every spectrum', the model builder; OBS 3610108077's C II and Si IV windows, the flare 3860258481 for saturation) and the builder's later options (presets, ties to any line, an editable degree; D88). (2) `wp0-qt68-macos-pass`. (3) The app's drag-into-/Applications check: `~/Downloads/Glue Solar.dmg` is fresh, built 2026-10-19 from main cbe1196 with irispy 495f39d (env `glue-solar-app-495f`), smoke-checked headless and through `open`. (4) An exact report of the linking and slider-sync problems seen in the app on 2026-10-09 (4000255147's raster and SJI 1400, or 4000005156's two scans and SJI 2796), rerun with `glue` from `iris-plan-qt6-802-fb08`. Then UPSTREAM_REVIEW.md (`wp0-upstream`, D89).
 
@@ -90,7 +90,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 - **D41:** Spectral blink: A is what the viewer shows; 'Set blink partner here' (Coordinate menu) stores the current full slider position (dataset and every slice) as B, so two frames blink the same way and #166's temporal blink reuses it; a 'Blink' toggle runs it every 0.25, 0.5, 1 or 2 s (default 0.5 s), leaving Pixel mode, the point, the other sliders and time sync as they are.
 - **D42:** Several windows (#125): the quicklook shows the browser's ticked windows (`quicklook`'s `window` takes a list): the main window (D60) with the full panels, and each other window of the same file or stack (`_same_file`: one observation, the same shape but wavelength, the same DATE_OBS and raster files) with a spectrum panel and, on a sit-and-stare raster or a stack (not a single scanning raster), a λ–time or λ–scan panel, in rows of four below; the Plugins entry and the command line open one window. Each other window's scan, step or exposure and slit pixels are linked to the shown window's with `LinkSame`, skipping linked pairs (D8's one exception), and the coordinator moves a file's windows as one cube: with the point, with each other, by a Pixel click on any of their panels, and by time sync when there is no point. The Point window lists the shown window and the slit-jaw images only.
 - **D43:** Default stretches on quicklook panels (#133): slit-jaw 1330 and 1400 log, 2796 sqrt, 2832 linear; raster windows by band: FUV (TWAVE < 2000 Å) log, Mg II k and h (within 10 Å of 2800 Å) sqrt, other NUV linear; color limits stay 99.5%; glue's layer controls change either.
-- **D44:** (Amended by D96.) Line list: the main lines ship as a small glue-solar table at NIST ASD vacuum wavelengths (#134), each with a toggle, on the quicklook's spectrum panels and any Profile viewer of IRIS data; a larger database goes to irispy (`wp5-irispy-line-database`); line groups (dropped, D96) and 'lines in this range' (`wp5-l-lines-in-range`) are lower priority.
+- **D44:** (Amended by D96.) Line list: the main lines ship as a small glue-solar table at NIST ASD vacuum wavelengths (#134), each with a toggle, on the quicklook's spectrum panels and any Profile viewer of IRIS data; a larger database goes to irispy (#330); line groups (dropped, D96) and 'lines in this range' (`wp5-l-lines-in-range`) are lower priority.
 - **D45:** The line moments dialog requires the line center and a range (in km/s, D57), so its blocking and memory limits hold; the continuum is optional (D48).
 - **D46:** Line moments (#136) take raster windows and stacks (each scan at its own coordinates, #180) and refuse other data with a message. The map `<label> moments <center>` has meta OBSID, STARTOBS, `moments_center` and `moments_velocity_range`, never INSTRUME or `Time`, so it groups with its observation but stays out of time sync. `calculate_moments` runs on glue-qt's `Worker` on the range's wavelengths only, at most 2**21 samples a call; a pixel missing throughout the range is NaN in every map, other missing and negative samples count as irispy's 0; the status bar shows the run.
 - **D47:** The git repositories are the versions that count: glue-solar depends on irispy's git main (Python ≥ 3.13 since irispy #208) and calls its API directly, with no probe for what main has; PyPI releases of glue-solar and irispy wait until the changes settle and the upstream fixes are in (M4).
@@ -157,7 +157,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D95:** User (2026-10-19): #329 drops the loader's gzip step, accepting a higher transient peak while a gzipped SJI opens (about 3x its inflated size, from 2x: astropy copies the array out of its in-memory buffer; steady memory and speed unchanged). The lasting cure is astropy's `_array_from_file` viewing a `BytesIO` (a fork branch, `wp0-upstream`). A gzipped raster is inflated twice, before and after #329 (WP10 notes).
 
-- **D96:** User (2026-10-19), after irispy #261: glue-solar's main lines are irispy's documented ones (`get_lines(main_only=True)`, 25 lines), Mg II k and h named by glue-solar, and a window of several lines takes its own ion's line nearest its name (`wp5-irispy-line-database`). Line groups by irispy's categories are dropped: ranked, a group adds 0-6 lines beyond the main ones in a window; unranked, coronal, transition region and cool metal put 150-550 lines in each. 'Lines in this range…' (`wp5-l-lines-in-range`) replaces them: irispy's ranked query for the quiet Sun, an active region or a flare at coronal abundances (irispy has no sunspot model); a click labels a line (PROVISIONAL: coronal abundances only; the alternative is an abundance choice).
+- **D96:** User (2026-10-19), after irispy #261: glue-solar's main lines are irispy's documented ones (`get_lines(main_only=True)`, 25 lines), Mg II k and h named by glue-solar, and a window of several lines takes its own ion's line nearest its name (#330). Line groups by irispy's categories are dropped: ranked, a group adds 0-6 lines beyond the main ones in a window; unranked, coronal, transition region and cool metal put 150-550 lines in each. 'Lines in this range…' (`wp5-l-lines-in-range`) replaces them: irispy's ranked query for the quiet Sun, an active region or a flare at coronal abundances (irispy has no sunspot model); a click labels a line (PROVISIONAL: coronal abundances only; the alternative is an abundance choice).
 
 ## Milestones
 
@@ -175,7 +175,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
-- WP5: `wp5-l-lines-in-range`, `wp5-irispy-line-database`
+- WP5: `wp5-l-lines-in-range`
 
 **M4**
 - WP0: `wp0-upstream`, `wp0-irispy-requests`, `wp0-stack-validation`, `wp0-user-review`, `wp0-wcslib-tab-inverse`
@@ -244,8 +244,7 @@ The line list, rest wavelength, km/s, blink and Doppler images, in `glue_solar/l
 
 **L**
 
-- [ ] **L** `wp5-l-lines-in-range`: 'Lines in this range…' on a Profile range selection or the visible range lists the lines there, strongest first for a chosen region type (quiet Sun, active region, flare, sunspot), unpredicted ones after; a click labels one (D44). irispy has no sunspot model, so the region types are its three (D96). Done when a Si IV 1403 range lists Si IV 1402.77 first for the quiet Sun. Depends: wp5-irispy-line-database.
-- [ ] **L** `wp5-irispy-line-database` (D96): glue-solar's `lines.py` reads irispy #261's catalog (on irispy main since 2026-10-19) for its main lines and rest wavelengths. Done when it is on main.
+- [ ] **L** `wp5-l-lines-in-range`: 'Lines in this range…' on a Profile range selection or the visible range lists the lines there, strongest first for a chosen region type (quiet Sun, active region, flare, sunspot), unpredicted ones after; a click labels one (D44). irispy has no sunspot model, so the region types are its three (D96). Done when a Si IV 1403 range lists Si IV 1402.77 first for the quiet Sun.
 
 ### WP6: Fitting
 
