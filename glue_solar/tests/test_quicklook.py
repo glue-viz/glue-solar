@@ -271,6 +271,7 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
     submenus = {action.text(): action.menu() for action in button.menu().actions() if action.menu() is not None}
     assert [action.text() for action in submenus["Point"].actions()] == [
         "Clear point",
+        "Link points across cubes",
         POINT_CURVES,
         "Row at the point",
         "Column at the point",

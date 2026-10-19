@@ -1662,7 +1662,9 @@ class _LinkPointsEntry(_CoordinateEntry):
         coordinator.link_points = not coordinator.link_points
 
     def offered(self):
-        return _role(self.viewer.state.reference_data) not in _IRIS_ROLES
+        # on a quicklook panel of a cube that is not IRIS data, the points it links
+        owned = any(self.viewer in viewers for viewers in self.menu.coordinator._owners.values())
+        return owned and _role(self.viewer.state.reference_data) not in _IRIS_ROLES
 
 
 class _PointCurvesEntry(_CoordinateEntry):
