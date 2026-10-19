@@ -69,6 +69,7 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 from glue_solar.glue_patches import _takes
 from glue_solar.lines import KM_S, _icon, rest_wavelength
 from glue_solar.quicklook import (
+    QuicklookImageViewer,
     _across,
     _check_cut,
     _curve_sources,
@@ -271,10 +272,10 @@ def _shown_slice(state):
     return tuple(slice(None) if i in shown else getattr(s, "slice", s) for i, s in enumerate(state.slices))
 
 
-def _frame_time(data, view, decimals=3):
+def _frame_time(data, view, decimals=3, clock=False):
     """
     The time of ``view``, a `_shown_slice`, of ``data`` from its first datetime component, in UTC to ``decimals`` of a
-    second, or the first and last of several; '' without one.
+    second, or with ``clock`` its time of day to the second (D90), or the first and last of several; '' without one.
     """
     cid = None if view is None else _time_component(data)
     if cid is None:
@@ -283,6 +284,9 @@ def _frame_time(data, view, decimals=3):
     times = times[~np.isnat(times)]  # NaT: a gap of data regridded on time
     if times.size == 0:  # a Collapse range narrower than one sample, or a gap
         return ""
+    if clock:
+        first, last = (np.datetime_as_string(t, unit="s")[11:] for t in (times.min(), times.max()))
+        return first if first == last else f"{first} – {last}"
     # 'YYYY-MM-DDThh:mm:ss.' and the decimals
     first, last = (np.datetime_as_string(t, unit="ms")[: 20 + decimals] for t in (times.min(), times.max()))
     return f"{first} UTC" if first == last else f"{first} – {last} UTC"
@@ -380,26 +384,31 @@ class FrameTimeTool(Tool, HubListener):
 
     def _label_exposures(self, *_):
         """
-        Hide the tick labels of a flat angle, and label a displayed sit-and-stare exposure axis and give it
-        exposure ticks (see the class).
+        Hide the tick labels of a flat angle, label a displayed sit-and-stare exposure axis and give it exposure ticks,
+        and on a quicklook panel give glue's other axis labels their units (D90; see the class).
         """
         state = self.viewer.state
         data = state.reference_data
         axes, shown = self.viewer.axes, (state.x_att, state.y_att)
-        if data is not None and None not in shown and axes.coords is not self._flat_checked:  # glue reset the axes
+        if data is None or None in shown:
+            return
+        if axes.coords is not self._flat_checked:  # glue reset the axes
             self._flat_checked = axes.coords
             _hide_flat_angles(axes, [data.shape[att.axis] for att in shown])
-        if not _sit_and_stare_raster(data):
-            return
+        sit_and_stare, panel = _sit_and_stare_raster(data), isinstance(self.viewer, QuicklookImageViewer)
         for index, axis in enumerate("xy"):
             att, world = getattr(state, f"{axis}_att"), getattr(state, f"{axis}_att_world")
             other = getattr(state, f"{'yx'[index]}_att")
-            if att is None or other is None or att.axis != 0:
-                continue
+            exposures = sit_and_stare and att.axis == 0
             label = getattr(state, f"{axis}_axislabel")
             if label in ("", getattr(world, "label", None)):  # glue's reset
-                setattr(state, f"{axis}_axislabel", _exposure_label(data))  # which calls this again
-                return
+                unit = panel and world is not None and data.get_component(world).units
+                new = _exposure_label(data) if exposures else f"{world.label} [{unit}]" if unit else label
+                if new != label:
+                    setattr(state, f"{axis}_axislabel", new)  # which calls this again
+                    return
+            if not exposures:
+                continue
             coords, ticks = self._exposure_ticks
             if coords is not axes.coords:  # glue reset the axes, and the ticks with them
                 # glue's own mapping of a pixel axis to its world coordinate, as in its tick label sizes
@@ -435,7 +444,7 @@ class FrameTimeTool(Tool, HubListener):
             self.viewer.figure.canvas.draw_idle()
         self.label.setStyleSheet("color: gray" if unmatched else "")
         view = _shown_slice(state)
-        text = _frame_time(data, view)
+        text = _frame_time(data, view, clock=True)  # short, as a narrow quicklook panel shows it (D90)
         if not text:
             self.label.setText("")
             return
@@ -454,7 +463,7 @@ class FrameTimeTool(Tool, HubListener):
         if status is not None:
             text += f" · {_sync_text(status)}"
         self.label.setText(text)
-        self.label.setToolTip(_pointing(data.meta, view[0]))
+        self.label.setToolTip("\n".join(filter(None, (_frame_time(data, view), _pointing(data.meta, view[0])))))
 
 
 def _pointing(meta, frame):
@@ -871,7 +880,7 @@ class RasterOverlaysTool(Tool):
 
     tool_id = "solar:raster_overlays"
     action_text = "Raster overlays"
-    tool_tip = "Show or hide each raster step's slit on the slit-jaw images and the step at the master's time on maps"
+    tool_tip = "Show or hide each raster step's slit on the slit-jaw images and the step at the synced time on maps"
 
     @property
     def checked(self):
@@ -1619,8 +1628,8 @@ class _CoordinateEntry(Tool):
 
 class _TimeMasterEntry(_CoordinateEntry):
     tool_id = "solar:time_master"
-    action_text = "Time master"
-    tool_tip = "Make the displayed dataset the time master of its observation"
+    action_text = "Lead the time"
+    tool_tip = "Make the other datasets of this observation follow this one's time"
 
     def run(self, coordinator):
         coordinator.set_master(self.viewer.state.reference_data)
@@ -1692,7 +1701,7 @@ class _GoToUTCEntry(_CoordinateEntry):
 
     tool_id = "solar:go_to_utc"
     action_text = "Go to UTC…"
-    tool_tip = "Move the time master to its frame, exposure, step or scan nearest a UTC time"
+    tool_tip = "Move the dataset that leads the time to its frame, exposure, step or scan nearest a UTC time"
 
     def _master(self):
         data = self.viewer.state.reference_data
@@ -1856,7 +1865,7 @@ class SaveSequenceTool(Tool):
 
     icon = "glue_filesave"
     tool_id = "solar:save_sequence"
-    action_text = "IRIS: save frames or movie…"
+    action_text = "Save frames or movie…"
     tool_tip = "Save the image at each index of a slider as PNG files or a movie"
 
     @messagebox_on_error("Could not save the frames or movie")
@@ -2088,7 +2097,7 @@ class SaveProfileTool(Tool):
 
     icon = "glue_filesave"
     tool_id = "solar:save_profile"
-    action_text = "IRIS: save profiles as ECSV…"
+    action_text = "Save profiles as ECSV…"
     tool_tip = "Save the visible profiles, as drawn, to an ECSV table"
 
     @messagebox_on_error("Could not save the profiles")

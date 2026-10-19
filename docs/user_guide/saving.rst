@@ -17,8 +17,8 @@ relative to it. Datasets made from them, such as line maps, are saved with their
 copy of each (see `Exporting derived data`_).
 
 A session keeps the datasets' coordinates, pointing shifts, colormaps, metadata and links, and the
-viewers' slices, colormaps and Profile axes. Each quicklook opens again with its point, time master,
-panel settings and panels turned off. A quicklook's raster overlays, panels moved by hand, a blink and
+viewers' slices, colormaps and Profile axes. Each quicklook opens again with its point, the dataset
+leading the time, panel settings and panels turned off. A quicklook's raster overlays, panels moved by hand, a blink and
 the viewers' mouse modes are not saved. For sessions that fail to save or open, see :ref:`Known issues
 <glue_solar_users_guide_known_issues>`.
 
@@ -26,7 +26,7 @@ Restoring the last session
 --------------------------
 
 As glue quits with data loaded, glue-solar keeps the session, with absolute paths to the files, in
-``~/.glue/glue-solar-last-session.glu``. "IRIS: restore last session" in the "Plugins" menu opens it
+``~/.glue/glue-solar-last-session.glu``. "Restore last session" in the "Plugins" menu opens it
 as File → Open Session does.
 
 A session over 1 MB, such as one holding line maps, or one glue cannot save, is not kept: a message
@@ -37,7 +37,7 @@ says why as glue quits, and the session kept before stays.
 Frames and movies
 -----------------
 
-1. In an Image viewer, choose "IRIS: save frames or movie…" in the save menu, the disk icon.
+1. In an Image viewer, choose "Save frames or movie…" in the save menu, the disk icon.
 2. With several sliders, pick one: the data's first axis, such as a slit-jaw image's frames, comes
    first.
 3. Type the first and last index, such as ``100 120``, or ``±10`` around the current one.
@@ -58,7 +58,7 @@ the frames saved so far.
 Profiles
 --------
 
-"IRIS: save profiles as ECSV…", in a Profile viewer's save menu, writes the profiles of its visible
+"Save profiles as ECSV…", in a Profile viewer's save menu, writes the profiles of its visible
 layers, as drawn, to one ECSV table. Each layer gives columns named after its label, made a Python
 name: ``Si IV 1403`` gives ``Si_IV_1403``.
 

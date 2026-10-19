@@ -1,0 +1,1 @@
+Axis labels show their units, 'IRIS:' prefixes only entries for IRIS data, quicklook panels' status lines are short, and the time sync reads 'Lead the time' and 'leads time' instead of 'time master'.

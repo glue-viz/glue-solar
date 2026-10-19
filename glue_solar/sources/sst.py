@@ -337,6 +337,8 @@ def sst_data(path):
             wcs = wcs.sub([1, 2, 3, 5]) if stokes else wcs
         wcs.__class__ = _TabularWCS
         wcs.core = _line_core(wcs._grid[5], header.get("WAVELNTH"))
+        if wcs.wcs.cname[-1]:  # SSTRED's 'Time since DATEREF, increases with dim. 3 and 5', glue's slider and axis
+            wcs.wcs.cname[-1] = "Scan time"  # name; not 'Time', the datetime component's (D90)
         data = _Cube(label=Path(path).stem, coords=wcs)
         data.meta.update(header.items())
         component = Component(hdulist[0].data[stokes], units=header.get("BUNIT"))

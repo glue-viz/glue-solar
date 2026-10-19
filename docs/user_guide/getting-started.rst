@@ -6,7 +6,7 @@ Getting started
 
 Open an IRIS observation in a quicklook and take a first look at it.
 
-1. Start glue with ``glue`` and choose "IRIS: browse observations…" in the "Plugins" menu.
+1. Start glue with ``glue`` and choose "Browse observations…" in the "Plugins" menu.
 2. In "Folder", give the folder that holds your IRIS Level 2 files or their downloaded archives. The
    browser lists each observation it finds, one row per OBSID and start time. For a packed archive,
    tick its "Extract …" entry and press "Load selected" first.
@@ -28,7 +28,7 @@ window and the Panels list sit at the bottom.
    wavelength, and :kbd:`Space` to play.
 6. With several raster windows loaded, tick another in the Panels list to compare its spectrum at
    the same point.
-7. To save frames or a movie, choose "IRIS: save frames or movie…" in a panel's save menu, the disk
+7. To save frames or a movie, choose "Save frames or movie…" in a panel's save menu, the disk
    icon.
 
 From a terminal, ``glue --startup=iris_quicklook raster.fits sji.fits`` opens the same quicklook.

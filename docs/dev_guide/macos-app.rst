@@ -91,7 +91,7 @@ Installing
 ----------
 
 Open ``Glue Solar.dmg`` in the Finder, drag ``Glue Solar`` onto ``Applications`` and eject the disk image. Glue Solar
-then opens from the Applications folder or Launchpad, and **Plugins → IRIS: browse observations…** opens an
+then opens from the Applications folder or Launchpad, and **Plugins → Browse observations…** opens an
 observation's quicklook.
 
 A session (``.glu``) double-clicked in the Finder opens in Glue Solar; where glue's own app is installed too, **Open

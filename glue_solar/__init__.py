@@ -85,7 +85,7 @@ def _last_session():
     return os.path.join(glue.config.CFG_DIR, "glue-solar-last-session.glu")
 
 
-@messagebox_on_error("Could not keep this session for 'IRIS: restore last session'")  # the app has no terminal (206-7)
+@messagebox_on_error("Could not keep this session for 'Restore last session'")  # the app has no terminal (206-7)
 def _save_last_session(app):
     """
     Keep the session of ``app``, a shown glue application with data, as the last session, as glue's Export Session
@@ -131,7 +131,7 @@ def _init(self, *args, **kwargs):
 def _close_event(self, event):
     """
     glue-qt's ``GlueApplication.closeEvent``, keeping the session first, while its viewers are open, on quit only: the
-    window another session replaces (Open Session, Reset Session, 'IRIS: restore last session') has glue-qt's
+    window another session replaces (Open Session, Reset Session, 'Restore last session') has glue-qt's
     ``_new_application``, and keeping it would swap sessions at each restore (206-3).
     """
     if not hasattr(self, "_new_application"):
@@ -142,7 +142,7 @@ def _close_event(self, event):
     _glue_close_event(self, event)
 
 
-@menubar_plugin("IRIS: restore last session")
+@menubar_plugin("Restore last session")
 def restore_last_session(session, data_collection):
     """
     Open the session glue-solar kept as glue last quit with data, as File → Open Session opens one.
@@ -151,7 +151,7 @@ def restore_last_session(session, data_collection):
     if not os.path.exists(_last_session()):
         QtWidgets.QMessageBox.information(
             app,
-            "IRIS: restore last session",
+            "Restore last session",
             "No session kept yet: glue-solar keeps one as glue quits with data.",
         )
         return

@@ -121,7 +121,7 @@ def test_a_time_and_stokes_axes_add_their_panels(cube_app, qtbot, tmp_path):
     for role, x, y in (("map", 4, 3), ("slit", 2, 3), ("wavelength", 2, 0)):
         state = viewers[role].state
         assert (state.x_att, state.y_att, state.slices) == (pixel[x], pixel[y], (0, 0, 2, 6, 8))
-    assert viewers["curve"].state.x_att is pixel[0]
+    assert viewers["curve"].state.x_att is cube.world_component_ids[0]  # time, not an index (D90)
     label = "cube"
 
     def event(action):

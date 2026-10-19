@@ -1,5 +1,5 @@
 """
-'IRIS: line ratio diagnostic…', on line moments of irispy's test raster and on synthetic maps: what glue gets of
+'Line ratio diagnostic…', on line moments of irispy's test raster and on synthetic maps: what glue gets of
 irispy's map_ratio_to_quantity, and of its density_diagnostic on a stand-in for fiasco, which CI does not install.
 """
 
@@ -23,7 +23,7 @@ from glue_solar.sources.loaders.iris import keep_hpc_linked, link_hpc, raster_da
 from glue_solar.sources.moments import line_moments
 from glue_solar.tests.helpers import refused
 
-ACTION = "IRIS: line ratio diagnostic…"
+ACTION = "Line ratio diagnostic…"
 # A synthetic theoretical ratio, increasing with log10 n_e in cm^-3
 LOG_NE = np.linspace(9, 13, 41)
 CURVE = 0.15 + 0.3 / (1 + np.exp(4 * (11 - LOG_NE)))

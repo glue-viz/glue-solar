@@ -17,7 +17,7 @@ Move the point, or step in time or wavelength, and every panel follows.
 Opening a quicklook
 -------------------
 
-- In the observation browser ("Plugins → IRIS: browse observations…"), tick the observation or its
+- In the observation browser ("Plugins → Browse observations…"), tick the observation or its
   windows and press "Load selected". "Open quicklook" is ticked at first.
 - For data already loaded, choose "Quicklook…" in the right-click menu of a raster window, slit-jaw
   image or spectral cube in the data collection.
@@ -99,27 +99,29 @@ Press :kbd:`D` and :kbd:`F` to step a frame, exposure, step or scan back and on,
 :kbd:`S` to step the map's wavelength, and :kbd:`Space` to play the time. The keys act on the panel
 last clicked.
 
-The panels follow one time. The raster is the time master: each slit-jaw viewer shows the frame
-nearest the time of the point's exposure or step. Choose "Time master" in a slit-jaw viewer's
-Coordinate menu to make it the master; the raster then moves to the exposure or scan nearest each of
-its frames. An Image viewer of an aligned AIA cutout or SOT cube of the observation follows the time
-too, and can be the master.
+The panels follow one time. The raster leads the time: each slit-jaw viewer shows the frame nearest
+the time of the point's exposure or step. Choose "Lead the time" in a slit-jaw viewer's Coordinate
+menu to make it lead; the raster then follows, moving to the exposure or scan nearest each of its
+frames. An Image viewer of an aligned AIA cutout or SOT cube of the observation follows the time too,
+and can lead it.
 
-The "Frame time" line under each panel gives the time of the frame shown and its offset Δt from the
-master. A dataset with nothing within half its time step of the master's time keeps its frame, is
-grayed and says "NO MATCH".
+The "Frame time" line under each panel gives the time of day of the frame shown, such as
+``17:19:13`` (its tooltip gives the date and milliseconds), and "leads time" or the offset Δt from
+the leading dataset's time. A dataset with nothing within half its time step of that time keeps its
+frame, is grayed and says "NO MATCH". The panels show no mouse-mode hints.
 
-- **Go to a time.** "Go to UTC…" in the Coordinate menu moves the time master to its frame nearest a
-  typed time, such as ``2013-09-02T17:00:00``.
+- **Go to a time.** "Go to UTC…" in the Coordinate menu moves the dataset that leads the time to its
+  frame nearest a typed time, such as ``2013-09-02T17:00:00``.
 - **Loop a range.** "Loop…" in the Coordinate menu plays a range of the first slider, such as
   ``100 120`` or ``±10`` around the current index, every Nth index, or back and forth with "Bounce".
-  To play a slit-jaw viewer with the raster following, make it the time master first.
+  To play a slit-jaw viewer with the raster following, make it lead the time first.
 
 Lines mark the wavelength and the time. The wavelength panel has a dashed white line at the map's
-wavelength and a dotted one at the time master's time; the spectrum panel has a dashed gray line at
-the map's wavelength. "Raster overlays" in the View menu draws each raster step's slit on the slit-jaw
-images, and the time master's step on the maps. A zoom on the spectrum panel's wavelength axis
-gives the wavelength panel the same range.
+wavelength and a dotted one at the synced time; the spectrum panel has a dashed gray line at the
+map's wavelength. "Raster overlays" in the View menu draws each raster step's slit on the slit-jaw
+images, and the step at the synced time on the maps. A zoom on the spectrum panel's wavelength axis
+gives the wavelength panel the same range. Axis labels give their units, such as "Wavelength
+[Angstrom]", and the spectrum panel's y axis is "Data values" in the data's unit.
 
 Regions
 -------
@@ -144,9 +146,10 @@ The Coordinate menu's "Point" submenu plots the data through the point. Each plo
 - **"Row at the point"** and **"Column at the point"**, on any raster map: the map's row along x, or
   its column along the slit, through the point.
 
-A Scatter viewer with time on its x axis, such as those light curves, highlights the time master's
-exposure as the subset "Master exposure", and only there: on any other viewer its layer is removed at
-the next step, since it would be redrawn at each one.
+The light curves' y axis gives their units. A Scatter viewer with time on its x axis, such as those
+light curves, highlights the exposure of the dataset that leads the time as the subset "Current
+exposure", and only there: on any other viewer its layer is removed at the next step, since it would
+be redrawn at each one.
 
 Comparing windows
 -----------------
@@ -198,7 +201,7 @@ Keep the "x unit" at ``Angstrom``, the data's own, for Navigate and Collapse.
 
 **Doppler velocity.** With a :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`,
 the x unit lists ``km / s``: (λ / rest - 1) c, so Mg II k 2796.352 Å is at 0 km / s. "Velocity axis"
-adds a top axis in km / s while the x unit is a length. Both follow "IRIS: set rest wavelength…". A
+adds a top axis in km / s while the x unit is a length. Both follow "Set rest wavelength…". A
 window without one, such as ``2832``, has neither.
 
 **Rest wavelength from a measured line.** Level 2 wavelengths can be off by 5 to 10 km / s, and the
@@ -209,7 +212,7 @@ windows (C II, Si IV, O I), or Ni I 2799.474 Å in the Mg II k 2796 window for t
 2. On the "Fit" tab, pick "Gaussian + constant (IRIS)" and drag over the line: about 1355.4 to
    1355.8 Å for O I, or 2799.3 to 2799.65 Å for Ni I. Press "Fit".
 3. Add the offset, the fitted center less the line's rest wavelength, to the rest wavelength of a
-   line on the same detector, and set that with "IRIS: set rest wavelength…" on its window.
+   line on the same detector, and set that with "Set rest wavelength…" on its window.
 
 On OBSID 3824262996, O I fits at 1355.6172 Å (+4.30 km / s), so Si IV 1402.77 Å becomes
 1402.789 Å. A saturated sample is only a lower bound, so the fit leaves a sample out where all the
@@ -245,14 +248,14 @@ then fits the model to every spectrum of the window (see :ref:`Line fit maps
 spectrum panel to the difference to see the point's spectrum less the mean. As a map's attribute, it
 shows where each wavelength is brighter or fainter than the mean.
 
-"IRIS: save profiles as ECSV…" in the panel's save menu writes the profiles shown to a table (see
+"Save profiles as ECSV…" in the panel's save menu writes the profiles shown to a table (see
 :ref:`Saving the profiles <glue_solar_users_guide_iris_save_profiles>`).
 
 Sessions
 --------
 
-A saved session opens each quicklook again with its point, time master, panel settings and panels
-turned off, but not raster overlays, a blink or panels moved by hand. A light curve, row or column no
+A saved session opens each quicklook again with its point, the dataset leading the time, panel
+settings and panels turned off, but not raster overlays, a blink or panels moved by hand. A light curve, row or column no
 longer follows the point. See :ref:`Saving sessions <glue_solar_users_guide_saving_sessions>`.
 
 Other spectral cubes
@@ -299,10 +302,10 @@ For CRISPEX users
    * - Timeslice along a drawn loop
      - "Path diagram" (:kbd:`L`; see :ref:`Viewer tools <glue_solar_users_guide_viewer_tools_and_windows>`).
    * - Save as PNG or movie
-     - "IRIS: save frames or movie…" in a panel's save menu.
+     - "Save frames or movie…" in a panel's save menu.
    * - Photospheric context
      - Tick a photospheric window, 2832 or 2814, or slit-jaw 2832. Aligned AIA 1700 and 1600 cutouts
-       follow the time master as a slit-jaw viewer does.
+       follow the time as a slit-jaw viewer does.
 
 In glue's Terminal, the mean spectrum over scans 40 to 59 of a stack ``raster`` is::
 

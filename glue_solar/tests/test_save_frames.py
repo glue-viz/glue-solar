@@ -1,4 +1,4 @@
-"""'IRIS: save frames or movie…' on an Image viewer: each frame the image at its index, and how a save ends."""
+"""'Save frames or movie…' on an Image viewer: each frame the image at its index, and how a save ends."""
 
 import numpy as np
 import pytest
@@ -36,7 +36,7 @@ def save(monkeypatch, viewer, path, typed="0 4"):
     type_in_dialog(monkeypatch, typed)
     monkeypatch.setattr(QtWidgets.QFileDialog, "getSaveFileName", lambda *args: (str(path), ""))
     button = viewer.toolbar.widgetForAction(viewer.toolbar.actions["save"])
-    next(action for action in button.menu().actions() if action.text() == "IRIS: save frames or movie…").trigger()
+    next(action for action in button.menu().actions() if action.text() == "Save frames or movie…").trigger()
 
 
 def test_each_frame_is_the_image_at_its_index_just_after_a_resize(viewer, qtbot, monkeypatch, tmp_path):

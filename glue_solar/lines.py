@@ -11,6 +11,7 @@ import os
 import numpy as np
 from glue.config import viewer_tool
 from glue.core import Subset
+from glue.core.data import Data
 from glue.core.hub import HubListener
 from glue.core.message import DataUpdateMessage
 from glue.core.units import SimpleAstropyUnitConverter, UnitConverter
@@ -210,9 +211,10 @@ class VelocityTool(Tool, HubListener):
     """
     A top axis of the Doppler velocity, as the x unit 'km / s' gives it (`DopplerConverter`), on a Profile viewer
     whose x axis is the wavelength of data with a `rest_wavelength`, in a length unit. It follows the x range and unit
-    and glue's x label and tick sizes. 'IRIS: set rest wavelength…' moves it and, in every Profile viewer of the data,
+    and glue's x label and tick sizes. 'Set rest wavelength…' moves it and, in every Profile viewer of the data,
     offers 'km / s' or not and redraws the profiles in it. The button, checked while it is on and grayed without a rest
-    wavelength, switches the axis off and on; it starts off.
+    wavelength, switches the axis off and on; it starts off. It also gives glue's axes their units (`_label_x`,
+    `_unit_y`).
     """
 
     #: :meta hide-value:
@@ -222,6 +224,8 @@ class VelocityTool(Tool, HubListener):
     tool_tip = "Show or hide a top axis of the Doppler velocity from the rest wavelength"
 
     WATCHED = ("reference_data", "x_att", "x_display_unit", "x_axislabel_size", "x_ticklabel_size")
+    # after glue's own x label, which these reset
+    LABELED = ("reference_data", "x_att", "x_display_unit", "y_display_unit", "normalize")
 
     def __init__(self, viewer):
         super().__init__(viewer)
@@ -229,6 +233,12 @@ class VelocityTool(Tool, HubListener):
         self.axis = None
         for prop in self.WATCHED:
             viewer.state.add_callback(prop, self.refresh)
+        for prop in self.LABELED:
+            viewer.state.add_callback(prop, self._label_x)
+        self._shown = None  # the layers and attributes `_unit_y` last saw
+        viewer.state.add_callback("layers", self._unit_y)  # after glue's own y unit choices
+        self._label_x()
+        self._unit_y()
         self._hub = viewer.session.hub
         self._hub.subscribe(self, DataUpdateMessage, handler=self._rest_changed, filter=self._is_reference_meta)
         viewer.destroyed.connect(self._forget)  # also for a viewer torn down without closing its tools
@@ -242,10 +252,40 @@ class VelocityTool(Tool, HubListener):
         self._forget()
         for prop in self.WATCHED:
             self.viewer.state.remove_callback(prop, self.refresh)
+        for prop in self.LABELED:
+            self.viewer.state.remove_callback(prop, self._label_x)
+        self.viewer.state.remove_callback("layers", self._unit_y)
         super().close()
 
     def _forget(self, *_):
         self._hub.unsubscribe_all(self)
+
+    def _label_x(self, *_):
+        """glue's x label with its display unit, which glue leaves out, such as 'Wavelength [Angstrom]' (D90)."""
+        state = self.viewer.state
+        if state.x_att is not None and state.x_display_unit:
+            state.x_axislabel = f"{state.x_att.label} [{state.x_display_unit}]"
+
+    def _unit_y(self, *_):
+        """
+        The layers' one unit as the y display unit, so glue labels the axis 'Data values [DN / s]' (D90), as their data or
+        attributes change and while it is glue's 'Native units'; glue offers the units of its Data layers only.
+        """
+        if self.viewer is None:  # closed by an earlier callback of the same change, glue's layer-artist sync
+            return
+        state = self.viewer.state
+        shown = [(id(layer.layer), id(layer.attribute)) for layer in state.layers]  # as glue checks them
+        if shown == self._shown:
+            return
+        self._shown = shown
+        layers = [(layer.layer.data, layer.attribute) for layer in state.layers]
+        # glue's own data only, not a path diagram's
+        units = {data.get_component(att).units for data, att in layers if isinstance(data, Data) and att is not None}
+        units -= {"", None}
+        if state.y_display_unit is None and len(units) == 1:
+            [unit] = units
+            if unit in ProfileViewerState.y_display_unit.get_choices(state):
+                state.y_display_unit = unit
 
     def _is_reference_meta(self, message):
         return message.attribute == "meta" and message.sender is self.viewer.state.reference_data
@@ -308,7 +348,7 @@ def _check_wavelength(data):
 
 
 @layer_action(
-    "IRIS: set rest wavelength…",
+    "Set rest wavelength…",
     single=True,
     data=True,
     check=_check_wavelength,

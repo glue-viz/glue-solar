@@ -872,12 +872,12 @@ def test_the_dialog_starts_at_the_rest_wavelength(app, monkeypatch, irispy_test_
     assert opens(mg) == ("2796.352", "Mg II k, of the main IRIS lines")  # not the TWAVE, 2796.2
     assert opens(none) == ("", "")
     mg.meta["rest_wavelength"] = 2796.2
-    assert opens(mg) == ("2796.2", f"{mg.label}'s, set with 'IRIS: set rest wavelength…'")
+    assert opens(mg) == ("2796.2", f"{mg.label}'s, set with 'Set rest wavelength…'")
 
 
 def test_set_rest_wavelength(app, monkeypatch, irispy_test_files):
     """
-    'IRIS: set rest wavelength…' lists the main lines within the window, takes one or a typed wavelength, or a blank.
+    'Set rest wavelength…' lists the main lines within the window, takes one or a typed wavelength, or a blank.
     """
     [mg] = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["Mg II k 2796"])
     sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
@@ -886,7 +886,7 @@ def test_set_rest_wavelength(app, monkeypatch, irispy_test_files):
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
-    action = tree._actions["IRIS: set rest wavelength…"]
+    action = tree._actions["Set rest wavelength…"]
 
     def pick(text, ok=True):
         monkeypatch.setattr(QtWidgets.QInputDialog, "getItem", lambda *args: opened.append(args[3:5]) or (text, ok))

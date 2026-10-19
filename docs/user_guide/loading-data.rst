@@ -13,7 +13,7 @@ Browsing IRIS observations
    :width: 800
    :alt: The IRIS observation browser listing the observations found in a folder
 
-1. Choose "IRIS: browse observations…" in the "Plugins" menu.
+1. Choose "Browse observations…" in the "Plugins" menu.
 2. Type a folder in "Folder" and press Return, or pick one with "Change…": a
    ``level2/yyyy/mm/dd/<obs>/`` tree, a download folder or a pooch cache. The browser lists each
    observation in it and its subfolders, one row per OBSID and start time, with its description,
@@ -118,7 +118,8 @@ tab named after its line, such as "SST Ca II 8542". Its panels are in three rows
 - the map at the line core, the tuning nearest the cube's line; a second map at the first tuning,
   the blue wing; and the virtual slit, wavelength against y at the point's x;
 - the spectra at the point of Stokes I, Q, U and V;
-- wavelength against scan at the point, and the light curve at the point.
+- wavelength against scan at the point, and the light curve at the point, against "Scan Time", the
+  scans' time in s since the cube's ``DATEREF``, which also names the scan slider.
 
 Both maps open zoomed to the field, without a mosaic's NaN border, and stay on it as panels turn on
 or off until you pan or zoom. The second map opens with "Per-frame limits" on, as the whole cube's
@@ -164,7 +165,7 @@ Linking
 The browser, a quicklook and the analyses link the helioprojective coordinates of the IRIS data they
 load or make, so a region drawn on one selects the same place on the Sun in the others. AIA cutouts,
 SOT cubes, maps, SST cubes and files opened with "File → Open Data Set" link only on request: choose
-"IRIS: link helioprojective coordinates" in the "Plugins" menu once they are loaded, and again after
+"Link helioprojective coordinates" in the "Plugins" menu once they are loaded, and again after
 loading more or reopening a session with a map linked.
 
 - A region on a raster map or a map selects, in each slit-jaw frame, the pixels inside it at that

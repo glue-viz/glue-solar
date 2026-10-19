@@ -1,5 +1,5 @@
 """
-'IRIS: detect UV bursts… (Si IV, SJI 1400)': irispy's UV bursts in a Si IV raster window, or a stack of its scans, or
+'IRIS: detect UV bursts…': irispy's UV bursts in a Si IV raster window, or a stack of its scans, or
 a 1400 Å slit-jaw image, as a map of their labels and a table of them, two new datasets.
 """
 
@@ -259,7 +259,7 @@ def _found(datasets):
 
 
 @layer_action(
-    "IRIS: detect UV bursts… (Si IV, SJI 1400)",
+    "IRIS: detect UV bursts…",
     single=True,
     data=True,
     check=_check_bursts,

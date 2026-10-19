@@ -26,7 +26,7 @@ from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hp
 from glue_solar.tests.helpers import answer, refused, run_action
 from glue_solar.tests.test_lazy import SJI
 
-ACTION = "IRIS: detect UV bursts… (Si IV, SJI 1400)"
+ACTION = "IRIS: detect UV bursts…"
 # irispy's cutouts of 4000005156's Si IV 1403 and 4000255147's SJI 1400, stored as int16: lazy in glue
 SI_IV = "iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits"
 SJI_1400 = "iris_l2_20130902_163935_4000255147_SJI_1400_t000.fits"
@@ -133,7 +133,7 @@ def test_the_event_table_opens_in_a_table_viewer(app, irispy_test_files):
     viewer.state.filter = f"{times[0]}|{times[2]}"
     assert shown() == sorted([times[0], times[2]], reverse=True)
     viewer.state.filter = ""
-    # a range of times, as the time master's "Master exposure" gives, highlights their rows
+    # a range of times, as the "Current exposure" of the dataset leading the time gives, highlights their rows
     lo, hi = np.sort(table["time"])[[1, -1]]
     app.data_collection.new_subset_group("later", RangeSubsetState(lo, hi, table.id["time"]))
     rows = range(model.rowCount())

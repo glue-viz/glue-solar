@@ -155,7 +155,7 @@ def regrid_on_time(data):
 
 
 @layer_action(
-    "IRIS: regrid on time (sit-and-stare, stack, SJI, AIA, SOT)",
+    "IRIS: regrid on time",
     single=True,
     data=True,
     check=_check_timed,
@@ -240,7 +240,7 @@ def north_up(data):
 
 
 @layer_action(
-    "IRIS: north up (SJI, AIA, SOT)",
+    "IRIS: north up",
     single=True,
     data=True,
     check=_check_pointed,

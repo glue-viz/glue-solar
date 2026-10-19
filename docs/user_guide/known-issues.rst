@@ -5,7 +5,7 @@ Known issues
 ============
 
 These come from glue, glue-qt and the libraries glue-solar builds on, as of glue-core 1.27.0 and
-glue-qt 0.4.2. To report another, choose "IRIS: user guide and issues" in the "Plugins" menu, which
+glue-qt 0.4.2. To report another, choose "glue-solar user guide and issues" in the "Plugins" menu, which
 opens glue-solar's `issues <https://github.com/glue-viz/glue-solar/issues>`__.
 
 Installing

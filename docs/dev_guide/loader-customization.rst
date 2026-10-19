@@ -11,7 +11,7 @@ Current IRIS loader structure
 -----------------------------
 
 ``glue_solar/sources/iris.py`` registers the IRIS Level 2 data factory used by
-"File → Open Data Set" and the "IRIS: browse observations…" menu action.
+"File → Open Data Set" and the "Browse observations…" menu action.
 The implementation under ``glue_solar/sources/loaders`` has five responsibilities:
 
 1. ``scan.py`` reads primary headers to group standard IRIS filenames by observation.

@@ -39,7 +39,7 @@ Linking
 Data added in the terminal are not linked. ``link_hpc`` gives the helioprojective links the browser
 makes between the IRIS data, and to the datasets named in ``others``, such as an AIA cutout, a map or
 an SST cube, leaving out links already made. ``others=data_collection`` links every dataset, as
-"IRIS: link helioprojective coordinates" does::
+"Link helioprojective coordinates" does::
 
     from glue_solar.sources.loaders.iris import link_hpc
 

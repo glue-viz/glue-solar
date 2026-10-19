@@ -38,7 +38,7 @@ from sunpy.visualization.colormaps import cmlist
 import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, SCAN, find_irispy_test_file
-from glue_solar.quicklook import _off, _PointWindow, _viewers, coordinator, quicklook
+from glue_solar.quicklook import MARK, _off, _PointWindow, _viewers, coordinator, quicklook
 from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
 from glue_solar.sources.calibration import radiometric_calibration, remove_dust
@@ -58,6 +58,7 @@ from glue_solar.tests.helpers import angles, load_selected, mouse, restore, scan
 from glue_solar.tests.test_bursts import SI_IV
 from glue_solar.tests.test_importer import _row, counted_reads
 from glue_solar.tests.test_quicklook import (
+    LEAD,
     POINT_CURVES,
     SNS,
     THREE,
@@ -497,7 +498,7 @@ def test_a_restored_quicklook_keeps_its_time_master_and_follows_a_pixel_drag(
         times = datasets[0][datasets[0].id["Time"]][:, 0, 0]
         datasets.append(slit_jaw(times[0] + np.arange(4) * (times[-1] - times[0]) / 3, datasets[0]))
     viewers = quicklook(app, datasets)
-    menu_action(viewers["sji"][0], "Time master").trigger()
+    menu_action(viewers["sji"][0], LEAD).trigger()
     viewers["sji"][0].state.slices = (2, 0, 0)
     qtbot.waitUntil(lambda: " · Δt " in readout(viewers["map"]))  # the raster follows
     app.save_session(str(tmp_path / "quicklook.glu"), absolute_paths=False)
@@ -519,7 +520,7 @@ def test_a_restored_quicklook_keeps_its_time_master_and_follows_a_pixel_drag(
 def test_a_restored_quicklook_keeps_its_switched_main_window(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
     files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
     viewers = with_windows(qtbot, quicklook(app, [*raster_data(files[:1], THREE), image_data(files[1])], window=THREE))
-    menu_action(viewers["sji"][0], "Time master").trigger()
+    menu_action(viewers["sji"][0], LEAD).trigger()
     viewers["sji"][0].state.slices = (2, 0, 0)
     switch(qtbot, viewers["windows"][1]["spectrum"])  # Si IV 1403
     app.save_session(str(tmp_path / "switched.glu"), absolute_paths=False)
@@ -613,6 +614,9 @@ def test_a_restored_quicklook_keeps_its_light_curves_where_they_were(
 
     saved = curves(app)
     assert len(saved) == 2
+    qtbot.waitUntil(lambda: any(group.label == MARK for group in app.data_collection.subset_groups))
+    [marker] = [group for group in app.data_collection.subset_groups if group.label == MARK]
+    marker.label = "Master exposure"  # as a session saved before D90 names it
     session = tmp_path / "curves.glu"
     app.save_session(str(session), absolute_paths=False)
     opened = restore(qtbot, monkeypatch, session)
@@ -626,12 +630,16 @@ def test_a_restored_quicklook_keeps_its_light_curves_where_they_were(
     layers = [layer for layer in plot.layers if layer.layer.label in saved]
     assert len(layers) == 2
     assert all(layer.enabled and layer.state.line_visible for layer in layers)
-    # the time master's exposure marks them again, and a click leaves them where they were
+    # the exposure of the dataset leading the time marks them again, in the session's own group, and a click leaves
+    # them where they were
     spectrogram, raster_map = opened.viewers[-1][1], opened.viewers[-1][0]
     raster = spectrogram.state.reference_data
     spectrogram.state.slices = (7, *spectrogram.state.slices[1:])
-    qtbot.waitUntil(lambda: marks(opened, raster, 7))
     [marker] = [group for group in opened.data_collection.subset_groups if group.label == "Master exposure"]
+    start = raster[raster.id["Time"]][7, 0, 0]
+    qtbot.waitUntil(lambda: getattr(marker.subset_state, "lo", None) == start)
+    assert coordinator(opened.data_collection).marker is marker
+    assert not [group for group in opened.data_collection.subset_groups if group.label == MARK]  # no second one
     assert marker.subset_state.att.parent.label in saved
     select_point(raster_map, 5, 3)
     [point] = opened.session.edit_subset_mode.edit_subset
@@ -742,7 +750,7 @@ def test_two_quicklooks_restore_twice_from_their_files(app, qtbot, monkeypatch, 
     # observation browser, read from their files as they are viewed
     files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES]
     sns = quicklook(app, [*raster_data(files[:1], ["Si IV 1403"]), *map(image_data, files[1:])])
-    menu_action(sns["sji"][0], "Time master").trigger()
+    menu_action(sns["sji"][0], LEAD).trigger()
     sns["sji"][0].state.slices = (2, 0, 0)
     qtbot.waitUntil(lambda: " · Δt " in readout(sns["map"]))  # the raster follows
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
@@ -830,7 +838,7 @@ def test_a_quicklook_kept_as_glue_quits_restores_from_the_menu(qtbot, monkeypatc
     # cannot close a deleted one
     app = GlueApplication()
     monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))  # not glue's modal dialog
-    plugin_action(app, "IRIS: restore last session").trigger()
+    plugin_action(app, "Restore last session").trigger()
     assert told == ["No session kept yet: glue-solar keeps one as glue quits with data."]
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
     monkeypatch.setattr(QtIRISImporter, "exec", load)
@@ -847,7 +855,7 @@ def test_a_quicklook_kept_as_glue_quits_restores_from_the_menu(qtbot, monkeypatc
     assert len(paths) == len(labels)
     assert all(map(os.path.isabs, paths))  # its files, wherever glue starts
     fresh = GlueApplication()
-    plugin_action(fresh, "IRIS: restore last session").trigger()
+    plugin_action(fresh, "Restore last session").trigger()
     restored = fresh._new_application  # as File → Open Session gives it, closing ``fresh``
     qtbot.addWidget(restored)
     monkeypatch.setattr(restored, "report_error", lambda message, detail: pytest.fail(detail))
@@ -872,7 +880,7 @@ def test_the_last_session_with_a_path_diagram_restores_twice_alike(qtbot, monkey
     app.data_collection.append(Data(x=np.ones(3), label="replaced"))
     app.show()
     for _ in range(2):  # each closing the window it replaces, which keeps no session
-        plugin_action(app, "IRIS: restore last session").trigger()
+        plugin_action(app, "Restore last session").trigger()
         app = app._new_application
         assert [data.label for data in app.data_collection] == ["cube", "path"]
     qtbot.addWidget(app)

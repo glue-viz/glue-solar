@@ -15,7 +15,7 @@ Regridding on time
 
 glue's axes are index axes, so a sit-and-stare raster's exposures, a stack's scans and the frames of
 a slit-jaw image, AIA cutout or SOT cube show evenly spaced, whatever their cadence and gaps. To see
-them in time, choose "IRIS: regrid on time (sit-and-stare, stack, SJI, AIA, SOT)". It adds
+them in time, choose "IRIS: regrid on time". It adds
 ``<label> regridded``, resampled at the median time step: each pixel holds the exposure, frame or
 scan nearest its time within 0.75 steps, and a pixel in a gap is NaN. An Image viewer labels its
 axis with the step, such as "Time (2.89 s per pixel)".
@@ -66,9 +66,9 @@ checks the shift: it should be under a pixel long.
 North up
 --------
 
-A rolled observation (``SAT_ROT``) shows solar north at its roll angle. "IRIS: north up (SJI, AIA,
-SOT)" adds ``<label> north up``, a grid with latitude up, fixed on the sky, and opens an Image viewer
-of the slit-jaw image, AIA cutout or SOT cube on it. glue resamples each frame onto the grid as it
+A rolled observation (``SAT_ROT``) shows solar north at its roll angle. "IRIS: north up", on a slit-jaw
+image, AIA cutout or SOT cube, adds ``<label> north up``, a grid with latitude up, fixed on the sky,
+and opens an Image viewer of the image on it. glue resamples each frame onto the grid as it
 draws, from the nearest sample, and makes no copy. The image moves across the grid as IRIS follows
 the solar rotation. The time sync and the point leave the viewer alone, and "Per-frame limits" and
 "Color bar" act on the hidden grid: set the image's limits in its layer's options.
@@ -78,7 +78,7 @@ the solar rotation. The time sync and the point leave the viewer alone, and "Per
 Removing dust
 -------------
 
-"IRIS: remove dust (SJI)" runs irispy's ``SJICube.remove_dust``, after SolarSoft's
+"IRIS: remove dust" runs irispy's ``SJICube.remove_dust``, after SolarSoft's
 ``iris_dustbuster``: each dust pixel, between -199 and 0.5 DN, and those next to it take the median
 of that pixel over the two frames on either side, scaled by their exposure times, or else of the 5
 by 5 pixels about it. It adds ``<label> dust removed``, held in memory.

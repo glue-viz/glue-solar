@@ -97,7 +97,7 @@ def iris_image_layer(viewer, data):
     return artist
 
 
-@menubar_plugin("IRIS: browse observations…")
+@menubar_plugin("Browse observations…")
 def browse_iris(session, data_collection):
     """
     Browse a folder by observation, load the selection and link the helioprojective coordinates of its IRIS data.
@@ -169,7 +169,7 @@ def _shown(loaded, quicklooks, main=None):
     return shown
 
 
-@menubar_plugin("IRIS: link helioprojective coordinates")
+@menubar_plugin("Link helioprojective coordinates")
 def link_iris(session, data_collection):
     """
     Link the helioprojective longitude and latitude of every loaded dataset that has them, IRIS data, AIA cutouts, SOT
@@ -360,7 +360,7 @@ def quicklook_cube(data, data_collection):
     quicklook(_application(data_collection), datasets)
 
 
-@menubar_plugin("IRIS: user guide and issues")
+@menubar_plugin("glue-solar user guide and issues")
 def help_iris(session, data_collection):
     """
     Open glue-solar's user guide and its issues on GitHub, to report a problem, in the web browser.
@@ -399,7 +399,7 @@ def iris_quicklook(session, data_collection):
 
         app.new_data_viewer(ImageViewer, data=image)
     if several:
-        note = "Only the first raster file is shown: stacks of scans need Plugins → IRIS: browse observations…"
+        note = "Only the first raster file is shown: stacks of scans need Plugins → Browse observations…"
         app.statusBar().showMessage(f"{app.statusBar().currentMessage()} {note}".strip())
 
 

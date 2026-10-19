@@ -131,7 +131,7 @@ Rest wavelength
 The line maps, the Profile viewer's :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>`
 and the cursor readout's velocity take a window's rest wavelength:
 
-- the one set with "IRIS: set rest wavelength…" in the window's right-click menu, which lists the
+- the one set with "Set rest wavelength…" in the window's right-click menu, which lists the
   main IRIS lines within the window and takes a wavelength typed in Å, a blank one removing it. A
   script can set ``meta['rest_wavelength']``, in Å, too;
 - else the main IRIS line within the window nearest the wavelength it is named for, within 1 Å, at
@@ -152,7 +152,7 @@ and 1401.16 Å:
 
 1. Make the line moments of each line, with a narrow velocity range and continuum windows.
 2. Select both maps in the data collection (:kbd:`Ctrl`-click, :kbd:`Cmd`-click on macOS) and
-   choose "IRIS: line ratio diagnostic…".
+   choose "Line ratio diagnostic…".
 3. Pick the numerator and the denominator, their ``intensity`` unless changed.
 4. Give a ratio table, typed or with "Browse…", and the quantity's name: ``log n_e``, ``log T`` or
    one typed. Or tick "O IV 1399.8/1401.2 (CHIANTI, fiasco)" for ``log n_e`` from O IV.
@@ -182,7 +182,7 @@ Mg II features
 --------------
 
 1. Select a raster window, or a stack of its scans, covering Mg II k or h, such as "Mg II k 2796",
-   and choose "IRIS: Mg II features… (Mg II)".
+   and choose "IRIS: Mg II features…".
 2. Set the Doppler velocities searched, -40 to 40 km / s from each line unless changed, and tick
    the lines, k and h.
 3. Press OK.
@@ -212,7 +212,7 @@ UV bursts
 ---------
 
 1. Select a raster window covering Si IV 1402.77 Å, such as "Si IV 1403", a stack of its scans, or
-   a 1400 Å slit-jaw image, and choose "IRIS: detect UV bursts… (Si IV, SJI 1400)".
+   a 1400 Å slit-jaw image, and choose "IRIS: detect UV bursts…".
 2. Change irispy's parameters if you need to, and press OK.
 
 Two datasets are added: ``<label> bursts``, a map of the bursts' labels, 0 outside them and 1 to N

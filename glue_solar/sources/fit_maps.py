@@ -151,7 +151,7 @@ def _last_fit(data, model):
     model = _in_angstrom(model, scale, shift)
     rest = rest_wavelength(data)
     if rest is None:
-        raise ValueError(f"{data.label} has no rest wavelength: set one with 'IRIS: set rest wavelength…'.")
+        raise ValueError(f"{data.label} has no rest wavelength: set one with 'Set rest wavelength…'.")
     low, high = np.multiply(meta["x_range"], scale) + shift
     crop, unit = _window(data, (low, high), f"the range of the last IRIS fit, {low:.3f} to {high:.3f} Å")
     per_second = meta["attribute"] == rate

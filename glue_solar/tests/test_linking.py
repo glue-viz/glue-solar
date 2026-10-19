@@ -300,7 +300,7 @@ def test_link_hpc_links_every_iris_dataset_to_the_first(qtbot, sns, irispy_test_
 
 @pytest.mark.parametrize("opened", [False, True])
 def test_a_restored_session_keeps_the_data_linked_on_request_linked(qtbot, tmp_path, irispy_test_files, sns, opened):
-    # D73: a session saves the links 'IRIS: link helioprojective coordinates' made, not that they were asked for: once
+    # D73: a session saves the links 'Link helioprojective coordinates' made, not that they were asked for: once
     # the IRIS dataset they went through was removed, a restored SST cube, SOT cube or map was left unlinked, quicklook
     # opened first or not
     from glue_solar.tests.test_sst import write_sst_cube  # which imports this module
@@ -581,7 +581,7 @@ def test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair(app, sns):
 
 def test_data_outside_the_iris_observations_link_only_on_request(app, sns):
     # D64: data load, the analyses and a quicklook link IRIS data only, as each quicklook panel would otherwise invert
-    # the other data's WCS (SST3); 'IRIS: link helioprojective coordinates' links the others too, their WCS locked
+    # the other data's WCS (SST3); 'Link helioprojective coordinates' links the others too, their WCS locked
     sji, raster = sns
     dc = app.data_collection
     lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)

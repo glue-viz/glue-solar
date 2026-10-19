@@ -35,7 +35,7 @@ from glue_solar.sources.loaders.lazy import LazyData, RawComponent
 from glue_solar.sources.moments import line_moments
 from glue_solar.tests.helpers import press, refused
 from glue_solar.tests.test_lazy import RASTER, SJI, zero_exposure
-from glue_solar.tests.test_quicklook import expected_nearest, menu_action, readout
+from glue_solar.tests.test_quicklook import LEAD, expected_nearest, menu_action, readout
 from glue_solar.tools import _exposure_label
 
 GAP = 100  # the first exposure of the sit-and-stare raster after the 10 left out
@@ -189,7 +189,7 @@ def test_the_action_adds_one_linked_dataset_and_no_viewer(app, monkeypatch, tmp_
     collection.extend([sji, raster, scan])
     keep_hpc_linked(collection)
     tree = app._layer_widget
-    action = tree._actions["IRIS: regrid on time (sit-and-stare, stack, SJI, AIA, SOT)"]
+    action = tree._actions["IRIS: regrid on time"]
     tree.ui.layerTree.set_selected_layers([raster])
     assert action.isVisible()
     action.trigger()
@@ -236,7 +236,7 @@ def test_the_quicklook_shows_a_regridded_raster(app, qtbot, tmp_path, irispy_tes
     assert readout(spectrogram) == ""
     assert sji_viewer.state.slices[0] == frame
     # a slit-jaw master moves the raster to the pixel nearest each frame's time, never into the gap
-    menu_action(sji_viewer, "Time master").trigger()
+    menu_action(sji_viewer, LEAD).trigger()
     [group] = app.session.edit_subset_mode.edit_subset
     for frame in (2, 3):
         sji_viewer.state.slices = (frame, 0, 0)
@@ -281,7 +281,7 @@ def test_north_up_shows_a_rolled_slit_jaw_image_north_up(app, tmp_path):
     keep_hpc_linked(collection)
     tree = app._layer_widget
     tree.ui.layerTree.set_selected_layers([sji])
-    tree._actions["IRIS: north up (SJI, AIA, SOT)"].trigger()
+    tree._actions["IRIS: north up"].trigger()
     grid = collection[-1]
     [viewer] = app.viewers[0]
     assert viewer.state.reference_data is grid
@@ -329,7 +329,7 @@ def test_north_up_steps_through_irispys_slit_jaw_image(app, tmp_path, irispy_tes
         viewer.state.slices = (frame, 0, 0)
         up, rolled = north_angle(sji, grid, frame)
         assert abs(up) < 0.001 < 0.5 < abs(rolled)
-        assert readout(viewer) == f"{np.datetime_as_string(sji[sji.id['Time']][frame, 0, 0], unit='ms')} UTC"
+        assert readout(viewer) == np.datetime_as_string(sji[sji.id["Time"]][frame, 0, 0], unit="s")[11:]
         assert np.isfinite(viewer.state.layers[1].get_sliced_data()).any()
     press(viewer, Qt.Key_F)  # on, round from the last frame to the first: no time master moves it
     assert viewer.state.slices == (0, 0, 0)
