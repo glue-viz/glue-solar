@@ -3,8 +3,9 @@
 Current state keeps no per-PR line: the PR and git history are the record.
 """
 import re, sys
+from pathlib import Path
 key, pr, sha = sys.argv[1:4]
-P = "/Users/nabil/Git/glue-solar/IRIS_GLUE_GAP_PLAN.md"
+P = Path(__file__).resolve().parents[2] / "IRIS_GLUE_GAP_PLAN.md"
 s = open(P).read()
 s, n = re.subn(rf"^- \[ \] \*\*\w+\*\* `{re.escape(key)}`[^\n]*\n(?:  [^\n]*\n)*", "", s, flags=re.M)  # with its sub-bullets
 assert n == 1, f"item {key} not found once ({n})"

@@ -3,7 +3,7 @@
 set -u
 KEY=$1; TITLE=$2; BODY=$3; CTYPE=$4; CTEXT=$5
 D=${PLAN_SCRATCH:?set PLAN_SCRATCH to the session scratchpad}; T=$(cd "$(dirname "$0")" && pwd)
-R=/Users/nabil/Git/glue-solar
+R=$(cd "$T/../.." && pwd)  # the plan checkout
 L=$D/items/$KEY/cycle.log; mkdir -p "$D/items/$KEY"
 C=pr_cycle.sh; [ "$CTYPE" = none ] && C=pr_cycle_nocl.sh  # CTYPE none: no changelog entry (tooling)
 "$T/$C" "$KEY" "$TITLE" "$BODY" "$CTYPE" "$CTEXT" > "$L" 2>&1

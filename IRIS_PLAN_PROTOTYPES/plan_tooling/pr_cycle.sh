@@ -26,7 +26,7 @@ while true; do
     st=$(gh api repos/glue-viz/glue-solar/actions/jobs/$job --jq '([.steps[]|select(.status=="in_progress")|.name][0] // "")+"|"+(.started_at // "")' 2>/dev/null)
     step=${st%%|*}; started=${st#*|}
     if [ "$step" = "Install dependencies" ] && [ -n "$started" ]; then
-      age=$(( $(date -u +%s) - $(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$started" +%s) ))
+      age=$(( $(date -u +%s) - $(date -u -d "$started" +%s 2>/dev/null || date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$started" +%s) ))
       [ $age -gt 900 ] && { echo "STUCK job $job for ${age}s"; echo "$out" | grep -v skipping; exit 2; }
     fi
   done

@@ -12,7 +12,8 @@ for directory in ("home", "mpl", "cache", "config", "sunpy"):
     (root / directory).mkdir()
 # astropy's cache kept between runs, so its IERS tables download about monthly, not each run (a DNS failure of
 # datacenter.iers.org failed test_quicklook_opens_each_kind)
-kept = Path(os.path.expanduser("~")) / "Library" / "Caches" / "glue-solar-checks" / "astropy"
+caches = "Library/Caches" if sys.platform == "darwin" else ".cache"
+kept = Path(os.path.expanduser("~")) / caches / "glue-solar-checks" / "astropy"
 kept.mkdir(parents=True, exist_ok=True)
 (root / "cache" / "astropy").symlink_to(kept)
 paths, *args = sys.argv[1:]
