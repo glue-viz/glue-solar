@@ -17,6 +17,12 @@ kept = Path(os.path.expanduser("~")) / caches / "glue-solar-checks" / "astropy"
 kept.mkdir(parents=True, exist_ok=True)
 (root / "cache" / "astropy").symlink_to(kept)
 paths, *args = sys.argv[1:]
+tree = Path(paths.split(os.pathsep)[0])
+if (tree / "pyproject.toml").exists() and not (tree / "glue_solar" / "version.py").exists():  # a fresh worktree's
+    import subprocess
+
+    subprocess.run([sys.executable, "-m", "setuptools_scm", "--root", tree, "--config", tree / "pyproject.toml",
+                    "--force-write-version-files"], check=True, capture_output=True)
 os.environ.update(
     HOME=str(root / "home"), QT_QPA_PLATFORM="offscreen", MPLBACKEND="agg", MPLCONFIGDIR=str(root / "mpl"),
     XDG_CACHE_HOME=str(root / "cache"), XDG_CONFIG_HOME=str(root / "config"),
