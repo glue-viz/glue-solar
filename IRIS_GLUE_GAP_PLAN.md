@@ -28,7 +28,7 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at c73bd7a (#341). glue-solar runs on irispy main 0650517, unpinned (D92; followed in #336, the user's last big irispy batch before the gWCS spectrograph work resumes). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
+**Resume here.** Main is at e6d2b91 (#342). glue-solar runs on irispy main 0650517, unpinned (D92; followed in #336, the user's last big irispy batch before the gWCS spectrograph work resumes). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
 
 **Next.** In flight, shipping in two chains of `ship_locked.sh` from session 6873e77f (2026-10-19/20): #337 (#337), #338, #339, then `wp4-refit-on-point`, #340, #341; check with `gh pr list` and the plan's checklist, and ship any left with `ship_locked.sh` (their PR texts are in `session_20261019.tar.gz`, `items/<key>/body.md`). Then `wp10-perf-survey-2` (D100) on this Mac, the user running `scale_checks/run_survey.sh` on Linux, and `wp10-gzip-raster-once`, now that irispy #275 is on main. #330 to the last of these were built and checked inline on Opus with no Fable review, as Fable's weekly limit ran out on 2026-10-19: give them a Fable review when it is back. **After the user's weekly usage reset** (user, 2026-10-19; no Fable until then): Fable reviews of #330 and every PR merged since without one (each PR body or this line names them), then `wp0-upstream`. Then what is left is the user's (below), upstream (`wp0-upstream`, from UPSTREAM_REVIEW.md, D89) or waiting on others. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
@@ -179,7 +179,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 ### Checklist by milestone
 
 **M1**
-- WP1: `wp1-sji-off-frames`
 - WP0: `wp0-release-tracking`
 - WP4: `wp4-refit-on-point`
 - WP10: `wp10-gzip-raster-once`, `wp10-perf-survey-2`
@@ -219,10 +218,6 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 ### WP1: Coordinates, units and links
 
 The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links between IRIS datasets and sunpy maps.
-
-**M1**
-
-- [ ] **M1** `wp1-sji-off-frames` (user's report from the Linux machine, 2026-10-20): a point or crosshair mapped onto a slit-jaw image at a time off its frames raised NotImplementedError on x86-64: irispy's gWCS gives that time a NaN frame index, which dkist casts to the least int64 there (to 0 on ARM, where it silently takes frame 0's pointing), off its table, where its per-frame transform has no inverse. Done when such a position gives NaN pixels, as the forward transform does.
 
 **L**
 
@@ -342,7 +337,7 @@ Gated workarounds on main. Raw-WCS readers hold `WCS_LOCK` or use a deep copy; n
 | Slice-slider drag throttle (#68) | Always on | glue-qt slider coalescing (`wp0-upstream`) |
 | Pixel point off a linked dataset, or whose fixed axes reach no pixel axis of it (the SST quicklook's scan and Stokes), placed at its own slices (`PixelSubsetState._to_linked_pixel_coords`, #76/#85, #246) | `needs_pixel_point_workaround()` (either probe) | `wp0-upstream` for the NaN; glue's round-trip check accepting a subset of the fixed axes (report candidate: `set(check_dimensions) <= set(dimensions)` and either `check_dimensions` non-empty or no fixed axes) |
 | A Pixel click or drag off the image skipped, as Follow/lock skips it (`PixelSelectionTool._select_pixel`, #331) | `needs_pixel_off_image_workaround()` | glue's Pixel tool ignoring positions off the image (report candidate) |
-| A world-to-pixel through a slit-jaw image's gWCS at a time off its frames gives NaN pixels, inverted a time at a time (`_GlueWCS.world_to_pixel_values`, `_off_frames`, `wp1-sji-off-frames`) | dkist raising NotImplementedError | dkist's `sanitize_index` handling a NaN index (x86-64 casts it to the least int64, ARM to 0) and its inverse off the table giving NaN (report candidate: dkist) |
+| A world-to-pixel through a slit-jaw image's gWCS at a time off its frames gives NaN pixels, inverted a time at a time (`_GlueWCS.world_to_pixel_values`, `_off_frames`, #342) | dkist raising NotImplementedError | dkist's `sanitize_index` handling a NaN index (x86-64 casts it to the least int64, ARM to 0) and its inverse off the table giving NaN (report candidate: dkist) |
 | FITS export of lazy data and of uint8 components in a subset (`export_fits`, #96) | `needs_fits_export_dask_workaround()` | glue-core's exporter writing dask arrays and uint8 subsets (report candidate) |
 | No (0,0) Pixel crosshair (`ImageSubsetLayerArtist._update_visual_attributes`, #87) | `needs_crosshair_workaround()` | `wp0-upstream` |
 | A linked layer's Pixel crosshair placed from the reference data (`ImageSubsetLayerArtist._update_data`, #107) | `needs_reference_crosshair_workaround()` | `wp0-upstream` |
