@@ -1,0 +1,1 @@
+The IRIS fitter's Settings get Save… and Open…, writing and reading a model's components and their starts, bounds and ties as JSON.
