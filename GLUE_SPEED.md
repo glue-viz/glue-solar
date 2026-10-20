@@ -6,7 +6,7 @@ A to-do list of performance problems in glue-core 1.27.0, glue-qt 0.4.2 and the 
 
 **Re-running.** The survey's scripts are in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` (132 scripts; extract it into a scratch directory). Evidence paths below are relative to that archive. Run with `env HOME="$(mktemp -d)" QT_QPA_PLATFORM=offscreen MPLBACKEND=agg ~/mamba/envs/iris-plan/bin/python <script>`, with a glue-solar checkout first on `sys.path` as the scripts do. Logs and profiles were not kept; the numbers below are the record.
 
-**Second survey.** The large SST SOLARNET cubes and the biggest IRIS sets were measured on 2026-10-10, under 'SST and IRIS stress survey, 2026-10-10' below (SST1-SST13, verified the same day).
+**Second survey.** The large SST SOLARNET cubes and the biggest IRIS sets were measured on 2026-10-10, under 'SST and IRIS stress survey, 2026-10-10' below (SST1-SST13, verified the same day). **Third survey.** The same SST cubes on glue-solar main of 2026-10-20, with the quicklook-era parts, under 'SST performance survey 2, 2026-10-20'.
 
 **How to use this file.** Tick an item's first box when its cost has been re-measured on current versions (note the date and numbers), and the second when it is fixed and released upstream (link the PR). Items are ranked by the time an IRIS user loses.
 
@@ -1286,6 +1286,44 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 - **Cost:** 1.43 of 1.43 GB is read on 3660259102, during the browser's `_load`, on its worker thread behind the progress bar. The load takes 3.5-4.6 s cold against 2.8 s warm. The quicklook's own phase reads 5 MB.
 - **Cause:** `_load` samples each shown dataset's colour limits with `RawComponent._sample`, up to `SAMPLE_BYTES` (512 MiB) of whole planes each. With 9 windows, the samples cover the file.
 - **Decision** (D63, PROVISIONAL): no action. It costs 1-2 s cold on an SSD, off the main thread.
+
+## SST performance survey 2, 2026-10-20
+
+`wp10-perf-survey-2` (D100): the 2026-10-10 survey's steps again on glue-solar main dc7c25f (#343), and the quicklook-era parts, on this Mac. The user's Linux machine (larger cubes, 188 GB RAM) runs the same script; its numbers go here when pasted back.
+
+**How it was measured.** `IRIS_PLAN_PROTOTYPES/scale_checks/run_survey.sh` (each cube's part in a fresh process, offscreen Qt and Agg, app 1600x1000 shown, glue's dialogs answered as a user clicks through them); raw lines in `scale_checks/results/mac_20261020.jsonl`. Env `iris-plan-qt6-802-0650`: glue-core 1.27.0, glue-qt 0.4.2, astropy 8.0.2, irispy main 0650517, Python 3.13, macOS on Apple Silicon, 24 GB. Times are seconds or ms to idle: no pending draw on a visible canvas, no profile computing, no coordinator timer. Unlike 2026-10-10 the files were not cold (earlier runs had read them), so the disk reads are small and the first-visit times are not cold reads.
+
+**The 2026-10-10 steps, then and now.** Open is glue's File > Open with the autolinker; a slider step is first visit / warm; the Profile button is glue-qt's, with the main-thread freeze; the drag is a Pixel drag with that Profile open.
+
+| Cube | GB | Open s | Viewer s | Step ms | Profile s (freeze) | Drag ms | Restore s |
+|---|---|---|---|---|---|---|---|
+| obs492 Ca II 8542 | 10.6 | 0.25 → 0.08 | 1.8 → 0.44 | 34-39 / 20 → 32-35 / 20 | 27.4 (21.2) → 0.60 (0.52) | 183-194 → 183 | fails → 0.24 |
+| obs492 Fe I 6173 | 7.1 | 0.25 → 0.07 | 1.8 → 0.44 | 37-39 / 19 → 34-36 / 20 | 18.7 (14.9) → 0.55 (0.48) | 195 → 175 | fails → 0.23 |
+| obs492 Fe I 6302 | 5.6 | 0.24 → 0.07 | 1.8 → 0.45 | 37-39 / 19 → 34-37 / 20 | 13.7 (10.5) → 0.59 (0.48) | 201 → 180 | fails → 0.24 |
+| obs495 Ca II K 3950 | 3.5 | 0.24 → 0.06 | 1.75 → 0.43 | 27 / 17 → 26 / 19 | 8.2 (6.1) → 0.47 (0.42) | 182 → 188 | fails → 0.23 |
+| obs498 H-beta 4846 | 1.1 | 0.35 → 0.06 | 1.6 → 0.43 | 25 / 17 → 26-27 / 18 | 3.3 (1.9) → 0.50 (0.43) | 170-198 → 174 | fails → 0.24 |
+| obs167 Fe I 6173 (2020) | 2.1 | 0.38 → 0.06 | refused → 0.36 | 28-30 / 21 → 20 / 20 | 6.2 (3.7) → 0.49 (0.43) | 186 → 200 | fails → 0.30 |
+| obs171 H-alpha (2020) | 0.4 | 0.33 → 0.06 | refused → 0.43 | 25 / 21 → 25 / 20 | 1.2 (0.5) → 1.38 (0.94) | 189 → 179 | fails → 0.44 |
+
+- The Profile button no longer freezes the GUI for seconds: cubes of glue's `large_data_size` or more are added hidden (#233), so only H-alpha, under it, is profiled whole (1.4 s, peak 1.7 GB).
+- Sessions restore on every cube (they failed on all of them on 2026-10-10), and the 2020 cubes open in an Image viewer (SST2's SPECSYS).
+- A Pixel drag with a Profile open is unchanged, 175-200 ms a move: glue recomputes the profile at each move (R14, upstream).
+- Peak memory stayed under 1.8 GB in every part, for files up to 10.6 GB.
+
+**The quicklook-era parts.** An SST quicklook (D68): its open; a point click and each move of a drag, to the spectra, curve and slit following (D98's refits included); a scan step, which time-syncs every panel; a path diagram on the map; and the linked obs492 Ca II 8542 and Fe I 6173 quicklooks (D97).
+
+| Cube | Quicklook open s | Click s | Drag ms (first) | Scan step ms | Path diagram s |
+|---|---|---|---|---|---|
+| obs492 Ca II 8542 | 2.6 | 0.20 | 215 (368) | 427 | 0.29 |
+| obs492 Fe I 6173 | 2.5 | 0.21 | 213 (301) | 341 | 0.26 |
+| obs492 Fe I 6302 | 2.5 | 0.21 | 213 (287) | 302 | 0.24 |
+| obs495 Ca II K 3950 | 2.1 | 0.18 | 185 (350) | 515 | 0.25 |
+| obs498 H-beta 4846 | 1.7 | 0.12 | 185 (130) | 201 | 0.17 |
+| obs167 Fe I 6173 (2020) | 2.1 | 0.20 | 203 (209) | 118 | 0.22 |
+| obs171 H-alpha (2020) | 1.5 | 0.10 | 181 (180) | 85 | 0.15 |
+
+- Linking the two obs492 quicklooks took 0.02 s (2 links); a point moved on one, with the other's point following, took 263 ms.
+- The slow spot is the quicklook's scan step on the 2023 mosaics, 0.3-0.5 s, against 85-120 ms on the 2020 cubes of one pointing: each scan re-reads every panel's plane of the bigger, per-scan-pointed cube (`wp10-l-sst-scan-step`).
 
 ## WCSAxes tick rendering
 

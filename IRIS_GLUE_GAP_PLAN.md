@@ -185,6 +185,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP1: `wp1-l-link-all-overlapping`
+- WP10: `wp10-l-sst-scan-step`
 
 **M4**
 - WP0: `wp0-upstream`, `wp0-irispy-requests`, `wp0-stack-validation`, `wp0-user-review`, `wp0-wcslib-tab-inverse`
@@ -288,8 +289,12 @@ Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on file
 
 **M1**
 
-- [ ] **M1** `wp10-perf-survey-2` (D100): re-run GLUE_SPEED.md's 'SST and IRIS stress survey, 2026-10-10' on current main (open, a new Image viewer, slider steps, the Profile button, a Pixel drag, session save and restore) and add the quicklook-era parts (an SST quicklook's open, a point click and drag with its spectra, curve and slit following, a linked cube's point, a path diagram), on this Mac and the user's Linux machine (`scale_checks/sst_perf_survey.py`). Done when GLUE_SPEED.md has both machines' numbers beside the 2026-10-10 ones, and each slow spot an item or a decision.
+- [ ] **M1** `wp10-perf-survey-2` (D100): re-run GLUE_SPEED.md's 'SST and IRIS stress survey, 2026-10-10' on current main (open, a new Image viewer, slider steps, the Profile button, a Pixel drag, session save and restore) and add the quicklook-era parts (an SST quicklook's open, a point click and drag with its spectra, curve and slit following, a linked cube's point, a path diagram), on this Mac and the user's Linux machine (`scale_checks/sst_perf_survey.py`). Done when GLUE_SPEED.md has both machines' numbers beside the 2026-10-10 ones, and each slow spot an item or a decision. This Mac's are in (GLUE_SPEED.md 'SST performance survey 2, 2026-10-20', on main dc7c25f): the user's Linux run is what is left.
 - [ ] **M1** `wp10-gzip-raster-once` (D97): a gzipped raster inflates once: first irispy #275 (on main since 2026-10-19) letting its raster reader take what a caller already opened, then glue-solar passing it once irispy merges it. Done when a gzipped raster opens with one inflation, as #329's test counts for slit-jaw images.
+
+**L**
+
+- [ ] **L** `wp10-l-sst-scan-step` (D100's Mac survey): an SST quicklook's scan step takes 0.3-0.5 s on the 2023 mosaics (Ca II K 3950 515 ms, Ca II 8542 427 ms), against 85-120 ms on the 2020 cubes of one pointing; profile it before deciding (which panels read, and what the per-scan pointing costs). Done when the cost is attributed and either cut or accepted by the user.
 
 Notes:
 - IRIS Level 2 image HDUs are int16 (BSCALE 0.25, BZERO 7992; fill is raw -32768/-32764). glue-solar reads SJIs and AIA cutouts through irispy main's `read_sji_lvl2(memmap=True)`, whose raw int16 keeps the fill under a lazy mask; irispy decompresses a `.fits.gz` once into memory (#329, D95). A gzipped raster is inflated twice, as `_window_scaling` reads its window headers before irispy reads the file; once would need irispy's `read_files` to take an opened HDUList, or the scaling taken from irispy's cubes (`wp10-gzip-raster-once`).
