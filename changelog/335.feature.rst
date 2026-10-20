@@ -1,0 +1,1 @@
+The IRIS fitter draws its fit in a darker shade of the spectrum's color, wider and above it, so the fit stands out from the data.

@@ -15,6 +15,7 @@ from glue.core.fitters import AstropyFitter1D
 from glue.core.link_manager import is_convertible_to_single_pixel_cid
 from glue_qt.utils.decorators import messagebox_on_error
 from glue_qt.viewers.profile.profile_tools import ProfileTools
+from matplotlib.colors import to_hex, to_rgb
 from qtpy import QtWidgets
 from scipy import signal
 
@@ -338,7 +339,16 @@ class GaussianConstantFitter(AstropyFitter1D):
         return {name: start for name, start in starts.items() if name in names}
 
     def plot(self, fit_result, axes, x, linewidth=None, alpha=None, color=None, normalize=None):
-        """glue's curve of the fit, then each line's on the background, dashed (kept by `glue_patches._plot_fit`)."""
+        """
+        glue's curve of the fit, then each line's on the background, dashed (kept by `glue_patches._plot_fit`), in a
+        shade of the layer's color, wider and above the data, so the fit stands out from its spectrum (D98).
+        """
+        if color is not None:
+            rgb = np.array(to_rgb(color))
+            # darker, or lighter for a dark color, such as glue's default gray, which a darker shade would not change
+            # a string, as glue's own plot passes it as matplotlib's format
+            color = to_hex(rgb * 0.55 if rgb @ [0.299, 0.587, 0.114] > 0.3 else rgb + (1 - rgb) * 0.5)
+        linewidth = 3 * (linewidth or 0.5)  # 1.5 times the layer's: glue-qt passes half its width
         artists = super().plot(fit_result, axes, x, linewidth, alpha, color, normalize)
         leaves = _leaves(fit_result[0])
         background = sum(leaf(x) for leaf in leaves if not isinstance(leaf, _LINES))
@@ -347,6 +357,8 @@ class GaussianConstantFitter(AstropyFitter1D):
                 y = background + leaf(x)
                 y = y if normalize is None else normalize(y)
                 artists += axes.plot(x, y, color=color, lw=linewidth, alpha=alpha, ls="--", scalex=False, scaley=False)
+        for artist in artists:
+            artist.set_zorder(100)  # above every layer's
         return artists
 
     def summarize(self, fit_result, x, y, dy=None):

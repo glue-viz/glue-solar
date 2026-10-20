@@ -52,6 +52,7 @@ from irispy.io.sji import read_sji_lvl2
 from irispy.utils.fitting import profiles_on_background
 from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent, key_press_handler
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
+from matplotlib.colors import to_hex, to_rgb
 from matplotlib.text import Text
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QCursor, QDesktopServices, QIcon, QKeySequence
@@ -2752,6 +2753,11 @@ def test_the_iris_fitter_fits_the_lines_added_in_settings(qtbot, monkeypatch):
     # the fit, then each line on the background, dashed, all cleared by Clear (glue_patches._plot_fit)
     _, *lines = artists = tools._fit_artists[:]
     assert [artist.get_linestyle() for artist in artists] == ["-", "--", "--"]
+    # in a darker shade of the layer's color, wider and above it (D98)
+    layer = tools.viewer.state.layers[0]
+    shade = np.array(to_rgb(layer.color))
+    assert [to_hex(artist.get_color()) for artist in artists] == [to_hex(shade * 0.55)] * 3
+    assert [(artist.get_zorder(), artist.get_linewidth()) for artist in artists] == [(100, 1.5 * layer.linewidth)] * 3
     assert all(artist in tools.axes.lines for artist in artists)
     model = tools._iris_fits[data]
     for index, line in enumerate(lines, 1):
