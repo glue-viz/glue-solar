@@ -1,0 +1,181 @@
+{"part": "file", "step": "start", "seconds": 1.563, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_8542_2024-07-05T07_32_26_07_32_26=0-128_stokes_corrected_export2026-03-15T12_14_51_im.fits 128.82 GB"], "memory_gb": 0.4, "peak_gb": 0.38, "read_gb": 0.0}
+{"part": "file", "step": "open", "seconds": 0.085, "shape": [129, 4, 15, 2023, 2023], "memory_gb": 0.41, "peak_gb": 0.41, "read_gb": 0.01}
+{"part": "file", "step": "image viewer", "seconds": 0.636, "memory_gb": 0.51, "peak_gb": 0.53, "read_gb": 0.34}
+{"part": "file", "step": "slider step, axis 0", "first_ms": 21.0, "warm_ms": 18.0, "n": 129, "memory_gb": 2.13, "peak_gb": 2.13, "read_gb": 3.03}
+{"part": "file", "step": "slider step, axis 1", "first_ms": 22.0, "warm_ms": 18.0, "n": 4, "memory_gb": 2.17, "peak_gb": 2.17, "read_gb": 3.1}
+{"part": "file", "step": "slider step, axis 2", "first_ms": 20.0, "warm_ms": 17.0, "n": 15, "memory_gb": 2.38, "peak_gb": 2.38, "read_gb": 3.32}
+{"part": "file", "step": "dialog", "text": "Creating a profile viewer Note: profiles are computed from datasets and subsets collapsed along all but one dimension. To view the profile of part of the data, once you click OK you can draw and update a subset in the current image viewer and the profile will update accordingly.", "memory_gb": 2.38, "peak_gb": 2.38, "read_gb": 3.32}
+{"part": "file", "step": "dialog", "text": "Add large data set? Data set nb_8542_2024-07-05T07_32_26_07_32_26=0-128_stokes_corrected_export2026-03-15T12_14_51_im has 31676174460 points, and may render slowly.", "memory_gb": 2.39, "peak_gb": 2.39, "read_gb": 3.32}
+{"part": "file", "step": "profile button", "frozen_s": 0.326, "seconds": 0.393, "memory_gb": 2.45, "peak_gb": 2.45, "read_gb": 3.32}
+{"part": "file", "step": "pixel click with the profile", "seconds": 0.199, "memory_gb": 2.47, "peak_gb": 2.47, "read_gb": 3.4}
+{"part": "file", "step": "pixel drag with the profile", "move_ms": 150.5, "first_ms": 151.0, "memory_gb": 2.48, "peak_gb": 2.48, "read_gb": 3.4}
+{"part": "file", "step": "session save", "seconds": 0.037, "kb": 393, "memory_gb": 2.46, "peak_gb": 2.48, "read_gb": 3.4}
+{"part": "file", "step": "session restore", "seconds": 0.24, "viewers": 2, "memory_gb": 2.52, "peak_gb": 2.52, "read_gb": 3.4}
+{"part": "file", "step": "end", "seconds": 35.866, "memory_gb": 2.52, "peak_gb": 2.52, "read_gb": 3.4}
+{"part": "quicklook", "step": "start", "seconds": 1.624, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_8542_2024-07-05T07_32_26_07_32_26=0-128_stokes_corrected_export2026-03-15T12_14_51_im.fits 128.82 GB"], "memory_gb": 0.4, "peak_gb": 0.39, "read_gb": 0.0}
+{"part": "quicklook", "step": "quicklook open", "seconds": 2.7, "memory_gb": 0.88, "peak_gb": 0.88, "read_gb": 0.63}
+{"part": "quicklook", "step": "point click", "seconds": 0.208, "memory_gb": 0.89, "peak_gb": 0.89, "read_gb": 0.63}
+{"part": "quicklook", "step": "point drag", "move_ms": 280.5, "first_ms": 323.0, "memory_gb": 0.99, "peak_gb": 0.99, "read_gb": 0.68}
+{"part": "quicklook", "step": "scan step", "step_ms": 253.0, "n": 129, "memory_gb": 4.71, "peak_gb": 4.71, "read_gb": 2.06}
+{"part": "quicklook", "step": "path diagram", "seconds": 0.194, "memory_gb": 4.72, "peak_gb": 4.72, "read_gb": 2.06}
+{"part": "quicklook", "step": "end", "seconds": 46.722, "memory_gb": 4.72, "peak_gb": 4.72, "read_gb": 2.06}
+{"part": "file", "step": "start", "seconds": 1.566, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_3950_2024-07-05T07_32_26_07_32_26=0-332_corrected_export2026-03-10T19_12_28_im.fits 135.12 GB"], "memory_gb": 0.4, "peak_gb": 0.38, "read_gb": 0.0}
+{"part": "file", "step": "open", "seconds": 0.126, "shape": [333, 30, 1976, 1656], "memory_gb": 0.43, "peak_gb": 0.43, "read_gb": 0.01}
+{"part": "file", "step": "image viewer", "seconds": 0.469, "memory_gb": 0.56, "peak_gb": 0.56, "read_gb": 0.29}
+{"part": "file", "step": "slider step, axis 0", "first_ms": 31.0, "warm_ms": 27.0, "n": 333, "memory_gb": 4.12, "peak_gb": 4.12, "read_gb": 5.2}
+{"part": "file", "step": "slider step, axis 1", "first_ms": 31.0, "warm_ms": 27.5, "n": 30, "memory_gb": 4.43, "peak_gb": 4.43, "read_gb": 5.56}
+{"part": "file", "step": "dialog", "text": "Creating a profile viewer Note: profiles are computed from datasets and subsets collapsed along all but one dimension. To view the profile of part of the data, once you click OK you can draw and update a subset in the current image viewer and the profile will update accordingly.", "memory_gb": 4.43, "peak_gb": 4.43, "read_gb": 5.56}
+{"part": "file", "step": "dialog", "text": "Add large data set? Data set nb_3950_2024-07-05T07_32_26_07_32_26=0-332_corrected_export2026-03-10T19_12_28_im has 32689837440 points, and may render slowly.", "memory_gb": 4.44, "peak_gb": 4.44, "read_gb": 5.56}
+{"part": "file", "step": "profile button", "frozen_s": 0.337, "seconds": 0.401, "memory_gb": 4.49, "peak_gb": 4.49, "read_gb": 5.56}
+{"part": "file", "step": "pixel click with the profile", "seconds": 0.217, "memory_gb": 4.51, "peak_gb": 4.51, "read_gb": 5.69}
+{"part": "file", "step": "pixel drag with the profile", "move_ms": 153.0, "first_ms": 150.0, "memory_gb": 4.5, "peak_gb": 4.52, "read_gb": 5.69}
+{"part": "file", "step": "session save", "seconds": 0.112, "kb": 1777, "memory_gb": 4.5, "peak_gb": 4.52, "read_gb": 5.69}
+{"part": "file", "step": "session restore", "seconds": 0.295, "viewers": 2, "memory_gb": 4.58, "peak_gb": 4.58, "read_gb": 5.69}
+{"part": "file", "step": "end", "seconds": 91.388, "memory_gb": 4.58, "peak_gb": 4.58, "read_gb": 5.69}
+{"part": "quicklook", "step": "start", "seconds": 1.541, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_3950_2024-07-05T07_32_26_07_32_26=0-332_corrected_export2026-03-10T19_12_28_im.fits 135.12 GB"], "memory_gb": 0.4, "peak_gb": 0.39, "read_gb": 0.0}
+{"part": "quicklook", "step": "quicklook open", "seconds": 2.203, "memory_gb": 1.07, "peak_gb": 1.07, "read_gb": 0.7}
+{"part": "quicklook", "step": "point click", "seconds": 0.207, "memory_gb": 1.08, "peak_gb": 1.08, "read_gb": 0.7}
+{"part": "quicklook", "step": "point drag", "move_ms": 337.5, "first_ms": 351.0, "memory_gb": 1.22, "peak_gb": 1.22, "read_gb": 0.81}
+{"part": "quicklook", "step": "scan step", "step_ms": 360.0, "n": 333, "memory_gb": 12.55, "peak_gb": 12.55, "read_gb": 7.75}
+{"part": "quicklook", "step": "path diagram", "seconds": 0.134, "memory_gb": 12.56, "peak_gb": 12.56, "read_gb": 7.75}
+{"part": "quicklook", "step": "end", "seconds": 141.152, "memory_gb": 12.56, "peak_gb": 12.56, "read_gb": 7.75}
+{"part": "link", "step": "start", "seconds": 1.552, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_8542_2024-07-05T07_32_26_07_32_26=0-128_stokes_corrected_export2026-03-15T12_14_51_im.fits 128.82 GB", "nb_3950_2024-07-05T07_32_26_07_32_26=0-332_corrected_export2026-03-10T19_12_28_im.fits 135.12 GB"], "memory_gb": 0.4, "peak_gb": 0.38, "read_gb": 0.0}
+{"part": "link", "step": "quicklook open nb_8542_2024-07-05T07_32_26_07_32_26=0-128_stokes_corrected_export2026-03-15T12_14_51_im", "seconds": 2.147, "memory_gb": 0.99, "peak_gb": 0.99, "read_gb": 0.0}
+{"part": "link", "step": "quicklook open nb_3950_2024-07-05T07_32_26_07_32_26=0-332_corrected_export2026-03-10T19_12_28_im", "seconds": 1.19, "memory_gb": 1.49, "peak_gb": 1.49, "read_gb": 0.25}
+{"part": "link", "step": "link", "seconds": 0.015, "links": 2, "memory_gb": 1.49, "peak_gb": 1.49, "read_gb": 0.25}
+{"part": "link", "step": "linked point moves", "move_ms": 238.0, "others_last_yx": {"nb_3950_2024-07-05T07_32_26_07_32_26=0-332_corrected_export2026-03-10T19_12_28_im": [897, 966]}, "memory_gb": 1.64, "peak_gb": 1.64, "read_gb": 1.05}
+{"part": "link", "step": "end", "seconds": 6.546, "memory_gb": 1.64, "peak_gb": 1.64, "read_gb": 1.05}
+{"part": "file", "step": "start", "seconds": 1.551, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_3950_2022-05-12T08_43_42_08_43_42=0-23_corrected_export2023-01-14T12_41_50_im.fits 12.97 GB"], "memory_gb": 0.4, "peak_gb": 0.38, "read_gb": 0.0}
+{"part": "file", "step": "open", "seconds": 0.079, "shape": [24, 34, 2012, 1918], "memory_gb": 0.4, "peak_gb": 0.4, "read_gb": 0.0}
+{"part": "file", "step": "image viewer", "seconds": 0.373, "memory_gb": 0.53, "peak_gb": 0.53, "read_gb": 0.0}
+{"part": "file", "step": "slider step, axis 0", "first_ms": 22.0, "warm_ms": 17.0, "n": 24, "memory_gb": 0.8, "peak_gb": 0.8, "read_gb": 0.3}
+{"part": "file", "step": "slider step, axis 1", "first_ms": 22.0, "warm_ms": 18.0, "n": 34, "memory_gb": 1.2, "peak_gb": 1.2, "read_gb": 0.77}
+{"part": "file", "step": "dialog", "text": "Creating a profile viewer Note: profiles are computed from datasets and subsets collapsed along all but one dimension. To view the profile of part of the data, once you click OK you can draw and update a subset in the current image viewer and the profile will update accordingly.", "memory_gb": 1.2, "peak_gb": 1.2, "read_gb": 0.77}
+{"part": "file", "step": "dialog", "text": "Add large data set? Data set nb_3950_2022-05-12T08_43_42_08_43_42=0-23_corrected_export2023-01-14T12_41_50_im has 3148957056 points, and may render slowly.", "memory_gb": 1.2, "peak_gb": 1.2, "read_gb": 0.77}
+{"part": "file", "step": "profile button", "frozen_s": 0.309, "seconds": 0.377, "memory_gb": 1.26, "peak_gb": 1.26, "read_gb": 0.77}
+{"part": "file", "step": "pixel click with the profile", "seconds": 0.184, "memory_gb": 1.35, "peak_gb": 1.35, "read_gb": 0.77}
+{"part": "file", "step": "pixel drag with the profile", "move_ms": 150.0, "first_ms": 152.0, "memory_gb": 1.35, "peak_gb": 1.35, "read_gb": 0.77}
+{"part": "file", "step": "session save", "seconds": 0.016, "kb": 206, "memory_gb": 1.35, "peak_gb": 1.35, "read_gb": 0.77}
+{"part": "file", "step": "session restore", "seconds": 0.248, "viewers": 2, "memory_gb": 1.45, "peak_gb": 1.45, "read_gb": 0.77}
+{"part": "file", "step": "end", "seconds": 17.185, "memory_gb": 1.45, "peak_gb": 1.45, "read_gb": 0.77}
+{"part": "quicklook", "step": "start", "seconds": 1.612, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_3950_2022-05-12T08_43_42_08_43_42=0-23_corrected_export2023-01-14T12_41_50_im.fits 12.97 GB"], "memory_gb": 0.4, "peak_gb": 0.4, "read_gb": 0.0}
+{"part": "quicklook", "step": "quicklook open", "seconds": 1.975, "memory_gb": 1.16, "peak_gb": 1.19, "read_gb": 0.0}
+{"part": "quicklook", "step": "point click", "seconds": 0.204, "memory_gb": 1.17, "peak_gb": 1.19, "read_gb": 0.09}
+{"part": "quicklook", "step": "point drag", "move_ms": 286.0, "first_ms": 272.0, "memory_gb": 1.23, "peak_gb": 1.23, "read_gb": 0.33}
+{"part": "quicklook", "step": "scan step", "step_ms": 328.5, "n": 24, "memory_gb": 2.44, "peak_gb": 2.44, "read_gb": 0.78}
+{"part": "quicklook", "step": "path diagram", "seconds": 0.137, "memory_gb": 2.44, "peak_gb": 2.44, "read_gb": 0.78}
+{"part": "quicklook", "step": "end", "seconds": 16.258, "memory_gb": 2.44, "peak_gb": 2.44, "read_gb": 0.78}
+{"part": "file", "step": "start", "seconds": 1.603, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_6302_2022-05-12T08_50_54_08_50_54=0-39_stokes_corrected_export2023-01-14T20_40_50_im.fits 14.72 GB"], "memory_gb": 0.4, "peak_gb": 0.38, "read_gb": 0.0}
+{"part": "file", "step": "open", "seconds": 0.098, "shape": [40, 4, 13, 1317, 1318], "memory_gb": 0.4, "peak_gb": 0.4, "read_gb": 0.0}
+{"part": "file", "step": "image viewer", "seconds": 0.384, "memory_gb": 0.53, "peak_gb": 0.53, "read_gb": 0.0}
+{"part": "file", "step": "slider step, axis 0", "first_ms": 20.0, "warm_ms": 18.0, "n": 40, "memory_gb": 0.74, "peak_gb": 0.74, "read_gb": 0.28}
+{"part": "file", "step": "slider step, axis 1", "first_ms": 19.0, "warm_ms": 18.0, "n": 4, "memory_gb": 0.76, "peak_gb": 0.76, "read_gb": 0.3}
+{"part": "file", "step": "slider step, axis 2", "first_ms": 47.0, "warm_ms": 18.0, "n": 13, "memory_gb": 0.82, "peak_gb": 0.82, "read_gb": 0.38}
+{"part": "file", "step": "dialog", "text": "Creating a profile viewer Note: profiles are computed from datasets and subsets collapsed along all but one dimension. To view the profile of part of the data, once you click OK you can draw and update a subset in the current image viewer and the profile will update accordingly.", "memory_gb": 0.82, "peak_gb": 0.82, "read_gb": 0.38}
+{"part": "file", "step": "dialog", "text": "Add large data set? Data set nb_6302_2022-05-12T08_50_54_08_50_54=0-39_stokes_corrected_export2023-01-14T20_40_50_im has 3610476480 points, and may render slowly.", "memory_gb": 0.83, "peak_gb": 0.83, "read_gb": 0.38}
+{"part": "file", "step": "profile button", "frozen_s": 0.361, "seconds": 0.43, "memory_gb": 0.88, "peak_gb": 0.88, "read_gb": 0.38}
+{"part": "file", "step": "pixel click with the profile", "seconds": 0.186, "memory_gb": 0.91, "peak_gb": 0.91, "read_gb": 0.38}
+{"part": "file", "step": "pixel drag with the profile", "move_ms": 150.5, "first_ms": 150.0, "memory_gb": 0.91, "peak_gb": 0.91, "read_gb": 0.38}
+{"part": "file", "step": "session save", "seconds": 0.013, "kb": 178, "memory_gb": 0.91, "peak_gb": 0.91, "read_gb": 0.38}
+{"part": "file", "step": "session restore", "seconds": 0.266, "viewers": 2, "memory_gb": 0.98, "peak_gb": 0.98, "read_gb": 0.38}
+{"part": "file", "step": "end", "seconds": 17.529, "memory_gb": 0.98, "peak_gb": 0.98, "read_gb": 0.38}
+{"part": "quicklook", "step": "start", "seconds": 1.949, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_6302_2022-05-12T08_50_54_08_50_54=0-39_stokes_corrected_export2023-01-14T20_40_50_im.fits 14.72 GB"], "memory_gb": 0.4, "peak_gb": 0.39, "read_gb": 0.0}
+{"part": "quicklook", "step": "quicklook open", "seconds": 3.293, "memory_gb": 0.82, "peak_gb": 0.82, "read_gb": 0.0}
+{"part": "quicklook", "step": "point click", "seconds": 0.639, "memory_gb": 0.84, "peak_gb": 0.84, "read_gb": 0.73}
+{"part": "quicklook", "step": "point drag", "move_ms": 300.5, "first_ms": 274.0, "memory_gb": 0.88, "peak_gb": 0.88, "read_gb": 0.74}
+{"part": "quicklook", "step": "scan step", "step_ms": 232.0, "n": 40, "memory_gb": 3.76, "peak_gb": 3.76, "read_gb": 8.29}
+{"part": "quicklook", "step": "path diagram", "seconds": 0.31, "memory_gb": 3.76, "peak_gb": 3.76, "read_gb": 8.29}
+{"part": "quicklook", "step": "end", "seconds": 21.878, "memory_gb": 3.76, "peak_gb": 3.76, "read_gb": 8.29}
+{"part": "file", "step": "start", "seconds": 2.194, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_4846_2022-05-12T08_00_23_08_00_23=0--52_pref4846_corrected_export2023-01-14T11_26_40_im.fits 13.01 GB"], "memory_gb": 0.4, "peak_gb": 0.39, "read_gb": 0.0}
+{"part": "file", "step": "open", "seconds": 0.087, "shape": [30, 27, 2034, 1904], "memory_gb": 0.4, "peak_gb": 0.4, "read_gb": 0.0}
+{"part": "file", "step": "image viewer", "seconds": 0.476, "memory_gb": 0.54, "peak_gb": 0.54, "read_gb": 0.31}
+{"part": "file", "step": "slider step, axis 0", "first_ms": 22.0, "warm_ms": 18.0, "n": 30, "memory_gb": 0.87, "peak_gb": 0.87, "read_gb": 0.74}
+{"part": "file", "step": "slider step, axis 1", "first_ms": 22.0, "warm_ms": 18.0, "n": 27, "memory_gb": 1.18, "peak_gb": 1.18, "read_gb": 1.11}
+{"part": "file", "step": "dialog", "text": "Creating a profile viewer Note: profiles are computed from datasets and subsets collapsed along all but one dimension. To view the profile of part of the data, once you click OK you can draw and update a subset in the current image viewer and the profile will update accordingly.", "memory_gb": 1.18, "peak_gb": 1.18, "read_gb": 1.11}
+{"part": "file", "step": "dialog", "text": "Add large data set? Data set nb_4846_2022-05-12T08_00_23_08_00_23=0--52_pref4846_corrected_export2023-01-14T11_26_40_im has 3136916160 points, and may render slowly.", "memory_gb": 1.19, "peak_gb": 1.19, "read_gb": 1.11}
+{"part": "file", "step": "profile button", "frozen_s": 0.339, "seconds": 0.402, "memory_gb": 1.25, "peak_gb": 1.25, "read_gb": 1.11}
+{"part": "file", "step": "pixel click with the profile", "seconds": 0.214, "memory_gb": 1.27, "peak_gb": 1.27, "read_gb": 1.23}
+{"part": "file", "step": "pixel drag with the profile", "move_ms": 150.5, "first_ms": 150.0, "memory_gb": 1.27, "peak_gb": 1.27, "read_gb": 1.23}
+{"part": "file", "step": "session save", "seconds": 0.016, "kb": 212, "memory_gb": 1.27, "peak_gb": 1.27, "read_gb": 1.23}
+{"part": "file", "step": "session restore", "seconds": 0.248, "viewers": 2, "memory_gb": 1.31, "peak_gb": 1.31, "read_gb": 1.23}
+{"part": "file", "step": "end", "seconds": 17.845, "memory_gb": 1.31, "peak_gb": 1.31, "read_gb": 1.23}
+{"part": "quicklook", "step": "start", "seconds": 1.565, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_4846_2022-05-12T08_00_23_08_00_23=0--52_pref4846_corrected_export2023-01-14T11_26_40_im.fits 13.01 GB"], "memory_gb": 0.4, "peak_gb": 0.4, "read_gb": 0.0}
+{"part": "quicklook", "step": "quicklook open", "seconds": 2.182, "memory_gb": 0.96, "peak_gb": 0.98, "read_gb": 0.72}
+{"part": "quicklook", "step": "point click", "seconds": 0.203, "memory_gb": 0.96, "peak_gb": 0.98, "read_gb": 0.72}
+{"part": "quicklook", "step": "point drag", "move_ms": 287.0, "first_ms": 233.0, "memory_gb": 1.04, "peak_gb": 1.04, "read_gb": 0.75}
+{"part": "quicklook", "step": "scan step", "step_ms": 323.5, "n": 30, "memory_gb": 2.3, "peak_gb": 2.3, "read_gb": 1.31}
+{"part": "quicklook", "step": "path diagram", "seconds": 0.138, "memory_gb": 2.31, "peak_gb": 2.31, "read_gb": 1.31}
+{"part": "quicklook", "step": "end", "seconds": 18.572, "memory_gb": 2.31, "peak_gb": 2.31, "read_gb": 1.31}
+{"part": "link", "step": "start", "seconds": 1.639, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_3950_2022-05-12T08_43_42_08_43_42=0-23_corrected_export2023-01-14T12_41_50_im.fits 12.97 GB", "nb_6302_2022-05-12T08_50_54_08_50_54=0-39_stokes_corrected_export2023-01-14T20_40_50_im.fits 14.72 GB"], "memory_gb": 0.4, "peak_gb": 0.39, "read_gb": 0.0}
+{"part": "link", "step": "quicklook open nb_3950_2022-05-12T08_43_42_08_43_42=0-23_corrected_export2023-01-14T12_41_50_im", "seconds": 1.609, "memory_gb": 1.17, "peak_gb": 1.17, "read_gb": 0.0}
+{"part": "link", "step": "quicklook open nb_6302_2022-05-12T08_50_54_08_50_54=0-39_stokes_corrected_export2023-01-14T20_40_50_im", "seconds": 1.547, "memory_gb": 1.46, "peak_gb": 1.46, "read_gb": 0.0}
+{"part": "link", "step": "link", "seconds": 0.013, "links": 2, "memory_gb": 1.46, "peak_gb": 1.46, "read_gb": 0.0}
+{"part": "link", "step": "linked point moves", "move_ms": 119.5, "others_last_yx": {"nb_6302_2022-05-12T08_50_54_08_50_54=0-39_stokes_corrected_export2023-01-14T20_40_50_im": [658, 659]}, "memory_gb": 1.47, "peak_gb": 1.47, "read_gb": 0.08}
+{"part": "link", "step": "end", "seconds": 5.661, "memory_gb": 1.47, "peak_gb": 1.47, "read_gb": 0.08}
+{"part": "file", "step": "start", "seconds": 1.542, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_8542_2021-08-19T16_00_12_scans=0,1,3-5,7-27_stokes_corrected_export2022-03-15T10_38_53_im.fits 13.96 GB"], "memory_gb": 0.4, "peak_gb": 0.38, "read_gb": 0.0}
+{"part": "file", "step": "open", "seconds": 0.059, "shape": [26, 4, 16, 1445, 1429], "memory_gb": 0.4, "peak_gb": 0.4, "read_gb": 0.0}
+{"part": "file", "step": "image viewer", "seconds": 0.392, "memory_gb": 0.53, "peak_gb": 0.53, "read_gb": 0.0}
+{"part": "file", "step": "slider step, axis 0", "first_ms": 17.0, "warm_ms": 14.0, "n": 26, "memory_gb": 0.71, "peak_gb": 0.71, "read_gb": 0.16}
+{"part": "file", "step": "slider step, axis 1", "first_ms": 16.0, "warm_ms": 14.0, "n": 4, "memory_gb": 0.73, "peak_gb": 0.73, "read_gb": 0.19}
+{"part": "file", "step": "slider step, axis 2", "first_ms": 16.0, "warm_ms": 14.0, "n": 16, "memory_gb": 0.83, "peak_gb": 0.83, "read_gb": 0.31}
+{"part": "file", "step": "dialog", "text": "Creating a profile viewer Note: profiles are computed from datasets and subsets collapsed along all but one dimension. To view the profile of part of the data, once you click OK you can draw and update a subset in the current image viewer and the profile will update accordingly.", "memory_gb": 0.83, "peak_gb": 0.83, "read_gb": 0.31}
+{"part": "file", "step": "dialog", "text": "Add large data set? Data set nb_8542_2021-08-19T16_00_12_scans=0,1,3-5,7-27_stokes_corrected_export2022-03-15T10_38_53_im has 3436001920 points, and may render slowly.", "memory_gb": 0.81, "peak_gb": 0.83, "read_gb": 0.31}
+{"part": "file", "step": "profile button", "frozen_s": 0.59, "seconds": 0.691, "memory_gb": 0.87, "peak_gb": 0.87, "read_gb": 0.31}
+{"part": "file", "step": "pixel click with the profile", "seconds": 0.199, "memory_gb": 0.88, "peak_gb": 0.88, "read_gb": 0.31}
+{"part": "file", "step": "pixel drag with the profile", "move_ms": 151.5, "first_ms": 158.0, "memory_gb": 0.89, "peak_gb": 0.89, "read_gb": 0.31}
+{"part": "file", "step": "session save", "seconds": 0.013, "kb": 115, "memory_gb": 0.89, "peak_gb": 0.89, "read_gb": 0.31}
+{"part": "file", "step": "session restore", "seconds": 0.276, "viewers": 2, "memory_gb": 0.94, "peak_gb": 0.94, "read_gb": 0.31}
+{"part": "file", "step": "end", "seconds": 14.482, "memory_gb": 0.94, "peak_gb": 0.94, "read_gb": 0.31}
+{"part": "quicklook", "step": "start", "seconds": 1.944, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_8542_2021-08-19T16_00_12_scans=0,1,3-5,7-27_stokes_corrected_export2022-03-15T10_38_53_im.fits 13.96 GB"], "memory_gb": 0.4, "peak_gb": 0.4, "read_gb": 0.0}
+{"part": "quicklook", "step": "quicklook open", "seconds": 2.45, "memory_gb": 0.83, "peak_gb": 0.83, "read_gb": 0.0}
+{"part": "quicklook", "step": "point click", "seconds": 0.293, "memory_gb": 0.83, "peak_gb": 0.83, "read_gb": 0.26}
+{"part": "quicklook", "step": "point drag", "move_ms": 244.5, "first_ms": 392.0, "memory_gb": 0.88, "peak_gb": 0.88, "read_gb": 0.74}
+{"part": "quicklook", "step": "scan step", "step_ms": 190.5, "n": 26, "memory_gb": 2.87, "peak_gb": 2.87, "read_gb": 5.0}
+{"part": "quicklook", "step": "path diagram", "seconds": 0.221, "memory_gb": 2.88, "peak_gb": 2.88, "read_gb": 5.0}
+{"part": "quicklook", "step": "end", "seconds": 14.33, "memory_gb": 2.88, "peak_gb": 2.88, "read_gb": 5.0}
+{"part": "file", "step": "start", "seconds": 1.536, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_3950_2021-08-19T16_57_49_scans=0-24_corrected_export2022-03-08T16_43_23_im.fits 13.75 GB"], "memory_gb": 0.4, "peak_gb": 0.4, "read_gb": 0.0}
+{"part": "file", "step": "open", "seconds": 0.063, "shape": [25, 34, 1975, 1989], "memory_gb": 0.4, "peak_gb": 0.4, "read_gb": 0.0}
+{"part": "file", "step": "image viewer", "seconds": 0.364, "memory_gb": 0.53, "peak_gb": 0.53, "read_gb": 0.0}
+{"part": "file", "step": "slider step, axis 0", "first_ms": 19.0, "warm_ms": 14.0, "n": 25, "memory_gb": 0.83, "peak_gb": 0.83, "read_gb": 0.39}
+{"part": "file", "step": "slider step, axis 1", "first_ms": 20.0, "warm_ms": 14.0, "n": 34, "memory_gb": 1.24, "peak_gb": 1.24, "read_gb": 0.89}
+{"part": "file", "step": "dialog", "text": "Creating a profile viewer Note: profiles are computed from datasets and subsets collapsed along all but one dimension. To view the profile of part of the data, once you click OK you can draw and update a subset in the current image viewer and the profile will update accordingly.", "memory_gb": 1.24, "peak_gb": 1.24, "read_gb": 0.89}
+{"part": "file", "step": "dialog", "text": "Add large data set? Data set nb_3950_2021-08-19T16_57_49_scans=0-24_corrected_export2022-03-08T16_43_23_im has 3339033750 points, and may render slowly.", "memory_gb": 1.22, "peak_gb": 1.24, "read_gb": 0.89}
+{"part": "file", "step": "profile button", "frozen_s": 0.422, "seconds": 0.502, "memory_gb": 1.28, "peak_gb": 1.28, "read_gb": 0.89}
+{"part": "file", "step": "pixel click with the profile", "seconds": 0.182, "memory_gb": 1.3, "peak_gb": 1.3, "read_gb": 0.89}
+{"part": "file", "step": "pixel drag with the profile", "move_ms": 150.0, "first_ms": 151.0, "memory_gb": 1.3, "peak_gb": 1.3, "read_gb": 0.89}
+{"part": "file", "step": "session save", "seconds": 0.015, "kb": 186, "memory_gb": 1.3, "peak_gb": 1.3, "read_gb": 0.89}
+{"part": "file", "step": "session restore", "seconds": 0.217, "viewers": 2, "memory_gb": 1.37, "peak_gb": 1.37, "read_gb": 0.89}
+{"part": "file", "step": "end", "seconds": 16.819, "memory_gb": 1.37, "peak_gb": 1.37, "read_gb": 0.89}
+{"part": "quicklook", "step": "start", "seconds": 1.477, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_3950_2021-08-19T16_57_49_scans=0-24_corrected_export2022-03-08T16_43_23_im.fits 13.75 GB"], "memory_gb": 0.4, "peak_gb": 0.4, "read_gb": 0.0}
+{"part": "quicklook", "step": "quicklook open", "seconds": 1.53, "memory_gb": 1.03, "peak_gb": 1.05, "read_gb": 0.0}
+{"part": "quicklook", "step": "point click", "seconds": 0.173, "memory_gb": 1.03, "peak_gb": 1.05, "read_gb": 0.09}
+{"part": "quicklook", "step": "point drag", "move_ms": 190.0, "first_ms": 151.0, "memory_gb": 1.15, "peak_gb": 1.15, "read_gb": 0.4}
+{"part": "quicklook", "step": "scan step", "step_ms": 310.0, "n": 25, "memory_gb": 2.43, "peak_gb": 2.43, "read_gb": 0.8}
+{"part": "quicklook", "step": "path diagram", "seconds": 0.132, "memory_gb": 2.45, "peak_gb": 2.45, "read_gb": 0.8}
+{"part": "quicklook", "step": "end", "seconds": 14.34, "memory_gb": 2.45, "peak_gb": 2.45, "read_gb": 0.8}
+{"part": "file", "step": "start", "seconds": 1.504, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_4846_2021-08-19T12_04_22_scans=0--90_pf4846_corrected_export2022-03-10T11_22_25_im.fits 13.79 GB"], "memory_gb": 0.4, "peak_gb": 0.39, "read_gb": 0.0}
+{"part": "file", "step": "open", "seconds": 0.058, "shape": [40, 27, 1946, 1582], "memory_gb": 0.4, "peak_gb": 0.4, "read_gb": 0.0}
+{"part": "file", "step": "image viewer", "seconds": 0.429, "memory_gb": 0.53, "peak_gb": 0.53, "read_gb": 0.24}
+{"part": "file", "step": "slider step, axis 0", "first_ms": 16.0, "warm_ms": 13.5, "n": 40, "memory_gb": 0.94, "peak_gb": 0.95, "read_gb": 0.73}
+{"part": "file", "step": "slider step, axis 1", "first_ms": 16.0, "warm_ms": 12.0, "n": 27, "memory_gb": 1.22, "peak_gb": 1.22, "read_gb": 1.03}
+{"part": "file", "step": "dialog", "text": "Creating a profile viewer Note: profiles are computed from datasets and subsets collapsed along all but one dimension. To view the profile of part of the data, once you click OK you can draw and update a subset in the current image viewer and the profile will update accordingly.", "memory_gb": 1.22, "peak_gb": 1.22, "read_gb": 1.03}
+{"part": "file", "step": "dialog", "text": "Add large data set? Data set nb_4846_2021-08-19T12_04_22_scans=0--90_pf4846_corrected_export2022-03-10T11_22_25_im has 3324857760 points, and may render slowly.", "memory_gb": 1.23, "peak_gb": 1.23, "read_gb": 1.03}
+{"part": "file", "step": "profile button", "frozen_s": 0.309, "seconds": 0.378, "memory_gb": 1.29, "peak_gb": 1.29, "read_gb": 1.03}
+{"part": "file", "step": "pixel click with the profile", "seconds": 0.208, "memory_gb": 1.31, "peak_gb": 1.31, "read_gb": 1.15}
+{"part": "file", "step": "pixel drag with the profile", "move_ms": 150.5, "first_ms": 151.0, "memory_gb": 1.32, "peak_gb": 1.32, "read_gb": 1.15}
+{"part": "file", "step": "session save", "seconds": 0.019, "kb": 228, "memory_gb": 1.32, "peak_gb": 1.32, "read_gb": 1.15}
+{"part": "file", "step": "session restore", "seconds": 0.221, "viewers": 2, "memory_gb": 1.35, "peak_gb": 1.35, "read_gb": 1.15}
+{"part": "file", "step": "end", "seconds": 18.099, "memory_gb": 1.35, "peak_gb": 1.35, "read_gb": 1.15}
+{"part": "quicklook", "step": "start", "seconds": 1.515, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_4846_2021-08-19T12_04_22_scans=0--90_pf4846_corrected_export2022-03-10T11_22_25_im.fits 13.79 GB"], "memory_gb": 0.4, "peak_gb": 0.4, "read_gb": 0.0}
+{"part": "quicklook", "step": "quicklook open", "seconds": 1.674, "memory_gb": 0.96, "peak_gb": 0.96, "read_gb": 0.64}
+{"part": "quicklook", "step": "point click", "seconds": 0.135, "memory_gb": 0.96, "peak_gb": 0.96, "read_gb": 0.64}
+{"part": "quicklook", "step": "point drag", "move_ms": 194.0, "first_ms": 162.0, "memory_gb": 1.03, "peak_gb": 1.03, "read_gb": 0.67}
+{"part": "quicklook", "step": "scan step", "step_ms": 302.5, "n": 40, "memory_gb": 2.44, "peak_gb": 2.44, "read_gb": 1.32}
+{"part": "quicklook", "step": "path diagram", "seconds": 0.134, "memory_gb": 2.44, "peak_gb": 2.44, "read_gb": 1.32}
+{"part": "quicklook", "step": "end", "seconds": 19.331, "memory_gb": 2.44, "peak_gb": 2.44, "read_gb": 1.32}
+{"part": "link", "step": "start", "seconds": 1.52, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": ["nb_8542_2021-08-19T16_00_12_scans=0,1,3-5,7-27_stokes_corrected_export2022-03-15T10_38_53_im.fits 13.96 GB", "nb_3950_2021-08-19T16_57_49_scans=0-24_corrected_export2022-03-08T16_43_23_im.fits 13.75 GB"], "memory_gb": 0.4, "peak_gb": 0.38, "read_gb": 0.0}
+{"part": "link", "step": "quicklook open nb_8542_2021-08-19T16_00_12_scans=0,1,3-5,7-27_stokes_corrected_export2022-03-15T10_38_53_im", "seconds": 1.997, "memory_gb": 0.86, "peak_gb": 0.86, "read_gb": 0.0}
+{"part": "link", "step": "quicklook open nb_3950_2021-08-19T16_57_49_scans=0-24_corrected_export2022-03-08T16_43_23_im", "seconds": 0.905, "memory_gb": 1.36, "peak_gb": 1.36, "read_gb": 0.0}
+{"part": "link", "step": "link", "seconds": 0.014, "links": 2, "memory_gb": 1.36, "peak_gb": 1.36, "read_gb": 0.0}
+{"part": "link", "step": "linked point moves", "move_ms": 151.5, "others_last_yx": {"nb_3950_2021-08-19T16_57_49_scans=0-24_corrected_export2022-03-08T16_43_23_im": [987, 994]}, "memory_gb": 1.43, "peak_gb": 1.43, "read_gb": 0.14}
+{"part": "link", "step": "end", "seconds": 5.308, "memory_gb": 1.43, "peak_gb": 1.43, "read_gb": 0.14}

@@ -1357,7 +1357,7 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 
 ## SST performance survey 2, 2026-10-20
 
-`wp10-perf-survey-2` (D100): the 2026-10-10 survey's steps again on glue-solar main dc7c25f (#343), and the quicklook-era parts, on this Mac. The user's Linux machine (larger cubes, 188 GB RAM) runs the same script; its numbers go here when pasted back.
+`wp10-perf-survey-2` (D100): the 2026-10-10 survey's steps again on glue-solar main dc7c25f (#343), and the quicklook-era parts, on this Mac, and the same day on the user's Linux machine (its own, larger cubes and IRIS sets: 'Linux, 2026-10-20' below).
 
 **How it was measured.** `IRIS_PLAN_PROTOTYPES/scale_checks/run_survey.sh` (each cube's part in a fresh process, offscreen Qt and Agg, app 1600x1000 shown, glue's dialogs answered as a user clicks through them); raw lines in `scale_checks/results/mac_20261020.jsonl`. Env `iris-plan-qt6-802-0650`: glue-core 1.27.0, glue-qt 0.4.2, astropy 8.0.2, irispy main 0650517, Python 3.13, macOS on Apple Silicon, 24 GB. Times are seconds or ms to idle: no pending draw on a visible canvas, no profile computing, no coordinator timer. Unlike 2026-10-10 the files were not cold (earlier runs had read them), so the disk reads are small and the first-visit times are not cold reads.
 
@@ -1410,6 +1410,46 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 - **The steps cost the same on every set,** 77-100 ms, as do the moves, 132-176 ms: a fixed cost of redrawing the panels the point moves on, not of the data's size. A map's wavelength step takes 22-31 ms and a slit-jaw frame step 16-20 ms.
 - **Opening is mostly irispy reading the files,** 0.4-7.5 s, then 1.1-1.6 s for the quicklook. The read is decoding more than disk: 3630104144's 120 files, extracted just before and so in the page cache, took 7.5 s with 0.08 GB read from disk. Peak memory is the loaded data, plus a second copy in the restored session.
 - **No IRIS slow spot is left:** nothing interactive takes over 0.2 s. Not measured: a gzipped raster, which `wp10-gzip-raster-once` inflates once. 3630104144 is a tar.gz in `~/DATA/IRIS`; it was extracted to a scratch folder for this run.
+
+**Linux, 2026-10-20.** The same script and steps on the user's Linux machine (x86-64, 32 cores, 188 GB, Fedora), env `iris-plan-qt6-802-f058` (Python 3.13, glue-core 1.27.0, glue-qt 0.4.2, astropy 8.0.2, irispy f058705: the Mac's 0650517 and a tutorial line), on main c52fcc1 (the Mac's dc7c25f and #344-#347, none of them in the measured paths), with its own SST cubes (SSTRED SOLARNET, 2021-08-19, 2022-05-12 and 2024-07-05; the 2024 pair of one observation, 129 and 135 GB) and IRIS sets; raw lines in `scale_checks/results/linux_20261020.jsonl` and `linux_iris_20261020.jsonl`. The page cache was not controlled, and the machine ran nothing else heavy.
+
+| Cube | GB | Open s | Viewer s | Step ms (first / warm) | Profile s (freeze) | Drag ms | Restore s | Peak GB |
+|---|---|---|---|---|---|---|---|---|
+| Ca II 8542 2024-07-05 | 128.8 | 0.09 | 0.64 | 20-22 / 17-18 | 0.39 (0.33) | 150 | 0.24 | 2.5 |
+| Ca II K 3950 2024-07-05 | 135.1 | 0.13 | 0.47 | 31 / 27-28 | 0.40 (0.34) | 153 | 0.29 | 4.6 |
+| Ca II K 3950 2022-05-12 | 13.0 | 0.08 | 0.37 | 22 / 17-18 | 0.38 (0.31) | 150 | 0.25 | 1.4 |
+| Fe I 6302 2022-05-12 | 14.7 | 0.10 | 0.38 | 19-47 / 18 | 0.43 (0.36) | 150 | 0.27 | 1.0 |
+| H-beta 4846 2022-05-12 | 13.0 | 0.09 | 0.48 | 22 / 18 | 0.40 (0.34) | 150 | 0.25 | 1.3 |
+| Ca II 8542 2021-08-19 | 14.0 | 0.06 | 0.39 | 16-17 / 14 | 0.69 (0.59) | 152 | 0.28 | 0.9 |
+| Ca II K 3950 2021-08-19 | 13.8 | 0.06 | 0.36 | 19-20 / 14 | 0.50 (0.42) | 150 | 0.22 | 1.4 |
+| H-beta 4846 2021-08-19 | 13.8 | 0.06 | 0.43 | 16 / 12-14 | 0.38 (0.31) | 150 | 0.22 | 1.4 |
+
+| Cube | Quicklook open s | Click s | Drag ms (first) | Scan step ms | Path diagram s | Peak GB |
+|---|---|---|---|---|---|---|
+| Ca II 8542 2024-07-05 | 2.7 | 0.21 | 280 (323) | 253 | 0.19 | 4.7 |
+| Ca II K 3950 2024-07-05 | 2.2 | 0.21 | 338 (351) | 360 | 0.13 | 12.6 |
+| Ca II K 3950 2022-05-12 | 2.0 | 0.20 | 286 (272) | 328 | 0.14 | 2.4 |
+| Fe I 6302 2022-05-12 | 3.3 | 0.64 | 300 (274) | 232 | 0.31 | 3.8 |
+| H-beta 4846 2022-05-12 | 2.2 | 0.20 | 287 (233) | 324 | 0.14 | 2.3 |
+| Ca II 8542 2021-08-19 | 2.5 | 0.29 | 244 (392) | 190 | 0.22 | 2.9 |
+| Ca II K 3950 2021-08-19 | 1.5 | 0.17 | 190 (151) | 310 | 0.13 | 2.5 |
+| H-beta 4846 2021-08-19 | 1.7 | 0.14 | 194 (162) | 302 | 0.13 | 2.4 |
+
+Linked quicklooks (each pair's CRISP and CHROMIS cubes, D97): linking took 0.013-0.015 s (2 links); a point moved on one, the other's following, 238 ms (2024), 120 ms (2022), 152 ms (2021).
+
+| Observation, raster files | Open s (load / quicklook) | Step ms (first / warm; SJI warm) | Click / move ms | Restore s | Peak GB |
+|---|---|---|---|---|---|
+| 3630104144 120-scan stack, 8 windows + 4 SJIs | 11.0 (8.9 / 2.1) | 36-117 / 36-111; 19-21 | 201 / 152 | 9.6 | 4.2 |
+| 3625503135 500-scan stack, 8 windows + 4 SJIs | 53.8 (50.4 / 3.4) | 47-213 / 46-206; 32-36 | 232 / 160 | 58.7 | 9.4 |
+| 3860259453 one 2490-step raster, 9 windows + 2 SJIs | 11.7 (7.4 / 4.3) | 69-252 / 72-170; 29-34 | 288 / 220 | 7.3 | 12.7 |
+| 3860107071 1230-scan stack of 4 steps, 9 windows + 3 SJIs | 151.4 (146.9 / 4.5) | 57-239 / 70-225; 31-35 | 235 / 181 | 109.5 | 8.9 |
+| 3860258481 180 rasters (flare), 9 windows | fails | | | | |
+| 3660100039 450 rasters, 9 windows + 4 SJIs | fails | | | | |
+
+- **Size costs nothing in the file part:** the 129 and 135 GB cubes open in 0.1 s, step in 17-31 ms and restore in 0.3 s, at 2.5-4.6 GB peak, as the 13-15 GB ones do; each step is a little faster than the Mac's (14-31 against 20-37 ms), and a Pixel drag with the Profile open is 150 ms a move on every cube (Mac 175-200; R14, upstream).
+- **The scan step is slow on Linux too:** 190-360 ms, against the Mac's 302-515 ms on its 2023 mosaics, so the first visit's cost is not macOS's alone (`wp10-l-sst-scan-step`). The quicklook's resident memory grows with the scans stepped through (12.6 GB after the 333 scans of the 135 GB cube), most likely the memory map's file-backed pages, which the kernel can drop (not checked). A quicklook drag costs 190-340 ms a move (Mac 181-215), more on the larger 2022 and 2024 fields.
+- **IRIS:** 3630104144, the one set on both machines, is close to the Mac (load 8.9 against 7.5 s, a scan step 105-117 against 83-90 ms, a move 152 against 176 ms). Large stacks scale with their files: a load takes about 0.1 s a raster file (500 files 50 s, 1230 files 147 s), a restore about as long again (59 and 110 s), as it re-reads them through glue's load log (D25), and a scan step 180-240 ms at 500-1230 scans against 105 ms at 120.
+- **Two observations fail to load:** 3660100039 (8 of its 450 raster files) and the flare 3860258481 (5 of 180) have raster files with no data, an empty DATE_OBS and DATE_END and an empty last table (TFORM 'A0'), on which irispy's `read_files` raises building `Time('')`, failing the whole observation's load.
 
 ## WCSAxes tick rendering
 
