@@ -344,6 +344,7 @@ class Coordinator(HubListener):
         self._kept = (None, None, None, None)
         self._outside = (None, None)  # a slit-jaw viewer clicked outside the raster, and the point its click left
         self._busy = False
+        self.link_points = True  # 'Link points across cubes' (D97)
         self.marker = None  # the `MARK` subset group (`_mark`), once made
         self._drag = None  # while a mouse button is down on a viewer: whether a point was clicked
         # a drag moves the point at every mouse event: show only its latest position. The application owns the timer:
@@ -589,6 +590,7 @@ class Coordinator(HubListener):
             return
         self.group = group
         self._pin(state)
+        self._link_points()
         self._to_raster(state)
         # an Undo or Redo back to a slit-jaw click's point: under a raster master, its viewer back to the frame clicked
         sji, clicked, viewer, frame = self._kept
@@ -652,6 +654,44 @@ class Coordinator(HubListener):
                     self._set_slices(other, wavelengths)
             if slices != list(state.slices):
                 self.group.subset_state = PixelSubsetState(data, slices)
+
+    def _link_points(self):
+        """
+        With `link_points` (D97), move the point of each other quicklook of a non-IRIS cube linked to the followed
+        point's, of its observation, to the point's place on the Sun, at that cube's own other slices; a place off that
+        cube leaves its point.
+        """
+        state = self.group.subset_state
+        data = state.reference_data
+        place = _hpc(data)
+        if not self.link_points or _role(data) in _IRIS_ROLES or place is None:
+            return
+        world = data.coords.pixel_to_world_values(*[s.start or 0 for s in state.slices][::-1])
+        units = data.coords.world_axis_units
+        sun = [u.Quantity(world[axis], units[axis]) for axis in place[0]]
+        lon = data.world_component_ids[len(units) - 1 - place[0][0]]
+        with self._writing():
+            for group in self._owners:
+                point = group.subset_state
+                other = getattr(point, "reference_data", None)
+                if other in (None, data) or lon not in other.externally_derivable_components:
+                    continue
+                found = _hpc(other)
+                if found is None or observation_key(other) != observation_key(data) or _role(other) in _IRIS_ROLES:
+                    continue
+                axes, spatial = found
+                values = list(other.coords.pixel_to_world_values(*[s.start or 0 for s in point.slices][::-1]))
+                for axis, at in zip(axes, sun, strict=True):
+                    values[axis] = at.to_value(other.coords.world_axis_units[axis])
+                pixel = np.asarray(other.coords.world_to_pixel_values(*values), float)[::-1]
+                slices = list(point.slices)
+                for axis in spatial:
+                    index = round(pixel[axis]) if np.isfinite(pixel[axis]) else -1
+                    if not 0 <= index < other.shape[axis]:
+                        break
+                    slices[axis] = slice(index, index + 1)
+                else:
+                    group.subset_state = PixelSubsetState(other, slices)
 
     def _to_raster(self, state):
         """
@@ -1229,6 +1269,24 @@ def _role(data):
     if instrument.startswith(("AIA", "SOT")):
         return "aia"
     return {"SPEC": "raster", "SJI": "sji", "CRISP": "sst", "CHROMIS": "sst"}.get(instrument)
+
+
+_IRIS_ROLES = ("raster", "sji", "aia")  # an IRIS observation's own data, whose point `_link_points` leaves alone
+
+
+def _hpc(data):
+    """
+    The world axes of the helioprojective longitude and latitude of ``data``, in WCS order, and its pixel axes along
+    which only they vary, in glue's order, or None.
+    """
+    wcs = data.coords
+    types = list(getattr(wcs, "world_axis_physical_types", None) or ())
+    if not set(_HPC) <= set(types):
+        return None
+    world = [types.index(physical_type) for physical_type in _HPC]
+    matrix = np.asarray(wcs.axis_correlation_matrix)
+    spatial = matrix[world].any(axis=0) & ~np.delete(matrix, world, axis=0).any(axis=0)
+    return world, [data.ndim - 1 - axis for axis in np.nonzero(spatial)[0]]
 
 
 def _same_file(data, other):

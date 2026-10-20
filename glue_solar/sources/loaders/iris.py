@@ -867,13 +867,14 @@ class _ScanAt:
 
 def link_hpc(data_collection, others=()):
     """
-    The links, for the caller to add, of the helioprojective longitude and latitude of every IRIS dataset and of those
-    of ``others`` to the first IRIS dataset's, by physical type, in arcsec (`LinkSame`) or converted
-    (`LinkSameWithUnits`), and of each stack's scan and each SST cube's time to the frames of the others (`_ScanAt`),
-    skipping pairs linked already; see the loading guide's Linking. Each links to the first, not to every other: glue
-    rediscovers every link at each change, 0.3 s for the 70 links of 36 datasets but 4 s for every pair's 1260. The
-    plain WCS of each other dataset linked, which IRIS data's profile workers then call, goes behind `WCS_LOCK` in place
-    (`_LockedWCS`); each SST cube's ``meta['IRIS observation']`` names the IRIS observation timed nearest it, if linked.
+    The links, for the caller to add, of the helioprojective longitude and latitude of every IRIS dataset and of
+    those of ``others`` to the first IRIS dataset's, else, with no IRIS data, to the first of ``others`` (D97), by
+    physical type, in arcsec (`LinkSame`) or converted (`LinkSameWithUnits`), and of each stack's scan and each SST
+    cube's time to the frames of the others (`_ScanAt`), skipping pairs linked already; see the loading guide's
+    Linking. Each links to the first, not to every other: glue rediscovers every link at each change, 0.3 s for the
+    70 links of 36 datasets but 4 s for every pair's 1260. The plain WCS of each other dataset linked, which IRIS
+    data's profile workers then call, goes behind `WCS_LOCK` in place (`_LockedWCS`); each SST cube's
+    ``meta['IRIS observation']`` names the IRIS observation timed nearest it, if linked.
     """
     from glue_solar.quicklook import _role, _times, nearest, observation_key  # which imports this module
     from glue_solar.sources.sst import _LockedTabularWCS, _TabularWCS  # which imports this module
@@ -889,8 +890,8 @@ def link_hpc(data_collection, others=()):
         physical_types = getattr(data.coords, "world_axis_physical_types", None) or ()
         for physical_type, cid in zip(physical_types[::-1], data.world_component_ids):
             if physical_type and physical_type.startswith("custom:pos.helioprojective."):
-                # never another dataset: with no IRIS dataset, one is its own anchor and gets no link
-                anchor = anchors.setdefault(physical_type, cid) if data in iris else anchors.get(physical_type, cid)
+                # the first IRIS dataset, sorted first, else the first dataset asked for (D97)
+                anchor = anchors.setdefault(physical_type, cid) if asked else anchors.get(physical_type, cid)
                 pair = frozenset((anchor, cid))
                 if anchor is cid or not (asked or pair in linked):
                     continue

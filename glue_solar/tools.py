@@ -69,6 +69,7 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 from glue_solar.glue_patches import _takes
 from glue_solar.lines import KM_S, _icon, rest_wavelength
 from glue_solar.quicklook import (
+    _IRIS_ROLES,
     QuicklookImageViewer,
     _across,
     _check_cut,
@@ -1648,6 +1649,24 @@ class _ClearPointEntry(_CoordinateEntry):
         coordinator.clear_point()
 
 
+class _LinkPointsEntry(_CoordinateEntry):
+    tool_id = "solar:link_points"
+    action_text = "Link points across cubes"
+    tool_tip = "Move the points of the other linked cubes of the observation to the point's place on the Sun"
+
+    @property
+    def checked(self):
+        return self.menu.coordinator.link_points
+
+    def run(self, coordinator):
+        coordinator.link_points = not coordinator.link_points
+
+    def offered(self):
+        # on a quicklook panel of a cube that is not IRIS data, the points it links
+        owned = any(self.viewer in viewers for viewers in self.menu.coordinator._owners.values())
+        return owned and _role(self.viewer.state.reference_data) not in _IRIS_ROLES
+
+
 class _PointCurvesEntry(_CoordinateEntry):
     tool_id = "solar:point_curves"
     action_text = "Light curves at the point"  # the only one, against Time (D90)
@@ -2352,8 +2371,8 @@ class CoordinateTool(_ToolMenu):
     ENTRIES = (_TimeMasterEntry, _GoToUTCEntry, _LoopEntry)
     SUBMENUS = {
         "Point": (
-            "The point: clear it, its light curves, or the map's row and column through it",
-            (_ClearPointEntry, _PointCurvesEntry, _RowEntry, _ColumnEntry),
+            "The point: clear it, link it across cubes, its light curves, or the map's row and column through it",
+            (_ClearPointEntry, _LinkPointsEntry, _PointCurvesEntry, _RowEntry, _ColumnEntry),
         ),
         "Blink": ("Alternate the viewer between its position and a partner", (_PartnerEntry, _BlinkEntry)),
     }

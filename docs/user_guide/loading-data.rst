@@ -127,7 +127,9 @@ limits wash the brighter wing out.
 
 The point, clicks and keys work as in the IRIS quicklook, and the scan and Stokes sliders of either
 map move the other panels. Cubes with overlapping scan times, such as the CRISP and CHROMIS cubes of
-one morning, share one time.
+one morning, share one time. Once linked (see `Linking`_), a point on one cube moves the other cubes'
+points to the same place on the Sun, each at its own scan and tuning, while Coordinate → Point →
+"Link points across cubes" is on, as it is at first.
 
 Q, U and V show scaled with their noise level: their maps' limits are ±5 times it for Q and U and
 ±10 times for V, whose signal is the stronger, and their spectra span at least as much, with the
@@ -166,7 +168,8 @@ The browser, a quicklook and the analyses link the helioprojective coordinates o
 load or make, so a region drawn on one selects the same place on the Sun in the others. AIA cutouts,
 SOT cubes, maps, SST cubes and files opened with "File → Open Data Set" link only on request: choose
 "Link helioprojective coordinates" in the "Plugins" menu once they are loaded, and again after
-loading more or reopening a session with a map linked.
+loading more or reopening a session with a map linked. With no IRIS data loaded, they link to the
+first of them, so SST cubes link to each other.
 
 - A region on a raster map or a map selects, in each slit-jaw frame, the pixels inside it at that
   frame's own pointing.
