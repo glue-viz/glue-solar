@@ -1022,24 +1022,30 @@ def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
 
 def test_sst_cubes_link_without_iris_data_and_link_their_points(sst_app, qtbot, tmp_path):
     # D97: with no IRIS data, linking anchors on the first cube, and with 'Link points across cubes' on, a point on
-    # one cube moves the other quicklook's point to its place on the Sun, at that cube's own other slices
+    # one cube moves the other quicklook's point of its observation to its place on the Sun, at that cube's own other
+    # slices, and that quicklook's own panels with it (D19)
     write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16), start=1200.0, cadence=60.0)
     # half the pixel size, its center 1.75 arcsec off in both: the first's pixel (11, 6) is its (10, 8)
     write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), center=(-53.25, -401.25), scale=0.5, start=1170.0)
-    first, second = (sst_data(tmp_path / f"{name}.fits") for name in "ab")
-    a, _ = quicklook(sst_app, [first]), quicklook(sst_app, [second])
+    write_sst_cube(tmp_path / "c.fits", start=9000.0)  # another observation, over the same place
+    first, second, third = (sst_data(tmp_path / f"{name}.fits") for name in "abc")
+    a, b, _ = (quicklook(sst_app, [data]) for data in (first, second, third))
     dc = sst_app.data_collection
-    dc.add_link(link_hpc(dc, others=[first, second]))
-    assert linked_data(dc) == {first, second}
-    ours, theirs = sorted(coordinator(dc)._owners, key=lambda group: group.subset_state.reference_data is second)
-    scan = theirs.subset_state.slices[0]
+    dc.add_link(link_hpc(dc, others=[first, second, third]))
+    assert linked_data(dc) == {first, second, third}
+    assert {type(data.coords) for data in (first, second, third)} == {_LockedTabularWCS}  # the anchor too
+    groups = {group.subset_state.reference_data: group for group in coordinator(dc)._owners}
+    ours, theirs, apart = (groups[data] for data in (first, second, third))
+    scan, kept = theirs.subset_state.slices[0], apart.subset_state.slices
 
     def place(x, y):
-        slices = [slice(1, 2), slice(None), slice(y, y + 1), slice(x, x + 1)]  # scan, tuning, y and x
+        slices = [slice(2, 3), slice(None), slice(y, y + 1), slice(x, x + 1)]  # scan, tuning, y and x
         ours.subset_state = PixelSubsetState(first, slices)
         return theirs.subset_state.slices
 
     assert place(11, 6) == [scan, slice(None), slice(8, 9), slice(10, 11)]
+    assert apart.subset_state.slices == kept
+    assert (b["slit"].state.slices[-1], b["wavelength"].state.slices[-2:]) == (10, (8, 10))
     assert place(0, 0)[2:] == [slice(8, 9), slice(10, 11)]  # off the second cube: its point stays
     entry = a["map"].toolbar.tools["solar:link_points"]
     assert entry.offered()

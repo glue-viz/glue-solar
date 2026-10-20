@@ -961,9 +961,9 @@ def link_hpc(data_collection, others=()):
                 # the first IRIS dataset, sorted first, else the first dataset asked for (D97)
                 anchor = anchors.setdefault(physical_type, cid) if asked else anchors.get(physical_type, cid)
                 pair = frozenset((anchor, cid))
-                if anchor is cid or not (asked or pair in linked):
+                if not (asked or pair in linked):
                     continue
-                if pair not in linked:
+                if anchor is not cid and pair not in linked:  # an asked anchor is placed and locked too (D97)
                     links.append((LinkSame if isinstance(data.coords, _GlueWCS) else LinkSameWithUnits)(anchor, cid))
                 placed.add(data)
                 if _role(data) == "sst":
@@ -1050,7 +1050,8 @@ def _linked_to_iris(data_collection):
     """
     The datasets of ``data_collection`` other than IRIS data, AIA cutouts and SOT cubes among them, whose
     helioprojective longitude or latitude a link pairs with the first IRIS dataset's, as `link_hpc` links them on
-    request; not one linked by hand, in glue's Link Data dialog, to another IRIS dataset.
+    request; not one linked by hand, in glue's Link Data dialog, to another IRIS dataset. With no IRIS data, those a
+    link pairs with another such dataset's (D97).
     """
     from glue_solar.quicklook import _role  # which imports this module
 
@@ -1066,15 +1067,18 @@ def _linked_to_iris(data_collection):
     anchors, linked = set(anchors.values()), set()
     for link in data_collection.links:
         ends = {link.get_to_id(), *link.get_from_ids()}
-        if ends & anchors:
-            linked.update(others[cid] for cid in ends & others.keys())
+        found = {others[cid] for cid in ends & others.keys()}
+        # two datasets', not one's own coordinate link of its longitude and latitude
+        if ends & anchors or (not anchors and len(found) > 1):
+            linked |= found
     return linked
 
 
 def _relinker(data_collection):
     """
     The `_Relinker` of ``data_collection``, made on first use, which also links again the datasets already linked to
-    the first IRIS dataset (`_linked_to_iris`): a session keeps their links, not that they were asked for.
+    the first IRIS dataset, or with none to each other (`_linked_to_iris`): a session keeps their links, not that they
+    were asked for.
     """
     if not hasattr(data_collection, "_solar_relinker"):
         data_collection._solar_relinker = _Relinker(data_collection)  # the hub holds its listeners weakly

@@ -328,6 +328,21 @@ def test_a_restored_session_keeps_the_data_linked_on_request_linked(qtbot, tmp_p
     np.testing.assert_allclose(others[1][_cid(raster, HPC[1])], others[1][_cid(others[1], HPC[1])])
 
 
+def test_a_restored_session_keeps_sst_cubes_linked_without_iris_data(qtbot, tmp_path):
+    # D97: with no IRIS data, cubes linked on request link to each other again once the one they were linked through
+    # is removed, in a restored session as in a live one
+    from glue_solar.tests.test_sst import write_sst_cube  # which imports this module
+
+    for name in "abc":
+        write_sst_cube(tmp_path / f"{name}.fits")
+    collection = DataCollection([sst_data(tmp_path / f"{name}.fits") for name in "abc"])
+    link_iris(None, collection)
+    restored = next(twice(collection))
+    first, *others = restored
+    restored.remove(first)
+    qtbot.waitUntil(lambda: linked_data(restored) == set(others))
+
+
 def test_a_map_linked_by_hand_to_another_iris_dataset_is_not_linked_on_request(qtbot, sns):
     # D73: only a link to the IRIS dataset `link_hpc` links to is taken as one made on request, not one made in glue's
     # Link Data dialog to another

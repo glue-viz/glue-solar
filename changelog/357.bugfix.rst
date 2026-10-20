@@ -1,0 +1,1 @@
+SST cubes linked without IRIS data all get their time links and the WCS lock, stay linked after a restored session's first cube is removed, and a linked point also moves the other quicklook's own sliders.
