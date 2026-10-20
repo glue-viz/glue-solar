@@ -28,9 +28,9 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 3a85ec2 (#340). glue-solar runs on irispy main 0650517, unpinned (D92; followed in #336, the user's last big irispy batch before the gWCS spectrograph work resumes). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
+**Resume here.** Main is at c73bd7a (#341). glue-solar runs on irispy main 0650517, unpinned (D92; followed in #336, the user's last big irispy batch before the gWCS spectrograph work resumes). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
 
-**Next.** In flight, shipping in two chains of `ship_locked.sh` from session 6873e77f (2026-10-19/20): #337 (#337), #338, #339, then `wp4-refit-on-point`, #340, `wp12-path-from-points`; check with `gh pr list` and the plan's checklist, and ship any left with `ship_locked.sh` (their PR texts are in `session_20261019.tar.gz`, `items/<key>/body.md`). Then `wp10-perf-survey-2` (D100) on this Mac, the user running `scale_checks/run_survey.sh` on Linux, and `wp10-gzip-raster-once`, now that irispy #275 is on main. #330 to the last of these were built and checked inline on Opus with no Fable review, as Fable's weekly limit ran out on 2026-10-19: give them a Fable review when it is back. **After the user's weekly usage reset** (user, 2026-10-19; no Fable until then): Fable reviews of #330 and every PR merged since without one (each PR body or this line names them), then `wp0-upstream`. Then what is left is the user's (below), upstream (`wp0-upstream`, from UPSTREAM_REVIEW.md, D89) or waiting on others. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
+**Next.** In flight, shipping in two chains of `ship_locked.sh` from session 6873e77f (2026-10-19/20): #337 (#337), #338, #339, then `wp4-refit-on-point`, #340, #341; check with `gh pr list` and the plan's checklist, and ship any left with `ship_locked.sh` (their PR texts are in `session_20261019.tar.gz`, `items/<key>/body.md`). Then `wp10-perf-survey-2` (D100) on this Mac, the user running `scale_checks/run_survey.sh` on Linux, and `wp10-gzip-raster-once`, now that irispy #275 is on main. #330 to the last of these were built and checked inline on Opus with no Fable review, as Fable's weekly limit ran out on 2026-10-19: give them a Fable review when it is back. **After the user's weekly usage reset** (user, 2026-10-19; no Fable until then): Fable reviews of #330 and every PR merged since without one (each PR body or this line names them), then `wp0-upstream`. Then what is left is the user's (below), upstream (`wp0-upstream`, from UPSTREAM_REVIEW.md, D89) or waiting on others. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
 **Waiting on the user.** (1) Trying the fitting in the GUI ('Fit every spectrum', the model builder; OBS 3610108077's C II and Si IV windows, the flare 3860258481 for saturation) and the builder's later options (presets, ties to any line, an editable degree; D88). (2) `wp0-qt68-macos-pass`. (3) The app's drag-into-/Applications check: `~/Downloads/Glue Solar.dmg` is fresh, built 2026-10-19 from main cbe1196 with irispy 495f39d (env `glue-solar-app-495f`), smoke-checked headless and through `open`. (4) An exact report of the linking and slider-sync problems seen in the app on 2026-10-09 (4000255147's raster and SJI 1400, or 4000005156's two scans and SJI 2796), rerun with `glue` from `iris-plan-qt6-802-fb08`. Then UPSTREAM_REVIEW.md (`wp0-upstream`, D89).
 
@@ -163,7 +163,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D98:** User (2026-10-19), from trying the SST quicklook: its spectrum and light-curve panels refit their y range to the point's profiles as it moves, while they show the last fit's range or Home's, so a range typed, panned or zoomed stays (`wp4-refit-on-point`); IRIS fits draw in a darker shade of the layer's color (lighter for a dark one), 1.5 times its width, above the data (#335); 'Lines in this range…' lists its lines with check boxes, the main lines ticked, so a line is labeled or hidden, per viewer and not saved (#338); the IRIS fitter's Settings get an 'Mg II two peaks' preset, two Gaussians on a constant for the k or h line in the Fit range, as in IRIS Technical Note 39 (#334). PROVISIONAL (D97's linking): SOT and AIA cubes also link to each other without IRIS data, reversing 212-3; the alternative is limiting D97 to SST and data glue-solar does not read through irispy.
 
-- **D99:** User (2026-10-19): in future, all open data link when their fields overlap, IRIS or not, rather than on request (a bigger item, `wp1-l-link-all-overlapping`, reopening D64). A path's vertices can be typed, not only clicked (`wp12-path-from-points`). The model builder gets Save and Open of a model, for complex models such as 5 Gaussians with 2 negative, which it already fits from automatic starts; explicit emission or absorption, ties to any line and an editable degree are not worth adding (#340).
+- **D99:** User (2026-10-19): in future, all open data link when their fields overlap, IRIS or not, rather than on request (a bigger item, `wp1-l-link-all-overlapping`, reopening D64). A path's vertices can be typed, not only clicked (#341). The model builder gets Save and Open of a model, for complex models such as 5 Gaussians with 2 negative, which it already fits from automatic starts; explicit emission or absorption, ties to any line and an editable degree are not worth adding (#340).
 
 - **D100:** User (2026-10-19): once the in-flight items land, re-run the SST stress survey of 2026-10-10 on current main, on this Mac (cubes up to 9.9 GB, 24 GB RAM) and on the user's Linux machine (larger cubes, 188 GB RAM), extended to the quicklook-era parts (`wp10-perf-survey-2`); the Linux run uses a script in `IRIS_PLAN_PROTOTYPES/scale_checks/` the user pulls and runs.
 
@@ -181,7 +181,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **M1**
 - WP1: `wp1-sji-off-frames`
 - WP0: `wp0-release-tracking`
-- WP12: `wp12-path-from-points`
 - WP4: `wp4-refit-on-point`
 - WP10: `wp10-gzip-raster-once`, `wp10-perf-survey-2`
 
@@ -299,7 +298,7 @@ Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on file
 
 **M1**
 
-- [ ] **M1** `wp10-perf-survey-2` (D100): re-run GLUE_SPEED.md's 'SST and IRIS stress survey, 2026-10-10' on current main (open, a new Image viewer, slider steps, the Profile button, a Pixel drag, session save and restore) and add the quicklook-era parts (an SST quicklook's open, a point click and drag with its spectra, curve and slit following, a linked cube's point, a path diagram), on this Mac and the user's Linux machine (`scale_checks/sst_perf_survey.py`). Done when GLUE_SPEED.md has both machines' numbers beside the 2026-10-10 ones, and each slow spot an item or a decision. Depends: wp4-refit-on-point, wp12-path-from-points.
+- [ ] **M1** `wp10-perf-survey-2` (D100): re-run GLUE_SPEED.md's 'SST and IRIS stress survey, 2026-10-10' on current main (open, a new Image viewer, slider steps, the Profile button, a Pixel drag, session save and restore) and add the quicklook-era parts (an SST quicklook's open, a point click and drag with its spectra, curve and slit following, a linked cube's point, a path diagram), on this Mac and the user's Linux machine (`scale_checks/sst_perf_survey.py`). Done when GLUE_SPEED.md has both machines' numbers beside the 2026-10-10 ones, and each slow spot an item or a decision. Depends: wp4-refit-on-point.
 - [ ] **M1** `wp10-gzip-raster-once` (D97): a gzipped raster inflates once: first irispy #275 (on main since 2026-10-19) letting its raster reader take what a caller already opened, then glue-solar passing it once irispy merges it. Done when a gzipped raster opens with one inflation, as #329's test counts for slit-jaw images.
 
 Notes:
@@ -316,10 +315,6 @@ Notes:
 ### WP12: Export and derived diagrams
 
 Frame, movie and data export plus path diagrams, built on glue's 'save' subtools, exporters and core's path slicer.
-
-**M1**
-
-- [ ] **M1** `wp12-path-from-points` (D99): 'Path from points…' in the Path diagram's menu takes typed vertices and makes the diagrams as a drawn path does. Done when typed vertices give the same diagram as the same path clicked.
 
 Notes:
 - Paths and curves sample at the master's exposure. Not rebuilt: phi-slit sliders, path width, PostScript, IDL save files.
