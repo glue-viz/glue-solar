@@ -1391,7 +1391,7 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 | obs171 H-alpha (2020) | 1.5 | 0.10 | 181 (180) | 85 | 0.15 |
 
 - Linking the two obs492 quicklooks took 0.02 s (2 links); a point moved on one, with the other's point following, took 263 ms.
-- The slow spot is the quicklook's scan step on the 2023 mosaics, 0.3-0.5 s, against 85-120 ms on the 2020 cubes of one pointing: each scan re-reads every panel's plane of the bigger, per-scan-pointed cube (`wp10-l-sst-scan-step`).
+- The slow spot is the quicklook's scan step on the 2023 mosaics, 0.3-0.5 s, against 85-120 ms on the 2020 cubes (`wp10-l-sst-scan-step`). Profiled on the Ca II K 3950 cube: the virtual slit panel takes 2.1 s of six steps' draws, the four others 5-20 ms a step. The slit, wavelength against y at the point's x, reads one row per y per tuning from the memory map: a scan's first read faults in about 34,800 pages, 650-810 ms in full (about 150 ms a draw at panel size), where the same read again takes 0.7 ms and a map plane 3-7 ms (`IRIS_PLAN_PROTOTYPES/speed_20261020/`). macOS's first touch of a mapped page is costly; Linux's is usually far cheaper, which its survey will show.
 
 ## WCSAxes tick rendering
 
