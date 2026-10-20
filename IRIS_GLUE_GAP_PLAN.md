@@ -161,11 +161,13 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D97:** User (2026-10-19): SST cubes and other non-IRIS data link to each other without IRIS data ('Link helioprojective coordinates' anchors on the first dataset with helioprojective coordinates when no IRIS dataset is loaded), as glue-solar's GUI will serve other missions; a 'Link points across cubes' toggle in the Coordinate menu's Point submenu, on by default, moves the points of the other linked cubes of the observation to a point's place on the Sun (#337). 'Lines in this range…' offers coronal or photospheric abundances (replacing D96's PROVISIONAL). Gzipped rasters are to be inflated once, by a draft irispy fix first (`wp10-gzip-raster-once`). The UI's IRIS-only wording on features other data use is reviewed and fixed (#333). `wp0-wcslib-tab-inverse` goes to WCSLIB's author by the user's email (text in the session archive).
 
-- **D98:** User (2026-10-19), from trying the SST quicklook: its spectrum and light-curve panels refit their y range to the point's profiles as it moves, while they show the last fit's range or Home's, so a range typed, panned or zoomed stays (#343); IRIS fits draw in a darker shade of the layer's color (lighter for a dark one), 1.5 times its width, above the data (#335); 'Lines in this range…' lists its lines with check boxes, the main lines ticked, so a line is labeled or hidden, per viewer and not saved (#338); the IRIS fitter's Settings get an 'Mg II two peaks' preset, two Gaussians on a constant for the k or h line in the Fit range, as in IRIS Technical Note 39 (#334). PROVISIONAL (D97's linking): SOT and AIA cubes also link to each other without IRIS data, reversing 212-3; the alternative is limiting D97 to SST and data glue-solar does not read through irispy.
+- **D98:** User (2026-10-19), from trying the SST quicklook: its spectrum and light-curve panels refit their y range to the point's profiles as it moves, while they show the last fit's range or Home's, so a range typed, panned or zoomed stays (#343); IRIS fits draw in a darker shade of the layer's color (lighter for a dark one), 1.5 times its width, above the data (#335); 'Lines in this range…' lists its lines with check boxes, the main lines ticked, so a line is labeled or hidden, per viewer and not saved (#338); the IRIS fitter's Settings get an 'Mg II two peaks' preset, two Gaussians on a constant for the k or h line in the Fit range, as in IRIS Technical Note 39 (#334).
 
-- **D99:** User (2026-10-19): in future, all open data link when their fields overlap, IRIS or not, rather than on request (a bigger item, `wp1-l-link-all-overlapping`, reopening D64). A path's vertices can be typed, not only clicked (#341). The model builder gets Save and Open of a model, for complex models such as 5 Gaussians with 2 negative, which it already fits from automatic starts; explicit emission or absorption, ties to any line and an editable degree are not worth adding (#340).
+- **D99:** User (2026-10-19): A path's vertices can be typed, not only clicked (#341). The model builder gets Save and Open of a model, for complex models such as 5 Gaussians with 2 negative, which it already fits from automatic starts; explicit emission or absorption, ties to any line and an editable degree are not worth adding (#340).
 
 - **D100:** User (2026-10-19): once the in-flight items land, re-run the SST stress survey of 2026-10-10 on current main, on this Mac (cubes up to 9.9 GB, 24 GB RAM) and on the user's Linux machine (larger cubes, 188 GB RAM), extended to the quicklook-era parts (`wp10-perf-survey-2`); the Linux run uses a script in `IRIS_PLAN_PROTOTYPES/scale_checks/` the user pulls and runs.
+
+- **D101:** User (2026-10-20), on linking: an IRIS observation's own data keep linking as the browser and quicklook load them (D20); all other data, SST, SOT, AIA, maps and files opened, link only on request, with 'Link helioprojective coordinates', to whatever they can be linked to, IRIS loaded or not (D97; SOT and AIA cubes to each other too, reversing 212-3). No automatic linking of all overlapping data (D99's first idea dropped).
 
 ## Milestones
 
@@ -184,7 +186,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
-- WP1: `wp1-l-link-all-overlapping`
 - WP10: `wp10-l-sst-scan-step`
 
 **M4**
@@ -221,7 +222,6 @@ The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links be
 
 **L**
 
-- [ ] **L** `wp1-l-link-all-overlapping` (D99): every open dataset links to the others whose fields overlap in space (and time, where they have it), IRIS or not, as they load, rather than on request; the cost of glue's link rediscovery and of -TAB inverses decides the design. Done when loading overlapping SST cubes, IRIS data and maps links them with no menu step, and non-overlapping data stays unlinked.
 
 **M4**
 
