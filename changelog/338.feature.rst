@@ -1,0 +1,1 @@
+'Lines in this range…' lists its lines with check boxes: tick one to label it, untick one, a main line too, to hide it.

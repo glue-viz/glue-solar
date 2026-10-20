@@ -87,7 +87,8 @@ class LineTool(Tool):
         super().__init__(viewer)
         self.shown = True
         self.artists = []
-        self.labeled = []  # (name, wavelength in Angstrom) of lines picked in 'Lines in this range…'
+        self.labeled = []  # (name, wavelength in Angstrom) of lines ticked in 'Lines in this range…'
+        self.hidden = set()  # the wavelengths of main lines unticked there
         for prop in ("reference_data", "x_att", "x_display_unit", "x_min", "x_max"):
             viewer.state.add_callback(prop, self.refresh)
         self._resized = viewer.figure.canvas.mpl_connect("resize_event", self.refresh)  # the labels' overlaps change
@@ -110,7 +111,7 @@ class LineTool(Tool):
         state = self.viewer.state
         if not self.shown or not _shows_wavelength(state) or None in (state.x_min, state.x_max):
             return []
-        data, lines = state.reference_data, [*main_lines(), *self.labeled]
+        data, lines = state.reference_data, [line for line in main_lines() if line[1] not in self.hidden] + self.labeled
         native = u.Unit(data.get_component(state.x_att).units or "Angstrom")
         waves = (np.array([wave for _, wave in lines]) * u.AA).to_value(native)
         x = np.asarray(UnitConverter().to_unit(data, state.x_att, waves, state.x_display_unit), float)
@@ -165,7 +166,8 @@ class LinesInRangeTool(Tool):
     """
     List the lines of irispy's catalog within a Profile viewer's Fit and Collapse range, else its plotted range,
     strongest first in a region type's model at coronal or photospheric abundances, lines it predicts no strength for
-    after (D44, D97); a click labels one beside the main lines (`LineTool.labeled`).
+    after (D44, D97), each ticked while `LineTool` shows it: a tick labels a line beside the main lines, an untick hides
+    one, a main line too (D98).
     """
 
     icon = _icon("solar_lines_in_range")
@@ -195,27 +197,35 @@ class LinesInRangeTool(Tool):
         layout.addRow("Abundances", abundance)
         layout.addRow(listing)
 
+        lines, main = self.viewer.toolbar.tools[LineTool.tool_id], {wave for _, wave in main_lines()}
+
         def fill(*_):
             model = _REGIONS[region.currentText()], abundance.currentText().lower()
-            lines = get_lines([low, high] * u.AA, region=model[0], abundance=model[1], minimum_strength=0)
+            catalog = get_lines([low, high] * u.AA, region=model[0], abundance=model[1], minimum_strength=0)
             listing.clear()
-            strengths = np.asarray(lines["intensity_{}_{}".format(*model)], float)
-            for ion, wave, strength in zip(lines["ion"], lines["wavelength"].to_value(u.AA).tolist(), strengths):
+            strengths = np.asarray(catalog["intensity_{}_{}".format(*model)], float)
+            for ion, wave, strength in zip(catalog["ion"], catalog["wavelength"].to_value(u.AA).tolist(), strengths):
                 item = QtWidgets.QListWidgetItem(f"{ion} {wave:.3f} Å" + (f", {strength:.2g}" if strength >= 0 else ""))
                 item.setData(Qt.UserRole, (str(ion), wave))
+                shown = wave not in lines.hidden if wave in main else (str(ion), wave) in lines.labeled
+                item.setCheckState(Qt.Checked if shown else Qt.Unchecked)  # before it is listed: no itemChanged
                 listing.addItem(item)
 
-        def label(item):
-            lines = self.viewer.toolbar.tools[LineTool.tool_id]
-            if item.data(Qt.UserRole)[1] not in [wave for _, wave in [*main_lines(), *lines.labeled]]:
-                lines.labeled.append(item.data(Qt.UserRole))
+        def tick(item):
+            line, on = item.data(Qt.UserRole), item.checkState() == Qt.Checked
+            if line[1] in main:
+                (lines.hidden.discard if on else lines.hidden.add)(line[1])
+            elif on:
+                lines.labeled.append(line)
+            else:
+                lines.labeled.remove(line)
             lines.shown = True
             lines.refresh()
             _check(lines)
 
         region.currentTextChanged.connect(fill)
         abundance.currentTextChanged.connect(fill)
-        listing.itemClicked.connect(label)
+        listing.itemChanged.connect(tick)
         fill()
         dialog.show()
 

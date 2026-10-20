@@ -2209,10 +2209,16 @@ def test_lines_in_this_range_lists_the_strongest_first_and_labels_a_click(app):
     o_iv = next(item for item in items if item.text().startswith("O IV 1401.157"))
     other = next(item for item in items if not item.text().startswith(("Si", "O", "S")))
     lines = viewer.toolbar.tools["solar:lines"]
-    for item in (o_iv, other, other):  # a main line, already labeled, then another twice
-        listing.itemClicked.emit(item)
+    assert [o_iv.checkState(), other.checkState()] == [Qt.Checked, Qt.Unchecked]  # a main line shows (D98)
+    other.setCheckState(Qt.Checked)  # labeled
+    o_iv.setCheckState(Qt.Unchecked)  # hidden
     assert lines.labeled == [other.data(Qt.UserRole)]
     assert other.data(Qt.UserRole)[0] in ", ".join(name for name, _ in lines.positions())
+    assert not any(np.isclose(x, 140.1157) for _, xs in lines.positions() for x in xs)
+    other.setCheckState(Qt.Unchecked)
+    o_iv.setCheckState(Qt.Checked)
+    assert lines.labeled == []
+    assert any(np.isclose(x, 140.1157) for _, xs in lines.positions() for x in xs)
     # glue's Fit and Collapse range first
     viewer.toolbar.active_tool = "profile-analysis"
     profile_tools = viewer.toolbar.tools["profile-analysis"]._profile_tools
