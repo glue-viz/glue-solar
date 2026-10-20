@@ -1,0 +1,1 @@
+A gzipped raster file is decompressed once when it opens, rather than twice.
