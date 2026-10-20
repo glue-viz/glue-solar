@@ -1,0 +1,1 @@
+A point or crosshair over a slit-jaw image at a time off its frames no longer raises dkist's NotImplementedError on x86-64 machines: it is off the image.

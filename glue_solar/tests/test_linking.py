@@ -908,6 +908,27 @@ def test_a_pixel_click_off_the_image_leaves_the_point(app):
     assert subset.subset_state.slices == [slice(2, 3), slice(1, 2)]
 
 
+def test_a_slit_jaw_pixel_at_a_time_off_its_frames_is_nan(sns, monkeypatch):
+    # irispy's slit-jaw gWCS gives a time off its frames a NaN frame index, which dkist casts to an int: on x86-64 the
+    # least int64, off its table, where its per-frame transform has no inverse (NotImplementedError), on ARM 0. Such a
+    # world position, as another dataset's point gives, is off the image: NaN, as the forward transform says, not an error
+    from dkist.wcs.models import BaseVaryingCelestialTransform
+
+    def as_on_x86(ind):
+        ind = np.asarray(getattr(ind, "value", ind), float)
+        return np.where(np.isnan(ind), np.iinfo(np.int64).min, np.round(np.nan_to_num(ind))).astype(int)
+
+    monkeypatch.setattr(BaseVaryingCelestialTransform, "sanitize_index", staticmethod(as_on_x86))
+    sji, _ = sns
+    last = sji.shape[0] - 1
+    lon, lat, time = sji.coords.pixel_to_world_values(5, 6, last)
+    after = time + 0.6 * (time - sji.coords.pixel_to_world_values(5, 6, last - 1)[2])  # past the last frame, by its index
+    pixels = sji.coords.world_to_pixel_values(np.array([lon, lon]), np.array([lat, lat]), np.array([time, after]))
+    np.testing.assert_allclose([pixel[0] for pixel in pixels], [5, 6, last], atol=1e-6)
+    assert np.isnan([pixel[1] for pixel in pixels]).all()
+    assert np.isnan(sji.coords.world_to_pixel_values(lon, lat, after)).all()
+
+
 def test_pixel_point_workaround_installs_only_where_glue_needs_it(sns, tmp_path, irispy_test_files):
     import inspect
 

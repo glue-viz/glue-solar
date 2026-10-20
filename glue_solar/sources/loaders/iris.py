@@ -167,6 +167,26 @@ def _lock_wcslib(wcs):
         _lock_wcslib(wrapped)
 
 
+def _off_frames(wcs, values):
+    """
+    The pixels of world ``values`` through ``wcs``, NaN at a time off its frames: there dkist's VaryingCelestialTransform,
+    which irispy's slit-jaw images use, has no inverse (a constant NaN model raising NotImplementedError), where its
+    forward transform gives NaN. Inverted a time at a time, so that a point is one call (report candidate: dkist).
+    """
+    values = np.broadcast_arrays(*(np.asarray(value, float) for value in values))
+    times = values[list(wcs.world_axis_physical_types).index("time")]
+    pixels = [np.full(times.shape, np.nan) for _ in range(wcs.pixel_n_dim)]
+    for time in np.unique(times[np.isfinite(times)]):
+        at = times == time
+        try:
+            found = wcs.world_to_pixel_values(*(value[at] for value in values))
+        except NotImplementedError:
+            continue
+        for pixel, value in zip(pixels, found, strict=True):
+            pixel[at] = value
+    return tuple(pixels)
+
+
 class _GlueWCS(BaseWCSWrapper):
     """
     Present named, signed helioprojective coordinates in arcseconds and wavelengths in Angstrom to Glue,
@@ -276,7 +296,10 @@ class _GlueWCS(BaseWCSWrapper):
             if full_circle is not None:  # a longitude in any turn, as a sunpy map's run from 0 to 360 degrees
                 values[i] = (values[i] + full_circle / 2) % full_circle - full_circle / 2
         with WCS_LOCK:
-            return self._wcs.world_to_pixel_values(*values)
+            try:
+                return self._wcs.world_to_pixel_values(*values)
+            except NotImplementedError:  # a time off a slit-jaw image's frames (`_off_frames`)
+                return _off_frames(self._wcs, values)
 
     @cached_property
     def world_axis_object_components(self):
