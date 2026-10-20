@@ -182,9 +182,8 @@ def si_iv_bursts(data, threshold=None, velocity_range=VELOCITY_RANGE, median_fac
 
 def sji_bursts(data, sigma_factor=SIGMA_FACTOR, min_pixels=MIN_PIXELS):
     """
-    irispy's UV bursts in ``data``, a 1400 Å slit-jaw image, by ``find_bright_image_events``: ``find_sji_bursts``
-    without its band check, which needs irispy's ``meta``, so that a dust-removed image works too. A cube of their
-    labels on its coordinates, and a table of them.
+    irispy's UV bursts in ``data``, a 1400 Å slit-jaw image, by ``find_bright_image_events``. A cube of their labels
+    on its coordinates, and a table of them.
 
     irispy is given the scaled values, NaN masked, and finds a burst pixel at ``sigma_factor`` standard deviations
     above the median of its frame; pixels that touch within a frame, diagonally too, are one burst, and bursts of

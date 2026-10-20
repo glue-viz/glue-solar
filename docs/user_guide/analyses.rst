@@ -231,7 +231,7 @@ such as ``time`` against ``intensity``, or ``coordinate.Tx`` against ``coordinat
      - Slit-jaw image
    * - irispy
      - ``find_si_iv_bursts``, a port of ``iris_burst_check.pro`` (Young et al. 2018)
-     - ``find_sji_bursts``, a port of ``iris_sji_burst_check.pro``
+     - ``find_bright_image_events``, a port of ``iris_sji_burst_check.pro``
    * - A burst pixel
      - The mean over the velocities, ±50 km / s of Si IV 1402.77 Å, in DN / s, reaches the threshold,
        but stays below 10 times their median, a particle-hit test ("off" turns it off). A threshold
