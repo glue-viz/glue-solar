@@ -243,6 +243,10 @@ lines starts or ties. The fit can be made with the x unit in Å or ``km / s``, t
 separations then in it. "Fit every spectrum" then fits the model to every spectrum of the window
 (see :ref:`Line fit maps <glue_solar_users_guide_iris_line_fit_maps>`).
 
+**Saving a model.** "Save…" in Settings writes the components and every start, bound and tie to a
+file, and "Open…" reads one back, so a complex model, such as five Gaussians, two of them negative,
+is built once. Its values are in the x unit it was made in.
+
 **Mg II.** Mg II k and h are each double-peaked. Drag the Fit range over one line's core, about
 ±40 km/s, and press "Mg II two peaks" in Settings: two Gaussians on a constant, one for each emission
 peak (k2v and k2r, or h2v and h2r), each starting at its peak. Fit the other line in its own range.
