@@ -6,7 +6,7 @@ A to-do list of performance problems in glue-core 1.27.0, glue-qt 0.4.2 and the 
 
 **Re-running.** The survey's scripts are in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` (132 scripts; extract it into a scratch directory). Evidence paths below are relative to that archive. Run with `env HOME="$(mktemp -d)" QT_QPA_PLATFORM=offscreen MPLBACKEND=agg ~/mamba/envs/iris-plan/bin/python <script>`, with a glue-solar checkout first on `sys.path` as the scripts do. Logs and profiles were not kept; the numbers below are the record.
 
-**Second survey.** The large SST SOLARNET cubes and the biggest IRIS sets were measured on 2026-10-10, under 'SST and IRIS stress survey, 2026-10-10' below (SST1-SST13, verified the same day). **New upstream findings.** The slit-jaw gWCS path (dkist, gwcs, astropy.modeling), measured on 2026-10-20, is R33-R37 under 'New upstream findings, 2026-10-20'. **Third survey.** The same SST cubes on glue-solar main of 2026-10-20, with the quicklook-era parts, under 'SST performance survey 2, 2026-10-20'.
+**Second survey.** The large SST SOLARNET cubes and the biggest IRIS sets were measured on 2026-10-10, under 'SST and IRIS stress survey, 2026-10-10' below (SST1-SST13, verified the same day). **New upstream findings.** The slit-jaw gWCS path (dkist, gwcs, astropy.modeling), measured on 2026-10-20, is R33-R37 under 'New upstream findings, 2026-10-20'. **Third survey.** The same SST cubes and IRIS sets on glue-solar main of 2026-10-20, with the quicklook-era parts, under 'SST performance survey 2, 2026-10-20'.
 
 **How to use this file.** Tick an item's first box when its cost has been re-measured on current versions (note the date and numbers), and the second when it is fixed and released upstream (link the PR). Items are ranked by the time an IRIS user loses.
 
@@ -1392,6 +1392,24 @@ These are glue-solar code; the M0 work fixed most of them (#90, #95, #98).
 
 - Linking the two obs492 quicklooks took 0.02 s (2 links); a point moved on one, with the other's point following, took 263 ms.
 - The slow spot is the quicklook's scan step on the 2023 mosaics, 0.3-0.5 s, against 85-120 ms on the 2020 cubes (`wp10-l-sst-scan-step`). Profiled on the Ca II K 3950 cube: the virtual slit panel takes 2.1 s of six steps' draws, the four others 5-20 ms a step. The slit, wavelength against y at the point's x, reads one row per y per tuning from the memory map: a scan's first read faults in about 34,800 pages, 650-810 ms in full (about 150 ms a draw at panel size), where the same read again takes 0.7 ms and a map plane 3-7 ms (`IRIS_PLAN_PROTOTYPES/speed_20261020/`). macOS's first touch of a mapped page is costly; Linux's is usually far cheaper, which its survey will show.
+
+**The IRIS sets.** The 2026-10-10 IRIS rows again, and two sets not then measured, with `run_survey.sh OUT iris ~/DATA/IRIS OBSID...` (raw lines in `scale_checks/results/mac_iris_20261020.jsonl`), same env and main. Each set opens as the observation browser opens it, every raster window and slit-jaw image ticked, scans stacked when there are several raster files, then its quicklook. A step is the spectrogram's exposure or raster step, or a stack's scan, first visit to warm; click and move are a Pixel click and drag on the map, each confirmed to move the point; restore is a session restore. The page cache was not controlled.
+
+| Observation, windows | Open s (load / quicklook) | Step ms | Click / move ms | Restore s | Peak GB |
+|---|---|---|---|---|---|
+| 4000255147 sit-and-stare, 9 windows + SJI 1400 | 13.4-13.6 → 6.7 (5.0 / 1.6) | 865-875 → 77-80 | 760-887 / 985-991 → 179 / 166 | 6.7 → 2.0 | 4.2 |
+| 3660259102 sit-and-stare, 9 windows | 12.4 → 4.5 (3.4 / 1.1) | 845 → 80-81 | 711 / 958 → 160 / 166 | 1.0 | 2.8 |
+| 3824262996 400 steps, 8 windows | 5.6 → 2.2 (1.1 / 1.1) | 361-374 → 79-81 | 378-385 / 417-424 → 161 / 170 | 0.9 | 1.6 |
+| 3602506433 99-scan stack, 7 windows | 16.7 (11.2 / 4.8) → 8.4 (7.3 / 1.2) | 599-606 → 79-81 | 608 / 742 → 121 / 167 | 19.8 → 4.6 | 3.0 |
+| 3630104144 120-scan stack, 8 windows | 18.8 (12.4 / 5.5) → 8.6 (7.5 / 1.1) | 693-695 → 83-90 | 702 / 886 → 178 / 176 | 5.9 | 3.4 |
+| 4000005156 2-scan stack, 9 windows + SJI 2796 | 10.1 → 2.8 (1.6 / 1.2) | 772 → 69-100 | 685 / 856 → 192 / 166 | 1.1 | 1.8 |
+| 3400109360 8-scan stack (2025), 7 windows | 3.7 (2.5 / 1.1) | 80-82 | 168 / 167 | 1.0 | 2.0 |
+| 3610108077 320 steps (2018), 7 windows | 1.5 (0.44 / 1.1) | 82-90 | 172 / 132 | 0.5 | 0.9 |
+
+- **Less is drawn than on 2026-10-10.** Then every ticked window had its own panels, 47 draws an exposure step for 9 windows; since D83 the other windows are unticked boxes in the Panels list. The like-for-like row is 2026-10-10's 4000255147 with one window, Si IV 1403 and SJI 1400: 194-207 ms a step and 248-264 / 235-240 ms click / move, against 77-80 and 179 / 166 now with Mg II k shown and 8 more windows loaded.
+- **The steps cost the same on every set,** 77-100 ms, as do the moves, 132-176 ms: a fixed cost of redrawing the panels the point moves on, not of the data's size. A map's wavelength step takes 22-31 ms and a slit-jaw frame step 16-20 ms.
+- **Opening is mostly irispy reading the files,** 0.4-7.5 s, then 1.1-1.6 s for the quicklook. The read is decoding more than disk: 3630104144's 120 files, extracted just before and so in the page cache, took 7.5 s with 0.08 GB read from disk. Peak memory is the loaded data, plus a second copy in the restored session.
+- **No IRIS slow spot is left:** nothing interactive takes over 0.2 s. Not measured: a gzipped raster, which `wp10-gzip-raster-once` inflates once. 3630104144 is a tar.gz in `~/DATA/IRIS`; it was extracted to a scratch folder for this run.
 
 ## WCSAxes tick rendering
 
