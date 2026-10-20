@@ -1,0 +1,1 @@
+On ARM machines, a slit-jaw image's pixel at a time off its frames is NaN, as on x86-64, instead of frame 0's x and y.
