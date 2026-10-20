@@ -252,7 +252,7 @@
      <item>
       <widget class="QCheckBox" name="quicklook">
        <property name="toolTip">
-        <string>Open a quicklook of each loaded observation: raster panels, slit-jaw images and the spectrum of a selected point.</string>
+        <string>Open a quicklook of each loaded observation and SST cube: raster panels and slit-jaw images, or an SST cube's maps and virtual slit, with the spectrum of a selected point.</string>
        </property>
        <property name="text">
         <string>Open quicklook</string>
