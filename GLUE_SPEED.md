@@ -6,7 +6,7 @@ A to-do list of performance problems in glue-core 1.27.0, glue-qt 0.4.2 and the 
 
 **Re-running.** The survey's scripts are in `IRIS_PLAN_PROTOTYPES/perf_survey_20261001.tar.gz` (132 scripts; extract it into a scratch directory). Evidence paths below are relative to that archive. Run with `env HOME="$(mktemp -d)" QT_QPA_PLATFORM=offscreen MPLBACKEND=agg ~/mamba/envs/iris-plan/bin/python <script>`, with a glue-solar checkout first on `sys.path` as the scripts do. Logs and profiles were not kept; the numbers below are the record.
 
-**Second survey.** The large SST SOLARNET cubes and the biggest IRIS sets were measured on 2026-10-10, under 'SST and IRIS stress survey, 2026-10-10' below (SST1-SST13, verified the same day). **Third survey.** The same SST cubes on glue-solar main of 2026-10-20, with the quicklook-era parts, under 'SST performance survey 2, 2026-10-20'.
+**Second survey.** The large SST SOLARNET cubes and the biggest IRIS sets were measured on 2026-10-10, under 'SST and IRIS stress survey, 2026-10-10' below (SST1-SST13, verified the same day). **New upstream findings.** The slit-jaw gWCS path (dkist, gwcs, astropy.modeling), measured on 2026-10-20, is R33-R37 under 'New upstream findings, 2026-10-20'. **Third survey.** The same SST cubes on glue-solar main of 2026-10-20, with the quicklook-era parts, under 'SST performance survey 2, 2026-10-20'.
 
 **How to use this file.** Tick an item's first box when its cost has been re-measured on current versions (note the date and numbers), and the second when it is fixed and released upstream (link the PR). Items are ranked by the time an IRIS user loses.
 
@@ -1096,6 +1096,74 @@ Provide the re-exports through a PEP 562 module __getattr__ that imports glue_qt
 **Gain.**
 
 About 0.28 s for non-Qt users; nothing for IRIS Qt users.
+
+## New upstream findings, 2026-10-20
+
+The slit-jaw gWCS path, which no earlier survey or UPSTREAM_REVIEW.md row covers: irispy main builds each slit-jaw cube's WCS as a gWCS around dkist's `VaryingCelestialTransform`, one pointing per frame, and every slit-jaw tick, readout, overlay, point and crosshair goes through it. **Measured and re-verified on 2026-10-20** with dkist 1.17.0, gwcs 1.0.3, astropy 8.0.2 and irispy main 0650517, on 4000255147's SJI 1400 (400 frames, 417x388), on this Mac (Apple Silicon); scripts in `IRIS_PLAN_PROTOTYPES/speed_20261020/` (`gwcs_findings.py SJI_FILE`, `sji_draw_calls.py SJI_FILE TREE`). One idea was measured and dropped: SST's big-endian float32 planes cost about 1 ms of byte swapping per 5-megapixel plane (`nanmean` 4.25 ms against 3.81 ms native), not worth a change.
+
+### R33. dkist's VaryingCelestialTransform evaluates one compound model per frame
+
+- [x] Re-verified (2026-10-20)
+- [ ] Fixed upstream
+
+**Repository:** dkist (`dkist/wcs/models.py`, `_map_transform`). **Confidence:** High for the cost and cause; the prototype gives the gain.
+
+**Slows.** Anything that asks for positions across frames: light curves at a point, the slit overlay across frames, per-frame readouts, links from a raster's exposures to slit-jaw frames.
+
+**Cost.** One point in each of the 400 frames: 57.7 ms (0.14 ms a frame), against 1.10 ms for 10,000 points of one frame.
+
+**Cause.** `_map_transform` loops over every unique frame index, sets that frame's CRPIX, PC and CRVAL on its cached compound model (`transform_at_index`, `update_celestial_transform_parameters`) and evaluates it, so the per-call overhead of astropy.modeling (R37) is paid per frame.
+
+**Candidate fix.** Evaluate the chain once for all elements, each with its own frame's tables: a prototype of the same Shift, PC, CDELT, TAN and native-to-celestial rotation (Calabretta & Greisen 2002, eq. 2) takes 0.051 ms for the 400 frames (1,100 times faster) and matches the gWCS to 8e-11 arcsec. astropy's `RotateNative2Celestial` takes scalar angles only, so the rotation is written elementwise.
+
+### R34. dkist's inverse rebuilds a frame's inverse model on every call
+
+- [x] Re-verified (2026-10-20)
+- [ ] Fixed upstream
+
+**Repository:** dkist (`_map_transform`, `sct.inverse`). **Confidence:** High.
+
+**Slows.** Every world-to-pixel onto a slit-jaw image: a point or crosshair from other data, linked subsets, glue's world links.
+
+**Cost.** One point: inverse 1.24 ms against forward 0.26 ms. Building a frame's inverse model takes 0.42 ms of it; evaluating a built one 0.098 ms.
+
+**Candidate fix.** Cache each frame's inverse (or invert the vectorized chain of R33): about a third of the inverse's cost; the rest is gWCS's own inverse machinery.
+
+### R35. dkist turns a NaN frame index into an int, which differs by CPU
+
+- [x] Re-verified (2026-10-20; x86-64 seen in the user's traceback, ARM measured here)
+- [x] Worked around in glue-solar (#342, `_GlueWCS.world_to_pixel_values` and `_off_frames`)
+- [ ] Fixed upstream
+
+**Repository:** dkist (`BaseVaryingCelestialTransform.sanitize_index`, `transform_at_index`). **Confidence:** High.
+
+**Cause.** A world time off a slit-jaw image's frames gives a NaN frame index, and `np.array(np.round(ind), dtype=int)` casts it: to the least int64 on x86-64, off the table, where `transform_at_index` returns `Const1D(nan) & Const1D(nan)`, whose inverse raises NotImplementedError (the user's crash on Linux); to 0 on ARM, where it silently takes frame 0's pointing (a wrong x, a NaN frame).
+
+**Candidate fix.** Treat a non-finite index as off the table in both directions, giving NaN, as the forward transform already does there.
+
+### R36. A slit-jaw viewer asks the 3-D gWCS for every tick; a frame's FITS WCS answers 85 times faster
+
+- [x] Re-verified (2026-10-20, glue-solar main dc7c25f)
+- [ ] Fixed upstream
+
+**Repository:** glue-core (the WCS a viewer gives WCSAxes for a slice), irispy (each frame's WCS). **Confidence:** High for the cost; the design is open.
+
+**Cost.** An SJI 1400 frame step and draw with the axes shown: 19-21 ms, of which 17 gWCS calls take 5.6-6.0 ms (glue-solar's `_GlueWCS` memo already removed the repeats; the 2026-10-01 survey counted 37-59 calls before it). The quicklook's image panels hide their axes by default (D71) and make none of these calls.
+
+**Cause.** WCSAxes and the readout ask the cube's 3-D gWCS, 264 us a call, though the viewer shows one frame, whose own FITS WCS irispy already builds (`meta["frame_wcs_headers"]`): an astropy WCS of frame 3's header answers in 3.1 us, at the same position to 4e-11 arcsec.
+
+**Candidate fix.** A glue hook giving WCSAxes the shown frame's 2-D WCS where the cube's celestial axes vary along a sliced axis (or irispy exposing that frame WCS); about 6 ms of a 20 ms step on viewers with axes shown.
+
+### R37. astropy.modeling's per-call overhead dominates a gWCS call
+
+- [x] Re-verified (2026-10-20)
+- [ ] Fixed upstream
+
+**Repository:** astropy (`astropy/modeling/core.py`). **Confidence:** High for where the time goes; the fix needs design upstream.
+
+**Cost.** One point forward through the slit-jaw gWCS: 0.26 ms, about 2,500 Python function calls (305 `isinstance`, 198 `len`), almost all in `Model.__call__`, `prepare_inputs`, `_validate_input_shape`, `_param_sets`, `Parameter` assignment and `Quantity` creation; the arithmetic is negligible.
+
+**Candidate fix.** A fast path in `CompoundModel` evaluation for small, unitless inputs that skips the per-leaf input and parameter-set preparation; it would speed every gWCS user, R33 and R34 included.
 
 ## glue-solar's own costs
 
