@@ -22,16 +22,16 @@ The environment
 
 Build in a new micromamba environment holding only what the app needs, as PyInstaller takes in whatever the code
 imports. glue-qt, irispy and fiasco come from pip without their dependencies, which come from conda-forge, where
-``qtconsole-base`` stands in for ``qtconsole``, which brings PyQt5. irispy is pinned to the commit glue-solar is
-tested against: move the pin with each irispy update, and replace it with a version once irispy releases. glue-solar
-is installed from the checkout as a package, not editable::
+``qtconsole-base`` stands in for ``qtconsole``, which brings PyQt5. irispy is installed as glue-solar's
+``pyproject.toml`` names it: change the line here whenever that one changes. glue-solar is installed from the
+checkout as a package, not editable::
 
     micromamba create -y -n glue-solar-app -c conda-forge python=3.13 pyinstaller pyqt6=6.11 qtpy qtconsole-base \
-        glue-core=1.27.0 astropy=8.0.1 sunpy=8.0.0 ndcube "dask>=2024.7" sunraster dkist gwcs scipy mpl_animators \
+        glue-core=1.27.0 astropy=8.0.2 sunpy=8.0.0 ndcube "dask>=2024.7" sunraster dkist gwcs scipy mpl_animators \
         filelock ipykernel "ipython<9" pvextractor plasmapy h5py fortranformat ffmpeg pip
     micromamba run -n glue-solar-app pip install --no-deps glue-qt==0.4.2 \
-        "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@8c220d49481b0643e612e71ec2af0875c3c7ca69" \
-        "fiasco @ git+https://github.com/wtbarnes/fiasco.git"
+        "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@f0587057b255015c820b4fb4239cfbec67b5e354" \
+        "fiasco>=0.5.0"
     micromamba run -n glue-solar-app pip install --no-deps .
 
 Install glue-solar again after each change to the checkout. The app holds no PyQt5, PySide or tkinter. It holds
