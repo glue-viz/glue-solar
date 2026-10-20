@@ -1,0 +1,1 @@
+'Path from points…' makes a path diagram from vertices typed in the image's pixels.
