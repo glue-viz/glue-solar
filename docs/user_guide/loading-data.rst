@@ -11,7 +11,7 @@ Browsing observations
 
 .. image:: images/loading-iris-data-2.png
    :width: 800
-   :alt: The IRIS observation browser listing the observations found in a folder
+   :alt: The observation browser listing the IRIS observations found in a folder
 
 1. Choose "Browse observations…" in the "Plugins" menu.
 2. Type a folder in "Folder" and press Return, or pick one with "Change…": a
