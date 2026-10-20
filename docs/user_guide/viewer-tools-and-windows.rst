@@ -63,7 +63,7 @@ Image viewer
      -
    * - Coordinate → Point → "Link points across cubes"
      - On at first: a point on a cube that is not IRIS data moves the points of the other linked
-       cubes of its observation to the same place on the Sun.
+       cubes that share its time, but not IRIS data's, to the same place on the Sun.
      -
    * - Coordinate → Point → "Light curves at the point", "Row at the point", "Column at the point"
      - Plot the data through the point (see :ref:`Quicklook <glue_solar_users_guide_iris_quicklook>`).

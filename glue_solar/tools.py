@@ -1700,7 +1700,7 @@ class _ClearPointEntry(_CoordinateEntry):
 class _LinkPointsEntry(_CoordinateEntry):
     tool_id = "solar:link_points"
     action_text = "Link points across cubes"
-    tool_tip = "Move the points of the other linked cubes of the observation to the point's place on the Sun"
+    tool_tip = "Move the points of the other linked non-IRIS cubes that share the point's time to its place on the Sun"
 
     @property
     def checked(self):

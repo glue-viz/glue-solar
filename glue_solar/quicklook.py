@@ -692,6 +692,10 @@ class Coordinator(HubListener):
                     slices[axis] = slice(index, index + 1)
                 else:
                     group.subset_state = PixelSubsetState(other, slices)
+                    # and its own panels, which follow only it (D19), or a session saves their old sliders
+                    for viewer in self._owners[group]:
+                        if viewer.state.reference_data is other:
+                            self._set_slices(viewer, {axis: slices[axis].start for axis in spatial})
 
     def _to_raster(self, state):
         """

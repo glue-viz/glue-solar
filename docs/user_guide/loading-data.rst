@@ -127,9 +127,10 @@ limits wash the brighter wing out.
 
 The point, clicks and keys work as in the IRIS quicklook, and the scan and Stokes sliders of either
 map move the other panels. Cubes with overlapping scan times, such as the CRISP and CHROMIS cubes of
-one morning, share one time. Once linked (see `Linking`_), a point on one cube moves the other cubes'
-points to the same place on the Sun, each at its own scan and tuning, while Coordinate → Point →
-"Link points across cubes" is on, as it is at first.
+one morning, share one time. Once linked (see `Linking`_), a point on one cube moves the points of
+the other cubes that share its time to the same place on the Sun, each at its own scan and tuning,
+while Coordinate → Point → "Link points across cubes" is on, as it is at first; IRIS data's points
+stay.
 
 Q, U and V show scaled with their noise level: their maps' limits are ±5 times it for Q and U and
 ±10 times for V, whose signal is the stronger, and their spectra span at least as much, with the
