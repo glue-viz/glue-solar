@@ -2122,25 +2122,18 @@ def _refit(viewer):
 
 class _Refit(HubListener):
     """
-    `_refit` a spectrum or curve panel as its subset ``subset`` moves with the point: after glue's own viewers have
-    taken the move, and again once a worker thread has computed a large cube's profile.
+    `_refit` a spectrum or curve panel as its subset ``subset`` moves with the point, once glue has computed the
+    subset's profile, on the main thread or a worker.
     """
 
     def __init__(self, viewer, subset):
         self.viewer, self.subset = viewer, subset
         hub = subset.data.hub
-        hub.subscribe(self, SubsetUpdateMessage, handler=self._moved, filter=self._of_subset)
         hub.subscribe(self, ComputationEndedMessage, handler=self._computed, filter=self._of_layer)
         viewer.window_closed.connect(lambda: hub.unsubscribe_all(self))
 
-    def _of_subset(self, message):
-        return message.subset is self.subset and message.attribute == "subset_state"
-
     def _of_layer(self, message):
         return message.sender in self.viewer.layers and message.sender.state.layer is self.subset
-
-    def _moved(self, message):
-        QTimer.singleShot(0, lambda: _refit(self.viewer))
 
     def _computed(self, message):
         _refit(self.viewer)
@@ -2148,11 +2141,11 @@ class _Refit(HubListener):
 
 class _FitOnceComputed(HubListener):
     """
-    Fit a Profile viewer with ``fit`` once glue has computed on a worker thread the profile of ``layer``, a spectrum
-    panel's point, or of any subset of ``layer``, a dataset (`hidden_cube_profile`).
+    Fit a Profile viewer with ``fit`` once glue has computed on a worker thread the profile of any subset of ``layer``,
+    a dataset (`hidden_cube_profile`).
     """
 
-    def __init__(self, viewer, layer, fit=_fit):
+    def __init__(self, viewer, layer, fit):
         self.viewer, self.layer, self.fit = viewer, layer, fit
         layer.hub.subscribe(self, ComputationEndedMessage, handler=self._ended, filter=self._of_layer)
 
@@ -2160,7 +2153,7 @@ class _FitOnceComputed(HubListener):
         if message.sender not in self.viewer.layers:
             return False
         layer = message.sender.state.layer
-        return isinstance(layer, Subset) and (layer is self.layer or layer.data is self.layer)
+        return isinstance(layer, Subset) and layer.data is self.layer
 
     def _ended(self, message):
         # a subset of another, unlinked dataset ends its computation too, with no profile
@@ -2180,6 +2173,7 @@ def _fit_spectrum(viewer, group):
     if data is None:
         return  # the panel could not add the raster
     _fit(viewer)
+    viewer.toolbar.actions["mpl:home"].triggered.connect(lambda *_: _fit(viewer))  # Home resumes the refits (D98)
     [subset] = [subset for subset in group.subsets if subset.data is data]
     viewer._solar_fit = _Refit(viewer, subset)  # the hub holds its listeners weakly
 
