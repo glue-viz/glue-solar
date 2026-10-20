@@ -1,0 +1,1 @@
+A path diagram of an SST Stokes cube labels its wavelength axis and no longer puts a cut-off scan time axis on its right edge.
