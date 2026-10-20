@@ -2,9 +2,11 @@
 # run_survey.sh OUT CUBE...: every part of sst_perf_survey.py, each cube in a fresh process, then the linked pair of the
 # first two cubes; the SURVEY lines go to OUT/survey.jsonl, the rest of the output to OUT/<part>-<n>.log. Paste
 # OUT/survey.jsonl back. Uses the python on PATH, with glue-solar main installed.
+# run_survey.sh OUT iris FOLDER OBSID...: the iris part for each IRIS observation in FOLDER instead.
 set -u
 if [ $# -lt 2 ]; then
   echo "usage: run_survey.sh OUT CUBE.fits [CUBE.fits ...]   (OUT: a new folder for the results)" >&2
+  echo "       run_survey.sh OUT iris FOLDER OBSID [OBSID ...]" >&2
   exit 2
 fi
 command -v python >/dev/null || { echo "no python on PATH: activate the env with glue-solar main first" >&2; exit 2; }
@@ -20,6 +22,12 @@ run() {  # part, log name, cubes
   grep '^SURVEY ' "$OUT/$name.log" | sed 's/^SURVEY //' >> "$OUT/survey.jsonl"
   rm -rf "$home"
 }
+if [ "$1" = iris ]; then
+  folder=$2; shift 2
+  for obsid in "$@"; do run iris "iris-$obsid" "$folder" "$obsid"; done
+  echo "done: $OUT/survey.jsonl"
+  exit 0
+fi
 n=0
 for cube in "$@"; do
   n=$((n + 1))

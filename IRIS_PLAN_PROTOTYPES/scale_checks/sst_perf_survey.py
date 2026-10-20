@@ -3,10 +3,13 @@ The second SST performance survey (D100, `wp10-perf-survey-2`): glue-solar main 
 2026-10-10 survey measured them (GLUE_SPEED.md), plus the quicklook-era parts. Linux and macOS.
 
     python sst_perf_survey.py PART CUBE [CUBE2]
+    python sst_perf_survey.py iris FOLDER OBSID
 
 PART is ``file`` (glue's File > Open, a new Image viewer, slider steps, the Profile button, a Pixel click and drag with
 the Profile open, session save and restore), ``quicklook`` (an SST quicklook: open, a point click and drag, a scan step,
-a path diagram) or ``link`` (two cubes of one observation: their quicklooks linked, the point moved). Run each part in a
+a path diagram), ``link`` (two cubes of one observation: their quicklooks linked, the point moved) or ``iris`` (an
+IRIS observation in FOLDER through the observation browser and its quicklook, as the 2026-10-10 survey's IRIS rows:
+open, each panel's slider steps, a point click and drag on the map, session save and restore). Run each part in a
 fresh process, from an empty folder, with an isolated HOME and offscreen Qt; ``run_survey.sh`` does that for a list of
 cubes. Each measurement prints one line ``SURVEY {json}``; times are seconds to idle (no pending draw, profile or
 coordinator timer), memory in GB.
@@ -153,6 +156,19 @@ def point(cube, y, x, scan=0):
     return PixelSubsetState(cube, slices)
 
 
+def save_and_restore(app):
+    session = Path(tempfile.mkdtemp()) / "survey.glu"
+    start = time.perf_counter()
+    app.save_session(str(session), include_data=False, absolute_paths=True)
+    report("session save", seconds=round(time.perf_counter() - start, 3), kb=round(session.stat().st_size / 1e3))
+    start = time.perf_counter()
+    try:
+        restored = app.restore_session(str(session), show=False)
+        report("session restore", seconds=to_idle(restored, None, start), viewers=sum(map(len, restored.viewers)))
+    except Exception as error:  # noqa: BLE001 - the survey records the failure
+        report("session restore", error=f"{type(error).__name__}: {error}")
+
+
 def part_file(app, path):
     from glue.core.data_factories.helpers import auto_data, load_data
     from glue.core.edit_subset_mode import ReplaceMode
@@ -192,16 +208,7 @@ def part_file(app, path):
     moves = [timed(app, None, lambda i=i: mode.update(app.data_collection, point(cube, y + 2 * i, x + 3 * i),
                                                       override_mode=ReplaceMode)) for i in range(1, 11)]
     report("pixel drag with the profile", move_ms=median_ms(moves[2:]), first_ms=median_ms(moves[:1]))
-    session = Path(tempfile.mkdtemp()) / "survey.glu"
-    start = time.perf_counter()
-    app.save_session(str(session), include_data=False, absolute_paths=True)
-    report("session save", seconds=round(time.perf_counter() - start, 3), kb=round(session.stat().st_size / 1e3))
-    start = time.perf_counter()
-    try:
-        restored = app.restore_session(str(session), show=False)
-        report("session restore", seconds=to_idle(restored, None, start), viewers=sum(map(len, restored.viewers)))
-    except Exception as error:  # noqa: BLE001 - the survey records the failure
-        report("session restore", error=f"{type(error).__name__}: {error}")
+    save_and_restore(app)
 
 
 def part_quicklook(app, path):
@@ -257,6 +264,79 @@ def part_link(app, paths):
     report("linked point moves", move_ms=median_ms(moves), others_last_yx=others)
 
 
+def part_iris(app, root, obsid):
+    """
+    An IRIS observation as the observation browser opens it: every raster window and slit-jaw image ticked, scans
+    stacked when there are several raster files, then its quicklook.
+    """
+    from functools import partial
+
+    import numpy as np
+    from matplotlib.backend_bases import MouseEvent
+
+    from glue_solar.quicklook import coordinator, quicklook
+    from glue_solar.sources import iris
+    from glue_solar.sources.loaders import iris as loaders
+    from glue_solar.sources.loaders.scan import scan_directory
+
+    start = time.perf_counter()
+    obs = next(o for o in scan_directory(root) if o.obsid == obsid and (o.rasters or o.sji))
+    report("scan", seconds=round(time.perf_counter() - start, 3), raster_files=len(obs.rasters), windows=obs.windows,
+           sji=sorted(obs.sji))
+    picks = [(0, "raster", window) for window in obs.windows] + [(0, "sji", name) for name in sorted(obs.sji)]
+    start = time.perf_counter()
+    _, loaded, error = loaders._load(0, [obs], picks, len(obs.rasters) > 1, partial(iris._shown, quicklooks=True),
+                                     threading.Event(), lambda *_: None)
+    if error:
+        raise RuntimeError(error)
+    datasets = [data for *_, got in loaded for data in got]
+    report("load", seconds=round(time.perf_counter() - start, 3), datasets=len(datasets),
+           shapes=sorted({tuple(data.shape) for data in datasets}))
+    (shown, window), = iris._quicklooks(loaded)
+    coord = coordinator(app.data_collection)
+    views = {}
+    report("quicklook open", seconds=timed(app, coord, lambda: views.update(quicklook(app, shown, window=window))))
+    panels = [(name, views[name]) for name in ("map", "spectrogram", "wavelength") if views.get(name)]
+    panels += [(f"sji {i}", viewer) for i, viewer in enumerate(views.get("sji", []))]
+    for name, viewer in panels:
+        data = viewer.state.reference_data
+        shown_axes = {viewer.state.x_att.axis, viewer.state.y_att.axis}
+        for axis in (axis for axis in range(data.ndim) if axis not in shown_axes and data.shape[axis] > 1):
+            def step(index, viewer=viewer, axis=axis):
+                slices = list(viewer.state.slices)
+                slices[axis] = index
+                return timed(app, coord, lambda: setattr(viewer.state, "slices", tuple(slices)))
+
+            back = viewer.state.slices[axis]
+            indices = [int(i) for i in np.linspace(0, data.shape[axis] - 1, min(10, data.shape[axis]))]
+            first = [step(index) for index in indices[1:]]
+            warm = [step(index) for index in indices]
+            step(back)
+            report(f"{name} step, axis {axis}", first_ms=median_ms(first), warm_ms=median_ms(warm),
+                   n=data.shape[axis], data=data.label)
+    view = views["map"]  # the Pixel tool is active on it
+    data = view.state.reference_data
+    rows, columns = data.shape[view.state.y_att.axis], data.shape[view.state.x_att.axis]
+
+    def mouse(event, x, y):
+        canvas = view.figure.canvas
+        canvas.callbacks.process(event, MouseEvent(event, canvas, *view.axes.transData.transform((x, y)), button=1))
+
+    def at():  # the point's pixel on the map, to confirm the mouse moved it
+        group = next(g for g in coord._owners if g.subset_state.reference_data is data)
+        return [group.subset_state.slices[axis].start for axis in (view.state.y_att.axis, view.state.x_att.axis)]
+
+    x, y = columns // 3, rows // 3
+    report("point click", seconds=timed(app, coord, lambda: (mouse("button_press_event", x, y),
+                                                             mouse("button_release_event", x, y))), at_yx=at())
+    timed(app, coord, lambda: mouse("button_press_event", x, y))
+    moves = [timed(app, coord, lambda i=i: mouse("motion_notify_event", min(columns - 1, x + i), min(rows - 1, y + 2 * i)))
+             for i in range(1, 11)]
+    timed(app, coord, lambda: mouse("button_release_event", x, y))
+    report("point drag", move_ms=median_ms(moves[2:]), first_ms=median_ms(moves[:1]), at_yx=at())
+    save_and_restore(app)
+
+
 if __name__ == "__main__":
     PART, paths = sys.argv[1], sys.argv[2:]
     SAMPLER.start()
@@ -276,7 +356,7 @@ if __name__ == "__main__":
            python=platform.python_version(), ram_gb=round(physical_memory() / GB),
            glue_solar=getattr(glue_solar, "__version__", None),
            **{name: version(name) for name in ("glue-core", "glue-qt", "astropy", "irispy-lmsal", "numpy", "matplotlib")},
-           files=[f"{Path(p).name} {Path(p).stat().st_size / GB:.2f} GB" for p in paths])
+           files=[f"{Path(p).name} {Path(p).stat().st_size / GB:.2f} GB" for p in paths if Path(p).is_file()])
     {"file": lambda: part_file(app, paths[0]), "quicklook": lambda: part_quicklook(app, paths[0]),
-     "link": lambda: part_link(app, paths)}[PART]()
+     "link": lambda: part_link(app, paths), "iris": lambda: part_iris(app, *paths)}[PART]()
     report("end", seconds=round(time.perf_counter() - start, 3))
