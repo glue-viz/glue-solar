@@ -908,17 +908,19 @@ def test_a_pixel_click_off_the_image_leaves_the_point(app):
     assert subset.subset_state.slices == [slice(2, 3), slice(1, 2)]
 
 
-def test_a_slit_jaw_pixel_at_a_time_off_its_frames_is_nan(sns, monkeypatch):
+@pytest.mark.parametrize("cast", [np.iinfo(np.int64).min, 0])  # x86-64's, ARM's
+def test_a_slit_jaw_pixel_at_a_time_off_its_frames_is_nan(sns, monkeypatch, cast):
     # irispy's slit-jaw gWCS gives a time off its frames a NaN frame index, which dkist casts to an int: on x86-64 the
-    # least int64, off its table, where its per-frame transform has no inverse (NotImplementedError), on ARM 0. Such a
-    # world position, as another dataset's point gives, is off the image: NaN, as the forward transform says, not an error
+    # least int64, off its table, where its per-frame transform has no inverse (NotImplementedError), on ARM 0, frame
+    # 0's pointing. Such a world position, as another dataset's point gives, is off the image: NaN, as the forward
+    # transform says, not an error or frame 0's x and y
     from dkist.wcs.models import BaseVaryingCelestialTransform
 
-    def as_on_x86(ind):
+    def as_on_cpu(ind):
         ind = np.asarray(getattr(ind, "value", ind), float)
-        return np.where(np.isnan(ind), np.iinfo(np.int64).min, np.round(np.nan_to_num(ind))).astype(int)
+        return np.where(np.isnan(ind), cast, np.round(np.nan_to_num(ind))).astype(int)
 
-    monkeypatch.setattr(BaseVaryingCelestialTransform, "sanitize_index", staticmethod(as_on_x86))
+    monkeypatch.setattr(BaseVaryingCelestialTransform, "sanitize_index", staticmethod(as_on_cpu))
     sji, _ = sns
     last = sji.shape[0] - 1
     lon, lat, time = sji.coords.pixel_to_world_values(5, 6, last)
