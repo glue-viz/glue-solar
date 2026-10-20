@@ -106,7 +106,7 @@ def test_the_button_follows_the_viewer_s_iris_fit(app, qtbot, scan_path):
     button = tools.button_fit_every
     [row] = [row for row in tools.findChildren(QtWidgets.QHBoxLayout) if row.indexOf(button) >= 0]
     assert row.indexOf(button) == row.indexOf(tools.ui.button_fit) + 1  # beside Fit
-    none = "This viewer has no IRIS fit: fit a spectrum of a raster window with 'Gaussian + constant (IRIS)' first."
+    none = "This viewer has no IRIS fit: fit a spectrum of a raster window with 'Gaussian + constant' first."
     assert (button.isEnabled(), button.toolTip()) == (False, none)
     tools.fit_function = PolynomialFitter  # glue's own
     tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = LINE
