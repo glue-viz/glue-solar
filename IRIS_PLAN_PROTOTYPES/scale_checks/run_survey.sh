@@ -3,6 +3,11 @@
 # first two cubes; the SURVEY lines go to OUT/survey.jsonl, the rest of the output to OUT/<part>-<n>.log. Paste
 # OUT/survey.jsonl back. Uses the python on PATH, with glue-solar main installed.
 set -u
+if [ $# -lt 2 ]; then
+  echo "usage: run_survey.sh OUT CUBE.fits [CUBE.fits ...]   (OUT: a new folder for the results)" >&2
+  exit 2
+fi
+command -v python >/dev/null || { echo "no python on PATH: activate the env with glue-solar main first" >&2; exit 2; }
 OUT=$1; shift
 mkdir -p "$OUT"; OUT=$(cd "$OUT" && pwd)
 HERE=$(cd "$(dirname "$0")" && pwd)
