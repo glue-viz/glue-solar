@@ -32,8 +32,8 @@ RADIANCE = "IRIS: radiometric calibration"
 def sji_path(tmp_path, irispy_test_files):
     """
     4000255147's SJI 1400, 3 frames, stored as int16: lazy in glue; saturated, raw 32760, across the edge of its dust
-    at (1, 319, 295) and in a block away from it; frame 0's slit moved 3 pixels right, so each frame's dust is replaced
-    from the other frames; irispy's cutouts of 3620258102 hold no dust of its bad-pixel table.
+    at (1, 319, 295) and in a block away from it; frame 0's slit moved 3 pixels right, so part of each frame's dust is
+    replaced from the other frames; irispy's cutouts of 3620258102 hold no dust of its bad-pixel table.
     """
     path = int16_copy(find_irispy_test_file(irispy_test_files, SJI_1400), tmp_path / SJI_1400, [0])
     with fits.open(path, mode="update", do_not_scale_image_data=True) as hdulist:
