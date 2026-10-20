@@ -263,6 +263,30 @@ def _hide_flat_angles(axes, shape):
             coord.set_ticklabel_position("")
 
 
+def _diagram_axes(axes):
+    """
+    Keep a path diagram's first coordinate along each axis, hiding any other, such as an SST cube's scan time, which
+    varies with its tunings and which WCSAxes would place on the free right edge, past the viewer's margin.
+    """
+    for coord in [coord for coord in axes.coords if coord.coord_index is not None][2:]:
+        coord.set_ticks_position("")
+        coord.set_ticklabel_position("")
+        coord.set_axislabel_position("")
+
+
+def _diagram_label(data, axis):
+    """
+    The name and unit of a path diagram's first named world axis along its numpy ``axis``, or None: glue labels such
+    an axis without its unit, or 'World N' where it has two world axes, such as an SST cube's tunings, each timed.
+    """
+    coords, pixel = data.coords, data.ndim - 1 - axis
+    if coords is None:  # a mosaic's, whose pointing moves with the scan
+        return None
+    names, units = coords.world_axis_names, coords.world_axis_units
+    world = next((i for i, name in enumerate(names) if name and coords.axis_correlation_matrix[i, pixel]), None)
+    return None if world is None else f"{names[world]} [{units[world]}]" if units[world] else names[world]
+
+
 def _shown_slice(state):
     """The index of the Image viewer's displayed slice of its reference data, or None while it shows none."""
     data = state.reference_data
@@ -396,6 +420,8 @@ class FrameTimeTool(Tool, HubListener):
         if axes.coords is not self._flat_checked:  # glue reset the axes
             self._flat_checked = axes.coords
             _hide_flat_angles(axes, [data.shape[att.axis] for att in shown])
+            if isinstance(data, PathData):
+                _diagram_axes(axes)
         sit_and_stare, panel = _sit_and_stare_raster(data), isinstance(self.viewer, QuicklookImageViewer)
         for index, axis in enumerate("xy"):
             att, world = getattr(state, f"{axis}_att"), getattr(state, f"{axis}_att_world")
@@ -405,6 +431,8 @@ class FrameTimeTool(Tool, HubListener):
             if label in ("", getattr(world, "label", None)):  # glue's reset
                 unit = panel and world is not None and data.get_component(world).units
                 new = _exposure_label(data) if exposures else f"{world.label} [{unit}]" if unit else label
+                if isinstance(data, PathData):
+                    new = _diagram_label(data, att.axis) or new
                 if new != label:
                     setattr(state, f"{axis}_axislabel", new)  # which calls this again
                     return
