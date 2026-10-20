@@ -28,11 +28,11 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at dc7c25f (#343). glue-solar runs on irispy main 0650517, unpinned (D92; followed in #336, the user's last big irispy batch before the gWCS spectrograph work resumes). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
+**Resume here.** Main is at 062cc0f (#344). glue-solar runs on irispy main 0650517, unpinned (D92; followed in #336, the user's last big irispy batch before the gWCS spectrograph work resumes). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
 
 **Next.** In flight, shipping in two chains of `ship_locked.sh` from session 6873e77f (2026-10-19/20): #337 (#337), #338, #339, then #343, #340, #341; check with `gh pr list` and the plan's checklist, and ship any left with `ship_locked.sh` (their PR texts are in `session_20261019.tar.gz`, `items/<key>/body.md`). Then `wp10-perf-survey-2` (D100) on this Mac, the user running `scale_checks/run_survey.sh` on Linux, and `wp10-gzip-raster-once`, now that irispy #275 is on main. #330 to the last of these were built and checked inline on Opus with no Fable review, as Fable's weekly limit ran out on 2026-10-19: give them a Fable review when it is back. **After the user's weekly usage reset** (user, 2026-10-19; no Fable until then): Fable reviews of #330 and every PR merged since without one (each PR body or this line names them), then `wp0-upstream`. Then what is left is the user's (below), upstream (`wp0-upstream`, from UPSTREAM_REVIEW.md, D89) or waiting on others. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
-**Waiting on the user.** (1) Trying the fitting in the GUI ('Fit every spectrum', the model builder; OBS 3610108077's C II and Si IV windows, the flare 3860258481 for saturation) (the builder's options are settled: the Mg II preset and Save and Open are on main, ties to any line and an editable degree are not wanted, D98, D99). (2) `wp0-qt68-macos-pass`. (3) The app's drag-into-/Applications check: `~/Downloads/Glue Solar.dmg` is fresh, built 2026-10-20 from main dc7c25f with irispy 0650517 (env `glue-solar-app-0650`), smoke-checked headless and through `open` (with `wp9-app-smoke-fiasco`'s smoke.py). (4) An exact report of the linking and slider-sync problems seen in the app on 2026-10-09 (4000255147's raster and SJI 1400, or 4000005156's two scans and SJI 2796), rerun with `glue` from `iris-plan-qt6-802-fb08`. Then UPSTREAM_REVIEW.md (`wp0-upstream`, D89).
+**Waiting on the user.** (1) Trying the fitting in the GUI ('Fit every spectrum', the model builder; OBS 3610108077's C II and Si IV windows, the flare 3860258481 for saturation) (the builder's options are settled: the Mg II preset and Save and Open are on main, ties to any line and an editable degree are not wanted, D98, D99). (2) `wp0-qt68-macos-pass`. (3) The app's drag-into-/Applications check: `~/Downloads/Glue Solar.dmg` is fresh, built 2026-10-20 from main dc7c25f with irispy 0650517 (env `glue-solar-app-0650`), smoke-checked headless and through `open` (with #344's smoke.py). (4) An exact report of the linking and slider-sync problems seen in the app on 2026-10-09 (4000255147's raster and SJI 1400, or 4000005156's two scans and SJI 2796), rerun with `glue` from `iris-plan-qt6-802-fb08`. Then UPSTREAM_REVIEW.md (`wp0-upstream`, D89).
 
 **Waiting on others.** The user's upstream drafts, on their human reviewers (`wp0-stack-validation`, `wp0-user-review`); an irispy release (`wp0-irispy-requests`).
 
@@ -182,7 +182,6 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 
 **M1**
 - WP0: `wp0-release-tracking`
-- WP9: `wp9-app-smoke-fiasco`
 - WP10: `wp10-gzip-raster-once`, `wp10-perf-survey-2`
 
 **Later**
@@ -220,9 +219,6 @@ Upstream work in glue, glue-qt, irispy and astropy that retires the workarounds 
 ### WP1: Coordinates, units and links
 
 The coordinate contract (arcsec and Å on `_GlueWCS` IRIS data) and the links between IRIS datasets and sunpy maps.
-
-**L**
-
 
 **M4**
 
@@ -274,10 +270,6 @@ Notes:
 ### WP9: Documentation and tutorials
 
 Keeps `docs/user_guide/` true to what ships; WP9 owns the cross-cutting guides and recipes.
-
-**M1**
-
-- [ ] **M1** `wp9-app-smoke-fiasco`: the macOS app's `smoke.py` imported `_has_line_ratio`, which #336 renamed to `_has_fiasco` as the O IV preset needs only released fiasco; the app built on 2026-10-20 failed its smoke check there. Done when the smoke check passes on a built app.
 
 **M4**
 
