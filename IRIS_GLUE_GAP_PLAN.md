@@ -28,9 +28,9 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 93ef8db (#334). glue-solar runs on irispy main 30464e2, unpinned (D92; #329's CI passed on it). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
+**Resume here.** Main is at 719808a (#335). glue-solar runs on irispy main 30464e2, unpinned (D92; #329's CI passed on it). M0, M2 and M3 are done; M1's last item, `wp0-release-tracking`, follows each release.
 
-**Next.** In flight: #332 (#332), #333, `wp1-link-without-iris`, `wp4-refit-on-point`, `wp6-fit-colour`, #334 and `wp5-line-checkboxes` (D97, D98); `wp10-gzip-raster-once` waits on irispy draft #275. #330 and these two were built and checked inline on Opus with no Fable review, as Fable's weekly limit ran out on 2026-10-19: give them a Fable review when it is back. **After the user's weekly usage reset** (user, 2026-10-19; no Fable until then): Fable reviews of #330 and every PR merged since without one (each PR body or this line names them), then `wp0-upstream`. Then what is left is the user's (below), upstream (`wp0-upstream`, from UPSTREAM_REVIEW.md, D89) or waiting on others. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
+**Next.** In flight: #332 (#332), #333, `wp1-link-without-iris`, `wp4-refit-on-point`, #335, #334 and `wp5-line-checkboxes` (D97, D98); `wp10-gzip-raster-once` waits on irispy draft #275. #330 and these two were built and checked inline on Opus with no Fable review, as Fable's weekly limit ran out on 2026-10-19: give them a Fable review when it is back. **After the user's weekly usage reset** (user, 2026-10-19; no Fable until then): Fable reviews of #330 and every PR merged since without one (each PR body or this line names them), then `wp0-upstream`. Then what is left is the user's (below), upstream (`wp0-upstream`, from UPSTREAM_REVIEW.md, D89) or waiting on others. Items run as an Opus implementer, a Fable review and an Opus fix pass, shipped with `ship_locked.sh`; agents follow `RULES.md` (session archive). CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
 **Waiting on the user.** (1) Trying the fitting in the GUI ('Fit every spectrum', the model builder; OBS 3610108077's C II and Si IV windows, the flare 3860258481 for saturation) and the builder's later options (presets, ties to any line, an editable degree; D88). (2) `wp0-qt68-macos-pass`. (3) The app's drag-into-/Applications check: `~/Downloads/Glue Solar.dmg` is fresh, built 2026-10-19 from main cbe1196 with irispy 495f39d (env `glue-solar-app-495f`), smoke-checked headless and through `open`. (4) An exact report of the linking and slider-sync problems seen in the app on 2026-10-09 (4000255147's raster and SJI 1400, or 4000005156's two scans and SJI 2796), rerun with `glue` from `iris-plan-qt6-802-fb08`. Then UPSTREAM_REVIEW.md (`wp0-upstream`, D89).
 
@@ -161,7 +161,7 @@ Settled by the user; reopen only with the user. The session archives keep how ea
 
 - **D97:** User (2026-10-19): SST cubes and other non-IRIS data link to each other without IRIS data ('Link helioprojective coordinates' anchors on the first dataset with helioprojective coordinates when no IRIS dataset is loaded), as glue-solar's GUI will serve other missions; a 'Link points across cubes' toggle in the Coordinate menu's Point submenu, on by default, moves the points of the other linked cubes of the observation to a point's place on the Sun (`wp1-link-without-iris`). 'Lines in this range…' offers coronal or photospheric abundances (replacing D96's PROVISIONAL). Gzipped rasters are to be inflated once, by a draft irispy fix first (`wp10-gzip-raster-once`). The UI's IRIS-only wording on features other data use is reviewed and fixed (#333). `wp0-wcslib-tab-inverse` goes to WCSLIB's author by the user's email (text in the session archive).
 
-- **D98:** User (2026-10-19), from trying the SST quicklook: its spectrum and light-curve panels refit their y range to the point's profiles as it moves, while they show the last fit's range or Home's, so a range typed, panned or zoomed stays (`wp4-refit-on-point`); IRIS fits draw in a darker shade of the layer's color (lighter for a dark one), 1.5 times its width, above the data (`wp6-fit-colour`); 'Lines in this range…' lists its lines with check boxes, the main lines ticked, so a line is labeled or hidden, per viewer and not saved (`wp5-line-checkboxes`); the IRIS fitter's Settings get an 'Mg II two peaks' preset, two Gaussians on a constant for the k or h line in the Fit range, as in IRIS Technical Note 39 (#334). PROVISIONAL (D97's linking): SOT and AIA cubes also link to each other without IRIS data, reversing 212-3; the alternative is limiting D97 to SST and data glue-solar does not read through irispy.
+- **D98:** User (2026-10-19), from trying the SST quicklook: its spectrum and light-curve panels refit their y range to the point's profiles as it moves, while they show the last fit's range or Home's, so a range typed, panned or zoomed stays (`wp4-refit-on-point`); IRIS fits draw in a darker shade of the layer's color (lighter for a dark one), 1.5 times its width, above the data (#335); 'Lines in this range…' lists its lines with check boxes, the main lines ticked, so a line is labeled or hidden, per viewer and not saved (`wp5-line-checkboxes`); the IRIS fitter's Settings get an 'Mg II two peaks' preset, two Gaussians on a constant for the k or h line in the Fit range, as in IRIS Technical Note 39 (#334). PROVISIONAL (D97's linking): SOT and AIA cubes also link to each other without IRIS data, reversing 212-3; the alternative is limiting D97 to SST and data glue-solar does not read through irispy.
 
 - **D99:** User (2026-10-19): in future, all open data link when their fields overlap, IRIS or not, rather than on request (a bigger item, `wp1-l-link-all-overlapping`, reopening D64). A path's vertices can be typed, not only clicked (`wp12-path-from-points`). The model builder gets Save and Open of a model, for complex models such as 5 Gaussians with 2 negative, which it already fits from automatic starts; explicit emission or absorption, ties to any line and an editable degree are not worth adding (`wp6-builder-save-load`).
 
@@ -184,7 +184,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 - WP12: `wp12-path-from-points`, `wp12-sst-path-diagram-axes`
 - WP4: `wp4-refit-on-point`
 - WP5: `wp5-line-checkboxes`
-- WP6: `wp6-fit-colour`, `wp6-builder-save-load`
+- WP6: `wp6-builder-save-load`
 - WP10: `wp10-gzip-raster-once`, `wp10-perf-survey-2`
 
 **Later**
@@ -278,7 +278,6 @@ Fitting IRIS spectra from glue's Profile Fit tab: the IRIS fitter and its model 
 
 **M1**
 
-- [ ] **M1** `wp6-fit-colour` (D98): IRIS fits draw in a darker shade of the layer's color, wider and above the data. Done when a fit's curves differ from their spectrum's color and sit above it.
 - [ ] **M1** `wp6-builder-save-load` (D99): Save and Open in the IRIS fitter's Settings write and read a model's components and each parameter's start, Fixed, bounds and tie. Done when a model saved and opened again gives the same Settings.
 
 Notes:
