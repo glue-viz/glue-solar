@@ -61,7 +61,7 @@ Checking the app
 
 ``smoke.py`` checks a built app without showing it: run with ``GLUE_SOLAR_APP_CHECK`` naming it, the app runs it in
 place of glue (glue's own ``-x`` fails in glue-qt 0.4.2). It starts glue, checks glue-solar's menu entries and glue's
-IPython terminal, that fiasco has the line_ratio of the O IV preset, that sunpy.map finds its extra dependencies and
+IPython terminal, that fiasco, the O IV preset's, is bundled, that sunpy.map finds its extra dependencies and
 that matplotlib runs the bundled ffmpeg and saves a two-frame MP4 through it, opens the quicklook of the files it is
 given, adds irispy's radiometric calibration of the raster, which needs irispy's response files, saves and restores
 the session, which needs asdf's schemas, and exits 1 at the first failure::

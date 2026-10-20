@@ -6,7 +6,7 @@ A check of the built app, which runs it in place of glue with the files of an IR
         raster.fits sji.fits
 
 It starts glue as ``glue`` does, checks that glue-solar's menu entries are there on PyQt6 and that glue's IPython
-terminal starts, that fiasco has the line_ratio of the O IV preset, that sunpy.map finds its extra dependencies, without
+terminal starts, that fiasco, the O IV preset's, is bundled, that sunpy.map finds its extra dependencies, without
 which it warns as a session saves or loads, and that matplotlib runs the bundled ffmpeg and saves a two-frame MP4
 through it, loads the files and opens their quicklook as ``glue --startup=iris_quicklook`` does, adds irispy's
 radiometric calibration of the raster, which needs irispy's response files, saves and restores the session, which
@@ -38,7 +38,7 @@ def check(app):
     try:  # an import that fails would leave glue's window open
         from glue_solar.quicklook import QuicklookImageViewer, _role
         from glue_solar.sources.calibration import radiometric_calibration
-        from glue_solar.sources.line_ratio import _has_line_ratio
+        from glue_solar.sources.line_ratio import _has_fiasco
 
         print(f"window shown at {time.time():.3f}", flush=True)
         entries = {action.text() for action in app.findChildren(QtGui.QAction)}
@@ -50,7 +50,7 @@ def check(app):
             "Restore last session",
         } <= entries, entries
         assert app.has_terminal()
-        assert _has_line_ratio()
+        assert _has_fiasco()
         assert not find_dependencies(extras=["map"])[0]  # reproject's metadata
         ffmpeg = shutil.which(animation.FFMpegWriter.bin_path())  # as 'Save frames or movie…' offers MP4
         assert str(ffmpeg).startswith(sys._MEIPASS), ffmpeg
