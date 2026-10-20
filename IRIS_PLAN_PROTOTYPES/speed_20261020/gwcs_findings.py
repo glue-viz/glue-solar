@@ -1,13 +1,21 @@
 """Re-verification of the new upstream speed findings (GLUE_SPEED.md 'New upstream findings, 2026-10-20')."""
-import cProfile, io, pstats, sys, timeit
+import cProfile
+import io
+import pstats
+import sys
+import timeit
+
+import dkist
 import numpy as np
-import astropy, astropy.units as u
+from dkist.wcs.models import VaryingCelestialTransform
+from irispy.io.sji import read_sji_lvl2
+
+import astropy
+import astropy.units as u
+import gwcs
 from astropy.io import fits
 from astropy.modeling import models as m
 from astropy.wcs import WCS
-import dkist, gwcs
-from dkist.wcs.models import VaryingCelestialTransform
-from irispy.io.sji import read_sji_lvl2
 
 print("versions: dkist", dkist.__version__, "gwcs", gwcs.__version__, "astropy", astropy.__version__)
 cube = read_sji_lvl2(sys.argv[1], memmap=True, uncertainty=False)
