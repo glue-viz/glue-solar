@@ -902,6 +902,33 @@ def test_a_path_diagram_of_a_stokes_cube_labels_its_wavelength_alone(sst_app, qt
     assert [coord.get_ticklabel_position() for coord in shown[2:]] == [[]]
 
 
+def test_the_spectra_and_curve_refit_as_the_point_moves_until_zoomed(sst_app, qtbot, tmp_path):
+    # D98: the spectrum and light curve panels fit their y range to the point's profiles as it moves, until their x
+    # range is panned or zoomed; Home fits them again
+    path = tmp_path / "cube.fits"
+    write_sst_cube(path, (3, 1, 5, 12, 16))
+    with fits.open(path, mode="update") as hdus:
+        hdus[0].data[:, :, :, 2, 3] += 1000  # a bright pixel
+    cube = sst_data(path)
+    viewers = quicklook(sst_app, [cube])
+    [spectrum], curve = viewers["spectra"], viewers["curve"]
+    group = sst_app.session.edit_subset_mode.edit_subset[0]
+
+    def move(y, x):
+        group.subset_state = PixelSubsetState(cube, [slice(0, 1), slice(None), slice(y, y + 1), slice(x, x + 1)])
+        qtbot.wait(20)  # the refit after glue's own viewers
+        return spectrum.state.y_max, curve.state.y_max
+
+    faint = move(5, 5)
+    bright = move(2, 3)
+    assert bright[0] > faint[0] + 900
+    assert bright[1] > faint[1] + 900
+    spectrum.state.x_min += 0.001  # zoomed: its range stays
+    assert move(5, 5)[0] == bright[0]
+    spectrum.state.reset_limits()  # Home
+    assert move(5, 5)[0] == pytest.approx(faint[0])
+
+
 def test_the_first_click_on_any_sst_panel_moves_the_point(sst_app, qtbot, tmp_path):
     # each panel takes the Pixel tool as its window becomes active, as in the IRIS quicklook (D75)
     cube, _ = stokes_cube(tmp_path / "cube.fits")

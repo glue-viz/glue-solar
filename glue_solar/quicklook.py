@@ -2102,15 +2102,48 @@ def _show_point(app, group, own):
                 layer._solar_own = True  # as hidden_cube_profile's
 
 
-# glue-qt computes the profile of a layer above this size on a worker thread
-_THREADED_SIZE = 1e7
-
-
 def _fit(viewer):
     """Fit the spectrum panel's y range to its profiles and the y = 0 line, and any Stokes limit about it (`_fill`)."""
     state, limit = viewer.state, getattr(viewer, "_solar_limit", 0)
     state.reset_limits()
+    home = state.x_min, state.x_max, state.y_min, state.y_max  # what glue's Home gives
     state.y_min, state.y_max = min(state.y_min, -limit), max(state.y_max, limit)
+    viewer._solar_fitted = home, (state.x_min, state.x_max, state.y_min, state.y_max)
+
+
+def _refit(viewer):
+    """
+    `_fit` the panel again while it shows the last fit's range or Home's, not one panned, zoomed or typed since (D98).
+    """
+    state = viewer.state
+    if not _off(viewer) and (state.x_min, state.x_max, state.y_min, state.y_max) in getattr(viewer, "_solar_fitted", ()):
+        _fit(viewer)
+
+
+class _Refit(HubListener):
+    """
+    `_refit` a spectrum or curve panel as its subset ``subset`` moves with the point: after glue's own viewers have
+    taken the move, and again once a worker thread has computed a large cube's profile.
+    """
+
+    def __init__(self, viewer, subset):
+        self.viewer, self.subset = viewer, subset
+        hub = subset.data.hub
+        hub.subscribe(self, SubsetUpdateMessage, handler=self._moved, filter=self._of_subset)
+        hub.subscribe(self, ComputationEndedMessage, handler=self._computed, filter=self._of_layer)
+        viewer.window_closed.connect(lambda: hub.unsubscribe_all(self))
+
+    def _of_subset(self, message):
+        return message.subset is self.subset and message.attribute == "subset_state"
+
+    def _of_layer(self, message):
+        return message.sender in self.viewer.layers and message.sender.state.layer is self.subset
+
+    def _moved(self, message):
+        QTimer.singleShot(0, lambda: _refit(self.viewer))
+
+    def _computed(self, message):
+        _refit(self.viewer)
 
 
 class _FitOnceComputed(HubListener):
@@ -2142,14 +2175,13 @@ class _FitOnceComputed(HubListener):
 
 
 def _fit_spectrum(viewer, group):
-    """Fit the spectrum panel to the point's spectrum, now or when glue's worker thread has computed it."""
+    """Fit the spectrum panel to the point's spectrum, now and as the point moves (`_Refit`)."""
     data = viewer.state.reference_data
     if data is None:
         return  # the panel could not add the raster
     _fit(viewer)
-    if data.size > _THREADED_SIZE:
-        [subset] = [subset for subset in group.subsets if subset.data is data]
-        viewer._solar_fit = _FitOnceComputed(viewer, subset)  # the hub holds its listeners weakly
+    [subset] = [subset for subset in group.subsets if subset.data is data]
+    viewer._solar_fit = _Refit(viewer, subset)  # the hub holds its listeners weakly
 
 
 class _Cut(HubListener):
