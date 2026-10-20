@@ -1,0 +1,1 @@
+Each file of a gzipped raster stack is decompressed once, a gzipped raster that fails to open is named in the browser's message, and with lazy loading off a gzipped raster is no longer held in memory twice.
