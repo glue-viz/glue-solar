@@ -1,0 +1,1 @@
+'Lines in this range…' closes the list it opened before, and unticking a line the catalog lists twice no longer raises an error.

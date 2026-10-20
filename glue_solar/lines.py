@@ -72,10 +72,10 @@ def _check(tool):
 class LineTool(Tool):
     """
     Label the main IRIS lines (`main_lines`) on a Profile viewer whose x axis is the wavelength of IRIS data: a thin
-    marker at each line within the plotted range and its name at the top, in the axis's display unit, with the lines
-    'Lines in this range…' labels (`labeled`). Lines too close
-    to tell apart at the plotted range share one label; a label that would overlap another goes below it. The button,
-    checked while they show, switches them off and on; they start on.
+    marker at each line within the plotted range and its name at the top, in the axis's display unit, less the main
+    lines unticked in 'Lines in this range…' (`hidden`) and with the lines ticked there (`labeled`) (D98). Lines too
+    close to tell apart at the plotted range share one label; a label that would overlap another goes below it. The
+    button, checked while they show, switches them off and on; they start on.
     """
 
     icon = "glue_spectrum"
@@ -170,15 +170,19 @@ class LinesInRangeTool(Tool):
     one, a main line too (D98).
     """
 
+    #: :meta hide-value:
     icon = _icon("solar_lines_in_range")
     tool_id = "solar:lines_in_range"
     action_text = "Lines in this range…"
     tool_tip = "List the IRIS lines in the Fit range, else in the plotted range, strongest first"
+    dialog = None
 
     @messagebox_on_error("Could not list the lines")
     def activate(self):
         from irispy.utils.lines import get_lines
 
+        if self.dialog is not None:  # one list per viewer, of the range it was asked for last (D98)
+            self.dialog.close()
         state = self.viewer.state
         if not _shows_wavelength(state):
             raise ValueError("Plot IRIS data against its wavelength first")
@@ -217,7 +221,7 @@ class LinesInRangeTool(Tool):
                 (lines.hidden.discard if on else lines.hidden.add)(line[1])
             elif on:
                 lines.labeled.append(line)
-            else:
+            elif line in lines.labeled:  # not when the catalog lists it twice, as a multiplet's components
                 lines.labeled.remove(line)
             lines.shown = True
             lines.refresh()
