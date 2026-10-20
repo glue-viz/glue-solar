@@ -26,6 +26,7 @@ from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from glue_qt.viewers.profile.layer_artist import QThreadedProfileLayerArtist
 from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QInputDialog
 
 import astropy.wcs.wcsapi.fitswcs
 from astropy.io import fits
@@ -655,6 +656,19 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
     check_sst_panels(viewers, values, group)
     with pytest.raises(ValueError, match="one cube"):
         quicklook(sst_app, [cube, single])
+
+
+def test_a_path_typed_gives_the_diagram_of_the_same_path_clicked(sst_app, qtbot, monkeypatch, tmp_path):
+    # D99: 'Path from points…' takes vertices typed in the image's pixels, as clicks give them
+    cube, _ = stokes_cube(tmp_path / "cube.fits")
+    toolbar = quicklook(sst_app, [cube])["map"].toolbar
+    toolbar.tools["solar:path"]._open_or_update(np.array([2.0, 12.0]), np.array([3.0, 9.0]))
+    monkeypatch.setattr(QInputDialog, "getMultiLineText", lambda *args: ("2, 3\n12 9\n", True))
+    modes = toolbar.widgetForAction(toolbar.actions["solar:modes"]).menu()
+    next(action for action in modes.actions() if action.text() == "Path from points…").trigger()
+    clicked, typed = [data for data in sst_app.data_collection if isinstance(data, PathData)]
+    np.testing.assert_array_equal(np.column_stack([typed.x, typed.y]), np.column_stack([clicked.x, clicked.y]))
+    np.testing.assert_array_equal(typed[typed.main_components[0]], clicked[clicked.main_components[0]])
 
 
 def test_both_maps_open_on_the_field(sst_app, tmp_path):

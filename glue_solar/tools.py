@@ -1350,6 +1350,26 @@ def _open_path(tool):
     tool._extract(np.asarray(along[state.x_att.axis]), np.asarray(along[state.y_att.axis]))
 
 
+@messagebox_on_error("Could not make the path")
+def _typed_path(tool):
+    """
+    Make the diagrams of a path whose vertices are typed, in the pixels of the image the viewer of `PathTool` ``tool``
+    shows, as Enter does for vertices clicked (D99).
+    """
+    text, ok = QtWidgets.QInputDialog.getMultiLineText(
+        tool.viewer, "Path from points", "Each vertex on a line of its own, its x and y in the image's pixels:"
+    )
+    if not ok:
+        return
+    try:
+        vertices = np.array([line.replace(",", " ").split() for line in text.splitlines() if line.strip()], float)
+    except ValueError:
+        vertices = np.empty(0)
+    if vertices.ndim != 2 or vertices.shape[1] != 2 or len(vertices) < 2:
+        raise ValueError("Type two or more vertices, each an x and a y on a line of its own.")
+    tool._open_or_update(vertices[:, 0], vertices[:, 1])
+
+
 def _on_sky(data, lon, lat, when):
     """
     The two pixel components of ``data`` along which only its helioprojective angles vary, each with the positions of
@@ -2576,6 +2596,7 @@ class ModesTool(_ToolMenu):
                 toolbar.tools[SlopeTool.tool_id],
             ),
             ("Open path from ECSV…", "Make the diagrams of a path saved as ECSV", lambda: _open_path(path), path),
+            ("Path from points…", "Make the diagrams of a path whose vertices you type", lambda: _typed_path(path), path),
         ):
             action = modes.addAction(text)
             action.setToolTip(tool_tip)

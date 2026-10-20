@@ -155,6 +155,8 @@ closes its diagrams.
 - **Save path as ECSV…** writes a diagram's path, a row a sample: the pixels, the longitude and
   latitude in arcsec, and the distance along the path in arcsec and km. **Open path from ECSV…** makes
   the same diagrams from it.
+- **Path from points…** makes the diagrams of a path whose vertices you type, each an x and a y in the
+  image's pixels on a line of its own, for a path placed exactly.
 - **Path on other data…** places the path, by its longitude and latitude, on the datasets you tick,
   such as the other windows and the slit-jaw images.
 
