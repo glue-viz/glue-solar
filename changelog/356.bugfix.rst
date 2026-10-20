@@ -1,0 +1,1 @@
+A path diagram of an SST cube whose pointing drifts shows its world axes, its Stokes axis is labeled, its 'Cavity error' can be shown, and a typed path under a pixel long or with a non-numeric vertex gives a message.

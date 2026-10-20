@@ -339,6 +339,10 @@ def sst_data(path):
         wcs.core = _line_core(wcs._grid[5], header.get("WAVELNTH"))
         if wcs.wcs.cname[-1]:  # SSTRED's 'Time since DATEREF, increases with dim. 3 and 5', glue's slider and axis
             wcs.wcs.cname[-1] = "Scan time"  # name; not 'Time', the datetime component's (D90)
+        # glue's `axis_label` checks an axis's name but gives its mirror's, y's and the Stokes axis's here, which SSTRED
+        # leaves unnamed: '' for Stokes, 'Hplt' for y and 'World 2' for a path diagram's wavelength (report candidate)
+        if not stokes and wcs.wcs.cname[1]:
+            wcs.wcs.cname[3] = "Stokes"
         data = _Cube(label=Path(path).stem, coords=wcs)
         data.meta.update(header.items())
         component = Component(hdulist[0].data[stokes], units=header.get("BUNIT"))

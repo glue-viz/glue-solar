@@ -26,7 +26,7 @@ from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from glue_qt.viewers.profile.layer_artist import QThreadedProfileLayerArtist
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QInputDialog
+from qtpy.QtWidgets import QInputDialog, QMessageBox
 
 import astropy.wcs.wcsapi.fitswcs
 from astropy.io import fits
@@ -665,10 +665,30 @@ def test_a_path_typed_gives_the_diagram_of_the_same_path_clicked(sst_app, qtbot,
     toolbar.tools["solar:path"]._open_or_update(np.array([2.0, 12.0]), np.array([3.0, 9.0]))
     monkeypatch.setattr(QInputDialog, "getMultiLineText", lambda *args: ("2, 3\n12 9\n", True))
     modes = toolbar.widgetForAction(toolbar.actions["solar:modes"]).menu()
-    next(action for action in modes.actions() if action.text() == "Path from points…").trigger()
+    typed_path = next(action for action in modes.actions() if action.text() == "Path from points…")
+    typed_path.trigger()
     clicked, typed = [data for data in sst_app.data_collection if isinstance(data, PathData)]
     np.testing.assert_array_equal(np.column_stack([typed.x, typed.y]), np.column_stack([clicked.x, clicked.y]))
     np.testing.assert_array_equal(typed[typed.main_components[0]], clicked[clicked.main_components[0]])
+    # a path under a pixel long, or a vertex not a number, gives a message, where the dialog closed on nothing
+    shown = []
+    monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
+    monkeypatch.setattr(QMessageBox, "exec_", lambda box: shown.append(box.text()))
+    for text in ("5 5\n5 5", "nan 1\n5 5"):
+        monkeypatch.setattr(QInputDialog, "getMultiLineText", lambda *args, text=text: (text, True))
+        typed_path.trigger()
+    assert [text.split("\n")[1] for text in shown] == [
+        "Path is shorter than spacing",
+        "Type two or more vertices, each an x and a y on a line of its own.",
+    ]
+
+
+def test_a_path_diagram_gives_the_cavity_error_at_its_samples(tmp_path):
+    # glue-core 1.27.0 reads the cube with index arrays, which the cavity error's dask refuses
+    cube, _ = stokes_cube(tmp_path / "cube.fits")
+    x, y = cube.pixel_component_ids[4], cube.pixel_component_ids[3]
+    path = PathData(cube, x, np.array([2.0, 12.0]), y, np.array([3.0, 9.0]))
+    np.testing.assert_array_equal(path["Cavity error"], np.asarray(cube["Cavity error"])[..., [3, 9], [2, 12]])
 
 
 def test_both_maps_open_on_the_field(sst_app, tmp_path):
@@ -887,19 +907,26 @@ def test_what_moves_on_an_sst_cube(sst_app, qtbot, tmp_path):
     assert leads() in viewers["map"].toolbar.tools["solar:frame_time"].label.text()
 
 
-def test_a_path_diagram_of_a_stokes_cube_labels_its_wavelength_alone(sst_app, qtbot, tmp_path):
-    # its tunings' axis has a wavelength and a scan time, as each tuning is timed: glue labels it without its unit, or
-    # 'World 2' on SSTRED's files, and WCSAxes put the time on the right edge, past the viewer's margin; a cube of one
-    # pointing, as a mosaic's diagram has no world coordinates
-    write_sst_cube(tmp_path / "cube.fits", (3, 4, 5, 12, 16))
+@pytest.mark.parametrize("drift", [(0.0, 0.0), (0.05, 0.0)])
+def test_a_path_diagram_of_a_stokes_cube_labels_its_wavelength_alone(sst_app, qtbot, tmp_path, drift):
+    # its tunings' axis has a wavelength and a scan time, as each tuning is timed: glue labels it without its unit, and
+    # WCSAxes put the time on the right edge, past the viewer's margin; glue labeled SSTRED's unnamed Stokes axis ''
+    # and the wavelength 'World 2', and a pointing that drifts left the diagram no world coordinates
+    write_sst_cube(tmp_path / "cube.fits", (3, 4, 5, 12, 16), drift=drift)
+    names = ("Spatial X", "Spatial Y", "Wavelength", "Time since DATEREF, increases with dim. 3 and 5")
+    with fits.open(tmp_path / "cube.fits", mode="update") as hdulist:  # as SSTRED names them, none on STOKES
+        for axis, name in zip((1, 2, 3, 5), names):
+            hdulist[0].header[f"CNAME{axis}"] = name
     cube = sst_data(tmp_path / "cube.fits")
     viewers = quicklook(sst_app, [cube])
     viewers["map"].toolbar.tools["solar:path"]._open_or_update(np.array([2.0, 12.0]), np.array([3.0, 9.0]))
     qtbot.wait(20)
     [diagram] = [v for v in sst_app.viewers[-1] if isinstance(v.state.reference_data, PathData)]
-    assert (diagram.state.x_axislabel, diagram.state.y_axislabel) == ("Offset", "Wave [nm]")  # its header's name
+    assert (diagram.state.x_axislabel, diagram.state.y_axislabel) == ("Offset", "Wavelength [nm]")  # its CNAME3
     shown = [coord for coord in diagram.axes.coords if coord.coord_index is not None]
     assert [coord.get_ticklabel_position() for coord in shown[2:]] == [[]]
+    diagram.state.y_att = diagram.state.reference_data.pixel_component_ids[1]
+    assert diagram.state.y_axislabel == "Stokes"
 
 
 def test_the_spectra_and_curve_refit_as_the_point_moves_until_zoomed(sst_app, qtbot, tmp_path):

@@ -11,6 +11,8 @@ from echo import add_callback, delay_callback
 from glue.config import settings, viewer_tool
 from glue.core import Data, Subset
 from glue.core.command import ApplySubsetState
+from glue.core.component import DaskComponent
+from glue.core.coordinates import Coordinates
 from glue.core.data import BaseCartesianData
 from glue.core.edit_subset_mode import ReplaceMode
 from glue.core.fixed_resolution_buffer import invalidate_cache, translate_pixel
@@ -277,10 +279,10 @@ def _diagram_axes(axes):
 def _diagram_label(data, axis):
     """
     The name and unit of a path diagram's first named world axis along its numpy ``axis``, or None: glue labels such
-    an axis without its unit, or 'World N' where it has two world axes, such as an SST cube's tunings, each timed.
+    an axis without its unit.
     """
     coords, pixel = data.coords, data.ndim - 1 - axis
-    if coords is None:  # a mosaic's, whose pointing moves with the scan
+    if coords is None:
         return None
     names, units = coords.world_axis_names, coords.world_axis_units
     world = next((i for i, name in enumerate(names) if name and coords.axis_correlation_matrix[i, pixel]), None)
@@ -1021,11 +1023,51 @@ class MeasureTool(ToolbarModeBase):
         self._start = None
 
 
+class _DiagramCoordinates(Coordinates):
+    """
+    A path diagram's glue-core ``PathSlicedCoordinates`` ``coords`` without the helioprojective angles, which they keep
+    for a cube whose pointing moves, such as an SST cube's drift, beside the world axis per pixel axis glue takes
+    (#339); the angles NaN on the way back.
+    """
+
+    def __init__(self, coords):
+        self._coords = coords
+        self._kept = [i for i, kind in enumerate(coords.world_axis_physical_types) if kind not in _HPC]
+        super().__init__(pixel_n_dim=coords.pixel_n_dim, world_n_dim=len(self._kept))
+
+    def pixel_to_world_values(self, *pixel):
+        world = self._coords.pixel_to_world_values(*pixel)
+        return tuple(world[i] for i in self._kept)
+
+    def world_to_pixel_values(self, *world):
+        full = [np.nan] * self._coords.world_n_dim
+        for i, values in zip(self._kept, world, strict=True):
+            full[i] = values
+        return self._coords.world_to_pixel_values(*full)
+
+    @property
+    def world_axis_units(self):
+        return [self._coords.world_axis_units[i] for i in self._kept]
+
+    @property
+    def world_axis_physical_types(self):
+        return [self._coords.world_axis_physical_types[i] for i in self._kept]
+
+    @property
+    def world_axis_names(self):  # glue-core's, one per pixel axis
+        return self._coords.world_axis_names
+
+    @property
+    def axis_correlation_matrix(self):
+        return self._coords.axis_correlation_matrix[self._kept]
+
+
 class PathData(PathSlicedData):
     """
     glue-core's ``PathSlicedData`` of `PathTool`'s samples as given, each at its nearest pixel where glue-core 1.27.0
     truncates (D90): NaN and NaT off the data, where glue-core gives 0 and casts times to float, its own world
-    coordinates (none where glue-core's fail) and a session record (#151, #191, #218).
+    coordinates (`_DiagramCoordinates` where the pointing moves, none where glue-core's fail otherwise) and a session
+    record (#151, #191, #218).
     """
 
     def __init__(self, *args, **kwargs):
@@ -1034,7 +1076,8 @@ class PathData(PathSlicedData):
         if isinstance(stack, _PerScanWCS):  # scan 0's WCS with its Scan axis, which leaves no angles here
             self._coords = PathSlicedCoordinates(_GlueWCS(stack._wcs), self.sliced_dims)
         if self._coords is not None and self._coords.world_n_dim != self._coords.pixel_n_dim:
-            self._coords = None
+            coords = _DiagramCoordinates(self._coords)
+            self._coords = coords if coords.world_n_dim == coords.pixel_n_dim else None
 
     def component_ids(self):
         # glue-core 1.27.0's session saver lists every dataset's, which only Data has: a diagram has none of its own
@@ -1108,7 +1151,11 @@ class PathData(PathSlicedData):
         if cid in self.pixel_component_ids or cid in self.world_component_ids:
             return BaseCartesianData.get_data(self, cid, view)
         pixel, keep, shape = self._get_pix_coords(view=view)
-        values = np.asarray(self.original_data.get_data(cid, view=tuple(pixel)))
+        component = self.original_data._components.get(cid)
+        if type(component) is DaskComponent:  # glue-core 1.27.0 gives dask the arrays, which only its vindex takes
+            values = component.data.vindex[tuple(pixel)].compute()
+        else:
+            values = np.asarray(self.original_data.get_data(cid, view=tuple(pixel)))
         if values.dtype.kind == "M":
             result = np.full(shape, "NaT", values.dtype)
         else:
@@ -1365,9 +1412,9 @@ def _typed_path(tool):
         vertices = np.array([line.replace(",", " ").split() for line in text.splitlines() if line.strip()], float)
     except ValueError:
         vertices = np.empty(0)
-    if vertices.ndim != 2 or vertices.shape[1] != 2 or len(vertices) < 2:
+    if vertices.ndim != 2 or vertices.shape[1] != 2 or len(vertices) < 2 or not np.isfinite(vertices).all():
         raise ValueError("Type two or more vertices, each an x and a y on a line of its own.")
-    tool._open_or_update(vertices[:, 0], vertices[:, 1])
+    tool._extract(*sample_points(vertices[:, 0], vertices[:, 1]))  # its error shown, where a click's is not
 
 
 def _on_sky(data, lon, lat, when):
@@ -2574,7 +2621,8 @@ class CoordinateTool(_ToolMenu):
 @viewer_tool
 class ModesTool(_ToolMenu):
     """
-    The menu of glue-solar's mouse modes, with the path entries (`_save_path`, `_open_path`, `_reuse_path`).
+    The menu of glue-solar's mouse modes, with the path entries (`_save_path`, `_open_path`, `_typed_path`,
+    `_reuse_path`).
     """
 
     icon = "pencil"
