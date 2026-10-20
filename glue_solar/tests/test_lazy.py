@@ -312,16 +312,21 @@ def test_int16_rasters_load_lazily_and_float32_ones_as_before(monkeypatch, tmp_p
         assert [type(loaded.get_component(cid)) for cid in loaded.main_components[:2]] == [Component, Component]
 
 
-def test_raster_files_stored_differently_load_as_before(monkeypatch, int16_raster, irispy_test_files):
-    # an int16 copy beside irispy's float32 file, which irispy reads first: each scan and their stack
-    files = [int16_raster, find_irispy_test_file(irispy_test_files, RASTER)]
-    for stack in (False, True):
-        mixed = raster_data(files, ["Si IV 1403"], stack)
-        monkeypatch.setattr(iris, "LAZY", False)
-        eager = raster_data(files, ["Si IV 1403"], stack)
-        monkeypatch.setattr(iris, "LAZY", True)
-        for data, before in zip(mixed, eager, strict=True):
-            np.testing.assert_array_equal(data[data.main_components[0]], before[before.main_components[0]])
+def test_raster_files_stored_differently_load_as_before(monkeypatch, tmp_path, int16_raster, irispy_test_files):
+    # an int16 copy beside irispy's float32 file, which irispy reads first: each scan and their stack; and gzipped,
+    # the float32 file read after the int16 one, each from its copy in memory (D97)
+    source = find_irispy_test_file(irispy_test_files, RASTER)
+    gzipped = [int16_raster_copy(source, tmp_path / "a" / f"{RASTER}.gz"), tmp_path / "b" / f"{RASTER}.gz"]
+    gzipped[1].parent.mkdir()
+    gzipped[1].write_bytes(gzip.compress(source.read_bytes()))
+    for files in ([int16_raster, source], gzipped):
+        for stack in (False, True):
+            mixed = raster_data(files, ["Si IV 1403"], stack)
+            monkeypatch.setattr(iris, "LAZY", False)
+            eager = raster_data(files, ["Si IV 1403"], stack)
+            monkeypatch.setattr(iris, "LAZY", True)
+            for data, before in zip(mixed, eager, strict=True):
+                np.testing.assert_array_equal(data[data.main_components[0]], before[before.main_components[0]])
 
 
 def test_int16_stacks_load_lazily_scan_by_scan(monkeypatch, tmp_path, irispy_test_files):
@@ -453,7 +458,8 @@ def test_a_gzipped_slit_jaw_file_is_decompressed_once(monkeypatch, tmp_path, iri
 
 
 def test_a_gzipped_raster_file_is_decompressed_once(monkeypatch, tmp_path, irispy_test_files):
-    # its window headers and irispy's read from one copy in memory (irispy #275), where the header pass inflated it too
+    # its window headers and irispy's read from one copy in memory (irispy #275), where the header pass inflated it
+    # too; each file of a stack's just before irispy reads it (D97), and with LAZY off irispy's read alone
     source = find_irispy_test_file(irispy_test_files, RASTER)
     plain = int16_raster_copy(source, tmp_path / "plain" / RASTER)
     gzipped = int16_raster_copy(source, tmp_path / "gzipped" / f"{RASTER}.gz")
@@ -470,6 +476,12 @@ def test_a_gzipped_raster_file_is_decompressed_once(monkeypatch, tmp_path, irisp
     [data] = raster_data([gzipped], ["Si IV 1403"])
     size = plain.stat().st_size
     assert size <= sum(inflated.values()) < 1.2 * size  # once, besides header peeks; the header pass reached the last window
+    for files, on in (([gzipped, gzipped], True), ([gzipped], False)):
+        inflated.clear()
+        monkeypatch.setattr(iris, "LAZY", on)
+        raster_data(files, ["Si IV 1403"])
+        assert len(files) * size <= sum(inflated.values()) < 1.2 * len(files) * size
+    monkeypatch.setattr(iris, "LAZY", True)
     # lazily, as the plain file: values, mask, times, exposures and every pixel's coordinates, and the meta
     assert type(data) is type(expected)
     assert [cid.label for cid in data.components] == [cid.label for cid in expected.components]
