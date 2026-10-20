@@ -856,39 +856,43 @@ def _read_logged_windows_together(session):
                 record.update({"_type": f"{__name__}.{_RasterFilesLog.__name__}", "read together": windows})
 
 
-def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None):
+def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None, lazy=True):
     """
     `raster_data` by window name, from one read of each file for every window, which maps each file once; None once
-    ``stop``, a `threading.Event`, is set between files; ``step()`` is called after each file.
+    ``stop``, a `threading.Event`, is set between files; ``step()`` is called after each file. Not ``lazy``, as with
+    `LAZY` off.
     """
-    # a gzipped file alone, opened once in memory for its headers and irispy's read (irispy #275), as astropy inflates
-    # the whole stream to reach a later window's header, and a second open inflated it again. shortcut: each file of a
-    # gzipped stack is still inflated twice; keep each file's copy if gzipped stacks matter
-    opened = None
-    if len(files) == 1 and _gzipped(files[0]):
-        opened = fits.open(files[0], decompress_in_memory=True, do_not_scale_image_data=True)  # as irispy's lazy read
-    with nullcontext() if opened is None else opened:
-        return _raster_windows_read(files, windows, stack, stop, step, opened)
-
-
-def _raster_windows_read(files, windows, stack, stop, step, opened):
-    """`_raster_windows_data`'s reads, of ``opened``, a gzipped file's copy in memory, where it can (see there)."""
-    scaling = _window_scaling(files[0], opened)
-    if any(_window_scaling(path) != scaling for path in files[1:]):
-        scaling = None
-    if scaling:
-        allow_open_files()
+    # a gzipped file is opened once in memory, just before irispy reads it, for its window headers and irispy's read
+    # (irispy #275, D97), as astropy inflates the whole stream to reach a later window's header
+    gzipped, scalings = set(), []
+    for path in files if lazy and LAZY else ():  # with LAZY off, irispy's read alone
+        with _naming(path):
+            if _gzipped(path):
+                gzipped.add(path)
+            else:
+                scalings.append(_window_scaling(path))  # headers only
+    scaling = scalings[0] if scalings and all(other == scalings[0] for other in scalings) else None
+    in_memory = partial(fits.open, decompress_in_memory=True, do_not_scale_image_data=True)  # as irispy's lazy read
     from irispy.io import read_files, read_spectrograph_lvl2
 
     scans = {}
-    for path in sorted(files):  # as irispy orders them
+    for i, path in enumerate(sorted(files)):  # as irispy orders them
         if stop is not None and stop.is_set():
             return None
-        with _naming(path):
-            if opened is not None and scaling:  # opened unscaled, as irispy's memmap=True read opens a file
-                read = read_spectrograph_lvl2(opened, spectral_windows=windows, memmap=True, uncertainty=False)
-            else:
+        with _naming(path), in_memory(path) if path in gzipped else nullcontext() as opened:
+            own = None if opened is None else _window_scaling(path, opened)
+            if i == 0 and not scalings:  # every file gzipped: the first file's
+                scaling = own
+            if i == 0 and scaling:
+                allow_open_files()
+            if opened is None:
                 read = read_files([path], spectral_windows=windows, memmap=bool(scaling), uncertainty=False)
+            elif scaling and own == scaling:  # opened unscaled, as irispy's memmap=True read opens a file
+                read = read_spectrograph_lvl2(opened, spectral_windows=windows, memmap=True, uncertainty=False)
+            else:  # it loads scaled: every file as with LAZY off, once this copy is closed
+                read = None
+        if read is None:
+            return _raster_windows_data(files, windows, stack, stop, step, lazy=False)
         for window, sequence in read.items():
             for scan in sequence:
                 scan.meta["raster files"] = (Path(path).name,)  # which tell the files of an observation apart

@@ -22,7 +22,7 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 from astropy.wcs.wcsapi.high_level_api import values_to_high_level_objects
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper
 
-from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, OBS_S, find_irispy_test_file, startobs
+from glue_solar.conftest import MD5, OBS_A, OBS_B, OBS_C, OBS_S, find_irispy_test_file, int16_raster_copy, startobs
 from glue_solar.sources.iris import is_iris_fits, read_iris_file
 from glue_solar.sources.loaders.iris import (
     _RUNNING,
@@ -1241,12 +1241,16 @@ def test_reader_failure_stays_in_dialog(qtbot, tmp_path, name, instrume, band):
     assert dialog.cancel.text() == "Cancel"  # and Load selected is back
 
 
+@pytest.mark.parametrize("suffix", ["", ".gz"], ids=["plain", "gzipped"])
 @pytest.mark.parametrize("keep", [lambda n: n // 2, lambda n: n - 5000], ids=["headers", "data"])
-def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_test_files, keep):
+def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_test_files, keep, suffix):
     scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r0000" in path.name)[:2]
-    for scan in scans:
-        shutil.copy2(scan, tmp_path / scan.name)
-    truncated = tmp_path / scans[1].name
+    if suffix:  # alone, stored as int16, which the loader opens in memory itself
+        int16_raster_copy(scans[1], tmp_path / f"{scans[1].name}{suffix}")
+    else:
+        for scan in scans:
+            shutil.copy2(scan, tmp_path / scan.name)
+    truncated = tmp_path / f"{scans[1].name}{suffix}"
     data = truncated.read_bytes()
     truncated.write_bytes(data[: keep(len(data))])  # as an interrupted download leaves it
 
