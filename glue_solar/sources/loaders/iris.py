@@ -10,7 +10,7 @@ import threading
 import traceback
 import warnings
 from collections import OrderedDict
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from functools import cached_property, partial, wraps
 from operator import attrgetter
 from pathlib import Path
@@ -41,7 +41,7 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper, SlicedLowLevelWCS
 
 from ..maps import _Style
 from .lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask, iris_mask
-from .scan import _observation, _primary_header, extract_archive, scan_directory
+from .scan import _gzipped, _observation, _primary_header, extract_archive, scan_directory
 from .stack_spectrograms import MISSING_VALUES, _PerScanWCS, stack_times, stack_wcs
 
 # Load data stored as int16, as Level 2 files store it, lazily: the raw integers stay in the file (in memory for a
@@ -620,12 +620,12 @@ def _naming(path):
         raise
 
 
-def _window_scaling(path):
+def _window_scaling(path, opened=None):
     """
     The `_raw_scaling` of each spectral window of a raster file by its ``TDESC`` name, or None unless every window
-    loads lazily.
+    loads lazily; from ``opened``, the file opened already, if given.
     """
-    with _naming(path), fits.open(path) as hdulist:  # headers only
+    with _naming(path), nullcontext(opened) if opened is not None else fits.open(path) as hdulist:  # headers only
         header = hdulist[0].header
         scaling = {header[f"TDESC{i}"]: _raw_scaling(hdulist[i].header) for i in range(1, header["NWIN"] + 1)}
     return None if None in scaling.values() else scaling
@@ -835,19 +835,34 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None)
     `raster_data` by window name, from one read of each file for every window, which maps each file once; None once
     ``stop``, a `threading.Event`, is set between files; ``step()`` is called after each file.
     """
-    scaling = _window_scaling(files[0])
+    # a gzipped file alone, opened once in memory for its headers and irispy's read (irispy #275), as astropy inflates
+    # the whole stream to reach a later window's header, and a second open inflated it again. shortcut: each file of a
+    # gzipped stack is still inflated twice; keep each file's copy if gzipped stacks matter
+    opened = None
+    if len(files) == 1 and _gzipped(files[0]):
+        opened = fits.open(files[0], decompress_in_memory=True, do_not_scale_image_data=True)  # as irispy's lazy read
+    with nullcontext() if opened is None else opened:
+        return _raster_windows_read(files, windows, stack, stop, step, opened)
+
+
+def _raster_windows_read(files, windows, stack, stop, step, opened):
+    """`_raster_windows_data`'s reads, of ``opened``, a gzipped file's copy in memory, where it can (see there)."""
+    scaling = _window_scaling(files[0], opened)
     if any(_window_scaling(path) != scaling for path in files[1:]):
         scaling = None
     if scaling:
         allow_open_files()
-    from irispy.io import read_files
+    from irispy.io import read_files, read_spectrograph_lvl2
 
     scans = {}
     for path in sorted(files):  # as irispy orders them
         if stop is not None and stop.is_set():
             return None
         with _naming(path):
-            read = read_files([path], spectral_windows=windows, memmap=bool(scaling), uncertainty=False)
+            if opened is not None and scaling:  # opened unscaled, as irispy's memmap=True read opens a file
+                read = read_spectrograph_lvl2(opened, spectral_windows=windows, memmap=True, uncertainty=False)
+            else:
+                read = read_files([path], spectral_windows=windows, memmap=bool(scaling), uncertainty=False)
         for window, sequence in read.items():
             for scan in sequence:
                 scan.meta["raster files"] = (Path(path).name,)  # which tell the files of an observation apart

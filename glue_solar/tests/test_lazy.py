@@ -452,6 +452,32 @@ def test_a_gzipped_slit_jaw_file_is_decompressed_once(monkeypatch, tmp_path, iri
         np.testing.assert_equal(data.meta[key], value)
 
 
+def test_a_gzipped_raster_file_is_decompressed_once(monkeypatch, tmp_path, irispy_test_files):
+    # its window headers and irispy's read from one copy in memory (irispy #275), where the header pass inflated it too
+    source = find_irispy_test_file(irispy_test_files, RASTER)
+    plain = int16_raster_copy(source, tmp_path / "plain" / RASTER)
+    gzipped = int16_raster_copy(source, tmp_path / "gzipped" / f"{RASTER}.gz")
+    expected = raster_data([plain], ["Si IV 1403"])[0]
+    inflated = {}  # the bytes each open of the gzip stream inflates, through GzipFile.read and seek alike
+    read = gzip._GzipReader.read
+
+    def counted(self, size=-1):
+        chunk = read(self, size)
+        inflated[self] = inflated.get(self, 0) + len(chunk)
+        return chunk
+
+    monkeypatch.setattr(gzip._GzipReader, "read", counted)
+    [data] = raster_data([gzipped], ["Si IV 1403"])
+    size = plain.stat().st_size
+    assert size <= sum(inflated.values()) < 1.2 * size  # once, besides header peeks; the header pass reached the last window
+    # lazily, as the plain file: values, mask, times, exposures and every pixel's coordinates, and the meta
+    assert type(data) is type(expected)
+    assert [cid.label for cid in data.components] == [cid.label for cid in expected.components]
+    for cid, expected_cid in zip(data.components, expected.components, strict=True):
+        np.testing.assert_array_equal(data[cid], expected[expected_cid])
+    assert data.meta.keys() == expected.meta.keys()
+
+
 def test_scripting_recipe_computes_spectra_of_lazy_data(int16_raster):
     # docs/user_guide/scripting-iris-data.rst, whose raster is lazy when stored as int16, as Level 2 files store it
     [raster] = raster_data([int16_raster], ["Si IV 1403"])
