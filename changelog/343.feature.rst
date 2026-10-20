@@ -1,0 +1,1 @@
+The quicklook's spectrum and light-curve panels refit their y range as the point moves, until their range is panned, zoomed or typed; Home resumes it.
