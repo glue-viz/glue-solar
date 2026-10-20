@@ -12,7 +12,7 @@ from glue_qt.viewers.table.data_viewer import DataTableModel
 from irispy.io.sji import read_sji_lvl2
 from irispy.io.spectrograph import read_spectrograph_lvl2
 from irispy.sji import SJICube
-from irispy.utils.bursts import find_si_iv_bursts, find_sji_bursts
+from irispy.utils.bursts import find_bright_image_events, find_si_iv_bursts
 from qtpy import QtCore, QtWidgets
 
 import astropy.units as u
@@ -199,7 +199,7 @@ def test_a_slit_jaw_image_gives_irispys_labels_and_events_on_its_coordinates(
     assert opened == [{"sigma_factor": 10.0, "min_pixels": 2}]
     [[viewer]] = app.viewers  # glue's Image viewer of the labels, none of the table (D83)
     assert viewer.state.layers[0].attribute is labels.main_components[0]
-    assert_irispys(labels, table, *find_sji_bursts(read_sji_lvl2(path)))
+    assert_irispys(labels, table, *find_bright_image_events(read_sji_lvl2(path)))
     assert [cid.label for cid in table.main_components] == ["label", "frame", "npix", "threshold", "y", "x", *POSITION]
     assert table.meta == {
         "OBSID": sji.meta["OBSID"],
@@ -225,7 +225,7 @@ def test_a_slit_jaw_image_gives_irispys_labels_and_events_on_its_coordinates(
     answer(monkeypatch, sigma_factor=12.5, min_pixels=1)
     labels, table = run(app, qtbot, sji, 20)
     cube = read_sji_lvl2(path)
-    assert_irispys(labels, table, *find_sji_bursts(cube, sigma_factor=12.5, min_pixels=1))
+    assert_irispys(labels, table, *find_bright_image_events(cube, sigma_factor=12.5, min_pixels=1))
     # a dust-removed one, whose meta is no longer irispy's
     dust = remove_dust(sji)
     collection.append(dust)
@@ -233,7 +233,7 @@ def test_a_slit_jaw_image_gives_irispys_labels_and_events_on_its_coordinates(
     labels, table = run(app, qtbot, dust, 26)
     values = dust[dust.main_components[0]]
     clean = SJICube(values, cube.wcs, unit=cube.unit, mask=np.isnan(values), meta=cube.meta)
-    assert_irispys(labels, table, *find_sji_bursts(clean))
+    assert_irispys(labels, table, *find_bright_image_events(clean))
 
 
 def test_refusals_and_errors_show_why(app, monkeypatch, irispy_test_files):
@@ -280,4 +280,4 @@ def test_a_full_si_iv_window_and_slit_jaw_image_give_irispys_bursts(irispy_data)
     direct = find_si_iv_bursts(read_spectrograph_lvl2(path)["Si IV 1403"][0], threshold=80)
     assert_irispys(*si_iv_bursts(raster, threshold=80), *direct)
     path = irispy_data("iris_l2_20130902_163935_4000255147_SJI_1400_t000_f050.fits.gz")
-    assert_irispys(*sji_bursts(image_data(path)), *find_sji_bursts(read_sji_lvl2(path)))
+    assert_irispys(*sji_bursts(image_data(path)), *find_bright_image_events(read_sji_lvl2(path)))
