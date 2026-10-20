@@ -1,0 +1,1 @@
+The 'Gaussian + constant (IRIS)' fitter is now 'Gaussian + constant', as it fits SST and other spectra too, and a line without a start begins at a peak of the sign its amplitude's bounds give, so 'Mg II two peaks' starts at both emission peaks.

@@ -95,8 +95,8 @@ To fit a line in every spectrum of a raster window, or of each scan of a stack:
 
 1. On the "Fit" tab of a Profile viewer of the window, such as a quicklook's spectrum panel (see
    :ref:`The spectrum panel <glue_solar_users_guide_iris_spectrum_panel>`), fit one spectrum with
-   "Gaussian + constant (IRIS)": drag over the line, with the function "Mean" or "Median" and the x
-   unit a length, such as ``Angstrom``, or ``km / s`` from the rest wavelength, and press "Fit".
+   "Gaussian + constant": drag over the line, with the function "Mean" or "Median" and the x unit a
+   length, such as ``Angstrom``, or ``km / s`` from the rest wavelength, and press "Fit".
    "Settings" builds the model (see :ref:`Building the model
    <glue_solar_users_guide_iris_fit_settings>`).
 2. Press "Fit every spectrum", beside "Fit". Its tooltip says why while it is grayed.

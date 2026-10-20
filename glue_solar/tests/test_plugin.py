@@ -2728,11 +2728,12 @@ def _fit_two_lines(qtbot, monkeypatch, data, x_range):
 
 def test_the_mg_ii_preset_fits_both_emission_peaks(qtbot, monkeypatch):
     # D98: 'Mg II two peaks' sets two Gaussians on a constant, which start at the blue and red emission peaks of a
-    # Mg II k core, either side of its central reversal
+    # Mg II k core, either side of its central reversal, and not at that reversal or at the range's blue edge, both
+    # below the median, the edge further than the red peak is above it
     glue_solar.setup()
     wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 2795.8, "CDELT1": 0.025})
     x = 2795.8 + 0.025 * np.arange(41)
-    y = 20 + 300 * np.exp(-0.5 * ((x - 2796.22) / 0.06) ** 2) + 250 * np.exp(-0.5 * ((x - 2796.48) / 0.06) ** 2)
+    y = 20 + 300 * np.exp(-0.5 * ((x - 2796.4) / 0.25) ** 2) * (1 - 0.5 * np.exp(-0.5 * ((x - 2796.43) / 0.08) ** 2))
     app = GlueApplication()
     qtbot.addWidget(app)
     data = Data(label="Mg II k", flux=y, coords=wcs)
@@ -2749,7 +2750,7 @@ def test_the_mg_ii_preset_fits_both_emission_peaks(qtbot, monkeypatch):
     qtbot.waitUntil(lambda: "center_2" in tools.text_log.toPlainText())
     lines = [line.split(" = ") for line in tools.text_log.toPlainText().splitlines() if " = " in line]
     report = {name.strip(): value.split(",")[0] for name, value in lines}
-    assert [float(report[name]) for name in ("center_1", "center_2")] == pytest.approx([2796.22, 2796.48], abs=1e-3)
+    assert [float(report[name]) for name in ("center_1", "center_2")] == pytest.approx([2796.275, 2796.575], abs=0.05)
 
 
 def test_a_model_saved_and_opened_again_gives_the_same_settings(qtbot, monkeypatch, tmp_path):
@@ -2810,6 +2811,10 @@ def test_the_iris_fitter_fits_the_lines_added_in_settings(qtbot, monkeypatch):
         np.testing.assert_allclose(line.get_ydata(), model[0](line.get_xdata()) + model[index](line.get_xdata()))
     tools.ui.button_clear.click()
     assert not any(artist in tools.axes.lines for artist in artists)
+    layer.color = "k"  # lighter for a dark color (D98)
+    tools.ui.button_fit.click()
+    qtbot.waitUntil(lambda: bool(tools._fit_artists))
+    assert to_hex(tools._fit_artists[0].get_color()) == "#808080"
 
 
 def test_the_iris_fit_settings_compose_a_model(app, monkeypatch):
@@ -2999,7 +3004,7 @@ def test_gaussian_on_a_constant_says_when_the_range_holds_too_few_samples():
     x = np.arange(4.0)
     y = 1 + 4 * np.exp(-0.5 * ((x - 1) / 0.5) ** 2)
     y[3] = np.nan  # three finite samples for four parameters
-    message = r"Gaussian \+ constant \(IRIS\) needs at least 4 finite, unsaturated samples in the range, one per free"
+    message = r"Gaussian \+ constant needs at least 4 finite, unsaturated samples in the range, one per free"
     with pytest.raises(ValueError, match=f"{message} parameter, and has 3: widen the range"):
         GaussianConstantFitter().build_and_fit(x, y)
     fitter = GaussianConstantFitter()

@@ -48,10 +48,21 @@ def _name(name, index, components):
     return f"{name}_{index}" if len(components) > 1 else name
 
 
+def _kind(leaf):
+    """The key of `_KINDS` that component ``leaf`` is."""
+    return next(kind for kind, cls in _KINDS.items() if isinstance(leaf, cls))
+
+
 def _label(leaf):
     """The kind of component ``leaf`` is."""
-    kind = next(kind for kind, cls in _KINDS.items() if isinstance(leaf, cls))
+    kind = _kind(leaf)
     return f"{kind}, degree {leaf.degree}" if isinstance(leaf, models.Polynomial1D) else kind
+
+
+def _sign(setting):
+    """1 for emission, -1 for absorption, as an amplitude's ``setting`` bounds it, else None."""
+    lower, upper = setting["limits"] or (None, None)
+    return 1 if lower is not None and lower >= 0 else -1 if upper is not None and upper <= 0 else None
 
 
 def _leaves(model):
@@ -190,10 +201,9 @@ class _Settings(QtWidgets.QDialog):
         self._read()
         path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save the model", "", "Model (*.json)")
         if path:
-            kinds = [next(kind for kind, cls in _KINDS.items() if isinstance(leaf, cls)) for leaf, _ in self.components]
             model = [
-                {"kind": kind, "degree": getattr(leaf, "degree", None), "parameters": settings}
-                for kind, (leaf, settings) in zip(kinds, self.components, strict=True)
+                {"kind": _kind(leaf), "degree": getattr(leaf, "degree", None), "parameters": settings}
+                for leaf, settings in self.components
             ]
             with open(path, "w") as file:
                 json.dump(model, file, indent=1)
@@ -247,13 +257,14 @@ class GaussianConstantFitter(AstropyFitter1D):
     those ``saturated``, a lower bound only, which place the starts alone (D87). Starts left blank come from the data:
     the first background at their median, flat, and each line at its peak from it, emission or absorption, among the
     samples nearer its center than any other line's, the center its start, its tie, or else one of the most prominent
-    peaks, and its width that of its samples above half the peak, a Gaussian's standard deviation or a Lorentzian's
-    full width at half maximum. An amplitude with no bounds keeps its start's sign, as a blend otherwise fits as one line
-    up and one down (D81). The summary adds each center and its Doppler velocity from the layer's rest wavelength
-    (D11), how many saturated samples were left out and how many kept include saturated pixels.
+    peaks, of the sign the amplitude bounds of the lines so started agree on, if any (D98), and its width that of its
+    samples above half the peak, a Gaussian's standard deviation or a Lorentzian's full width at half maximum. An
+    amplitude with no bounds keeps its start's sign, as a blend otherwise fits as one line up and one down (D81). The
+    summary adds each center and its Doppler velocity from the layer's rest wavelength (D11), how many saturated samples
+    were left out and how many kept include saturated pixels.
     """
 
-    label = "Gaussian + constant (IRIS)"
+    label = "Gaussian + constant"
     fitting_cls = fitting.TRFLSQFitter
     settings_widget = _Settings  # glue-qt's Settings, with `glue_patches._on_settings`
 
@@ -338,8 +349,16 @@ class GaussianConstantFitter(AstropyFitter1D):
         ]
         centered = [settings[leaf.param_names[1]] for _, leaf, settings in lines]  # each center's settings
         unset = [setting for setting in centered if setting["tie"] is None and setting["value"] is None]
-        # zero beyond the range, so that a line at its edge is a peak
-        peaks, found = signal.find_peaks(np.pad(np.abs(y - level), 1), prominence=0)
+        # above the median, or below it, where those lines' amplitude bounds agree, so that a range edge or a central
+        # reversal on the other side is no line, as in an Mg II core (D98); zero beyond the range, so that a line at its
+        # edge is a peak
+        signs = {
+            _sign(settings[leaf.param_names[0]])
+            for _, leaf, settings in lines
+            if settings[leaf.param_names[1]] in unset
+        }
+        peaked = next(iter(signs)) * (y - level) if signs in ({1}, {-1}) else np.abs(y - level)
+        peaks, found = signal.find_peaks(np.pad(peaked, 1), prominence=0)
         if len(peaks) < len(unset):
             raise ValueError(
                 f"{self.label} needs a peak in the range for each line without a start, {len(unset)}, and finds "
@@ -357,8 +376,7 @@ class GaussianConstantFitter(AstropyFitter1D):
         starts = {}
         for index, leaf, settings in lines:
             # emission or absorption, as its amplitude's bounds set, else the stronger
-            lower, upper = settings[leaf.param_names[0]]["limits"] or (None, None)
-            sign = 1 if lower is not None and lower >= 0 else -1 if upper is not None and upper <= 0 else None
+            sign = _sign(settings[leaf.param_names[0]])
             excess = np.abs(y - level) if sign is None else sign * (y - level)
             distance = np.abs(x - centers[index])
             # the samples nearer its center than any other line's, its nearest at least
@@ -387,7 +405,7 @@ class GaussianConstantFitter(AstropyFitter1D):
         """
         if color is not None:
             rgb = np.array(to_rgb(color))
-            # darker, or lighter for a dark color, such as glue's default gray, which a darker shade would not change
+            # darker, or lighter for a dark color, such as black, which a darker shade would not change (D98)
             # a string, as glue's own plot passes it as matplotlib's format
             color = to_hex(rgb * 0.55 if rgb @ [0.299, 0.587, 0.114] > 0.3 else rgb + (1 - rgb) * 0.5)
         linewidth = 3 * (linewidth or 0.5)  # 1.5 times the layer's: glue-qt passes half its width
