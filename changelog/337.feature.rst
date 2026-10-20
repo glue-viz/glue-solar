@@ -1,0 +1,1 @@
+'Link helioprojective coordinates' links SST cubes and other data to each other when no IRIS data is loaded, and 'Link points across cubes' moves the linked cubes' quicklook points together.
