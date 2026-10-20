@@ -2181,7 +2181,7 @@ def test_a_draw_queued_as_the_test_returns_runs_on_a_live_application(qtbot):
     canvas.draw_idle()
 
 
-def test_lines_in_this_range_lists_the_strongest_first_and_labels_a_click(app):
+def test_lines_in_this_range_lists_the_strongest_first_and_ticks_label_or_hide(app):
     wcs = WCS({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 1390, "CDELT1": 0.025})
     data = Data(label="Si IV", flux=np.ones(641), coords=wcs)  # 1390 to 1406 Å
     app.data_collection.append(data)
@@ -2219,13 +2219,27 @@ def test_lines_in_this_range_lists_the_strongest_first_and_labels_a_click(app):
     o_iv.setCheckState(Qt.Checked)
     assert lines.labeled == []
     assert any(np.isclose(x, 140.1157) for _, xs in lines.positions() for x in xs)
+
+    def fe_ix():  # listed twice, as a multiplet's components
+        return [listing.item(i) for i in range(listing.count()) if listing.item(i).text().startswith("Fe IX 1400.872")]
+
+    fe_ix()[0].setCheckState(Qt.Checked)
+    region.setCurrentText("Active region")  # both ticked
+    for item in fe_ix():
+        item.setCheckState(Qt.Unchecked)
+    assert lines.labeled == []
     # glue's Fit and Collapse range first
     viewer.toolbar.active_tool = "profile-analysis"
     profile_tools = viewer.toolbar.tools["profile-analysis"]._profile_tools
     profile_tools.ui.tabs.setCurrentIndex(1)  # Fit, which shows the range
     profile_tools.rng_mode.state.x_min, profile_tools.rng_mode.state.x_max = 139.45, 139.3  # dragged leftwards
+    first = tool.dialog
     _, texts = listed()
     assert texts[0].startswith("Si IV 1393.760 Å")
+    assert not first.isVisible()  # one list per viewer
+    viewer.state.x_att = data.pixel_component_ids[0]
+    with pytest.raises(ValueError, match="wavelength first"):  # not irispy's error on a pixel range
+        tool.activate()
 
 
 def test_profiles_label_the_main_iris_lines(app, irispy_test_files):
