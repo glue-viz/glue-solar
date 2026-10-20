@@ -929,7 +929,7 @@ def test_a_path_diagram_of_a_stokes_cube_labels_its_wavelength_alone(sst_app, qt
     assert diagram.state.y_axislabel == "Stokes"
 
 
-def test_the_spectra_and_curve_refit_as_the_point_moves_until_zoomed(sst_app, qtbot, tmp_path):
+def test_the_spectra_and_curve_refit_as_the_point_moves_until_zoomed(sst_app, tmp_path):
     # D98: the spectrum and light curve panels fit their y range to the point's profiles as it moves, until their x
     # range is panned or zoomed; Home fits them again
     path = tmp_path / "cube.fits"
@@ -943,7 +943,6 @@ def test_the_spectra_and_curve_refit_as_the_point_moves_until_zoomed(sst_app, qt
 
     def move(y, x):
         group.subset_state = PixelSubsetState(cube, [slice(0, 1), slice(None), slice(y, y + 1), slice(x, x + 1)])
-        qtbot.wait(20)  # the refit after glue's own viewers
         return spectrum.state.y_max, curve.state.y_max
 
     faint = move(5, 5)
@@ -952,8 +951,9 @@ def test_the_spectra_and_curve_refit_as_the_point_moves_until_zoomed(sst_app, qt
     assert bright[1] > faint[1] + 900
     spectrum.state.x_min += 0.001  # zoomed: its range stays
     assert move(5, 5)[0] == bright[0]
-    spectrum.state.reset_limits()  # Home
+    spectrum.toolbar.actions["mpl:home"].trigger()
     assert move(5, 5)[0] == pytest.approx(faint[0])
+    assert move(2, 3)[0] == pytest.approx(bright[0])  # Home resumes the refits (D98)
 
 
 def test_the_first_click_on_any_sst_panel_moves_the_point(sst_app, qtbot, tmp_path):
