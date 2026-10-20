@@ -171,7 +171,7 @@ def _off_frames(wcs, values):
     """
     The pixels of world ``values`` through ``wcs``, NaN at a time off its frames: there dkist's VaryingCelestialTransform,
     which irispy's slit-jaw images use, has no inverse (a constant NaN model raising NotImplementedError), where its
-    forward transform gives NaN. Inverted a time at a time, so that a point is one call (report candidate: dkist).
+    forward transform gives NaN. Inverted a time at a time, so that a point is one call (DKISTDC/dkist#765, unreleased).
     """
     values = np.broadcast_arrays(*(np.asarray(value, float) for value in values))
     times = values[list(wcs.world_axis_physical_types).index("time")]
@@ -237,6 +237,11 @@ class _GlueWCS(BaseWCSWrapper):
         )
 
     @cached_property
+    def _kinds(self):
+        """The world axis physical types, read once, since WCSAxes converts every draw."""
+        return list(self.world_axis_physical_types)
+
+    @cached_property
     def _converted(self):
         """
         Each world axis shown in another unit: its index, its unit's scale to the shown unit and back, for the
@@ -244,7 +249,7 @@ class _GlueWCS(BaseWCSWrapper):
         WCSAxes converts every draw.
         """
         axes = []
-        for i, (unit, physical_type) in enumerate(zip(self._wcs.world_axis_units, self.world_axis_physical_types)):
+        for i, (unit, physical_type) in enumerate(zip(self._wcs.world_axis_units, self._kinds)):
             shown = _shown_unit(physical_type)
             if shown is not None:
                 unit = u.Unit(unit)
@@ -253,6 +258,18 @@ class _GlueWCS(BaseWCSWrapper):
                 # the scales a Quantity conversion multiplies by
                 axes.append((i, unit.to(shown), shown.to(unit), full_circle, angle))
         return axes
+
+    @cached_property
+    def _frames(self):
+        """
+        The pixel axes the time world axis is on and each pixel axis inverted with them, or None without one; worked
+        out once, as `_converted`.
+        """
+        if "time" not in self._kinds or self.pixel_n_dim == 1:
+            return None
+        matrix = np.asarray(self.axis_correlation_matrix)
+        frames = matrix[self._kinds.index("time")]
+        return frames, matrix[matrix[:, frames].any(axis=1)].any(axis=0)
 
     def pixel_to_world_values(self, *pixel_arrays):
         # The same inputs give the same values: the wrapped WCS is never changed once loaded (glue-solar
@@ -297,9 +314,18 @@ class _GlueWCS(BaseWCSWrapper):
                 values[i] = (values[i] + full_circle / 2) % full_circle - full_circle / 2
         with WCS_LOCK:
             try:
-                return self._wcs.world_to_pixel_values(*values)
+                pixels = self._wcs.world_to_pixel_values(*values)
             except NotImplementedError:  # a time off a slit-jaw image's frames (`_off_frames`)
                 return _off_frames(self._wcs, values)
+        if self._frames is None:
+            return pixels
+        # At a time off a slit-jaw image's frames ARM's dkist takes frame 0, giving its x and y with a NaN frame (report
+        # candidate: dkist's `sanitize_index`): NaN each pixel inverted with a NaN frame, as on x86-64
+        frames, tied = self._frames
+        off = np.any([np.isnan(pixel) for pixel, frame in zip(pixels, frames) if frame], axis=0)
+        if not off.any():
+            return pixels
+        return tuple(np.where(off, np.nan, pixel) if tie else pixel for pixel, tie in zip(pixels, tied))
 
     @cached_property
     def world_axis_object_components(self):
