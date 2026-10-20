@@ -900,8 +900,8 @@ def test_a_pixel_click_off_the_image_leaves_the_point(app):
     app.data_collection.append(data)
     tool = app.new_data_viewer(ImageViewer, data=data).toolbar.tools["image:point_selection"]
     tool._pressed = True
-    # a press, then a drag past the right, left and top edges, as in a quicklook panel's margin
-    for x, y in ((1.2, 2.4), (3.6, 1), (-0.6, 1), (1, 2.6)):
+    # a press, then a drag past each edge, as in a quicklook panel's margin
+    for x, y in ((1.2, 2.4), (3.6, 1), (-0.6, 1), (1, 2.6), (1, -0.6)):
         tool._event_xdata, tool._event_ydata = x, y
         tool._move_callback(tool)
     [subset] = data.subsets
