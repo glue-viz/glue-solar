@@ -50,7 +50,9 @@ Data stored as int16 load through irispy's memory map (``memmap=True``), which g
 integers, fill included, of raster windows, flipped as irispy flips negative-step rasters, and of
 slit-jaw and AIA files; each window's or file's BSCALE and BZERO come from its own header. irispy
 holds the raw integers of a ``.fits.gz`` file in memory, decompressed once: each raster file is
-opened once, just before irispy reads it, for its window headers and irispy's read. Files of any other type load in memory through irispy's usual reader, promoted to float32 only where fill becomes NaN (a cutout without fill keeps its
+opened once, just before irispy reads it, for its window headers and irispy's read. Files of any
+other type load in memory through irispy's usual reader, promoted to float32 only where fill becomes
+NaN (a cutout without fill keeps its
 integers). Setting ``glue_solar.sources.loaders.iris.LAZY = False`` before
 loading reads everything that way, as glue-solar did before lazy loading, for example to compare
 the two or for files on a drive that may disconnect. Lazy loading raises the process's soft limit
