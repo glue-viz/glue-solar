@@ -19,7 +19,7 @@ from glue.core.autolinking import find_possible_links
 from glue.core.data_factories import load_data
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.roi import RectangularROI
-from glue.core.subset import RoiSubsetState
+from glue.core.subset import RoiSubsetState, SliceSubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.app import GlueApplication
 from glue_qt.viewers.image import ImageViewer
@@ -361,6 +361,57 @@ def test_color_limits_of_a_line_are_glue_s_when_15_divides_the_scans(monkeypatch
         assert [u[1].ravel().tolist(), u[2].ravel().tolist()] == [[2] * 16, [12] * 16]
         for axis in (0, 3, 4):
             np.testing.assert_array_equal(u[axis], views[-1][axis])
+
+
+@pytest.mark.parametrize("stokes", [1, 4])
+def test_reads_of_the_file_ask_for_every_page_they_read_first(monkeypatch, tmp_path, stokes):
+    # D100: a cold file's pages came one fault at a time, 0.36-0.54 s an SST quicklook's scan step on Linux
+    path, page, hinted, read = tmp_path / "cube.fits", mmap.PAGESIZE, set(), set()
+    write_sst_cube(path, (2, stokes, 6, 30, 1100))  # planes of 132 KB, rows of 4400 bytes
+
+    class Map(mmap.mmap):
+        def madvise(self, option, start, length):
+            assert length <= 128 << 10  # a call reads at most the readahead window
+            hinted.update(range(start // page, (start + length) // page))
+            return super().madvise(option, start, length)
+
+    monkeypatch.setattr(mmap, "mmap", Map)  # astropy's memory map of the file
+    cube = sst_data(path)
+    cid, values = cube.main_components[0], fits.getdata(path, memmap=False).reshape(cube.shape)
+    with fits.open(path) as hdulist:
+        offset = hdulist[0].fileinfo()["datLoc"]
+    strides = cube.get_component(cid).data.strides
+    pages = (offset + sum(i * s for i, s in zip(np.ix_(*map(np.arange, cube.shape)), strides))) // page
+
+    def get_data(self, key, view=None, _get_data=Data.get_data):
+        if key is cid and view is not None:
+            read.update(np.unique(pages[view]).tolist())
+            assert read <= hinted  # asked for before glue reads them
+        return _get_data(self, key, view=view)
+
+    monkeypatch.setattr(Data, "get_data", get_data)
+
+    def hints(compute, *args, **kwargs):
+        hinted.clear()
+        read.clear()
+        result = compute(*args, **kwargs)
+        assert read
+        return result
+
+    lead = (1, 0)[: cube.ndim - 3]  # scan 1, Stokes I
+    # an Image panel's map, zoomed in to 330,000 pixels, and virtual slit, wavelength against y at x = 550, as glue reads
+    image = hints(cube.compute_fixed_resolution_buffer, [*lead, 2, (0, 29, 300), (0, 1099, 1100)], target_cid=cid)
+    np.testing.assert_array_equal(image, values[(*lead, 2)][np.linspace(0, 29, 300).round().astype(int)])
+    slit = hints(cube.compute_fixed_resolution_buffer, [*lead, (0, 5, 6), (0, 29, 30), 550], target_cid=cid)
+    np.testing.assert_array_equal(slit, values[(*lead, slice(None), slice(None), 550)])
+    # a frame's limits and a point's spectrum, glue reading slices; a sampled statistic
+    frame = SliceSubsetState(cube, [*lead, 3, slice(None), slice(None)])
+    assert hints(cube.compute_statistic, "maximum", cid, subset_state=frame) == values[(*lead, 3)].max()
+    point = PixelSubsetState(cube, [slice(k, k + 1) for k in lead] + [slice(None), slice(20, 21), slice(550, 551)])
+    axes = tuple(k for k in range(cube.ndim) if k != cube.ndim - 3)
+    spectrum = hints(cube.compute_statistic, "mean", cid, axis=axes, subset_state=point)
+    np.testing.assert_array_equal(spectrum, values[(*lead, slice(None), 20, 550)])
+    hints(cube.compute_statistic, "percentile", cid, percentile=50, random_subset=10000)
 
 
 def test_the_time_axis_is_named_scan_time(tmp_path):
