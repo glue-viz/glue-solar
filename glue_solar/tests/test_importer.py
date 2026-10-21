@@ -10,10 +10,10 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from irispy.io import read_files
-from qtpy.QtCore import QMetaObject, Qt
+from qtpy.QtCore import QEvent, QMetaObject, Qt
 from qtpy.QtGui import QCursor
 from qtpy.QtTest import QTest
-from qtpy.QtWidgets import QDialog, QFileDialog, QInputDialog, QStyle, QStyleOptionViewItem
+from qtpy.QtWidgets import QApplication, QDialog, QFileDialog, QInputDialog, QStyle, QStyleOptionViewItem
 
 import astropy.units as u
 from astropy.io import fits
@@ -318,6 +318,24 @@ def test_color_limits_of_what_browse_iris_shows_are_counted_in_the_background(qt
     counted = [data.label for data in loaded if data.get_component(data.main_components[0])._counts is not None]
     assert counted == [name.format("2025-03-28 22:56") for name in shown]
     assert _shown(entries, True, "C II 1336")[0].label.startswith("C II 1336")  # the browser's main window first
+
+
+def test_browse_iris_lets_its_dialog_go(app, qtbot, monkeypatch, iris_tree):
+    from glue_solar.sources.iris import browse_iris
+
+    def load(dialog):
+        scanned(qtbot, dialog)
+        _row(dialog, OBS_A[2]).setCheckState(0, Qt.Checked)
+        dialog.quicklook.setChecked(False)
+        load_selected(qtbot, dialog)
+        return QDialog.Accepted
+
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
+    monkeypatch.setattr(QtIRISImporter, "exec", load)
+    browse_iris(app.session, app.data_collection)
+    assert len(app.data_collection) == 6
+    QApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    assert not app.findChildren(QtIRISImporter)  # the dialog, holding what it loaded, is gone
 
 
 def test_a_failure_after_the_reads_stays_in_the_dialog(qtbot, iris_tree, capsys):

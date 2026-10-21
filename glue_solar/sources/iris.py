@@ -114,19 +114,22 @@ def browse_iris(session, data_collection):
     if not directory:
         return
     dialog = QtIRISImporter(directory, parent=app, shown=_shown)
-    if dialog.exec() != QtWidgets.QDialog.Accepted or not dialog.datasets:
-        return
-    # not app.add_datasets: its autolinker would ask about WCS links in a dialog before the quicklook
-    # opens (with glue-viz/glue#2595), and keep_hpc_linked links IRIS datasets
-    data_collection.extend(dialog.datasets)
-    keep_hpc_linked(data_collection)
-    quicklooks = _quicklooks(dialog.loaded) if dialog.quicklook.isChecked() else []
-    for datasets, window in quicklooks:
-        quicklook(app, datasets, window=window, main=dialog.main_window.currentText() or None)
-    if not quicklooks and dialog.first_image is not None:
-        from glue_qt.viewers.image import ImageViewer
+    try:
+        if dialog.exec() != QtWidgets.QDialog.Accepted or not dialog.datasets:
+            return
+        # not app.add_datasets: its autolinker would ask about WCS links in a dialog before the quicklook
+        # opens (with glue-viz/glue#2595), and keep_hpc_linked links IRIS datasets
+        data_collection.extend(dialog.datasets)
+        keep_hpc_linked(data_collection)
+        quicklooks = _quicklooks(dialog.loaded) if dialog.quicklook.isChecked() else []
+        for datasets, window in quicklooks:
+            quicklook(app, datasets, window=window, main=dialog.main_window.currentText() or None)
+        if not quicklooks and dialog.first_image is not None:
+            from glue_qt.viewers.image import ImageViewer
 
-        app.new_data_viewer(ImageViewer, data=dialog.first_image)
+            app.new_data_viewer(ImageViewer, data=dialog.first_image)
+    finally:
+        dialog.deleteLater()  # else each browse keeps its dialog, and what it loaded, under the main window
 
 
 def _quicklooks(loaded):
