@@ -1699,6 +1699,8 @@ class FollowLockTool(PixelSelectionTool):
     def _follow(self):
         """Move the edit subset to the pixel under the mouse, unless it is locked or a region (see the class)."""
         mode, state = self.viewer.session.edit_subset_mode, self._pixel()
+        if state is not None and not mode.edit_subset and hasattr(self.viewer, "_edit_point"):
+            self.viewer._edit_point(None)  # a quicklook's point, as at a press (#288)
         if state is not None and all(_follows_mouse(group) for group in mode.edit_subset):
             mode.update(self.viewer._data, state, override_mode=ReplaceMode)
 

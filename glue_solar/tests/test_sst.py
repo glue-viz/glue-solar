@@ -1007,6 +1007,8 @@ def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
     assert (shown_scan(a), shown_scan(b)) == (1, 2)  # 1270.25 s
     show_tab(sst_app, qtbot, 1)  # within 30 s already: no step back and forth
     assert (shown_scan(a), shown_scan(b)) == (1, 2)
+    slide(a["map"], 0, 3)  # 1380.5 s
+    qtbot.wait(20)
     c = quicklook(sst_app, [later])
     day = np.datetime64(DATEREF, "ns")
     assert observation_key(first) == observation_key(second) == ("SST", day + np.timedelta64(1170, "s"))
@@ -1015,8 +1017,8 @@ def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
     coord = coordinator(sst_app.data_collection)
     slide(c["map"], 0, 2)
     assert [coord._master(observation_key(data)) for data in (first, second, later)] == [first, first, later]
-    show_tab(sst_app, qtbot, 2)
-    assert (shown_scan(a), shown_scan(b), shown_scan(c)) == (1, 2, 2)
+    show_tab(sst_app, qtbot, 2)  # after the later cube's tab too: at the time the first left, 1370.25 s
+    assert (shown_scan(a), shown_scan(b), shown_scan(c)) == (3, 4, 2)
     assert [coord._master(observation_key(data)) for data in (first, second, later)] == [second, second, later]
 
 
@@ -1055,6 +1057,24 @@ def test_sst_cubes_link_without_iris_data_and_link_their_points(sst_app, qtbot, 
     assert place(12, 5)[2:] == [slice(8, 9), slice(10, 11)]
     entry.activate()
     assert place(12, 5)[2:] == [slice(6, 7), slice(12, 13)]
+
+
+def test_a_quicklook_opened_once_linked_starts_at_the_point_and_moves_no_other(sst_app, qtbot, tmp_path):
+    # D97: a new quicklook's point, at its map's center, moved the point placed in the other's
+    write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16), start=1200.0, cadence=60.0)
+    write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), center=(-53.25, -401.25), scale=0.5, start=1170.0)
+    first, second = (sst_data(tmp_path / f"{name}.fits") for name in "ab")
+    sst_app.data_collection.extend([first, second])
+    link_iris(sst_app.session, sst_app.data_collection)  # 'Link helioprojective coordinates'
+    a = quicklook(sst_app, [first])
+    select_point(a["map"], 11, 6)  # the second's (10, 8)
+    [ours] = sst_app.session.edit_subset_mode.edit_subset
+    placed = ours.subset_state.slices
+    b = quicklook(sst_app, [second])
+    [theirs] = sst_app.session.edit_subset_mode.edit_subset
+    assert ours.subset_state.slices == placed
+    assert theirs.subset_state.slices[2:] == [slice(8, 9), slice(10, 11)]
+    assert (b["slit"].state.slices[-1], b["wavelength"].state.slices[-2:]) == (10, (8, 10))
 
 
 def test_sst_time_keys_follow_overlapping_scans(qtbot, tmp_path):
@@ -1125,6 +1145,34 @@ def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_p
     assert shown_scan(sst) == scan
     assert abs(offset) <= cadence / 2
     assert leads() in sst["map"].toolbar.tools["solar:frame_time"].label.text()
+
+
+def test_a_cube_leads_the_time_from_its_hidden_tab(sst_app, qtbot, tmp_path, sns):
+    # D38, D39: chosen to lead the time, a cube whose tab was hidden was taken at scan 0, and D and F moved nothing
+    sji, raster = sns
+    frames = _times(sji, 0)
+    start, cadence = (frames[10] - np.datetime64(DATEREF)), (frames[-1] - frames[10]) / 3
+    seconds = [time / np.timedelta64(1, "s") for time in (start, cadence)]
+    write_sst_cube(tmp_path / "cube.fits", (4, 1, 5, 30, 40), (-55.0, -400.0), (4.0, -3.0), 1.1, 8.0, *seconds)
+    cube = sst_data(tmp_path / "cube.fits")
+    iris = quicklook(sst_app, [raster, sji])
+    sst = quicklook(sst_app, [cube])
+    link_iris(sst_app.session, sst_app.data_collection)  # 'Link helioprojective coordinates'
+    menu_action(sst["map"], "Lead the time").trigger()
+    slide(sst["map"], 0, 3)
+    qtbot.wait(20)
+    times, scans = _times(raster, None), _times(cube, None)
+
+    def exposure(scan):
+        return nearest([scans[scan]], times)[0][0]
+
+    show_tab(sst_app, qtbot, 1)
+    assert iris["spectrogram"].state.slices[0] == exposure(3)
+    press(iris["spectrogram"], Qt.Key_F)  # round to scan 0
+    qtbot.wait(20)
+    assert (shown_scan(sst), iris["spectrogram"].state.slices[0]) == (0, exposure(0))
+    show_tab(sst_app, qtbot, 2)  # where F left it, its point too
+    assert (shown_scan(sst), sst_app.session.edit_subset_mode.edit_subset[0].subset_state.slices[0]) == (0, slice(0, 1))
 
 
 def test_a_cube_shares_its_sst_cubes_time_again_once_the_iris_data_go(sst_app, qtbot, tmp_path, sns):

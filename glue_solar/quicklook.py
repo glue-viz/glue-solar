@@ -492,6 +492,12 @@ class Coordinator(HubListener):
             if any(_role(data) == "sst" for data in self._datasets(key)):
                 old = self._master(key)
                 before[key] = (old, self.master_time(key), _half_cadence(_times(old, self._timing(old)[1])))
+        # one shown again after another observation's tab: from its master's time when its tab was last shown
+        shown = {observation_key(viewer.state.reference_data) for viewer in self._owners.get(group, ())}
+        for key in shown - set(before):
+            if key in self._master_times and any(_role(data) == "sst" for data in self._datasets(key)):
+                old, when, step = self._master_times[key]
+                before[key] = (old, when, _half_cadence(_times(old, step)))
         self.group = group
         for key, (old, when, margin) in before.items():
             new = self._master(key)
@@ -506,11 +512,12 @@ class Coordinator(HubListener):
         self._timer.start()
 
     def _follows(self, viewer):
-        """Whether ``viewer`` follows the followed point: it owns the viewer, or no point does."""
+        """Whether ``viewer`` follows the followed point: it owns the viewer, or no point does, deleted ones aside."""
         owners = self._owners.get(self.group)
         if owners is not None and viewer in owners:
             return True
-        return not any(viewer in viewers for viewers in self._owners.values())
+        groups = self.data_collection.subset_groups
+        return not any(viewer in viewers for group, viewers in self._owners.items() if group in groups)
 
     def set_master(self, data):
         """Make ``data`` the time master of its observation."""
@@ -556,7 +563,7 @@ class Coordinator(HubListener):
         if _role(data) == "raster" and data.ndim == 3:
             self._steps[data] = index  # its time without a point, unless a sit-and-stare's exposure slider gives it
         with self._writing():
-            self._move_in_time(data, 0, index)
+            self._move_in_time(data, 0, index, self._master_viewers(data))
         self._timer.start()
 
     @contextmanager
@@ -618,12 +625,26 @@ class Coordinator(HubListener):
     def _subset_deleted(self, message):
         group = getattr(message.subset, "group", None)
         self._before.pop(group, None)  # not to hold a deleted group; glue-qt 0.4.2's style editors still keep a cut's
+        if group not in self.data_collection.subset_groups:  # deleted, not a removed dataset's subset freed
+            self._owners.pop(group, None)  # its panels follow the next point
         if group is self.group:
             self._timer.start()  # the point's group went: readouts follow
 
     def _viewers_of(self, data):
         """The registered viewers of ``data`` that follow the point."""
         return [viewer for viewer in self._viewers if viewer.state.reference_data is data and self._follows(viewer)]
+
+    def _master_viewers(self, data):
+        """
+        The viewers of ``data`` that follow the point, else those in tabs not shown: a time master shown only there
+        leads from them (D39).
+        """
+        return self._viewers_of(data) or [
+            viewer
+            for viewer in self._viewers
+            if viewer.state.reference_data is data
+            and viewer.parent().mdiArea() is not viewer.session.application.current_tab
+        ]
 
     def _pin(self, state):
         """
@@ -655,13 +676,13 @@ class Coordinator(HubListener):
             if slices != list(state.slices):
                 self.group.subset_state = PixelSubsetState(data, slices)
 
-    def _link_points(self):
+    def _link_points(self, state=None, groups=None):
         """
         With `link_points` (D97), move the point of each other quicklook of a non-IRIS cube linked to the followed
-        point's, of its observation, to the point's place on the Sun, at that cube's own other slices; a place off that
-        cube leaves its point.
+        point's, or ``state``'s, of its observation, of ``groups`` if given, to the point's place on the Sun, at that
+        cube's own other slices; a place off that cube leaves its point.
         """
-        state = self.group.subset_state
+        state = self.group.subset_state if state is None else state
         data = state.reference_data
         place = _hpc(data)
         if not self.link_points or _role(data) in _IRIS_ROLES or place is None:
@@ -671,7 +692,7 @@ class Coordinator(HubListener):
         sun = [u.Quantity(world[axis], units[axis]) for axis in place[0]]
         lon = data.world_component_ids[len(units) - 1 - place[0][0]]
         with self._writing():
-            for group in self._owners:
+            for group in self._owners if groups is None else groups:
                 point = group.subset_state
                 other = getattr(point, "reference_data", None)
                 if other in (None, data) or lon not in other.externally_derivable_components:
@@ -823,7 +844,7 @@ class Coordinator(HubListener):
 
     def _slider(self, data, axis, default=0):
         """The slider of a viewer of ``data`` that does not show ``axis``, at the center of a collapse."""
-        for viewer in self._viewers_of(data):
+        for viewer in self._master_viewers(data):
             if axis not in _shown(viewer.state) and len(viewer.state.slices) == data.ndim:
                 index = viewer.state.slices[axis]
                 return int(getattr(index, "center", index))
@@ -1047,18 +1068,23 @@ class Coordinator(HubListener):
         x = float(sji.meta["slit x position"][frame])
         return None if x < 0 or np.isnan(x) else x  # 0-based since LM-SAL/irispy#247: a header's 0, no slit, is -1
 
-    def _move_in_time(self, data, axis, frame):
+    def _move_in_time(self, data, axis, frame, viewers=None):
         """
-        Put ``data`` at ``frame`` along its time axis: on its viewers, and on the point if it is on any window of
-        ``data``'s file (`_same_file`), which stays the point's window.
+        Put ``data`` at ``frame`` along its time axis: on its viewers, or ``viewers``, and on the point, or that of the
+        quicklook owning ``viewers``, if it is on any window of ``data``'s file (`_same_file`), which stays the point's
+        window.
         """
-        point = self.point
+        group, groups = self.group, self.data_collection.subset_groups
+        if viewers is not None:  # a hidden tab's, which its point would put back once shown (`_apply_point`)
+            group = next((owner for owner in groups if not self._owners.get(owner, set()).isdisjoint(viewers)), group)
+        state = group.subset_state if group in groups else None
+        point = state if isinstance(state, PixelSubsetState) else None  # as `point`
         if point is not None and _same_file(point.reference_data, data) and point.slices[axis].start is not None:
             slices = list(point.slices)
             if slices[axis].start != frame:
                 slices[axis] = slice(frame, frame + 1)
-                self.group.subset_state = PixelSubsetState(point.reference_data, slices)
-        for viewer in self._viewers_of(data):
+                group.subset_state = PixelSubsetState(point.reference_data, slices)
+        for viewer in self._viewers_of(data) if viewers is None else viewers:
             self._set_slices(viewer, {axis: frame})
 
     def _move_point(self, viewer):
@@ -1211,9 +1237,9 @@ class QuicklookImageViewer(ImageViewer):
 
     def _edit_point(self, event):
         """
-        Make the panel's point the edit subset as a Pixel click starts while a dataset is selected in the data
-        collection: glue-qt empties the edit subset then, and the click made a new subset (D82). After glue's
-        "None/Create New", which leaves nothing selected there, the click still makes one.
+        Make the panel's point the edit subset as a Pixel click starts, or the mouse moves in Follow/lock, while a
+        dataset is selected in the data collection: glue-qt empties the edit subset then, and the click made a new
+        subset (D82). After glue's "None/Create New", which leaves nothing selected there, the click still makes one.
         """
         session = self.session
         mode, groups = session.edit_subset_mode, session.data_collection.subset_groups
@@ -1805,9 +1831,16 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
     QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # and after the last (see _image)
     point = table["point"]
     if point is not None:
-        if group not in collection.subset_groups:  # None, or deleted by the user
-            group = collection.new_subset_group(label="Point", subset_state=point)
+        new, followed = group not in collection.subset_groups, coord.point  # None, or deleted by the user
+        if new:
+            linked, coord.link_points = coord.link_points, False  # opening a tab moves no other point (D97)
+            try:
+                group = collection.new_subset_group(label="Point", subset_state=point)
+            finally:
+                coord.link_points = linked
         coord.own(group, [viewer for panel, viewer in made if panel.x is not None])
+        if new and followed is not None:
+            coord._link_points(followed, [group])  # it starts at the followed point's place, if on its cube
         _edit_in_tab(app, tab, group)
         _show_point(app, group, [viewer for panel, viewer in made if _same_file(panel.data, point.reference_data)])
         for spectrum in [viewer for panel, viewer in made if panel.x is None]:
