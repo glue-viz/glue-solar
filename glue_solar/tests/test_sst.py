@@ -1007,7 +1007,7 @@ def test_the_spectra_and_curve_refit_as_the_point_moves_until_zoomed(sst_app, tm
     assert move(2, 3)[0] == pytest.approx(bright[0])  # Home resumes the refits (D98)
 
 
-def test_a_point_move_computes_a_worker_spectrum_once(sst_app, qtbot, monkeypatch, tmp_path):
+def test_a_point_move_runs_the_spectrum_worker_once(sst_app, qtbot, monkeypatch, tmp_path):
     # glue-qt 0.4.2 computes the spectrum of a cube of over 1e7 values on a worker, which glue 1.27.0 queues again if
     # the spectrum's v_min and v_max change as it ends: two more 40 ms waits a scan step; the move sets them first
     monkeypatch.setattr(
