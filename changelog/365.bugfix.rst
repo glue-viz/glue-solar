@@ -1,0 +1,1 @@
+UV bursts are found in a rebinned raster window or a sit-and-stare window regridded on time, 'IRIS: regrid on time' is no longer offered for SST cubes, the line moments of a stack can be given to 'Line ratio diagnostic…', and the guide says where each line map is NaN.
