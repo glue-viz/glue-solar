@@ -1206,8 +1206,8 @@ class Coordinator(HubListener):
     def point_on(self, viewer):
         """
         Where the point of a raster of the same observation falls in ``viewer``'s slit-jaw frame, as
-        (x, y) pixels projected through that frame's own coordinates, or None; a DKIST raster's in its context image's
-        frame, beside it too (`tile_on`, D105).
+        (x, y) pixels projected through that frame's own coordinates, or None, as for an exposure with no pointing; a
+        DKIST raster's in its context image's frame, beside it too (`tile_on`, D105).
         """
         point, sji = self.point, viewer.state.reference_data
         if point is not None and _dkist(sji) == "imager":
@@ -1232,7 +1232,8 @@ class Coordinator(HubListener):
         if self._placed[0] != key:
             lon, lat = _lon_lat(point.reference_data, pixel)
             x, y = _frame_pixels(sji, [frame, 0, 0], lon, lat)
-            self._placed = (key, (float(x), float(y)))
+            # NaN for an exposure missing on both detectors, as of a raster file with no data (LM-SAL/irispy#301)
+            self._placed = (key, (float(x), float(y)) if np.isfinite([x, y]).all() else None)
         return self._placed[1]
 
     def footprint_on(self, viewer):

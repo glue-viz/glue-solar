@@ -50,7 +50,6 @@ from glue_qt.viewers.scatter import ScatterViewer
 from glue_qt.viewers.table import TableViewer
 from irispy.io import read_files
 from irispy.io.sji import read_sji_lvl2
-from irispy.utils.fitting import profiles_on_background
 from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent, key_press_handler
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from matplotlib.colors import to_hex, to_rgb
@@ -3002,15 +3001,12 @@ def test_the_iris_fitter_fits_irispys_line_on_a_background(irispy_data, linear_b
     model, fitted_with = fitter.build_and_fit(x, y)
     starts = fitter.parameter_guesses(x, y, None)
     *_, level, amplitude, center, width = model.param_names
-    irispys = profiles_on_background(
-        starts[center],
-        amplitudes=[starts[amplitude]],
-        widths=[starts[width]],
-        background="linear" if linear_background else "constant",
-        background_level=starts[level],
-        profile="lorentzian" if lorentzian else "gaussian",
-        bounds={amplitude: (0, None)},  # an emission line's
-    )
+    # the model irispy's profiles_on_background built before LM-SAL/irispy#296 removed it
+    background = models.Linear1D(0, starts[level]) if linear_background else models.Const1D(starts[level])
+    line = (models.Lorentz1D if lorentzian else models.Gaussian1D)(starts[amplitude], starts[center], starts[width])
+    irispys = background + line
+    getattr(irispys, amplitude).bounds = (0, None)  # an emission line's
+    getattr(irispys, width).bounds = (models.Gaussian1D.stddev.bounds[0], None)
     expected = TRFLSQFitter()(irispys, x, y)
     assert isinstance(fitted_with, TRFLSQFitter)
     assert model.param_names == expected.param_names

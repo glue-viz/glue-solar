@@ -317,6 +317,10 @@ spectrum leaves such samples out. The IRIS fits leave a sample out where all the
 are saturated (for a Point, where it is), and note the wavelengths whose mean includes saturated
 pixels. UV burst detection takes saturated samples at their value, as IDL does.
 
+A raster file written with no data, its ``DATE_OBS`` empty, loads as irispy reads it: a scan at its
+exposures' times, every sample missing, its exposure times 0 and its pointing NaN, as for any
+exposure missing on both detectors. A point there has no place on the slit-jaw images.
+
 To show missing or saturated samples as a subset, select the dataset itself in the data collection,
 not "Point", and in the "Data Manager" menu:
 

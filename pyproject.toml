@@ -36,7 +36,7 @@ dependencies = [
   "scipy>=1.18.1",
   "sunpy[map,net]>=8.0.1",
   # irispy main at a commit glue-solar is tested with, while irispy changes in a batch (D91); a PR moves it after
-  "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@f0587057b255015c820b4fb4239cfbec67b5e354",
+  "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@34ff675a3f6920cd2d5773cf38453ccffa1fcd27",
 ]
 dynamic = ["version"]
 keywords = ["solar physics", "solar", "science", "sun", "visualization", "coordinates", "glueviz"]
@@ -55,7 +55,7 @@ classifiers = [
 
 [project.optional-dependencies]
 density = [
-  "fiasco>=0.8.2",  # as irispy's density_diagnostic needs
+  "fiasco>=0.8.2",  # for the O IV preset of 'Line ratio diagnostic…', CHIANTI's ratio
 ]
 tests = [
   "pytest",

@@ -305,7 +305,7 @@ class GaussianConstantFitter(AstropyFitter1D):
                     parameter.value = starts[full]
                 if isinstance(leaf, _LINES) and position == 0:  # keeps its sign
                     parameter.bounds = (0, None) if parameter.value >= 0 else (None, 0)
-                if isinstance(leaf, _LINES) and position == 2:  # positive, as irispy's
+                if isinstance(leaf, _LINES) and position == 2:  # positive, as astropy's Gaussian1D stddev bound
                     parameter.bounds = (models.Gaussian1D.stddev.bounds[0], None)
                 if tie is not None:  # a center's separation, an amplitude's or width's ratio, blank for the same
                     target, by = tie
@@ -331,7 +331,7 @@ class GaussianConstantFitter(AstropyFitter1D):
             if constraints[name]["fixed"] and constraints[name]["value"] is None:
                 constraints[name]["value"] = start
         model, fitter = self._get_model_fitter(x, y, dy, constraints)
-        # widths positive, as irispy's: glue's `_get_model_fitter` sets an upper bound alone as (None, upper)
+        # widths positive, as Gaussian1D's stddev: glue's `_get_model_fitter` sets an upper bound alone as (None, upper)
         for index, (leaf, _) in enumerate(self.components):
             width = getattr(model, _name(leaf.param_names[-1], index, self.components))
             if isinstance(leaf, _LINES) and width.min is None:

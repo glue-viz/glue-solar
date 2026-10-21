@@ -166,15 +166,16 @@ and 1401.16 Å:
    one typed. Or tick "O IV 1399.8/1401.2 (CHIANTI, fiasco)" for ``log n_e`` from O IV.
 
 The table is a text file of two columns, separated by spaces or commas, after an optional header
-line and ``#`` comments: the quantity, such as log10 of the electron density in cm⁻³, and the
-theoretical ratio there, monotonic in it, such as one computed with CHIANTI. irispy's
-``map_ratio_to_quantity`` interpolates the maps' ratio on it. The result,
-``<numerator> / <denominator> <name>``, holds ``ratio`` and the quantity, NaN where the ratio lies
-outside the table's.
+line and ``#`` comments: the quantity, such as log10 of the electron density in cm⁻³, increasing
+or decreasing, and the theoretical ratio there, such as one computed with CHIANTI. irispy's
+``density_diagnostic`` interpolates the maps' ratio on it, on the branch holding most of the maps'
+ratios where the table's turns. The result, ``<numerator> / <denominator> <name>``, holds ``ratio``
+and the quantity, NaN where the ratio lies outside the table's.
 
 The O IV preset uses irispy's ``density_diagnostic`` on CHIANTI's ratio, which fiasco computes at
-the densities typed and at the temperature typed, 8 to 13 log cm⁻³ and log T 5.15 unless changed. It
-needs fiasco, in the ``density`` extra (see :ref:`Installing glue-solar <glue-solar-index>`);
+the densities typed and from log T 4.5 to 6, interpolated linearly at the temperature typed, 8 to 13
+log cm⁻³ and log T 5.15 unless changed.
+It needs fiasco, in the ``density`` extra (see :ref:`Installing glue-solar <glue-solar-index>`);
 without it, it is grayed out. On its first use, fiasco downloads and builds the CHIANTI database, a
 few GB, in ``~/.fiasco``, while the status bar says so. Keep ``em`` and ``ip`` out of that folder's
 path, as in a folder named emily or Temp, or the build finds no ions. If glue quits during the

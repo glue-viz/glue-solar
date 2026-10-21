@@ -10,6 +10,7 @@ import builtins
 import inspect
 import os
 import re
+import warnings
 from contextlib import nullcontext
 from functools import cache, partial, wraps
 from tempfile import TemporaryDirectory
@@ -1069,6 +1070,39 @@ def needs_profile_restore_workaround(method=_original_update_priority):
 
 if _needs(needs_profile_restore_workaround):
     ProfileViewerState._update_priority = _update_priority
+
+
+# glue-core 1.27.0 takes a Profile viewer's x limits from its x world axis along the data's first pixels, NaN where all
+# are NaN, which matplotlib refuses: the longitude glue takes first along a raster file with no data
+# (LM-SAL/irispy#301), so that its quicklook did not open. Report candidate for glue.
+_original_reset_x_limits = ProfileViewerState._reset_x_limits
+
+
+def _reset_x_limits(self, *event):
+    """glue-core's ``ProfileViewerState._reset_x_limits``, leaving the limits as they are where its x values are NaN."""
+    data, att = self.reference_data, self.x_att
+    if data is not None and att in data.world_component_ids:
+        view = [0] * data.ndim
+        view[data.world_component_ids.index(att)] = slice(None)
+        if np.isnan(data[att, tuple(view)]).all():
+            return
+    _original_reset_x_limits(self, *event)
+
+
+def needs_profile_nan_limits_workaround(method=_original_reset_x_limits):
+    """Whether a Profile viewer state with ``method`` takes NaN x limits from a world axis of NaN."""
+    wcs = WCS(naxis=1)
+    wcs.wcs.crval = [np.nan]
+    data = Data(x=np.zeros(2), coords=wcs, label="probe")
+    state = type("ProbeState", (ProfileViewerState,), {"_reset_x_limits": method})()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # glue's nanmin of no number
+        state.layers.append(ProfileLayerState(layer=data, viewer_state=state))
+    return state.x_min is not None and np.isnan(state.x_min)
+
+
+if _needs(needs_profile_nan_limits_workaround):
+    ProfileViewerState._reset_x_limits = _reset_x_limits
 
 
 _original_close_event = ImageViewer.closeEvent

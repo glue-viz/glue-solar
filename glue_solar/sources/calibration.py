@@ -71,11 +71,13 @@ def remove_dust(data):
         For other data than an IRIS slit-jaw image, one whose dust is removed already, or one rebinned or regridded.
     """
     from irispy.sji import SJICube
+    from irispy.utils.constants import DN_UNIT
     from irispy.utils.dust import remove_dust as irispy_remove_dust
 
     _check_sji(data)
     cid, exposure = data.main_components[0], data.id["Exposure time"]
     values = np.empty(data.shape, np.float32)
+    unit = DN_UNIT.get(data.meta["TDESC1"], u.DN)  # the passband's, as irispy reads it: counts, scaled by exposure
     frames = max(1, SLAB // (data.shape[1] * data.shape[2]))
     for start in range(0, data.shape[0], frames):
         low, high = max(0, start - FRAMES), min(data.shape[0], start + frames + FRAMES)
@@ -88,7 +90,7 @@ def remove_dust(data):
         # saturated samples masked, as irispy's reads mask them, so never a replacement; kept at their value unless next
         # to dust, which irispy replaces like any neighbour (D85)
         saturated = at_ceiling(slab)
-        cube = SJICube(slab, wcs, mask=np.isnan(slab) | saturated, meta=meta)
+        cube = SJICube(slab, wcs, unit=unit, mask=np.isnan(slab) | saturated, meta=meta)
         for name in ("slit x position", "slit y position"):  # where the table goes in each frame, as irispy's reads
             cube.extra_coords.add(name, 0, np.asarray(data.meta[name])[rows] * u.pix)
         clean = irispy_remove_dust(cube, temporal_window=FRAMES)

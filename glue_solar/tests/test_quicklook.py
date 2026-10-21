@@ -22,7 +22,7 @@ from glue.core.roi import PolygonalROI, RectangularROI, XRangeROI, YRangeROI
 from glue.core.subset import RangeSubsetState, RoiSubsetState, SubsetState, roi_to_subset_state
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
-from glue.viewers.profile.state import ProfileLayerState
+from glue.viewers.profile.state import ProfileLayerState, ProfileViewerState
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
@@ -4978,6 +4978,44 @@ def test_the_point_window_places_the_point_on_each_slit_jaw_image(bare_app, qtbo
     viewers["sji"][1].close(warn=False)
     settle(qtbot, window)
     assert rows(window) == [unpointed(data, sync(viewer)) for data, viewer in shows[:2]]
+
+
+def test_a_scan_with_no_data_has_no_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files):
+    """
+    irispy's data_gap files of 3860258481 (LM-SAL/irispy#301): r00066 has no data, its pointing NaN, and r00067 one
+    exposure, at step 2; with a slit-jaw image as of the same observation.
+    """
+    from irispy.data.test import ROOTDIR
+
+    [stack] = raster_data(sorted((ROOTDIR / "data_gap").glob("*.fits")), ["Si IV 1403"], stack=True)
+    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    sji.meta.update(OBSID=stack.meta["OBSID"], STARTOBS=stack.meta["STARTOBS"])
+    viewers = quicklook(bare_app, [stack, sji])
+    window, coord, [sji_viewer] = point_window(bare_app), coordinator(bare_app.data_collection), viewers["sji"]
+    settle(qtbot, window)
+    assert coord.point.slices[0].start == 0  # scan 0, r00066
+    assert coord.point_on(sji_viewer) is None
+    assert "outside SJI FOV" not in readout(sji_viewer)
+    assert rows(window)[1][:6] == [sji.label, "", "", "", "", ""]
+    # r00067's exposure is placed, off this image of another place
+    slide(viewers["map"], 0, 1)
+    select_point(viewers["map"], 2, 50)
+    settle(qtbot, window)
+    assert np.isfinite(coord.point_on(sji_viewer)).all()
+    assert rows(window)[1][1] == "outside SJI FOV"
+
+
+def test_a_raster_file_with_no_data_opens_alone_in_a_quicklook(bare_app):
+    """irispy's data_gap r00066 (LM-SAL/irispy#301), whose longitude, glue's first Profile x axis, is NaN."""
+    from irispy.data.test import ROOTDIR
+
+    installed = ProfileViewerState._reset_x_limits is glue_solar.glue_patches._reset_x_limits
+    assert installed == glue_solar.glue_patches.needs_profile_nan_limits_workaround()  # probes glue's own method
+    assert not glue_solar.glue_patches.needs_profile_nan_limits_workaround(glue_solar.glue_patches._reset_x_limits)
+    [scan] = raster_data(list((ROOTDIR / "data_gap").glob("*_r00066_*")), ["Si IV 1403"])
+    state = quicklook(bare_app, [scan])["spectrum"].state
+    assert state.x_att is scan.world_component_ids[-1]  # wavelength
+    assert np.isfinite([state.x_min, state.x_max]).all()
 
 
 def test_each_quicklook_has_its_own_point_window(bare_app, qtbot, monkeypatch, scans):

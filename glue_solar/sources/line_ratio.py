@@ -23,7 +23,7 @@ __all__ = ["line_ratio", "line_ratio_iris", "o_iv_density"]
 QUANTITIES = ("log n_e", "log T")
 # The dialog's preset: O IV's lines at CHIANTI's wavelengths in Angstrom, as in irispy's O IV example, and their ratio
 # on electron densities in cm^-3, 0.1 dex apart, from and to those typed, at first log n_e 8 to 13, at temperatures in K
-# about O IV's, interpolated by irispy at the one typed, at first log T 5.15, O IV's formation temperature among them
+# about O IV's, interpolated at the one typed, at first log T 5.15, O IV's formation temperature among them
 O_IV = "O IV 1399.8/1401.2 (CHIANTI, fiasco)"
 O_IV_LINES = (1399.780, 1401.157)
 LOG_DENSITIES = (8.0, 13.0)
@@ -46,11 +46,12 @@ def _same_grid(a, b):
 def line_ratio(numerator, denominator, quantity, ratio, name=QUANTITIES[0]):
     """
     ``name`` from the ratio of ``numerator`` to ``denominator``, two components in the same unit on the same grid,
-    mapped by irispy's `~irispy.utils.density.map_ratio_to_quantity` on the theoretical ``ratio`` at each ``quantity``,
+    mapped by irispy's `~irispy.utils.density.density_diagnostic` on the theoretical ``ratio`` at each ``quantity``,
     as one dataset on that grid.
 
     Its components are ``ratio``, NaN where the denominator is 0, and ``name``, interpolated linearly in ``quantity``,
-    NaN where the ratio is missing or outside the theoretical one. ``meta`` holds the numerator's ``OBSID`` and
+    NaN where the ratio is missing or outside the theoretical one; a theoretical ratio that turns is mapped on the
+    branch holding the most observed ratios (LM-SAL/irispy#314). ``meta`` holds the numerator's ``OBSID`` and
     ``STARTOBS``, and ``ratio_numerator`` and ``ratio_denominator``, each ``<dataset label>: <component label>``.
 
     Parameters
@@ -58,22 +59,22 @@ def line_ratio(numerator, denominator, quantity, ratio, name=QUANTITIES[0]):
     numerator, denominator : `~glue.core.component_id.ComponentID`
         The intensities, such as the ``intensity`` of two line moments maps.
     quantity : array-like or `~astropy.units.Quantity`
-        The quantity at which ``ratio`` is sampled, such as log10 of the electron density in cm^-3.
+        The quantity at which ``ratio`` is sampled, monotonic, such as log10 of the electron density in cm^-3.
     ratio : array-like
-        The theoretical ratio of the numerator's line to the denominator's, monotonic in ``quantity``.
+        The theoretical ratio of the numerator's line to the denominator's at each ``quantity``.
     name : str
         The quantity's component label.
 
     Raises
     ------
     ValueError
-        For components on different grids or in different units, or a ``ratio`` irispy cannot map from.
+        For components on different grids or in different units, or a ``quantity`` or ``ratio`` irispy cannot map from.
     """
-    from irispy.utils.density import map_ratio_to_quantity
+    from irispy.utils.density import density_diagnostic
 
     def mapped(over, under):
-        observed = np.divide(over, under, out=np.full(over.shape, np.nan), where=under != 0)
-        return observed, map_ratio_to_quantity(observed, quantity, ratio)
+        result = density_diagnostic(over, under, quantity, ratio)  # its "density" is the quantity at the ratio
+        return result["ratio"].value, result["density"]
 
     return _map(numerator, denominator, name, mapped)
 
@@ -100,7 +101,7 @@ def o_iv_density(numerator, denominator, log_densities=LOG_DENSITIES, log_temper
     ``log n_e`` from the ratio of ``numerator``, O IV 1399.8 Å, to ``denominator``, O IV 1401.2 Å, two components in
     the same unit on the same grid, by irispy's `~irispy.utils.density.density_diagnostic` on CHIANTI's ratio, which
     fiasco computes on electron densities from and to ``log_densities``, 10^8 to 10^13 cm^-3 unless changed, 0.1 dex
-    apart, at temperatures from log T 4.5 to 6, 0.05 apart, and irispy interpolates, linearly, at ``log_temperature``,
+    apart, at temperatures from log T 4.5 to 6, 0.05 apart, interpolated linearly at ``log_temperature``,
     O IV's formation temperature, 5.15, unless changed, as one dataset on that grid, as `line_ratio`'s; its ``meta``
     holds ``ratio_preset`` in place of ``ratio_table``, with ``ratio_log_n_e`` and ``ratio_log_t``, the densities and
     temperature.
@@ -116,22 +117,24 @@ def o_iv_density(numerator, denominator, log_densities=LOG_DENSITIES, log_temper
     """
     import fiasco
     from irispy.utils.density import density_diagnostic
+    from scipy.interpolate import make_interp_spline
 
     densities, temperature = _o_iv_grid(log_densities, log_temperature)
 
     def mapped(over, under):
         # ask_before: else fiasco asks on stdin; show_progress: its build's progress bar fails on a worker in a terminal
         ion = fiasco.Ion("O IV", TEMPERATURES * u.K, ask_before=False, show_progress=False)
-        result = density_diagnostic(
-            over,
-            under,
-            densities,
-            ion=ion,
-            numerator=O_IV_LINES[0] * u.AA,
-            denominator=O_IV_LINES[1] * u.AA,
-            temperature=temperature,
-            line_ratio_kwargs={"use_two_ion_model": False},  # CHIANTI has no two-ion data for O IV, as fiasco warns
+        # (temperature, density, transition); CHIANTI has no two-ion data for O IV, as fiasco warns
+        contribution = ion.contribution_function(densities, use_two_ion_model=False)
+        wavelengths = ion.transitions.wavelength[ion.transitions.is_bound_bound]
+        # each line the transitions within 0.02 Å of it, as O IV 1401.149 and 1401.163 Å, as in irispy's O IV example
+        over_line, under_line = (
+            contribution[..., np.abs(wavelengths - line * u.AA) < 0.02 * u.AA].sum(axis=-1) for line in O_IV_LINES
         )
+        curves = (over_line / under_line).to_value(u.one)
+        # at the temperature typed, linearly in T, as irispy's density_diagnostic did before LM-SAL/irispy#314
+        curve = make_interp_spline(TEMPERATURES, curves, k=1, axis=0)(temperature.to_value(u.K))
+        result = density_diagnostic(over, under, densities, curve)
         return result["ratio"].value, u.Quantity(np.log10(result["density"].to_value(u.cm**-3)))
 
     result = _map(numerator, denominator, QUANTITIES[0], mapped)
@@ -160,7 +163,7 @@ def _map(numerator, denominator, name, mapped):
 
 
 def _has_fiasco():
-    """Whether fiasco, which irispy's density_diagnostic needs, is installed."""
+    """Whether fiasco, which the O IV preset needs, is installed."""
     try:
         import fiasco  # noqa: F401
     except ImportError:

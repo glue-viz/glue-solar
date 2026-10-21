@@ -276,6 +276,8 @@ def _hide_flat_angles(axes, shape):
         np.column_stack([np.zeros(64), y]), np.column_stack([np.full(64, shape[0] - 1), y]),
     ])
     world = angles[0].transform.transform(pixel)
+    if np.isnan(world[:, [coord.coord_index for coord in angles]]).all():  # a scan with no data (LM-SAL/irispy#301)
+        return
     for coord in angles:  # a FITS WCS gives longitudes from 0° to 360°, so one across 0° would span the circle
         if coord.coord_type == "longitude":  # measured from its least value, which a sample off the sky (NaN) keeps
             full_circle = (360 * u.deg).to_value(coord.coord_unit)

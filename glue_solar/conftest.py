@@ -358,8 +358,13 @@ def irispy_test_files():
     """Real files shipped with irispy, from its test data folder."""
     from irispy.data.test import ROOTDIR
 
-    # its get_test_data_filenames helper is going away
-    files = [path for path in ROOTDIR.rglob("*") if path.is_file() and path.suffix not in (".py", ".pyc")]
+    # its get_test_data_filenames helper is gone; not the data_gap files of LM-SAL/irispy#301, which share the
+    # 3860258481 scans' names
+    files = [
+        path
+        for path in ROOTDIR.rglob("*")
+        if path.is_file() and path.suffix not in (".py", ".pyc") and path.parent.name != "data_gap"
+    ]
     assert files
     return files
 

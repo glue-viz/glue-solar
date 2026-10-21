@@ -1,6 +1,6 @@
 """
 'Line ratio diagnostic…', on line moments of irispy's test raster and on synthetic maps: what glue gets of
-irispy's map_ratio_to_quantity, and of its density_diagnostic on a stand-in for fiasco, which CI does not install.
+irispy's density_diagnostic, from a table and on a stand-in for fiasco, which CI does not install.
 """
 
 import sys
@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from glue.core import Data
 from glue.core.component import Component
-from irispy.utils.density import density_diagnostic, map_ratio_to_quantity
+from irispy.utils.density import density_diagnostic
 from qtpy import QtWidgets
 
 import astropy.units as u
@@ -74,8 +74,8 @@ def run(app, layers):
 
 def direct(numerator, denominator, quantity=LOG_NE, curve=CURVE):
     """irispy's own map from the ratio of the arrays ``numerator`` to ``denominator``, NaN where it is 0."""
-    ratio = np.divide(numerator, denominator, out=np.full(numerator.shape, np.nan), where=denominator != 0)
-    return ratio, map_ratio_to_quantity(ratio, quantity, curve).value
+    result = density_diagnostic(numerator, denominator, quantity, curve)
+    return result["ratio"].value, result["density"].value
 
 
 def test_the_action_adds_irispys_map_of_two_moments_maps_as_one_linked_dataset_in_a_viewer(
@@ -179,7 +179,7 @@ def test_refusals_and_errors_show_why(app, monkeypatch, tmp_path, irispy_test_fi
         run(app, [maps, other])
     one_column, curl = tmp_path / "one.txt", tmp_path / "curl.txt"
     one_column.write_text("1\n2\n")
-    curl.write_text("1 0.1\n2 0.3\n3 0.2\n")
+    curl.write_text("1 0.1\n3 0.3\n2 0.2\n")  # a quantity that turns back
     for path in (tmp_path / "none.txt", one_column, curl):
         answer(monkeypatch, str(path))
         run(app, [maps, partner])
@@ -192,8 +192,7 @@ def test_refusals_and_errors_show_why(app, monkeypatch, tmp_path, irispy_test_fi
         f"{maps.label}: intensity is in 'DN_IRIS_FUV / s' but counts: intensity in ''.",
         f"[Errno 2] No such file or directory: '{tmp_path / 'none.txt'}'",
         f"{one_column} is not a table of two columns: the quantity and the theoretical ratio.",
-        "theoretical_ratio must be monotonic to map ratios back to a quantity. Restrict the grid to a monotonic "
-        "interval first.",
+        "density_grid must increase or decrease monotonically.",
     ]
     # a blank table or quantity, or Cancel, adds nothing
     for typed, quantity, accept in (("", None, True), (table, " ", True), (table, None, False)):
@@ -230,6 +229,11 @@ def fiasco(monkeypatch, tmp_path):
     fake = SimpleNamespace(Ion=ion, defaults={"hdf5_dbase_root": tmp_path / "none.h5"}, calls=calls)
     monkeypatch.setitem(sys.modules, "fiasco", fake)
     return fake
+
+
+def o_iv_curve(densities, log_temperature):
+    """The stand-in fiasco's ratio of the O IV lines at ``densities``, in cm^-3, and ``log_temperature``."""
+    return 0.15 + 0.3 / (1 + np.exp(4 * (11 + log_temperature - 5.15 - np.log10(densities))))
 
 
 # The dialog's widgets for a table, disabled while the O IV preset is ticked, and for the preset, enabled only then
@@ -308,17 +312,9 @@ def test_the_o_iv_preset_adds_irispys_density_diagnostic_of_two_moments_maps(
     np.testing.assert_array_equal(ratio_args[1], DENSITIES * u.cm**-3)
     assert ratio_kwargs == {"use_two_ion_model": False}
     over, under = (maps["intensity"] for maps in lines)
-    direct = density_diagnostic(
-        over,
-        under,
-        DENSITIES * u.cm**-3,
-        ion=ratio_args[0],
-        numerator=1399.780 * u.AA,
-        denominator=1401.157 * u.AA,
-        line_ratio_kwargs={"use_two_ion_model": False},
-    )
+    direct = density_diagnostic(over, under, DENSITIES * u.cm**-3, o_iv_curve(DENSITIES, 5.15))
     np.testing.assert_array_equal(result["ratio"], direct["ratio"].value)
-    np.testing.assert_array_equal(result["log n_e"], np.log10(direct["density"].to_value(u.cm**-3)))
+    np.testing.assert_allclose(result["log n_e"], np.log10(direct["density"].to_value(u.cm**-3)), rtol=1e-15)
     assert np.isfinite(result["log n_e"]).any()
     # typed densities and temperature; once built, the status bar says no more
     fiasco.defaults["hdf5_dbase_root"].touch()
@@ -332,17 +328,8 @@ def test_the_o_iv_preset_adds_irispys_density_diagnostic_of_two_moments_maps(
     assert typed.meta == {**result.meta, "ratio_log_n_e": (9, 12), "ratio_log_t": 5.4}
     [_, (_, ratio_args, _)] = fiasco.calls
     np.testing.assert_array_equal(ratio_args[1], np.logspace(9, 12, 31) * u.cm**-3)
-    direct = density_diagnostic(
-        over,
-        under,
-        ratio_args[1],
-        ion=ratio_args[0],
-        numerator=1399.780 * u.AA,
-        denominator=1401.157 * u.AA,
-        temperature=10**5.4 * u.K,
-        line_ratio_kwargs={"use_two_ion_model": False},
-    )
-    np.testing.assert_array_equal(typed["log n_e"], np.log10(direct["density"].to_value(u.cm**-3)))
+    direct = density_diagnostic(over, under, ratio_args[1], o_iv_curve(np.logspace(9, 12, 31), 5.4))
+    np.testing.assert_allclose(typed["log n_e"], np.log10(direct["density"].to_value(u.cm**-3)), rtol=1e-15)
     both = np.isfinite(typed["log n_e"]) & np.isfinite(result["log n_e"])
     assert both.any()
     assert (typed["log n_e"][both] != result["log n_e"][both]).all()
