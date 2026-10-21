@@ -169,7 +169,7 @@ The browser, a quicklook and the analyses link the helioprojective coordinates o
 load or make, so a region drawn on one selects the same place on the Sun in the others. AIA cutouts,
 SOT cubes, maps, SST cubes and files opened with "File → Open Data Set" link only on request: choose
 "Link helioprojective coordinates" in the "Plugins" menu once they are loaded, and again after
-loading more or reopening a session with a map linked. With no IRIS data loaded, they link to the
+loading more. With no IRIS data loaded, they link to the
 first of them, so SST cubes link to each other.
 
 - A region on a raster map or a map selects, in each slit-jaw frame, the pixels inside it at that
