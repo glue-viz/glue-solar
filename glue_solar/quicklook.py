@@ -5,7 +5,7 @@ one CRISP or CHROMIS cube.
 
 import sys
 import weakref
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from functools import partial
 from itertools import pairwise
 from typing import NamedTuple
@@ -2170,11 +2170,31 @@ class _Refit(HubListener):
     def __init__(self, viewer, subset):
         self.viewer, self.subset = viewer, subset
         hub = subset.data.hub
+        hub.subscribe(self, SubsetUpdateMessage, handler=self._moved, filter=self._of_subset)
         hub.subscribe(self, ComputationEndedMessage, handler=self._computed, filter=self._of_layer)
         viewer.window_closed.connect(lambda: hub.unsubscribe_all(self))
 
+    def _of_subset(self, message):
+        return message.subset is self.subset and message.attribute == "subset_state"
+
     def _of_layer(self, message):
         return message.sender in self.viewer.layers and message.sender.state.layer is self.subset
+
+    def _moved(self, message):
+        QTimer.singleShot(0, self._limits)  # after glue's own viewers have taken the move
+
+    def _limits(self):
+        """
+        Set the profile's limits, v_min and v_max, from the profile read on this thread: glue 1.27.0 sets them as
+        glue-qt 0.4.2's worker ends otherwise, and ``ProfileLayerArtist._update_profile`` then queues the worker again,
+        two more 40 ms waits a scan step.
+        """
+        if _off(self.viewer):
+            return
+        for layer in self.viewer.layers:
+            if layer.state.layer is self.subset:
+                with suppress(Exception):  # a subset glue cannot profile, which it disables
+                    layer.state.update_limits()
 
     def _computed(self, message):
         _refit(self.viewer)

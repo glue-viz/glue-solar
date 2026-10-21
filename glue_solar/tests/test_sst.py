@@ -1007,6 +1007,41 @@ def test_the_spectra_and_curve_refit_as_the_point_moves_until_zoomed(sst_app, tm
     assert move(2, 3)[0] == pytest.approx(bright[0])  # Home resumes the refits (D98)
 
 
+def test_a_point_move_computes_a_worker_spectrum_once(sst_app, qtbot, monkeypatch, tmp_path):
+    # glue-qt 0.4.2 computes the spectrum of a cube of over 1e7 values on a worker, which glue 1.27.0 queues again if
+    # the spectrum's v_min and v_max change as it ends: two more 40 ms waits a scan step; the move sets them first
+    monkeypatch.setattr(
+        QThreadedProfileLayerArtist, "_calculate_profile", lambda self, reset=False: self._worker.work_queue.put(reset)
+    )
+    gate, compute = threading.Event(), QThreadedProfileLayerArtist._calculate_profile_thread
+    gate.set()
+
+    def gated(self, reset=False):  # the worker computes once the gate is open
+        gate.wait(60)
+        compute(self, reset)
+
+    monkeypatch.setattr(QThreadedProfileLayerArtist, "_calculate_profile_thread", gated)
+    path = tmp_path / "cube.fits"
+    write_sst_cube(path, (3, 1, 5, 12, 16))
+    with fits.open(path, mode="update") as hdus:
+        hdus[0].data[:, :, :, 2, 3] += 1000  # a bright pixel
+    cube = sst_data(path)
+    [spectrum] = quicklook(sst_app, [cube])["spectra"]
+    [layer] = [layer for layer in spectrum.layers if layer.layer is spectrum._solar_fit.subset]
+    group = sst_app.session.edit_subset_mode.edit_subset[0]
+    qtbot.waitUntil(lambda: not layer.is_computing and layer._worker.work_queue.empty())  # the first spectrum
+    queued = []  # whether glue had queued the worker again as each computation ended
+    layer._worker.compute_end.connect(lambda: queued.append(not layer._worker.work_queue.empty()))
+    for y, x in ((2, 3), (5, 5)):
+        queued.clear()
+        gate.clear()
+        group.subset_state = PixelSubsetState(cube, [slice(0, 1), slice(None), slice(y, y + 1), slice(x, x + 1)])
+        qtbot.wait(20)  # the GUI thread takes the move first, as it does before a worker's 40 ms wait ends
+        gate.set()
+        qtbot.waitUntil(lambda: bool(queued), timeout=60_000)
+        assert queued == [False]
+
+
 def test_the_first_click_on_any_sst_panel_moves_the_point(sst_app, qtbot, tmp_path):
     # each panel takes the Pixel tool as its window becomes active, as in the IRIS quicklook (D75)
     cube, _ = stokes_cube(tmp_path / "cube.fits")
