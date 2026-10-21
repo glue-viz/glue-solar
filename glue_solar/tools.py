@@ -461,7 +461,7 @@ class FrameTimeTool(Tool, HubListener):
             if coords is not axes.coords:  # glue reset the axes, and the ticks with them
                 ticks = _index_ticks(axes, index, axes.coords[beside])
                 self._exposure_ticks = (axes.coords, ticks)
-            if beside != data.ndim - 1 - other.axis:  # glue, mapping by index, gives it the exposure axis' label (D30)
+            if beside != data.ndim - 1 - other.axis:  # glue labels by spine, giving it the exposure axis' label (D30)
                 along = "yx"[index]
                 axes.coords[beside].set_axislabel(
                     getattr(state, f"{along}_axislabel"),

@@ -64,7 +64,8 @@ slit-jaw image ``[frame, y, x]``. ``coords.pixel_to_world_values`` takes the pix
 opposite order, fastest axis first, and gives the world values in that order: for a raster, the
 wavelength in Angstrom, then the helioprojective latitude and longitude in arcsec. The Image viewer's
 readout shows the same values. On a sit-and-stare raster such as this one, the map (step against
-slit) reads only the latitude, along the slit::
+slit) reads only the angle that changes along the slit, here the latitude (the longitude on a slit
+rolled past 45°)::
 
     raster = rasters[0]
     step, slit, pixel = 90, 20, 14
