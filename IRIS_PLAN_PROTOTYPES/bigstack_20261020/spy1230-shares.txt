@@ -1,0 +1,38 @@
+threads: {'thread (3579822): MainThread': 5216, 'thread (3581112)': 2441, 'thread (3581121)': 2418, 'thread (3583429)': 58, 'thread (3583430)': 58}
+
+load: 2092 samples
+   80.0%  read_files (irispy, per file)
+   37.3%    _create_tabular_wcs
+   15.2%    SGMeta
+    5.4%    fits.open
+    3.8%    _memmap_fill_mask (dask)
+    3.9%    SpectrogramCube
+    1.6%    get_body_heliographic_stonyhurst
+    5.1%    _primary_header
+    3.4%    astropy Time
+    0.1%    SkyCoord
+    2.9%  _window_scaling (glue-solar, per file)
+    8.2%  stack_times (glue-solar)
+    7.6%  RawComponent._sample (color limits)
+    1.1%  image_data (SJI)
+   12.9%  astropy config reads
+
+restore: 2093 samples
+   83.7%  read_files (irispy, per file)
+   44.3%    _create_tabular_wcs
+   15.9%    SGMeta
+    2.8%    fits.open
+    4.4%    _memmap_fill_mask (dask)
+    3.2%    SpectrogramCube
+    2.4%    get_body_heliographic_stonyhurst
+    1.6%    _primary_header
+    1.9%    astropy Time
+    0.2%    SkyCoord
+    2.9%  _window_scaling (glue-solar, per file)
+    7.5%  stack_times (glue-solar)
+    0.0%  stack_wcs / _dataset / exposure / time
+    2.0%  RawComponent._sample (color limits)
+    1.4%  image_data (SJI)
+    3.4%  restore: viewers
+    0.3%  restore: draws
+   13.5%  astropy config reads

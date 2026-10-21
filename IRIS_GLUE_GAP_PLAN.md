@@ -182,11 +182,11 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 
 **M1**
 - WP0: `wp0-release-tracking`
-- WP10: `wp10-perf-survey-2`
+- WP10: `wp10-perf-survey-2`, `wp10-empty-raster-files`
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
-- WP10: `wp10-l-sst-scan-step`
+- WP10: `wp10-l-sst-scan-step`, `wp10-l-big-stack-load`
 
 **M4**
 - WP0: `wp0-upstream`, `wp0-irispy-requests`, `wp0-stack-validation`, `wp0-user-review`, `wp0-wcslib-tab-inverse`
@@ -286,11 +286,15 @@ Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on file
 
 **M1**
 
-- [ ] **M1** `wp10-perf-survey-2` (D100): re-run GLUE_SPEED.md's 'SST and IRIS stress survey, 2026-10-10' on current main (open, a new Image viewer, slider steps, the Profile button, a Pixel drag, session save and restore) and add the quicklook-era parts (an SST quicklook's open, a point click and drag with its spectra, curve and slit following, a linked cube's point, a path diagram), on this Mac and the user's Linux machine (`scale_checks/sst_perf_survey.py`). Done when GLUE_SPEED.md has both machines' numbers beside the 2026-10-10 ones, and each slow spot an item or a decision. This Mac's are in (GLUE_SPEED.md 'SST performance survey 2, 2026-10-20', on main dc7c25f), the SST cubes and the 2026-10-10 IRIS sets with two more (`run_survey.sh OUT iris FOLDER OBSID...`): the user's Linux run is what is left. The script imports whatever glue-solar the env has: on this Mac the editable install is this plan checkout, so runs here set PYTHONPATH to a main checkout.
+- [ ] **M1** `wp10-perf-survey-2` (D100): re-run GLUE_SPEED.md's 'SST and IRIS stress survey, 2026-10-10' on current main (open, a new Image viewer, slider steps, the Profile button, a Pixel drag, session save and restore) and add the quicklook-era parts (an SST quicklook's open, a point click and drag with its spectra, curve and slit following, a linked cube's point, a path diagram), on this Mac and the user's Linux machine (`scale_checks/sst_perf_survey.py`). Done when GLUE_SPEED.md has both machines' numbers beside the 2026-10-10 ones, and each slow spot an item or a decision. This Mac's are in (GLUE_SPEED.md 'SST performance survey 2, 2026-10-20', on main dc7c25f), the SST cubes and the 2026-10-10 IRIS sets with two more (`run_survey.sh OUT iris FOLDER OBSID...`); the Linux machine's are in too ('Linux, 2026-10-20', on main c52fcc1, session b6e23444's scratchpad runner), but for the IRIS rows of 3625503135, 3860259453 and 3860107071, which ran under other processes' load and are to be run again on a quiet machine. The script imports whatever glue-solar the env has: on this Mac the editable install is this plan checkout, so runs here set PYTHONPATH to a main checkout.
+
+- [ ] **M1** `wp10-empty-raster-files` (user, 2026-10-20): IRIS Level 2 raster files with no data (every window raw fill, DATE_OBS and DATE_END empty, XCEN and YCEN 0, an empty last table; their aux table keeps each exposure's TIME after STARTOBS) make irispy's `read_files` raise building `Time('')`, failing the whole observation's load (3660100039: 8 of 450 files; the flare 3860258481: 5 of 180). irispy reads them as missing, with their times and pointing worked out (an irispy draft, D54), then glue-solar follows. Done when both observations open in the browser and quicklook with those scans empty at their times.
 
 **L**
 
 - [ ] **L** `wp10-l-sst-scan-step` (D100's Mac survey): an SST quicklook's scan step takes 0.3-0.5 s on the 2023 mosaics (Ca II K 3950 515 ms, Ca II 8542 427 ms), against 85-120 ms on the 2020 cubes. Attributed (2026-10-20, GLUE_SPEED.md 'SST performance survey 2'): the virtual slit panel, wavelength against y at the point's x, reads one row per y per tuning from the memory map, so a scan's first read takes about 34,800 page faults, 650-810 ms in full and about 150 ms a draw at panel size, where a read again takes 0.7 ms and a map plane 3-7 ms; the other panels take 5-20 ms a step. macOS's first touch of a mapped page is costly, so the Linux survey decides how much is macOS's. Options for the user: accept it (a scan's revisits are fast), read the slit with file reads in place of the map, or prefetch the next scan's slit on a worker. Done when the cost is cut or accepted by the user.
+
+- [ ] **L** `wp10-l-big-stack-load` (user, 2026-10-20: profile first): a big IRIS stack loads, and restores, at about 60 ms a raster file (3860107071, 1230 files: 75 and 79 s on a quiet machine), 80% of it irispy building a FITS-TAB WCS and an `SGMeta` per window of each file (GLUE_SPEED.md 'Linux, 2026-10-20'; prototypes in `IRIS_PLAN_PROTOTYPES/bigstack_20261020/`). Options for the user: irispy drafts building one tabular WCS per file, copied per window (-23 s), and one header dict per file for `SGMeta` (-8 s); glue-solar's `stack_times` from each scan's time table (-6 s; the prototype reads ndcube's private `_lookup_tables`, so it needs irispy to expose the times); together 75 to 42 s, the restore the same. Done when the user's picks are on main, or the cost is accepted.
 
 Notes:
 - IRIS Level 2 image HDUs are int16 (BSCALE 0.25, BZERO 7992; fill is raw -32768/-32764). glue-solar reads SJIs and AIA cutouts through irispy main's `read_sji_lvl2(memmap=True)`, whose raw int16 keeps the fill under a lazy mask; irispy decompresses a `.fits.gz` once into memory (#329, D95). A gzipped raster file is inflated once: each is opened in memory just before irispy reads it, for its window headers and `read_spectrograph_lvl2`'s read (irispy #275, #345, #352, D97); with `LAZY` off, irispy's read alone.
