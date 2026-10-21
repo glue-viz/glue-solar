@@ -198,7 +198,7 @@ class _Cube(Data):
 
     def compute_statistic(self, statistic, cid, subset_state=None, axis=None, view=None, random_subset=None, **kwargs):
         if isinstance(subset_state, SliceSubsetState) and subset_state.reference_data is self and view is None:
-            # glue reads a slice subset, a frame's limits or a spectrum, by its slices, which `get_data` gives no hints
+            # glue reads a slice subset (a frame's limits, a spectrum) by its slices, past `get_data`: hint them here
             indices = (np.arange(n)[s].reshape(-1) for s, n in zip(subset_state.slices, self.shape))
             self._will_need(cid, np.ix_(*indices))
         sampled = random_subset and subset_state is None and axis is None and view is None
