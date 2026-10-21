@@ -5440,6 +5440,17 @@ def test_a_switch_after_the_point_is_deleted_gives_a_new_point(bare_app, qtbot, 
     assert point_window(bare_app).rowCount() > 0
 
 
+def test_a_switch_after_the_panels_list_is_closed_keeps_the_axes(bare_app, qtbot, irispy_test_files):
+    c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
+    viewers = with_windows(qtbot, quicklook(bare_app, [c2, mg], window=["C II 1336", "Mg II k 2796"]))
+    viewers["map"].toolbar.actions["solar:hide_axes"].trigger()  # every panel's axes shown
+    with qtbot.waitSignal(panels_list(bare_app).destroyed):
+        panels_list(bare_app).parentWidget().close()
+    switched = switch(qtbot, viewers["windows"][0]["spectrum"])
+    assert panels_list(bare_app).axes
+    assert switched["map"].state.show_axes
+
+
 def path_diagram(viewer):
     """The viewer of a Path diagram drawn across the Image viewer's view."""
     state, tool = viewer.state, viewer.toolbar.tools["solar:path"]
@@ -5626,6 +5637,58 @@ def test_panels_turned_off_do_nothing_and_come_back_as_they_were(bare_app, qtbot
     switched = switch(qtbot, viewers["windows"][0]["spectrum"])
     assert all(entry[1] for entry in entries(panels_list(bare_app))[1:])
     assert not any(viewer.parent().isHidden() for viewer in glue_solar.quicklook._viewers(switched))
+
+
+def slit_jaws(irispy_test_files):
+    """The bundled sit-and-stare's SJI 1400 and SJI 2796, an observation of slit-jaw images only."""
+    return [image_data(find_irispy_test_file(irispy_test_files, SNS.format(f"SJI_{n}_t000"))) for n in (1400, 2796)]
+
+
+def test_a_slit_jaw_only_quicklook_turns_its_panels_on_and_off(bare_app, qtbot, irispy_test_files):
+    # D66's list, though without a raster there is no point and no Point window
+    viewers = quicklook(bare_app, slit_jaws(irispy_test_files))
+    panels = panels_list(bare_app)
+    assert entries(panels) == [("SJI 1400", True), ("SJI 2796", True)]
+    width = viewers["sji"][0].viewer_size[0]
+    tick(panels, "SJI 2796", on=False)
+    qtbot.waitUntil(lambda: not panels._timer.isActive())
+    assert viewers["sji"][1].parent().isHidden()
+    assert viewers["sji"][0].viewer_size[0] == pytest.approx(2 * width, abs=1)
+    tick(panels, "SJI 2796")
+    qtbot.waitUntil(lambda: not panels._timer.isActive())
+    assert viewers["sji"][0].viewer_size[0] == width
+    assert None not in coordinator(bare_app.data_collection)._owners  # no point's
+
+
+def test_a_panel_closed_by_hand_without_the_panels_list_leaves_the_session(
+    bare_app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
+    viewers = quicklook(bare_app, slit_jaws(irispy_test_files))
+    with qtbot.waitSignal(panels_list(bare_app).destroyed):
+        panels_list(bare_app).parentWidget().close()
+    with qtbot.waitSignal(viewers["sji"][1].destroyed):
+        viewers["sji"][1].parent().close()  # its window's close box
+    bare_app.save_session(str(tmp_path / "session.glu"))
+    restored = restore(qtbot, monkeypatch, tmp_path / "session.glu")
+    assert [viewer.state.title for viewer in restored.viewers[-1]] == ["SJI 1400", "SJI 2796"]  # made again (D83)
+
+
+def test_a_session_opens_with_a_quicklook_whose_data_were_removed(
+    bare_app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
+    # its recipe names no data: its tab opens empty, and the rest of the session opens
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    other = Data(x=np.ones((2, 2)), label="other")
+    bare_app.data_collection.append(other)
+    viewers["sji"][0].add_data(other)  # dragged there, so the panel stays open without the quicklook's data
+    bare_app.data_collection.remove(raster)
+    bare_app.data_collection.remove(sji)
+    qtbot.wait(20)  # glue-qt deletes the panels left empty
+    bare_app.save_session(str(tmp_path / "session.glu"))
+    restored = restore(qtbot, monkeypatch, tmp_path / "session.glu")
+    assert restored.data_collection.labels == ["other"]
+    assert [list(tab) for tab in restored.viewers] == [[]] * bare_app.tab_count
 
 
 def test_the_time_master_turned_off_hands_the_time_back_once_on(bare_app, qtbot, irispy_test_files):

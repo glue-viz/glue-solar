@@ -1737,7 +1737,7 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
     """
     Open the panels of the panel table of ``datasets`` (`_iris_table`, or a cube's `_cube_table`; D78) in ``tab`` and
     return their viewers (`quicklook`); with a point, its group (``group`` or a new 'Point'), the cut Profiles, the
-    Point window, the Panels list and the lines (`_SpectralLines`), then lay them out (`_arrange`). Other windows'
+    Point window and the lines (`_SpectralLines`); the Panels list; then lay them out (`_arrange`). Other windows'
     panels, those of ``shown`` aside, wait until ticked in the Panels list, as each viewer takes 0.34 s to open (D83).
     """
     iris = any(_role(data) in ("raster", "sji") for data in datasets)
@@ -1748,6 +1748,7 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
 
     def add(panel, viewer):
         made.append((panel, viewer))
+        viewer.window_closed.connect(partial(setattr, viewer, "_closed", True))  # glue-qt's close box does not mark it
         viewer.toolbar.setIconSize(QSize(16, 16))  # glue-qt's are 25 px: more of the narrow panels' tools in sight (P8)
         viewer.parent().setWindowIcon(viewer.windowIcon())  # glue-solar's (`_init`) on its title bar, not Qt's logo
         if panel.window is not None and panel.window not in windows:
@@ -1827,18 +1828,18 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
             viewers["rows"] = [row for row in rows if row]
         mains = [viewer for panel, viewer in made if panel.window is None and panel.x is not None]
         _add_window(tab, _PointWindow(coord, group, point.reference_data, mains), "Point")  # filled by `_arrange`
-        entries = _viewers({**viewers, "windows": []})  # each main panel and each slit-jaw image
-        for name in dict.fromkeys(panel.window for panel in table["panels"] if panel.window is not None):
-            rows = [panel for panel in table["panels"] if panel.window == name]
-            entries.append((name, list(open_window(name).values()) if name in shown else rows))
-        sub = _add_window(tab, _Panels(entries, group, partial(_arrange, tab, viewers), open_window), "Panels")
-        # a click on a box leaves the panel active, with its tool: glue-qt resets both for the window Qt focuses
-        for widget in (sub, sub.widget(), sub.widget().viewport()):
-            widget.setFocusPolicy(Qt.NoFocus)
         panels = [(panel, viewer) for panel, viewer in made if panel.window is None]
         images = [viewer for panel, viewer in panels if panel.x is not None and _spectral_axes(panel.data)]
         if images:
             _SpectralLines(coord, group, images, next(viewer for panel, viewer in panels if panel.x is None), tab)
+    entries = _viewers({**viewers, "windows": []})  # each main panel and each slit-jaw image, with no point too (D66)
+    for name in dict.fromkeys(panel.window for panel in table["panels"] if panel.window is not None):
+        rows = [panel for panel in table["panels"] if panel.window == name]
+        entries.append((name, list(open_window(name).values()) if name in shown else rows))
+    sub = _add_window(tab, _Panels(entries, group, partial(_arrange, tab, viewers), open_window), "Panels")
+    # a click on a box leaves the panel active, with its tool: glue-qt resets both for the window Qt focuses
+    for widget in (sub, sub.widget(), sub.widget().viewport()):
+        widget.setFocusPolicy(Qt.NoFocus)
     if "notes" in table:
         app.statusBar().showMessage(" ".join(note for note in notes + table["notes"] if note))
     if point is not None:  # first, as glue-qt then fills its side panels for the map, which can widen them
@@ -1875,7 +1876,7 @@ def _stokes_limits(layer, slices, wing=False):
     """
     # ponytail: set as the Stokes parameter or 'Per-frame limits' changes, over limits chosen in the style editor, and I
     # takes glue's 99.5% again; keep each parameter's last limits if that matters
-    cube, stokes = layer.layer, slices[1]
+    cube, stokes = layer.layer, getattr(slices[1], "center", slices[1])  # a Collapse at its center (D39)
     shown = stokes, layer.stretch_global
     if shown == vars(layer).get("_solar_stokes", (0, True)) or layer.attribute is not cube.main_components[0]:
         return
@@ -1907,7 +1908,8 @@ def _switch(viewer):
     index, _ = coord._timing(master)
     recipe, point = _recipe(app, tab), app._solar_points[tab].subset_state
     recipe.update(main=_window(raster)[0], panels=[[*panel[:2], False, panel[3]] for panel in recipe["panels"]])
-    axes = tab.findChildren(_Panels)[-1].axes
+    lists = tab.findChildren(_Panels)  # none once the user closed its window: the map's axes then
+    axes = lists[-1].axes if lists else tab._solar_quicklook[-1]["map"].state.show_axes
     for panel in _viewers(tab._solar_quicklook[-1]):
         panel.close(warn=False)
     for widget in tab.findChildren((_PointWindow, _Panels)):
@@ -1980,7 +1982,8 @@ def _reopen_quicklooks(session):
     main = session.get("__main__", {})
     for i, names in enumerate(main.get("viewers", ())):
         for recipe in [session[name]["quicklook"] for name in names if "quicklook" in session[name]]:
-            main.setdefault("quicklooks", {})[i], main["_type"] = recipe, f"{__name__}.{_Application.__name__}"
+            if recipe["datasets"]:  # none once its data were all removed: its tab opens empty
+                main.setdefault("quicklooks", {})[i], main["_type"] = recipe, f"{__name__}.{_Application.__name__}"
             main["viewers"][i] = [name for name in names if name not in [panel[0] for panel in recipe["panels"]]]
 
 
@@ -2080,7 +2083,8 @@ def _turn(viewer, on, group):
             if frame is not None:
                 viewer.state.slices = (frame, *viewer.state.slices[1:])
             coord.register(viewer)
-            coord.own(group, [viewer])
+            if group is not None:  # a slit-jaw-only quicklook has no point (D78)
+                coord.own(group, [viewer])
     else:
         changed = viewer._solar_changed = set()
         session.hub.subscribe(viewer, SubsetUpdateMessage, handler=lambda message: changed.add(message.subset))
@@ -2922,7 +2926,6 @@ class _Panels(QTreeWidget):
     def _forget(self):
         """Take the panel closed by hand off the list, with its label once it has no other panel."""
         panel = self.sender()
-        panel._closed = True  # as glue-qt's close() marks it, which the window's close box does not
         root = self.invisibleRootItem()
         for item in [item for item, each in self.panels if each is panel]:
             parent = item.parent() or root

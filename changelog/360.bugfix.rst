@@ -1,0 +1,1 @@
+A session whose quicklook's data were all removed opens again with that tab empty, a session saves after a quicklook panel is closed by hand while no Panels list is open, 'Show this window's panels' works after the Panels list is closed, a quicklook of slit-jaw images only gets the Panels list, and glue's Collapse over an SST cube's Stokes parameters reaches every panel.
