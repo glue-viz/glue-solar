@@ -1,0 +1,1 @@
+A slit-jaw frame reaches a stack regridded on time at its nearest scan after a gap, and a restored session keeps a linked map's coordinates behind the WCS lock.
