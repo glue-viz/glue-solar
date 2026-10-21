@@ -1575,6 +1575,50 @@ def test_a_path_is_drawn_on_every_viewer_of_its_image_and_placed_on_other_data(a
     assert [_paths_drawn(restored) for restored in shown] == [[], [], []]
 
 
+def test_a_path_on_an_sst_cube_has_its_sky_coordinates(app, monkeypatch, tmp_path):
+    # astropy gives an SST cube's longitude and latitude as quantities, not a SkyCoord (`_TabularWCS.has_celestial`):
+    # the path is still saved with them, placed by them on other data, and timed by Slope
+    for name in ("cube", "other"):
+        write_sst_cube(tmp_path / f"{name}.fits", (3, 4, 5, 12, 16), drift=(5.0, -3.0))
+    cube, other = (sst_data(tmp_path / f"{name}.fits") for name in ("cube", "other"))
+    cube.meta["DSUN_OBS"] = 1.496e11  # in m; SSTRED writes none
+    app.data_collection.extend([cube, other])
+    viewer = app.new_data_viewer(ImageViewer, data=cube)
+    [path] = _draw_path(viewer, [2, 12], [3, 9])
+    diagram = viewer.toolbar.tools["solar:path"]._slice_viewer
+    file = str(tmp_path / "path.ecsv")
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (file, ""))
+    _modes_entry(diagram, "Save path as ECSV…").trigger()
+    table = QTable.read(file)
+    lon, lat, *_ = cube.coords.pixel_to_world_values(path.x, path.y, 0, 0, 0)  # arcsec
+    np.testing.assert_allclose(table["lon"].to_value(u.arcsec), lon, rtol=0, atol=1e-6)
+    np.testing.assert_allclose(table["lat"].to_value(u.arcsec), lat, rtol=0, atol=1e-6)
+    assert table["distance_km"][5] > 0
+
+    offered = []
+
+    def tick_all(dialog):
+        ticks = dialog.findChildren(QCheckBox)
+        offered.extend(tick.text() for tick in ticks)
+        for tick in ticks:
+            tick.setChecked(True)
+        return QDialog.Accepted
+
+    monkeypatch.setattr(QDialog, "exec", tick_all)
+    _modes_entry(diagram, "Path on other data…").trigger()
+    assert offered == ["other"]
+    assert [data.original_data for data in app.data_collection if isinstance(data, PathData)] == [cube, other]
+
+    # scans against the path: from scan 0 to scan 2, 120 s later, 5 samples along it
+    diagram.state.y_att = path.pixel_component_ids[0]
+    tool = diagram.toolbar.tools["solar:slope"]
+    diagram.toolbar.active_tool = tool.tool_id
+    _click(tool, 0, 0)
+    _click(tool, 5, 2)
+    _key(diagram, "enter")
+    assert path.slopes["speed (km / s)"][0] == pytest.approx(table["distance_km"][5].to_value(u.km) / 120)
+
+
 @pytest.mark.remote_data
 def test_path_diagram_of_a_full_size_slit_jaw_image(app, monkeypatch, tmp_path, irispy_data):
     # 4000255147 SJI 1400, read lazily, whose diagram is its 50 frames against the path
