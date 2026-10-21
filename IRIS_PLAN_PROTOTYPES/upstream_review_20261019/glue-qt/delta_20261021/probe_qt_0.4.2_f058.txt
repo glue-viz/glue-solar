@@ -1,0 +1,35 @@
+[fitter_new_per_fit] FAULT: fit used the Settings fitter=False, degree at fit=1; source has 'self.fit_function()' 2x
+[fit_settings_checkbox] FAULT: 'QCheckBox' object has no attribute 'value'
+[fit_artists] FAULT: kept ['first']
+[fitter_settings_widget] FAULT: own settings_widget opened=False
+[fitter_summarize_args] FAULT: 'report += "<pre>" + fitter.summarize(fit_results[layer_artist], x, y) + "</pre>"'; hook for fitter actions in enable(): False
+[layer_action_applies] FAULT: LayerActionRegistry.__call__() got an unexpected keyword argument 'applies'
+[cmap_icon_cache] FAULT: second combo redraws=True; 102 colormaps: combo build median 46.4 ms, resize 44.2 ms
+[layer_icon_loads] FAULT: 30 datasets: 473 layer_icon calls, 473 icon file loads, 30 model rebuilds (0.07 s)
+[table_time_filter] FAULT: argument of type 'numpy.datetime64' is not iterable
+[table_new_rows] FAULT: rows shown 3 of 5; after sort None err=IndexError('index 3 is out of bounds for axis 0 with size 3')
+[play_timer_outlives_viewer] FAULT: timer active after close=True, slider stepped 0->2, viewer alive=True
+[play_timer_survives_rebuild] FAULT: old slider's timer active after rebuild=True; old in new=False
+[sync_state_rewrites_aggregate] FAULT: slices[0] is int after moving slider 1
+[collapse_drops_last_sample] FAULT: range 2..5 collapsed as slice(2, 5, None)
+[navigate_display_unit] FAULT: 140.5 nm gave axis 2 index 9 (expected 5)
+[edit_subset_from_selection] FAULT: edit subset after selecting data: []
+[default_mode_click_empties] FAULT: edit subset after click: []
+[focus_turns_tool_off] FAULT: v1 tool after focus change: None
+[dashboard_keeps_data] FAULT: data alive=True; referrers ['ComponentID', 'ComponentIDDict', 'CoordinateComponent', 'GroupedSubset', 'MultiSliceWidgetHelper', 'PixelCompon
+[keys_exact_class] FAULT: ImageViewer key reached subclass viewer: False
+[tab_never_cycles] FAULT: activateNextSubWindow called 0x for 2 Tab presses
+[table_keys_on_model] FAULT: DataTableModel registered=True, TableViewer registered=False
+[canvas_mpl_keys] FAULT: matplotlib key handler connected=True; over WCSAxes {'g': 'NotImplementedError', 'G': 'NotImplementedError'}
+[profile_tool_tooltip] FAULT: tool_tip=None
+[menu_button_tooltip] FAULT: save button tooltip='', menu tooltips visible=False
+[app_icon_hook] FAULT: get_icon('app_icon') in __init__=True; parameters=['self', 'data_collection', 'session']
+[cursor_status] FAULT: ImageViewer.cursor_status exists=False (draft glue-qt#74)
+[large_data_cancel] FAULT: new_data_viewer returned None; viewers left in tab: 16; _viewer_in_focus: NoneType; later viewer failed: AttributeError("'NoneType' object has 
+[x_script] FAULT: rc=1;     with die_on_error("Error running script"): |          ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^ | TypeError: 'function' object does not support the
+[terminal_imports] FAULT: (IPython, qtconsole, QtQuick, s) = True True True 1.71 
+[startup_sources] FAULT: splash created at main.py line 150, 'import glue' at line 133; QtQuick imported at module level=True; QFont('Courier')=True
+[worker_latency] FAULT: median round trip 80.3 ms (min 40.9)
+[profile_thread_by_parent_size] FAULT: threads by layer.size=True
+[hidden_canvas_draws] FAULT: hidden canvas draws=5, shown=5, hidden visible=False
+[slider_sync_per_position] FAULT: 40 slice changes for 40 positions in 17 ms (0.4 ms each, synchronous), tracking=True
