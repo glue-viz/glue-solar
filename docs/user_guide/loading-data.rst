@@ -130,7 +130,8 @@ map move the other panels. Cubes with overlapping scan times, such as the CRISP 
 one morning, share one time. Once linked (see `Linking`_), a point on one cube moves the points of
 the other cubes that share its time to the same place on the Sun, each at its own scan and tuning,
 while Coordinate → Point → "Link points across cubes" is on, as it is at first; IRIS data's points
-stay.
+stay. Another such cube's quicklook opens with its point at that place, or at its map's center if
+the place is off the cube.
 
 Q, U and V show scaled with their noise level: their maps' limits are ±5 times it for Q and U and
 ±10 times for V, whose signal is the stronger, and their spectra span at least as much, with the
