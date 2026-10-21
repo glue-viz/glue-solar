@@ -61,6 +61,7 @@ from glue_solar.tests.helpers import (
     inversions,
     linked_data,
     load_selected,
+    mouse,
     raster_point_on_sji,
     scanned,
     select_point,
@@ -922,6 +923,12 @@ def test_a_pixel_click_off_the_image_leaves_the_point(app):
         tool._move_callback(tool)
     [subset] = data.subsets
     assert subset.subset_state.slices == [slice(2, 3), slice(1, 2)]
+
+
+def test_a_mouse_move_with_pixel_on_in_an_empty_image_viewer_is_quiet(app):
+    viewer = app.new_data_viewer(ImageViewer)  # New Data Viewer, with no data
+    viewer.toolbar.active_tool = "image:point_selection"
+    mouse(viewer, "motion_notify_event", 0.5, 0.5)  # glue calls the tool on every move, pressed or not
 
 
 @pytest.mark.parametrize("cast", [np.iinfo(np.int64).min, 0])  # x86-64's, ARM's

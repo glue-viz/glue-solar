@@ -322,6 +322,8 @@ def _select_pixel(self, mode):
     glue's Pixel click or drag, skipped off the image, as Follow/lock skips it: in a panel's margin glue makes a point
     outside the data, which no viewer can draw (an IndexError in ``PixelSubsetState._to_linked_pixel_coords``).
     """
+    if not self._pressed:  # glue's own first check: it is called on every mouse move, in an empty viewer too
+        return
     state, x, y = self.viewer.state, self._event_xdata, self._event_ydata
     if None in (x, y) or all(
         0 <= round(at) < state.reference_data.shape[att.axis] for at, att in ((x, state.x_att), (y, state.y_att))
