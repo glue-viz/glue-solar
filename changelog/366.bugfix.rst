@@ -1,0 +1,1 @@
+Each 'Browse observations…' no longer keeps its dialog and the data it loaded until glue quits, and moving the mouse with Pixel on in an Image viewer with no data no longer logs an error.
