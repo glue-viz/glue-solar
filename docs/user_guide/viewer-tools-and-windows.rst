@@ -32,7 +32,8 @@ Image viewer
        unlocks it.
      - Esc
    * - Pencil → "Measure"
-     - Drag a line: the status bar gives its length in pixels, arcsec and km, in the plane of the sky.
+     - Drag a line: the status bar gives its length in pixels, arcsec and km, in the plane of the sky;
+       data without ``DSUN_OBS``, such as SST cubes, take Earth's distance from the Sun.
      - U
    * - Pencil → "Path diagram"
      - Click a path and press Enter for the data along it (see `Path diagrams`_).

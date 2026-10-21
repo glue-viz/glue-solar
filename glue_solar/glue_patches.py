@@ -44,12 +44,13 @@ from glue.viewers.histogram import viewer as histogram_viewer
 from glue.viewers.image.layer_artist import ImageSubsetLayerArtist
 from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
-from glue.viewers.image.state import AggregateSlice
+from glue.viewers.image.state import AggregateSlice, ImageLayerState
 from glue.viewers.matplotlib import viewer as matplotlib_viewer
 from glue.viewers.profile.state import ProfileLayerState, ProfileViewerState
 from glue.viewers.scatter import layer_artist as scatter_layer_artist
 from glue.viewers.scatter import viewer as scatter_viewer
 from glue.viewers.table.state import TableViewerState
+from glue_qt.app import GlueApplication
 from glue_qt.app.layer_tree_widget import LayerAction, UserAction
 from glue_qt.config import LayerActionRegistry
 from glue_qt.config import layer_action as glue_layer_action
@@ -478,6 +479,34 @@ if _needs(needs_reference_crosshair_workaround):
     ImageSubsetLayerArtist._update_data = _update_data
 
 
+_original_update_slice_subset = ImageLayerState._update_slice_subset
+
+
+def _update_slice_subset(self, slices):
+    """
+    glue-core's ``ImageLayerState._update_slice_subset``, skipped while the viewer has no reference data: glue-core
+    1.27.0 raises TypeError there as the data of a layer with per-frame limits are removed, which stops their removal
+    partway, as of an SST quicklook's second map (report candidate).
+    """
+    if self.viewer_state.reference_data is not None:
+        _original_update_slice_subset(self, slices)
+
+
+def needs_slice_subset_workaround(method=_original_update_slice_subset):
+    """Whether ``method`` raises for a layer with per-frame limits in a viewer with no reference data."""
+    viewer = SimpleNamespace(reference_data=None, numpy_slice_aggregation_transpose=None)
+    layer = SimpleNamespace(viewer_state=viewer, attribute_lim_helper=SimpleNamespace(set_slice=lambda _: None))
+    try:
+        method(layer, ())
+    except TypeError:
+        return True
+    return False
+
+
+if _needs(needs_slice_subset_workaround):
+    ImageLayerState._update_slice_subset = _update_slice_subset
+
+
 _original_update_axislabels = (ImageViewer.update_x_axislabel, ImageViewer.update_y_axislabel)
 
 
@@ -812,6 +841,24 @@ def close_event(self, event):
 
 
 ImageViewer.closeEvent = close_event
+
+
+_original_application_gluestate = GlueApplication.__gluestate__
+
+
+def application_gluestate(self, context):
+    """
+    glue-qt's ``GlueApplication.__gluestate__``, leaving out the viewers closed but not yet deleted, as when their data
+    are removed in the turn the session is saved: glue-qt 0.4.2 lists them, and glue cannot restore such an Image viewer
+    (report candidate).
+    """
+    state = _original_application_gluestate(self, context)
+    closed = {context.id(viewer) for tab in self.viewers for viewer in tab if viewer._closed}
+    state["viewers"] = [[name for name in tab if name not in closed] for tab in state["viewers"]]
+    return state
+
+
+GlueApplication.__gluestate__ = application_gluestate
 
 
 _original_canvas_init = MplCanvas.__init__

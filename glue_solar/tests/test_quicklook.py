@@ -5749,6 +5749,20 @@ def test_a_session_opens_with_a_quicklook_whose_data_were_removed(
     assert [list(tab) for tab in restored.viewers] == [[]] * bare_app.tab_count
 
 
+def test_a_session_saved_as_a_quicklook_s_data_are_removed_opens(
+    bare_app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
+    # in the same turn, before glue-qt deletes the panels left empty: their records raised StopIteration, and glue-qt
+    # listed them, an Image panel with no data then not restoring
+    raster, sji = sit_and_stare(irispy_test_files)
+    quicklook(bare_app, [raster, sji])
+    bare_app.data_collection.remove(raster)
+    bare_app.data_collection.remove(sji)
+    bare_app.save_session(str(tmp_path / "session.glu"))
+    restored = restore(qtbot, monkeypatch, tmp_path / "session.glu")
+    assert [list(tab) for tab in restored.viewers] == [[]] * bare_app.tab_count
+
+
 def test_the_time_master_turned_off_hands_the_time_back_once_on(bare_app, qtbot, irispy_test_files):
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])

@@ -68,6 +68,8 @@ from astropy.coordinates import Angle, SkyCoord, angular_separation
 from astropy.table import Column, Table, hstack
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
+from sunpy.coordinates import get_earth
+
 from glue_solar.glue_patches import _takes
 from glue_solar.lines import KM_S, _icon, rest_wavelength
 from glue_solar.quicklook import (
@@ -952,10 +954,22 @@ class RasterOverlaysTool(Tool):
         return key is not None and any(observation_key(data) == key for data in rasters)
 
 
+def _observer_distance(data):
+    """
+    The observer's distance from the Sun of ``data``, in m: its ``DSUN_OBS``, else Earth's at its ``DATE-OBS``, as
+    SSTRED files have no ``DSUN_OBS``; None without either.
+    """
+    if distance := data.meta.get("DSUN_OBS"):
+        return distance
+    date = data.meta.get("DATE-OBS")
+    return get_earth(date).radius.to_value(u.m) if date else None
+
+
 def sky_length(viewer, x, y):
     """
     The length of the line through ``x``, ``y`` on the viewer's axes as ``(pixels, arcsec, km)``: great-circle arcsec,
-    and km at ``DSUN_OBS`` in the plane of the sky, without foreshortening (#147); None off the sky (`_sky_coords`).
+    and km at `_observer_distance` in the plane of the sky, without foreshortening (#147); None off the sky
+    (`_sky_coords`).
     """
     x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
     pixels = float(np.hypot(np.diff(x), np.diff(y)).sum())
@@ -967,7 +981,7 @@ def sky_length(viewer, x, y):
     arcsec = angular_separation(lon[:-1], lat[:-1], lon[1:], lat[1:]).sum().to_value(u.arcsec)
     if not np.isfinite(arcsec):
         return pixels, None, None
-    distance = viewer.state.reference_data.meta.get("DSUN_OBS")  # in m, as FITS gives it
+    distance = _observer_distance(viewer.state.reference_data)
     return pixels, float(arcsec), float((arcsec * u.arcsec).to_value(u.rad) * distance / 1000) if distance else None
 
 
@@ -1398,7 +1412,7 @@ def _path_table(path):
         table["lon"] = sky.spherical.lon.wrap_at(180 * u.deg).to(u.arcsec)
         table["lat"] = sky.spherical.lat.to(u.arcsec)
         table["distance"] = np.append(0, np.cumsum(sky[:-1].separation(sky[1:]).arcsec)) * u.arcsec
-        if observer := data.meta.get("DSUN_OBS"):  # in m
+        if observer := _observer_distance(data):
             table["distance_km"] = table["distance"].to(u.rad).value * observer / 1000 * u.km
     return table
 
@@ -1522,13 +1536,13 @@ def _track(viewer, x, y):
     """
     The motion through ``x, y`` on a distance-time `PathData` diagram (path along x, one time a row): the first and last
     times and km, and the speed (km / s) and acceleration (m / s2, NaN at two times) of the least-squares line or
-    parabola; None without times, sky coordinates or ``DSUN_OBS`` (#175).
+    parabola; None without times, sky coordinates or `_observer_distance` (#175).
     """
     state, path = viewer.state, viewer.state.reference_data
     if not isinstance(path, PathData) or getattr(state.x_att, "axis", None) != path.ndim - 1:
         return None
     data, time = path.original_data, _time_component(path)
-    observer = data.meta.get("DSUN_OBS")  # in m
+    observer = _observer_distance(data)
     if time is None or not observer or data.coords is None:
         return None
     rows, times, km = {}, [], []

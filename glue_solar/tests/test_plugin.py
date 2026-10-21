@@ -81,6 +81,8 @@ from astropy.visualization import PowerStretch
 from astropy.visualization.wcsaxes import WCSAxes
 from astropy.wcs import WCS
 
+from sunpy.coordinates import get_earth
+
 import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
@@ -1577,11 +1579,11 @@ def test_a_path_is_drawn_on_every_viewer_of_its_image_and_placed_on_other_data(a
 
 def test_a_path_on_an_sst_cube_has_its_sky_coordinates(app, monkeypatch, tmp_path):
     # astropy gives an SST cube's longitude and latitude as quantities, not a SkyCoord (`_TabularWCS.has_celestial`):
-    # the path is still saved with them, placed by them on other data, and timed by Slope
+    # the path is still saved with them, placed by them on other data, and timed by Slope; its km, as Measure's, at
+    # Earth's distance, as SSTRED writes no DSUN_OBS
     for name in ("cube", "other"):
         write_sst_cube(tmp_path / f"{name}.fits", (3, 4, 5, 12, 16), drift=(5.0, -3.0))
     cube, other = (sst_data(tmp_path / f"{name}.fits") for name in ("cube", "other"))
-    cube.meta["DSUN_OBS"] = 1.496e11  # in m; SSTRED writes none
     app.data_collection.extend([cube, other])
     viewer = app.new_data_viewer(ImageViewer, data=cube)
     [path] = _draw_path(viewer, [2, 12], [3, 9])
@@ -1593,7 +1595,10 @@ def test_a_path_on_an_sst_cube_has_its_sky_coordinates(app, monkeypatch, tmp_pat
     lon, lat, *_ = cube.coords.pixel_to_world_values(path.x, path.y, 0, 0, 0)  # arcsec
     np.testing.assert_allclose(table["lon"].to_value(u.arcsec), lon, rtol=0, atol=1e-6)
     np.testing.assert_allclose(table["lat"].to_value(u.arcsec), lat, rtol=0, atol=1e-6)
-    assert table["distance_km"][5] > 0
+    earth = get_earth(cube.meta["DATE-OBS"]).radius.to_value(u.km)
+    np.testing.assert_allclose(table["distance_km"].to_value(u.km), table["distance"].to_value(u.rad) * earth)
+    _, arcsec, km = sky_length(viewer, path.x, path.y)
+    assert km == pytest.approx((arcsec * u.arcsec).to_value(u.rad) * earth)
 
     offered = []
 

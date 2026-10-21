@@ -21,6 +21,7 @@ from glue.core.exceptions import IncompatibleAttribute
 from glue.core.roi import RectangularROI
 from glue.core.subset import RoiSubsetState, SliceSubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
+from glue.viewers.image.state import ImageLayerState
 from glue_qt.app import GlueApplication
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
@@ -34,6 +35,7 @@ from astropy.stats import mad_std
 from astropy.wcs import WCS
 
 import glue_solar
+from glue_solar import glue_patches
 from glue_solar.quicklook import (
     QuicklookImageViewer,
     _role,
@@ -1329,6 +1331,18 @@ def test_a_stokes_collapse_reaches_every_map(sst_app, qtbot, tmp_path):
         assert (collapse.slice, collapse.center) == (slice(1, 3), 1)
     layer = viewers["map"].state.layers[0]
     assert (layer.v_min, layer.v_max) == (-5 * cube._noise[1], 5 * cube._noise[1])  # Q's
+
+
+def test_removing_the_cube_a_quicklook_shows_goes_through(sst_app, tmp_path):
+    # glue empties the panels' slices as the cube goes, where the Stokes limits, and glue's per-frame limits of the
+    # second map, raised: glue's removal stopped partway, the panels after keeping the cube
+    installed = ImageLayerState._update_slice_subset is glue_patches._update_slice_subset
+    assert installed == glue_patches.needs_slice_subset_workaround()  # probes glue's own method
+    assert not glue_patches.needs_slice_subset_workaround(glue_patches._update_slice_subset)
+    cube, _ = stokes_cube(tmp_path / "cube.fits")
+    panels = [viewer for row in quicklook(sst_app, [cube])["rows"] for viewer in row]
+    sst_app.data_collection.remove(cube)
+    assert all(panel._closed for panel in panels)
 
 
 def test_an_unlinked_cube_never_takes_the_wcs_lock(sst_app, qtbot, monkeypatch, tmp_path, sns):
