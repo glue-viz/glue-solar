@@ -1186,11 +1186,15 @@ def test_a_stokes_collapse_reaches_every_map(sst_app, qtbot, tmp_path):
     tools = spectrum.toolbar.tools["profile-analysis"]._profile_tools
     tools.ui.tabs.setCurrentIndex(2)  # Collapse
     tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 2, 4  # Q to V
+    roles = ("map", "wing", "slit", "wavelength")
+    slide(viewers["map"], 1, 1)  # at Q, whose limits the Collapse keeps
+    qtbot.waitUntil(lambda: all(viewers[role].state.slices[1] == 1 for role in roles))
     tools.ui.button_collapse.click()
-    for role in ("map", "wing", "slit", "wavelength"):
+    for role in roles:
         collapse = viewers[role].state.slices[1]
-        assert (collapse.slice, collapse.center) == (slice(1, 3), 0)
-    assert viewers["map"].state.layers[0].percentile == 99.5  # I's
+        assert (collapse.slice, collapse.center) == (slice(1, 3), 1)
+    layer = viewers["map"].state.layers[0]
+    assert (layer.v_min, layer.v_max) == (-5 * cube._noise[1], 5 * cube._noise[1])  # Q's
 
 
 def test_an_unlinked_cube_never_takes_the_wcs_lock(sst_app, qtbot, monkeypatch, tmp_path, sns):
