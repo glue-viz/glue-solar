@@ -29,6 +29,7 @@ from glue_solar.conftest import (
 )
 from glue_solar.quicklook import nearest, quicklook
 from glue_solar.regrid import north_up, north_up_iris, rebin, regrid_on_time
+from glue_solar.sources.bursts import si_iv_bursts
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import _SJI_POINTING, image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.loaders.lazy import LazyData, RawComponent
@@ -271,6 +272,12 @@ def test_the_quicklook_shows_a_regridded_raster(app, qtbot, tmp_path, irispy_tes
             qtbot.waitUntil(lambda pixel=pixel: group.subset_state.slices[0] == slice(pixel, pixel + 1))
         else:
             qtbot.waitUntil(lambda: "NO MATCH" in readout(spectrogram))
+
+
+def test_uv_bursts_of_a_regridded_raster_are_none_in_its_gap(tmp_path, irispy_test_files):
+    """The gap's times are NaT, which irispy converts with every exposure's; its NaN values give no burst."""
+    labels = si_iv_bursts(regrid_on_time(sit_and_stare(tmp_path, irispy_test_files)), threshold=2)[0]["label"]
+    assert [labels[:GAP].any(), labels[GAP : GAP + 10].any(), labels[GAP + 10 :].any()] == [True, False, True]
 
 
 def rolled_sji(tmp_path, roll):

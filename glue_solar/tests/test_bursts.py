@@ -190,6 +190,8 @@ def test_a_rebinned_window_gives_bursts_at_its_own_exposure_times(irispy_test_fi
     """Rebinned by 2 along its 64 steps: irispy takes the 32 bins' exposure times, not its copied meta's 64 (D59)."""
     [raster] = raster_data([find_irispy_test_file(irispy_test_files, SI_IV)])
     binned = rebin(raster, (2, 2, 1))
+    seconds = binned[binned.id["Exposure time"], (slice(None), 0, 0)]  # the mean of each bin's
+    np.testing.assert_array_equal(iris._irispy_meta(binned)["exposure time"].to_value(u.s), seconds)
     labels, table = si_iv_bursts(binned, threshold=80)
     assert (labels.shape, table.size) == (binned.shape[:2], 1)
 
