@@ -1,0 +1,1 @@
+Measure, Slope and 'Save path as ECSV…' give km on an SST cube, at Earth's distance from the Sun, removing an SST cube that its quicklook shows goes through without an error, and a session saved in the turn a quicklook's data are removed opens again with that tab empty.
