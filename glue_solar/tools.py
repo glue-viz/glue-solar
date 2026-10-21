@@ -151,6 +151,18 @@ def _sit_and_stare_raster(data):
     return data is not None and _role(data) == "raster" and data.ndim == 3 and _is_sit_and_stare(data)
 
 
+def _beside_exposures(data, axis):
+    """
+    The world axis shown along the numpy ``axis`` beside a sit-and-stare raster's exposures: glue's own, but along the
+    slit the angle that changes more along it, its longitude on a slit rolled near 90° (D30).
+    """
+    if axis != 1:
+        return data.ndim - 1 - axis
+    ends = data.coords.pixel_to_world_values(0, [0, data.shape[1] - 1], 0)[1:]  # latitude, longitude, arcsec (D31)
+    lat, lon = np.abs(Angle(np.diff(ends)[:, 0], u.arcsec).wrap_at(180 * u.deg))  # the short way across 0°
+    return 2 if lon > lat else 1
+
+
 def _hovered(state, x, y):
     """
     The index of the reference data's pixel at ``x, y`` of the Image viewer's displayed axes, in the displayed slice, or
@@ -396,8 +408,9 @@ class FrameTimeTool(Tool, HubListener):
             return text
         if text.endswith(" (world)"):  # not a pixel position or an overlay, which W switches to
             shown = (state.x_att.axis, state.y_att.axis)
-            # glue's own mapping of the axis beside the exposures to its world coordinate, as for the ticks
-            keep = axes.coords[data.ndim - 1 - max(shown)] if 0 in shown and _sit_and_stare_raster(data) else None
+            keep = None
+            if 0 in shown and _sit_and_stare_raster(data):  # the coordinate beside the exposures, as for the ticks
+                keep = axes.coords[_beside_exposures(data, max(shown))]
             text = _world_position(axes, x, y, keep, rest_wavelength(data))
         pixel = _hovered(state, x, y)
         if pixel is None:
@@ -431,8 +444,11 @@ class FrameTimeTool(Tool, HubListener):
             exposures = sit_and_stare and att.axis == 0
             label = getattr(state, f"{axis}_axislabel")
             if label in ("", getattr(world, "label", None)):  # glue's reset
+                if sit_and_stare and other.axis == 0:  # beside the exposures, the angle shown, by its own name (D30)
+                    world = data.world_component_ids[data.ndim - 1 - _beside_exposures(data, att.axis)]
                 unit = panel and world is not None and data.get_component(world).units
-                new = _exposure_label(data) if exposures else f"{world.label} [{unit}]" if unit else label
+                own = f"{world.label} [{unit}]" if unit else label and world.label
+                new = _exposure_label(data) if exposures else own
                 if isinstance(data, PathData):
                     new = _diagram_label(data, att.axis) or new
                 if new != label:
@@ -441,10 +457,17 @@ class FrameTimeTool(Tool, HubListener):
             if not exposures:
                 continue
             coords, ticks = self._exposure_ticks
+            beside = _beside_exposures(data, other.axis)
             if coords is not axes.coords:  # glue reset the axes, and the ticks with them
-                # glue's own mapping of a pixel axis to its world coordinate, as in its tick label sizes
-                ticks = _index_ticks(axes, index, axes.coords[data.ndim - 1 - other.axis])
+                ticks = _index_ticks(axes, index, axes.coords[beside])
                 self._exposure_ticks = (axes.coords, ticks)
+            if beside != data.ndim - 1 - other.axis:  # glue labels by spine, giving it the exposure axis' label (D30)
+                along = "yx"[index]
+                axes.coords[beside].set_axislabel(
+                    getattr(state, f"{along}_axislabel"),
+                    size=getattr(state, f"{along}_axislabel_size"),
+                    weight=getattr(state, f"{along}_axislabel_weight"),
+                )
             # glue styles and labels only the WCS coordinates
             color = settings.FOREGROUND_COLOR
             ticks.set_ticks(color=color)
@@ -1340,9 +1363,18 @@ class PathCrosshairTool(BasePathSlicerCrosshairMode):
 
 
 def _sky(coords, pixels):
-    """The sky coordinates ``coords`` give at ``pixels``, a pixel or array of each axis in numpy order; None if none."""
+    """
+    The sky coordinates ``coords`` give at ``pixels``, a pixel or array of each axis in numpy order; None if none. An
+    SST cube's angles, which astropy gives as quantities (`_TabularWCS.has_celestial`), go in a SkyCoord of the default
+    frame: the callers take only angles and separations.
+    """
     world = HighLevelWCSWrapper(coords).pixel_to_world(*pixels[::-1])
-    return next((w for w in (world if isinstance(world, list) else [world]) if isinstance(w, SkyCoord)), None)
+    sky = next((w for w in (world if isinstance(world, list) else [world]) if isinstance(w, SkyCoord)), None)
+    types = list(coords.world_axis_physical_types)
+    if sky is None and set(_HPC) <= set(types):
+        values, units = coords.pixel_to_world_values(*pixels[::-1]), coords.world_axis_units
+        sky = SkyCoord(*(u.Quantity(values[types.index(kind)], units[types.index(kind)]) for kind in _HPC))
+    return sky
 
 
 def _path_sky(path, row):
@@ -2262,8 +2294,14 @@ class MainWindowTool(Tool):
 
 
 def _position(viewer):
-    """The Image viewer's position, D41's A or B: its reference data and slider position."""
-    return viewer.state.reference_data, tuple(viewer.state.slices)
+    """
+    The Image viewer's position, D41's A or B: its reference data, slider position and layers with per-frame limits,
+    which `PerFrameLimitsTool` turns off as other data is shown.
+    """
+    state = viewer.state
+    data = state.reference_data
+    per_frame = [layer for layer in _layers_of(state, data) if not getattr(layer, "stretch_global", True)]
+    return data, tuple(state.slices), per_frame
 
 
 def _layers_of(state, data):
@@ -2271,10 +2309,11 @@ def _layers_of(state, data):
     return [layer for layer in state.layers if layer.layer.data is data]
 
 
-def _show_position(viewer, coordinator, data, slices):
+def _show_position(viewer, coordinator, data, slices, per_frame=()):
     """
     Show ``data`` at ``slices`` as a blink flip (D41): axes, zoom, point and time sync stay, a follower at its time
-    sync index; glue resets them for other data, so they are set again, and the data left is hidden, as glue would
+    sync index; glue resets them for other data, so they are set again, as are its layers' per-frame limits
+    ``per_frame``, which `PerFrameLimitsTool` turned off as it was left; and the data left is hidden, as glue would
     retry its disabled layer at every draw (about a second on a full raster).
     """
     state = viewer.state
@@ -2294,6 +2333,8 @@ def _show_position(viewer, coordinator, data, slices):
         state.x_att = data.pixel_component_ids[x]
         state.y_att = data.pixel_component_ids[y]
         state.slices = slices
+        for layer in per_frame:
+            layer.stretch_global = False
         with delay_callback(state, "x_min", "x_max", "y_min", "y_max"):
             state.x_min, state.x_max, state.y_min, state.y_max = limits
         for layer in _layers_of(state, shown):

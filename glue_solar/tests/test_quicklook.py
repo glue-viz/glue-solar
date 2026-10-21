@@ -616,6 +616,37 @@ def test_a_slit_step_relabels_the_exposure_axis_without_placing_its_ticks(bare_a
         assert list(drawn_ticks(wavelength, "l")) == ["Exposure"]
 
 
+def test_a_rolled_sit_and_stare_slit_gives_the_angle_along_it(bare_app, tmp_path, irispy_test_files):
+    # D30: on a slit rolled 90°, the readout and the slit axis give the longitude, which changes along it, by its own
+    # name; glue maps the axis to the latitude, which does not
+    path = tmp_path / SNS.format("raster_t000_r00000")
+    with fits.open(find_irispy_test_file(irispy_test_files, path.name)) as hdulist:
+        aux = hdulist[-2]  # before the Level 1 file names
+        aux.data[:, aux.header["PC3_2IX"]], aux.data[:, aux.header["PC2_2IX"]] = 1, 0
+        hdulist.writeto(path)
+    [raster] = raster_data([path], ["Si IV 1403"])
+    raster_map = quicklook(bare_app, [raster])["map"]  # exposures along x
+    raster_map.toolbar.actions["solar:hide_axes"].trigger()  # the panels open without axes (D71)
+    label = "Helioprojective Longitude [arcsec]"
+    _, _, lon = raster.coords.pixel_to_world_values(0, [0, 39], 2)
+
+    def check(axis, side, ends):
+        assert getattr(raster_map.state, f"{axis}_axislabel") == label
+        ticks = drawn_ticks(raster_map, side)
+        assert list(ticks) == [label]
+        assert len(ticks[label]) >= 2
+        readouts = [raster_map.axes.format_coord(x, y).split(" (world)")[0] for x, y in ends]
+        assert readouts == [f'{angle:.2f}"' for angle in lon]
+
+    check("y", "l", [(2, 0), (2, 39)])
+    state = raster_map.state
+    state.x_att, state.y_att = raster.pixel_component_ids[1], raster.pixel_component_ids[0]  # the slit across
+    check("x", "b", [(0, 2), (39, 2)])
+    plain = bare_app.new_data_viewer(ImageViewer, data=raster)  # glue's labels, without their units
+    plain.state.x_att, plain.state.y_att = raster.pixel_component_ids[0], raster.pixel_component_ids[1]
+    assert list(drawn_ticks(plain, "l")) == [plain.state.y_axislabel] == ["Helioprojective Longitude"]
+
+
 def test_the_quicklook_axes_give_their_units(bare_app, qtbot, irispy_test_files):
     """
     The quicklook's axes give their units (D90): the spectrum panel's wavelength, in its display unit too, and values,
@@ -6030,6 +6061,25 @@ def test_blink_alternates_two_windows_exactly(bare_app, qtbot, irispy_test_files
     menu_action(raster_map, "Set blink partner here").trigger()
     assert not tool._blink.isActive()
     assert position(raster_map)[-1] == {si4.label, mg.label}
+
+
+def test_a_blink_keeps_per_frame_limits(bare_app, qtbot, irispy_test_files):
+    # D41: the window left takes its whole cube's limits, as glue would take them at the other's slices, and its
+    # per-frame limits again as it comes back
+    viewers, (_, si4, mg) = blink_windows(bare_app, qtbot, irispy_test_files)
+    raster_map = viewers["map"]
+    state, tool = raster_map.state, raster_map.toolbar.tools["solar:coordinate"]
+    raster_map.toolbar.actions["solar:per_frame_limits"].trigger()  # on Mg II k
+    [layer] = [layer for layer in state.layers if layer.layer is mg]
+    limits = (layer.v_min, layer.v_max)
+    tool._blink.setInterval(60_000)  # no tick of its own between the flips by hand, however slow the machine
+    blink = menu_action(raster_map, "Blink")
+    blink.trigger()
+    assert (state.reference_data, layer.stretch_global) == (si4, True)
+    tool._flip()
+    assert (state.reference_data, layer.stretch_global, (layer.v_min, layer.v_max)) == (mg, False, limits)
+    assert raster_map.toolbar.tools["solar:per_frame_limits"].checked
+    blink.trigger()
 
 
 def test_what_moves_on_a_blink(bare_app, qtbot, irispy_test_files):

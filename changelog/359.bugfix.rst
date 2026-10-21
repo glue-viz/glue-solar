@@ -1,0 +1,1 @@
+A blink between two datasets keeps each one's per-frame limits, an SST cube's path is saved with its longitude and latitude and can be placed on other data, and a sit-and-stare slit rolled near 90° gives its longitude in the readout and on its axis.
