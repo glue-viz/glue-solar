@@ -313,6 +313,7 @@ def test_a_restored_session_keeps_the_data_linked_on_request_linked(qtbot, tmp_p
     link_iris(None, collection)
     restored = next(twice(collection))
     sji, raster, *others = restored
+    assert type(others[2].coords) is _LockedWCS  # glue restores a plain WCS, which profile workers reach unlocked
     if opened:
         glue_solar.setup()
         app = GlueApplication(restored)

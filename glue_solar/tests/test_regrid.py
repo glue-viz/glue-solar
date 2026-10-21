@@ -8,7 +8,7 @@ import warnings
 
 import numpy as np
 import pytest
-from glue.core import Data
+from glue.core import Data, DataCollection
 from glue.core.component_link import CoordinateComponentLink
 from qtpy import QtWidgets
 from qtpy.QtCore import Qt
@@ -27,7 +27,7 @@ from glue_solar.conftest import (
     int16_raster_copy,
     startobs,
 )
-from glue_solar.quicklook import quicklook
+from glue_solar.quicklook import nearest, quicklook
 from glue_solar.regrid import north_up, north_up_iris, rebin, regrid_on_time
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import _SJI_POINTING, image_data, keep_hpc_linked, link_hpc, raster_data
@@ -35,7 +35,7 @@ from glue_solar.sources.loaders.lazy import LazyData, RawComponent
 from glue_solar.sources.moments import line_moments
 from glue_solar.tests.helpers import press, refused
 from glue_solar.tests.test_lazy import RASTER, SJI, zero_exposure
-from glue_solar.tests.test_quicklook import LEAD, expected_nearest, menu_action, readout
+from glue_solar.tests.test_quicklook import LEAD, SNS, expected_nearest, menu_action, readout, repointed
 from glue_solar.tools import _exposure_label
 
 GAP = 100  # the first exposure of the sit-and-stare raster after the 10 left out
@@ -171,6 +171,27 @@ def test_a_stack_regrids_its_scans(irispy_data):
     regridded = regrid_on_time(stack)
     assert list(check_regrid(stack, regridded)) == [10, 11, 12]
     assert regridded.shape[0] == 29
+
+
+def test_a_regridded_stack_links_each_slit_jaw_frame_to_its_nearest_scan(tmp_path, irispy_test_files):
+    # past a gap, a regridded stack's Scan at a pixel is its source scan, not the pixel: a frame linked by the pixel
+    # landed a scan late, through the next scan's pointing
+    paths = [repointed(tmp_path / SNS.format(f"raster_t000_r0000{i}"), irispy_test_files, step=0.3) for i in range(4)]
+    [stack] = raster_data(paths, ["Si IV 1403"], stack=True)
+    sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    frames, middle = sji[sji.id["Time"]][:, 0, 0], stack.shape[1] // 2
+    times = stack[stack.id["Time"]].copy()
+    first = times[0] - times[0, middle, 0, 0] + frames[0]
+    for scan, slot in enumerate([0, 1, 3, 4]):  # across the frames, none at slot 2
+        times[scan] = first + slot * (frames[-1] - frames[0]) / 4
+    stack.update_components({stack.id["Time"]: times})
+    regridded = regrid_on_time(stack)
+    assert list(check_regrid(stack, regridded)) == [2]
+    collection = DataCollection([sji, regridded])
+    collection.add_link(link_hpc(collection))
+    expected = nearest(frames, regridded[regridded.id["Time"]][:, middle, 0, 0])[0]
+    assert set(expected) == {0, 1, 3, 4}
+    np.testing.assert_allclose(sji[regridded.pixel_component_ids[0]][:, 0, 0], expected, atol=1e-9)
 
 
 def test_a_scanning_raster_and_other_data_are_refused(scan_path):

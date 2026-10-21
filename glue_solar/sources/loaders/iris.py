@@ -983,13 +983,15 @@ def link_hpc(data_collection, others=()):
     for stack, scan in scans.items():
         if stack.find_component_id("Time") is None:  # a stack's maps, such as its line moments
             continue
-        times = _times(stack, stack.shape[1] // 2)  # whose indices are the scan numbers (stack_wcs)
+        times = _times(stack, stack.shape[1] // 2)
+        # each scan pixel's Scan: its index (stack_wcs), but its source scan once regridded on time (_Regridded)
+        values = stack[scan, (slice(None),) + (0,) * (stack.ndim - 1)]
         for data in datasets:
             frame = data.pixel_component_ids[0]
             if data in scans or frozenset((scan, frame)) in linked or data.find_component_id("Time") is None:
                 continue
             when = _times(data, 0)
-            nearby = np.where(np.isnat(when), np.nan, nearest(when, times)[0])  # none for a frame without a time
+            nearby = np.where(np.isnat(when), np.nan, values[nearest(when, times)[0]])  # none for a frame with no time
             links.append(ComponentLink([frame], scan, using=_ScanAt(nearby)))
     for data in data_collection:
         if _role(data) == "sst":
@@ -1110,7 +1112,9 @@ class _LinkedCollection:
     @staticmethod
     def __setgluestate__(rec, context):
         collection = context.dispatch.get_version(DataCollection, rec.get("_protocol", 1))(rec, context)
-        _relinker(collection)
+        for data in _relinker(collection).others:  # glue restores a plain WCS: lock it as `link_hpc` did
+            if type(data.coords) is WCS:
+                data.coords.__class__ = _LockedWCS
         return collection
 
 
