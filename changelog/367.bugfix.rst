@@ -1,0 +1,1 @@
+A line width given only an upper bound in the 'Gaussian + constant' fitter's Settings stays positive, a Profile viewer of a raster path diagram opens, 'Set rest wavelength…' refuses a wavelength of 0 or less or not finite, 'Lines in this range…' no longer keeps each earlier list in memory, and a Profile x axis in km / s reads 'Velocity from <rest> Å [km / s]'.

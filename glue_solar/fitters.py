@@ -331,6 +331,11 @@ class GaussianConstantFitter(AstropyFitter1D):
             if constraints[name]["fixed"] and constraints[name]["value"] is None:
                 constraints[name]["value"] = start
         model, fitter = self._get_model_fitter(x, y, dy, constraints)
+        # widths positive, as irispy's: glue's `_get_model_fitter` sets an upper bound alone as (None, upper)
+        for index, (leaf, _) in enumerate(self.components):
+            width = getattr(model, _name(leaf.param_names[-1], index, self.components))
+            if isinstance(leaf, _LINES) and width.min is None:
+                width.min = models.Gaussian1D.stddev.bounds[0]
         for name, (lower, upper) in model.bounds.items():  # a start from the data within the bounds set in Settings
             if not (model.fixed[name] or model.tied[name]):
                 parameter = getattr(model, name)
