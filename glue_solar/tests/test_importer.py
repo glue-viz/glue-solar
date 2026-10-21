@@ -338,6 +338,32 @@ def test_browse_iris_lets_its_dialog_go(app, qtbot, monkeypatch, iris_tree):
     assert not app.findChildren(QtIRISImporter)  # the dialog, holding what it loaded, is gone
 
 
+def test_browse_iris_closed_while_it_scans_lets_its_dialog_go(app, qtbot, monkeypatch, iris_tree):
+    from glue_solar.sources.iris import browse_iris
+    from glue_solar.sources.loaders import scan
+
+    reading, deleted, read = threading.Event(), threading.Event(), scan._primary_header
+
+    def slow(path):
+        reading.set()
+        deleted.wait(10)
+        return read(path)
+
+    def close(dialog):  # Escape while the scan reads a header
+        assert reading.wait(10)
+        dialog.reject()
+        return QDialog.Rejected
+
+    monkeypatch.setattr(scan, "_primary_header", slow)
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *args, **kwargs: str(iris_tree))
+    monkeypatch.setattr(QtIRISImporter, "exec", close)
+    browse_iris(app.session, app.data_collection)
+    QApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    assert not app.findChildren(QtIRISImporter)
+    deleted.set()  # the scan reports its next file to the deleted dialog, which segfaulted
+    qtbot.waitUntil(lambda: not _RUNNING, timeout=60_000)
+
+
 def test_a_failure_after_the_reads_stays_in_the_dialog(qtbot, iris_tree, capsys):
     def shown(loaded, quicklooks, main):
         raise ValueError("no viewer to show")

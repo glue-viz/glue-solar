@@ -1213,6 +1213,16 @@ def _scan(load, directory, recursive, start, end, stop, report):
 _RUNNING = set()
 
 
+class _Worker(Worker):
+    """glue-qt's worker, which passes its own ``progressed.emit`` as the ``report`` its function is called with last."""
+
+    progressed = Signal(int, int)  # (load, percent): the worker's own, as emitting a deleted dialog's signal segfaults
+
+    def __init__(self, function, *args):
+        super().__init__(function, *args)
+        self.args += (self.progressed.emit,)
+
+
 def _fmt(value, unit):
     return "" if value is None else f"{round(value, 1) + 0.0:.1f}{unit}"  # + 0.0 turns -0.0 into 0.0
 
@@ -1239,8 +1249,6 @@ class QtIRISImporter(QtWidgets.QDialog):
     main)``, if given, names the datasets the first viewers will show, whose color limits are counted there too.
     """
 
-    progressed = Signal(int, int)  # (load, percent), from the worker thread
-
     def __init__(self, directory=None, parent=None, shown=None):
         super().__init__(parent)
         self.ui = load_ui(UI_MAIN, self)
@@ -1255,7 +1263,6 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.obs_tree.itemChanged.connect(self._ticked_windows)
         self.main_window.textActivated.connect(lambda text: setattr(self, "_main", text))
         self._ticked, self._main = set(), None  # the payloads of the ticked raster windows, and the main one chosen
-        self.progressed.connect(self._progressed)
         self.change.clicked.connect(self.choose_directory)
         self.recursive.toggled.connect(lambda _checked: self.set_directory(self.directory.text()))
         self._filter_timer = QTimer(self)  # one filter a pause in typing, not one a keystroke
@@ -1515,7 +1522,8 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.progress.setValue(0)
         self._load += 1
         self._stop = threading.Event()
-        worker = Worker(function, self._load, *args, self._stop, self.progressed.emit)
+        worker = _Worker(function, self._load, *args, self._stop)
+        worker.progressed.connect(self._progressed)
         worker.result.connect(done)
         worker.error.connect(partial(self._failed, self._load))
         _RUNNING.add(worker)
