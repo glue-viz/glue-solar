@@ -319,16 +319,20 @@ def test_the_o_iv_preset_adds_irispys_density_diagnostic_of_two_moments_maps(
     # typed densities and temperature; once built, the status bar says no more
     fiasco.defaults["hdf5_dbase_root"].touch()
     fiasco.calls.clear()
-    preset(monkeypatch, (9, 12, 5.4))
+    preset(monkeypatch, (9, 12, 5.42))
     tree.ui.layerTree.set_selected_layers(lines)
     tree._actions[ACTION].trigger()
     assert app.statusBar().currentMessage() == "Mapping the O IV density…"
     qtbot.waitUntil(lambda: len(collection) == 5 and not iris._RUNNING)
     typed = collection[-1]
-    assert typed.meta == {**result.meta, "ratio_log_n_e": (9, 12), "ratio_log_t": 5.4}
+    assert typed.meta == {**result.meta, "ratio_log_n_e": (9, 12), "ratio_log_t": 5.42}
     [_, (_, ratio_args, _)] = fiasco.calls
     np.testing.assert_array_equal(ratio_args[1], np.logspace(9, 12, 31) * u.cm**-3)
-    direct = density_diagnostic(over, under, ratio_args[1], o_iv_curve(np.logspace(9, 12, 31), 5.4))
+    # log T 5.42 is off fiasco's grid: its curves at 5.4 and 5.45 about it, interpolated linearly in T
+    densities, (t0, t1) = np.logspace(9, 12, 31), TEMPERATURES[18:20]
+    w = (10**5.42 - t0) / (t1 - t0)
+    curve = (1 - w) * o_iv_curve(densities, np.log10(t0)) + w * o_iv_curve(densities, np.log10(t1))
+    direct = density_diagnostic(over, under, ratio_args[1], curve)
     np.testing.assert_allclose(typed["log n_e"], np.log10(direct["density"].to_value(u.cm**-3)), rtol=1e-15)
     both = np.isfinite(typed["log n_e"]) & np.isfinite(result["log n_e"])
     assert both.any()
