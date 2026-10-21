@@ -19,6 +19,7 @@ import astropy.units as u
 
 from glue_solar import glue_patches
 from glue_solar.conftest import SCAN, find_irispy_test_file
+from glue_solar.regrid import rebin
 from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
 from glue_solar.sources.calibration import remove_dust
 from glue_solar.sources.loaders import iris
@@ -183,6 +184,16 @@ def test_a_stack_gives_each_scans_labels_and_events(app, qtbot, monkeypatch, sta
     [first] = raster_data(stack_paths[:1], ["Si IV 1403"])
     assert labels.meta["bursts_threshold"] == si_iv_bursts(first)[0].meta["bursts_threshold"]
     assert_each_scans(labels, table, stack_paths)
+
+
+def test_a_rebinned_window_gives_bursts_at_its_own_exposure_times(irispy_test_files):
+    """Rebinned by 2 along its 64 steps: irispy takes the 32 bins' exposure times, not its copied meta's 64 (D59)."""
+    [raster] = raster_data([find_irispy_test_file(irispy_test_files, SI_IV)])
+    binned = rebin(raster, (2, 2, 1))
+    seconds = binned[binned.id["Exposure time"], (slice(None), 0, 0)]  # the mean of each bin's
+    np.testing.assert_array_equal(iris._irispy_meta(binned)["exposure time"].to_value(u.s), seconds)
+    labels, table = si_iv_bursts(binned, threshold=80)
+    assert (labels.shape, table.size) == (binned.shape[:2], 1)
 
 
 def test_a_slit_jaw_image_gives_irispys_labels_and_events_on_its_coordinates(

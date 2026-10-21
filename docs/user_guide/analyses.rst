@@ -77,9 +77,12 @@ The velocities are on the uncorrected Level 2 wavelength scale, which can be off
 To correct them, set a rest wavelength measured on a line at rest (see "Rest wavelength from a
 measured line" in :ref:`The spectrum panel <glue_solar_users_guide_iris_spectrum_panel>`).
 
-A pixel is NaN where a sample taken is missing or saturated (see :ref:`Missing and saturated samples
-<glue_solar_users_guide_iris_saturation>`); the status bar counts the saturated pixels of the line
-moments.
+A line moments pixel is NaN where every sample within the velocities is missing, or one there is
+saturated (see :ref:`Missing and saturated samples <glue_solar_users_guide_iris_saturation>`);
+another missing sample counts as 0, so lowers its intensity. The red-blue asymmetry leaves missing
+samples out of its spline, and is NaN where ``quality`` is not 0. A Doppler image pixel is NaN
+where either sample it interpolates between is missing or saturated. The status bar counts the
+saturated pixels of the line moments.
 
 In glue's terminal, ``glue_solar.sources.moments.line_moments(data, center, velocity_range,
 continuum, errors)``, ``glue_solar.sources.doppler.doppler_image(data, rest, velocities,

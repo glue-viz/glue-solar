@@ -13,6 +13,7 @@ import astropy.units as u
 from astropy.io import ascii
 
 from glue_solar.glue_patches import layer_action
+from glue_solar.quicklook import _role
 from glue_solar.sources.loaders.iris import keep_hpc_linked
 from glue_solar.sources.moments import _accepted, _form, _start, _view
 
@@ -231,8 +232,15 @@ def _ask(datasets):
 
 
 def _maps(layers):
-    """The 2-D datasets of ``layers``; raise why they do not hold two components between them."""
-    datasets = [layer for layer in layers if isinstance(layer, Data) and layer.ndim == 2]
+    """
+    The maps of ``layers``, 2-D or a stack's (scan, step, slit) (D59), not loaded data; raise why they do not hold two
+    components between them.
+    """
+    datasets = [
+        layer
+        for layer in layers
+        if isinstance(layer, Data) and (layer.ndim == 2 or (layer.ndim == 3 and _role(layer) is None))
+    ]
     if sum(len(data.main_components) for data in datasets) < 2:
         raise ValueError("Select two maps on the same grid, such as the line moments of two lines.")
     return datasets

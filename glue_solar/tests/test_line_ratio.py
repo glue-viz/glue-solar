@@ -116,6 +116,20 @@ def test_the_action_adds_irispys_map_of_two_moments_maps_as_one_linked_dataset_i
     assert np.isnan(log_ne).any()
 
 
+def test_the_line_moments_of_a_stack_give_irispys_map_of_each_scan(app, monkeypatch, stack_paths, table):
+    """Maps of (scan, step, slit), as every analysis gives a stack's (D59)."""
+    [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
+    lines = [line_moments(stack, center) for center in (1399.77, 1401.16)]
+    app.data_collection.extend([stack, *lines])
+    answer(monkeypatch, table)
+    result = run(app, lines)
+    assert result.shape == stack.shape[:-1]
+    ratio, log_ne = direct(lines[0]["intensity"], lines[1]["intensity"])
+    np.testing.assert_array_equal(result["ratio"], ratio)
+    np.testing.assert_array_equal(result["log n_e"], log_ne)
+    assert np.isfinite(log_ne).any()
+
+
 def test_a_synthetic_ratio_gives_irispys_quantity(app, monkeypatch, tmp_path):
     """
     Two maps whose ratio is known give irispy's own quantity for it, here from a decreasing curve in a CSV table with

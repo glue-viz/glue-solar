@@ -109,7 +109,9 @@ def _si_iv_bursts(data, crop, threshold, velocity_range, median_factor):
     for k, scan in enumerate(np.ndindex(data.shape[:-3])):  # each scan of a stack, as that scan alone gives them
         rows = (*scan, slice(None), slice(None), crop)
         values = data[data.main_components[0], rows]  # scaled float32 DN, NaN where missing
-        times = Time(data[data.id["Time"], (*scan, slice(None), 0, 0)], scale="utc")
+        times = data[data.id["Time"], (*scan, slice(None), 0, 0)]
+        # a time for a regridded gap's NaT (D37), which irispy's gwcs cannot convert; its NaN values give no burst
+        times = Time(np.where(np.isnat(times), np.nanmin(data[data.id["Time"], (..., 0, 0)]), times), scale="utc")
         meta = _irispy_meta(data, scan)
         cube = SpectrogramCube(
             values,

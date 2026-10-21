@@ -725,9 +725,9 @@ def _image_cube_data(cube, path, scaling=None):
 
 def _irispy_meta(data, scan=()):
     """
-    irispy's metadata of ``data``, a raster window, or of its ``scan`` of a stack with that scan's exposure times, as
-    its analyses read it: made again from the dict a session restores, or a stack's, scan 0's, whose ``DATE_OBS`` only
-    picks irispy's response.
+    irispy's metadata of ``data``, a raster window, or of its ``scan`` of a stack, with its own exposure times (D59), as
+    its analyses read it: made again from the dict a session restores, a rebinned or regridded window's, whose exposure
+    times are its source's, or a stack's, scan 0's, whose ``DATE_OBS`` only picks irispy's response.
     """
     from irispy.meta import SGMeta
 
@@ -736,8 +736,7 @@ def _irispy_meta(data, scan=()):
     if isinstance(data.meta, SGMeta):
         return data.meta
     meta = dict(data.meta)
-    if scan:
-        meta["exposure time"] = data[data.id["Exposure time"], (*scan, slice(None), 0, 0)] * u.s
+    meta["exposure time"] = data[data.id["Exposure time"], (*scan, slice(None), 0, 0)] * u.s
     return SGMeta(meta, _window(data)[0], data_shape=data.shape[len(scan) :])
 
 
