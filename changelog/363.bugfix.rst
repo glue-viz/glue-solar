@@ -1,0 +1,1 @@
+An SST quicklook's scan step takes 90-110 ms rather than 170 ms, as glue-qt's worker runs once a step for each spectrum, not twice.
