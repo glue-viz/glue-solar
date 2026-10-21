@@ -3,6 +3,7 @@ SST CRISP and CHROMIS cubes as the SST archive exports them from the SSTRED pipe
 tabulated (-TAB) WCS, read by File → Open Data Set and `sst_data`.
 """
 
+import mmap
 import threading
 import warnings
 from functools import cached_property
@@ -15,6 +16,8 @@ from glue.config import data_factory
 from glue.core.component import Component, DaskComponent
 from glue.core.data import Data
 from glue.core.state import _load_data_5, _save_data_5
+from glue.core.subset import SliceSubsetState
+from glue.utils import unbroadcast
 
 from astropy.io import fits
 from astropy.stats import mad_std
@@ -189,13 +192,61 @@ class _Cube(Data):
     session keeps the class, and reads the ``VAR-EXT`` tables of ``meta`` from the file again.
     """
 
+    def get_data(self, cid, view=None):
+        self._will_need(cid, view)
+        return super().get_data(cid, view=view)
+
     def compute_statistic(self, statistic, cid, subset_state=None, axis=None, view=None, random_subset=None, **kwargs):
+        if isinstance(subset_state, SliceSubsetState) and subset_state.reference_data is self and view is None:
+            # glue reads a slice subset (a frame's limits, a spectrum) by its slices, past `get_data`: hint them here
+            indices = (np.arange(n)[s].reshape(-1) for s, n in zip(subset_state.slices, self.shape))
+            self._will_need(cid, np.ix_(*indices))
         sampled = random_subset and subset_state is None and axis is None and view is None
         if sampled and type(self._components.get(cid)) is Component:  # not the cavity error's dask, nor a derived one
             view, random_subset = self._sample(random_subset), None
         return super().compute_statistic(
             statistic, cid, subset_state=subset_state, axis=axis, view=view, random_subset=random_subset, **kwargs
         )
+
+    def _will_need(self, cid, view):
+        """
+        Ask the kernel for the pages of the file that ``self[cid, view]`` reads, ``view`` an index array per axis as
+        glue's image buffers and samples give: once a cold file's read-around stops, after about 100 page-fault misses,
+        each page otherwise comes in a fault of its own, and an SST quicklook's scan step took 0.36-0.54 s on Linux, a
+        revisit's time with the hints (D100). It asks for each row's span between the columns read when each index runs
+        along an axis of its own, else for each value, up to 100,000 rows or values; pages a page or less apart as one
+        run, 128 KB a call, as a call reads at most the readahead window. Nothing where mmap has no madvise (Windows).
+        """
+        component = self._components.get(cid)
+        if type(component) is not Component or not isinstance(view, tuple) or len(view) != self.ndim:
+            return
+        if not all(isinstance(index, np.ndarray) and index.dtype == np.intp for index in view):
+            return
+        small = [unbroadcast(index) for index in view]
+        if not all(index.size and 0 <= index.min() and index.max() < n for index, n in zip(small, self.shape)):
+            return  # nothing read, or left to numpy's index rules
+        values = root = component.data
+        while isinstance(root.base, np.ndarray):
+            root = root.base
+        advise = getattr(root.base, "madvise", None)  # the file's memory map's
+        if advise is None:
+            return
+        axes = [k - index.ndim for index in small for k, n in enumerate(index.shape) if n > 1]  # as numpy broadcasts
+        if len(axes) == len(set(axes)):
+            *rows, columns = (np.unique(index) for index in small)
+            grid, length = np.ix_(*rows, columns[:1]), (columns[-1] - columns[0]) * values.strides[-1] + values.itemsize
+        else:
+            grid, length = view, values.itemsize
+        if np.broadcast(*grid).size > 100_000:
+            return
+        starts = np.sort(sum(index * stride for index, stride in zip(grid, values.strides)), axis=None)
+        starts += values.ctypes.data - np.frombuffer(root.base, np.uint8).ctypes.data  # from the map's start
+        page, call = mmap.PAGESIZE, (128 << 10) // mmap.PAGESIZE
+        first, last = starts // page, (starts + length - 1) // page
+        ends = np.flatnonzero(first[1:] > last[:-1] + 2)  # each run's last
+        for a, b in zip([0, *(ends + 1)], [*ends, len(starts) - 1]):
+            for start in range(first[a], last[b] + 1, call):
+                advise(mmap.MADV_WILLNEED, start * page, min(call, last[b] + 1 - start) * page)
 
     def _sample(self, size, stokes=None, tuning=None):
         """
