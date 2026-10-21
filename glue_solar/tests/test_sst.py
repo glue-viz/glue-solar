@@ -1176,6 +1176,23 @@ def test_a_session_restores_the_sst_quicklook(sst_app, qtbot, monkeypatch, tmp_p
     check_sst_panels(again, values, group)
 
 
+def test_a_stokes_collapse_reaches_every_map(sst_app, qtbot, tmp_path):
+    # glue's Collapse gives the Image panels an AggregateSlice of Stokes parameters, its center's limits (D39)
+    cube, _ = stokes_cube(tmp_path / "cube.fits")
+    viewers = quicklook(sst_app, [cube])
+    spectrum = viewers["spectra"][0]
+    spectrum.state.x_att = cube.world_component_ids[1]  # Stokes
+    spectrum.toolbar.active_tool = "profile-analysis"
+    tools = spectrum.toolbar.tools["profile-analysis"]._profile_tools
+    tools.ui.tabs.setCurrentIndex(2)  # Collapse
+    tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 2, 4  # Q to V
+    tools.ui.button_collapse.click()
+    for role in ("map", "wing", "slit", "wavelength"):
+        collapse = viewers[role].state.slices[1]
+        assert (collapse.slice, collapse.center) == (slice(1, 3), 0)
+    assert viewers["map"].state.layers[0].percentile == 99.5  # I's
+
+
 def test_an_unlinked_cube_never_takes_the_wcs_lock(sst_app, qtbot, monkeypatch, tmp_path, sns):
     # 227-9: an SST cube is behind the WCS lock only once linked to IRIS data, as maps are (#226), so that its viewers
     # never wait for IRIS data's threads until then; with the axes shown, WCSAxes draws through its coordinates
