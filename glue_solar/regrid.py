@@ -83,7 +83,8 @@ def _gather(values, index, gap):
 
 def _check_timed(data):
     """Raise why ``data`` cannot be regridded on time (`regrid_on_time`)."""
-    if not _timed(data) or _time_axis(data) is None:  # which is the first axis of the others
+    # the time axis is the first of the others; an SST cube is not on IRIS's coordinates, as for 'IRIS: rebin…'
+    if not _timed(data) or _time_axis(data) is None or not isinstance(data.coords, _GlueWCS):
         if _role(data) == "raster":
             raise ValueError(
                 f"{data.label} cannot be regridded on time: the steps of a scanning raster are places on the Sun, not "

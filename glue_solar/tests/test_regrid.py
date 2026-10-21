@@ -33,9 +33,11 @@ from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import _SJI_POINTING, image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.loaders.lazy import LazyData, RawComponent
 from glue_solar.sources.moments import line_moments
+from glue_solar.sources.sst import sst_data
 from glue_solar.tests.helpers import press, refused
 from glue_solar.tests.test_lazy import RASTER, SJI, zero_exposure
 from glue_solar.tests.test_quicklook import LEAD, SNS, expected_nearest, menu_action, readout, repointed
+from glue_solar.tests.test_sst import write_sst_cube
 from glue_solar.tools import _exposure_label
 
 GAP = 100  # the first exposure of the sit-and-stare raster after the 10 left out
@@ -194,12 +196,14 @@ def test_a_regridded_stack_links_each_slit_jaw_frame_to_its_nearest_scan(tmp_pat
     np.testing.assert_allclose(sji[regridded.pixel_component_ids[0]][:, 0, 0], expected, atol=1e-9)
 
 
-def test_a_scanning_raster_and_other_data_are_refused(scan_path):
+def test_a_scanning_raster_and_other_data_are_refused(tmp_path, scan_path):
     [scan] = raster_data([scan_path], ["C II 1336"])
     with pytest.raises(ValueError, match="steps of a scanning raster are places on the Sun"):
         regrid_on_time(scan)
-    with pytest.raises(ValueError, match="not an IRIS sit-and-stare raster, slit-jaw image or stack"):
-        regrid_on_time(Data(label="plain", x=np.zeros((3, 4, 5))))
+    write_sst_cube(tmp_path / "cube.fits")  # timed, but not on IRIS's coordinates
+    for data in (Data(label="plain", x=np.zeros((3, 4, 5))), sst_data(tmp_path / "cube.fits")):
+        with pytest.raises(ValueError, match="not an IRIS sit-and-stare raster, slit-jaw image or stack"):
+            regrid_on_time(data)
 
 
 def test_the_action_adds_one_linked_dataset_and_no_viewer(app, monkeypatch, tmp_path, irispy_test_files, scan_path):
