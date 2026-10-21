@@ -1,0 +1,50 @@
+{"part": "iris", "step": "start", "seconds": 1.536, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": [], "memory_gb": 0.4, "peak_gb": 0.39, "read_gb": 0.0}
+{"part": "iris", "step": "scan", "seconds": 5.353, "raster_files": 500, "windows": ["C II 1336", "Fe XII 1349", "O I 1356", "Si IV 1394", "Si IV 1403", "2832", "2814", "Mg II k 2796"], "sji": ["SJI_1330", "SJI_1400", "SJI_2796", "SJI_2796 (deconvolved)"], "memory_gb": 0.91, "peak_gb": 1.13, "read_gb": 0.0}
+{"part": "iris", "step": "load", "seconds": 29.981, "datasets": 12, "shapes": [[500, 16, 398, 58], [500, 16, 398, 82], [500, 16, 398, 90], [500, 16, 398, 99], [500, 16, 398, 103], [500, 16, 398, 135], [500, 16, 398, 146], [500, 16, 398, 520], [1000, 398, 393], [1000, 401, 394]], "memory_gb": 6.76, "peak_gb": 6.75, "read_gb": 0.0}
+{"part": "iris", "step": "quicklook open", "seconds": 1.926, "memory_gb": 6.92, "peak_gb": 6.92, "read_gb": 0.0}
+{"part": "iris", "step": "map step, axis 0", "first_ms": 101.0, "warm_ms": 96.5, "n": 500, "data": "Mg II k 2796 2016-09-04 07:44 stack", "memory_gb": 6.97, "peak_gb": 6.97, "read_gb": 0.0}
+{"part": "iris", "step": "map step, axis 3", "first_ms": 30.0, "warm_ms": 32.0, "n": 520, "data": "Mg II k 2796 2016-09-04 07:44 stack", "memory_gb": 6.97, "peak_gb": 6.97, "read_gb": 0.0}
+{"part": "iris", "step": "spectrogram step, axis 0", "first_ms": 97.0, "warm_ms": 95.0, "n": 500, "data": "Mg II k 2796 2016-09-04 07:44 stack", "memory_gb": 6.97, "peak_gb": 6.97, "read_gb": 0.0}
+{"part": "iris", "step": "spectrogram step, axis 1", "first_ms": 89.0, "warm_ms": 87.0, "n": 16, "data": "Mg II k 2796 2016-09-04 07:44 stack", "memory_gb": 7.21, "peak_gb": 7.21, "read_gb": 0.0}
+{"part": "iris", "step": "wavelength step, axis 1", "first_ms": 88.0, "warm_ms": 88.0, "n": 16, "data": "Mg II k 2796 2016-09-04 07:44 stack", "memory_gb": 7.21, "peak_gb": 7.21, "read_gb": 0.0}
+{"part": "iris", "step": "wavelength step, axis 2", "first_ms": 77.0, "warm_ms": 73.0, "n": 398, "data": "Mg II k 2796 2016-09-04 07:44 stack", "memory_gb": 7.36, "peak_gb": 7.36, "read_gb": 0.0}
+{"part": "iris", "step": "sji 0 step, axis 0", "first_ms": 20.0, "warm_ms": 18.0, "n": 1000, "data": "SJI 1330 2016-09-04 07:44", "memory_gb": 7.36, "peak_gb": 7.36, "read_gb": 0.0}
+{"part": "iris", "step": "sji 1 step, axis 0", "first_ms": 20.0, "warm_ms": 20.0, "n": 1000, "data": "SJI 1400 2016-09-04 07:44", "memory_gb": 7.36, "peak_gb": 7.36, "read_gb": 0.0}
+{"part": "iris", "step": "sji 2 step, axis 0", "first_ms": 23.0, "warm_ms": 19.0, "n": 1000, "data": "SJI 2796 2016-09-04 07:44", "memory_gb": 7.36, "peak_gb": 7.36, "read_gb": 0.0}
+{"part": "iris", "step": "point click", "seconds": 0.12, "at_yx": [132, 5], "memory_gb": 7.39, "peak_gb": 7.39, "read_gb": 0.0}
+{"part": "iris", "step": "point drag", "move_ms": 151.5, "first_ms": 152.0, "at_yx": [152, 15], "memory_gb": 7.63, "peak_gb": 7.63, "read_gb": 0.0}
+{"part": "iris", "step": "session save", "seconds": 0.016, "kb": 918, "memory_gb": 7.63, "peak_gb": 7.63, "read_gb": 0.0}
+{"part": "iris", "step": "session restore", "seconds": 30.357, "viewers": 7, "memory_gb": 9.38, "peak_gb": 9.38, "read_gb": 0.0}
+{"part": "iris", "step": "end", "seconds": 91.612, "memory_gb": 9.38, "peak_gb": 9.38, "read_gb": 0.0}
+{"part": "iris", "step": "start", "seconds": 1.483, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": [], "memory_gb": 0.4, "peak_gb": 0.4, "read_gb": 0.0}
+{"part": "iris", "step": "scan", "seconds": 5.244, "raster_files": 1, "windows": ["C II 1336", "1343", "Fe XII 1349", "O I 1356", "Si IV 1403", "2832", "2826", "2814", "Mg II k 2796"], "sji": ["SJI_1400", "SJI_2796"], "memory_gb": 0.89, "peak_gb": 1.13, "read_gb": 0.0}
+{"part": "iris", "step": "load", "seconds": 4.292, "datasets": 11, "shapes": [[1245, 775, 726], [2490, 775, 74], [2490, 775, 112], [2490, 775, 122], [2490, 775, 137], [2490, 775, 144], [2490, 775, 169], [2490, 775, 283], [2490, 775, 626]], "memory_gb": 8.19, "peak_gb": 8.15, "read_gb": 0.02}
+{"part": "iris", "step": "quicklook open", "seconds": 1.715, "memory_gb": 9.01, "peak_gb": 9.01, "read_gb": 0.02}
+{"part": "iris", "step": "map step, axis 2", "first_ms": 26.0, "warm_ms": 41.0, "n": 626, "data": "Mg II k 2796 2014-09-10 11:28", "memory_gb": 9.02, "peak_gb": 9.02, "read_gb": 0.02}
+{"part": "iris", "step": "spectrogram step, axis 0", "first_ms": 97.0, "warm_ms": 91.5, "n": 2490, "data": "Mg II k 2796 2014-09-10 11:28", "memory_gb": 9.04, "peak_gb": 9.04, "read_gb": 0.07}
+{"part": "iris", "step": "wavelength step, axis 1", "first_ms": 75.0, "warm_ms": 75.0, "n": 775, "data": "Mg II k 2796 2014-09-10 11:28", "memory_gb": 9.04, "peak_gb": 9.04, "read_gb": 0.07}
+{"part": "iris", "step": "sji 0 step, axis 0", "first_ms": 16.0, "warm_ms": 14.0, "n": 1245, "data": "SJI 1400 2014-09-10 11:28", "memory_gb": 9.04, "peak_gb": 9.04, "read_gb": 0.07}
+{"part": "iris", "step": "sji 1 step, axis 0", "first_ms": 16.0, "warm_ms": 15.0, "n": 1245, "data": "SJI 2796 2014-09-10 11:28", "memory_gb": 9.04, "peak_gb": 9.04, "read_gb": 0.08}
+{"part": "iris", "step": "point click", "seconds": 0.197, "at_yx": [258, 830], "memory_gb": 9.04, "peak_gb": 9.04, "read_gb": 0.08}
+{"part": "iris", "step": "point drag", "move_ms": 151.0, "first_ms": 152.0, "at_yx": [278, 840], "memory_gb": 9.05, "peak_gb": 9.05, "read_gb": 0.08}
+{"part": "iris", "step": "session save", "seconds": 0.012, "kb": 120, "memory_gb": 9.05, "peak_gb": 9.05, "read_gb": 0.08}
+{"part": "iris", "step": "session restore", "seconds": 2.921, "viewers": 6, "memory_gb": 12.66, "peak_gb": 12.66, "read_gb": 0.08}
+{"part": "iris", "step": "end", "seconds": 28.208, "memory_gb": 12.66, "peak_gb": 12.66, "read_gb": 0.08}
+{"part": "iris", "step": "start", "seconds": 1.502, "machine": "Linux-7.2.10-cachyos1.fc44.x86_64-x86_64-with-glibc2.43", "python": "3.13.16", "ram_gb": 202, "glue_solar": "0.1.dev1395+gc52fcc176", "glue-core": "1.27.0", "glue-qt": "0.4.2", "astropy": "8.0.2", "irispy-lmsal": "0.9.1.post2.dev223+gf0587057b", "numpy": "2.5.4", "matplotlib": "3.11.2", "files": [], "memory_gb": 0.4, "peak_gb": 0.39, "read_gb": 0.0}
+{"part": "iris", "step": "scan", "seconds": 5.278, "raster_files": 1230, "windows": ["C II 1336", "1343", "Fe XII 1349", "O I 1356", "Si IV 1403", "2832", "2826", "2814", "Mg II k 2796"], "sji": ["SJI_1330", "SJI_1400", "SJI_2832"], "memory_gb": 0.91, "peak_gb": 1.13, "read_gb": 0.0}
+{"part": "iris", "step": "load", "seconds": 73.478, "datasets": 12, "shapes": [[1230, 4, 387, 56], [1230, 4, 387, 72], [1230, 4, 387, 73], [1230, 4, 387, 121], [1230, 4, 387, 138], [1230, 4, 387, 170], [1230, 4, 387, 284], [1230, 4, 387, 312], [1230, 387, 387]], "memory_gb": 6.43, "peak_gb": 6.43, "read_gb": 0.0}
+{"part": "iris", "step": "quicklook open", "seconds": 2.031, "memory_gb": 6.63, "peak_gb": 6.63, "read_gb": 0.0}
+{"part": "iris", "step": "map step, axis 0", "first_ms": 105.0, "warm_ms": 95.5, "n": 1230, "data": "Mg II k 2796 2015-03-11 15:19 stack", "memory_gb": 6.63, "peak_gb": 6.63, "read_gb": 0.0}
+{"part": "iris", "step": "map step, axis 3", "first_ms": 29.0, "warm_ms": 31.5, "n": 312, "data": "Mg II k 2796 2015-03-11 15:19 stack", "memory_gb": 6.63, "peak_gb": 6.63, "read_gb": 0.0}
+{"part": "iris", "step": "spectrogram step, axis 0", "first_ms": 97.0, "warm_ms": 95.5, "n": 1230, "data": "Mg II k 2796 2015-03-11 15:19 stack", "memory_gb": 6.63, "peak_gb": 6.63, "read_gb": 0.0}
+{"part": "iris", "step": "spectrogram step, axis 1", "first_ms": 96.0, "warm_ms": 87.0, "n": 4, "data": "Mg II k 2796 2015-03-11 15:19 stack", "memory_gb": 6.76, "peak_gb": 6.76, "read_gb": 0.0}
+{"part": "iris", "step": "wavelength step, axis 1", "first_ms": 88.0, "warm_ms": 90.5, "n": 4, "data": "Mg II k 2796 2015-03-11 15:19 stack", "memory_gb": 6.76, "peak_gb": 6.76, "read_gb": 0.0}
+{"part": "iris", "step": "wavelength step, axis 2", "first_ms": 76.0, "warm_ms": 72.0, "n": 387, "data": "Mg II k 2796 2015-03-11 15:19 stack", "memory_gb": 6.82, "peak_gb": 6.82, "read_gb": 0.0}
+{"part": "iris", "step": "sji 0 step, axis 0", "first_ms": 15.0, "warm_ms": 15.0, "n": 1230, "data": "SJI 1330 2015-03-11 15:19", "memory_gb": 6.82, "peak_gb": 6.82, "read_gb": 0.0}
+{"part": "iris", "step": "sji 1 step, axis 0", "first_ms": 17.0, "warm_ms": 17.0, "n": 1230, "data": "SJI 1400 2015-03-11 15:19", "memory_gb": 6.82, "peak_gb": 6.82, "read_gb": 0.0}
+{"part": "iris", "step": "sji 2 step, axis 0", "first_ms": 19.0, "warm_ms": 18.0, "n": 1230, "data": "SJI 2832 2015-03-11 15:19", "memory_gb": 6.82, "peak_gb": 6.82, "read_gb": 0.0}
+{"part": "iris", "step": "point click", "seconds": 0.191, "at_yx": [129, 1], "memory_gb": 6.86, "peak_gb": 6.86, "read_gb": 0.0}
+{"part": "iris", "step": "point drag", "move_ms": 150.0, "first_ms": 191.0, "at_yx": [149, 3], "memory_gb": 6.86, "peak_gb": 6.86, "read_gb": 0.0}
+{"part": "iris", "step": "session save", "seconds": 0.016, "kb": 1469, "memory_gb": 6.86, "peak_gb": 6.86, "read_gb": 0.0}
+{"part": "iris", "step": "session restore", "seconds": 77.231, "viewers": 7, "memory_gb": 8.96, "peak_gb": 8.96, "read_gb": 0.0}
+{"part": "iris", "step": "end", "seconds": 178.629, "memory_gb": 8.96, "peak_gb": 8.96, "read_gb": 0.0}
