@@ -1285,7 +1285,9 @@ class QuicklookImageViewer(ImageViewer):
         rec, tab = super().__gluestate__(context), self.parent().mdiArea()
         if not hasattr(tab, "_solar_quicklook"):  # a panel of a session saved before D83, saved as a plain viewer
             return rec
-        first = next(p for p in _viewers(tab._solar_quicklook[-1]) if isinstance(p, ImageViewer) and not p._closed)
+        # none once its data are removed, until glue-qt deletes the closed panels (`glue_patches.application_gluestate`)
+        panels = _viewers(tab._solar_quicklook[-1])
+        first = next((p for p in panels if isinstance(p, ImageViewer) and not p._closed), None)
         return {**rec, "quicklook": _recipe(self.session.application, tab, context)} if self is first else rec
 
 
@@ -1909,6 +1911,8 @@ def _stokes_limits(layer, slices, wing=False):
     """
     # ponytail: set as the Stokes parameter or 'Per-frame limits' changes, over limits chosen in the style editor, and I
     # takes glue's 99.5% again; keep each parameter's last limits if that matters
+    if not slices:  # glue's () as the cube is removed, whose removal an IndexError here stopped
+        return
     cube, stokes = layer.layer, getattr(slices[1], "center", slices[1])  # a Collapse at its center (D39)
     shown = stokes, layer.stretch_global
     if shown == vars(layer).get("_solar_stokes", (0, True)) or layer.attribute is not cube.main_components[0]:
