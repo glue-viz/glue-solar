@@ -152,9 +152,12 @@ class LineTool(Tool):
 
 
 def _shows_wavelength(state):
-    """Whether a Profile viewer plots against the one wavelength axis of its reference data."""
+    """
+    Whether a Profile viewer plots against the one wavelength axis of its reference data, a glue Data, as glue's x unit
+    choices check: a path diagram has no ``get_component``.
+    """
     data = state.reference_data
-    axes = _spectral_axes(data) if data is not None and data.coords is not None else set()
+    axes = _spectral_axes(data) if isinstance(data, Data) and data.coords is not None else set()
     return len(axes) == 1 and state.x_att is data.world_component_ids[next(iter(axes))]
 
 
@@ -183,6 +186,8 @@ class LinesInRangeTool(Tool):
 
         if self.dialog is not None:  # one list per viewer, of the range it was asked for last (D98)
             self.dialog.close()
+            self.dialog.deleteLater()  # else each press keeps a hidden dialog under the viewer
+            self.dialog = None  # not the deleted one, if this press raises
         state = self.viewer.state
         if not _shows_wavelength(state):
             raise ValueError("Plot IRIS data against its wavelength first")
@@ -351,10 +356,16 @@ class VelocityTool(Tool, HubListener):
         self._hub.unsubscribe_all(self)
 
     def _label_x(self, *_):
-        """glue's x label with its display unit, which glue leaves out, such as 'Wavelength [Angstrom]' (D90)."""
+        """
+        glue's x label with its display unit, which glue leaves out, such as 'Wavelength [Angstrom]', and in km / s
+        the top axis's, such as 'Velocity from 2796.352 Å [km / s]' (D90).
+        """
         state = self.viewer.state
         if state.x_att is not None and state.x_display_unit:
-            state.x_axislabel = f"{state.x_att.label} [{state.x_display_unit}]"
+            velocity = state.x_display_unit == DopplerConverter.VELOCITY and state.reference_data is not None
+            rest = _doppler_rest(state.reference_data, state.x_att) if velocity else None
+            quantity = state.x_att.label if rest is None else f"Velocity from {rest} Å"
+            state.x_axislabel = f"{quantity} [{state.x_display_unit}]"
 
     def _unit_y(self, *_):
         """
@@ -424,9 +435,12 @@ class VelocityTool(Tool, HubListener):
 
 
 def _wavelength(text):
-    """``text``, typed in Angstrom, as a float."""
+    """``text``, typed in Angstrom, as a float, positive and finite, as Doppler velocities divide by it."""
     try:
-        return float(text)
+        value = float(text)
+        if not (np.isfinite(value) and value > 0):
+            raise ValueError
+        return value
     except ValueError:
         raise ValueError(f"'{text}' is not a wavelength in Angstrom, such as 1402.77.") from None
 

@@ -54,7 +54,7 @@ from matplotlib.backend_bases import KeyEvent, MouseButton, MouseEvent, key_pres
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from matplotlib.colors import to_hex, to_rgb
 from matplotlib.text import Text
-from qtpy.QtCore import Qt
+from qtpy.QtCore import QCoreApplication, QEvent, Qt
 from qtpy.QtGui import QCursor, QDesktopServices, QIcon, QKeySequence
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import (
@@ -1181,6 +1181,7 @@ def test_path_diagrams_of_a_slit_jaw_image_and_a_raster_on_it(app, irispy_test_f
     n = len(path.x)
     assert path.shape == (sji.shape[0], n)
     assert on_raster.shape == (raster.shape[2], n)
+    app.new_data_viewer(ProfileViewer, data=on_raster).figure.canvas.draw()  # its profile, along its wavelengths
     for cid in (sji.main_components[0], sji.id["Time"]):
         np.testing.assert_array_equal(path[cid], _along(sji, cid, path))
     assert path[sji.id["Time"]].dtype.kind == "M"
@@ -2281,9 +2282,14 @@ def test_lines_in_this_range_lists_the_strongest_first_and_ticks_label_or_hide(a
     _, texts = listed()
     assert texts[0].startswith("Si IV 1393.760 Å")
     assert not first.isVisible()  # one list per viewer
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert viewer.findChildren(QDialog) == [tool.dialog]  # not kept hidden under the viewer
     viewer.state.x_att = data.pixel_component_ids[0]
     with pytest.raises(ValueError, match="wavelength first"):  # not irispy's error on a pixel range
         tool.activate()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    viewer.state.x_att = data.world_component_ids[0]
+    assert listed()[1][0].startswith("Si IV 1393.760 Å")  # after a press that raised
 
 
 def test_profiles_label_the_main_iris_lines(app, irispy_test_files):
@@ -2361,10 +2367,12 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(
     assert zero() == pytest.approx(2796.2, abs=1e-6)
     state.x_display_unit = "km / s"  # the profile and its range from the rest wavelength, and no top axis
     assert tool.axis is None
+    assert state.x_axislabel == "Velocity from 2796.2 Å [km / s]"  # as the top axis was
     assert [state.x_min, state.x_max] == pytest.approx(velocities([2795, 2798], 2796.2))
     assert viewer.layers[0].state.profile[0] == pytest.approx(velocities(_wavelengths(mg)[0], 2796.2))
     set_rest("")  # back to Mg II k, still in km / s
     assert state.x_display_unit == "km / s"
+    assert state.x_axislabel == "Velocity from 2796.352 Å [km / s]"
     assert viewer.layers[0].state.profile[0] == pytest.approx(velocities(_wavelengths(mg)[0], 2796.352))
     # a session opens in km / s
     app.save_session(str(tmp_path / "kms.glu"))
@@ -2606,6 +2614,9 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(app, qtbot, monkeypatch, 
     assert model.parameters == pytest.approx([3, 40, 1355.62, 0.04])
     model, _ = GaussianConstantFitter().build_and_fit(x, 50 - y)
     assert model.parameters == pytest.approx([47, -40, 1355.62, 0.04])  # absorption
+    fitter = GaussianConstantFitter()
+    fitter.set_constraint("stddev_1", limits=(None, 0.1))  # an upper bound alone, as Settings sets it
+    assert fitter.build_and_fit(x, y)[0].bounds["stddev_1"] == (models.Gaussian1D.stddev.bounds[0], 0.1)  # positive
 
     # a Lorentzian on a linear background, composed in Settings, reaches the next fit
     def compose(dialog):

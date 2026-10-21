@@ -906,12 +906,16 @@ def test_set_rest_wavelength(app, monkeypatch, irispy_test_files):
     assert pick("Mg II h 2803.53") == (2803.53, 2803.53)
     assert pick(" 2796.2 ") == (2796.2, 2796.2)
     assert pick("2800", ok=False) == (2796.2, 2796.2)  # Cancel
-    assert pick("k") == (2796.2, 2796.2)
+    for text in ("k", "0", "nan", "-1"):  # not a wavelength, as Doppler velocities divide by it
+        assert pick(text) == (2796.2, 2796.2)
     assert pick(" ") == (2796.352, None)  # back to the main line
-    assert opened == [(lines, 1), (lines, 5), (["2796.2", *lines], 0), (["2796.2", *lines], 0), (["2796.2", *lines], 0)]
+    assert opened == [(lines, 1), (lines, 5), *[(["2796.2", *lines], 0)] * 6]
     tree.ui.layerTree.set_selected_layers([sji])
     refused(action)
     assert shown == [
-        "Could not set the rest wavelength\n'k' is not a wavelength in Angstrom, such as 1402.77.",
+        *(
+            f"Could not set the rest wavelength\n'{text}' is not a wavelength in Angstrom, such as 1402.77."
+            for text in ("k", "0", "nan", "-1")
+        ),
         f"Could not set the rest wavelength\n{sji.label} has no wavelength axis.",
     ]
