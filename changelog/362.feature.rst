@@ -1,0 +1,1 @@
+On Linux, an SST quicklook's scan step on a cube not yet in the page cache is as fast as a revisit, rather than 0.4-0.6 s slower, as glue-solar asks the kernel for the pages each panel will read.
