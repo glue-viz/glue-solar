@@ -1,6 +1,6 @@
 """
 DKIST Level 1 datasets opened from their ASDF files (D102): dkist's test datasets, an ASDF file alone or its small ViSP
-raster with its FITS files, and its sample data, downloaded.
+raster with its FITS files, and its sample data, downloaded; sessions of them.
 """
 
 import gzip
@@ -16,6 +16,7 @@ from glue.core.autolinking import find_possible_links
 from glue.core.data import Data
 from glue.core.data_factories import load_data
 from glue.core.exceptions import IncompatibleAttribute
+from glue.core.state import GlueSerializer, GlueUnSerializer
 from glue.plugins.wcs_autolinking.wcs_autolinking import WCSLink
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.viewers.image import ImageViewer
@@ -24,9 +25,11 @@ from glue_qt.viewers.profile import ProfileViewer
 from astropy.wcs.utils import pixel_to_pixel
 
 from glue_solar import glue_patches
+from glue_solar.conftest import find_irispy_test_file
 from glue_solar.quicklook import quicklook
 from glue_solar.sources.dkist import DKISTData, GlueWCS, _data, _glue_order
 from glue_solar.sources.iris import link_iris
+from glue_solar.tests.helpers import restore
 from glue_solar.tests.test_quicklook import bare_app_for
 
 
@@ -257,3 +260,107 @@ def test_link_helioprojective_coordinates_links_dkist_data_by_time(app, tmp_path
     with pytest.raises(IncompatibleAttribute):
         point(visp, (0, 344, 488, 1277), sji)
     assert drawn_over(app, visp, sji, y=1)  # its steps by its slit
+
+
+def viewed(app):
+    """Each viewer's reference dataset, x and y attributes and slices, by tab."""
+
+    def view(state):
+        x, y = (getattr(getattr(state, att, None), "label", None) for att in ("x_att", "y_att"))
+        return state.reference_data.label, x, y, tuple(getattr(state, "slices", ()))  # a restored one's are a list
+
+    return [[view(viewer.state) for viewer in tab] for tab in app.viewers]
+
+
+@small_visp_dated_2044
+def test_a_session_restores_dkist_datasets_and_their_image_and_profile_viewers(app, qtbot, monkeypatch, tmp_path):
+    # D102: glue saved no `GlueWCS`, of a gWCS, and restored a `DKISTData` as a Data, of glue's color limits
+    from gwcs import WCS as GWCS
+
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))
+    visp = load_data(str(small_visp()))
+    with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):
+        cryo = load_data(str(asdf_alone(tmp_path, "croppable_cryo")))
+    app.data_collection.extend([visp, cryo])
+    visp.meta["rest_wavelength"] = 6302.5  # as "Set rest wavelength…" sets it
+    image = app.new_data_viewer(ImageViewer, data=visp).state
+    image.x_att, image.slices = visp.pixel_component_ids[0], (1, 0, 0)
+    app.new_data_viewer(ProfileViewer, data=visp)
+    app.new_data_viewer(ImageViewer, data=cryo)
+
+    def limit(data):  # the high color limit an Image layer takes
+        return data.compute_statistic("percentile", data.main_components[0], percentile=99.5, random_subset=10_000)
+
+    path = tmp_path / "dkist.glu"
+    app.save_session(str(path))
+    for _ in range(2):  # and from a restored session
+        assert "GlueWCS" not in path.read_text()  # the coordinates read from the ASDF file again, not saved
+        for serializer in (GlueSerializer, GlueUnSerializer):  # as a fresh glue, of no gWCS saver
+            monkeypatch.delitem(serializer.dispatch._data, GWCS, raising=False)
+        with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):  # its ASDF file read again
+            restored = restore(qtbot, monkeypatch, path)
+        for data, given in zip(restored.data_collection, (visp, cryo), strict=True):
+            assert type(data) is DKISTData
+            assert (data.label, labels(data)) == (given.label, labels(given))
+            pixels = [np.array([0, n // 2, n - 1]) for n in given.shape[::-1]]  # first, middle and last
+            for got, expected in zip(
+                data.coords.pixel_to_world_values(*pixels), given.coords.pixel_to_world_values(*pixels), strict=True
+            ):
+                np.testing.assert_array_equal(got, expected)
+        data = restored.data_collection[0]
+        assert data.meta == {"rest_wavelength": 6302.5}
+        np.testing.assert_array_equal(np.asarray(data["data"]), np.asarray(visp["data"]))
+        assert limit(data) == limit(visp)
+        assert viewed(restored) == viewed(app)
+        path = tmp_path / "again.glu"
+        restored.save_session(str(path))
+
+
+def test_a_session_restores_a_vbi_mosaic_in_one_image_viewer_and_its_links(
+    app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
+    monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        tiles = load_data(str(asdf_alone(tmp_path, "large_vbi")))
+    name = "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits"
+    sji = load_data(str(find_irispy_test_file(irispy_test_files, name)))
+    dc = app.data_collection
+    dc.extend([*tiles, sji])
+    [links] = find_possible_links(dc).values()  # each tile to the center tile
+    dc.add_link(links)
+    link_iris(app.session, dc)  # and to the slit-jaw image, by position and time
+    viewer = app.new_data_viewer(ImageViewer, data=tiles[4])
+    for tile in tiles[:4] + tiles[5:]:
+        viewer.add_data(tile)
+    app.save_session(str(tmp_path / "vbi.glu"))
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        restored = restore(qtbot, monkeypatch, tmp_path / "vbi.glu")
+    *again, sji_again = collection = restored.data_collection
+    assert [type(tile) for tile in again] == [DKISTData] * 9
+    assert len({id(tile._samples) for tile in again}) == 1  # one sample for all
+    assert all(tile._center is again[4] for tile in again)  # which glue's autolinker links other data to (#373)
+    assert viewed(restored) == viewed(app)
+    [[state]] = [[viewer.state for viewer in tab] for tab in restored.viewers]
+    assert [layer.layer.label for layer in state.layers] == [layer.layer.label for layer in viewer.state.layers]
+    # #373's links: a corner tile's point reaches the opposite corner, through the center tile, and the slit-jaw image
+    assert len(collection.external_links) == len(dc.external_links)
+    for other, given in [(again[8], tiles[8]), (sji_again, sji)]:
+        assert point(again[0], (1, 2048, 2048), other) == point(tiles[0], (1, 2048, 2048), given)
+
+
+@small_visp_dated_2044
+def test_a_session_restores_a_dkist_raster_s_quicklook(qtbot, monkeypatch, tmp_path):
+    app = bare_app_for(qtbot, monkeypatch)
+    data = load_data(str(small_visp()))
+    app.data_collection.append(data)
+    viewers = quicklook(app, [data])
+    app.save_session(str(tmp_path / "quicklook.glu"))
+    restored = restore(qtbot, monkeypatch, tmp_path / "quicklook.glu")
+    again = restored.tab(1)._solar_quicklook[-1]
+    assert [[viewer.state.title for viewer in row] for row in again["rows"]] == [
+        ["VISP qVXjk map", "VISP qVXjk virtual slit"],
+        ["VISP qVXjk spectrum"],
+    ]
+    spectra = [viewers["spectra"][0].state.layers[0], again["spectra"][0].state.layers[0]]
+    qtbot.waitUntil(lambda: all(spectrum.profile is not None for spectrum in spectra), timeout=60_000)
+    np.testing.assert_array_equal(*(spectrum.profile for spectrum in spectra))

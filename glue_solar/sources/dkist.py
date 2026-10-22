@@ -10,6 +10,7 @@ from glue.config import autolinker, data_factory
 from glue.core.component import DaskComponent
 from glue.core.data import Data
 from glue.core.exceptions import IncompatibleAttribute
+from glue.core.state import GlueSerializeError, _load_data_5
 from glue.plugins.wcs_autolinking import wcs_autolinking
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
 from glue.utils.array import compute_statistic
@@ -198,6 +199,50 @@ class DKISTData(Data):
                 values.append(frame[rng.integers(0, frame.size, -(-size // len(picks)))])
             self._samples[size] = np.concatenate(values)
         return self._samples[size]
+
+    # A session saves a dataset as glue saves a Data, but for its coordinates, a gWCS, which glue cannot save: it
+    # restores as this class with the coordinates, frames, sample and center tile of the dataset its load log reads
+    # again from the ASDF file, as `LazyData` does for IRIS data (D102)
+    def __gluestate__(self, context):
+        log, meta = self._load_log, {}
+        for key, value in self.meta.items():
+            try:
+                context.do(value)
+            except GlueSerializeError:  # left out, as glue leaves it out
+                continue
+            meta[key] = value
+        return {
+            "components": [(context.id(cid), context.id(self.get_component(cid))) for cid in self._components],
+            "subsets": [context.id(subset) for subset in self.subsets],
+            "label": self.label,
+            "style": context.do(self.style),
+            "_key_joins": [
+                [context.id(key), [context.id(cid) for cid in cids], [context.id(cid) for cid in other]]
+                for key, (cids, other) in self._key_joins.items()
+            ],
+            "uuid": self.uuid,
+            "primary_owner": [context.id(cid) for cid in self.components if cid.parent is self],
+            "meta": context.do(meta),
+            "log": context.id(log),
+            "log_item": log.data.index(self),
+        }
+
+    @classmethod
+    def __setgluestate__(cls, rec, context):
+        log = context.object(rec["log"])
+        source = log.data[rec["log_item"]]
+        context.register_object(f"{rec['uuid']} coords", source.coords)
+        restored = _load_data_5({**rec, "coords": f"{rec['uuid']} coords"}, context)
+        data = next(restored)
+        data.__class__, data._load_log = cls, log  # glue's loader makes a Data
+        data._mosaic, data._samples, data._present = source._mosaic, source._samples, source._present
+        data._center = source._center
+        log.data[rec["log_item"]] = data  # for a session saved from this one
+        for tile in log.data:  # its mosaic's tiles, restored or not, link to it if it is the center (`wcs_autolink`)
+            if tile._center is source:
+                tile._center = data
+        yield data
+        yield from restored
 
 
 def _frame_times(data):

@@ -12,14 +12,16 @@ Sessions
 Save a session with File → Export Session as "Glue Session with relative paths to data", the type the
 dialog starts with (see glue's `guide
 <http://docs.glueviz.org/en/stable/getting_started/index.html#saving-your-work>`__). It refers to the
-IRIS and SST files rather than holding their values, and opens wherever the files keep their place
-relative to it. Datasets made from them, such as line maps, are saved with their values: export a
-copy of each (see `Exporting derived data`_).
+IRIS, SST and DKIST files rather than holding their values, and opens wherever the files keep their
+place relative to it. A DKIST dataset's coordinates, too, are read again from its ASDF file, which
+must still be where the session found it. Datasets made from them, such as line maps, are saved
+with their values: export a copy of each (see `Exporting derived data`_).
 
 A session keeps the datasets' coordinates, pointing shifts, colormaps, metadata and links, and the
 viewers' slices, colormaps and Profile axes. Each quicklook opens again with its point, the dataset
 leading the time, panel settings and panels turned off. A quicklook's raster overlays, panels moved by hand, a blink and
-the viewers' mouse modes are not saved. For sessions that fail to save or open, see :ref:`Known issues
+the viewers' mouse modes are not saved, and glue opens each Image viewer zoomed to fit its reference dataset, such as a
+VBI mosaic's center tile. For sessions that fail to save or open, see :ref:`Known issues
 <glue_solar_users_guide_known_issues>`.
 
 Restoring the last session
