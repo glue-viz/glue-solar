@@ -157,8 +157,20 @@ def _shows_wavelength(state):
     choices check: a path diagram has no ``get_component``.
     """
     data = state.reference_data
-    axes = _spectral_axes(data) if isinstance(data, Data) and data.coords is not None else set()
-    return len(axes) == 1 and state.x_att is data.world_component_ids[next(iter(axes))]
+    return isinstance(data, Data) and data.coords is not None and _is_wavelength(data, state.x_att)
+
+
+def _is_wavelength(data, cid):
+    """
+    Whether ``cid`` is glue's world attribute along the one wavelength axis of ``data``, a length: glue gives axis i
+    world axis ``world_n_dim - 1 - i``, another one in a gWCS of more world axes than pixel axes, such as dkist's own,
+    whose unit then raised in glue's x_att callback (D102).
+    """
+    axes = _spectral_axes(data)
+    if len(axes) != 1 or cid is not data.world_component_ids[min(axes)]:
+        return False
+    coords = data.coords  # a path diagram's too, which has no get_component
+    return u.Unit(coords.world_axis_units[coords.world_n_dim - 1 - min(axes)] or "Angstrom").is_equivalent(u.AA)
 
 
 _REGIONS = {"Quiet Sun": "quiet_sun", "Active region": "active_region", "Flare": "flare"}
@@ -272,10 +284,7 @@ def rest_wavelength(data):
 def _doppler_rest(data, cid):
     """The `rest_wavelength` of ``data``, or of a subset's data, where ``cid`` is its wavelength, else None."""
     data = data.data if isinstance(data, Subset) else data
-    axes = _spectral_axes(data)
-    if len(axes) != 1 or cid is not data.world_component_ids[min(axes)]:
-        return None
-    return rest_wavelength(data)
+    return rest_wavelength(data) if _is_wavelength(data, cid) else None
 
 
 class DopplerConverter(SimpleAstropyUnitConverter):

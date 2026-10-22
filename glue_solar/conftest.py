@@ -324,6 +324,30 @@ def irispy_data():
     return fetch
 
 
+# DKIST's sample datasets for remote-data tests, as dkist.data.sample downloads them, checked by SHA-256
+DKIST_SAMPLE = "https://g-a36282.cd214.a567.data.globus.org/user_tools_tutorial_data/"
+DKIST_SAMPLE_HASHES = {
+    # VBI_L1_NZJTB: a mosaic of 3 by 3 tiles, the first of the 3 frames of each
+    "YCDRFH_single_mosaic.tar": "6a7340effa6a0b3b5af7fb5235c64805e85f5f69bffefe36546c4892ba47d09d",
+    # CRYO_L1_TJKGC: a Cryo-NIRSP spectrograph raster of 321 steps, every frame
+    "DBXVEL_full.tar": "0285e330a5e1b37a142c7a65dfba9c35ba4b52ce07acfce394cf8fdc11042294",
+}
+
+
+@pytest.fixture(scope="session")
+def dkist_sample():
+    """Fetch a sample dataset of dkist.data.sample into pooch's cache, under a lock as `irispy_data`; its ASDF file."""
+    import pooch
+    from filelock import FileLock
+
+    def fetch(name):
+        with FileLock(pooch.os_cache("pooch") / f"{name}.lock"):
+            paths = pooch.retrieve(DKIST_SAMPLE + name, known_hash=DKIST_SAMPLE_HASHES[name], processor=pooch.Untar())
+        return next(path for path in paths if path.endswith(".asdf"))
+
+    return fetch
+
+
 @pytest.fixture(scope="session")
 def irispy_test_files():
     """Real files shipped with irispy, from its test data folder."""

@@ -91,7 +91,8 @@ terminal. With the file type "Auto":
 - an IRIS slit-jaw image, aligned AIA cutout or SOT cube loads as one cube;
 - an IRIS raster file loads a dataset per window, labeled with its raster number (``… scan 3``) if
   its observation has several;
-- an SST CRISP or CHROMIS cube loads as one cube.
+- an SST CRISP or CHROMIS cube loads as one cube;
+- a DKIST dataset's ASDF file loads as one dataset, a VBI mosaic as one per tile.
 
 For AIA, HMI and other solar images, pick the file type "sunpy Map". Files loaded one by one cannot
 be stacked: use the browser for observations of many scans.
@@ -145,6 +146,30 @@ file, so glue-solar adds the cube hidden. Open maps before SST cubes, and cubes 
 those with: glue's autolinker otherwise reports an error, although the data load. The IRIS–SST
 Level 3 files made for CRISPEX (``iris_l3_…_im.fits``) open with glue's "FITS file" reader, without
 these coordinates.
+
+.. _glue_solar_users_guide_loading_dkist_datasets:
+
+DKIST datasets
+--------------
+
+Open a DKIST Level 1 dataset's ASDF file (``…_metadata.asdf``, as ``dkist`` downloads it) with
+"File → Open Data Set". It loads as one dataset, labeled by instrument and dataset ID, such as
+``VISP BKPLX``, and a VBI mosaic as one dataset per tile, such as ``VBI YCDRFH (1, 1)``. The values
+stay in the FITS files next to the ASDF file, read as they are viewed.
+
+- Each axis has one world coordinate, as glue shows them: a slit raster's step axis has its
+  longitude, or its time if the pointing moves less than a pixel along the slit (sit-and-stare).
+  Longitudes are from -180° to 180°.
+- A frame whose FITS file is missing reads as NaN, and glue's Error Console says how many files
+  are there.
+- Color limits come from up to 16 whole frames; the tiles of a VBI mosaic share theirs.
+- "Quicklook…" opens a ViSP or Cryo-NIRSP spectrograph dataset as any spectral cube: its map,
+  virtual slit and spectra.
+- glue offers to link the tiles of a VBI mosaic as they load: accept, and drag the tiles onto one
+  Image viewer.
+
+Not yet: linking DKIST datasets of different shapes to each other (glue's autolinker reports an
+error, although the data load), linking them to IRIS data, and saving them in a session.
 
 .. _glue_solar_users_guide_loading_aia_and_hmi_files:
 
