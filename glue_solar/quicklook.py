@@ -1363,7 +1363,7 @@ def _wavelengths(data):
     [axis] = _spectral_axes(data)
     index = [0] * data.ndim
     index[axis] = slice(None)
-    unit = u.Unit(data.coords.world_axis_units[data.ndim - 1 - axis])
+    unit = u.Unit(data.coords.world_axis_units[data.coords.world_n_dim - 1 - axis])  # glue's world axis (D102)
     return (data[data.world_component_ids[axis], tuple(index)] * unit).to_value(u.AA), axis
 
 
@@ -1722,8 +1722,11 @@ def _cube_axes(data):
 
     wave = along("em.wl")
     stokes = along("phys.polarization.stokes") - wave
-    time = along("time") - wave - stokes  # a moving pointing's position depends on time too
-    place = along("pos.", "custom:pos.") - wave - stokes - time
+    place = along("pos.", "custom:pos.") - wave - stokes
+    time = along("time") - wave - stokes
+    if len(place) > 2:  # a moving pointing's position depends on time too
+        place -= time
+    time -= place  # a slit raster's step, whose time changes too, is a place (D102)
     sizes = len(time), len(stokes), len(wave), len(place)
     if sizes[2:] != (1, 2) or max(sizes[:2]) > 1 or sum(sizes) != data.ndim or data.shape[min(wave)] < 2:
         return None  # one wavelength has no spectrum

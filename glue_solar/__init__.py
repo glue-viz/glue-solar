@@ -35,6 +35,7 @@ from glue_solar.quicklook import QuicklookImageViewer
 from glue_solar.sources import (
     bursts,
     calibration,
+    dkist,
     doppler,
     fit_maps,
     iris,

@@ -540,9 +540,11 @@ def _set_axislabel(viewer, axis):
     data, att = state.reference_data, getattr(state, f"{axis}_att")
     index = "xy".index(axis)
     # glue's own mapping, as in its update_x_ticklabel, but not waiting for its _wcs_set: a restored viewer
-    # sets its labels only once, on the axes of its first reset, before glue sets that flag
-    if data is not None and att is not None and data.ndim - 1 - att.axis in viewer.axes.coords:
-        index = data.ndim - 1 - att.axis
+    # sets its labels only once, on the axes of its first reset, before glue sets that flag; to the world axis glue
+    # gives the axis, world_n_dim - 1 - axis, which a DKIST dataset's world axes of no axis of their own precede (D102)
+    world = getattr(getattr(data, "coords", None), "world_n_dim", getattr(data, "ndim", 0))
+    if data is not None and att is not None and world - 1 - att.axis in viewer.axes.coords:
+        index = world - 1 - att.axis
     viewer.axes.coords[index].set_axislabel(
         getattr(state, f"{axis}_axislabel"),
         weight=getattr(state, f"{axis}_axislabel_weight"),

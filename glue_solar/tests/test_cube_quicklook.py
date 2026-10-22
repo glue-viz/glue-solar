@@ -41,14 +41,14 @@ def cube_app(qtbot, monkeypatch):
 WAVE, TIME = ("WAVE", "Angstrom", 0.1, 6562.5), ("TIME", "s", 10, 0)
 
 
-def spectral_cube(path, shape, axes=(WAVE, ("STOKES", "", 1, 1), TIME)):
+def spectral_cube(path, shape, axes=(WAVE, ("STOKES", "", 1, 1), TIME), **cards):
     """
     A cube of ``shape``, such as (wavelength, y, x) or (time, Stokes, wavelength, y, x), written as a FITS file of right
     ascension, declination and as many of ``axes`` (each a CTYPE, CUNIT, CDELT and value at the first pixel) as it has
-    others, opened by glue's own reader, and its values.
+    others, and ``cards``, opened by glue's own reader, and its values.
     """
     axes = [("RA---TAN", "deg", -1e-4, 150), ("DEC--TAN", "deg", 1e-4, 2), *axes][: len(shape)]
-    header = fits.Header({"DATEREF": "2021-09-05T00:00:00", "TIMESYS": "UTC"})
+    header = fits.Header({"DATEREF": "2021-09-05T00:00:00", "TIMESYS": "UTC", **cards})
     for n, (ctype, unit, step, value) in enumerate(axes, 1):
         header.update({f"CTYPE{n}": ctype, f"CUNIT{n}": unit, f"CDELT{n}": step, f"CRPIX{n}": 1, f"CRVAL{n}": value})
     values = np.arange(np.prod(shape), dtype=np.float32).reshape(shape)
@@ -195,6 +195,13 @@ def test_the_data_action_opens_the_quicklook(cube_app, tmp_path):
     quicklook_cube(cube, cube_app.data_collection)
     assert cube_app.tab_names[-1] == "cube"
     assert [viewer.state.title for viewer in cube_app.viewers[-1]] == ["cube map", "cube virtual slit", "cube spectrum"]
+
+
+def test_a_pointing_that_moves_with_time_keeps_the_time_axis(cube_app, tmp_path):
+    # right ascension moving a pixel a frame: the time axis stays time, though the position changes along it too
+    cube, _ = spectral_cube(tmp_path / "cube.fits", (3, 5, 12, 16), [WAVE, TIME], PC1_4=1.0)
+    viewers = quicklook(cube_app, [cube])
+    assert viewers["wavelength"].state.y_att is cube.pixel_component_ids[0]  # λ–time
 
 
 def test_a_cube_without_a_wavelength_axis_has_no_quicklook(cube_app, tmp_path):
