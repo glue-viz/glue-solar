@@ -180,8 +180,8 @@ def link_iris(session, data_collection):
     IRIS data by time.
 
     Selections then carry over between them through their world coordinates. The observation browser, a quicklook and
-    the analyses link IRIS rasters and slit-jaw images, and data made from them, only, and the links are kept when a
-    dataset is removed.
+    the analyses link IRIS rasters and slit-jaw images, and data made from them or from data linked here, only, and the
+    links are kept when a dataset is removed.
     """
     keep_hpc_linked(data_collection, others=data_collection)
 

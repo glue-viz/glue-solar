@@ -963,7 +963,9 @@ def link_hpc(data_collection, others=()):
                 if not (asked or pair in linked):
                     continue
                 if anchor is not cid and pair not in linked:  # an asked anchor is placed and locked too (D97)
-                    links.append((LinkSame if isinstance(data.coords, _GlueWCS) else LinkSameWithUnits)(anchor, cid))
+                    # LinkSame only between two datasets in arcsec, such as IRIS pairs (D37), not a sunpy map's degrees
+                    same = isinstance(data.coords, _GlueWCS) and isinstance(anchor.parent.coords, _GlueWCS)
+                    links.append((LinkSame if same else LinkSameWithUnits)(anchor, cid))
                 placed.add(data)
                 if _role(data) == "sst":
                     cubes.add(data)
@@ -1096,6 +1098,9 @@ def keep_hpc_linked(data_collection, others=()):
     """
     requested = _relinker(data_collection).others
     requested.update(others)
+    # and data made from them (`_GlueWCS.follows`), such as a rebinned AIA cutout, linked as its source is (D101)
+    uuids = {data.uuid for data in requested}
+    requested.update(data for data in data_collection if uuids.intersection(getattr(data.coords, "follows", ())))
     links = link_hpc(data_collection, requested)
     if links:  # glue rediscovers every dataset's links on each add_link, even an empty one
         data_collection.add_link(links)
