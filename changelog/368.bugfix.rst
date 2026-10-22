@@ -1,0 +1,1 @@
+Undo or Redo of a click on one of two linked quicklooks puts both points back and keeps the shown tab's point followed, opening another quicklook of a raster file leaves the first quicklook's point where it was, and a spectrum panel keeps refitting as the point moves after its x unit changes.
