@@ -30,13 +30,14 @@ from glue.core.coordinate_helpers import unbroadcast
 from glue.core.data_exporters import gridded_fits
 from glue.core.edit_subset_mode import EditSubsetMode
 from glue.core.exceptions import IncompatibleAttribute
-from glue.core.link_helpers import LinkSame, LinkSameWithUnits
+from glue.core.link_helpers import LinkSame, LinkSameWithUnits, MultiLink
 from glue.core.link_manager import pixel_cid_to_pixel_cid_matrix
 from glue.core.state import GlueSerializeError, GlueSerializer, GlueUnSerializer, loader, saver
 from glue.core.subset import SubsetState
 from glue.dialogs.link_editor.state import LinkEditorState
 from glue.plugins.tools.path_slicer.path_sliced_data import PathSlicedData
 from glue.plugins.tools.path_slicer.path_sliced_data_links import PathRelativeLink
+from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
 from glue.utils import defer_draw
 from glue.viewers.common.state import LayerState
 from glue.viewers.histogram import state as histogram_state
@@ -74,9 +75,12 @@ import astropy.units as u
 from astropy.io import fits
 from astropy.visualization.wcsaxes import WCSAxes
 from astropy.wcs import WCS
+from astropy.wcs.utils import pixel_to_pixel
+from astropy.wcs.wcsapi import HighLevelWCSWrapper, SlicedLowLevelWCS
 
 from sunpy.visualization.colormaps import cmlist
 
+from glue_solar.sources.dkist import GlueWCS
 from glue_solar.sources.loaders.iris import WCS_LOCK, _HeldWCS, _LockedWCS
 
 
@@ -757,6 +761,85 @@ if _needs(needs_link_editor_workaround):
     PathRelativeLink.__init__ = path_link_init
     PathRelativeLink._forward.__signature__ = inspect.signature(lambda k_from: None)
     PathRelativeLink._backward.__signature__ = inspect.signature(lambda k_to: None)
+
+
+# glue 1.28.0 links datasets whose world axes differ through has_celestial and wcs.lng, attributes of an astropy WCS
+# only, taking world axis i to be pixel axis world_n_dim - 1 - i, so its autolinker raised AttributeError as DKIST
+# datasets of different dimensions loaded (D102)
+_original_wcs_link_init = WCSLink.__init__
+
+
+def _wcs_link_axes(wcs, types):
+    """The pixel axes of ``wcs`` along which world axes of physical types ``types`` vary, and no others."""
+    matrix = np.asarray(wcs.axis_correlation_matrix)
+    linked = np.array([kind in types for kind in wcs.world_axis_physical_types])
+    return np.flatnonzero(matrix[linked].any(axis=0) & ~matrix[~linked].any(axis=0))
+
+
+def wcs_link_init(self, data1=None, data2=None, cids1=None, cids2=None):
+    """
+    glue's ``WCSLink.__init__``, with its general path by APE-14 alone where glue's needs an astropy WCS: the physical
+    types both datasets have, through the pixel axes of each along which only those vary, the others at pixel 0, fewer
+    types until both keep the same ones; tried at pixel 0 with as many values as each takes, where glue gives the
+    second as many as the first.
+    """
+    try:
+        return _original_wcs_link_init(self, data1, data2, cids1, cids2)
+    except AttributeError:  # an astropy WCS attribute
+        pass
+    pair, sliced = (data1, data2), None
+    types = set(data1.coords.world_axis_physical_types) & set(data2.coords.world_axis_physical_types) - {None}
+    while types:
+        axes = [_wcs_link_axes(data.coords, types) for data in pair]
+        if not all(map(len, axes)):
+            break
+        sliced = [
+            SlicedLowLevelWCS(data.coords, tuple(slice(None) if p in kept else 0 for p in range(data.ndim))[::-1])
+            for data, kept in zip(pair, axes)
+        ]
+        found = [set(wcs.world_axis_physical_types) for wcs in sliced]
+        if found[0] == found[1]:
+            break
+        types, sliced = found[0] & found[1], None
+    if sliced is None:
+        raise IncompatibleWCS(f"Can't create WCS link between {data1.label} and {data2.label}")
+    cids = [[data.pixel_component_ids[data.ndim - 1 - p] for p in kept] for data, kept in zip(pair, axes)]
+    wcs1, wcs2 = map(HighLevelWCSWrapper, sliced)
+
+    def forwards(*pixel):
+        return pixel_to_pixel(wcs1, wcs2, *pixel)
+
+    def backwards(*pixel):
+        return pixel_to_pixel(wcs2, wcs1, *pixel)
+
+    try:
+        forwards(*[0] * len(cids[0]))
+        backwards(*[0] * len(cids[1]))
+    except Exception:  # noqa: BLE001 - glue's test: any failure
+        raise IncompatibleWCS(f"Can't create WCS link between {data1.label} and {data2.label}") from None
+    self._physical_types_1, self._physical_types_2 = (list(wcs.world_axis_physical_types) for wcs in sliced)
+    MultiLink.__init__(self, *cids, forwards=forwards, backwards=backwards)
+    self.data1, self.data2 = data1, data2
+
+
+def needs_wcs_link_workaround(init=_original_wcs_link_init):
+    """Whether ``init`` fails to link a cube and an image whose APE-14 coordinates are not an astropy WCS."""
+    datasets = []
+    for naxis in (3, 2):
+        wcs = WCS(naxis=naxis)
+        wcs.wcs.ctype = ["HPLN-TAN", "HPLT-TAN", "STOKES"][:naxis]
+        data = Data(label="probe", coords=GlueWCS(wcs, list(range(naxis)), []))
+        data.add_component(np.zeros((2,) * naxis), "x")
+        datasets.append(data)
+    try:
+        init(WCSLink.__new__(WCSLink), *datasets)
+    except AttributeError:
+        return True
+    return False
+
+
+if _needs(needs_wcs_link_workaround):
+    WCSLink.__init__ = wcs_link_init
 
 
 # glue 1.27.0 gives a time linked from another dataset, as the first light curve's ``Time`` on the others, no kind: it

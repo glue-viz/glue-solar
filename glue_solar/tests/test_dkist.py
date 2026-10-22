@@ -11,13 +11,22 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from glue.core import DataCollection
+from glue.core.autolinking import find_possible_links
 from glue.core.data import Data
 from glue.core.data_factories import load_data
+from glue.core.exceptions import IncompatibleAttribute
+from glue.plugins.wcs_autolinking.wcs_autolinking import WCSLink
+from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 
+from astropy.wcs.utils import pixel_to_pixel
+
+from glue_solar import glue_patches
 from glue_solar.quicklook import quicklook
-from glue_solar.sources.dkist import DKISTData, GlueWCS, _glue_order
+from glue_solar.sources.dkist import DKISTData, GlueWCS, _data, _glue_order
+from glue_solar.sources.iris import link_iris
 from glue_solar.tests.test_quicklook import bare_app_for
 
 
@@ -44,6 +53,21 @@ small_visp_dated_2044 = pytest.mark.filterwarnings("ignore:ERFA function.*dubiou
 
 def labels(data):
     return [cid.label for cid in data.world_component_ids]
+
+
+def point(data, at, other):
+    """The pixel of ``other`` that a Pixel point at pixel ``at`` of ``data`` reaches, as glue places it."""
+    return PixelSubsetState(data, [slice(i, i + 1) for i in at])._to_linked_pixel_coords(other)
+
+
+def drawn_over(app, reference, other, y=None):
+    """Whether ``other`` draws over ``reference`` in an Image viewer of ``reference``, along its axis ``y`` if given."""
+    viewer = app.new_data_viewer(ImageViewer, data=reference)
+    if y is not None:
+        viewer.state.y_att = reference.pixel_component_ids[y]
+    viewer.add_data(other)
+    viewer.figure.canvas.draw()
+    return all(layer.enabled for layer in viewer.layers)
 
 
 def test_dkist_datasets_open_with_a_world_axis_per_array_axis(tmp_path):
@@ -171,3 +195,65 @@ def test_a_cryo_nirsp_raster_opens_its_quicklook(qtbot, monkeypatch, dkist_sampl
     spectrum = viewers["spectra"][0].state.layers[0]
     qtbot.waitUntil(lambda: spectrum.profile is not None, timeout=60_000)
     np.testing.assert_allclose(spectrum.profile[1], np.asarray(dkist.load_dataset(path).data[160, 959]))
+
+
+def test_dkist_datasets_of_different_dimensions_link_pixel_to_pixel(tmp_path):
+    import dkist
+
+    path = asdf_alone(tmp_path, "croppable_visp")
+    with pytest.warns(UserWarning, match="0 of 2752 files"):
+        visp = load_data(str(path))
+    # its Stokes I map at one wavelength: the raster's steps and slit, of their longitude, latitude and time
+    stokes_i = _data(dkist.load_dataset(path)[0, :, 400], "VISP BKEWK map")
+    dc = DataCollection([visp, stokes_i])
+    # glue's autolinker raised AttributeError: 'GlueWCS' object has no attribute 'has_celestial'
+    [[link]] = find_possible_links(dc).values()
+    assert isinstance(link, WCSLink)
+    dc.add_link(link)
+    # pixel to pixel along the axes those vary along (D18, D102)
+    assert point(visp, (0, 200, 400, 1000), stokes_i) == [200, 1000]
+    assert point(stokes_i, (200, 1000), visp) == [None, 200, None, 1000]
+    assert glue_patches.needs_wcs_link_workaround() == (WCSLink.__init__ is glue_patches.wcs_link_init)
+    assert not glue_patches.needs_wcs_link_workaround(glue_patches.wcs_link_init)
+
+
+def test_a_mosaic_s_tiles_link_to_its_center_tile(app, tmp_path):
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        tiles = load_data(str(asdf_alone(tmp_path, "large_vbi")))
+    dc = app.data_collection
+    dc.extend(tiles)
+    # each to the center tile, (1, 1): glue suggested every pair's 36 links (D102)
+    [links] = find_possible_links(dc).values()
+    pairs = [{tiles.index(link.data1), tiles.index(link.data2)} for link in links]
+    assert sorted(pairs, key=sorted) == [{k, 4} for k in range(9) if k != 4]
+    dc.add_link(links)
+    # a corner tile's point and image reach the opposite corner's through it
+    expected = pixel_to_pixel(tiles[0].coords, tiles[8].coords, 2048, 2048, 1)[::-1]
+    assert point(tiles[0], (1, 2048, 2048), tiles[8]) == np.round(expected).astype(int).tolist()
+    assert drawn_over(app, tiles[8], tiles[0])
+
+
+def test_link_helioprojective_coordinates_links_dkist_data_by_time(app, tmp_path, sns):
+    sji, _ = sns
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        tile = load_data(str(asdf_alone(tmp_path, "large_vbi")))[4]
+    with pytest.warns(UserWarning, match="0 of 2752 files"):
+        visp = load_data(str(asdf_alone(tmp_path, "croppable_visp")))
+    dc = app.data_collection
+    dc.extend([sji, tile, visp])
+    link_iris(app.session, dc)
+    # a VBI point reaches the slit-jaw frame nearest it in time, its last (2021 to 2023), at its place: a DKIST
+    # dataset's longitude and latitude vary with its time
+    last = sji.shape[0] - 1
+    lon, lat = (tile[tile.id[f"Helioprojective {name}"], (1, 2048, 2048)] for name in ("Longitude", "Latitude"))
+    x, y, _ = sji.coords.world_to_pixel_values(lon, lat, sji.coords.pixel_to_world_values(0, 0, last)[2])  # arcsec
+    assert point(tile, (1, 2048, 2048), sji) == [last, round(float(y)), round(float(x))]
+    # and a slit-jaw point the VBI frame nearest, its first
+    assert point(sji, (31, 20, 18), tile)[0] == 0
+    assert drawn_over(app, tile, sji)
+    assert drawn_over(app, sji, tile)
+    # a scanning raster's time has no axis of its own (D102), so glue cannot place a point on it from coordinates:
+    # its point is incompatible with IRIS data, where it raised TypeError, but the slit-jaw image draws over its map
+    with pytest.raises(IncompatibleAttribute):
+        point(visp, (0, 344, 488, 1277), sji)
+    assert drawn_over(app, visp, sji, y=1)  # its steps by its slit

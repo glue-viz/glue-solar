@@ -909,8 +909,9 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None,
 
 class _ScanAt:
     """
-    A stack's ``Scan``, or an SST cube's time, at each index along another dataset's first axis, its frames, exposures
-    or steps (`link_hpc`), and NaN off it: ``scans``. Saved in sessions.
+    A stack's ``Scan``, an SST cube's or a DKIST dataset's time at each index along another dataset's frames, exposures
+    or steps, or a slit-jaw image's time along a DKIST dataset's time axis (`link_hpc`), and NaN off it: ``scans``.
+    Saved in sessions.
     """
 
     __name__ = "nearest_scan"  # glue's name of a link function, as its own link helpers set it
@@ -941,9 +942,11 @@ def link_hpc(data_collection, others=()):
     Linking. Each links to the first, not to every other: glue rediscovers every link at each change, 0.3 s for the
     70 links of 36 datasets but 4 s for every pair's 1260. The plain WCS of each other dataset linked, which IRIS
     data's profile workers then call, goes behind `WCS_LOCK` in place (`_LockedWCS`); each SST cube's
-    ``meta['IRIS observation']`` names the IRIS observation timed nearest it, if linked.
+    ``meta['IRIS observation']`` names the IRIS observation timed nearest it, if linked. A DKIST dataset's time and the
+    IRIS data's are linked at the nearest frames.
     """
     from glue_solar.quicklook import _role, _times, nearest, observation_key  # which imports this module
+    from glue_solar.sources.dkist import GlueWCS, _frame_times  # which imports this module
     from glue_solar.sources.sst import _LockedTabularWCS, _TabularWCS  # which imports this module
 
     linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in data_collection.links}
@@ -1023,6 +1026,36 @@ def link_hpc(data_collection, others=()):
                 first = data[time, (0,) * data.ndim] * u.Unit(data.coords.world_axis_units[kinds.index("time")])
                 values = (first + (scans - when[0]) / np.timedelta64(1, "s") * u.s).to_value(first.unit)
                 links.append(ComponentLink([scan], time, using=_ScanAt(values)))
+    # a DKIST dataset's longitude and latitude vary with its time too (D102): each IRIS frame, exposure or step gives
+    # its time that of its frame nearest in time, and each of its frames a slit-jaw image's time that of the nearest
+    # frame, as dkist's gWCS gives no position at a time off its frames
+    for dataset in [data for data in data_collection if data in placed and isinstance(data.coords, GlueWCS)]:
+        found = _frame_times(dataset)
+        if found is None:
+            continue
+        axis, times = found
+        frames, wcs = dataset.pixel_component_ids[axis], dataset.coords
+        # its time, where glue gives that axis its time rather than a raster's longitude (`GlueWCS`)
+        timed = wcs.world_axis_physical_types[wcs.world_n_dim - 1 - axis] == "time"
+        seconds = dataset.world_component_ids[axis] if timed else None
+        for data in datasets:
+            frame = data.pixel_component_ids[0]
+            if data.find_component_id("Time") is None:
+                continue
+            when = _times(data, data.shape[1] // 2 if data.ndim == 4 else 0)  # a stack's at its middle step
+            if np.isnat(when).all():
+                continue
+            if seconds is not None and frozenset((seconds, frame)) not in linked:
+                at = tuple(slice(None) if a == axis else n // 2 for a, n in enumerate(dataset.shape))
+                values = np.where(np.isnat(when), np.nan, dataset[seconds, at][nearest(when, times)[0]])
+                links.append(ComponentLink([frame], seconds, using=_ScanAt(values)))
+            kinds = list(data.coords.world_axis_physical_types)
+            if "time" not in kinds:  # a raster's
+                continue
+            time = data.world_component_ids[data.ndim - 1 - kinds.index("time")]
+            if frozenset((time, frames)) not in linked:
+                values = data[time, (slice(None),) + (0,) * (data.ndim - 1)][nearest(times, when)[0]]
+                links.append(ComponentLink([frames], time, using=_ScanAt(values)))
     return links
 
 
