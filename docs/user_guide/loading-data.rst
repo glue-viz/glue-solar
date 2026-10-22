@@ -168,8 +168,8 @@ stay in the FITS files next to the ASDF file, read as they are viewed.
 - glue offers to link the tiles of a VBI mosaic as they load: accept, and drag the tiles onto one
   Image viewer.
 
-Not yet: linking DKIST datasets of different shapes, to each other or to IRIS data (glue's
-autolinker reports an error, although the data load), and saving them in a session.
+Not yet: linking DKIST datasets of different shapes to each other (glue's autolinker reports an
+error, although the data load), linking them to IRIS data, and saving them in a session.
 
 .. _glue_solar_users_guide_loading_aia_and_hmi_files:
 
