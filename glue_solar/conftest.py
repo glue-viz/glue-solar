@@ -1,7 +1,6 @@
 import os
 import sys
 import tarfile
-import tempfile
 import traceback
 from types import SimpleNamespace
 
@@ -16,12 +15,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 def pytest_configure(config):
     # As glue's and glue-qt's conftests do: an error in a viewer's add_data or add_subset raises instead of
-    # opening a message box, and close prompts are skipped
+    # opening a message box, and close prompts are skipped; glue-core's pytest plugin keeps glue's CFG_DIR off ~/.glue
     os.environ["GLUE_TESTING"] = "True"
-    # and never read or write the user's ~/.glue
-    from glue import config as glue_config
-
-    glue_config.CFG_DIR = tempfile.mkdtemp()
 
 
 def pytest_unconfigure(config):
