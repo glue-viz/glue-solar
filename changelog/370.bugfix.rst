@@ -1,0 +1,1 @@
+Measure and 'Save path as ECSV…' give km on the maps the analyses make, an AIA cutout or SOT cube linked to a map in degrees is placed right whatever the load order, and a rebinned or regridded copy of an AIA cutout or SOT cube linked on request is linked too.
