@@ -14,11 +14,14 @@ import weakref
 
 import dask.array as da
 import glue.config
+import glue_qt.viewers.common.tools
 import numpy as np
 import pytest
-from glue.core import Data, DataCollection
+from glue.core import Data, DataCollection, Subset
 from glue.core.link_helpers import LinkCollection
+from glue.core.roi import RectangularROI, XRangeROI
 from glue.core.state import GlueSerializer, GlueUnSerializer
+from glue.core.subset import roi_to_subset_state
 from glue.utils import unbroadcast
 from glue.viewers.image.state import AggregateSlice
 from glue.viewers.profile.state import ProfileViewerState
@@ -62,12 +65,15 @@ from glue_solar.tests.test_quicklook import (
     POINT_CURVES,
     SNS,
     THREE,
+    check_outline,
+    draw_region,
     drifting_stack,
     entries,
     marks,
     menu_action,
     panels_list,
     readout,
+    sit_and_stare,
     slide,
     slit_jaw,
     switch,
@@ -545,6 +551,10 @@ def test_a_restored_quicklook_has_its_panels_off_and_their_axes(app, qtbot, monk
     viewers["spectrogram"].toolbar.actions["solar:hide_axes"].trigger()  # the axes of every image panel on (D83)
     look = viewers["map"].layers[0].state
     look.cmap, look.stretch, look.v_min = colormaps["viridis"], "sqrt", 5.0
+    for viewer, title in ((viewers["map"], "my map"), (viewers["sji"][0], "my SJI")):  # one on, one off
+        monkeypatch.setattr(glue_qt.viewers.common.tools, "get_text", lambda **_: title)
+        [rename] = [tool for tool in viewer.toolbar.tools["window"].subtools if tool.tool_id == "window:title"]
+        rename.activate()  # glue-qt's 'Change viewer title'
     app.save_session(str(tmp_path / "panels.glu"), absolute_paths=False)
     restored = restore(qtbot, monkeypatch, tmp_path / "panels.glu")
 
@@ -678,6 +688,22 @@ def test_a_restored_sst_quicklook_keeps_its_second_map_point_and_panels_off(app,
     assert [group.label for group in restored.data_collection.subset_groups].count("H-alpha Stokes I at the point") == 1
 
 
+def test_a_restored_sst_quicklook_has_only_its_live_cuts(app, qtbot, monkeypatch, tmp_path):
+    from glue_solar.tests.test_sst import stokes_cube
+
+    cube, _ = stokes_cube(tmp_path / "cube.fits")
+    viewers = quicklook(app, [cube])
+    with qtbot.waitSignal(viewers["spectra"][3].destroyed):
+        viewers["spectra"][3].parent().close()  # Stokes V's, by its close box
+    app.new_data_viewer(ImageViewer, data=cube).state.title = "mine"  # in the quicklook's tab, as a drop
+    app.save_session(str(tmp_path / "sst.glu"))
+    restored = restore(qtbot, monkeypatch, tmp_path / "sst.glu")
+    groups = restored.data_collection.subset_groups
+    assert len({group.label for group in groups}) == len(groups)  # Stokes V's too, once
+    [mine] = [viewer for viewer in restored.viewers[1] if viewer.state.title == "mine"]
+    assert all(layer.layer.group in groups for layer in mine.layers if isinstance(layer.layer, Subset))  # none stale
+
+
 def test_a_restored_quicklook_keeps_its_cuts_where_they_were(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
     files = sorted(str(path) for path in irispy_test_files if "3860258481_raster" in path.name)
     viewers = quicklook(app, raster_data(files, ["C II 1336"], stack=True))
@@ -708,6 +734,23 @@ def test_a_restored_quicklook_keeps_its_cuts_where_they_were(app, qtbot, monkeyp
     for label, (slices, x_att, values) in restored.items():
         assert (slices, x_att.label) == (saved[label][0], saved[label][1].label)
         np.testing.assert_array_equal(values, saved[label][2])
+
+
+def test_a_restored_quicklook_keeps_its_regions_outlines(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
+    viewers = quicklook(app, sit_and_stare(irispy_test_files))
+    roi = RectangularROI(80.3, 100.6, 10.3, 19.8)
+    draw_region(app, viewers["map"], roi)
+    raster, sji = viewers["map"].state.reference_data, viewers["sji"][0].state.reference_data
+    expected = raster.get_mask(draw_region(app, viewers["sji"][0], XRangeROI(16.3, 24.6)))
+    app.save_session(str(tmp_path / "regions.glu"), absolute_paths=False)
+    restored = restore(qtbot, monkeypatch, tmp_path / "regions.glu")
+    raster, sji = (restored.data_collection[data.label] for data in (raster, sji))
+    _, on_map, on_frame = restored.data_collection.subset_groups
+    # each by its outline (D39): the map's in each slit-jaw frame without inverting the raster's coordinates, the slit-jaw
+    # image's on the raster at all
+    pixels = roi_to_subset_state(roi, x_att=raster.pixel_component_ids[0], y_att=raster.pixel_component_ids[1])
+    check_outline(monkeypatch, raster, sji, on_map.subset_state, pixels)
+    np.testing.assert_array_equal(raster.get_mask(on_frame.subset_state), expected)
 
 
 def links(collection):
