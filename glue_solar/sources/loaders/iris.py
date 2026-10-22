@@ -909,8 +909,9 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None,
 
 class _ScanAt:
     """
-    A stack's ``Scan``, or an SST cube's time, at each index along another dataset's first axis, its frames, exposures
-    or steps (`link_hpc`), and NaN off it: ``scans``. Saved in sessions.
+    A stack's ``Scan``, an SST cube's or a DKIST dataset's time at each index along another dataset's frames, exposures
+    or steps, or a slit-jaw image's time along a DKIST dataset's time axis (`link_hpc`), and NaN off it: ``scans``.
+    Saved in sessions.
     """
 
     __name__ = "nearest_scan"  # glue's name of a link function, as its own link helpers set it
