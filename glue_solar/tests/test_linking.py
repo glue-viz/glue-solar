@@ -43,6 +43,7 @@ from glue_solar.sources.calibration import radiometric_calibration, remove_dust
 from glue_solar.sources.doppler import doppler_image
 from glue_solar.sources.iris import browse_iris, link_iris, shift_pointing_iris
 from glue_solar.sources.loaders.iris import (
+    _RUNNING,
     WCS_LOCK,
     QtIRISImporter,
     _HeldWCS,
@@ -378,6 +379,39 @@ def test_a_sot_cube_loaded_first_is_linked_on_request_to_the_raster(sns, irispy_
         np.testing.assert_array_equal(sot[_cid(raster, label)], sot[_cid(sot, label)])
     lon = _cid(raster, HPC[0])
     assert 0 < sot.get_mask(lon > float(np.nanmedian(sot[lon]))).sum() < sot.size
+
+
+def test_a_sot_cube_is_linked_on_request_to_a_map_in_degrees_loaded_first(irispy_test_files):
+    # D37, D97: with no IRIS data, the map, in degrees, is the anchor, and the cube's arcsec are converted to its
+    [path] = [path for path in irispy_test_files if "_Gband4305_FG_" in path.name]
+    sot = image_data(path)
+    lon, lat, _ = sot.coords.pixel_to_world_values(36, 39, 0)
+    aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia")
+    dc = DataCollection([aia, sot])
+    link_iris(None, dc)
+    assert [type(link) for link in dc.external_links] == [LinkSameWithUnits, LinkSameWithUnits]
+    for label, own in zip(HPC, aia.world_component_ids[::-1]):
+        np.testing.assert_allclose(sot[own], sot[_cid(sot, label)] / 3600)
+
+
+def test_copies_of_data_linked_on_request_are_linked_as_it_is(app, qtbot, monkeypatch, sns, irispy_test_files):
+    # D101: a rebinned or regridded copy of a SOT cube linked on request is linked too, of one never linked not
+    [path] = [path for path in irispy_test_files if "_Gband4305_FG_" in path.name]
+    sot, other = image_data(path), image_data(path)
+    collection, tree = app.data_collection, app._layer_widget
+    collection.extend([*sns, sot])
+    link_iris(None, collection)
+    collection.append(other)
+    monkeypatch.setattr(QtWidgets.QDialog, "exec", lambda dialog: QtWidgets.QDialog.Accepted)
+    for data in (sot, other):
+        tree.ui.layerTree.set_selected_layers([data])
+        tree._actions["IRIS: rebin…"].trigger()
+        qtbot.waitUntil(lambda: not _RUNNING)
+        tree.ui.layerTree.set_selected_layers([data])
+        tree._actions["IRIS: regrid on time"].trigger()
+    copies = collection[4:]
+    assert [data.label.removeprefix(sot.label) for data in copies] == [" rebinned 1x2x2", " regridded"] * 2
+    assert linked_data(collection) == {*sns, sot, *copies[:2]}
 
 
 def _sunpy_map(lon, lat, scale, shape, label, rotation=0, obstime="2021-09-05T00:30"):

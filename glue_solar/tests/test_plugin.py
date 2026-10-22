@@ -1116,6 +1116,14 @@ def test_sky_length_on_a_raster_map(app, irispy_test_files):
     assert sky_length(viewer, [0, 7], [10, 90])[1] == pytest.approx(_separation(lon, lat, u.arcsec))
     # a -TAB raster has no coordinates past its outer steps
     assert sky_length(viewer, [-1, 3], [10, 90])[1:] == (None, None)
+    # its maps keep no DSUN_OBS, only STARTOBS (D46): km at Earth's distance then
+    maps = line_moments(data, 1335.71)
+    app.data_collection.append(maps)
+    viewer = app.new_data_viewer(ImageViewer, data=maps)
+    viewer.state.x_att, viewer.state.y_att = maps.pixel_component_ids
+    _, arcsec, km = sky_length(viewer, [0, 7], [10, 90])
+    earth = get_earth(maps.meta["STARTOBS"]).radius
+    assert km == pytest.approx((arcsec * u.arcsec).to_value(u.rad) * earth.to_value(u.km))
 
 
 @pytest.mark.remote_data

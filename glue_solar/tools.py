@@ -957,11 +957,11 @@ class RasterOverlaysTool(Tool):
 def _observer_distance(data):
     """
     The observer's distance from the Sun of ``data``, in m: its ``DSUN_OBS``, else Earth's at its ``DATE-OBS``, as
-    SSTRED files have no ``DSUN_OBS``; None without either.
+    SSTRED files have no ``DSUN_OBS``, or ``STARTOBS``, the only time IRIS analyses' maps keep (D46); None without any.
     """
     if distance := data.meta.get("DSUN_OBS"):
         return distance
-    date = data.meta.get("DATE-OBS")
+    date = data.meta.get("DATE-OBS") or data.meta.get("STARTOBS")
     return get_earth(date).radius.to_value(u.m) if date else None
 
 
