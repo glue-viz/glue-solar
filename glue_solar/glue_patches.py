@@ -361,8 +361,9 @@ def apply_subset_state(self, session):
         self._solar_made = {s: s.subset_state for s in subsets if s.subset_state is not self.old_states.get(s)}
         return
     self.old_states = {subset: subset.subset_state for data in self.data_collection for subset in data.subsets}
-    for subset, state in made.items():
-        getattr(subset, "group", subset).subset_state = state  # a group's, as glue's do sets it: one message a subset
+    with _putting_back(self):
+        for subset, state in made.items():  # a group's, as glue's do sets it: one message a subset
+            getattr(subset, "group", subset).subset_state = state
 
 
 def needs_redo_workaround(do=_original_apply_subset_state):
@@ -383,6 +384,27 @@ def needs_redo_workaround(do=_original_apply_subset_state):
 
 if _needs(needs_redo_workaround):
     ApplySubsetState.do = apply_subset_state
+
+
+_original_undo_subset_state = ApplySubsetState.undo
+
+
+def _putting_back(command):
+    """The quicklooks' `Coordinator.restoring`, while ``command`` puts subset states back."""
+    coordinator = getattr(command.data_collection, "_solar_coordinator", None)
+    return nullcontext() if coordinator is None else coordinator.restoring()
+
+
+def undo_subset_state(self, session):
+    """
+    glue-core's ``ApplySubsetState.undo``, which puts back each subset's state in turn: a quicklook's point put back is
+    not a click, which other points would follow (D97).
+    """
+    with _putting_back(self):
+        _original_undo_subset_state(self, session)
+
+
+ApplySubsetState.undo = undo_subset_state
 
 
 _original_update_visual_attributes = ImageSubsetLayerArtist._update_visual_attributes

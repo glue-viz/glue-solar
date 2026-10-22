@@ -1481,8 +1481,13 @@ def test_each_tab_moves_its_own_point(bare_app, qtbot, scans):
     qtbot.wait(20)
     assert first_point.subset_state.slices[0] == slice(6, 7)
     assert second_point.subset_state.slices == second
-    # two quicklooks of one cube: a click in the second leaves the first's panels alone
+    # two quicklooks of one cube: opening the second leaves the first's point, and a click in it the first's panels
+    placed = first_point.subset_state.slices
     again = quicklook(bare_app, [scan])
+    [again_point] = bare_app.session.edit_subset_mode.edit_subset
+    qtbot.wait(20)
+    assert first_point.subset_state.slices == placed
+    assert again["spectrogram"].state.slices[0] == again_point.subset_state.slices[0].start == 4  # its map's center
     before = {role: first[role].state.slices for role in RASTER_PANELS}
     select_point(again["map"], 1, 90)
     qtbot.wait(20)

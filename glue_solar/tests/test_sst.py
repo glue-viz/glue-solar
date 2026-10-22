@@ -990,6 +990,7 @@ def test_the_spectra_and_curve_refit_as_the_point_moves_until_zoomed(sst_app, tm
     with fits.open(path, mode="update") as hdus:
         hdus[0].data[:, :, :, 2, 3] += 1000  # a bright pixel
     cube = sst_data(path)
+    cube.meta["rest_wavelength"] = 6562.8  # 'km / s' offered
     viewers = quicklook(sst_app, [cube])
     [spectrum], curve = viewers["spectra"], viewers["curve"]
     group = sst_app.session.edit_subset_mode.edit_subset[0]
@@ -1007,6 +1008,12 @@ def test_the_spectra_and_curve_refit_as_the_point_moves_until_zoomed(sst_app, tm
     spectrum.toolbar.actions["mpl:home"].trigger()
     assert move(5, 5)[0] == pytest.approx(faint[0])
     assert move(2, 3)[0] == pytest.approx(bright[0])  # Home resumes the refits (D98)
+    x = spectrum.state.x_min, spectrum.state.x_max
+    for unit in ("Angstrom", "km / s", "nm"):  # glue converts the fit's x range to the unit picked: it still refits
+        spectrum.state.x_display_unit = unit
+        assert move(5, 5)[0] == pytest.approx(faint[0])
+        assert move(2, 3)[0] == pytest.approx(bright[0])
+    assert (spectrum.state.x_min, spectrum.state.x_max) == pytest.approx(x)
 
 
 def test_a_point_move_runs_the_spectrum_worker_once(sst_app, qtbot, monkeypatch, tmp_path):
@@ -1163,6 +1170,33 @@ def test_a_quicklook_opened_once_linked_starts_at_the_point_and_moves_no_other(s
     assert ours.subset_state.slices == placed
     assert theirs.subset_state.slices[2:] == [slice(8, 9), slice(10, 11)]
     assert (b["slit"].state.slices[-1], b["wavelength"].state.slices[-2:]) == (10, (8, 10))
+
+
+def test_undo_and_redo_of_a_linked_click_keep_the_shown_tab_s_point(sst_app, qtbot, tmp_path):
+    # D39, D52, D97: Undo or Redo of a click on the older of two linked quicklooks puts both points back as they were,
+    # the shown tab's still the one followed: glue puts back each subset in turn, where each point linked the other again
+    write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16), start=1200.0, cadence=60.0)
+    write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), center=(-53.25, -401.25), scale=0.5, start=1170.0)
+    first, second = (sst_data(tmp_path / f"{name}.fits") for name in "ab")
+    sst_app.data_collection.extend([first, second])
+    link_iris(sst_app.session, sst_app.data_collection)
+    a = quicklook(sst_app, [first])
+    [ours] = sst_app.session.edit_subset_mode.edit_subset
+    b = quicklook(sst_app, [second])
+    [theirs] = sst_app.session.edit_subset_mode.edit_subset
+    show_tab(sst_app, qtbot, 1)
+    before = ours.subset_state, theirs.subset_state
+    select_point(a["map"], 11, 6)
+    after = ours.subset_state, theirs.subset_state
+    stack = sst_app.session.command_stack
+    for step, states in ((stack.undo, before), (stack.redo, after)):
+        step()
+        qtbot.wait(20)
+        assert (ours.subset_state, theirs.subset_state) == states
+        scans = shown_scan(a), shown_scan(b)
+        press(a["map"], Qt.Key_F)  # the shown tab's time master, not the hidden one's
+        qtbot.wait(20)
+        assert (shown_scan(a), shown_scan(b)) == (scans[0] + 1, scans[1])
 
 
 def test_sst_time_keys_follow_overlapping_scans(qtbot, tmp_path):

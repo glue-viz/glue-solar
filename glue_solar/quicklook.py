@@ -575,6 +575,21 @@ class Coordinator(HubListener):
             self._busy = False
 
     @contextmanager
+    def restoring(self):
+        """
+        Let glue's Undo or Redo put the points back, one subset at a time: each is a point of then, which moves no other
+        (D97), and the point followed stays the one shown (D39, D52).
+        """
+        group, linked, self.link_points = self.group, self.link_points, False
+        try:
+            yield
+        finally:
+            self.link_points = linked
+            if group in self.data_collection.subset_groups:
+                self.group = group
+            self._timer.start()
+
+    @contextmanager
     def showing(self, viewer, data):
         """Let ``viewer`` turn to ``data`` and its slices as a blink flip: the point and the time master stay (D41)."""
         self._shows[viewer] = data  # not new data for register's slices_changed to join the point on
@@ -1824,9 +1839,17 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
             _SpectralLines(coord, group, images, spectrum, tab)
         return new
 
+    kept = coord.point  # another tab's, which the new panels' sliders would move otherwise (`Coordinator._move_point`)
     for panel in table["panels"]:
         if panel.cut is None and panel.window is None:  # cuts once the point is there
-            make(panel)
+            at = panel.at
+            if at is not None and kept is not None and _same_file(kept.reference_data, panel.data):
+                # at that point on the axes not shown, as `open_window` opens a window's (D19)
+                at = tuple(
+                    index if s.start is None or axis in (panel.x, panel.y) else s.start
+                    for axis, (s, index) in enumerate(zip(kept.slices, at))
+                )
+            make(panel._replace(at=at))
     if "wing" in viewers:
         viewers["wing"]._solar_wing = True  # its wavelength stays (`_wing`)
         # per frame, as glue's whole cube's limits, mostly the line's, washed the far brighter wing out (P9)
@@ -2151,17 +2174,28 @@ def _fit(viewer):
     """Fit the spectrum panel's y range to its profiles and the y = 0 line, and any Stokes limit about it (`_fill`)."""
     state, limit = viewer.state, getattr(viewer, "_solar_limit", 0)
     state.reset_limits()
-    home = state.x_min, state.x_max, state.y_min, state.y_max  # what glue's Home gives
+    home = _range(state)  # what glue's Home gives
     state.y_min, state.y_max = min(state.y_min, -limit), max(state.y_max, limit)
-    viewer._solar_fitted = home, (state.x_min, state.x_max, state.y_min, state.y_max)
+    viewer._solar_fitted = home, _range(state)
+
+
+def _range(state):
+    """The panel's range, x in its data's own unit: a fit's stays one as glue converts x to another unit (D98)."""
+    x = [state.x_min, state.x_max]
+    try:
+        x = UnitConverter().to_native(state.reference_data, state.x_att, x, state.x_display_unit)
+    except u.UnitConversionError:  # a new x_att, whose unit and range glue resets next
+        x = [np.nan, np.nan]
+    return *x, state.y_min, state.y_max
 
 
 def _refit(viewer):
     """
     `_fit` the panel again while it shows the last fit's range or Home's, not one panned, zoomed or typed since (D98).
     """
-    state = viewer.state
-    if not _off(viewer) and (state.x_min, state.x_max, state.y_min, state.y_max) in getattr(viewer, "_solar_fitted", ()):
+    fitted = getattr(viewer, "_solar_fitted", ())
+    # close, as x to another unit and back rounds it; mid-way through a unit change, glue's x not yet converted, none
+    if not _off(viewer) and any(np.allclose(_range(viewer.state), each, rtol=1e-9, atol=0) for each in fitted):
         _fit(viewer)
 
 
