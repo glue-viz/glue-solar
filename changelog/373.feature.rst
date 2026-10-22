@@ -1,0 +1,1 @@
+glue's autolinker links DKIST datasets of different dimensions pixel to pixel, where it raised AttributeError, and links a mosaic's tiles to its center tile only; 'Link helioprojective coordinates' links DKIST datasets to IRIS data by time too, so points and images on a VBI or Cryo-NIRSP context image reach IRIS data and back.
