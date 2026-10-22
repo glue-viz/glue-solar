@@ -56,9 +56,9 @@ def test_dkist_datasets_open_with_a_world_axis_per_array_axis(tmp_path):
     assert (visp.label, visp._load_log.path) == ("VISP BKEWK", str(path))
     # Stokes, raster step, wavelength and slit: the step's longitude, as the raster scans; its time no attribute
     assert labels(visp) == ["Stokes", "Helioprojective Longitude", "Wavelength", "Helioprojective Latitude"]
-    centre = tuple(n // 2 for n in visp.shape)
-    lon = dkist.load_dataset(path).wcs.pixel_to_world_values(*centre[::-1])[0]
-    assert visp[visp.world_component_ids[1], centre] == pytest.approx(lon - 1296000)  # -408", not 359.89°
+    center = tuple(n // 2 for n in visp.shape)
+    lon = dkist.load_dataset(path).wcs.pixel_to_world_values(*center[::-1])[0]
+    assert visp[visp.world_component_ids[1], center] == pytest.approx(lon - 1296000)  # -408", not 359.89°
     # a Cryo-NIRSP context imager's two axes of time, its measurements and scan steps: the measurement's index
     with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):
         cryo = load_data(str(asdf_alone(tmp_path, "croppable_cryo")))
