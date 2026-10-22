@@ -42,4 +42,7 @@ import glue_qt
 import pytest
 
 print("IMPORTS", glue.__file__, glue_qt.__file__, flush=True)
-raise SystemExit(pytest.main(["-q", "-o", "addopts=", "-p", "no:cacheprovider", *args]))
+# glue-core 1.28 registers a pytest plugin (glue#2587), and glue is imported above: pytest warns it cannot rewrite it,
+# which pytest.ini's filterwarnings = error makes fatal
+raise SystemExit(pytest.main(["-q", "-o", "addopts=", "-p", "no:cacheprovider",
+                              "-W", "ignore::pytest.PytestAssertRewriteWarning", *args]))
