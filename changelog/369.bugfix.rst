@@ -1,0 +1,1 @@
+A restored session keeps each quicklook region's outline, so a region drawn on a slit-jaw image still reaches the raster, keeps the settings and off state of panels renamed with 'Change viewer title', and has no stale copies of the cut subsets of a cube quicklook, whether its panels were closed by hand or other viewers show them.
