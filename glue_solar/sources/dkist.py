@@ -6,13 +6,17 @@ import warnings
 from pathlib import Path
 
 import numpy as np
-from glue.config import data_factory
+from glue.config import autolinker, data_factory
 from glue.core.component import DaskComponent
 from glue.core.data import Data
+from glue.core.exceptions import IncompatibleAttribute
+from glue.plugins.wcs_autolinking import wcs_autolinking
+from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
 from glue.utils.array import compute_statistic
 
 import astropy.units as u
-from astropy.wcs.wcsapi import BaseLowLevelWCS, HighLevelWCSMixin
+from astropy.time import Time
+from astropy.wcs.wcsapi import BaseHighLevelWCS, BaseLowLevelWCS, HighLevelWCSMixin
 
 from glue_solar.sources.loaders.iris import _HPC
 
@@ -125,6 +129,10 @@ class GlueWCS(BaseLowLevelWCS, HighLevelWCSMixin):
         return self._pick(world, lambda p: pixel[p] * 1.0)
 
     def world_to_pixel_values(self, *world_arrays):
+        # glue's coordinate links give the values of glue's world components only, one per pixel axis (D102): none
+        # of a world axis of no pixel axis of its own, so no pixel
+        if len(world_arrays) < self.world_n_dim:
+            raise IncompatibleAttribute()
         world = [None] * self._wcs.world_n_dim
         for values, k in zip(world_arrays, self._order):
             if k is not None:
@@ -192,6 +200,23 @@ class DKISTData(Data):
         return self._samples[size]
 
 
+def _frame_times(data):
+    """
+    The array axis of ``data``, a DKIST dataset, along which its time varies, and its times there as `numpy.datetime64`,
+    at the middle of its other axes; None where its time varies along several or it has none.
+    """
+    wcs = data.coords
+    if "time" not in wcs.world_axis_physical_types:
+        return None
+    axes = np.flatnonzero(np.asarray(wcs.axis_correlation_matrix)[wcs.world_axis_physical_types.index("time")])
+    if len(axes) != 1:
+        return None
+    axis = data.ndim - 1 - axes[0]
+    pixel = [np.arange(data.shape[axis]) if p == axes[0] else n // 2 for p, n in enumerate(data.shape[::-1])]
+    [time] = [world for world in wcs.pixel_to_world(*pixel) if isinstance(world, Time)]
+    return axis, time.datetime64
+
+
 def is_dkist_asdf(filename, **_kwargs):
     """An ASDF file that dkist wrote or reads, as the DKIST data center's dataset files are."""
     if not str(filename).endswith(".asdf"):
@@ -240,12 +265,16 @@ def dkist_data(path):
     label = f"{inventory['instrumentName']} {inventory['datasetId']}"
     if isinstance(dataset, dkist.TiledDataset):
         mask = np.broadcast_to(dataset.mask, dataset.shape)
-        datasets = [_data(dataset[index], f"{label} {index}") for index in np.ndindex(dataset.shape) if not mask[index]]
+        tiles = [index for index in np.ndindex(dataset.shape) if not mask[index]]
+        datasets = [_data(dataset[index], f"{label} {index}") for index in tiles]
+        # the tile nearest the middle, which the others link to (`wcs_autolink`)
+        center = datasets[np.argmin(np.linalg.norm(np.subtract(tiles, (np.array(dataset.shape) - 1) / 2), axis=1))]
     else:
         datasets = [_data(dataset, label)]
+        center = datasets[0]
     samples = {}
     for data in datasets:
-        data._mosaic, data._samples = datasets, samples
+        data._mosaic, data._samples, data._center = datasets, samples, center
     present = sum(int(data._present.sum()) for data in datasets)
     expected = sum(data._present.size for data in datasets)
     if present < expected:
@@ -254,3 +283,29 @@ def dkist_data(path):
             stacklevel=2,
         )
     return datasets if len(datasets) > 1 else datasets[0]
+
+
+def wcs_autolink(data_collection):
+    """
+    glue's WCS autolinker, the tiles of a DKIST mosaic linked to its center tile only, and other data to that tile only
+    (D102): glue links every pair, 5778 links for DL-NIRSP's 108 tiles, and finds every link again at each change.
+    """
+    datasets = [data for data in data_collection if isinstance(getattr(data, "coords", None), BaseHighLevelWCS)]
+    existing = {(link.data1, link.data2) for link in data_collection.external_links if isinstance(link, WCSLink)}
+    links = []
+    for i, data1 in enumerate(datasets):
+        for data2 in datasets[i + 1 :]:
+            pair = data1, data2
+            # each the center tile of its mosaic, or of the other's
+            if pair in existing or not all(getattr(data, "_center", data) in pair for data in pair):
+                continue
+            try:
+                links.append(WCSLink(data1, data2))
+            except IncompatibleWCS:
+                pass
+    return links
+
+
+autolinker.members[:] = [
+    (label, wcs_autolink if function is wcs_autolinking.wcs_autolink else function) for label, function in autolinker
+]

@@ -165,11 +165,16 @@ stay in the FITS files next to the ASDF file, read as they are viewed.
 - Color limits come from up to 16 whole frames; the tiles of a VBI mosaic share theirs.
 - "Quicklook…" opens a ViSP or Cryo-NIRSP spectrograph dataset as any spectral cube: its map,
   virtual slit and spectra.
-- glue offers to link the tiles of a VBI mosaic as they load: accept, and drag the tiles onto one
-  Image viewer.
+- glue offers to link DKIST datasets as they load, pixel to pixel by their coordinates, time
+  included: accept, and a point on one reaches the others, and one draws over another in an Image
+  viewer. A mosaic's tiles link to its center tile, and other datasets to that tile. Datasets taken
+  at different times don't link, and a point reaches a raster's step taken at its time, as dkist's
+  coordinates place it.
+- "Link helioprojective coordinates" links them to IRIS data by position, and by time at the
+  nearest frames. Points don't pass between IRIS data and a ViSP or Cryo-NIRSP spectrograph raster,
+  which has more coordinates than axes, but IRIS images draw over a scanning raster's map.
 
-Not yet: linking DKIST datasets of different shapes to each other (glue's autolinker reports an
-error, although the data load), linking them to IRIS data, and saving them in a session.
+Not yet: saving them in a session.
 
 .. _glue_solar_users_guide_loading_aia_and_hmi_files:
 
