@@ -1185,6 +1185,13 @@ class _RasterRoiSubsetState(RoiSubsetState):
     def copy(self):  # glue applies a copy
         return _RasterRoiSubsetState(self.xatt, self.yatt, self.roi, self.world)
 
+    def __gluestate__(self, context):  # glue's RoiSubsetState saver and loader would drop the outline (D39)
+        return {key: context.id(getattr(self, key)) for key in ("xatt", "yatt", "roi", "world")}
+
+    @classmethod
+    def __setgluestate__(cls, rec, context):
+        return cls(*(context.object(rec[key]) for key in ("xatt", "yatt", "roi", "world")))
+
 
 def _new_group(session, collection, **kwargs):
     """A new subset group of ``collection``, leaving the edit subset, which glue-qt makes the new group, as it was."""
@@ -1776,6 +1783,7 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
 
     def add(panel, viewer):
         made.append((panel, viewer))
+        viewer._solar_title = panel.title  # which `_reopen` finds it by, as glue-qt's 'Change viewer title' renames it
         viewer.window_closed.connect(partial(setattr, viewer, "_closed", True))  # glue-qt's close box does not mark it
         viewer.toolbar.setIconSize(QSize(16, 16))  # glue-qt's are 25 px: more of the narrow panels' tools in sight (P8)
         viewer.parent().setWindowIcon(viewer.windowIcon())  # glue-solar's (`_init`) on its title bar, not Qt's logo
@@ -1971,7 +1979,8 @@ def _recipe(app, tab, context=None):
     panels = [panel for panel in _viewers(viewers) if not panel._closed]
     point, collection = getattr(app, "_solar_points", {}).get(tab), app.data_collection
     master = coordinator(collection).masters.get(observation_key(shows[0]))
-    firsts = [panel.layers[0].layer for panel in panels if panel.layers]  # a cube's spectra's and light curve's cuts
+    # a cube's spectra's and light curve's cuts, the closed panels' too, whose layers glue empties
+    cuts = [vars(panel).get("_solar_group") for panel in _viewers(viewers)]  # getattr raises on one Qt deleted
 
     def ids(state):  # as glue's `State.__gluestate__`, but the layers
         return {key: name(value) for key, value in state.as_dict().items() if key != "layers"}
@@ -1983,9 +1992,9 @@ def _recipe(app, tab, context=None):
         "shown": [_window(data)[0] for data in shows if _role(data) == "raster"],  # the other windows made
         "point": name(point if point in collection.subset_groups else None),
         "master": name(master if master in collection else None),
-        "cuts": [name(first.group) for first in firsts if isinstance(first, Subset) and first.group is not point],
+        "cuts": [name(group) for group in cuts if group in collection.subset_groups],
         "panels": [
-            [name(panel), panel.state.title, _off(panel), [ids(panel.state), *map(ids, panel.state.layers)]]
+            [name(panel), panel._solar_title, _off(panel), [ids(panel.state), *map(ids, panel.state.layers)]]
             for panel in panels
         ],
     }
@@ -1996,7 +2005,7 @@ def _reopen(app, tab, recipe, context=None):
     collection, find = app.data_collection, getattr(context, "object", lambda value: value)
     datasets = [find(name) for name in recipe["datasets"]]
     coordinator(collection).set_master(find(recipe["master"]))
-    for group in map(find, recipe["cuts"]):
+    for group in map(find, recipe["cuts"] if context is None else ()):  # a session's once its viewers are back
         collection.remove_subset_group(group)  # made again
     viewers = _fill(app, tab, datasets, recipe["window"], recipe["main"], find(recipe["point"]), recipe["shown"])
     saved = {title: (off, states) for _, title, off, states in recipe["panels"]}
@@ -2039,6 +2048,13 @@ class _Application:
                 app.tab(i).installEventFilter(_ArrangeShown(app.tab(i)))
             for name in names:  # as glue-qt adds them, over the panels
                 app.add_widget(context.object(name), tab=i, hold_position=True)
+        # the cuts made again (`_reopen`), as every viewer is back, which then drops their layers
+        mode = app.session.edit_subset_mode
+        edit = mode.edit_subset  # the point, which glue-qt's removal empties
+        for recipe in rec["quicklooks"].values():
+            for group in map(context.object, recipe["cuts"]):
+                app.data_collection.remove_subset_group(group)
+        mode.edit_subset = edit
         return app
 
 
@@ -2328,6 +2344,7 @@ def _cut_profile(app, label, cut, x_att, title):
             _show(other, group, False)
     group._solar_cut = cut(group)  # until the group is deleted
     profile = app.new_data_viewer(ProfileViewer)
+    profile._solar_group = group  # for `_recipe`
     profile.state.function = "mean"
     profile.add_subset(next(subset for subset in group.subsets if subset.data is group._solar_cut.data))
     profile.state.x_att = x_att
