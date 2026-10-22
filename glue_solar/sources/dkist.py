@@ -2,6 +2,7 @@
 DKIST Level 1 datasets, read with dkist from their ASDF file by File → Open Data Set (D102).
 """
 
+import inspect
 import warnings
 from pathlib import Path
 
@@ -19,7 +20,7 @@ import astropy.units as u
 from astropy.time import Time
 from astropy.wcs.wcsapi import BaseHighLevelWCS, BaseLowLevelWCS, HighLevelWCSMixin
 
-from glue_solar.sources.loaders.iris import _HPC
+from glue_solar.sources.loaders.iris import _HPC, _ScanAt
 
 __all__ = ["dkist_data", "is_dkist_asdf"]
 
@@ -260,6 +261,114 @@ def _frame_times(data):
     pixel = [np.arange(data.shape[axis]) if p == axes[0] else n // 2 for p, n in enumerate(data.shape[::-1])]
     [time] = [world for world in wcs.pixel_to_world(*pixel) if isinstance(world, Time)]
     return axis, time.datetime64
+
+
+def _turned(angle):
+    """``angle``, a helioprojective angle or a difference of two in arcsec, in [-180°, 180°): dkist gives 0° to 360°."""
+    return (angle + 648_000) % 1_296_000 - 648_000
+
+
+def _slit(data, step):
+    """
+    The array axis along the slit of ``data``, a DKIST raster stepping along array axis ``step``, and at each step the
+    helioprojective longitude and latitude (arcsec) of the slit's first pixel and their change over one pixel along it,
+    at the middle of the other axes; None where they vary along other axes too.
+    """
+    wcs = data.coords
+    types = list(wcs.world_axis_physical_types)
+    if not set(_HPC) <= set(types):
+        return None
+    matrix = np.asarray(wcs.axis_correlation_matrix)[[types.index(kind) for kind in _HPC]]
+    axes = {data.ndim - 1 - p for p in np.flatnonzero(matrix.any(axis=0))} - {step}
+    if len(axes) != 1:
+        return None
+    [slit] = axes
+    ends = []
+    for end in (0, data.shape[slit] - 1):
+        pixel = [np.arange(n) if a == step else end if a == slit else n // 2 for a, n in enumerate(data.shape)]
+        world = wcs.pixel_to_world_values(*pixel[::-1])
+        ends.append(_turned(np.stack([world[types.index(kind)] for kind in _HPC], axis=-1)))
+    return slit, ends[0], _turned(ends[1] - ends[0]) / (data.shape[slit] - 1)
+
+
+class _SlitAt:
+    """
+    A DKIST raster's step, or with ``slit`` its slit pixel, at helioprojective longitude and latitude ``lon, lat``
+    (arcsec) of IRIS data, and on a sit-and-stare raster at its frame ``index`` (`link_hpc`, D102): glue inverts the
+    raster's coordinates from one world value per array axis, never its time, from which dkist's gWCS takes the step.
+    The step is that whose slit passes nearest, as the quicklook places a point on a scanning IRIS raster, NaN past half
+    a step off either end, or on a sit-and-stare raster that nearest the frame's time however far, ``steps`` by frame,
+    as `_ScanAt` gives a stack's scan; the slit pixel is that level with the place along that step's slit, from its
+    first pixel, ``starts``, and one pixel along it, ``pixels``, per step (`_slit`). Saved in sessions.
+    """
+
+    __name__ = "nearest_slit"  # glue's name of a link function, as its own link helpers set it
+
+    def __init__(self, starts, pixels, slit, steps=None):
+        self.starts, self.pixels = np.asarray(starts, dtype=float), np.asarray(pixels, dtype=float)
+        self.slit, self.steps = slit, steps
+        # its inputs to glue and its link editor, not self too
+        inputs = (lambda lon, lat: None) if steps is None else (lambda lon, lat, index: None)
+        self.__signature__ = inspect.signature(inputs)
+        if steps is not None:
+            self._frames = _ScanAt(steps)
+            return
+        # the slits' offsets across them, in order, and one step past each end, half of which rounds to that end
+        along = self.pixels.mean(axis=0)
+        self._across = np.array([-along[1], along[0]])
+        offsets = self.starts @ self._across
+        order = np.argsort(offsets)
+        self._offsets, self._steps = (
+            np.r_[2 * x[0] - x[1], x, 2 * x[-1] - x[-2]] for x in (offsets[order], order * 1.0)
+        )
+
+    def __call__(self, lon, lat, index=None):
+        place = np.stack(np.broadcast_arrays(lon, lat), axis=-1)
+        if self.steps is None:
+            step = np.interp(place @ self._across, self._offsets, self._steps, left=np.nan, right=np.nan)
+        else:
+            step = self._frames(index)
+        if not self.slit:
+            return step
+        at = np.clip(np.round(np.nan_to_num(step)), 0, len(self.starts) - 1).astype(int)
+        pixel = self.pixels[at]
+        along = np.sum((place - self.starts[at]) * pixel, axis=-1) / np.sum(pixel**2, axis=-1)
+        return np.where(np.isnan(step), np.nan, along)
+
+    def __gluestate__(self, context):
+        steps = None if self.steps is None else np.asarray(self.steps, dtype=float).tolist()
+        return {"starts": self.starts.tolist(), "pixels": self.pixels.tolist(), "slit": self.slit, "steps": steps}
+
+    @classmethod
+    def __setgluestate__(cls, rec, context):
+        return cls(rec["starts"], rec["pixels"], rec["slit"], rec["steps"])
+
+
+class _SlitPlace:
+    """
+    The helioprojective longitude, or latitude with ``kind`` 1, (arcsec) of a DKIST raster at its ``step`` and
+    ``slit`` pixel, ``starts`` and ``pixels`` as `_SlitAt` takes them (`link_hpc`, D102): where glue gives it none, as
+    a sit-and-stare raster's step axis has its time (`GlueWCS`), so that IRIS data are placed on it. Saved in sessions.
+    """
+
+    __name__ = "slit_place"  # glue's name of a link function, as its own link helpers set it
+    __signature__ = inspect.signature(lambda step, slit: None)  # its inputs to glue and its link editor, not self too
+
+    def __init__(self, starts, pixels, kind):
+        self.starts, self.pixels = np.asarray(starts, dtype=float), np.asarray(pixels, dtype=float)
+        self.kind = kind
+
+    def __call__(self, step, slit):
+        at = np.clip(np.round(np.nan_to_num(step)), 0, len(self.starts) - 1).astype(int)
+        place = self.starts[at, self.kind] + np.asarray(slit, dtype=float) * self.pixels[at, self.kind]
+        return np.where(np.isnan(step), np.nan, place)
+
+    def __gluestate__(self, context):
+        return {"starts": self.starts.tolist(), "pixels": self.pixels.tolist(), "kind": self.kind}
+
+    @classmethod
+    def __setgluestate__(cls, rec, context):
+        return cls(rec["starts"], rec["pixels"], rec["kind"])
 
 
 def is_dkist_asdf(filename, **_kwargs):

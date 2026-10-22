@@ -943,10 +943,11 @@ def link_hpc(data_collection, others=()):
     70 links of 36 datasets but 4 s for every pair's 1260. The plain WCS of each other dataset linked, which IRIS
     data's profile workers then call, goes behind `WCS_LOCK` in place (`_LockedWCS`); each SST cube's
     ``meta['IRIS observation']`` names the IRIS observation timed nearest it, if linked. A DKIST dataset's time and the
-    IRIS data's are linked at the nearest frames.
+    IRIS data's are linked at the nearest frames, and a DKIST raster's step and slit pixel to the IRIS data's longitude
+    and latitude (`_SlitAt`).
     """
     from glue_solar.quicklook import _role, _times, nearest, observation_key  # which imports this module
-    from glue_solar.sources.dkist import GlueWCS, _frame_times  # which imports this module
+    from glue_solar.sources.dkist import GlueWCS, _frame_times, _slit, _SlitAt, _SlitPlace  # which imports this module
     from glue_solar.sources.sst import _LockedTabularWCS, _TabularWCS  # which imports this module
 
     linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in data_collection.links}
@@ -1038,6 +1039,21 @@ def link_hpc(data_collection, others=()):
         # its time, where glue gives that axis its time rather than a raster's longitude (`GlueWCS`)
         timed = wcs.world_axis_physical_types[wcs.world_n_dim - 1 - axis] == "time"
         seconds = dataset.world_component_ids[axis] if timed else None
+        # a raster's step and slit pixel at IRIS data's places, which glue cannot invert from fewer world values than
+        # the raster's (`_SlitAt`): a scanning raster's at the first IRIS dataset's, a sit-and-stare's at each's frames
+        # too (below); and at its pixels the longitude or latitude glue gives none of its axes (`_SlitPlace`)
+        hpc = [anchors[kind] for kind in _HPC if kind in anchors]
+        raster = _slit(dataset, axis) if datasets and len(hpc) == 2 and wcs.world_n_dim > wcs.pixel_n_dim else None
+        if raster is not None:
+            slit, starts, pixels = dataset.pixel_component_ids[raster[0]], *raster[1:]
+            if not timed:
+                for to, along in ((frames, False), (slit, True)):
+                    if frozenset((to, *hpc)) not in linked:
+                        links.append(ComponentLink(hpc, to, using=_SlitAt(starts, pixels, along)))
+            shown = {wcs.world_axis_physical_types[wcs.world_n_dim - 1 - a] for a in range(dataset.ndim)}
+            for k, (kind, to) in enumerate(zip(_HPC, hpc)):
+                if kind not in shown and frozenset((to, frames, slit)) not in linked:
+                    links.append(ComponentLink([frames, slit], to, using=_SlitPlace(starts, pixels, k)))
         for data in datasets:
             frame = data.pixel_component_ids[0]
             if data.find_component_id("Time") is None:
@@ -1050,6 +1066,13 @@ def link_hpc(data_collection, others=()):
                 values = np.where(np.isnat(when), np.nan, dataset[seconds, at][nearest(when, times)[0]])
                 links.append(ComponentLink([frame], seconds, using=_ScanAt(values)))
             kinds = list(data.coords.world_axis_physical_types)
+            if raster is not None and timed and set(_HPC) <= set(kinds):
+                lonlat = [data.world_component_ids[data.ndim - 1 - kinds.index(kind)] for kind in _HPC]
+                steps = np.where(np.isnat(when), np.nan, nearest(when, times)[0])
+                if frozenset((frames, frame)) not in linked:
+                    links.append(ComponentLink([frame], frames, using=_ScanAt(steps)))
+                if frozenset((slit, *lonlat, frame)) not in linked:
+                    links.append(ComponentLink([*lonlat, frame], slit, using=_SlitAt(starts, pixels, True, steps)))
             if "time" not in kinds:  # a raster's
                 continue
             time = data.world_component_ids[data.ndim - 1 - kinds.index("time")]

@@ -15,7 +15,6 @@ from glue.core import DataCollection
 from glue.core.autolinking import find_possible_links
 from glue.core.data import Data
 from glue.core.data_factories import load_data
-from glue.core.exceptions import IncompatibleAttribute
 from glue.core.state import GlueSerializer, GlueUnSerializer
 from glue.plugins.wcs_autolinking.wcs_autolinking import WCSLink
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
@@ -26,8 +25,8 @@ from astropy.wcs.utils import pixel_to_pixel
 
 from glue_solar import glue_patches
 from glue_solar.conftest import find_irispy_test_file
-from glue_solar.quicklook import quicklook
-from glue_solar.sources.dkist import DKISTData, GlueWCS, _data, _glue_order
+from glue_solar.quicklook import _lon_lat, quicklook
+from glue_solar.sources.dkist import DKISTData, GlueWCS, _data, _glue_order, _SlitAt, _SlitPlace
 from glue_solar.sources.iris import link_iris
 from glue_solar.tests.helpers import restore
 from glue_solar.tests.test_quicklook import bare_app_for
@@ -63,11 +62,13 @@ def point(data, at, other):
     return PixelSubsetState(data, [slice(i, i + 1) for i in at])._to_linked_pixel_coords(other)
 
 
-def drawn_over(app, reference, other, y=None):
-    """Whether ``other`` draws over ``reference`` in an Image viewer of ``reference``, along its axis ``y`` if given."""
+def drawn_over(app, reference, other, y=None, x=None):
+    """Whether ``other`` draws over ``reference`` in an Image viewer of ``reference``, along its axes ``y``, ``x``."""
     viewer = app.new_data_viewer(ImageViewer, data=reference)
     if y is not None:
         viewer.state.y_att = reference.pixel_component_ids[y]
+    if x is not None:
+        viewer.state.x_att = reference.pixel_component_ids[x]
     viewer.add_data(other)
     viewer.figure.canvas.draw()
     return all(layer.enabled for layer in viewer.layers)
@@ -255,11 +256,10 @@ def test_link_helioprojective_coordinates_links_dkist_data_by_time(app, tmp_path
     assert point(sji, (31, 20, 18), tile)[0] == 0
     assert drawn_over(app, tile, sji)
     assert drawn_over(app, sji, tile)
-    # a scanning raster's time has no axis of its own (D102), so glue cannot place a point on it from coordinates:
-    # its point is incompatible with IRIS data, where it raised TypeError, but the slit-jaw image draws over its map
-    with pytest.raises(IncompatibleAttribute):
-        point(visp, (0, 344, 488, 1277), sji)
-    assert drawn_over(app, visp, sji, y=1)  # its steps by its slit
+    # a scanning raster's point reaches the slit-jaw frame nearest its step in time, its last, where it was
+    # incompatible (`_SlitAt`), and the slit-jaw image draws over its map, its steps by its slit
+    assert point(visp, (0, 344, 488, 1277), sji)[0] == last
+    assert drawn_over(app, visp, sji, y=1)
 
 
 def viewed(app):
@@ -364,3 +364,52 @@ def test_a_session_restores_a_dkist_raster_s_quicklook(qtbot, monkeypatch, tmp_p
     spectra = [viewers["spectra"][0].state.layers[0], again["spectra"][0].state.layers[0]]
     qtbot.waitUntil(lambda: all(spectrum.profile is not None for spectrum in spectra), timeout=60_000)
     np.testing.assert_array_equal(*(spectrum.profile for spectrum in spectra))
+
+
+@small_visp_dated_2044
+@pytest.mark.parametrize(
+    ("name", "at", "reached"),
+    [
+        # ViSP's (Stokes, step, wavelength, slit), scanning: the step whose slit passes nearest, as on an IRIS raster
+        ("croppable_visp", (0, 229, 400, 851), [None, 229, None, 851]),
+        # sit-and-stare: the step nearest in time, the first (2021 to 2044), and the slit pixel level with the place
+        ("small_visp", (1, 3, 8), [0, 3, None]),
+        # Cryo-NIRSP's spectrograph sample, scanning
+        pytest.param("DBXVEL_full.tar", (107, 639, 305), [107, 639, None], marks=pytest.mark.remote_data),
+    ],
+)
+def test_iris_points_reach_a_dkist_raster_at_its_step_and_slit_pixel_and_back(
+    app, tmp_path, sns, dkist_sample, name, at, reached
+):
+    sji, iris_raster = sns
+    if name == "croppable_visp":
+        with pytest.warns(UserWarning, match="0 of 2752 files"):
+            raster = load_data(str(asdf_alone(tmp_path, name)))
+    else:
+        raster = load_data(str(small_visp() if name == "small_visp" else dkist_sample(name)))
+    # the slit-jaw image's frame 10 at (20, 18) and the IRIS raster's step 5 at slit pixel 20 shifted onto the raster's
+    # pixel ``at``, as 'IRIS: shift pointing…' co-aligns them
+    place = _lon_lat(raster, at)
+    for data, pixel in ((sji, (10, 20, 18)), (iris_raster, (5, 20, 0))):
+        data.coords.pointing_offset = tuple(float(a - b) for a, b in zip(place, _lon_lat(data, pixel)))
+    dc = app.data_collection
+    dc.extend([sji, iris_raster, raster])
+    link_iris(app.session, dc)
+    # glue inverted the raster's coordinates from one world value per axis, not its time (D102): IncompatibleAttribute
+    assert point(sji, (10, 20, 18), raster) == reached
+    quicklook_point = PixelSubsetState(iris_raster, [slice(5, 6), slice(20, 21), slice(None)])  # at every wavelength
+    assert quicklook_point._to_linked_pixel_coords(raster) == reached
+    # and back: the slit-jaw frame nearest the step's time, its last, at the place, and the IRIS raster's step there
+    last = sji.shape[0] - 1
+    x, y, _ = sji.coords.world_to_pixel_values(*place, sji.coords.pixel_to_world_values(0, 0, last)[2])
+    assert point(raster, at, sji) == [last, round(float(y)), round(float(x))]
+    assert point(raster, at, iris_raster) == [5, 20, None]
+    # the slit-jaw image draws over the raster's steps by its slit, a sit-and-stare's too, whose longitude glue gives
+    # no axis
+    assert drawn_over(app, raster, sji, *[axis for axis, pixel in enumerate(reached) if pixel is not None])
+    # and the links save in sessions
+    usings = [link.get_using() for link in dc.links if isinstance(link.get_using(), (_SlitAt, _SlitPlace))]
+    assert usings
+    for using in usings:
+        restored = GlueUnSerializer.loads(GlueSerializer(using).dumps()).object("__main__")
+        assert (type(restored), restored.__gluestate__(None)) == (type(using), using.__gluestate__(None))
