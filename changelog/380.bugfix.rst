@@ -1,0 +1,1 @@
+'Quicklook…' opens a ViSP raster of repeats and a Cryo-NIRSP raster of several measurements a step, where it said they had no raster, with a slider for the repeats or measurements; it draws spectrograph maps as IRIS's, the steps across and the slit up; and slice sliders show their own axis's values and unit, where a ViSP map's Stokes and Wavelength sliders showed arcsec.
