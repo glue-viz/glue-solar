@@ -80,7 +80,7 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper, SlicedLowLevelWCS
 
 from sunpy.visualization.colormaps import cmlist
 
-from glue_solar.sources.dkist import GlueWCS
+from glue_solar.sources.dkist import STRICT_INVERSE, GlueWCS
 from glue_solar.sources.loaders.iris import WCS_LOCK, _HeldWCS, _LockedWCS
 
 
@@ -788,8 +788,8 @@ def wcs_link_init(self, data1=None, data2=None, cids1=None, cids2=None):
     """
     glue's ``WCSLink.__init__``, with its general path by APE-14 alone where glue's needs an astropy WCS: the physical
     types both datasets have, through the pixel axes of each along which only those vary, the others at pixel 0, fewer
-    types until both keep the same ones; tried at pixel 0 with as many values as each takes, where glue gives the
-    second as many as the first.
+    types until both keep the same ones; tried at each one's middle pixel with as many values as each takes, where glue
+    gives the second as many as the first, at pixel 0.
     """
     pair, sliced = (data1, data2), None
     # glue's only where both say whether they have celestial axes: it reads the second's only where the first has
@@ -823,11 +823,17 @@ def wcs_link_init(self, data1=None, data2=None, cids1=None, cids2=None):
     def backwards(*pixel):
         return pixel_to_pixel(wcs2, wcs1, *pixel)
 
+    # tried at each one's middle pixel, which data observed together share in time, where pixel 0's time can be outside
+    # the other's (a VBI mosaic's tiles start seconds apart); dkist's inverse raising outside its times, as it did
+    # before `GlueWCS` gave NaN there, so data of other times stay unlinked (D103)
+    strict = STRICT_INVERSE.set(True)
     try:
-        forwards(*[0] * len(cids[0]))
-        backwards(*[0] * len(cids[1]))
+        forwards(*[data1.shape[data1.ndim - 1 - p] // 2 for p in axes[0]])
+        backwards(*[data2.shape[data2.ndim - 1 - p] // 2 for p in axes[1]])
     except Exception:  # noqa: BLE001 - glue's test: any failure
         raise IncompatibleWCS(f"Can't create WCS link between {data1.label} and {data2.label}") from None
+    finally:
+        STRICT_INVERSE.reset(strict)
     self._physical_types_1, self._physical_types_2 = (list(wcs.world_axis_physical_types) for wcs in sliced)
     MultiLink.__init__(self, *cids, forwards=forwards, backwards=backwards)
     self.data1, self.data2 = data1, data2
