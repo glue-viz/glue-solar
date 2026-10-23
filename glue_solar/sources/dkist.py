@@ -3,6 +3,7 @@ DKIST Level 1 datasets, read with dkist from their ASDF file by File → Open Da
 """
 
 import contextlib
+import contextvars
 import inspect
 import os
 import warnings
@@ -24,12 +25,15 @@ import astropy.units as u
 from astropy.time import Time
 from astropy.wcs.wcsapi import BaseHighLevelWCS, BaseLowLevelWCS, HighLevelWCSMixin
 
-from glue_solar.sources.loaders.iris import _HPC, _ScanAt
+from glue_solar.sources.loaders.iris import _HPC, _off_frames, _ScanAt
 
 __all__ = ["dkist_data", "is_dkist_asdf"]
 
 # Color limits sample values of up to this many whole frames whose files are present
 SAMPLE_FRAMES = 16
+# Set while glue-solar's WCS link tests its transforms (`glue_patches.wcs_link_init`): `GlueWCS`'s inverse raises outside
+# a dataset's times there, as dkist's does, rather than giving NaN (D103)
+STRICT_INVERSE = contextvars.ContextVar("strict_inverse", default=False)
 
 
 def _wrapped(wcs, world):
@@ -98,6 +102,16 @@ class GlueWCS(BaseLowLevelWCS, HighLevelWCSMixin):
     def __init__(self, wcs, order, names):
         self._wcs, self._order, self._names = wcs, order, names
         self._extra = len(order) - wcs.pixel_n_dim
+        # the pixel axes dkist ravels into one index of its times (its Ravel), a raster's steps and repeats or a
+        # Cryo-NIRSP dataset's steps and measurements: those its time varies along
+        self._raveled = ()
+        model = getattr(wcs, "forward_transform", None)
+        if hasattr(model, "traverse_postorder"):  # a gWCS's compound model
+            from dkist.wcs.models import Ravel
+
+            if any(isinstance(leaf, Ravel) for leaf in model.traverse_postorder()):
+                time = np.asarray(wcs.axis_correlation_matrix)[wcs.world_axis_physical_types.index("time")]
+                self._raveled = tuple(np.flatnonzero(time))
 
     pixel_n_dim = property(lambda self: self._wcs.pixel_n_dim)
     world_n_dim = property(lambda self: len(self._order))
@@ -135,7 +149,17 @@ class GlueWCS(BaseLowLevelWCS, HighLevelWCSMixin):
 
     def pixel_to_world_values(self, *pixel_arrays):
         pixel = np.broadcast_arrays(*pixel_arrays)
-        world = _wrapped(self._wcs, self._wcs.pixel_to_world_values(*pixel))
+        # dkist 1.17's Ravel raises ValueError below pixel -0.5 of a raveled axis, where WCSAxes' frame asks: it clips
+        # above only (dkist #751, in 1.18.1). Taken there at pixel 0, of pixel 0's time, so WCSAxes finds a time range,
+        # and no longitude or latitude, as dkist gives off its pointing table (D103)
+        inputs, below = list(pixel), np.zeros(pixel[0].shape, bool)
+        for p in self._raveled:
+            off = pixel[p] < -0.5
+            inputs[p], below = np.where(off, 0, pixel[p]), below | off
+        world = _wrapped(self._wcs, self._wcs.pixel_to_world_values(*inputs))
+        if below.any():
+            types = self._wcs.world_axis_physical_types
+            world = [np.where(below, np.nan, values) if kind in _HPC else values for values, kind in zip(world, types)]
         return self._pick(world, lambda p: pixel[p] * 1.0)
 
     def world_to_pixel_values(self, *world_arrays):
@@ -155,8 +179,15 @@ class GlueWCS(BaseLowLevelWCS, HighLevelWCSMixin):
         finite = np.all(np.isfinite(world), axis=0)
         pixel = [np.full(finite.shape, np.nan) for _ in range(self.pixel_n_dim)]
         if finite.any():
-            for values, found in zip(pixel, self._wcs.world_to_pixel_values(*(w[finite] for w in world)), strict=True):
-                values[finite] = found
+            inside = [w[finite] for w in world]
+            try:
+                found = self._wcs.world_to_pixel_values(*inside)
+            except NotImplementedError:  # a time off its frames (`_off_frames`): dkist #765, unreleased (D103)
+                if STRICT_INVERSE.get():
+                    raise
+                found = _off_frames(self._wcs, inside)
+            for values, at in zip(pixel, found, strict=True):
+                values[finite] = at
         for i, k in enumerate(self._order):
             if k is None:
                 pixel[i - self._extra] = np.broadcast_to(world_arrays[i], pixel[0].shape) * 1.0

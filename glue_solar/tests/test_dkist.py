@@ -159,6 +159,22 @@ def test_a_slit_raster_steps_through_time_where_its_pointing_stays(step, along):
     assert labels(slit_raster(step)) == [along, "Helioprojective Latitude", "Wavelength"]
 
 
+def test_an_image_view_along_the_steps_or_measurements_of_a_context_image_draws(app, tmp_path):
+    with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):
+        cryo = load_data(str(asdf_alone(tmp_path, "croppable_cryo")))
+    app.data_collection.append(cryo)
+    # its scan steps or measurements along y, which dkist ravels into one index of its times: each draw raised
+    # ValueError, WCSAxes' frame asking below pixel -0.5 of them (D103)
+    for axis in (1, 2):
+        viewer = app.new_data_viewer(ImageViewer, data=cryo)
+        viewer.state.y_att = cryo.pixel_component_ids[axis]
+        viewer.figure.canvas.draw()
+    # below them, no longitude or latitude, as dkist gives off its pointing table, and their pixel 0's time
+    lon, lat, _, time, stokes = cryo.coords.pixel_to_world_values(0, 0, -1, 0, 0)
+    assert np.isnan([lon, lat]).all()
+    assert (time, stokes) == (cryo.coords.pixel_to_world_values(0, 0, 0, 0, 0)[3], 1)
+
+
 @small_visp_dated_2044
 def test_a_dkist_raster_opens_its_quicklook_and_labels_its_axes(qtbot, monkeypatch):
     import dkist
@@ -316,6 +332,33 @@ def test_a_mosaic_s_tiles_link_to_its_center_tile(app, tmp_path):
     expected = pixel_to_pixel(tiles[0].coords, tiles[8].coords, 2048, 2048, 1)[::-1]
     assert point(tiles[0], (1, 2048, 2048), tiles[8]) == np.round(expected).astype(int).tolist()
     assert drawn_over(app, tiles[8], tiles[0])
+
+
+def test_dkist_data_starting_later_link_and_reach_each_other_within_their_time(app, tmp_path):
+    import dkist
+
+    path = asdf_alone(tmp_path, "large_vbi")
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        tile = load_data(str(path))[4]
+    # the tile's frames 0.8 of a frame later
+    dataset = dkist.load_dataset(path)[1, 1]
+    temporal = dataset.wcs.forward_transform.right
+    temporal.intercept = 0.8 * temporal.slope * u.pix
+    later = _data(dataset, "VBI AJQWW (1, 1) later")
+    later._mosaic, later._samples = [later], {}
+    # linked, where their pixel 0's time lies outside the other's, as a VBI mosaic's tiles and ViSP data observed with
+    # them (D103)
+    dc = app.data_collection
+    dc.extend([tile, later])
+    dc.add_link(WCSLink(tile, later))
+    assert point(later, (0, 2048, 2048), tile) == [1, 2048, 2048]
+    # and a point or image at a time outside the other's reaches none of it, where dkist's inverse raised
+    # NotImplementedError
+    with pytest.raises(IncompatibleAttribute):
+        point(tile, (0, 2048, 2048), later)
+    viewer = app.new_data_viewer(ImageViewer, data=tile)
+    viewer.add_data(later)
+    viewer.figure.canvas.draw()
 
 
 def test_a_mosaic_s_tiles_link_to_its_first_tile_left_once_its_center_tile_is_removed(
