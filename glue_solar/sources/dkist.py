@@ -264,7 +264,10 @@ def _frame_times(data):
 
 
 def _turned(angle):
-    """``angle``, a helioprojective angle or a difference of two in arcsec, in [-180°, 180°): dkist gives 0° to 360°."""
+    """
+    ``angle``, a helioprojective angle or a difference of two in arcsec, in [-180°, 180°): dkist gives longitude 0° to
+    360°, and its small ViSP test raster a zero or negative latitude as 360° plus it.
+    """
     return (angle + 648_000) % 1_296_000 - 648_000
 
 
@@ -296,10 +299,11 @@ class _SlitAt:
     A DKIST raster's step, or with ``slit`` its slit pixel, at helioprojective longitude and latitude ``lon, lat``
     (arcsec) of IRIS data, and on a sit-and-stare raster at its frame ``index`` (`link_hpc`, D102): glue inverts the
     raster's coordinates from one world value per array axis, never its time, from which dkist's gWCS takes the step.
-    The step is that whose slit passes nearest, as the quicklook places a point on a scanning IRIS raster, NaN past half
-    a step off either end, or on a sit-and-stare raster that nearest the frame's time however far, ``steps`` by frame,
-    as `_ScanAt` gives a stack's scan; the slit pixel is that level with the place along that step's slit, from its
-    first pixel, ``starts``, and one pixel along it, ``pixels``, per step (`_slit`). Saved in sessions.
+    The step is that whose slit passes nearest, as the quicklook places a point on a scanning IRIS raster, off the
+    array from half to one step past either end and NaN beyond, or on a sit-and-stare raster that nearest the frame's
+    time however far, ``steps`` by frame, as `_ScanAt` gives a stack's scan; the slit pixel is that level with the place
+    along that step's slit, from its first pixel, ``starts``, and one pixel along it, ``pixels``, per step (`_slit`).
+    Saved in sessions.
     """
 
     __name__ = "nearest_slit"  # glue's name of a link function, as its own link helpers set it
