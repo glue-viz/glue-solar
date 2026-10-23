@@ -3,6 +3,7 @@ DKIST Level 1 datasets, read with dkist from their ASDF file by File → Open Da
 """
 
 import inspect
+import os
 import warnings
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from glue.config import autolinker, data_factory
 from glue.core.component import DaskComponent
 from glue.core.data import Data
 from glue.core.exceptions import IncompatibleAttribute
-from glue.core.state import GlueSerializeError, _load_data_5
+from glue.core.state import GlueSerializeError, _load_data_5, _save_data_5
 from glue.plugins.wcs_autolinking import wcs_autolinking
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
 from glue.utils.array import compute_statistic
@@ -209,7 +210,9 @@ class DKISTData(Data):
     # restores as this class with the coordinates, frames, sample and center tile of the dataset its load log reads
     # again from the ASDF file, as `LazyData` does for IRIS data (D102)
     def __gluestate__(self, context):
-        log, meta = self._load_log, {}
+        log, meta = getattr(self, "_load_log", None), {}
+        if log is None:  # made by `dkist_data` in glue's terminal, not opened: glue's own error, as `LazyData` gives
+            return _save_data_5(self, context)
         for key, value in self.meta.items():
             try:
                 context.do(value)
@@ -394,6 +397,8 @@ def _data(dataset, label):
     data._present = np.vectorize(lambda name: (Path(files.basepath) / name).exists(), otypes=[bool])(
         files.fileuri_array
     )
+    if data._present.size == 1:  # one frame, as a VBI single-shot tile's, whose file axis dkist drops (D102)
+        data._present = data._present.reshape(())
     return data
 
 
@@ -413,7 +418,10 @@ def dkist_data(path):
     """
     import dkist  # with the first DKIST dataset rather than at glue's launch
 
+    path = os.path.abspath(path)  # a session's is relative to it, which glue leaves before dkist reads the files
     dataset = dkist.load_dataset(path)
+    if not isinstance(dataset, (dkist.Dataset, dkist.TiledDataset)):  # a Level 2 inversion, an NDCollection (D102)
+        raise ValueError(f"{Path(path).name} is a DKIST Level 2 inversion: glue-solar opens Level 1 datasets only.")
     inventory = dataset.meta["inventory"]
     label = f"{inventory['instrumentName']} {inventory['datasetId']}"
     if isinstance(dataset, dkist.TiledDataset):

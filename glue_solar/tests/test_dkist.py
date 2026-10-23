@@ -16,7 +16,7 @@ from glue.core.autolinking import find_possible_links
 from glue.core.data import Data
 from glue.core.data_factories import load_data
 from glue.core.exceptions import IncompatibleAttribute
-from glue.core.state import GlueSerializer, GlueUnSerializer
+from glue.core.state import GlueSerializeError, GlueSerializer, GlueUnSerializer
 from glue.plugins.wcs_autolinking.wcs_autolinking import WCSLink
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.viewers.image import ImageViewer
@@ -29,7 +29,7 @@ from astropy.wcs.utils import pixel_to_pixel
 from glue_solar import glue_patches
 from glue_solar.conftest import find_irispy_test_file
 from glue_solar.quicklook import _lon_lat, quicklook
-from glue_solar.sources.dkist import DKISTData, GlueWCS, _data, _glue_order, _SlitAt, _SlitPlace
+from glue_solar.sources.dkist import DKISTData, GlueWCS, _data, _glue_order, _SlitAt, _SlitPlace, dkist_data
 from glue_solar.sources.iris import link_iris
 from glue_solar.tests.helpers import restore
 from glue_solar.tests.test_quicklook import bare_app_for
@@ -99,6 +99,17 @@ def test_dkist_datasets_open_with_a_world_axis_per_array_axis(tmp_path):
         tiles = load_data(str(asdf_alone(tmp_path, "large_vbi")))
     assert [tile.label for tile in tiles] == [f"VBI AJQWW {index}" for index in np.ndindex(3, 3)]
     assert labels(tiles[4]) == ["Time", "Helioprojective Latitude", "Helioprojective Longitude"]
+
+
+def test_a_dkist_level_2_inversion_does_not_open_as_level_1(tmp_path):
+    path = asdf_alone(tmp_path, "test_L2_inversion")
+    # its two floats of unsigned exponent, which asdf reads as strings and refuses, re-spelled at the same length
+    path.write_bytes(re.sub(rb"(value: -?[\d.]+)\de(\d)", rb"\1e+\2", path.read_bytes()))
+    # where it raised KeyError: 'instrumentName'
+    with pytest.raises(
+        ValueError, match="test_L2_inversion.asdf is a DKIST Level 2 inversion: glue-solar opens Level 1"
+    ):
+        load_data(str(path))
 
 
 def slit_raster(step):
@@ -204,6 +215,26 @@ def test_a_vbi_mosaic_opens_a_dataset_per_tile_with_one_set_of_color_limits(dkis
         [np.asarray(tile.get_component(tile.main_components[0]).data[0, ::8, ::8]) for tile in tiles]
     )
     assert 0.98 < np.mean((low <= values) & (values <= high)) < 1
+
+
+@small_visp_dated_2044
+def test_a_one_file_dkist_dataset_samples_its_whole_frame():
+    import dkist
+    from dkist.io import DKISTFileManager
+    from dkist.io.dask.loaders import AstropyFITSLoader
+
+    # the small raster's step 0 as dkist reads a dataset of one file, such as a VBI single-shot mosaic's tile: its frame
+    # the whole array, of no file axis, and its files an array of one
+    dataset = dkist.load_dataset(small_visp())[0]
+    dataset._file_manager = DKISTFileManager.from_parts(
+        ["0.fits"], 0, float, (1, 10, 25), loader=AstropyFITSLoader, basepath=dataset.files.basepath
+    )
+    data = _data(dataset, "VISP qVXjk")
+    data._mosaic, data._samples = [data], {}
+    # the color limits' sample spans the frame, where it took its first row only
+    cid = data.main_components[0]
+    for statistic in ("minimum", "maximum"):
+        assert data.compute_statistic(statistic, cid, random_subset=10_000) == data.compute_statistic(statistic, cid)
 
 
 @pytest.mark.remote_data
@@ -316,7 +347,9 @@ def test_a_session_restores_dkist_datasets_and_their_image_and_profile_viewers(a
         return data.compute_statistic("percentile", data.main_components[0], percentile=99.5, random_subset=10_000)
 
     path = tmp_path / "dkist.glu"
-    app.save_session(str(path))
+    (tmp_path / "glue").mkdir()
+    monkeypatch.chdir(tmp_path / "glue")  # glue's own folder, not the session's, which dkist read the files from as NaN
+    app.save_session(str(path), absolute_paths=False)  # as the dialog starts with
     for _ in range(2):  # and from a restored session
         assert "GlueWCS" not in path.read_text()  # the coordinates read from the ASDF file again, not saved
         for serializer in (GlueSerializer, GlueUnSerializer):  # as a fresh glue, of no gWCS saver
@@ -388,6 +421,14 @@ def test_a_session_restores_a_dkist_raster_s_quicklook(qtbot, monkeypatch, tmp_p
     spectra = [viewers["spectra"][0].state.layers[0], again["spectra"][0].state.layers[0]]
     qtbot.waitUntil(lambda: all(spectrum.profile is not None for spectrum in spectra), timeout=60_000)
     np.testing.assert_array_equal(*(spectrum.profile for spectrum in spectra))
+
+
+@small_visp_dated_2044
+def test_a_dkist_dataset_made_in_glue_s_terminal_fails_to_save_as_glue_s_dask_arrays_do():
+    collection = DataCollection([dkist_data(str(small_visp()))])
+    # where it raised AttributeError: 'DKISTData' object has no attribute '_load_log'
+    with pytest.raises(GlueSerializeError, match="Don't know how to serialize"):
+        GlueSerializer(collection).dumps()
 
 
 @pytest.mark.parametrize(
