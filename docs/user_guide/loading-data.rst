@@ -164,7 +164,9 @@ stay in the FITS files next to the ASDF file, read as they are viewed.
   are there.
 - Color limits come from up to 16 whole frames; the tiles of a VBI mosaic share theirs.
 - "Quicklook…" opens a ViSP or Cryo-NIRSP spectrograph dataset as any spectral cube: its map,
-  virtual slit and spectra.
+  virtual slit and spectra. The map is drawn as IRIS's, the steps across and the slit up, and the
+  virtual slit is wavelength against the slit. A raster's repeats, or Cryo-NIRSP's measurements
+  at each step, have a slider, as Stokes does.
 - glue offers to link DKIST datasets as they load, pixel to pixel by their coordinates, time
   included: accept, and a point on one reaches the others, and one draws over another in an Image
   viewer. A mosaic's tiles link to its center tile, and other datasets to that tile; remove the
