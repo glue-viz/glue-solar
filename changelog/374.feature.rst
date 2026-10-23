@@ -1,0 +1,1 @@
+A session saves DKIST datasets and restores them with their viewers, links and color limits, their coordinates read again from the ASDF files.
