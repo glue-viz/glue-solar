@@ -69,7 +69,9 @@ def _parse_sunpy_map(data, label):
     result = Data(label=label)
     result.coords = scan_map.wcs  # preferred way, preserves more info in some cases
     result.add_component(Component(scan_map.data), scan_map.name)
-    result.meta = scan_map.meta
+    # FITS-case keys: a session restores sunpy's MetaDict as a dict of its lowercase keys, where Measure's DSUN_OBS and
+    # the INSTRUME of `_role` were missed (#370)
+    result.meta = {key.upper(): value for key, value in scan_map.meta.items()}
     _add_colormap(scan_map.cmap.name)  # for the colormap menu of its Image layers
     result.style = _Style(color="#FDB813", preferred_cmap=scan_map.cmap)
 

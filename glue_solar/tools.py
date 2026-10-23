@@ -1675,9 +1675,12 @@ class _LockPoint(ApplySubsetState):
 
     def do(self, session):
         super().do(session)
-        # the edit subset after, which glue has made a new group if there was none
-        edit = session.edit_subset_mode.edit_subset
-        self.locked = [group for group in edit if not getattr(group, "_solar_locked", False)]
+        # the edit subset after, which glue has made a new group if there was none; a Redo locks the same groups, as
+        # Undo unlocked them (D39), unless Undo deleted their subsets, as a new group's, and glue's Redo made another
+        locked = getattr(self, "locked", None)
+        if locked is None or any(s not in s.data.subsets for group in locked for s in group.subsets):
+            edit = session.edit_subset_mode.edit_subset
+            self.locked = [group for group in edit if not getattr(group, "_solar_locked", False)]
         for group in self.locked:
             group._solar_locked = True
 
