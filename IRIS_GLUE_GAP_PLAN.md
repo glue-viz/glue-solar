@@ -191,7 +191,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 **Later**
 - WP0: `wp0-qt68-macos-pass`
 - WP10: `wp10-l-big-stack-load`
-- WP13: `wp13-l-dkist-realdata`, `wp13-l-dkist-read-path`; drafts: `wp13-l-dkist-pair-quicklook`, `wp13-l-dkist-lines-stokes`, `wp13-l-dkist-footprints`, `wp13-l-dkist-frame-quality`
+- WP13: `wp13-l-dkist-realdata`, `wp13-l-dkist-read-path`; drafts: `wp13-l-dkist-pair-quicklook`, `wp13-l-dkist-lines-stokes`, `wp13-l-dkist-footprints`, `wp13-l-dkist-frame-quality`, `wp13-l-dkist-partial-download`
 
 **M4**
 - WP0: `wp0-upstream`, `wp0-irispy-requests`, `wp0-stack-validation`, `wp0-user-review`, `wp0-wcslib-tab-inverse`
@@ -331,6 +331,7 @@ In order (D103; the profiling of 2026-10-23, `dkist-profile/REPORT.md` in the se
 - [ ] **L** `wp13-l-dkist-lines-stokes` (draft): DKIST's lines (Ca II 854.2, Fe I 630.15/630.25, He I 1083.0, Na D) for 'Lines in this range…', the line maps and the Doppler tools, whose list is IRIS's (D11, D44); the SST cubes' Stokes noise-level limits (#307) for full-Stokes DKIST data; a view of a DL-NIRSP (integral-field) mosaic. Done when a ViSP and a Cryo-NIRSP spectrum show their lines and Doppler velocities, and Q, U and V scale by their noise.
 - [ ] **L** `wp13-l-dkist-footprints` (draft, user 2026-10-23): a DKIST dataset's field and, for a spectrograph raster, its slit at each step (#375's per-step slit tables), drawn on an IRIS slit-jaw, AIA or other helioprojective image from the ASDF alone (its gWCS gives every pixel's place and time; no FITS read), to see what overlaps before downloading. Done when TXIPCV's slit steps and LOQEPP's tiles draw on an image of 2024-04-24 from their ASDFs with no FITS files present.
 - [ ] **L** `wp13-l-dkist-frame-quality` (draft, user 2026-10-23): per-frame curves from the ASDF's header table (one row per FITS file): seeing (`ATMOS_R0`), adaptive-optics lock (`AO_LOCK`), exposure (`XPOSURE`), light level (`LIGHTLVL`), elevation (`ELEV_ANG`), against time, beside the dataset, for picking good frames; no FITS read. Done when TXIPCV, a LOQEPP tile and NDFHBO show their curves with no FITS files present.
+- [ ] **L** `wp13-l-dkist-partial-download` (draft, user 2026-10-23): 'Download these frames…' fetches only the FITS files of a view's current Stokes, repeat, steps or time range: the dkist dataset sliced to them, its `.files` sent as one Globus transfer (`FileManager.download`, `dkist/io/file_manager.py:197`, `wait=False`) to the local Globus Connect Personal endpoint, into the ASDF's folder; the frames fill in as their files arrive (dkist reads present files, NaN for the rest) and the loader's table of present files (`_present`) is refreshed. Needs Globus Connect Personal running and a Globus login (`~/Downloads/glue-solar-texts/dkist_globus_setup.sh`); dkist adds the ASDF, browse movie and quality report to every transfer, unless its private `_orchestrate_transfer_task` is given the FITS list alone. Done when a TXIPCV view's Stokes I of ten steps downloads, those ten frames draw, and nothing else is transferred.
 
 Notes:
 - Known SST limits, kept: a Pixel point on an SST cube reaches linked data at the first tuning (glue takes index 0 on free axes); on a mosaic cube, a point placed on IRIS data does not reach the SST cube.
