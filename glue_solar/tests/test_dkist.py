@@ -15,12 +15,15 @@ from glue.core import DataCollection
 from glue.core.autolinking import find_possible_links
 from glue.core.data import Data
 from glue.core.data_factories import load_data
+from glue.core.exceptions import IncompatibleAttribute
 from glue.core.state import GlueSerializer, GlueUnSerializer
 from glue.plugins.wcs_autolinking.wcs_autolinking import WCSLink
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 
+import astropy.units as u
+from astropy.time import Time
 from astropy.wcs.utils import pixel_to_pixel
 
 from glue_solar import glue_patches
@@ -98,10 +101,12 @@ def test_dkist_datasets_open_with_a_world_axis_per_array_axis(tmp_path):
     assert labels(tiles[4]) == ["Time", "Helioprojective Latitude", "Helioprojective Longitude"]
 
 
-@pytest.mark.parametrize(("step", "along"), [(0.01, "Time"), (0.5, "Helioprojective Longitude")])
-def test_a_slit_raster_steps_through_time_where_its_pointing_stays(step, along):
-    # a raster of 3 steps along a slit of 10 pixels of 0.5" at 25 wavelengths, stepping ``step`` arcsec west a step:
-    # sit-and-stare where it moves less than a pixel along the slit
+def slit_raster(step):
+    """
+    A raster of 3 steps along a slit of 10 pixels of 0.5" at 25 wavelengths, stepping ``step`` arcsec west and 10 s a
+    step from 2023-11-14 (unix 1.7e9 s), as a `GlueWCS` dataset: sit-and-stare where it moves less than a pixel along
+    the slit.
+    """
     wcs = SimpleNamespace(
         pixel_n_dim=3,
         world_n_dim=4,
@@ -110,12 +115,29 @@ def test_a_slit_raster_steps_through_time_where_its_pointing_stays(step, along):
         world_axis_physical_types=("em.wl", "custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat", "time"),
         world_axis_units=("nm", "arcsec", "arcsec", "s"),
         world_axis_names=("wavelength", "helioprojective longitude", "helioprojective latitude", "time"),
+        world_axis_object_components=[(kind, 0, "value") for kind in ("wavelength", "lon", "lat", "time")],
+        world_axis_object_classes={
+            "wavelength": (u.Quantity, (), {"unit": "nm"}),
+            "lon": (u.Quantity, (), {"unit": "arcsec"}),
+            "lat": (u.Quantity, (), {"unit": "arcsec"}),
+            "time": (Time, (), {"format": "unix"}),
+        },
         axis_correlation_matrix=np.array([[1, 0, 0], [0, 1, 1], [0, 1, 1], [0, 0, 1]], bool),
-        pixel_to_world_values=lambda x, y, z: (500 + 0.01 * x, -100 + step * z + 0 * y, 200 + 0.5 * y + 0 * z, 10 * z),
+        pixel_to_world_values=lambda x, y, z: (
+            500 + 0.01 * x,
+            -100 + step * z + 0 * y,
+            200 + 0.5 * y + 0 * z,
+            1.7e9 + 10 * z,
+        ),
     )
     data = Data(label="raster", coords=GlueWCS(wcs, _glue_order(wcs, (25, 10, 3)), []))
     data.add_component(np.zeros((3, 10, 25)), "data")
-    assert labels(data) == [along, "Helioprojective Latitude", "Wavelength"]
+    return data
+
+
+@pytest.mark.parametrize(("step", "along"), [(0.01, "Time"), (0.5, "Helioprojective Longitude")])
+def test_a_slit_raster_steps_through_time_where_its_pointing_stays(step, along):
+    assert labels(slit_raster(step)) == [along, "Helioprojective Latitude", "Wavelength"]
 
 
 @small_visp_dated_2044
@@ -123,17 +145,19 @@ def test_a_dkist_raster_opens_its_quicklook_and_labels_its_axes(qtbot, monkeypat
     import dkist
 
     app = bare_app_for(qtbot, monkeypatch)
-    data = load_data(str(small_visp()))
-    app.data_collection.append(data)
-    # an Image viewer of the raster's steps and slit labels the world axes glue gives them
-    viewer = app.new_data_viewer(ImageViewer, data=data)
-    state, pixel = viewer.state, data.pixel_component_ids
-    state.x_att = pixel[0]
-    viewer.figure.canvas.draw()
-    coords = viewer.axes.coords
-    assert state.x_att_world.label == coords[3].get_axislabel() == "Time"
-    assert state.y_att_world.label == coords[2].get_axislabel() == "Helioprojective Latitude"
-    # its quicklook: map, virtual slit and the spectrum at the map's center, step 1 and slit pixel 5
+    data, sit_and_stare = load_data(str(small_visp())), slit_raster(0.01)
+    app.data_collection.extend([data, sit_and_stare])
+    # an Image viewer of a raster's steps and slit labels the world axes glue gives them: the small raster's longitude,
+    # as it steps 0.06", a pixel along its slit, and a sit-and-stare raster's time
+    for raster, along in ((data, "Helioprojective Longitude"), (sit_and_stare, "Time")):
+        viewer = app.new_data_viewer(ImageViewer, data=raster)
+        state, pixel = viewer.state, raster.pixel_component_ids
+        state.x_att = pixel[0]
+        viewer.figure.canvas.draw()
+        coords = viewer.axes.coords
+        assert state.x_att_world.label == coords[3].get_axislabel() == along
+        assert state.y_att_world.label == coords[2].get_axislabel() == "Helioprojective Latitude"
+    # the small raster's quicklook: map, virtual slit and the spectrum at the map's center, step 1 and slit pixel 5
     viewers = quicklook(app, [data])
     assert [[viewer.state.title for viewer in row] for row in viewers["rows"]] == [
         ["VISP qVXjk map", "VISP qVXjk virtual slit"],
@@ -366,14 +390,13 @@ def test_a_session_restores_a_dkist_raster_s_quicklook(qtbot, monkeypatch, tmp_p
     np.testing.assert_array_equal(*(spectrum.profile for spectrum in spectra))
 
 
-@small_visp_dated_2044
 @pytest.mark.parametrize(
     ("name", "at", "reached"),
     [
         # ViSP's (Stokes, step, wavelength, slit), scanning: the step whose slit passes nearest, as on an IRIS raster
         ("croppable_visp", (0, 229, 400, 851), [None, 229, None, 851]),
-        # sit-and-stare: the step nearest in time, the first (2021 to 2044), and the slit pixel level with the place
-        ("small_visp", (1, 3, 8), [0, 3, None]),
+        # sit-and-stare: the step nearest in time, the first (2021 to 2023), and the slit pixel level with the place
+        ("sit-and-stare", (1, 3, 8), [0, 3, None]),
         # Cryo-NIRSP's spectrograph sample, scanning
         pytest.param("DBXVEL_full.tar", (107, 639, 305), [107, 639, None], marks=pytest.mark.remote_data),
     ],
@@ -386,7 +409,7 @@ def test_iris_points_reach_a_dkist_raster_at_its_step_and_slit_pixel_and_back(
         with pytest.warns(UserWarning, match="0 of 2752 files"):
             raster = load_data(str(asdf_alone(tmp_path, name)))
     else:
-        raster = load_data(str(small_visp() if name == "small_visp" else dkist_sample(name)))
+        raster = slit_raster(0.01) if name == "sit-and-stare" else load_data(str(dkist_sample(name)))
     # the slit-jaw image's frame 10 at (20, 18) and the IRIS raster's step 5 at slit pixel 20 shifted onto the raster's
     # pixel ``at``, as 'IRIS: shift pointing…' co-aligns them
     place = _lon_lat(raster, at)
@@ -395,7 +418,8 @@ def test_iris_points_reach_a_dkist_raster_at_its_step_and_slit_pixel_and_back(
     dc = app.data_collection
     dc.extend([sji, iris_raster, raster])
     link_iris(app.session, dc)
-    # glue inverted the raster's coordinates from one world value per axis, not its time (D102): IncompatibleAttribute
+    # it reaches the raster, where glue inverted the raster's coordinates from one world value per axis, not its time,
+    # and the point was incompatible (D102, `_SlitAt`)
     assert point(sji, (10, 20, 18), raster) == reached
     quicklook_point = PixelSubsetState(iris_raster, [slice(5, 6), slice(20, 21), slice(None)])  # at every wavelength
     assert quicklook_point._to_linked_pixel_coords(raster) == reached
@@ -413,3 +437,26 @@ def test_iris_points_reach_a_dkist_raster_at_its_step_and_slit_pixel_and_back(
     for using in usings:
         restored = GlueUnSerializer.loads(GlueSerializer(using).dumps()).object("__main__")
         assert (type(restored), restored.__gluestate__(None)) == (type(using), using.__gluestate__(None))
+
+
+@pytest.mark.parametrize("off", [0.49, 0.51])
+@pytest.mark.parametrize(("end", "inner"), [(0, 1), (687, 686)])  # the raster's first and last steps, and the next
+def test_an_iris_point_past_half_a_step_beyond_a_dkist_raster_s_end_does_not_reach_it(
+    app, tmp_path, sns, end, inner, off
+):
+    sji, _ = sns
+    with pytest.warns(UserWarning, match="0 of 2752 files"):
+        raster = load_data(str(asdf_alone(tmp_path, "croppable_visp")))
+    # the slit-jaw image's frame 10 at (20, 18) shifted ``off`` a step beyond step ``end``, at its first slit pixel
+    edge, next_ = (np.array(_lon_lat(raster, (0, step, 400, 0))) for step in (end, inner))
+    place = edge + off * (edge - next_)
+    sji.coords.pointing_offset = tuple(float(a - b) for a, b in zip(place, _lon_lat(sji, (10, 20, 18))))
+    app.data_collection.extend([sji, raster])
+    link_iris(app.session, app.data_collection)
+    # within half a step it reaches that step, and past it none, as the quicklook's no match (D7), where it reached a
+    # step off the raster up to one step beyond
+    if off < 0.5:
+        assert point(sji, (10, 20, 18), raster) == [None, end, None, 0]
+    else:
+        with pytest.raises(IncompatibleAttribute):
+            point(sji, (10, 20, 18), raster)

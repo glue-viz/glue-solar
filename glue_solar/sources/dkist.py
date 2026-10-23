@@ -29,10 +29,14 @@ SAMPLE_FRAMES = 16
 
 
 def _wrapped(wcs, world):
-    """The values ``world`` of the world axes of ``wcs``, helioprojective longitude in [-180°, 180°), as SkyCoord's."""
+    """
+    The values ``world`` of the world axes of ``wcs``, helioprojective longitude and latitude in [-180°, 180°), as
+    SkyCoord's: dkist gives longitude 0° to 360°, and its small ViSP test raster a zero or negative latitude as 360°
+    plus it.
+    """
     world = list(world)
     for k, kind in enumerate(wcs.world_axis_physical_types):
-        if kind == _HPC[0]:
+        if kind in _HPC:
             half = (180 * u.deg).to_value(wcs.world_axis_units[k])
             world[k] = (np.asarray(world[k]) + half) % (2 * half) - half
     return world
@@ -80,9 +84,9 @@ class GlueWCS(BaseLowLevelWCS, HighLevelWCSMixin):
     """
     A DKIST dataset's gWCS, ``wcs``, as glue reads it (D102): glue gives array axis i world axis ``world_n_dim - 1 -
     i`` (glue's ``CoordinateComponent``, Image viewer and its state), assuming one world axis per pixel axis, so the
-    world axes go in ``order`` (`_glue_order`), those of no pixel axis of their own first; helioprojective longitude in
-    [-180°, 180°), as SkyCoord gives it, where dkist gives 0° to 360°; and a pixel axis of no world axis of its own,
-    such as one of a Cryo-NIRSP context imager's two axes of time, its index, named by ``names``.
+    world axes go in ``order`` (`_glue_order`), those of no pixel axis of their own first; helioprojective longitude and
+    latitude in [-180°, 180°) (`_wrapped`); and a pixel axis of no world axis of its own, such as one of a Cryo-NIRSP
+    context imager's two axes of time, its index, named by ``names``.
     """
 
     serialized_classes = False
@@ -263,14 +267,6 @@ def _frame_times(data):
     return axis, time.datetime64
 
 
-def _turned(angle):
-    """
-    ``angle``, a helioprojective angle or a difference of two in arcsec, in [-180°, 180°): dkist gives longitude 0° to
-    360°, and its small ViSP test raster a zero or negative latitude as 360° plus it.
-    """
-    return (angle + 648_000) % 1_296_000 - 648_000
-
-
 def _slit(data, step):
     """
     The array axis along the slit of ``data``, a DKIST raster stepping along array axis ``step``, and at each step the
@@ -290,8 +286,8 @@ def _slit(data, step):
     for end in (0, data.shape[slit] - 1):
         pixel = [np.arange(n) if a == step else end if a == slit else n // 2 for a, n in enumerate(data.shape)]
         world = wcs.pixel_to_world_values(*pixel[::-1])
-        ends.append(_turned(np.stack([world[types.index(kind)] for kind in _HPC], axis=-1)))
-    return slit, ends[0], _turned(ends[1] - ends[0]) / (data.shape[slit] - 1)
+        ends.append(np.stack([world[types.index(kind)] for kind in _HPC], axis=-1))
+    return slit, ends[0], (ends[1] - ends[0]) / (data.shape[slit] - 1)
 
 
 class _SlitAt:
@@ -299,31 +295,30 @@ class _SlitAt:
     A DKIST raster's step, or with ``slit`` its slit pixel, at helioprojective longitude and latitude ``lon, lat``
     (arcsec) of IRIS data, and on a sit-and-stare raster at its frame ``index`` (`link_hpc`, D102): glue inverts the
     raster's coordinates from one world value per array axis, never its time, from which dkist's gWCS takes the step.
-    The step is that whose slit passes nearest, as the quicklook places a point on a scanning IRIS raster, off the
-    array from half to one step past either end and NaN beyond, or on a sit-and-stare raster that nearest the frame's
+    The step is that whose slit passes nearest, as the quicklook places a point on a scanning IRIS raster, NaN past half
+    a step beyond either end, as the quicklook's no match (D7), or on a sit-and-stare raster that nearest the frame's
     time however far, ``steps`` by frame, as `_ScanAt` gives a stack's scan; the slit pixel is that level with the place
     along that step's slit, from its first pixel, ``starts``, and one pixel along it, ``pixels``, per step (`_slit`).
     Saved in sessions.
     """
 
-    __name__ = "nearest_slit"  # glue's name of a link function, as its own link helpers set it
-
     def __init__(self, starts, pixels, slit, steps=None):
         self.starts, self.pixels = np.asarray(starts, dtype=float), np.asarray(pixels, dtype=float)
         self.slit, self.steps = slit, steps
+        self.__name__ = "slit_pixel" if slit else "nearest_step"  # glue's name of a link function, as its helpers set
         # its inputs to glue and its link editor, not self too
         inputs = (lambda lon, lat: None) if steps is None else (lambda lon, lat, index: None)
         self.__signature__ = inspect.signature(inputs)
         if steps is not None:
             self._frames = _ScanAt(steps)
             return
-        # the slits' offsets across them, in order, and one step past each end, half of which rounds to that end
+        # the slits' offsets across them, in order, and half a step past each end, beyond which a point is no match (D7)
         along = self.pixels.mean(axis=0)
         self._across = np.array([-along[1], along[0]])
         offsets = self.starts @ self._across
         order = np.argsort(offsets)
         self._offsets, self._steps = (
-            np.r_[2 * x[0] - x[1], x, 2 * x[-1] - x[-2]] for x in (offsets[order], order * 1.0)
+            np.r_[1.5 * x[0] - 0.5 * x[1], x, 1.5 * x[-1] - 0.5 * x[-2]] for x in (offsets[order], order * 1.0)
         )
 
     def __call__(self, lon, lat, index=None):
