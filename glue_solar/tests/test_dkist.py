@@ -20,6 +20,7 @@ from glue.core.state import GlueSerializeError, GlueSerializer, GlueUnSerializer
 from glue.dialogs.link_editor.state import LinkEditorState
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
+from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 
@@ -38,7 +39,7 @@ from glue_solar.sources.loaders.iris import image_data
 from glue_solar.sources.sst import sst_data
 from glue_solar.tests.helpers import restore
 from glue_solar.tests.test_lazy import SJI
-from glue_solar.tests.test_quicklook import bare_app_for
+from glue_solar.tests.test_quicklook import bare_app_for, point_window, rows, slide
 from glue_solar.tests.test_regrid import known_times, with_times
 from glue_solar.tests.test_sst import write_sst_cube
 
@@ -203,6 +204,94 @@ def test_a_dkist_raster_opens_its_quicklook_and_labels_its_axes(qtbot, monkeypat
     dataset = dkist.load_dataset(small_visp())
     waves = dataset.wcs.pixel_to_world_values(np.arange(25), 5, 1)[0]
     np.testing.assert_allclose(spectrum.profile, [waves, np.asarray(dataset.data[1, 5])])
+    # its map as IRIS's, the steps across and the slit up, where the slit was along x (D103)
+    state, pixel = viewers["map"].state, data.pixel_component_ids
+    assert (state.x_att, state.y_att, state.aspect) == (pixel[0], pixel[1], "auto")
+    # its wavelength slider the wavelength, where glue-qt gave the raster's time, a world axis of no axis of its own
+    [slider] = [slider.state for slider in viewers["map"].options_widget().slice_helper._sliders if slider]
+    assert (slider.label, slider.slider_unit) == ("Wavelength", "nm")
+    assert float(slider.slider_label) == pytest.approx(waves[state.slices[2]], abs=1e-3)
+
+
+def repeated_raster(axes):
+    """
+    A raster of 3 steps of 0.5" along a slit of 6 pixels of 0.5", at 5 wavelengths, in Stokes I, Q, U and V, repeated
+    twice 30 s apart, of numpy ``axes`` named 'stokes', 'repeat', 'step', 'slit' and 'wave', as a `GlueWCS` dataset of
+    values numbering its pixels, its pointing and time along its steps and repeats, as dkist's gWCS ravels a ViSP
+    raster's repeats or Cryo-NIRSP's measurements with its steps; and its values.
+    """
+    sizes = {"stokes": 4, "repeat": 2, "step": 3, "slit": 6, "wave": 5}
+    along = {  # each world axis's pixel axes
+        "lon": ("step", "repeat", "slit"),
+        "wave": ("wave",),
+        "lat": ("step", "repeat", "slit"),
+        "time": ("step", "repeat"),
+        "stokes": ("stokes",),
+    }
+
+    def world(*pixel):
+        p = dict(zip(axes[::-1], pixel))  # APE 14 order
+        lon = -100 + 0.5 * p["step"] + 0.01 * p["repeat"] + 0 * p["slit"]
+        lat = 200 + 0.5 * p["slit"] + 0 * p["step"] + 0 * p["repeat"]
+        return lon, 500 + 0.01 * p["wave"], lat, 1.7e9 + 10 * p["step"] + 30 * p["repeat"], 1.0 + p["stokes"]
+
+    kinds = ("custom:pos.helioprojective.lon", "em.wl", "custom:pos.helioprojective.lat", "time")
+    wcs = SimpleNamespace(
+        pixel_n_dim=5,
+        world_n_dim=5,
+        pixel_shape=None,
+        pixel_bounds=None,
+        world_axis_physical_types=(*kinds, "phys.polarization.stokes"),
+        world_axis_units=("arcsec", "nm", "arcsec", "s", ""),
+        world_axis_names=tuple(along),
+        world_axis_object_components=[(name, 0, "value") for name in along],
+        world_axis_object_classes={
+            "lon": (u.Quantity, (), {"unit": "arcsec"}),
+            "wave": (u.Quantity, (), {"unit": "nm"}),
+            "lat": (u.Quantity, (), {"unit": "arcsec"}),
+            "time": (Time, (), {"format": "unix"}),
+            "stokes": (u.Quantity, (), {"unit": ""}),
+        },
+        axis_correlation_matrix=np.array([[axis in along[name] for axis in axes[::-1]] for name in along]),
+        pixel_to_world_values=world,
+    )
+    shape = [sizes[axis] for axis in axes]
+    data = Data(label="raster", coords=GlueWCS(wcs, _glue_order(wcs, shape[::-1]), []))
+    values = np.arange(np.prod(shape), dtype=float).reshape(shape)
+    data.add_component(values, "data")
+    return data, values
+
+
+@pytest.mark.parametrize(
+    ("axes", "pixel"),
+    [
+        (("stokes", "repeat", "step", "wave", "slit"), "Stokes 0, time 1, x 1, λ 2, y 3"),  # ViSP CZKPML's
+        (("stokes", "step", "repeat", "slit", "wave"), "Stokes 0, x 1, time 1, y 3, λ 2"),  # Cryo-NIRSP AIOMGG's
+    ],
+    ids=["visp-repeats", "cryo-nirsp-measurements"],
+)
+def test_a_raster_s_repeats_or_measurements_are_a_slider_in_its_quicklook(qtbot, monkeypatch, axes, pixel):
+    data, values = repeated_raster(axes)
+    app = bare_app_for(qtbot, monkeypatch)
+    app.show()  # the map's options in sight as it opens
+    # where it was refused, the pointing moving along the repeats too, the steps across and the slit up (D103)
+    viewers = quicklook(app, [data])
+    stokes, repeat, step, slit = map(axes.index, ("stokes", "repeat", "step", "slit"))
+    state, ids = viewers["map"].state, data.pixel_component_ids
+    assert (state.x_att, state.y_att, state.aspect) == (ids[step], ids[slit], "auto")
+    # the repeats a slider, as Stokes, not a time axis of λ–time and light curve panels: the spectra at the point follow
+    # it, named as glue labels its axis
+    assert set(viewers) == {"map", "slit", "spectra", "rows"}
+    slide(viewers["map"], repeat, 1)
+    index = [slice(None)] * 5
+    index[stokes], index[repeat], index[step], index[slit] = 0, 1, 1, 3
+    spectrum, expected = viewers["spectra"][0].state.layers[0], values[tuple(index)]
+    qtbot.waitUntil(lambda: spectrum.profile is not None and np.array_equal(spectrum.profile[1], expected), timeout=60_000)
+    qtbot.waitUntil(lambda: rows(point_window(app))[0][1] == pixel, timeout=60_000)
+    # and no slider of the axes glue showed between x and y stays over the map's options
+    options = viewers["map"].options_widget()
+    shown = [slider for slider in options.findChildren(SliceWidget) if slider.isVisible()]
+    assert shown == [slider for slider in options.slice_helper._sliders if slider]
 
 
 @small_visp_dated_2044

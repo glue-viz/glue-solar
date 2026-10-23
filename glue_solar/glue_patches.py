@@ -38,7 +38,7 @@ from glue.dialogs.link_editor.state import LinkEditorState
 from glue.plugins.tools.path_slicer.path_sliced_data import PathSlicedData
 from glue.plugins.tools.path_slicer.path_sliced_data_links import PathRelativeLink
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
-from glue.utils import defer_draw
+from glue.utils import defer_draw, format_minimal
 from glue.viewers.common.state import LayerState
 from glue.viewers.histogram import state as histogram_state
 from glue.viewers.histogram import viewer as histogram_viewer
@@ -58,6 +58,7 @@ from glue_qt.config import layer_action as glue_layer_action
 from glue_qt.core.fitters import FitSettingsWidget
 from glue_qt.utils import colors
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
+from glue_qt.viewers.common.slice_widget import MultiSliceWidgetHelper
 from glue_qt.viewers.common.toolbar import BasicToolbar
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.matplotlib.widget import MplCanvas
@@ -612,6 +613,40 @@ def needs_axis_label_workaround(updates=_original_update_axislabels):
 
 if _needs(needs_axis_label_workaround):
     ImageViewer.update_x_axislabel, ImageViewer.update_y_axislabel = update_x_axislabel, update_y_axislabel
+
+
+_original_sync_sliders = MultiSliceWidgetHelper.sync_sliders_from_state
+
+
+def sync_sliders_from_state(self, *args):
+    """
+    glue-qt's ``MultiSliceWidgetHelper.sync_sliders_from_state``, hiding the sliders it replaces, and each new slider
+    showing the values and unit of the world axis glue gives its axis, ``world_n_dim - 1 - axis`` (D103). glue-qt 0.4.2
+    closes a replaced slider, which Qt shows again if its layout had not shown it yet, so a quicklook panel whose x and y
+    both change kept a stray slider over its options; and it reads ``ndim - 1 - axis``, another axis's where world axes
+    outnumber array axes, so a ViSP map's Stokes and Wavelength sliders showed arcsec.
+    """
+    sliders = self._sliders
+    _original_sync_sliders(self, *args)
+    if self._sliders is sliders:
+        return
+    for slider in filter(None, sliders):
+        slider.hide()
+    data = self.data
+    worlds = getattr(data.coords, "world_n_dim", 0)
+    if worlds <= data.ndim:
+        return
+    for axis, slider in enumerate(self._sliders):
+        if slider is not None:
+            world = coordinate_helpers.world_axis(
+                data.coords, data, pixel_axis=data.ndim - 1 - axis, world_axis=worlds - 1 - axis
+            )
+            slider._world, slider._world_unit = world, data.coords.world_axis_units[worlds - 1 - axis]
+            slider.label_fmt = format_minimal(world)[0] if len(world) > 1 else "{:g}"  # as glue-qt's
+            slider.set_label_from_slider()
+
+
+MultiSliceWidgetHelper.sync_sliders_from_state = sync_sliders_from_state
 
 
 # glue-core #2599: glue 1.27.0 counts dates in days from 0001-01-01, matplotlib's epoch before 3.3, so a Scatter or

@@ -1711,7 +1711,9 @@ def _cube_axes(data):
     """
     The array axes of ``data`` by the world coordinates along them, ``(time, Stokes, wavelength, y, x)``, None for
     those it does not have: one wavelength axis, of two wavelengths or more, two others of position, on the sky or the
-    Sun, and any of time and Stokes parameter; or None for data of other axes.
+    Sun, and any of time and Stokes parameter; or None for data of other axes. A slit raster's steps are x and its slit
+    y, as IRIS's maps, and the other axes its pointing moves along, a DKIST raster's repeats or measurements, are left
+    to sliders, as Stokes (D103).
     """
     types = [str(kind) for kind in getattr(data.coords, "world_axis_physical_types", None) or ()]
     matrix = getattr(data.coords, "axis_correlation_matrix", None)
@@ -1726,13 +1728,17 @@ def _cube_axes(data):
     stokes = along("phys.polarization.stokes") - wave
     place = along("pos.", "custom:pos.") - wave - stokes
     time = along("time") - wave - stokes
-    if len(place) > 2:  # a moving pointing's position depends on time too
-        place -= time
-    time -= place  # a slit raster's step, whose time changes too, is a place (D102)
+    moving = place
+    if len(place) > 2:  # those glue gives a position, as a DKIST raster's where its pointing moves most (`_glue_order`)
+        place = {axis for axis in place if types[len(types) - 1 - axis].startswith(("pos.", "custom:pos."))}
+    steps = time & place  # a slit raster's step, whose time changes too, is a place (D102)
+    sliders = moving - place if steps else set()  # its repeats or measurements, raveled with its steps (D103)
+    time -= place | sliders
     sizes = len(time), len(stokes), len(wave), len(place)
-    if sizes[2:] != (1, 2) or max(sizes[:2]) > 1 or sum(sizes) != data.ndim or data.shape[min(wave)] < 2:
+    if sizes[2:] != (1, 2) or max(sizes[:2]) > 1 or sum(sizes) + len(sliders) != data.ndim or data.shape[min(wave)] < 2:
         return None  # one wavelength has no spectrum
-    return (next(iter(time), None), next(iter(stokes), None), *wave, *sorted(place))
+    y, x = sorted(place, key=lambda axis: (axis in steps, axis))
+    return (next(iter(time), None), next(iter(stokes), None), *wave, y, x)
 
 
 def _sst_line(cube):
@@ -1749,7 +1755,7 @@ def _cube_table(app, cube):
     ``spectra`` of the point's Stokes parameters; for a time axis ``wavelength`` and ``curve``; laid out in ``rows``.
     The spectra and curve are `_Cut` groups following the point, so no panel profiles the whole cube.
     """
-    sst = _role(cube) == "sst"
+    sst, aspect = _role(cube) == "sst", "equal"
     if sst:  # scan, Stokes, wavelength, y and x, or a cube of intensities' scan, wavelength, y and x
         w = cube.ndim - 3
         t, s, y, x = 0, 1 if w == 2 else None, w + 1, w + 2
@@ -1757,11 +1763,14 @@ def _cube_table(app, cube):
     else:
         t, s, w, y, x = _cube_axes(cube)
         name, core = cube.label.replace("&", "and"), cube.shape[w] // 2
+        types = list(cube.coords.world_axis_physical_types)
+        if "time" in types and np.asarray(cube.coords.axis_correlation_matrix)[types.index("time"), cube.ndim - 1 - x]:
+            aspect = "auto"  # a slit raster's, as IRIS's maps (D103): AIOMGG's steps are 16 slit pixels wide
     start = [0] * cube.ndim
     start[w], start[y], start[x] = core, cube.shape[y] // 2, cube.shape[x] // 2
     if t is not None:
         start[t] = coordinator(app.data_collection).following(cube) or 0
-    panels = [_Panel("map", cube, f"{name} map", x, y, tuple(start), "equal")]
+    panels = [_Panel("map", cube, f"{name} map", x, y, tuple(start), aspect)]
     if sst:
         wing = (*start[:w], 0, *start[w + 1 :])
         panels.append(_Panel("wing", cube, f"{name} second map", x, y, wing, "equal"))
@@ -2901,7 +2910,7 @@ class _PointWindow(QTableWidget):
             names = ("scan", "Stokes", "λ", "y", "x") if data.ndim == 5 else ("scan", "λ", "y", "x")
         elif _role(data) is None and (axes := _cube_axes(data)):  # a cube of neither instrument
             named = dict(zip(axes, ("time", "Stokes", "λ", "y", "x")))  # and None, those it lacks
-            names = [named[axis] for axis in range(data.ndim)]
+            names = [named.get(axis) or data.world_component_ids[axis].label.lower() for axis in range(data.ndim)]
         elif data.ndim == 3 and _is_sit_and_stare(data):
             names = ("exposure", "slit", "λ")
         else:
