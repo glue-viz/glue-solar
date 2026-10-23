@@ -112,6 +112,9 @@ def test_dkist_datasets_open_with_a_world_axis_per_array_axis(tmp_path):
         tiles = load_data(str(asdf_alone(tmp_path, "large_vbi")))
     assert [tile.label for tile in tiles] == [f"VBI AJQWW {index}" for index in np.ndindex(3, 3)]
     assert labels(tiles[4]) == ["Time", "Helioprojective Latitude", "Helioprojective Longitude"]
+    # a dataset without its headers table, where its frames' times raised KeyError: 'DATE-AVG'
+    with pytest.warns(UserWarning, match="VISP ADDMM: 0 of 10444 files"):
+        assert load_data(str(asdf_alone(tmp_path, "visp_no_headers"))).shape == (4, 2611, 996, 2545)
 
 
 def test_a_dkist_level_2_inversion_does_not_open_as_level_1(tmp_path):
@@ -324,6 +327,21 @@ def test_a_point_on_a_dkist_dataset_takes_its_viewer_s_stokes_and_measurement(qt
     image.state.slices = (1, 2, 2, 0, 0)
     assert group.subset_state.slices[:3] == [slice(1, 2), slice(None), slice(2, 3)]
     qtbot.waitUntil(lambda: np.array_equal(layer.profile[1], [102, 112, 122]), timeout=60_000)
+
+
+def test_a_point_on_a_dkist_raster_s_default_view_keeps_its_clicked_wavelength(qtbot, monkeypatch, tmp_path):
+    app = bare_app_for(qtbot, monkeypatch)
+    with pytest.warns(UserWarning, match="0 of 2752 files"):
+        visp = load_data(str(asdf_alone(tmp_path, "croppable_visp")))
+    app.data_collection.append(visp)
+    image = app.new_data_viewer(ImageViewer, data=visp)  # glue's default view: the slit across, wavelength up
+    image.state.slices = (2, 100, 0, 0)  # Stokes U, step 100
+    point = PixelSubsetState(visp, [slice(None), slice(None), slice(400, 401), slice(851, 852)])
+    image._session.command_stack.do(ApplySubsetState(data_collection=app.data_collection, subset_state=point))
+    [group] = app.data_collection.subset_groups
+    # at the viewer's Stokes parameter and the clicked wavelength, its profile along the steps alone, where it spanned
+    # the wavelengths too (D103)
+    assert group.subset_state.slices == [slice(2, 3), slice(None), slice(400, 401), slice(851, 852)]
 
 
 @small_visp_dated_2044

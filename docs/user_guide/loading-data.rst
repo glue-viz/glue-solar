@@ -167,7 +167,7 @@ stay in the FITS files next to the ASDF file, read as they are viewed.
   other.
 - Each frame's time and exposure, from its FITS headers (``DATE-AVG`` and ``XPOSURE``), show in the
   "Frame time" line, the cursor readout and the quicklook's Point window.
-- A point on a dataset of Stokes parameters, raster repeats or Cryo-NIRSP measurements is taken at
+- A point on a dataset of Stokes parameters, repeats or Cryo-NIRSP measurements is taken at
   the Image viewer's Stokes parameter, repeat and measurement, and moves with their sliders: its
   Profile runs along the wavelength, raster step or time alone.
 - "Quicklook…" opens a ViSP or Cryo-NIRSP spectrograph dataset as any spectral cube: its map,

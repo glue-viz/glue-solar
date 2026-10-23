@@ -456,24 +456,25 @@ def _data(dataset, label):
     )
     if data._present.size == 1:  # one frame, as a VBI single-shot tile's, whose file axis dkist drops (D102)
         data._present = data._present.reshape(())
-    # each file's DATE-AVG, its gWCS's time to 0.5 ms, not the gWCS's, 0.8 s for CZKPML's 4000 frames, and XPOSURE (ms)
-    times = np.array(headers["DATE-AVG"], dtype="datetime64[ns]").reshape(data._present.shape)
-    data._frames = times, (np.array(headers["XPOSURE"]) * u.ms).to_value(u.s).reshape(data._present.shape)
+    # each file's DATE-AVG, its gWCS's time to 0.5 ms, not the gWCS's, 0.8 s for CZKPML's 4000 frames, and XPOSURE (ms);
+    # none without its headers table, as dkist's visp_no_headers
+    if {"DATE-AVG", "XPOSURE"} <= set(headers.colnames):
+        times = np.array(headers["DATE-AVG"], dtype="datetime64[ns]").reshape(data._present.shape)
+        data._frames = times, (np.array(headers["XPOSURE"]) * u.ms).to_value(u.s).reshape(data._present.shape)
     return data
 
 
 def _held_axes(data):
     """
     The array axes of ``data``, a DKIST dataset, that a point takes at its viewer's sliders, as the quicklook's spectra
-    do (D103): its Stokes axis, a raster's repeat axis and a Cryo-NIRSP measurement axis, by their pixel axis names and
+    do (D103): its Stokes axis, a repeat axis and a Cryo-NIRSP measurement axis, by their pixel axis names and
     physical types; none for other data.
     """
     wcs = getattr(data, "coords", None)
     if not isinstance(wcs, GlueWCS):
         return set()
     names = wcs._names
-    raster = any("step" in name for name in names)
-    held = {p for p, name in enumerate(names) if "measurement" in name or (raster and "repeat" in name)}
+    held = {p for p, name in enumerate(names) if "measurement" in name or "repeat" in name}
     stokes = [k for k, kind in enumerate(wcs.world_axis_physical_types) if kind == "phys.polarization.stokes"]
     held.update(np.flatnonzero(np.asarray(wcs.axis_correlation_matrix)[stokes].any(axis=0)))
     return {data.ndim - 1 - int(p) for p in held}
