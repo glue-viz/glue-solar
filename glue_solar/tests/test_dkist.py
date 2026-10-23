@@ -451,7 +451,7 @@ def test_a_dkist_dataset_reads_its_views_from_its_files_kept_open(tmp_path, monk
         np.testing.assert_array_equal(data.get_data(cid, view=view), expected)
     assert np.isnan(expected[1]).all()
     assert sorted(opened) == ["0.fits", "2.fits"]
-    # up to `OPEN_FILES` of them, as macOS allows a process 256 open files
+    # up to `OPEN_FILES` of them (`_open_files`)
     monkeypatch.setattr("glue_solar.sources.dkist.OPEN_FILES", 1)
     opened.clear()
     for step in (0, 2, 0):

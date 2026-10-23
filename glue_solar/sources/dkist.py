@@ -44,9 +44,32 @@ SAMPLE_FRAMES = 16
 STRICT_INVERSE = contextvars.ContextVar("strict_inverse", default=False)
 # `GlueWCS.pixel_to_world_values`'s last 64 distinct inputs and its results (D103)
 _WORLD, _WORLD_LOCK = OrderedDict(), threading.Lock()
-# DKIST data's FITS files kept open, the least recently read first, at most `OPEN_FILES`: macOS's soft limit is 256 open
-# files; and the threads that read them, as astropy's RICE decoding releases the GIL (`_Files`, D103)
-OPEN_FILES, _OPEN, _OPEN_LOCK = 128, OrderedDict(), threading.Lock()
+
+
+def _open_files():
+    """
+    How many FITS files DKIST data keep open: up to 4096, half the process's open-file soft limit, which this raises
+    toward its hard limit, as macOS's is 256 (user, 2026-10-23: 128 files reopened a ViSP map's 510 at each move).
+    """
+    try:
+        import resource
+    except ImportError:  # Windows, whose C runtime allows 8192
+        return 4096
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    for wanted in (8192, 4096, 2048):
+        wanted = wanted if hard == resource.RLIM_INFINITY else min(wanted, hard)
+        if wanted <= soft:
+            break
+        with contextlib.suppress(ValueError, OSError):  # above macOS's kern.maxfilesperproc
+            resource.setrlimit(resource.RLIMIT_NOFILE, (wanted, hard))
+            soft = wanted
+            break
+    return min(4096, soft // 2)
+
+
+# DKIST data's FITS files kept open, the least recently read first, at most `OPEN_FILES`; and the threads that read
+# them, as astropy's RICE decoding releases the GIL (`_Files`, D103)
+OPEN_FILES, _OPEN, _OPEN_LOCK = _open_files(), OrderedDict(), threading.Lock()
 _READERS = ThreadPoolExecutor(8)
 atexit.register(lambda: [file.close() for file in list(_OPEN.values())])  # as glue quits, not left to the collector
 # Set while glue computes an Image buffer of a DKIST dataset's values (`DKISTData.compute_fixed_resolution_buffer`)
