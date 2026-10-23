@@ -431,9 +431,10 @@ def test_iris_points_reach_a_dkist_raster_at_its_step_and_slit_pixel_and_back(
     # the slit-jaw image draws over the raster's steps by its slit, a sit-and-stare's too, whose longitude glue gives
     # no axis
     assert drawn_over(app, raster, sji, *[axis for axis, pixel in enumerate(reached) if pixel is not None])
-    # and the links save in sessions
+    # and the links, named as glue's Link Data dialog shows them, save in sessions
     usings = [link.get_using() for link in dc.links if isinstance(link.get_using(), (_SlitAt, _SlitPlace))]
     assert usings
+    assert all(u.__name__ == ("slit_pixel" if u.slit else "nearest_step") for u in usings if isinstance(u, _SlitAt))
     for using in usings:
         restored = GlueUnSerializer.loads(GlueSerializer(using).dumps()).object("__main__")
         assert (type(restored), restored.__gluestate__(None)) == (type(using), using.__gluestate__(None))
