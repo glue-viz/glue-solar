@@ -2,6 +2,7 @@
 DKIST Level 1 datasets, read with dkist from their ASDF file by File → Open Data Set (D102).
 """
 
+import contextlib
 import inspect
 import os
 import warnings
@@ -12,6 +13,8 @@ from glue.config import autolinker, data_factory
 from glue.core.component import DaskComponent
 from glue.core.data import Data
 from glue.core.exceptions import IncompatibleAttribute
+from glue.core.hub import HubListener
+from glue.core.message import DataCollectionDeleteMessage
 from glue.core.state import GlueSerializeError, _load_data_5, _save_data_5
 from glue.plugins.wcs_autolinking import wcs_autolinking
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
@@ -144,7 +147,16 @@ class GlueWCS(BaseLowLevelWCS, HighLevelWCSMixin):
         for values, k in zip(world_arrays, self._order):
             if k is not None:
                 world[k] = values
-        pixel = list(np.broadcast_arrays(*self._wcs.world_to_pixel_values(*world)))
+        # inverted at finite values only, raveled: NaN pixels where a world value is NaN, as a regridded IRIS dataset's
+        # time in its gaps, where dkist's inverse raises (`_off_frames`); and dkist's Unravel inverse, of a Cryo-NIRSP
+        # context image of repeated measurements, raises TypeError on arrays of more than one dimension (report
+        # candidate)
+        world = np.broadcast_arrays(*(np.asarray(values, dtype=float) for values in world))
+        finite = np.all(np.isfinite(world), axis=0)
+        pixel = [np.full(finite.shape, np.nan) for _ in range(self.pixel_n_dim)]
+        if finite.any():
+            for values, found in zip(pixel, self._wcs.world_to_pixel_values(*(w[finite] for w in world)), strict=True):
+                values[finite] = found
         for i, k in enumerate(self._order):
             if k is None:
                 pixel[i - self._extra] = np.broadcast_to(world_arrays[i], pixel[0].shape) * 1.0
@@ -206,6 +218,10 @@ class DKISTData(Data):
             self._samples[size] = np.concatenate(values)
         return self._samples[size]
 
+    def register_to_hub(self, hub):
+        super().register_to_hub(hub)
+        self._recenter = _Recenter(self, hub)  # the hub holds its listeners weakly
+
     # A session saves a dataset as glue saves a Data, but for its coordinates, a gWCS, which glue cannot save: it
     # restores as this class with the coordinates, frames, sample and center tile of the dataset its load log reads
     # again from the ASDF file, as `LazyData` does for IRIS data (D102)
@@ -233,6 +249,7 @@ class DKISTData(Data):
             "meta": context.do(meta),
             "log": context.id(log),
             "log_item": log.data.index(self),
+            "center": log.data.index(self._center),  # the first tile left once the center tile is removed (`_Recenter`)
         }
 
     @classmethod
@@ -244,7 +261,7 @@ class DKISTData(Data):
         data = next(restored)
         data.__class__, data._load_log = cls, log  # glue's loader makes a Data
         data._mosaic, data._samples, data._present = source._mosaic, source._samples, source._present
-        data._center = source._center
+        data._center = log.data[rec["center"]] if "center" in rec else source._center  # #374's sessions saved none
         log.data[rec["log_item"]] = data  # for a session saved from this one
         for tile in log.data:  # its mosaic's tiles, restored or not, link to it if it is the center (`wcs_autolink`)
             if tile._center is source:
@@ -255,19 +272,20 @@ class DKISTData(Data):
 
 def _frame_times(data):
     """
-    The array axis of ``data``, a DKIST dataset, along which its time varies, and its times there as `numpy.datetime64`,
-    at the middle of its other axes; None where its time varies along several or it has none.
+    The array axes of ``data``, a DKIST dataset, along which its time varies, in order, and its times along them as
+    `numpy.datetime64`, at the middle of its other axes; None where it has none.
     """
     wcs = data.coords
     if "time" not in wcs.world_axis_physical_types:
         return None
     axes = np.flatnonzero(np.asarray(wcs.axis_correlation_matrix)[wcs.world_axis_physical_types.index("time")])
-    if len(axes) != 1:
+    if not len(axes):
         return None
-    axis = data.ndim - 1 - axes[0]
-    pixel = [np.arange(data.shape[axis]) if p == axes[0] else n // 2 for p, n in enumerate(data.shape[::-1])]
-    [time] = [world for world in wcs.pixel_to_world(*pixel) if isinstance(world, Time)]
-    return axis, time.datetime64
+    axes = sorted(int(data.ndim - 1 - p) for p in axes)
+    grid = np.indices([data.shape[axis] for axis in axes])
+    pixel = [grid[axes.index(a)] if a in axes else n // 2 for a, n in enumerate(data.shape)]
+    [time] = [world for world in wcs.pixel_to_world(*pixel[::-1]) if isinstance(world, Time)]
+    return axes, time.datetime64
 
 
 def _slit(data, step):
@@ -465,6 +483,35 @@ def wcs_autolink(data_collection):
             except IncompatibleWCS:
                 pass
     return links
+
+
+class _Recenter(HubListener):
+    """
+    Once ``tile``, a DKIST mosaic's center tile, is removed from its data collection, the first of the mosaic's tiles
+    left there becomes their center, and those linked to ``tile`` are linked to it at once (D102, user 2026-10-22):
+    glue drops a removed dataset's links, and `wcs_autolink` links tiles to their center only.
+    """
+
+    def __init__(self, tile, hub):
+        self.tile = tile
+        # ahead of glue's link manager, of priority 10, which drops the links
+        hub.subscribe(self, DataCollectionDeleteMessage, handler=self._removed, priority=11)
+
+    def _removed(self, message):
+        if message.data is not self.tile:
+            return
+        collection = message.sender
+        tiles = [data for data in collection if getattr(data, "_center", None) is self.tile]
+        ends = [(link.data1, link.data2) for link in collection.external_links if isinstance(link, WCSLink)]
+        linked = {data for pair in ends if self.tile in pair for data in pair}
+        links = []
+        for tile in tiles:
+            tile._center = tiles[0]
+            if tile is not tiles[0] and tile in linked:
+                with contextlib.suppress(IncompatibleWCS):
+                    links.append(WCSLink(tiles[0], tile))
+        if links:  # glue rediscovers every dataset's links on each add_link, even an empty one
+            collection.add_link(links)
 
 
 autolinker.members[:] = [

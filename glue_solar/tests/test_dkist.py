@@ -17,22 +17,30 @@ from glue.core.data import Data
 from glue.core.data_factories import load_data
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.state import GlueSerializeError, GlueSerializer, GlueUnSerializer
-from glue.plugins.wcs_autolinking.wcs_autolinking import WCSLink
+from glue.dialogs.link_editor.state import LinkEditorState
+from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 
 import astropy.units as u
+from astropy.io import fits
 from astropy.time import Time
 from astropy.wcs.utils import pixel_to_pixel
 
 from glue_solar import glue_patches
-from glue_solar.conftest import find_irispy_test_file
+from glue_solar.conftest import find_irispy_test_file, int16_copy
 from glue_solar.quicklook import _lon_lat, quicklook
+from glue_solar.regrid import regrid_on_time
 from glue_solar.sources.dkist import DKISTData, GlueWCS, _data, _glue_order, _SlitAt, _SlitPlace, dkist_data
 from glue_solar.sources.iris import link_iris
+from glue_solar.sources.loaders.iris import image_data
+from glue_solar.sources.sst import sst_data
 from glue_solar.tests.helpers import restore
+from glue_solar.tests.test_lazy import SJI
 from glue_solar.tests.test_quicklook import bare_app_for
+from glue_solar.tests.test_regrid import known_times, with_times
+from glue_solar.tests.test_sst import write_sst_cube
 
 
 def asdf_alone(tmp_path, name):
@@ -276,6 +284,24 @@ def test_dkist_datasets_of_different_dimensions_link_pixel_to_pixel(tmp_path):
     assert not glue_patches.needs_wcs_link_workaround(glue_patches.wcs_link_init)
 
 
+def test_an_sst_cube_ahead_of_dkist_datasets_leaves_their_links(tmp_path, sns):
+    write_sst_cube(tmp_path / "cube.fits")
+    with pytest.warns(UserWarning, match="0 of 2752 files"):
+        visp = load_data(str(asdf_alone(tmp_path, "croppable_visp")))
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        tiles = load_data(str(asdf_alone(tmp_path, "large_vbi")))
+    # glue's WCS link read whether the DKIST dataset has celestial axes only if the cube has, and raised ValueError
+    # (ViSP) or IndexError (VBI) out of glue's autolinker, which suggested no link
+    [links] = find_possible_links(DataCollection([sst_data(tmp_path / "cube.fits"), visp, *tiles])).values()
+    assert {frozenset((link.data1, link.data2)) for link in links} == {
+        frozenset((tiles[4], tile)) for tile in tiles[:4] + tiles[5:]
+    }
+    # and Link Data's WCS link of a slit-jaw image and the raster, in that order, which raised ValueError: none, as their
+    # times differ
+    with pytest.raises(IncompatibleWCS):
+        WCSLink(sns[0], visp)
+
+
 def test_a_mosaic_s_tiles_link_to_its_center_tile(app, tmp_path):
     with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
         tiles = load_data(str(asdf_alone(tmp_path, "large_vbi")))
@@ -290,6 +316,40 @@ def test_a_mosaic_s_tiles_link_to_its_center_tile(app, tmp_path):
     expected = pixel_to_pixel(tiles[0].coords, tiles[8].coords, 2048, 2048, 1)[::-1]
     assert point(tiles[0], (1, 2048, 2048), tiles[8]) == np.round(expected).astype(int).tolist()
     assert drawn_over(app, tiles[8], tiles[0])
+
+
+def test_a_mosaic_s_tiles_link_to_its_first_tile_left_once_its_center_tile_is_removed(
+    app, qtbot, monkeypatch, tmp_path
+):
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        tiles = load_data(str(asdf_alone(tmp_path, "large_vbi")))
+    dc = app.data_collection
+    dc.extend(tiles)
+    [links] = find_possible_links(dc).values()
+    dc.add_link(links)
+    viewer = app.new_data_viewer(ImageViewer, data=tiles[0])
+    for tile in tiles[1:]:
+        viewer.add_data(tile)
+    dc.remove(tiles[4])
+    # its first tile is their center, linked to each other tile, where every link went with the center tile and the
+    # tiles' layers but the reference's were disabled (D102, user 2026-10-22)
+    rest = tiles[:4] + tiles[5:]
+    assert {frozenset((link.data1, link.data2)) for link in dc.external_links} == {
+        frozenset((rest[0], tile)) for tile in rest[1:]
+    }
+    assert all(tile._center is rest[0] for tile in rest)
+    assert all(layer.enabled for layer in viewer.layers)
+    # and in a session
+    app.save_session(str(tmp_path / "vbi.glu"))
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        again = restore(qtbot, monkeypatch, tmp_path / "vbi.glu").data_collection
+    assert all(tile._center is again[0] for tile in again)
+    # a mosaic not linked stays so
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        others = load_data(str(asdf_alone(tmp_path, "large_vbi")))
+    dc.extend(others)
+    dc.remove(others[4])
+    assert len(dc.external_links) == 7
 
 
 def test_link_helioprojective_coordinates_links_dkist_data_by_time(app, tmp_path, sns):
@@ -315,6 +375,48 @@ def test_link_helioprojective_coordinates_links_dkist_data_by_time(app, tmp_path
     # incompatible (`_SlitAt`), and the slit-jaw image draws over its map, its steps by its slit
     assert point(visp, (0, 344, 488, 1277), sji)[0] == last
     assert drawn_over(app, visp, sji, y=1)
+
+
+def test_link_helioprojective_coordinates_links_a_context_image_of_repeated_measurements_by_time(
+    app, tmp_path, irispy_test_files
+):
+    with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):
+        cryo = load_data(str(asdf_alone(tmp_path, "croppable_cryo")))
+    # a slit-jaw image of frames 100 s apart, its frame 10 at the context image's first measurement: its 3 steps are
+    # 180 s apart and their 3 measurements 10 s
+    path = int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0])
+    [first] = [world for world in cryo.coords.pixel_to_world(0, 0, 0, 0, 0) if isinstance(world, Time)]
+    start = (first.datetime64 - np.datetime64(fits.getval(path, "STARTOBS"))) / np.timedelta64(1, "s")
+    sji = image_data(with_times(path, start + 100 * (np.arange(62) - 10)))
+    # its frame 12 at (20, 18) shifted onto step 1's measurement 2, 200 s after the first, as 'IRIS: shift pointing…'
+    at = (0, 1, 2, 944, 875)
+    sji.coords.pointing_offset = tuple(float(a - b) for a, b in zip(_lon_lat(cryo, at), _lon_lat(sji, (12, 20, 18))))
+    dc = app.data_collection
+    dc.extend([sji, cryo])
+    link_iris(app.session, dc)
+    # the step and measurement nearest the frame's time, and the frame nearest theirs, where no time was linked, as the
+    # context image's time varies along both axes, and the points were incompatible
+    assert point(sji, (12, 20, 18), cryo) == [None, *at[1:]]
+    LinkEditorState(dc).update_links_in_collection()  # Link Data's OK, which remade the link back with one input
+    assert point(cryo, at, sji) == [12, 20, 18]
+    assert drawn_over(app, cryo, sji)
+
+
+def test_an_iris_frame_of_no_time_reaches_no_vbi_pixel(app, tmp_path, irispy_test_files):
+    path = int16_copy(find_irispy_test_file(irispy_test_files, SJI), tmp_path / SJI, [0])
+    regridded = regrid_on_time(image_data(with_times(path, known_times(62, 10.0, 30))))  # frames 30 to 39 of none
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        tile = load_data(str(asdf_alone(tmp_path, "large_vbi")))[4]
+    app.data_collection.extend([regridded, tile])
+    link_iris(app.session, app.data_collection)
+    # dkist's inverse raised NotImplementedError at a NaN time, as the frame's link gives it
+    assert point(regridded, (5, 20, 18), tile)[0] == 0
+    with pytest.raises(IncompatibleAttribute):
+        point(regridded, (35, 20, 18), tile)
+    viewer = app.new_data_viewer(ImageViewer, data=regridded)
+    viewer.add_data(tile)
+    viewer.state.slices = (35, 0, 0)
+    viewer.figure.canvas.draw()
 
 
 def viewed(app):

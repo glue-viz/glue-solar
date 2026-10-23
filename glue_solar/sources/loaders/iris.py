@@ -910,8 +910,8 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None,
 class _ScanAt:
     """
     A stack's ``Scan``, an SST cube's or a DKIST dataset's time at each index along another dataset's frames, exposures
-    or steps, or a slit-jaw image's time along a DKIST dataset's time axis (`link_hpc`), and NaN off it: ``scans``.
-    Saved in sessions.
+    or steps, or a slit-jaw image's time along a DKIST dataset's time axis, or at each index along its axes of time
+    (`link_hpc`), and NaN off it: ``scans``. Saved in sessions.
     """
 
     __name__ = "nearest_scan"  # glue's name of a link function, as its own link helpers set it
@@ -919,11 +919,15 @@ class _ScanAt:
 
     def __init__(self, scans):
         self.scans = np.asarray(scans, dtype=float)
+        if self.scans.ndim > 1:  # an input per axis, named apart: glue's link editor keeps one choice per name (#245)
+            kind = inspect.Parameter.POSITIONAL_OR_KEYWORD
+            inputs = [inspect.Parameter(f"index{k}", kind) for k in range(self.scans.ndim)]
+            self.__signature__ = inspect.Signature(inputs)
 
-    def __call__(self, index):
-        index = np.round(np.asarray(index, dtype=float))
-        inside = (index >= 0) & (index < len(self.scans))  # not NaN
-        return np.where(inside, self.scans[np.where(inside, index, 0).astype(int)], np.nan)
+    def __call__(self, *index):
+        index = np.round(np.broadcast_arrays(*(np.asarray(i, dtype=float) for i in index)))
+        inside = np.all([(i >= 0) & (i < n) for i, n in zip(index, self.scans.shape)], axis=0)  # not NaN
+        return np.where(inside, self.scans[tuple(np.where(inside, index, 0).astype(int))], np.nan)
 
     def __gluestate__(self, context):
         return {"scans": self.scans.tolist()}
@@ -1029,21 +1033,27 @@ def link_hpc(data_collection, others=()):
                 links.append(ComponentLink([scan], time, using=_ScanAt(values)))
     # a DKIST dataset's longitude and latitude vary with its time too (D102): each IRIS frame, exposure or step gives
     # its time that of its frame nearest in time, and each of its frames a slit-jaw image's time that of the nearest
-    # frame, as dkist's gWCS gives no position at a time off its frames
+    # frame, as dkist's gWCS gives no position at a time off its frames; a frame is a step and measurement of a
+    # Cryo-NIRSP context image of repeated measurements, whose time varies along both
     for dataset in [data for data in data_collection if data in placed and isinstance(data.coords, GlueWCS)]:
         found = _frame_times(dataset)
         if found is None:
             continue
-        axis, times = found
-        frames, wcs = dataset.pixel_component_ids[axis], dataset.coords
-        # its time, where glue gives that axis its time rather than a raster's longitude (`GlueWCS`)
-        timed = wcs.world_axis_physical_types[wcs.world_n_dim - 1 - axis] == "time"
-        seconds = dataset.world_component_ids[axis] if timed else None
+        axes, times = found
+        frames, wcs = dataset.pixel_component_ids[axes[0]], dataset.coords
+        time_ids = [dataset.pixel_component_ids[axis] for axis in axes]
+        # its time, where glue gives an axis its time rather than a raster's longitude, and a second axis's index
+        # (`GlueWCS`)
+        given = [wcs.world_axis_physical_types[wcs.world_n_dim - 1 - axis] for axis in axes]
+        timed = given[0] == "time"
+        stamps = [dataset.world_component_ids[axis] for axis, kind in zip(axes, given) if kind in ("time", None)]
         # a raster's step and slit pixel at IRIS data's places, which glue cannot invert from fewer world values than
         # the raster's (`_SlitAt`): a scanning raster's at the first IRIS dataset's, a sit-and-stare's at each's frames
         # too (below); and at its pixels the longitude or latitude glue gives none of its axes (`_SlitPlace`)
         hpc = [anchors[kind] for kind in _HPC if kind in anchors]
-        raster = _slit(dataset, axis) if datasets and len(hpc) == 2 and wcs.world_n_dim > wcs.pixel_n_dim else None
+        raster = None
+        if len(axes) == 1 and datasets and len(hpc) == 2 and wcs.world_n_dim > wcs.pixel_n_dim:
+            raster = _slit(dataset, axes[0])
         if raster is not None:
             slit, starts, pixels = dataset.pixel_component_ids[raster[0]], *raster[1:]
             if not timed:
@@ -1061,10 +1071,12 @@ def link_hpc(data_collection, others=()):
             when = _times(data, data.shape[1] // 2 if data.ndim == 4 else 0)  # a stack's at its middle step
             if np.isnat(when).all():
                 continue
-            if seconds is not None and frozenset((seconds, frame)) not in linked:
-                at = tuple(slice(None) if a == axis else n // 2 for a, n in enumerate(dataset.shape))
-                values = np.where(np.isnat(when), np.nan, dataset[seconds, at][nearest(when, times)[0]])
-                links.append(ComponentLink([frame], seconds, using=_ScanAt(values)))
+            nearby = nearest(when, times.ravel())[0]
+            at = tuple(slice(None) if a in axes else n // 2 for a, n in enumerate(dataset.shape))
+            for stamp in stamps:
+                if frozenset((stamp, frame)) not in linked:
+                    values = np.where(np.isnat(when), np.nan, dataset[stamp, at].ravel()[nearby])
+                    links.append(ComponentLink([frame], stamp, using=_ScanAt(values)))
             kinds = list(data.coords.world_axis_physical_types)
             if raster is not None and timed and set(_HPC) <= set(kinds):
                 lonlat = [data.world_component_ids[data.ndim - 1 - kinds.index(kind)] for kind in _HPC]
@@ -1076,9 +1088,9 @@ def link_hpc(data_collection, others=()):
             if "time" not in kinds:  # a raster's
                 continue
             time = data.world_component_ids[data.ndim - 1 - kinds.index("time")]
-            if frozenset((time, frames)) not in linked:
+            if frozenset((time, *time_ids)) not in linked:
                 values = data[time, (slice(None),) + (0,) * (data.ndim - 1)][nearest(times, when)[0]]
-                links.append(ComponentLink([frames], time, using=_ScanAt(values)))
+                links.append(ComponentLink(time_ids, time, using=_ScanAt(values)))
     return links
 
 

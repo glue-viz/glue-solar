@@ -167,9 +167,9 @@ stay in the FITS files next to the ASDF file, read as they are viewed.
   virtual slit and spectra.
 - glue offers to link DKIST datasets as they load, pixel to pixel by their coordinates, time
   included: accept, and a point on one reaches the others, and one draws over another in an Image
-  viewer. A mosaic's tiles link to its center tile, and other datasets to that tile. Datasets taken
-  at different times don't link, and a point reaches a raster's step taken at its time, as dkist's
-  coordinates place it.
+  viewer. A mosaic's tiles link to its center tile, and other datasets to that tile; remove the
+  center tile, and the tiles link to the first one left. Datasets taken at different times don't
+  link, and a point reaches a raster's step taken at its time, as dkist's coordinates place it.
 - "Link helioprojective coordinates" links them to IRIS data by position, and by time at the
   nearest frames. A point on IRIS data reaches a ViSP or Cryo-NIRSP spectrograph raster at the
   step whose slit passes nearest it, or on a sit-and-stare raster the step nearest its time, and
