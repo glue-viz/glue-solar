@@ -155,7 +155,7 @@ DKIST datasets
 Open a DKIST Level 1 dataset's ASDF file (``…_metadata.asdf``, as ``dkist`` downloads it) with
 "File → Open Data Set". It loads as one dataset, labeled by instrument and dataset ID, such as
 ``VISP BKPLX``, and a VBI mosaic as one dataset per tile, such as ``VBI YCDRFH (1, 1)``. The values
-stay in the FITS files next to the ASDF file, read as they are viewed.
+stay in the FITS files next to the ASDF file: a view reads only the parts of the files it shows.
 
 - Each axis has one world coordinate, as glue shows them: a slit raster's step axis has its
   longitude, or its time if the pointing moves less than a pixel along the slit (sit-and-stare).

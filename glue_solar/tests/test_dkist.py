@@ -427,6 +427,66 @@ def test_a_one_file_dkist_dataset_samples_its_whole_frame():
         assert data.compute_statistic(statistic, cid, random_subset=10_000) == data.compute_statistic(statistic, cid)
 
 
+def opened_files(monkeypatch):
+    """The names of the FITS files astropy opens from now on, as it opens them."""
+    names, open_ = [], fits.open
+    monkeypatch.setattr(
+        fits, "open", lambda name, *args, **kwargs: names.append(Path(name).name) or open_(name, *args, **kwargs)
+    )
+    return names
+
+
+@small_visp_dated_2044
+def test_a_dkist_dataset_reads_its_views_from_its_files_kept_open(tmp_path, monkeypatch):
+    shutil.copytree(small_visp().parent, tmp_path, dirs_exist_ok=True)
+    (tmp_path / "1.fits").unlink()
+    with pytest.warns(UserWarning, match="2 of 3 files"):
+        data = load_data(str(tmp_path / "test_visp.asdf"))
+    cid, view = data.main_components[0], (slice(None), slice(2, 8), slice(None, None, -3))
+    expected = np.asarray(data.get_component(cid).data[view])  # dask's
+    opened = opened_files(monkeypatch)
+    # as dask reads it, the missing file's step NaN, each file opened once and kept open, where dask opened each at
+    # every read and decompressed it whole (D103)
+    for _ in range(2):
+        np.testing.assert_array_equal(data.get_data(cid, view=view), expected)
+    assert np.isnan(expected[1]).all()
+    assert sorted(opened) == ["0.fits", "2.fits"]
+    # up to `OPEN_FILES` of them, as macOS allows a process 256 open files
+    monkeypatch.setattr("glue_solar.sources.dkist.OPEN_FILES", 1)
+    opened.clear()
+    for step in (0, 2, 0):
+        data.get_data(cid, view=(step,))
+    assert opened == ["2.fits", "0.fits"]
+
+
+@small_visp_dated_2044
+def test_an_image_buffer_of_a_dkist_dataset_reads_only_the_files_of_the_pixels_it_samples(tmp_path, monkeypatch):
+    shutil.copytree(small_visp().parent, tmp_path, dirs_exist_ok=True)
+    data = load_data(str(tmp_path / "test_visp.asdf"))
+    expected = np.asarray(data["data"])[::2, :, 12]
+    opened = opened_files(monkeypatch)
+    # steps 0 and 2 at a wavelength, as an Image viewer zoomed out samples them: glue read their bounding box, step 1's
+    # file too, of a ViSP map 500 files where its view samples 34 (D103)
+    buffer = data.compute_fixed_resolution_buffer([(0, 2, 2), (0, 9, 10), 12], target_cid=data.main_components[0])
+    np.testing.assert_array_equal(buffer, expected)
+    assert sorted(opened) == ["0.fits", "2.fits"]
+
+
+@small_visp_dated_2044
+def test_a_dkist_image_viewer_redraws_without_evaluating_its_coordinates_again(app, monkeypatch):
+    data = load_data(str(small_visp()))
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    viewer.figure.canvas.draw()
+    wcs, calls = data.coords._wcs, []
+    evaluate = wcs.pixel_to_world_values
+    monkeypatch.setattr(wcs, "pixel_to_world_values", lambda *pixel: calls.append(pixel) or evaluate(*pixel))
+    # WCSAxes asks the same pixels at each draw, which dkist evaluated again, building a model per raster step: 3 s of
+    # each ViSP map's draw (D103)
+    viewer.figure.canvas.draw()
+    assert calls == []
+
+
 @pytest.mark.remote_data
 def test_a_cryo_nirsp_raster_opens_its_quicklook(qtbot, monkeypatch, dkist_sample):
     import dkist
@@ -641,6 +701,8 @@ def viewed(app):
 @small_visp_dated_2044
 def test_a_session_restores_dkist_datasets_and_their_image_and_profile_viewers(app, qtbot, monkeypatch, tmp_path):
     # D102: glue saved no `GlueWCS`, of a gWCS, and restored a `DKISTData` as a Data, of glue's color limits
+    from dkist.io.dask.loaders import AstropyFITSLoader
+
     from gwcs import WCS as GWCS
 
     monkeypatch.setattr(app, "report_error", lambda message, detail: pytest.fail(detail))
@@ -678,6 +740,10 @@ def test_a_session_restores_dkist_datasets_and_their_image_and_profile_viewers(a
         data = restored.data_collection[0]
         assert data.meta == {"rest_wavelength": 6302.5}
         np.testing.assert_array_equal(np.asarray(data["data"]), np.asarray(visp["data"]))
+        expected = np.asarray(visp["data"])[1]
+        with monkeypatch.context() as patch:  # its views read from its files, as before saving, not by dask (D103)
+            patch.setattr(AstropyFITSLoader, "__getitem__", lambda *args: pytest.fail("read by dask"))
+            np.testing.assert_array_equal(data[data.main_components[0], 1], expected)
         assert limit(data) == limit(visp)
         assert viewed(restored) == viewed(app)
         path = tmp_path / "again.glu"
