@@ -958,10 +958,12 @@ def _observer_distance(data):
     """
     The observer's distance from the Sun of ``data``, in m: its ``DSUN_OBS``, else Earth's at its ``DATE-OBS``, as
     SSTRED files have no ``DSUN_OBS``, or ``STARTOBS``, the only time IRIS analyses' maps keep (D46); None without any.
+    Lower-case keys too, as a sunpy map restored from a session saved before its keys were stored upper-case has them.
     """
-    if distance := data.meta.get("DSUN_OBS"):
+    meta = data.meta
+    if distance := meta.get("DSUN_OBS") or meta.get("dsun_obs"):
         return distance
-    date = data.meta.get("DATE-OBS") or data.meta.get("STARTOBS")
+    date = meta.get("DATE-OBS") or meta.get("date-obs") or meta.get("STARTOBS")
     return get_earth(date).radius.to_value(u.m) if date else None
 
 
