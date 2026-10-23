@@ -162,7 +162,14 @@ stay in the FITS files next to the ASDF file, read as they are viewed.
   Longitudes are from -180° to 180°.
 - A frame whose FITS file is missing reads as NaN, and glue's Error Console says how many files
   are there.
-- Color limits come from up to 16 whole frames; the tiles of a VBI mosaic share theirs.
+- Color limits come from up to 16 whole frames; the tiles of a VBI mosaic share theirs. NaN
+  pixels are transparent, as IRIS data's, so a mosaic's tiles in one Image viewer don't hide each
+  other.
+- Each frame's time and exposure, from its FITS headers (``DATE-AVG`` and ``XPOSURE``), show in the
+  "Frame time" line, the cursor readout and the quicklook's Point window.
+- A point on a dataset of Stokes parameters, repeats or Cryo-NIRSP measurements is taken at
+  the Image viewer's Stokes parameter, repeat and measurement, and moves with their sliders: its
+  Profile runs along the wavelength, raster step or time alone.
 - "Quicklook…" opens a ViSP or Cryo-NIRSP spectrograph dataset as any spectral cube: its map,
   virtual slit and spectra. The map is drawn as IRIS's, the steps across and the slit up, and the
   virtual slit is wavelength against the slit. A raster's repeats, or Cryo-NIRSP's measurements
