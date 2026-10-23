@@ -791,11 +791,14 @@ def wcs_link_init(self, data1=None, data2=None, cids1=None, cids2=None):
     types until both keep the same ones; tried at pixel 0 with as many values as each takes, where glue gives the
     second as many as the first.
     """
-    try:
-        return _original_wcs_link_init(self, data1, data2, cids1, cids2)
-    except AttributeError:  # an astropy WCS attribute
-        pass
     pair, sliced = (data1, data2), None
+    # glue's only where both say whether they have celestial axes: it reads the second's only where the first has
+    # them, so an SST cube's or IRIS dataset's coordinates ahead of a DKIST dataset's raised ValueError or IndexError
+    if all(hasattr(data.coords, "has_celestial") for data in pair):
+        try:
+            return _original_wcs_link_init(self, data1, data2, cids1, cids2)
+        except AttributeError:  # an astropy WCS attribute
+            pass
     types = set(data1.coords.world_axis_physical_types) & set(data2.coords.world_axis_physical_types) - {None}
     while types:
         axes = [_wcs_link_axes(data.coords, types) for data in pair]
