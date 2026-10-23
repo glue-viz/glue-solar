@@ -1317,9 +1317,11 @@ def _role(data):
     """
     'raster', 'sji', 'aia', 'sst' or None, from the INSTRUME keyword: AIA cutouts and Hinode/SOT cubes load as slit-jaw
     cubes and follow the time as they do, without their quicklook panel, raster point or overlays; SST CRISP and
-    CHROMIS cubes step through time by scan, and have a quicklook of their own (`_cube_table`).
+    CHROMIS cubes step through time by scan, and have a quicklook of their own (`_cube_table`). A lower-case key too, as
+    a sunpy map restored from a session saved before its keys were stored upper-case has it.
     """
-    instrument = str((getattr(data, "meta", None) or {}).get("INSTRUME", ""))
+    meta = getattr(data, "meta", None) or {}
+    instrument = str(meta.get("INSTRUME") or meta.get("instrume") or "")
     if instrument.startswith(("AIA", "SOT")):
         return "aia"
     return {"SPEC": "raster", "SJI": "sji", "CRISP": "sst", "CHROMIS": "sst"}.get(instrument)

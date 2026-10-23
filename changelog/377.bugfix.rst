@@ -1,0 +1,1 @@
+Undo of a click keeps the quicklooks, cuts and exposure mark made since, Redo of a Follow/lock click locks the point clicked again, and Measure and 'Save path as ECSV…' still give km on a sunpy map once its session is restored, sessions saved before included.

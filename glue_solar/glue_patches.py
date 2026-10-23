@@ -402,8 +402,16 @@ def _putting_back(command):
 def undo_subset_state(self, session):
     """
     glue-core's ``ApplySubsetState.undo``, which puts back each subset's state in turn: a quicklook's point put back is
-    not a click, which other points would follow (D97).
+    not a click, which other points would follow (D97). It deletes only the groups the command made: glue deletes every
+    subset made since, as a later quicklook's point, cut or exposure mark, whose group then stays dead.
     """
+    made = getattr(self, "_solar_made", None)  # set by `apply_subset_state`
+    if made is not None:
+        created = {getattr(s, "group", s) for s in made if s not in self.old_states}
+        for data in self.data_collection:
+            for subset in data.subsets:
+                if getattr(subset, "group", subset) not in created:
+                    self.old_states.setdefault(subset, subset.subset_state)  # put back as it is: kept
     with _putting_back(self):
         _original_undo_subset_state(self, session)
 

@@ -56,7 +56,10 @@ from glue_solar.tests.test_quicklook import (
     bare_app_for,
     browse,
     changes,
+    click,
     entries,
+    follow,
+    hover,
     leads,
     menu_action,
     panels_list,
@@ -1197,6 +1200,51 @@ def test_undo_and_redo_of_a_linked_click_keep_the_shown_tab_s_point(sst_app, qtb
         press(a["map"], Qt.Key_F)  # the shown tab's time master, not the hidden one's
         qtbot.wait(20)
         assert (shown_scan(a), shown_scan(b)) == (scans[0] + 1, scans[1])
+
+
+def test_undo_of_a_click_keeps_a_quicklook_opened_since(sst_app, qtbot, tmp_path):
+    # glue's Undo deleted every subset made since the click, as a later quicklook's point, whose group stayed dead
+    write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16))
+    write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14))
+    first, second = (sst_data(tmp_path / f"{name}.fits") for name in "ab")
+    sst_app.data_collection.extend([first, second])
+    a = quicklook(sst_app, [first])
+    select_point(a["map"], 11, 6)
+    b = quicklook(sst_app, [second])
+    [theirs] = sst_app.session.edit_subset_mode.edit_subset
+    sst_app.session.command_stack.undo()
+    qtbot.wait(20)
+    assert all(subset in subset.data.subsets for subset in theirs.subsets)
+    select_point(b["map"], 3, 4)  # still moves its point and panels
+    qtbot.wait(20)
+    assert theirs.subset_state.slices[2:] == [slice(4, 5), slice(3, 4)]
+    assert (b["slit"].state.slices[-1], b["wavelength"].state.slices[-2:]) == (3, (4, 3))
+
+
+def test_redo_of_a_lock_locks_the_point_clicked(sst_app, qtbot, tmp_path):
+    # D39: Redo of a Follow/lock click locked the edit subset of then, as another tab's point, and left the clicked free
+    write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16))
+    write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14))
+    first, second = (sst_data(tmp_path / f"{name}.fits") for name in "ab")
+    sst_app.data_collection.extend([first, second])
+    a = quicklook(sst_app, [first])
+    [ours] = sst_app.session.edit_subset_mode.edit_subset
+    b = quicklook(sst_app, [second])
+    [theirs] = sst_app.session.edit_subset_mode.edit_subset
+    show_tab(sst_app, qtbot, 1)
+    follow(a["map"])
+    hover(qtbot, a["map"], 10, 5)
+    click(a["map"], 11, 6)  # locks it there
+    show_tab(sst_app, qtbot, 2)
+    sst_app.session.command_stack.undo()
+    sst_app.session.command_stack.redo()
+    qtbot.wait(20)
+    follow(b["map"])
+    hover(qtbot, b["map"], 3, 4)
+    assert theirs.subset_state.slices[2:] == [slice(4, 5), slice(3, 4)]  # unlocked: it follows the mouse
+    show_tab(sst_app, qtbot, 1)
+    hover(qtbot, a["map"], 2, 2)
+    assert ours.subset_state.slices[2:] == [slice(6, 7), slice(11, 12)]  # locked where clicked
 
 
 def test_sst_time_keys_follow_overlapping_scans(qtbot, tmp_path):

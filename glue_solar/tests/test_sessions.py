@@ -41,7 +41,7 @@ from sunpy.visualization.colormaps import cmlist
 import glue_solar
 from glue_solar import glue_patches
 from glue_solar.conftest import MD5, OBS_A, SCAN, find_irispy_test_file
-from glue_solar.quicklook import MARK, _off, _PointWindow, _viewers, coordinator, quicklook
+from glue_solar.quicklook import MARK, _off, _PointWindow, _role, _viewers, coordinator, quicklook
 from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
 from glue_solar.sources.calibration import radiometric_calibration, remove_dust
@@ -334,7 +334,7 @@ def test_a_stack_held_in_memory_gives_its_bursts_and_radiance_once_restored_and_
             np.testing.assert_array_equal(data[radiometric_calibration(data)], expected)
 
 
-def test_an_aia_map_session_restores_its_colormap(app, qtbot, monkeypatch, tmp_path):
+def test_an_aia_map_session_restores_its_colormap_and_measure_s_km(app, qtbot, monkeypatch, tmp_path):
     aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))
     app.data_collection.append(aia)
     app.new_data_viewer(ImageViewer, data=aia)
@@ -343,6 +343,30 @@ def test_an_aia_map_session_restores_its_colormap(app, qtbot, monkeypatch, tmp_p
     assert restored.data_collection[0].style.preferred_cmap.name == "sdoaia171"  # glue's restore drops it
     # its colors: glue's menu shows the first sunpy colormap of the same colors, here GOES-R SUVI 171's
     assert restored.viewers[0][0].layers[0].state.cmap == cmlist["sdoaia171"]
+    # km at its DSUN_OBS, which glue restored as sunpy's lowercase key
+    lengths = []
+    for viewer in (app.viewers[0][0], restored.viewers[0][0]):
+        viewer.toolbar.active_tool = "solar:measure"
+        mouse(viewer, "button_press_event", 50, 50)
+        mouse(viewer, "button_release_event", 70, 80)
+        lengths.append(viewer.toolbar.tools["solar:measure"].label.text())
+    assert lengths[0].endswith(" km")
+    assert lengths[1] == lengths[0]
+
+
+def test_a_map_from_an_older_session_keeps_its_km_and_role(app, qtbot, monkeypatch, tmp_path):
+    aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))
+    aia.meta = {key.lower(): value for key, value in aia.meta.items()}  # as sessions saved sunpy's keys before
+    app.data_collection.append(aia)
+    app.new_data_viewer(ImageViewer, data=aia)
+    app.save_session(str(tmp_path / "older.glu"))
+    restored = restore(qtbot, monkeypatch, tmp_path / "older.glu", show=True)
+    assert _role(restored.data_collection[0]) == "aia"
+    viewer = restored.viewers[0][0]
+    viewer.toolbar.active_tool = "solar:measure"
+    mouse(viewer, "button_press_event", 50, 50)
+    mouse(viewer, "button_release_event", 70, 80)
+    assert viewer.toolbar.tools["solar:measure"].label.text().endswith(" km")
 
 
 def test_a_session_restores_a_profile_along_the_last_axis_in_its_unit(app, qtbot, monkeypatch, tmp_path):
