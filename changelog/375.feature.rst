@@ -1,0 +1,1 @@
+'Link helioprojective coordinates' links IRIS data to the steps and slit pixels of ViSP and Cryo-NIRSP spectrograph rasters, so points pass between them both ways, but not more than half a step past a scanning raster's first or last step, and IRIS images draw over a sit-and-stare raster's map too.

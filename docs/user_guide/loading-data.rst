@@ -171,8 +171,11 @@ stay in the FITS files next to the ASDF file, read as they are viewed.
   at different times don't link, and a point reaches a raster's step taken at its time, as dkist's
   coordinates place it.
 - "Link helioprojective coordinates" links them to IRIS data by position, and by time at the
-  nearest frames. Points don't pass between IRIS data and a ViSP or Cryo-NIRSP spectrograph raster,
-  which has more coordinates than axes, but IRIS images draw over a scanning raster's map.
+  nearest frames. A point on IRIS data reaches a ViSP or Cryo-NIRSP spectrograph raster at the
+  step whose slit passes nearest it, or on a sit-and-stare raster the step nearest its time, and
+  at the slit pixel level with it. A point more than half a step past a scanning raster's first or
+  last step doesn't reach it. A point on the raster reaches IRIS data at its place, in the frame
+  nearest its step's time, and IRIS images draw over the raster's map.
 - A session keeps them, their viewers and links, and reads their coordinates again from the ASDF
   files (see :ref:`Sessions <glue_solar_users_guide_saving_sessions>`).
 
