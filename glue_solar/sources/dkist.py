@@ -25,7 +25,7 @@ import astropy.units as u
 from astropy.time import Time
 from astropy.wcs.wcsapi import BaseHighLevelWCS, BaseLowLevelWCS, HighLevelWCSMixin
 
-from glue_solar.sources.loaders.iris import _HPC, _off_frames, _ScanAt
+from glue_solar.sources.loaders.iris import _HPC, _add_exposure, _add_time, _off_frames, _ScanAt
 
 __all__ = ["dkist_data", "is_dkist_asdf"]
 
@@ -205,6 +205,7 @@ class DKISTData(Data):
     _mosaic = ()  # the datasets, this one among them, whose frames the sample takes
     _samples = None  # {size: values}, shared by them
     _present = None  # whether each frame's file is present, over the frame axes
+    _frames = None  # each frame's DATE-AVG and XPOSURE in seconds, over the frame axes
 
     def compute_statistic(
         self,
@@ -250,6 +251,12 @@ class DKISTData(Data):
         return self._samples[size]
 
     def register_to_hub(self, hub):
+        # each frame's Time and Exposure time, as IRIS data's, which the Point window and readouts give (D103): added
+        # here, not as it loads, where glue's load log would number a mosaic's components apart from older sessions',
+        # and before the hub, which would hear of each
+        if self._frames is not None and self.find_component_id("Exposure time") is None:
+            _add_time(self, self._frames[0])
+            _add_exposure(self, self._frames[1])
         super().register_to_hub(hub)
         self._recenter = _Recenter(self, hub)  # the hub holds its listeners weakly
 
@@ -292,6 +299,7 @@ class DKISTData(Data):
         data = next(restored)
         data.__class__, data._load_log = cls, log  # glue's loader makes a Data
         data._mosaic, data._samples, data._present = source._mosaic, source._samples, source._present
+        data._frames = source._frames  # for a session saved without its Time and Exposure time (`register_to_hub`)
         data._center = log.data[rec["center"]] if "center" in rec else source._center  # #374's sessions saved none
         log.data[rec["log_item"]] = data  # for a session saved from this one
         for tile in log.data:  # its mosaic's tiles, restored or not, link to it if it is the center (`wcs_autolink`)
@@ -448,7 +456,27 @@ def _data(dataset, label):
     )
     if data._present.size == 1:  # one frame, as a VBI single-shot tile's, whose file axis dkist drops (D102)
         data._present = data._present.reshape(())
+    # each file's DATE-AVG, its gWCS's time to 0.5 ms, not the gWCS's, 0.8 s for CZKPML's 4000 frames, and XPOSURE (ms)
+    times = np.array(headers["DATE-AVG"], dtype="datetime64[ns]").reshape(data._present.shape)
+    data._frames = times, (np.array(headers["XPOSURE"]) * u.ms).to_value(u.s).reshape(data._present.shape)
     return data
+
+
+def _held_axes(data):
+    """
+    The array axes of ``data``, a DKIST dataset, that a point takes at its viewer's sliders, as the quicklook's spectra
+    do (D103): its Stokes axis, a raster's repeat axis and a Cryo-NIRSP measurement axis, by their pixel axis names and
+    physical types; none for other data.
+    """
+    wcs = getattr(data, "coords", None)
+    if not isinstance(wcs, GlueWCS):
+        return set()
+    names = wcs._names
+    raster = any("step" in name for name in names)
+    held = {p for p, name in enumerate(names) if "measurement" in name or (raster and "repeat" in name)}
+    stokes = [k for k, kind in enumerate(wcs.world_axis_physical_types) if kind == "phys.polarization.stokes"]
+    held.update(np.flatnonzero(np.asarray(wcs.axis_correlation_matrix)[stokes].any(axis=0)))
+    return {data.ndim - 1 - int(p) for p in held}
 
 
 @data_factory("DKIST Level 1 dataset (ASDF)", is_dkist_asdf, priority=200)

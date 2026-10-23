@@ -35,6 +35,7 @@ from glue_solar.quicklook import (
     quicklook,
 )
 from glue_solar.sources.bursts import _shift_events
+from glue_solar.sources.dkist import DKISTData
 from glue_solar.sources.loaders.iris import (
     _HPC,
     QtIRISImporter,
@@ -84,13 +85,15 @@ def read_iris_file(file_path):
 @layer_artist_maker("IRIS: transparent NaN pixels")
 def iris_image_layer(viewer, data):
     """
-    Give image layers of IRIS datasets transparent NaN pixels, as matplotlib draws them.
+    Give image layers of IRIS and DKIST datasets transparent NaN pixels, as matplotlib draws them.
 
     glue's default paints NaN opaque in the colormap's "bad" color, black for the IRIS
-    colormaps, so gaps and off-detector areas look like dark data.
+    colormaps, so gaps and off-detector areas look like dark data, and each tile of a DKIST mosaic
+    painted the tiles beneath it black around its own (D103).
     """
-    if not isinstance(viewer, MatplotlibImageMixin) or "OBSID" not in getattr(data, "meta", {}):
-        return None  # not an image viewer, a subset, or not an IRIS dataset: glue's default artist
+    ours = "OBSID" in getattr(data, "meta", {}) or isinstance(data, DKISTData)
+    if not isinstance(viewer, MatplotlibImageMixin) or not ours:
+        return None  # not an image viewer, a subset, or neither an IRIS nor a DKIST dataset: glue's default artist
     artist = viewer.get_data_layer_artist(data)
     if hasattr(artist.state, "cmap_bad"):  # a 1-D dataset's scatter layer has none
         artist.state.cmap_bad = (0, 0, 0, 0)

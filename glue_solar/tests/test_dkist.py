@@ -9,10 +9,14 @@ import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
+import dask.array as da
 import numpy as np
 import pytest
+from glue.config import settings
 from glue.core import DataCollection
 from glue.core.autolinking import find_possible_links
+from glue.core.command import ApplySubsetState
+from glue.core.component import DaskComponent
 from glue.core.data import Data
 from glue.core.data_factories import load_data
 from glue.core.exceptions import IncompatibleAttribute
@@ -292,6 +296,61 @@ def test_a_raster_s_repeats_or_measurements_are_a_slider_in_its_quicklook(qtbot,
     options = viewers["map"].options_widget()
     shown = [slider for slider in options.findChildren(SliceWidget) if slider.isVisible()]
     assert shown == [slider for slider in options.slice_helper._sliders if slider]
+
+
+def test_a_point_on_a_dkist_dataset_takes_its_viewer_s_stokes_and_measurement(qtbot, monkeypatch, tmp_path):
+    app = bare_app_for(qtbot, monkeypatch)
+    monkeypatch.setattr(settings, "SHOW_LARGE_DATA_WARNING", False)  # 'Add large data set?' to the Profile viewer
+    with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):
+        cryo = load_data(str(asdf_alone(tmp_path, "croppable_cryo")))
+    # a Cryo-NIRSP context image's Stokes parameter × 100 + scan step × 10 + measurement, as its files are not here
+    index = np.arange(4)[:, None, None] * 100 + np.arange(3)[:, None] * 10 + np.arange(3)
+    cid = cryo.add_component(DaskComponent(da.broadcast_to(index[..., None, None], cryo.shape)), "index")
+    app.data_collection.append(cryo)
+    image = app.new_data_viewer(ImageViewer, data=cryo)
+    image.state.slices = (2, 0, 1, 0, 0)  # Stokes U, measurement 1
+    profile = app.new_data_viewer(ProfileViewer, data=cryo)
+    profile.state.x_att = cryo.pixel_component_ids[1]  # its scan steps, along which its time runs
+    point = PixelSubsetState(cryo, [slice(None)] * 3 + [slice(944, 945), slice(875, 876)])
+    image._session.command_stack.do(ApplySubsetState(data_collection=app.data_collection, subset_state=point))
+    [group] = app.data_collection.subset_groups
+    [layer] = [layer for layer in profile.state.layers if layer.layer is not cryo]
+    layer.attribute = cid
+    # a point at the viewer's Stokes parameter and measurement, its time profile along the steps alone, where glue's
+    # spanned them and, the Profile's maximum, gave Stokes V's last measurement's (D103)
+    assert group.subset_state.slices[:3] == [slice(2, 3), slice(None), slice(1, 2)]
+    qtbot.waitUntil(lambda: np.array_equal(layer.profile[1], [201, 211, 221]), timeout=60_000)
+    # and at the Stokes parameter and measurement the sliders move to, as the quicklook's spectra follow them
+    image.state.slices = (1, 2, 2, 0, 0)
+    assert group.subset_state.slices[:3] == [slice(1, 2), slice(None), slice(2, 3)]
+    qtbot.waitUntil(lambda: np.array_equal(layer.profile[1], [102, 112, 122]), timeout=60_000)
+
+
+@small_visp_dated_2044
+def test_the_point_window_gives_a_dkist_raster_s_time_and_exposure(qtbot, monkeypatch):
+    import dkist
+
+    app = bare_app_for(qtbot, monkeypatch)
+    data = load_data(str(small_visp()))
+    app.data_collection.append(data)
+    quicklook(app, [data])
+    window = point_window(app)
+    window.refresh()
+    # at the point's step, 1, its file's DATE-AVG and XPOSURE (ms), as IRIS data's, where both were blank (D103)
+    headers = dkist.load_dataset(small_visp()).headers
+    when = np.datetime_as_string(np.datetime64(headers["DATE-AVG"][1]), unit="ms")
+    assert rows(window)[0][3:5] == [f"{when} UTC", f"{headers['XPOSURE'][1] / 1000:.4g} s"]
+
+
+def test_a_dkist_dataset_s_nan_pixels_draw_transparent(app, tmp_path):
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        tile = load_data(str(asdf_alone(tmp_path, "large_vbi")))[4]
+    app.data_collection.append(tile)
+    viewer = app.new_data_viewer(ImageViewer, data=tile)
+    # as IRIS data's: glue painted them black, so each tile of a mosaic in one viewer blackened those beneath (D103)
+    assert viewer.layers[0].state.cmap_bad == (0, 0, 0, 0)
+    image = viewer.axes._composite(bounds=[(-0.5, 1.5, 2), (-0.5, 1.5, 2)])  # its files are not here: NaN
+    np.testing.assert_array_equal(image[0, 0], [1, 1, 1, 1])  # the white background shows through
 
 
 @small_visp_dated_2044

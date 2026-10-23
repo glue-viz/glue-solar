@@ -59,6 +59,7 @@ from qtpy.QtWidgets import (
 
 import astropy.units as u
 
+from glue_solar.sources.dkist import _held_axes
 from glue_solar.sources.loaders.iris import _HPC, keep_hpc_linked
 from glue_solar.sources.loaders.scan import _observation
 
@@ -307,11 +308,12 @@ class Coordinator(HubListener):
     Keep the Image viewers of each IRIS observation on one selected point.
 
     The point is the Pixel tool's selection: the coordinator follows the last subset group given a
-    `~glue.viewers.image.pixel_selection_subset_state.PixelSubsetState` on IRIS data, an SST cube or, in its quicklook,
-    any cube (`_cube_table`), and a quicklook's point group again once it is the edit subset alone, as after picking it
-    as glue's Active Subset. On a spectral cube the point is a detector pixel at every wavelength: a click takes the
-    axes the clicked viewer does not show, such as a stack's scan or an SST cube's scan and Stokes parameter, from its
-    sliders.
+    `~glue.viewers.image.pixel_selection_subset_state.PixelSubsetState` on IRIS data, an SST cube, a DKIST dataset of
+    Stokes parameters, repeats or measurements or, in its quicklook, any cube (`_cube_table`), and a quicklook's point
+    group again once it is the edit subset alone, as after picking it as glue's Active Subset. On a spectral cube the
+    point is a detector pixel at every wavelength: a click takes the axes the clicked viewer does not show, such as a
+    stack's scan or an SST cube's scan and Stokes parameter, from its sliders; outside its quicklook, those of a DKIST
+    dataset only (D103).
     A click on a panel that shows wavelength moves the cube's maps to the clicked wavelength instead of fixing it. Every
     other viewer of the cube, or of another window of its file (`_same_file`), then shows the point's
     step, exposure, scan and slit, after a drag only its last position, and editing one of those
@@ -607,8 +609,11 @@ class Coordinator(HubListener):
         if self._busy or not isinstance(state, PixelSubsetState) or subset.data is not state.reference_data:
             return
         group = getattr(subset, "group", None)
-        # a cube of neither instrument has no observation, but its quicklook's point is followed
-        if group is None or (observation_key(subset.data) is None and group not in self._owners):
+        # a cube of neither instrument has no observation, but its quicklook's point is followed, and a DKIST point of
+        # Stokes parameters, repeats or measurements (D103)
+        if group is None or (
+            observation_key(subset.data) is None and group not in self._owners and not _held_axes(subset.data)
+        ):
             return
         self.group = group
         self._pin(state)
@@ -668,7 +673,11 @@ class Coordinator(HubListener):
         """
         data = state.reference_data
         spectral = _spectral_axes(data)
-        if not spectral:
+        # outside its quicklook, a DKIST point takes only its Stokes, repeat and measurement from the sliders and keeps
+        # its clicked wavelength: its profile runs along the axes left, wavelength, raster step or time, where glue's
+        # spanned them all (D103)
+        held = set() if self.group in self._owners else _held_axes(data)
+        if not spectral and not held:
             return  # a slit-jaw point is a detector pixel in every frame
         clicked = {axis for axis, s in enumerate(state.slices) if s.start is not None}
         candidates = [v for v in self._viewers_of(data) if _shown(v.state) == clicked]
@@ -677,11 +686,15 @@ class Coordinator(HubListener):
         if viewer is None:
             return
         slices = list(state.slices)
-        wavelengths = {axis: s.start for axis, s in enumerate(state.slices) if axis in spectral and s.start is not None}
+        wavelengths = {
+            axis: s.start
+            for axis, s in enumerate(state.slices)
+            if axis in spectral and s.start is not None and not held
+        }
         for axis, s in enumerate(state.slices):
             if axis in wavelengths:
                 slices[axis] = slice(None)
-            elif s.start is None and axis not in spectral:
+            elif s.start is None and (axis in held if held else axis not in spectral):
                 index = getattr(viewer.state.slices[axis], "center", viewer.state.slices[axis])
                 slices[axis] = slice(index, index + 1)
         with self._writing():
