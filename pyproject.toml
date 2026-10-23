@@ -16,15 +16,26 @@ authors = [
   { name = "The SunPy Community", email = "sunpy@googlegroups.com" },
 ]
 dependencies = [
-  "dask[array]>=2024.7.0",
-  "dkist>=1.17",  # DKIST datasets (D102), as irispy needs it
+  # each at the latest release glue-solar is tested with, raised as new ones come out (D104)
+  "asdf>=6.0.0",
+  "astropy>=8.0.2",
+  "dask[array]>=2026.8.0",
+  "dkist>=1.18.1",  # DKIST datasets (D102), as irispy needs it
+  "echo>=0.16.0",
   "glue-core>=1.28.0",  # its pytest plugin keeps the tests off ~/.glue (glue-viz/glue#2587)
   "glue-qt>=0.4.2",  # without its qt extra, which is PyQt5
-  "PyQt6>=6.11",
-  "sunpy[map,net]>=6.0.0",
+  "gwcs>=1.0.3",
+  "matplotlib>=3.11.2",
+  "mpl-scatter-density>=0.8",
+  "ndcube>=2.4.2",
+  "numpy>=2.5.4",
+  "pillow>=13.0.0",
+  "PyQt6>=6.11.0",
+  "qtpy>=2.4.3",
+  "scipy>=1.18.1",
+  "sunpy[map,net]>=8.0.1",
   # irispy main at a commit glue-solar is tested with, while irispy changes in a batch (D91); a PR moves it after
   "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@f0587057b255015c820b4fb4239cfbec67b5e354",
-  "ndcube>=2.0",
 ]
 dynamic = ["version"]
 keywords = ["solar physics", "solar", "science", "sun", "visualization", "coordinates", "glueviz"]
@@ -43,7 +54,7 @@ classifiers = [
 
 [project.optional-dependencies]
 density = [
-  "fiasco>=0.5.0",  # as irispy's density_diagnostic needs
+  "fiasco>=0.8.2",  # as irispy's density_diagnostic needs
 ]
 tests = [
   "pytest",

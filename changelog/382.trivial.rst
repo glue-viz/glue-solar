@@ -1,0 +1,1 @@
+glue-solar's dependencies are each at least their latest release (asdf 6.0.0, astropy 8.0.2, dask 2026.8.0, dkist 1.18.1, echo 0.16.0, sunpy 8.0.1, and the others glue-solar imports), as it is tested only with those.
