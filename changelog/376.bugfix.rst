@@ -1,0 +1,1 @@
+A DKIST Level 2 inversion says that only Level 1 datasets open, instead of raising KeyError; a one-file DKIST dataset, such as a VBI single-shot tile, takes its color limits from its whole frame; DKIST datasets restored from a session saved with relative paths read their files; and saving a DKIST dataset made in glue's terminal gives glue's own error instead of AttributeError.
