@@ -1108,28 +1108,42 @@ def observed(label, sizes, along, world, inverse, by):
     return data
 
 
-def visp_like():
-    """A ViSP raster of 3 steps 0.5" and 10 s apart along a slit of 10 pixels of 0.5", at 25 wavelengths."""
+def visp_like(repeats=1):
+    """
+    A ViSP raster of Stokes I and Q, as TXIPCV's 4-D, of 3 steps 0.5" and 10 s apart along a slit of 10 pixels of 0.5",
+    at 25 wavelengths; ``repeats`` of it 30 s apart, if more than one, on an axis after Stokes, as CZKPML's.
+    """
+    repeat = {"repeat": repeats} if repeats > 1 else {}
     return observed(
         "VISP RASTER",
-        {"step": 3, "slit": 10, "wave": 25},
-        {"wave": ("wave",), "lon": ("step", "slit"), "lat": ("step", "slit"), "time": ("step",)},
+        {"stokes": 2, **repeat, "step": 3, "slit": 10, "wave": 25},
+        {
+            "wave": ("wave",),
+            "lon": ("step", "slit"),
+            "lat": ("step", "slit"),
+            "time": ("repeat", "step"),
+            "stokes": ("stokes",),
+        },
         lambda p: {
             "wave": 500 + 0.01 * p["wave"],
             "lon": -100 + 0.5 * p["step"] + 0 * p["slit"],
             "lat": 200 + 0.5 * p["slit"] + 0 * p["step"],
-            "time": 1.7e9 + 10 * p["step"],
+            "time": 1.7e9 + 30 * p.get("repeat", 0) + 10 * p["step"],
+            "stokes": 1.0 + p["stokes"],
         },
         None,
         ("VISP", "op"),
     )
 
 
-def vbi_like(label, north=0, later=0, program="op"):
-    """A VBI tile of 4 frames 9 s apart, 20 by 20 pixels of 0.25", ``north`` arcsec north, ``later`` seconds later."""
+def vbi_like(label, north=0, later=0, program="op", frames=4):
+    """
+    A VBI tile of ``frames`` frames 9 s apart, 20 by 20 pixels of 0.25", ``north`` arcsec north, ``later`` seconds
+    later.
+    """
     return observed(
         label,
-        {"frame": 4, "y": 20, "x": 20},
+        {"frame": frames, "y": 20, "x": 20},
         {"lon": ("x",), "lat": ("y",), "time": ("frame",)},
         lambda p: {
             "lon": -102 + 0.25 * p["x"],
@@ -1150,15 +1164,24 @@ def test_a_dkist_raster_s_quicklook_shows_its_context_imager_s_mosaic_slit_and_p
 ):
     from glue_solar.quicklook import coordinator
     from glue_solar.tests.helpers import select_point
-    from glue_solar.tests.test_quicklook import LEAD, menu_action
+    from glue_solar.tests.test_quicklook import LEAD, menu_action, readout
 
     app = bare_app_for(qtbot, monkeypatch)
     raster, elsewhere = visp_like(), vbi_like("VBI OTHER", program="another")
-    center, north = vbi_like("VBI MOSAIC (1, 1)"), vbi_like("VBI MOSAIC (1, 2)", north=5, later=1)
+    shot = observed(  # a single shot of the raster's program, in its time, which has no frames to follow it
+        "VBI SHOT",
+        {"y": 20, "x": 20},
+        {"lon": ("x",), "lat": ("y",), "time": ()},
+        lambda p: {"lon": -102 + 0.25 * p["x"], "lat": 199 + 0.25 * p["y"], "time": np.asarray(1.7e9 + 0 * p["x"])},
+        None,
+        ("VBI", "op"),
+    )
+    # the north tile a frame later than the center tile
+    center, north = vbi_like("VBI MOSAIC (1, 1)"), vbi_like("VBI MOSAIC (1, 2)", north=5, later=9)
     center._mosaic = north._mosaic = [center, north]
     north._center = center
     dc = app.data_collection
-    dc.extend([elsewhere, raster, north, center])
+    dc.extend([elsewhere, shot, raster, north, center])
     dc.add_link(WCSLink(center, north))
     drawn_frames, buffer = [], DKISTData.compute_fixed_resolution_buffer
 
@@ -1193,42 +1216,94 @@ def test_a_dkist_raster_s_quicklook_shows_its_context_imager_s_mosaic_slit_and_p
     assert drawn() == ([[10, 3], [10, 23]], [[10, 14]])
     # a step moves the frame, to step 2's 20 s, its frame 2
     point = coord.point
-    coord.group.subset_state = PixelSubsetState(raster, [slice(2, 3), *point.slices[1:]])
+    coord.group.subset_state = PixelSubsetState(raster, [point.slices[0], slice(2, 3), *point.slices[2:]])
     qtbot.waitUntil(lambda: panel.state.slices[0] == 2, timeout=60_000)
     assert drawn() == ([[12, 3], [12, 23]], [[12, 14]])
     # a click on the frame moves the point to the raster's step and slit pixel there, one point for both, the frame
     # clicked staying, as on IRIS's slit-jaw images
     select_point(panel, 8, 8)
-    assert [s.start for s in coord.point.slices] == [0, 2, None]
+    clicked = [0, 0, 2, None]
+    assert [s.start for s in coord.point.slices] == clicked
     qtbot.wait(100)
     assert panel.state.slices[0] == 2
+    # the frame follows a map click, to step 1's frame 1, and an Undo back to the click's point goes back to the frame
+    # clicked
+    select_point(viewers["map"], 1, 5)
+    qtbot.waitUntil(lambda: panel.state.slices[0] == 1, timeout=60_000)
+    app._actions["undo"].trigger()
+    qtbot.waitUntil(lambda: panel.state.slices[0] == 2, timeout=60_000)
+    assert [s.start for s in coord.point.slices] == clicked
+    # a click off the raster, 97.25" east, keeps the point
+    select_point(panel, 19, 2)
+    qtbot.wait(100)
+    assert (coord.point.reference_data, [s.start for s in coord.point.slices]) == (raster, clicked)
+    assert "outside raster FOV" in readout(panel)
     # the imager leading the time, a frame moves the raster to the step nearest it, none past half a step's cadence
     menu_action(panel, LEAD).trigger()
     slide(panel, 0, 0)
     qtbot.wait(100)
     slide(panel, 0, 2)
-    qtbot.waitUntil(lambda: coord.point.slices[0].start == 2, timeout=60_000)
+    qtbot.waitUntil(lambda: coord.point.slices[1].start == 2, timeout=60_000)
     slide(panel, 0, 3)  # 27 s, 7 s after step 2
     qtbot.wait(100)
-    assert coord.point.slices[0].start == 2
+    assert coord.point.slices[1].start == 2
     slide(panel, 0, 1)
-    qtbot.waitUntil(lambda: coord.point.slices[0].start == 1, timeout=60_000)
-    # a point past the frame shows on the north tile, at 204.5", which the Point window names it by
-    coord.group.subset_state = PixelSubsetState(raster, [slice(1, 2), slice(9, 10), slice(None)])
+    qtbot.waitUntil(lambda: coord.point.slices[1].start == 1, timeout=60_000)
+    # a point past the frame shows on the north tile, at 204.5", in its frame nearest the frame shown, its frame 0, 9 s,
+    # which the Point window names it by, and on no other
+    coord.group.subset_state = PixelSubsetState(raster, [slice(0, 1), slice(1, 2), slice(9, 10), slice(None)])
     qtbot.waitUntil(lambda: drawn()[1] == [[10, 22]], timeout=60_000)
+    assert "outside" not in readout(panel)
     window = point_window(app)
     window.refresh()
     assert [row[:2] for row in rows(window)] == [
-        ["VISP RASTER", "x 1, y 9, λ 12"],
-        ["VBI MOSAIC (1, 2)", "time 1, y 2, x 10"],
+        ["VISP RASTER", "Stokes 0, x 1, y 9, λ 12"],
+        ["VBI MOSAIC (1, 2)", "time 0, y 2, x 10"],
     ]
+
+
+def test_a_dkist_raster_s_steps_follow_its_context_imager_s_frames_in_time_at_its_repeat(qtbot, monkeypatch):
+    from glue_solar.quicklook import coordinator
+    from glue_solar.tests.test_quicklook import LEAD, leads, menu_action, readout
+
+    app = bare_app_for(qtbot, monkeypatch)
+    # 2 repeats 30 s apart of 3 steps 10 s apart, and 8 VBI frames 9 s apart
+    raster, imager = visp_like(repeats=2), vbi_like("VBI", frames=8)
+    app.data_collection.extend([raster, imager])
+    viewers = quicklook(app, [raster])
+    panel, coord = viewers["imager"], coordinator(app.data_collection)
+
+    def point(repeat, step):  # at slit pixel 5
+        pixel = [slice(0, 1), slice(repeat, repeat + 1), slice(step, step + 1), slice(5, 6), slice(None)]
+        coord.group.subset_state = PixelSubsetState(raster, pixel)
+
+    # step 1 of repeat 0, 10 s, its frame 1, 9 s; the imager leading the time, its frame 2, 18 s, step 2, 20 s
+    qtbot.waitUntil(lambda: panel.state.slices[0] == 1, timeout=60_000)
+    menu_action(panel, LEAD).trigger()
+    slide(panel, 0, 2)
+    qtbot.waitUntil(lambda: coord.point.slices[2].start == 2, timeout=60_000)
+    # at repeat 1, the raster's step of it nearest the frame, none within half a step's cadence of 18 s, and 4, 36 s,
+    # step 1, 40 s (D105)
+    point(1, 2)
+    qtbot.wait(100)
+    assert readout(viewers["map"]).endswith("NO MATCH Δt = +12.0 s")
+    slide(panel, 0, 4)
+    qtbot.waitUntil(lambda: coord.point.slices[2].start == 1, timeout=60_000)
+    assert coord.point.slices[1].start == 1
+    assert readout(viewers["map"]).endswith("Δt +4.0 s")
+    # the raster leading again, step 2 of repeat 1, 50 s, moves the frame to 6, 54 s
+    menu_action(viewers["map"], LEAD).trigger()
+    point(1, 2)
+    qtbot.waitUntil(lambda: panel.state.slices[0] == 6, timeout=60_000)
+    assert readout(panel).endswith("Δt +4.0 s")
+    assert readout(viewers["map"]).endswith(leads())
 
 
 def test_a_cryo_nirsp_context_image_takes_its_spectrograph_s_step_stokes_parameter_and_measurement(qtbot, monkeypatch):
     from qtpy.QtCore import Qt
 
     from glue_solar.tests.helpers import press
-    from glue_solar.tests.test_quicklook import LEAD, menu_action
+    from glue_solar.tests.test_quicklook import LEAD, menu_action, readout
 
     # Stokes I and Q, 3 steps 2" and 30 s apart of 2 measurements 5 s apart, its pointing moving 0.01" a measurement
     sizes = {"stokes": 2, "step": 3, "measurement": 2}
@@ -1310,6 +1385,10 @@ def test_a_cryo_nirsp_context_image_takes_its_spectrograph_s_step_stokes_paramet
         for step in (0, 2):
             slide(leader, 1, step)
             qtbot.waitUntil(lambda step=step, follower=follower: follower.state.slices[1] == step, timeout=60_000)
+    # the context image leading, at the measurement it takes from the raster's point, which times both alike
+    coordinator.group.subset_state = PixelSubsetState(raster, [*map(slice, (0, 2, 0, 3), (1, 3, 1, 4)), slice(None)])
+    qtbot.waitUntil(lambda: panel.state.slices[:3] == (0, 2, 0), timeout=60_000)
+    assert readout(viewers["map"]).endswith("Δt +0.0 s")
 
 
 @small_visp_dated_2044

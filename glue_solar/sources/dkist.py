@@ -712,12 +712,17 @@ def _frame_axis(data):
     The array axis of ``data``, a DKIST dataset, of its frames or raster steps: the first its time varies along, but
     those a point takes at its viewer's sliders (`_held_axes`); None for none.
     """
+    return min(_time_axes(data) - _held_axes(data), default=None)
+
+
+def _time_axes(data):
+    """The array axes of ``data``, a DKIST dataset, along which its time varies."""
     wcs = data.coords
     types = list(wcs.world_axis_physical_types)
     if "time" not in types:
-        return None
+        return set()
     time = np.asarray(wcs.axis_correlation_matrix)[types.index("time")]
-    return min({data.ndim - 1 - int(p) for p in np.flatnonzero(time)} - _held_axes(data), default=None)
+    return {data.ndim - 1 - int(p) for p in np.flatnonzero(time)}
 
 
 # The context imager observed with each spectrograph (D105)
@@ -727,8 +732,8 @@ _CONTEXT = {"VISP": "VBI", "CRYO-NIRSP": "CRYO-NIRSP"}
 def _context_imager(raster, datasets):
     """
     Of ``datasets``, the first context imager observed with ``raster``, a ViSP or Cryo-NIRSP spectrograph dataset:
-    VBI with ViSP, Cryo-NIRSP's context imager with its spectrograph, of the same observing program execution, whose
-    times overlap (D105); a mosaic's center tile; else None.
+    VBI with ViSP, Cryo-NIRSP's context imager with its spectrograph, of the same observing program execution, with
+    frames whose times overlap (D105); a mosaic's center tile; else None.
     """
 
     def spectral(data):
@@ -740,6 +745,8 @@ def _context_imager(raster, datasets):
     times = raster._frames[0]
     for data in datasets:
         if not isinstance(data, DKISTData) or data._observed != (_CONTEXT[instrument], program) or spectral(data):
+            continue
+        if _frame_axis(data) is None:  # a single shot, as a one-file VBI tile, has no frames to follow the raster
             continue
         if data._frames is not None and data._frames[0].min() <= times.max() and times.min() <= data._frames[0].max():
             return data._center if data._center in datasets else data

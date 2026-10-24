@@ -68,6 +68,7 @@ from glue_solar.sources.dkist import (
     _slit,
     _SlitAt,
     _SlitPlace,
+    _time_axes,
 )
 from glue_solar.sources.loaders.iris import _HPC, keep_hpc_linked
 from glue_solar.sources.loaders.scan import _observation
@@ -277,14 +278,17 @@ def _times(data, step):
     """
     The 1-D times of ``data``: per frame, exposure or step, per scan at raster step ``step`` of a stack, or per scan of
     an SST cube at its line core, as `~glue_solar.sources.loaders.iris.link_hpc` times them; a DKIST pair's along its
-    frames or steps.
+    frames or steps, at ``step``'s (axis, index) pairs, such as its repeat's (`Coordinator._timing`).
     """
     index = [0] * data.ndim
-    index[_time_axis(data) or 0] = slice(None)  # a DKIST pair's at its other axes' first pixels
+    index[_time_axis(data) or 0] = slice(None)  # a DKIST pair's at its other axes' first pixels, but ``step``'s
     if _role(data) == "sst":
         index[-3] = data.coords.core  # its tuning (`glue_solar.sources.sst.sst_data`)
     elif data.ndim == 4 and _role(data) == "raster":
         index[1] = step
+    elif _dkist(data):
+        for axis, at in step or ():
+            index[axis] = at
     return data[data.find_component_id("Time"), tuple(index)]
 
 
@@ -977,11 +981,13 @@ class Coordinator(HubListener):
     def _timing(self, data):
         """
         The index of ``data``'s time along its first axis and, for a raster, its timing step: the point's step, or the
-        one it had when the point left (mid-raster before any), the sliders giving the rest (D22).
+        one it had when the point left (mid-raster before any), the sliders giving the rest (D22); for a DKIST pair's,
+        the (axis, index) pairs of its other axes its time varies along, such as its repeat (D105).
         """
         point = self.point
-        if _dkist(data):  # a DKIST pair's at the point's raster step, else its slider's (D105)
-            return self._index(data, _time_axis(data)), None
+        if _dkist(data):  # a DKIST pair's at the point's raster step, repeat and measurement, else its sliders' (D105)
+            held = sorted(_time_axes(data) & _held_axes(data))
+            return self._index(data, _time_axis(data)), tuple((axis, self._index(data, axis)) for axis in held)
         if _role(data) != "raster":
             return self._slider(data, 0), None
         step_axis = data.ndim - 3
@@ -1015,9 +1021,10 @@ class Coordinator(HubListener):
 
     def _pair(self, master, follower, master_step, follower_step):
         """nearest() of every master time among the follower's, cached per pair."""
-        # only a stack's times depend on the raster step; keyed by the datasets, as a freed one's id() can be reused
-        key = (master, follower, master_step if master.ndim == 4 else None)
-        key += (follower_step if follower.ndim == 4 else None,)
+        # only a stack's times depend on the raster step, and a DKIST pair's on its repeat and measurement (D105); keyed
+        # by the datasets, as a freed one's id() can be reused
+        key = (master, follower, master_step if master.ndim == 4 or _dkist(master) else None)
+        key += (follower_step if follower.ndim == 4 or _dkist(follower) else None,)
         if key not in self._pairs:
             self._pairs[key] = nearest(_times(master, master_step), _times(follower, follower_step))
         return self._pairs[key]
@@ -1056,17 +1063,21 @@ class Coordinator(HubListener):
         master = self._master(key)
         if master is None:
             return
+        with self._writing():
+            for data in self._datasets(key):
+                if _dkist(data) == "imager" and (raster := self._dkist_raster(data)) is not None:
+                    # a DKIST context image at its raster's Stokes parameter and measurement, its sliders', before its
+                    # measurement times it (`_timing`, D105)
+                    given = _held_names(raster)
+                    at = {axis: given[name] for name, axis in _held_names(data).items() if name in given}
+                    for viewer in self._viewers_of(data):
+                        self._set_slices(viewer, {axis: self._index(raster, other) for axis, other in at.items()})
         index, step = self._timing(master)
         times = _times(master, step)
         index = min(max(index, 0), len(times) - 1)
         self._master_times[key] = (master, times[index], step)
-        moved, held = {}, {}
+        moved = {}
         for data in self._datasets(key):
-            if _dkist(data) == "imager" and (raster := self._dkist_raster(data)) is not None:
-                # a DKIST context image at its raster's Stokes parameter and measurement, its sliders' (D105)
-                given = _held_names(raster)
-                at = {axis: given[name] for name, axis in _held_names(data).items() if name in given}
-                held[data] = {axis: self._index(raster, other) for axis, other in at.items()}
             if data is master:
                 continue
             frame = self._follow(master, index, step, data)
@@ -1075,15 +1086,12 @@ class Coordinator(HubListener):
         with self._writing():
             for data, (axis, frame) in moved.items():
                 self._move_in_time(data, axis, frame)
-            for data, at in held.items():
-                for viewer in self._viewers_of(data):
-                    self._set_slices(viewer, at)
         exposure = master.find_component_id("Exposure time")
         seconds = None
         if exposure is not None:
             view = [0] * master.ndim
             view[_time_axis(master) or 0] = index
-            if master.ndim == 4 and step is not None:
+            if master.ndim == 4 and _role(master) == "raster":
                 view[1] = step
             seconds = float(master[exposure, tuple(view)])
         self._mark(key, times[index], seconds)
@@ -1138,7 +1146,7 @@ class Coordinator(HubListener):
         if master is None or master is not self._master(key) or not _timed(data):
             return None
         if data is master:
-            return ("master", step)
+            return ("master", None if _dkist(data) else step)  # a DKIST pair's holds its repeat, not a raster step
         follower_step = self._timing(data)[1]
         times = _times(data, follower_step)
         margin = _half_cadence(times)

@@ -176,11 +176,12 @@ stay in the FITS files next to the ASDF file: a view reads only the parts of the
   at each step, have a slider, as Stokes does.
 - With the context imager observed with it loaded (VBI with ViSP, the context imager with
   Cryo-NIRSP's spectrograph: one observing program execution, at times that overlap), the
-  quicklook shows its frame beside the map, every tile of a VBI mosaic, as IRIS's slit-jaw images:
-  the raster's slit at the point's step and the point are drawn on it, a click on it (on a mosaic,
-  on its center tile) moves the point to the raster there, and its frame follows the raster's step
-  in time; with "Lead the time" on it, the raster's step follows its frame. A Cryo-NIRSP context
-  image takes the spectrograph's Stokes parameter and measurement.
+  quicklook shows its frame after the virtual slit, every tile of a VBI mosaic once glue's
+  suggested links are accepted, as IRIS's slit-jaw images: the raster's slit at the point's step
+  and the point are drawn on it, a click on it (on a mosaic, on its center tile) moves the point
+  to the raster there, and its frame follows the raster's step in time; with "Lead the time" on
+  it, the raster's step in the repeat shown follows its frame. A Cryo-NIRSP context image takes
+  the spectrograph's Stokes parameter and measurement.
 - glue offers to link DKIST datasets as they load, pixel to pixel by their coordinates, time
   included: accept, and a point on one reaches the others, and one draws over another in an Image
   viewer. A mosaic's tiles link to its center tile, and other datasets to that tile; remove the
