@@ -391,6 +391,7 @@ class DKISTData(Data):
     _present = None  # whether each frame's file is present, over the frame axes
     _frames = None  # each frame's DATE-AVG and XPOSURE in seconds, over the frame axes
     _files = None  # its values' files (`_Files`), None where dask reads them
+    _observed = None  # its instrument and observing program execution (`_context_imager`)
 
     def get_data(self, cid, view=None):
         # its values' views read from their files (`_Files`, D103)
@@ -503,8 +504,10 @@ class DKISTData(Data):
         data = next(restored)
         data.__class__, data._load_log = cls, log  # glue's loader makes a Data
         data._mosaic, data._samples, data._present = source._mosaic, source._samples, source._present
+        data._mosaic[data._mosaic.index(source)] = data  # the tiles shared, restored in place of their sources (D105)
         data._files = source._files
         data._frames = source._frames  # for a session saved without its Time and Exposure time (`register_to_hub`)
+        data._observed = source._observed
         data._center = log.data[rec["center"]] if "center" in rec else source._center  # #374's sessions saved none
         log.data[rec["log_item"]] = data  # for a session saved from this one
         for tile in log.data:  # its mosaic's tiles, restored or not, link to it if it is the center (`wcs_autolink`)
@@ -532,24 +535,27 @@ def _frame_times(data):
     return axes, time.datetime64
 
 
-def _slit(data, step):
+def _slit(data, step, at=None):
     """
     The array axis along the slit of ``data``, a DKIST raster stepping along array axis ``step``, and at each step the
     helioprojective longitude and latitude (arcsec) of the slit's first pixel and their change over one pixel along it,
-    at the middle of the other axes; None where they vary along other axes too.
+    at the middle of the other axes, or at ``at``, indices by axis of those they vary along too, such as a Cryo-NIRSP
+    raster's measurement (D105); None where they vary along other axes too.
     """
-    wcs = data.coords
+    wcs, at = data.coords, at or {}
     types = list(wcs.world_axis_physical_types)
     if not set(_HPC) <= set(types):
         return None
     matrix = np.asarray(wcs.axis_correlation_matrix)[[types.index(kind) for kind in _HPC]]
-    axes = {data.ndim - 1 - p for p in np.flatnonzero(matrix.any(axis=0))} - {step}
+    axes = {data.ndim - 1 - p for p in np.flatnonzero(matrix.any(axis=0))} - {step, *at}
     if len(axes) != 1:
         return None
     [slit] = axes
     ends = []
     for end in (0, data.shape[slit] - 1):
-        pixel = [np.arange(n) if a == step else end if a == slit else n // 2 for a, n in enumerate(data.shape)]
+        pixel = [
+            np.arange(n) if a == step else end if a == slit else at.get(a, n // 2) for a, n in enumerate(data.shape)
+        ]
         world = wcs.pixel_to_world_values(*pixel[::-1])
         ends.append(np.stack([world[types.index(kind)] for kind in _HPC], axis=-1))
     return slit, ends[0], (ends[1] - ends[0]) / (data.shape[slit] - 1)
@@ -655,6 +661,8 @@ def _data(dataset, label):
     ]
     data = DKISTData(label=label, coords=GlueWCS(wcs, _glue_order(wcs, dataset.data.shape[::-1]), names))
     data.add_component(DaskComponent(dataset.data, units=str(dataset.unit or "")), "data")
+    inventory = dataset.meta["inventory"]
+    data._observed = inventory["instrumentName"], inventory.get("observingProgramExecutionId")
     files = dataset.files
     data._present = np.vectorize(lambda name: (Path(files.basepath) / name).exists(), otypes=[bool])(
         files.fileuri_array
@@ -692,6 +700,50 @@ def _held_axes(data):
     stokes = [k for k, kind in enumerate(wcs.world_axis_physical_types) if kind == "phys.polarization.stokes"]
     held.update(np.flatnonzero(np.asarray(wcs.axis_correlation_matrix)[stokes].any(axis=0)))
     return {data.ndim - 1 - int(p) for p in held}
+
+
+def _held_names(data):
+    """`_held_axes` of ``data`` by their pixel axis names (``DPNAMEn``), such as 'measurement number'."""
+    return {data.coords._names[data.ndim - 1 - axis]: axis for axis in _held_axes(data)}
+
+
+def _frame_axis(data):
+    """
+    The array axis of ``data``, a DKIST dataset, of its frames or raster steps: the first its time varies along, but
+    those a point takes at its viewer's sliders (`_held_axes`); None for none.
+    """
+    wcs = data.coords
+    types = list(wcs.world_axis_physical_types)
+    if "time" not in types:
+        return None
+    time = np.asarray(wcs.axis_correlation_matrix)[types.index("time")]
+    return min({data.ndim - 1 - int(p) for p in np.flatnonzero(time)} - _held_axes(data), default=None)
+
+
+# The context imager observed with each spectrograph (D105)
+_CONTEXT = {"VISP": "VBI", "CRYO-NIRSP": "CRYO-NIRSP"}
+
+
+def _context_imager(raster, datasets):
+    """
+    Of ``datasets``, the first context imager observed with ``raster``, a ViSP or Cryo-NIRSP spectrograph dataset:
+    VBI with ViSP, Cryo-NIRSP's context imager with its spectrograph, of the same observing program execution, whose
+    times overlap (D105); a mosaic's center tile; else None.
+    """
+
+    def spectral(data):
+        return "em.wl" in data.coords.world_axis_physical_types
+
+    instrument, program = getattr(raster, "_observed", None) or (None, None)
+    if instrument not in _CONTEXT or program is None or raster._frames is None or not spectral(raster):
+        return None
+    times = raster._frames[0]
+    for data in datasets:
+        if not isinstance(data, DKISTData) or data._observed != (_CONTEXT[instrument], program) or spectral(data):
+            continue
+        if data._frames is not None and data._frames[0].min() <= times.max() and times.min() <= data._frames[0].max():
+            return data._center if data._center in datasets else data
+    return None
 
 
 @data_factory("DKIST Level 1 dataset (ASDF)", is_dkist_asdf, priority=200)
