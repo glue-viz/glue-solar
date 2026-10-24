@@ -6,6 +6,8 @@ raster with its FITS files, and its sample data, downloaded; sessions of them.
 import gzip
 import re
 import shutil
+import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -177,10 +179,14 @@ def test_an_image_view_along_the_steps_or_measurements_of_a_context_image_draws(
         viewer = app.new_data_viewer(ImageViewer, data=cryo)
         viewer.state.y_att = cryo.pixel_component_ids[axis]
         viewer.figure.canvas.draw()
-    # below them, no longitude or latitude, as dkist gives off its pointing table, and their pixel 0's time
-    lon, lat, _, time, stokes = cryo.coords.pixel_to_world_values(0, 0, -1, 0, 0)
-    assert np.isnan([lon, lat]).all()
-    assert (time, stokes) == (cryo.coords.pixel_to_world_values(0, 0, 0, 0, 0)[3], 1)
+        # and panned past their last, where dkist 1.18.1 gives a NaN time too
+        viewer.state.y_min, viewer.state.y_max = 3, 10
+        viewer.figure.canvas.draw()
+    # off them, no longitude or latitude, as dkist gives off its pointing table, and their nearest end's time
+    for off, end in ((-1, 0), (3, 2)):
+        lon, lat, _, when, stokes = cryo.coords.pixel_to_world_values(0, 0, off, 0, 0)
+        assert np.isnan([lon, lat]).all()
+        assert (when, stokes) == (cryo.coords.pixel_to_world_values(0, 0, end, 0, 0)[3], 1)
 
 
 @small_visp_dated_2044
@@ -471,8 +477,26 @@ def test_a_removed_dkist_dataset_closes_its_files_kept_open(tmp_path):
     data.get_data(data.main_components[0], view=(slice(None), 0))
     paths = {str(tmp_path / f"{i}.fits") for i in range(3)}
     assert paths <= set(_OPEN)
-    # as it leaves glue, not when glue quits (user, 2026-10-23)
+    # as it leaves glue, not when glue quits (user, 2026-10-23), and those a profile still computing reads after
     collection.remove(data)
+    assert not paths & set(_OPEN)
+    data.get_data(data.main_components[0], view=(slice(None), 0))
+    assert not paths & set(_OPEN)
+
+
+@small_visp_dated_2044
+def test_a_dkist_dataset_closes_its_files_kept_open_as_reset_session_replaces_its_window(app, qtbot, tmp_path):
+    from glue_solar.sources.dkist import _OPEN
+
+    shutil.copytree(small_visp().parent, tmp_path, dirs_exist_ok=True)
+    data = load_data(str(tmp_path / "test_visp.asdf"))
+    app.data_collection.append(data)
+    data.get_data(data.main_components[0], view=(slice(None), 0))
+    paths = {str(tmp_path / f"{i}.fits") for i in range(3)}
+    assert paths <= set(_OPEN)
+    # Reset Session, as Open Session and 'Restore last session', closes the window, removing no data: they stayed open
+    # until glue quit (user, 2026-10-23)
+    qtbot.addWidget(app._reset_session())
     assert not paths & set(_OPEN)
 
 
@@ -522,6 +546,38 @@ def test_a_dkist_image_viewer_redraws_without_evaluating_its_coordinates_again(a
     assert calls == []
 
 
+@small_visp_dated_2044
+def test_a_dkist_dataset_s_coordinates_evaluate_on_one_thread_at_a_time(monkeypatch):
+    data = load_data(str(small_visp()))
+    coords, wcs = data.coords, data.coords._wcs
+    world = coords.pixel_to_world_values(1, 5, 12)
+    running, overlaps = [], []
+
+    def alone(evaluate):
+        def evaluated(*values):
+            overlaps.append(bool(running))
+            running.append(evaluate)
+            time.sleep(0.5)
+            running.remove(evaluate)
+            return evaluate(*values)
+
+        return evaluated
+
+    for name in ("pixel_to_world_values", "world_to_pixel_values"):
+        monkeypatch.setattr(wcs, name, alone(getattr(wcs, name)))
+    # glue-qt's profile worker beside the GUI thread: dkist's VaryingCelestialTransform sets one model's parameters at
+    # each raster step, then evaluates it, so one thread's map took another's step's pointing, and GlueWCS kept it
+    threads = [
+        threading.Thread(target=coords.pixel_to_world_values, args=(2, 5, 12)),
+        threading.Thread(target=coords.world_to_pixel_values, args=world),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert overlaps == [False, False]
+
+
 @pytest.mark.remote_data
 def test_a_cryo_nirsp_raster_opens_its_quicklook(qtbot, monkeypatch, dkist_sample):
     import dkist
@@ -559,6 +615,18 @@ def test_dkist_datasets_of_different_dimensions_link_pixel_to_pixel(tmp_path):
     assert point(stokes_i, (200, 1000), visp) == [None, 200, None, 1000]
     assert glue_patches.needs_wcs_link_workaround() == (WCSLink.__init__ is glue_patches.wcs_link_init)
     assert not glue_patches.needs_wcs_link_workaround(glue_patches.wcs_link_init)
+
+
+@pytest.mark.remote_data
+# sunpy's warning of those NaN, which glue shows: pytest raised it inside the link test, which refused them
+@pytest.mark.filterwarnings("ignore:The conversion of these 2D helioprojective coordinates to 3D is all NaNs")
+def test_off_limb_dkist_data_of_other_dates_do_not_link(tmp_path, dkist_sample):
+    with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):
+        cryo = load_data(str(asdf_alone(tmp_path, "croppable_cryo")))
+    # 2023-01-01 and 2025-03-22: sunpy gives no longitude or latitude off the limb between their observers, and the link
+    # test passed on those NaN pixels (D103)
+    with pytest.raises(IncompatibleWCS):
+        WCSLink(cryo, load_data(dkist_sample("DBXVEL_full.tar")))
 
 
 def test_an_sst_cube_ahead_of_dkist_datasets_leaves_their_links(tmp_path, sns):
@@ -620,6 +688,41 @@ def test_dkist_data_starting_later_link_and_reach_each_other_within_their_time(a
     viewer = app.new_data_viewer(ImageViewer, data=tile)
     viewer.add_data(later)
     viewer.figure.canvas.draw()
+
+
+def test_dkist_data_observed_together_over_part_of_their_times_link(tmp_path):
+    import dkist
+
+    path = asdf_alone(tmp_path, "large_vbi")
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        tile = load_data(str(path))[4]
+    # a copy of the tile, its frames three times as far apart: the tile's frames lie within its first third, and its
+    # middle past the tile's last, where the link test, at each one's middle pixel only, refused them; and one of frames
+    # a tenth as far apart from 0.3 of the tile's span, all between the tile's, where it tried forwards at the tile's
+    # pixels only (D103)
+    for scale, start in ((3, 0), (0.1, 0.6)):
+        dataset = dkist.load_dataset(path)[1, 1]
+        temporal = dataset.wcs.forward_transform.right
+        temporal.slope, temporal.intercept = scale * temporal.slope, start * temporal.slope * u.pix
+        WCSLink(tile, _data(dataset, f"VBI AJQWW (1, 1) x{scale}"))
+
+
+def test_raveled_dkist_data_starting_later_draw_over_each_other(app, tmp_path):
+    import dkist
+
+    path = asdf_alone(tmp_path, "visp_no_headers")
+    with pytest.warns(UserWarning, match="VISP ADDMM: 0 of 10444 files"):
+        visp = load_data(str(path))
+    # its times, which dkist ravels from its repeats and steps, a fifth of their span later
+    dataset = dkist.load_dataset(path)
+    [temporal] = [model for model in dataset.wcs.forward_transform.traverse_postorder() if model.name == "Temporal"]
+    temporal.lookup_table = temporal.lookup_table + np.ptp(temporal.lookup_table) / 5
+    later = _data(dataset, "VISP ADDMM later")
+    later._mosaic, later._samples = [later], {}
+    app.data_collection.extend([visp, later])
+    app.data_collection.add_link(WCSLink(visp, later))
+    # blank at its first frame, before the other's: dkist's inverse raised ValueError there, an Unravel of a NaN time
+    assert drawn_over(app, visp, later)
 
 
 def test_a_mosaic_s_tiles_link_to_its_first_tile_left_once_its_center_tile_is_removed(
