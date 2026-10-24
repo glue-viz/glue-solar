@@ -537,7 +537,12 @@ def needs_cmap_bad_restore_workaround(init=_original_image_layer_init):
     DataCollection([data])  # a hub, which the artist subscribes to
     viewer = ImageViewerState()
     state = ImageLayerState(layer=data, viewer_state=viewer, cmap_bad=(0, 0, 0, 0))
-    axes = SimpleNamespace(_composite=CompositeArray(), _composite_image=None)
+    # what glue's own ``_set_cmap_bad`` touches, so a glue whose init calls it is seen fixed
+    axes = SimpleNamespace(
+        _composite=CompositeArray(),
+        _composite_image=SimpleNamespace(invalidate_cache=lambda: None),
+        figure=SimpleNamespace(canvas=SimpleNamespace(draw_idle=lambda: None)),
+    )
     type("Probe", (ImageLayerArtist,), {"__init__": init})(axes, viewer, layer_state=state)
     return axes._composite.cmap_bad is None
 

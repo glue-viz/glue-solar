@@ -25,6 +25,7 @@ from glue.core.exceptions import IncompatibleAttribute
 from glue.core.state import GlueSerializeError, GlueSerializer, GlueUnSerializer
 from glue.dialogs.link_editor.state import LinkEditorState
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
+from glue.viewers.image.layer_artist import ImageLayerArtist
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
@@ -410,6 +411,9 @@ def test_a_dkist_dataset_s_nan_pixels_draw_transparent(app, qtbot, monkeypatch, 
     app.data_collection.append(tile)
     viewer = app.new_data_viewer(ImageViewer, data=tile)
     if restored:  # and from a session, where glue's restored layer left its image's bad color unset: opaque
+        installed = ImageLayerArtist.__init__ is glue_patches.image_layer_init
+        assert installed == glue_patches.needs_cmap_bad_restore_workaround()  # probes glue's own method
+        assert not glue_patches.needs_cmap_bad_restore_workaround(glue_patches.image_layer_init)
         app.save_session(str(tmp_path / "nan.glu"))
         with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
             viewer = restore(qtbot, monkeypatch, tmp_path / "nan.glu").viewers[0][0]
