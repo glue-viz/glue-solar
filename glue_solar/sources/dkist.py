@@ -22,7 +22,7 @@ from glue.core.component import DaskComponent
 from glue.core.data import Data
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.hub import HubListener
-from glue.core.message import DataCollectionDeleteMessage
+from glue.core.message import ApplicationClosedMessage, DataCollectionDeleteMessage
 from glue.core.state import GlueSerializeError, _load_data_5, _save_data_5
 from glue.plugins.wcs_autolinking import wcs_autolinking
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
@@ -141,17 +141,21 @@ class GlueWCS(BaseLowLevelWCS, HighLevelWCSMixin):
 
     def __init__(self, wcs, order, names):
         self._wcs, self._order, self._names = wcs, order, names
+        # dkist's VaryingCelestialTransform sets one model's parameters at each pointing index, then evaluates it, and
+        # glue-qt's profile worker evaluates beside the GUI thread (report candidate)
+        self._lock = threading.Lock()
         self._extra = len(order) - wcs.pixel_n_dim
         # the pixel axes dkist ravels into one index of its times (its Ravel), a raster's steps and repeats or a
-        # Cryo-NIRSP dataset's steps and measurements: those its time varies along
+        # Cryo-NIRSP dataset's steps and measurements: those its time varies along, and their lengths
         self._raveled = ()
         model = getattr(wcs, "forward_transform", None)
         if hasattr(model, "traverse_postorder"):  # a gWCS's compound model
             from dkist.wcs.models import Ravel
 
-            if any(isinstance(leaf, Ravel) for leaf in model.traverse_postorder()):
+            ravel = next((leaf for leaf in model.traverse_postorder() if isinstance(leaf, Ravel)), None)
+            if ravel is not None:
                 time = np.asarray(wcs.axis_correlation_matrix)[wcs.world_axis_physical_types.index("time")]
-                self._raveled = tuple(np.flatnonzero(time))
+                self._raveled = tuple(zip(np.flatnonzero(time), ravel.array_shape))
 
     pixel_n_dim = property(lambda self: self._wcs.pixel_n_dim)
     world_n_dim = property(lambda self: len(self._order))
@@ -207,17 +211,18 @@ class GlueWCS(BaseLowLevelWCS, HighLevelWCSMixin):
         return world
 
     def _world(self, pixel):
-        # dkist 1.17's Ravel raises ValueError below pixel -0.5 of a raveled axis, where WCSAxes' frame asks: it clips
-        # above only (dkist #751, in 1.18.1). Taken there at pixel 0, of pixel 0's time, so WCSAxes finds a time range,
-        # and no longitude or latitude, as dkist gives off its pointing table (D103)
-        inputs, below = list(pixel), np.zeros(pixel[0].shape, bool)
-        for p in self._raveled:
-            off = pixel[p] < -0.5
-            inputs[p], below = np.where(off, 0, pixel[p]), below | off
-        world = _wrapped(self._wcs, self._wcs.pixel_to_world_values(*inputs))
-        if below.any():
+        # dkist 1.18.1's Ravel gives a NaN time off either end of a raveled axis, where WCSAxes' frame asks, and WCSAxes
+        # raises for a time range all NaN. Taken there at its nearest end, of that end's time, so WCSAxes finds a time
+        # range, and no longitude or latitude, as dkist gives off its pointing table (D103)
+        inputs, past = list(pixel), np.zeros(pixel[0].shape, bool)
+        for p, size in self._raveled:
+            off = (np.rint(pixel[p]) < 0) | (np.rint(pixel[p]) > size - 1)  # as Ravel rounds
+            inputs[p], past = np.where(off, np.clip(pixel[p], 0, size - 1), pixel[p]), past | off
+        with self._lock:
+            world = _wrapped(self._wcs, self._wcs.pixel_to_world_values(*inputs))
+        if past.any():
             types = self._wcs.world_axis_physical_types
-            world = [np.where(below, np.nan, values) if kind in _HPC else values for values, kind in zip(world, types)]
+            world = [np.where(past, np.nan, values) if kind in _HPC else values for values, kind in zip(world, types)]
         return self._pick(world, lambda p: pixel[p] * 1.0)
 
     def world_to_pixel_values(self, *world_arrays):
@@ -235,15 +240,23 @@ class GlueWCS(BaseLowLevelWCS, HighLevelWCSMixin):
         # candidate)
         world = np.broadcast_arrays(*(np.asarray(values, dtype=float) for values in world))
         finite = np.all(np.isfinite(world), axis=0)
+        # the link test (`STRICT_INVERSE`) refusing a NaN world value, as of off-limb data of other dates, which sunpy
+        # places at no longitude or latitude in the other's frame (D103)
+        if STRICT_INVERSE.get() and not finite.all():
+            raise ValueError("no pixel")
         pixel = [np.full(finite.shape, np.nan) for _ in range(self.pixel_n_dim)]
         if finite.any():
             inside = [w[finite] for w in world]
             try:
-                found = self._wcs.world_to_pixel_values(*inside)
-            except NotImplementedError:  # a time off its frames (`_off_frames`): dkist #765, unreleased (D103)
+                with self._lock:
+                    found = self._wcs.world_to_pixel_values(*inside)
+            # a time off its frames (`_off_frames`): dkist #765, unreleased; and raveled, Unravel's ValueError on its
+            # inverse's NaN time (dkist/wcs/models.py:815, report candidate) (D103)
+            except (NotImplementedError, ValueError):
                 if STRICT_INVERSE.get():
                     raise
-                found = _off_frames(self._wcs, inside)
+                with self._lock:
+                    found = _off_frames(self._wcs, inside)
             for values, at in zip(pixel, found, strict=True):
                 values[finite] = at
         for i, k in enumerate(self._order):
@@ -277,22 +290,30 @@ class _Open:
             self.hdus = None
 
 
-def _section(path, target, key):
-    """``key`` of HDU ``target`` of the FITS file at ``path``, kept open (`_Open`); None where it is missing."""
+def _section(path, target, key, files):
+    """
+    ``key`` of HDU ``target`` of the FITS file at ``path``, of ``files`` (`_Files`), kept open (`_Open`) while they are
+    kept; None where it is missing.
+    """
     if not os.path.exists(path):  # NaN, as dkist reads it
         return None
     with _OPEN_LOCK:
-        file = _OPEN.pop(path, None) or _Open(path)
-        _OPEN[path] = file
+        if files.kept:
+            file = _OPEN.pop(path, None) or _Open(path)
+            _OPEN[path] = file
+        else:  # its dataset gone from glue, for a profile still computing: closed once read (`_close`)
+            file = _Open(path)
+            file.kept = False
         closed = [_OPEN.popitem(last=False)[1] for _ in range(len(_OPEN) - OPEN_FILES)]
     _shut(closed)
     return file.read(target, key)
 
 
-def _close(paths):
-    """Close the kept files at ``paths``, as their dataset leaves glue (`_Recenter`)."""
+def _close(files):
+    """Close ``files`` (`_Files`) and keep them open no more, as their dataset leaves glue (`_Recenter`)."""
     with _OPEN_LOCK:
-        closed = [_OPEN.pop(path) for path in paths if path in _OPEN]
+        files.kept = False
+        closed = [_OPEN.pop(path) for path in set(files.paths.flat) if path in _OPEN]
     _shut(closed)
 
 
@@ -316,6 +337,7 @@ class _Files:
         self.lead = (0,) if shape[0] == 1 else ()  # a frame's leading axis of one, which dkist drops
         self.shape = self.paths.shape + tuple(shape[len(self.lead) :])
         self.dtype = np.result_type(dtype, np.float16)  # holding NaN
+        self.kept = True  # its files kept open (`_section`) until its dataset leaves glue (`_close`)
 
     def read(self, view):
         """The values at ``view``, as NumPy indexes an array; None for a view of other kinds."""
@@ -345,7 +367,7 @@ class _Files:
         values = np.full((flat.size, *(len(a) for a in frame)), np.nan, self.dtype)
 
         def read(i):
-            part = _section(flat[i], self.target, key)
+            part = _section(flat[i], self.target, key, self)
             if part is not None:
                 values[i] = part[pick]
 
@@ -748,12 +770,17 @@ class _Recenter(HubListener):
         self.tile = tile
         # ahead of glue's link manager, of priority 10, which drops the links
         hub.subscribe(self, DataCollectionDeleteMessage, handler=self._removed, priority=11)
+        # Reset Session, Open Session and 'Restore last session' close the window, removing no data
+        hub.subscribe(self, ApplicationClosedMessage, handler=self._release)
+
+    def _release(self, message=None):
+        if self.tile._files is not None:  # its kept files closed, not held until glue quits (user, 2026-10-23)
+            _close(self.tile._files)
 
     def _removed(self, message):
         if message.data is not self.tile:
             return
-        if self.tile._files is not None:  # its kept files closed, not held until glue quits (user, 2026-10-23)
-            _close(set(self.tile._files.paths.flat))
+        self._release()
         collection = message.sender
         tiles = [data for data in collection if getattr(data, "_center", None) is self.tile]
         ends = [(link.data1, link.data2) for link in collection.external_links if isinstance(link, WCSLink)]

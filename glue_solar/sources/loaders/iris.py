@@ -180,7 +180,7 @@ def _off_frames(wcs, values):
         at = times == time
         try:
             found = wcs.world_to_pixel_values(*(value[at] for value in values))
-        except NotImplementedError:
+        except (NotImplementedError, ValueError):  # and a raveled DKIST time's Unravel (`GlueWCS`)
             continue
         for pixel, value in zip(pixels, found, strict=True):
             pixel[at] = value
