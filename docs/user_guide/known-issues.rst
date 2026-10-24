@@ -23,9 +23,9 @@ Loading
   from it as they are viewed, and glue can crash.
 - **SST cubes:** open maps before SST cubes, and cubes without Stokes before those with, or glue's
   autolinker reports an error, although the data load.
-- **Mosaics of many tiles:** linking a DL-NIRSP mosaic's 108 tiles takes about a minute, and so
-  does each draw of them all in one Image viewer: glue looks for every link again as links are added,
-  and computes each layer over the whole view.
+- **Mosaics of many tiles:** linking a DL-NIRSP mosaic's 108 tiles takes about a minute, and each
+  draw of them all in one Image viewer about 40 s: glue looks for every link again as links are
+  added, and computes each layer over the whole view.
 
 Viewers
 -------

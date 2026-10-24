@@ -459,6 +459,24 @@ def test_a_dkist_dataset_reads_its_views_from_its_files_kept_open(tmp_path, monk
     assert opened == ["2.fits", "0.fits"]
 
 
+def test_dkist_data_keep_up_to_4096_files_open_raising_the_open_file_soft_limit(monkeypatch):
+    from glue_solar.sources.dkist import OPEN_FILES, _open_files
+
+    resource = pytest.importorskip("resource")
+    assert OPEN_FILES == _open_files()
+    raised = []
+    monkeypatch.setattr(resource, "setrlimit", lambda kind, limits: raised.append(limits))
+    # macOS's soft limit of 256 raised: 128 files reopened a ViSP map's 510 at each move (D103)
+    monkeypatch.setattr(resource, "getrlimit", lambda kind: (256, resource.RLIM_INFINITY))
+    assert _open_files() == 4096
+    assert raised == [(8192, resource.RLIM_INFINITY)]
+    # up to a hard limit of 1024, not past it
+    raised.clear()
+    monkeypatch.setattr(resource, "getrlimit", lambda kind: (256, 1024))
+    assert _open_files() == 512
+    assert raised == [(1024, 1024)]
+
+
 @small_visp_dated_2044
 def test_an_image_buffer_of_a_dkist_dataset_reads_only_the_files_of_the_pixels_it_samples(tmp_path, monkeypatch):
     shutil.copytree(small_visp().parent, tmp_path, dirs_exist_ok=True)
