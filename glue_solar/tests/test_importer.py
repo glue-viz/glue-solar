@@ -885,7 +885,7 @@ def test_real_raster_preserves_exact_exposure_times(irispy_test_files):
     path = find_irispy_test_file(irispy_test_files, "iris_l2_20140329_140938_3860258481_raster_t000_r00000.fits")
     data = raster_data([path], ["C II 1336"], stack=True)
     cube = read_files(path, spectral_windows=["C II 1336"], memmap=False, uncertainty=False)["C II 1336"][0]
-    expected_times = cube.axis_world_coords("time", wcs=cube.extra_coords)[0].utc.to_value("datetime64")
+    expected_times = cube.time.utc.to_value("datetime64")
 
     assert len(data) == 1
     assert data[0].label == "C II 1336 2014-03-29 14:09 scan 0"
@@ -908,9 +908,7 @@ def test_real_raster_preserves_exact_exposure_times(irispy_test_files):
 def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_files):
     paths = sorted(path for path in irispy_test_files if "20140329_140938_3860258481_raster_t000_r" in path.name)
     sequence = read_files(paths, spectral_windows=["C II 1336"], memmap=False, uncertainty=False)["C II 1336"]
-    expected_times = [
-        cube.axis_world_coords("time", wcs=cube.extra_coords)[0].utc.to_value("datetime64") for cube in sequence
-    ]
+    expected_times = [cube.time.utc.to_value("datetime64") for cube in sequence]
     data = raster_data(paths, ["C II 1336"], stack=True)[0]
 
     science = data.main_components[0]
@@ -942,9 +940,10 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
     stacked_world = data.coords.pixel_to_world_values(*pixel)
     for k, cube in enumerate(sequence):
         scan_world = data.coords.pixel_to_world_values(*(p[..., k] for p in pixel[:3]), k)
-        source_world = cube.wcs.pixel_to_world_values(*(p[..., k] for p in pixel[:3]))
+        source = cube.fits_wcs  # irispy's FITS -TAB WCS of the scan, glue's coordinates (LM-SAL/irispy#360)
+        source_world = source.pixel_to_world_values(*(p[..., k] for p in pixel[:3]))
         for expected, actual, alone, unit, physical_type in zip(
-            source_world, stacked_world[:3], scan_world, cube.wcs.world_axis_units, cube.wcs.world_axis_physical_types
+            source_world, stacked_world[:3], scan_world, source.world_axis_units, source.world_axis_physical_types
         ):
             if physical_type in SHOWN:
                 expected = (expected * u.Unit(unit)).to_value(SHOWN[physical_type])

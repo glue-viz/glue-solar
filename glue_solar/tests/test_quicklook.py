@@ -334,7 +334,7 @@ def test_the_menus_offer_what_can_act_on_the_data(bare_app, scans, irispy_test_f
         select_point(viewer, 2, 40)
         assert [entry for entry in offered(viewer) if entry in cuts] == cuts
     # none on 3824262996's single scan alone, which has no exposures or scans and no slit-jaw image loaded
-    [drift] = [path for path in irispy_test_files if "3824262996_raster" in path.name]
+    [drift] = [path for path in irispy_test_files if "3824262996_raster_t000_r00000_wavelength_drift" in path.name]
     lone = quicklook(bare_app, raster_data([drift]))
     assert offered(lone["map"]) == [*time, "Clear point", *cuts, *blink, *overlaid(banded)]
 
@@ -4987,7 +4987,7 @@ def test_a_scan_with_no_data_has_no_point_on_a_slit_jaw_image(bare_app, qtbot, i
     """
     from irispy.data.test import ROOTDIR
 
-    [stack] = raster_data(sorted((ROOTDIR / "data_gap").glob("*.fits")), ["Si IV 1403"], stack=True)
+    [stack] = raster_data(sorted((ROOTDIR / "data_gap").glob("*3860258481*.fits")), ["Si IV 1403"], stack=True)
     sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
     sji.meta.update(OBSID=stack.meta["OBSID"], STARTOBS=stack.meta["STARTOBS"])
     viewers = quicklook(bare_app, [stack, sji])

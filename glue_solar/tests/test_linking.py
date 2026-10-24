@@ -722,7 +722,7 @@ def test_the_analyses_hold_the_wcs_lock_in_each_wcslib_call_not_across_irispy(st
         radiometric_calibration(si)  # which holds it to read the struct, irispy's spectral dispersion and solid angle
     finally:
         threading.setprofile_all_threads(None)
-    assert {"_all_pix2world", "pixel_to_world_values", "__deepcopy__"} <= {name for name, _ in calls}
+    assert {"_all_pix2world", "pixel_to_world_values"} <= {name for name, _ in calls}  # no copy since LM-SAL/irispy#360
     assert {name for name, locked in calls if not locked} <= {"serialized_classes"}  # astropy's False, no wcslib
     assert {name for name, _ in entered} == irispy
     assert not any(locked for _, locked in entered)

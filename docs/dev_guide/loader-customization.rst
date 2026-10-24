@@ -19,7 +19,9 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
 2. ``iris.py`` asks ``irispy.io.read_files`` to decode raster files, a file at a time, and
    ``irispy.io.sji.read_sji_lvl2`` SJI and aligned AIA and Hinode/SOT files, then converts the
    returned cubes into :class:`glue.core.data.Data` objects. irispy decompresses a ``.fits.gz``
-   slit-jaw or AIA file once, into memory.
+   slit-jaw or AIA file once, into memory. A raster's coordinates are irispy's FITS ``-TAB`` WCS of it
+   (``fits_wcs``), one world coordinate per axis, as glue maps them, where its gWCS adds time and the
+   raster step.
 3. ``lazy.py`` holds data stored as int16, as Level 2 files store it, without scaling it
    in memory. ``RawComponent``, a glue ``DaskComponent``, keeps the raw integers (a
    memory map, or an array for a ``.fits.gz`` file) and scales only what a view selects,

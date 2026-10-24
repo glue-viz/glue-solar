@@ -11,8 +11,7 @@ MISSING_VALUES = (-200, -199)
 
 def stack_times(cube_sequence):
     """The UTC acquisition time of every raster step of every scan, as `~numpy.datetime64` of shape (scan, step)."""
-    times = [cube.axis_world_coords("time", wcs=cube.extra_coords)[0] for cube in cube_sequence]
-    return np.stack([time.utc.to_value("datetime64") for time in times])
+    return np.stack([cube.time.utc.to_value("datetime64") for cube in cube_sequence])
 
 
 def stack_wcs(wcses):

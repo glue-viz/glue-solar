@@ -552,16 +552,16 @@ def _dataset(wcs, meta, unit, values, label, *, name, color=None, cmap=None, mis
 
 
 def _cube_data(
-    cube, label, *, name, values=None, unit=None, color=None, cmap=None, missing=MISSING_VALUES, scaling=None
+    cube, label, *, name, values=None, unit=None, wcs=None, color=None, cmap=None, missing=MISSING_VALUES, scaling=None
 ):
     """
     Convert one irispy cube into one Glue dataset (`_dataset`), with its times and exposure times.
 
-    ``values`` and ``unit`` replace the cube's own data and unit.
+    ``values``, ``unit`` and ``wcs`` replace the cube's own data, unit and low-level WCS.
     """
     values, unit = cube.data if values is None else values, cube.unit if unit is None else unit
     data = _dataset(
-        cube.wcs.low_level_wcs,
+        cube.wcs.low_level_wcs if wcs is None else wcs,
         cube.meta,
         unit,
         values,
@@ -585,14 +585,10 @@ def _cube_data(
 
 
 def _frame_times(cube):
-    """UTC time of every step along the leading axis: raster exposures (extra coordinate) or SJI frames (gWCS axis)."""
-    if cube.extra_coords and "time" in cube.extra_coords.keys():
-        times = cube.axis_world_coords("time", wcs=cube.extra_coords)[0]
-    elif "time" in cube.wcs.low_level_wcs.world_axis_physical_types:
-        times = cube.axis_world_coords("time")[0]
-    else:
+    """UTC time of every step along the leading axis, raster exposures or SJI frames (gWCS axis)."""
+    if "time" not in cube.wcs.low_level_wcs.world_axis_physical_types:
         return None
-    return times.utc.to_value("datetime64")
+    return cube.axis_world_coords("time")[0].utc.to_value("datetime64")
 
 
 def _observation_label(meta):
@@ -667,12 +663,18 @@ def _raster_collection_data(collection, stack=False, scaling=None):
         # glue reads the raw int16 scaled to DN, which irispy's unit for them does not say
         unit = DN_UNIT[sequence[0].meta.detector_band] if scaling else None
         cmap = f"irissji{sequence[0].meta.detector_band}"  # sunpy's slit-jaw colormap of its detector, FUV or NUV
+        # glue's coordinates: each raster's FITS -TAB WCS, a world axis a pixel axis, as glue maps them, where irispy's
+        # gWCS adds time and the raster step, which its inverse needs (LM-SAL/irispy#360); taken out of its meta, which
+        # glue's own saver would save in a session without its tables
+        wcses = [scan.fits_wcs for scan in sequence]
+        for scan in sequence:
+            del scan.meta["fits_wcs"]
         if stack and len(sequence) > 1:
             label = _label(name, sequence[0].meta, "stack")
             values = RawStack([scan.data for scan in sequence])  # which checks their shapes
             if not scaling:  # in memory, as irispy's eager read holds each scan
                 values, unit = np.stack(values.scans), sequence[0].unit
-            wcs, meta = stack_wcs([scan.wcs for scan in sequence]), dict(sequence[0].meta)
+            wcs, meta = stack_wcs(wcses), dict(sequence[0].meta)
             data = _dataset(wcs, meta, unit, values, label, name=name, color="#7A617C", cmap=cmap, scaling=scaled)
             # its meta is scan 0's, so exposure times and raster files come per scan
             _add_exposure(data, np.stack([scan.exposure_time.to_value(u.s) for scan in sequence]))
@@ -685,7 +687,9 @@ def _raster_collection_data(collection, stack=False, scaling=None):
             # its file's raster number, which File -> Open, loading a file alone, gives it too
             number = re.search(r"_r(\d{5})", " ".join(scan.meta.get("raster files", ())))
             label = _label(name, scan.meta, f"scan {int(number.group(1)) if number else i}" if several else "")
-            datasets.append(_cube_data(scan, label, name=name, unit=unit, color="#5A4FCF", cmap=cmap, scaling=scaled))
+            datasets.append(
+                _cube_data(scan, label, name=name, unit=unit, wcs=wcses[i], color="#5A4FCF", cmap=cmap, scaling=scaled)
+            )
     return datasets
 
 
@@ -895,9 +899,10 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None,
         if read is None:
             return _raster_windows_data(files, windows, stack, stop, step, lazy=False)
         for window, sequence in read.items():
-            for scan in sequence:
+            rasters = list(sequence)  # each pass makes new cubes
+            for scan in rasters:
                 scan.meta["raster files"] = (Path(path).name,)  # which tell the files of an observation apart
-            scans.setdefault(window, []).extend(sequence)
+            scans.setdefault(window, []).extend(rasters)
         if step is not None:
             step()
     first = files[0]

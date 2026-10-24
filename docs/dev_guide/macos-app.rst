@@ -4,7 +4,7 @@
 Building the macOS app
 ======================
 
-``packaging/macos/`` builds ``Glue Solar.app``: glue with glue-solar, irispy's git main and sunpy on PyQt6, for Apple
+``packaging/macos/`` builds ``Glue Solar.app``: glue with glue-solar, irispy from git and sunpy on PyQt6, for Apple
 silicon, and ``Glue Solar.dmg``, which holds the app beside a link to ``/Applications``. Its spec ``glue_solar.spec``
 and the PyInstaller hooks in ``hooks/``, which add the modules, data files and package metadata PyInstaller misses, are
 adapted from those of `glue-standalone-apps <https://github.com/glue-viz/glue-standalone-apps>`__, glue's own
@@ -30,7 +30,7 @@ checkout as a package, not editable::
         glue-core=1.27.0 astropy=8.0.2 sunpy=8.0.0 ndcube "dask>=2024.7" sunraster dkist gwcs scipy mpl_animators \
         filelock ipykernel "ipython<9" pvextractor plasmapy h5py fortranformat ffmpeg pip
     micromamba run -n glue-solar-app pip install --no-deps glue-qt==0.4.2 \
-        "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@34ff675a3f6920cd2d5773cf38453ccffa1fcd27" \
+        "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@17900bd9a4192c0082f7a60e38c2a844b19def60" \
         "fiasco>=0.5.0"
     micromamba run -n glue-solar-app pip install --no-deps .
 

@@ -35,8 +35,9 @@ dependencies = [
   "reproject>=0.21.0",  # DKIST mosaics' stitched image (D108)
   "scipy>=1.18.1",
   "sunpy[map,net]>=8.0.1",
-  # irispy main at a commit glue-solar is tested with, while irispy changes in a batch (D91); a PR moves it after
-  "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@34ff675a3f6920cd2d5773cf38453ccffa1fcd27",
+  # irispy at a commit glue-solar is tested with, while irispy changes in a batch (D91): 17900bd, the head of its gWCS
+  # port, LM-SAL/irispy#360; a PR moves it after
+  "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@17900bd9a4192c0082f7a60e38c2a844b19def60",
 ]
 dynamic = ["version"]
 keywords = ["solar physics", "solar", "science", "sun", "visualization", "coordinates", "glueviz"]

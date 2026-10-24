@@ -46,9 +46,9 @@ def assert_irispys(labels, table, direct, events):
     np.testing.assert_array_equal(labels["label"], direct.data)
     assert table.size == len(events)
     for name, column in events.columns.items():
-        if name == "coordinate":
-            np.testing.assert_array_equal(table["coordinate.Tx"], column.Tx.to_value(u.arcsec))
-            np.testing.assert_array_equal(table["coordinate.Ty"], column.Ty.to_value(u.arcsec))
+        if name == "coordinate":  # glue's through irispy's FITS -TAB WCS, irispy's through its gWCS
+            np.testing.assert_allclose(table["coordinate.Tx"], column.Tx.to_value(u.arcsec), rtol=0, atol=1e-6)
+            np.testing.assert_allclose(table["coordinate.Ty"], column.Ty.to_value(u.arcsec), rtol=0, atol=1e-6)
         elif name == "time":
             np.testing.assert_array_equal(table["time"], column.utc.to_value("datetime64"))
         else:
@@ -69,7 +69,7 @@ def test_a_raster_window_gives_irispys_labels_and_events_linked_and_the_labels_i
     [[viewer]] = app.viewers  # glue's Image viewer of the labels, none of the table (D83)
     assert viewer.state.layers[0].attribute is labels.main_components[0]
     cube = read_spectrograph_lvl2(path)["Si IV 1403"][0]
-    direct, events = find_si_iv_bursts(cube, threshold=80)
+    direct, events = find_si_iv_bursts(cube, threshold=80 * u.DN / u.s)
     assert_irispys(labels, table, direct, events)
     assert (labels.label, table.label) == (f"{raster.label} bursts", f"{raster.label} burst events")
     assert labels.meta == {
@@ -91,7 +91,9 @@ def test_a_raster_window_gives_irispys_labels_and_events_linked_and_the_labels_i
     answer(monkeypatch, threshold="80", velocity_range=30.0, median_factor=0.0)
     labels, table = run(app, qtbot, raster, 6)
     assert (labels.meta["bursts_velocity_range"], labels.meta["bursts_median_factor"]) == (30.0, None)
-    direct, events = find_si_iv_bursts(cube, threshold=80, velocity_range=30 * u.km / u.s, median_factor=None)
+    direct, events = find_si_iv_bursts(
+        cube, threshold=80 * u.DN / u.s, velocity_range=(-30, 30) * u.km / u.s, median_factor=None
+    )
     assert_irispys(labels, table, direct, events)
     # 'IRIS: shift pointing…' moves the table's coordinates as the map's
     raster.coords.pointing_offset = (5.0, -3.0)
@@ -290,7 +292,7 @@ def test_a_full_si_iv_window_and_slit_jaw_image_give_irispys_bursts(irispy_data)
     """4000005156's full Si IV 1403 and the first 50 full-size frames of 4000255147's SJI 1400, both lazy."""
     path = irispy_data("iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz")
     [raster] = raster_data([path])
-    direct = find_si_iv_bursts(read_spectrograph_lvl2(path)["Si IV 1403"][0], threshold=80)
+    direct = find_si_iv_bursts(read_spectrograph_lvl2(path)["Si IV 1403"][0], threshold=80 * u.DN / u.s)
     assert_irispys(*si_iv_bursts(raster, threshold=80), *direct)
     path = irispy_data("iris_l2_20130902_163935_4000255147_SJI_1400_t000_f050.fits.gz")
     assert_irispys(*sji_bursts(image_data(path)), *find_bright_image_events(read_sji_lvl2(path)))

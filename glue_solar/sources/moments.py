@@ -158,7 +158,7 @@ def _cube(data, values, rows, wavelengths, unit, saturated, sigma=None, shift=0)
         view = ResampledLowLevelWCS(view, 1, (shift, 0, 0))
     uncertainty = None if sigma is None else StdDevUncertainty(sigma)
     mask = np.isnan(values) | np.isneginf(values) | saturated
-    return SpectrogramCube(values, view, uncertainty, unit, mask=mask, meta={"saturated": saturated})
+    return SpectrogramCube(values, view, uncertainty=uncertainty, unit=unit, mask=mask, meta={"saturated": saturated})
 
 
 def _slab_rows(data, crop, factor=1):

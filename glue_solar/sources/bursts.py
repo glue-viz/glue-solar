@@ -123,8 +123,14 @@ def _si_iv_bursts(data, crop, threshold, velocity_range, median_factor):
             meta=meta.slice[rows[len(scan) :]],  # irispy's, with each step's exposure time
         )
         cube.extra_coords.add("time", 0, times, physical_types="time")
+        # its time in its WCS too, as in irispy's gWCS: irispy takes the events' SkyCoord out of the list of world
+        # objects that gives, not out of a FITS WCS's lone SkyCoord (LM-SAL/irispy#360)
+        cube = SpectrogramCube(values, cube.combined_wcs, unit=cube.unit, mask=cube.mask, meta=cube.meta)
         found, events = find_si_iv_bursts(
-            cube, threshold=threshold, velocity_range=velocity_range * u.km / u.s, median_factor=median_factor
+            cube,
+            threshold=None if threshold is None else threshold * u.DN / u.s,  # the cube's DN, as irispy reads u.DN
+            velocity_range=(-velocity_range, velocity_range) * u.km / u.s,
+            median_factor=median_factor,
         )
         # numbered on through the scans, as irispy numbers a sequence's
         count = sum(len(table) for table in tables)

@@ -214,7 +214,7 @@ def _write_raster(path, obsid, start):
     windows = [_window_hdu(start, primary.header[f"TWAVE{i}"], xcen, ycen) for i in (1, 2)]
     aux = _aux_hdu(
         ("TIME", "PZTX", "PZTY", "EXPTIMEF", "EXPTIMEN", "OBS_VRIX",
-         "OPHASEIX", "XCENIX", "YCENIX", "PC2_2IX", "PC3_2IX"),
+         "OPHASEIX", "XCENIX", "YCENIX", "PC2_2IX", "PC2_3IX", "PC3_2IX", "PC3_3IX"),
         {
             "TIME": np.arange(N_EXPOSURES) * 3600.0,
             "EXPTIMEF": 2.0,
@@ -222,6 +222,7 @@ def _write_raster(path, obsid, start):
             "XCENIX": xcen,
             "YCENIX": ycen,
             "PC2_2IX": 1.0,
+            "PC3_3IX": 1.0,  # irispy's raster gWCS takes each exposure's whole PC matrix (LM-SAL/irispy#360)
         },
     )
     source = _source_filename_hdu(start, "NUVfilename")
