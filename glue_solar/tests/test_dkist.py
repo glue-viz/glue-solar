@@ -697,11 +697,14 @@ def test_dkist_data_observed_together_over_part_of_their_times_link(tmp_path):
     with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
         tile = load_data(str(path))[4]
     # a copy of the tile, its frames three times as far apart: the tile's frames lie within its first third, and its
-    # middle past the tile's last, where the link test, at each one's middle pixel only, refused them (D103)
-    dataset = dkist.load_dataset(path)[1, 1]
-    temporal = dataset.wcs.forward_transform.right
-    temporal.slope = 3 * temporal.slope
-    WCSLink(tile, _data(dataset, "VBI AJQWW (1, 1) longer"))
+    # middle past the tile's last, where the link test, at each one's middle pixel only, refused them; and one of frames
+    # a tenth as far apart from 0.3 of the tile's span, all between the tile's, where it tried forwards at the tile's
+    # pixels only (D103)
+    for scale, start in ((3, 0), (0.1, 0.6)):
+        dataset = dkist.load_dataset(path)[1, 1]
+        temporal = dataset.wcs.forward_transform.right
+        temporal.slope, temporal.intercept = scale * temporal.slope, start * temporal.slope * u.pix
+        WCSLink(tile, _data(dataset, f"VBI AJQWW (1, 1) x{scale}"))
 
 
 def test_raveled_dkist_data_starting_later_draw_over_each_other(app, tmp_path):

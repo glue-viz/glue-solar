@@ -823,8 +823,8 @@ def wcs_link_init(self, data1=None, data2=None, cids1=None, cids2=None):
     """
     glue's ``WCSLink.__init__``, with its general path by APE-14 alone where glue's needs an astropy WCS: the physical
     types both datasets have, through the pixel axes of each along which only those vary, the others at pixel 0, fewer
-    types until both keep the same ones; tried at each one's middle, first or last pixel with as many values as each
-    takes, where glue gives the second as many as the first, at pixel 0.
+    types until both keep the same ones; tried there and back from either one's middle, first or last pixel with as
+    many values as each takes, where glue tries each way at pixel 0 and gives the second as many as the first.
     """
     pair, sliced = (data1, data2), None
     # glue's only where both say whether they have celestial axes: it reads the second's only where the first has
@@ -858,15 +858,19 @@ def wcs_link_init(self, data1=None, data2=None, cids1=None, cids2=None):
     def backwards(*pixel):
         return pixel_to_pixel(wcs2, wcs1, *pixel)
 
-    # tried at each one's middle, first or last pixel, one of which data observed together share in time, where pixel
-    # 0's time can be outside the other's (a VBI mosaic's tiles start seconds apart) and the middle's too (a VBI burst
-    # in part of a longer ViSP map); dkist's inverse raising outside its times, as it did before `GlueWCS` gave NaN
-    # there, so data of other times stay unlinked (D103)
-    def passes(function, data, kept):
+    # tried there and back from one's middle, first or last pixel, either one's: data observed together over part of
+    # their times share one's first or last time at least, where pixel 0's time can be outside the other's (a VBI
+    # mosaic's tiles start seconds apart) and the middle's too (a VBI burst in part of a longer ViSP map); dkist's
+    # inverse raising outside its times, as it did before `GlueWCS` gave NaN there, so data of other times stay
+    # unlinked (D103)
+    def passes(there, back, data, kept):
         sizes = [data.shape[data.ndim - 1 - p] for p in kept]
         for pixel in ([n // 2 for n in sizes], [0] * len(sizes), [n - 1 for n in sizes]):
             try:
-                function(*pixel)
+                found = np.atleast_1d(there(*pixel))
+                if not np.isfinite(found).all():
+                    continue
+                back(*found)
             except Exception:  # noqa: BLE001 - glue's test: any failure
                 continue
             return True
@@ -874,7 +878,7 @@ def wcs_link_init(self, data1=None, data2=None, cids1=None, cids2=None):
 
     strict = STRICT_INVERSE.set(True)
     try:
-        linked = passes(forwards, data1, axes[0]) and passes(backwards, data2, axes[1])
+        linked = passes(forwards, backwards, data1, axes[0]) or passes(backwards, forwards, data2, axes[1])
     finally:
         STRICT_INVERSE.reset(strict)
     if not linked:
