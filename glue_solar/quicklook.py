@@ -59,7 +59,7 @@ from qtpy.QtWidgets import (
 
 import astropy.units as u
 
-from glue_solar.sources.dkist import _held_axes
+from glue_solar.sources.dkist import _held_axes, _slit, _SlitAt
 from glue_solar.sources.loaders.iris import _HPC, keep_hpc_linked
 from glue_solar.sources.loaders.scan import _observation
 
@@ -718,7 +718,10 @@ class Coordinator(HubListener):
         world = data.coords.pixel_to_world_values(*[s.start or 0 for s in state.slices][::-1])
         units = data.coords.world_axis_units
         sun = [u.Quantity(world[axis], units[axis]) for axis in place[0]]
-        lon = data.world_component_ids[len(units) - 1 - place[0][0]]
+        # longitude, else latitude: a sit-and-stare raster's slit along latitude leaves longitude no axis (`_glue_order`)
+        lon = next((data.world_component_ids[i] for i in (len(units) - 1 - k for k in place[0]) if i < data.ndim), None)
+        if lon is None:
+            return
         with self._writing():
             for group in self._owners if groups is None else groups:
                 point = group.subset_state
@@ -733,6 +736,16 @@ class Coordinator(HubListener):
                 for axis, at in zip(axes, sun, strict=True):
                     values[axis] = at.to_value(other.coords.world_axis_units[axis])
                 pixel = np.asarray(other.coords.world_to_pixel_values(*values), float)[::-1]
+                # a scanning DKIST raster's step, not `spatial` as its time varies along it too: that whose slit passes
+                # nearest the place, and the slit pixel level with it, as an IRIS point reaches it (`_SlitAt`, D102)
+                kinds = other.coords.world_axis_physical_types
+                steps = [a for a in range(other.ndim) if a not in spatial and kinds[len(kinds) - 1 - a] in _HPC]
+                raster = _slit(other, steps[0]) if len(steps) == 1 else None
+                if raster is not None:
+                    slit, starts, pixels = raster
+                    there = [values[axis] for axis in axes]
+                    pixel[steps[0]], pixel[slit] = (_SlitAt(starts, pixels, along)(*there) for along in (False, True))
+                    spatial = [*steps, *spatial]
                 slices = list(point.slices)
                 for axis in spatial:
                     index = round(pixel[axis]) if np.isfinite(pixel[axis]) else -1
