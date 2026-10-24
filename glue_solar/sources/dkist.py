@@ -285,11 +285,22 @@ def _section(path, target, key):
         file = _OPEN.pop(path, None) or _Open(path)
         _OPEN[path] = file
         closed = [_OPEN.popitem(last=False)[1] for _ in range(len(_OPEN) - OPEN_FILES)]
-    for old in closed:
+    _shut(closed)
+    return file.read(target, key)
+
+
+def _close(paths):
+    """Close the kept files at ``paths``, as their dataset leaves glue (`_Recenter`)."""
+    with _OPEN_LOCK:
+        closed = [_OPEN.pop(path) for path in paths if path in _OPEN]
+    _shut(closed)
+
+
+def _shut(files):
+    for old in files:
         with old.lock:
             old.kept = False
             old.close()
-    return file.read(target, key)
 
 
 class _Files:
@@ -741,6 +752,8 @@ class _Recenter(HubListener):
     def _removed(self, message):
         if message.data is not self.tile:
             return
+        if self.tile._files is not None:  # its kept files closed, not held until glue quits (user, 2026-10-23)
+            _close(set(self.tile._files.paths.flat))
         collection = message.sender
         tiles = [data for data in collection if getattr(data, "_center", None) is self.tile]
         ends = [(link.data1, link.data2) for link in collection.external_links if isinstance(link, WCSLink)]

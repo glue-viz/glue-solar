@@ -459,6 +459,21 @@ def test_a_dkist_dataset_reads_its_views_from_its_files_kept_open(tmp_path, monk
     assert opened == ["2.fits", "0.fits"]
 
 
+@small_visp_dated_2044
+def test_a_removed_dkist_dataset_closes_its_files_kept_open(tmp_path):
+    from glue_solar.sources.dkist import _OPEN
+
+    shutil.copytree(small_visp().parent, tmp_path, dirs_exist_ok=True)
+    data = load_data(str(tmp_path / "test_visp.asdf"))
+    collection = DataCollection([data])
+    data.get_data(data.main_components[0], view=(slice(None), 0))
+    paths = {str(tmp_path / f"{i}.fits") for i in range(3)}
+    assert paths <= set(_OPEN)
+    # as it leaves glue, not when glue quits (user, 2026-10-23)
+    collection.remove(data)
+    assert not paths & set(_OPEN)
+
+
 def test_dkist_data_keep_up_to_4096_files_open_raising_the_open_file_soft_limit(monkeypatch):
     from glue_solar.sources.dkist import OPEN_FILES, _open_files
 
