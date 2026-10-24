@@ -1,0 +1,1 @@
+'Quicklook…' on a ViSP or Cryo-NIRSP spectrograph dataset shows the context imager observed with it, if loaded (VBI with every tile of a mosaic, or Cryo-NIRSP's context imager), with the raster's slit and point drawn on it; its frame follows the raster's step in time, and the step follows its frame while the imager leads the time.

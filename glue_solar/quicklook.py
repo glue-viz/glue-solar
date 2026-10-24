@@ -59,7 +59,17 @@ from qtpy.QtWidgets import (
 
 import astropy.units as u
 
-from glue_solar.sources.dkist import _held_axes, _slit, _SlitAt
+from glue_solar.sources.dkist import (
+    DKISTData,
+    _context_imager,
+    _frame_axis,
+    _held_axes,
+    _held_names,
+    _slit,
+    _SlitAt,
+    _SlitPlace,
+    _time_axes,
+)
 from glue_solar.sources.loaders.iris import _HPC, keep_hpc_linked
 from glue_solar.sources.loaders.scan import _observation
 
@@ -88,8 +98,11 @@ def observation_key(data):
     The OBSID alone names an observing program, which runs many times, so both are needed. An SST cube's is that of the
     IRIS observation it is linked to (`~glue_solar.sources.loaders.iris.link_hpc`), else the one it shares with the SST
     cubes whose scan times overlap, or lie within a cadence of, its own (`Coordinator`), or before its collection has a
-    coordinator ``('SST', DATE-OBS)``.
+    coordinator ``('SST', DATE-OBS)``. A DKIST spectrograph's dataset and its context imager's share ``('DKIST', their
+    observing program execution)`` once their collection has a coordinator, and other DKIST datasets have none (D105).
     """
+    if isinstance(data, DKISTData):
+        return vars(data).get("_solar_time_key")
     meta = getattr(data, "meta", None) or {}
     obsid, start = meta.get("OBSID"), meta.get("STARTOBS")
     if _role(data) == "sst":
@@ -167,6 +180,24 @@ def _sji_pixels(sji, frame, lon, lat):
     return x, y
 
 
+def _frame_pixels(data, at, lon, lat):
+    """
+    The pixels, (x, y) along its last two axes, of ``data``'s frame at the numpy-ordered ``at``, such as a DKIST context
+    image's, at helioprojective ``lon`` and ``lat`` (arcsec): as `_sji_pixels`, at that frame's time and other axes.
+    """
+    types = list(data.coords.world_axis_physical_types)
+    world = list(data.coords.pixel_to_world_values(*at[::-1]))
+    for kind, angle in zip(_HPC, (lon, lat)):
+        world[types.index(kind)] = angle
+    x, y, *_ = data.coords.world_to_pixel_values(*np.broadcast_arrays(*world))
+    return x, y
+
+
+def _frame_index(state):
+    """The numpy-ordered pixel of an Image viewer state's sliders, a collapse at its center."""
+    return [int(getattr(s, "center", s)) for s in state.slices]
+
+
 def sji_to_raster(sji, frame, x, y, raster):
     """
     The pixel of ``raster`` under pixel ``x, y`` of the slit-jaw image ``sji``'s frame ``frame``, placed with that
@@ -224,8 +255,10 @@ def sji_to_raster(sji, frame, x, y, raster):
 def _time_axis(data):
     """
     The axis along which ``data`` steps through time (frames, exposures or scans), or None for a scanning raster, whose
-    steps are places on the Sun.
+    steps are places on the Sun; a DKIST pair's frames or raster steps (`_frame_axis`, D105).
     """
+    if _dkist(data):
+        return _frame_axis(data)
     role = _role(data)
     if role in ("sji", "aia", "sst") or (role == "raster" and (data.ndim == 4 or _is_sit_and_stare(data))):
         return 0
@@ -233,21 +266,29 @@ def _time_axis(data):
 
 
 def _timed(data):
-    """Whether ``data`` takes part in time sync: an IRIS dataset, aligned AIA cutout or SST cube with times."""
-    return _role(data) in ("raster", "sji", "aia", "sst") and data.find_component_id("Time") is not None
+    """
+    Whether ``data`` takes part in time sync: an IRIS dataset, aligned AIA cutout, SST cube or DKIST dataset of a pair
+    (`_dkist`) with times.
+    """
+    timed = _role(data) in ("raster", "sji", "aia", "sst") or _dkist(data)
+    return bool(timed) and data.find_component_id("Time") is not None
 
 
 def _times(data, step):
     """
     The 1-D times of ``data``: per frame, exposure or step, per scan at raster step ``step`` of a stack, or per scan of
-    an SST cube at its line core, as `~glue_solar.sources.loaders.iris.link_hpc` times them.
+    an SST cube at its line core, as `~glue_solar.sources.loaders.iris.link_hpc` times them; a DKIST pair's along its
+    frames or steps, at ``step``'s (axis, index) pairs, such as its repeat's (`Coordinator._timing`).
     """
     index = [0] * data.ndim
-    index[0] = slice(None)
+    index[_time_axis(data) or 0] = slice(None)  # a DKIST pair's at its other axes' first pixels, but ``step``'s
     if _role(data) == "sst":
         index[-3] = data.coords.core  # its tuning (`glue_solar.sources.sst.sst_data`)
-    elif data.ndim == 4:
+    elif data.ndim == 4 and _role(data) == "raster":
         index[1] = step
+    elif _dkist(data):
+        for axis, at in step or ():
+            index[axis] = at
     return data[data.find_component_id("Time"), tuple(index)]
 
 
@@ -324,7 +365,8 @@ class Coordinator(HubListener):
     its point to the raster there (`_to_raster`). A datetime Scatter plot shows the time master's
     exposure (`_mark`). Each data collection has one coordinator (`coordinator`), and the
     ``solar:coordinate`` tool registers every Image viewer with it. It gives the SST cubes their time keys as they come
-    and go (`_share_times`).
+    and go (`_share_times`), and a DKIST spectrograph's raster and its context imager theirs, which then follow each
+    other in time as IRIS's raster and slit-jaw images, the imager showing the raster's slit and point (D105).
     """
 
     def __init__(self, data_collection):
@@ -339,6 +381,8 @@ class Coordinator(HubListener):
         self._shows = {}  # registered viewer -> the reference data its sliders were last set for
         self._owners = {}  # a quicklook's point group -> the viewers it drives
         self._placed = (None, None)  # point_on's last (raster, pixel, slit-jaw, frame) and answer
+        self._tiles = (None, None)  # tile_on's last (point_on's key, tiles) and answer
+        self._slits = {}  # (DKIST raster, its indices the slit moves along) -> its slit table (`_slit_table`)
         self.overlays = set()  # the observation keys whose raster overlays show (`footprint_on`, `step_on`)
         self._footprint = (None, None)  # footprint_on's last (raster, scan, slit-jaw) and answer
         self._before = {}  # point group -> its last state other than a slit-jaw point (see _to_raster)
@@ -383,7 +427,7 @@ class Coordinator(HubListener):
                 for item in items
             )
 
-        for cache in (self.masters, self._master_times, self._steps, self._pairs, self._before):
+        for cache in (self.masters, self._master_times, self._steps, self._pairs, self._before, self._slits):
             for key in [key for key, value in cache.items() if names(key) or names(value)]:
                 del cache[key]
         for group in self._owners:
@@ -391,14 +435,25 @@ class Coordinator(HubListener):
                 group.subset_state = SubsetState()
         if names(self._kept) or names(self._outside):
             self._kept, self._outside = (None, None, None, None), (None, None)
-        self._placed = self._footprint = (None, None)
+        self._placed = self._footprint = self._tiles = (None, None)
         self._share_times()
 
     def _share_times(self, *_):
         """
         Give each SST cube its time key (`observation_key`): cubes whose scan times overlap or lie within the larger
         cadence of each other share ``('SST', their first time)``, so co-temporal CRISP and CHROMIS share one (253-2).
+        A DKIST spectrograph's dataset and its context imager's tiles observed with it (`_context_imager`) share
+        ``('DKIST', their observing program execution)``, and other DKIST datasets have none (D105).
         """
+        dkist = [data for data in self.data_collection if isinstance(data, DKISTData)]
+        keys = {}
+        for raster in dkist:
+            imager = _context_imager(raster, self.data_collection)
+            if imager is not None:
+                for data in [raster, imager, *(tile for tile in imager._mosaic if tile in self.data_collection)]:
+                    keys[data] = ("DKIST", raster._observed[1])
+        for data in dkist:
+            data._solar_time_key = keys.get(data)
         spans = []
         for data in self.data_collection:
             if _role(data) == "sst" and _timed(data):
@@ -445,8 +500,10 @@ class Coordinator(HubListener):
                 self._timer.start()  # and the time master
                 return
             self._move_point(viewer)
-            # a master's time is along its first axis, or at the point, which _move_point follows
-            moved = (old or ())[:1] != (new or ())[:1]
+            # a master's time is along its first axis, a DKIST pair's along its time axis, or at the point, which
+            # _move_point follows
+            axis = _time_axis(data) or 0
+            moved = (old or ())[axis : axis + 1] != (new or ())[axis : axis + 1]
             if moved and not self._busy and self._master(observation_key(data)) is data:
                 self._timer.start()  # the time master moved
 
@@ -565,7 +622,7 @@ class Coordinator(HubListener):
         if _role(data) == "raster" and data.ndim == 3:
             self._steps[data] = index  # its time without a point, unless a sit-and-stare's exposure slider gives it
         with self._writing():
-            self._move_in_time(data, 0, index, self._master_viewers(data))
+            self._move_in_time(data, _time_axis(data) or 0, index, self._master_viewers(data))
         self._timer.start()
 
     @contextmanager
@@ -601,7 +658,8 @@ class Coordinator(HubListener):
     def _subset_changed(self, message):
         subset = message.subset
         state = subset.subset_state
-        if _role(getattr(state, "reference_data", None)) != "sji":
+        on = getattr(state, "reference_data", None)
+        if _role(on) != "sji" and _dkist(on) != "imager":  # a click on a slit-jaw image or DKIST context image aside
             self._before[getattr(subset, "group", None)] = state
         if getattr(subset, "group", None) is self.group and not isinstance(state, PixelSubsetState):
             self._timer.start()  # another selection replaced the point: readouts follow
@@ -622,9 +680,9 @@ class Coordinator(HubListener):
         # an Undo or Redo back to a slit-jaw click's point: under a raster master, its viewer back to the frame clicked
         sji, clicked, viewer, frame = self._kept
         master = self._master(observation_key(state.reference_data))
-        if state is clicked and viewer.state.reference_data is sji and _role(master) == "raster":
+        if state is clicked and viewer.state.reference_data is sji and "raster" in (_role(master), _dkist(master)):
             with self._writing():
-                self._set_slices(viewer, {0: frame})
+                self._set_slices(viewer, {_time_axis(sji) or 0: frame})
         if self._drag:
             self._timer.start()
             return
@@ -767,6 +825,9 @@ class Coordinator(HubListener):
         """
         sji, owners = state.reference_data, self._owners.get(self.group, ())
         clicked = {axis for axis, s in enumerate(state.slices) if s.start is not None}
+        if _dkist(sji) == "imager" and clicked == {sji.ndim - 2, sji.ndim - 1}:
+            self._to_dkist_raster(state, owners)
+            return
         if _role(sji) != "sji" or clicked != {1, 2} or not _placeable(sji):
             return
         rasters = [viewer.state.reference_data for viewer in self._viewers if viewer in owners]
@@ -785,6 +846,60 @@ class Coordinator(HubListener):
         # without a point the sliders keep driving the time
         self._kept = (sji, self.point, viewer, _sji_frame(viewer.state))
         self._outside = (viewer if index is None else None, self.group.subset_state)
+
+    def _to_dkist_raster(self, state, owners):
+        """
+        As `_to_raster`, a click on a quicklook's DKIST context image (D105): the point of its raster at the step whose
+        slit passes nearest the place clicked, and the slit pixel level with it (`_SlitAt`), at the raster's sliders.
+        """
+        imager = state.reference_data
+        rasters = [viewer.state.reference_data for viewer in self._viewers if viewer in owners]
+        key = observation_key(imager)
+        raster = next((data for data in rasters if _dkist(data) == "raster" and observation_key(data) == key), None)
+        frame = {imager.ndim - 2, imager.ndim - 1}
+        viewers = [viewer for viewer in self._viewers_of(imager) if _shown(viewer.state) == frame]
+        viewer = next((v for v in viewers if _pixel_tool_on(v)), viewers[0] if viewers else None)
+        table = None if raster is None else self._slit_table(raster)
+        if table is None or viewer is None:
+            return
+        at = _frame_index(viewer.state)
+        at[-2:] = state.slices[-2].start, state.slices[-1].start
+        slit, starts, pixels = table
+        step, along = (np.round(_SlitAt(starts, pixels, kind)(*_lon_lat(imager, at))) for kind in (False, True))
+        index = [self._index(raster, axis) for axis in range(raster.ndim)]
+        index[_time_axis(raster)], index[slit] = step, along
+        inside = 0 <= step < len(starts) and 0 <= along < raster.shape[slit]  # NaN off the raster never is
+        with self._writing():  # within glue's undo step for the click, which restores the point before it
+            if inside:
+                slices = [slice(int(i), int(i) + 1) for i in index]
+                for axis in _spectral_axes(raster):
+                    slices[axis] = slice(None)
+                self.group.subset_state = PixelSubsetState(raster, slices)
+            else:
+                self.group.subset_state = self._before.get(self.group, SubsetState())
+        self._kept = (imager, self.point, viewer, at[_time_axis(imager)])
+        self._outside = (None if inside else viewer, self.group.subset_state)
+
+    def _slit_table(self, raster):
+        """
+        The per-step slit table (`_slit`) of ``raster``, a DKIST raster of a pair, at the point's indices, or its
+        sliders', along the axes but its steps and slit along which its pointing moves too, such as Cryo-NIRSP's
+        measurements, kept (D105).
+        """
+        types = list(raster.coords.world_axis_physical_types)
+        moves = np.asarray(raster.coords.axis_correlation_matrix)[[types.index(kind) for kind in _HPC]].any(axis=0)
+        at = {axis: self._index(raster, axis) for axis in _held_axes(raster) if moves[raster.ndim - 1 - axis]}
+        key = (raster, tuple(sorted(at.items())))
+        if key not in self._slits:
+            self._slits[key] = _slit(raster, _time_axis(raster), at)
+        return self._slits[key]
+
+    def _index(self, data, axis):
+        """The index of the point on ``data`` along ``axis``, else of its slider (`_slider`)."""
+        point = self.point
+        if point is not None and point.reference_data is data and point.slices[axis].start is not None:
+            return point.slices[axis].start
+        return self._slider(data, axis)
 
     def outside_raster(self, viewer):
         """Whether the last click on the slit-jaw ``viewer`` fell outside the raster, while the point is as it left it."""
@@ -845,10 +960,11 @@ class Coordinator(HubListener):
         if chosen is not None and chosen in datasets:
             return chosen
         point = self.point
-        if point is not None and point.reference_data in datasets and _role(point.reference_data) in ("raster", "sst"):
-            return point.reference_data
+        on = getattr(point, "reference_data", None)
+        if on in datasets and (_role(on) in ("raster", "sst") or _dkist(on) == "raster"):
+            return on
         # else a raster of the followed point's viewers, as after Clear point, not one of a hidden tab
-        rasters = [data for data in datasets if _role(data) == "raster"]
+        rasters = [data for data in datasets if "raster" in (_role(data), _dkist(data))]
         rasters += [data for data in datasets if _role(data) == "sst"]
         followed = {viewer.state.reference_data for viewer in self._viewers if self._follows(viewer)}
         return next((data for data in rasters if data in followed), next(iter(rasters), None))
@@ -865,9 +981,13 @@ class Coordinator(HubListener):
     def _timing(self, data):
         """
         The index of ``data``'s time along its first axis and, for a raster, its timing step: the point's step, or the
-        one it had when the point left (mid-raster before any), the sliders giving the rest (D22).
+        one it had when the point left (mid-raster before any), the sliders giving the rest (D22); for a DKIST pair's,
+        the (axis, index) pairs of its other axes its time varies along, such as its repeat (D105).
         """
         point = self.point
+        if _dkist(data):  # a DKIST pair's at the point's raster step, repeat and measurement, else its sliders' (D105)
+            held = sorted(_time_axes(data) & _held_axes(data))
+            return self._index(data, _time_axis(data)), tuple((axis, self._index(data, axis)) for axis in held)
         if _role(data) != "raster":
             return self._slider(data, 0), None
         step_axis = data.ndim - 3
@@ -901,9 +1021,10 @@ class Coordinator(HubListener):
 
     def _pair(self, master, follower, master_step, follower_step):
         """nearest() of every master time among the follower's, cached per pair."""
-        # only a stack's times depend on the raster step; keyed by the datasets, as a freed one's id() can be reused
-        key = (master, follower, master_step if master.ndim == 4 else None)
-        key += (follower_step if follower.ndim == 4 else None,)
+        # only a stack's times depend on the raster step, and a DKIST pair's on its repeat and measurement (D105); keyed
+        # by the datasets, as a freed one's id() can be reused
+        key = (master, follower, master_step if master.ndim == 4 or _dkist(master) else None)
+        key += (follower_step if follower.ndim == 4 or _dkist(follower) else None,)
         if key not in self._pairs:
             self._pairs[key] = nearest(_times(master, master_step), _times(follower, follower_step))
         return self._pairs[key]
@@ -915,7 +1036,8 @@ class Coordinator(HubListener):
         slit-jaw image clicked while the point is the click's and a raster the master.
         """
         kept, clicked, *_ = self._kept
-        if data is kept and _role(master) == "raster" and getattr(self.group, "subset_state", None) is clicked:
+        raster = "raster" in (_role(master), _dkist(master))
+        if data is kept and raster and getattr(self.group, "subset_state", None) is clicked:
             return None  # a slit-jaw master rules, and once the point moves the image clicked follows it
         follower_step = self._timing(data)[1]
         nearest_index, offset = (value[index] for value in self._pair(master, data, step, follower_step))
@@ -941,6 +1063,15 @@ class Coordinator(HubListener):
         master = self._master(key)
         if master is None:
             return
+        with self._writing():
+            for data in self._datasets(key):
+                if _dkist(data) == "imager" and (raster := self._dkist_raster(data)) is not None:
+                    # a DKIST context image at its raster's Stokes parameter and measurement, its sliders', before its
+                    # measurement times it (`_timing`, D105)
+                    given = _held_names(raster)
+                    at = {axis: given[name] for name, axis in _held_names(data).items() if name in given}
+                    for viewer in self._viewers_of(data):
+                        self._set_slices(viewer, {axis: self._index(raster, other) for axis, other in at.items()})
         index, step = self._timing(master)
         times = _times(master, step)
         index = min(max(index, 0), len(times) - 1)
@@ -959,8 +1090,8 @@ class Coordinator(HubListener):
         seconds = None
         if exposure is not None:
             view = [0] * master.ndim
-            view[0] = index
-            if master.ndim == 4:
+            view[_time_axis(master) or 0] = index
+            if master.ndim == 4 and _role(master) == "raster":
                 view[1] = step
             seconds = float(master[exposure, tuple(view)])
         self._mark(key, times[index], seconds)
@@ -1015,7 +1146,7 @@ class Coordinator(HubListener):
         if master is None or master is not self._master(key) or not _timed(data):
             return None
         if data is master:
-            return ("master", step)
+            return ("master", None if _dkist(data) else step)  # a DKIST pair's holds its repeat, not a raster step
         follower_step = self._timing(data)[1]
         times = _times(data, follower_step)
         margin = _half_cadence(times)
@@ -1031,12 +1162,32 @@ class Coordinator(HubListener):
             offset = times[int(getattr(state.slices[axis], "center", state.slices[axis]))] - when
         return ("match" if abs(offset) <= margin else "no match", offset)
 
+    def _dkist_raster(self, imager):
+        """The DKIST raster of ``imager``'s pair shown (D105): the point's, else the time master, else the first."""
+        rasters = [data for data in self._datasets(observation_key(imager)) if _dkist(data) == "raster"]
+        for data in (getattr(self.point, "reference_data", None), self._master(observation_key(imager))):
+            if data in rasters:
+                return data
+        return next(iter(rasters), None)
+
     def point_on(self, viewer):
         """
         Where the point of a raster of the same observation falls in ``viewer``'s slit-jaw frame, as
-        (x, y) pixels projected through that frame's own coordinates, or None.
+        (x, y) pixels projected through that frame's own coordinates, or None; a DKIST raster's in its context image's
+        frame, beside it too (`tile_on`, D105).
         """
         point, sji = self.point, viewer.state.reference_data
+        if point is not None and _dkist(sji) == "imager":
+            raster, state = point.reference_data, viewer.state
+            frame = len(state.slices) == sji.ndim and _shown(state) == {sji.ndim - 2, sji.ndim - 1}
+            if _dkist(raster) != "raster" or observation_key(raster) != observation_key(sji) or not frame:
+                return None
+            pixel, at = [s.start if s.start is not None else 0 for s in point.slices], _frame_index(state)
+            key = (raster, pixel, sji, at)
+            if self._placed[0] != key:
+                x, y = _frame_pixels(sji, at, *_lon_lat(raster, pixel))
+                self._placed = (key, (float(x), float(y)))
+            return self._placed[1]
         if point is None or sji is None or _role(sji) != "sji" or _role(point.reference_data) != "raster":
             return None
         frame = _sji_frame(viewer.state)
@@ -1099,15 +1250,62 @@ class Coordinator(HubListener):
         [index], [offset] = nearest([when], times)
         return int(index) if abs(offset) <= _half_cadence(times) else None
 
-    @staticmethod
-    def slit_on(viewer):
-        """The slit's x pixel in ``viewer``'s slit-jaw frame, or None where the frame gives none (-1 or NaN)."""
-        sji = viewer.state.reference_data
-        frame = _sji_frame(viewer.state)
+    def tile_on(self, viewer):
+        """
+        The dataset of ``viewer``'s DKIST context image, or a tile of its mosaic drawn there, that the point falls on,
+        and the point's pixel in it at its frame nearest the shown frame's time, numpy-ordered; None off them (D105).
+        """
+        where, imager = self.point_on(viewer), viewer.state.reference_data
+        if where is None or _dkist(imager) != "imager":
+            return None
+        tiles = [layer.state.layer for layer in viewer.layers if layer.enabled and layer.state.layer in imager._mosaic]
+        key = (self._placed[0], tiles)
+        if self._tiles[0] != key:
+            found, (_, pixel, _, at) = None, self._placed[0]
+            axis = _time_axis(imager)
+            when = _times(imager, None)[at[axis]]
+            for tile in [imager, *(tile for tile in tiles if tile is not imager)]:
+                frame = list(at) if tile is imager else [0] * tile.ndim
+                if tile is not imager:
+                    frame[axis] = int(nearest([when], _times(tile, None))[0][0])
+                    where = _frame_pixels(tile, frame, *_lon_lat(self.point.reference_data, pixel))
+                (ny, nx), (x, y) = tile.shape[-2:], where
+                if -0.5 <= x <= nx - 0.5 and -0.5 <= y <= ny - 0.5:
+                    found = tile, (*frame[:-2], round(float(y)), round(float(x)))
+                    break
+            self._tiles = (key, found)
+        return self._tiles[1]
+
+    def on_frame(self, viewer, xy):
+        """Whether the pixels ``xy`` of `point_on` fall on ``viewer``'s slit-jaw frame, or a tile shown (`tile_on`)."""
+        data = viewer.state.reference_data
+        if _dkist(data) == "imager":
+            return self.tile_on(viewer) is not None
+        ny, nx = data.shape[-2:]
+        return -0.5 <= xy[0] <= nx - 0.5 and -0.5 <= xy[1] <= ny - 0.5
+
+    def slit_on(self, viewer):
+        """
+        The slit in ``viewer``'s slit-jaw frame, as the x and y pixels of its ends, or None where the frame gives none
+        (-1 or NaN); in a DKIST context image, its raster's at the point's step, or its time's (`_timing`), from its
+        per-step slit table (`_slit_table`, `_SlitPlace`, D105).
+        """
+        sji, state = viewer.state.reference_data, viewer.state
+        if _dkist(sji) == "imager":
+            raster = self._dkist_raster(sji)
+            table = None if raster is None else self._slit_table(raster)
+            if table is None or len(state.slices) != sji.ndim or _shown(state) != {sji.ndim - 2, sji.ndim - 1}:
+                return None
+            slit, starts, pixels = table
+            step, ends = np.full(2, self._timing(raster)[0]), [-0.5, raster.shape[slit] - 0.5]
+            return _frame_pixels(sji, _frame_index(state), *(_SlitPlace(starts, pixels, k)(step, ends) for k in (0, 1)))
+        frame = _sji_frame(state)
         if frame is None or _role(sji) != "sji" or "slit x position" not in sji.meta:
             return None
         x = float(sji.meta["slit x position"][frame])
-        return None if x < 0 or np.isnan(x) else x  # 0-based since LM-SAL/irispy#247: a header's 0, no slit, is -1
+        if x < 0 or np.isnan(x):  # 0-based since LM-SAL/irispy#247: a header's 0, no slit, is -1
+            return None
+        return [x, x], [-0.5, sji.shape[1] - 0.5]
 
     def _move_in_time(self, data, axis, frame, viewers=None):
         """
@@ -1356,6 +1554,16 @@ def _role(data):
 _IRIS_ROLES = ("raster", "sji", "aia")  # an IRIS observation's own data, whose point `_link_points` leaves alone
 
 
+def _dkist(data):
+    """
+    'raster' or 'imager' for a DKIST spectrograph's dataset or its context imager's tile observed with it, which share a
+    time key (`observation_key`), as IRIS's raster and slit-jaw images (D105); else None.
+    """
+    if not isinstance(data, DKISTData) or observation_key(data) is None:
+        return None
+    return "raster" if _spectral_axes(data) else "imager"
+
+
 def _hpc(data):
     """
     The world axes of the helioprojective longitude and latitude of ``data``, in WCS order, and its pixel axes along
@@ -1481,6 +1689,20 @@ def _footprint_limits(viewer, raster):
     if not (np.isfinite(x).all() and np.isfinite(y).all()):
         return
     _zoom(viewer, x, y, max(10.0, 0.1 * max(np.ptp(x), np.ptp(y))))
+
+
+def _tiles_limits(viewer):
+    """Zoom the Image viewer of a DKIST mosaic's tile to every tile it shows, at their first frames (D105)."""
+    shown = viewer.state.reference_data
+    tiles = [layer.layer for layer in viewer.state.layers if layer.layer in shown._mosaic]
+    if len(tiles) < 2:
+        return
+    xy = []
+    for tile in tiles:
+        (ny, nx), lead = tile.shape[-2:], [0] * (tile.ndim - 2)
+        corners = np.transpose([[*lead, y, x] for y in (-0.5, ny - 0.5) for x in (-0.5, nx - 0.5)])
+        xy.append(_frame_pixels(shown, [0] * shown.ndim, *_lon_lat(tile, corners)))
+    _zoom(viewer, *np.concatenate(xy, axis=1), 0)
 
 
 def _zoom(viewer, x, y, margin):
@@ -1649,7 +1871,8 @@ def quicklook(app, datasets, window=None, main=None):
 
     Of an SST CRISP or CHROMIS cube, or a cube of neither instrument with one wavelength axis and two spatial axes
     (`_cube_axes`), alone in ``datasets``, it opens that cube's quicklook instead (`_cube_table`), one cube to a tab,
-    whose panels follow the point, and an SST cube's the time, as the IRIS quicklook's do.
+    whose panels follow the point, and an SST cube's the time, as the IRIS quicklook's do. A ViSP or Cryo-NIRSP
+    spectrograph dataset's shows the context imager observed with it too, if loaded, as the slit-jaw images (D105).
 
     Each other window named in ``window`` gets an unticked box in the Panels list, which adds the spectrum of the point
     and, on a sit-and-stare raster or a stack, its own wavelength panel (λ–time or λ–scan), to a row below once ticked
@@ -1779,7 +2002,9 @@ def _cube_table(app, cube):
     """
     The panel table (`_fill`) of a cube's quicklook (D65, D68, D78): ``map``, ``wing`` (SST only) and ``slit``; the
     ``spectra`` of the point's Stokes parameters; for a time axis ``wavelength`` and ``curve``; laid out in ``rows``.
-    The spectra and curve are `_Cut` groups following the point, so no panel profiles the whole cube.
+    The spectra and curve are `_Cut` groups following the point, so no panel profiles the whole cube. A DKIST
+    spectrograph's ``imager``, its context imager loaded (`_context_imager`), shows its frame, a mosaic's every tile,
+    with the raster's slit and point, as IRIS's slit-jaw images (D105).
     """
     sst, aspect = _role(cube) == "sst", "equal"
     if sst:  # scan, Stokes, wavelength, y and x, or a cube of intensities' scan, wavelength, y and x
@@ -1801,6 +2026,14 @@ def _cube_table(app, cube):
         wing = (*start[:w], 0, *start[w + 1 :])
         panels.append(_Panel("wing", cube, f"{name} second map", x, y, wing, "equal"))
     panels.append(_Panel("slit", cube, f"{name} virtual slit", w, y, tuple(start), "auto"))
+    imager = None if sst else _context_imager(cube, app.data_collection)
+    if imager is not None:  # at its frame nearest the map's step, named as its dataset, a mosaic's without its tile
+        coordinator(app.data_collection)  # which gives the pair the time key `_times` takes their axes by
+        [frame], _ = nearest([_times(cube, None)[start[_time_axis(cube)]]], _times(imager, None))
+        at = [0] * imager.ndim
+        at[_time_axis(imager)] = int(frame)
+        title = imager.label.rsplit(" (", 1)[0] if len(imager._mosaic) > 1 else imager.label
+        panels.append(_Panel("imager", imager, title, imager.ndim - 1, imager.ndim - 2, tuple(at), "equal"))
     if t is not None:
         panels.append(_Panel("wavelength", cube, f"{name} λ–time", w, t, tuple(start), "auto"))
     spectra = {"spectrum": None}
@@ -1818,7 +2051,7 @@ def _cube_table(app, cube):
         "panels": panels,
         "point": PixelSubsetState(cube, slices),
         "viewers": {"spectra": []},
-        "rows": (("map", "wing", "slit"), ("spectra",), ("wavelength", "curve")),  # maps on top (D68)
+        "rows": (("map", "wing", "slit", "imager"), ("spectra",), ("wavelength", "curve")),  # maps on top (D68)
         "limits": sst and s is not None,
     }
 
@@ -1861,6 +2094,16 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
             viewer = _image(
                 app, QuicklookImageViewer, panel.data, panel.x, panel.y, panel.at, panel.title, panel.aspect
             )
+            if panel.role == "imager":  # a mosaic's other tiles, as glue draws them linked (D105)
+                for tile in [tile for tile in panel.data._mosaic if tile is not panel.data and tile in collection]:
+                    viewer.add_data(tile)
+                for layer in viewer.state.layers[1:]:
+                    if isinstance(layer.layer, Subset):
+                        # a session's hidden until `_reopen` shows those saved shown: its point and cuts, removed after,
+                        # were drawn first, 0.2 s each a tile through the WCS links
+                        layer.visible = group is None
+                    else:
+                        layer.stretch, layer.percentile = viewer.state.layers[0].stretch, PERCENTILE
             if table.get("limits"):
                 layer = viewer.state.layers[0]
                 limits = partial(_stokes_limits, layer, wing=panel.role == "wing")
@@ -1953,7 +2196,7 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
         viewers["map"].toolbar.active_tool = "image:point_selection"
     QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)  # let the tab take its final size
     _arrange(tab, viewers)
-    if "sji" in viewers or "wing" in viewers:  # an IRIS or SST quicklook
+    if "sji" in viewers or "wing" in viewers or "imager" in viewers:  # an IRIS, SST or DKIST pair's quicklook
         # and the panels theirs, before the slit-jaw or map limits take the axes' aspect
         QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)
         for viewer in viewers.get("sji", ()):
@@ -1962,6 +2205,8 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
         if "wing" in viewers and (field := datasets[0]._field):
             for viewer in (viewers["map"], viewers["wing"]):  # the field, not a mosaic's frame (P9)
                 _zoom(viewer, *np.array(field[::-1], dtype=float), 0.5)
+        if "imager" in viewers:
+            _tiles_limits(viewers["imager"])
     tab._solar_quicklook = (datasets, window, main, viewers)  # for `_recipe`
     return viewers
 
@@ -2911,7 +3156,8 @@ class _PointWindow(QTableWidget):
         shows = {}  # each dataset the open panels show, and those panels
         for viewer in self.viewers:
             if viewer in self.coordinator._viewers and viewer.state.reference_data is not None:
-                shows.setdefault(viewer.state.reference_data, []).append(viewer)
+                on = self.coordinator.tile_on(viewer)  # a DKIST mosaic's tile under the point (D105)
+                shows.setdefault(viewer.state.reference_data if on is None else on[0], []).append(viewer)
         self.setRowCount(len(shows))
         for row, (data, viewers) in enumerate(shows.items()):
             for column, text in enumerate([data.label, *self._cells(point, data, viewers)]):
@@ -2937,6 +3183,8 @@ class _PointWindow(QTableWidget):
         elif _role(data) is None and (axes := _cube_axes(data)):  # a cube of neither instrument
             named = dict(zip(axes, ("time", "Stokes", "λ", "y", "x")))  # and None, those it lacks
             names = [named.get(axis) or data.world_component_ids[axis].label.lower() for axis in range(data.ndim)]
+        elif _dkist(data) == "imager":
+            names = [*(cid.label.lower() for cid in data.world_component_ids[:-2]), "y", "x"]
         elif data.ndim == 3 and _is_sit_and_stare(data):
             names = ("exposure", "slit", "λ")
         else:
@@ -2970,8 +3218,10 @@ class _PointWindow(QTableWidget):
                 s.start if s.start is not None else int(getattr(index, "center", index))
                 for s, index in zip(point.slices, slices)
             )
-        where = self.coordinator.point_on(viewer)
-        return None if where is None else (_sji_frame(viewer.state), round(where[1]), round(where[0]))
+        where, on = self.coordinator.point_on(viewer), self.coordinator.tile_on(viewer)
+        if on is not None and on[0] is data:
+            return on[1]
+        return None if where is None else (*_frame_index(viewer.state)[:-2], round(where[1]), round(where[0]))
 
 
 class _Panels(QTreeWidget):

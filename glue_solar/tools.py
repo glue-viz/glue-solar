@@ -510,10 +510,8 @@ class FrameTimeTool(Tool, HubListener):
             shortest, longest = f"{np.nanmin(seconds):.4g}", f"{np.nanmax(seconds):.4g}"
             text += f" · exp {shortest} s" if shortest == longest else f" · exp {shortest}–{longest} s"
         where = self.coordinator.point_on(self.viewer)
-        if where is not None:
-            ny, nx = data.shape[1:]
-            if not (-0.5 <= where[0] <= nx - 0.5 and -0.5 <= where[1] <= ny - 0.5):
-                text += " · outside SJI FOV"
+        if where is not None and not self.coordinator.on_frame(self.viewer, where):
+            text += " · outside SJI FOV"
         if self.coordinator.outside_raster(self.viewer):
             text += " · outside raster FOV"
         if status is not None:
@@ -1854,10 +1852,11 @@ class _ColumnEntry(_RowEntry):
 def _first_slider(viewer):
     """
     glue-qt's slice slider of the Image viewer's first array axis (an IRIS dataset's frames, exposures, steps or
-    scans), or None where it has none, as while the viewer shows that axis.
+    scans), a DKIST pair's of its time axis (D105), or None where it has none, as while the viewer shows that axis.
     """
     sliders = viewer.options_widget().slice_helper._sliders
-    return sliders[0] if sliders else None
+    axis = _time_axis(viewer.state.reference_data) or 0
+    return sliders[axis] if axis < len(sliders) else None
 
 
 class _GoToUTCEntry(_CoordinateEntry):
@@ -2416,7 +2415,7 @@ def _frame_key(delta, session):
     viewer, sync, master = _pressed(session)
     if master is not None:
         index, _ = sync._timing(master)
-        sync.move_master(master, (index + delta) % master.shape[0])
+        sync.move_master(master, (index + delta) % master.shape[_time_axis(master) or 0])  # a DKIST pair's (D105)
     elif isinstance(viewer, ImageViewer):
         _step(_first_slider(viewer), delta)
 
@@ -2660,18 +2659,11 @@ class CoordinateTool(_ToolMenu):
         """Draw the slit, the raster point and the raster overlays on a slit-jaw image, or hide them; and on a map."""
         viewer, coordinator = self.viewer, self.coordinator
         state = viewer.state
-        slit, point = coordinator.slit_on(viewer), coordinator.point_on(viewer)
+        line, point = coordinator.slit_on(viewer), coordinator.point_on(viewer)
         footprint, step = coordinator.footprint_on(viewer), coordinator.step_on(viewer)
-        line = None
-        if state.reference_data is None or state.reference_data.ndim != 3:
-            slit = point = None
-        if slit is not None or point is not None:
-            ny, nx = state.reference_data.shape[1:]
-            if point is not None and not (-0.5 <= point[0] <= nx - 0.5 and -0.5 <= point[1] <= ny - 0.5):
-                point = None
-            if slit is not None:
-                line = ([slit, slit], [-0.5, ny - 0.5])
-        if state.x_att is not None and state.x_att.axis != 2:  # a slit-jaw image shown transposed
+        if state.reference_data is None or (point is not None and not coordinator.on_frame(viewer, point)):
+            point = None
+        if state.x_att is not None and state.x_att.axis != len(state.slices) - 1:  # a frame shown transposed
             line, point, footprint = (None if xy is None else xy[::-1] for xy in (line, point, footprint))
         marker = None if point is None else ([point[0]], [point[1]])
         step = None if step is None else _across(state, state.reference_data.ndim - 3, [step])
