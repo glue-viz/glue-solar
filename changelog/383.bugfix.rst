@@ -1,0 +1,1 @@
+A DKIST map draws in under 1.5 s and its sliders move in a tenth of a second, where each took 8 s: a view reads only the parts of each file it shows, from files kept open, an Image viewer reads only the pixels it draws, and redraws no longer evaluate dkist's coordinates again; a session restores in a fifth of the time.

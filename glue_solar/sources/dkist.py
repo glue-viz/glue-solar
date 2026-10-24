@@ -2,15 +2,22 @@
 DKIST Level 1 datasets, read with dkist from their ASDF file by File → Open Data Set (D102).
 """
 
+import atexit
 import contextlib
 import contextvars
+import copy
+import hashlib
 import inspect
 import os
+import threading
 import warnings
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
 from glue.config import autolinker, data_factory
+from glue.core import fixed_resolution_buffer
 from glue.core.component import DaskComponent
 from glue.core.data import Data
 from glue.core.exceptions import IncompatibleAttribute
@@ -19,9 +26,10 @@ from glue.core.message import DataCollectionDeleteMessage
 from glue.core.state import GlueSerializeError, _load_data_5, _save_data_5
 from glue.plugins.wcs_autolinking import wcs_autolinking
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
-from glue.utils.array import compute_statistic
+from glue.utils.array import compute_statistic, unbroadcast
 
 import astropy.units as u
+from astropy.io import fits
 from astropy.time import Time
 from astropy.wcs.wcsapi import BaseHighLevelWCS, BaseLowLevelWCS, HighLevelWCSMixin
 
@@ -34,6 +42,38 @@ SAMPLE_FRAMES = 16
 # Set while glue-solar's WCS link tests its transforms (`glue_patches.wcs_link_init`): `GlueWCS`'s inverse raises outside
 # a dataset's times there, as dkist's does, rather than giving NaN (D103)
 STRICT_INVERSE = contextvars.ContextVar("strict_inverse", default=False)
+# `GlueWCS.pixel_to_world_values`'s last 64 distinct inputs and its results (D103)
+_WORLD, _WORLD_LOCK = OrderedDict(), threading.Lock()
+
+
+def _open_files():
+    """
+    How many FITS files DKIST data keep open: up to 4096, half the process's open-file soft limit, which this raises
+    toward its hard limit, as macOS's is 256 (user, 2026-10-23: 128 files reopened a ViSP map's 510 at each move).
+    """
+    try:
+        import resource
+    except ImportError:  # Windows, whose C runtime allows 8192
+        return 4096
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    for wanted in (8192, 4096, 2048):
+        wanted = wanted if hard == resource.RLIM_INFINITY else min(wanted, hard)
+        if wanted <= soft:
+            break
+        with contextlib.suppress(ValueError, OSError):  # above macOS's kern.maxfilesperproc
+            resource.setrlimit(resource.RLIMIT_NOFILE, (wanted, hard))
+            soft = wanted
+            break
+    return min(4096, soft // 2)
+
+
+# DKIST data's FITS files kept open, the least recently read first, at most `OPEN_FILES`; and the threads that read
+# them, as astropy's RICE decoding releases the GIL (`_Files`, D103)
+OPEN_FILES, _OPEN, _OPEN_LOCK = _open_files(), OrderedDict(), threading.Lock()
+_READERS = ThreadPoolExecutor(8)
+atexit.register(lambda: [file.close() for file in list(_OPEN.values())])  # as glue quits, not left to the collector
+# Set while glue computes an Image buffer of a DKIST dataset's values (`DKISTData.compute_fixed_resolution_buffer`)
+_EXACT = contextvars.ContextVar("exact", default=False)
 
 
 def _wrapped(wcs, world):
@@ -149,6 +189,24 @@ class GlueWCS(BaseLowLevelWCS, HighLevelWCSMixin):
 
     def pixel_to_world_values(self, *pixel_arrays):
         pixel = np.broadcast_arrays(*pixel_arrays)
+        # its last 64 distinct inputs of up to 10,000 values kept (D103): WCSAxes asks the same at each draw, 2601 at
+        # most, and at each dkist builds a model per raster step, 3 s a ViSP map
+        key = None
+        if pixel[0].size <= 10_000:
+            key = id(self), pixel[0].shape, hashlib.blake2b(np.asarray(pixel, float).tobytes()).digest()
+            with _WORLD_LOCK:
+                if key in _WORLD:
+                    _WORLD.move_to_end(key)
+                    return copy.deepcopy(_WORLD[key][1])
+        world = self._world(pixel)
+        if key is not None:
+            with _WORLD_LOCK:
+                _WORLD[key] = self, copy.deepcopy(world)  # kept alive, so that no other takes its id
+                while len(_WORLD) > 64:
+                    _WORLD.popitem(last=False)
+        return world
+
+    def _world(self, pixel):
         # dkist 1.17's Ravel raises ValueError below pixel -0.5 of a raveled axis, where WCSAxes' frame asks: it clips
         # above only (dkist #751, in 1.18.1). Taken there at pixel 0, of pixel 0's time, so WCSAxes finds a time range,
         # and no longitude or latitude, as dkist gives off its pointing table (D103)
@@ -194,6 +252,110 @@ class GlueWCS(BaseLowLevelWCS, HighLevelWCSMixin):
         return tuple(pixel)
 
 
+class _Open:
+    """
+    A FITS file of DKIST data, open while among the `OPEN_FILES` last read (`_section`), and its lock: an astropy file
+    is not safe across threads, and glue-qt's profile worker reads beside the viewers (D103).
+    """
+
+    def __init__(self, path):
+        self.path, self.lock, self.hdus, self.kept = path, threading.Lock(), None, True
+
+    def read(self, target, key):
+        """``key`` of its HDU ``target``, only the tiles it touches decompressed (astropy's section)."""
+        with self.lock:
+            if self.hdus is None:  # as dkist opens it
+                self.hdus = fits.open(self.path, memmap=False, do_not_scale_image_data=True, mode="denywrite")
+            values = self.hdus[target].section[key]
+            if not self.kept:  # out of the last read while this read
+                self.close()
+            return values
+
+    def close(self):
+        if self.hdus is not None:
+            self.hdus.close()
+            self.hdus = None
+
+
+def _section(path, target, key):
+    """``key`` of HDU ``target`` of the FITS file at ``path``, kept open (`_Open`); None where it is missing."""
+    if not os.path.exists(path):  # NaN, as dkist reads it
+        return None
+    with _OPEN_LOCK:
+        file = _OPEN.pop(path, None) or _Open(path)
+        _OPEN[path] = file
+        closed = [_OPEN.popitem(last=False)[1] for _ in range(len(_OPEN) - OPEN_FILES)]
+    _shut(closed)
+    return file.read(target, key)
+
+
+def _close(paths):
+    """Close the kept files at ``paths``, as their dataset leaves glue (`_Recenter`)."""
+    with _OPEN_LOCK:
+        closed = [_OPEN.pop(path) for path in paths if path in _OPEN]
+    _shut(closed)
+
+
+def _shut(files):
+    for old in files:
+        with old.lock:
+            old.kept = False
+            old.close()
+
+
+class _Files:
+    """
+    A DKIST dataset's values in its FITS files, ``paths`` over its first array axes, each the HDU ``target`` of a frame
+    of ``shape`` and ``dtype``, read as they are viewed (D103): from each file only the tiles a view touches
+    decompressed, on 8 threads (`_READERS`), where dkist's dask array decompresses each file whole, 4.5 s for a ViSP map;
+    a missing file NaN, as dkist reads it.
+    """
+
+    def __init__(self, paths, target, shape, dtype):
+        self.paths, self.target = paths if paths.size > 1 else paths.reshape(()), target
+        self.lead = (0,) if shape[0] == 1 else ()  # a frame's leading axis of one, which dkist drops
+        self.shape = self.paths.shape + tuple(shape[len(self.lead) :])
+        self.dtype = np.result_type(dtype, np.float16)  # holding NaN
+
+    def read(self, view):
+        """The values at ``view``, as NumPy indexes an array; None for a view of other kinds."""
+        view, n = view if isinstance(view, tuple) else (view,), len(self.shape)
+        if len(view) == n and all(isinstance(v, np.ndarray) and v.dtype.kind in "iu" for v in view):
+            # the pixels glue's Image buffer samples (`_EXACT`): the distinct ones read, then picked
+            picks = [np.arange(size)[unbroadcast(v)] for v, size in zip(view, self.shape)]
+            axes = [np.unique(pick) for pick in picks]
+            values = self._outer(axes)[tuple(np.searchsorted(a, pick) for a, pick in zip(axes, picks))]
+            return np.broadcast_to(values, np.broadcast_shapes(*(v.shape for v in view)))
+        if len(view) <= n and all(isinstance(v, (slice, np.integer)) or type(v) is int for v in view):
+            view += (slice(None),) * (n - len(view))
+            values = self._outer([np.atleast_1d(np.arange(size)[v]) for v, size in zip(view, self.shape)])
+            return values[tuple(slice(None) if isinstance(v, slice) else 0 for v in view)]
+        return None
+
+    def _outer(self, axes):
+        """The values at each combination of the indices ``axes``, an array of them per array axis."""
+        if any(len(a) == 0 for a in axes):
+            return np.empty([len(a) for a in axes], self.dtype)
+        k = self.paths.ndim
+        paths, frame = (self.paths[np.ix_(*axes[:k])] if k else self.paths), axes[k:]
+        low = [int(a.min()) for a in frame]
+        key = self.lead + tuple(slice(start, int(a.max()) + 1) for start, a in zip(low, frame))
+        pick = np.ix_(*(a - start for a, start in zip(frame, low)))
+        flat = paths.ravel()
+        values = np.full((flat.size, *(len(a) for a in frame)), np.nan, self.dtype)
+
+        def read(i):
+            part = _section(flat[i], self.target, key)
+            if part is not None:
+                values[i] = part[pick]
+
+        if flat.size > 1:
+            list(_READERS.map(read, range(flat.size)))
+        else:
+            read(0)
+        return values.reshape(paths.shape + values.shape[1:])
+
+
 class DKISTData(Data):
     """
     A DKIST dataset, whose sampled statistics of its values, the color limits of an Image layer, its style editor and
@@ -206,6 +368,26 @@ class DKISTData(Data):
     _samples = None  # {size: values}, shared by them
     _present = None  # whether each frame's file is present, over the frame axes
     _frames = None  # each frame's DATE-AVG and XPOSURE in seconds, over the frame axes
+    _files = None  # its values' files (`_Files`), None where dask reads them
+
+    def get_data(self, cid, view=None):
+        # its values' views read from their files (`_Files`, D103)
+        if self._files is not None and view is not None and cid is self.main_components[0]:
+            values = self._files.read(view)
+            if values is not None:
+                return values
+        return super().get_data(cid, view=view)
+
+    def compute_fixed_resolution_buffer(self, *args, **kwargs):
+        # an Image buffer of its values reads only the pixels glue samples (`get_data`), where glue reads their bounding
+        # box of a DaskComponent (glue-core 1.28.0's fixed_resolution_buffer.py:286-296): 500 files of a ViSP map whose
+        # view samples 34 (D103)
+        exact = self._files is not None and kwargs.get("subset_state") is None
+        token = _EXACT.set(exact and kwargs.get("target_cid") is self.main_components[0])
+        try:
+            return super().compute_fixed_resolution_buffer(*args, **kwargs)
+        finally:
+            _EXACT.reset(token)
 
     def compute_statistic(
         self,
@@ -299,6 +481,7 @@ class DKISTData(Data):
         data = next(restored)
         data.__class__, data._load_log = cls, log  # glue's loader makes a Data
         data._mosaic, data._samples, data._present = source._mosaic, source._samples, source._present
+        data._files = source._files
         data._frames = source._frames  # for a session saved without its Time and Exposure time (`register_to_hub`)
         data._center = log.data[rec["center"]] if "center" in rec else source._center  # #374's sessions saved none
         log.data[rec["log_item"]] = data  # for a session saved from this one
@@ -456,6 +639,15 @@ def _data(dataset, label):
     )
     if data._present.size == 1:  # one frame, as a VBI single-shot tile's, whose file axis dkist drops (D102)
         data._present = data._present.reshape(())
+    # its values read from its files as they are viewed (`_Files`, D103); by dask where it is cut within its files'
+    # frames, as ``dataset[0, :, 400]``, or dkist gives no HDU of its files, of no public API in dkist 1.18.1
+    try:
+        target = files._fm._striped_external_array.target
+    except AttributeError:
+        target = None
+    if target is not None and dataset.data.shape == files.output_shape:
+        paths = np.vectorize(lambda name: str(Path(files.basepath) / name), otypes=[object])(files.fileuri_array)
+        data._files = _Files(paths, target, files.shape, dataset.data.dtype)
     # each file's DATE-AVG, its gWCS's time to 0.5 ms, not the gWCS's, 0.8 s for CZKPML's 4000 frames, and XPOSURE (ms);
     # none without its headers table, as dkist's visp_no_headers
     if {"DATE-AVG", "XPOSURE"} <= set(headers.colnames):
@@ -560,6 +752,8 @@ class _Recenter(HubListener):
     def _removed(self, message):
         if message.data is not self.tile:
             return
+        if self.tile._files is not None:  # its kept files closed, not held until glue quits (user, 2026-10-23)
+            _close(set(self.tile._files.paths.flat))
         collection = message.sender
         tiles = [data for data in collection if getattr(data, "_center", None) is self.tile]
         ends = [(link.data1, link.data2) for link in collection.external_links if isinstance(link, WCSLink)]
@@ -573,6 +767,18 @@ class _Recenter(HubListener):
         if links:  # glue rediscovers every dataset's links on each add_link, even an empty one
             collection.add_link(links)
 
+
+class _BoxRead(type):
+    """
+    glue's test of a DaskComponent in an Image buffer, whose pixels glue reads as their bounding box, false while
+    `_EXACT`, for a DKIST dataset's values (D103).
+    """
+
+    def __instancecheck__(cls, component):
+        return isinstance(component, DaskComponent) and not _EXACT.get()
+
+
+fixed_resolution_buffer.DaskComponent = _BoxRead("DaskComponent", (), {})
 
 autolinker.members[:] = [
     (label, wcs_autolink if function is wcs_autolinking.wcs_autolink else function) for label, function in autolinker
