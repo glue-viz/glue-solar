@@ -42,10 +42,11 @@ from glue.utils import defer_draw, format_minimal
 from glue.viewers.common.state import LayerState
 from glue.viewers.histogram import state as histogram_state
 from glue.viewers.histogram import viewer as histogram_viewer
-from glue.viewers.image.layer_artist import ImageSubsetLayerArtist
+from glue.viewers.image.composite_array import CompositeArray
+from glue.viewers.image.layer_artist import ImageLayerArtist, ImageSubsetLayerArtist
 from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
-from glue.viewers.image.state import AggregateSlice, ImageLayerState
+from glue.viewers.image.state import AggregateSlice, ImageLayerState, ImageViewerState
 from glue.viewers.matplotlib import viewer as matplotlib_viewer
 from glue.viewers.profile.state import ProfileLayerState, ProfileViewerState
 from glue.viewers.scatter import layer_artist as scatter_layer_artist
@@ -514,6 +515,35 @@ def needs_reference_crosshair_workaround(method=_original_update_data):
 
 if _needs(needs_reference_crosshair_workaround):
     ImageSubsetLayerArtist._update_data = _update_data
+
+
+_original_image_layer_init = ImageLayerArtist.__init__
+
+
+def image_layer_init(self, *args, **kwargs):
+    """
+    glue-core's ``ImageLayerArtist.__init__``, giving the image its state's bad color, as a session restores it: glue-core
+    1.28.0 gives it only as the state's ``cmap_bad`` changes, so restored IRIS and DKIST layers drew NaN opaque again
+    (`glue_solar.sources.iris.iris_image_layer`, D103).
+    """
+    _original_image_layer_init(self, *args, **kwargs)
+    if self.state.cmap_bad is not None:
+        self.composite.cmap_bad = self.state.cmap_bad
+
+
+def needs_cmap_bad_restore_workaround(init=_original_image_layer_init):
+    """Whether an image layer artist made by ``init`` from a state with a bad color leaves its image's unset."""
+    data = Data(x=np.zeros((2, 2)), label="probe")
+    DataCollection([data])  # a hub, which the artist subscribes to
+    viewer = ImageViewerState()
+    state = ImageLayerState(layer=data, viewer_state=viewer, cmap_bad=(0, 0, 0, 0))
+    axes = SimpleNamespace(_composite=CompositeArray(), _composite_image=None)
+    type("Probe", (ImageLayerArtist,), {"__init__": init})(axes, viewer, layer_state=state)
+    return axes._composite.cmap_bad is None
+
+
+if _needs(needs_cmap_bad_restore_workaround):
+    ImageLayerArtist.__init__ = image_layer_init
 
 
 _original_update_slice_subset = ImageLayerState._update_slice_subset

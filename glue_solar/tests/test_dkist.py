@@ -226,6 +226,41 @@ def test_a_dkist_raster_opens_its_quicklook_and_labels_its_axes(qtbot, monkeypat
     assert float(slider.slider_label) == pytest.approx(waves[state.slices[2]], abs=1e-3)
 
 
+@small_visp_dated_2044
+def test_a_sit_and_stare_raster_s_quicklook_follows_its_point(qtbot, monkeypatch):
+    app = bare_app_for(qtbot, monkeypatch)
+    raster, other = slit_raster(0.01), load_data(str(small_visp()))  # its slit along latitude: its longitude no axis
+    app.data_collection.extend([raster, other])
+    quicklook(app, [raster])
+    [group] = app.session.edit_subset_mode.edit_subset
+    # a click on its map, where linking points raised IndexError (D97)
+    point = PixelSubsetState(raster, [slice(2, 3), slice(4, 5), slice(None)])
+    app.session.command_stack.do(ApplySubsetState(data_collection=app.data_collection, subset_state=point))
+    assert group.subset_state.slices == point.slices
+    quicklook(app, [other])  # and another quicklook opened while it is followed
+
+
+@small_visp_dated_2044
+def test_a_linked_dkist_raster_s_point_moves_to_the_step_at_the_place(qtbot, monkeypatch):
+    app = bare_app_for(qtbot, monkeypatch)
+    first, second = load_data(str(small_visp())), load_data(str(small_visp()))
+    collection = app.data_collection
+    collection.extend([first, second])
+    collection.add_link(WCSLink(first, second))  # as glue offers as they load
+    quicklook(app, [first])
+    viewers = quicklook(app, [second])
+    ours, theirs = (
+        next(group for group in collection.subset_groups if group.subset_state.reference_data is data)
+        for data in (first, second)
+    )
+    app.session.edit_subset_mode.edit_subset = [ours]
+    point = PixelSubsetState(first, [slice(0, 1), slice(7, 8), slice(None)])  # step 0, where the other's is 1
+    app.session.command_stack.do(ApplySubsetState(data_collection=collection, subset_state=point))
+    # the step whose slit passes nearest, as an IRIS point reaches it, where only its slit pixel moved (D97, D102)
+    assert theirs.subset_state.slices == point.slices
+    assert viewers["slit"].state.slices[0] == 0
+
+
 def repeated_raster(axes):
     """
     A raster of 3 steps of 0.5" along a slit of 6 pixels of 0.5", at 5 wavelengths, in Stokes I, Q, U and V, repeated
@@ -368,13 +403,18 @@ def test_the_point_window_gives_a_dkist_raster_s_time_and_exposure(qtbot, monkey
     assert rows(window)[0][3:5] == [f"{when} UTC", f"{headers['XPOSURE'][1] / 1000:.4g} s"]
 
 
-def test_a_dkist_dataset_s_nan_pixels_draw_transparent(app, tmp_path):
+@pytest.mark.parametrize("restored", [False, True])
+def test_a_dkist_dataset_s_nan_pixels_draw_transparent(app, qtbot, monkeypatch, tmp_path, restored):
     with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
         tile = load_data(str(asdf_alone(tmp_path, "large_vbi")))[4]
     app.data_collection.append(tile)
     viewer = app.new_data_viewer(ImageViewer, data=tile)
+    if restored:  # and from a session, where glue's restored layer left its image's bad color unset: opaque
+        app.save_session(str(tmp_path / "nan.glu"))
+        with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+            viewer = restore(qtbot, monkeypatch, tmp_path / "nan.glu").viewers[0][0]
     # as IRIS data's: glue painted them black, so each tile of a mosaic in one viewer blackened those beneath (D103)
-    assert viewer.layers[0].state.cmap_bad == (0, 0, 0, 0)
+    assert tuple(viewer.layers[0].state.cmap_bad) == (0, 0, 0, 0)  # a list once restored
     image = viewer.axes._composite(bounds=[(-0.5, 1.5, 2), (-0.5, 1.5, 2)])  # its files are not here: NaN
     np.testing.assert_array_equal(image[0, 0], [1, 1, 1, 1])  # the white background shows through
 
