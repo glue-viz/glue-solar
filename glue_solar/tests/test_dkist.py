@@ -293,7 +293,9 @@ def test_a_raster_s_repeats_or_measurements_are_a_slider_in_its_quicklook(qtbot,
     index = [slice(None)] * 5
     index[stokes], index[repeat], index[step], index[slit] = 0, 1, 1, 3
     spectrum, expected = viewers["spectra"][0].state.layers[0], values[tuple(index)]
-    qtbot.waitUntil(lambda: spectrum.profile is not None and np.array_equal(spectrum.profile[1], expected), timeout=60_000)
+    qtbot.waitUntil(
+        lambda: spectrum.profile is not None and np.array_equal(spectrum.profile[1], expected), timeout=60_000
+    )
     qtbot.waitUntil(lambda: rows(point_window(app))[0][1] == pixel, timeout=60_000)
     # and no slider of the axes glue showed between x and y stays over the map's options
     options = viewers["map"].options_widget()
