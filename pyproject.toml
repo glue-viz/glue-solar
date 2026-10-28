@@ -32,6 +32,7 @@ dependencies = [
   "pillow>=13.0.0",
   "PyQt6>=6.12.0",
   "qtpy>=2.4.3",
+  "reproject>=0.21.0",  # DKIST mosaics' stitched image (D108)
   "scipy>=1.18.1",
   "sunpy[map,net]>=8.0.1",
   # irispy main at a commit glue-solar is tested with, while irispy changes in a batch (D91); a PR moves it after

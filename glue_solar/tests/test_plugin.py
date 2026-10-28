@@ -98,6 +98,7 @@ from glue_solar.sources.iris import (
     iris_quicklook,
     is_iris_fits,
     link_iris,
+    mosaic_dkist,
     quicklook_cube,
     shift_pointing_iris,
 )
@@ -143,6 +144,7 @@ def test_setup_registers_hooks():
     ours = [(item.label, item.callback) for item in layer_action if item.callback.__module__[:10] == "glue_solar"]
     assert ours == [
         ("Quicklook…", quicklook_cube),
+        ("Mosaic…", mosaic_dkist),
         ("Set rest wavelength…", rest_wavelength_iris),
         ("IRIS: radiometric calibration", radiometric_calibration_iris),
         ("IRIS: subtract mean spectrum", mean_spectrum_iris),
@@ -259,19 +261,25 @@ def test_data_actions_show_only_for_the_data_they_take(app, monkeypatch, tmp_pat
 
 def test_only_entries_for_iris_data_alone_say_iris(app, tmp_path):
     """
-    'IRIS: ' starts the data actions that take IRIS data alone, those a spectral cube of another instrument and two
-    plain maps are not offered, and no entry of glue-solar's names what it applies to in parentheses (D90).
+    'IRIS: ' starts the data actions that take IRIS data alone, those a spectral cube of another instrument, two plain
+    maps and a DKIST mosaic's tile are not offered, and no entry of glue-solar's names what it applies to in
+    parentheses (D90).
     """
+    from glue_solar.tests.test_dkist import vbi_like
+
     cube, _ = spectral_cube(tmp_path / "cube.fits", (7, 12, 16))
     maps = [Data(label=f"map {i}", values=np.ones((3, 4))) for i in range(2)]
-    app.data_collection.extend([cube, *maps])
+    tiles = [vbi_like(f"VBI MOSAIC (1, {k})", north=4 * k) for k in (1, 2)]
+    for tile in tiles:
+        tile._mosaic = tiles
+    app.data_collection.extend([cube, *maps, *tiles])
     tree = app._layer_widget.ui.layerTree
     ours = [action.label for action in layer_action if action.callback.__module__[:10] == "glue_solar"]
     offered = set()
-    for layers in ([cube], maps):
+    for layers in ([cube], maps, tiles[:1]):
         tree.set_selected_layers(layers)
         offered |= {action.text() for action in tree.actions() if action.text() in ours and action.isVisible()}
-    assert offered == {"Quicklook…", "Set rest wavelength…", "Line ratio diagnostic…"}
+    assert offered == {"Quicklook…", "Set rest wavelength…", "Line ratio diagnostic…", "Mosaic…"}
     assert [label for label in ours if label.startswith("IRIS: ")] == [label for label in ours if label not in offered]
     plugins = [label for label, callback in menubar_plugin if callback.__module__[:10] == "glue_solar"]
     saves = [SaveSequenceTool.action_text, SaveProfileTool.action_text]  # in glue's save menus

@@ -54,6 +54,7 @@ from glue_solar.version import version as __version__
 # spectral analyses, the image actions, then the coordinates; glue lists them as they register, in import order
 _DATA_ACTIONS = (
     iris.quicklook_cube,
+    iris.mosaic_dkist,
     lines.rest_wavelength_iris,
     calibration.radiometric_calibration_iris,
     moments.mean_spectrum_iris,

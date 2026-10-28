@@ -8,6 +8,7 @@ import re
 import shutil
 import threading
 import time
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -33,6 +34,7 @@ from glue_qt.viewers.profile import ProfileViewer
 from qtpy.QtWidgets import QListWidget
 
 import astropy.units as u
+from astropy.coordinates import SkyCoord, SpectralCoord, StokesCoord
 from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.time import Time
@@ -1661,3 +1663,185 @@ def test_a_full_stokes_dkist_raster_s_quicklook_scales_q_u_and_v_by_their_noise_
         other = visp_like(stokes=4)
         other.update_components({other.main_components[0]: values})
         assert other._noise == {k: pytest.approx(mad_std(values[k, :, :, -1])) for k in (1, 2, 3)}
+
+
+def as_dkist(tile):
+    """
+    ``tile``, made by `observed`, its longitude and latitude a helioprojective SkyCoord, its wavelength a SpectralCoord
+    and its Stokes parameter a StokesCoord, as dkist's gWCS gives them.
+    """
+    from sunpy.coordinates import Helioprojective
+
+    wcs = tile.coords._wcs
+    sky = {"frame": Helioprojective(obstime=Time(1.7e9, format="unix"), observer="earth"), "unit": u.arcsec}
+    classes = {"sky": (SkyCoord, (), sky), "wave": (SpectralCoord, (), {"unit": u.nm}), "stokes": (StokesCoord, (), {})}
+    wcs.world_axis_object_classes = {**wcs.world_axis_object_classes, **classes}
+    wcs.world_axis_object_components = [
+        ("sky", ("lon", "lat").index(kind), f"spherical.{kind}.arcsec")
+        if kind in ("lon", "lat")
+        else (kind, 0, "value")
+        for kind in wcs.world_axis_names
+    ]
+    return tile
+
+
+def vbi_tile(label, north=0, later=0):
+    """
+    A VBI tile as `vbi_like`'s, its place varying along its frames too, as dkist's pointing table gives it (`as_dkist`).
+    """
+    return as_dkist(
+        observed(
+            label,
+            {"frame": 4, "y": 20, "x": 20},
+            {"lon": ("frame", "x"), "lat": ("frame", "y"), "time": ("frame",)},
+            lambda p: {
+                "lon": -102 + 0.25 * p["x"] + 0 * p["frame"],
+                "lat": 199 + north + 0.25 * p["y"] + 0 * p["frame"],
+                "time": 1.7e9 + later + 9 * p["frame"],
+            },
+            lambda w: {
+                "x": (w["lon"] + 102) / 0.25,
+                "y": (w["lat"] - 199 - north) / 0.25,
+                "frame": (w["time"] - 1.7e9 - later) / 9,
+            },
+            ("VBI", "op"),
+        )
+    )
+
+
+def stitched(app, qtbot, tile):
+    """The image 'Mosaic…' on ``tile`` adds, once its thread ends."""
+    from glue_solar.sources import moments
+    from glue_solar.sources.iris import mosaic_dkist
+
+    count = len(app.data_collection)
+    mosaic_dkist(tile, app.data_collection)
+    qtbot.waitUntil(lambda: not moments._RUNNING and len(app.data_collection) > count, timeout=60_000)
+    return app.data_collection[-1]
+
+
+def test_mosaic_stitches_a_dkist_mosaic_s_tiles_at_the_frame_shown_into_an_image_linked_to_them(qtbot, monkeypatch):
+    app = bare_app_for(qtbot, monkeypatch)
+    # two tiles of 20 by 20 pixels of 0.25", the north one 4" north, overlapping the center one by 4 rows, its frames
+    # 6 s later, 9 s apart, linked as glue suggests (D102)
+    center, north = vbi_tile("VBI MOSAIC (1, 1)"), vbi_tile("VBI MOSAIC (1, 2)", north=4, later=6)
+    center._mosaic = north._mosaic = [center, north]
+    north._center = center
+    dc = app.data_collection
+    dc.extend([center, north])
+    dc.add_link(WCSLink(center, north))
+    viewer = app.new_data_viewer(ImageViewer, data=center)
+    viewer.state.slices = (2, 0, 0)
+    reads, get_data = [], DKISTData.get_data
+
+    def read(data, cid, view=None):  # the tiles' values the mosaic reads, on its thread
+        if cid is data.main_components[0] and threading.current_thread() is not threading.main_thread():
+            reads.append((data.label, view))
+        return get_data(data, cid, view=view)
+
+    monkeypatch.setattr(DKISTData, "get_data", read)
+    image = stitched(app, qtbot, center)
+    # the frame the viewer shows of each tile, only, on one grid of their pixels, labeled by their mean time there, 21 s
+    # from the first frame's, and opened in an Image viewer (D108)
+    frame = (2, slice(None), slice(None))
+    assert reads == [("VBI MOSAIC (1, 1)", frame), ("VBI MOSAIC (1, 2)", frame)]
+    assert (image.label, image.meta["DATE-AVG"]) == ("VBI MOSAIC mosaic 2023-11-14T22:13:41", "2023-11-14T22:13:41.000")
+    assert list(image.coords.world_axis_physical_types) == [
+        "custom:pos.helioprojective.lon",
+        "custom:pos.helioprojective.lat",
+    ]
+    assert image.shape == (36, 20)
+    assert app.viewers[0][-1].state.reference_data is image
+    # each tile's pixel at that frame reaches the mosaic where its value is, the mean of both where they overlap
+    values = image[image.main_components[0]]
+    for tile, y in ((center, 5), (north, 12), (center, 17)):
+        mosaic = point(tile, (2, y, 7), image)
+        expected = 800 + 20 * y + 7 if y < 16 or tile is north else 800 + 20 * y + 7 - 160
+        assert values[tuple(mosaic)] == pytest.approx(expected, abs=1e-3)
+        # and a point on the mosaic there reaches the tile at that frame, not the north tile's frame nearest the center
+        # tile's time, through glue's link of them, its frame 1
+        assert point(image, mosaic, tile) == [2, y, 7]
+
+
+def test_mosaic_of_dl_nirsp_tiles_is_at_their_stokes_parameter_repeat_and_wavelength_and_reaches_their_spectra(
+    qtbot, monkeypatch
+):
+    app = bare_app_for(qtbot, monkeypatch)
+    # two DL-NIRSP tiles of Stokes I and Q, 2 repeats 300 s apart and 3 wavelengths, of 10 by 10 pixels of 0.25", side
+    # by side, their place varying with the repeat, as dkist's pointing table gives it
+    tiles = [
+        as_dkist(
+            observed(
+                f"DL-NIRSP TILES (0, {k})",
+                {"stokes": 2, "repeat": 2, "wave": 3, "y": 10, "x": 10},
+                {
+                    "lon": ("repeat", "x"),
+                    "lat": ("repeat", "y"),
+                    "wave": ("wave",),
+                    "time": ("repeat",),
+                    "stokes": ("stokes",),
+                },
+                lambda p, k=k: {
+                    "lon": -100 + 2.5 * k + 0.25 * p["x"] + 0 * p["repeat"],
+                    "lat": 200 + 0.25 * p["y"] + 0 * p["repeat"],
+                    "wave": 1083 + 0.01 * p["wave"],
+                    "time": 1.7e9 + 300 * p["repeat"],
+                    "stokes": 1.0 + p["stokes"],
+                },
+                lambda w, k=k: {
+                    "x": (w["lon"] + 100 - 2.5 * k) / 0.25,
+                    "y": (w["lat"] - 200) / 0.25,
+                    "wave": (w["wave"] - 1083) / 0.01,
+                    "repeat": (w["time"] - 1.7e9) / 300,
+                    "stokes": w["stokes"] - 1,
+                },
+                ("DL-NIRSP", "op"),
+            )
+        )
+        for k in range(2)
+    ]
+    for tile in tiles:
+        tile._mosaic, tile._center = tiles, tiles[0]
+    app.data_collection.extend(tiles)
+    viewer = app.new_data_viewer(ImageViewer, data=tiles[1])
+    viewer.state.slices = (1, 1, 2, 0, 0)  # Stokes Q, the second repeat, the third wavelength
+    image = stitched(app, qtbot, tiles[1])
+    # labeled by its wavelength, Stokes parameter and time, which its meta holds (D108)
+    assert image.label == "DL-NIRSP TILES mosaic 1083.020 nm Q 2023-11-14T22:18:20"
+    assert image.meta == {"DATE-AVG": "2023-11-14T22:18:20.000", "WAVELNTH": pytest.approx(1083.02), "STOKES": "Q"}
+    assert image.shape == (10, 20)
+    # a tile's value there, and a point on it reaches that tile's pixel at that repeat, at every Stokes parameter and
+    # wavelength: its spectra
+    mosaic = point(tiles[1], (1, 1, 2, 4, 6), image)
+    assert mosaic == [4, 16]
+    assert image[image.main_components[0]][4, 16] == pytest.approx(tiles[1]["data"][1, 1, 2, 4, 6], abs=1e-3)
+    assert point(image, mosaic, tiles[1]) == [None, 1, None, 4, 6]
+
+
+def test_a_session_restores_a_dkist_mosaic_s_image_and_its_links(qtbot, monkeypatch, tmp_path):
+    from reproject import mosaicking
+
+    app = bare_app_for(qtbot, monkeypatch)
+
+    # dkist's test VBI mosaic, its tiles' frames of 4096 by 4096 pixels stitched on a grid of 2" pixels, not theirs
+    find = mosaicking.find_optimal_celestial_wcs
+    monkeypatch.setattr(mosaicking, "find_optimal_celestial_wcs", partial(find, resolution=2 * u.arcsec))
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        tiles = load_data(str(asdf_alone(tmp_path, "large_vbi")))
+    app.data_collection.extend(tiles)
+    app.new_data_viewer(ImageViewer, data=tiles[4]).state.slices = (1, 0, 0)
+    image = stitched(app, qtbot, tiles[4])
+    at = point(tiles[4], (1, 2048, 2048), image)
+    reached = [point(image, at, tile) for tile in tiles[3:6]]
+    assert [frame for frame, *_ in reached] == [1, 1, 1]
+    app.save_session(str(tmp_path / "mosaic.glu"))
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        *again, mosaic = restore(qtbot, monkeypatch, tmp_path / "mosaic.glu").data_collection
+    # its values, coordinates and meta, and its links to the tiles at the frame shown (`_At`)
+    assert (mosaic.label, mosaic.meta) == (image.label, image.meta)
+    np.testing.assert_array_equal(mosaic[mosaic.main_components[0]], image[image.main_components[0]])  # NaN here
+    corners = ([0, image.shape[1] - 1], [0, image.shape[0] - 1])
+    np.testing.assert_allclose(
+        mosaic.coords.pixel_to_world_values(*corners), image.coords.pixel_to_world_values(*corners)
+    )
+    assert [point(mosaic, at, tile) for tile in again[3:6]] == reached

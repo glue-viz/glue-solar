@@ -200,6 +200,15 @@ stay in the FITS files next to the ASDF file: a view reads only the parts of the
   at the slit pixel level with it. A point more than half a step past a scanning raster's first or
   last step doesn't reach it. A point on the raster reaches IRIS data at its place, in the frame
   nearest its step's time, and IRIS images draw over the raster's map.
+- "Mosaic…" on a tile of a VBI or DL-NIRSP mosaic adds its tiles stitched into one image by
+  reproject, at the frame, or Stokes parameter, repeat and wavelength, of the first Image viewer of
+  a tile, and opens it in an Image viewer, labeled by that wavelength, Stokes parameter and time,
+  the tiles' mean, which its metadata hold too, such as ``VBI LOQEPP mosaic 2024-04-24T20:43:45``.
+  Its grid is north up at the tiles' finest pixel, their mean where they overlap and NaN where none
+  is, and only that frame of each tile is read: LOQEPP's 9 tiles take about 30 s. A session saves
+  its values, 0.66 GB for LOQEPP's. It links to the tiles by position and their time there, and to
+  IRIS data as "Link helioprojective coordinates" does: a point on it reaches a tile's pixel at that
+  frame or repeat, on DL-NIRSP at every wavelength and Stokes parameter.
 - A session keeps them, their viewers and links, and reads their coordinates again from the ASDF
   files (see :ref:`Sessions <glue_solar_users_guide_saving_sessions>`).
 
