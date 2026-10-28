@@ -188,7 +188,8 @@ def test_a_fit_in_km_s_converts_to_the_same_fit_in_angstrom(background):
     for name in angstrom.param_names:
         assert getattr(km_s, name).value == pytest.approx(getattr(angstrom, name).value, rel=1e-8)
         # a width's lower bound is astropy's least positive float32, which converts as a width
-        assert km_s.bounds[name] == pytest.approx(angstrom.bounds[name], rel=1e-12, abs=1e-30)
+        for got, want in zip(km_s.bounds[name], angstrom.bounds[name]):  # pytest 9.2's approx takes no None
+            assert got is want is None or got == pytest.approx(want, rel=1e-12, abs=1e-30)
 
 
 def test_a_tied_separation_reaches_the_window_in_angstrom():

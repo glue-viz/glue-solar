@@ -347,7 +347,9 @@ def test_a_raster_s_repeats_or_measurements_are_a_slider_in_its_quicklook(qtbot,
 
 def test_a_point_on_a_dkist_dataset_takes_its_viewer_s_stokes_and_measurement(qtbot, monkeypatch, tmp_path):
     app = bare_app_for(qtbot, monkeypatch)
-    monkeypatch.setattr(settings, "SHOW_LARGE_DATA_WARNING", False)  # 'Add large data set?' to the Profile viewer
+    # 'Add large data set?' to the Profile viewer; through glue's store of settings, as pytest 9.2 undoes setattr by
+    # deleting what is not in an object's __dict__ (pytest #10644)
+    monkeypatch.setitem(settings._members, "SHOW_LARGE_DATA_WARNING", False)
     with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):
         cryo = load_data(str(asdf_alone(tmp_path, "croppable_cryo")))
     # a Cryo-NIRSP context image's Stokes parameter × 100 + scan step × 10 + measurement, as its files are not here
