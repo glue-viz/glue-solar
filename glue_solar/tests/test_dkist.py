@@ -38,7 +38,7 @@ from astropy.wcs.utils import pixel_to_pixel
 
 from glue_solar import glue_patches
 from glue_solar.conftest import find_irispy_test_file, int16_copy
-from glue_solar.quicklook import _lon_lat, quicklook
+from glue_solar.quicklook import _lon_lat, _times, quicklook
 from glue_solar.regrid import regrid_on_time
 from glue_solar.sources.dkist import DKISTData, GlueWCS, _data, _glue_order, _SlitAt, _SlitPlace, dkist_data
 from glue_solar.sources.iris import link_iris
@@ -1065,6 +1065,28 @@ def test_an_iris_point_past_half_a_step_beyond_a_dkist_raster_s_end_does_not_rea
             point(sji, (10, 20, 18), raster)
 
 
+def test_an_iris_point_reaches_a_dkist_raster_with_repeats_at_the_step_whose_slit_passes_nearest(app, sns):
+    sji, _ = sns
+    # 3 repeats, each a step west of the last, as dkist's pointing moves along ViSP's repeats and Cryo-NIRSP's
+    # measurements; the slit-jaw image's frame 10 at the time of the last repeat's step 2, its (20, 18) shifted onto
+    # that repeat's step 0
+    seconds = (_times(sji, None)[10] - np.datetime64(0, "s")) / np.timedelta64(1, "s")
+    raster = visp_like(repeats=3, drift=0.5, start=seconds - 80)
+    place = _lon_lat(raster, (0, 2, 0, 4, 0))
+    sji.coords.pointing_offset = tuple(float(a - b) for a, b in zip(place, _lon_lat(sji, (10, 20, 18))))
+    dc = app.data_collection
+    dc.extend([sji, raster])
+    link_iris(app.session, dc)
+    # the step whose slit passes nearest, in the repeat nearest in time, where glue placed it by its time alone (D102)
+    assert point(sji, (10, 20, 18), raster) == [None, 2, 0, 4, None]
+    # and none a step east of its first, 3 slit-jaw pixels, 0.5", past half a step (D7)
+    with pytest.raises(IncompatibleAttribute):
+        point(sji, (10, 20, 15), raster)
+    for using in [link.get_using() for link in dc.links if isinstance(link.get_using(), _SlitAt)]:  # saved in sessions
+        restored = GlueUnSerializer.loads(GlueSerializer(using).dumps()).object("__main__")
+        assert restored.__gluestate__(None) == using.__gluestate__(None)
+
+
 KINDS = {
     "lon": ("custom:pos.helioprojective.lon", "arcsec"),
     "lat": ("custom:pos.helioprojective.lat", "arcsec"),
@@ -1110,10 +1132,11 @@ def observed(label, sizes, along, world, inverse, by):
     return data
 
 
-def visp_like(repeats=1):
+def visp_like(repeats=1, step=0.5, drift=0, start=1.7e9):
     """
-    A ViSP raster of Stokes I and Q, as TXIPCV's 4-D, of 3 steps 0.5" and 10 s apart along a slit of 10 pixels of 0.5",
-    at 25 wavelengths; ``repeats`` of it 30 s apart, if more than one, on an axis after Stokes, as CZKPML's.
+    A ViSP raster of Stokes I and Q, as TXIPCV's 4-D, of 3 steps ``step`` arcsec and 10 s apart from unix ``start`` s
+    along a slit of 10 pixels of 0.5", at 25 wavelengths; ``repeats`` of it 30 s apart, if more than one, on an axis
+    after Stokes, as CZKPML's, each ``drift`` arcsec west of the last.
     """
     repeat = {"repeat": repeats} if repeats > 1 else {}
     return observed(
@@ -1121,16 +1144,16 @@ def visp_like(repeats=1):
         {"stokes": 2, **repeat, "step": 3, "slit": 10, "wave": 25},
         {
             "wave": ("wave",),
-            "lon": ("step", "slit"),
+            "lon": ("repeat", "step", "slit") if drift else ("step", "slit"),
             "lat": ("step", "slit"),
             "time": ("repeat", "step"),
             "stokes": ("stokes",),
         },
         lambda p: {
             "wave": 500 + 0.01 * p["wave"],
-            "lon": -100 + 0.5 * p["step"] + 0 * p["slit"],
+            "lon": -100 + step * p["step"] + drift * p.get("repeat", 0) + 0 * p["slit"],
             "lat": 200 + 0.5 * p["slit"] + 0 * p["step"],
-            "time": 1.7e9 + 30 * p.get("repeat", 0) + 10 * p["step"],
+            "time": start + 30 * p.get("repeat", 0) + 10 * p["step"],
             "stokes": 1.0 + p["stokes"],
         },
         None,
@@ -1299,13 +1322,84 @@ def test_a_dkist_raster_s_steps_follow_its_context_imager_s_frames_in_time_at_it
     qtbot.waitUntil(lambda: panel.state.slices[0] == 6, timeout=60_000)
     assert readout(panel).endswith("Δt +4.0 s")
     assert readout(viewers["map"]).endswith(leads())
+    # and after Clear point its repeat slider, to repeat 0's step 2, 20 s, frame 2, where no time sync ran (D22)
+    menu_action(viewers["map"], "Clear point").trigger()
+    qtbot.wait(100)
+    slide(viewers["map"], 1, 0)
+    qtbot.waitUntil(lambda: panel.state.slices[0] == 2, timeout=60_000)
+    assert readout(panel).endswith("Δt -2.0 s")
+
+
+def test_a_click_on_a_sit_and_stare_raster_s_context_image_takes_the_step_nearest_its_frame_s_time(qtbot, monkeypatch):
+    from glue_solar.quicklook import coordinator
+    from glue_solar.tests.helpers import select_point
+    from glue_solar.tests.test_quicklook import readout
+
+    app = bare_app_for(qtbot, monkeypatch)
+    # 3 steps 0.01" and 10 s apart, sit-and-stare (D102), and 8 VBI frames 9 s apart
+    raster, imager = visp_like(step=0.01), vbi_like("VBI", frames=8)
+    app.data_collection.extend([raster, imager])
+    viewers = quicklook(app, [raster])
+    panel, coord = viewers["imager"], coordinator(app.data_collection)
+    # at frame 2, 18 s, step 2, 20 s, on the slit and beside it, at the slit pixel level with the click, as on IRIS's
+    # slit-jaw images, where it took a step by the slits' offsets or found the click outside the raster (D7, D105)
+    slide(panel, 0, 2)
+    for x, y, slit in ((8, 8, 2), (7, 12, 4)):
+        select_point(panel, x, y)
+        assert [s.start for s in coord.point.slices] == [0, 2, slit, None]
+    # and none at frame 7, 63 s, past half a step's cadence
+    slide(panel, 0, 7)
+    select_point(panel, 8, 8)
+    assert [s.start for s in coord.point.slices] == [0, 2, 4, None]
+    assert "outside raster FOV" in readout(panel)
+
+
+def test_go_to_utc_and_blink_move_a_context_image_along_its_steps(qtbot, monkeypatch):
+    from glue_solar.tests.test_quicklook import menu_action, type_in_dialog
+
+    app = bare_app_for(qtbot, monkeypatch)
+    # a Cryo-NIRSP spectrograph raster and context image of Stokes I and Q along their first axis, 3 steps 10 s apart
+    raster = visp_like()
+    raster._observed = ("CRYO-NIRSP", "op")
+    imager = observed(
+        "CRYO-NIRSP CI",
+        {"stokes": 2, "step": 3, "y": 8, "x": 8},
+        {"lon": ("x",), "lat": ("y",), "time": ("step",), "stokes": ("stokes",)},
+        lambda p: {
+            "lon": -102 + 0.5 * p["x"],
+            "lat": 199 + 0.5 * p["y"],
+            "time": 1.7e9 + 10 * p["step"],
+            "stokes": 1.0 + p["stokes"],
+        },
+        None,
+        ("CRYO-NIRSP", "op"),
+    )
+    app.data_collection.extend([raster, imager])
+    viewer = app.new_data_viewer(ImageViewer, data=imager)
+    viewer.state.slices = (0, 1, 0, 0)
+    # with no time master shown, Go to UTC starts at the step shown and moves the step slider, where it read and moved
+    # the Stokes slider (D38, D105)
+    times = imager[imager.id["Time"], (0, slice(None), 0, 0)]
+    opened = type_in_dialog(monkeypatch, str(times[2]))
+    menu_action(viewer, "Go to UTC…").trigger()
+    assert opened == [np.datetime_as_string(times[1], unit="ms")]
+    assert viewer.state.slices[:2] == (0, 2)
+    # a blink to it from its raster at step 0, the time master, shows it at its step nearest that time, at its own Stokes
+    # parameter, where it took that step for its Stokes parameter (D41)
+    viewer.state.slices = (1, 2, 0, 0)
+    viewer.add_data(raster)
+    menu_action(viewer, "Set blink partner here").trigger()
+    viewer.state.reference_data = raster
+    menu_action(viewer, "Blink").trigger()
+    assert (viewer.state.reference_data, viewer.state.slices[:2]) == (imager, (1, 0))
+    menu_action(viewer, "Blink").trigger()  # off
 
 
 def test_a_cryo_nirsp_context_image_takes_its_spectrograph_s_step_stokes_parameter_and_measurement(qtbot, monkeypatch):
     from qtpy.QtCore import Qt
 
     from glue_solar.tests.helpers import press
-    from glue_solar.tests.test_quicklook import LEAD, menu_action, readout
+    from glue_solar.tests.test_quicklook import LEAD, applied, menu_action, panels_list, readout, tick
 
     # Stokes I and Q, 3 steps 2" and 30 s apart of 2 measurements 5 s apart, its pointing moving 0.01" a measurement
     sizes = {"stokes": 2, "step": 3, "measurement": 2}
@@ -1391,6 +1485,13 @@ def test_a_cryo_nirsp_context_image_takes_its_spectrograph_s_step_stokes_paramet
     coordinator.group.subset_state = PixelSubsetState(raster, [*map(slice, (0, 2, 0, 3), (1, 3, 1, 4)), slice(None)])
     qtbot.waitUntil(lambda: panel.state.slices[:3] == (0, 2, 0), timeout=60_000)
     assert readout(viewers["map"]).endswith("Δt +0.0 s")
+    # turned off and on again in the Panels list, it comes back at the step nearest the point's, moved meanwhile, and
+    # leads from there, where its old step took the point back (D66)
+    panels = panels_list(app)
+    applied(app, qtbot, viewers, panels, lambda: tick(panels, "CRYO-NIRSP CI", on=False))
+    coordinator.group.subset_state = PixelSubsetState(raster, [*map(slice, (0, 0, 0, 3), (1, 1, 1, 4)), slice(None)])
+    applied(app, qtbot, viewers, panels, lambda: tick(panels, "CRYO-NIRSP CI"))
+    assert (panel.state.slices[1], coordinator.point.slices[1].start) == (0, 0)
 
 
 @small_visp_dated_2044

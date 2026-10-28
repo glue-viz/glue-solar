@@ -500,10 +500,10 @@ class Coordinator(HubListener):
                 self._timer.start()  # and the time master
                 return
             self._move_point(viewer)
-            # a master's time is along its first axis, a DKIST pair's along its time axis, or at the point, which
-            # _move_point follows
-            axis = _time_axis(data) or 0
-            moved = (old or ())[axis : axis + 1] != (new or ())[axis : axis + 1]
+            # a master's time is along its first axis, a DKIST pair's along its time axes, its repeat's or measurement's
+            # too (D105), or at the point, which _move_point follows
+            axes = _time_axes(data) if _dkist(data) else {_time_axis(data) or 0}
+            moved = any((old or ())[axis : axis + 1] != (new or ())[axis : axis + 1] for axis in axes)
             if moved and not self._busy and self._master(observation_key(data)) is data:
                 self._timer.start()  # the time master moved
 
@@ -850,7 +850,9 @@ class Coordinator(HubListener):
     def _to_dkist_raster(self, state, owners):
         """
         As `_to_raster`, a click on a quicklook's DKIST context image (D105): the point of its raster at the step whose
-        slit passes nearest the place clicked, and the slit pixel level with it (`_SlitAt`), at the raster's sliders.
+        slit passes nearest the place clicked, or on a sit-and-stare raster the step nearest the frame's time within half
+        its cadence (D7), as IRIS's (`sji_to_raster`), and the slit pixel level with it (`_SlitAt`), at the raster's
+        sliders.
         """
         imager = state.reference_data
         rasters = [viewer.state.reference_data for viewer in self._viewers if viewer in owners]
@@ -865,7 +867,12 @@ class Coordinator(HubListener):
         at = _frame_index(viewer.state)
         at[-2:] = state.slices[-2].start, state.slices[-1].start
         slit, starts, pixels = table
-        step, along = (np.round(_SlitAt(starts, pixels, kind)(*_lon_lat(imager, at))) for kind in (False, True))
+        place, steps, kinds = _lon_lat(imager, at), None, raster.coords.world_axis_physical_types
+        if kinds[len(kinds) - 1 - _time_axis(raster)] == "time":  # sit-and-stare, its slit in place (D102)
+            times = _times(raster, self._timing(raster)[1])
+            [near], [offset] = nearest([imager[imager.id["Time"], tuple(at)]], times)
+            place, steps = (*place, 0), [near if abs(offset) <= _half_cadence(times) else np.nan]
+        step, along = (np.round(_SlitAt(starts, pixels, kind, steps)(*place)) for kind in (False, True))
         index = [self._index(raster, axis) for axis in range(raster.ndim)]
         index[_time_axis(raster)], index[slit] = step, along
         inside = 0 <= step < len(starts) and 0 <= along < raster.shape[slit]  # NaN off the raster never is
@@ -2439,10 +2446,13 @@ def _turn(viewer, on, group):
                 layer.update()
         if isinstance(viewer, ImageViewer):
             data = viewer.state.reference_data
-            master = _role(data) == "sji" and coord.masters.get(observation_key(data)) is data
+            master = _role(data) == "sji" or _dkist(data) == "imager"  # as IRIS's slit-jaw images (D105)
+            master = master and coord.masters.get(observation_key(data)) is data
             frame = coord.following(data) if master else None  # the raster's time, while it leads
             if frame is not None:
-                viewer.state.slices = (frame, *viewer.state.slices[1:])
+                slices = list(viewer.state.slices)
+                slices[_time_axis(data) or 0] = frame  # a Cryo-NIRSP context image's along its steps
+                viewer.state.slices = tuple(slices)
             coord.register(viewer)
             if group is not None:  # a slit-jaw-only quicklook has no point (D78)
                 coord.own(group, [viewer])

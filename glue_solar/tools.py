@@ -1861,8 +1861,8 @@ def _first_slider(viewer):
 
 class _GoToUTCEntry(_CoordinateEntry):
     """
-    Move the observation's time master, or without one the viewer's first slider, to its index nearest a typed UTC
-    time; nothing past half its cadence (D7, D38).
+    Move the observation's time master, or without one the viewer's slider of time (`_first_slider`), to its index
+    nearest a typed UTC time; nothing past half its cadence (D7, D38).
     """
 
     tool_id = "solar:go_to_utc"
@@ -1887,8 +1887,9 @@ class _GoToUTCEntry(_CoordinateEntry):
             raise ValueError("The viewer has no frame, exposure, step or scan slider of timed data.")
         moved = data if master is None else master
         index, step = coordinator._timing(moved)
+        axis = _time_axis(data) or 0  # a DKIST pair's time axis (D105)
         if master is None:
-            index = getattr(state.slices[0], "center", state.slices[0])
+            index = getattr(state.slices[axis], "center", state.slices[axis])
         times = _times(moved, step)
         shown = np.datetime_as_string(times[index], unit="ms")
         text, ok = QtWidgets.QInputDialog.getText(viewer, "Go to UTC", "UTC time:", text=shown)
@@ -1908,7 +1909,9 @@ class _GoToUTCEntry(_CoordinateEntry):
                 f"{seconds:+.1f} s off."
             )
         if master is None:
-            state.slices = (int(index), *state.slices[1:])
+            slices = list(state.slices)
+            slices[axis] = int(index)
+            state.slices = tuple(slices)
         else:
             coordinator.move_master(master, int(index))
 
@@ -2342,9 +2345,9 @@ def _show_position(viewer, coordinator, data, slices, per_frame=()):
         if data is shown:
             state.slices = slices
             return
-        index = coordinator.following(data)
-        if index is not None and not isinstance(slices[0], AggregateSlice):
-            slices = (index, *slices[1:])
+        index, axis = coordinator.following(data), _time_axis(data) or 0  # a DKIST pair's time axis (D105)
+        if index is not None and not isinstance(slices[axis], AggregateSlice):
+            slices = (*slices[:axis], index, *slices[axis + 1 :])
         for layer in _layers_of(state, data):
             layer.visible = True
         x, y = state.x_att.axis, state.y_att.axis

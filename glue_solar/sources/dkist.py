@@ -540,7 +540,8 @@ def _slit(data, step, at=None):
     The array axis along the slit of ``data``, a DKIST raster stepping along array axis ``step``, and at each step the
     helioprojective longitude and latitude (arcsec) of the slit's first pixel and their change over one pixel along it,
     at the middle of the other axes, or at ``at``, indices by axis of those they vary along too, such as a Cryo-NIRSP
-    raster's measurement (D105); None where they vary along other axes too.
+    raster's measurement (D105), or a column of them for a table per index (`link_hpc`); None where they vary along
+    other axes too.
     """
     wcs, at = data.coords, at or {}
     types = list(wcs.world_axis_physical_types)
@@ -570,16 +571,21 @@ class _SlitAt:
     a step beyond either end, as the quicklook's no match (D7), or on a sit-and-stare raster that nearest the frame's
     time however far, ``steps`` by frame, as `_ScanAt` gives a stack's scan; the slit pixel is that level with the place
     along that step's slit, from its first pixel, ``starts``, and one pixel along it, ``pixels``, per step (`_slit`).
-    Saved in sessions.
+    A scanning raster with repeats or measurements has them per repeat or measurement, and at its frame ``index`` IRIS
+    data take that ``repeats`` gives by frame, the one nearest its time (D102). Saved in sessions.
     """
 
-    def __init__(self, starts, pixels, slit, steps=None):
+    def __init__(self, starts, pixels, slit, steps=None, repeats=None):
         self.starts, self.pixels = np.asarray(starts, dtype=float), np.asarray(pixels, dtype=float)
-        self.slit, self.steps = slit, steps
+        self.slit, self.steps, self.repeats = slit, steps, repeats
         self.__name__ = "slit_pixel" if slit else "nearest_step"  # glue's name of a link function, as its helpers set
         # its inputs to glue and its link editor, not self too
-        inputs = (lambda lon, lat: None) if steps is None else (lambda lon, lat, index: None)
+        inputs = (lambda lon, lat: None) if steps is None and repeats is None else (lambda lon, lat, index: None)
         self.__signature__ = inspect.signature(inputs)
+        if repeats is not None:
+            self._frames = _ScanAt(repeats)
+            self._tables = [_SlitAt(*table, slit) for table in zip(self.starts, self.pixels, strict=True)]
+            return
         if steps is not None:
             self._frames = _ScanAt(steps)
             return
@@ -593,6 +599,12 @@ class _SlitAt:
         )
 
     def __call__(self, lon, lat, index=None):
+        if self.repeats is not None:
+            lon, lat, repeat = np.broadcast_arrays(lon, lat, self._frames(index))
+            found = np.full(repeat.shape, np.nan)  # none for a frame of no time
+            for k, table in enumerate(self._tables):
+                found[repeat == k] = table(lon[repeat == k], lat[repeat == k])
+            return found
         place = np.stack(np.broadcast_arrays(lon, lat), axis=-1)
         if self.steps is None:
             step = np.interp(place @ self._across, self._offsets, self._steps, left=np.nan, right=np.nan)
@@ -607,11 +619,18 @@ class _SlitAt:
 
     def __gluestate__(self, context):
         steps = None if self.steps is None else np.asarray(self.steps, dtype=float).tolist()
-        return {"starts": self.starts.tolist(), "pixels": self.pixels.tolist(), "slit": self.slit, "steps": steps}
+        repeats = None if self.repeats is None else np.asarray(self.repeats, dtype=float).tolist()
+        return {
+            "starts": self.starts.tolist(),
+            "pixels": self.pixels.tolist(),
+            "slit": self.slit,
+            "steps": steps,
+            "repeats": repeats,
+        }
 
     @classmethod
     def __setgluestate__(cls, rec, context):
-        return cls(rec["starts"], rec["pixels"], rec["slit"], rec["steps"])
+        return cls(rec["starts"], rec["pixels"], rec["slit"], rec["steps"], rec.get("repeats"))  # none saved before
 
 
 class _SlitPlace:
