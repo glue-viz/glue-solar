@@ -1,0 +1,1 @@
+'Mosaic…' on a tile of a VBI or DL-NIRSP mosaic adds its tiles stitched into one image by reproject, at the frame, Stokes parameter, repeat and wavelength an Image viewer shows, on one grid at the tiles' finest pixel, linked to the tiles and IRIS data; reproject is now a dependency.
