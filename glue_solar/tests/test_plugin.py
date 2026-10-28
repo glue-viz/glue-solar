@@ -165,7 +165,7 @@ def test_setup_registers_hooks():
     assert ImageViewer.tools.count("solar:follow_lock") == ImageViewer.tools.count("image:point_selection") == 1
     assert ImageViewer.subtools["solar:modes"] == ["solar:measure", "solar:path", "solar:path_crosshair", "solar:slope"]
     view = ["solar:frame_time", "solar:hide_axes", "solar:per_frame_limits", "solar:band", "solar:physical_aspect"]
-    view += ["solar:color_bar", "solar:raster_overlays"]
+    view += ["solar:color_bar", "solar:raster_overlays", "solar:dkist_footprints"]
     if not hasattr(ImageViewer, "cursor_status"):
         view.append("solar:cursor_readout")
     assert ImageViewer.subtools["solar:view"] == view
@@ -695,8 +695,8 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(app, qtbot, monkey
     toolbar.active_tool = "image:point_selection"
     pixel = toolbar.active_tool
     for tool_id in ImageViewer.subtools["solar:view"]:
-        if tool_id == "solar:raster_overlays":
-            continue  # offered with a raster of the viewer's observation, as the quicklook tests check
+        if tool_id in ("solar:raster_overlays", "solar:dkist_footprints"):
+            continue  # offered with a raster of the viewer's observation or DKIST data, as their tests check
         tool, entry = toolbar.tools[tool_id], toolbar.actions[tool_id]
         assert entry.isCheckable()
         for _ in range(2):

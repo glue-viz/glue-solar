@@ -97,6 +97,10 @@ Image viewer
      - Draw the raster's slit positions on the slit-jaw images, and the step at the synced time on the
        maps.
      -
+   * - View → "DKIST footprints…"
+     - Draw the outline of each loaded DKIST dataset ticked, and a spectrograph raster's slit at the
+       image's time, on a helioprojective image (see :ref:`glue_solar_users_guide_loading_dkist_datasets`).
+     -
    * - View → "Cursor readout"
      - Show the position, time, exposure time and value under the mouse in the status bar, with the
        Doppler velocity on a window with a rest wavelength.
