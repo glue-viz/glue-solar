@@ -346,6 +346,7 @@ def dkist_sample():
                 # DKIST's host answers 404 at random for files it holds (seen 2026-10-23): the host's fault, not ours
                 if error.response is None or error.response.status_code != 404:
                     raise
+                error.response.close()  # its streamed socket, which a later test's collection warned of as unclosed
                 pytest.skip(f"DKIST's sample host answered 404 for {name}")
         return next(path for path in paths if path.endswith(".asdf"))
 

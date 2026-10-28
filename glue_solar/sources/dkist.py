@@ -19,7 +19,8 @@ from pathlib import Path
 import numpy as np
 from glue.config import autolinker, data_factory
 from glue.core import fixed_resolution_buffer
-from glue.core.component import DaskComponent
+from glue.core.component import Component, DaskComponent
+from glue.core.component_link import ComponentLink
 from glue.core.data import Data
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.hub import HubListener
@@ -30,10 +31,18 @@ from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLin
 from glue.utils.array import compute_statistic, unbroadcast
 
 import astropy.units as u
+from astropy.coordinates import SpectralCoord, StokesCoord
 from astropy.io import fits
 from astropy.stats import mad_std
 from astropy.time import Time
-from astropy.wcs.wcsapi import BaseHighLevelWCS, BaseLowLevelWCS, HighLevelWCSMixin
+from astropy.wcs.utils import fit_wcs_from_points
+from astropy.wcs.wcsapi import (
+    BaseHighLevelWCS,
+    BaseLowLevelWCS,
+    HighLevelWCSMixin,
+    HighLevelWCSWrapper,
+    SlicedLowLevelWCS,
+)
 
 from glue_solar.sources.loaders.iris import _HPC, _add_exposure, _add_time, _off_frames, _ScanAt
 
@@ -689,6 +698,29 @@ class _SlitPlace:
         return cls(rec["starts"], rec["pixels"], rec["kind"])
 
 
+class _At:
+    """
+    ``value`` at every pixel: a DKIST tile's time, or index along its axis, at the slice its mosaic's image shows
+    (`_mosaic_links`, D108). Saved in sessions.
+    """
+
+    __name__ = "at_slice"  # glue's name of a link function, as its own link helpers set it
+    __signature__ = inspect.signature(lambda pixel: None)  # one input to glue and its link editor, not self too
+
+    def __init__(self, value):
+        self.value = float(value)
+
+    def __call__(self, pixel):
+        return np.full(np.shape(pixel), self.value)
+
+    def __gluestate__(self, context):
+        return {"value": self.value}
+
+    @classmethod
+    def __setgluestate__(cls, rec, context):
+        return cls(rec["value"])
+
+
 def is_dkist_asdf(filename, **_kwargs):
     """An ASDF file that dkist wrote or reads, as the DKIST data center's dataset files are."""
     if not str(filename).endswith(".asdf"):
@@ -803,6 +835,82 @@ def _context_imager(raster, datasets):
         if data._frames is not None and data._frames[0].min() <= times.max() and times.min() <= data._frames[0].max():
             return data._center if data._center in datasets else data
     return None
+
+
+def _mosaic_image(tiles, at):
+    """
+    ``tiles``, a DKIST mosaic's, at the indices ``at`` of their axes but the last two, such as a frame, or a Stokes
+    parameter, repeat and wavelength, stitched into one image by reproject (D108): on ``find_optimal_celestial_wcs``'s
+    grid, at their finest pixel, their mean where they overlap (``reproject_and_coadd``, with ``reproject_interp``:
+    ``reproject_exact`` took 4 times as long on DL-NIRSP's tiles), NaN where none is; only that slice of each read.
+    Labeled by, and its meta holding, its time, the tiles' mean (``DATE-AVG``), wavelength (``WAVELNTH``, nm) and
+    Stokes parameter (``STOKES``), those the tiles have.
+    """
+    from reproject import reproject_interp  # with the first mosaic rather than at glue's launch
+    from reproject.mosaicking import find_optimal_celestial_wcs, reproject_and_coadd
+
+    view = (*at, slice(None), slice(None))
+    images = [np.asarray(tile[tile.main_components[0], view], dtype=np.float32) for tile in tiles]
+    sliced = [HighLevelWCSWrapper(SlicedLowLevelWCS(tile.coords, view)) for tile in tiles]
+    wcs, shape = find_optimal_celestial_wcs(list(zip(images, sliced)), negative_lon_cdelt="auto")
+    # each tile's coordinates there as a FITS WCS fitted at 3 by 3 pixels, in the mosaic's frame, the first tile's:
+    # reproject would evaluate the tile's gWCS at every pixel, holding `GlueWCS`'s lock against the viewers, and
+    # transform it from its own frame, of its dataset's mean time: 55 s for LOQEPP's 9 tiles, 27 s so
+    # ponytail: the observer's move between the tiles' times left out, at most 0.5 pixel on LOQEPP and 1.6 on CARJML's
+    # 4 minutes, less than the Sun turns meanwhile; fit each tile in its own frame if it matters
+    fitted = []
+    for image, tile_wcs in zip(images, sliced):
+        y, x = (grid.ravel() for grid in np.mgrid[0 : image.shape[0] - 1 : 3j, 0 : image.shape[1] - 1 : 3j])
+        fitted.append(fit_wcs_from_points((x, y), tile_wcs.pixel_to_world(x, y), projection=wcs))
+    values = np.zeros(shape, np.float32)
+    reproject_and_coadd(
+        list(zip(images, fitted)),
+        wcs,
+        shape_out=shape,
+        reproject_function=reproject_interp,
+        output_array=values,
+        blank_pixel_value=np.nan,
+        roundtrip_coords=False,
+    )
+    world = [
+        tile.coords.pixel_to_world((image.shape[1] - 1) / 2, (image.shape[0] - 1) / 2, *at[::-1])
+        for tile, image in zip(tiles, images)
+    ]
+    times = Time([value for values in world for value in values if isinstance(value, Time)])
+    meta, named = {"DATE-AVG": times.mean().isot}, []
+    for value in world[0]:
+        if isinstance(value, StokesCoord):
+            meta["STOKES"] = str(value.symbol)
+            named.append(meta["STOKES"])
+        elif isinstance(value, SpectralCoord):
+            meta["WAVELNTH"] = float(value.to_value(u.nm))
+            named.append(f"{meta['WAVELNTH']:.3f} nm")
+    label = " ".join([f"{tiles[0].label.rsplit(' (', 1)[0]} mosaic", *named, meta["DATE-AVG"][:19]])
+    image = Data(label=label, coords=wcs)
+    cid = tiles[0].main_components[0]
+    image.add_component(Component(values, units=tiles[0].get_component(cid).units), cid.label)
+    image.meta.update(meta)
+    return image
+
+
+def _mosaic_links(image, tiles, at):
+    """
+    The links that give each of ``tiles``, at every pixel of ``image``, their mosaic at their indices ``at``
+    (`_mosaic_image`), its time there and its index along that time's axis (`_At`, D108): glue reaches a tile's pixel
+    from every world value its place varies with, so a point on the mosaic reaches it through 'Link helioprojective
+    coordinates' only with its time; and the index, as glue otherwise takes the tile's frame as soon from another
+    tile's link to it (`wcs_autolink`), the frame nearest that tile's time, seconds apart.
+    """
+    pixels, links = [image.pixel_component_ids[0]], []
+    for tile in tiles:
+        wcs, (ny, nx) = tile.coords, tile.shape[-2:]
+        world = wcs.pixel_to_world_values((nx - 1) / 2, (ny - 1) / 2, *at[::-1])
+        for axis in range(tile.ndim - 2):
+            k = wcs.world_n_dim - 1 - axis  # glue's world axis of array axis ``axis`` (`GlueWCS`)
+            if wcs.world_axis_physical_types[k] == "time":
+                links.append(ComponentLink(pixels, tile.world_component_ids[axis], using=_At(world[k])))
+                links.append(ComponentLink(pixels, tile.pixel_component_ids[axis], using=_At(at[axis])))
+    return links
 
 
 @data_factory("DKIST Level 1 dataset (ASDF)", is_dkist_asdf, priority=200)

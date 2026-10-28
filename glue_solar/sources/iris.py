@@ -1,10 +1,11 @@
 """
 IRIS Level 2 support: a file reader for File → Open Data Set, the observation browser, the 'Quicklook…' data action, of
-IRIS data, SST cubes and other spectral cubes, 'IRIS: shift pointing…', an exporter
+IRIS data, SST cubes and other spectral cubes, 'Mosaic…' of DKIST mosaics, 'IRIS: shift pointing…', an exporter
 of derived maps with their coordinates, and one of 1-D data, such as light curves, with their times.
 """
 
 import re
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -35,7 +36,7 @@ from glue_solar.quicklook import (
     quicklook,
 )
 from glue_solar.sources.bursts import _shift_events
-from glue_solar.sources.dkist import DKISTData
+from glue_solar.sources.dkist import DKISTData, _mosaic_image, _mosaic_links
 from glue_solar.sources.loaders.iris import (
     _HPC,
     QtIRISImporter,
@@ -45,7 +46,7 @@ from glue_solar.sources.loaders.iris import (
     last_directory,
 )
 from glue_solar.sources.loaders.scan import _is_supported_file, _primary_header, strip_pooch
-from glue_solar.sources.moments import _accepted
+from glue_solar.sources.moments import _accepted, _start
 
 __all__ = [
     "browse_iris",
@@ -55,6 +56,7 @@ __all__ = [
     "iris_image_layer",
     "iris_quicklook",
     "link_iris",
+    "mosaic_dkist",
     "quicklook_cube",
     "read_iris_file",
     "shift_pointing_iris",
@@ -364,6 +366,58 @@ def quicklook_cube(data, data_collection):
     if _role(data) in ("raster", "sji"):
         datasets = _observations(data_collection).get(observation_key(data), datasets)
     quicklook(_application(data_collection), datasets)
+
+
+def _check_mosaic(data):
+    """Raise why ``data`` has no mosaic: it is no tile of a DKIST mosaic."""
+    if len(getattr(data, "_mosaic", ())) < 2:
+        raise ValueError(f"{data.label} is no tile of a DKIST mosaic.")
+
+
+def _slice_shown(tiles, data_collection):
+    """
+    The indices of the axes but the last two of ``tiles``, a DKIST mosaic's, at which the first Image viewer of one of
+    them along those two shows it, such as its frame, or Stokes parameter, repeat and wavelength; else their first.
+    """
+    app = _application(data_collection)
+    for viewer in (viewer for tab in getattr(app, "viewers", ()) for viewer in tab):
+        state, tile = viewer.state, viewer.state.reference_data
+        if isinstance(viewer, MatplotlibImageMixin) and tile in tiles:
+            if (state.y_att, state.x_att) == tuple(tile.pixel_component_ids[-2:]):
+                return tuple(int(getattr(s, "center", s)) for s in state.slices[:-2])
+    return (0,) * (tiles[0].ndim - 2)
+
+
+def _add_mosaic(data_collection, tiles, at, image):
+    """
+    Add ``image``, the mosaic of ``tiles`` at ``at``, linked to them and to other data by 'Link helioprojective
+    coordinates', and to each tile's time there (`_mosaic_links`, D108).
+    """
+    data_collection.append(image)
+    data_collection.add_link(_mosaic_links(image, tiles, at))
+    keep_hpc_linked(data_collection, others=[*tiles, image])
+
+
+@layer_action(
+    "Mosaic…",
+    single=True,
+    data=True,
+    check=_check_mosaic,
+    tooltip="Add this DKIST mosaic's tiles stitched into one image at the frame, wavelength and Stokes parameter shown",
+)
+@messagebox_on_error("Could not make the mosaic")
+def mosaic_dkist(data, data_collection):
+    """
+    Add the loaded tiles of the DKIST mosaic of ``data`` reprojected into one image in the background (`_mosaic_image`,
+    D108), at the frame, Stokes parameter, repeat and wavelength an Image viewer shows them at (`_slice_shown`), linked
+    to them and to other data by 'Link helioprojective coordinates', and open it in an Image viewer.
+    """
+    _check_mosaic(data)
+    tiles = [tile for tile in data._mosaic if tile in data_collection]
+    at = _slice_shown(tiles, data_collection)
+    text = f"Reprojecting the tiles of {data.label.rsplit(' (', 1)[0]}…"
+    add = partial(_add_mosaic, data_collection, tiles, at)
+    _start(data_collection, text, "Could not make the mosaic", _mosaic_image, tiles, at, add=add, view=True)
 
 
 @menubar_plugin("glue-solar user guide and issues")
