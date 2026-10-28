@@ -1839,7 +1839,8 @@ def test_a_session_restores_a_dkist_mosaic_s_image_and_its_links(qtbot, monkeypa
         *again, mosaic = restore(qtbot, monkeypatch, tmp_path / "mosaic.glu").data_collection
     # its values, coordinates and meta, and its links to the tiles at the frame shown (`_At`)
     assert (mosaic.label, mosaic.meta) == (image.label, image.meta)
-    np.testing.assert_array_equal(mosaic[mosaic.main_components[0]], image[image.main_components[0]])  # NaN here
+    assert np.isnan(image[image.main_components[0]]).any()  # empty pixels NaN, not reproject's 0
+    np.testing.assert_array_equal(mosaic[mosaic.main_components[0]], image[image.main_components[0]])
     corners = ([0, image.shape[1] - 1], [0, image.shape[0] - 1])
     np.testing.assert_allclose(
         mosaic.coords.pixel_to_world_values(*corners), image.coords.pixel_to_world_values(*corners)
