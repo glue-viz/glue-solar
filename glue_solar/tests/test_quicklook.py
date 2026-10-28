@@ -579,7 +579,7 @@ def test_a_sit_and_stare_exposure_axis(bare_app, monkeypatch, irispy_test_files)
     assert exposures._axislabels.get_size() == 12
     wavelength.state.x_ticklabel_size = 7
     assert exposures._ticklabels.get_size() == 7
-    monkeypatch.setattr(settings, "FOREGROUND_COLOR", "#ff0000")
+    monkeypatch.setitem(settings._members, "FOREGROUND_COLOR", "#ff0000")  # as pytest 9.2 undoes setattr (#10644)
     bare_app.session.hub.broadcast(SettingsChangeMessage(bare_app, ("FOREGROUND_COLOR",)))
     parts = (exposures._axislabels, exposures._ticklabels, exposures._ticks)
     assert {part.get_color() for part in parts} == {"#ff0000"}

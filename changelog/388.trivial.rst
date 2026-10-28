@@ -1,0 +1,1 @@
+glue-solar needs ndcube 2.4.3 and PyQt6 6.12.0, their latest releases, and its tests pass on pytest 9.2.

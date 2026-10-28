@@ -1069,7 +1069,7 @@ def test_high_level_objects_agree_with_the_values(irispy_test_files):
         shown, wrapped = HighLevelWCSWrapper(data.coords), HighLevelWCSWrapper(data.coords._wcs)
         objects = shown.pixel_to_world(*pixel)
         assert all(map(_same, objects, wrapped.pixel_to_world(*pixel)))
-        assert shown.world_to_pixel(*objects) == pytest.approx(wrapped.world_to_pixel(*objects), abs=1e-9)
+        np.testing.assert_allclose(shown.world_to_pixel(*objects), wrapped.world_to_pixel(*objects), rtol=0, atol=1e-9)
         values = map(Masked, data.coords.pixel_to_world_values(*pixel))  # astropy takes masked low-level values too
         assert all(map(_same, values_to_high_level_objects(*values, low_level_wcs=data.coords), objects))
 
