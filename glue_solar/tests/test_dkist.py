@@ -1310,6 +1310,12 @@ def test_a_dkist_raster_s_quicklook_shows_its_context_imager_s_mosaic_slit_and_p
     assert [s.start for s in coord.point.slices] == [0, 1, 8, None]
     qtbot.wait(100)
     assert panel.state.slices[0] == 2
+    # and an Undo back to it goes back to the panel's frame clicked, not the north tile's frame nearest it, 1
+    select_point(viewers["map"], 1, 5)
+    qtbot.waitUntil(lambda: panel.state.slices[0] == 1, timeout=60_000)
+    app._actions["undo"].trigger()
+    qtbot.waitUntil(lambda: panel.state.slices[0] == 2, timeout=60_000)
+    assert [s.start for s in coord.point.slices] == [0, 1, 8, None]
     # the imager leading the time, a frame moves the raster to the step nearest it, none past half a step's cadence
     menu_action(panel, LEAD).trigger()
     slide(panel, 0, 0)
@@ -1409,6 +1415,12 @@ def test_a_click_on_a_sit_and_stare_raster_s_context_image_takes_the_step_neares
     slide(panel, 0, 1)
     select_point(panel, 8, 20)
     assert [s.start for s in coord.point.slices] == [0, 1, 8, None]
+    # and none in the gap its drift opens at frame 2, 18 s, its frame 1, 204.5", on no tile, as #331 skips it
+    slide(panel, 0, 2)
+    select_point(panel, 8, 22)
+    qtbot.wait(100)
+    assert [s.start for s in coord.point.slices] == [0, 1, 8, None]
+    assert "outside raster FOV" not in readout(panel)
 
 
 def test_go_to_utc_and_blink_move_a_context_image_along_its_steps(qtbot, monkeypatch):
