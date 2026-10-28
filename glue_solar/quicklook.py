@@ -795,10 +795,12 @@ class Coordinator(HubListener):
                     values[axis] = at.to_value(other.coords.world_axis_units[axis])
                 pixel = np.asarray(other.coords.world_to_pixel_values(*values), float)[::-1]
                 # a scanning DKIST raster's step, not `spatial` as its time varies along it too: that whose slit passes
-                # nearest the place, and the slit pixel level with it, as an IRIS point reaches it (`_SlitAt`, D102)
+                # nearest the place, and the slit pixel level with it, as an IRIS point reaches it (`_SlitAt`, D102), at
+                # its point's repeat or measurement, along which its pointing may move too (`link_hpc`)
                 kinds = other.coords.world_axis_physical_types
                 steps = [a for a in range(other.ndim) if a not in spatial and kinds[len(kinds) - 1 - a] in _HPC]
-                raster = _slit(other, steps[0]) if len(steps) == 1 else None
+                at = {axis: point.slices[axis].start or 0 for axis in _held_axes(other)}
+                raster = _slit(other, steps[0], at) if len(steps) == 1 else None
                 if raster is not None:
                     slit, starts, pixels = raster
                     there = [values[axis] for axis in axes]

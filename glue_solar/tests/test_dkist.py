@@ -1087,6 +1087,29 @@ def test_an_iris_point_reaches_a_dkist_raster_with_repeats_at_the_step_whose_sli
         assert restored.__gluestate__(None) == using.__gluestate__(None)
 
 
+def test_a_linked_dkist_raster_with_repeats_s_point_moves_to_the_step_at_the_place_at_its_repeat(qtbot, monkeypatch):
+    app = bare_app_for(qtbot, monkeypatch)
+    # 3 repeats, each a step west of the last, as dkist's pointing moves along ViSP's repeats and Cryo-NIRSP's
+    # measurements
+    first, second = (visp_like(repeats=3, drift=0.5, inverse=True) for _ in range(2))
+    collection = app.data_collection
+    collection.extend([first, second])
+    collection.add_link(WCSLink(first, second))  # as glue offers as they load
+    quicklook(app, [first])
+    quicklook(app, [second])
+    ours, theirs = (
+        next(group for group in collection.subset_groups if group.subset_state.reference_data is data)
+        for data in (first, second)
+    )
+    # theirs at repeat 2, step 1, then ours at repeat 0, step 2, slit pixel 4
+    for group, data, at in ((theirs, second, (0, 2, 1, 5)), (ours, first, (0, 0, 2, 4))):
+        app.session.edit_subset_mode.edit_subset = [group]
+        point = PixelSubsetState(data, [*(slice(i, i + 1) for i in at), slice(None)])
+        app.session.command_stack.do(ApplySubsetState(data_collection=collection, subset_state=point))
+    # at its repeat, the step whose slit passes nearest, 0, where it kept its step 1 (D97, D102)
+    assert [s.start for s in theirs.subset_state.slices] == [0, 2, 0, 4, None]
+
+
 KINDS = {
     "lon": ("custom:pos.helioprojective.lon", "arcsec"),
     "lat": ("custom:pos.helioprojective.lat", "arcsec"),
@@ -1132,11 +1155,12 @@ def observed(label, sizes, along, world, inverse, by):
     return data
 
 
-def visp_like(repeats=1, step=0.5, drift=0, start=1.7e9):
+def visp_like(repeats=1, step=0.5, drift=0, start=1.7e9, inverse=False):
     """
     A ViSP raster of Stokes I and Q, as TXIPCV's 4-D, of 3 steps ``step`` arcsec and 10 s apart from unix ``start`` s
     along a slit of 10 pixels of 0.5", at 25 wavelengths; ``repeats`` of it 30 s apart, if more than one, on an axis
-    after Stokes, as CZKPML's, each ``drift`` arcsec west of the last.
+    after Stokes, as CZKPML's, each ``drift`` arcsec west of the last; with ``inverse`` its inverse, which takes the step
+    and repeat from the time, as dkist's gWCS.
     """
     repeat = {"repeat": repeats} if repeats > 1 else {}
     return observed(
@@ -1156,7 +1180,17 @@ def visp_like(repeats=1, step=0.5, drift=0, start=1.7e9):
             "time": start + 30 * p.get("repeat", 0) + 10 * p["step"],
             "stokes": 1.0 + p["stokes"],
         },
-        None,
+        (
+            lambda w: {
+                "wave": (w["wave"] - 500) / 0.01,
+                "slit": (w["lat"] - 200) / 0.5,
+                "step": (w["time"] - start) % 30 / 10,
+                "repeat": (w["time"] - start) // 30,
+                "stokes": w["stokes"] - 1,
+            }
+        )
+        if inverse
+        else None,
         ("VISP", "op"),
     )
 

@@ -1066,7 +1066,7 @@ def link_hpc(data_collection, others=()):
         # at each IRIS frame's nearest in time (below), where glue placed a point by its time alone (D102)
         step, held = _frame_axis(dataset), sorted(set(axes) & _held_axes(dataset))
         repeated = None
-        if len(axes) == 2 and len(held) == 1 and given[axes.index(step)] in _HPC:
+        if len(axes) == 2 and datasets and len(held) == 1 and given[axes.index(step)] in _HPC:
             repeated = _slit(dataset, step, {held[0]: np.arange(dataset.shape[held[0]])[:, None]})
         if raster is not None:
             slit, starts, pixels = dataset.pixel_component_ids[raster[0]], *raster[1:]
