@@ -951,7 +951,15 @@ def link_hpc(data_collection, others=()):
     and latitude (`_SlitAt`).
     """
     from glue_solar.quicklook import _role, _times, nearest, observation_key  # which imports this module
-    from glue_solar.sources.dkist import GlueWCS, _frame_times, _slit, _SlitAt, _SlitPlace  # which imports this module
+    from glue_solar.sources.dkist import (  # which imports this module
+        GlueWCS,
+        _frame_axis,
+        _frame_times,
+        _held_axes,
+        _slit,
+        _SlitAt,
+        _SlitPlace,
+    )
     from glue_solar.sources.sst import _LockedTabularWCS, _TabularWCS  # which imports this module
 
     linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in data_collection.links}
@@ -1054,6 +1062,12 @@ def link_hpc(data_collection, others=()):
         raster = None
         if len(axes) == 1 and datasets and len(hpc) == 2 and wcs.world_n_dim > wcs.pixel_n_dim:
             raster = _slit(dataset, axes[0])
+        # a scanning raster with repeats or measurements, its time along both, by a slit table per repeat or measurement
+        # at each IRIS frame's nearest in time (below), where glue placed a point by its time alone (D102)
+        step, held = _frame_axis(dataset), sorted(set(axes) & _held_axes(dataset))
+        repeated = None
+        if len(axes) == 2 and datasets and len(held) == 1 and given[axes.index(step)] in _HPC:
+            repeated = _slit(dataset, step, {held[0]: np.arange(dataset.shape[held[0]])[:, None]})
         if raster is not None:
             slit, starts, pixels = dataset.pixel_component_ids[raster[0]], *raster[1:]
             if not timed:
@@ -1085,6 +1099,17 @@ def link_hpc(data_collection, others=()):
                     links.append(ComponentLink([frame], frames, using=_ScanAt(steps)))
                 if frozenset((slit, *lonlat, frame)) not in linked:
                     links.append(ComponentLink([*lonlat, frame], slit, using=_SlitAt(starts, pixels, True, steps)))
+            if repeated is not None and set(_HPC) <= set(kinds):
+                lonlat = [data.world_component_ids[data.ndim - 1 - kinds.index(kind)] for kind in _HPC]
+                # the repeat or measurement of the frame nearest in time
+                repeats = np.where(np.isnat(when), np.nan, np.unravel_index(nearby, times.shape)[axes.index(held[0])])
+                ids = dataset.pixel_component_ids
+                if frozenset((ids[held[0]], frame)) not in linked:
+                    links.append(ComponentLink([frame], ids[held[0]], using=_ScanAt(repeats)))
+                for to, along in ((ids[step], False), (ids[repeated[0]], True)):
+                    if frozenset((to, *lonlat, frame)) not in linked:
+                        using = _SlitAt(*repeated[1:], along, repeats=repeats)
+                        links.append(ComponentLink([*lonlat, frame], to, using=using))
             if "time" not in kinds:  # a raster's
                 continue
             time = data.world_component_ids[data.ndim - 1 - kinds.index("time")]
