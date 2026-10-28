@@ -1,8 +1,9 @@
 """
-The main IRIS lines, a Profile viewer button that labels them, the rest wavelength of a spectral window (D11) and the
+The main lines, a Profile viewer button that labels them, the rest wavelength of a spectral window (D11) and the
 Doppler velocity from it, as a Profile x unit and top axis.
 
-The main lines are the documented IRIS lines of irispy's line catalog, at its vacuum wavelengths in Angstrom (D44).
+The main lines are the documented IRIS lines of irispy's line catalog, at its vacuum wavelengths in Angstrom (D44), and
+on DKIST data DKIST's working lines, in air or vacuum as its wavelengths are (`lines_of`, D107).
 """
 
 import os
@@ -34,6 +35,7 @@ __all__ = [
     "LineTool",
     "LinesInRangeTool",
     "VelocityTool",
+    "lines_of",
     "main_lines",
     "rest_wavelength",
     "rest_wavelength_iris",
@@ -50,6 +52,44 @@ def main_lines():
     lines = get_lines(main_only=True)
     waves = lines["wavelength"].to_value(u.AA).tolist()
     return tuple((_NAMES.get(wave, str(ion)), wave) for ion, wave in zip(lines["ion"], waves, strict=True))
+
+
+# DKIST's working lines, those ViSP, Cryo-NIRSP, DL-NIRSP and VBI observe, as (name, air and vacuum wavelengths in
+# Angstrom): NIST ASD's observed wavelengths, else its Ritz ones, in air up to 2 µm, and in vacuum from its wavenumbers
+# above 1 µm (D107; https://physics.nist.gov/PhysRefData/ASD/lines_form.html, 2026-10-28)
+DKIST_LINES = (
+    ("Ca II K", 3933.66, 3934.77),
+    ("Ca II H", 3968.47, 3969.59),
+    ("H-beta", 4861.35, 4862.71),
+    ("Na I D2", 5889.95095, 5891.583264),
+    ("Na I D1", 5895.92424, 5897.558147),
+    ("Fe I", 6173.3352, 6175.0435),
+    ("Fe I", 6301.5008, 6303.2435),
+    ("Fe I", 6302.4932, 6304.2361),
+    ("H-alpha", 6562.79, 6564.60),
+    ("Fe XI", 7891.8, 7894.0),
+    ("Ca II", 8498.02, 8500.35),
+    ("Ca II", 8542.09, 8544.44),
+    ("Ca II", 8662.14, 8664.52),
+    ("Fe XIII", 10746.8, 10749.8),
+    ("Fe XIII", 10797.9, 10800.9),
+    ("Si I", 10827.091, 10830.057),
+    ("He I", 10829.09115, 10832.05748),  # its triplet, Ritz
+    ("He I", 10830.25011, 10833.21676),
+    ("He I", 10830.33978, 10833.30645),
+    ("Si X", 14301.0, 14304.9),  # Ritz
+    ("Fe I", 15648.514, 15652.789),
+    ("Fe I", 15652.873, 15657.151),
+)
+
+
+def lines_of(data):
+    """
+    The main lines of ``data``, as (name, wavelength in Angstrom): DKIST's (`DKIST_LINES`) in air or vacuum as its
+    ``meta['WAVEREF']``, 'Air' or 'Vacuum', says, as DKIST's headers give it (D107), else IRIS's (`main_lines`).
+    """
+    column = {"air": 1, "vacuum": 2}.get(str(data.meta.get("WAVEREF", "")).lower())
+    return main_lines() if column is None else tuple((line[0], line[column]) for line in DKIST_LINES)
 
 
 MERGE = 0.01  # lines closer than this fraction of the plotted range share a label
@@ -71,7 +111,7 @@ def _check(tool):
 @viewer_tool
 class LineTool(Tool):
     """
-    Label the main IRIS lines (`main_lines`) on a Profile viewer whose x axis is the wavelength of IRIS data: a thin
+    Label the main lines (`lines_of`) on a Profile viewer whose x axis is the wavelength of its data: a thin
     marker at each line within the plotted range and its name at the top, in the axis's display unit, less the main
     lines unticked in 'Lines in this range…' (`hidden`) and with the lines ticked there (`labeled`) (D98). Lines too
     close to tell apart at the plotted range share one label; a label that would overlap another goes below it. The
@@ -80,8 +120,8 @@ class LineTool(Tool):
 
     icon = "glue_spectrum"
     tool_id = "solar:lines"
-    action_text = "IRIS lines"
-    tool_tip = "Show or hide the main IRIS lines"
+    action_text = "Main lines"
+    tool_tip = "Show or hide the main lines: IRIS's, or DKIST's on DKIST data"
 
     def __init__(self, viewer):
         super().__init__(viewer)
@@ -107,11 +147,12 @@ class LineTool(Tool):
         super().close()
 
     def positions(self):
-        """Each label and its x, within the plotted range, or none where the x axis is not an IRIS wavelength."""
+        """Each label and its x, within the plotted range, or none where the x axis is not a wavelength."""
         state = self.viewer.state
         if not self.shown or not _shows_wavelength(state) or None in (state.x_min, state.x_max):
             return []
-        data, lines = state.reference_data, [line for line in main_lines() if line[1] not in self.hidden] + self.labeled
+        data = state.reference_data
+        lines = [line for line in lines_of(data) if line[1] not in self.hidden] + self.labeled
         native = u.Unit(data.get_component(state.x_att).units or "Angstrom")
         waves = (np.array([wave for _, wave in lines]) * u.AA).to_value(native)
         x = np.asarray(UnitConverter().to_unit(data, state.x_att, waves, state.x_display_unit), float)
@@ -181,15 +222,15 @@ class LinesInRangeTool(Tool):
     """
     List the lines of irispy's catalog within a Profile viewer's Fit and Collapse range, else its plotted range,
     strongest first in a region type's model at coronal or photospheric abundances, lines it predicts no strength for
-    after (D44, D97), each ticked while `LineTool` shows it: a tick labels a line beside the main lines, an untick hides
-    one, a main line too (D98).
+    after (D44, D97), or on DKIST data DKIST's lines (`lines_of`, D107), each ticked while `LineTool` shows it: a tick
+    labels a line beside the main lines, an untick hides one, a main line too (D98).
     """
 
     #: :meta hide-value:
     icon = _icon("solar_lines_in_range")
     tool_id = "solar:lines_in_range"
     action_text = "Lines in this range…"
-    tool_tip = "List the IRIS lines in the Fit range, else in the plotted range, strongest first"
+    tool_tip = "List the lines in the Fit range, else in the plotted range: IRIS's strongest first, or DKIST's"
     dialog = None
 
     @messagebox_on_error("Could not list the lines")
@@ -209,23 +250,31 @@ class LinesInRangeTool(Tool):
         native = u.Unit(data.get_component(state.x_att).units or "Angstrom")
         ends = UnitConverter().to_native(data, state.x_att, np.array(ends, float), state.x_display_unit) * native
         low, high = sorted(ends.to_value(u.AA))
-        self.dialog = dialog = QtWidgets.QDialog(self.viewer, windowTitle=f"IRIS lines in {low:.2f}–{high:.2f} Å")
+        ours = lines_of(data)
+        iris = ours is main_lines()
+        title = f"{'IRIS' if iris else 'DKIST'} lines in {low:.2f}–{high:.2f} Å"
+        self.dialog = dialog = QtWidgets.QDialog(self.viewer, windowTitle=title)
         region, abundance, listing = QtWidgets.QComboBox(), QtWidgets.QComboBox(), QtWidgets.QListWidget()
         region.addItems(_REGIONS)
         abundance.addItems(["Coronal", "Photospheric"])
         layout = QtWidgets.QFormLayout(dialog)
-        layout.addRow("Strongest in", region)
-        layout.addRow("Abundances", abundance)
+        if iris:  # DKIST's lines have no strengths
+            layout.addRow("Strongest in", region)
+            layout.addRow("Abundances", abundance)
         layout.addRow(listing)
 
-        lines, main = self.viewer.toolbar.tools[LineTool.tool_id], {wave for _, wave in main_lines()}
+        lines, main = self.viewer.toolbar.tools[LineTool.tool_id], {wave for _, wave in ours}
 
         def fill(*_):
-            model = _REGIONS[region.currentText()], abundance.currentText().lower()
-            catalog = get_lines([low, high] * u.AA, region=model[0], abundance=model[1], minimum_strength=0)
             listing.clear()
-            strengths = np.asarray(catalog["intensity_{}_{}".format(*model)], float)
-            for ion, wave, strength in zip(catalog["ion"], catalog["wavelength"].to_value(u.AA).tolist(), strengths):
+            if iris:
+                model = _REGIONS[region.currentText()], abundance.currentText().lower()
+                catalog = get_lines([low, high] * u.AA, region=model[0], abundance=model[1], minimum_strength=0)
+                strengths = np.asarray(catalog["intensity_{}_{}".format(*model)], float)
+                rows = zip(catalog["ion"], catalog["wavelength"].to_value(u.AA).tolist(), strengths)
+            else:  # irispy's catalog is of IRIS's wavelengths only
+                rows = [(name, wave, -1) for name, wave in ours if low <= wave <= high]
+            for ion, wave, strength in rows:
                 item = QtWidgets.QListWidgetItem(f"{ion} {wave:.3f} Å" + (f", {strength:.2g}" if strength >= 0 else ""))
                 item.setData(Qt.UserRole, (str(ion), wave))
                 shown = wave not in lines.hidden if wave in main else (str(ion), wave) in lines.labeled
@@ -254,14 +303,15 @@ class LinesInRangeTool(Tool):
 def _within(data):
     """The main lines within the wavelengths of ``data``, which has one wavelength axis, as (name, wavelength)."""
     wavelengths, _ = _wavelengths(data)
-    return [(name, wave) for name, wave in main_lines() if np.nanmin(wavelengths) <= wave <= np.nanmax(wavelengths)]
+    return [(name, wave) for name, wave in lines_of(data) if np.nanmin(wavelengths) <= wave <= np.nanmax(wavelengths)]
 
 
 def rest_wavelength(data):
     """
     The rest wavelength of the line in ``data``, in Angstrom, or None (D11): ``meta['rest_wavelength']`` where set,
-    else the one main line within its wavelengths or, of several, the one of the window's own ion (C I 1355.85 is
-    nearer 1356 than O I 1355.60) nearest the wavelength its window is named for, such as 2796 in Mg II k 2796, if
+    else the one main line within its wavelengths (`lines_of`) or, of several, the one of the window's own ion (C I
+    1355.85 is nearer 1356 than O I 1355.60) nearest the wavelength its window is named for, such as 2796 in Mg II k
+    2796, or a DKIST dataset's ``WAVEBAND`` and ``LINEWAV``, such as He I 1083.0 nm in 'He I (1083.0 nm)' (D107), if
     within 1 Å; never the window's TWAVE, which is not the line's.
     """
     if data.meta.get("rest_wavelength") is not None:
@@ -270,9 +320,10 @@ def rest_wavelength(data):
         return None
     within = _within(data)
     if len(within) > 1:
-        title = str(_window(data)[0])
+        dkist = "LINEWAV" in data.meta
+        title = str(data.meta.get("WAVEBAND") if dkist else _window(data)[0])
         try:
-            named = float(title.split()[-1])
+            named = float(data.meta["LINEWAV"]) * 10 if dkist else float(title.split()[-1])  # DKIST's in nm
         except (IndexError, ValueError):  # no name, or no wavelength in it
             return None
         within = [line for line in within if title.startswith(f"{line[0]} ")] or within

@@ -13,6 +13,7 @@ import threading
 import warnings
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
+from functools import cached_property
 from pathlib import Path
 
 import numpy as np
@@ -30,6 +31,7 @@ from glue.utils.array import compute_statistic, unbroadcast
 
 import astropy.units as u
 from astropy.io import fits
+from astropy.stats import mad_std
 from astropy.time import Time
 from astropy.wcs.wcsapi import BaseHighLevelWCS, BaseLowLevelWCS, HighLevelWCSMixin
 
@@ -455,6 +457,33 @@ class DKISTData(Data):
             self._samples[size] = np.concatenate(values)
         return self._samples[size]
 
+    @cached_property
+    def _noise(self):
+        """
+        The noise level of Stokes Q, U and V, by index, by an SST cube's rule (`~glue_solar.sources.sst._Cube._noise`,
+        D107): the standard deviation of each at the quieter end of its wavelengths, as an artifact or a line at one end
+        only raises it, as at AIOMGG's first, from the median absolute deviation of about 10,000 values there, evenly
+        spaced along the other axes of up to 16 frames, NaN, such as all of DL-NIRSP's first wavelength, left out; 0 if
+        all are NaN at both ends.
+        """
+        types = self.coords.world_axis_physical_types
+        s, w = (self.coords.world_n_dim - 1 - types.index(kind) for kind in ("phys.polarization.stokes", "em.wl"))
+        lead, other = self._present.ndim, [a for a in range(self.ndim) if a not in (s, w)]  # its frames' axes first
+        view = [0] * self.ndim
+        for a in other:
+            along = [b for b in other if (b < lead) == (a < lead)]
+            step = max(1, round(self.shape[a] / (16 if a < lead else 625) ** (1 / len(along))))
+            view[a] = slice(step // 2, None, step)
+        cid, ends = self.main_components[0], []
+        for view[w] in (0, self.shape[w] - 1):
+            with warnings.catch_warnings(action="ignore", category=RuntimeWarning):  # 'All-NaN slice encountered'
+                noise = {
+                    k: float(np.nan_to_num(mad_std(self[cid, (*view[:s], k, *view[s + 1 :])], ignore_nan=True)))
+                    for k in (1, 2, 3)
+                }
+            ends.append(noise)
+        return {k: min((end[k] for end in ends if end[k]), default=0.0) for k in (1, 2, 3)}
+
     def register_to_hub(self, hub):
         # each frame's Time and Exposure time, as IRIS data's, which the Point window and readouts give (D103): added
         # here, not as it loads, where glue's load log would number a mosaic's components apart from older sessions',
@@ -682,6 +711,10 @@ def _data(dataset, label):
     data.add_component(DaskComponent(dataset.data, units=str(dataset.unit or "")), "data")
     inventory = dataset.meta["inventory"]
     data._observed = inventory["instrumentName"], inventory.get("observingProgramExecutionId")
+    # its first frame's band, line (nm) and whether its wavelengths are in air or vacuum, for its lines (D107)
+    for key, kind in (("WAVEBAND", str), ("LINEWAV", float), ("WAVEREF", str)):
+        if key in headers.colnames:
+            data.meta[key] = kind(headers[key][0])
     files = dataset.files
     data._present = np.vectorize(lambda name: (Path(files.basepath) / name).exists(), otypes=[bool])(
         files.fileuri_array

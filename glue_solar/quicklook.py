@@ -2013,7 +2013,8 @@ def _cube_table(app, cube):
     ``spectra`` of the point's Stokes parameters; for a time axis ``wavelength`` and ``curve``; laid out in ``rows``.
     The spectra and curve are `_Cut` groups following the point, so no panel profiles the whole cube. A DKIST
     spectrograph's ``imager``, its context imager loaded (`_context_imager`), shows its frame, a mosaic's every tile,
-    with the raster's slit and point, as IRIS's slit-jaw images (D105).
+    with the raster's slit and point, as IRIS's slit-jaw images (D105). ``limits`` is the Stokes axis of an SST cube or
+    a full-Stokes DKIST dataset, whose Q, U and V take their noise level's limits (`_stokes_limits`, D107), else None.
     """
     sst, aspect = _role(cube) == "sst", "equal"
     if sst:  # scan, Stokes, wavelength, y and x, or a cube of intensities' scan, wavelength, y and x
@@ -2061,7 +2062,7 @@ def _cube_table(app, cube):
         "point": PixelSubsetState(cube, slices),
         "viewers": {"spectra": []},
         "rows": (("map", "wing", "slit", "imager"), ("spectra",), ("wavelength", "curve")),  # maps on top (D68)
-        "limits": sst and s is not None,
+        "limits": s if s is not None and (sst or isinstance(cube, DKISTData) and cube.shape[s] == 4) else None,
     }
 
 
@@ -2113,9 +2114,9 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
                         layer.visible = group is None
                     else:
                         layer.stretch, layer.percentile = viewer.state.layers[0].stretch, PERCENTILE
-            if table.get("limits"):
+            if table.get("limits") is not None and panel.data is datasets[0]:  # not a context imager's
                 layer = viewer.state.layers[0]
-                limits = partial(_stokes_limits, layer, wing=panel.role == "wing")
+                limits = partial(_stokes_limits, layer, wing=panel.role == "wing", axis=table["limits"])
                 viewer.state.add_callback("slices", limits)
                 layer.add_callback("stretch_global", lambda *_: limits(viewer.state.slices))
         add(panel, viewer)
@@ -2175,7 +2176,7 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
             label, axis, at, band, x_att = panel.cut
             cut = partial(_Cut, point=group, band=viewers.get(band), axis=axis, data=panel.data, at=at)
             add(panel, _cut_profile(app, label, cut, x_att, panel.title))
-        if table.get("limits"):  # Q, U and V spectra at least the maps' range, their noise level shaded (F173)
+        if table.get("limits") is not None:  # Q, U and V spectra at least the maps' range, their noise shaded (F173)
             for stokes, spectrum in enumerate(viewers["spectra"][1:], 1):
                 noise = datasets[0]._noise[stokes]
                 spectrum.axes.axhspan(-noise, noise, color="0.9", zorder=0, gid="solar:noise")
@@ -2222,23 +2223,24 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
 
 def _stokes_limit(cube, stokes):
     """
-    The limit about 0 of Stokes parameter ``stokes`` of an SST cube's panels: 5 times its noise level for Q and U, 10 for
-    V, as linear polarization is the weaker (`~glue_solar.sources.sst._Cube._noise`, F173).
+    The limit about 0 of Stokes parameter ``stokes`` of an SST cube's or a full-Stokes DKIST dataset's panels: 5 times
+    its noise level for Q and U, 10 for V, as linear polarization is the weaker (`~glue_solar.sources.sst._Cube._noise`,
+    F173; D107).
     """
     return (5 if stokes < 3 else 10) * cube._noise[stokes]
 
 
-def _stokes_limits(layer, slices, wing=False):
+def _stokes_limits(layer, slices, wing=False, axis=1):
     """
-    Give ``layer`` the limits of the Stokes parameter of ``slices``: glue's 99.5% for I, and `_stokes_limit` about 0 for
-    Q, U and V, which glue's over the whole cube, I's values mostly, showed flat (230-6); on the second map (``wing``),
-    per frame for its I (P9), those whatever its 'Per-frame limits' (D88).
+    Give ``layer`` the limits of the Stokes parameter of ``slices``, along ``axis``: glue's 99.5% for I, and
+    `_stokes_limit` about 0 for Q, U and V, which glue's over the whole cube, I's values mostly, showed flat (230-6); on
+    the second map (``wing``), per frame for its I (P9), those whatever its 'Per-frame limits' (D88).
     """
     # ponytail: set as the Stokes parameter or 'Per-frame limits' changes, over limits chosen in the style editor, and I
     # takes glue's 99.5% again; keep each parameter's last limits if that matters
     if not slices:  # glue's () as the cube is removed, whose removal an IndexError here stopped
         return
-    cube, stokes = layer.layer, getattr(slices[1], "center", slices[1])  # a Collapse at its center (D39)
+    cube, stokes = layer.layer, getattr(slices[axis], "center", slices[axis])  # a Collapse at its center (D39)
     shown = stokes, layer.stretch_global
     if shown == vars(layer).get("_solar_stokes", (0, True)) or layer.attribute is not cube.main_components[0]:
         return
