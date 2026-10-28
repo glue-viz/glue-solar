@@ -5,8 +5,8 @@ User Guide
 ==========
 
 glue-solar adds solar data to glue: an observation browser for IRIS Level 2 files and SST cubes,
-DKIST Level 1 datasets, a quicklook of linked panels in the manner of CRISPEX, analyses through
-irispy, and AIA and HMI maps beside them. Start with :ref:`Getting started
+a loader for DKIST Level 1 datasets, a quicklook of linked panels in the manner of CRISPEX,
+analyses through irispy, and AIA and HMI maps beside them. Start with :ref:`Getting started
 <glue_solar_users_guide_getting_started>`, or for DKIST data the :ref:`DKIST tutorial
 <glue_solar_users_guide_dkist_tutorial>`.
 
