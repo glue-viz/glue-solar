@@ -30,9 +30,11 @@ from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from qtpy.QtWidgets import QListWidget
 
 import astropy.units as u
 from astropy.io import fits
+from astropy.stats import mad_std
 from astropy.time import Time
 from astropy.wcs.utils import pixel_to_pixel
 
@@ -922,7 +924,7 @@ def test_a_session_restores_dkist_datasets_and_their_image_and_profile_viewers(a
             ):
                 np.testing.assert_array_equal(got, expected)
         data = restored.data_collection[0]
-        assert data.meta == {"rest_wavelength": 6302.5}
+        assert dict(data.meta) == dict(visp.meta)  # its rest wavelength, and its headers' band, line and air or vacuum
         np.testing.assert_array_equal(np.asarray(data["data"]), np.asarray(visp["data"]))
         expected = np.asarray(visp["data"])[1]
         with monkeypatch.context() as patch:  # its views read from its files, as before saving, not by dask (D103)
@@ -1155,17 +1157,18 @@ def observed(label, sizes, along, world, inverse, by):
     return data
 
 
-def visp_like(repeats=1, step=0.5, drift=0, start=1.7e9, inverse=False):
+def visp_like(repeats=1, step=0.5, drift=0, start=1.7e9, inverse=False, stokes=2, wave_start=500, spacing=0.01, **meta):
     """
-    A ViSP raster of Stokes I and Q, as TXIPCV's 4-D, of 3 steps ``step`` arcsec and 10 s apart from unix ``start`` s
-    along a slit of 10 pixels of 0.5", at 25 wavelengths; ``repeats`` of it 30 s apart, if more than one, on an axis
-    after Stokes, as CZKPML's, each ``drift`` arcsec west of the last; with ``inverse`` its inverse, which takes the step
-    and repeat from the time, as dkist's gWCS.
+    A ViSP raster of ``stokes`` Stokes parameters, I and Q as TXIPCV's 4-D by default, of 3 steps ``step`` arcsec and
+    10 s apart from unix ``start`` s along a slit of 10 pixels of 0.5", at 25 wavelengths ``spacing`` nm apart from
+    ``wave_start`` nm; ``repeats`` of it 30 s apart, if more than one, on an axis after Stokes, as CZKPML's, each
+    ``drift`` arcsec west of the last; with ``inverse`` its inverse, which takes the step and repeat from the time, as
+    dkist's gWCS; with ``meta``, its headers' keys as `dkist_data` keeps them (D107).
     """
     repeat = {"repeat": repeats} if repeats > 1 else {}
-    return observed(
+    data = observed(
         "VISP RASTER",
-        {"stokes": 2, **repeat, "step": 3, "slit": 10, "wave": 25},
+        {"stokes": stokes, **repeat, "step": 3, "slit": 10, "wave": 25},
         {
             "wave": ("wave",),
             "lon": ("repeat", "step", "slit") if drift else ("step", "slit"),
@@ -1174,7 +1177,7 @@ def visp_like(repeats=1, step=0.5, drift=0, start=1.7e9, inverse=False):
             "stokes": ("stokes",),
         },
         lambda p: {
-            "wave": 500 + 0.01 * p["wave"],
+            "wave": wave_start + spacing * p["wave"],
             "lon": -100 + step * p["step"] + drift * p.get("repeat", 0) + 0 * p["slit"],
             "lat": 200 + 0.5 * p["slit"] + 0 * p["step"],
             "time": start + 30 * p.get("repeat", 0) + 10 * p["step"],
@@ -1182,7 +1185,7 @@ def visp_like(repeats=1, step=0.5, drift=0, start=1.7e9, inverse=False):
         },
         (
             lambda w: {
-                "wave": (w["wave"] - 500) / 0.01,
+                "wave": (w["wave"] - wave_start) / spacing,
                 "slit": (w["lat"] - 200) / 0.5,
                 "step": (w["time"] - start) % 30 / 10,
                 "repeat": (w["time"] - start) // 30,
@@ -1193,6 +1196,8 @@ def visp_like(repeats=1, step=0.5, drift=0, start=1.7e9, inverse=False):
         else None,
         ("VISP", "op"),
     )
+    data.meta.update(meta)
+    return data
 
 
 def vbi_like(label, north=0, later=0, program="op", frames=4):
@@ -1580,3 +1585,79 @@ def test_a_session_restores_a_dkist_raster_s_quicklook_with_its_context_imager(q
     restored.show()
     qtbot.wait(100)
     assert subsets == []
+
+
+@small_visp_dated_2044
+def test_dkist_data_label_dkist_s_lines_in_air_or_vacuum_as_their_headers_say(app):
+    import dkist
+
+    from glue_solar.lines import rest_wavelength
+
+    # its first frame's band, line (nm) and air or vacuum, from its headers
+    headers = dkist.load_dataset(small_visp()).headers
+    assert load_data(str(small_visp())).meta == {key: headers[key][0] for key in ("WAVEBAND", "LINEWAV", "WAVEREF")}
+    # about Ca II 854.2 nm: DKIST's line in air, as the headers say, where IRIS's lines labeled none, its Doppler
+    # velocity from it, and in vacuum (D107)
+    raster = visp_like(wave_start=854.0, spacing=0.02, WAVEREF="Air")
+    app.data_collection.append(raster)
+    viewer = app.new_data_viewer(ProfileViewer, data=raster)
+    viewer.state.x_att = raster.world_component_ids[3]
+    lines = viewer.toolbar.tools["solar:lines"]
+    assert lines.positions() == [("Ca II", [pytest.approx(854.209)])]
+    assert rest_wavelength(raster) == 8542.09
+    assert "km / s" in type(viewer.state).x_display_unit.get_choices(viewer.state)
+    raster.meta["WAVEREF"] = "Vacuum"
+    assert lines.positions() == [("Ca II", [pytest.approx(854.444)])]
+    # 'Lines in this range…' lists them, of no strengths, where irispy's catalog of IRIS's wavelengths listed none
+    tool = viewer.toolbar.tools["solar:lines_in_range"]
+    tool.activate()
+    listing = tool.dialog.findChild(QListWidget)
+    assert tool.dialog.windowTitle().startswith("DKIST lines in ")
+    assert [listing.item(i).text() for i in range(listing.count())] == ["Ca II 8544.440 Å"]
+    # of several, its band's line, He I 1083.0 nm's of Si I 1082.7 and He I's three, where it had none
+    he = visp_like(wave_start=1082.6, spacing=0.02, WAVEREF="Air", LINEWAV=1083.0, WAVEBAND="He I (1083.0 nm)")
+    assert rest_wavelength(he) == 10830.25011
+
+
+def test_a_full_stokes_dkist_raster_s_quicklook_scales_q_u_and_v_by_their_noise_level(qtbot, monkeypatch):
+    from glue_solar.quicklook import coordinator
+
+    app = bare_app_for(qtbot, monkeypatch)
+    raster = visp_like(stokes=4)
+    rng = np.random.default_rng(0)
+    values = rng.normal(0, 1, raster.shape) * np.array([10, 1, 1.5, 2])[:, None, None, None]
+    values[0] += 1000
+    values[1:, :, :5, 10:15] += 20  # polarized in the line
+    raster.update_components({raster.main_components[0]: values})
+    app.data_collection.extend([raster, vbi_like("VBI", frames=8)])
+    viewers = quicklook(app, [raster])
+    # as an SST cube's (#307): the noise level of Q, U and V at the quieter end, shaded on their spectra, and their
+    # maps at 5 times it for Q and U and 10 for V, where glue's 99.5% of the whole raster showed them flat (D107)
+    noise = [min(mad_std(values[k, :, :, end]) for end in (0, -1)) for k in (1, 2, 3)]
+    bands = [[p for p in viewer.axes.patches if p.get_gid() == "solar:noise"] for viewer in viewers["spectra"]]
+    assert [[(band.get_y(), band.get_y() + band.get_height()) for band in shown] for shown in bands] == [
+        [],
+        *[[(pytest.approx(-sigma), pytest.approx(sigma))] for sigma in noise],
+    ]
+    layers = [viewers[role].state.layers[0] for role in ("map", "slit")]
+    whole = [(layer.v_min, layer.v_max) for layer in layers]
+    for stokes in (1, 2, 3, 0):
+        slide(viewers["map"], 0, stokes)
+        qtbot.waitUntil(lambda: all(layer.viewer_state.slices[0] == stokes for layer in layers))
+        limit = (0, 5, 5, 10)[stokes] * ([0, *noise])[stokes]
+        expected = whole if stokes == 0 else [(pytest.approx(-limit), pytest.approx(limit))] * 2  # I: glue's 99.5%
+        assert [(layer.v_min, layer.v_max) for layer in layers] == expected
+    # its context imager keeps its own limits as the raster's step moves its frame
+    imager = viewers["imager"].state
+    before = imager.layers[0].v_min, imager.layers[0].v_max
+    coordinator(app.data_collection).group.subset_state = PixelSubsetState(
+        raster, [slice(0, 1), slice(2, 3), slice(5, 6), slice(None)]
+    )
+    qtbot.waitUntil(lambda: imager.slices[0] == 2, timeout=60_000)
+    assert (imager.layers[0].v_min, imager.layers[0].v_max) == before
+    # an artifact at its first wavelength, as AIOMGG's, or all NaN there, as DL-NIRSP's: at its last
+    for first in (4 * values[:, :, :, 0], np.nan):
+        values[:, :, :, 0] = first
+        other = visp_like(stokes=4)
+        other.update_components({other.main_components[0]: values})
+        assert other._noise == {k: pytest.approx(mad_std(values[k, :, :, -1])) for k in (1, 2, 3)}

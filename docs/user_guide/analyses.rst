@@ -136,11 +136,13 @@ The line maps, the Profile viewer's :ref:`Doppler velocity <glue_solar_users_gui
 and the cursor readout's velocity take a window's rest wavelength:
 
 - the one set with "Set rest wavelength…" in the window's right-click menu, which lists the
-  main IRIS lines within the window and takes a wavelength typed in Å, a blank one removing it. A
+  main lines within the window and takes a wavelength typed in Å, a blank one removing it. A
   script can set ``meta['rest_wavelength']``, in Å, too;
 - else the main IRIS line of the window's ion nearest the wavelength it is named for, within 1 Å,
   at its vacuum wavelength in irispy's line catalog: Mg II k 2796.352 Å in ``Mg II k 2796``, O I
-  1355.59767 Å in ``O I 1356``;
+  1355.59767 Å in ``O I 1356``; on DKIST data, of DKIST's lines, the one within its wavelengths
+  or, of several, that of the ion its ``WAVEBAND`` names nearest its ``LINEWAV``: He I
+  10830.25011 Å in ``He I (1083.0 nm)``;
 - else none, as for ``2832``.
 
 The window's ``TWAVE`` is never taken: it is not the line's. The tooltip of the line maps' field

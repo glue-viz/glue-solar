@@ -173,7 +173,12 @@ stay in the FITS files next to the ASDF file: a view reads only the parts of the
 - "Quicklook…" opens a ViSP or Cryo-NIRSP spectrograph dataset as any spectral cube: its map,
   virtual slit and spectra. The map is drawn as IRIS's, the steps across and the slit up, and the
   virtual slit is wavelength against the slit. A raster's repeats, or Cryo-NIRSP's measurements
-  at each step, have a slider, as Stokes does.
+  at each step, have a slider, as Stokes does. Of a full-Stokes dataset, Q, U and V show scaled
+  with their noise level, as an SST cube's, at the quieter end of the wavelengths.
+- A Profile viewer's "Main lines" mark DKIST's working lines, such as Ca II 854.2 nm, Fe XIII
+  1074.7 nm and He I 1083.0 nm, at NIST's wavelengths in air or vacuum as the dataset's
+  ``WAVEREF`` says, DKIST's being in air; "Lines in this range…" lists them, and they give the
+  dataset's :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`.
 - With the context imager observed with it loaded (VBI with ViSP, the context imager with
   Cryo-NIRSP's spectrograph: one observing program execution, at times that overlap), the
   quicklook shows its frame after the virtual slit, every tile of a VBI mosaic once glue's
