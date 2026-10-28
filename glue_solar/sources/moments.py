@@ -437,9 +437,9 @@ def _view(data_collection, result):
     and with its subsets, of the quicklooks' Points the followed one alone, longitude along x as on a quicklook's map;
     a table, such as the burst events, opens none (D83). Its pixels are linked to those of the dataset it is made from: through the
     helioprojective links alone, glue inverts the WCS for the Point, 5 exposures off and 0.2 s more a step on
-    4000255147's sit-and-stare.
+    4000255147's sit-and-stare. Return the last viewer opened, or None.
     """
-    app = _application(data_collection)
+    app, viewer = _application(data_collection), None
     if app is None:  # its window closed meanwhile
         return
     coord = coordinator(data_collection)
@@ -462,6 +462,7 @@ def _view(data_collection, result):
         for cid in data.world_component_ids:
             if cid.label == _AXIS_NAMES[_HPC[0]]:  # glue puts a raster's slit along x
                 state.x_att_world = cid
+    return viewer
 
 
 def _add(data_collection, status, said, add, view, result):

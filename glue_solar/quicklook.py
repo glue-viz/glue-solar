@@ -861,12 +861,20 @@ class Coordinator(HubListener):
         key = observation_key(imager)
         raster = next((data for data in rasters if _dkist(data) == "raster" and observation_key(data) == key), None)
         frame = {imager.ndim - 2, imager.ndim - 1}
-        viewers = [viewer for viewer in self._viewers_of(imager) if _shown(viewer.state) == frame]
+        # its panel, or that drawing it as another tile of its mosaic (`QuicklookImageViewer.tile_at`, D109)
+        panels = self._viewers_of(imager) or [
+            v for v in self._viewers if self._follows(v) and imager in v.state.layers_data
+        ]
+        viewers = [viewer for viewer in panels if _shown(viewer.state) == frame]
         viewer = next((v for v in viewers if _pixel_tool_on(v)), viewers[0] if viewers else None)
         table = None if raster is None else self._slit_table(raster)
         if table is None or viewer is None:
             return
-        at = _frame_index(viewer.state)
+        shown, at = viewer.state.reference_data, _frame_index(viewer.state)
+        clicked = at[_time_axis(shown)]
+        if shown is not imager:  # at its frame nearest the frame's time, as `tile_at` took its pixel
+            at = [0] * imager.ndim
+            at[_time_axis(imager)] = int(nearest([_times(shown, None)[clicked]], _times(imager, None))[0][0])
         at[-2:] = state.slices[-2].start, state.slices[-1].start
         slit, starts, pixels = table
         place, steps, kinds = _lon_lat(imager, at), None, raster.coords.world_axis_physical_types
@@ -886,7 +894,7 @@ class Coordinator(HubListener):
                 self.group.subset_state = PixelSubsetState(raster, slices)
             else:
                 self.group.subset_state = self._before.get(self.group, SubsetState())
-        self._kept = (imager, self.point, viewer, at[_time_axis(imager)])
+        self._kept = (shown, self.point, viewer, clicked)
         self._outside = (None if inside else viewer, self.group.subset_state)
 
     def _slit_table(self, raster):
@@ -1504,6 +1512,28 @@ class QuicklookImageViewer(ImageViewer):
         point = next((group for group, viewers in owners.items() if self in viewers and group in groups), None)
         if point is not None:
             mode.edit_subset = [point]
+
+    def tile_at(self, x, y):
+        """
+        The tile, not the panel's own, of the DKIST mosaic a pair quicklook's context imager panel draws at pixel
+        ``x, y`` of its frame, and glue's Pixel point slices of that tile's pixel there, placed through its own
+        coordinates at its frame nearest the frame's time, as `Coordinator.tile_on` places the point; else None (D109).
+        """
+        state, shown = self.state, self.state.reference_data
+        if _dkist(shown) != "imager" or _shown(state) != {shown.ndim - 2, shown.ndim - 1}:
+            return None
+        at, axis = _frame_index(state), _time_axis(shown)
+        place, when = _lon_lat(shown, [*at[:-2], y, x]), _times(shown, None)[at[axis]]
+        tiles = [layer.state.layer for layer in self.layers if layer.enabled and layer.state.layer in shown._mosaic]
+        for tile in (tile for tile in tiles if tile is not shown):
+            frame = [0] * tile.ndim
+            frame[axis] = int(nearest([when], _times(tile, None))[0][0])
+            (ny, nx), (column, row) = tile.shape[-2:], _frame_pixels(tile, frame, *place)
+            if -0.5 <= column < nx - 0.5 and -0.5 <= row < ny - 0.5:  # NaN never is
+                slices = [slice(None)] * tile.ndim
+                slices[-2:] = (slice(round(float(i)), round(float(i)) + 1) for i in (row, column))
+                return tile, slices
+        return None
 
     def set_status(self, message):
         """glue-qt's status line but for the mouse modes' hints, which a narrow panel's frame time clips (D90)."""
