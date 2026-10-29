@@ -30,7 +30,7 @@ checkout as a package, not editable::
         glue-core=1.27.0 astropy=8.0.2 sunpy=8.0.0 ndcube "dask>=2024.7" sunraster dkist gwcs scipy mpl_animators \
         filelock ipykernel "ipython<9" pvextractor plasmapy h5py fortranformat ffmpeg pip
     micromamba run -n glue-solar-app pip install --no-deps glue-qt==0.4.2 \
-        "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@9e1eef3757da71335a4d610a1bb5f8516cd81e38" \
+        "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@5d662b1c6852d139f100d24616b40f09ca3edbfa" \
         "fiasco>=0.5.0"
     micromamba run -n glue-solar-app pip install --no-deps .
 
