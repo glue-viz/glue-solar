@@ -276,7 +276,8 @@ A cube of another instrument, such as a FITS file glue's own reader opens, has a
 has one wavelength axis and two axes of position, besides any time and Stokes axes. Choose
 "Quicklook…" in its right-click menu. Its panels are those of the SST quicklook (see
 :ref:`glue_solar_users_guide_loading_sst_cubes`) without the second map. A DKIST spectrograph
-dataset's shows its context imager too, if loaded (see :ref:`glue_solar_users_guide_loading_dkist_datasets`).
+raster's has no wavelength against time or light curve, its time running along its steps, and shows
+its context imager too, if loaded (see :ref:`glue_solar_users_guide_loading_dkist_datasets`).
 
 For CRISPEX users
 -----------------

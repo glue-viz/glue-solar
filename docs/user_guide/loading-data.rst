@@ -92,7 +92,7 @@ terminal. With the file type "Auto":
 - an IRIS raster file loads a dataset per window, labeled with its raster number (``… scan 3``) if
   its observation has several;
 - an SST CRISP or CHROMIS cube loads as one cube;
-- a DKIST dataset's ASDF file loads as one dataset, a VBI mosaic as one per tile.
+- a DKIST dataset's ASDF file loads as one dataset, a VBI or DL-NIRSP mosaic as one per tile.
 
 For AIA, HMI and other solar images, pick the file type "sunpy Map". Files loaded one by one cannot
 be stacked: use the browser for observations of many scans.
@@ -154,15 +154,17 @@ DKIST datasets
 
 Open a DKIST Level 1 dataset's ASDF file (``…_metadata.asdf``, as ``dkist`` downloads it) with
 "File → Open Data Set". It loads as one dataset, labeled by instrument and dataset ID, such as
-``VISP BKPLX``, and a VBI mosaic as one dataset per tile, such as ``VBI YCDRFH (1, 1)``. The values
-stay in the FITS files next to the ASDF file: a view reads only the parts of the files it shows.
+``VISP BKPLX``, and a VBI or DL-NIRSP mosaic as one dataset per tile, such as ``VBI YCDRFH (1, 1)``.
+The values stay in the FITS files next to the ASDF file: a view reads only the parts of the files it
+shows. The first read of each file opens it, about 5 ms as astropy reads its headers: a ViSP map at
+a Stokes parameter not yet shown takes up to 3 s, its later moves about 0.5 s.
 
 - Each axis has one world coordinate, as glue shows them: a slit raster's step axis has its
   longitude, or its time if the pointing moves less than a pixel along the slit (sit-and-stare).
   Longitudes are from -180° to 180°.
 - A frame whose FITS file is missing reads as NaN, and glue's Error Console says how many files
   are there.
-- Color limits come from up to 16 whole frames; the tiles of a VBI mosaic share theirs. NaN
+- Color limits come from up to 16 whole frames; the tiles of a mosaic share theirs. NaN
   pixels are transparent, as IRIS data's, so a mosaic's tiles in one Image viewer don't hide each
   other.
 - Each frame's time and exposure, from its FITS headers (``DATE-AVG`` and ``XPOSURE``), show in the
@@ -174,7 +176,8 @@ stay in the FITS files next to the ASDF file: a view reads only the parts of the
   virtual slit and spectra. The map is drawn as IRIS's, the steps across and the slit up, and the
   virtual slit is wavelength against the slit. A raster's repeats, or Cryo-NIRSP's measurements
   at each step, have a slider, as Stokes does. Of a full-Stokes dataset, Q, U and V show scaled
-  with their noise level, as an SST cube's, at the quieter end of the wavelengths.
+  with their noise level, as an SST cube's, at the quieter end of the wavelengths, sampled from 4
+  frames.
 - A Profile viewer's "Main lines" mark DKIST's working lines, such as Ca II 854.2 nm, Fe XIII
   1074.7 nm and He I 1083.0 nm, at NIST's wavelengths in air or vacuum as the dataset's
   ``WAVEREF`` says, DKIST's being in air; "Lines in this range…" lists them, and they give the
@@ -194,12 +197,16 @@ stay in the FITS files next to the ASDF file: a view reads only the parts of the
   they start apart, and those taken at different times don't. A point reaches a raster's step
   taken at its time, as dkist's coordinates place it; a point or frame outside another dataset's
   times reaches nothing there, so a mosaic's tiles that start later draw blank at the first frame.
+  With "Link points across cubes" on (see `SST CRISP and CHROMIS cubes`_), a point in a raster's
+  quicklook moves another linked raster's quicklook point to the step whose slit passes nearest it,
+  at that raster's repeat or measurement.
 - "Link helioprojective coordinates" links them to IRIS data by position, and by time at the
   nearest frames. A point on IRIS data reaches a ViSP or Cryo-NIRSP spectrograph raster at the
-  step whose slit passes nearest it, or on a sit-and-stare raster the step nearest its time, and
-  at the slit pixel level with it. A point more than half a step past a scanning raster's first or
-  last step doesn't reach it. A point on the raster reaches IRIS data at its place, in the frame
-  nearest its step's time, and IRIS images draw over the raster's map.
+  step whose slit passes nearest it, at the repeat or measurement nearest its time, or on a
+  sit-and-stare raster the step nearest its time, and at the slit pixel level with it. A point more
+  than half a step past a scanning raster's first or last step doesn't reach it. A point on the
+  raster reaches IRIS data at its place, in the frame nearest its step's time, and IRIS images
+  draw over the raster's map.
 - "Mosaic…" on a tile of a VBI or DL-NIRSP mosaic adds its tiles stitched into one image by
   reproject, at the frame, or Stokes parameter, repeat and wavelength, of the first Image viewer of
   a tile, and opens it in an Image viewer at 99.5 % limits, labeled by that wavelength, Stokes

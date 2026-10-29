@@ -24,12 +24,15 @@ Loading
 - **SST cubes:** open maps before SST cubes, and cubes without Stokes before those with, or glue's
   autolinker reports an error, although the data load.
 - **Mosaics of many tiles:** linking a DL-NIRSP mosaic's 108 tiles takes about a minute, linking
-  its "Mosaic…" image to them about 20 s, and each draw of them all in one Image viewer about 40 s:
-  glue looks for every link again as links are added, and computes each layer over the whole view.
+  its "Mosaic…" image to them about 20 s, and each draw of them all in one Image viewer about 40 s,
+  of a VBI mosaic's 9, as in a ViSP quicklook, about 1.5 s: glue looks for every link again as links
+  are added, and computes each layer over the whole view.
 
 Viewers
 -------
 
+- **ViSP maps:** each pan or zoom of one in an Image viewer takes about 1 s, as dkist computes the
+  pointing of every raster step again for its axes; the quicklook's map, without axes, about 0.4 s.
 - **Time axes:** glue's axes are index axes, so exposures, scans and frames show evenly spaced
   whatever their cadence. Use :ref:`"IRIS: regrid on time" <glue_solar_users_guide_iris_regrid>`.
 - **Regions:** to change a region, pick it as the toolbar's "Active Subset" first, and pick "Point"

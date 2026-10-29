@@ -1,0 +1,1 @@
+The user guide's DKIST pages describe main's behavior: DL-NIRSP mosaics, the cost of a file's first read and of panning a ViSP map, and IRIS points on rasters with repeats; and a DKIST tutorial walks a ViSP raster with its VBI mosaic through the quicklook, 'Mosaic…' and a session.
