@@ -95,10 +95,11 @@ Exporting derived data
 Select a dataset and choose "Export Data/Subsets" in glue's toolbar, or "Export data values" in its
 right-click menu, then the file type:
 
-- **"IRIS FITS (coordinates and Time)"**, for a map on helioprojective coordinates, such as line
+- **"IRIS FITS (coordinates and Time)"**, for a 2-D map on helioprojective coordinates, such as line
   moments, a line ratio, a red-blue asymmetry or the Mg II features. Each attribute is an image named
   after it, with its unit in ``BUNIT``. The coordinates, pointing shift included, are a FITS-TAB WCS,
-  and a ``Time`` attribute is the ``TIME`` image, in s since its ``DATEREF``.
+  and a ``Time`` attribute is the ``TIME`` image, in s since its ``DATEREF``. A stack's maps, of
+  (scan, step, slit), export with glue's "FITS (1 component/HDU)", without their coordinates.
 - **"ECSV (with Time)"**, for 1-D data such as the light curves at the point: a column per
   attribute, with its unit, and times in UTC.
 

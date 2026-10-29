@@ -71,7 +71,8 @@ image, AIA cutout or SOT cube, adds ``<label> north up``, a grid with latitude u
 and opens an Image viewer of the image on it. glue resamples each frame onto the grid as it
 draws, from the nearest sample, and makes no copy. The image moves across the grid as IRIS follows
 the solar rotation. The time sync and the point leave the viewer alone, and "Per-frame limits" and
-"Color bar" act on the hidden grid: set the image's limits in its layer's options.
+"Color bar" act on the hidden grid: set the image's limits in its layer's options. "IRIS: shift
+pointing…" shifts the image, not the grid.
 
 .. _glue_solar_users_guide_iris_calibration:
 

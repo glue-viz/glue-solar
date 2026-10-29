@@ -43,6 +43,7 @@ from glue_solar.quicklook import (
     observation_key,
     quicklook,
 )
+from glue_solar.regrid import _NorthUp
 from glue_solar.sources.bursts import _shift_events
 from glue_solar.sources.dkist import (
     _ARRIVING,
@@ -236,9 +237,11 @@ def _source(data, data_collection):
 
 
 def _check_iris(data):
-    """Raise why ``data`` has no IRIS coordinates to shift."""
+    """Raise why ``data`` has no IRIS coordinates to shift, or is a north-up grid, fixed on the sky."""
     if not isinstance(data.coords, _GlueWCS):
         raise ValueError(f"{data.label} has no IRIS coordinates to shift: shift the IRIS data against it instead.")
+    if isinstance(data.coords._wcs, _NorthUp):
+        raise ValueError(f"{data.label} is a grid fixed on the sky: shift the image shown on it instead.")
 
 
 @layer_action(
@@ -258,7 +261,7 @@ def shift_pointing_iris(data, data_collection):
     dataset it is made from still loaded (`_source`), which the dialog names, of the other windows of its raster file
     and of the data made from any of them that follow it (`_GlueWCS.follow`), a burst events table's coordinates too,
     in place of any before (0, 0 removes it), and place everything in every viewer, the readouts, links and a
-    quicklook's point and raster overlays again; offered only for data with IRIS coordinates.
+    quicklook's point and raster overlays again; offered only for data with IRIS coordinates, not a north-up grid.
     """
     _check_iris(data)
     chosen, data = data, _source(data, data_collection)

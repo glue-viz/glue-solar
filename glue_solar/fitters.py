@@ -493,7 +493,7 @@ def _fit(self, fitter, xlim=None):
     if not hasattr(ProfileTools, "_get_fitter"):  # else glue-qt gives its own, which its Settings set
         fitter = _get_fitter(self, type(fitter))  # as `_profile_fit`
     state, fits = self.viewer.state, vars(self).setdefault("_iris_fits", weakref.WeakKeyDictionary())
-    results = {}
+    results, x, y = {}, np.empty(0), np.empty(0)  # for no visible layer, which glue-qt's loop leaves unbound
     for layer in self.viewer.layers:  # glue-qt's loop, as it gives a fitter no layer
         if layer.enabled and layer.visible:
             x, y = (np.asarray(values) for values in layer.state.profile)

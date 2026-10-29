@@ -435,6 +435,9 @@ def test_open_sot_cube_through_load_data(tmp_path, irispy_test_files, name, labe
     science = data.get_component(name)
     assert science.units == units
     assert (science.data[0, 0, 0], data[f"{name} mask"][0, 0, 0]) == (-200, 0)
+    if "scan" not in label:  # regridded on time, kept too, as 'IRIS: rebin…' keeps it; a slit scan has one time
+        regridded = regrid_on_time(data)
+        assert (regridded[name][0, 0, 0], regridded[f"{name} mask"][0, 0, 0]) == (-200, 0)
     np.testing.assert_array_equal(science.data, cube.data)  # NaN where missing, and negative fields kept
     assert (data.find_component_id(f"{name} DN / s") is not None) == (units == "DN")
     sky, times = cube.axis_world_coords()  # each frame at its own pointing
@@ -2643,6 +2646,13 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(app, qtbot, monkeypatch, 
     data.meta["rest_wavelength"] = 1355.65
     assert fit()[-1] == "center_1 = 1355.620000, -6.63 km / s from 1355.65 Å"
     del data.meta["rest_wavelength"]
+    viewer.state.layers[0].visible = False  # no layer to fit: nothing reported, not a traceback
+    tools.ui.text_log.clear()
+    tools.ui.button_fit.click()
+    tools.wait_for_fit()
+    qtbot.waitUntil(tools.ui.button_fit.isEnabled)
+    assert tools.text_log.toPlainText() == ""
+    viewer.state.layers[0].visible = True
     model, _ = GaussianConstantFitter().build_and_fit(x, y)
     assert model.parameters == pytest.approx([3, 40, 1355.62, 0.04])
     model, _ = GaussianConstantFitter().build_and_fit(x, 50 - y)
