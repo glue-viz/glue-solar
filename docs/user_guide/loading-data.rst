@@ -112,6 +112,9 @@ observation, the instrument as its OBSID.
   nm, and ``Time`` gives each tuning of each scan.
 - ``Cavity error`` is the shift of each pixel's wavelength from the nominal one, in nm: add the
   arithmetic attribute ``{Wavelength} + {Cavity error}`` for the corrected wavelength.
+- A Profile viewer's "Main lines" mark DKIST's working lines (see `DKIST datasets`_) in air, as
+  SSTRED's wavelengths are, such as Fe I 630.25 nm; "Lines in this range…" lists them, and they
+  give the cube's :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`.
 
 The SST quicklook opens from the browser, or with "Quicklook…" in the cube's right-click menu, in a
 tab named after its line, such as "SST Ca II 8542". Its panels are in three rows:
@@ -279,7 +282,8 @@ first of them, so SST cubes link to each other.
   frame's own pointing.
 - A region on a slit-jaw image carries over only in a quicklook, placed with the pointing of the
   frame shown.
-- A region on a linked SST cube selects the IRIS pixels in the cube's scan nearest each frame's time.
+- A region on a linked SST cube selects the IRIS pixels, and another SST cube's, in the cube's scan
+  nearest each frame's or scan's time; it selects nothing on a map, which has no time.
 - Draw regions on a quicklook's panels: glue's own selection, from a raster in another Image viewer,
   is slow to show on a slit-jaw image.
 
