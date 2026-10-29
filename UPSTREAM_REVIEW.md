@@ -188,9 +188,10 @@ checks' corrections are applied. What changed:
 Drafts in the session archive's `updrafts/reports/perf360-*.md` (reproducers run on the latest releases; mains read
 from source): filelock 4.2.4's import-time audit hook makes every `id()`, so every deepcopy step, call Python (an
 issue: install it at the first lock; #652 added it); ndcube's `_NDMetaSlicer` deep-copies the whole meta on each
-slice (an issue offering a shallow-copy PR; #815); gwcs's `WCS(model)` always copies the model (an issue: a copy
-option or the steps form, which shares the caller's model); astropy.io.fits reads its config at every card (a small
-`card.py` PR, ref #12504). irispy's own proposals for #360 went to the user as a handoff.
+slice (a PR branch on the user's fork, `ndmeta-slice-shallow-copy`, and an issue; #815); gwcs's `WCS(model)` always copies the model (an issue: a copy
+option or the steps form, which shares the caller's model); astropy.io.fits reads its config at every card (a PR branch on the user's fork,
+`fits-card-config-reads`, ref #12504; its side finding, the record-valued keyword setting ignored for parsed cards, an
+issue draft). irispy's own proposals for #360 went to the user as a handoff.
 
 ## Glue-solar changes now
 
