@@ -3,7 +3,7 @@ The main lines, a Profile viewer button that labels them, the rest wavelength of
 Doppler velocity from it, as a Profile x unit and top axis.
 
 The main lines are the documented IRIS lines of irispy's line catalog, at its vacuum wavelengths in Angstrom (D44), and
-on DKIST data DKIST's working lines, in air or vacuum as its wavelengths are (`lines_of`, D107).
+on DKIST data and SST cubes DKIST's working lines, in air or vacuum as their wavelengths are (`lines_of`, D107).
 """
 
 import os
@@ -28,7 +28,7 @@ from qtpy.QtCore import Qt
 import astropy.units as u
 
 from glue_solar.glue_patches import layer_action
-from glue_solar.quicklook import _spectral_axes, _wavelengths, _window
+from glue_solar.quicklook import _role, _spectral_axes, _wavelengths, _window
 
 __all__ = [
     "DopplerConverter",
@@ -86,9 +86,11 @@ DKIST_LINES = (
 def lines_of(data):
     """
     The main lines of ``data``, as (name, wavelength in Angstrom): DKIST's (`DKIST_LINES`) in air or vacuum as its
-    ``meta['WAVEREF']``, 'Air' or 'Vacuum', says, as DKIST's headers give it (D107), else IRIS's (`main_lines`).
+    ``meta['WAVEREF']``, 'Air' or 'Vacuum', says, as DKIST's headers give it, or in air on an SST cube, as SSTRED's
+    wavelengths are (D107), else IRIS's (`main_lines`).
     """
-    column = {"air": 1, "vacuum": 2}.get(str(data.meta.get("WAVEREF", "")).lower())
+    sst = "air" if _role(data) == "sst" else ""
+    column = {"air": 1, "vacuum": 2}.get(str(data.meta.get("WAVEREF", sst)).lower())
     return main_lines() if column is None else tuple((line[0], line[column]) for line in DKIST_LINES)
 
 
@@ -121,7 +123,7 @@ class LineTool(Tool):
     icon = "glue_spectrum"
     tool_id = "solar:lines"
     action_text = "Main lines"
-    tool_tip = "Show or hide the main lines: IRIS's, or DKIST's on DKIST data"
+    tool_tip = "Show or hide the main lines: IRIS's, or DKIST's on DKIST data and SST cubes"
 
     def __init__(self, viewer):
         super().__init__(viewer)
@@ -222,8 +224,8 @@ class LinesInRangeTool(Tool):
     """
     List the lines of irispy's catalog within a Profile viewer's Fit and Collapse range, else its plotted range,
     strongest first in a region type's model at coronal or photospheric abundances, lines it predicts no strength for
-    after (D44, D97), or on DKIST data DKIST's lines (`lines_of`, D107), each ticked while `LineTool` shows it: a tick
-    labels a line beside the main lines, an untick hides one, a main line too (D98).
+    after (D44, D97), or on DKIST data and SST cubes DKIST's lines (`lines_of`, D107), each ticked while `LineTool`
+    shows it: a tick labels a line beside the main lines, an untick hides one, a main line too (D98).
     """
 
     #: :meta hide-value:
@@ -252,7 +254,7 @@ class LinesInRangeTool(Tool):
         low, high = sorted(ends.to_value(u.AA))
         ours = lines_of(data)
         iris = ours is main_lines()
-        title = f"{'IRIS' if iris else 'DKIST'} lines in {low:.2f}–{high:.2f} Å"
+        title = f"{'IRIS' if iris else 'SST' if _role(data) == 'sst' else 'DKIST'} lines in {low:.2f}–{high:.2f} Å"
         self.dialog = dialog = QtWidgets.QDialog(self.viewer, windowTitle=title)
         region, abundance, listing = QtWidgets.QComboBox(), QtWidgets.QComboBox(), QtWidgets.QListWidget()
         region.addItems(_REGIONS)
@@ -311,8 +313,8 @@ def rest_wavelength(data):
     The rest wavelength of the line in ``data``, in Angstrom, or None (D11): ``meta['rest_wavelength']`` where set,
     else the one main line within its wavelengths (`lines_of`) or, of several, the one of the window's own ion (C I
     1355.85 is nearer 1356 than O I 1355.60) nearest the wavelength its window is named for, such as 2796 in Mg II k
-    2796, or a DKIST dataset's ``WAVEBAND`` and ``LINEWAV``, such as He I 1083.0 nm in 'He I (1083.0 nm)' (D107), if
-    within 1 Å; never the window's TWAVE, which is not the line's.
+    2796, or a DKIST dataset's ``WAVEBAND`` and ``LINEWAV``, such as He I 1083.0 nm in 'He I (1083.0 nm)', or an SST
+    cube's line core (D107), if within 1 Å; never the window's TWAVE, which is not the line's.
     """
     if data.meta.get("rest_wavelength") is not None:
         return float(data.meta["rest_wavelength"])
@@ -323,7 +325,10 @@ def rest_wavelength(data):
         dkist = "LINEWAV" in data.meta
         title = str(data.meta.get("WAVEBAND") if dkist else _window(data)[0])
         try:
-            named = float(data.meta["LINEWAV"]) * 10 if dkist else float(title.split()[-1])  # DKIST's in nm
+            if _role(data) == "sst":  # its line core's, the tuning `sst_data` takes at its line
+                named = _wavelengths(data)[0][data.coords.core]
+            else:
+                named = float(data.meta["LINEWAV"]) * 10 if dkist else float(title.split()[-1])  # DKIST's in nm
         except (IndexError, ValueError):  # no name, or no wavelength in it
             return None
         within = [line for line in within if title.startswith(f"{line[0]} ")] or within

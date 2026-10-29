@@ -1019,6 +1019,11 @@ def link_hpc(data_collection, others=()):
         seconds, scan = cube.world_component_ids[0], cube.pixel_component_ids[0]  # its time since DATEREF, and scan
         scans = _times(cube, None)  # at its line core
         nearest_offset = None
+        # another cube's scans give its time, which glue's x and y of it take, its pointing moving by scan (D97)
+        for other in cubes - {cube}:
+            if frozenset((seconds, other.pixel_component_ids[0])) not in linked:
+                when = (_times(other, None) - np.datetime64(cube.meta["DATEREF"])) / np.timedelta64(1, "s")
+                links.append(ComponentLink([other.pixel_component_ids[0]], seconds, using=_ScanAt(when)))
         for data in datasets:
             frame = data.pixel_component_ids[0]
             if data.find_component_id("Time") is None:

@@ -27,7 +27,7 @@ from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from glue_qt.viewers.profile.layer_artist import QThreadedProfileLayerArtist
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QInputDialog, QMessageBox
+from qtpy.QtWidgets import QInputDialog, QListWidget, QMessageBox
 
 import astropy.wcs.wcsapi.fitswcs
 from astropy.io import fits
@@ -36,6 +36,7 @@ from astropy.wcs import WCS
 
 import glue_solar
 from glue_solar import glue_patches
+from glue_solar.lines import rest_wavelength
 from glue_solar.quicklook import (
     QuicklookImageViewer,
     _role,
@@ -86,6 +87,7 @@ def write_sst_cube(
     prefilters=None,
     knots=2,
     core=None,
+    waves=None,
 ):
     """
     Write an SST cube as SSTRED exports one, of ``shape`` (scans, Stokes, tunings, y, x): its pixel (x, y) at scan t is
@@ -94,7 +96,8 @@ def write_sst_cube(
     656.28 nm, H-alpha's, at tuning ``core``, the middle one by default, 0.01 nm apart. ``prefilters`` are the tunings of
     each cavity map, all of them in one map without OFFSET.3 and SCALE.3 by default; the map of extension version v is v
     + 0.001 * (scan + x / 100 + y / 10000) nm. The table gives the pointing at ``knots`` points along x, the corners by
-    default. Returns the file's coordinate table, (scans, tunings, y corner, x point, lon, lat, wavelength, time).
+    default, and the tunings' wavelengths at ``waves``, in nm, if given. Returns the file's coordinate table, (scans,
+    tunings, y corner, x point, lon, lat, wavelength, time).
     """
     scans, stokes, tunings, rows, columns = shape
     core = tunings // 2 if core is None else core
@@ -102,7 +105,8 @@ def write_sst_cube(
     dx, dy = (i / (knots - 1) - 0.5) * (columns - 1) * scale, (j * (rows - 1) - (rows - 1) / 2) * scale
     cos, sin = np.cos(np.deg2rad(roll)), np.sin(np.deg2rad(roll))
     lon, lat = center[0] + t * drift[0] + cos * dx - sin * dy, center[1] + t * drift[1] + sin * dx + cos * dy
-    coord = np.stack([lon, lat, 656.28 + 0.01 * (k - core), start + t * cadence + 0.25 * k], -1)
+    wave = 656.28 + 0.01 * (k - core) if waves is None else np.asarray(waves)[k.astype(int)]
+    coord = np.stack([lon, lat, wave, start + t * cadence + 0.25 * k], -1)
     header = fits.Header({"DATEREF": DATEREF, "DATE-OBS": DATEREF, "INSTRUME": "CRISP", "TIMESYS": "UTC"})
     header.update({"OBSGEO-X": 5327403, "OBSGEO-Y": -1718726, "OBSGEO-Z": 3051730})  # the SST's
     header.update(BUNIT="W m^-2 Hz^-1 sr^-1", BTYPE="Intensity")
@@ -714,6 +718,24 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
         quicklook(sst_app, [cube, single])
 
 
+def test_an_sst_cube_s_spectra_label_its_lines_in_air(sst_app, tmp_path):
+    # D107: an SST cube, without WAVEREF, takes DKIST's lines in air, as SSTRED's wavelengths are, where IRIS's labeled
+    # none: on its spectra, in 'Lines in this range…', and as its rest wavelength, which gives it km / s
+    cube, _ = stokes_cube(tmp_path / "cube.fits")
+    spectrum = quicklook(sst_app, [cube])["spectra"][0]
+    assert spectrum.toolbar.tools["solar:lines"].positions() == [("H-alpha", [pytest.approx(656.279)])]
+    assert rest_wavelength(cube) == 6562.79
+    assert "km / s" in type(spectrum.state).x_display_unit.get_choices(spectrum.state)
+    tool = spectrum.toolbar.tools["solar:lines_in_range"]
+    tool.activate()
+    listing = tool.dialog.findChild(QListWidget)
+    assert tool.dialog.windowTitle().startswith("SST lines in ")
+    assert [listing.item(i).text() for i in range(listing.count())] == ["H-alpha 6562.790 Å"]
+    # of Ca II H and K, the line at its line core, here H's
+    write_sst_cube(tmp_path / "hk.fits", waves=[393.366, 396.827, 396.837, 396.847, 396.857])
+    assert rest_wavelength(sst_data(tmp_path / "hk.fits")) == 3968.47
+
+
 def test_a_path_typed_gives_the_diagram_of_the_same_path_clicked(sst_app, qtbot, monkeypatch, tmp_path):
     # D99: 'Path from points…' takes vertices typed in the image's pixels, as clicks give them
     cube, _ = stokes_cube(tmp_path / "cube.fits")
@@ -1155,6 +1177,38 @@ def test_sst_cubes_link_without_iris_data_and_link_their_points(sst_app, qtbot, 
     assert place(12, 5)[2:] == [slice(8, 9), slice(10, 11)]
     entry.activate()
     assert place(12, 5)[2:] == [slice(6, 7), slice(12, 13)]
+
+
+def test_a_region_on_an_sst_cube_selects_its_place_on_another_linked_without_iris_data(tmp_path):
+    # D97: a cube's pointing moves with its scan, so glue places a region's x and y on it from its time too, which a
+    # cube linked without IRIS data takes from the other's scans, where glue could not compute a region drawn on either
+    # on the other
+    shapes, scales = {"a": (4, 1, 5, 12, 16), "b": (5, 1, 3, 10, 14)}, {"a": 1.0, "b": 0.5}
+    coords = {
+        "a": write_sst_cube(tmp_path / "a.fits", shapes["a"], drift=(0.4, -0.3), start=1200.0),
+        "b": write_sst_cube(tmp_path / "b.fits", shapes["b"], (-53.25, -401.25), (-0.3, 0.2), 0.5, start=1170.0),
+    }
+    a, b = (sst_data(tmp_path / f"{name}.fits") for name in "ab")
+    dc = DataCollection([a, b])
+    dc.add_link(link_hpc(dc, others=[a, b]))
+    for name, drawn, data, roi in (
+        ("a", a, b, RectangularROI(3.2, 9.7, 2.3, 8.6)),
+        ("b", b, a, RectangularROI(2.2, 9.6, 1.4, 7.7)),
+    ):
+        pixel = drawn.pixel_component_ids
+        mask = data.get_mask(RoiSubsetState(xatt=pixel[-1], yatt=pixel[-2], roi=roi))
+        scan, k, y, x = np.indices(data.shape)
+        lon, lat, *_ = data.coords.pixel_to_world_values(x, y, k, scan)
+        x, y = _sst_pixels(coords[name], lon, lat, _times(data, None)[scan], shapes[name], scales[name], 0.0)
+        (xc, yc), half_width, half_height = roi.center(), roi.width() / 2, roi.height() / 2
+
+        def inside(margin):
+            return (abs(x - xc) < half_width + margin) & (abs(y - yc) < half_height + margin)
+
+        expected, edge = inside(0), inside(0.01) != inside(-0.01)
+        assert expected.sum() >= 100
+        assert edge.sum() <= expected.sum() // 20
+        np.testing.assert_array_equal(mask[~edge], expected[~edge])
 
 
 def test_a_quicklook_opened_once_linked_starts_at_the_point_and_moves_no_other(sst_app, qtbot, tmp_path):
