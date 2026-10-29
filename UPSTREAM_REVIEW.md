@@ -183,6 +183,15 @@ checks' corrections are applied. What changed:
    Hide axes is glue#2128 (open). Some wait on glue-qt#72 (subtool menus) and glue-qt#73 (lines; glue#2603 is in
    glue-core 1.28.0).
 
+## From irispy #360's profile (2026-10-29)
+
+Drafts in the session archive's `updrafts/reports/perf360-*.md` (reproducers run on the latest releases; mains read
+from source): filelock 4.2.4's import-time audit hook makes every `id()`, so every deepcopy step, call Python (an
+issue: install it at the first lock; #652 added it); ndcube's `_NDMetaSlicer` deep-copies the whole meta on each
+slice (an issue offering a shallow-copy PR; #815); gwcs's `WCS(model)` always copies the model (an issue: a copy
+option or the steps form, which shares the caller's model); astropy.io.fits reads its config at every card (a small
+`card.py` PR, ref #12504). irispy's own proposals for #360 went to the user as a handoff.
+
 ## Glue-solar changes now
 
 - **Gate `glue_patches.sync_sliders_from_state`** (653-684): it is always on, with no probe. Give it a `_needs` probe
