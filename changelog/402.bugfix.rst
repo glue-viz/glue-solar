@@ -1,0 +1,1 @@
+The observation browser lists observations in folders reached by a symbolic link; 'Download these frames…' leaves out files already on their way, says why when it has nothing to send, and no longer raises when glue's window closes as the transfer starts; and a DKIST FITS file that is part-written or corrupt reads as NaN, the Error Console naming it, until it is whole.
