@@ -596,12 +596,19 @@ class Coordinator(HubListener):
         if key is not None:
             self.overlays ^= {key}
             self._timer.start()  # the sync redraws them
+            self._unsynced_overlays({key})
+
+    def _unsynced_overlays(self, keys):
+        """Have the listeners redraw the raster overlays of ``keys`` with no time master, which no sync does (D40)."""
+        for key in [key for key in keys if self._master(key) is None]:  # as of a raster no viewer shows
+            for listener in list(self._listeners):
+                listener(key, None, None)
 
     def add_listener(self, listener):
         """
         Call ``listener(key, time, exposure)`` whenever the time master of observation ``key`` moves, and
         ``listener(None, None, None)`` whenever the point on a cube of neither instrument, which has no observation to
-        sync, may have moved.
+        sync, may have moved; ``listener(key, None, None)`` as the raster overlays of ``key`` change without a master.
         """
         self._listeners.append(listener)
 
@@ -623,6 +630,7 @@ class Coordinator(HubListener):
         """Place the point and the raster overlays again, as after a pointing changed ('IRIS: shift pointing…')."""
         self._placed = self._footprint = (None, None)
         self._timer.start()  # the sync redraws them
+        self._unsynced_overlays(self.overlays)
 
     def clear_point(self):
         """Empty the followed group, which hides its crosshairs."""
@@ -1248,6 +1256,9 @@ class Coordinator(HubListener):
         raster = self._master(key)
         if _role(raster) != "raster":
             raster = next((data for data in self._datasets(key) if _role(data) == "raster"), None)
+        if raster is None:  # one no viewer shows, as the View menu offers the overlays (D40)
+            loaded = (data for data in self.data_collection if _role(data) == "raster" and _timed(data))
+            raster = next((data for data in loaded if observation_key(data) == key), None)
         if raster is None:
             return None
         scan = self._timing(raster)[0] if raster.ndim == 4 else None

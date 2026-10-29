@@ -21,6 +21,7 @@ from glue.core.link_manager import is_convertible_to_single_pixel_cid
 from glue.core.message import (
     DataCollectionAddMessage,
     DataCollectionDeleteMessage,
+    ExternallyDerivableComponentsChangedMessage,
     NumericalDataChangedMessage,
     SettingsChangeMessage,
 )
@@ -1087,6 +1088,13 @@ class DKISTFootprintsTool(Tool, HubListener):
             viewer.state.add_callback(prop, self._draw)
         self._hub = viewer.session.hub
         self._hub.subscribe(self, DataCollectionDeleteMessage, handler=self._draw)
+        # its pointing changed, as by 'IRIS: shift pointing…', after which glue's own image layers redraw
+        self._hub.subscribe(
+            self,
+            ExternallyDerivableComponentsChangedMessage,
+            handler=self._draw,
+            filter=lambda message: message.data is self.viewer.state.reference_data,
+        )
 
     @property
     def checked(self):
@@ -1932,8 +1940,11 @@ class FollowLockTool(PixelSelectionTool):
     def _pixel(self):
         """The Pixel selection a Pixel click at the mouse's position would make, or None off the image."""
         state, x, y = self.viewer.state, self._event_xdata, self._event_ydata
-        if x is None or y is None or _hovered(state, x, y) is None:
+        if x is None or y is None:
             return None
+        if _hovered(state, x, y) is None:  # another tile of a pair quicklook's mosaic, as a Pixel click (D109)
+            tile = getattr(self.viewer, "tile_at", lambda *_: None)(x, y)
+            return None if tile is None else PixelSubsetState(*tile)
         slices = [slice(None)] * state.reference_data.ndim
         for att, index in ((state.x_att, round(x)), (state.y_att, round(y))):
             slices[att.axis] = slice(index, index + 1)
