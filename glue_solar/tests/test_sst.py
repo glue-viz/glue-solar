@@ -719,8 +719,8 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
 
 
 def test_an_sst_cube_s_spectra_label_its_lines_in_air(sst_app, tmp_path):
-    # D107: an SST cube, without WAVEREF, takes DKIST's lines in air, as SSTRED's wavelengths are, where IRIS's labeled
-    # none: on its spectra, in 'Lines in this range…', and as its rest wavelength, which gives it km / s
+    # D107: an SST cube, without WAVEREF, takes the ground-based lines in air, as SSTRED's wavelengths are, where IRIS's
+    # labeled none: on its spectra, in 'Lines in this range…', and as its rest wavelength, which gives it km / s
     cube, _ = stokes_cube(tmp_path / "cube.fits")
     spectrum = quicklook(sst_app, [cube])["spectra"][0]
     assert spectrum.toolbar.tools["solar:lines"].positions() == [("H-alpha", [pytest.approx(656.279)])]

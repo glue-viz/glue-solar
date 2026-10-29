@@ -140,11 +140,11 @@ and the cursor readout's velocity take a window's rest wavelength:
   script can set ``meta['rest_wavelength']``, in Å, too;
 - else the main IRIS line of the window's ion nearest the wavelength it is named for, within 1 Å,
   at its vacuum wavelength in irispy's line catalog: Mg II k 2796.352 Å in ``Mg II k 2796``, O I
-  1355.59767 Å in ``O I 1356``; on DKIST data, of DKIST's lines, the one within its wavelengths
-  or, of several, that of the ion its ``WAVEBAND`` names nearest its ``LINEWAV``: He I
-  10830.25011 Å in ``He I (1083.0 nm)``; on an SST cube, of DKIST's lines in air, the one within
-  its wavelengths or, of several, the one nearest its line core: Ca II K 3933.66 Å in the CHROMIS
-  Ca II H and K cube of 2022-05-12;
+  1355.59767 Å in ``O I 1356``; on DKIST data, of the ground-based lines, the one within its
+  wavelengths or, of several, that of the ion its ``WAVEBAND`` names nearest its ``LINEWAV``: He I
+  10830.25011 Å in ``He I (1083.0 nm)``; on an SST cube, of the ground-based lines in air, the one
+  within its wavelengths or, of several, the one nearest its line core: Ca II K 3933.66 Å in the
+  CHROMIS Ca II H and K cube of 2022-05-12;
 - else none, as for ``2832``.
 
 The window's ``TWAVE`` is never taken: it is not the line's. The tooltip of the line maps' field

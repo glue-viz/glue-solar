@@ -1,0 +1,1 @@
+The line table that DKIST data and SST cubes take is named for the ground-based telescopes that observe its lines, and the tooltips and guide call them the ground-based lines rather than DKIST's.
