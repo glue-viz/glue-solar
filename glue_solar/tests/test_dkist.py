@@ -31,7 +31,7 @@ from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
-from qtpy.QtWidgets import QListWidget
+from qtpy.QtWidgets import QCheckBox, QDialog, QListWidget
 
 import astropy.units as u
 from astropy.coordinates import SkyCoord, SpectralCoord, StokesCoord
@@ -1883,3 +1883,159 @@ def test_a_session_restores_a_dkist_mosaic_s_image_and_its_links(qtbot, monkeypa
         mosaic.coords.pixel_to_world_values(*corners), image.coords.pixel_to_world_values(*corners)
     )
     assert [point(mosaic, at, tile) for tile in again[3:6]] == reached
+
+
+def footprints(viewer, monkeypatch, ticked=None):
+    """
+    Choose 'DKIST footprints…' on ``viewer``, ticking the datasets named ``ticked``, else leaving its ticks; the names
+    it offers and whether each was ticked.
+    """
+    offered = {}
+
+    def tick(dialog):
+        for box in dialog.findChildren(QCheckBox):
+            offered[box.text()] = box.isChecked()
+            if ticked is not None:
+                box.setChecked(box.text() in ticked)
+        return QDialog.Accepted
+
+    monkeypatch.setattr(QDialog, "exec", tick)
+    viewer.toolbar.actions["solar:dkist_footprints"].trigger()
+    return offered
+
+
+def footprint_lines(viewer):
+    """The DKIST footprints drawn on ``viewer``: their lines' x and y by color and width, and their labels."""
+    lines = {
+        (line.get_color(), line.get_linewidth()): line.get_xydata().T
+        for line in viewer.axes.lines
+        if line.get_gid() == "solar:dkist_footprint"
+    }
+    return lines, [text.get_text() for text in viewer.axes.texts if text.get_gid() == "solar:dkist_footprint"]
+
+
+def test_dkist_footprints_draw_a_raster_s_slit_at_the_viewer_s_time_and_follow_its_frame(app, monkeypatch):
+    # 8 frames 9 s apart; 2 repeats 30 s apart, the second 1" west; and a tile 0.25" (1 pixel) west each frame, as
+    # LOQEPP's tiles move between frames
+    tile, raster = vbi_like("VBI TILE", frames=8), visp_like(repeats=2, drift=1)
+    drifting = observed(
+        "VBI DRIFTING",
+        {"frame": 8, "y": 20, "x": 20},
+        {"lon": ("frame", "x"), "lat": ("y",), "time": ("frame",)},
+        lambda p: {
+            "lon": -102 + 0.25 * (p["x"] + p["frame"]),
+            "lat": 199 + 0.25 * p["y"],
+            "time": 1.7e9 + 9 * p["frame"],
+        },
+        None,
+        ("VBI", "op"),
+    )
+    app.data_collection.extend([tile, raster, drifting])
+    viewer = app.new_data_viewer(ImageViewer, data=tile)
+    offered = {"VBI TILE": True, "VISP RASTER": True, "VBI DRIFTING": True}
+    assert footprints(viewer, monkeypatch) == offered  # all at first
+    (lines, labels), nan = footprint_lines(viewer), np.nan
+    # the tile's own frame of 20 by 20 pixels
+    x, y = lines["C0", 1]
+    assert (np.nanmin(x), np.nanmax(x), np.nanmin(y), np.nanmax(y)) == pytest.approx((-0.5, 19.5, -0.5, 19.5))
+    # the raster's 3 steps 0.5" (2 pixels) apart from -100" (x 8), its slit of 10 pixels of 0.5" from 200" (y 3 to 23),
+    # faint, and their outline
+    np.testing.assert_allclose(lines["C1", 0.5], [[8, 8, nan, 10, 10, nan, 12, 12, nan], [3, 23, nan] * 3])
+    np.testing.assert_allclose(lines["C1", 1], [[8, 10, 12, 12, 10, 8, 8, nan], [3, 3, 3, 23, 23, 23, 3, nan]])
+    assert labels == ["VBI TILE", "VISP RASTER", "VBI DRIFTING"]
+    # the step at the frame's time: step 0 at frame 0, step 2, 20 s on, at frame 2, 18 s on, repeat 1's step 1, 40 s
+    # on and 1" (4 pixels) west of repeat 0's, at frame 4, 36 s on, and none at frame 7, 63 s on, more than half a
+    # step's 10 s past its last
+    drawn = []
+    for frame in (0, 2, 4, 7):
+        viewer.state.slices = (frame, 0, 0)
+        drawn.append(footprint_lines(viewer)[0])
+    slits = [lines.get(("C1", 1.5)) for lines in drawn]
+    np.testing.assert_allclose(slits[0], [[8, 8, nan], [3, 23, nan]])
+    np.testing.assert_allclose(slits[1], [[12, 12, nan], [3, 23, nan]])
+    np.testing.assert_allclose(slits[2], [[14, 14, nan], [3, 23, nan]])
+    assert slits[3] is None
+    # the drifting tile at its frame nearest the image's, 2 pixels west at frame 2
+    for lines, west in zip(drawn[:2], (0, 2)):
+        x, y = lines["C2", 1]
+        assert (np.nanmin(x), np.nanmax(x)) == pytest.approx((west - 0.5, west + 19.5))
+
+
+def test_dkist_footprints_draw_on_a_map_from_the_datasets_coordinates_alone_and_clear(app, monkeypatch):
+    from astropy.wcs import WCS
+
+    # a map of 40 by 40 pixels of 0.5" from -110", 190", in degrees as a FITS WCS gives them, at the raster's step 1
+    wcs = WCS(naxis=2)
+    wcs.wcs.ctype, wcs.wcs.cunit = ["HPLN-TAN", "HPLT-TAN"], ["arcsec", "arcsec"]
+    wcs.wcs.cdelt, wcs.wcs.crpix, wcs.wcs.crval = [0.5, 0.5], [1, 1], [-110, 190]
+    image = Data(label="AIA", coords=wcs, flux=np.zeros((40, 40)))
+    image.meta["DATE-OBS"] = "2023-11-14T22:13:30"  # unix 1.7e9 s and 10
+    raster, tiles = visp_like(), [vbi_like("VBI MOSAIC (1, 1)"), vbi_like("VBI MOSAIC (1, 2)", north=4)]
+    for tile in tiles:
+        tile._mosaic = tiles
+    dc = app.data_collection
+    dc.append(image)
+    viewer = app.new_data_viewer(ImageViewer, data=image)
+    tool = viewer.toolbar.tools["solar:dkist_footprints"]
+    assert not tool.offered()  # no DKIST data
+    dc.extend([raster, *tiles])
+    assert tool.offered()
+    # not on a raster's slit and wavelength
+    assert not app.new_data_viewer(ImageViewer, data=raster).toolbar.tools["solar:dkist_footprints"].offered()
+
+    # from the datasets' coordinates and times alone, a mosaic's tiles as one dataset
+    monkeypatch.setattr(DKISTData, "get_data", lambda *args, **kwargs: pytest.fail("a DKIST dataset's values read"))
+    assert footprints(viewer, monkeypatch, ticked=["VBI MOSAIC"]) == {"VISP RASTER": True, "VBI MOSAIC": True}
+    lines, labels = footprint_lines(viewer)
+    assert (list(lines), labels) == ([("C1", 1)], ["VBI MOSAIC"])
+    # the tiles' 20 by 20 pixels of 0.25" from -102", 199", the second 4" north
+    x, y = lines["C1", 1]
+    extent = np.nanmin(x), np.nanmax(x), np.nanmin(y), np.nanmax(y)
+    assert extent == pytest.approx((15.75, 25.75, 17.75, 35.75), abs=1e-3)
+    # the raster's slit at the map's time, step 1 at -99.5", as the map is shown, or transposed
+    assert footprints(viewer, monkeypatch, ticked=["VISP RASTER", "VBI MOSAIC"]) == {
+        "VISP RASTER": False,
+        "VBI MOSAIC": True,
+    }
+    nan = np.nan
+    np.testing.assert_allclose(footprint_lines(viewer)[0]["C0", 1.5], [[21, 21, nan], [19.5, 29.5, nan]], atol=1e-3)
+    viewer.state.x_att = image.pixel_component_ids[0]
+    assert viewer.state.y_att is image.pixel_component_ids[1]
+    np.testing.assert_allclose(footprint_lines(viewer)[0]["C0", 1.5], [[19.5, 29.5, nan], [21, 21, nan]], atol=1e-3)
+    # gone with their dataset, drawn alone, which clears them
+    footprints(viewer, monkeypatch, ticked=["VISP RASTER"])
+    dc.remove(raster)
+    assert footprint_lines(viewer) == ({}, [])
+    assert not tool.checked
+    # the other taking the first color; cleared, untick all
+    assert footprints(viewer, monkeypatch) == {"VBI MOSAIC": True}
+    lines, labels = footprint_lines(viewer)
+    assert (list(lines), labels) == ([("C0", 1)], ["VBI MOSAIC"])
+    assert footprints(viewer, monkeypatch, ticked=[]) == {"VBI MOSAIC": True}
+    assert footprint_lines(viewer) == ({}, [])
+    assert not tool.checked
+
+
+def test_dkist_footprints_draw_on_an_iris_slit_jaw_frame_where_its_coordinates_place_them(
+    app, monkeypatch, irispy_test_files
+):
+    from glue_solar.quicklook import _sji_pixels
+
+    sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
+    # the raster's step 1 at the slit-jaw frame 1's time
+    when = _times(sji, None)[1]
+    raster = visp_like(start=(when - np.datetime64(0, "ns")) / np.timedelta64(1, "s") - 10)
+    app.data_collection.extend([sji, raster])
+    viewer = app.new_data_viewer(ImageViewer, data=sji)
+    viewer.state.slices = (1, 0, 0)
+    footprints(viewer, monkeypatch)
+    lines, labels = footprint_lines(viewer)
+    # each step's slit from -0.5 to 9.5 pixels along it, placed in that frame as the quicklook places points on it
+    steps = np.repeat([[0], [1], [2]], 2, axis=1)
+    lon, lat = _lon_lat(raster, (0, steps, np.tile([-0.5, 9.5], (3, 1)), 0))
+    x, y = _sji_pixels(sji, 1, lon, lat)
+    assert np.isfinite([x, y]).all()
+    nan = np.full((3, 1), np.nan)
+    np.testing.assert_allclose(lines["C0", 0.5], [np.hstack([x, nan]).ravel(), np.hstack([y, nan]).ravel()])
+    np.testing.assert_allclose(lines["C0", 1.5], [[*x[1], np.nan], [*y[1], np.nan]])
+    assert labels == ["VISP RASTER"]

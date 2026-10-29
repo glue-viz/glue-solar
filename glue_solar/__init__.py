@@ -188,6 +188,7 @@ def setup():
             tools.PhysicalAspectTool,
             tools.ColorBarTool,
             tools.RasterOverlaysTool,
+            tools.DKISTFootprintsTool,
         ],
     }
     # glue-qt with its own readout (glue-viz/glue-qt#74, draft) does not need ours

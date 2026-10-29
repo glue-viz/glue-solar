@@ -1,0 +1,1 @@
+'DKIST footprints…' in an Image viewer's View menu draws, on a helioprojective image (an IRIS slit-jaw image, an AIA map, an SST cube or another DKIST dataset's frame), each loaded DKIST dataset's outline, labeled, and a spectrograph raster's slit at the image's time, its other steps faint, from its ASDF file alone; they follow the image's frame.

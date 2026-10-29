@@ -58,6 +58,7 @@ from matplotlib.axes import Axes
 from matplotlib.backend_bases import MouseButton, ResizeEvent
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
+from matplotlib.path import Path
 from matplotlib.patheffects import withStroke
 from matplotlib.transforms import ScaledTranslation, blended_transform_factory
 from mpl_scatter_density.base_image_artist import BaseImageArtist
@@ -66,6 +67,7 @@ from qtpy import QtCore, QtWidgets
 import astropy.units as u
 from astropy.coordinates import Angle, SkyCoord, angular_separation
 from astropy.table import Column, Table, hstack
+from astropy.time import Time
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 from sunpy.coordinates import get_earth
@@ -79,8 +81,12 @@ from glue_solar.quicklook import (
     _check_cut,
     _curve_sources,
     _cut,
+    _frame_index,
+    _frame_pixels,
     _half_cadence,
+    _hpc,
     _is_sit_and_stare,
+    _lon_lat,
     _off,
     _place,
     _point_curves,
@@ -101,6 +107,7 @@ from glue_solar.quicklook import (
     nearest,
     observation_key,
 )
+from glue_solar.sources.dkist import DKISTData, _frame_axis, _held_axes, _slit, _SlitPlace, _time_axes
 from glue_solar.sources.iris import _write_ecsv
 from glue_solar.sources.loaders.iris import _HPC, _GlueWCS
 from glue_solar.sources.loaders.stack_spectrograms import _PerScanWCS
@@ -950,6 +957,193 @@ class RasterOverlaysTool(Tool):
         key = observation_key(self.viewer.state.reference_data)
         rasters = (data for data in self.viewer._data if _role(data) == "raster")
         return key is not None and any(observation_key(data) == key for data in rasters)
+
+
+def _shown_time(state):
+    """
+    The time of the Image viewer ``state``'s displayed slice, the middle of a Collapse's (`_frame_time`), else its
+    reference data's ``DATE-AVG`` or ``DATE-OBS``, as a sunpy map's; None without any.
+    """
+    data, view = state.reference_data, _shown_slice(state)
+    cid = None if view is None else _time_component(data)
+    if cid is None:
+        date = data.meta.get("DATE-AVG") or data.meta.get("DATE-OBS")
+        return None if date is None else Time(date).datetime64
+    times = unbroadcast(data[cid, view])
+    times = times[~np.isnat(times)]  # NaT: a gap of data regridded on time
+    return times.min() + (times.max() - times.min()) / 2 if times.size else None
+
+
+def _helioprojective_frame(state):
+    """
+    Whether the Image viewer ``state`` shows its reference data's last two axes, along which only its helioprojective
+    longitude and latitude vary (`_hpc`), as an IRIS slit-jaw image, AIA map, SST cube or DKIST imager's frame.
+    """
+    data = state.reference_data
+    if data is None or data.ndim < 2 or len(state.slices) != data.ndim:
+        return False
+    hpc, last = _hpc(data), {data.ndim - 2, data.ndim - 1}
+    return hpc is not None and _shown(state) == last and last <= set(hpc[1])
+
+
+def _dkist_groups(collection):
+    """The DKIST datasets of ``collection``, each a list of its data, a mosaic's tiles, in load order."""
+    groups = {}
+    for data in collection:
+        if isinstance(data, DKISTData):
+            groups.setdefault(id(data._mosaic), []).append(data)
+    return list(groups.values())
+
+
+def _dkist_name(data):
+    """The name of ``data``'s DKIST dataset: its label, a mosaic tile's without its tile, as ``VBI LOQEPP``."""
+    return data.label.rsplit(" (", 1)[0] if len(data._mosaic) > 1 else data.label
+
+
+def _footprint(data, when):
+    """
+    ``data``, a DKIST dataset, at its frame nearest the time ``when``, its middle one for None, from its gWCS and its
+    headers' times alone, no FITS file read (D110): its outline, and of a spectrograph raster each step's slit (`_slit`,
+    as the pair quicklook draws it) and that at ``when``, none past half a cadence (D7), each as lines' helioprojective
+    longitude and latitude (arcsec), a line a row, or None; None where it has no outline in its frames.
+    """
+    index = tuple(n // 2 for n in data._present.shape)  # along its files' axes, its first
+    timed = False
+    if when is not None and data._frames is not None:
+        offsets = abs(data._frames[0] - when)
+        index = np.unravel_index(np.argmin(offsets), offsets.shape)
+        timed = offsets[index] <= _half_cadence(data._frames[0].ravel())
+    types = list(data.coords.world_axis_physical_types)
+    if not set(_HPC) <= set(types):
+        return None
+    matrix = np.asarray(data.coords.axis_correlation_matrix)[[types.index(kind) for kind in _HPC]]
+    moves = {data.ndim - 1 - int(p) for p in np.flatnonzero(matrix.any(axis=0))}
+    step = _frame_axis(data)
+    table = _slit(data, step, {axis: int(index[axis]) for axis in _held_axes(data) & moves})
+    if table is not None:
+        slit, starts, pixels = table
+        steps, ends = np.arange(len(starts))[:, None], [-0.5, data.shape[slit] - 0.5]
+        lon, lat = (_SlitPlace(starts, pixels, k)(steps, ends) for k in (0, 1))
+        outline = [np.r_[v[:, 0], v[::-1, 1], v[:1, 0]][None] for v in (lon, lat)]
+        return outline, (lon, lat), [v[[index[step]]] for v in (lon, lat)] if timed else None
+    spatial = sorted(moves - _time_axes(data) - _held_axes(data))
+    if len(spatial) != 2:
+        return None
+    pixel = [index[a] if a < len(index) else n // 2 for a, n in enumerate(data.shape)]
+    for a, edge in zip(spatial, Path.unit_rectangle().interpolated(16).vertices.T):  # edges the gWCS can bend
+        pixel[a] = edge * data.shape[a] - 0.5
+    return [v[None] for v in _lon_lat(data, pixel)], None, None
+
+
+def _on_view(state, lon, lat):
+    """
+    The x and y pixels of the Image viewer ``state``'s frame shown (`_helioprojective_frame`) at the helioprojective
+    longitudes ``lon`` and latitudes ``lat`` (arcsec), by their values, as 'Link helioprojective coordinates' links
+    them (`link_hpc`), in the frame's own pointing; a line a row, each ended by NaN, as one artist draws them.
+    """
+    data = state.reference_data
+    types, units = list(data.coords.world_axis_physical_types), data.coords.world_axis_units
+    lon, lat = (u.Quantity(v, u.arcsec).to_value(units[types.index(kind)]) for v, kind in zip((lon, lat), _HPC))
+    x, y = _frame_pixels(data, _frame_index(state), lon.ravel(), lat.ravel())
+    if state.x_att.axis != data.ndim - 1:  # a frame shown transposed
+        x, y = y, x
+    return [np.hstack([np.reshape(v, lon.shape), np.full((len(lon), 1), np.nan)]).ravel() for v in (x, y)]
+
+
+# The artists of a DKIST dataset's footprint (`_footprint`): the styles of its outline, its raster's steps and its slit
+# at the viewer's time, edged in black to show over the steps, and its label's
+_FOOTPRINT = {"gid": "solar:dkist_footprint", "zorder": 97}
+_FOOTPRINT_STYLES = (
+    {"lw": 1},
+    {"lw": 0.5, "alpha": 0.3},
+    {"lw": 1.5, "path_effects": [withStroke(linewidth=3, foreground="k")]},
+)
+_FOOTPRINT_LABEL = {
+    **_FOOTPRINT,
+    "fontsize": 8,
+    "ha": "center",
+    "va": "bottom",
+    "clip_on": True,
+    "path_effects": [withStroke(linewidth=2, foreground="k")],
+}
+
+
+@viewer_tool
+class DKISTFootprintsTool(Tool, HubListener):
+    """
+    Draw on a helioprojective frame (`_helioprojective_frame`) each ticked DKIST dataset's outline, and a spectrograph
+    raster's slit at the viewer's time (`_footprint`, `_shown_time`), its other steps faint, labeled in a color of its
+    own, again as the frame changes or the dataset goes (D110): plain matplotlib artists, which sessions leave out.
+    """
+
+    tool_id = "solar:dkist_footprints"
+    action_text = "DKIST footprints…"
+    tool_tip = "Draw each loaded DKIST dataset's outline, and a raster's slit at this image's time, from its ASDF file"
+
+    def __init__(self, viewer):
+        super().__init__(viewer)
+        self.shown, self._artists = [], []  # the DKIST datasets drawn, each tile of a mosaic, and their artists
+        for prop in _WATCHED:
+            viewer.state.add_callback(prop, self._draw)
+        self._hub = viewer.session.hub
+        self._hub.subscribe(self, DataCollectionDeleteMessage, handler=self._draw)
+
+    @property
+    def checked(self):
+        """Whether footprints show, as the View menu entry's check mark says."""
+        return bool(self.shown)
+
+    def offered(self):
+        """Whether the viewer shows a helioprojective frame and DKIST data are loaded, which the View menu checks."""
+        return _helioprojective_frame(self.viewer.state) and bool(_dkist_groups(self.viewer._data))
+
+    @messagebox_on_error("Could not draw the DKIST footprints")
+    def activate(self):
+        groups = _dkist_groups(self.viewer._data)
+        dialog = QtWidgets.QDialog(self.viewer, windowTitle="DKIST footprints")
+        form = QtWidgets.QFormLayout(dialog)
+        form.addRow(QtWidgets.QLabel("Outlines, and a raster's slit at this image's time, of:"))
+        ticks = [QtWidgets.QCheckBox(_dkist_name(group[0])) for group in groups]
+        for tick, group in zip(ticks, groups):
+            tick.setChecked(not self.shown or group[0] in self.shown)  # all at first
+            form.addRow(tick)
+        if _accepted(dialog, form):
+            self.shown = [data for group, tick in zip(groups, ticks) if tick.isChecked() for data in group]
+            self._draw()
+        _keep_mouse_mode(self.viewer)
+
+    def close(self):
+        for prop in _WATCHED:
+            self.viewer.state.remove_callback(prop, self._draw)
+        self._hub.unsubscribe_all(self)
+        super().close()
+
+    def _draw(self, *_):
+        if not (self.shown or self._artists):  # each viewer hears every slider move and removal
+            return
+        viewer, collection, state = self.viewer, self.viewer._data, self.viewer.state
+        for artist in self._artists:
+            artist.remove()
+        self._artists = []
+        self.shown = [data for data in self.shown if data in collection]
+        if self.shown and _helioprojective_frame(state):
+            when = _shown_time(state)
+            for k, group in enumerate(_dkist_groups(collection)):
+                color, name = f"C{k % 10}", _dkist_name(group[0])
+                parts = [[], [], []]  # the lines of its outlines, steps and slits at the time, as `_footprint`'s
+                for data in group:
+                    found = _footprint(data, when) if data in self.shown else None
+                    for part, lines in zip(parts, found or ()):
+                        if lines is not None:
+                            part.append(_on_view(state, *lines))
+                for part, style in zip(parts, _FOOTPRINT_STYLES):
+                    if part:
+                        x, y = (np.concatenate(v) for v in zip(*part))
+                        self._artists.append(viewer.axes.add_line(Line2D(x, y, color=color, **_FOOTPRINT, **style)))
+                        if part is parts[0] and np.isfinite(y).any():  # labeled at its outline's top
+                            at = np.nanargmax(y)
+                            self._artists.append(viewer.axes.text(x[at], y[at], name, color=color, **_FOOTPRINT_LABEL))
+        viewer.figure.canvas.draw_idle()
 
 
 def _observer_distance(data):
@@ -2729,6 +2923,6 @@ class ViewTool(_ToolMenu):
     icon = "glue_settings"
     tool_id = "solar:view"
     tool_tip = (
-        "View: frame time, axes, color limits, wavelength band, aspect, zoom, color bar, raster overlays and cursor "
-        "readout"
+        "View: frame time, axes, color limits, wavelength band, aspect, zoom, color bar, raster overlays, DKIST "
+        "footprints and cursor readout"
     )

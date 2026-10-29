@@ -217,6 +217,14 @@ a Stokes parameter not yet shown takes up to 3 s, its later moves about 0.5 s.
   its values, 0.66 GB for LOQEPP's. It links to the tiles by position and their time there, and to
   IRIS data as "Link helioprojective coordinates" does: a point on it reaches a tile's pixel at that
   frame or repeat, on DL-NIRSP at every wavelength and Stokes parameter.
+- "DKIST footprints…" in the View menu of an Image viewer of a helioprojective image, such as an IRIS
+  slit-jaw image, an AIA map, an SST cube or another DKIST dataset's frame, draws the outline of each
+  loaded DKIST dataset ticked, labeled, and a spectrograph raster's slit at the image's time, unless
+  more than half its cadence from it (a step's on ViSP, a measurement's on Cryo-NIRSP), its other
+  steps faint. They come from the ASDF file alone, so a dataset loaded without its FITS files shows
+  what overlaps before you download them, and are placed by value, as
+  "Link helioprojective coordinates" places data. They follow the image's frame; untick a dataset to
+  clear its outline.
 - A session keeps them, their viewers and links, and reads their coordinates again from the ASDF
   files (see :ref:`Sessions <glue_solar_users_guide_saving_sessions>`).
 
