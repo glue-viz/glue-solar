@@ -638,9 +638,16 @@ def _shown_at(tiles, data_collection):
 
 
 def _wanted(tile, index):
-    """Whether each FITS file of ``tile``, a DKIST dataset, is at ``index`` along its files' axes and missing."""
+    """
+    Whether each FITS file of ``tile``, a DKIST dataset, is at ``index`` along its files' axes and missing, not on its
+    way in a download started before (`_ARRIVING`).
+    """
     wanted = np.zeros(tile._present.shape, bool)
     wanted[index] = True
+    if _ARRIVING:
+        files = tile._dataset.files
+        arriving = np.vectorize(lambda name: str(Path(files.basepath) / name) in _ARRIVING, otypes=[bool])
+        wanted &= ~arriving(files.fileuri_array).reshape(wanted.shape)
     return wanted & ~tile._present
 
 
@@ -718,11 +725,13 @@ def _watch_download(data_collection, label, pending):
     file's index, are in their folder, glue's status bar saying how many are (D110): a file of the same size and time
     at two looks is whole, as Globus may write it in place; until then it reads as missing (`_ARRIVING`). Each whole
     file is marked present (``_present``), and its frame drawn, the color limits of its dataset, a mosaic's tiles all,
-    taken again from the frames present, in every viewer; once all are, glue's Error Console says how many files are
-    there.
+    taken again from the frames present, in every viewer; once all are, glue's Error Console says how many of the
+    dataset's files are still missing, if any.
     """
     # ponytail: a transfer stalled one look mid-file reads as whole; Globus's task status if that happens
     app, total, seen = _application(data_collection), len(pending), {}
+    if app is None:  # its window closed while the transfer started: its files read as they are, as a session's (D110)
+        return
     datasets, folder = next(iter(pending.values()))[0]._mosaic, Path(next(iter(pending))).parent
     _ARRIVING.update(pending)
     timer = QtCore.QTimer(app)  # gone with glue's window, its files then read as they are, as a session restores them
@@ -782,24 +791,26 @@ def download_dkist(data, data_collection):
     """
     _check_download(data)
     tiles = [tile for tile in data._mosaic if tile in data_collection]
+    label, folder = data.label.rsplit(" (", 1)[0], Path(data._dataset.files.basepath)
+    if not any(_wanted(tile, ()).any() for tile in tiles):  # those missing of tiles removed from glue, or on their way
+        raise ValueError(f"Every FITS file of {label} in glue is in {folder} or on its way.")
     index = _ask_download(tiles, _shown_at(tiles, data_collection))
     if index is None:
         return
-    folder, pending, parts = Path(data._dataset.files.basepath), {}, []
+    pending, parts = {}, []
     for tile in tiles:
         names = np.asarray(tile._dataset.files.fileuri_array).reshape(tile._present.shape)
         missing = [tuple(int(i) for i in at) for at in np.argwhere(_wanted(tile, index))]
         pending.update({str(folder / names[at]): (tile, at) for at in missing})
         if missing:  # dkist's dataset sliced to them, for its own download if need be (`_transfer`)
             parts.append((tile._dataset[index] if index else tile._dataset, [str(names[at]) for at in missing]))
-    if not pending:
-        return
+    if not pending:  # a range of no step, or of files all there
+        raise ValueError(f"No FITS file of {label} to download at this choice: each is in {folder} or on its way.")
 
     def send():
         _transfer(parts, folder)
         return pending
 
-    label = data.label.rsplit(" (", 1)[0]
     add = partial(_watch_download, data_collection, label)
     text = f"{label}: starting the Globus transfer of {len(pending)} files…"
     _start(data_collection, text, "Could not start the download", send, add=add)

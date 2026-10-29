@@ -7,6 +7,7 @@ takes seconds. Files cached by pooch (``<md5>-<name>``) are handled.
 
 import gzip
 import itertools
+import os
 import re
 import tarfile
 import tempfile
@@ -187,6 +188,21 @@ def _wanted(name, pattern, earliest, end):
     return key is None or ((earliest is None or key[1] >= earliest) and (end is None or key[1] <= end))
 
 
+def _walk(root):
+    """
+    Each file below ``root``, in folders reached through symbolic links too, each folder once: `pathlib.Path.rglob`
+    follows no link, and with ``recurse_symlinks`` lists a folder's files again through each link back up.
+    """
+    seen = set()
+    for top, folders, files in os.walk(root, followlinks=True):
+        real = os.path.realpath(top)
+        if real in seen:
+            folders[:] = []
+            continue
+        seen.add(real)
+        yield from (Path(top, name) for name in files)
+
+
 def scan_directory(root, recursive=True, skipped=None, stop=None, report=None, start=None, end=None, pattern=None):
     """
     Group every IRIS Level 2 file below ``root``, outside hidden files and folders, into `Observation` objects, and
@@ -201,7 +217,7 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None, s
     root : path-like
         Directory to scan.
     recursive : bool
-        Descend into subdirectories.
+        Descend into subdirectories, linked ones too.
     skipped : list, optional
         Gets the path of every IRIS raster file left out because it is not Level 2 (its ``DATA_LEV`` is not 2), such
         as a product derived from rasters.
@@ -225,7 +241,7 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None, s
     skipped = [] if skipped is None else skipped
     stop = threading.Event() if stop is None else stop
     report = report or (lambda percent: None)
-    paths = itertools.takewhile(lambda _: not stop.is_set(), root.rglob("*") if recursive else root.iterdir())
+    paths = itertools.takewhile(lambda _: not stop.is_set(), _walk(root) if recursive else root.iterdir())
     found = {}
     headers = []
     # not hidden ones, such as the folder `extract_archive` unpacks into before it renames it

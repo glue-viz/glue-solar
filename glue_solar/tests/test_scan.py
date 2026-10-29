@@ -107,6 +107,13 @@ def test_non_recursive_only_sees_top_level(iris_tree):
     assert list(obs[OBS_A[2]].sji) == ["SJI_1400"]
 
 
+def test_recursive_scan_follows_linked_folders_each_once(iris_tree, tmp_path):
+    (tmp_path / "linked").symlink_to(iris_tree, target_is_directory=True)
+    (tmp_path / "up").symlink_to(tmp_path, target_is_directory=True)  # a link back up
+    expected = [(o.obsid, o.nfiles, len(o.archives)) for o in scan_directory(iris_tree)]
+    assert [(o.obsid, o.nfiles, len(o.archives)) for o in scan_directory(tmp_path)] == expected
+
+
 def test_filename_time_groups_one_second_header_mismatch_without_merging_repeats(tmp_path):
     obsid = "3683602040"
     for stamp, header_time in (("20211001_060925", "2021-10-01T06:09:24"), ("20211001_070000", "2021-10-01T07:00:00")):
