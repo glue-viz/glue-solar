@@ -90,6 +90,9 @@ atexit.register(lambda: [file.close() for file in list(_OPEN.values())])  # as g
 # FITS files a download is writing, read as missing until they are whole: Globus may write them in place, and a file
 # opened part-written stays unreadable once kept open (D110, `_section`)
 _ARRIVING = set()
+# astropy's errors of a FITS file part-written, as by a Globus transfer this glue did not start, or corrupt: a header
+# cut short, an HDU not yet there, values cut short
+_UNREADABLE = OSError, IndexError, ValueError
 # Set while glue computes an Image buffer of a DKIST dataset's values (`DKISTData.compute_fixed_resolution_buffer`)
 _EXACT = contextvars.ContextVar("exact", default=False)
 
@@ -311,7 +314,7 @@ class _Open:
 def _section(path, target, key, files):
     """
     ``key`` of HDU ``target`` of the FITS file at ``path``, of ``files`` (`_Files`), kept open (`_Open`) while they are
-    kept; None where it is missing.
+    kept; None where it is missing, part-written or corrupt (`_unreadable`).
     """
     if path in _ARRIVING or not os.path.exists(path):  # NaN, as dkist reads it
         return None
@@ -324,7 +327,18 @@ def _section(path, target, key, files):
             file.kept = False
         closed = [_OPEN.popitem(last=False)[1] for _ in range(len(_OPEN) - OPEN_FILES)]
     _shut(closed)
-    return file.read(target, key)
+    try:
+        return file.read(target, key)
+    except _UNREADABLE:  # NaN, the file opened again at the next read, as one opened part-written stays so (D110)
+        with file.lock:
+            file.close()
+        _unreadable(path)
+        return None
+
+
+def _unreadable(path):
+    """Warn, in glue's Error Console, that the FITS file at ``path`` cannot be read and its frame is NaN."""
+    warnings.warn(f"{path} is part-written or corrupt: its frame reads as NaN until the file is whole.", stacklevel=2)
 
 
 def _close(files):
@@ -470,7 +484,12 @@ class DKISTData(Data):
             rng, values = np.random.default_rng(0), [np.empty(0)]
             for k in picks:
                 data, frame = frames[k]
-                frame = np.asarray(data.get_component(data.main_components[0]).data[frame]).ravel()
+                try:
+                    frame = np.asarray(data.get_component(data.main_components[0]).data[frame]).ravel()
+                except _UNREADABLE:  # its file part-written or corrupt, left out (`_unreadable`)
+                    names = np.asarray(data._dataset.files.fileuri_array).reshape(data._present.shape)
+                    _unreadable(Path(data._dataset.files.basepath) / names[frame])
+                    continue
                 values.append(frame[rng.integers(0, frame.size, -(-size // len(picks)))])
             self._samples[size] = np.concatenate(values)
         return self._samples[size]

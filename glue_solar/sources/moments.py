@@ -465,7 +465,7 @@ def _view(data_collection, result):
     return viewer
 
 
-def _add(data_collection, status, said, add, view, result):
+def _add(data_collection, said, add, view, result):
     if result is None:  # a run canceled
         return
     if add is None:
@@ -476,6 +476,7 @@ def _add(data_collection, status, said, add, view, result):
     if view:
         _view(data_collection, result)
     message = said(result) if said else None
+    status = _status_bar(data_collection)  # none once its window closed meanwhile
     if message and status is not None:  # in place of what it says while it is computed
         status.showMessage(message)
 
@@ -495,8 +496,9 @@ def _status_bar(data_collection):
     return None if app is None else app.statusBar()
 
 
-def _clear(status, text):
-    if status.currentMessage() == text:  # unless something else has said more since
+def _clear(data_collection, text):
+    status = _status_bar(data_collection)  # none once its window closed meanwhile
+    if status is not None and status.currentMessage() == text:  # unless something else has said more since
         status.clearMessage()
 
 
@@ -513,12 +515,12 @@ def _start(data_collection, text, title, function, *args, said=None, add=None, v
     """
     worker = Worker(function, *args)
     status = _status_bar(data_collection)
-    worker.result.connect(partial(_add, data_collection, status, said, add, view))
+    worker.result.connect(partial(_add, data_collection, said, add, view))
     # glue-qt's decorator, as its GLUE_TESTING bypass is in it alone
     worker.error.connect(messagebox_on_error(title)(_reraise))
     if status is not None:  # until the dataset is added or the error shown (D46)
         status.showMessage(text)
-        worker.finished.connect(partial(_clear, status, text))
+        worker.finished.connect(partial(_clear, data_collection, text))
     _RUNNING.add(worker)
 
     def finished():  # queued: the message cleared, the result added by then

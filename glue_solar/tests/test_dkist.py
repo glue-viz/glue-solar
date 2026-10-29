@@ -2462,3 +2462,118 @@ def test_a_download_s_files_read_as_they_are_once_glue_s_window_closes(qtbot, mo
     window.close()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     assert not paths & _ARRIVING
+
+
+@small_visp_dated_2044
+def test_a_download_whose_window_closes_before_its_transfer_starts_watches_no_file(qtbot, monkeypatch, tmp_path):
+    import dkist.net.helpers
+    from glue_qt.app.application import GlueApplication
+    from qtpy.QtCore import QCoreApplication, QEvent, QTimer
+
+    import glue_solar
+    from glue_solar.sources.dkist import _ARRIVING
+
+    glue_solar.setup()
+    window = GlueApplication()  # not the app fixture's, whose window pytest-qt would close again once deleted
+    shutil.copy(small_visp(), tmp_path)
+    with pytest.warns(UserWarning, match="0 of 3 files"):
+        data = load_data(str(tmp_path / "test_visp.asdf"))
+    window.data_collection.append(data)
+    started, closed = threading.Event(), threading.Event()
+
+    def transfer(*args, **kwargs):  # dkist finding Globus, or waiting for its login in the web browser
+        started.set()
+        closed.wait(60)
+
+    def close():  # Reset Session, Open Session or 'Restore last session' meanwhile
+        started.wait(60)
+        window.close()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        closed.set()
+
+    QTimer.singleShot(0, close)
+    transfer = create_autospec(dkist.net.helpers._orchestrate_transfer_task, side_effect=transfer)
+    with qtbot.capture_exceptions() as exceptions:
+        download(window, qtbot, monkeypatch, data, {}, transfer=transfer)
+    # no traceback of its status bar gone, and its files read as they are, as a session's
+    assert transfer.called
+    assert exceptions == []
+    assert not {str(tmp_path / f"{step}.fits") for step in range(3)} & _ARRIVING
+
+
+@small_visp_dated_2044
+def test_download_these_frames_leaves_out_the_files_already_on_their_way(app, qtbot, monkeypatch, tmp_path):
+    shutil.copy(small_visp(), tmp_path)
+    with pytest.warns(UserWarning, match="0 of 3 files"):
+        data = load_data(str(tmp_path / "test_visp.asdf"))
+    app.data_collection.append(data)
+    download(app, qtbot, monkeypatch, data, {"last": 1})
+    opened, transfer = download(app, qtbot, monkeypatch, data, {})
+    assert opened["summary"] == "1 file to download, 2044-03-15T08:23:14"
+    assert [path.name for path in transfer.call_args.args[0]] == ["2.fits"]
+
+
+@small_visp_dated_2044
+def test_download_these_frames_says_why_it_has_no_file_to_send(app, qtbot, monkeypatch, tmp_path):
+    shutil.copy(small_visp(), tmp_path)
+    shutil.copytree(small_visp().parent, tmp_path / "there")
+    with pytest.warns(UserWarning, match="0 of 3 files"):
+        tiles = [load_data(str(tmp_path / "test_visp.asdf")), load_data(str(tmp_path / "there" / "test_visp.asdf"))]
+    app.data_collection.extend(tiles)
+    for tile in tiles:  # a mosaic's two tiles, the first's files missing
+        tile._mosaic = tiles
+    # a range of no step
+    with pytest.raises(ValueError, match="No FITS file of VISP qVXjk to download at this choice"):
+        download(app, qtbot, monkeypatch, tiles[0], {"first": 2, "last": 0})
+    # those missing of a tile removed from glue, before a dialog
+    app.data_collection.remove(tiles[0])
+    with pytest.raises(ValueError, match=re.escape(f"of VISP qVXjk in glue is in {tmp_path / 'there'} or on its way")):
+        download(app, qtbot, monkeypatch, tiles[1], {})
+
+
+@small_visp_dated_2044
+@pytest.mark.parametrize("written", [2880, 24480])  # part of its headers; of its values
+def test_a_part_written_fits_file_not_downloaded_by_glue_reads_as_nan_until_whole(app, tmp_path, written):
+    shutil.copytree(small_visp().parent, tmp_path, dirs_exist_ok=True)
+    whole = (tmp_path / "0.fits").read_bytes()
+    (tmp_path / "0.fits").write_bytes(whole[:written])  # as Globus writes it for a glue quit mid-download
+    data = load_data(str(tmp_path / "test_visp.asdf"))
+    app.data_collection.append(data)
+    cid = data.main_components[0]
+    message = f"{tmp_path / '0.fits'} is part-written or corrupt: its frame reads as NaN until the file is whole."
+    either = f"{re.escape(message)}|File may have been truncated"  # astropy's too, of its values cut short
+    # an Image viewer opens, its color limits from the other frames, the file named
+    with pytest.warns(UserWarning, match=either) as warned:
+        app.new_data_viewer(ImageViewer, data=data)
+    assert message in {str(w.message) for w in warned}
+    # its frame NaN
+    with pytest.warns(UserWarning, match=either) as warned:
+        values = data.get_data(cid, view=(0,))
+    assert message in {str(w.message) for w in warned}
+    assert np.isnan(values).all()
+    # and read once whole
+    (tmp_path / "0.fits").write_bytes(whole)
+    np.testing.assert_array_equal(data.get_data(cid, view=(0,)), fits.getdata(small_visp().parent / "0.fits")[0])
+
+
+@small_visp_dated_2044
+def test_a_dkist_file_read_before_its_values_hdu_is_written_reads_once_whole(tmp_path):
+    import dkist
+    from dkist.io import DKISTFileManager
+    from dkist.io.dask.loaders import AstropyFITSLoader
+
+    # the small raster's step 0, its values in a second HDU, as DKIST's files hold them
+    dataset = dkist.load_dataset(small_visp())[0]
+    values = fits.getdata(small_visp().parent / "0.fits")
+    fits.HDUList([fits.PrimaryHDU(), fits.ImageHDU(values)]).writeto(tmp_path / "whole.fits")
+    dataset._file_manager = DKISTFileManager.from_parts(
+        ["0.fits"], 1, float, (1, 10, 25), loader=AstropyFITSLoader, basepath=tmp_path
+    )
+    (tmp_path / "0.fits").write_bytes((tmp_path / "whole.fits").read_bytes()[:2880])  # its first HDU alone
+    data = _data(dataset, "VISP qVXjk")
+    cid, view = data.main_components[0], (slice(None), slice(None))
+    with pytest.warns(UserWarning, match=re.escape(f"{tmp_path / '0.fits'} is part-written or corrupt")):
+        assert np.isnan(data.get_data(cid, view=view)).all()
+    # not the file as astropy opened it, which never finds its second HDU
+    shutil.copy(tmp_path / "whole.fits", tmp_path / "0.fits")
+    np.testing.assert_array_equal(data.get_data(cid, view=view), values[0])
