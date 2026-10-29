@@ -1915,10 +1915,25 @@ def footprint_lines(viewer):
 
 
 def test_dkist_footprints_draw_a_raster_s_slit_at_the_viewer_s_time_and_follow_its_frame(app, monkeypatch):
-    tile, raster = vbi_like("VBI TILE"), visp_like()
-    app.data_collection.extend([tile, raster])
+    # 8 frames 9 s apart; 2 repeats 30 s apart, the second 1" west; and a tile 0.25" (1 pixel) west each frame, as
+    # LOQEPP's tiles move between frames
+    tile, raster = vbi_like("VBI TILE", frames=8), visp_like(repeats=2, drift=1)
+    drifting = observed(
+        "VBI DRIFTING",
+        {"frame": 8, "y": 20, "x": 20},
+        {"lon": ("frame", "x"), "lat": ("y",), "time": ("frame",)},
+        lambda p: {
+            "lon": -102 + 0.25 * (p["x"] + p["frame"]),
+            "lat": 199 + 0.25 * p["y"],
+            "time": 1.7e9 + 9 * p["frame"],
+        },
+        None,
+        ("VBI", "op"),
+    )
+    app.data_collection.extend([tile, raster, drifting])
     viewer = app.new_data_viewer(ImageViewer, data=tile)
-    assert footprints(viewer, monkeypatch) == {"VBI TILE": True, "VISP RASTER": True}  # all at first
+    offered = {"VBI TILE": True, "VISP RASTER": True, "VBI DRIFTING": True}
+    assert footprints(viewer, monkeypatch) == offered  # all at first
     (lines, labels), nan = footprint_lines(viewer), np.nan
     # the tile's own frame of 20 by 20 pixels
     x, y = lines["C0", 1]
@@ -1927,16 +1942,23 @@ def test_dkist_footprints_draw_a_raster_s_slit_at_the_viewer_s_time_and_follow_i
     # faint, and their outline
     np.testing.assert_allclose(lines["C1", 0.5], [[8, 8, nan, 10, 10, nan, 12, 12, nan], [3, 23, nan] * 3])
     np.testing.assert_allclose(lines["C1", 1], [[8, 10, 12, 12, 10, 8, 8, nan], [3, 3, 3, 23, 23, 23, 3, nan]])
-    assert labels == ["VBI TILE", "VISP RASTER"]
-    # the step at the frame's time: step 0 at frame 0, step 2, 20 s on, at frame 2, 18 s on, and none at frame 3, 27 s
-    # on, more than half a step's 10 s past it
-    slits = []
-    for frame in (0, 2, 3):
+    assert labels == ["VBI TILE", "VISP RASTER", "VBI DRIFTING"]
+    # the step at the frame's time: step 0 at frame 0, step 2, 20 s on, at frame 2, 18 s on, repeat 1's step 1, 40 s
+    # on and 1" (4 pixels) west of repeat 0's, at frame 4, 36 s on, and none at frame 7, 63 s on, more than half a
+    # step's 10 s past its last
+    drawn = []
+    for frame in (0, 2, 4, 7):
         viewer.state.slices = (frame, 0, 0)
-        slits.append(footprint_lines(viewer)[0].get(("C1", 1.5)))
+        drawn.append(footprint_lines(viewer)[0])
+    slits = [lines.get(("C1", 1.5)) for lines in drawn]
     np.testing.assert_allclose(slits[0], [[8, 8, nan], [3, 23, nan]])
     np.testing.assert_allclose(slits[1], [[12, 12, nan], [3, 23, nan]])
-    assert slits[2] is None
+    np.testing.assert_allclose(slits[2], [[14, 14, nan], [3, 23, nan]])
+    assert slits[3] is None
+    # the drifting tile at its frame nearest the image's, 2 pixels west at frame 2
+    for lines, west in zip(drawn[:2], (0, 2)):
+        x, y = lines["C2", 1]
+        assert (np.nanmin(x), np.nanmax(x)) == pytest.approx((west - 0.5, west + 19.5))
 
 
 def test_dkist_footprints_draw_on_a_map_from_the_datasets_coordinates_alone_and_clear(app, monkeypatch):
@@ -1980,11 +2002,15 @@ def test_dkist_footprints_draw_on_a_map_from_the_datasets_coordinates_alone_and_
     viewer.state.x_att = image.pixel_component_ids[0]
     assert viewer.state.y_att is image.pixel_component_ids[1]
     np.testing.assert_allclose(footprint_lines(viewer)[0]["C0", 1.5], [[19.5, 29.5, nan], [21, 21, nan]], atol=1e-3)
-    # gone with their dataset, the other's taking the first color
+    # gone with their dataset, drawn alone, which clears them
+    footprints(viewer, monkeypatch, ticked=["VISP RASTER"])
     dc.remove(raster)
+    assert footprint_lines(viewer) == ({}, [])
+    assert not tool.checked
+    # the other taking the first color; cleared, untick all
+    assert footprints(viewer, monkeypatch) == {"VBI MOSAIC": True}
     lines, labels = footprint_lines(viewer)
     assert (list(lines), labels) == ([("C0", 1)], ["VBI MOSAIC"])
-    # cleared, untick all
     assert footprints(viewer, monkeypatch, ticked=[]) == {"VBI MOSAIC": True}
     assert footprint_lines(viewer) == ({}, [])
     assert not tool.checked
