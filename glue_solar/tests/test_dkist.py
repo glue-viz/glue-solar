@@ -13,6 +13,7 @@ import weakref
 from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import create_autospec
 
 import dask.array as da
 import numpy as np
@@ -33,6 +34,7 @@ from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.viewers.common.data_slice_widget import SliceWidget
 from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
+from qtpy import QtWidgets
 from qtpy.QtWidgets import QCheckBox, QDialog, QListWidget
 
 import astropy.units as u
@@ -2209,3 +2211,239 @@ def test_a_session_restores_a_dkist_dataset_s_frame_quality(app, qtbot, monkeypa
     frame_quality_dkist(again.data_collection[0], again.data_collection)
     assert len(again.data_collection) == count
     assert again.viewers[0][-1].state.reference_data is restored
+
+
+def download(app, qtbot, monkeypatch, data, typed, transfer=None):
+    """
+    'Download these frames…' on ``data``, its dialog's boxes typed as ``typed``, by name, and OK pressed, dkist's Globus
+    transfer helper mocked, or ``transfer`` in its place; returns what the dialog opened with, by name, its summary
+    too, and the helper.
+    """
+    import dkist.net.globus.transfer
+    import dkist.net.helpers
+    from dkist.io import DKISTFileManager
+
+    from glue_solar.sources import moments
+    from glue_solar.sources.iris import download_dkist
+
+    # of dkist's helper's arguments, as dkist.net.helpers holds it, unmocked
+    transfer = transfer or create_autospec(dkist.net.helpers._orchestrate_transfer_task)
+    monkeypatch.setattr(dkist.net.globus.transfer, "_orchestrate_transfer_task", transfer)
+    # the dataset's place at the data center as dkist finds it again, moved since its ASDF file was made (dkist #539)
+    moved = {"bucket": "public", "primaryProposalId": "pid_9"}
+    monkeypatch.setattr(DKISTFileManager, "_get_inventory", staticmethod(lambda id: {**moved, "datasetId": id}))
+    opened = {}
+
+    def exec_(dialog):
+        boxes = {box.objectName(): box for box in dialog.findChildren(QtWidgets.QWidget)}
+        for name, box in boxes.items():
+            if isinstance(box, (QtWidgets.QLabel, QtWidgets.QCheckBox, QtWidgets.QSpinBox)) and name:
+                kind = type(box).__name__
+                opened[name] = getattr(box, {"QLabel": "text", "QCheckBox": "isChecked", "QSpinBox": "value"}[kind])()
+        for name, value in typed.items():
+            boxes[name].setChecked(value) if isinstance(value, bool) else boxes[name].setValue(value)
+        return QtWidgets.QDialog.Accepted
+
+    monkeypatch.setattr(QtWidgets.QDialog, "exec", exec_)
+    download_dkist(data, app.data_collection)
+    qtbot.waitUntil(lambda: not moments._RUNNING, timeout=60_000)
+    return opened, transfer
+
+
+@pytest.mark.parametrize(
+    ("name", "slices", "defaults", "typed", "chosen"),
+    [
+        # at the viewer's Stokes parameter, U, all its steps at first: the dataset's mean file size, 5 GiB in 2752 files
+        (
+            "croppable_visp",
+            (2, 0, 0, 0),
+            {
+                "first": 0,
+                "last": 687,
+                "polarization state": False,
+                "summary": "688 files to download, about 1.3 Gbyte, 2022-10-24T18:57:45 to 2022-10-24T19:33:26",
+            },
+            {"first": 10, "last": 19},
+            (2, slice(10, 20)),
+        ),
+        # a Cryo-NIRSP raster at the viewer's Stokes parameter, Q, and measurement, 2, its Stokes parameters all ticked;
+        # of no size known
+        (
+            "croppable_cryo",
+            (1, 0, 2, 0, 0),
+            {
+                "first": 0,
+                "last": 2,
+                "polarization state": False,
+                "measurement number": False,
+                "summary": "3 files to download, 2023-01-01T13:00:23 to 2023-01-01T13:06:23",
+            },
+            {"polarization state": True},
+            (slice(None), slice(None), 2),
+        ),
+        # a VBI mosaic's 9 tiles, at the frames typed
+        (
+            "large_vbi",
+            (0, 0, 0),
+            {
+                "first": 0,
+                "last": 2,
+                "summary": "27 files to download, about 428.5 Mbyte, 2023-10-16T18:45:07 to 2023-10-16T18:49:10",
+            },
+            {"last": 1},
+            (slice(0, 2),),
+        ),
+    ],
+)
+def test_download_these_frames_sends_the_fits_files_chosen_alone_into_the_asdf_file_s_folder(
+    app, qtbot, monkeypatch, tmp_path, name, slices, defaults, typed, chosen
+):
+    from glue_solar.sources.dkist import _ARRIVING
+
+    with pytest.warns(UserWarning, match="0 of"):
+        loaded = load_data(str(asdf_alone(tmp_path, name)))
+    tiles = loaded if isinstance(loaded, list) else [loaded]
+    app.data_collection.extend(tiles)
+    app.new_data_viewer(ImageViewer, data=tiles[len(tiles) // 2]).state.slices = slices
+    opened, transfer = download(app, qtbot, monkeypatch, tiles[0], typed)
+    # the dialog's defaults, and the files' count, size and times (D110)
+    assert opened == defaults
+    # one transfer of those files alone, from the dataset's place, into the ASDF file's folder, in the background:
+    # not dkist's ASDF file, browse movie and quality report too (`FileManager.download`)
+    [call] = transfer.call_args_list
+    source = Path("/public/pid_9", tiles[0]._dataset.meta["inventory"]["datasetId"])
+    names = [name for tile in tiles for name in np.asarray(tile._dataset.files.fileuri_array)[chosen].ravel()]
+    assert call.args == ([source / name for name in names],)
+    assert call.kwargs == {"recursive": False, "destination_path": tmp_path, "wait": False}
+    label = tiles[0].label.rsplit(" (", 1)[0]
+    assert app.statusBar().currentMessage() == f"{label}: 0 of {len(names)} files downloaded"
+    assert {str(tmp_path / name) for name in names} <= _ARRIVING  # read as missing until whole
+
+
+def drawn(viewer, x, y):
+    """The color, RGBA from 0 to 255, ``viewer``'s canvas draws at its data pixel ``x``, ``y``."""
+    canvas = viewer.figure.canvas
+    canvas.draw()
+    rgba = np.asarray(canvas.buffer_rgba())
+    column, row = viewer.axes.transData.transform((x, y))
+    return tuple(int(v) for v in rgba[rgba.shape[0] - 1 - int(row), int(column)])
+
+
+@small_visp_dated_2044
+def test_downloaded_frames_fill_in_an_open_viewer_as_their_files_arrive_and_a_session_restores_them(
+    app, qtbot, monkeypatch, tmp_path
+):
+    from glue_solar.sources import iris
+
+    monkeypatch.setattr(iris, "DOWNLOAD_POLL", 400)
+    shutil.copy(small_visp(), tmp_path)
+    with pytest.warns(UserWarning, match="0 of 3 files"):
+        data = load_data(str(tmp_path / "test_visp.asdf"))
+    app.data_collection.append(data)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    state = viewer.state
+    state.x_att, state.y_att, state.slices = data.pixel_component_ids[0], data.pixel_component_ids[1], (0, 0, 12)
+    white = (255, 255, 255, 255)
+    assert drawn(viewer, 0, 5) == white  # its files are not here: NaN
+    _, transfer = download(app, qtbot, monkeypatch, data, {"last": 1})
+    [call] = transfer.call_args_list
+    assert [path.name for path in call.args[0]] == ["0.fits", "1.fits"]
+    # a file Globus is writing in place reads as missing, not opened part-written, whose HDU kept open it never found
+    whole = (small_visp().parent / "0.fits").read_bytes()
+    (tmp_path / "0.fits").write_bytes(whole[:2880])
+    qtbot.wait(500)  # one look: whole only once unchanged at the next
+    cid = data.main_components[0]
+    assert not data._present[0]
+    assert np.isnan(data.get_data(cid, view=(0,))).all()
+    (tmp_path / "0.fits").write_bytes(whole)
+    shutil.copy(small_visp().parent / "1.fits", tmp_path)
+    with pytest.warns(UserWarning, match=re.escape(f"VISP qVXjk: 2 of 3 files are in {tmp_path}; dkist reads")):
+        qtbot.waitUntil(lambda: app.statusBar().currentMessage() == "VISP qVXjk: 2 of 2 files downloaded")
+    # their steps drawn, and the color limits taken from them, the viewer's sliders left as they were
+    assert list(data._present) == [True, True, False]
+    assert drawn(viewer, 0, 5) != white
+    assert drawn(viewer, 1, 5) != white
+    assert drawn(viewer, 2, 5) == white
+    layer, values = viewer.layers[0].state, np.asarray(data[cid])[:2]
+    assert (layer.v_min, layer.v_max) == (values.min(), values.max())
+    assert tuple(state.slices) == (0, 0, 12)
+    app.save_session(str(tmp_path / "downloaded.glu"))
+    with pytest.warns(UserWarning, match="2 of 3 files"):
+        restored = restore(qtbot, monkeypatch, tmp_path / "downloaded.glu")
+    # its files present, and the one left to download
+    [again] = restored.data_collection
+    assert list(again._present) == [True, True, False]
+    opened, transfer = download(restored, qtbot, monkeypatch, again, {})
+    assert opened["summary"] == "1 file to download, 2044-03-15T08:23:14 (2 more already there)"
+    assert [path.name for path in transfer.call_args.args[0]] == ["2.fits"]
+
+
+@small_visp_dated_2044
+def test_a_mosaic_s_tiles_keep_one_color_limits_as_a_download_s_files_arrive(app, qtbot, monkeypatch, tmp_path):
+    from glue_solar.sources import iris
+
+    monkeypatch.setattr(iris, "DOWNLOAD_POLL", 20)
+    shutil.copy(small_visp(), tmp_path)
+    shutil.copytree(small_visp().parent, tmp_path / "there")
+    with pytest.warns(UserWarning, match="0 of 3 files"):
+        tiles = [load_data(str(tmp_path / "test_visp.asdf")), load_data(str(tmp_path / "there" / "test_visp.asdf"))]
+    app.data_collection.extend(tiles)
+    app._layer_widget.ui.layerTree.set_selected_layers(tiles[1:])
+    assert not app._layer_widget._actions["Download these frames…"].isVisible()  # of the second, its files all there
+    samples = {}
+    for tile in tiles:  # a mosaic's two tiles
+        tile._mosaic, tile._samples = tiles, samples
+    viewer = app.new_data_viewer(ImageViewer, data=tiles[0])
+    viewer.add_data(tiles[1])
+    for layer in viewer.layers:
+        layer.state.percentile = 90  # limits that a sample of other frames moves
+    download(app, qtbot, monkeypatch, tiles[0], {"last": 1})
+    for name in ("0.fits", "1.fits"):
+        shutil.copy(small_visp().parent / name, tmp_path)
+    with pytest.warns(UserWarning, match="5 of 6 files"):
+        qtbot.waitUntil(lambda: app.statusBar().currentMessage() == "VISP qVXjk: 2 of 2 files downloaded")
+    # both tiles' limits taken again from their one sample, its frames' now too, as a mosaic's are synced (D102)
+    first, second = (layer.state for layer in viewer.layers)
+    assert (second.v_min, second.v_max) == (first.v_min, first.v_max)
+
+
+@small_visp_dated_2044
+def test_download_these_frames_falls_back_to_dkist_s_download_if_its_transfer_helper_moved(
+    app, qtbot, monkeypatch, tmp_path
+):
+    from dkist.io import DKISTFileManager
+
+    shutil.copy(small_visp(), tmp_path)
+    with pytest.warns(UserWarning, match="0 of 3 files"):
+        data = load_data(str(tmp_path / "test_visp.asdf"))
+    app.data_collection.append(data)
+    downloads = []
+    monkeypatch.setattr(DKISTFileManager, "download", lambda files, **kwargs: downloads.append((files, kwargs)))
+    # dkist's private helper of other arguments, as if it moved
+    download(app, qtbot, monkeypatch, data, {"first": 1}, transfer=lambda files, *, wait: pytest.fail("called"))
+    [(files, kwargs)] = downloads
+    assert (files.filenames, kwargs) == (["1.fits", "2.fits"], {"path": tmp_path, "wait": False})
+
+
+@small_visp_dated_2044
+def test_a_download_s_files_read_as_they_are_once_glue_s_window_closes(qtbot, monkeypatch, tmp_path):
+    from glue_qt.app.application import GlueApplication
+    from qtpy.QtCore import QCoreApplication, QEvent
+
+    import glue_solar
+    from glue_solar.sources.dkist import _ARRIVING
+
+    glue_solar.setup()
+    window = GlueApplication()  # not the app fixture's, whose window pytest-qt would close again once deleted
+    shutil.copy(small_visp(), tmp_path)
+    with pytest.warns(UserWarning, match="0 of 3 files"):
+        data = load_data(str(tmp_path / "test_visp.asdf"))
+    window.data_collection.append(data)
+    download(window, qtbot, monkeypatch, data, {})
+    paths = {str(tmp_path / f"{step}.fits") for step in range(3)}
+    assert paths <= _ARRIVING
+    # Reset Session, Open Session and 'Restore last session' close it, and its watch of the files with it: a session
+    # restored read them as missing for good
+    window.close()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not paths & _ARRIVING

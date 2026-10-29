@@ -87,6 +87,9 @@ def _open_files():
 OPEN_FILES, _OPEN, _OPEN_LOCK = _open_files(), OrderedDict(), threading.Lock()
 _READERS = ThreadPoolExecutor(8)
 atexit.register(lambda: [file.close() for file in list(_OPEN.values())])  # as glue quits, not left to the collector
+# FITS files a download is writing, read as missing until they are whole: Globus may write them in place, and a file
+# opened part-written stays unreadable once kept open (D110, `_section`)
+_ARRIVING = set()
 # Set while glue computes an Image buffer of a DKIST dataset's values (`DKISTData.compute_fixed_resolution_buffer`)
 _EXACT = contextvars.ContextVar("exact", default=False)
 
@@ -310,7 +313,7 @@ def _section(path, target, key, files):
     ``key`` of HDU ``target`` of the FITS file at ``path``, of ``files`` (`_Files`), kept open (`_Open`) while they are
     kept; None where it is missing.
     """
-    if not os.path.exists(path):  # NaN, as dkist reads it
+    if path in _ARRIVING or not os.path.exists(path):  # NaN, as dkist reads it
         return None
     with _OPEN_LOCK:
         if files.kept:
@@ -408,6 +411,7 @@ class DKISTData(Data):
     _quality = None  # each frame's header columns of `QUALITY`, by keyword, over the frame axes
     _files = None  # its values' files (`_Files`), None where dask reads them
     _observed = None  # its instrument and observing program execution (`_context_imager`)
+    _dataset = None  # its dkist Dataset, whose FITS files 'Download these frames…' fetches (D110)
 
     def get_data(self, cid, view=None):
         # its values' views read from their files (`_Files`, D103)
@@ -552,6 +556,7 @@ class DKISTData(Data):
         data._frames = source._frames  # for a session saved without its Time and Exposure time (`register_to_hub`)
         data._quality = source._quality
         data._observed = source._observed
+        data._dataset = source._dataset
         data._center = log.data[rec["center"]] if "center" in rec else source._center  # #374's sessions saved none
         log.data[rec["log_item"]] = data  # for a session saved from this one
         for tile in log.data:  # its mosaic's tiles, restored or not, link to it if it is the center (`wcs_autolink`)
@@ -749,6 +754,7 @@ def _data(dataset, label):
     data.add_component(DaskComponent(dataset.data, units=str(dataset.unit or "")), "data")
     inventory = dataset.meta["inventory"]
     data._observed = inventory["instrumentName"], inventory.get("observingProgramExecutionId")
+    data._dataset = dataset
     # its first frame's band, line (nm) and whether its wavelengths are in air or vacuum, for its lines (D107)
     for key, kind in (("WAVEBAND", str), ("LINEWAV", float), ("WAVEREF", str)):
         if key in headers.colnames:
@@ -1004,14 +1010,39 @@ def dkist_data(path):
     samples = {}
     for data in datasets:
         data._mosaic, data._samples, data._center = datasets, samples, center
+    _note_missing(datasets, label, Path(path).parent)
+    return datasets if len(datasets) > 1 else datasets[0]
+
+
+def _note_missing(datasets, label, folder):
+    """Warn, in glue's Error Console, how many FITS files of ``datasets``, a DKIST dataset's, are in ``folder``."""
     present = sum(int(data._present.sum()) for data in datasets)
     expected = sum(data._present.size for data in datasets)
     if present < expected:
         warnings.warn(
-            f"{label}: {present} of {expected} files are in {Path(path).parent}; dkist reads the others as NaN.",
-            stacklevel=2,
+            f"{label}: {present} of {expected} files are in {folder}; dkist reads the others as NaN.", stacklevel=3
         )
-    return datasets if len(datasets) > 1 else datasets[0]
+
+
+def _transfer(parts, folder):
+    """
+    Start one Globus transfer, from the DKIST data center into ``folder``, of the FITS files of ``parts``, each a
+    dkist Dataset sliced to them and their names, and return (D110): by dkist's own helper given those files alone, as
+    ``FileManager.download`` adds the ASDF file, browse movie and quality report to every transfer, from the dataset's
+    place, as dkist finds it again; by ``FileManager.download`` of each sliced dataset if that private API moved.
+    """
+    try:
+        from dkist.net import conf
+        from dkist.net.globus.transfer import _orchestrate_transfer_task as transfer
+
+        source = Path(conf.dataset_path.format(**parts[0][0].files._inventory))  # as dkist 1.18.1's file_manager.py:271
+        inspect.signature(transfer).bind([], recursive=False, destination_path=folder, wait=False)
+    except (ImportError, AttributeError, TypeError):
+        for dataset, _ in parts:
+            dataset.files.download(path=folder, wait=False)
+        return
+    files = [source / name for _, names in parts for name in names]
+    transfer(files, recursive=False, destination_path=folder, wait=False)
 
 
 def wcs_autolink(data_collection):
