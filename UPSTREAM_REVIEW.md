@@ -59,7 +59,8 @@ each section's delta, and the checks' corrections are applied. What changed:
 - **Stacking:** the 13 glue branches (g1a…g10, #2597-#2599) still merge cleanly together on 3683f07c. g2 conflicts with
   the new #2604; g5 with #2595 and `ape14-wcs-link`; g7 with #2596/#2601.
 - **Done in glue-solar:** #372 follows glue-core 1.28.0 and dropped `conftest.py`'s `CFG_DIR` lines (glue-core #68).
-  #382 floors astropy at 8.0.2, so `_jacobian`'s `epsilon=1e-12` can go now (others row 24).
+  #382 floors astropy at 8.0.2. `_jacobian`'s `epsilon=1e-12` stays: on 8.0.2 the documented C II recipe converges with it
+  and hits the evaluation limit with the default step (bug hunt wave 8, FIT8-1; others row 24).
 
 ## Delta 2026-10-21
 
@@ -184,9 +185,6 @@ checks' corrections are applied. What changed:
 
 ## Glue-solar changes now
 
-- **Drop `_jacobian`'s `epsilon=1e-12`** (`fitters.py:447-454`, the copy at `test_fit_maps.py:412`, and "its step
-  1e-12" in the register row): the astropy floor is 8.0.2 since #382, where the default step gives the same fit (others
-  row 24).
 - **Gate `glue_patches.sync_sliders_from_state`** (653-684): it is always on, with no probe. Give it a `_needs` probe
   or a version gate before glue-qt's fix is released (glue-qt row 45).
 - **Add register rows** for the edit subset kept through a tree rebuild (`quicklook._Application.__setgluestate__`,
