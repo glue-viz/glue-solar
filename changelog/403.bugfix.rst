@@ -1,0 +1,1 @@
+Removing a raster now hides its slits from the slit-jaw images that showed its raster overlays, in a quicklook or not.

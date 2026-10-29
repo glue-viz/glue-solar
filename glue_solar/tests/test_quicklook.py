@@ -2460,9 +2460,12 @@ def test_raster_overlays_on_a_sit_and_stare_slit_jaw_image(bare_app, qtbot, monk
     for frame in (1, 2, 3):
         slide(sji_viewer, 0, frame)
     assert len(calls) == 3  # the raster point's, one per frame
+    bare_app.data_collection.remove(raster)  # its slits go with it
+    qtbot.wait(20)
+    assert slits(sji_viewer) is None
 
 
-def test_raster_overlays_on_a_slit_jaw_viewer_with_its_raster_in_none(bare_app, monkeypatch, irispy_test_files):
+def test_raster_overlays_on_a_slit_jaw_viewer_with_its_raster_in_none(bare_app, qtbot, monkeypatch, irispy_test_files):
     # the raster loaded, as File → Open Data Set leaves it, but in no viewer: its slits drawn, also where a shift of the
     # slit-jaw image's pointing moves them, and hidden again (D40)
     raster, sji = sit_and_stare(irispy_test_files)
@@ -2477,6 +2480,10 @@ def test_raster_overlays_on_a_slit_jaw_viewer_with_its_raster_in_none(bare_app, 
     assert slits(viewer) == pytest.approx(expected_slits(raster, sji), abs=0.01)
     assert slits(viewer) != pytest.approx(drawn_slits, abs=1)
     toggle()
+    assert slits(viewer) is None
+    toggle()  # on again, then the raster removed: its slits go with it
+    collection.remove(raster)
+    qtbot.wait(20)
     assert slits(viewer) is None
 
 
