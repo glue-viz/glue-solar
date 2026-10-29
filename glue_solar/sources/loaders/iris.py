@@ -911,9 +911,9 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None,
 
 class _ScanAt:
     """
-    A stack's ``Scan``, an SST cube's or a DKIST dataset's time at each index along another dataset's frames, exposures
-    or steps, or a slit-jaw image's time along a DKIST dataset's time axis, or at each index along its axes of time
-    (`link_hpc`), and NaN off it: ``scans``. Saved in sessions.
+    A stack's ``Scan``, an SST cube's or a DKIST dataset's time at each index along another dataset's frames, exposures,
+    steps or scans, or a slit-jaw image's time along a DKIST dataset's time axis, or at each index along its axes of
+    time (`link_hpc`), and NaN off it: ``scans``. Saved in sessions.
     """
 
     __name__ = "nearest_scan"  # glue's name of a link function, as its own link helpers set it
@@ -944,13 +944,13 @@ def link_hpc(data_collection, others=()):
     The links, for the caller to add, of the helioprojective longitude and latitude of every IRIS dataset and of
     those of ``others`` to the first IRIS dataset's, else, with no IRIS data, to the first of ``others`` (D97), by
     physical type, in arcsec (`LinkSame`) or converted (`LinkSameWithUnits`), and of each stack's scan and each SST
-    cube's time to the frames of the others (`_ScanAt`), skipping pairs linked already; see the loading guide's
-    Linking. Each links to the first, not to every other: glue rediscovers every link at each change, 0.3 s for the
-    70 links of 36 datasets but 4 s for every pair's 1260. The plain WCS of each other dataset linked, which IRIS
-    data's profile workers then call, goes behind `WCS_LOCK` in place (`_LockedWCS`); each SST cube's
-    ``meta['IRIS observation']`` names the IRIS observation timed nearest it, if linked. A DKIST dataset's time and the
-    IRIS data's are linked at the nearest frames, and a DKIST raster's step and slit pixel to the IRIS data's longitude
-    and latitude (`_SlitAt`).
+    cube's time to the frames of the others, and of each SST cube's time to the other SST cubes' scans (`_ScanAt`, D97),
+    skipping pairs linked already; see the loading guide's Linking. Each links to the first, not to every other: glue
+    rediscovers every link at each change, 0.3 s for the 70 links of 36 datasets but 4 s for every pair's 1260. The
+    plain WCS of each other dataset linked, which IRIS data's profile workers then call, goes behind `WCS_LOCK` in place
+    (`_LockedWCS`); each SST cube's ``meta['IRIS observation']`` names the IRIS observation timed nearest it, if linked.
+    A DKIST dataset's time and the IRIS data's are linked at the nearest frames, and a DKIST raster's step and slit
+    pixel to the IRIS data's longitude and latitude (`_SlitAt`).
     """
     from glue_solar.quicklook import _role, _times, nearest, observation_key  # which imports this module
     from glue_solar.sources.dkist import (  # which imports this module
