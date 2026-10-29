@@ -33,6 +33,8 @@ MIN_PIXELS = 2
 def _is_sji(data):
     """Whether ``data`` is a 1400 Å slit-jaw image, else an IRIS raster window or stack; raise why for neither."""
     if _role(data) == "sji" and data.ndim == 3:
+        if data.find_component_id("Exposure time") is None:  # bursts' labels, which keep the image's meta
+            raise ValueError(f"{data.label} is not an IRIS slit-jaw image.")
         if data.meta.get("TWAVE1") != 1400:
             raise ValueError(f"{data.label} is not a 1400 Å slit-jaw image, in which irispy finds UV bursts.")
         return True

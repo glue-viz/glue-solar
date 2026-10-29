@@ -42,7 +42,8 @@ def _check_sji(data):
     """
     from gwcs import WCS as GWCS
 
-    if _role(data) != "sji" or data.ndim != 3:
+    # exposure times, which every slit-jaw image has, not its bursts' labels, which keep its meta and coordinates
+    if _role(data) != "sji" or data.ndim != 3 or data.find_component_id("Exposure time") is None:
         raise ValueError(f"{data.label} is not an IRIS slit-jaw image.")
     if data.meta.get("dust_removed"):
         raise ValueError(f"{data.label} has its dust removed already.")

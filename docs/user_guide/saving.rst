@@ -21,7 +21,8 @@ A session keeps the datasets' coordinates, pointing shifts, colormaps, metadata 
 viewers' slices, colormaps and Profile axes. Each quicklook opens again with its point, the dataset
 leading the time, panel settings and panels turned off. A quicklook's raster overlays, panels moved by hand, a blink and
 the viewers' mouse modes are not saved, and glue opens each Image viewer zoomed to fit its reference dataset, such as a
-VBI mosaic's center tile. For sessions that fail to save or open, see :ref:`Known issues
+VBI mosaic's center tile. A light curve, row or column at the point opens where it was, no longer following the point.
+For sessions that fail to save or open, see :ref:`Known issues
 <glue_solar_users_guide_known_issues>`.
 
 Restoring the last session

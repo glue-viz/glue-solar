@@ -252,15 +252,16 @@ def test_refusals_and_errors_show_why(app, monkeypatch, irispy_test_files):
     [c_ii] = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["C II 1336"])
     sji = image_data(find_irispy_test_file(irispy_test_files, SJI.replace("1400", "1330")))
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
+    [bursts, _] = sji_bursts(image_data(find_irispy_test_file(irispy_test_files, SJI)))  # with its image's meta
     collection = app.data_collection
-    collection.extend([raster, c_ii, sji, plain])
+    collection.extend([raster, c_ii, sji, plain, bursts])
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
     action = tree._actions[ACTION]
     opened = answer(monkeypatch)
-    for data in (c_ii, sji, plain):
+    for data in (c_ii, sji, plain, bursts):
         tree.ui.layerTree.set_selected_layers([data])
         refused(action)
     assert opened == []  # refused before asking
@@ -273,6 +274,7 @@ def test_refusals_and_errors_show_why(app, monkeypatch, irispy_test_files):
         f"No wavelength of {c_ii.label} (1332.73 to 1336.88 Å) lies within 50.0 km / s of Si IV 1402.77 Å.",
         f"{sji.label} is not a 1400 Å slit-jaw image, in which irispy finds UV bursts.",
         "plain is not an IRIS raster window or slit-jaw image.",
+        f"{bursts.label} is not an IRIS slit-jaw image.",
         "'Si IV' is not a threshold in DN / s, such as 500.",
         f"No wavelength of {raster.label} (1402.50 to 1403.04 Å) lies within 0.1 km / s of Si IV 1402.77 Å.",
     ]
@@ -280,7 +282,7 @@ def test_refusals_and_errors_show_why(app, monkeypatch, irispy_test_files):
     answer(monkeypatch, accept=False)
     action.trigger()
     assert not iris._RUNNING  # no thread started
-    assert len(collection) == 4
+    assert len(collection) == 5
 
 
 @pytest.mark.remote_data

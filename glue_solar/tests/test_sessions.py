@@ -72,7 +72,9 @@ from glue_solar.tests.test_quicklook import (
     marks,
     menu_action,
     panels_list,
+    past,
     readout,
+    repointed,
     sit_and_stare,
     slide,
     slit_jaw,
@@ -268,6 +270,18 @@ def test_a_session_reads_each_raster_file_once_for_all_its_windows(monkeypatch, 
             for cid, expected_cid in zip(data.main_components, expected.main_components, strict=True):
                 np.testing.assert_array_equal(data[cid], expected[expected_cid])
             assert_same_coordinates(data.coords, expected, stride=5)
+
+
+def test_a_stack_and_its_restore_keep_the_order_of_its_rasters(tmp_path, irispy_test_files):
+    # the scans in folders of a pooch cache, whose md5 prefixes, and the session's '../', sort them the other way
+    scans = sorted(path for path in irispy_test_files if "3860258481_raster" in path.name)[:2]
+    files = []
+    for prefix, scan in zip(("f" * 32, "0" * 32), scans):
+        (tmp_path / f"{prefix}-raster").mkdir()
+        files.append(shutil.copy(scan, tmp_path / f"{prefix}-raster"))
+    stack = DataCollection(raster_data(files, ["C II 1336"], stack=True))
+    for [data] in (stack, *twice(stack)):
+        assert list(data.meta["raster files"]) == [scan.name for scan in scans]
 
 
 def test_a_failed_restore_keeps_no_raster_windows(monkeypatch, tmp_path, irispy_test_files):
@@ -758,6 +772,23 @@ def test_a_restored_quicklook_keeps_its_cuts_where_they_were(app, qtbot, monkeyp
     for label, (slices, x_att, values) in restored.items():
         assert (slices, x_att.label) == (saved[label][0], saved[label][1].label)
         np.testing.assert_array_equal(values, saved[label][2])
+
+
+def test_a_click_off_the_raster_leaves_a_restored_point(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
+    # the point the restore set before the quicklook's coordinator was made, which the click keeps (`Coordinator.own`)
+    path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
+    [raster], sji = raster_data([path], ["Si IV 1403"]), sit_and_stare(irispy_test_files)[1]
+    quicklook(app, [raster, sji])
+    app.save_session(str(tmp_path / "point.glu"), absolute_paths=False)
+    opened = restore(qtbot, monkeypatch, tmp_path / "point.glu")
+    raster, sji = (opened.data_collection[data.label] for data in (raster, sji))
+    [point] = opened.session.edit_subset_mode.edit_subset
+    [viewer] = [viewer for viewer in opened.viewers[-1] if viewer.state.reference_data is sji]
+    slices = point.subset_state.slices
+    slit = slices[1].start
+    select_point(viewer, *np.round(past(raster, sji, (0, slit), (20, slit), viewer.state.slices[0])))
+    assert "outside raster FOV" in readout(viewer)
+    assert getattr(point.subset_state, "slices", None) == slices
 
 
 def test_a_restored_quicklook_keeps_its_regions_outlines(app, qtbot, monkeypatch, tmp_path, irispy_test_files):

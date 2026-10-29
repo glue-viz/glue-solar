@@ -540,6 +540,9 @@ class Coordinator(HubListener):
     def own(self, group, viewers):
         """Let the point group ``group`` drive only the viewers it owns, ``viewers`` too, and those follow only it."""
         self._owners.setdefault(group, set()).update(viewers)
+        on = getattr(group.subset_state, "reference_data", None)
+        if _role(on) != "sji" and _dkist(on) != "imager":  # a restored point, set before this heard of it (_to_raster)
+            self._before.setdefault(group, group.subset_state)
 
     def follow(self, group):
         """
@@ -2381,7 +2384,15 @@ def _reopen(app, tab, recipe, context=None):
         state, *layers = [{key: find(value) for key, value in each.items()} for each in states]
         panel.state.update_from_dict(state)
         for layer in panel.state.layers:
-            layer.update_from_dict(next((each for each in layers if each["layer"] is layer.layer), {}))
+            new = layer.layer
+            # a cut's subset is of the group `_fill` made again, not of the one saved: by its label on the same dataset
+            same = [each for each in layers if each["layer"] is new] or [
+                each
+                for each in layers
+                if isinstance(each["layer"], Subset) and isinstance(new, Subset)
+                if (each["layer"].label, each["layer"].data) == (new.label, new.data)
+            ]
+            layer.update_from_dict({**same[0], "layer": new} if same else {})
 
 
 @session_patch()
