@@ -242,13 +242,13 @@ a Stokes parameter not yet shown takes up to 3 s, its later moves about 0.5 s.
 - "Download these frames…" fetches some of a dataset's FITS files by Globus, of a mosaic's loaded
   tiles on a tile, into the ASDF file's folder: those at the Stokes parameter, repeat and
   measurement of its first Image viewer, or all of them where ticked, over the steps or frames
-  typed, all at first. Its dialog says how many files are missing, but those already on their way,
-  their size, from the dataset's mean file size, and their times; the transfer then starts in the
-  background, of the FITS files alone, not the ASDF file, browse movie and quality report dkist's
-  ``download`` adds. Their frames fill in as the files arrive, glue's status bar counting them, and
-  the color limits are taken again; once all are there, the Error Console says how many of the
-  dataset's files are still missing, if any. It needs Globus Connect Personal set up and running,
-  and a Globus login, which dkist asks for in the web browser the first time.
+  typed, all at first. Its dialog says how many files are missing, not counting those already on
+  their way, their size, from the dataset's mean file size, and their times; the transfer then
+  starts in the background, of the FITS files alone, not the ASDF file, browse movie and quality
+  report dkist's ``download`` adds. Their frames fill in as the files arrive, glue's status bar
+  counting them, and the color limits are taken again; once all are there, the Error Console says
+  how many of the dataset's files are still missing, if any. It needs Globus Connect Personal set
+  up and running, and a Globus login, which dkist asks for in the web browser the first time.
 - A session keeps them, their viewers and links, and reads their coordinates again from the ASDF
   files (see :ref:`Sessions <glue_solar_users_guide_saving_sessions>`).
 
