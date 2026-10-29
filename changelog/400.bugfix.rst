@@ -1,0 +1,1 @@
+Follow/lock moves the point from any tile of a VBI mosaic in a DKIST quicklook's context imager panel, as a Pixel click does; "Raster overlays" draws a loaded raster's slits on a slit-jaw image even when no viewer shows the raster; and "DKIST footprints…" moves with its image when "IRIS: shift pointing…" shifts it.
