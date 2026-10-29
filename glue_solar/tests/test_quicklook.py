@@ -2473,7 +2473,7 @@ def test_raster_overlays_on_a_slit_jaw_viewer_with_its_raster_in_none(bare_app, 
     toggle()
     drawn_slits = slits(viewer)
     assert drawn_slits == pytest.approx(expected_slits(raster, sji), abs=0.01)
-    shift(monkeypatch, sji, collection, (2, -1))
+    shift(monkeypatch, sji, collection, (10, -5))
     assert slits(viewer) == pytest.approx(expected_slits(raster, sji), abs=0.01)
     assert slits(viewer) != pytest.approx(drawn_slits, abs=1)
     toggle()
