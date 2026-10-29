@@ -1,0 +1,1 @@
+A region drawn on an SST cube selects the same place on the other SST cubes linked without IRIS data; and SST spectra label their lines from glue-solar's table in air, as SSTRED's wavelengths are, which 'Lines in this range…' lists and which give the cube a rest wavelength and its Doppler velocity in km / s, of Ca II H and K the line at its line core.
