@@ -19,6 +19,7 @@ import glue_solar
 from glue_solar.conftest import find_irispy_test_file, int16_copy
 from glue_solar.regrid import rebin, regrid_on_time
 from glue_solar.sources import calibration
+from glue_solar.sources.bursts import sji_bursts
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.tests.helpers import refused, restore
@@ -264,13 +265,17 @@ def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
     dust = calibration.remove_dust(sji)
     rebinned = rebin(dust, (1, 2, 2))  # data made from it keep its meta['dust_removed']
     regridded, binned = regrid_on_time(dust), rebin(sji, (1, 2, 2))  # whose pixels irispy cannot place dust in
+    [bursts, _] = sji_bursts(sji)  # its labels, with its meta and coordinates
     collection = app.data_collection
-    collection.extend([sji, raster, plain, dust, rebinned, regridded, binned])
+    collection.extend([sji, raster, plain, dust, rebinned, regridded, binned, bursts])
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
-    for action, datasets in ((DUST, (raster, plain, dust, rebinned, regridded, binned)), (RADIANCE, (sji, plain))):
+    for action, datasets in (
+        (DUST, (raster, plain, dust, rebinned, regridded, binned, bursts)),
+        (RADIANCE, (sji, plain)),
+    ):
         for data in datasets:
             tree.ui.layerTree.set_selected_layers([data])
             refused(tree._actions[action])
@@ -285,8 +290,9 @@ def test_refusals_show_why(app, monkeypatch, sji_path, scan_path):
         f"Could not remove dust\n{rebinned.label} has its dust removed already.",
         f"Could not remove dust\n{regridded.label} has its dust removed already.",
         f"Could not remove dust\n{binned.label} is rebinned or regridded: irispy finds dust in the pixels of a file only.",
+        f"Could not remove dust\n{bursts.label} is not an IRIS slit-jaw image.",
         f"Could not calibrate the radiance\n{sji.label} is not an IRIS raster window.",
         "Could not calibrate the radiance\nplain is not an IRIS raster window.",
         f"Could not calibrate the radiance\n{raster.label} has its radiance already.",
     ]
-    assert len(collection) == 7
+    assert len(collection) == 8

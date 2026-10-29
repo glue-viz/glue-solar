@@ -41,7 +41,7 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper, SlicedLowLevelWCS
 
 from ..maps import _Style
 from .lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask, iris_mask
-from .scan import _gzipped, _observation, _primary_header, extract_archive, scan_directory
+from .scan import _gzipped, _observation, _primary_header, extract_archive, scan_directory, strip_pooch
 from .stack_spectrograms import MISSING_VALUES, _PerScanWCS, stack_times, stack_wcs
 
 # Load data stored as int16, as Level 2 files store it, lazily: the raw integers stay in the file (in memory for a
@@ -875,7 +875,9 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None,
     from irispy.io import read_files, read_spectrograph_lvl2
 
     scans = {}
-    for i, path in enumerate(sorted(files)):  # as irispy orders them
+    # by raster number, as the browser lists them, not by a pooch cache's md5 prefixes or a session's '../'
+    files = sorted(files, key=lambda path: strip_pooch(Path(path).name))
+    for i, path in enumerate(files):
         if stop is not None and stop.is_set():
             return None
         with _naming(path), in_memory(path) if path in gzipped else nullcontext() as opened:
@@ -898,8 +900,8 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None,
             scans.setdefault(window, []).extend(sequence)
         if step is not None:
             step()
-    first = sorted(files)[0]
-    names = [os.path.relpath(path, Path(first).parent) for path in sorted(files)]
+    first = files[0]
+    names = [os.path.relpath(path, Path(first).parent) for path in files]
     result = {}
     for window, cubes in scans.items():  # each with its own log, which a session reads back alone
         datasets = _raster_collection_data({window: cubes}, stack=stack, scaling=scaling)

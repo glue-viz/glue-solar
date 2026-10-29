@@ -1370,6 +1370,8 @@ def test_a_session_restores_the_sst_quicklook(sst_app, qtbot, monkeypatch, tmp_p
     viewers = quicklook(sst_app, [cube])
     select_point(viewers["map"], 3, 7)
     slide(viewers["map"], 0, 2)
+    curve = viewers["curve"].state.layers[0]  # the light curve's cut, its group made again by the restore
+    curve.color, curve.linewidth = "#123456", 7
     qtbot.wait(20)
     sst_app.save_session(str(tmp_path / "sst.glu"))
     restored = restore(qtbot, monkeypatch, tmp_path / "sst.glu")
@@ -1383,6 +1385,7 @@ def test_a_session_restores_the_sst_quicklook(sst_app, qtbot, monkeypatch, tmp_p
     assert isinstance(data, _Cube)  # its color limits' sample too
     assert data.coords.core == again["map"].state.slices[-3] == 1
     assert not again["wing"].state.layers[0].stretch_global  # a quicklook's per-frame limits restore (P9)
+    assert (again["curve"].state.layers[0].color, again["curve"].state.layers[0].linewidth) == ("#123456", 7)
     assert group.label == "Point"
     i = [slice(0, 1)] if stokes == 4 else []  # Stokes I, if any
     assert group.subset_state.slices[: 1 + len(i)] == [slice(2, 3), *i]
