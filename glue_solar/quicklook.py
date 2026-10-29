@@ -414,8 +414,9 @@ class Coordinator(HubListener):
 
     def _forget(self, message):
         """
-        Let a removed dataset go, with its memory map and file handle: drop what names it, and empty a quicklook point
-        on it as Clear point does; then give the SST cubes left their time keys (`_share_times`).
+        Let a removed dataset go, with its memory map and file handle: drop what names it, empty a quicklook point on it
+        as Clear point does, and draw the raster overlays again; then give the SST cubes left their time keys
+        (`_share_times`).
         """
         data = message.data
 
@@ -437,6 +438,9 @@ class Coordinator(HubListener):
         if names(self._kept) or names(self._outside):
             self._kept, self._outside = (None, None, None, None), (None, None)
         self._placed = self._footprint = self._tiles = (None, None)
+        if self.overlays:  # a removed raster's slits go, which no frame step would redraw (D40)
+            self._timer.start()
+            QTimer.singleShot(0, lambda: self._unsynced_overlays(self.overlays))  # once glue's viewers let it go
         self._share_times()
 
     def _share_times(self, *_):
