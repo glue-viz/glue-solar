@@ -6,9 +6,11 @@ while irispy's test files hold float32.
 import gzip
 import warnings
 from itertools import combinations
+from pathlib import Path
 
 import dask
 import dask.array as da
+import irispy.io
 import numpy as np
 import pytest
 from glue.core.component import Component
@@ -343,6 +345,50 @@ def test_int16_stacks_load_lazily_scan_by_scan(monkeypatch, tmp_path, irispy_tes
         np.testing.assert_array_equal(stack[rate, (i,)], scan[scan.derived_components[1]])  # each scan's exposures
         for name in ("Time", "Exposure time"):
             np.testing.assert_array_equal(stack[name][i], scan[name])
+
+
+@pytest.mark.parametrize(
+    ("changed", "header", "together"),
+    [
+        ((), {}, [[1, 2]]),
+        ((0, 1, 2), {"STEPS_AV": -1.0}, [[1, 2]]),  # V34, whose steps irispy flips (D10)
+        ((2,), {"STEPS_AV": -1.0}, []),  # scan 2 alone flipped: irispy flips files read together as the first
+        ((1,), {"DATE_OBS": "2014-03-29T14:13:00.000"}, []),  # after scan 2: irispy reads files in time order
+        ((1,), {"DATE_OBS": ""}, []),  # as the archive writes a file with no data
+    ],
+    ids=["plain", "v34", "one-flipped", "out-of-order", "no-data"],
+)
+def test_a_stack_read_in_batches_is_as_read_a_file_at_a_time(monkeypatch, tmp_path, irispy_test_files, changed,
+                                                              header, together):
+    """
+    A lazy stack of every window of 3860258481's three scans, those ``changed`` with ``header``, reads the scans after
+    the first ``together`` (`_read_batch`), and gives what reads of a file each give: every component's values,
+    world coordinates, times and exposure times included, and meta.
+    """
+    sources = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
+    paths = [
+        int16_raster_copy(path, tmp_path / path.name, **(header if k in changed else {})) for k, path in enumerate(sources)
+    ]
+    read, batches = irispy.io.read_spectrograph_lvl2, []
+
+    def batched(files, **kwargs):
+        batches.append([paths.index(Path(hdulist.filename())) for hdulist in files])  # a list of the HDU lists opened
+        return read(files, **kwargs)
+
+    monkeypatch.setattr(irispy.io, "read_spectrograph_lvl2", batched)
+    stacks = raster_data(paths, stack=True)
+    assert batches == together
+    monkeypatch.setattr(iris, "_BATCH", 1)
+    alone = raster_data(paths, stack=True)
+    assert batches == together  # none more
+    assert [data.label for data in stacks] == [data.label for data in alone]
+    for data, other in zip(stacks, alone, strict=True):
+        assert {key: repr(value) for key, value in data.meta.items()} == {
+            key: repr(value) for key, value in other.meta.items()
+        }
+        assert [cid.label for cid in data.components] == [cid.label for cid in other.components]
+        for cid, other_cid in zip(data.components, other.components, strict=True):
+            np.testing.assert_array_equal(data[cid], other[other_cid])
 
 
 def test_int16_slit_jaw_and_aia_cubes_load_lazily(monkeypatch, tmp_path, irispy_test_files):

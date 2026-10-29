@@ -5,11 +5,12 @@ import shutil
 import subprocess
 import sys
 import threading
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from irispy.io import read_files
+from irispy.io import read_files, read_spectrograph_lvl2
 from qtpy.QtCore import QEvent, QMetaObject, Qt
 from qtpy.QtGui import QCursor
 from qtpy.QtTest import QTest
@@ -117,20 +118,48 @@ def test_load_selected_real_sji(qtbot, tmp_path, irispy_test_files):
 
 def counted_reads(monkeypatch, on_read=None):
     """
-    The ``(files, spectral_windows)`` of each read of raster files, as the loaders make them; ``on_read(n)`` after the
-    n-th, on the thread that reads.
+    The ``(files, spectral_windows)`` of each read of raster files, as the loaders make them, a file alone or a batch
+    of a stack's (`_read_batch`), the files of the HDU lists the loader opens by path; ``on_read(n)`` after the n-th,
+    on the thread that reads.
     """
     reads = []
 
-    def read(files, **kwargs):
-        collection = read_files(files, **kwargs)
-        reads.append((files, kwargs["spectral_windows"]))
-        if on_read is not None:
-            on_read(len(reads))
-        return collection
+    def counted(reader):
+        def read(files, **kwargs):
+            collection = reader(files, **kwargs)
+            if reader is read_spectrograph_lvl2:
+                opened = [files] if isinstance(files, fits.HDUList) else files
+                files = [Path(hdulist.filename()) for hdulist in opened]
+            reads.append((files, kwargs["spectral_windows"]))
+            if on_read is not None:
+                on_read(len(reads))
+            return collection
 
-    monkeypatch.setattr("irispy.io.read_files", read)  # the loaders import it as they read
+        return read
+
+    # the loaders import them as they read
+    monkeypatch.setattr("irispy.io.read_files", counted(read_files))
+    monkeypatch.setattr("irispy.io.read_spectrograph_lvl2", counted(read_spectrograph_lvl2))
     return reads
+
+
+@pytest.fixture
+def stack_dialog(qtbot, stack_paths):
+    """The browser on 3860258481's three scans, stored as int16, with "Stack sequential raster scans" ticked."""
+    dlg = QtIRISImporter(stack_paths[0].parent)
+    qtbot.addWidget(dlg)
+    scanned(qtbot, dlg)
+    dlg.stack.setChecked(True)
+    return dlg
+
+
+def tick_windows(dialog, count):
+    """Tick the first ``count`` raster windows of 3860258481; their names."""
+    row = _row(dialog, "3860258481")
+    entries = [row.child(i) for i in range(row.childCount()) if "raster file(s)" in row.child(i).text(0)][:count]
+    for entry in entries:
+        entry.setCheckState(0, Qt.Checked)
+    return [entry.text(0).split(" — ")[0] for entry in entries]
 
 
 def test_ticked_raster_windows_of_an_observation_are_read_together_file_by_file(qtbot, monkeypatch,
@@ -189,9 +218,9 @@ def from_the_worker(widget, method):
     QMetaObject.invokeMethod(widget, method, Qt.BlockingQueuedConnection)
 
 
-def test_load_reads_a_file_at_a_time_off_the_gui_thread(dialog, qtbot, monkeypatch):
-    tick(dialog, "SJI_1400", "Mg II k")
-    dialog.stack.setChecked(True)
+def test_load_reads_a_stack_in_batches_off_the_gui_thread(stack_dialog, qtbot, monkeypatch, stack_paths):
+    dialog = stack_dialog
+    windows = tick_windows(dialog, 1)
     on_gui = []
     reads = counted_reads(monkeypatch, lambda n: on_gui.append(threading.current_thread() is threading.main_thread()))
     dialog.accepted.connect(lambda: on_gui.append(threading.current_thread() is threading.main_thread()),
@@ -201,11 +230,12 @@ def test_load_reads_a_file_at_a_time_off_the_gui_thread(dialog, qtbot, monkeypat
     dialog.progress.valueChanged.connect(lambda value: progress.append((value, any(w.isEnabled() for w in widgets))))
     load_selected(qtbot, dialog)
     assert dialog.result() == QDialog.Accepted
-    assert len(reads) == 2
+    # the first scan alone, whose read gives the stack its meta, then the other two together (`_BATCH`)
+    assert reads == [(stack_paths[:1], windows), (stack_paths[1:], windows)]
     assert on_gui == [False, False, True]  # the reads, then the result
-    # from the scan's 100%, the slit-jaw file, each raster file, then the color limits
-    assert progress == [(0, False), (25, False), (50, False), (75, False), (100, False)]
-    assert [data.ndim for data in dialog.datasets] == [3, 4]
+    # from the scan's 100%, the first raster file, the other two, then the color limits
+    assert progress == [(0, False), (25, False), (75, False), (100, False)]
+    assert [data.shape[0] for data in dialog.datasets] == [3]
 
 
 def test_stop_keeps_the_entries_read_in_full(dialog, qtbot, monkeypatch):
@@ -227,25 +257,24 @@ def test_stop_keeps_the_entries_read_in_full(dialog, qtbot, monkeypatch):
     assert data.get_component(data.main_components[0])._counts is not None  # not left to its first viewer
 
 
-def test_stop_keeps_every_window_of_a_raster_read_in_full(dialog, qtbot, monkeypatch):
-    # both windows of OBS_A come from the same two raster files, read together: Stop during file 2 (the last)
-    tick(dialog, "C II", "Mg II k")
-    dialog.stack.setChecked(True)
+def test_stop_keeps_every_window_of_a_raster_read_in_full(stack_dialog, qtbot, monkeypatch):
+    # both windows come from the same three raster files, read together: Stop during files 2 and 3 (the last read)
+    windows = tick_windows(stack_dialog, 2)
 
-    def stop_in_the_last_file(n):
+    def stop_in_the_last_read(n):
         if n == 2:
-            from_the_worker(dialog.cancel, "click")
+            from_the_worker(stack_dialog.cancel, "click")
 
-    reads = counted_reads(monkeypatch, stop_in_the_last_file)
-    load_selected(qtbot, dialog)
+    reads = counted_reads(monkeypatch, stop_in_the_last_read)
+    load_selected(qtbot, stack_dialog)
     assert len(reads) == 2
-    assert dialog.result() == QDialog.Accepted
-    assert [name for _, _, name, _ in dialog.loaded] == ["C II 1336", "Mg II k 2796"]
+    assert stack_dialog.result() == QDialog.Accepted
+    assert [name for _, _, name, _ in stack_dialog.loaded] == windows
+    assert [data.shape[0] for data in stack_dialog.datasets] == [3, 3]  # every scan
 
 
-def test_a_failure_once_the_files_are_read_reads_none_again(dialog, qtbot, monkeypatch):
-    tick(dialog, "Mg II k")
-    dialog.stack.setChecked(True)
+def test_a_failure_once_the_files_are_read_reads_none_again(stack_dialog, qtbot, monkeypatch, stack_paths):
+    [window] = tick_windows(stack_dialog, 1)
 
     def fail(collection, **kwargs):
         if any(len(cubes) > 1 for cubes in collection.values()):  # the scans together, not one alone
@@ -254,9 +283,10 @@ def test_a_failure_once_the_files_are_read_reads_none_again(dialog, qtbot, monke
 
     monkeypatch.setattr("glue_solar.sources.loaders.iris._raster_collection_data", fail)
     reads = counted_reads(monkeypatch)
-    load_selected(qtbot, dialog)
-    assert len(reads) == 2  # each file once: none again to find the one that fails
-    assert dialog.progress.format() == "Loading Mg II k 2796 from 2 raster files failed: the scans differ"
+    load_selected(qtbot, stack_dialog)
+    # each file once, the first alone, the others together: none again to find the one that fails
+    assert reads == [(stack_paths[:1], [window]), (stack_paths[1:], [window])]
+    assert stack_dialog.progress.format() == f"Loading {window} from 3 raster files failed: the scans differ"
 
 
 def test_closing_the_dialog_drops_the_load(dialog, qtbot, monkeypatch):
@@ -1274,6 +1304,17 @@ def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_t
     assert dialog.result() == 0
     window = dialog.observations[0].windows[0]
     assert dialog.progress.format().startswith(f"Loading {window} from {truncated.name} failed:")
+
+
+@pytest.mark.parametrize("keep", [lambda n: n // 2, lambda n: n - 5000], ids=["headers", "data"])
+def test_a_stack_load_failure_names_the_file_that_fails(stack_dialog, qtbot, stack_paths, keep):
+    [window] = tick_windows(stack_dialog, 1)
+    truncated = stack_paths[2]  # of the two read together (`_read_batch`)
+    data = truncated.read_bytes()
+    truncated.write_bytes(data[: keep(len(data))])  # as an interrupted download leaves it
+    load_selected(qtbot, stack_dialog)
+    assert stack_dialog.result() == 0
+    assert stack_dialog.progress.format().startswith(f"Loading {window} from {truncated.name} failed:")
 
 
 @pytest.mark.remote_data

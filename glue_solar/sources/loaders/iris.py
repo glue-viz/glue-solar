@@ -1,7 +1,6 @@
 import base64
 import inspect
 import io
-import itertools
 import json
 import os
 import re
@@ -10,10 +9,11 @@ import threading
 import traceback
 import warnings
 from collections import OrderedDict
-from contextlib import contextmanager, nullcontext
+from contextlib import ExitStack, contextmanager, nullcontext
 from functools import cached_property, partial, wraps
 from operator import attrgetter
 from pathlib import Path
+from types import SimpleNamespace
 from weakref import WeakSet
 
 import numpy as np
@@ -36,6 +36,7 @@ from qtpy.QtCore import QEvent, QSettings, Qt, QTimer, Signal
 
 import astropy.units as u
 from astropy.io import fits
+from astropy.time import Time
 from astropy.wcs import WCS, WCSHDO_P17, WCSHDO_all
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper, SlicedLowLevelWCS
 
@@ -859,21 +860,91 @@ def _read_logged_windows_together(session):
                 record.update({"_type": f"{__name__}.{_RasterFilesLog.__name__}", "read together": windows})
 
 
+# the most raster files a read of a stack's scans takes together (`_batches`): about 1.5 s of 3860107071's on
+# LM-SAL/irispy#360, the longest a Stop waits
+_BATCH = 100
+
+
+def _batches(files, dates):
+    """
+    ``files`` as the reads that take them: together, up to `_BATCH`, the files in ``dates``, by ``(DATE_OBS, V34)``,
+    each later than the one before and flipped alike, as irispy reads files together in time order and flips them all
+    as it flips the first; any other file alone.
+    """
+    batch = []
+    for path in files:
+        date, last = dates.get(path), batch and dates.get(batch[-1])
+        if batch and not (date and last and len(batch) < _BATCH and date[1] == last[1] and date[0] > last[0]):
+            yield batch
+            batch = []
+        batch.append(path)
+    if batch:
+        yield batch
+
+
+def _read_batch(files, windows):
+    """
+    Each window's scans of ``files``, int16 raster files of a stack (`_batches`), as `_raster_collection_data` takes
+    a scan of a stack but its first, from one read of them all: on LM-SAL/irispy#360 a read builds each window's gWCS,
+    so reads of a file each take about 5 times as long. A scan's data is its file's own memory map, as its read alone
+    gives it, steps flipped for a V34 file as irispy flips them; its FITS WCS, exposure times and times are the
+    read's, each found once for every scan.
+    """
+    from irispy.io import read_spectrograph_lvl2
+
+    opened, data = [], []
+    with ExitStack() as closing:
+        for path in files:
+            with _naming(path):
+                hdulist = closing.enter_context(fits.open(path, memmap=True, do_not_scale_image_data=True))
+                header = hdulist[0].header
+                steps = slice(None, None, -1) if header.get("STEPS_AV", 0) < -0.01 else slice(None)
+                numbers = {header[f"TDESC{i}"]: i for i in range(1, header["NWIN"] + 1)}
+                data.append(
+                    {name: hdulist[i].data[steps] for name, i in numbers.items() if not windows or name in windows}
+                )
+            opened.append(hdulist)
+        try:
+            read = read_spectrograph_lvl2(opened, spectral_windows=windows, memmap=True, uncertainty=False)
+        except Exception:
+            for path, hdulist in zip(files, opened, strict=True):  # each alone, to name the file that fails
+                with _naming(path):
+                    read_spectrograph_lvl2(hdulist, spectral_windows=windows, memmap=True, uncertainty=False)
+            raise
+    scans = {}
+    for window, cube in read.items():
+        wcses, exposures, times = cube.fits_wcs, cube.exposure_time, cube.time
+        scans[window] = [
+            SimpleNamespace(
+                data=own[window],
+                fits_wcs=wcses[k],
+                exposure_time=exposures[k],
+                time=times[k],
+                meta={"fits_wcs": wcses[k]},
+            )
+            for k, own in enumerate(data)
+        ]
+    return scans
+
+
 def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None, lazy=True):
     """
-    `raster_data` by window name, from one read of each file for every window, which maps each file once; None once
-    ``stop``, a `threading.Event`, is set between files; ``step()`` is called after each file. Not ``lazy``, as with
-    `LAZY` off.
+    `raster_data` by window name, from one read of each file for every window, which maps each file once, a stack's
+    scans after its first in batches (`_batches`); None once ``stop``, a `threading.Event`, is set between reads;
+    ``step(n)`` is called after each read, of ``n`` files. Not ``lazy``, as with `LAZY` off.
     """
     # a gzipped file is opened once in memory, just before irispy reads it, for its window headers and irispy's read
     # (irispy #275, D97), as astropy inflates the whole stream to reach a later window's header
-    gzipped, scalings = set(), []
+    gzipped, scalings, dates = set(), [], {}
     for path in files if lazy and LAZY else ():  # with LAZY off, irispy's read alone
         with _naming(path):
             if _gzipped(path):
                 gzipped.add(path)
             else:
-                scalings.append(_window_scaling(path))  # headers only
+                with fits.open(path) as hdulist:  # headers only
+                    scalings.append(_window_scaling(path, hdulist))
+                    header = hdulist[0].header
+                    dates[path] = header.get("DATE_OBS"), header.get("STEPS_AV", 0) < -0.01
     scaling = scalings[0] if scalings and all(other == scalings[0] for other in scalings) else None
     in_memory = partial(fits.open, decompress_in_memory=True, do_not_scale_image_data=True)  # as irispy's lazy read
     from irispy.io import read_files, read_spectrograph_lvl2
@@ -881,30 +952,37 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None,
     scans = {}
     # by raster number, as the browser lists them, not by a pooch cache's md5 prefixes or a session's '../'
     files = sorted(files, key=lambda path: strip_pooch(Path(path).name))
-    for i, path in enumerate(files):
+    together = {}
+    if stack and scaling:  # a stack's int16 scans after its first, whose read alone gives the stack its meta
+        together = {path: (Time(date), v34) for path, (date, v34) in dates.items() if date and path != files[0]}
+    for i, batch in enumerate(_batches(files, together)):
         if stop is not None and stop.is_set():
             return None
-        with _naming(path), in_memory(path) if path in gzipped else nullcontext() as opened:
-            own = None if opened is None else _window_scaling(path, opened)
-            if i == 0 and not scalings:  # every file gzipped: the first file's
-                scaling = own
-            if i == 0 and scaling:
-                allow_open_files()
-            if opened is None:
-                read = read_files([path], spectral_windows=windows, memmap=bool(scaling), uncertainty=False)
-            elif scaling and own == scaling:  # opened unscaled, as irispy's memmap=True read opens a file
-                read = read_spectrograph_lvl2(opened, spectral_windows=windows, memmap=True, uncertainty=False)
-            else:  # it loads scaled: every file as with LAZY off, once this copy is closed
-                read = None
-        if read is None:
-            return _raster_windows_data(files, windows, stack, stop, step, lazy=False)
+        if len(batch) > 1:
+            read = _read_batch(batch, windows)
+        else:
+            [path] = batch
+            with _naming(path), in_memory(path) if path in gzipped else nullcontext() as opened:
+                own = None if opened is None else _window_scaling(path, opened)
+                if i == 0 and not scalings:  # every file gzipped: the first file's
+                    scaling = own
+                if i == 0 and scaling:
+                    allow_open_files()
+                if opened is None:
+                    read = read_files([path], spectral_windows=windows, memmap=bool(scaling), uncertainty=False)
+                elif scaling and own == scaling:  # opened unscaled, as irispy's memmap=True read opens a file
+                    read = read_spectrograph_lvl2(opened, spectral_windows=windows, memmap=True, uncertainty=False)
+                else:  # it loads scaled: every file as with LAZY off, once this copy is closed
+                    read = None
+            if read is None:
+                return _raster_windows_data(files, windows, stack, stop, step, lazy=False)
         for window, sequence in read.items():
-            rasters = list(sequence)  # each pass makes new cubes
-            for scan in rasters:
+            rasters = list(sequence)  # each pass makes new cubes; a scan a file
+            for scan, path in zip(rasters, batch, strict=True):
                 scan.meta["raster files"] = (Path(path).name,)  # which tell the files of an observation apart
             scans.setdefault(window, []).extend(rasters)
         if step is not None:
-            step()
+            step(len(batch))
     first = files[0]
     names = [os.path.relpath(path, Path(first).parent) for path in files]
     result = {}
@@ -1252,7 +1330,7 @@ def load_entry(observation, kind, name, stack=False):
 def _load(load, observations, picks, stack, shown, stop, report):
     """
     Read the browser's ticked entries on glue-qt's worker thread until ``stop`` is set, ``report(load, percent)`` after
-    each file, and count the color limits of the datasets ``shown(loaded)`` gives, else counted on the GUI thread as
+    each read, and count the color limits of the datasets ``shown(loaded)`` gives, else counted on the GUI thread as
     their first viewers open; returns ``(load, loaded, error)``, ``error`` the text of a reader error, loading nothing.
     """
     windows, rasters, loaded = {}, {}, []  # each observation's ticked raster windows, read together
@@ -1261,10 +1339,12 @@ def _load(load, observations, picks, stack, shown, stop, report):
             windows.setdefault(i, []).append(name)
     # one step per file, and one for the color limits
     files = sum(len(observations[i].rasters) for i in windows) + sum(kind != "raster" for _, kind, _ in picks) + 1
-    done = itertools.count(1)
+    done = 0
 
-    def step():
-        report(load, 100 * next(done) // files)
+    def step(steps=1):
+        nonlocal done
+        done += steps
+        report(load, 100 * done // files)
 
     for i, kind, name in picks:
         if stop.is_set() and (kind != "raster" or i not in rasters):  # another window of a raster read is read in full

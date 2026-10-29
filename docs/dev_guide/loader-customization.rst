@@ -21,7 +21,10 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
    returned cubes into :class:`glue.core.data.Data` objects. irispy decompresses a ``.fits.gz``
    slit-jaw or AIA file once, into memory. A raster's coordinates are irispy's FITS ``-TAB`` WCS of it
    (``fits_wcs``), one world coordinate per axis, as glue maps them, where its gWCS adds time and the
-   raster step.
+   raster step. A stack's int16 scans after its first are read up to 100 files at a time, one
+   ``irispy.io.read_spectrograph_lvl2`` of the files ``iris.py`` opens, each scan's data its file's
+   memory map: irispy builds each window's gWCS once a read, so reads of a file each take about five
+   times as long. "Stop" and the browser's progress bar act between reads.
 3. ``lazy.py`` holds data stored as int16, as Level 2 files store it, without scaling it
    in memory. ``RawComponent``, a glue ``DaskComponent``, keeps the raw integers (a
    memory map, or an array for a ``.fits.gz`` file) and scales only what a view selects,
