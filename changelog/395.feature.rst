@@ -1,0 +1,1 @@
+'Frame quality…' on a DKIST dataset or a tile of a mosaic plots its frames' seeing, AO lock, exposure, light level and elevation from the ASDF's headers against time, in a Profile viewer linked to it by time: a line follows its Image viewers' time sliders, and a click on the curves moves them.

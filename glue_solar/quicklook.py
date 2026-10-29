@@ -376,6 +376,7 @@ class Coordinator(HubListener):
         self._master_times = {}  # observation key -> (master, its time, timing step) at the last sync
         self._steps = {}  # raster -> its timing step when the point last was on it
         self._listeners = []  # called with (observation key, master time, exposure) after each sync
+        self._watchers = []  # called with each viewer registered (`watch_viewers`)
         self._pairs = {}  # (master, follower, raster step) -> nearest() of every master time
         self._viewers = {}  # registered viewer -> its callbacks
         self._shows = {}  # registered viewer -> the reference data its sliders were last set for
@@ -518,6 +519,8 @@ class Coordinator(HubListener):
         self._viewers[viewer] = (axes_changed, slices_changed, buttons)
         self._shows[viewer] = viewer.state.reference_data
         self._timer.start()  # join the time master
+        for watcher in list(self._watchers):
+            watcher(viewer)
 
     def unregister(self, viewer):
         """Stop coordinating ``viewer``; unregistering it again does nothing."""
@@ -602,6 +605,16 @@ class Coordinator(HubListener):
     def remove_listener(self, listener):
         if listener in self._listeners:
             self._listeners.remove(listener)
+
+    def watch_viewers(self, watcher):
+        """Call ``watcher(viewer)`` with each Image viewer registered, now and as each registers (D110)."""
+        self._watchers.append(watcher)
+        for viewer in list(self._viewers):
+            watcher(viewer)
+
+    def unwatch_viewers(self, watcher):
+        if watcher in self._watchers:
+            self._watchers.remove(watcher)
 
     def place_again(self):
         """Place the point and the raster overlays again, as after a pointing changed ('IRIS: shift pointing…')."""

@@ -1,7 +1,8 @@
 """
 IRIS Level 2 support: a file reader for File → Open Data Set, the observation browser, the 'Quicklook…' data action, of
-IRIS data, SST cubes and other spectral cubes, 'Mosaic…' of DKIST mosaics, 'IRIS: shift pointing…', an exporter
-of derived maps with their coordinates, and one of 1-D data, such as light curves, with their times.
+IRIS data, SST cubes and other spectral cubes, 'Mosaic…' of DKIST mosaics, 'Frame quality…' of DKIST datasets, 'IRIS:
+shift pointing…', an exporter of derived maps with their coordinates, and one of 1-D data, such as light curves, with
+their times.
 """
 
 import re
@@ -12,9 +13,12 @@ import numpy as np
 from glue.config import data_exporter, data_factory, layer_artist_maker, menubar_plugin, startup_action
 from glue.core import Subset
 from glue.core.data_exporters.astropy_table import data_to_astropy_table
+from glue.core.link_helpers import LinkSame
 from glue.core.message import ExternallyDerivableComponentsChangedMessage
+from glue.core.units import UnitConverter
 from glue.viewers.image.viewer import MatplotlibImageMixin
 from glue_qt.utils.decorators import messagebox_on_error
+from glue_qt.viewers.profile import ProfileViewer
 from qtpy import QtCore, QtGui, QtWidgets
 
 import astropy.units as u
@@ -33,11 +37,12 @@ from glue_solar.quicklook import (
     _same_file,
     _time_axis,
     coordinator,
+    nearest,
     observation_key,
     quicklook,
 )
 from glue_solar.sources.bursts import _shift_events
-from glue_solar.sources.dkist import DKISTData, _mosaic_image, _mosaic_links
+from glue_solar.sources.dkist import DKISTData, _frame_quality, _FrameTimes, _mosaic_image, _mosaic_links, _time_axes
 from glue_solar.sources.loaders.iris import (
     _HPC,
     QtIRISImporter,
@@ -53,6 +58,7 @@ __all__ = [
     "browse_iris",
     "export_ecsv",
     "export_iris_fits",
+    "frame_quality_dkist",
     "help_iris",
     "iris_image_layer",
     "iris_quicklook",
@@ -423,6 +429,171 @@ def mosaic_dkist(data, data_collection):
     text = f"Reprojecting the tiles of {data.label.rsplit(' (', 1)[0]}…"
     add = partial(_add_mosaic, data_collection, tiles, at)
     _start(data_collection, text, "Could not make the mosaic", _mosaic_image, tiles, at, add=add)
+
+
+def _check_frames(data):
+    """Raise why ``data`` has no frame quality: it is no DKIST dataset with its frames' quality in its headers."""
+    if not getattr(data, "_quality", None):
+        raise ValueError(f"{data.label} is no DKIST dataset with its frames' seeing or exposure in its headers.")
+
+
+class _FrameCurves(QtCore.QObject):
+    """
+    Keep ``frames``, the frame quality of DKIST dataset ``data`` (`_frame_quality`), in Profile viewer ``profile`` and
+    the time sliders of the Image viewers of ``data``, or of a tile of its mosaic, following each other by time (D110):
+    a line at the row nearest the frame the last moved shows; a click on the curves, with no toolbar mode on, moves each
+    to its frame nearest that row's time, at its own Stokes parameter; the frames whose AO was not locked shaded and
+    the y axis named by the attribute shown. Not saved in sessions.
+    """
+
+    def __init__(self, profile, frames, data):
+        super().__init__(profile)
+        self.profile, self.frames, self.times = profile, frames, frames[frames.id["Time"]]
+        self.datasets, self.viewer = list(getattr(data, "_mosaic", ())) or [data], None
+        # in glue's crosshair color
+        self.line = profile.axes.axvline(0, color="#d32d26", lw=1, zorder=99, visible=False, gid="solar:frame")
+        self.unlocked = None
+        profile.figure.canvas.mpl_connect("button_press_event", self._clicked)
+        for prop in ("reference_data", "x_att", "x_display_unit", "y_display_unit", "normalize", "layers"):
+            profile.state.add_callback(prop, self.refresh)
+        self.moves = {}  # each Image viewer watched -> its slices callback (`_watch`)
+        watched = coordinator(profile.session.data_collection)
+        watched.watch_viewers(self._watch)
+        self.destroyed.connect(partial(self._detach, watched, self._watch, self.moves))  # with its Profile viewer
+        self.refresh()
+
+    @staticmethod
+    def _detach(watched, watch, moves):
+        """Stop ``watch`` and ``moves``, its callbacks, following the Image viewers, which may stay open."""
+        watched.unwatch_viewers(watch)
+        for viewer in list(moves):
+            _FrameCurves._leave(moves, viewer)
+
+    @staticmethod
+    def _leave(moves, viewer):
+        """Take the callback in ``moves`` off ``viewer``: echo would keep it, and so the viewer and curves, for good."""
+        if viewer in moves:
+            viewer.state.remove_callback("slices", moves.pop(viewer))
+
+    def _watch(self, viewer):
+        if viewer not in self.moves:  # once, though a quicklook panel turned on again registers again
+            self.moves[viewer] = partial(self._moved, viewer)
+            viewer.state.add_callback("slices", self.moves[viewer])
+            viewer.destroyed.connect(partial(self._leave, self.moves, viewer))  # closed
+        self._moved(viewer)
+
+    def _index(self, viewer):
+        """
+        The frame ``viewer`` shows, its index over the frame axes of its data, the dataset or a tile of its mosaic;
+        None for other data, a frame axis shown, or a closed viewer.
+        """
+        state, data = viewer.state, viewer.state.reference_data
+        if viewer._closed or data not in self.datasets or data._frames is None or None in (state.x_att, state.y_att):
+            return None
+        lead = data._frames[0].ndim
+        if min(state.x_att.axis, state.y_att.axis) < lead or len(state.slices) != data.ndim:
+            return None
+        return tuple(int(getattr(s, "center", s)) for s in state.slices[:lead])
+
+    def _rows(self):
+        """The rows' x in the Profile viewer's unit, or None while it shows other data."""
+        state = self.profile.state
+        if self.profile._closed or state.reference_data is not self.frames or state.x_att is None:
+            return None
+        return UnitConverter().to_unit(self.frames, state.x_att, self.frames[state.x_att], state.x_display_unit)
+
+    def _moved(self, viewer, *_):
+        index = self._index(viewer)
+        rows = self._rows()
+        if index is None or rows is None:
+            return
+        self.viewer = viewer
+        [row], _ = nearest([viewer.state.reference_data._frames[0][index]], self.times)
+        self.line.set_xdata([rows[row]] * 2)
+        self.line.set_visible(True)
+        self.profile.figure.canvas.draw_idle()
+
+    def refresh(self, *_):
+        """Place the line, shading and y axis name again, as for another x attribute or unit."""
+        rows, state = self._rows(), self.profile.state
+        if self.unlocked is not None:
+            self.unlocked.remove()
+            self.unlocked = None
+        self.line.set_visible(False)
+        if rows is None:
+            return
+        lock = self.frames.find_component_id("AO_LOCK")
+        if lock is not None:
+            self.unlocked = self.profile.axes.fill_between(
+                rows,
+                0,
+                1,
+                where=self.frames[lock] == 0,
+                step="mid",
+                transform=self.profile.axes.get_xaxis_transform(),
+                color="0.5",
+                alpha=0.25,
+                lw=0,
+                gid="solar:ao_unlocked",
+            )
+        layer = next((layer for layer in state.layers if layer.layer is self.frames and layer.visible), None)
+        if layer is not None and layer.attribute is not None and not state.normalize:
+            unit = state.y_display_unit or self.frames.get_component(layer.attribute).units
+            state.y_axislabel = f"{layer.attribute.label} [{unit}]" if unit else layer.attribute.label
+        if self.viewer is not None:
+            self._moved(self.viewer)
+        self.profile.figure.canvas.draw_idle()
+
+    def _clicked(self, event):
+        rows = self._rows()
+        if rows is None or event.button != 1 or event.inaxes is not self.profile.axes:
+            return
+        if self.profile.toolbar.active_tool is not None:  # a selection, zoom or pan
+            return
+        when = self.times[np.argmin(abs(rows - event.xdata))]
+        viewers = (viewer for tab in self.profile.session.application.viewers for viewer in tab)
+        for viewer in (viewer for viewer in viewers if isinstance(viewer, MatplotlibImageMixin)):
+            index = self._index(viewer)
+            if index is None:
+                continue
+            data = viewer.state.reference_data
+            times = data._frames[0]
+            axes = sorted(_time_axes(data) & set(range(times.ndim)))  # its frame axes of time, not of Stokes
+            along = times[tuple(slice(None) if axis in axes else at for axis, at in enumerate(index))]
+            [frame], _ = nearest([when], along.ravel())
+            slices = list(viewer.state.slices)
+            for axis, at in zip(axes, np.unravel_index(frame, along.shape)):
+                slices[axis] = int(at)
+            viewer.state.slices = tuple(slices)
+
+
+@layer_action(
+    "Frame quality…",
+    single=True,
+    data=True,
+    check=_check_frames,
+    tooltip="Plot the seeing, AO lock, exposure, light level and elevation of this DKIST dataset's frames against time",
+)
+@messagebox_on_error("Could not show the frame quality")
+def frame_quality_dkist(data, data_collection):
+    """
+    Add the frame quality of ``data``, a DKIST dataset or a tile of a mosaic, from its headers (`_frame_quality`,
+    D110), linked to it by ``Time``, or take the one added before, and open it in a Profile viewer that follows the time
+    sliders of its Image viewers and moves them (`_FrameCurves`): the seeing, ``ATMOS_R0``, else the light level,
+    ``LIGHTLVL``, the frames whose AO was not locked shaded; the others are the layer's attributes.
+    """
+    _check_frames(data)
+    # the one added before, as a session restores it without its curves' line and clicks
+    label = f"{data.label} frame quality"
+    frames = next((d for d in data_collection if d.label == label and isinstance(d.coords, _FrameTimes)), None)
+    if frames is None:
+        frames = _frame_quality(data)
+        data_collection.append(frames)
+        time = data.find_component_id("Time")
+        if time is not None:
+            data_collection.add_link(LinkSame(frames.id["Time"], time))
+    profile = _application(data_collection).new_data_viewer(ProfileViewer, data=frames)
+    _FrameCurves(profile, frames, data)
 
 
 @menubar_plugin("glue-solar user guide and issues")

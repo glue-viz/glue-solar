@@ -225,6 +225,16 @@ a Stokes parameter not yet shown takes up to 3 s, its later moves about 0.5 s.
   what overlaps before you download them, and are placed by value, as
   "Link helioprojective coordinates" places data. They follow the image's frame; untick a dataset to
   clear its outline.
+- "Frame quality…" on a dataset, or a tile of a mosaic, adds ``<label> frame quality``, a row per
+  FITS file from the ASDF file's headers, no FITS file read: the seeing ``ATMOS_R0`` (m), AO lock
+  ``AO_LOCK`` (1 while locked), exposure ``XPOSURE`` (ms), light level ``LIGHTLVL`` (adu),
+  elevation ``ELEV_ANG`` (deg) and ``Time``, linked to the dataset by time. A Profile viewer plots
+  it against the time in s since the first frame: the seeing, else the light level, the frames whose
+  AO was not locked shaded; pick another as the layer's attribute. A red line
+  marks the frame an Image viewer of the dataset, or of a tile of its mosaic, shows, and follows its
+  time slider; a click on the curves moves the sliders to the frame nearest in time, at their own
+  Stokes parameter. A session keeps the curves; "Frame quality…" again opens them in a new Profile
+  viewer with the line and clicks.
 - A session keeps them, their viewers and links, and reads their coordinates again from the ASDF
   files (see :ref:`Sessions <glue_solar_users_guide_saving_sessions>`).
 
