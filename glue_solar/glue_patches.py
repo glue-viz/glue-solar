@@ -326,7 +326,9 @@ _original_select_pixel = PixelSelectionTool._select_pixel
 def _select_pixel(self, mode):
     """
     glue's Pixel click or drag, skipped off the image, as Follow/lock skips it: in a panel's margin glue makes a point
-    outside the data, which no viewer can draw (an IndexError in ``PixelSubsetState._to_linked_pixel_coords``).
+    outside the data, which no viewer can draw (an IndexError in ``PixelSubsetState._to_linked_pixel_coords``); on
+    another tile of the DKIST mosaic a pair quicklook's context imager panel draws, the point of that tile's pixel
+    there (`~glue_solar.quicklook.QuicklookImageViewer.tile_at`, D109).
     """
     if not self._pressed:  # glue's own first check: it is called on every mouse move, in an empty viewer too
         return
@@ -335,6 +337,9 @@ def _select_pixel(self, mode):
         0 <= round(at) < state.reference_data.shape[att.axis] for at, att in ((x, state.x_att), (y, state.y_att))
     ):
         _original_select_pixel(self, mode)
+    elif (tile := getattr(self.viewer, "tile_at", lambda *_: None)(x, y)) is not None:
+        point = PixelSubsetState(*tile)
+        self.viewer._session.command_stack.do(ApplySubsetState(data_collection=self.viewer._data, subset_state=point))
 
 
 def needs_pixel_off_image_workaround(method=_original_select_pixel):

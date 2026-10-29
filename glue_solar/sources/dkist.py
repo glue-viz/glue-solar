@@ -472,8 +472,8 @@ class DKISTData(Data):
         The noise level of Stokes Q, U and V, by index, by an SST cube's rule (`~glue_solar.sources.sst._Cube._noise`,
         D107): the standard deviation of each at the quieter end of its wavelengths, as an artifact or a line at one end
         only raises it, as at AIOMGG's first, from the median absolute deviation of about 10,000 values there, evenly
-        spaced along the other axes of up to 16 frames, NaN, such as all of DL-NIRSP's first wavelength, left out; 0 if
-        all are NaN at both ends.
+        spaced along the other axes of up to 4 frames, whose files the GUI thread opens (16 took 0.28 s on TXIPCV,
+        D109), NaN, such as all of DL-NIRSP's first wavelength, left out; 0 if all are NaN at both ends.
         """
         types = self.coords.world_axis_physical_types
         s, w = (self.coords.world_n_dim - 1 - types.index(kind) for kind in ("phys.polarization.stokes", "em.wl"))
@@ -481,7 +481,7 @@ class DKISTData(Data):
         view = [0] * self.ndim
         for a in other:
             along = [b for b in other if (b < lead) == (a < lead)]
-            step = max(1, round(self.shape[a] / (16 if a < lead else 625) ** (1 / len(along))))
+            step = max(1, round(self.shape[a] / (4 if a < lead else 2500) ** (1 / len(along))))
             view[a] = slice(step // 2, None, step)
         cid, ends = self.main_components[0], []
         for view[w] in (0, self.shape[w] - 1):

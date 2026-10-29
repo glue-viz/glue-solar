@@ -1202,23 +1202,23 @@ def visp_like(repeats=1, step=0.5, drift=0, start=1.7e9, inverse=False, stokes=2
     return data
 
 
-def vbi_like(label, north=0, later=0, program="op", frames=4):
+def vbi_like(label, north=0, later=0, program="op", frames=4, drift=0):
     """
     A VBI tile of ``frames`` frames 9 s apart, 20 by 20 pixels of 0.25", ``north`` arcsec north, ``later`` seconds
-    later.
+    later, ``drift`` arcsec further north each frame.
     """
     return observed(
         label,
         {"frame": frames, "y": 20, "x": 20},
-        {"lon": ("x",), "lat": ("y",), "time": ("frame",)},
+        {"lon": ("x",), "lat": ("frame", "y") if drift else ("y",), "time": ("frame",)},
         lambda p: {
             "lon": -102 + 0.25 * p["x"],
-            "lat": 199 + north + 0.25 * p["y"],
+            "lat": 199 + north + drift * p["frame"] + 0.25 * p["y"],
             "time": 1.7e9 + later + 9 * p["frame"],
         },
         lambda w: {
             "x": (w["lon"] + 102) / 0.25,
-            "y": (w["lat"] - 199 - north) / 0.25,
+            "y": (w["lat"] - 199 - north - drift * (w["time"] - 1.7e9 - later) / 9) / 0.25,
             "frame": (w["time"] - 1.7e9 - later) / 9,
         },
         ("VBI", program),
@@ -1304,6 +1304,18 @@ def test_a_dkist_raster_s_quicklook_shows_its_context_imager_s_mosaic_slit_and_p
     qtbot.wait(100)
     assert (coord.point.reference_data, [s.start for s in coord.point.slices]) == (raster, clicked)
     assert "outside raster FOV" in readout(panel)
+    # a click on the north tile, 204" north, moves the point to the raster's step and slit pixel there, the frame
+    # clicked staying, where only the center tile's clicks counted (D109)
+    select_point(panel, 10, 20)
+    assert [s.start for s in coord.point.slices] == [0, 1, 8, None]
+    qtbot.wait(100)
+    assert panel.state.slices[0] == 2
+    # and an Undo back to it goes back to the panel's frame clicked, not the north tile's frame nearest it, 1
+    select_point(viewers["map"], 1, 5)
+    qtbot.waitUntil(lambda: panel.state.slices[0] == 1, timeout=60_000)
+    app._actions["undo"].trigger()
+    qtbot.waitUntil(lambda: panel.state.slices[0] == 2, timeout=60_000)
+    assert [s.start for s in coord.point.slices] == [0, 1, 8, None]
     # the imager leading the time, a frame moves the raster to the step nearest it, none past half a step's cadence
     menu_action(panel, LEAD).trigger()
     slide(panel, 0, 0)
@@ -1377,9 +1389,14 @@ def test_a_click_on_a_sit_and_stare_raster_s_context_image_takes_the_step_neares
     from glue_solar.tests.test_quicklook import readout
 
     app = bare_app_for(qtbot, monkeypatch)
-    # 3 steps 0.01" and 10 s apart, sit-and-stare (D102), and 8 VBI frames 9 s apart
-    raster, imager = visp_like(step=0.01), vbi_like("VBI", frames=8)
-    app.data_collection.extend([raster, imager])
+    # 3 steps 0.01" and 10 s apart, sit-and-stare (D102), and 8 VBI frames 9 s apart, of a mosaic's center tile and its
+    # north tile, 5" north, 9 s later and 1" further north each frame
+    raster, imager = visp_like(step=0.01), vbi_like("VBI MOSAIC (1, 1)", frames=8)
+    north = vbi_like("VBI MOSAIC (1, 2)", north=5, later=9, frames=8, drift=1)
+    imager._mosaic = north._mosaic = [imager, north]
+    north._center = imager
+    app.data_collection.extend([raster, imager, north])
+    app.data_collection.add_link(WCSLink(imager, north))
     viewers = quicklook(app, [raster])
     panel, coord = viewers["imager"], coordinator(app.data_collection)
     # at frame 2, 18 s, step 2, 20 s, on the slit and beside it, at the slit pixel level with the click, as on IRIS's
@@ -1393,6 +1410,17 @@ def test_a_click_on_a_sit_and_stare_raster_s_context_image_takes_the_step_neares
     select_point(panel, 8, 8)
     assert [s.start for s in coord.point.slices] == [0, 2, 4, None]
     assert "outside raster FOV" in readout(panel)
+    # on the north tile at frame 1, 9 s, through its own coordinates at its frame nearest that time, 0, 9 s: step 1,
+    # 10 s, at the slit pixel level with the click, 204" (D109)
+    slide(panel, 0, 1)
+    select_point(panel, 8, 20)
+    assert [s.start for s in coord.point.slices] == [0, 1, 8, None]
+    # and none in the gap its drift opens at frame 2, 18 s, its frame 1, 204.5", on no tile, as #331 skips it
+    slide(panel, 0, 2)
+    select_point(panel, 8, 22)
+    qtbot.wait(100)
+    assert [s.start for s in coord.point.slices] == [0, 1, 8, None]
+    assert "outside raster FOV" not in readout(panel)
 
 
 def test_go_to_utc_and_blink_move_a_context_image_along_its_steps(qtbot, monkeypatch):
@@ -1663,6 +1691,13 @@ def test_a_full_stokes_dkist_raster_s_quicklook_scales_q_u_and_v_by_their_noise_
         other = visp_like(stokes=4)
         other.update_components({other.main_components[0]: values})
         assert other._noise == {k: pytest.approx(mad_std(values[k, :, :, -1])) for k in (1, 2, 3)}
+    # from up to 4 frames evenly spaced: of 4 repeats of 3 steps, repeats 1 and 3 at step 1, where 16 frames' files
+    # took 0.28 s to open on TXIPCV (D109)
+    repeated = visp_like(repeats=4, stokes=4)
+    values = rng.normal(0, 1, repeated.shape)
+    repeated.update_components({repeated.main_components[0]: values})
+    noise = {k: pytest.approx(min(mad_std(values[k, 1::2, 1::2, :, end]) for end in (0, -1))) for k in (1, 2, 3)}
+    assert repeated._noise == noise
 
 
 def as_dkist(tile):
@@ -1751,7 +1786,9 @@ def test_mosaic_stitches_a_dkist_mosaic_s_tiles_at_the_frame_shown_into_an_image
         "custom:pos.helioprojective.lat",
     ]
     assert image.shape == (36, 20)
-    assert app.viewers[0][-1].state.reference_data is image
+    # at 99.5 % limits, where glue's Min/Max, of a few hot pixels, showed it flat (D109)
+    shown = app.viewers[0][-1].state
+    assert (shown.reference_data, shown.layers[0].percentile) == (image, 99.5)
     # each tile's pixel at that frame reaches the mosaic where its value is, the mean of both where they overlap
     values = image[image.main_components[0]]
     for tile, y in ((center, 5), (north, 12), (center, 17)):

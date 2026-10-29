@@ -1,0 +1,1 @@
+A click on any tile of a VBI mosaic in a DKIST quicklook's context imager panel moves the point, where only the center tile's did; 'Mosaic…' opens its image at 99.5 % limits, where glue's Min/Max showed DL-NIRSP's flat; and a full-Stokes DKIST quicklook opens 0.2-0.5 s sooner, its Q, U and V noise level sampled from 4 frames.

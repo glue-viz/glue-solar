@@ -25,6 +25,7 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 from glue_solar.glue_patches import _application, export_fits, layer_action
 from glue_solar.quicklook import (
+    PERCENTILE,
     _cube_axes,
     _pick_sjis,
     _pick_windows,
@@ -46,7 +47,7 @@ from glue_solar.sources.loaders.iris import (
     last_directory,
 )
 from glue_solar.sources.loaders.scan import _is_supported_file, _primary_header, strip_pooch
-from glue_solar.sources.moments import _accepted, _start
+from glue_solar.sources.moments import _accepted, _start, _view
 
 __all__ = [
     "browse_iris",
@@ -391,11 +392,15 @@ def _slice_shown(tiles, data_collection):
 def _add_mosaic(data_collection, tiles, at, image):
     """
     Add ``image``, the mosaic of ``tiles`` at ``at``, linked to them and to other data by 'Link helioprojective
-    coordinates', and to each tile's time there (`_mosaic_links`, D108).
+    coordinates', and to each tile's time there (`_mosaic_links`, D108), and open it in an Image viewer at 99.5 %
+    limits, as a quicklook's panels, where glue's Min/Max, of a few hot pixels, showed it flat (D109).
     """
     data_collection.append(image)
     data_collection.add_link(_mosaic_links(image, tiles, at))
     keep_hpc_linked(data_collection, others=[*tiles, image])
+    viewer = _view(data_collection, image)
+    if viewer is not None:  # its window open still
+        viewer.state.layers[0].percentile = PERCENTILE
 
 
 @layer_action(
@@ -417,7 +422,7 @@ def mosaic_dkist(data, data_collection):
     at = _slice_shown(tiles, data_collection)
     text = f"Reprojecting the tiles of {data.label.rsplit(' (', 1)[0]}…"
     add = partial(_add_mosaic, data_collection, tiles, at)
-    _start(data_collection, text, "Could not make the mosaic", _mosaic_image, tiles, at, add=add, view=True)
+    _start(data_collection, text, "Could not make the mosaic", _mosaic_image, tiles, at, add=add)
 
 
 @menubar_plugin("glue-solar user guide and issues")
