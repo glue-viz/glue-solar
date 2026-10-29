@@ -3,11 +3,13 @@ DKIST Level 1 datasets opened from their ASDF files (D102): dkist's test dataset
 raster with its FITS files, and its sample data, downloaded; sessions of them.
 """
 
+import gc
 import gzip
 import re
 import shutil
 import threading
 import time
+import weakref
 from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
@@ -42,13 +44,13 @@ from astropy.wcs.utils import pixel_to_pixel
 
 from glue_solar import glue_patches
 from glue_solar.conftest import find_irispy_test_file, int16_copy
-from glue_solar.quicklook import _lon_lat, _times, quicklook
+from glue_solar.quicklook import _lon_lat, _times, coordinator, quicklook
 from glue_solar.regrid import regrid_on_time
 from glue_solar.sources.dkist import DKISTData, GlueWCS, _data, _glue_order, _SlitAt, _SlitPlace, dkist_data
-from glue_solar.sources.iris import link_iris
+from glue_solar.sources.iris import frame_quality_dkist, link_iris
 from glue_solar.sources.loaders.iris import image_data
 from glue_solar.sources.sst import sst_data
-from glue_solar.tests.helpers import restore
+from glue_solar.tests.helpers import mouse, restore
 from glue_solar.tests.test_lazy import SJI
 from glue_solar.tests.test_quicklook import bare_app_for, point_window, rows, slide
 from glue_solar.tests.test_regrid import known_times, with_times
@@ -2039,3 +2041,171 @@ def test_dkist_footprints_draw_on_an_iris_slit_jaw_frame_where_its_coordinates_p
     np.testing.assert_allclose(lines["C0", 0.5], [np.hstack([x, nan]).ravel(), np.hstack([y, nan]).ravel()])
     np.testing.assert_allclose(lines["C0", 1.5], [[*x[1], np.nan], [*y[1], np.nan]])
     assert labels == ["VISP RASTER"]
+
+
+def frame_line(profile):
+    """The x of the frame quality's line at the frame shown, None while hidden."""
+    [line] = [line for line in profile.axes.lines if line.get_gid() == "solar:frame"]
+    return line.get_xdata()[0] if line.get_visible() else None
+
+
+def freed(ref):
+    """Whether the object of weak reference ``ref`` is gone, after a garbage collection."""
+    gc.collect()
+    return ref() is None
+
+
+def click_curves(profile, x):
+    """Click the frame quality's Profile viewer at ``x``."""
+    mouse(profile, "button_press_event", x, np.mean(profile.axes.get_ylim()))
+
+
+def test_frame_quality_plots_a_dkist_dataset_s_frames_from_its_headers_against_time(app, tmp_path):
+    import dkist
+
+    path = asdf_alone(tmp_path, "croppable_cryo")
+    with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):
+        cryo = load_data(str(path))
+    app.data_collection.append(cryo)
+    frame_quality_dkist(cryo, app.data_collection)
+    frames, profile = app.data_collection[-1], app.viewers[0][-1]
+    # a row per FITS file, in time order, its headers' seeing, AO lock (1 while locked), exposure, light level and
+    # elevation, and time, none of its files present (D110)
+    headers = dkist.load_dataset(path).headers
+    times = np.array(headers["DATE-AVG"], dtype="datetime64[ns]")
+    order = np.argsort(times, kind="stable")
+    assert frames.label == "CRYO-NIRSP BMPNP frame quality"
+    assert [(cid.label, frames.get_component(cid).units) for cid in frames.main_components[:5]] == [
+        ("ATMOS_R0", "m"),
+        ("LIGHTLVL", "adu"),
+        ("AO_LOCK", ""),
+        ("XPOSURE", "ms"),
+        ("ELEV_ANG", "deg"),
+    ]
+    for key in ("ATMOS_R0", "AO_LOCK", "LIGHTLVL"):
+        np.testing.assert_array_equal(frames[key], np.array(headers[key], dtype=float)[order])
+    np.testing.assert_array_equal(frames["Time"], times[order])
+    # linked to the dataset by time
+    np.testing.assert_array_equal(frames[cryo.find_component_id("Time")], times[order])
+    # against its time in s since its first frame, the seeing shown, and the frames whose AO was not locked, all of
+    # them, shaded
+    state = profile.state
+    assert state.reference_data is frames
+    assert state.x_att.label == "Time Since 2023-01-01T13:00:03"
+    seconds = (times[order] - times[order[0]]) / np.timedelta64(1, "s")
+    np.testing.assert_allclose(frames[state.x_att], seconds)
+    assert (state.layers[0].attribute.label, state.y_axislabel) == ("ATMOS_R0", "ATMOS_R0 [m]")
+    [shaded] = [area for area in profile.axes.collections if area.get_gid() == "solar:ao_unlocked"]
+    assert (shaded.get_paths()[0].vertices[:, 0].min(), shaded.get_paths()[0].vertices[:, 0].max()) == (0, 380)
+    # another column picked: the y axis names it
+    state.layers[0].attribute = frames.id["LIGHTLVL"]
+    assert state.y_axislabel == "LIGHTLVL [adu]"
+    # with no seeing, as Cryo-NIRSP's often, the light level shown: the AO lock is the shading
+    app.data_collection.remove(frames)
+    del cryo._quality["ATMOS_R0"]
+    frame_quality_dkist(cryo, app.data_collection)
+    assert app.viewers[0][-1].state.layers[0].attribute.label == "LIGHTLVL"
+    with pytest.raises(ValueError, match="other is no DKIST dataset with its frames' seeing or exposure in its"):
+        frame_quality_dkist(Data(label="other", values=np.ones(3)), app.data_collection)
+
+
+def test_frame_quality_and_its_dataset_s_time_sliders_follow_each_other(app, qtbot, tmp_path):
+    with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):
+        cryo = load_data(str(asdf_alone(tmp_path, "croppable_cryo")))
+    app.data_collection.append(cryo)
+    viewer = app.new_data_viewer(ImageViewer, data=cryo)
+    viewer.state.slices = (2, 1, 2, 0, 0)  # Stokes U, its second scan step, its third measurement
+    frame_quality_dkist(cryo, app.data_collection)
+    profile = app.viewers[0][-1]
+    # a line at the frame shown, in s since the first: steps 180 s apart, measurements 10 s; and it follows the
+    # sliders (D110)
+    assert frame_line(profile) == 200
+    viewer.state.slices = (2, 2, 0, 0, 0)
+    assert frame_line(profile) == 360
+    # a click on the curves moves the step and measurement sliders to the frame nearest, at the Stokes parameter shown
+    click_curves(profile, 188)
+    assert viewer.state.slices[:3] == (2, 1, 1)
+    assert frame_line(profile) == 190
+    # not while a toolbar mode is on, such as glue's range selection
+    profile.toolbar.active_tool = "select:xrange"
+    click_curves(profile, 10)
+    assert viewer.state.slices[:3] == (2, 1, 1)
+    profile.toolbar.active_tool = None
+    # an Image viewer opened later follows them too, at its own Stokes parameter
+    later = app.new_data_viewer(ImageViewer, data=cryo)
+    later.state.slices = (0, 0, 1, 0, 0)
+    assert frame_line(profile) == 10
+    click_curves(profile, 362)
+    assert (viewer.state.slices[:3], later.state.slices[:3]) == ((2, 2, 0), (0, 2, 0))
+    # but not while it shows the steps along y: it shows no one frame
+    later.state.y_att = cryo.pixel_component_ids[1]
+    later.state.slices = (*later.state.slices[:2], 2, *later.state.slices[3:])
+    assert frame_line(profile) == 360
+    # an Image viewer, then the Profile viewer, closed: neither kept for good by the other's callbacks, which echo keeps,
+    # once Qt and PyQt let it go
+    gone = weakref.ref(later)
+    later.close(warn=False)
+    del later
+    viewer.state.slices = (2, 0, 0, 0, 0)  # the line on this one's frame
+    qtbot.waitUntil(partial(freed, gone))
+    coordinator(app.data_collection).unregister(viewer)  # as a quicklook panel turned off and on again
+    coordinator(app.data_collection).register(viewer)
+    gone = weakref.ref(profile)
+    profile.close(warn=False)
+    del profile
+    qtbot.waitUntil(partial(freed, gone))
+
+
+def test_frame_quality_of_a_mosaic_s_tile_follows_its_center_tile_s_viewer_by_time(app, tmp_path):
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        tiles = load_data(str(asdf_alone(tmp_path, "large_vbi")))
+    app.data_collection.extend(tiles)
+    viewer = app.new_data_viewer(ImageViewer, data=tiles[4])  # the center tile's, as the mosaic shows
+    frame_quality_dkist(tiles[0], app.data_collection)
+    frames, profile = app.data_collection[-1], app.viewers[0][-1]
+    assert frames.label == "VBI AJQWW (0, 0) frame quality"
+    x, times = frames[profile.state.x_att], frames["Time"]
+    centers = tiles[4]._frames[0]
+    # the line at the tile's frame nearest the center tile's shown, and a click moves the center tile's slider to its
+    # frame nearest the tile's clicked (D110)
+    for frame in (2, 1):
+        viewer.state.slices = (frame, 0, 0)
+        assert frame_line(profile) == x[np.argmin(abs(times - centers[frame]))]
+    click_curves(profile, x[0])
+    assert viewer.state.slices[0] == np.argmin(abs(centers - times[0]))
+
+
+def test_a_dkist_dataset_s_frame_quality_is_nan_where_its_headers_mask_it(tmp_path):
+    import dkist
+
+    from astropy.table import MaskedColumn
+
+    dataset = dkist.load_dataset(asdf_alone(tmp_path, "croppable_cryo"))
+    seeing = dataset.headers["ATMOS_R0"]
+    dataset.headers["ATMOS_R0"] = MaskedColumn(seeing, mask=np.arange(len(seeing)) == 4)  # as DKIST's at some frames
+    # where it read the masked value as given
+    quality = _data(dataset, "cryo")._quality["ATMOS_R0"].ravel()
+    assert np.isnan(quality[4])
+    assert np.isfinite(np.delete(quality, 4)).all()
+
+
+def test_a_session_restores_a_dkist_dataset_s_frame_quality(app, qtbot, monkeypatch, tmp_path):
+    with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):
+        cryo = load_data(str(asdf_alone(tmp_path, "croppable_cryo")))
+    app.data_collection.append(cryo)
+    frame_quality_dkist(cryo, app.data_collection)
+    frames = app.data_collection[-1]
+    app.save_session(str(tmp_path / "frames.glu"))
+    with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):
+        again = restore(qtbot, monkeypatch, tmp_path / "frames.glu")
+    # its values and its time in s since its first frame, which glue's coordinates of no state would lose
+    restored = again.data_collection[-1]
+    [world], [before] = restored.world_component_ids, frames.world_component_ids
+    assert (restored.label, world.label) == (frames.label, before.label)
+    np.testing.assert_array_equal(restored[world], frames[before])
+    np.testing.assert_array_equal(restored["ATMOS_R0"], frames["ATMOS_R0"])
+    # and the dataset restored has its frames' quality again: the action opens the curves restored, adding none
+    count = len(again.data_collection)
+    frame_quality_dkist(again.data_collection[0], again.data_collection)
+    assert len(again.data_collection) == count
+    assert again.viewers[0][-1].state.reference_data is restored

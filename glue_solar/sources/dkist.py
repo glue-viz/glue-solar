@@ -21,6 +21,7 @@ from glue.config import autolinker, data_factory
 from glue.core import fixed_resolution_buffer
 from glue.core.component import Component, DaskComponent
 from glue.core.component_link import ComponentLink
+from glue.core.coordinates import Coordinates
 from glue.core.data import Data
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.hub import HubListener
@@ -50,6 +51,9 @@ __all__ = ["dkist_data", "is_dkist_asdf"]
 
 # Color limits sample values of up to this many whole frames whose files are present
 SAMPLE_FRAMES = 16
+# The header columns of a DKIST frame's quality, by FITS keyword, and their units (`_frame_quality`, D110); glue's Profile
+# viewer shows the first present: the seeing, else the light level, as the AO lock is shaded (`_FrameCurves`)
+QUALITY = {"ATMOS_R0": "m", "LIGHTLVL": "adu", "AO_LOCK": "", "XPOSURE": "ms", "ELEV_ANG": "deg"}
 # Set while glue-solar's WCS link tests its transforms (`glue_patches.wcs_link_init`): `GlueWCS`'s inverse raises outside
 # a dataset's times there, as dkist's does, rather than giving NaN (D103)
 STRICT_INVERSE = contextvars.ContextVar("strict_inverse", default=False)
@@ -401,6 +405,7 @@ class DKISTData(Data):
     _samples = None  # {size: values}, shared by them
     _present = None  # whether each frame's file is present, over the frame axes
     _frames = None  # each frame's DATE-AVG and XPOSURE in seconds, over the frame axes
+    _quality = None  # each frame's header columns of `QUALITY`, by keyword, over the frame axes
     _files = None  # its values' files (`_Files`), None where dask reads them
     _observed = None  # its instrument and observing program execution (`_context_imager`)
 
@@ -545,6 +550,7 @@ class DKISTData(Data):
         data._mosaic[data._mosaic.index(source)] = data  # the tiles shared, restored in place of their sources (D105)
         data._files = source._files
         data._frames = source._frames  # for a session saved without its Time and Exposure time (`register_to_hub`)
+        data._quality = source._quality
         data._observed = source._observed
         data._center = log.data[rec["center"]] if "center" in rec else source._center  # #374's sessions saved none
         log.data[rec["log_item"]] = data  # for a session saved from this one
@@ -767,7 +773,58 @@ def _data(dataset, label):
     if {"DATE-AVG", "XPOSURE"} <= set(headers.colnames):
         times = np.array(headers["DATE-AVG"], dtype="datetime64[ns]").reshape(data._present.shape)
         data._frames = times, (np.array(headers["XPOSURE"]) * u.ms).to_value(u.s).reshape(data._present.shape)
+        # and its columns of `QUALITY`, NaN where masked, as ATMOS_R0 is at some frames (D110)
+        data._quality = {
+            key: np.ma.filled(np.ma.asarray(headers[key], dtype=float), np.nan).reshape(data._present.shape)
+            for key in QUALITY
+            if key in headers.colnames
+        }
     return data
+
+
+class _FrameTimes(Coordinates):
+    """
+    A DKIST dataset's frames' times, ``seconds`` since its first frame, at ``start``, by row of its frame quality and
+    linear between them: its world axis (`_frame_quality`, D110). Saved in sessions.
+    """
+
+    def __init__(self, seconds, start):
+        super().__init__(n_dim=1)
+        self.seconds, self.start = np.asarray(seconds, dtype=float), start
+
+    world_axis_units = property(lambda self: ["s"])
+    world_axis_names = property(lambda self: [f"time since {self.start}"])
+    axis_correlation_matrix = property(lambda self: np.ones((1, 1), bool))
+
+    def pixel_to_world_values(self, pixel):
+        return np.interp(pixel, np.arange(len(self.seconds)), self.seconds)
+
+    def world_to_pixel_values(self, world):
+        return np.interp(world, self.seconds, np.arange(len(self.seconds)))
+
+    def __gluestate__(self, context):
+        return {"seconds": self.seconds.tolist(), "start": self.start}
+
+    @classmethod
+    def __setgluestate__(cls, rec, context):
+        return cls(rec["seconds"], rec["start"])
+
+
+def _frame_quality(data):
+    """
+    The frame quality of ``data``, a DKIST dataset, from its headers alone (D110): a dataset of a row per FITS file in
+    time order, its columns of `QUALITY` (`_data`), ``AO_LOCK`` 1 while locked, and its ``Time``, against its time in s
+    since its first frame (`_FrameTimes`).
+    """
+    times = data._frames[0].ravel()
+    order = np.argsort(times, kind="stable")
+    times = times[order]
+    seconds = (times - times[0]) / np.timedelta64(1, "s")
+    frames = Data(label=f"{data.label} frame quality", coords=_FrameTimes(seconds, str(times[0])[:19]))
+    for key, values in data._quality.items():
+        frames.add_component(Component(values.ravel()[order], units=QUALITY[key]), key)
+    frames.add_component(times, "Time")  # last: glue's Profile viewer shows the first, and cannot show a time
+    return frames
 
 
 def _held_axes(data):
