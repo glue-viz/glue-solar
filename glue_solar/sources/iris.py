@@ -1,10 +1,11 @@
 """
 IRIS Level 2 support: a file reader for File → Open Data Set, the observation browser, the 'Quicklook…' data action, of
-IRIS data, SST cubes and other spectral cubes, 'Mosaic…' of DKIST mosaics, 'Frame quality…' of DKIST datasets, 'IRIS:
-shift pointing…', an exporter of derived maps with their coordinates, and one of 1-D data, such as light curves, with
-their times.
+IRIS data, SST cubes and other spectral cubes, 'Mosaic…' of DKIST mosaics, 'Frame quality…' and 'Download these
+frames…' of DKIST datasets, 'IRIS: shift pointing…', an exporter of derived maps with their coordinates, and one
+of 1-D data, such as light curves, with their times.
 """
 
+import os
 import re
 from functools import partial
 from pathlib import Path
@@ -22,6 +23,7 @@ from glue_qt.viewers.profile import ProfileViewer
 from qtpy import QtCore, QtGui, QtWidgets
 
 import astropy.units as u
+from astropy.coordinates import StokesCoord
 from astropy.io import fits
 from astropy.time import Time
 from astropy.wcs.utils import celestial_frame_to_wcs
@@ -42,7 +44,18 @@ from glue_solar.quicklook import (
     quicklook,
 )
 from glue_solar.sources.bursts import _shift_events
-from glue_solar.sources.dkist import DKISTData, _frame_quality, _FrameTimes, _mosaic_image, _mosaic_links, _time_axes
+from glue_solar.sources.dkist import (
+    _ARRIVING,
+    DKISTData,
+    _frame_axis,
+    _frame_quality,
+    _FrameTimes,
+    _mosaic_image,
+    _mosaic_links,
+    _note_missing,
+    _time_axes,
+    _transfer,
+)
 from glue_solar.sources.loaders.iris import (
     _HPC,
     QtIRISImporter,
@@ -52,10 +65,11 @@ from glue_solar.sources.loaders.iris import (
     last_directory,
 )
 from glue_solar.sources.loaders.scan import _is_supported_file, _primary_header, strip_pooch
-from glue_solar.sources.moments import _accepted, _start, _view
+from glue_solar.sources.moments import _accepted, _form, _start, _view
 
 __all__ = [
     "browse_iris",
+    "download_dkist",
     "export_ecsv",
     "export_iris_fits",
     "frame_quality_dkist",
@@ -594,6 +608,198 @@ def frame_quality_dkist(data, data_collection):
             data_collection.add_link(LinkSame(frames.id["Time"], time))
     profile = _application(data_collection).new_data_viewer(ProfileViewer, data=frames)
     _FrameCurves(profile, frames, data)
+
+
+# How often, in ms, 'Download these frames…' looks for its files (`_watch_download`)
+DOWNLOAD_POLL = 5000
+
+
+def _check_download(data):
+    """Raise why ``data`` has no frames to download: it is no DKIST dataset from an ASDF file, or has all its files."""
+    if getattr(data, "_dataset", None) is None:
+        raise ValueError(f"{data.label} is no DKIST dataset opened from its ASDF file.")
+    if all(tile._present.all() for tile in data._mosaic):
+        raise ValueError(f"Every FITS file of {data.label} is in {data._dataset.files.basepath}.")
+
+
+def _shown_at(tiles, data_collection):
+    """
+    The slider indices, one per array axis, of the first Image viewer of one of ``tiles``, a DKIST dataset or a
+    mosaic's tiles, such as its Stokes parameter and repeat; else their first.
+    """
+    app = _application(data_collection)
+    for viewer in (viewer for tab in getattr(app, "viewers", ()) for viewer in tab):
+        if isinstance(viewer, MatplotlibImageMixin) and viewer.state.reference_data in tiles:
+            return tuple(int(getattr(s, "center", s)) for s in viewer.state.slices)
+    return (0,) * tiles[0].ndim
+
+
+def _wanted(tile, index):
+    """Whether each FITS file of ``tile``, a DKIST dataset, is at ``index`` along its files' axes and missing."""
+    wanted = np.zeros(tile._present.shape, bool)
+    wanted[index] = True
+    return wanted & ~tile._present
+
+
+def _download_summary(tiles, index):
+    """
+    How many FITS files of ``tiles`` at ``index`` are missing (`_wanted`), their size, from their dataset's mean, as its
+    ASDF file gives no file's own (8 % low for TXIPCV's Stokes I, of larger files than Q, U and V's), and times, and how
+    many are there already.
+    """
+    wanted = [_wanted(tile, index) for tile in tiles]
+    count, there = sum(int(w.sum()) for w in wanted), sum(int(np.sum(tile._present[index])) for tile in tiles)
+    text = f"{count} file{'' if count == 1 else 's'} to download"
+    inventory = tiles[0]._dataset.meta["inventory"]
+    if inventory.get("datasetSize") and inventory.get("frameCount"):  # in GiB, as dkist reads it
+        size = (inventory["datasetSize"] * u.GiB * count / inventory["frameCount"]).to(u.MB)
+        text += f", about {size.to(u.GB) if size >= 1 * u.GB else size:.1f}"
+    times = [tile._frames[0][w] for tile, w in zip(tiles, wanted) if tile._frames is not None]
+    times = np.concatenate(times) if times else []
+    if len(times):
+        start, end = (np.datetime_as_string(time, "s") for time in (times.min(), times.max()))
+        text += f", {start}" + (f" to {end}" if end != start else "")
+    return text + (f" ({there} more already there)" if there else "")
+
+
+def _ask_download(tiles, at):
+    """
+    The index along the FITS files' axes of ``tiles``, a DKIST dataset or a mosaic's loaded tiles, of those to
+    download, asked in a dialog (D110): along each axis ``at``, its viewer's slider, such as its Stokes parameter and
+    repeat, or all of it where ticked; along its steps or frames the range typed, all at first. It says how many files
+    are missing and their size (`_download_summary`) as they change; None for Cancel.
+    """
+    data = tiles[0]
+    dialog, form = _form(f"Download frames of {data.label.rsplit(' (', 1)[0]}")
+    frame, wcs, boxes, summary = _frame_axis(data), data.coords, {}, QtWidgets.QLabel(objectName="summary")
+
+    def index():
+        return tuple(
+            slice(boxes[axis][0].value(), boxes[axis][1].value() + 1)
+            if axis == frame
+            else (slice(None) if boxes[axis].isChecked() else at[axis])
+            for axis in boxes
+        )
+
+    def update():
+        summary.setText(_download_summary(tiles, index()))
+
+    for axis, size in enumerate(data._present.shape):
+        name, k = wcs._names[data.ndim - 1 - axis], wcs.world_n_dim - 1 - axis  # glue's world axis (`GlueWCS`)
+        if axis == frame:
+            boxes[axis] = QtWidgets.QSpinBox(objectName="first"), QtWidgets.QSpinBox(objectName="last")
+            row = QtWidgets.QHBoxLayout()
+            for box, value in zip(boxes[axis], (0, size - 1)):
+                box.setMaximum(size - 1)
+                box.setValue(value)
+                box.valueChanged.connect(update)
+                row.addWidget(box)
+            form.addRow(f"{name} ({size}):", row)
+            continue
+        value = str(at[axis])
+        if wcs.world_axis_physical_types[k] == "phys.polarization.stokes":
+            pixel = [at[axis] if p == data.ndim - 1 - axis else 0 for p in range(data.ndim)]
+            value = str(StokesCoord(wcs.pixel_to_world_values(*pixel)[k]).symbol)
+        boxes[axis] = QtWidgets.QCheckBox(f"all {size}", objectName=name)
+        boxes[axis].toggled.connect(update)
+        form.addRow(f"{name} {value}:", boxes[axis])
+    form.addRow("Into:", QtWidgets.QLabel(str(data._dataset.files.basepath)))
+    form.addRow(summary)
+    update()
+    return index() if _accepted(dialog, form) else None
+
+
+def _watch_download(data_collection, label, pending):
+    """
+    Look every `DOWNLOAD_POLL` ms until all of ``pending``, FITS files of DKIST datasets by path, each a dataset and the
+    file's index, are in their folder, glue's status bar saying how many are (D110): a file of the same size and time
+    at two looks is whole, as Globus may write it in place; until then it reads as missing (`_ARRIVING`). Each whole
+    file is marked present (``_present``), and its frame drawn, the color limits of its dataset, a mosaic's tiles all,
+    taken again from the frames present, in every viewer; once all are, glue's Error Console says how many files are
+    there.
+    """
+    # ponytail: a transfer stalled one look mid-file reads as whole; Globus's task status if that happens
+    app, total, seen = _application(data_collection), len(pending), {}
+    datasets, folder = next(iter(pending.values()))[0]._mosaic, Path(next(iter(pending))).parent
+    _ARRIVING.update(pending)
+    timer = QtCore.QTimer(app)  # gone with glue's window, its files then read as they are, as a session restores them
+    timer.destroyed.connect(lambda *_: _ARRIVING.difference_update(pending))
+
+    def look():
+        arrived = set()
+        for path, (tile, index) in list(pending.items()):
+            try:
+                stat = os.stat(path)
+            except OSError:  # not yet there
+                continue
+            if seen.get(path) == (stat.st_size, stat.st_mtime_ns):
+                tile._present[index] = True
+                _ARRIVING.discard(path)
+                arrived.add(tile)
+                del pending[path]
+            seen[path] = stat.st_size, stat.st_mtime_ns
+        if not arrived:
+            return
+        for tile in arrived:
+            tile._samples.clear()  # its color limits' sample, a mosaic's tiles' too
+            tile.__dict__.pop("_noise", None)  # its Stokes parameters' noise (D107)
+        for viewer in (viewer for tab in app.viewers for viewer in tab):
+            for artist in viewer.layers:
+                if artist.layer.data in datasets:  # a tile, or a subset of one: the sample is its mosaic's (D102)
+                    limits = getattr(artist.state, "attribute_lim_helper", None)  # an Image layer's
+                    if limits is not None:
+                        limits.update_values(force=True)  # but limits typed (glue's 'Custom')
+                if artist.layer.data in arrived:
+                    artist.update()  # glue's NumericalDataChangedMessage would reset the viewer's sliders
+        app.statusBar().showMessage(f"{label}: {total - len(pending)} of {total} files downloaded")
+        if not pending:
+            timer.stop()
+            _note_missing(datasets, label, folder)
+
+    timer.timeout.connect(look)
+    timer.start(DOWNLOAD_POLL)
+    app.statusBar().showMessage(f"{label}: 0 of {total} files downloaded")
+
+
+@layer_action(
+    "Download these frames…",
+    single=True,
+    data=True,
+    check=_check_download,
+    tooltip="Download by Globus this DKIST dataset's FITS files at the Stokes parameter and repeat shown, steps or "
+    "frames chosen",
+)
+@messagebox_on_error("Could not start the download")
+def download_dkist(data, data_collection):
+    """
+    Start a Globus transfer in the background of the missing FITS files of ``data``, a DKIST dataset, or of its
+    mosaic's loaded tiles, chosen in a dialog (`_ask_download`) at the Stokes parameter, repeat and measurement of its
+    first Image viewer (`_shown_at`), into its ASDF file's folder; those files alone, not dkist's ASDF file, movie and
+    quality report (`_transfer`, D110). Their frames fill in as they arrive (`_watch_download`).
+    """
+    _check_download(data)
+    tiles = [tile for tile in data._mosaic if tile in data_collection]
+    index = _ask_download(tiles, _shown_at(tiles, data_collection))
+    if index is None:
+        return
+    folder, pending, parts = Path(data._dataset.files.basepath), {}, []
+    for tile in tiles:
+        names = np.asarray(tile._dataset.files.fileuri_array).reshape(tile._present.shape)
+        missing = [tuple(int(i) for i in at) for at in np.argwhere(_wanted(tile, index))]
+        pending.update({str(folder / names[at]): (tile, at) for at in missing})
+        if missing:  # dkist's dataset sliced to them, for its own download if need be (`_transfer`)
+            parts.append((tile._dataset[index] if index else tile._dataset, [str(names[at]) for at in missing]))
+    if not pending:
+        return
+
+    def send():
+        _transfer(parts, folder)
+        return pending
+
+    label = data.label.rsplit(" (", 1)[0]
+    add = partial(_watch_download, data_collection, label)
+    text = f"{label}: starting the Globus transfer of {len(pending)} files…"
+    _start(data_collection, text, "Could not start the download", send, add=add)
 
 
 @menubar_plugin("glue-solar user guide and issues")

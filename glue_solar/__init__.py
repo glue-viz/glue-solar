@@ -56,6 +56,7 @@ _DATA_ACTIONS = (
     iris.quicklook_cube,
     iris.mosaic_dkist,
     iris.frame_quality_dkist,
+    iris.download_dkist,
     lines.rest_wavelength_iris,
     calibration.radiometric_calibration_iris,
     moments.mean_spectrum_iris,

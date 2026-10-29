@@ -94,6 +94,7 @@ from glue_solar.sources.bursts import bursts_iris
 from glue_solar.sources.calibration import radiometric_calibration_iris, remove_dust_iris
 from glue_solar.sources.iris import (
     browse_iris,
+    download_dkist,
     frame_quality_dkist,
     help_iris,
     iris_quicklook,
@@ -147,6 +148,7 @@ def test_setup_registers_hooks():
         ("Quicklook…", quicklook_cube),
         ("Mosaic…", mosaic_dkist),
         ("Frame quality…", frame_quality_dkist),
+        ("Download these frames…", download_dkist),
         ("Set rest wavelength…", rest_wavelength_iris),
         ("IRIS: radiometric calibration", radiometric_calibration_iris),
         ("IRIS: subtract mean spectrum", mean_spectrum_iris),
@@ -272,8 +274,9 @@ def test_only_entries_for_iris_data_alone_say_iris(app, tmp_path):
     cube, _ = spectral_cube(tmp_path / "cube.fits", (7, 12, 16))
     maps = [Data(label=f"map {i}", values=np.ones((3, 4))) for i in range(2)]
     tiles = [vbi_like(f"VBI MOSAIC (1, {k})", north=4 * k) for k in (1, 2)]
-    for tile in tiles:
-        tile._mosaic, tile._quality = tiles, {"ATMOS_R0": np.full(4, 0.1)}  # its frames' seeing, from its headers
+    for tile in tiles:  # opened from an ASDF file alone, its frames' seeing from its headers
+        tile._mosaic, tile._quality = tiles, {"ATMOS_R0": np.full(4, 0.1)}
+        tile._dataset, tile._present = object(), np.zeros(4, bool)
     app.data_collection.extend([cube, *maps, *tiles])
     tree = app._layer_widget.ui.layerTree
     ours = [action.label for action in layer_action if action.callback.__module__[:10] == "glue_solar"]
@@ -281,7 +284,14 @@ def test_only_entries_for_iris_data_alone_say_iris(app, tmp_path):
     for layers in ([cube], maps, tiles[:1]):
         tree.set_selected_layers(layers)
         offered |= {action.text() for action in tree.actions() if action.text() in ours and action.isVisible()}
-    assert offered == {"Quicklook…", "Set rest wavelength…", "Line ratio diagnostic…", "Mosaic…", "Frame quality…"}
+    assert offered == {
+        "Quicklook…",
+        "Set rest wavelength…",
+        "Line ratio diagnostic…",
+        "Mosaic…",
+        "Frame quality…",
+        "Download these frames…",
+    }
     assert [label for label in ours if label.startswith("IRIS: ")] == [label for label in ours if label not in offered]
     plugins = [label for label, callback in menubar_plugin if callback.__module__[:10] == "glue_solar"]
     saves = [SaveSequenceTool.action_text, SaveProfileTool.action_text]  # in glue's save menus
