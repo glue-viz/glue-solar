@@ -2462,6 +2462,24 @@ def test_raster_overlays_on_a_sit_and_stare_slit_jaw_image(bare_app, qtbot, monk
     assert len(calls) == 3  # the raster point's, one per frame
 
 
+def test_raster_overlays_on_a_slit_jaw_viewer_with_its_raster_in_none(bare_app, monkeypatch, irispy_test_files):
+    # the raster loaded, as File → Open Data Set leaves it, but in no viewer: its slits drawn, also where a shift of the
+    # slit-jaw image's pointing moves them, and hidden again (D40)
+    raster, sji = sit_and_stare(irispy_test_files)
+    collection = bare_app.data_collection
+    collection.extend([raster, sji])
+    viewer = bare_app.new_data_viewer(ImageViewer, data=sji)
+    toggle = viewer.toolbar.actions["solar:raster_overlays"].trigger
+    toggle()
+    drawn_slits = slits(viewer)
+    assert drawn_slits == pytest.approx(expected_slits(raster, sji), abs=0.01)
+    shift(monkeypatch, sji, collection, (2, -1))
+    assert slits(viewer) == pytest.approx(expected_slits(raster, sji), abs=0.01)
+    assert slits(viewer) != pytest.approx(drawn_slits, abs=1)
+    toggle()
+    assert slits(viewer) is None
+
+
 @pytest.mark.remote_data
 def test_the_map_line_marks_the_step_at_the_master_time(bare_app, qtbot, irispy_data):
     """3620107423's 29 scans of a 4-step raster, one every 20.6 s, and its SJI 1400, a frame every 10.3 s."""

@@ -52,7 +52,7 @@ from glue_solar.sources.dkist import DKISTData, GlueWCS, _data, _glue_order, _Sl
 from glue_solar.sources.iris import frame_quality_dkist, link_iris
 from glue_solar.sources.loaders.iris import image_data
 from glue_solar.sources.sst import sst_data
-from glue_solar.tests.helpers import mouse, restore
+from glue_solar.tests.helpers import mouse, restore, shift
 from glue_solar.tests.test_lazy import SJI
 from glue_solar.tests.test_quicklook import bare_app_for, point_window, rows, slide
 from glue_solar.tests.test_regrid import known_times, with_times
@@ -1234,7 +1234,7 @@ def test_a_dkist_raster_s_quicklook_shows_its_context_imager_s_mosaic_slit_and_p
 ):
     from glue_solar.quicklook import coordinator
     from glue_solar.tests.helpers import select_point
-    from glue_solar.tests.test_quicklook import LEAD, menu_action, readout
+    from glue_solar.tests.test_quicklook import LEAD, click, follow, hover, key, menu_action, readout
 
     app = bare_app_for(qtbot, monkeypatch)
     raster, elsewhere = visp_like(), vbi_like("VBI OTHER", program="another")
@@ -1320,6 +1320,17 @@ def test_a_dkist_raster_s_quicklook_shows_its_context_imager_s_mosaic_slit_and_p
     app._actions["undo"].trigger()
     qtbot.waitUntil(lambda: panel.state.slices[0] == 2, timeout=60_000)
     assert [s.start for s in coord.point.slices] == [0, 1, 8, None]
+    # Follow/lock's hover and lock click on the north tile move it there too (D109)
+    follow(panel)
+    hover(qtbot, panel, 8, 8)
+    assert [s.start for s in coord.point.slices] == clicked
+    hover(qtbot, panel, 10, 20)
+    assert [s.start for s in coord.point.slices] == [0, 1, 8, None]
+    hover(qtbot, panel, 8, 8)
+    click(panel, 10, 20)
+    hover(qtbot, panel, 8, 8)
+    assert [s.start for s in coord.point.slices] == [0, 1, 8, None]
+    key(panel, "escape")
     # the imager leading the time, a frame moves the raster to the step nearest it, none past half a step's cadence
     menu_action(panel, LEAD).trigger()
     slide(panel, 0, 0)
@@ -2043,6 +2054,10 @@ def test_dkist_footprints_draw_on_an_iris_slit_jaw_frame_where_its_coordinates_p
     np.testing.assert_allclose(lines["C0", 0.5], [np.hstack([x, nan]).ravel(), np.hstack([y, nan]).ravel()])
     np.testing.assert_allclose(lines["C0", 1.5], [[*x[1], np.nan], [*y[1], np.nan]])
     assert labels == ["VISP RASTER"]
+    # and where a shift of its pointing moves them, at once
+    shift(monkeypatch, sji, app.data_collection, (10, 0))
+    x, y = _sji_pixels(sji, 1, lon, lat)
+    np.testing.assert_allclose(footprint_lines(viewer)[0]["C0", 1.5], [[*x[1], np.nan], [*y[1], np.nan]])
 
 
 def frame_line(profile):
