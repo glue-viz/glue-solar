@@ -8,8 +8,8 @@ Each analysis is in the right-click menu of a dataset in the data collection. It
 background while glue's status bar says so, adds its result as a new dataset, linked with the other
 IRIS data, and opens it in an Image viewer in the current tab, with the quicklook's point. A stack's
 result has a scan slider, each scan's as that scan alone gives it. The result's ``meta`` holds the
-observation's ``OBSID`` and ``STARTOBS`` and the settings used. To save a map with its coordinates,
-see :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`.
+observation's ``OBSID`` and ``STARTOBS`` and the settings used. To save a map of one scan with its
+coordinates, see :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`.
 
 Should an analysis refuse its data or settings, glue says why and adds nothing.
 
@@ -121,8 +121,8 @@ The result, ``<label> fit <rest>``, holds irispy's ``maps_from_fit`` maps of eac
 ``velocity_i`` and ``fwhm_velocity_i`` in km / s, from the rest wavelength, ``fwhm_i`` in Angstrom
 and ``integrated_intensity_i``; then ``quality``, irispy's ``FitQualityFlag``: 0 for a good fit, 1
 for none (every sample missing), 2 where the fitter did not converge, 3 where a parameter stopped at
-a bound and 4 where the spectrum has missing samples; then each parameter of the model. Each map but
-``quality`` has ``<map> error``, from the fit's covariance.
+a bound and 4 where the spectrum has samples left out, missing or saturated; then each parameter of
+the model. Each map but ``quality`` has ``<map> error``, from the fit's covariance.
 
 The fits run in Python processes that import the script that started glue: a script of your own
 that starts glue needs Python's ``if __name__ == "__main__":`` guard.

@@ -29,7 +29,7 @@ from glue_solar.conftest import (
 )
 from glue_solar.quicklook import nearest, quicklook
 from glue_solar.regrid import north_up, north_up_iris, rebin, regrid_on_time
-from glue_solar.sources.bursts import si_iv_bursts
+from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import _SJI_POINTING, image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.loaders.lazy import LazyData, RawComponent
@@ -320,6 +320,9 @@ def test_north_up_shows_a_rolled_slit_jaw_image_north_up(app, tmp_path):
     assert [(layer.layer, layer.visible) for layer in viewer.state.layers] == [(grid, False), (sji, True)]
     assert grid.label == f"{sji.label} north up"
     assert link_hpc(collection) == []
+    for data, offered in ((sji, True), (grid, False)):  # the grid is fixed on the sky: its image shifts
+        tree.ui.layerTree.set_selected_layers([data])
+        assert tree._actions["IRIS: shift pointing…"].isVisible() == offered
     # every frame lies on the grid, as its own pointing places it
     nt, ny, nx = sji.shape
     corners = np.meshgrid([-0.5, nx - 0.5], [-0.5, ny - 0.5], np.arange(nt))
@@ -533,10 +536,15 @@ def test_the_rebin_action_adds_a_linked_dataset_that_follows_the_time_sync(
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
-    collection.append(plain)
-    tree.ui.layerTree.set_selected_layers([plain])
-    refused(tree._actions["IRIS: rebin…"])
-    assert shown == ["Could not rebin\nplain is not an IRIS raster window, slit-jaw image, AIA cutout or SOT cube."]
+    [bursts, _] = sji_bursts(sji)  # its labels, with its meta, Time and coordinates
+    collection.extend([plain, bursts])
+    for data in (plain, bursts):
+        tree.ui.layerTree.set_selected_layers([data])
+        refused(tree._actions["IRIS: rebin…"])
+    assert shown == [
+        f"Could not rebin\n{data.label} is not an IRIS raster window, slit-jaw image, AIA cutout or SOT cube."
+        for data in (plain, bursts)
+    ]
     with pytest.raises(ValueError, match="is rebinned: irispy would give each bin the noise of one sample"):
         line_moments(binned_raster, 1402.77, errors=True)
     assert np.isfinite(line_moments(binned_raster, 1402.77)["intensity"]).any()
