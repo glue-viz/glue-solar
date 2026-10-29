@@ -391,6 +391,24 @@ def test_a_stack_read_in_batches_is_as_read_a_file_at_a_time(monkeypatch, tmp_pa
             np.testing.assert_array_equal(data[cid], other[other_cid])
 
 
+def test_a_stack_read_in_batches_refuses_scans_of_other_shapes(tmp_path, irispy_test_files):
+    # 3860258481's scan 2 a raster step short, read with scan 1 (`_read_batch`): RawStack's message, as reads of a
+    # file each give, not numpy's from irispy's read of them together
+    sources = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
+    short = tmp_path / "short" / sources[2].name
+    short.parent.mkdir()
+    with fits.open(sources[2]) as hdulist:
+        for hdu in hdulist[1 : hdulist[0].header["NWIN"] + 1]:
+            hdu.data = hdu.data[:-1]
+        hdulist[-2].data = hdulist[-2].data[:-1]  # the auxiliary table, a row a step
+        names = hdulist[-1]  # the Level 1 file names, a row a step
+        hdulist[-1] = fits.BinTableHDU.from_columns(names.columns, nrows=len(names.data) - 1, header=names.header)
+        hdulist.writeto(short)
+    paths = [int16_raster_copy(path, tmp_path / path.name) for path in (*sources[:2], short)]
+    with pytest.raises(ValueError, match="All raster scans must have the same shape to be stacked"):
+        raster_data(paths, ["C II 1336"], stack=True)
+
+
 def test_int16_slit_jaw_and_aia_cubes_load_lazily(monkeypatch, tmp_path, irispy_test_files):
     source = find_irispy_test_file(irispy_test_files, SJI)
     plain, gzipped = int16_copy(source, tmp_path / SJI, [0]), int16_copy(source, tmp_path / f"{SJI}.gz", [0])

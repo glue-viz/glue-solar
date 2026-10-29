@@ -904,6 +904,9 @@ def _read_batch(files, windows):
                     {name: hdulist[i].data[steps] for name, i in numbers.items() if not windows or name in windows}
                 )
             opened.append(hdulist)
+        shapes = [{name: array.shape for name, array in own.items()} for own in data]
+        if any(own != shapes[0] for own in shapes):  # RawStack's message, not numpy's from irispy's read together
+            raise ValueError("All raster scans must have the same shape to be stacked")
         try:
             read = read_spectrograph_lvl2(opened, spectral_windows=windows, memmap=True, uncertainty=False)
         except Exception:
