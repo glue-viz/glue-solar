@@ -126,13 +126,14 @@ Profile viewer
    * - Entry
      - What it does
    * - "Main lines"
-     - Mark the main IRIS lines, or DKIST's on DKIST data and SST cubes, in the plotted wavelength
-       range.
+     - Mark the main IRIS lines, or the ground-based lines on DKIST data and SST cubes, in the
+       plotted wavelength range.
    * - "Lines in this range…"
      - List the lines of irispy's line catalog in the Fit or Collapse range, else in the plotted
        range, strongest first for the quiet Sun, an active region or a flare at coronal or
        photospheric abundances, and those with no predicted strength last, or on DKIST data and
-       SST cubes DKIST's lines. Tick a line to mark it, untick one to hide it, a main line too.
+       SST cubes the ground-based lines. Tick a line to mark it, untick one to hide it, a main line
+       too.
    * - "Velocity axis"
      - Add a top axis of :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>` from the
        window's rest wavelength.

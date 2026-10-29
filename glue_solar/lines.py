@@ -3,7 +3,8 @@ The main lines, a Profile viewer button that labels them, the rest wavelength of
 Doppler velocity from it, as a Profile x unit and top axis.
 
 The main lines are the documented IRIS lines of irispy's line catalog, at its vacuum wavelengths in Angstrom (D44), and
-on DKIST data and SST cubes DKIST's working lines, in air or vacuum as their wavelengths are (`lines_of`, D107).
+on DKIST data and SST cubes the lines ground-based telescopes observe, in air or vacuum as their wavelengths are
+(`GROUND_LINES`, `lines_of`, D107).
 """
 
 import os
@@ -54,10 +55,11 @@ def main_lines():
     return tuple((_NAMES.get(wave, str(ion)), wave) for ion, wave in zip(lines["ion"], waves, strict=True))
 
 
-# DKIST's working lines, those ViSP, Cryo-NIRSP, DL-NIRSP and VBI observe, as (name, air and vacuum wavelengths in
-# Angstrom): NIST ASD's observed wavelengths, else its Ritz ones, in air up to 2 µm, and in vacuum from its wavenumbers
-# above 1 µm (D107; https://physics.nist.gov/PhysRefData/ASD/lines_form.html, 2026-10-28)
-DKIST_LINES = (
+# The lines ground-based telescopes observe, those of DKIST's ViSP, Cryo-NIRSP, DL-NIRSP and VBI and of SST's CRISP
+# and CHROMIS, as (name, air and vacuum wavelengths in Angstrom): NIST ASD's observed wavelengths, else its Ritz ones,
+# in air up to 2 µm, and in vacuum from its wavenumbers above 1 µm
+# (D107; https://physics.nist.gov/PhysRefData/ASD/lines_form.html, 2026-10-28)
+GROUND_LINES = (
     ("Ca II K", 3933.66, 3934.77),
     ("Ca II H", 3968.47, 3969.59),
     ("H-beta", 4861.35, 4862.71),
@@ -85,13 +87,13 @@ DKIST_LINES = (
 
 def lines_of(data):
     """
-    The main lines of ``data``, as (name, wavelength in Angstrom): DKIST's (`DKIST_LINES`) in air or vacuum as its
-    ``meta['WAVEREF']``, 'Air' or 'Vacuum', says, as DKIST's headers give it, or in air on an SST cube, as SSTRED's
-    wavelengths are (D107), else IRIS's (`main_lines`).
+    The main lines of ``data``, as (name, wavelength in Angstrom): the ground-based lines (`GROUND_LINES`) in air or
+    vacuum as its ``meta['WAVEREF']``, 'Air' or 'Vacuum', says, as DKIST's headers give it, or in air on an SST cube,
+    as SSTRED's wavelengths are (D107), else IRIS's (`main_lines`).
     """
     sst = "air" if _role(data) == "sst" else ""
     column = {"air": 1, "vacuum": 2}.get(str(data.meta.get("WAVEREF", sst)).lower())
-    return main_lines() if column is None else tuple((line[0], line[column]) for line in DKIST_LINES)
+    return main_lines() if column is None else tuple((line[0], line[column]) for line in GROUND_LINES)
 
 
 MERGE = 0.01  # lines closer than this fraction of the plotted range share a label
@@ -123,7 +125,7 @@ class LineTool(Tool):
     icon = "glue_spectrum"
     tool_id = "solar:lines"
     action_text = "Main lines"
-    tool_tip = "Show or hide the main lines: IRIS's, or DKIST's on DKIST data and SST cubes"
+    tool_tip = "Show or hide the main lines: IRIS's, or the ground-based lines on DKIST data and SST cubes"
 
     def __init__(self, viewer):
         super().__init__(viewer)
@@ -224,15 +226,15 @@ class LinesInRangeTool(Tool):
     """
     List the lines of irispy's catalog within a Profile viewer's Fit and Collapse range, else its plotted range,
     strongest first in a region type's model at coronal or photospheric abundances, lines it predicts no strength for
-    after (D44, D97), or on DKIST data and SST cubes DKIST's lines (`lines_of`, D107), each ticked while `LineTool`
-    shows it: a tick labels a line beside the main lines, an untick hides one, a main line too (D98).
+    after (D44, D97), or on DKIST data and SST cubes the ground-based lines (`lines_of`, D107), each ticked while
+    `LineTool` shows it: a tick labels a line beside the main lines, an untick hides one, a main line too (D98).
     """
 
     #: :meta hide-value:
     icon = _icon("solar_lines_in_range")
     tool_id = "solar:lines_in_range"
     action_text = "Lines in this range…"
-    tool_tip = "List the lines in the Fit range, else in the plotted range: IRIS's strongest first, or DKIST's"
+    tool_tip = "List the lines in the Fit range, else the plotted range: IRIS's strongest first, or ground-based ones"
     dialog = None
 
     @messagebox_on_error("Could not list the lines")
@@ -260,7 +262,7 @@ class LinesInRangeTool(Tool):
         region.addItems(_REGIONS)
         abundance.addItems(["Coronal", "Photospheric"])
         layout = QtWidgets.QFormLayout(dialog)
-        if iris:  # DKIST's lines have no strengths
+        if iris:  # the ground-based lines have no strengths
             layout.addRow("Strongest in", region)
             layout.addRow("Abundances", abundance)
         layout.addRow(listing)
