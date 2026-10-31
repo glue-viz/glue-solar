@@ -91,6 +91,11 @@ jobs:
       envs: |
         - linux: py314
         - linux: py313-online
+          # the remote-data files (about 1 GB, hash-checked by pooch on use) kept between runs: restored from the
+          # latest run's cache, saved again under this run's key
+          cache-path: ~/.cache/pooch
+          cache-key: pooch-${{ github.sha }}
+          cache-restore-keys: pooch-
 
   docs:
     needs: [core]
