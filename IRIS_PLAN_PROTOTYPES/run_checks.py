@@ -12,14 +12,12 @@ for directory in ("home", "mpl", "cache", "config", "sunpy"):
     (root / directory).mkdir()
 # two caches kept between runs: astropy's, so its IERS tables download about monthly, not each run (a DNS failure of
 # datacenter.iers.org failed test_quicklook_opens_each_kind), and pooch's, so the remote-data files (about 1 GB,
-# hash-checked by pooch on each use) download once; pooch ignores XDG_CACHE_HOME on macOS
+# hash-checked by pooch on each use) download once; both under XDG_CACHE_HOME, which platformdirs honors on macOS too
 caches = "Library/Caches" if sys.platform == "darwin" else ".cache"
 kept = Path(os.path.expanduser("~")) / caches / "glue-solar-checks"
-pooch_home = root / "home" / caches if sys.platform == "darwin" else root / "cache"
-for name, where in (("astropy", root / "cache"), ("pooch", pooch_home)):
+for name in ("astropy", "pooch"):
     (kept / name).mkdir(parents=True, exist_ok=True)
-    where.mkdir(parents=True, exist_ok=True)
-    (where / name).symlink_to(kept / name)
+    (root / "cache" / name).symlink_to(kept / name)
 paths, *args = sys.argv[1:]
 tree = Path(paths.split(os.pathsep)[0])
 if (tree / "pyproject.toml").exists() and not (tree / "glue_solar" / "version.py").exists():  # a fresh worktree's
