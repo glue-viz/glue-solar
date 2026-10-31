@@ -51,8 +51,8 @@ drafts (`updrafts/`), with RESTORE-20261021.md.
 
 The plan's machine until 2026-10-20; since then the Linux machine runs the work and the Mac was pruned. Here now:
 
-- `~/Git/glue-solar`, the plan checkout (branch `plan`); `~/Git/glue-solar-main`, a detached main checkout (cae1af6,
-  2026-10-31), the editable install of the Mac env; a worktree `~/Git/glue-solar-<branch>` per PR branch in flight.
+- `~/Git/glue-solar`, the plan checkout (branch `plan`); `~/Git/glue-solar-main`, a detached main checkout (96dffa2,
+  #405, 2026-10-31; move it to origin/main before a run), the editable install of the Mac env; a worktree `~/Git/glue-solar-<branch>` per PR branch in flight.
 - Env `iris-plan-latest-mac` in `~/mamba/envs` (2026-10-31; recipe `envbuild/build.sh` in the session scratchpad,
   kept in `IRIS_PLAN_PROTOTYPES/plan_tooling/make_env_mac.sh`): the latest conda-forge releases of main's
   dependencies, glue-qt 0.4.2 and irispy f058705 by pip `--no-deps`, main's `tests` and `docs` extras, ruff at the
