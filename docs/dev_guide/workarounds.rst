@@ -234,9 +234,9 @@ glue-qt
 - **glue-qt's slice sliders**: the sliders a rebuild replaces hidden, as glue-qt only closes them and Qt's queued show
   put one back over an Image viewer's options; each new slider showing the values and unit of glue's world axis
   ``world_n_dim - 1 - axis``, where glue-qt reads ``ndim - 1 - axis`` (``sync_sliders_from_state``, #380, D103).
-  Always on (world values only for data of more world axes than array axes); UPSTREAM_REVIEW asks for a probe gate.
-  Retired by glue-qt's ``MultiSliceWidgetHelper`` hiding replaced sliders and reading glue's world axis (report
-  candidate).
+  Switch ``needs_slider_world_workaround()``, asked at the first call as the probe needs Qt's application, for the
+  world values (of data of more world axes than array axes); the hide of replaced sliders is always on. Retired by
+  glue-qt's ``MultiSliceWidgetHelper`` hiding replaced sliders and reading glue's world axis (report candidate).
 - ``GlueApplication.__init__`` **wrapped to put glue-solar's icon**, the macOS app's, on the application and its
   window after glue's own; quicklook panels' and strip windows' title bars get it too (``__init__.py``,
   ``quicklook._fill``, D90 P8). Always on. Retired by a glue-qt hook for the application icon (report candidate).
