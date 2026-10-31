@@ -665,7 +665,9 @@ def sync_sliders_from_state(self, *args):
     showing the values and unit of the world axis glue gives its axis, ``world_n_dim - 1 - axis`` (D103). glue-qt 0.4.2
     closes a replaced slider, which Qt shows again if its layout had not shown it yet, so a quicklook panel whose x and y
     both change kept a stray slider over its options; and it reads ``ndim - 1 - axis``, another axis's where world axes
-    outnumber array axes, so a ViSP map's Stokes and Wavelength sliders showed arcsec.
+    outnumber array axes, so a ViSP map's Stokes and Wavelength sliders showed arcsec. The world axis is given only
+    where `needs_slider_world_workaround` finds glue-qt's own reads the wrong one, asked at the first call, as the probe
+    needs Qt's application; the hide of replaced sliders has no cheap probe and stays.
     """
     sliders = self._sliders
     _original_sync_sliders(self, *args)
@@ -675,7 +677,7 @@ def sync_sliders_from_state(self, *args):
         slider.hide()
     data = self.data
     worlds = getattr(data.coords, "world_n_dim", 0)
-    if worlds <= data.ndim:
+    if worlds <= data.ndim or not _sliders_need_workaround():
         return
     for axis, slider in enumerate(self._sliders):
         if slider is not None:
@@ -685,6 +687,35 @@ def sync_sliders_from_state(self, *args):
             slider._world, slider._world_unit = world, data.coords.world_axis_units[worlds - 1 - axis]
             slider.label_fmt = format_minimal(world)[0] if len(world) > 1 else "{:g}"  # as glue-qt's
             slider.set_label_from_slider()
+
+
+def needs_slider_world_workaround(sync=_original_sync_sliders):
+    """
+    Whether ``sync`` gives a slider the unit of array axis ``ndim - 1 - axis`` where glue's world axis is
+    ``world_n_dim - 1 - axis``: a 3-D Data of four world axes, a ViSP map's, shows its wavelength in degrees (D103).
+    """
+    wcs = WCS(naxis=3)
+    wcs.wcs.ctype, wcs.wcs.cunit = ["HPLN-TAN", "HPLT-TAN", "WAVE"], ["arcsec", "arcsec", "Angstrom"]
+    data = Data(label="probe", coords=GlueWCS(wcs, [2, 0, 1, 2], []))  # four world axes over three pixel axes
+    data.add_component(np.zeros((2, 2, 2)), "x")
+    DataCollection([data])
+    state = ImageViewerState()
+    state.layers.append(ImageLayerState(layer=data, viewer_state=state))
+    state.reference_data = data
+    state.x_att, state.y_att = data.pixel_component_ids[2], data.pixel_component_ids[1]
+    installed = MultiSliceWidgetHelper.sync_sliders_from_state
+    MultiSliceWidgetHelper.sync_sliders_from_state = sync  # a helper syncs as it is built
+    try:
+        helper = MultiSliceWidgetHelper(viewer_state=state, layout=QtWidgets.QVBoxLayout())
+    finally:
+        MultiSliceWidgetHelper.sync_sliders_from_state = installed
+    [slider] = [slider for slider in helper._sliders if slider is not None]  # array axis 0: glue's world axis 3
+    return slider._world_unit != data.coords.world_axis_units[3]
+
+
+@cache
+def _sliders_need_workaround():
+    return _needs(needs_slider_world_workaround)
 
 
 MultiSliceWidgetHelper.sync_sliders_from_state = sync_sliders_from_state
