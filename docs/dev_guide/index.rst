@@ -10,3 +10,4 @@ Developer Documentation
    loader-customization
    macos-app
    manual-checks
+   workarounds
