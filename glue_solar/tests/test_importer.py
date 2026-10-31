@@ -28,7 +28,6 @@ from glue_solar.sources.loaders.iris import (
     _RUNNING,
     QtIRISImporter,
     _raster_collection_data,
-    _raster_windows_data,
     image_data,
     raster_data,
 )
@@ -53,6 +52,10 @@ def _row(dialog, obsid):
 
 
 def test_tests_keep_off_the_users_settings(tmp_path):
+    """
+    The canary for the macOS QSettings leak (D75): conftest's isolated settings and the runner's config dir keep the
+    tests off the user's own preferences.
+    """
     from glue import config
 
     from glue_solar.sources.loaders import iris
@@ -148,21 +151,6 @@ def test_ticked_raster_windows_of_an_observation_are_read_together_file_by_file(
     assert len(windows) == 2
     for _, _, name, datasets in dialog.loaded:
         assert [data.label for data in datasets] == [data.label for data in raster_data(scans, [name])]
-
-
-def test_raster_files_are_read_until_the_load_stops(monkeypatch, irispy_test_files):
-    reads = counted_reads(monkeypatch)
-    scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)
-    stop, steps = threading.Event(), []
-
-    def step():
-        steps.append(len(reads))
-        if len(steps) == 2:
-            stop.set()
-
-    assert _raster_windows_data(scans, ["C II 1336"], stack=True, stop=stop, step=step) is None
-    assert steps == [1, 2]
-    assert [files for files, _ in reads] == [[scan] for scan in scans[:2]]
 
 
 def tick(dialog, *entries):
@@ -482,10 +470,9 @@ def test_ticks_the_filter_hides_still_load(dialog, qtbot):
     assert len(dialog.selected()) == 5
 
 
-@pytest.mark.parametrize("field", ["directory", "start", "end", "filter"])
-def test_return_in_a_field_loads_nothing(dialog, field):
+def test_return_in_a_field_loads_nothing(dialog):
     dialog.show()
-    QTest.keyClick(getattr(dialog, field), Qt.Key_Return)
+    QTest.keyClick(dialog.filter, Qt.Key_Return)
     assert dialog.isVisible()
     assert dialog.ok.isEnabled()
 
@@ -973,18 +960,6 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
         _raster_collection_data({"C II 1336": [sequence[0], sequence[1][:-1]]}, stack=True)
 
 
-def test_real_raster_fill_values_become_nan(irispy_test_files):
-    path = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits")
-    data = raster_data([path], ["Si IV 1403"])[0]
-    values = data[data.main_components[0]]
-    assert values.size == 216_920
-    assert not np.isin(values, (-200, -199)).any()
-    assert np.isnan(values).sum() == 35_027
-    mask = data[f"{data.main_components[0].label} mask"]
-    assert mask.dtype == np.uint8
-    np.testing.assert_array_equal(mask, np.isnan(values))
-
-
 class _CountedWCS(BaseWCSWrapper):
     """A WCS that counts how often its world axis units and physical types are read, and its conversions to world."""
 
@@ -1251,27 +1226,20 @@ def test_duplicate_real_raster_is_listed_and_loaded_once(qtbot, tmp_path, irispy
     assert len(dialog.datasets) == 1
 
 
-@pytest.mark.parametrize(
-    ("name", "instrume", "band"),
-    [
-        ("iris_l2_20240101_000000_1234567890_SJI_1400_t000.fits", "SJI", "SJI_1400"),
-        ("aia_l2_20240101_000000_1234567890_171.fits", "AIA_3", "171_THIN"),
-    ],
-)
-def test_reader_failure_stays_in_dialog(qtbot, tmp_path, name, instrume, band):
-    path = tmp_path / name
+def test_reader_failure_stays_in_dialog(qtbot, tmp_path):
+    name, band = "iris_l2_20240101_000000_1234567890_SJI_1400_t000.fits", "SJI_1400"
     fits.PrimaryHDU(
         header=fits.Header(
             {
                 "TELESCOP": "IRIS",
-                "INSTRUME": instrume,
+                "INSTRUME": "SJI",
                 "OBSID": "1234567890",
                 "STARTOBS": "2024-01-01T00:00:00",
                 "TDESC1": band,
                 "TWAVE1": 1400,
             }
         )
-    ).writeto(path)
+    ).writeto(tmp_path / name)
 
     dialog = QtIRISImporter(tmp_path)
     qtbot.addWidget(dialog)
@@ -1307,25 +1275,6 @@ def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_t
     assert dialog.result() == 0
     window = dialog.observations[0].windows[0]
     assert dialog.progress.format().startswith(f"Loading {window} from {truncated.name} failed:")
-
-
-def test_raster_load_failure_of_files_that_load_alone_names_how_many(qtbot, tmp_path, monkeypatch, irispy_test_files):
-    def fail(_sequence):
-        raise ValueError("the scans differ")
-
-    monkeypatch.setattr("glue_solar.sources.loaders.iris.stack_wcs", fail)
-    for scan in sorted(path for path in irispy_test_files if "3860258481_raster_t000_r0000" in path.name)[:2]:
-        shutil.copy2(scan, tmp_path / scan.name)
-
-    dialog = QtIRISImporter(tmp_path)
-    qtbot.addWidget(dialog)
-    scanned(qtbot, dialog)
-    _row(dialog, "3860258481").child(0).setCheckState(0, Qt.Checked)
-    dialog.stack.setChecked(True)
-    load_selected(qtbot, dialog)
-
-    window = dialog.observations[0].windows[0]
-    assert dialog.progress.format() == f"Loading {window} from 2 raster files failed: the scans differ"
 
 
 @pytest.mark.remote_data

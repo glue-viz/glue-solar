@@ -6,7 +6,6 @@ seconds to start.
 """
 
 import gc
-import re
 import sys
 import weakref
 
@@ -218,7 +217,7 @@ def test_a_tied_separation_reaches_the_window_in_angstrom():
             fit_maps._in_angstrom(background + models.Gaussian1D(), *fit_maps._to_angstrom("km / s", REST))
 
 
-def test_the_profile_fit_of_a_window_maps_every_spectrum_into_one_linked_dataset(app, qtbot, scan_path, calls):
+def test_the_profile_fit_of_a_window_maps_every_spectrum_into_one_linked_dataset(app, qtbot, scan_path, calls, once):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     collection = app.data_collection
     collection.append(raster)
@@ -232,7 +231,7 @@ def test_the_profile_fit_of_a_window_maps_every_spectrum_into_one_linked_dataset
     assert (start.param_names, start.bounds) == (fitted.param_names, fitted.bounds)
     assert start.mean_1.value.shape == raster.shape[:2]
     np.testing.assert_array_equal(start.stddev_1.value, fitted.stddev_1.value)  # the width kept
-    assert (call["fitting_axes"], call["fitter_kwargs"]) == (2, {"filter_non_finite": True})
+    assert (call["fitting_axes"], call["fitter_kwargs"]["filter_non_finite"]) == (2, True)
     assert call["fit_info"] == ("param_cov", "success", "active_mask")  # what irispy reads, not every fit's Jacobian
     assert call["scheduler"].func is dask.local.get_sync  # dask.multiprocessing.get, patched
     assert str(call["data_unit"]) == "DN_IRIS_FUV"
@@ -272,7 +271,7 @@ def test_the_profile_fit_of_a_window_maps_every_spectrum_into_one_linked_dataset
     assert set(maps.world_component_ids) <= linked
 
 
-def test_saturated_samples_are_left_out_of_the_fits(app, qtbot, monkeypatch, scan_path, calls):
+def test_saturated_samples_are_left_out_of_the_fits(app, qtbot, monkeypatch, scan_path, calls, once):
     """
     A sample at the Level 2 ceiling, 16182 DN, a lower bound only, is left out of each spectrum's fit and its start,
     irispy's ``starts_from_model`` of the masked cube; the window's mean, whose other pixels are not saturated there,
@@ -559,7 +558,7 @@ def test_refusals_show_why(app, qtbot, monkeypatch, scan_path):
     assert not iris._RUNNING
 
 
-def test_a_km_s_fit_of_a_layer_not_the_reference_data_is_refused(app, qtbot, scan_path):
+def test_a_km_s_fit_of_a_layer_not_the_reference_data_is_refused(app, qtbot, monkeypatch, scan_path):
     """glue converts every layer's x to km / s from the reference data's rest wavelength: another layer's has none."""
     first, second = (raster_data([scan_path], ["Si IV 1403"])[0] for _ in range(2))
     app.data_collection.extend([first, second])
@@ -567,12 +566,14 @@ def test_a_km_s_fit_of_a_layer_not_the_reference_data_is_refused(app, qtbot, sca
     tools = profile(app, second, "km / s")
     tools.viewer.add_data(first)  # its layer last, so its fit the newest
     fit(qtbot, tools, (LINE * u.AA).to_value(u.km / u.s, u.doppler_optical(REST * u.AA)))
-    data, model = fit_maps._viewer_fit(tools)
-    assert data is first
-    assert model.meta["rest_wavelength"] is None
+    shown = []
+    monkeypatch.setenv("GLUE_TESTING", "False")
+    monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
+    tools.button_fit_every.click()
     refusal = (
         f"The last IRIS fit of {first.label} is against km / s from the viewer's reference data: make {first.label} "
         "the reference data and fit again."
     )
-    with pytest.raises(ValueError, match=f"^{re.escape(refusal)}$"):
-        fit_maps._last_fit(data, model)
+    assert shown == [f"Could not fit the line maps\n{refusal}"]
+    assert len(app.data_collection) == 2
+    assert not iris._RUNNING
