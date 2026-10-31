@@ -1,0 +1,7 @@
+PROF {"step": "load", "obsid": "3860107071", "patch": [], "seconds": 81.78, "cprofile": false, "loadavg_start": [2.708984375, 3.24609375, 4.14306640625], "loadavg_end": [2.26904296875, 3.03857421875, 3.98388671875], "raster_files": 1230, "windows": 9, "sji": 3}
+PROF {"step": "saved", "obsid": "3860107071", "patch": [], "datasets": 12, "kb": 1469}
+PROF {"step": "restore", "obsid": "3860107071", "patch": [], "seconds": 65.72, "cprofile": false, "loadavg_start": [2.3271484375, 3.03759765625, 3.97802734375], "loadavg_end": [3.40283203125, 3.18505859375, 3.96044921875]}
+PROF {"step": "restored", "obsid": "3860107071", "patch": [], "datasets": 12, "viewers": 7}
+
+# bench.py on the first 50 raster files, same run (per file):
+# fits.open + every header 23.26 ms; _window_scaling 2.44 ms; irispy read_files 39.99 ms; SGMeta x9 8.68 ms; _create_tabular_wcs x9 16.62 ms

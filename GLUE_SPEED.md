@@ -1458,6 +1458,44 @@ Linked quicklooks (each pair's CRISP and CHROMIS cubes, D97): linking took 0.013
 - Prefetching the next and previous scans' slit on a worker: 89-123 ms on the 2022 cube once the prefetch has finished, but 186-190 ms on the 2021 Stokes cube (the slit is only part of the step), 330-500 MB read a step, and 4-13 GB of mapped file pages resident; `mmap.madvise` holds the GIL 44-55 ms a band on the GUI thread.
 - On the Mac, whose cost showed on cached files (soft faults), the hints may not help; a Mac run of `reads.py` decides it, and file reads with hints are the portable alternative if they are faster there.
 
+## USB slow-I/O check on the Mac, 2026-10-31
+
+The user's external SSD (`/Volumes/PSSD4TB/DATA`, exFAT through FSKit, USB) on the Mac (Apple Silicon, 24 GB, 16 KB
+pages), env `iris-plan-latest-mac` (irispy f058705, as main pins it), with the review workflow sharing the CPU (load
+2-5). `scanstep_20261021/reads.py` ported to macOS (`common.py`: eviction by `msync(MS_INVALIDATE)` over a shared map,
+as vmtouch does; disk bytes and RSS from `proc_pid_rusage`; the read-ahead hint by `fcntl(F_RDADVISE)` in place of
+`posix_fadvise`), 12 scans of the 2022 3950 cube (13 GB) and the 2024 3950 cube (135 GB); results
+`reads_2022_mac.jsonl`, `reads_2024_mac.jsonl` beside the Linux ones. Medians, cold, 2022 / 2024:
+
+| Read of the virtual slit | Linux NVMe (2026-10-21) | Mac USB exFAT |
+| --- | --- | --- |
+| Panel (88 rows, about 3,000 values): plain memory map, as glue reads | 146 / 94 ms | 817 / 727 ms |
+| Panel: `_Cube._will_need`'s per-page MADV_WILLNEED (#362, on main) | 10 / 11 ms | 48 / 44 ms |
+| Panel: F_RDADVISE per page, then the map | 6.5 / 7.5 ms | 68 / 45 ms |
+| Panel: MADV_RANDOM alone | 218 / 193 ms | 1109 / 494 ms |
+| Panel: the whole band hinted (WILLNEED in 128 KB calls) | 74 / 56 ms | 3052 / 2038 ms |
+| Full slit (every row, 59-68k values): plain memory map | 109 / 80 ms | 2249 / 1704 ms |
+| Full slit: per-page MADV_WILLNEED | 127 / 62 ms | 3103 / 2046 ms |
+| Full slit: one sequential read per tuning plane of the rows' band | 72 / 54 ms | 470 / 477 ms |
+| Full slit: MADV_RANDOM, then F_RDADVISE per page | 108 / 94 ms | 574 / 454 ms |
+
+- **The page hints hold on macOS, and matter more over USB.** The quicklook's slit read (the panel pattern) goes from
+  817 to 48 ms and 727 to 44 ms with `_will_need` (17x; Linux 14x), reading the 49 MB its pages hold (16 KB pages:
+  four times Linux's 12 MB for the same values). A sequential read of the whole band costs 3 s here, so hinting bands
+  stays out.
+- **Dense reads are the slow case left.** For every row of the slit the per-page hint is no help over USB (3.1 s and
+  2.0 s against 2.2 s and 1.7 s with no hint: the hint's 32k calls cost on top of the faults), where one sequential
+  read per tuning plane of the rows' band takes 0.47 s, 5-6x less. Candidate, not planned: `_Cube.get_data` reading a
+  dense index view (its rows a page or less apart over most of the band) as plain reads of the band into a buffer
+  rather than through the map; on NVMe it is a 1.5x gain only.
+- **MADV_RANDOM hurts on both** (one fault per page, no read-around) unless a hint follows it.
+- **The big stack over USB** (3860107071, 1230 raster files, 9 windows, 3 SJIs, `bigstack_20261020/prof.py`
+  through the browser): loads in 81.8 s and restores in 65.7 s, against 73 s and 75 s on the Linux machine's NVMe with
+  the same irispy. USB adds about 12 % to the load: the per-file cost is CPU (`bench.py` on 50 files: 23 ms the
+  headers, 17 ms the nine -TAB WCSes, 40 ms irispy's read, a file), which irispy #360's batched reads cut to about
+  25 s on Linux (`wp10-follow-irispy`). Raw lines in `bigstack_20261020/mac_usb_20261031.txt`.
+- The disk itself reads 1.26 GB/s cold sequentially: the USB cost is latency per scattered page, not bandwidth.
+
 ## WCSAxes tick rendering
 
 The 2026-10-01 study of WCSAxes tick placement (how it works, where IRIS WCSes spend the time, the prototypes, upstream context and open questions) and the study of decoupling WCSAxes from matplotlib (whose matplotlib-free core prototype is on the user's astropy fork) were cut to their PR and bug lists on 2026-10-17 (D82); the full text is in `git show 09be127:GLUE_SPEED.md`.

@@ -72,7 +72,8 @@ The plan's machine until 2026-10-20; since then the Linux machine runs the work 
   (284 GB: the 2022-05-12 cubes 3950, 4846 and 6302 at 13-15 GB, and the 2024-07-05 cubes 3950 and 8542 at 135 and
   129 GB), `DKIST/` (94 GB: AIOMGG, CARJML, CZKPML, LOQEPP, NDFHBO, TXIPCV), `MUSE/` and a CHIANTI database. It reads
   1.26 GB/s sequentially cold (2026-10-31), so it is a latency test for scattered reads, not a bandwidth one; the
-  scan-step scripts (`scanstep_20261021/common.py`) take it as the Mac's SST root.
+  scan-step scripts (`scanstep_20261021/common.py`) take it as the Mac's SST root; the 2026-10-31 check is in
+  GLUE_SPEED.md ('USB slow-I/O check on the Mac').
 - `~/Library/Caches/glue-solar-checks/astropy` is `run_checks.py`'s kept astropy cache; `~/.glue/` is the user's.
 
 Session archives on the Mac (local, excluded from git): `session_20261014.tar.gz`, `session_20261015.tar.gz` (a
