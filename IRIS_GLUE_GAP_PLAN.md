@@ -29,7 +29,7 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 9671f41e (#407). glue-solar pins irispy main f058705 (#347, D91); following irispy waits for its gwcs port, #360 (D106). M0, M2, M3 and WP13 are done. Open: the held follow-irispy PR (`wp10-follow-irispy`), release tracking on each release, and M4's upstreaming on the user's direction.
+**Resume here.** Main is at 047193f5 (#406). glue-solar pins irispy main f058705 (#347, D91); following irispy waits for its gwcs port, #360 (D106). M0, M2, M3 and WP13 are done. Open: the held follow-irispy PR (`wp10-follow-irispy`), release tracking on each release, and M4's upstreaming on the user's direction.
 
 **Next.** Merged work is recorded by its PRs and git history, not here. The follow-irispy PR, branch `follow-irispy-main` (on main cae1af6; irispy pinned to #360's head 5d662b1, whose code the user calls settled, docs changes to come; batched stack reads, b1, user 2026-10-29; 778 passed, 4 skipped in the Linux env `iris-plan-irispy-360`; PR body `fix25/follow-batched/body.md` in the Linux session archive; the head before the rebase kept as `follow-irispy-main-before-batch`), opens once #360 merges: retargeted to #360's merge commit, its gwcs fixes checked again against #360's final API, and rerun (D106). How items run: an Opus implementer, a Fable review and an Opus fix pass (`IRIS_PLAN_PROTOTYPES/plan_tooling/plan-item-workflow.js`, and the Linux archive's `workflows/`), every probe and test on the Linux machine under a 24 GB memory scope (systemd-run); branches made beside each other are merged and suite-run together before their PRs, which go one at a time. CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
@@ -164,7 +164,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 
 **M1**
 - WP0: `wp0-release-tracking`
-- WP10: `wp10-sst-dense-reads`, `wp10-follow-irispy`
+- WP10: `wp10-follow-irispy`
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
@@ -198,7 +198,6 @@ Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on file
 
 **M1**
 
-- [ ] **M1** `wp10-sst-dense-reads` (user, 2026-10-31; GLUE_SPEED.md 'USB slow-I/O check on the Mac'): a dense index view of an SST cube (the virtual slit panel tall enough to sample most of the cube's rows, every tuning at one x) is read through the memory map one page fault at a time, 2.2 s cold over USB for the 2022 cube's 68k values and 3.1 s with the page hints, where one sequential read per tuning plane of the rows' band takes 0.47 s (0.07 s against 0.11 s on NVMe); `_Cube.get_data` reads such a view as plain reads of each plane's band into a buffer, keeping the hints for sparse views. Done when the full-slit cold read of the 2022 cube over USB is under 1 s through `_Cube.get_data`, the panel read is no slower, values equal the map's, and a test pins the dense path.
 - [ ] **M1** `wp10-follow-irispy` (D91, D106; user 2026-10-20 to 2026-10-29): the follow-irispy PR, branch `follow-irispy-main` (its state in Current state), opened once irispy #360 merges. It carries (a) empty raster files: IRIS Level 2 raster files with no data (every window raw fill, DATE_OBS and DATE_END empty, an empty last table; 3660100039 has 8 of 450, the flare 3860258481 5 of 180) made irispy's `read_files` raise and fail the whole observation; irispy #301 (merged 2026-10-21) reads them as missing with their times and pointing worked out, and glue-solar makes `Coordinator.point_on` return None for a NaN pixel; (b) the big stack: 3860107071 (1230 files, 9 windows and 3 SJIs) loaded in 73 s and restored in 75 s on main with irispy f058705 and 161 s on #360's early head; batched reads from #360's 4-D cubes and the user's irispy-side changes (c58ef2b, 5d662b1) bring it to 24.6 s and 24.3 s (`bench360b/RESULTS.md` in the Linux session archive); (c) two register entries, the Profile patch's (FI6-1) and the batched reads' (`fix25/follow-batched/register-row.md`). Done when the PR is on main, both observations open in the browser and quicklook with their empty scans at their times, and the big stack loads in about 25 s.
 
 Notes:
