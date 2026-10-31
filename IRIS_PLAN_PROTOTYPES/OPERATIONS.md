@@ -66,6 +66,13 @@ The plan's machine until 2026-10-20; since then the Linux machine runs the work 
   `Glue Solar.app` is installed. So on the Mac: no full-size data (remote-data tests still fetch irispy-data's cutouts
   and dkist's sample data), no app check without a rebuild (`packaging/macos/build_app.sh`, D55), no SST or DKIST
   scale checks.
+- Full-size data is on the user's external USB SSD, `/Volumes/PSSD4TB/DATA/` (exFAT through FSKit, 3.7 TB; read-only,
+  never write there), when it is plugged in: `IRIS/` (45 GB: ten observations, the big stack
+  `20150311_151947_3860107071` and `20150917_073915_3630104144` among them, plus `mosaics/` and `pipeline/`), `SST/`
+  (284 GB: the 2022-05-12 cubes 3950, 4846 and 6302 at 13-15 GB, and the 2024-07-05 cubes 3950 and 8542 at 135 and
+  129 GB), `DKIST/` (94 GB: AIOMGG, CARJML, CZKPML, LOQEPP, NDFHBO, TXIPCV), `MUSE/` and a CHIANTI database. It reads
+  1.26 GB/s sequentially cold (2026-10-31), so it is a latency test for scattered reads, not a bandwidth one; the
+  scan-step scripts (`scanstep_20261021/common.py`) take it as the Mac's SST root.
 - `~/Library/Caches/glue-solar-checks/astropy` is `run_checks.py`'s kept astropy cache; `~/.glue/` is the user's.
 
 Session archives on the Mac (local, excluded from git): `session_20261014.tar.gz`, `session_20261015.tar.gz` (a

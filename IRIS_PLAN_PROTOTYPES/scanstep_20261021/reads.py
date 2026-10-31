@@ -60,13 +60,26 @@ def m_band(mm, fd, scan, rows):
     buf = bytearray((y1 - y0) * NX * 4)
     out = np.empty((K, len(rows)), ">f4")
     for k in range(K):
-        os.preadv(fd, [buf], start + 4 * (((scan * P) * K + k) * NY + y0) * NX)
+        offset = start + 4 * (((scan * P) * K + k) * NY + y0) * NX
+        if hasattr(os, "preadv"):
+            os.preadv(fd, [buf], offset)
+        else:  # macOS builds without preadv
+            buf[:] = os.pread(fd, len(buf), offset)
         out[k] = np.frombuffer(buf, ">f4").reshape(y1 - y0, NX)[rows - y0, X]
     return out
 
 
 def _willneed_pages(fd, scan, rows):
-    for page in np.unique(offsets(scan, rows) // PAGE).tolist():
+    """The file's read-ahead hint per page: posix_fadvise WILLNEED on Linux, fcntl F_RDADVISE (a radvisory) on macOS."""
+    pages = np.unique(offsets(scan, rows) // PAGE).tolist()
+    if sys.platform == "darwin":
+        import fcntl
+        import struct
+
+        for page in pages:
+            fcntl.fcntl(fd, getattr(fcntl, "F_RDADVISE", 44), struct.pack("qixxxx", page * PAGE, PAGE))
+        return
+    for page in pages:
         os.posix_fadvise(fd, page * PAGE, PAGE, os.POSIX_FADV_WILLNEED)
 
 
@@ -118,7 +131,8 @@ METHODS = {"mmap": m_mmap, "pread": m_pread, "fromfile": m_fromfile, "band": m_b
 only = sys.argv[3].split(",") if len(sys.argv) > 3 else list(METHODS)
 fd = os.open(path, os.O_RDONLY)
 emit(OUT, cube=key, shape=shape, x=X, scans=scans.tolist(), page=PAGE,
-     read_ahead_kb=open("/sys/block/nvme0n1/queue/read_ahead_kb").read().strip())
+     read_ahead_kb=open("/sys/block/nvme0n1/queue/read_ahead_kb").read().strip() if sys.platform == "linux" else "n/a",
+     platform=sys.platform)
 for scan in scans.tolist():
     for pname, rows in PATTERNS.items():
         mm = memmap()
