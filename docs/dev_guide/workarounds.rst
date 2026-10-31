@@ -124,8 +124,12 @@ glue-core
   (``_Cube.compute_statistic``, #230, #248, D70). Always on. Retired by glue sampling cheaply (upstream list, R32).
 - **An SST cube's reads hinted to the kernel before glue makes them**: MADV_WILLNEED on the memory-mapped file's pages
   for index-array views and slice subsets, up to 100,000 rows or values in 128 KB calls, nothing where mmap has no
-  madvise (``_Cube.get_data``, ``_Cube._will_need``, #362). Always on (Linux and macOS). Retired by glue's
-  ``compute_fixed_resolution_buffer`` and ``Data.get_data`` reading memory maps cheaply cold (report candidate).
+  madvise (``_Cube.get_data``, ``_Cube._hint``, #362); and a dense view, each index along an axis of its own and the
+  bands no more than twice the pages the map's read would touch, read as one plain read of the rows' band per plane
+  through astropy's ``section`` of the file, as faulting the pages took 2.2 to 3.1 s cold for a full virtual slit
+  over USB where the bands took 0.47 s (``_Cube._band``, GLUE_SPEED.md 2026-10-31). Always on (Linux and macOS).
+  Retired by glue's ``compute_fixed_resolution_buffer`` and ``Data.get_data`` reading memory maps cheaply cold
+  (report candidate).
 - ``_TabularWCS.__gluestate__`` **and** ``__setgluestate__`` in place of glue's ``_save_wcs`` and ``_load_wcs``, which
   raise 'HDUList is required to retrieve -TAB coordinates' (``sst.py``, #227, SST5). Always on (SST cubes). Retired
   by glue saving a -TAB WCS with its tables (report candidate).

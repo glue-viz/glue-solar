@@ -193,7 +193,12 @@ class _Cube(Data):
     """
 
     def get_data(self, cid, view=None):
-        self._will_need(cid, view)
+        indexed = self._indexed(cid, view)
+        if indexed is not None:
+            band = self._band(*indexed, view)
+            if band is not None:
+                return band
+            self._hint(*indexed)
         return super().get_data(cid, view=view)
 
     def compute_statistic(self, statistic, cid, subset_state=None, axis=None, view=None, random_subset=None, **kwargs):
@@ -209,44 +214,101 @@ class _Cube(Data):
         )
 
     def _will_need(self, cid, view):
+        """`_hint` for ``self[cid, view]``, ``view`` an index array per axis, where the values are the file's."""
+        indexed = self._indexed(cid, view)
+        if indexed is not None:
+            self._hint(*indexed)
+
+    def _indexed(self, cid, view):
         """
-        Ask the kernel for the pages of the file that ``self[cid, view]`` reads, ``view`` an index array per axis as
-        glue's image buffers and samples give: once a cold file's read-around stops, after about 100 page-fault misses,
-        each page otherwise comes in a fault of its own, and an SST quicklook's scan step took 0.36-0.54 s on Linux, a
-        revisit's time with the hints (D100). It asks for each row's span between the columns read when each index runs
-        along an axis of its own, else for each value, up to 100,000 rows or values; pages a page or less apart as one
-        run, 128 KB a call, as a call reads at most the readahead window. Nothing where mmap has no madvise (Windows).
+        The values of ``cid``, held in the file's memory map, the map's array and the smallest form of each index of
+        ``view``, an index array per axis as glue's image buffers and samples give, within the cube; None for any other
+        read, left to numpy, and where mmap has no madvise (Windows).
         """
         component = self._components.get(cid)
         if type(component) is not Component or not isinstance(view, tuple) or len(view) != self.ndim:
-            return
+            return None
         if not all(isinstance(index, np.ndarray) and index.dtype == np.intp for index in view):
-            return
+            return None
         small = [unbroadcast(index) for index in view]
         if not all(index.size and 0 <= index.min() and index.max() < n for index, n in zip(small, self.shape)):
-            return  # nothing read, or left to numpy's index rules
+            return None  # nothing read, or left to numpy's index rules
         values = root = component.data
         while isinstance(root.base, np.ndarray):
             root = root.base
-        advise = getattr(root.base, "madvise", None)  # the file's memory map's
-        if advise is None:
-            return
+        if getattr(root.base, "madvise", None) is None:
+            return None
+        return values, root, small
+
+    @staticmethod
+    def _pages(values, root, small):
+        """
+        The first and last page of the map that each row's span, or each value, of ``values[small]`` lies on, sorted,
+        and where each run of them ends, pages a page or less apart as one run, as the kernel's read-around brings
+        them: each row's span between the columns read where each index runs along an axis of its own, else each
+        value; None past 100,000 rows or values.
+        """
         axes = [k - index.ndim for index in small for k, n in enumerate(index.shape) if n > 1]  # as numpy broadcasts
         if len(axes) == len(set(axes)):
             *rows, columns = (np.unique(index) for index in small)
             grid, length = np.ix_(*rows, columns[:1]), (columns[-1] - columns[0]) * values.strides[-1] + values.itemsize
         else:
-            grid, length = view, values.itemsize
+            grid, length = small, values.itemsize
         if np.broadcast(*grid).size > 100_000:
-            return
+            return None
         starts = np.sort(sum(index * stride for index, stride in zip(grid, values.strides)), axis=None)
         starts += values.ctypes.data - np.frombuffer(root.base, np.uint8).ctypes.data  # from the map's start
-        page, call = mmap.PAGESIZE, (128 << 10) // mmap.PAGESIZE
+        page = mmap.PAGESIZE
         first, last = starts // page, (starts + length - 1) // page
-        ends = np.flatnonzero(first[1:] > last[:-1] + 2)  # each run's last
-        for a, b in zip([0, *(ends + 1)], [*ends, len(starts) - 1]):
+        return first, last, np.flatnonzero(first[1:] > last[:-1] + 2)
+
+    def _hint(self, values, root, small):
+        """
+        Ask the kernel for the pages of the file that ``values[small]`` reads (`_pages`): once a cold file's read-around
+        stops, after about 100 page-fault misses, each page otherwise comes in a fault of its own, and an SST quicklook's
+        scan step took 0.36-0.54 s on Linux, a revisit's time with the hints (D100). 128 KB a call, as a call reads at
+        most the readahead window.
+        """
+        pages = self._pages(values, root, small)
+        if pages is None:
+            return
+        first, last, ends = pages
+        page, call = mmap.PAGESIZE, (128 << 10) // mmap.PAGESIZE
+        for a, b in zip([0, *(ends + 1)], [*ends, len(first) - 1]):
             for start in range(first[a], last[b] + 1, call):
-                advise(mmap.MADV_WILLNEED, start * page, min(call, last[b] + 1 - start) * page)
+                root.base.madvise(mmap.MADV_WILLNEED, start * page, min(call, last[b] + 1 - start) * page)
+
+    def _band(self, values, root, small, view):
+        """
+        ``values[view]`` read as one plain read of the rows' band per plane, through astropy's ``section`` of the file,
+        where the view is dense: each index along an axis of its own and the bands no more than twice the pages the
+        map's read would touch. Faulting a memory-mapped file's pages one at a time, hinted or not, took 2.2 to 3.1 s
+        cold for the full virtual slit of a 13 GB cube over USB where reading each plane's band took 0.47 s
+        (GLUE_SPEED.md, 2026-10-31). None for a sparse view, which the hints serve, or a cube of no file.
+        """
+        log = getattr(self, "_load_log", None)
+        axes = [k - index.ndim for index in small for k, n in enumerate(index.shape) if n > 1]
+        dense = log is not None and len(axes) == len(set(axes)) and values.strides[-1] == values.itemsize
+        pages = self._pages(values, root, small) if dense else None
+        if pages is None:
+            return None
+        first, last, ends = pages
+        touched = sum(last[b] - first[a] + 1 for a, b in zip([0, *(ends + 1)], [*ends, len(first) - 1]))
+        *outer, rows, columns = (np.unique(index) for index in small)
+        y0, y1, x0, x1 = rows[0], rows[-1] + 1, columns[0], columns[-1] + 1
+        planes = int(np.prod([len(index) for index in outer]))
+        if planes * (y1 - y0) * values.strides[-2] > 2 * touched * mmap.PAGESIZE:
+            return None
+        dropped = self.ndim == 4 and self.meta.get("NAXIS") == 5  # the Stokes axis of length 1 `sst_data` leaves out
+        box = np.empty((*(len(index) for index in outer), len(rows), x1 - x0), values.dtype)
+        with fits.open(log.path, memmap=False) as hdulist:
+            section = hdulist[0].section
+            for at in np.ndindex(*box.shape[:-2]):  # a plane's whole rows: a slice of columns reads row by row
+                index = [int(unique[i]) for unique, i in zip(outer, at)]
+                if dropped:
+                    index.insert(1, 0)
+                box[at] = section[(*index, slice(y0, y1), slice(None))][rows - y0, x0:x1]
+        return box[(*(np.searchsorted(unique, index) for unique, index in zip([*outer, rows], view)), view[-1] - x0)]
 
     def _sample(self, size, stokes=None, tuning=None):
         """

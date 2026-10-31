@@ -1,0 +1,1 @@
+An SST cube's dense reads, such as a tall virtual slit panel's, read each tuning plane's band in one go rather than through the memory map's pages: the full slit of a 13 GB cube over a USB disk in 0.4 s instead of 2 to 5 s.
