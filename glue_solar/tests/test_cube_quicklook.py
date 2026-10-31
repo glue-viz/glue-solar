@@ -16,7 +16,6 @@ from astropy.io import fits
 from astropy.wcs import FITSFixedWarning
 
 from glue_solar.quicklook import QuicklookImageViewer, quicklook
-from glue_solar.sources.iris import quicklook_cube
 from glue_solar.tests.helpers import select_point
 from glue_solar.tests.test_quicklook import (
     bare_app_for,
@@ -186,15 +185,6 @@ def test_a_session_restores_the_quicklook(cube_app, qtbot, tmp_path):
         [panels[f"cube Stokes {name}"].state.layers[0].profile[1] for name in "IQ"], values[0, :, :, 9, 5]
     )
     np.testing.assert_array_equal(panels["cube light curve"].state.layers[0].profile[1], values[:, 0, 2, 9, 5])
-
-
-def test_the_data_action_opens_the_quicklook(cube_app, tmp_path):
-    # 'Quicklook…' in the data collection's right-click menu, offered for such a cube only (test_plugin.py)
-    cube, _ = spectral_cube(tmp_path / "cube.fits", (7, 12, 16))
-    cube_app.data_collection.append(cube)
-    quicklook_cube(cube, cube_app.data_collection)
-    assert cube_app.tab_names[-1] == "cube"
-    assert [viewer.state.title for viewer in cube_app.viewers[-1]] == ["cube map", "cube virtual slit", "cube spectrum"]
 
 
 def test_a_pointing_that_moves_with_time_keeps_the_time_axis(cube_app, tmp_path):

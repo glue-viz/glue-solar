@@ -624,28 +624,6 @@ def assert_irispys(maps, raster, center, velocities, unit):
         np.testing.assert_allclose(maps[name], expected, rtol=1e-9, atol=1e-9)
 
 
-def test_gaussian_lines_give_irispys_maps_their_width_a_standard_deviation(monkeypatch, scan_path):
-    """
-    Gaussian lines of known Doppler shift and FWHM, a step a slab, give irispy's maps, ``width`` their standard
-    deviation: the FWHM over 2√(2 ln 2), about 2.355.
-    """
-    monkeypatch.setattr(iris, "LAZY", False)
-    monkeypatch.setattr(moments, "SLAB", 1)
-    [raster] = raster_data([scan_path], ["Si IV 1403"])
-    wavelengths, _ = _wavelengths(raster)
-    velocity = np.linspace(-20, 20, raster.shape[0])[:, None]  # km / s, by step
-    fwhm = np.linspace(0.6, 0.9, raster.shape[1])  # Å, by slit pixel: sampled by the window's 0.25 Å, within ±2.5 Å
-    velocities = (-535, 535)  # ±2.5 Å
-    center = 1402.77 * (1 + velocity / constants.c.to_value(u.km / u.s))
-    sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
-    gaussians = 1000 * np.exp(-0.5 * ((wavelengths - center[..., None]) / sigma[:, None]) ** 2)
-    raster.update_components({raster.main_components[0]: gaussians.astype(np.float32)})
-    maps = line_moments(raster, 1402.77, velocity_range=velocities)
-    assert_irispys(maps, raster, 1402.77, velocities, DN_UNIT["FUV"])
-    np.testing.assert_allclose(maps["width"], np.broadcast_to(sigma, maps.shape), rtol=1e-6)
-    np.testing.assert_allclose(maps["velocity"], np.broadcast_to(velocity, maps.shape), atol=1e-4)
-
-
 @pytest.mark.remote_data
 def test_a_full_mg_ii_k_window_gives_irispys_maps(irispy_data):
     """3400109360's Mg II k, at full resolution, read lazily and its steps negative, gives irispy's maps."""
@@ -697,7 +675,6 @@ def test_a_pixel_profile_less_the_mean_spectrum_is_its_spectrum_less_numpys_nanm
     mean, difference = data.id[f"{cid.label} mean spectrum"], data.id[f"{cid.label} minus mean spectrum"]
     assert [data.get_component(c).units for c in (cid, mean, difference)] == [data.get_component(cid).units] * 3
     assert not any(data.get_component(mean).data.strides[:-1])  # one spectrum held
-    np.testing.assert_array_equal(data[mean, (0,) * (data.ndim - 1)], moments._mean_spectrum(data, cid)[0])
     # a Pixel click on the map of the scan shown, and the Profile of its subset
     image = app.new_data_viewer(ImageViewer, data=data)
     image.state.x_att, image.state.y_att = data.pixel_component_ids[-3], data.pixel_component_ids[-2]

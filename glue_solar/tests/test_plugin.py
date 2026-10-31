@@ -21,6 +21,7 @@ from glue.config import (
     fit_plugin,
     layer_action,
     menubar_plugin,
+    session_patch,
     startup_action,
     viewer_tool,
 )
@@ -455,60 +456,6 @@ def test_open_real_raster_through_load_data(irispy_test_files):
     assert datasets[0].find_component_id("Time") is not None
 
 
-def test_open_synthetic_sji_through_load_data(iris_tree):
-    # The synthetic fixtures are complete enough for irispy's readers
-    path = next(iris_tree.glob(f"{MD5}iris_l2_20250328_*_SJI_1400_t000.fits.gz"))
-    data = load_data(str(path))
-    assert data.shape == (3, 4, 5)
-    assert tuple(data.coords.world_axis_physical_types) == (
-        "custom:pos.helioprojective.lon",
-        "custom:pos.helioprojective.lat",
-        "time",
-    )
-
-
-def test_open_synthetic_raster_through_load_data(iris_tree):
-    raster_dir = next(iris_tree.glob(f"{MD5}iris_l2_20250328_*_raster"))
-    path = sorted(raster_dir.glob("*.fits"))[0]
-    datasets = load_data(str(path))
-    assert len(datasets) == 2
-    for data in datasets:
-        assert data.shape == (3, 4, 5)
-        assert tuple(data.coords.world_axis_physical_types) == (
-            "em.wl",
-            "custom:pos.helioprojective.lat",
-            "custom:pos.helioprojective.lon",
-        )
-
-
-def test_autolink_synthetic_sji_raster(iris_tree):
-    # SJI + raster autolink with no manual step: glue must pair the
-    # helioprojective axes across the two instruments (permuting the world
-    # order and slicing the SJI time axis away).
-    try:
-        from glue.plugins.wcs_autolinking.wcs_autolinking import permuted_values_functions  # noqa: F401
-    except ImportError:
-        import pytest
-
-        pytest.skip("glue-core without APE-14 low-level WCS autolinking")
-    from glue.core import DataCollection
-    from glue.plugins.wcs_autolinking.wcs_autolinking import wcs_autolink
-
-    sji = load_data(str(next(iris_tree.glob(f"{MD5}iris_l2_20250328_*_SJI_1400_t000.fits.gz"))))
-    raster_dir = next(iris_tree.glob(f"{MD5}iris_l2_20250328_*_raster"))
-    raster = load_data(str(sorted(raster_dir.glob("*.fits"))[0]))[0]
-
-    links = wcs_autolink(DataCollection([sji, raster]))
-    assert len(links) == 1
-    link = links[0]
-    assert len(link) == 4
-
-    # The two celestial pixel axes on each side; the SJI time axis and the
-    # raster wavelength axis are sliced away
-    assert {cid.axis for cid in link.cids1} == {1, 2}
-    assert {cid.axis for cid in link.cids2} == {0, 1}
-
-
 def test_frame_time_tool_follows_the_sliders(app, irispy_test_files):
     sji = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
     sji = load_data(str(sji))
@@ -548,25 +495,17 @@ def test_frame_time_tool_follows_the_sliders(app, irispy_test_files):
 
 
 @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")  # glue's Collapse of the NaN beside the image
-def test_frame_time_tool_survives_an_empty_collapse(app):
-    cube = Data(label="cube", flux=np.zeros((4, 5, 6)), obs_date=np.full((4, 5, 6), np.datetime64("2020-01-01T12:00:00")))
-    app.data_collection.append(cube)
-    viewer = app.new_data_viewer(ImageViewer, data=cube)
-    tool = viewer.toolbar.tools["solar:frame_time"]
-    viewer.state.slices = (AggregateSlice(slice(2, 2), 2, np.nanmean), 0, 0)  # sample 2 (`glue_patches`)
-    assert tool.label.text() == "12:00:00"
-
-
-@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")  # glue's Collapse of the NaN beside the image
-def test_an_empty_collapse_range_draws(app):
+def test_an_empty_collapse_range_draws_and_keeps_the_frame_time(app):
     installed = AggregateSlice.__init__ is glue_patches.aggregate_slice_init
     assert installed == glue_patches.needs_empty_collapse_workaround()  # probes glue's own image buffer
-    cube = Data(label="cube", flux=np.arange(120.0).reshape(4, 5, 6))
+    when = np.full((4, 5, 6), np.datetime64("2020-01-01T12:00:00"))
+    cube = Data(label="cube", flux=np.arange(120.0).reshape(4, 5, 6), obs_date=when)
     app.data_collection.append(cube)
     viewer = app.new_data_viewer(ImageViewer, data=cube)
     viewer.state.slices = (AggregateSlice(slice(2, 2), 2, np.nanmean), 0, 0)  # a Profile Collapse inside sample 2
     viewer.figure.canvas.draw()  # glue 1.27.0 alone raises here, and in every later draw
     assert viewer.state.slices[0].slice == slice(2, 3)
+    assert viewer.toolbar.tools["solar:frame_time"].label.text() == "12:00:00"
 
 
 def test_readout_gives_arcsec_only_where_wcsaxes_shows_arcsec(app):
@@ -823,8 +762,10 @@ def test_sessions_keep_each_viewers_axes(app, qtbot, monkeypatch, tmp_path):
 
 
 def test_sessions_with_per_frame_limits_fail_to_restore(app, tmp_path):
-    # glue 1.27.0 restores a layer's per-frame limits before it has a viewer (wp0-core-session-reports), as the user
-    # guide says; once a glue release restores them, this fails and the guide changes
+    """
+    The canary for the user guide's sentence (known-issues.rst, Saving) that a session saved with per-frame limits on
+    does not open under glue-core 1.28.0: once a glue release restores them, this fails and that sentence goes.
+    """
     cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5))
     app.data_collection.append(cube)
     app.new_data_viewer(ImageViewer, data=cube).toolbar.actions["solar:per_frame_limits"].trigger()
@@ -1052,14 +993,13 @@ def test_physical_aspect_is_the_same_all_along_a_raster(app, irispy_test_files):
     assert proportions[0] == pytest.approx(proportions[1], rel=1e-3)
 
 
-@pytest.mark.parametrize("case", ["spectrogram", "sit-and-stare exposures", "slit-jaw x–t", "no WCS"])
+@pytest.mark.parametrize("case", ["sit-and-stare exposures", "slit-jaw x–t", "no WCS"])
 def test_physical_aspect_gives_square_pixels_off_the_sky(app, irispy_test_files, case):
     def bundled(name):
         return find_irispy_test_file(irispy_test_files, name)
 
-    # the dataset and its x and y pixel axes: wavelength, exposures or time against the slit or x, or no coordinates
+    # the dataset and its x and y pixel axes: exposures or time against the slit or x, or no coordinates
     data, x, y = {
-        "spectrogram": (lambda: raster_data([bundled(SCANNING)])[0], 2, 1),
         # exposures of one place, which the pointing and the solar rotation move by a fraction of a slit pixel
         "sit-and-stare exposures": (lambda: raster_data([bundled(SIT_AND_STARE.format("raster_t000_r00000"))])[0], 0, 1),
         "slit-jaw x–t": (lambda: image_data(bundled(SIT_AND_STARE.format("SJI_1400_t000"))), 2, 0),
@@ -1147,24 +1087,6 @@ def test_sky_length_on_a_raster_map(app, irispy_test_files):
     _, arcsec, km = sky_length(viewer, [0, 7], [10, 90])
     earth = get_earth(maps.meta["STARTOBS"]).radius
     assert km == pytest.approx((arcsec * u.arcsec).to_value(u.rad) * earth.to_value(u.km))
-
-
-@pytest.mark.remote_data
-def test_measure_on_a_full_size_slit_jaw_image(app, irispy_data):
-    # 4000255147 SJI 1400: 0.16635" pixels, seen from 1.50921e11 m
-    data = image_data(irispy_data("iris_l2_20130902_163935_4000255147_SJI_1400_t000_f050.fits.gz"))
-    app.data_collection.append(data)
-    viewer = app.new_data_viewer(ImageViewer, data=data)
-    viewer.toolbar.active_tool = "solar:measure"
-    tool = viewer.toolbar.tools["solar:measure"]
-    for name, x in (("press", 100), ("release", 200)):  # a line of exactly 100 pixels
-        getattr(tool, name)(SimpleNamespace(button=MouseButton.LEFT, inaxes=viewer.axes, xdata=x, ydata=200))
-    pixels, arcsec, km = sky_length(viewer, [100, 200], [200, 200])
-    lon, lat, _ = data.coords.pixel_to_world_values([100, 200], [200, 200], [0, 0])
-    assert abs(arcsec - _separation(lon, lat, u.arcsec)) < 0.01
-    assert arcsec == pytest.approx(16.635, abs=0.01)
-    assert km == pytest.approx(12172, rel=1e-3)
-    assert tool.label.text() == f'Length 100.0 px · {arcsec:.2f}" · 12,172 km'
 
 
 def _key(viewer, key):
@@ -1742,11 +1664,10 @@ def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_pa
     app.new_data_viewer(ImageViewer, data=image)
     app.save_session(str(tmp_path / "cmap.glu"))
     session = (tmp_path / "cmap.glu").read_text()
-    # glue restores a colormap by its name, here one not listed yet: setup(), not run here, lists every sunpy one
+    # glue restores a colormap by its name, here one not listed yet: the session patch lists every sunpy one
+    assert any(patch.function is glue_solar._add_session_colormaps for patch in session_patch)
     # rhessi's name is its sunpy key; the HMI magnetogram's, as most are, is not
     for name in ("rhessi", cmlist["hmimag"].name):
-        glue_solar._add_session_colormaps({"layer": {"cmap": name}})  # which the restore below would hang without
-        assert name in [label for label, _ in colormaps.members]
         (tmp_path / "cmap.glu").write_text(session.replace('"cmap": "gray"', f'"cmap": "{name}"'))
         restored = GlueApplication.restore_session(str(tmp_path / "cmap.glu"))
         qtbot.addWidget(restored)

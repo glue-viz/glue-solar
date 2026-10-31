@@ -94,7 +94,7 @@ def test_stop_ends_the_scan_while_it_lists_the_files(iris_tree, monkeypatch):
 def test_report_reaches_100_only_once_every_file_is_read(iris_tree):
     reports, stop = [], threading.Event()
     scan_directory(iris_tree, report=reports.append)
-    assert reports[-1] == 100
+    assert reports.index(100) == len(reports) - 1
     reports.clear()
     stop.set()  # before a file is listed
     assert scan_directory(iris_tree, stop=stop, report=reports.append) == []

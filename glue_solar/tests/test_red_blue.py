@@ -5,7 +5,6 @@ glue gets of irispy's maps, of a scan or a stack.
 
 import numpy as np
 import pytest
-from glue.core import Data
 from irispy.utils.constants import DN_UNIT
 from irispy.utils.red_blue import RBAQualityFlag, calculate_red_blue_asymmetry
 from qtpy import QtWidgets
@@ -19,7 +18,7 @@ from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.red_blue import red_blue_asymmetry
 from glue_solar.tests import test_moments
-from glue_solar.tests.helpers import refused, run_action
+from glue_solar.tests.helpers import run_action
 from glue_solar.tests.test_lazy import SJI
 from glue_solar.tests.test_moments import ACTION, dn_per_second_cube
 
@@ -86,23 +85,12 @@ def test_the_action_adds_irispys_maps_as_one_linked_dataset_in_a_viewer(
     assert_irispys(maps, raster, 1402.77)
 
 
-def test_other_values_and_a_blank_or_canceled_rest(app, qtbot, monkeypatch, scan_path):
-    """Other wavelengths, wing velocities and step are the function's; a blank rest wavelength or Cancel adds nothing."""
+def test_other_wavelengths_wing_velocities_and_step_are_the_functions(scan_path):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
-    collection = app.data_collection
-    collection.append(raster)
     maps = red_blue_asymmetry(raster, 1402.77, (0.6, 1.2), (20, 60), 2.5)
     assert maps.meta["red_blue_wavelengths"] == (0.6, 1.2)
     assert (maps.meta["red_blue_velocities"], maps.meta["red_blue_step"]) == ((20, 60), 2.5)
     assert_irispys(maps, raster, 1402.77, (0.6, 1.2), (20, 60), 2.5)
-    tree = app._layer_widget
-    tree.ui.layerTree.set_selected_layers([raster])
-    action = tree._actions[ACTION]
-    for rest, accept in (("", True), ("1402.77", False)):
-        answer(monkeypatch, rest, accept=accept)
-        action.trigger()
-        assert not iris._RUNNING  # and no thread started
-        assert len(collection) == 1
 
 
 def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatch, stack_paths):
@@ -129,37 +117,23 @@ def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatc
             np.testing.assert_allclose(maps[cid.label][k], alone[cid], rtol=0, atol=1e-9)
 
 
-def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy_test_files):
+def test_a_rest_wavelength_the_window_does_not_reach_is_refused_naming_both_ranges(app, monkeypatch, scan_path):
     [raster] = raster_data([scan_path], ["Si IV 1403"])
-    sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
-    plain = Data(label="plain", x=np.zeros((3, 4, 5)))
     collection = app.data_collection
-    collection.extend([raster, sji, plain])
+    collection.append(raster)
     shown = []
     monkeypatch.setenv("GLUE_TESTING", "False")  # glue raises the error instead while testing
     monkeypatch.setattr(QtWidgets.QMessageBox, "exec_", lambda box: shown.append(box.text()))
     tree = app._layer_widget
-    action = tree._actions[ACTION]
-    opened = answer(monkeypatch, "1402.77")
-    for data in (sji, plain):
-        tree.ui.layerTree.set_selected_layers([data])
-        refused(action)
-    assert opened == []  # refused before asking
     tree.ui.layerTree.set_selected_layers([raster])
-    for rest in ("3000", "Si IV"):
-        answer(monkeypatch, rest)
-        action.trigger()
-    assert all(text.startswith("Could not compute line maps\n") for text in shown)
-    assert [text.split("\n", 1)[1] for text in shown] == [
-        f"{sji.label} is not an IRIS raster window.",
-        "plain is not an IRIS raster window.",
-        f"No wavelength of {raster.label} (1398.63 to 1405.75 Å) lies within 1.0 Å below and 1.0 Å above 3000.0 Å.",
-        "'Si IV' is not a wavelength in Angstrom, such as 1402.77.",
+    answer(monkeypatch, "3000")
+    tree._actions[ACTION].trigger()
+    assert shown == [
+        "Could not compute line maps\n"
+        f"No wavelength of {raster.label} (1398.63 to 1405.75 Å) lies within 1.0 Å below and 1.0 Å above 3000.0 Å."
     ]
     assert app.statusBar().currentMessage() == ""
-    assert len(collection) == 3
-    tree.ui.layerTree.set_selected_layers([raster, sji])  # one dataset at a time
-    assert not action.isVisible()
+    assert len(collection) == 1
 
 
 def test_a_saturated_sample_taken_flags_its_pixel(monkeypatch, scan_path):

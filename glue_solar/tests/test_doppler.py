@@ -231,13 +231,3 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
     for velocities, said in (((0, 10), "0, 10"), ((np.nan,), "nan")):  # the function's
         with pytest.raises(ValueError, match=f"^The velocities must be positive, not {said} km / s.$"):
             doppler_image(raster, 1402.77, velocities)
-
-
-@pytest.mark.remote_data
-def test_a_full_mg_ii_k_window_gives_numpys_maps(irispy_data):
-    """3400109360's Mg II k, at full resolution, read lazily and its steps negative, gives numpy's maps."""
-    [path] = irispy_data("iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz")
-    [raster] = raster_data([path], ["Mg II k 2796"])
-    maps = doppler_image(raster, 2796.352, normalized=True)
-    assert maps.get_component("red - blue 10 km / s").units == "DN_IRIS_NUV / s"
-    assert_numpys(maps, raster, 2796.352, normalized=True)

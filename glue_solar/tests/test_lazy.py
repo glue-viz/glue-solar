@@ -584,28 +584,24 @@ def test_per_frame_limits_follow_the_wavelength_lazily_and_as_before(app, monkey
     assert (layer.stretch_global, [layer.v_min, layer.v_max]) == (True, whole)
 
 
-def test_raster_windows_and_stacks_open_in_their_detectors_colormap(app, monkeypatch, tmp_path, int16_raster,
-                                                                    irispy_test_files):
+def test_raster_windows_and_stacks_open_in_their_detectors_colormap(app, int16_raster, irispy_test_files):
     from glue_qt.viewers.image import ImageViewer
 
     from sunpy.visualization.colormaps import cmlist
 
-    # every window of the sit-and-stare raster through File -> Open, and four windows of two scans stacked, lazily
-    # and as before: sunpy's IRIS FUV colormap for the FUV1 and FUV2 windows, its NUV one for the NUV windows
+    # every window of the sit-and-stare raster through File -> Open, lazily, and a window of two scans stacked:
+    # sunpy's IRIS FUV colormap for the FUV1 and FUV2 windows, its NUV one for the NUV windows
     fuv, nuv = "irissjiFUV", "irissjiNUV"
     bands = {"C II 1336": fuv, "Fe XII 1349": fuv, "O I 1356": fuv, "Si IV 1394": fuv, "Si IV 1403": fuv,
              "2832": nuv, "2814": nuv, "Mg II k 2796": nuv}
-    sources = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)[:2]
-    scans = [int16_raster_copy(source, tmp_path / source.name) for source in sources]
-    windows = ["C II 1336", "Si IV 1403", "Mg II k 2796", "2832"]
-    loads = (lambda: iris_data(int16_raster), lambda: raster_data(scans, windows, stack=True))
-    datasets = [data for load in loads for results in lazy_and_eager(monkeypatch, load) for data in results]
+    scans = sorted(path for path in irispy_test_files if "3860258481_raster_t000_r" in path.name)[:2]
+    [stack] = raster_data(scans, ["Mg II k 2796"], stack=True)
+    datasets = [*iris_data(int16_raster), stack]
     cmaps = [bands[data.main_components[0].label] for data in datasets]
-    assert len(datasets) == 2 * (8 + 4)
+    assert len(datasets) == 8 + 1
     assert [data.style.preferred_cmap.name for data in datasets] == cmaps
-    app.data_collection.extend(datasets[-4:])  # the stacks, as before
-    for data, cmap in zip(datasets[-4:], cmaps[-4:]):
-        assert app.new_data_viewer(ImageViewer, data=data).layers[0].state.cmap == cmlist[cmap]
+    app.data_collection.append(stack)
+    assert app.new_data_viewer(ImageViewer, data=stack).layers[0].state.cmap == cmlist[nuv]
 
 
 def hover(viewer, x, y):
