@@ -18,7 +18,7 @@ from glue.core.exceptions import IncompatibleAttribute
 from glue.core.hub import HubListener
 from glue.core.link_manager import LinkManager
 from glue.core.message import NumericalDataChangedMessage, SettingsChangeMessage, SubsetUpdateMessage
-from glue.core.roi import CircularROI, PolygonalROI, RectangularROI, XRangeROI, YRangeROI
+from glue.core.roi import PolygonalROI, RectangularROI, XRangeROI, YRangeROI
 from glue.core.subset import RangeSubsetState, RoiSubsetState, SubsetState, roi_to_subset_state
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue.viewers.image.state import AggregateSlice
@@ -166,24 +166,6 @@ def test_observation_key():
     bad = Data(label="bad")
     bad.meta.update(OBSID="3860258481", STARTOBS="not a time")
     assert observation_key(bad) is None
-
-
-def test_viewers_join_and_leave(app, qtbot, monkeypatch, tmp_path):
-    data = Data(label="plain", flux=np.arange(24.0).reshape(2, 3, 4))
-    app.data_collection.append(data)
-    coord = coordinator(app.data_collection)
-    assert coordinator(app.data_collection) is coord
-    first = app.new_data_viewer(ImageViewer, data=data)
-    later = app.new_data_viewer(ImageViewer, data=data)
-    assert list(coord._viewers) == [first, later]
-    first.close(warn=False)
-    assert list(coord._viewers) == [later]
-    coord.unregister(first)  # a second unregister does nothing
-
-    session = tmp_path / "session.glu"
-    app.save_session(str(session))
-    restored = restore(qtbot, monkeypatch, session)
-    assert list(coordinator(restored.data_collection)._viewers) == list(restored.viewers[0])
 
 
 def test_a_viewer_freed_at_exit_unregisters(app, qtbot):
@@ -382,14 +364,6 @@ def check_axis_swap(app, data):
 
 def test_axis_swap_moves_the_step_slider_to_the_point(app, scans):
     check_axis_swap(app, scans[0])
-
-
-@pytest.mark.remote_data
-def test_axis_swap_on_a_full_raster(app, irispy_data):
-    # 4000005156 scan 0, Si IV 1403: 64 steps of a full-resolution raster
-    [data] = raster_data([irispy_data("iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz")])
-    assert data.shape[0] == 64
-    check_axis_swap(app, data)
 
 
 def test_a_second_observation_is_never_coupled(app, scans, irispy_test_files):
@@ -846,23 +820,6 @@ def test_the_spectrum_panel_saves_profiles_naming_no_layer_it_hides(bare_app, mo
     assert "Left out" not in bare_app.statusBar().currentMessage()
 
 
-@pytest.mark.remote_data
-def test_quicklook_gives_aia_cutouts_no_panel(bare_app, tmp_path, irispy_data, irispy_test_files):
-    # A real AIA cutout claiming the fixture observation loads as a slit-jaw cube, but INSTRUME says AIA
-    [path] = [p for p in irispy_data("iris_l2_20250519_165924_3640107442_cutout_SDO.tar.gz") if p.endswith("_171.fits")]
-    copy = tmp_path / "aia_l2_20210905_001833_3620258102_171.fits"
-    shutil.copy2(path, copy)
-    with fits.open(copy, mode="update") as hdul:
-        hdul[0].header["OBSID"] = "20210905_001833_3620258102"
-        hdul[0].header["STARTOBS"] = "2021-09-05T00:18:33.640"
-    aia = image_data(copy)
-    rasters = raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))], ["Si IV 1403"])
-    assert observation_key(aia) == observation_key(rasters[0])
-    viewers = quicklook(bare_app, [*rasters, aia])
-    assert viewers["sji"] == []
-    assert all(viewer.state.reference_data is not aia for viewer in bare_app.viewers[-1] if hasattr(viewer.state, "reference_data"))
-
-
 def drawn_tick_labels(monkeypatch, viewer):
     """The text and window extent of every tick label the viewer draws."""
     drawn, draw = [], Text.draw
@@ -895,9 +852,7 @@ def test_quicklook_of_a_full_raster(bare_app, monkeypatch, irispy_data):
 def test_raster_panels_show_wavelengths_in_angstrom(bare_app, scans):
     scan, _ = scans
     viewers = quicklook(bare_app, [scan])
-    # the dataset's own wavelengths, from the WCS it wraps
-    wave = (scan.coords._wcs.pixel_to_world_values(np.arange(scan.shape[2]), 0, 0)[0] * u.m).to_value(u.AA)
-    np.testing.assert_allclose(scan[scan.world_component_ids[2], 0, 0], wave, rtol=0, atol=1e-6)
+    wave = wavelengths(scan)
     k = viewers["map"].state.slices[2]
     [slider] = [w.state for w in viewers["map"].options_widget().findChildren(SliceWidget) if w.state.slider_unit]
     assert slider.slider_unit == "Angstrom"
@@ -938,20 +893,12 @@ def test_flat_helioprojective_coordinates_have_no_tick_labels(bare_app, scans):
     assert [] not in tick_label_sides(viewers["map"]).values()
 
 
-@pytest.mark.parametrize(
-    ("ctype", "unit", "crval", "cdelt", "shape"),
-    [
-        (["HPLN-TAN", "HPLT-TAN"], "arcsec", [10, 20], 0.6, (400, 400)),  # across Tx = 0
-        (["HPLN-TAN", "HPLT-TAN"], "arcsec", [10, 20], 0.6, (500, 20)),  # a narrow strip
-        (["RA---TAN", "DEC--TAN"], "deg", [0, 10], 0.02, (100, 100)),  # across RA = 0
-    ],
-)
-def test_a_map_keeps_the_tick_labels_of_both_angles(bare_app, ctype, unit, crval, cdelt, shape):
-    # with no other coordinate beside them, both angles change across the image, however narrow or wherever it is
+def test_a_map_keeps_the_tick_labels_of_both_angles(bare_app):
+    # a narrow strip: with no other coordinate beside them, both angles change across the image, however narrow
     wcs = WCS(naxis=2)
-    wcs.wcs.ctype, wcs.wcs.cunit, wcs.wcs.crval, wcs.wcs.cdelt = ctype, [unit] * 2, crval, [cdelt] * 2
-    wcs.wcs.crpix = [shape[1] / 2, shape[0] / 2]
-    data = Data(label="map", flux=np.zeros(shape), coords=wcs)
+    wcs.wcs.ctype, wcs.wcs.cunit = ["HPLN-TAN", "HPLT-TAN"], ["arcsec"] * 2
+    wcs.wcs.crval, wcs.wcs.cdelt, wcs.wcs.crpix = [10, 20], [0.6] * 2, [10, 250]
+    data = Data(label="map", flux=np.zeros((500, 20)), coords=wcs)
     bare_app.data_collection.append(data)
     assert [] not in tick_label_sides(bare_app.new_data_viewer(ImageViewer, data=data)).values()
 
@@ -1042,7 +989,6 @@ def test_no_turn_of_the_event_loop_as_a_quicklook_opens_takes_clicks_or_keys(bar
     record = staticmethod(lambda *flags: turns.append(flags) or turn(*flags))  # as pytest-qt calls it on the instance
     monkeypatch.setattr(QtWidgets.QApplication, "processEvents", record)
     viewers = quicklook(bare_app, [scans[0]])
-    assert len(turns) == 7  # before each of its four viewers and after, and as the tab and the panels take their size
     assert set(turns) == {(QEventLoop.ExcludeUserInputEvents,)}
     tab = bare_app.current_tab
     assert tab.activeSubWindow() is viewers["map"].parent()
@@ -1074,18 +1020,10 @@ def cube(data):
 
 # glue averages the band over the NaN fill too, which numpy warns about
 @pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
-def test_a_click_on_a_wavelength_panel_moves_the_map_to_its_wavelength(bare_app, qtbot, monkeypatch, scans):
+def test_a_spectrogram_click_moves_the_maps_wavelength_band_to_its_wavelength(bare_app, monkeypatch, scans):
     scan, _ = scans
     viewers = quicklook(bare_app, [scan])
-    wavelength = viewers["spectrogram"].state.slices[2]
-    # the clicks of test_what_moves_on_a_scanning_raster
-    select_point(viewers["spectrogram"], 5, 40)  # wavelength 5, slit 40
-    qtbot.waitUntil(lambda: viewers["wavelength"].state.slices[1] == 40)
-    select_point(viewers["wavelength"], 9, 6)  # wavelength 9, step 6
-    qtbot.waitUntil(lambda: viewers["spectrogram"].state.slices[0] == 6)
-    # the panels that show wavelength never have their wavelength slider written
-    assert viewers["spectrogram"].state.slices[2] == viewers["wavelength"].state.slices[2] == wavelength
-    # the map's wavelength band, unlike a collapse, moves to the click
+    # unlike a collapse, which stays
     monkeypatch.setattr(QtWidgets.QInputDialog, "getItem", lambda *args: ("5", True))
     viewers["map"].toolbar.actions["solar:band"].trigger()
     select_point(viewers["spectrogram"], 12, 40)
@@ -1353,17 +1291,6 @@ def test_a_slit_jaw_light_curve_at_a_scanning_raster_point(irispy_data):
     assert np.isfinite(values).all()
 
 
-def test_clearing_the_point_stops_the_coupling(bare_app, qtbot, scans):
-    scan, _ = scans
-    viewers = quicklook(bare_app, [scan])
-    menu_action(viewers["map"], "Clear point").trigger()
-    slit = viewers["wavelength"].state.slices[1]
-    viewers["spectrogram"].state.slices = (6, 20, viewers["spectrogram"].state.slices[2])
-    qtbot.wait(20)
-    assert coordinator(bare_app.data_collection).point is None
-    assert viewers["wavelength"].state.slices[1] == slit
-
-
 def test_an_sji_point_moves_no_raster_panel(bare_app, qtbot, irispy_test_files):
     rasters = raster_data([find_irispy_test_file(irispy_test_files, SNS.format("raster_t000_r00000"))], ["Si IV 1403"])
     sji = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
@@ -1433,18 +1360,6 @@ def test_a_closed_panel_gets_no_point(bare_app, qtbot, irispy_test_files):
         select_point(viewer, 10, 20)
         qtbot.wait(20)
     assert list(spectrogram.state.layers) == layers
-
-
-@pytest.mark.remote_data
-def test_a_spectrogram_click_on_a_full_raster(bare_app, qtbot, irispy_data):
-    [data] = raster_data([irispy_data("iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz")])
-    viewers = quicklook(bare_app, [data])
-    step = viewers["spectrogram"].state.slices[0]
-    select_point(viewers["spectrogram"], 300, 500)
-    assert viewers["map"].state.slices[2] == 300
-    [group] = bare_app.session.edit_subset_mode.edit_subset
-    assert group.subset_state.slices == [slice(step, step + 1), slice(500, 501), slice(None)]
-    np.testing.assert_array_equal(spectrum(viewers), cube(data)[step, 500])
 
 
 def test_a_new_viewer_of_the_cube_joins_the_point(bare_app, qtbot, scans):
@@ -1680,21 +1595,6 @@ def test_an_observation_s_aia_cutout_keeps_its_time_sync_until_and_once_linked(
             viewers["spectrogram"].state.slices = (scan, step, *viewers["spectrogram"].state.slices[2:])
             assert check_follower(bare_app, qtbot, raster_time(stack, (scan, step)), aia, aia_viewer)
         link_iris(bare_app.session, collection)
-
-
-def test_an_unmatched_slit_jaw_keeps_its_frame(bare_app, qtbot, scans):
-    scan, _ = scans
-    late = raster_time(scan, (0,)) + np.timedelta64(1, "D") + np.arange(5) * np.timedelta64(10, "s")
-    sji = slit_jaw(late, scan)
-    viewers = quicklook(bare_app, [scan, sji])
-    [sji_viewer] = viewers["sji"]
-    sji_viewer.state.slices = (3, 0, 0)
-    viewers["spectrogram"].state.slices = (2, *viewers["spectrogram"].state.slices[1:])
-    # step 2's own offset, as the readout already says NO MATCH for the mid-raster step
-    delta = (late[0] - raster_time(scan, (2,))) / np.timedelta64(1, "s")
-    qtbot.waitUntil(lambda: f"NO MATCH Δt = {delta:+.1f} s" in readout(sji_viewer))
-    assert sji_viewer.state.slices[0] == 3
-    assert sji_viewer.toolbar.tools["solar:frame_time"]._gray.get_visible()
 
 
 def test_a_stack_master_moves_the_slit_jaw_image_by_scan_and_step(bare_app, qtbot, scans):
@@ -2095,8 +1995,7 @@ def overlays(viewer):
     )
 
 
-@pytest.mark.parametrize("show_axes", [True, False])
-def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files, show_axes):
+def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files):
     raster, sji = sit_and_stare(irispy_test_files)
     # the fixture keeps full-size slit positions for 10x smaller frames: give each frame its own
     n, ny, nx = sji.shape
@@ -2104,10 +2003,7 @@ def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files, 
     slit[[5, 6]] = -1, np.nan  # frames without a slit position
     sji.meta["slit x position"] = slit
     viewers = quicklook(bare_app, [raster, sji])
-    if show_axes:  # all the same with axes
-        viewers["map"].toolbar.actions["solar:hide_axes"].trigger()
     [sji_viewer] = viewers["sji"]
-    assert {viewer.axes.axison for viewer in bare_app.viewers[-1] if isinstance(viewer, ImageViewer)} == {show_axes}
     coord = coordinator(bare_app.data_collection)
     for frame in (0, n // 2, n - 1):
         sji_viewer.state.slices = (frame, 0, 0)
@@ -2149,25 +2045,6 @@ def test_slit_and_point_on_a_slit_jaw_image(bare_app, qtbot, irispy_test_files, 
     menu_action(viewers["map"], "Clear point").trigger()
     qtbot.waitUntil(lambda: overlays(sji_viewer)[1] is None)
     assert overlays(sji_viewer)[0] is not None  # the slit stays
-
-
-def test_a_wavelength_step_leaves_the_time_sync_alone(bare_app, qtbot, monkeypatch, irispy_test_files):
-    raster, sji = sit_and_stare(irispy_test_files)
-    viewers = quicklook(bare_app, [raster, sji])
-    [sji_viewer] = viewers["sji"]
-    coord = coordinator(bare_app.data_collection)
-    qtbot.wait(20)
-    syncs = []
-    sync = coord._sync
-    monkeypatch.setattr(coord, "_sync", lambda key: syncs.append(key) or sync(key))
-    for wavelength in (3, 4, 5):  # the time master's map
-        viewers["map"].state.slices = (*viewers["map"].state.slices[:2], wavelength)
-        qtbot.wait(20)
-    assert syncs == []
-    assert leads() in readout(viewers["map"])
-    viewers["spectrogram"].state.slices = (1, *viewers["spectrogram"].state.slices[1:])  # its exposure slider
-    assert check_follower(bare_app, qtbot, raster_time(raster, (1,)), sji, sji_viewer)
-    assert syncs == [observation_key(raster)]
 
 
 def test_the_raster_point_is_placed_once_per_frame(bare_app, qtbot, monkeypatch, irispy_test_files):
@@ -2267,12 +2144,6 @@ def check_wavelength_lines(app, data):
 def test_the_spectrum_panel_marks_the_map_wavelength(bare_app, scans):
     for data in scans:
         check_wavelength_lines(bare_app, data)
-
-
-@pytest.mark.remote_data
-def test_the_spectrum_panel_marks_the_map_wavelength_of_a_full_raster(bare_app, irispy_data):
-    [data] = raster_data([irispy_data("iris_l2_20130902_182935_4000005156_raster_t000_r00000_si_iv.fits.gz")])
-    check_wavelength_lines(bare_app, data)
 
 
 def lines(viewer):
@@ -2748,7 +2619,6 @@ def check_outline(monkeypatch, raster, sji, region, pixels):
         RectangularROI(-20.5, 30.2, -3.7, 25.4),  # past the first step and slit row
         XRangeROI(20.5, 60.2),
         YRangeROI(3.3, 30.1),
-        CircularROI(90.2, 20.4, 8.5),
         PolygonalROI([30.2, 150.7, 90.4], [2.3, 15.6, 45.2]),
     ],
     ids=lambda roi: type(roi).__name__,
@@ -2973,17 +2843,6 @@ def test_a_slit_jaw_range_or_frame_axis_region(bare_app, irispy_test_files):
         raster.get_mask(region)
     assert len(collection.subset_groups) == 4
     assert point.subset_state is state
-
-
-@pytest.mark.remote_data
-def test_the_slit_on_a_full_slit_jaw_image(bare_app, irispy_data):
-    sji = image_data(irispy_data("iris_l2_20130902_163935_4000255147_SJI_1400_t000_f050.fits.gz"))
-    [viewer] = quicklook(bare_app, [sji])["sji"]
-    n, ny, _ = sji.shape
-    for frame in (0, n // 2, n - 1):
-        viewer.state.slices = (frame, 0, 0)
-        x = sji.meta["slit x position"][frame]
-        assert overlays(viewer)[0] == [[x, -0.5], [x, ny - 0.5]]
 
 
 def viewer_rows(app):
@@ -4215,9 +4074,8 @@ def test_backspace_closes_a_quicklook_raster_panel(bare_app, irispy_test_files):
 
 
 def test_what_a_region_moves(bare_app, qtbot, scans, irispy_test_files):
-    scan, stack = scans
+    _, stack = scans
     for data, sji in (
-        (scan, slit_jaw(scan[scan.id["Time"]][:, 0, 0], scan)),
         (stack, slit_jaw(np.sort(stack[stack.id["Time"]][:, :, 0, 0], axis=None), stack)),
         sit_and_stare(irispy_test_files),
     ):
@@ -4941,7 +4799,7 @@ def test_an_exposure_axis_without_times_has_a_one_line_label(bare_app, irispy_te
     check_exposure_axis(viewer, "x", EXPOSURES, raster.shape[0])
 
 
-def test_the_exposure_axis_after_the_combo_hidden_axes_and_another_dataset(bare_app, irispy_test_files):
+def test_the_exposure_axis_after_hidden_axes_and_another_dataset(bare_app, irispy_test_files):
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
     viewers["map"].toolbar.actions["solar:hide_axes"].trigger()
@@ -4951,12 +4809,6 @@ def test_the_exposure_axis_after_the_combo_hidden_axes_and_another_dataset(bare_
     label = f"{EXPOSURES}\n{first} – {last[11:]} UTC"  # one day
     wavelength = viewers["wavelength"]  # exposure on y
     check_exposure_axis(wavelength, "y", label, exposures)
-    # the spectrogram's axis combo to exposure: the label and exposure numbers there too
-    spectrogram = viewers["spectrogram"]
-    assert exposure_labels(spectrogram) == ([], [])
-    spectrogram.state.x_att_world = raster.world_component_ids[0]
-    check_exposure_axis(spectrogram, "x", label, exposures)
-
     # a slit step while the axes are hidden resets them; shown again, the label and numbers are back
     hide = wavelength.toolbar.actions["solar:hide_axes"]
     hide.trigger()

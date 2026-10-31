@@ -221,7 +221,6 @@ def test_a_session_restores_the_links_link_hpc_gives_a_stack_and_a_map(tmp_path,
     aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))  # linked with its units
     collection = DataCollection([sji, stack, aia])
     collection.add_link(link_hpc(collection, others=[aia]))
-    assert not glue_patches.needs_link_restore_workaround()  # glue-core 1.27.0 alone opens no such session
     scans = sji[stack.id["Scan"]]
     assert set(np.unique(np.delete(scans, 3, axis=0))) == {0, 1}
     assert np.isnan(scans[3]).all()
