@@ -1485,9 +1485,10 @@ as vmtouch does; disk bytes and RSS from `proc_pid_rusage`; the read-ahead hint 
   stays out.
 - **Dense reads are the slow case left.** For every row of the slit the per-page hint is no help over USB (3.1 s and
   2.0 s against 2.2 s and 1.7 s with no hint: the hint's 32k calls cost on top of the faults), where one sequential
-  read per tuning plane of the rows' band takes 0.47 s, 5-6x less. Candidate, not planned: `_Cube.get_data` reading a
-  dense index view (its rows a page or less apart over most of the band) as plain reads of the band into a buffer
-  rather than through the map; on NVMe it is a 1.5x gain only.
+  read per tuning plane of the rows' band takes 0.47 s, 5-6x less. `_Cube.get_data` reads such a view, each index along an axis of its
+  own and the bands no more than twice the pages the map's read would touch, as one plain read of the band per plane
+  through astropy's `section` (#406): the full slit cold in 0.42 s over USB, the panel unchanged at 49 ms; on NVMe
+  it is a 1.5x gain only.
 - **MADV_RANDOM hurts on both** (one fault per page, no read-around) unless a hint follows it.
 - **The big stack over USB** (3860107071, 1230 raster files, 9 windows, 3 SJIs, `bigstack_20261020/prof.py`
   through the browser): loads in 81.8 s and restores in 65.7 s, against 73 s and 75 s on the Linux machine's NVMe with
