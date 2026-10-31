@@ -429,7 +429,8 @@ def test_a_dense_view_reads_each_plane_s_band_and_a_sparse_one_the_map_s_pages(m
     # GLUE_SPEED.md 2026-10-31: the full virtual slit of a 13 GB cube took 2.2-3.1 s cold over USB through the map's
     # pages, hinted or not, where reading each tuning plane's band took 0.47 s
     path, banded, hinted = tmp_path / "cube.fits", [], []
-    write_sst_cube(path, (2, stokes, 6, 30, 8000))  # rows of 32 KB, planes of 960 KB
+    # rows of 6.4 KB, a page or two on either page size, so every row's pages run together as a real cube's 7 KB rows do
+    write_sst_cube(path, (2, stokes, 6, 30, 1600))
     cube = sst_data(path)
     cid, values = cube.main_components[0], fits.getdata(path, memmap=False).reshape(cube.shape)
 
@@ -441,11 +442,11 @@ def test_a_dense_view_reads_each_plane_s_band_and_a_sparse_one_the_map_s_pages(m
     monkeypatch.setattr(_Cube, "_band", band)
     monkeypatch.setattr(_Cube, "_hint", lambda self, *args: hinted.append(args))
     lead = [[k] for k in (1, 0)[: cube.ndim - 3]]  # scan 1, Stokes I
-    slit = np.ix_(*lead, np.arange(6), np.r_[np.arange(30)[::-1], 7, 7], [4000])  # every row, out of order, two twice
+    slit = np.ix_(*lead, np.arange(6), np.r_[np.arange(30)[::-1], 7, 7], [800])  # every row, out of order, two twice
     np.testing.assert_array_equal(cube.get_data(cid, slit), values[slit])
-    sparse = np.ix_(*lead, np.arange(6), np.arange(0, 30, 10), [4000])  # 3 of the 30 rows, a page or more apart
+    sparse = np.ix_(*lead, np.arange(6), [0, 29], [800])  # 2 of the 30 rows, their band 12 times their pages
     np.testing.assert_array_equal(cube.get_data(cid, sparse), values[sparse])
-    plane = np.ix_(*lead, [2], np.arange(30), np.arange(8000))  # a map, every row and column
+    plane = np.ix_(*lead, [2], np.arange(30), np.arange(1600))  # a map, every row and column
     np.testing.assert_array_equal(cube.get_data(cid, plane), values[plane])
     assert banded == [True, False, True]
     assert len(hinted) == 1  # the sparse view's
