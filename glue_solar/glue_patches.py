@@ -2,8 +2,8 @@
 Gated fixes for glue-core and glue-qt bugs that IRIS data hits.
 
 Each fix installs, or acts, only when its probe finds the bug (a `needs_*` probe that raises counts as finding it:
-`_needs`), and names its PR, whose row in the plan's Workaround register names the switch and the upstream change that
-retires it.
+`_needs`), and names its PR, whose entry in the dev guide's Workaround register (`docs/dev_guide/workarounds.rst`)
+names the switch and the upstream change that retires it.
 """
 
 import builtins
