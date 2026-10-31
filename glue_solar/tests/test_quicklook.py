@@ -2178,13 +2178,13 @@ def test_the_raster_point_is_placed_once_per_frame(bare_app, qtbot, monkeypatch,
     [group] = bare_app.session.edit_subset_mode.edit_subset
     qtbot.wait(20)
     placed = []
-    place = glue_solar.quicklook._sji_pixels
+    place = glue_solar.quicklook._frame_pixels
 
-    def counted(data, frame, lon, lat):
-        placed.append(frame)
-        return place(data, frame, lon, lat)
+    def counted(data, at, lon, lat):
+        placed.append(at[0])
+        return place(data, at, lon, lat)
 
-    monkeypatch.setattr(glue_solar.quicklook, "_sji_pixels", counted)
+    monkeypatch.setattr(glue_solar.quicklook, "_frame_pixels", counted)
     viewers["spectrogram"].state.slices = (186, *viewers["spectrogram"].state.slices[1:])
     qtbot.waitUntil(lambda: " · Δt " in readout(sji_viewer))
     qtbot.wait(20)

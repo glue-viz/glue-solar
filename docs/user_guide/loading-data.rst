@@ -208,7 +208,8 @@ a Stokes parameter not yet shown takes up to 3 s, its later moves about 0.5 s.
   nearest frames. A point on IRIS data reaches a ViSP or Cryo-NIRSP spectrograph raster at the
   step whose slit passes nearest it, at the repeat or measurement nearest its time, or on a
   sit-and-stare raster the step nearest its time, and at the slit pixel level with it. A point more
-  than half a step past a scanning raster's first or last step doesn't reach it. A point on the
+  than half a step past a scanning raster's first or last step, or half a slit pixel beside the slit
+  of a raster of one step, doesn't reach it. A point on the
   raster reaches IRIS data at its place, in the frame nearest its step's time, and IRIS images
   draw over the raster's map.
 - "Mosaic…" on a tile of a VBI or DL-NIRSP mosaic adds its tiles stitched into one image by

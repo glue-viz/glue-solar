@@ -79,7 +79,7 @@ pointing…" shifts the image, not the grid.
 Removing dust
 -------------
 
-"IRIS: remove dust" runs irispy's ``SJICube.remove_dust``, after SolarSoft's
+"IRIS: remove dust" runs irispy's ``remove_dust`` (``irispy.utils.dust``), after SolarSoft's
 ``iris_dustbuster``: each dust pixel of the IRIS pipeline's bad-pixel table, placed in each frame by
 the slit's position, and those next to it take the median of that pixel over the two frames on
 either side, scaled by their exposure times, or else of the 5 by 5 pixels about it. It adds

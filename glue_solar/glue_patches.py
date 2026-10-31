@@ -330,7 +330,8 @@ def _select_pixel(self, mode):
     another tile of the DKIST mosaic a pair quicklook's context imager panel draws, the point of that tile's pixel
     there (`~glue_solar.quicklook.QuicklookImageViewer.tile_at`, D109).
     """
-    if not self._pressed:  # glue's own first check: it is called on every mouse move, in an empty viewer too
+    # glue's own first check, as it is called on every mouse move, in an empty viewer too, where a press has no image
+    if not self._pressed or self.viewer.state.reference_data is None:
         return
     state, x, y = self.viewer.state, self._event_xdata, self._event_ydata
     if None in (x, y) or all(
