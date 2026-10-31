@@ -213,7 +213,7 @@ The register is [`docs/dev_guide/workarounds.rst`](https://github.com/glue-viz/g
 
 Run all Python in a micromamba env, never a `.venv`; create a new env rather than change one. The envs, data and machines are in [IRIS_PLAN_PROTOTYPES/OPERATIONS.md](IRIS_PLAN_PROTOTYPES/OPERATIONS.md).
 
-Headless runs use a scratch `HOME` (glue rewrites `~/.glue/settings.cfg`), offscreen Qt and Agg; glue-solar's conftest keeps tests off macOS QSettings (D75). Run tests from a checkout of the code under test, never `~/Git/glue-solar` (on `plan`); `run_checks.py` makes its own HOME and caches and removes them when it ends, but for astropy's cache, kept so the IERS tables download about monthly:
+Headless runs use a scratch `HOME` (glue rewrites `~/.glue/settings.cfg`), offscreen Qt and Agg; glue-solar's conftest keeps tests off macOS QSettings (D75). Run tests from a checkout of the code under test, never `~/Git/glue-solar` (on `plan`); `run_checks.py` makes its own HOME and caches and removes them when it ends, but for astropy's cache (kept so the IERS tables download about monthly) and pooch's (kept so the remote-data files download once):
 
 ```sh
 P=~/Git/glue-solar/IRIS_PLAN_PROTOTYPES
