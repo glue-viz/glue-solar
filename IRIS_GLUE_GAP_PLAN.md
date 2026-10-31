@@ -29,7 +29,7 @@ Out of scope:
 
 ## Current state
 
-**Resume here.** Main is at 96dffa2 (#405). glue-solar pins irispy main f058705 (#347, D91); following irispy waits for its gwcs port, #360 (D106). M0, M2, M3 and WP13 are done. Open: the held follow-irispy PR (`wp10-follow-irispy`), release tracking on each release, and M4's upstreaming on the user's direction. The code since 2026-10-19 had its Fable review on 2026-10-31 (five findings fixed by #405; the review's one open ask, a probe gate for `sync_sliders_from_state`, is UPSTREAM_REVIEW.md's).
+**Resume here.** Main is at 9671f41e (#407). glue-solar pins irispy main f058705 (#347, D91); following irispy waits for its gwcs port, #360 (D106). M0, M2, M3 and WP13 are done. Open: the held follow-irispy PR (`wp10-follow-irispy`), release tracking on each release, and M4's upstreaming on the user's direction. The code since 2026-10-19 had its Fable review on 2026-10-31 (five findings fixed by #405; the review's one open ask, a probe gate for `sync_sliders_from_state`, is UPSTREAM_REVIEW.md's).
 
 **Next.** Merged work is recorded by its PRs and git history, not here. The follow-irispy PR, branch `follow-irispy-main` (on main cae1af6; irispy pinned to #360's head 5d662b1, whose code the user calls settled, docs changes to come; batched stack reads, b1, user 2026-10-29; 778 passed, 4 skipped in the Linux env `iris-plan-irispy-360`; PR body `fix25/follow-batched/body.md` in the Linux session archive; the head before the rebase kept as `follow-irispy-main-before-batch`), opens once #360 merges: retargeted to #360's merge commit, its gwcs fixes checked again against #360's final API, and rerun (D106). How items run: an Opus implementer, a Fable review and an Opus fix pass (`IRIS_PLAN_PROTOTYPES/plan_tooling/plan-item-workflow.js`, and the Linux archive's `workflows/`), every probe and test on the Linux machine under a 24 GB memory scope (systemd-run); branches made beside each other are merged and suite-run together before their PRs, which go one at a time. CI's core job runs with coverage on four xdist workers, several times slower than local runs: keep test fits small and waits at 60 s. A batch of irispy merges gets one follow-irispy PR (D91, D92).
 
@@ -163,7 +163,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 ### Checklist by milestone
 
 **M1**
-- WP0: `wp0-slider-gate`, `wp0-release-tracking`
+- WP0: `wp0-release-tracking`
 - WP10: `wp10-sst-dense-reads`, `wp10-follow-irispy`
 
 **Later**
@@ -180,7 +180,6 @@ Upstream work in glue, glue-qt, irispy, astropy and dkist that retires the worka
 
 **M1**
 
-- [ ] **M1** `wp0-slider-gate` (user, 2026-10-31; UPSTREAM_REVIEW.md 'Glue-solar changes now'): gate `glue_patches.sync_sliders_from_state`, the one always-on patch of the file, on a probe, `needs_slider_world_workaround()`: glue-qt 0.4.2's `MultiSliceWidgetHelper` gives a slider the unit of array axis `ndim - 1 - i` where glue's world axis is `world_n_dim - 1 - i`, so a 3-D Data of 4 world axes shows degrees for a wavelength; the probe needs Qt's application, so it runs at the first call as the icon cache's does, the patch falling through to glue-qt's own when it passes; the hide of replaced sliders stays unconditional. Done when the register entry names the switch and a test pins the probe on glue-qt 0.4.2.
 - [ ] **M1** `wp0-release-tracking`: After each release of a package glue-solar imports, raise its floor to it (D104) in a new env of the latest releases, retire the workarounds it fixes (`docs/dev_guide/workarounds.rst`) and update the guides it affects. Release WAITs (UPSTREAM_REVIEW.md 'Glue-solar changes now'): a dkist release with #765 drops `_off_frames` and DKIST's NotImplementedError path; an irispy pin past #320 drops the `FitInfoSubset` dict conversion; a pytest release fixing #15287 restores `monkeypatch.setattr(settings, ...)` in `test_dkist.py` and `test_quicklook.py`; the astropy floor rises to the first release bundling WCSLIB 8.9, whose `wcserr_set` no longer leaks 64 B per pixel outside a -TAB table; once glue-qt releases a `glue -x` fix, the macOS app's check runs `smoke.py` with `-x` and `GLUE_SOLAR_APP_CHECK` goes (216-2); as glue #2596/#2601 and glue-qt #70/#74 ship, the guides drop the caveats they lift. The macOS app (#216, `packaging/macos/build_app.sh`, D55) is rebuilt on the final releases as the plan's last deliverable, and 'IRIS: user guide and issues' then opens the installed release's docs, not 'latest' (160-x1). Done when each release's PR names its floors and retired workarounds; no line here.
 
 **L**
