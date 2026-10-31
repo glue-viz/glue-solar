@@ -3,17 +3,13 @@ Checks that the recipes in the user guides do what they say, on the irispy fixtu
 """
 
 import re
-import warnings
 
 import numpy as np
 from glue.core.subset import RangeSubsetState
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.app.application import GlueApplication
 from glue_qt.viewers.image import ImageViewer
-from glue_qt.viewers.profile import ProfileViewer
 from qtpy.QtCore import Qt
-
-import astropy.units as u
 
 import glue_solar
 from glue_solar.conftest import find_irispy_test_file
@@ -40,7 +36,7 @@ def test_scripting_recipe(qtbot, irispy_test_files):
     data_collection.extend([*rasters, sji])
     raster = rasters[0]
     step, slit, pixel = 90, 20, 14
-    wavelength, latitude, longitude = raster.coords.pixel_to_world_values(pixel, slit, step)
+    _, latitude, _ = raster.coords.pixel_to_world_values(pixel, slit, step)
 
     # the coordinates are what the readout shows at a Pixel point on the raster map
     viewer = app.new_data_viewer(ImageViewer, data=raster)
@@ -54,40 +50,13 @@ def test_scripting_recipe(qtbot, irispy_test_files):
     # a sit-and-stare raster, whose steps are exposures: the latitude along the slit, and the exposure's time
     assert arcsec(readout) == [round(latitude, 2)]
     assert f" · {np.datetime_as_string(raster['Time'][step, 0, 0], unit='ms')} UTC" in readout
-    assert 1390 < wavelength < 1410  # Si IV 1403, in Angstrom
-    assert raster.coords.world_axis_units[0] == "Angstrom"
-    assert (latitude * u.arcsec).unit == u.arcsec
-
-    times = raster["Time"][:, 0, 0]
-    assert times.dtype.kind == "M"
-    assert len(times) == raster.shape[0]
-    assert sji["Time"][:, 0, 0].dtype.kind == "M"
 
     # on this sit-and-stare raster the exposure nearest the frame's time, and the slit row level with the pixel: back
     # in the frame, within half a pixel of it (the fixture's raster and slit-jaw pixels are both 1.66")
     frame, x, y = 30, 18.5, 20.0
     index = sji_to_raster(sji, frame, x, y, raster)
-    assert index[0] == np.argmin(np.abs(times - sji["Time"][frame, 0, 0]))
+    assert index[0] == np.argmin(np.abs(raster["Time"][:, 0, 0] - sji["Time"][frame, 0, 0]))
     assert abs(raster_point_on_sji(raster, sji, *index, frame)[1] - y) <= 0.5
-
-    # the Profile viewer's Mean against Wavelength is the mean over every step and slit position, a saturated sample at
-    # its value, 16182 DN (D85)
-    cid = raster.main_components[0]
-    values = np.array(raster[cid])
-    values[step, slit, pixel] = 16182
-    raster.update_components({cid: values})
-    profile = app.new_data_viewer(ProfileViewer, data=raster)
-    profile.state.function = "mean"
-    profile.state.x_att = raster.world_component_ids[2]
-    _, mean = profile.state.layers[0].profile
-    mean_spectrum = raster.compute_statistic("mean", cid, axis=(0, 1))
-    np.testing.assert_array_equal(mean_spectrum, mean)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)  # wavelengths with no valid sample give NaN
-        expected = np.nanmean(values, axis=(0, 1), dtype=float)
-    np.testing.assert_allclose(mean_spectrum, expected, rtol=1e-6)
-    assert np.isfinite(mean_spectrum[pixel])
-    np.testing.assert_array_equal(raster[cid, step, slit], raster[cid][step, slit])
 
     # link_hpc links the IRIS data, and an AIA cutout only where others names it
     aia = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))

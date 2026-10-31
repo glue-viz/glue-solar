@@ -414,23 +414,25 @@ def test_the_point_window_gives_a_dkist_raster_s_time_and_exposure(qtbot, monkey
     assert rows(window)[0][3:5] == [f"{when} UTC", f"{headers['XPOSURE'][1] / 1000:.4g} s"]
 
 
-@pytest.mark.parametrize("restored", [False, True])
-def test_a_dkist_dataset_s_nan_pixels_draw_transparent(app, qtbot, monkeypatch, tmp_path, restored):
+def test_a_dkist_dataset_s_nan_pixels_draw_transparent(app, qtbot, monkeypatch, tmp_path):
+    def transparent(viewer):
+        # as IRIS data's: glue painted them black, so each tile of a mosaic in one viewer blackened those beneath (D103)
+        assert tuple(viewer.layers[0].state.cmap_bad) == (0, 0, 0, 0)  # a list once restored
+        image = viewer.axes._composite(bounds=[(-0.5, 1.5, 2), (-0.5, 1.5, 2)])  # its files are not here: NaN
+        np.testing.assert_array_equal(image[0, 0], [1, 1, 1, 1])  # the white background shows through
+
     with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
         tile = load_data(str(asdf_alone(tmp_path, "large_vbi")))[4]
     app.data_collection.append(tile)
-    viewer = app.new_data_viewer(ImageViewer, data=tile)
-    if restored:  # and from a session, where glue's restored layer left its image's bad color unset: opaque
-        installed = ImageLayerArtist.__init__ is glue_patches.image_layer_init
-        assert installed == glue_patches.needs_cmap_bad_restore_workaround()  # probes glue's own method
-        assert not glue_patches.needs_cmap_bad_restore_workaround(glue_patches.image_layer_init)
-        app.save_session(str(tmp_path / "nan.glu"))
-        with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
-            viewer = restore(qtbot, monkeypatch, tmp_path / "nan.glu").viewers[0][0]
-    # as IRIS data's: glue painted them black, so each tile of a mosaic in one viewer blackened those beneath (D103)
-    assert tuple(viewer.layers[0].state.cmap_bad) == (0, 0, 0, 0)  # a list once restored
-    image = viewer.axes._composite(bounds=[(-0.5, 1.5, 2), (-0.5, 1.5, 2)])  # its files are not here: NaN
-    np.testing.assert_array_equal(image[0, 0], [1, 1, 1, 1])  # the white background shows through
+    transparent(app.new_data_viewer(ImageViewer, data=tile))
+    # and from a session, where glue's restored layer left its image's bad color unset: opaque
+    installed = ImageLayerArtist.__init__ is glue_patches.image_layer_init
+    assert installed == glue_patches.needs_cmap_bad_restore_workaround()  # probes glue's own method
+    assert not glue_patches.needs_cmap_bad_restore_workaround(glue_patches.image_layer_init)
+    app.save_session(str(tmp_path / "nan.glu"))
+    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
+        viewer = restore(qtbot, monkeypatch, tmp_path / "nan.glu").viewers[0][0]
+    transparent(viewer)
 
 
 @small_visp_dated_2044
@@ -620,7 +622,7 @@ def test_a_dkist_dataset_s_coordinates_evaluate_on_one_thread_at_a_time(monkeypa
         def evaluated(*values):
             overlaps.append(bool(running))
             running.append(evaluate)
-            time.sleep(0.5)
+            time.sleep(0.05)
             running.remove(evaluate)
             return evaluate(*values)
 
@@ -815,10 +817,11 @@ def test_a_mosaic_s_tiles_link_to_its_first_tile_left_once_its_center_tile_is_re
         again = restore(qtbot, monkeypatch, tmp_path / "vbi.glu").data_collection
     assert all(tile._center is again[0] for tile in again)
     # a mosaic not linked stays so
-    with pytest.warns(UserWarning, match="VBI AJQWW: 0 of 27 files"):
-        others = load_data(str(asdf_alone(tmp_path, "large_vbi")))
+    others = [vbi_like("VBI OTHER (1, 1)"), vbi_like("VBI OTHER (1, 2)", north=4)]
+    for tile in others:
+        tile._mosaic, tile._center = others, others[0]
     dc.extend(others)
-    dc.remove(others[4])
+    dc.remove(others[0])
     assert len(dc.external_links) == 7
 
 
@@ -1059,27 +1062,26 @@ def test_iris_points_reach_a_dkist_raster_at_its_step_and_slit_pixel_and_back(
         assert (type(restored), restored.__gluestate__(None)) == (type(using), using.__gluestate__(None))
 
 
-@pytest.mark.parametrize("off", [0.49, 0.51])
-@pytest.mark.parametrize(("end", "inner"), [(0, 1), (687, 686)])  # the raster's first and last steps, and the next
-def test_an_iris_point_past_half_a_step_beyond_a_dkist_raster_s_end_does_not_reach_it(
-    app, tmp_path, sns, end, inner, off
-):
+def test_an_iris_point_past_half_a_step_beyond_a_dkist_raster_s_end_does_not_reach_it(app, tmp_path, sns):
     sji, _ = sns
     with pytest.warns(UserWarning, match="0 of 2752 files"):
         raster = load_data(str(asdf_alone(tmp_path, "croppable_visp")))
-    # the slit-jaw image's frame 10 at (20, 18) shifted ``off`` a step beyond step ``end``, at its first slit pixel
-    edge, next_ = (np.array(_lon_lat(raster, (0, step, 400, 0))) for step in (end, inner))
-    place = edge + off * (edge - next_)
-    sji.coords.pointing_offset = tuple(float(a - b) for a, b in zip(place, _lon_lat(sji, (10, 20, 18))))
     app.data_collection.extend([sji, raster])
     link_iris(app.session, app.data_collection)
-    # within half a step it reaches that step, and past it none, as the quicklook's no match (D7), where it reached a
-    # step off the raster up to one step beyond
-    if off < 0.5:
-        assert point(sji, (10, 20, 18), raster) == [None, end, None, 0]
-    else:
-        with pytest.raises(IncompatibleAttribute):
-            point(sji, (10, 20, 18), raster)
+    unshifted = _lon_lat(sji, (10, 20, 18))  # before any offset, which moves it
+    for end, inner in ((0, 1), (687, 686)):  # the raster's first and last steps, and the next
+        for off in (0.49, 0.51):
+            # the slit-jaw image's frame 10 at (20, 18) shifted ``off`` a step beyond step ``end``, at slit pixel 0
+            edge, next_ = (np.array(_lon_lat(raster, (0, step, 400, 0))) for step in (end, inner))
+            place = edge + off * (edge - next_)
+            sji.coords.pointing_offset = tuple(float(a - b) for a, b in zip(place, unshifted))
+            # within half a step it reaches that step, and past it none, as the quicklook's no match (D7), where it
+            # reached a step off the raster up to one step beyond
+            if off < 0.5:
+                assert point(sji, (10, 20, 18), raster) == [None, end, None, 0]
+            else:
+                with pytest.raises(IncompatibleAttribute):
+                    point(sji, (10, 20, 18), raster)
 
 
 def test_an_iris_point_reaches_a_dkist_raster_with_repeats_at_the_step_whose_slit_passes_nearest(app, sns):

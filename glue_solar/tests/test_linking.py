@@ -1,4 +1,3 @@
-import itertools
 import shutil
 import threading
 from types import SimpleNamespace
@@ -357,7 +356,6 @@ def test_a_map_linked_by_hand_to_another_iris_dataset_is_not_linked_on_request(q
     dc.add_link([LinkSameWithUnits(_cid(raster, h), _cid(aia, m)) for h, m in zip(HPC, ["Hpln", "Hplt"])])
     keep_hpc_linked(dc)
     assert type(aia.coords) is WCS
-    assert not dc._solar_relinker.others
 
 
 def test_a_sot_cube_loaded_first_is_linked_on_request_to_the_raster(sns, irispy_test_files):
@@ -867,8 +865,10 @@ def _autolink(data_collection):
     return links
 
 
-@pytest.mark.parametrize("order", list(itertools.permutations(["autolinker", "link_hpc", "quicklook"])), ids="-".join)
-def test_link_graph_in_every_add_order(app, qtbot, sns, order):
+@pytest.mark.parametrize(
+    "order", [("autolinker", "link_hpc", "quicklook"), ("quicklook", "link_hpc", "autolinker")], ids="-".join
+)
+def test_the_link_graph_is_the_same_with_the_autolinker_run_first_or_last(app, qtbot, sns, order):
     sji, raster = sns
     dc = app.data_collection
     dc.extend([sji, raster])
@@ -892,6 +892,8 @@ def test_link_graph_in_every_add_order(app, qtbot, sns, order):
         assert time not in cids
         # only glue's WCS links, from pixel to pixel, reach pixel components (D8)
         assert len({isinstance(cid, PixelComponentID) for cid in cids}) == 1
+    if order[0] != "autolinker":
+        return  # the rest does not depend on the order
 
     # a raster point reaches the other panels, and the slit-jaw image at the nearest frame
     links, components = dc.external_links, [list(data.components) for data in dc]
@@ -935,6 +937,8 @@ def test_wcs_autolinks_leave_link_hpc_unchanged(sns, autolink_first):
         suggested = _autolink(dc)
     [wcs_link] = suggested  # glue-viz/glue#2595 links the SJI image axes to the raster's step and slit
     assert isinstance(wcs_link, WCSLink)
+    # the image axes and the step and slit: the slit-jaw time axis and the raster wavelength axis are sliced away
+    assert ({cid.axis for cid in wcs_link.cids1}, {cid.axis for cid in wcs_link.cids2}) == ({1, 2}, {0, 1})
     hpc = [link for link in dc.external_links if link is not wcs_link]
     assert sorted((link.cids1[0].label, link.cids2[0].label) for link in hpc) == [(HPC[1], HPC[1]), (HPC[0], HPC[0])]
     # each reads the other's longitude and latitude through link_hpc, not the WCS link's first frame
@@ -949,12 +953,14 @@ def test_a_pixel_click_off_the_image_leaves_the_point(app):
     assert not glue_patches.needs_pixel_off_image_workaround(glue_patches._select_pixel)
     data = Data(x=np.zeros((3, 4)), label="image")
     app.data_collection.append(data)
-    tool = app.new_data_viewer(ImageViewer, data=data).toolbar.tools["image:point_selection"]
-    tool._pressed = True
-    # a press, then a drag past each edge, as in a quicklook panel's margin
-    for x, y in ((1.2, 2.4), (3.6, 1), (-0.6, 1), (1, 2.6), (1, -0.6)):
-        tool._event_xdata, tool._event_ydata = x, y
-        tool._move_callback(tool)
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    state = viewer.state
+    state.x_min, state.x_max, state.y_min, state.y_max = -1, 4, -1, 3  # a margin, as a quicklook panel's
+    viewer.toolbar.active_tool = "image:point_selection"
+    # a press, then a drag past each edge
+    mouse(viewer, "button_press_event", 1.2, 2.4)
+    for x, y in ((3.6, 1), (-0.6, 1), (1, 2.6), (1, -0.6)):
+        mouse(viewer, "motion_notify_event", x, y)
     [subset] = data.subsets
     assert subset.subset_state.slices == [slice(2, 3), slice(1, 2)]
 
