@@ -20,7 +20,7 @@ echo "extras: $EXTRAS"
 eval $PY -m pip install $EXTRAS >> pip.log 2>&1 || echo "extras install failed"
 RUFF=$(grep -A1 'ruff-pre-commit' $W/.pre-commit-config.yaml | grep -o 'v[0-9][0-9.]*' | head -1)
 echo "ruff pin: $RUFF"
-$PY -m pip install "ruff==${RUFF#v}" >> pip.log 2>&1 || echo "ruff install failed"
+$PY -m pip install setuptools-scm "ruff==${RUFF#v}" >> pip.log 2>&1 || echo "ruff install failed"
 $PY -m pip install --no-deps -e $W >> pip.log 2>&1 || echo "editable install failed"
 $PY -m pip check > check.log 2>&1; echo "pip check: $(head -c 600 check.log)"
 $PY -c "from importlib.metadata import version as v; print(*(f'{p} {v(p)}' for p in ('astropy','ndcube','sunpy','dkist','glue-core','glue-qt','irispy-lmsal','PyQt6','numpy','pytest','ruff','glue-solar')), sep='\n')" > versions.log 2>&1
