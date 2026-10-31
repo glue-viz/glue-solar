@@ -21,8 +21,6 @@ The working machine since 2026-10-20. Envs in `~/.local/share/mamba/envs` by `/o
   6.12.0 on Qt 6.12.0, pytest 9.2.0): every PR's env; `iris-plan-docs-latest` for the docs build;
   `iris-plan-latest-irispy` (irispy #360's head 17900bd) and `iris-plan-irispy-360` (5d662b1) for `follow-irispy-main`,
   rebuilt when #360 merges. A clone of an env drops its pip packages: reinstall them.
-- Removed on 2026-10-29 (user: prune what is unused): `iris-plan-latest`, the `-f058`, `-f058-g128` and `-34ff`
-  baseline, floor and docs envs, and the scratch `iris-plan-qt6-802-gwcs`.
 - Every workflow probe and pytest runs under `systemd-run --user --scope -p MemoryMax=24G -p MemorySwapMax=0`
   (2026-10-23: systemd-oomd killed a whole terminal at 104 GB).
 
@@ -49,7 +47,7 @@ drafts (`updrafts/`), with RESTORE-20261021.md.
 
 ## Mac (`Nabils-MacBook-Pro`, Apple Silicon, 24 GB RAM), as of 2026-10-31
 
-The plan's machine until 2026-10-20; since then the Linux machine runs the work and the Mac was pruned. Here now:
+The Linux machine runs the full-size work; the Mac has:
 
 - `~/Git/glue-solar`, the plan checkout (branch `plan`); `~/Git/glue-solar-main`, a detached main checkout (96dffa2,
   #405, 2026-10-31; move it to origin/main before a run), the editable install of the Mac env; a worktree `~/Git/glue-solar-<branch>` per PR branch in flight.
@@ -60,20 +58,8 @@ The plan's machine until 2026-10-20; since then the Linux machine runs the work 
   Validation), which puts the worktree under test first on `PYTHONPATH`.
 - The user's own checkouts, never touched: `~/Git/astropy`, `~/Git/irispy`, `~/Git/glue`, `~/Git/glue-qt`; the
   user's own envs `glue`, `glue-solar`, `irispy`, `sunpy`, `ndcube`, `wcsaxes` and the muse envs: not baselines.
-- Removed before 2026-10-31 (the user, pruning): every `iris-plan-*` and `glue-solar-app-*` env and `ruff-0161`;
-  `~/DATA/IRIS`, `~/DATA/SST` and the saturated flare files (`~/DATA` holds `muse_runs` only); the 2026-10-20 app
-  build `~/Downloads/Glue Solar.dmg`; `~/Downloads/glue-solar-texts/`; the irispy and glue-qt worktrees. No
-  `Glue Solar.app` is installed. So on the Mac: no full-size data (remote-data tests still fetch irispy-data's cutouts
-  and dkist's sample data), no app check without a rebuild (`packaging/macos/build_app.sh`, D55), no SST or DKIST
-  scale checks.
-- Full-size data is on the user's external USB SSD, `/Volumes/PSSD4TB/DATA/` (exFAT through FSKit, 3.7 TB; read-only,
-  never write there), when it is plugged in: `IRIS/` (45 GB: ten observations, the big stack
-  `20150311_151947_3860107071` and `20150917_073915_3630104144` among them, plus `mosaics/` and `pipeline/`), `SST/`
-  (284 GB: the 2022-05-12 cubes 3950, 4846 and 6302 at 13-15 GB, and the 2024-07-05 cubes 3950 and 8542 at 135 and
-  129 GB), `DKIST/` (94 GB: AIOMGG, CARJML, CZKPML, LOQEPP, NDFHBO, TXIPCV), `MUSE/` and a CHIANTI database. It reads
-  1.26 GB/s sequentially cold (2026-10-31), so it is a latency test for scattered reads, not a bandwidth one; the
-  scan-step scripts (`scanstep_20261021/common.py`) take it as the Mac's SST root; the 2026-10-31 check is in
-  GLUE_SPEED.md ('USB slow-I/O check on the Mac').
+- No `Glue Solar.app` is installed and no app build is on hand: an app check needs a rebuild first
+  (`packaging/macos/build_app.sh`, D55). SST and DKIST scale checks run on the Linux machine.
 - `~/Library/Caches/glue-solar-checks/astropy` is `run_checks.py`'s kept astropy cache; `~/.glue/` is the user's.
 
 Session archives on the Mac (local, excluded from git): `session_20261014.tar.gz`, `session_20261015.tar.gz` (a

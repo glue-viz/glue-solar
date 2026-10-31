@@ -213,8 +213,6 @@ issue draft). irispy's own proposals for #360 went to the user as a handoff.
     go back to `monkeypatch.setattr(settings, ...)` (others row 48).
 
 Done since 2026-10-21:
-- #407 gates `glue_patches.sync_sliders_from_state` on `needs_slider_world_workaround()` (glue-qt row 45), asked at
-  the patch's first call; the hide of replaced sliders stays unconditional.
 - #372 follows glue-core 1.28.0 and dropped `conftest.py:21-24`'s `CFG_DIR` lines (glue-core #68).
 - #382 floors every dependency at its latest release (D104), astropy 8.0.2 and dkist 1.18.1 among them.
 - The register has its row for the gzipped raster's single in-memory open, and the plan's Versions line says irispy
