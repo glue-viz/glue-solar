@@ -385,6 +385,7 @@ def test_reads_of_the_file_ask_for_every_page_they_read_first(monkeypatch, tmp_p
             return super().madvise(option, start, length)
 
     monkeypatch.setattr(mmap, "mmap", Map)  # astropy's memory map of the file
+    monkeypatch.setattr(_Cube, "_band", lambda *args: None)  # every view through the map, the dense ones too
     cube = sst_data(path)
     cid, values = cube.main_components[0], fits.getdata(path, memmap=False).reshape(cube.shape)
     with fits.open(path) as hdulist:
@@ -421,6 +422,33 @@ def test_reads_of_the_file_ask_for_every_page_they_read_first(monkeypatch, tmp_p
     spectrum = hints(cube.compute_statistic, "mean", cid, axis=axes, subset_state=point)
     np.testing.assert_array_equal(spectrum, values[(*lead, slice(None), 20, 550)])
     hints(cube.compute_statistic, "percentile", cid, percentile=50, random_subset=10000)
+
+
+@pytest.mark.parametrize("stokes", [1, 4])
+def test_a_dense_view_reads_each_plane_s_band_and_a_sparse_one_the_map_s_pages(monkeypatch, tmp_path, stokes):
+    # GLUE_SPEED.md 2026-10-31: the full virtual slit of a 13 GB cube took 2.2-3.1 s cold over USB through the map's
+    # pages, hinted or not, where reading each tuning plane's band took 0.47 s
+    path, banded, hinted = tmp_path / "cube.fits", [], []
+    write_sst_cube(path, (2, stokes, 6, 30, 8000))  # rows of 32 KB, planes of 960 KB
+    cube = sst_data(path)
+    cid, values = cube.main_components[0], fits.getdata(path, memmap=False).reshape(cube.shape)
+
+    def band(self, *args, _band=_Cube._band):
+        result = _band(self, *args)
+        banded.append(result is not None)
+        return result
+
+    monkeypatch.setattr(_Cube, "_band", band)
+    monkeypatch.setattr(_Cube, "_hint", lambda self, *args: hinted.append(args))
+    lead = [[k] for k in (1, 0)[: cube.ndim - 3]]  # scan 1, Stokes I
+    slit = np.ix_(*lead, np.arange(6), np.r_[np.arange(30)[::-1], 7, 7], [4000])  # every row, out of order, two twice
+    np.testing.assert_array_equal(cube.get_data(cid, slit), values[slit])
+    sparse = np.ix_(*lead, np.arange(6), np.arange(0, 30, 10), [4000])  # 3 of the 30 rows, a page or more apart
+    np.testing.assert_array_equal(cube.get_data(cid, sparse), values[sparse])
+    plane = np.ix_(*lead, [2], np.arange(30), np.arange(8000))  # a map, every row and column
+    np.testing.assert_array_equal(cube.get_data(cid, plane), values[plane])
+    assert banded == [True, False, True]
+    assert len(hinted) == 1  # the sparse view's
 
 
 def test_the_time_axis_is_named_scan_time(tmp_path):
