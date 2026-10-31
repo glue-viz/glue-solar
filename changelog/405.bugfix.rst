@@ -1,0 +1,1 @@
+Fixed 'Link helioprojective coordinates' and the quicklook's point on a DKIST raster of one step with repeats or measurements, a traceback on a Pixel press in an Image viewer with no data, and a removed DKIST dataset's coordinates staying in memory until later draws pushed them out.

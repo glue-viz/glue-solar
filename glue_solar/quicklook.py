@@ -168,22 +168,10 @@ def _placeable(data):
     return {*_HPC, "time"} <= set(types)
 
 
-def _sji_pixels(sji, frame, lon, lat):
-    """The (x, y) pixels of ``sji``'s frame ``frame`` at helioprojective ``lon`` and ``lat`` (arcsec)."""
-    types = list(sji.coords.world_axis_physical_types)
-    when = sji.coords.pixel_to_world_values(0, 0, frame)[types.index("time")]
-    world = [None] * 3
-    world[types.index("custom:pos.helioprojective.lon")] = lon
-    world[types.index("custom:pos.helioprojective.lat")] = lat
-    world[types.index("time")] = np.broadcast_to(when, np.shape(lon))
-    x, y, _ = sji.coords.world_to_pixel_values(*world)
-    return x, y
-
-
 def _frame_pixels(data, at, lon, lat):
     """
-    The pixels, (x, y) along its last two axes, of ``data``'s frame at the numpy-ordered ``at``, such as a DKIST context
-    image's, at helioprojective ``lon`` and ``lat`` (arcsec): as `_sji_pixels`, at that frame's time and other axes.
+    The pixels, (x, y) along its last two axes, of ``data``'s frame at the numpy-ordered ``at``, such as a slit-jaw or
+    DKIST context image's, at helioprojective ``lon`` and ``lat`` (arcsec), at that frame's time and other axes.
     """
     types = list(data.coords.world_axis_physical_types)
     world = list(data.coords.pixel_to_world_values(*at[::-1]))
@@ -1243,7 +1231,7 @@ class Coordinator(HubListener):
         key = (point.reference_data, pixel, sji, frame)
         if self._placed[0] != key:
             lon, lat = _lon_lat(point.reference_data, pixel)
-            x, y = _sji_pixels(sji, frame, lon, lat)
+            x, y = _frame_pixels(sji, [frame, 0, 0], lon, lat)
             self._placed = (key, (float(x), float(y)))
         return self._placed[1]
 
@@ -1273,7 +1261,7 @@ class Coordinator(HubListener):
             frames, _ = nearest(times, _times(sji, None))
             n = 2 * steps  # each slit's two ends
             ends = (*(np.full(n, i) for i in lead), np.arange(n) // 2, np.tile([-0.5, rows - 0.5], steps), np.zeros(n))
-            x, y = _sji_pixels(sji, np.repeat(frames, 2), *_lon_lat(raster, ends))
+            x, y = _frame_pixels(sji, [np.repeat(frames, 2), 0, 0], *_lon_lat(raster, ends))
             gaps = np.full((steps, 1), np.nan)
             xy = tuple(np.hstack([v.reshape(steps, 2), gaps]).ravel() for v in (x, y))
             self._footprint = ((raster, scan, sji), xy)
@@ -1755,7 +1743,7 @@ def _footprint_limits(viewer, raster):
             pixel[step_axis], pixel[step_axis + 1] = step, slit
             corners.append(_lon_lat(raster, pixel))
     lon, lat = (np.array([corner[i] for corner in corners], dtype=float) for i in (0, 1))
-    x, y = _sji_pixels(viewer.state.reference_data, 0, lon, lat)
+    x, y = _frame_pixels(viewer.state.reference_data, [0, 0, 0], lon, lat)
     if not (np.isfinite(x).all() and np.isfinite(y).all()):
         return
     _zoom(viewer, x, y, max(10.0, 0.1 * max(np.ptp(x), np.ptp(y))))
@@ -2774,7 +2762,7 @@ def _curve(source, raster, pixel, band):
         lead[0], offset = nearest(times, exposures)
         match = abs(offset) <= _half_cadence(exposures)  # NaT, a gap, never is
     lon, lat = _lon_lat(raster, [np.broadcast_to(index, frames.shape) for index in (*lead, 0)])
-    x, y = (np.round(xy) for xy in _sji_pixels(source, frames, lon, lat))
+    x, y = (np.round(xy) for xy in _frame_pixels(source, [frames, 0, 0], lon, lat))
     inside = match & (0 <= y) & (y < source.shape[1]) & (0 <= x) & (x < source.shape[2])  # NaN never is
     values = np.full(frames.shape, np.nan)
     values[inside] = source[main, (frames[inside], y[inside].astype(int), x[inside].astype(int))]

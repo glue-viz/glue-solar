@@ -32,10 +32,11 @@ glue-core
   Stokes), placed at its own slices (``PixelSubsetState._to_linked_pixel_coords``, #76, #85, #246). Switch
   ``needs_pixel_point_workaround()`` (either probe). Retired by the upstream list for the NaN, and glue's round-trip
   check accepting a subset of the fixed axes (report candidate).
-- **A Pixel click or drag off the image skipped**, after glue's own button check, and a click on another tile of a
-  DKIST mosaic's imager panel moving the point to that tile's pixel (``PixelSelectionTool._select_pixel``,
-  ``QuicklookImageViewer.tile_at``, #331, #366, #392, D109). Switch ``needs_pixel_off_image_workaround()``. Retired by
-  glue's Pixel tool ignoring positions off the image (report candidate); the tile click then needs its own hook.
+- **A Pixel click or drag off the image, or in a viewer of no data, skipped**, after glue's own button check, and a
+  click on another tile of a DKIST mosaic's imager panel moving the point to that tile's pixel
+  (``PixelSelectionTool._select_pixel``, ``QuicklookImageViewer.tile_at``, #331, #366, #392, D109). Switch
+  ``needs_pixel_off_image_workaround()``. Retired by glue's Pixel tool ignoring positions off the image and presses in
+  an empty viewer (report candidate); the tile click then needs its own hook.
 - **FITS export of lazy data and of uint8 components in a subset** (``export_fits``, #96). Switch
   ``needs_fits_export_dask_workaround()``. Retired by glue's exporter writing dask arrays and uint8 subsets (report
   candidate).
@@ -329,10 +330,10 @@ dkist
   to 4096 files kept open (``_open_files``: half the open-file soft limit, raised toward its hard limit), closed as
   their dataset leaves glue or its window closes, and once read by a profile still computing after that; 8 threads, a
   lock per file, a missing file NaN; dask's reads where a dataset is cut within its files' frames or dkist gives no
-  HDU of its files; ``GlueWCS.pixel_to_world_values`` keeps its last 64 distinct inputs of up to 10,000 values, as
-  WCSAxes asks the same at each draw. Always on (DKIST datasets). Retired by dkist's dask array passing each view to
-  its loaders' ``hdu.section`` (dkist #226) and ``VaryingCelestialTransform`` evaluating all raster steps at once
-  (dkist #246, #256).
+  HDU of its files; ``GlueWCS.pixel_to_world_values`` keeps its last 64 distinct inputs of up to 10,000 values per
+  dataset, as WCSAxes asks the same at each draw. Always on (DKIST datasets). Retired by dkist's dask array passing
+  each view to its loaders' ``hdu.section`` (dkist #226) and ``VaryingCelestialTransform`` evaluating all raster steps
+  at once (dkist #246, #256).
 - **dkist's** ``VaryingCelestialTransform`` **sets the parameters of its one celestial model at each pointing index,
   then evaluates it**, so glue-qt's profile worker beside the GUI thread gave the map another step's pointing
   (143.6" off on AIOMGG); a lock around dkist's forward and inverse and ``_off_frames`` (``GlueWCS._lock``, #385,

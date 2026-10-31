@@ -57,8 +57,6 @@ QUALITY = {"ATMOS_R0": "m", "LIGHTLVL": "adu", "AO_LOCK": "", "XPOSURE": "ms", "
 # Set while glue-solar's WCS link tests its transforms (`glue_patches.wcs_link_init`): `GlueWCS`'s inverse raises outside
 # a dataset's times there, as dkist's does, rather than giving NaN (D103)
 STRICT_INVERSE = contextvars.ContextVar("strict_inverse", default=False)
-# `GlueWCS.pixel_to_world_values`'s last 64 distinct inputs and its results (D103)
-_WORLD, _WORLD_LOCK = OrderedDict(), threading.Lock()
 
 
 def _open_files():
@@ -165,6 +163,8 @@ class GlueWCS(BaseLowLevelWCS, HighLevelWCSMixin):
         # dkist's VaryingCelestialTransform sets one model's parameters at each pointing index, then evaluates it, and
         # glue-qt's profile worker evaluates beside the GUI thread (report candidate)
         self._lock = threading.Lock()
+        # `pixel_to_world_values`'s last 64 distinct inputs and its results (D103)
+        self._memo, self._memo_lock = OrderedDict(), threading.Lock()
         self._extra = len(order) - wcs.pixel_n_dim
         # the pixel axes dkist ravels into one index of its times (its Ravel), a raster's steps and repeats or a
         # Cryo-NIRSP dataset's steps and measurements: those its time varies along, and their lengths
@@ -218,17 +218,17 @@ class GlueWCS(BaseLowLevelWCS, HighLevelWCSMixin):
         # most, and at each dkist builds a model per raster step, 3 s a ViSP map
         key = None
         if pixel[0].size <= 10_000:
-            key = id(self), pixel[0].shape, hashlib.blake2b(np.asarray(pixel, float).tobytes()).digest()
-            with _WORLD_LOCK:
-                if key in _WORLD:
-                    _WORLD.move_to_end(key)
-                    return copy.deepcopy(_WORLD[key][1])
+            key = pixel[0].shape, hashlib.blake2b(np.asarray(pixel, float).tobytes()).digest()
+            with self._memo_lock:
+                if key in self._memo:
+                    self._memo.move_to_end(key)
+                    return copy.deepcopy(self._memo[key])
         world = self._world(pixel)
         if key is not None:
-            with _WORLD_LOCK:
-                _WORLD[key] = self, copy.deepcopy(world)  # kept alive, so that no other takes its id
-                while len(_WORLD) > 64:
-                    _WORLD.popitem(last=False)
+            with self._memo_lock:
+                self._memo[key] = copy.deepcopy(world)
+                while len(self._memo) > 64:
+                    self._memo.popitem(last=False)
         return world
 
     def _world(self, pixel):
@@ -662,6 +662,10 @@ class _SlitAt:
         self._across = np.array([-along[1], along[0]])
         offsets = self.starts @ self._across
         order = np.argsort(offsets)
+        if len(order) == 1:  # one step, of a raster with repeats or measurements: half a slit pixel either side of it
+            half = along @ along / 2
+            self._offsets, self._steps = np.r_[offsets[0] - half, offsets, offsets[0] + half], np.zeros(3)
+            return
         self._offsets, self._steps = (
             np.r_[1.5 * x[0] - 0.5 * x[1], x, 1.5 * x[-1] - 0.5 * x[-2]] for x in (offsets[order], order * 1.0)
         )

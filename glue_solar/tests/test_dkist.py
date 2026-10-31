@@ -601,6 +601,15 @@ def test_a_dkist_image_viewer_redraws_without_evaluating_its_coordinates_again(a
 
 
 @small_visp_dated_2044
+def test_a_dkist_dataset_s_coordinates_go_with_it_once_evaluated():
+    data = load_data(str(small_visp()))
+    data.coords.pixel_to_world_values(1, 5, 12)  # kept by the dataset's coordinates, where a module's memo kept them
+    gone = weakref.ref(data.coords)
+    del data
+    assert freed(gone)
+
+
+@small_visp_dated_2044
 def test_a_dkist_dataset_s_coordinates_evaluate_on_one_thread_at_a_time(monkeypatch):
     data = load_data(str(small_visp()))
     coords, wcs = data.coords, data.coords._wcs
@@ -1095,6 +1104,28 @@ def test_an_iris_point_reaches_a_dkist_raster_with_repeats_at_the_step_whose_sli
         assert restored.__gluestate__(None) == using.__gluestate__(None)
 
 
+def test_an_iris_point_reaches_a_dkist_raster_of_one_step_with_repeats_within_half_a_slit_pixel_of_its_slit(app, sns):
+    sji, _ = sns
+    # one step, its time along its 3 repeats 30 s apart, which take the time as the step the longitude; the slit-jaw
+    # image's frame 10 at the time of the last repeat, its (20, 18) shifted onto its slit
+    seconds = (_times(sji, None)[10] - np.datetime64(0, "s")) / np.timedelta64(1, "s")
+    raster = visp_like(repeats=3, start=seconds - 60, steps=1)
+    place = _lon_lat(raster, (0, 2, 0, 4, 0))
+    lon, lat = (float(a - b) for a, b in zip(place, _lon_lat(sji, (10, 20, 18))))
+    sji.coords.pointing_offset = (lon, lat)
+    dc = app.data_collection
+    dc.extend([sji, raster])
+    link_iris(app.session, dc)  # where it raised IndexError
+    # at the repeat nearest in time and the slit pixel level with it, up to half a slit pixel, 0.25", beside its slit
+    # (D7, D102); its step None, as glue leaves an axis of one pixel free
+    for beside in (0, 0.2):
+        sji.coords.pointing_offset = (lon + beside, lat)
+        assert point(sji, (10, 20, 18), raster) == [None, 2, None, 4, None]
+    sji.coords.pointing_offset = (lon + 0.3, lat)
+    with pytest.raises(IncompatibleAttribute):
+        point(sji, (10, 20, 18), raster)
+
+
 def test_a_linked_dkist_raster_with_repeats_s_point_moves_to_the_step_at_the_place_at_its_repeat(qtbot, monkeypatch):
     app = bare_app_for(qtbot, monkeypatch)
     # 3 repeats, each a step west of the last, as dkist's pointing moves along ViSP's repeats and Cryo-NIRSP's
@@ -1163,18 +1194,20 @@ def observed(label, sizes, along, world, inverse, by):
     return data
 
 
-def visp_like(repeats=1, step=0.5, drift=0, start=1.7e9, inverse=False, stokes=2, wave_start=500, spacing=0.01, **meta):
+def visp_like(
+    repeats=1, step=0.5, drift=0, start=1.7e9, inverse=False, stokes=2, wave_start=500, spacing=0.01, steps=3, **meta
+):
     """
-    A ViSP raster of ``stokes`` Stokes parameters, I and Q as TXIPCV's 4-D by default, of 3 steps ``step`` arcsec and
-    10 s apart from unix ``start`` s along a slit of 10 pixels of 0.5", at 25 wavelengths ``spacing`` nm apart from
-    ``wave_start`` nm; ``repeats`` of it 30 s apart, if more than one, on an axis after Stokes, as CZKPML's, each
-    ``drift`` arcsec west of the last; with ``inverse`` its inverse, which takes the step and repeat from the time, as
-    dkist's gWCS; with ``meta``, its headers' keys as `dkist_data` keeps them (D107).
+    A ViSP raster of ``stokes`` Stokes parameters, I and Q as TXIPCV's 4-D by default, of ``steps`` steps ``step``
+    arcsec and 10 s apart from unix ``start`` s along a slit of 10 pixels of 0.5", at 25 wavelengths ``spacing`` nm
+    apart from ``wave_start`` nm; ``repeats`` of it 30 s apart, if more than one, on an axis after Stokes, as
+    CZKPML's, each ``drift`` arcsec west of the last; with ``inverse`` its inverse, which takes the step and repeat from
+    the time, as dkist's gWCS; with ``meta``, its headers' keys as `dkist_data` keeps them (D107).
     """
     repeat = {"repeat": repeats} if repeats > 1 else {}
     data = observed(
         "VISP RASTER",
-        {"stokes": stokes, **repeat, "step": 3, "slit": 10, "wave": 25},
+        {"stokes": stokes, **repeat, "step": steps, "slit": 10, "wave": 25},
         {
             "wave": ("wave",),
             "lon": ("repeat", "step", "slit") if drift else ("step", "slit"),
@@ -2034,7 +2067,7 @@ def test_dkist_footprints_draw_on_a_map_from_the_datasets_coordinates_alone_and_
 def test_dkist_footprints_draw_on_an_iris_slit_jaw_frame_where_its_coordinates_place_them(
     app, monkeypatch, irispy_test_files
 ):
-    from glue_solar.quicklook import _sji_pixels
+    from glue_solar.quicklook import _frame_pixels
 
     sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
     # the raster's step 1 at the slit-jaw frame 1's time
@@ -2048,7 +2081,7 @@ def test_dkist_footprints_draw_on_an_iris_slit_jaw_frame_where_its_coordinates_p
     # each step's slit from -0.5 to 9.5 pixels along it, placed in that frame as the quicklook places points on it
     steps = np.repeat([[0], [1], [2]], 2, axis=1)
     lon, lat = _lon_lat(raster, (0, steps, np.tile([-0.5, 9.5], (3, 1)), 0))
-    x, y = _sji_pixels(sji, 1, lon, lat)
+    x, y = _frame_pixels(sji, [1, 0, 0], lon, lat)
     assert np.isfinite([x, y]).all()
     nan = np.full((3, 1), np.nan)
     np.testing.assert_allclose(lines["C0", 0.5], [np.hstack([x, nan]).ravel(), np.hstack([y, nan]).ravel()])
@@ -2056,7 +2089,7 @@ def test_dkist_footprints_draw_on_an_iris_slit_jaw_frame_where_its_coordinates_p
     assert labels == ["VISP RASTER"]
     # and where a shift of its pointing moves them, at once
     shift(monkeypatch, sji, app.data_collection, (10, 0))
-    x, y = _sji_pixels(sji, 1, lon, lat)
+    x, y = _frame_pixels(sji, [1, 0, 0], lon, lat)
     np.testing.assert_allclose(footprint_lines(viewer)[0]["C0", 1.5], [[*x[1], np.nan], [*y[1], np.nan]])
 
 

@@ -959,9 +959,10 @@ def test_a_pixel_click_off_the_image_leaves_the_point(app):
     assert subset.subset_state.slices == [slice(2, 3), slice(1, 2)]
 
 
-def test_a_mouse_move_with_pixel_on_in_an_empty_image_viewer_is_quiet(app):
+def test_a_mouse_press_or_move_with_pixel_on_in_an_empty_image_viewer_is_quiet(app):
     viewer = app.new_data_viewer(ImageViewer)  # New Data Viewer, with no data
     viewer.toolbar.active_tool = "image:point_selection"
+    mouse(viewer, "button_press_event", 0.5, 0.5)
     mouse(viewer, "motion_notify_event", 0.5, 0.5)  # glue calls the tool on every move, pressed or not
 
 
