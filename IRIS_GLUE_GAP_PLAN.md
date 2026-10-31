@@ -163,7 +163,7 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 ### Checklist by milestone
 
 **M1**
-- WP0: `wp0-release-tracking`
+- WP0: `wp0-release-tracking`, `wp0-test-trim`
 - WP10: `wp10-follow-irispy`
 
 **Later**
@@ -181,6 +181,8 @@ Upstream work in glue, glue-qt, irispy, astropy and dkist that retires the worka
 **M1**
 
 - [ ] **M1** `wp0-release-tracking`: After each release of a package glue-solar imports, raise its floor to it (D104) in a new env of the latest releases, retire the workarounds it fixes (`docs/dev_guide/workarounds.rst`) and update the guides it affects. Release WAITs (UPSTREAM_REVIEW.md 'Glue-solar changes now'): a dkist release with #765 drops `_off_frames` and DKIST's NotImplementedError path; an irispy pin past #320 drops the `FitInfoSubset` dict conversion; a pytest release fixing #15287 restores `monkeypatch.setattr(settings, ...)` in `test_dkist.py` and `test_quicklook.py`; the astropy floor rises to the first release bundling WCSLIB 8.9, whose `wcserr_set` no longer leaks 64 B per pixel outside a -TAB table; once glue-qt releases a `glue -x` fix, the macOS app's check runs `smoke.py` with `-x` and `GLUE_SOLAR_APP_CHECK` goes (216-2); as glue #2596/#2601 and glue-qt #70/#74 ship, the guides drop the caveats they lift. The macOS app (#216, `packaging/macos/build_app.sh`, D55) is rebuilt on the final releases as the plan's last deliverable, and 'IRIS: user guide and issues' then opens the installed release's docs, not 'latest' (160-x1). Done when each release's PR names its floors and retired workarounds; no line here.
+
+- [ ] **M1** `wp0-test-trim` (user, 2026-10-31): apply sections 1 to 4 of the test review of main at 9671f41e (`tests_review/REPORT.md` in `session_20261031.tar.gz`): six tests made to guard what their names say, 21 duplicate or out-of-scope tests deleted, 18 trims, six speed-ups; the two canaries (glue-core's per-frame-limits restore, the macOS QSettings leak) stay, named as such. Done when the PR is on main.
 
 **L**
 
