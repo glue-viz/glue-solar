@@ -163,8 +163,8 @@ A milestone is done when it has no items left. M0, M2 (analysis, display and exp
 ### Checklist by milestone
 
 **M1**
-- WP0: `wp0-release-tracking`
-- WP10: `wp10-follow-irispy`
+- WP0: `wp0-slider-gate`, `wp0-release-tracking`
+- WP10: `wp10-sst-dense-reads`, `wp10-follow-irispy`
 
 **Later**
 - WP0: `wp0-qt68-macos-pass`
@@ -180,6 +180,7 @@ Upstream work in glue, glue-qt, irispy, astropy and dkist that retires the worka
 
 **M1**
 
+- [ ] **M1** `wp0-slider-gate` (user, 2026-10-31; UPSTREAM_REVIEW.md 'Glue-solar changes now'): gate `glue_patches.sync_sliders_from_state`, the one always-on patch of the file, on a probe, `needs_slider_world_workaround()`: glue-qt 0.4.2's `MultiSliceWidgetHelper` gives a slider the unit of array axis `ndim - 1 - i` where glue's world axis is `world_n_dim - 1 - i`, so a 3-D Data of 4 world axes shows degrees for a wavelength; the probe needs Qt's application, so it runs at the first call as the icon cache's does, the patch falling through to glue-qt's own when it passes; the hide of replaced sliders stays unconditional. Done when the register entry names the switch and a test pins the probe on glue-qt 0.4.2.
 - [ ] **M1** `wp0-release-tracking`: After each release of a package glue-solar imports, raise its floor to it (D104) in a new env of the latest releases, retire the workarounds it fixes (`docs/dev_guide/workarounds.rst`) and update the guides it affects. Release WAITs (UPSTREAM_REVIEW.md 'Glue-solar changes now'): a dkist release with #765 drops `_off_frames` and DKIST's NotImplementedError path; an irispy pin past #320 drops the `FitInfoSubset` dict conversion; a pytest release fixing #15287 restores `monkeypatch.setattr(settings, ...)` in `test_dkist.py` and `test_quicklook.py`; the astropy floor rises to the first release bundling WCSLIB 8.9, whose `wcserr_set` no longer leaks 64 B per pixel outside a -TAB table; once glue-qt releases a `glue -x` fix, the macOS app's check runs `smoke.py` with `-x` and `GLUE_SOLAR_APP_CHECK` goes (216-2); as glue #2596/#2601 and glue-qt #70/#74 ship, the guides drop the caveats they lift. The macOS app (#216, `packaging/macos/build_app.sh`, D55) is rebuilt on the final releases as the plan's last deliverable, and 'IRIS: user guide and issues' then opens the installed release's docs, not 'latest' (160-x1). Done when each release's PR names its floors and retired workarounds; no line here.
 
 **L**
@@ -198,6 +199,7 @@ Keeps the IRIS loaders in `glue_solar/sources/loaders/` correct and fast on file
 
 **M1**
 
+- [ ] **M1** `wp10-sst-dense-reads` (user, 2026-10-31; GLUE_SPEED.md 'USB slow-I/O check on the Mac'): a dense index view of an SST cube (the virtual slit panel tall enough to sample most of the cube's rows, every tuning at one x) is read through the memory map one page fault at a time, 2.2 s cold over USB for the 2022 cube's 68k values and 3.1 s with the page hints, where one sequential read per tuning plane of the rows' band takes 0.47 s (0.07 s against 0.11 s on NVMe); `_Cube.get_data` reads such a view as plain reads of each plane's band into a buffer, keeping the hints for sparse views. Done when the full-slit cold read of the 2022 cube over USB is under 1 s through `_Cube.get_data`, the panel read is no slower, values equal the map's, and a test pins the dense path.
 - [ ] **M1** `wp10-follow-irispy` (D91, D106; user 2026-10-20 to 2026-10-29): the follow-irispy PR, branch `follow-irispy-main` (its state in Current state), opened once irispy #360 merges. It carries (a) empty raster files: IRIS Level 2 raster files with no data (every window raw fill, DATE_OBS and DATE_END empty, an empty last table; 3660100039 has 8 of 450, the flare 3860258481 5 of 180) made irispy's `read_files` raise and fail the whole observation; irispy #301 (merged 2026-10-21) reads them as missing with their times and pointing worked out, and glue-solar makes `Coordinator.point_on` return None for a NaN pixel; (b) the big stack: 3860107071 (1230 files, 9 windows and 3 SJIs) loaded in 73 s and restored in 75 s on main with irispy f058705 and 161 s on #360's early head; batched reads from #360's 4-D cubes and the user's irispy-side changes (c58ef2b, 5d662b1) bring it to 24.6 s and 24.3 s (`bench360b/RESULTS.md` in the Linux session archive); (c) two register entries, the Profile patch's (FI6-1) and the batched reads' (`fix25/follow-batched/register-row.md`). Done when the PR is on main, both observations open in the browser and quicklook with their empty scans at their times, and the big stack loads in about 25 s.
 
 Notes:
