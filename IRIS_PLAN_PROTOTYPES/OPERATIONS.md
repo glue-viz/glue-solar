@@ -60,7 +60,7 @@ The Linux machine runs the full-size work; the Mac has:
   user's own envs `glue`, `glue-solar`, `irispy`, `sunpy`, `ndcube`, `wcsaxes` and the muse envs: not baselines.
 - No `Glue Solar.app` is installed and no app build is on hand: an app check needs a rebuild first
   (`packaging/macos/build_app.sh`, D55). SST and DKIST scale checks run on the Linux machine.
-- `~/Library/Caches/glue-solar-checks/astropy` is `run_checks.py`'s kept astropy cache; `~/.glue/` is the user's.
+- `~/Library/Caches/glue-solar-checks/{astropy,pooch}` are `run_checks.py`'s kept caches: astropy's IERS tables and the remote-data files (1.7 GB with DKIST's samples, hash-checked by pooch on use); `~/.glue/` is the user's.
 
 Session archives on the Mac (local, excluded from git): `session_20261014.tar.gz`, `session_20261015.tar.gz` (a
 superset: the choice review with the user's marks, decision notes, PR texts, `briefs/fitting.md`, the audits
