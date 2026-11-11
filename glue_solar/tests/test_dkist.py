@@ -49,7 +49,8 @@ from glue_solar.conftest import find_irispy_test_file, int16_copy
 from glue_solar.quicklook import _lon_lat, _times, coordinator, quicklook
 from glue_solar.regrid import regrid_on_time
 from glue_solar.sources.dkist import DKISTData, GlueWCS, _data, _glue_order, _SlitAt, _SlitPlace, dkist_data
-from glue_solar.sources.iris import frame_quality_dkist, link_iris
+from glue_solar.sources.dkist_actions import frame_quality_dkist
+from glue_solar.sources.iris import link_iris
 from glue_solar.sources.loaders.iris import image_data
 from glue_solar.sources.sst import sst_data
 from glue_solar.tests.helpers import mouse, restore, shift
@@ -1797,7 +1798,7 @@ def vbi_tile(label, north=0, later=0):
 def stitched(app, qtbot, tile):
     """The image 'Mosaic…' on ``tile`` adds, once its thread ends."""
     from glue_solar.sources import moments
-    from glue_solar.sources.iris import mosaic_dkist
+    from glue_solar.sources.dkist_actions import mosaic_dkist
 
     count = len(app.data_collection)
     mosaic_dkist(tile, app.data_collection)
@@ -2274,7 +2275,7 @@ def download(app, qtbot, monkeypatch, data, typed, transfer=None):
     from dkist.io import DKISTFileManager
 
     from glue_solar.sources import moments
-    from glue_solar.sources.iris import download_dkist
+    from glue_solar.sources.dkist_actions import download_dkist
 
     # of dkist's helper's arguments, as dkist.net.helpers holds it, unmocked
     transfer = transfer or create_autospec(dkist.net.helpers._orchestrate_transfer_task)
@@ -2383,9 +2384,9 @@ def drawn(viewer, x, y):
 def test_downloaded_frames_fill_in_an_open_viewer_as_their_files_arrive_and_a_session_restores_them(
     app, qtbot, monkeypatch, tmp_path
 ):
-    from glue_solar.sources import iris
+    from glue_solar.sources import dkist_actions
 
-    monkeypatch.setattr(iris, "DOWNLOAD_POLL", 400)
+    monkeypatch.setattr(dkist_actions, "DOWNLOAD_POLL", 400)
     shutil.copy(small_visp(), tmp_path)
     with pytest.warns(UserWarning, match="0 of 3 files"):
         data = load_data(str(tmp_path / "test_visp.asdf"))
@@ -2430,9 +2431,9 @@ def test_downloaded_frames_fill_in_an_open_viewer_as_their_files_arrive_and_a_se
 
 @small_visp_dated_2044
 def test_a_mosaic_s_tiles_keep_one_color_limits_as_a_download_s_files_arrive(app, qtbot, monkeypatch, tmp_path):
-    from glue_solar.sources import iris
+    from glue_solar.sources import dkist_actions
 
-    monkeypatch.setattr(iris, "DOWNLOAD_POLL", 20)
+    monkeypatch.setattr(dkist_actions, "DOWNLOAD_POLL", 20)
     shutil.copy(small_visp(), tmp_path)
     shutil.copytree(small_visp().parent, tmp_path / "there")
     with pytest.warns(UserWarning, match="0 of 3 files"):

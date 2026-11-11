@@ -93,15 +93,13 @@ from glue_solar.quicklook import QuicklookImageViewer, _role, _wavelengths
 from glue_solar.regrid import north_up_iris, rebin_iris, regrid_iris, regrid_on_time
 from glue_solar.sources.bursts import bursts_iris
 from glue_solar.sources.calibration import radiometric_calibration_iris, remove_dust_iris
+from glue_solar.sources.dkist_actions import download_dkist, frame_quality_dkist, mosaic_dkist
 from glue_solar.sources.iris import (
     browse_iris,
-    download_dkist,
-    frame_quality_dkist,
     help_iris,
     iris_quicklook,
     is_iris_fits,
     link_iris,
-    mosaic_dkist,
     quicklook_cube,
     shift_pointing_iris,
 )
