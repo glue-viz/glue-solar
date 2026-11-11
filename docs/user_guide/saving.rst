@@ -19,7 +19,8 @@ with their values: export a copy of each (see `Exporting derived data`_).
 
 A session keeps the datasets' coordinates, pointing shifts, colormaps, metadata and links, and the
 viewers' slices, colormaps and Profile axes. Each quicklook opens again with its point, the dataset
-leading the time, panel settings and panels turned off. A quicklook's raster overlays, panels moved by hand, a blink and
+leading the time, panel settings, the datasets dragged onto its panels and panels turned off. A quicklook's raster
+overlays, panels moved by hand, a blink and
 the viewers' mouse modes are not saved, and glue opens each Image viewer zoomed to fit its reference dataset, such as a
 VBI mosaic's center tile. A light curve, row or column at the point opens where it was, no longer following the point.
 For sessions that fail to save or open, see :ref:`Known issues

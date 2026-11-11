@@ -266,7 +266,8 @@ Sessions
 --------
 
 A saved session opens each quicklook again with its point, the dataset leading the time, panel
-settings and panels turned off, but not raster overlays, a blink or panels moved by hand. A light curve, row or column no
+settings, the datasets dragged onto its panels and panels turned off, but not raster overlays, a blink or panels moved
+by hand. A light curve, row or column no
 longer follows the point. See :ref:`Saving sessions <glue_solar_users_guide_saving_sessions>`.
 
 Other spectral cubes

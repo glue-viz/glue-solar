@@ -158,8 +158,9 @@ glue-core
   ``_RESTORING``, #234). Always on. Retired by glue's LoadLog restoring one file's logs in one load (upstream list).
 - **A dataset's style saved with its preferred colormap** (``maps._Style``, #189). Always on. Retired by glue-core
   saving and restoring ``preferred_cmap`` (upstream list).
-- **A Profile viewer adds a quicklook spectrum panel's raster**, and any cube of ``large_data_size`` values or more not
-  from the IRIS reader, with its data layer hidden, a status-bar note and the range fitted once to the first computed
+- **A Profile viewer adds a quicklook spectrum panel's raster**, a dataset a session or a change of main window adds
+  back to a quicklook's Profile panel, and any cube of ``large_data_size`` values or more not from the IRIS reader, with
+  its data layer hidden, a status-bar note and the range fitted once to the first computed
   subset profile (``hidden_cube_profile``, ``_FitOnceComputed``, #95, #233, S13, SST4). Switch: the viewer's
   ``large_data_size`` and the data's ``_role``; the quicklook's ``_solar_hidden``. Retired by glue's
   ``_reset_y_limits`` using cached profiles only (R14) and ``compute_statistic`` without the float64 copy (R21), or

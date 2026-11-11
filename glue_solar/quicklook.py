@@ -1891,6 +1891,20 @@ def hidden_cube_profile(viewer, data):
     return viewer.get_data_layer_artist(data, state)
 
 
+def _add_hidden(viewer, data):
+    """
+    Add ``data`` to a quicklook's Profile panel hidden (`hidden_cube_profile`) and unasked, and return whether it was
+    added: glue asks 'Add large data set?' above 1e8 elements, defaulting to Cancel. For this call only, so a cube the
+    user adds later is asked about, and hidden if large, as in any Profile viewer.
+    """
+    viewer.large_data_size = None
+    viewer._solar_hidden = data
+    added = viewer.add_data(data)
+    viewer._solar_hidden = None
+    del viewer.large_data_size  # the class's again
+    return added
+
+
 def _profile(app, raster, title):
     """
     A Profile of the point's mean spectrum, with the raster itself hidden and no large-data prompt, and a status-bar note
@@ -1900,12 +1914,7 @@ def _profile(app, raster, title):
     viewer = app.new_data_viewer(ProfileViewer)
     viewer.state.title = title
     viewer.state.function = "mean"
-    # glue asks 'Add large data set?' above 1e8 elements, defaulting to Cancel; only this viewer skips it
-    viewer.large_data_size = None
-    viewer._solar_hidden = raster  # only the point's spectrum shows, not the whole cube's
-    added = viewer.add_data(raster)
-    viewer._solar_hidden = None
-    if not added:
+    if not _add_hidden(viewer, raster):  # only the point's spectrum shows, not the whole cube's
         return viewer, f"The spectrum panel could not add {raster.label}."
     viewer.state.x_att = raster.world_component_ids[_wavelengths(raster)[1]]
     viewer.axes.axhline(0, color="0.5", lw=0.8, zorder=0)
@@ -2129,8 +2138,12 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
     viewers, windows, made, notes = table["viewers"], {}, [], []
 
     def add(panel, viewer):
+        # what `_reopen` finds it by: its role, its dataset and its place among the panels of both, as each Stokes
+        # parameter's spectrum. Not its title, which glue-qt's 'Change viewer title' changes, nor its row's, made from
+        # the dataset's label, which the user can change too
+        nth = sum(row.role == panel.role and row.data is panel.data for row, _ in made)
+        viewer._solar_key = panel.role, panel.data, nth
         made.append((panel, viewer))
-        viewer._solar_title = panel.title  # which `_reopen` finds it by, as glue-qt's 'Change viewer title' renames it
         viewer.window_closed.connect(partial(setattr, viewer, "_closed", True))  # glue-qt's close box does not mark it
         viewer.toolbar.setIconSize(QSize(16, 16))  # glue-qt's are 25 px: more of the narrow panels' tools in sight (P8)
         viewer.parent().setWindowIcon(viewer.windowIcon())  # glue-solar's (`_init`) on its title bar, not Qt's logo
@@ -2182,7 +2195,9 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
             new[row] = make(row._replace(at=at))
         images = [viewer for row, viewer in new.items() if row.x is not None]
         coord.own(group, images)
-        _show_point(app, group, [viewer for panel, viewer in made if _same_file(panel.data, point.reference_data)])
+        # among the new panels only: those open keep the regions the user drew since
+        own = [viewer for panel, viewer in made if _same_file(panel.data, point.reference_data)]
+        _show_point(app, group, own, new.values())
         spectrum = next(viewer for row, viewer in new.items() if row.x is None)
         _fit_spectrum(spectrum, group)
         if images:
@@ -2353,6 +2368,10 @@ def _recipe(app, tab, context=None):
     def ids(state):  # as glue's `State.__gluestate__`, but the layers
         return {key: name(value) for key, value in state.as_dict().items() if key != "layers"}
 
+    def key(panel):  # which `_reopen` finds it by (`_fill`), its dataset named while loaded
+        role, data, nth = panel._solar_key
+        return [role, name(data if data in collection else None), nth]
+
     return {
         "datasets": [name(data) for data in datasets if data in collection],
         "window": window,
@@ -2362,7 +2381,7 @@ def _recipe(app, tab, context=None):
         "master": name(master if master in collection else None),
         "cuts": [name(group) for group in cuts if group in collection.subset_groups],
         "panels": [
-            [name(panel), panel._solar_title, _off(panel), [ids(panel.state), *map(ids, panel.state.layers)]]
+            [name(panel), key(panel), _off(panel), [ids(panel.state), *map(ids, panel.state.layers)]]
             for panel in panels
         ],
     }
@@ -2376,15 +2395,24 @@ def _reopen(app, tab, recipe, context=None):
     for group in map(find, recipe["cuts"] if context is None else ()):  # a session's once its viewers are back
         collection.remove_subset_group(group)  # made again
     viewers = _fill(app, tab, datasets, recipe["window"], recipe["main"], find(recipe["point"]), recipe["shown"])
-    saved = {title: (off, states) for _, title, off, states in recipe["panels"]}
+    saved = {(role, find(data), nth): (off, states) for _, (role, data, nth), off, states in recipe["panels"]}
     for panels in tab.findChildren(_Panels)[-1:]:  # the new list; first, as a panel off's stale sliders move the point
         for item, panel in panels.panels:
-            if not isinstance(panel, _Panel) and saved.get(panel.state.title, (False,))[0]:
+            if not isinstance(panel, _Panel) and saved.get(panel._solar_key, (False,))[0]:
                 item.setCheckState(0, Qt.Unchecked)
         panels.apply()
     for panel in _viewers(viewers):
-        _, states = saved.get(panel.state.title, (False, [{}]))
+        _, states = saved.get(panel._solar_key, (False, [{}]))
         state, *layers = [{key: find(value) for key, value in each.items()} for each in states]
+        for data in [each["layer"] for each in layers if isinstance(each["layer"], Data)]:
+            if any(layer.layer is data for layer in panel.state.layers):
+                continue
+            # a dataset the user added to the panel, which may be its reference data; a Profile's hidden and unasked
+            # until its saved layer shows it, so that none saved hidden is profiled whole
+            if isinstance(panel, ProfileViewer):
+                _add_hidden(panel, data)
+            else:
+                panel.add_data(data)
         panel.state.update_from_dict(state)
         for layer in panel.state.layers:
             new = layer.layer
@@ -2524,13 +2552,14 @@ def _turn(viewer, on, group):
     coord._timer.start()  # the lines, readouts and Point window follow
 
 
-def _show_point(app, group, own):
+def _show_point(app, group, own, viewers=None):
     """
     Show the point only in its quicklook's raster and spectrum panels, and no other subset there: glue 1.27.0 draws
     a crosshair on data it does not belong to (D19). Points are removed, as they move at every click; others hidden.
+    Among ``viewers`` only, if given: the panels a window ticked later adds.
     """
     points = coordinator(app.data_collection)._owners  # every quicklook's point
-    for viewer in (viewer for tab in app.viewers for viewer in tab):
+    for viewer in [viewer for tab in app.viewers for viewer in tab] if viewers is None else viewers:
         for layer in list(viewer.state.layers):
             other = getattr(layer.layer, "group", None)
             if other is None or (other is group) == (viewer in own):

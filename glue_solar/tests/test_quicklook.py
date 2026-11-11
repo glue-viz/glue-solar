@@ -16,6 +16,7 @@ from glue.core.component import DateTimeComponent
 from glue.core.edit_subset_mode import OrMode
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.hub import HubListener
+from glue.core.link_helpers import LinkSame
 from glue.core.link_manager import LinkManager
 from glue.core.message import NumericalDataChangedMessage, SettingsChangeMessage, SubsetUpdateMessage
 from glue.core.roi import PolygonalROI, RectangularROI, XRangeROI, YRangeROI
@@ -772,10 +773,17 @@ def test_quicklook_fits_a_spectrum_computed_on_a_thread(bare_app, qtbot, monkeyp
     assert (spectrum.y_min, spectrum.y_max) == (np.nanmin(values), np.nanmax(values))
 
 
-def test_the_spectrum_panel_never_profiles_the_whole_cube(bare_app, qtbot, monkeypatch, scans):
-    # glue would compute the mean spectrum of the whole cube for a layer that is only hidden again
-    whole = []
-    compute = Data.compute_statistic
+def cube_on(app, data):
+    """A cube 'other' of no instrument on the pixels of ``data``, linked, so that its spectrum panel can profile it."""
+    other = Data(label="other", flux=np.ones(data.shape))
+    app.data_collection.append(other)
+    app.data_collection.add_link([LinkSame(*ids) for ids in zip(data.pixel_component_ids, other.pixel_component_ids)])
+    return other
+
+
+def whole_profiles(monkeypatch):
+    """A list that grows by a dataset's label at each profile glue computes of the whole of it, not of a subset."""
+    whole, compute = [], Data.compute_statistic
 
     def counted(self, *args, **kwargs):
         if kwargs.get("axis") is not None and kwargs.get("subset_state") is None:
@@ -783,6 +791,12 @@ def test_the_spectrum_panel_never_profiles_the_whole_cube(bare_app, qtbot, monke
         return compute(self, *args, **kwargs)
 
     monkeypatch.setattr(Data, "compute_statistic", counted)
+    return whole
+
+
+def test_the_spectrum_panel_never_profiles_the_whole_cube(bare_app, qtbot, monkeypatch, scans):
+    # glue would compute the mean spectrum of the whole cube for a layer that is only hidden again
+    whole = whole_profiles(monkeypatch)
     scan, _ = scans
     viewers = quicklook(bare_app, [scan])
     select_point(viewers["map"], 1, 30)
@@ -790,11 +804,16 @@ def test_the_spectrum_panel_never_profiles_the_whole_cube(bare_app, qtbot, monke
     assert whole == []
     [cube] = [layer for layer in viewers["spectrum"].state.layers if layer.layer is scan]
     assert not cube.visible
-    # a raster added again later shows as glue adds it
+    # what is added later is asked about, as in any Profile viewer: a cube of another instrument is then hidden, and
+    # the raster added again shows as glue adds it
+    asked = []
+    monkeypatch.setattr(ProfileViewer, "warn", lambda self, title, *args, **kwargs: asked.append(title) or True)
+    viewers["spectrum"].add_data(cube_on(bare_app, scan))
+    assert (asked, whole) == (["Add large data set?"], [])
     viewers["spectrum"].remove_data(scan)
     viewers["spectrum"].add_data(scan)
-    [cube] = [layer for layer in viewers["spectrum"].state.layers if layer.layer is scan]
-    assert cube.visible
+    visible = {layer.layer.label: layer.visible for layer in viewers["spectrum"].state.layers}
+    assert (visible["other"], visible[scan.label], len(asked)) == (False, True, 2)
 
 
 def test_the_spectrum_panel_saves_profiles_naming_no_layer_it_hides(bare_app, monkeypatch, tmp_path, irispy_test_files):
@@ -5093,6 +5112,24 @@ def test_other_windows_open_once_ticked_below_rows_that_keep_the_strip_in_sight(
     assert len(bare_app.viewers[-1]) == count + 2  # made once
 
 
+def test_a_window_ticked_leaves_the_regions_shown_on_the_panels_open(bare_app, qtbot, irispy_test_files):
+    c2, _, mg = windows_of(irispy_test_files, "sit-and-stare")
+    viewers = quicklook(bare_app, [c2, mg], window=["C II 1336", "Mg II k 2796"])
+    draw_region(bare_app, viewers["map"], RectangularROI(80.3, 100.6, 10.3, 19.8))
+    point, region = bare_app.data_collection.subset_groups
+
+    def shows(group):  # the titles of the panels with a layer of the group shown
+        layers = [(viewer.state.title, layer) for viewer in _viewers(viewers) for layer in viewer.state.layers]
+        return [title for title, layer in layers if getattr(layer.layer, "group", None) is group and layer.visible]
+
+    main = shows(region)
+    assert len(main) == 4  # the map, the spectrogram, the wavelength panel and the spectrum
+    with_windows(qtbot, viewers)
+    # the point alone on C II 1336's panels, as on a quicklook's as it opens
+    assert shows(region) == main
+    assert shows(point) == [*main, "C II 1336 λ–time", "C II 1336 spectrum"]
+
+
 @pytest.mark.parametrize("kind", ["scan", "sit-and-stare", "stack"])
 def test_each_window_of_the_file_joins_the_quicklook(bare_app, qtbot, irispy_test_files, kind):
     rasters = windows_of(irispy_test_files, kind)
@@ -5345,6 +5382,19 @@ def test_a_switch_keeps_the_point_the_time_master_and_the_colors(bare_app, qtbot
     datasets = [*windows_of(irispy_test_files, "sit-and-stare"), image_data(path)]
     with_windows(qtbot, quicklook(first, datasets, window=THREE, main="C II 1336"))
     assert point_window(bare_app).parent().geometry() == point_window(first).parent().geometry()
+
+
+def test_a_switch_keeps_a_dataset_dragged_onto_a_panel(bare_app, qtbot, irispy_test_files):
+    # as its reference data, which the panel opened again could not take: the switch stopped with the old panels closed
+    c2, _, mg = windows_of(irispy_test_files, "sit-and-stare")
+    sji, other = slit_jaws(irispy_test_files)
+    viewers = with_windows(qtbot, quicklook(bare_app, [c2, mg, sji], window=["C II 1336", "Mg II k 2796"]))
+    bare_app.data_collection.append(other)
+    viewers["sji"][0].add_data(other)
+    viewers["sji"][0].state.reference_data = other
+    state = switch(qtbot, viewers["windows"][0]["spectrum"])["sji"][0].state
+    assert state.reference_data is other
+    assert [layer.layer for layer in state.layers if isinstance(layer.layer, Data)] == [sji, other]
 
 
 def test_a_click_after_the_point_is_deleted_moves_the_panels(bare_app, qtbot, irispy_test_files):
