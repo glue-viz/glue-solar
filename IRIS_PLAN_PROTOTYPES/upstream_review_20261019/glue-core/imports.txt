@@ -1,0 +1,13 @@
+=== release
+Matplotlib is building the font cache; this may take a moment.
+R31 import glue.config: glue_qt imported: True; 10.30 s
+R22 import glue.viewers.common.viewer: IPython imported: True; 1.20 s
+R25 import wcs_autolinking: scipy.optimize imported: True; 1.31 s
+R26 import glue.core.data: dask.array imported: True; 1.17 s
+import glue without glue_qt: 0.92 s
+=== main
+R31 import glue.config: glue_qt imported: True; 1.16 s
+R22 import glue.viewers.common.viewer: IPython imported: True; 1.24 s
+R25 import wcs_autolinking: scipy.optimize imported: True; 1.34 s
+R26 import glue.core.data: dask.array imported: True; 1.10 s
+import glue without glue_qt: 0.83 s

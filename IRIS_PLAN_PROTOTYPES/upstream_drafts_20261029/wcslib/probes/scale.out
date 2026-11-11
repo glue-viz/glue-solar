@@ -1,0 +1,16 @@
+scanning 0.35" steps: us/pt against the number of exposures
+  N=    2:     28.7 us/pt
+  N=    4:     30.3 us/pt
+  N=   16:     30.7 us/pt
+  N=  100:     33.1 us/pt
+  N=  400:     35.6 us/pt
+  N= 1600:     42.4 us/pt
+  N= 6400:     71.6 us/pt
+sit-and-stare, 1600 exposures, 0.05" every 6: us/pt, max |d exposure|, frac returned earlier / later than the true one, against the jitter
+  jitter 0.0000":    411.0 us/pt  max |d| 4.98  earlier 84%  later 0%
+  jitter 0.0001":  49428.4 us/pt  max |d| 4.83  earlier 72%  later 0%
+  jitter 0.0003":  16067.4 us/pt  max |d| 5.00  earlier 67%  later 0%
+  jitter 0.0010":   4146.1 us/pt  max |d| 5.00  earlier 64%  later 0%
+  jitter 0.0030":   2957.7 us/pt  max |d| 5.05  earlier 61%  later 0%
+sit-and-stare without the slit tilt (TILT=0), jitter 0.0003
+      14.1 us/pt  max |d| 4.99  earlier 61%  later 0%

@@ -1,0 +1,24 @@
+# probe_delta.py, 2026-10-21, env iris-plan-qt6-802-f058 (glue-core 1.27.0, glue-qt 0.4.2), Linux offscreen
+== installed glue-qt 0.4.2
+[closebox_leaves_closed_unset] FAULT: window_closed=True, _closed=False, still in app.viewers that turn=True, after events=False
+[gluestate_lists_closed] FAULT: viewer _closed=True, saved viewers per tab=[1]; restore raised ValueError: value Pixel Axis 2 [x] is not in valid choices: []
+[profile_limits_requeue] FAULT: worker runs per move [2, 2, 2, 2, 2, 2]; move to last ComputationEnded median 138 ms
+[profile_limits_requeue_with_refit] FAULT: worker runs per move [2, 1, 2, 2, 2, 1]; move to last ComputationEnded median 90 ms
+== --src glue-qt main 9780eaf9
+[closebox_leaves_closed_unset] FAULT: window_closed=True, _closed=False, still in app.viewers that turn=True, after events=False
+[gluestate_lists_closed] FAULT: viewer _closed=True, saved viewers per tab=[1]; restore raised ValueError: value Pixel Axis 2 [x] is not in valid choices: []
+[profile_limits_requeue] FAULT: worker runs per move [2, 2, 2, 2, 2, 2]; move to last ComputationEnded median 144 ms
+[profile_limits_requeue_with_refit] FAULT: worker runs per move [2, 2, 1, 2, 2, 2]; move to last ComputationEnded median 90 ms
+== 0.4.2 + --g7 (glue perf-g7-profile-vminmax 4f80068f)
+[profile_limits_requeue] OK: worker runs per move [1, 1, 1, 1, 1, 1]; move to last ComputationEnded median 61 ms
+[profile_limits_requeue_with_refit] OK: worker runs per move [1, 1, 1, 1, 1, 1]; move to last ComputationEnded median 68 ms
+== --src perf-q1-worker-block 909f9991
+[profile_limits_requeue] FAULT: worker runs per move [2, 2, 2, 2, 2, 2]; move to last ComputationEnded median 23 ms
+[profile_limits_requeue_with_refit] FAULT: worker runs per move [2, 2, 2, 2, 2, 2]; move to last ComputationEnded median 30 ms
+== --src perf-q2-slice-profile-sync 994f81d2 (runs are synchronous here)
+[profile_limits_requeue] FAULT: worker runs per move [2, 2, 2, 2, 2, 2]; move to last ComputationEnded median 2 ms
+[profile_limits_requeue_with_refit] FAULT: worker runs per move [2, 2, 2, 2, 2, 2]; move to last ComputationEnded median 4 ms
+== --src perf-q1 + --g7
+[profile_limits_requeue] OK: worker runs per move [1, 1, 1, 1, 1, 1]; move to last ComputationEnded median 15 ms
+# review probe probe_qt.py (row 11): edit_subset_from_selection FAULT on 0.4.2 and main; full run: 35/35 FAULT on both
+# (probe_qt_0.4.2_f058.txt, probe_qt_main_f058.txt)
