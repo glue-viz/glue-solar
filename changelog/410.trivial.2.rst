@@ -1,0 +1,1 @@
+The DKIST data actions 'Mosaic…', 'Frame quality…' and 'Download these frames…' moved from ``glue_solar/sources/iris.py`` to a module of their own, ``glue_solar/sources/dkist_actions.py``, and the DKIST coordinate class ``GlueWCS`` is now ``DKISTWCS``, no longer one underscore from the IRIS ``_GlueWCS``.

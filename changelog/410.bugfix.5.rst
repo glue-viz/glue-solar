@@ -1,0 +1,1 @@
+Fixed a DKIST dataset's FITS files that arrive after it is opened, as by a Globus transfer started earlier, being drawn but never counted: its color limits and the noise levels of Stokes Q, U and V are taken from them the next time glue asks, and 'Download these frames…' no longer offers them.

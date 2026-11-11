@@ -1,0 +1,1 @@
+A session with a quicklook saved before this change does not open: the quicklook's saved recipe now names each panel by its role and dataset, not by its title.

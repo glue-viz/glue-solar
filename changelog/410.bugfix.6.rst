@@ -1,0 +1,1 @@
+'Stack sequential raster scans' and ``raster_data(stack=True)`` now refuse scans whose wavelengths differ, naming the first that does: on such a stack the line moments, red-blue asymmetry, fit maps, bursts and Mg II features took the first scan's wavelengths for every scan, while the Doppler image and the radiance took each scan's own.
