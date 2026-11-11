@@ -388,6 +388,39 @@ def test_data_factory_claims_only_iris_files_and_aligned_aia_cutouts(iris_tree):
     assert not is_iris_fits(str(iris_tree / "notes.txt"))
 
 
+def test_iris_file_of_another_level_opens_with_glues_fits_reader(tmp_path):
+    # a Level 1.5 file, which gives its level in LVL_NUM alone, and a product made from a Level 2 raster
+    for name, keys in (("iris20231007_00000833_nuv", {"INSTRUME": "NUV", "LVL_NUM": 1.5}),
+                       ("line_moments", {"INSTRUME": "SPEC", "DATA_LEV": 3.0})):
+        path = tmp_path / f"{name}.fits"
+        fits.PrimaryHDU(np.zeros((4, 5), np.float32), fits.Header({"TELESCOP": "IRIS", **keys})).writeto(path)
+        data = load_data(str(path))  # irispy reads Level 2 only, so the IRIS reader fails on it
+        assert (data.label, data.shape) == (name, (4, 5))
+        assert [cid.label for cid in data.main_components] == ["PRIMARY"]  # as glue's reader names an HDU's data
+        assert not is_iris_fits(str(path))
+
+
+def test_a_file_of_two_image_hdus_opens_as_a_sunpy_map_each(tmp_path):
+    from astropy.coordinates import SkyCoord
+
+    import sunpy.map
+    from sunpy.coordinates import frames
+
+    center = SkyCoord(0 * u.arcsec, 0 * u.arcsec, obstime="2020-01-01", observer="earth", frame=frames.Helioprojective)
+    hdus = []
+    for hdu, wavelength in ((fits.PrimaryHDU, 171), (fits.ImageHDU, 193)):
+        header = sunpy.map.make_fitswcs_header((4, 5), center, scale=[1, 1] * u.arcsec / u.pix,
+                                               wavelength=wavelength * u.AA)
+        hdus.append(hdu(np.full((4, 5), float(wavelength)), fits.Header(header)))
+    fits.HDUList(hdus).writeto(tmp_path / "maps.fits")
+    maps = load_data(str(tmp_path / "maps.fits"), factory=read_sunpy_map)  # as the file type "sunpy Map" opens it
+    assert [data.label for data in maps] == [
+        "sunpy-map- 171.0 Angstrom 2020-01-01 00:00:00",
+        "sunpy-map- 193.0 Angstrom 2020-01-01 00:00:00",
+    ]
+    assert [data[data.main_components[0]][0, 0] for data in maps] == [171, 193]
+
+
 def test_open_real_sji_through_load_data(irispy_test_files):
     path = find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_SJI_1400_t000.fits")
     data = load_data(str(path))

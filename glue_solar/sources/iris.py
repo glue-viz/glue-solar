@@ -87,14 +87,16 @@ __all__ = [
 
 def is_iris_fits(filename, **_kwargs):
     """
-    An IRIS file, or an aligned AIA cutout, whose TELESCOP is blank, or Hinode/SOT cube, as the observation browser
-    takes it.
+    An IRIS Level 2 file, or an aligned AIA cutout, whose TELESCOP is blank, or Hinode/SOT cube, as the observation
+    browser takes it.
     """
     try:
         header = _primary_header(filename)
     except (OSError, ValueError, EOFError):  # not a FITS file
         return False
-    return header.get("TELESCOP") == "IRIS" or _is_supported_file(strip_pooch(Path(filename).name), header)
+    if header.get("TELESCOP") == "IRIS":  # at the one level irispy reads: any other is left to glue's FITS reader
+        return header.get("DATA_LEV", header.get("LVL_NUM")) == 2
+    return _is_supported_file(strip_pooch(Path(filename).name), header)
 
 
 @data_factory("IRIS Level 2 FITS", is_iris_fits, priority=200)  # glue's own "FITS file" is 100

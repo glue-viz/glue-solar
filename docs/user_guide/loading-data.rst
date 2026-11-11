@@ -35,8 +35,10 @@ With "Open quicklook" ticked, each observation opens in a quicklook (see :ref:`Q
 window in "Main window", which shows once two or more windows are ticked, Mg II k 2796 unless
 changed. Unticked, the first slit-jaw image or AIA cutout opens in an Image viewer.
 
-"Stop" ends a search or a load with what has been read in full; :kbd:`Esc` drops it. If an entry
-fails to load, the progress bar names the file and the error.
+"Stop" ends a search or a load with what has been read in full; :kbd:`Esc` drops it. The browser's
+messages show under the progress bar. If an entry fails to load, or an archive to unpack, the
+message names the file and the error. The browser stays open then, and when nothing was loaded,
+with nothing ticked or stopped before the first entry was read.
 
 To narrow the list:
 
@@ -94,8 +96,9 @@ terminal. With the file type "Auto":
 - an SST CRISP or CHROMIS cube loads as one cube;
 - a DKIST dataset's ASDF file loads as one dataset, a VBI or DL-NIRSP mosaic as one per tile.
 
-For AIA, HMI and other solar images, pick the file type "sunpy Map". Files loaded one by one cannot
-be stacked: use the browser for observations of many scans.
+An IRIS file of any other level, such as Level 1.5, loads with glue's "FITS file" reader. For AIA,
+HMI and other solar images, pick the file type "sunpy Map": a file of several images loads as a map
+each. Files loaded one by one cannot be stacked: use the browser for observations of many scans.
 
 .. _glue_solar_users_guide_loading_sst_cubes:
 

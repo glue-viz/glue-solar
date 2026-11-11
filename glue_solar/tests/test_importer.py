@@ -87,10 +87,10 @@ def test_tree_lists_observations_and_files(dialog):
 def test_derived_raster_file_is_never_a_window_and_counted(dialog, qtbot, tmp_path):
     tree = dialog.obs_tree
     assert OBS_S not in [tree.topLevelItem(i).text(1) for i in range(tree.topLevelItemCount())]
-    assert dialog.progress.text() == "Skipped 1 raster file(s) that are not Level 2"
+    assert dialog.status.text() == "Skipped 1 raster file(s) that are not Level 2"
     dialog.set_directory(tmp_path)  # nothing left out, so the count goes
     scanned(qtbot, dialog)
-    assert dialog.progress.format() == "%p%"
+    assert dialog.status.text() == ""
 
 
 def test_ticking_the_observation_ticks_its_files(dialog):
@@ -243,6 +243,22 @@ def test_stop_keeps_every_window_of_a_raster_read_in_full(dialog, qtbot, monkeyp
     assert [name for _, _, name, _ in dialog.loaded] == ["C II 1336", "Mg II k 2796"]
 
 
+def test_a_load_that_reads_nothing_keeps_the_browser_open_with_its_ticks(dialog, qtbot, monkeypatch):
+    dialog.show()
+    load_selected(qtbot, dialog)  # with nothing ticked
+    assert dialog.isVisible()
+    assert dialog.status.text() == "Nothing was loaded"
+    tick(dialog, "Mg II k")
+    reads = counted_reads(monkeypatch, lambda n: from_the_worker(dialog.cancel, "click"))  # Stop, in its first file
+    load_selected(qtbot, dialog)
+    assert len(reads) == 1
+    assert dialog.isVisible()
+    assert dialog.result() != QDialog.Accepted
+    assert dialog.status.text() == "Nothing was loaded"
+    assert dialog.obs_tree.topLevelItemCount() == 3  # the scan, and the tick, to load again
+    assert [name for _, _, name in dialog.selected()] == ["Mg II k 2796"]
+
+
 def test_a_failure_once_the_files_are_read_reads_none_again(dialog, qtbot, monkeypatch):
     tick(dialog, "Mg II k")
     dialog.stack.setChecked(True)
@@ -256,7 +272,7 @@ def test_a_failure_once_the_files_are_read_reads_none_again(dialog, qtbot, monke
     reads = counted_reads(monkeypatch)
     load_selected(qtbot, dialog)
     assert len(reads) == 2  # each file once: none again to find the one that fails
-    assert dialog.progress.format() == "Loading Mg II k 2796 from 2 raster files failed: the scans differ"
+    assert dialog.status.text() == "Loading Mg II k 2796 from 2 raster files failed: the scans differ"
 
 
 def test_closing_the_dialog_drops_the_load(dialog, qtbot, monkeypatch):
@@ -363,7 +379,7 @@ def test_a_failure_after_the_reads_stays_in_the_dialog(qtbot, iris_tree, capsys)
     load_selected(qtbot, dialog)
     assert dialog.result() == 0
     assert dialog.datasets == []
-    assert dialog.progress.format() == "Loading failed: no viewer to show"
+    assert dialog.status.text() == "Loading failed: no viewer to show"
     assert 'raise ValueError("no viewer to show")' in capsys.readouterr().err  # the traceback of the bug
 
 
@@ -528,7 +544,7 @@ def test_start_and_end_scan_their_window_and_fill_the_next_browser(qtbot, monkey
     dialog.start.setText("2023-02-30")
     dialog.start.editingFinished.emit()
     assert dialog.ok.isEnabled()
-    assert dialog.progress.format().startswith("Start and End take UTC times")
+    assert dialog.status.text().startswith("Start and End take UTC times")
 
     again = QtIRISImporter()
     qtbot.addWidget(again)
@@ -550,7 +566,7 @@ def test_start_and_end_scan_their_window_and_fill_the_next_browser(qtbot, monkey
     gone.rmdir()  # as a drive is unmounted
     again.recent.activated.emit(0)
     assert again.ok.isEnabled()  # no scan
-    assert again.progress.format() == f"No such folder: {gone}"
+    assert again.status.text() == f"No such folder: {gone}"
 
 
 def test_saved_folders_search_their_folder_and_last_until_removed(qtbot, monkeypatch, iris_tree, tmp_path):
@@ -609,8 +625,21 @@ def test_a_folder_typed_in_the_folder_field_is_searched(dialog, qtbot, iris_tree
     dialog.directory.setText(str(tmp_path / "gone"))
     dialog.directory.editingFinished.emit()
     assert dialog.ok.isEnabled()  # no scan
-    assert dialog.progress.format() == f"No such folder: {tmp_path / 'gone'}"
+    assert dialog.status.text() == f"No such folder: {tmp_path / 'gone'}"
     assert _listed(dialog) == [OBS_A[2]]
+
+
+def test_a_message_shows_as_written_and_wraps_under_the_progress_bar(dialog, qtbot, tmp_path):
+    dialog.show()
+    size, line = dialog.size(), dialog.status.height()
+    # Qt fills in the %v and %m of a progress bar's text and cuts it at the bar's ends, and reads <b> in a label as bold
+    gone = tmp_path / "100%valid %m <b>" / ("a folder name too long for one line " * 8 + "x" * 300)
+    dialog.set_directory(gone)
+    assert dialog.status.text() == f"No such folder: {gone}"
+    assert dialog.status.textFormat() == Qt.PlainText
+    assert dialog.progress.text() == "100%"
+    qtbot.waitUntil(lambda: dialog.status.height() >= 2 * line)  # on as many lines as it takes
+    assert dialog.size() == size  # the name's last 300 letters, which nothing can wrap, do not widen the browser
 
 
 def test_double_click_loads_the_entry_alone_but_not_an_observation(dialog, qtbot, monkeypatch):
@@ -674,7 +703,7 @@ def test_stop_lists_what_the_scan_found_so_far(qtbot, monkeypatch, iris_tree):
     assert [tree.topLevelItem(i).text(1) for i in range(tree.topLevelItemCount())] == [OBS_C[2], OBS_B[2], OBS_A[2]]
     assert _row(dialog, OBS_A[2]).text(5) == "2"  # its slit-jaw image and AIA cutout, not its rasters
     assert dialog.progress.value() == 100 * 5 // 9  # 5 of the folder's 9 files were read
-    assert dialog.progress.format().startswith("Scan stopped at %p% of the files")
+    assert dialog.status.text().startswith("Scan stopped at 55% of the files")
     assert dialog.cancel.text() == "Cancel"
 
 
@@ -694,7 +723,7 @@ def test_stop_once_every_header_is_read_lists_the_whole_folder(qtbot, monkeypatc
     scanned(qtbot, dialog)
     assert dialog.obs_tree.topLevelItemCount() == 3
     assert dialog.progress.value() == 100
-    assert dialog.progress.format() == "Skipped 1 raster file(s) that are not Level 2"
+    assert dialog.status.text() == "Skipped 1 raster file(s) that are not Level 2"
 
 
 def test_closing_the_dialog_drops_the_scan(qtbot, monkeypatch, iris_tree):
@@ -740,7 +769,7 @@ def test_extract_with_an_invalid_start_frees_the_browser(qtbot, iris_tree, tmp_p
     dlg.start.editingFinished.emit()
     _row(dlg, OBS_C[2]).setCheckState(0, Qt.Checked)
     load_selected(qtbot, dlg)  # unpacked, then listed again once the time is fixed
-    assert dlg.progress.format().startswith("Start and End take UTC times")
+    assert dlg.status.text().startswith("Start and End take UTC times")
 
 
 def test_stop_keeps_the_archives_unpacked_in_full(qtbot, iris_tree, tmp_path, monkeypatch):
@@ -764,9 +793,31 @@ def test_stop_keeps_the_archives_unpacked_in_full(qtbot, iris_tree, tmp_path, mo
     load_selected(qtbot, dlg)
     assert unpacked == [tree / f"{MD5}iris_l2_{'_'.join(OBS_C)}_raster"]
     assert dlg.result() == 0  # stays open, listing what it holds
-    assert dlg.progress.format() == "Extracted 1 archive(s) — now tick what to load"
+    assert dlg.status.text() == "Extracted 1 archive(s) — now tick what to load"
     assert [row.text(5) for row in map(dlg.obs_tree.topLevelItem, range(dlg.obs_tree.topLevelItemCount()))
             if row.text(5).startswith("0 — Extract ")] == [f"0 — Extract {later.name} (0 MB, next to the archive)"]
+
+
+def test_an_archive_cut_short_is_named_and_the_one_unpacked_before_it_listed(qtbot, iris_tree, tmp_path, capsys):
+    tree = tmp_path / "copy"
+    shutil.copytree(iris_tree, tree)
+    whole = tree / f"{MD5}iris_l2_{'_'.join(OBS_C)}_raster.tar.gz"
+    cut = tree / f"iris_l2_20140709_000000_{OBS_C[2]}_raster.tar.gz"  # another run of the program
+    cut.write_bytes(whole.read_bytes()[: whole.stat().st_size // 2])  # as an interrupted download leaves it
+    dlg = QtIRISImporter(tree)
+    qtbot.addWidget(dlg)
+    scanned(qtbot, dlg)
+    for row in map(dlg.obs_tree.topLevelItem, range(dlg.obs_tree.topLevelItemCount())):
+        if row.text(5).startswith("0 — Extract "):
+            row.setCheckState(0, Qt.Checked)
+    load_selected(qtbot, dlg)
+    assert dlg.status.text() == (
+        f"Extracting {cut.name} failed: Compressed file ended before the end-of-stream marker was reached"
+    )
+    assert "Traceback" not in capsys.readouterr().err  # which is for a bug
+    assert whole.with_suffix("").with_suffix("").is_dir()
+    assert [row.text(5) for row in map(dlg.obs_tree.topLevelItem, range(dlg.obs_tree.topLevelItemCount()))
+            if row.text(5).startswith("0 — Extract ")] == [f"0 — Extract {cut.name} (0 MB, next to the archive)"]
 
 
 def test_closing_the_dialog_drops_the_unpacking(dialog, qtbot, monkeypatch):
@@ -775,13 +826,13 @@ def test_closing_the_dialog_drops_the_unpacking(dialog, qtbot, monkeypatch):
     dialog.ok.click()
     qtbot.waitUntil(lambda: not _RUNNING, timeout=60_000)
     assert dialog.result() == QDialog.Rejected
-    assert dialog.progress.format() == "%p%"  # the closed dialog does not list the folder again
+    assert dialog.status.text() == ""  # the closed dialog does not list the folder again
 
 
 def test_browser_and_file_open_read_only_the_primary_header_of_a_gzipped_file(tmp_path):
     d, t, o = OBS_B
     header = fits.PrimaryHDU(np.zeros((100, 100), np.int16)).header
-    header.update(TELESCOP="IRIS", INSTRUME="SJI", OBSID=o, STARTOBS=startobs(d, t), TDESC1="SJI_2832")
+    header.update(TELESCOP="IRIS", INSTRUME="SJI", DATA_LEV=2.0, OBSID=o, STARTOBS=startobs(d, t), TDESC1="SJI_2832")
     path = tmp_path / f"iris_l2_{d}_{t}_{o}_SJI_2832_t000.fits.gz"
     # not even gzip after the header: reading on into the data, as astropy's getheader does, fails
     path.write_bytes(gzip.compress(header.tostring().encode()) + b"not the data")
@@ -803,7 +854,7 @@ def test_scan_skips_the_hidden_folder_an_archive_is_unpacked_into(tmp_path):
 def test_file_open_reads_no_header_from_a_file_that_does_not_start_as_fits(tmp_path):
     # File > Open asks about every file; read on to an END card, a large file of another kind is read whole
     path = tmp_path / "table.csv"
-    path.write_text(fits.Header({"TELESCOP": "IRIS"}).tostring())
+    path.write_text(fits.Header({"TELESCOP": "IRIS", "DATA_LEV": 2.0}).tostring())
     assert not is_iris_fits(str(path))
 
 
@@ -1249,7 +1300,7 @@ def test_reader_failure_stays_in_dialog(qtbot, tmp_path):
 
     assert dialog.result() == 0
     assert dialog.datasets == []
-    assert dialog.progress.format().startswith(f"Loading {band} from {name} failed:")
+    assert dialog.status.text().startswith(f"Loading {band} from {name} failed:")
     assert dialog.cancel.text() == "Cancel"  # and Load selected is back
 
 
@@ -1274,7 +1325,7 @@ def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_t
 
     assert dialog.result() == 0
     window = dialog.observations[0].windows[0]
-    assert dialog.progress.format().startswith(f"Loading {window} from {truncated.name} failed:")
+    assert dialog.status.text().startswith(f"Loading {window} from {truncated.name} failed:")
 
 
 @pytest.mark.remote_data
