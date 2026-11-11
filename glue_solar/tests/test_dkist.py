@@ -2567,6 +2567,73 @@ def test_download_these_frames_says_why_it_has_no_file_to_send(app, qtbot, monke
 
 
 @small_visp_dated_2044
+def test_dkist_files_another_transfer_brings_once_the_dataset_is_open_give_its_color_limits(
+    app, monkeypatch, tmp_path
+):
+    from glue_solar.sources import dkist
+
+    shutil.copy(small_visp(), tmp_path)
+    with pytest.warns(UserWarning, match="0 of 3 files"):
+        data = load_data(str(tmp_path / "test_visp.asdf"))
+    # two of its files arrive, as by a Globus transfer an earlier glue started, which no watch of this glue follows
+    for name in ("0.fits", "1.fits"):
+        shutil.copy(small_visp().parent / name, tmp_path)
+    app.data_collection.append(data)
+    layer = app.new_data_viewer(ImageViewer, data=data).layers[0].state
+    cid = data.main_components[0]
+    values = np.asarray(data[cid])[:2]
+    assert (layer.v_min, layer.v_max) == (values.min(), values.max())  # where they stayed glue's 0 to 1, of no value
+    # the last is not looked for within `LOOK_EVERY` of that look, as a dataset may miss tens of thousands
+    shutil.copy(small_visp().parent / "2.fits", tmp_path)
+    layer.percentile = 99
+    assert list(data._present) == [True, True, False]
+    monkeypatch.setattr(dkist, "LOOK_EVERY", 0)  # as 5 s later
+    layer.percentile = 100
+    values = np.asarray(data[cid])
+    assert (layer.v_min, layer.v_max) == (values.min(), values.max())
+    # and 'Download these frames…' is offered no more
+    app._layer_widget.ui.layerTree.set_selected_layers([data])
+    assert not app._layer_widget._actions["Download these frames…"].isVisible()
+
+
+@small_visp_dated_2044
+def test_download_these_frames_leaves_out_the_files_another_transfer_brought_once_the_dataset_was_open(
+    app, qtbot, monkeypatch, tmp_path
+):
+    from glue_solar.sources import dkist
+
+    shutil.copy(small_visp(), tmp_path)
+    with pytest.warns(UserWarning, match="0 of 3 files"):
+        data = load_data(str(tmp_path / "test_visp.asdf"))
+    for name in ("0.fits", "1.fits"):
+        shutil.copy(small_visp().parent / name, tmp_path)
+    app.data_collection.append(data)
+    opened, transfer = download(app, qtbot, monkeypatch, data, {})
+    assert opened["summary"] == "1 file to download, 2044-03-15T08:23:14 (2 more already there)"
+    assert [path.name for path in transfer.call_args.args[0]] == ["2.fits"]
+    # the one this download is writing is left to its watch, not found part-written as the color limits are taken
+    (tmp_path / "2.fits").write_bytes((small_visp().parent / "2.fits").read_bytes()[:2880])
+    monkeypatch.setattr(dkist, "LOOK_EVERY", 0)  # as 5 s later
+    data.compute_statistic("maximum", data.main_components[0], random_subset=10_000)
+    assert list(data._present) == [True, True, False]
+
+
+def test_a_dkist_dataset_s_noise_level_is_taken_again_once_another_transfer_brings_its_files(monkeypatch, tmp_path):
+    from glue_solar.sources import dkist
+
+    monkeypatch.setattr(dkist, "LOOK_EVERY", 0)  # each look at once, not 5 s after the last
+    with pytest.warns(UserWarning, match="0 of 80 files"):
+        data = load_data(str(asdf_alone(tmp_path, "large_visp")))  # of Stokes parameter, step, wavelength and slit
+    assert data._noise == {1: 0, 2: 0, 3: 0}  # of no value
+    values = np.random.default_rng(0).normal(0, 1, data.shape) * np.array([10, 1, 1.5, 2])[:, None, None, None]
+    for name, frame in zip(data._dataset.files.fileuri_array.ravel(), values.reshape(-1, 1, *data.shape[2:])):
+        fits.PrimaryHDU(frame).writeto(tmp_path / name)
+    # of 4 of its 20 steps, as of files present from the start
+    noise = {k: pytest.approx(min(mad_std(values[k, 2::5, end]) for end in (0, -1))) for k in (1, 2, 3)}
+    assert data._noise == noise
+
+
+@small_visp_dated_2044
 @pytest.mark.parametrize("written", [2880, 24480])  # part of its headers; of its values
 def test_a_part_written_fits_file_not_downloaded_by_glue_reads_as_nan_until_whole(app, tmp_path, written):
     shutil.copytree(small_visp().parent, tmp_path, dirs_exist_ok=True)

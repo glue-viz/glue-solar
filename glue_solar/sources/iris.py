@@ -623,6 +623,7 @@ def _check_download(data):
     """Raise why ``data`` has no frames to download: it is no DKIST dataset from an ASDF file, or has all its files."""
     if getattr(data, "_dataset", None) is None:
         raise ValueError(f"{data.label} is no DKIST dataset opened from its ASDF file.")
+    data._look()  # the files that arrived since by another transfer are not offered
     if all(tile._present.all() for tile in data._mosaic):
         raise ValueError(f"Every FITS file of {data.label} is in {data._dataset.files.basepath}.")
 
@@ -756,7 +757,7 @@ def _watch_download(data_collection, label, pending):
             return
         for tile in arrived:
             tile._samples.clear()  # its color limits' sample, a mosaic's tiles' too
-            tile.__dict__.pop("_noise", None)  # its Stokes parameters' noise (D107)
+            tile.__dict__.pop("_noise_cached", None)  # its Stokes parameters' noise (D107)
         for viewer in (viewer for tab in app.viewers for viewer in tab):
             for artist in viewer.layers:
                 if artist.layer.data in datasets:  # a tile, or a subset of one: the sample is its mosaic's (D102)

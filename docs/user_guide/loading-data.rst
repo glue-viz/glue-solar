@@ -171,6 +171,10 @@ a Stokes parameter not yet shown takes up to 3 s, its later moves about 0.5 s.
 - A frame whose FITS file is missing reads as NaN, and glue's Error Console says how many files
   are there; one whose file is part-written, as Globus writes it, or corrupt reads as NaN too, the
   Error Console naming the file, until the file is whole.
+- A file that arrives once the dataset is open, as by a Globus transfer started earlier, is read the
+  next time its frame is drawn. It counts for the color limits the next time glue takes them, as in
+  a new viewer or at another choice of the layer's limits, and "Download these frames…" leaves it
+  out; glue looks for a dataset's missing files at most every 5 s.
 - Color limits come from up to 16 whole frames; the tiles of a mosaic share theirs. NaN
   pixels are transparent, as IRIS data's, so a mosaic's tiles in one Image viewer don't hide each
   other.

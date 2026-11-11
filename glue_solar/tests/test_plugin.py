@@ -277,7 +277,8 @@ def test_only_entries_for_iris_data_alone_say_iris(app, tmp_path):
     tiles = [vbi_like(f"VBI MOSAIC (1, {k})", north=4 * k) for k in (1, 2)]
     for tile in tiles:  # opened from an ASDF file alone, its frames' seeing from its headers
         tile._mosaic, tile._quality = tiles, {"ATMOS_R0": np.full(4, 0.1)}
-        tile._dataset, tile._present = object(), np.zeros(4, bool)
+        files = SimpleNamespace(basepath=tmp_path, fileuri_array=np.array([f"{k}.fits" for k in range(4)]))
+        tile._dataset, tile._present = SimpleNamespace(files=files), np.zeros(4, bool)
     app.data_collection.extend([cube, *maps, *tiles])
     tree = app._layer_widget.ui.layerTree
     ours = [action.label for action in layer_action if action.callback.__module__[:10] == "glue_solar"]

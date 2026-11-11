@@ -10,6 +10,7 @@ import hashlib
 import inspect
 import os
 import threading
+import time
 import warnings
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
@@ -51,6 +52,8 @@ __all__ = ["dkist_data", "is_dkist_asdf"]
 
 # Color limits sample values of up to this many whole frames whose files are present
 SAMPLE_FRAMES = 16
+# How often at most, in s, a dataset with files missing looks for them again (`DKISTData._look`)
+LOOK_EVERY = 5
 # The header columns of a DKIST frame's quality, by FITS keyword, and their units (`_frame_quality`, D110); glue's Profile
 # viewer shows the first present: the seeing, else the light level, as the AO lock is shaded (`_FrameCurves`)
 QUALITY = {"ATMOS_R0": "m", "LIGHTLVL": "adu", "AO_LOCK": "", "XPOSURE": "ms", "ELEV_ANG": "deg"}
@@ -421,6 +424,7 @@ class DKISTData(Data):
     _mosaic = ()  # the datasets, this one among them, whose frames the sample takes
     _samples = None  # {size: values}, shared by them
     _present = None  # whether each frame's file is present, over the frame axes
+    _looked = -np.inf  # when its mosaic's missing files were last looked for (`_look`), as `time.monotonic` gives
     _frames = None  # each frame's DATE-AVG and XPOSURE in seconds, over the frame axes
     _quality = None  # each frame's header columns of `QUALITY`, by keyword, over the frame axes
     _files = None  # its values' files (`_Files`), None where dask reads them
@@ -476,8 +480,34 @@ class DKISTData(Data):
             **kwargs,
         )
 
+    def _look(self):
+        """
+        Mark present the FITS files of its mosaic that arrived since they were last looked for, as a Globus transfer
+        this glue did not start delivers them, and forget the sample and the noise levels taken without them; those a
+        download of this glue is writing (`_ARRIVING`) are left to its watch. A file is present once it exists, as when
+        its dataset loads: one still being written reads as NaN until whole (`_section`). Only the files still missing
+        are looked for, and at most every `LOOK_EVERY` s, as glue asks for a layer's limits twice at each change of
+        theirs: 0.1 s for 20,000 missing files, and nothing once all are there.
+        """
+        now = time.monotonic()
+        if now - self._looked < LOOK_EVERY:
+            return
+        for data in self._mosaic:
+            data._looked = now
+            if data._present.all():
+                continue
+            files = data._dataset.files
+            names = np.asarray(files.fileuri_array).reshape(data._present.shape)
+            for index in map(tuple, np.argwhere(~data._present)):
+                path = Path(files.basepath) / names[index]
+                if str(path) not in _ARRIVING and path.exists():
+                    data._present[index] = True
+                    data._samples.clear()  # its mosaic's tiles' too
+                    data.__dict__.pop("_noise_cached", None)
+
     def _sample(self, size):
         """At least ``size`` values of the frames, as `DKISTData` samples them."""
+        self._look()
         if size not in self._samples:
             frames = [(data, tuple(frame)) for data in self._mosaic for frame in np.argwhere(data._present)]
             picks = np.unique(np.linspace(0, len(frames) - 1, SAMPLE_FRAMES).round().astype(int)) if frames else []
@@ -494,8 +524,14 @@ class DKISTData(Data):
             self._samples[size] = np.concatenate(values)
         return self._samples[size]
 
-    @cached_property
+    @property
     def _noise(self):
+        """Its noise levels (`_noise_cached`), taken again once more of its files are there (`_look`)."""
+        self._look()
+        return self._noise_cached
+
+    @cached_property
+    def _noise_cached(self):
         """
         The noise level of Stokes Q, U and V, by index, by an SST cube's rule (`~glue_solar.sources.sst._Cube._noise`,
         D107): the standard deviation of each at the quieter end of its wavelengths, as an artifact or a line at one end
