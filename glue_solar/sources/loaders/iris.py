@@ -180,7 +180,7 @@ def _off_frames(wcs, values):
         at = times == time
         try:
             found = wcs.world_to_pixel_values(*(value[at] for value in values))
-        except (NotImplementedError, ValueError):  # and a raveled DKIST time's Unravel (`GlueWCS`)
+        except (NotImplementedError, ValueError):  # and a raveled DKIST time's Unravel (`DKISTWCS`)
             continue
         for pixel, value in zip(pixels, found, strict=True):
             pixel[at] = value
@@ -954,7 +954,7 @@ def link_hpc(data_collection, others=()):
     """
     from glue_solar.quicklook import _role, _times, nearest, observation_key  # which imports this module
     from glue_solar.sources.dkist import (  # which imports this module
-        GlueWCS,
+        DKISTWCS,
         _frame_axis,
         _frame_times,
         _held_axes,
@@ -1050,7 +1050,7 @@ def link_hpc(data_collection, others=()):
     # its time that of its frame nearest in time, and each of its frames a slit-jaw image's time that of the nearest
     # frame, as dkist's gWCS gives no position at a time off its frames; a frame is a step and measurement of a
     # Cryo-NIRSP context image of repeated measurements, whose time varies along both
-    for dataset in [data for data in data_collection if data in placed and isinstance(data.coords, GlueWCS)]:
+    for dataset in [data for data in data_collection if data in placed and isinstance(data.coords, DKISTWCS)]:
         found = _frame_times(dataset)
         if found is None:
             continue
@@ -1058,7 +1058,7 @@ def link_hpc(data_collection, others=()):
         frames, wcs = dataset.pixel_component_ids[axes[0]], dataset.coords
         time_ids = [dataset.pixel_component_ids[axis] for axis in axes]
         # its time, where glue gives an axis its time rather than a raster's longitude, and a second axis's index
-        # (`GlueWCS`)
+        # (`DKISTWCS`)
         given = [wcs.world_axis_physical_types[wcs.world_n_dim - 1 - axis] for axis in axes]
         timed = given[0] == "time"
         stamps = [dataset.world_component_ids[axis] for axis, kind in zip(axes, given) if kind in ("time", None)]

@@ -341,7 +341,7 @@ def _ask_download(tiles, at):
         summary.setText(_download_summary(tiles, index()))
 
     for axis, size in enumerate(data._present.shape):
-        name, k = wcs._names[data.ndim - 1 - axis], wcs.world_n_dim - 1 - axis  # glue's world axis (`GlueWCS`)
+        name, k = wcs._names[data.ndim - 1 - axis], wcs.world_n_dim - 1 - axis  # glue's world axis (`DKISTWCS`)
         if axis == frame:
             boxes[axis] = QtWidgets.QSpinBox(objectName="first"), QtWidgets.QSpinBox(objectName="last")
             row = QtWidgets.QHBoxLayout()

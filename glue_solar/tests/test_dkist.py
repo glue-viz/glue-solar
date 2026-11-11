@@ -48,7 +48,7 @@ from glue_solar import glue_patches
 from glue_solar.conftest import find_irispy_test_file, int16_copy
 from glue_solar.quicklook import _lon_lat, _times, coordinator, quicklook
 from glue_solar.regrid import regrid_on_time
-from glue_solar.sources.dkist import DKISTData, GlueWCS, _data, _glue_order, _SlitAt, _SlitPlace, dkist_data
+from glue_solar.sources.dkist import DKISTWCS, DKISTData, _data, _glue_order, _SlitAt, _SlitPlace, dkist_data
 from glue_solar.sources.dkist_actions import frame_quality_dkist
 from glue_solar.sources.iris import link_iris
 from glue_solar.sources.loaders.iris import image_data
@@ -143,7 +143,7 @@ def test_a_dkist_level_2_inversion_does_not_open_as_level_1(tmp_path):
 def slit_raster(step):
     """
     A raster of 3 steps along a slit of 10 pixels of 0.5" at 25 wavelengths, stepping ``step`` arcsec west and 10 s a
-    step from 2023-11-14 (unix 1.7e9 s), as a `GlueWCS` dataset: sit-and-stare where it moves less than a pixel along
+    step from 2023-11-14 (unix 1.7e9 s), as a `DKISTWCS` dataset: sit-and-stare where it moves less than a pixel along
     the slit.
     """
     wcs = SimpleNamespace(
@@ -169,7 +169,7 @@ def slit_raster(step):
             1.7e9 + 10 * z,
         ),
     )
-    data = Data(label="raster", coords=GlueWCS(wcs, _glue_order(wcs, (25, 10, 3)), []))
+    data = Data(label="raster", coords=DKISTWCS(wcs, _glue_order(wcs, (25, 10, 3)), []))
     data.add_component(np.zeros((3, 10, 25)), "data")
     return data
 
@@ -274,7 +274,7 @@ def test_a_linked_dkist_raster_s_point_moves_to_the_step_at_the_place(qtbot, mon
 def repeated_raster(axes):
     """
     A raster of 3 steps of 0.5" along a slit of 6 pixels of 0.5", at 5 wavelengths, in Stokes I, Q, U and V, repeated
-    twice 30 s apart, of numpy ``axes`` named 'stokes', 'repeat', 'step', 'slit' and 'wave', as a `GlueWCS` dataset of
+    twice 30 s apart, of numpy ``axes`` named 'stokes', 'repeat', 'step', 'slit' and 'wave', as a `DKISTWCS` dataset of
     values numbering its pixels, its pointing and time along its steps and repeats, as dkist's gWCS ravels a ViSP
     raster's repeats or Cryo-NIRSP's measurements with its steps; and its values.
     """
@@ -314,7 +314,7 @@ def repeated_raster(axes):
         pixel_to_world_values=world,
     )
     shape = [sizes[axis] for axis in axes]
-    data = Data(label="raster", coords=GlueWCS(wcs, _glue_order(wcs, shape[::-1]), []))
+    data = Data(label="raster", coords=DKISTWCS(wcs, _glue_order(wcs, shape[::-1]), []))
     values = np.arange(np.prod(shape), dtype=float).reshape(shape)
     data.add_component(values, "data")
     return data, values
@@ -632,7 +632,7 @@ def test_a_dkist_dataset_s_coordinates_evaluate_on_one_thread_at_a_time(monkeypa
     for name in ("pixel_to_world_values", "world_to_pixel_values"):
         monkeypatch.setattr(wcs, name, alone(getattr(wcs, name)))
     # glue-qt's profile worker beside the GUI thread: dkist's VaryingCelestialTransform sets one model's parameters at
-    # each raster step, then evaluates it, so one thread's map took another's step's pointing, and GlueWCS kept it
+    # each raster step, then evaluates it, so one thread's map took another's step's pointing, and DKISTWCS kept it
     threads = [
         threading.Thread(target=coords.pixel_to_world_values, args=(2, 5, 12)),
         threading.Thread(target=coords.world_to_pixel_values, args=world),
@@ -672,7 +672,7 @@ def test_dkist_datasets_of_different_dimensions_link_pixel_to_pixel(tmp_path):
     # its Stokes I map at one wavelength: the raster's steps and slit, of their longitude, latitude and time
     stokes_i = _data(dkist.load_dataset(path)[0, :, 400], "VISP BKEWK map")
     dc = DataCollection([visp, stokes_i])
-    # glue's autolinker raised AttributeError: 'GlueWCS' object has no attribute 'has_celestial'
+    # glue's autolinker raised AttributeError: 'DKISTWCS' object has no attribute 'has_celestial'
     [[link]] = find_possible_links(dc).values()
     assert isinstance(link, WCSLink)
     dc.add_link(link)
@@ -905,7 +905,7 @@ def viewed(app):
 
 @small_visp_dated_2044
 def test_a_session_restores_dkist_datasets_and_their_image_and_profile_viewers(app, qtbot, monkeypatch, tmp_path):
-    # D102: glue saved no `GlueWCS`, of a gWCS, and restored a `DKISTData` as a Data, of glue's color limits
+    # D102: glue saved no `DKISTWCS`, of a gWCS, and restored a `DKISTData` as a Data, of glue's color limits
     from dkist.io.dask.loaders import AstropyFITSLoader
 
     from gwcs import WCS as GWCS
@@ -929,7 +929,7 @@ def test_a_session_restores_dkist_datasets_and_their_image_and_profile_viewers(a
     monkeypatch.chdir(tmp_path / "glue")  # glue's own folder, not the session's, which dkist read the files from as NaN
     app.save_session(str(path), absolute_paths=False)  # as the dialog starts with
     for _ in range(2):  # and from a restored session
-        assert "GlueWCS" not in path.read_text()  # the coordinates read from the ASDF file again, not saved
+        assert "DKISTWCS" not in path.read_text()  # the coordinates read from the ASDF file again, not saved
         for serializer in (GlueSerializer, GlueUnSerializer):  # as a fresh glue, of no gWCS saver
             monkeypatch.delitem(serializer.dispatch._data, GWCS, raising=False)
         with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):  # its ASDF file read again
@@ -1187,7 +1187,7 @@ def observed(label, sizes, along, world, inverse, by):
         world_to_pixel_values=lambda *values: tuple(inverse(dict(zip(kinds, values)))[axis] for axis in axes[::-1]),
     )
     shape = [sizes[axis] for axis in axes]
-    data = DKISTData(label=label, coords=GlueWCS(wcs, _glue_order(wcs, shape[::-1]), axes[::-1]))
+    data = DKISTData(label=label, coords=DKISTWCS(wcs, _glue_order(wcs, shape[::-1]), axes[::-1]))
     data.add_component(np.arange(np.prod(shape), dtype=float).reshape(shape), "data")
     frames = dict(zip(axes, np.indices(shape[:-2])))
     seconds = world({axis: frames.get(axis, 0) for axis in axes})["time"]
