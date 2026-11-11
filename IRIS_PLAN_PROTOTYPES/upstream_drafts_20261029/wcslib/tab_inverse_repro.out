@@ -1,0 +1,21 @@
+$ python -I -B tab_inverse_repro.py   # 2026-10-29T13:19:24-07:00, AMD Ryzen 9 9950X, Linux
+Python 3.13.16, numpy 2.5.4, astropy 8.0.2, bundled WCSLIB 8.6
+
+== (a) sit-and-stare: 1600 exposures, slit center spans 13.30" in lon, median |step| 0.0012"
+   forward      0.028 us/pt   (200000 random pixels)
+   inverse     7825.9 us/pt   (1000 random pixels inside the table)
+            median 429.2, 99th percentile 50966.8, max 120395.8 us (200 points one at a time)
+   round trip: exposure off by up to 5.03, by > 0.01 for 64% of points (64% earlier, 0% later); slit pixel off by up to 0.0124; 0 not found
+   the pixel returned maps back to the world point within 4.0e-07 arcsec
+   grid inside      563.1 us/pt   (1734 of 3600 grid points)
+   grid outside      83.4 us/pt   (1866 of 3600 grid points)
+
+== (b) scanning raster: 1600 exposures, slit center spans 559.65" in lon, median |step| 0.3501"
+   forward      0.024 us/pt   (200000 random pixels)
+   inverse       41.9 us/pt   (1000 random pixels inside the table)
+            median 60.8, 99th percentile 76.8, max 87.2 us (200 points one at a time)
+   round trip: exposure off by up to 1.09e-06, by > 0.01 for 0% of points (0% earlier, 0% later); slit pixel off by up to 1.23e-06; 0 not found
+   the pixel returned maps back to the world point within 4.0e-07 arcsec
+   grid inside       42.2 us/pt   (3248 of 3600 grid points)
+   grid outside      22.0 us/pt   (352 of 3600 grid points)
+(11.49 s wall)

@@ -1,0 +1,8 @@
+glue from /home/nabil/.local/share/mamba/envs/iris-plan-qt6-802-f058/lib/python3.13/site-packages/glue/__init__.py
+69 pixel_off_image (PixelSelectionTool._select_pixel at x=2 on a 2x2 image, then a linked dataset): {'subset made': True, 'slices': [slice(0, 1, None), slice(2, 3, None)], 'linked coords': 'IndexError: index 0 is out of bounds for axis 0 with size 0'}
+70 update_slice_subset (stretch_global=False layer, its data removed from the collection): {'removal': "TypeError: 'NoneType' object is not subscriptable", 'layers left': 0, 'in collection': False}
+71 model_fitter_none_limit (GaussianFitter, stddev limits (None, 5)): {'Gaussian1D.stddev.bounds': (1.1754943508222875e-38, None), "fitted model's": (None, 5.0)}
+72 profile_vminmax (subset move: _calculate_profile calls, normalize off): {'calls': 2, 'v_max': np.float64(21.0)}
+73 path_roi_finalize (MplPathROI on Agg: two clicks, then finalize): {'background cached': True, 'finalize': "AttributeError: 'NoneType' object has no attribute 'draw'"}
+19e path_coords_moving_pointing (PathSlicedData of a cube whose longitude drifts with time): {'pixel_n_dim': 2, 'world_n_dim': 4, 'world components': 'IndexError: list index out of range'}
+74 path_dask_component (PathSlicedData.get_data of a DaskComponent): {'numpy': (5, 3), 'DaskComponent': "NotImplementedError: Don't yet support nd fancy indexing"}

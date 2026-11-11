@@ -1,0 +1,37 @@
+glue from /tmp/claude-1000/-home-nabil-Git-glue-solar/69a1ec2a-a15b-4ef0-a5e7-b33024cca348/scratchpad/upstream-delta/glue-core/glue/glue/__init__.py version 1.27.0
+quantity_saver_missing (wp0-core-quantity-saver): True
+meta_quantity_save_fails (#2597; array and scalar Quantity in Data.meta): {'array': "TypeError: no implementation found for 'numpy.save' on types that implement __array_functio", 'scalar': "TypeError: no implementation found for 'numpy.save' on types that implement __array_functio"}
+meta_object_array (wp0-core-session-reports): load ValueError: Object arrays cannot be loaded when allow_pickle=False
+preferred_cmap_save_fails (#2597; maps._Style): TypeError: Object of type ListedColormap is not JSON serializable
+sunpy_cmap_name_not_in_registry_before_sunpy_import (_add_session_colormaps): True
+link_same_with_units_session_fails (#205): GlueSerializeError: Circular Reference detected: LinkSameWithUnits
+link_editor_fails_on_LinkSameWithUnits_and_PathRelativeLink (#245): ValueError: value x is not in valid choices: [ChoiceSeparator('Main components'), y, ChoiceS
+derived_component_units_lost (wp0-core-derived-units): ''
+image_layer_state_round_trip (stretch_global=False, stretch_parameters): {'stretch_global=True': {'cmap': ('<matplotlib.colors.LinearSegmentedColormap object at 0x7fd08addd9d0>', '<matplotlib.colors.LinearSegmentedColormap object at 0x7fd076baae10>'), 'stretch_parameters': ('<CallbackDict with 1 elements>', '<CallbackDict with 0 elements>')}, 'stretch_global=False': "restore AttributeError: 'NoneType' object has no attribute 'add_callback'"}
+tab_wcs_session_fails (_save_wcs/_load_wcs, SST5): ValueError: HDUList is required to retrieve -TAB coordinates and/or indices.
+exporters_on_datetime64 (wp0-core-datetime-export): {'FITS (1 component/HDU)': 'ok', 'HDF5': "TypeError: No conversion path for dtype: dtype('<M8[ns]')", 'Comma-separated table': 'writes: t,x | 1609459200000000000,1.0 | 1609459201000000000,2.0 | ', 'IPAC Catalog': 'ok', 'LaTeX Table': 'ok', 'VO Table': "TypeError: dtype('<M8[ns]') can not be represented in VOTable", 'FITS Table': 'ValueError: Illegal format `datetime64[ns]`.'}
+fits_exporter_uint8_subset (export_fits): UnboundLocalError: cannot access local variable 'blank' where it is not associated with a value
+fits_subset_mask_importer_refuses_uint8: ValueError: No HDUs with integer values (which would normally indicate a mask) were found in
+compute_statistic_slice_state_not_padded (#183): SliceSubsetState gives (2,) values along a 6-long axis; RangeSubsetState gives (6,) (4 NaN-padded)
+random_views_for_dask_array_only_chunk_corners (#2413, PR #2605): starts [(np.int64(0), np.int64(0)), (np.int64(0), np.int64(50)), (np.int64(50), np.int64(0)), (np.int64(50), np.int64(50))], view sizes [(np.int64(40), np.int64(1))]; all at chunk corners: True
+set_constraint_None_does_not_clear (fitters.set_constraint): {'value': 1.0, 'fixed': True}
+path_sliced_data_no_saver_and_dc_saver_calls_component_ids: {'PathSlicedData saver registered': False, 'has component_ids': False, 'dc save': "AttributeError: 'PathSlicedData' object has no attribute 'component_ids'"}
+path_sliced_data_off_data_and_time (0 off the data; Time cast to float; one pixel shape): {'x off the data': 'array([0., 0., 0., 0.])', 't kind': 'datetime -> diagram dtype float64', 'one pixel shape': (3, 2)}
+path_sliced_coordinates_axis_label_IndexError (correlated world axes): {'pixel_n_dim': 2, 'world_n_dim': 4, 'axis_label(0)': 'IndexError', 'axis_label(1)': 'IndexError'}
+drive_parent_slice_truncates_and_no_clamp (code: common.py int(slice_y)): {'int(': True, 'clip/round': False}
+axis_label_indexing_bug (#227: world_axis_names[axis] checked, [n-1-axis] returned): {0: '', 1: 'Utc', 2: 'Wave', 3: 'Hplt', 4: 'Hpln'}
+wcslink_shared_lists (wp0-core-wcslink-lists): {'map after 5-axis cube': 'ValueError: Cannot slice WCS: the resulting WCS should have at least one pixel and one world', '4-axis cube after 5-axis cube': 'IndexError: list index out of range'}
+profile_x_label_without_display_unit (D90 axis-unit labels): {'x_axislabel': 'Wave', 'y_axislabel': 'Data values', 'x_display_unit': 'nm'}
+glue_patches.needs_inverse_workaround: True
+glue_patches.needs_fits_export_dask_workaround: True
+glue_patches.needs_pixel_point_workaround: True
+glue_patches.needs_redo_workaround: True
+glue_patches.needs_crosshair_workaround: True
+glue_patches.needs_reference_crosshair_workaround: True
+glue_patches.needs_axis_label_workaround: True
+glue_patches.needs_date_epoch_workaround: True
+glue_patches.needs_empty_collapse_workaround: True
+glue_patches.needs_derived_datetime_workaround: True
+glue_patches.needs_profile_restore_workaround: True
+glue_patches.needs_pixel_off_image_workaround: True
+glue_patches.needs_slice_subset_workaround: True

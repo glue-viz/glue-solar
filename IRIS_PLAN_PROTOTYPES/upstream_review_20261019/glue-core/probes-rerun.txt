@@ -1,0 +1,90 @@
+=== release
+Traceback (most recent call last):
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/probes.py", line 38, in deco
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/probes.py", line 154, in _
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/core/registry.py", line 89, in wrapper
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/core/state.py", line 534, in object
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/viewers/matplotlib/state.py", line 283, in __setgluestate__
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/core/state_objects.py", line 143, in __setgluestate__
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/core/state_objects.py", line 143, in <genexpr>
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/core/registry.py", line 89, in wrapper
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/core/state.py", line 534, in object
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/core/state_objects.py", line 29, in _load_callback_list
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/core/registry.py", line 89, in wrapper
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/core/state.py", line 534, in object
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/core/state_objects.py", line 144, in __setgluestate__
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/viewers/image/state.py", line 563, in __init__
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/core/state_objects.py", line 107, in update_from_dict
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/echo/core.py", line 689, in __exit__
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/utils/matplotlib.py", line 172, in wrapper
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/viewers/matplotlib/state.py", line 27, in notify
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/echo/core.py", line 145, in notify
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/viewers/image/state.py", line 601, in _set_global_stretch
+AttributeError: 'NoneType' object has no attribute 'add_callback'
+Traceback (most recent call last):
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/probes.py", line 38, in deco
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/probes.py", line 274, in _
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/plugins/tools/path_slicer/path_sliced_data.py", line 220, in __init__
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/plugins/tools/path_slicer/path_sliced_data.py", line 239, in set_xy
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/glue/plugins/tools/path_slicer/path_sliced_data.py", line 147, in sample_points
+    raise ValueError("path must have at least two vertices")
+ValueError: path must have at least two vertices
+meta_quantity_save_fails (#2597; array and scalar Quantity in Data.meta): {'array': "TypeError: no implementation found for 'numpy.save' on types that implement __array_functio", 'scalar': "TypeError: no implementation found for 'numpy.save' on types that implement __array_functio"}
+meta_object_array (wp0-core-session-reports): load ValueError: Object arrays cannot be loaded when allow_pickle=False
+preferred_cmap_save_fails (#2597; maps._Style): TypeError: Object of type ListedColormap is not JSON serializable
+link_same_with_units_session_fails (#205): GlueSerializeError: Circular Reference detected: LinkSameWithUnits
+link_editor_fails_on_LinkSameWithUnits_and_PathRelativeLink (#245): ValueError: value x is not in valid choices: [ChoiceSeparator('Main components'), y, ChoiceS
+image_layer_state_round_trip (stretch_global=False, stretch_parameters): ERROR AttributeError: 'NoneType' object has no attribute 'add_callback'
+tab_wcs_session_fails (_save_wcs/_load_wcs, SST5): ValueError: HDUList is required to retrieve -TAB coordinates and/or indices.
+exporters_on_datetime64 (wp0-core-datetime-export): {'FITS (1 component/HDU)': 'ok', 'HDF5': "TypeError: No conversion path for dtype: dtype('<M8[ns]')", 'Comma-separated table': 'writes: t,x | 1609459200000000000,1.0 | 1609459201000000000,2.0 | ', 'IPAC Catalog': 'ok', 'LaTeX Table': 'ok', 'VO Table': "TypeError: dtype('<M8[ns]') can not be represented in VOTable", 'FITS Table': 'ValueError: Illegal format `datetime64[ns]`.'}
+fits_exporter_uint8_subset (export_fits): UnboundLocalError: cannot access local variable 'blank' where it is not associated with a value
+fits_subset_mask_importer_refuses_uint8: ValueError: No HDUs with integer values (which would normally indicate a mask) were found in
+path_sliced_data_no_saver_and_dc_saver_calls_component_ids: {'PathSlicedData saver registered': False, 'has component_ids': False, 'dc save': "AttributeError: 'PathSlicedData' object has no attribute 'component_ids'"}
+path_sliced_data_off_data_and_time (0 off the data; Time cast to float; one pixel shape): ERROR ValueError: path must have at least two vertices
+path_sliced_coordinates_axis_label_IndexError (correlated world axes): {'pixel_n_dim': 2, 'world_n_dim': 4, 'axis_label(0)': 'IndexError', 'axis_label(1)': 'IndexError'}
+wcslink_shared_lists (wp0-core-wcslink-lists): {'map after 5-axis cube': 'ValueError: Cannot slice WCS: the resulting WCS should have at least one pixel and one world', '4-axis cube after 5-axis cube': 'IndexError: list index out of range'}
+=== main
+Traceback (most recent call last):
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/probes.py", line 38, in deco
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/probes.py", line 154, in _
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/core/registry.py", line 89, in wrapper
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/core/state.py", line 534, in object
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/viewers/matplotlib/state.py", line 283, in __setgluestate__
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/core/state_objects.py", line 143, in __setgluestate__
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/core/state_objects.py", line 143, in <genexpr>
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/core/registry.py", line 89, in wrapper
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/core/state.py", line 534, in object
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/core/state_objects.py", line 29, in _load_callback_list
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/core/registry.py", line 89, in wrapper
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/core/state.py", line 534, in object
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/core/state_objects.py", line 144, in __setgluestate__
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/viewers/image/state.py", line 564, in __init__
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/core/state_objects.py", line 107, in update_from_dict
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/echo/core.py", line 689, in __exit__
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/utils/matplotlib.py", line 172, in wrapper
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/viewers/matplotlib/state.py", line 27, in notify
+  File "/Users/nabil/mamba/envs/iris-plan-qt6-802-495f/lib/python3.13/site-packages/echo/core.py", line 145, in notify
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/viewers/image/state.py", line 602, in _set_global_stretch
+AttributeError: 'NoneType' object has no attribute 'add_callback'
+Traceback (most recent call last):
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/probes.py", line 38, in deco
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/probes.py", line 274, in _
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/plugins/tools/path_slicer/path_sliced_data.py", line 220, in __init__
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/plugins/tools/path_slicer/path_sliced_data.py", line 239, in set_xy
+  File "/private/tmp/claude-501/-Users-nabil-Git-glue-solar/df774a44-db13-4c72-b097-0d85fb986df9/scratchpad/upstream/glue-core/glue-main/glue/plugins/tools/path_slicer/path_sliced_data.py", line 147, in sample_points
+    raise ValueError("path must have at least two vertices")
+ValueError: path must have at least two vertices
+meta_quantity_save_fails (#2597; array and scalar Quantity in Data.meta): {'array': "TypeError: no implementation found for 'numpy.save' on types that implement __array_functio", 'scalar': "TypeError: no implementation found for 'numpy.save' on types that implement __array_functio"}
+meta_object_array (wp0-core-session-reports): load ValueError: Object arrays cannot be loaded when allow_pickle=False
+preferred_cmap_save_fails (#2597; maps._Style): TypeError: Object of type ListedColormap is not JSON serializable
+link_same_with_units_session_fails (#205): GlueSerializeError: Circular Reference detected: LinkSameWithUnits
+link_editor_fails_on_LinkSameWithUnits_and_PathRelativeLink (#245): ValueError: value x is not in valid choices: [ChoiceSeparator('Main components'), y, ChoiceS
+image_layer_state_round_trip (stretch_global=False, stretch_parameters): ERROR AttributeError: 'NoneType' object has no attribute 'add_callback'
+tab_wcs_session_fails (_save_wcs/_load_wcs, SST5): ValueError: HDUList is required to retrieve -TAB coordinates and/or indices.
+exporters_on_datetime64 (wp0-core-datetime-export): {'FITS (1 component/HDU)': 'ok', 'HDF5': "TypeError: No conversion path for dtype: dtype('<M8[ns]')", 'Comma-separated table': 'writes: t,x | 1609459200000000000,1.0 | 1609459201000000000,2.0 | ', 'IPAC Catalog': 'ok', 'LaTeX Table': 'ok', 'VO Table': "TypeError: dtype('<M8[ns]') can not be represented in VOTable", 'FITS Table': 'ValueError: Illegal format `datetime64[ns]`.'}
+fits_exporter_uint8_subset (export_fits): UnboundLocalError: cannot access local variable 'blank' where it is not associated with a value
+fits_subset_mask_importer_refuses_uint8: ValueError: No HDUs with integer values (which would normally indicate a mask) were found in
+path_sliced_data_no_saver_and_dc_saver_calls_component_ids: {'PathSlicedData saver registered': False, 'has component_ids': False, 'dc save': "AttributeError: 'PathSlicedData' object has no attribute 'component_ids'"}
+path_sliced_data_off_data_and_time (0 off the data; Time cast to float; one pixel shape): ERROR ValueError: path must have at least two vertices
+path_sliced_coordinates_axis_label_IndexError (correlated world axes): {'pixel_n_dim': 2, 'world_n_dim': 4, 'axis_label(0)': 'IndexError', 'axis_label(1)': 'IndexError'}
+wcslink_shared_lists (wp0-core-wcslink-lists): {'map after 5-axis cube': 'ValueError: Cannot slice WCS: the resulting WCS should have at least one pixel and one world', '4-axis cube after 5-axis cube': 'IndexError: list index out of range'}

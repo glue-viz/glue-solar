@@ -1,0 +1,11 @@
+20140917_050324_3860356063_raster_t000_r00000.fits n 2 STEPS_AV 1.99544048309 OBS_DESC Very large coarse 2-step raster 2x175 2s   Deep x 4 Spatial x 2, Spe x span 0.67 med|dx| 0.6659 y span 1.87 jumps>0.03 1
+20150311_151947_3860107071_raster_t000_r00000.fits n 4 STEPS_AV 1.9954401652 OBS_DESC Large coarse 4-step raster 6x120 4s  C II   Si IV   Mg II w Deep x 4 x span 5.99 med|dx| 1.9983 y span 0.05 jumps>0.03 3
+20150622_212524_3620104038_raster_t000_r00000.fits n 16 STEPS_AV 0.997720146179 OBS_DESC Medium sparse 16-step raster 15x60 16s   Deep x 2 Spatial x 2, Spect x span 10.72 med|dx| 0.7094 y span 10.51 jumps>0.03 15
+20150917_073915_3630104144_raster_t000_r00000.fits n 32 STEPS_AV 0.349202063776 OBS_DESC Medium dense 32-step raster 10.24x60 32s  C II   Si IV   Mg II h/k x span 10.95 med|dx| 0.3493 y span 0.11 jumps>0.03 31
+20160904_074446_3625503135_raster_t000_r00000.fits n 16 STEPS_AV 0.349202060699 OBS_DESC Medium dense 16-step raster 5x60 16s  C II   Si IV   Mg II h/k Deep x span 5.24 med|dx| 0.3492 y span 0.03 jumps>0.03 15
+20221014_052628_3400606077_raster_t000_r00000.fits n 320 STEPS_AV -0.34920206339 OBS_DESC Very large dense 320-step raster 105.3x175 320s   Deep x 4 Spatial x x span 108.68 med|dx| 0.3462 y span 1.34 jumps>0.03 319
+20221020_204531_3400109162_raster_t000_r00000.fits n 64 STEPS_AV -1.9954404074 OBS_DESC Very large coarse 64-step raster 126x175 64s  C II   Si IV   Mg II h x span 125.70 med|dx| 1.9960 y span 0.93 jumps>0.03 63
+20221110_142203_3460259103_raster_t000_r00000.fits n 90 STEPS_AV 0.0 OBS_DESC Large sit-and-stare 0.3x120 1s  C II   Si IV   Mg II h/k Deep x 8  F x span 2.11 med|dx| 0.0199 y span 0.17 jumps>0.03 40
+20240509_170727_4204700143_raster_t000_r00000.fits n 9495 STEPS_AV 0.0 OBS_DESC High-Cadence Flare Program: .15 sec, small linelist, Mg II h/k alway x span 14.82 med|dx| 0.0003 y span 1.31 jumps>0.03 91
+20210905_001833_3620258102_raster_t000_r00000_test.f n 187 STEPS_AV 0.0 OBS_DESC Medium sit-and-stare 0.3x60 1s  C II   Si IV   Mg II h/k   Mg II w s x span 42.25 med|dx| 0.2295 y span 0.65 jumps>0.03 186
+20140329_140938_3860258481_raster_t000_r00000_test.f n 8 STEPS_AV 1.99544021061 OBS_DESC Very large coarse 8-step raster 14x175 8s  Si IV   Mg II h/k   Mg II x span 14.08 med|dx| 2.0002 y span 0.05 jumps>0.03 7

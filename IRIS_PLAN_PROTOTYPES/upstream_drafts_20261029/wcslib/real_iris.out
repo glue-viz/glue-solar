@@ -1,0 +1,33 @@
+$ python -I -B probes/real.py   # 2026-10-29T13:19:35-07:00, AMD Ryzen 9 9950X, Linux; irispy f058705's WCS through the reproducer's report()
+irispy 0.9.1.post2.dev223+gf0587057b
+
+ 20221014_052628_3400606077 [Si IV 1403] ctype ['WAVE', 'HPLT-TAB', 'HPLN-TAB'] K [np.int32(2), np.int32(320)] pixel_shape (168, 548, 320)
+
+== 20221014_052628_3400606077 [Si IV 1403]: 320 exposures, slit center spans 108.68" in lon, median |step| 0.3462"
+   forward      0.025 us/pt   (200000 random pixels)
+   inverse       35.9 us/pt   (1000 random pixels inside the table)
+            median 43.9, 99th percentile 56.3, max 65.1 us (200 points one at a time)
+   round trip: exposure off by up to 1.31e-06, by > 0.01 for 0% of points (0% earlier, 0% later); slit pixel off by up to 1.37e-06; 0 not found
+   the pixel returned maps back to the world point within 4.0e-07 arcsec
+   grid inside       36.0 us/pt   (2974 of 3600 grid points)
+   grid outside       6.6 us/pt   (626 of 3600 grid points)
+
+ 20240509_170727_4204700143 [Si IV 1403] ctype ['WAVE', 'HPLT-TAB', 'HPLN-TAB'] K [np.int32(2), np.int32(9495)] pixel_shape (246, 204, 9495)
+
+== 20240509_170727_4204700143 [Si IV 1403]: 9495 exposures, slit center spans 14.82" in lon, median |step| 0.0003"
+   forward      0.025 us/pt   (200000 random pixels)
+   inverse    12628.1 us/pt   (200 random pixels inside the table)
+            median 981.9, 99th percentile 147113.6, max 721669.2 us (200 points one at a time)
+   round trip: exposure off by up to 26.7, by > 0.01 for 61% of points (61% earlier, 0% later); slit pixel off by up to 0.121; 0 not found
+   the pixel returned maps back to the world point within 3.8e-07 arcsec
+   grid inside     1356.3 us/pt   (414 of 900 grid points)
+   grid outside     491.3 us/pt   (486 of 900 grid points)
+
+== 20240509_170727_4204700143 [Si IV 1403] first 1600 exposures: 1600 exposures, slit center spans 2.50" in lon, median |step| 0.0003"
+   forward      0.022 us/pt   (200000 random pixels)
+   inverse    11484.5 us/pt   (200 random pixels inside the table)
+            median 4717.5, 99th percentile 112469.4, max 166102.9 us (200 points one at a time)
+   round trip: exposure off by up to 25.9, by > 0.01 for 62% of points (62% earlier, 0% later); slit pixel off by up to 0.113; 0 not found
+   the pixel returned maps back to the world point within 3.8e-07 arcsec
+   grid inside      958.7 us/pt   (134 of 900 grid points)
+   grid outside      87.8 us/pt   (766 of 900 grid points)
