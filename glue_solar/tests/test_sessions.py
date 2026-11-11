@@ -59,6 +59,7 @@ from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments, subtract_mean_spectrum
 from glue_solar.tests.helpers import angles, load_selected, mouse, restore, scanned, select_point, shift
 from glue_solar.tests.test_bursts import SI_IV
+from glue_solar.tests.test_cube_quicklook import spectral_cube
 from glue_solar.tests.test_importer import _row, counted_reads
 from glue_solar.tests.test_quicklook import (
     LEAD,
@@ -66,6 +67,7 @@ from glue_solar.tests.test_quicklook import (
     SNS,
     THREE,
     check_outline,
+    cube_on,
     draw_region,
     drifting_stack,
     entries,
@@ -82,6 +84,7 @@ from glue_solar.tests.test_quicklook import (
     tick,
     time_series,
     viewer_rows,
+    whole_profiles,
     with_windows,
 )
 from glue_solar.tools import PathData, _pointing
@@ -604,6 +607,67 @@ def test_a_restored_quicklook_has_its_panels_off_and_their_axes(app, qtbot, monk
     assert entries(panels_list(restored)) == entries(panels)
     again = restored.viewers[-1][0].layers[0].state  # the map's
     assert (again.cmap.name, again.stretch, again.v_min, again.v_max) == ("viridis", "sqrt", 5.0, look.v_max)
+
+
+@pytest.mark.filterwarnings("ignore::astropy.wcs.FITSFixedWarning")  # wcslib's notes as the cube's file is read again
+def test_a_restored_quicklook_of_a_cube_renamed_since_has_its_panels_off_and_their_colors(
+    app, qtbot, monkeypatch, tmp_path
+):
+    # its panels' titles are made from its label: found by title, the restored ones took none of the saved settings
+    cube, _ = spectral_cube(tmp_path / "cube.fits", (3, 2, 5, 12, 16))
+    viewers = quicklook(app, [cube])
+    tick(panels_list(app), "cube Stokes Q", on=False)
+    qtbot.waitUntil(lambda: not panels_list(app)._timer.isActive())
+    look = viewers["map"].layers[0].state
+    look.cmap, look.v_max = colormaps["viridis"], 123.0
+    cube.label = "renamed"
+    app.save_session(str(tmp_path / "renamed.glu"))
+    again = restore(qtbot, monkeypatch, tmp_path / "renamed.glu").tab(1)._solar_quicklook[-1]
+    look = again["map"].layers[0].state
+    assert (look.cmap.name, look.v_max) == ("viridis", 123.0)
+    assert [_off(viewer) for viewer in again["spectra"]] == [False, True]  # Stokes I's and Q's
+
+
+def shown_on(viewer):
+    """The label of a viewer's reference data, and each layer's, with its dataset's and whether it shows."""
+    state = viewer.state
+    layers = [(each.layer.label, getattr(each.layer, "data", each.layer).label, each.visible) for each in state.layers]
+    return state.reference_data.label, layers
+
+
+def test_a_restored_quicklook_keeps_a_dataset_dragged_onto_a_panel(
+    app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
+    # as the user guide blinks two slit-jaw channels: the second dragged onto the panel, as its reference data
+    files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES]
+    [raster], sji, other = raster_data(files[:1], ["Si IV 1403"]), *map(image_data, files[1:])
+    [panel] = quicklook(app, [raster, sji])["sji"]
+    app.data_collection.append(other)
+    panel.add_data(other)
+    panel.state.reference_data = other
+    app.save_session(str(tmp_path / "dragged.glu"), absolute_paths=False)
+    restored = restore(qtbot, monkeypatch, tmp_path / "dragged.glu")
+    [again] = restored.tab(1)._solar_quicklook[-1]["sji"]
+    assert shown_on(again) == shown_on(panel)
+    assert shown_on(again)[0] == other.label
+
+
+def test_a_restored_quicklook_neither_asks_about_nor_profiles_a_cube_hidden_on_its_spectrum_panel(
+    app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
+    asked, whole = [], whole_profiles(monkeypatch)
+    monkeypatch.setattr(ProfileViewer, "large_data_size", 1)  # glue's 'Add large data set?' whatever the size
+    monkeypatch.setattr(ProfileViewer, "warn", lambda self, title, *args, **kwargs: asked.append(title) or True)
+    [raster] = raster_data([find_irispy_test_file(irispy_test_files, SNS.format(SNS_FILES[0]))], ["Si IV 1403"])
+    panel = quicklook(app, [raster])["spectrum"]
+    panel.add_data(cube_on(app, raster))  # dragged there and the prompt answered OK: hidden, as in any Profile viewer
+    assert (asked, whole) == (["Add large data set?"], [])
+    app.save_session(str(tmp_path / "hidden.glu"), absolute_paths=False)
+    restored = restore(qtbot, monkeypatch, tmp_path / "hidden.glu")
+    again = restored.tab(1)._solar_quicklook[-1]["spectrum"]
+    assert shown_on(again) == shown_on(panel)
+    assert ("other", "other", False) in shown_on(again)[1]
+    assert (asked, whole) == (["Add large data set?"], [])
 
 
 def test_two_restored_quicklooks_are_laid_out_as_they_were(app, qtbot, monkeypatch, tmp_path, irispy_test_files):

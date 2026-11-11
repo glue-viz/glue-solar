@@ -55,7 +55,7 @@ classifiers = [
 
 [project.optional-dependencies]
 density = [
-  "fiasco>=0.8.2",  # as irispy's density_diagnostic needs
+  "fiasco>=0.9.0",  # as irispy's density_diagnostic needs
 ]
 tests = [
   "pytest",

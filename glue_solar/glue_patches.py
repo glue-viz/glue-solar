@@ -82,7 +82,7 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper, SlicedLowLevelWCS
 
 from sunpy.visualization.colormaps import cmlist
 
-from glue_solar.sources.dkist import STRICT_INVERSE, GlueWCS
+from glue_solar.sources.dkist import DKISTWCS, STRICT_INVERSE
 from glue_solar.sources.loaders.iris import WCS_LOCK, _HeldWCS, _LockedWCS
 
 
@@ -696,7 +696,7 @@ def needs_slider_world_workaround(sync=_original_sync_sliders):
     """
     wcs = WCS(naxis=3)
     wcs.wcs.ctype, wcs.wcs.cunit = ["HPLN-TAN", "HPLT-TAN", "WAVE"], ["arcsec", "arcsec", "Angstrom"]
-    data = Data(label="probe", coords=GlueWCS(wcs, [2, 0, 1, 2], []))  # four world axes over three pixel axes
+    data = Data(label="probe", coords=DKISTWCS(wcs, [2, 0, 1, 2], []))  # four world axes over three pixel axes
     data.add_component(np.zeros((2, 2, 2)), "x")
     DataCollection([data])
     state = ImageViewerState()
@@ -933,7 +933,7 @@ def wcs_link_init(self, data1=None, data2=None, cids1=None, cids2=None):
     # tried there and back from one's middle, first or last pixel, either one's: data observed together over part of
     # their times share one's first or last time at least, where pixel 0's time can be outside the other's (a VBI
     # mosaic's tiles start seconds apart) and the middle's too (a VBI burst in part of a longer ViSP map); dkist's
-    # inverse raising outside its times, as it did before `GlueWCS` gave NaN there, so data of other times stay
+    # inverse raising outside its times, as it did before `DKISTWCS` gave NaN there, so data of other times stay
     # unlinked (D103)
     def passes(there, back, data, kept):
         sizes = [data.shape[data.ndim - 1 - p] for p in kept]
@@ -966,7 +966,7 @@ def needs_wcs_link_workaround(init=_original_wcs_link_init):
     for naxis in (3, 2):
         wcs = WCS(naxis=naxis)
         wcs.wcs.ctype = ["HPLN-TAN", "HPLT-TAN", "STOKES"][:naxis]
-        data = Data(label="probe", coords=GlueWCS(wcs, list(range(naxis)), []))
+        data = Data(label="probe", coords=DKISTWCS(wcs, list(range(naxis)), []))
         data.add_component(np.zeros((2,) * naxis), "x")
         datasets.append(data)
     try:

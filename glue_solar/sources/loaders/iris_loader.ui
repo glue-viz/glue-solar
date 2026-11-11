@@ -238,6 +238,23 @@
     </widget>
    </item>
    <item>
+    <!-- Ignored: a message's long path, which has nowhere to wrap, must not widen the dialog -->
+    <widget class="QLabel" name="status">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Ignored" vsizetype="Preferred">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="textFormat">
+      <enum>Qt::PlainText</enum>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="buttonLayout">
      <item>
       <widget class="QCheckBox" name="stack">

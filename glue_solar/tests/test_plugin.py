@@ -93,15 +93,13 @@ from glue_solar.quicklook import QuicklookImageViewer, _role, _wavelengths
 from glue_solar.regrid import north_up_iris, rebin_iris, regrid_iris, regrid_on_time
 from glue_solar.sources.bursts import bursts_iris
 from glue_solar.sources.calibration import radiometric_calibration_iris, remove_dust_iris
+from glue_solar.sources.dkist_actions import download_dkist, frame_quality_dkist, mosaic_dkist
 from glue_solar.sources.iris import (
     browse_iris,
-    download_dkist,
-    frame_quality_dkist,
     help_iris,
     iris_quicklook,
     is_iris_fits,
     link_iris,
-    mosaic_dkist,
     quicklook_cube,
     shift_pointing_iris,
 )
@@ -277,7 +275,8 @@ def test_only_entries_for_iris_data_alone_say_iris(app, tmp_path):
     tiles = [vbi_like(f"VBI MOSAIC (1, {k})", north=4 * k) for k in (1, 2)]
     for tile in tiles:  # opened from an ASDF file alone, its frames' seeing from its headers
         tile._mosaic, tile._quality = tiles, {"ATMOS_R0": np.full(4, 0.1)}
-        tile._dataset, tile._present = object(), np.zeros(4, bool)
+        files = SimpleNamespace(basepath=tmp_path, fileuri_array=np.array([f"{k}.fits" for k in range(4)]))
+        tile._dataset, tile._present = SimpleNamespace(files=files), np.zeros(4, bool)
     app.data_collection.extend([cube, *maps, *tiles])
     tree = app._layer_widget.ui.layerTree
     ours = [action.label for action in layer_action if action.callback.__module__[:10] == "glue_solar"]
@@ -386,6 +385,39 @@ def test_data_factory_claims_only_iris_files_and_aligned_aia_cutouts(iris_tree):
     assert is_iris_fits(str(aia))  # by name and INSTRUME, as the browser takes them: TELESCOP is blank
     assert not is_iris_fits(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))  # a sunpy Map
     assert not is_iris_fits(str(iris_tree / "notes.txt"))
+
+
+def test_iris_file_of_another_level_opens_with_glues_fits_reader(tmp_path):
+    # a Level 1.5 file, which gives its level in LVL_NUM alone, and a product made from a Level 2 raster
+    for name, keys in (("iris20231007_00000833_nuv", {"INSTRUME": "NUV", "LVL_NUM": 1.5}),
+                       ("line_moments", {"INSTRUME": "SPEC", "DATA_LEV": 3.0})):
+        path = tmp_path / f"{name}.fits"
+        fits.PrimaryHDU(np.zeros((4, 5), np.float32), fits.Header({"TELESCOP": "IRIS", **keys})).writeto(path)
+        data = load_data(str(path))  # irispy reads Level 2 only, so the IRIS reader fails on it
+        assert (data.label, data.shape) == (name, (4, 5))
+        assert [cid.label for cid in data.main_components] == ["PRIMARY"]  # as glue's reader names an HDU's data
+        assert not is_iris_fits(str(path))
+
+
+def test_a_file_of_two_image_hdus_opens_as_a_sunpy_map_each(tmp_path):
+    from astropy.coordinates import SkyCoord
+
+    import sunpy.map
+    from sunpy.coordinates import frames
+
+    center = SkyCoord(0 * u.arcsec, 0 * u.arcsec, obstime="2020-01-01", observer="earth", frame=frames.Helioprojective)
+    hdus = []
+    for hdu, wavelength in ((fits.PrimaryHDU, 171), (fits.ImageHDU, 193)):
+        header = sunpy.map.make_fitswcs_header((4, 5), center, scale=[1, 1] * u.arcsec / u.pix,
+                                               wavelength=wavelength * u.AA)
+        hdus.append(hdu(np.full((4, 5), float(wavelength)), fits.Header(header)))
+    fits.HDUList(hdus).writeto(tmp_path / "maps.fits")
+    maps = load_data(str(tmp_path / "maps.fits"), factory=read_sunpy_map)  # as the file type "sunpy Map" opens it
+    assert [data.label for data in maps] == [
+        "sunpy-map- 171.0 Angstrom 2020-01-01 00:00:00",
+        "sunpy-map- 193.0 Angstrom 2020-01-01 00:00:00",
+    ]
+    assert [data[data.main_components[0]][0, 0] for data in maps] == [171, 193]
 
 
 def test_open_real_sji_through_load_data(irispy_test_files):

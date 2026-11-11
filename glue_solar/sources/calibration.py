@@ -160,17 +160,16 @@ def radiometric_calibration(data):
     """
     Add ``<label> radiance per DN / s`` to ``data``, an IRIS raster window of one scan or a stack of its scans,
     rebinned by 'IRIS: rebin…' or not: irispy's factor from DN / s to radiance at each of its wavelengths, held as one
-    spectrum, a stack's one for each scan; and ``<label> radiance``, its ``<label> DN / s`` times it, a glue derived
-    component, in irispy's ``RADIANCE_UNIT``, erg / (Angstrom s sr cm2).
+    spectrum; and ``<label> radiance``, its ``<label> DN / s`` times it, a glue derived component, in irispy's
+    ``RADIANCE_UNIT``, erg / (Angstrom s sr cm2).
 
     The factor is irispy's ``radiometric_calibration``'s: ``calculate_dn_to_radiance_factor`` of the window's
     wavelengths, detector, spectral dispersion and pixel solid angle, with the effective area of irispy's latest
-    response at its ``DATE_OBS``; a stack's scan's at its own wavelengths, from its own WCS, with the first scan's
-    spectral dispersion and solid angle, which every scan's pixel sizes, CDELT1-3, must equal, and at the stack's
-    ``DATE_OBS``, its first scan's, which only picks the response; NaN at wavelengths the response does not cover. A
-    bin of rebinned data is the mean of the window's pixels, so the factor takes their spectral dispersion and solid
-    angle, from the window's WCS beneath the rebinned one, and the effective area at the bin's wavelength, its pixels'
-    mean.
+    response at its ``DATE_OBS``; a stack's with the first scan's spectral dispersion and solid angle, which every
+    scan's pixel sizes, CDELT1-3, must equal, and at the stack's ``DATE_OBS``, its first scan's, which only picks the
+    response; NaN at wavelengths the response does not cover. A bin of rebinned data is the mean of the window's
+    pixels, so the factor takes their spectral dispersion and solid angle, from the window's WCS beneath the rebinned
+    one, and the effective area at the bin's wavelength, its pixels' mean.
 
     Returns
     -------
@@ -192,30 +191,25 @@ def radiometric_calibration(data):
     cid = data.main_components[0]
     label = f"{cid.label} radiance"
     rate, unit = data.id[f"{cid.label} DN / s"], _unit(data)
-    scans, zeros = list(np.ndindex(data.shape[:-3])), np.broadcast_to(np.float32(0), data.shape[-3:])
-    meta = _irispy_meta(data, scans[0])  # its DATE_OBS, a stack's first scan's, every scan's
+    scan, zeros = (0,) * (data.ndim - 3), np.broadcast_to(np.float32(0), data.shape[-3:])
+    meta = _irispy_meta(data, scan)  # its DATE_OBS, a stack's first scan's, every scan's
     response = get_latest_response(meta.date_reference)
     # the window's own, a stack's first scan's, whose pixel sizes are every scan's (`_check_radiance`)
     pixel = SpectrogramCube(zeros, _scan_wcses(data)[0])  # of the window's pixels, of which a bin is the mean
     with WCS_LOCK:  # irispy reads these from the astropy WCS's struct, which no `_LockedWCS` call guards
         dispersion, solid_angle = pixel.spectral_dispersion, pixel.solid_angle
-    factors = []
-    for scan in scans:  # each scan of a stack, at its own wavelengths (stack_wcs)
-        cube = SpectrogramCube(zeros, SlicedLowLevelWCS(data.coords._wcs, (*scan, ...)))
-        factors.append(
-            calculate_dn_to_radiance_factor(
-                iris_response=response,
-                # irispy's values, 40 ms a scan sooner; a bin's at its middle, its pixels' mean
-                wavelength=cube.axis_world_coords_values(cube.wavelength_axis)[0],
-                detector_type=meta.detector_band,
-                spectral_dispersion_per_pixel=dispersion,
-                solid_angle=solid_angle,
-            )
-        )
-    factor = (unit.to(u.photon / u.s) * u.photon / u.s * u.Quantity(factors)).to_value(RADIANCE_UNIT)  # of 1 DN / s
-    factor = factor.reshape(*data.shape[:-3], 1, 1, -1)  # a spectrum for each scan
+    cube = SpectrogramCube(zeros, SlicedLowLevelWCS(data.coords._wcs, (*scan, ...)))
+    factor = calculate_dn_to_radiance_factor(
+        iris_response=response,
+        # irispy's values, 40 ms sooner; a bin's at its middle, its pixels' mean; a stack's scans share them (stack_wcs)
+        wavelength=cube.axis_world_coords_values(cube.wavelength_axis)[0],
+        detector_type=meta.detector_band,
+        spectral_dispersion_per_pixel=dispersion,
+        solid_angle=solid_angle,
+    )
+    factor = (unit.to(u.photon / u.s) * u.photon / u.s * factor).to_value(RADIANCE_UNIT)  # of 1 DN / s
     per_rate = _BroadcastComponent(np.broadcast_to(factor, data.shape), units=str(RADIANCE_UNIT / (u.DN / u.s)))
-    radiance = rate * data.add_component(per_rate, f"{cid.label} radiance per DN / s")  # a view: a spectrum a scan held
+    radiance = rate * data.add_component(per_rate, f"{cid.label} radiance per DN / s")  # a view: one spectrum held
     data.add_component_link(radiance, label).units = str(RADIANCE_UNIT)
     return radiance.get_to_id()
 

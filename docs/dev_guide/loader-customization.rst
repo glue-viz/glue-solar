@@ -29,7 +29,8 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
    ``RawStack`` stacks scans along a new leading axis without copying them.
 4. ``stack_spectrograms.py`` gives a stack of two or more raster scans its WCS
    (``stack_wcs``, each scan's own with a leading scan-number axis on which the longitude
-   and latitude depend) and its exact acquisition times (``stack_times``); ``iris.py`` stacks
+   and latitude depend, refusing scans whose wavelengths differ, so that an analysis takes one
+   wavelength axis for a stack) and its exact acquisition times (``stack_times``); ``iris.py`` stacks
    floating-point scans without resampling in memory, as ``RawStack`` stacks int16 ones in their files.
 5. ``iris_loader.ui`` and ``QtIRISImporter`` present the observation and spectral-window
    selection dialog, which scans the folder and reads the selection on glue-qt's worker

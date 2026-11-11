@@ -514,7 +514,7 @@ class FrameTimeTool(Tool, HubListener):
             return
         exposure = data.find_component_id("Exposure time")
         if exposure is not None:
-            seconds = data[exposure, view]
+            seconds = unbroadcast(data[exposure, view])  # one per frame, as the time
             shortest, longest = f"{np.nanmin(seconds):.4g}", f"{np.nanmax(seconds):.4g}"
             text += f" · exp {shortest} s" if shortest == longest else f" · exp {shortest}–{longest} s"
         where = self.coordinator.point_on(self.viewer)
@@ -2517,19 +2517,20 @@ class MainWindowTool(Tool):
 
     @messagebox_on_error("Could not show this window's panels")
     def switch(self):
-        if not self.viewer._closed:  # by a click before
+        if self.viewer is not None:  # glue's `Tool.close` forgets it as a click before closes it
             _switch(self.viewer)
 
 
 def _position(viewer):
     """
-    The Image viewer's position, D41's A or B: its reference data, slider position and layers with per-frame limits,
-    which `PerFrameLimitsTool` turns off as other data is shown.
+    The Image viewer's position, D41's A or B: its reference data, slider position, layers with per-frame limits,
+    which `PerFrameLimitsTool` turns off as other data is shown, and visible layers, which a blink flip hides.
     """
     state = viewer.state
     data = state.reference_data
-    per_frame = [layer for layer in _layers_of(state, data) if not getattr(layer, "stretch_global", True)]
-    return data, tuple(state.slices), per_frame
+    layers = _layers_of(state, data)
+    per_frame = [layer for layer in layers if not getattr(layer, "stretch_global", True)]
+    return data, tuple(state.slices), per_frame, [layer for layer in layers if layer.visible]
 
 
 def _layers_of(state, data):
@@ -2537,12 +2538,13 @@ def _layers_of(state, data):
     return [layer for layer in state.layers if layer.layer.data is data]
 
 
-def _show_position(viewer, coordinator, data, slices, per_frame=()):
+def _show_position(viewer, coordinator, data, slices, per_frame=(), visible=()):
     """
     Show ``data`` at ``slices`` as a blink flip (D41): axes, zoom, point and time sync stay, a follower at its time
     sync index; glue resets them for other data, so they are set again, as are its layers' per-frame limits
     ``per_frame``, which `PerFrameLimitsTool` turned off as it was left; and the data left is hidden, as glue would
-    retry its disabled layer at every draw (about a second on a full raster).
+    retry its disabled layer at every draw (about a second on a full raster). Of the layers of ``data`` only
+    ``visible`` show again, those its position showed: one the user hid stays hidden.
     """
     state = viewer.state
     shown = state.reference_data
@@ -2553,7 +2555,7 @@ def _show_position(viewer, coordinator, data, slices, per_frame=()):
         index, axis = coordinator.following(data), _time_axis(data) or 0  # a DKIST pair's time axis (D105)
         if index is not None and not isinstance(slices[axis], AggregateSlice):
             slices = (*slices[:axis], index, *slices[axis + 1 :])
-        for layer in _layers_of(state, data):
+        for layer in visible:
             layer.visible = True
         x, y = state.x_att.axis, state.y_att.axis
         limits = state.x_min, state.x_max, state.y_min, state.y_max
@@ -2809,13 +2811,13 @@ class CoordinateTool(_ToolMenu):
     def blink(self, on):
         """
         Start alternating the viewer between its position and ``partner``, with a flip now, or stop, showing the
-        partner's layers again; the "Blink" entry is checked while it runs.
+        layers of the partner that the last flip hid again; the "Blink" entry is checked while it runs.
         """
         try:
             if not on:
                 self._blink.stop()
                 if self.partner is not None:
-                    for layer in _layers_of(self.viewer.state, self.partner[0]):
+                    for layer in self.partner[3]:
                         layer.visible = True
             elif not self._valid():
                 raise ValueError("Choose 'Set blink partner here' first, at the position to blink against.")

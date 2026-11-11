@@ -31,7 +31,7 @@ checkout as a package, not editable::
         filelock ipykernel "ipython<9" pvextractor plasmapy h5py fortranformat ffmpeg pip
     micromamba run -n glue-solar-app pip install --no-deps glue-qt==0.4.2 \
         "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@f0587057b255015c820b4fb4239cfbec67b5e354" \
-        "fiasco>=0.5.0"
+        "fiasco>=0.9.0"
     micromamba run -n glue-solar-app pip install --no-deps .
 
 Install glue-solar again after each change to the checkout. The app holds no PyQt5, PySide or tkinter. It holds

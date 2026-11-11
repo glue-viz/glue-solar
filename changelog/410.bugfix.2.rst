@@ -1,0 +1,1 @@
+The observation browser stays open when a load reads nothing (nothing ticked, or stopped before the first entry was read), shows its messages on a line under the progress bar, where a path with a ``%`` or a long error shows whole, and names a half-downloaded archive that fails to unpack, listing those unpacked before it.

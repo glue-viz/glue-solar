@@ -1,0 +1,1 @@
+IRIS files that are not Level 2 open with glue's "FITS file" reader again, and a FITS file of several image HDUs opens as one dataset per image with the file type "sunpy Map".

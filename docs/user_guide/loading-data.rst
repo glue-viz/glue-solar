@@ -35,8 +35,10 @@ With "Open quicklook" ticked, each observation opens in a quicklook (see :ref:`Q
 window in "Main window", which shows once two or more windows are ticked, Mg II k 2796 unless
 changed. Unticked, the first slit-jaw image or AIA cutout opens in an Image viewer.
 
-"Stop" ends a search or a load with what has been read in full; :kbd:`Esc` drops it. If an entry
-fails to load, the progress bar names the file and the error.
+"Stop" ends a search or a load with what has been read in full; :kbd:`Esc` drops it. The browser's
+messages show under the progress bar. If an entry fails to load, or an archive to unpack, the
+message names the file and the error. The browser stays open then, and when nothing was loaded,
+with nothing ticked or stopped before the first entry was read.
 
 To narrow the list:
 
@@ -53,7 +55,8 @@ To narrow the list:
 
 **Stacking scans.** Tick "Stack sequential raster scans" to load each window's scans as one cube,
 indexed by scan, raster step, slit pixel and wavelength, without resampling. The scan slider picks a
-scan, and each scan keeps its own coordinates and times.
+scan, and each scan keeps its own coordinates and times. Scans that differ in shape or wavelengths
+are not stacked: glue says so and loads nothing.
 
 What a dataset holds
 --------------------
@@ -94,8 +97,9 @@ terminal. With the file type "Auto":
 - an SST CRISP or CHROMIS cube loads as one cube;
 - a DKIST dataset's ASDF file loads as one dataset, a VBI or DL-NIRSP mosaic as one per tile.
 
-For AIA, HMI and other solar images, pick the file type "sunpy Map". Files loaded one by one cannot
-be stacked: use the browser for observations of many scans.
+An IRIS file of any other level, such as Level 1.5, loads with glue's "FITS file" reader. For AIA,
+HMI and other solar images, pick the file type "sunpy Map": a file of several images loads as a map
+each. Files loaded one by one cannot be stacked: use the browser for observations of many scans.
 
 .. _glue_solar_users_guide_loading_sst_cubes:
 
@@ -168,6 +172,10 @@ a Stokes parameter not yet shown takes up to 3 s, its later moves about 0.5 s.
 - A frame whose FITS file is missing reads as NaN, and glue's Error Console says how many files
   are there; one whose file is part-written, as Globus writes it, or corrupt reads as NaN too, the
   Error Console naming the file, until the file is whole.
+- A file that arrives once the dataset is open, as by a Globus transfer started earlier, is read the
+  next time its frame is drawn. It counts for the color limits the next time glue takes them, as in
+  a new viewer or at another choice of the layer's limits, and "Download these frames…" leaves it
+  out; glue looks for a dataset's missing files at most every 5 s.
 - Color limits come from up to 16 whole frames; the tiles of a mosaic share theirs. NaN
   pixels are transparent, as IRIS data's, so a mosaic's tiles in one Image viewer don't hide each
   other.

@@ -48,8 +48,9 @@ from glue_solar import glue_patches
 from glue_solar.conftest import find_irispy_test_file, int16_copy
 from glue_solar.quicklook import _lon_lat, _times, coordinator, quicklook
 from glue_solar.regrid import regrid_on_time
-from glue_solar.sources.dkist import DKISTData, GlueWCS, _data, _glue_order, _SlitAt, _SlitPlace, dkist_data
-from glue_solar.sources.iris import frame_quality_dkist, link_iris
+from glue_solar.sources.dkist import DKISTWCS, DKISTData, _data, _glue_order, _SlitAt, _SlitPlace, dkist_data
+from glue_solar.sources.dkist_actions import frame_quality_dkist
+from glue_solar.sources.iris import link_iris
 from glue_solar.sources.loaders.iris import image_data
 from glue_solar.sources.sst import sst_data
 from glue_solar.tests.helpers import mouse, restore, shift
@@ -142,7 +143,7 @@ def test_a_dkist_level_2_inversion_does_not_open_as_level_1(tmp_path):
 def slit_raster(step):
     """
     A raster of 3 steps along a slit of 10 pixels of 0.5" at 25 wavelengths, stepping ``step`` arcsec west and 10 s a
-    step from 2023-11-14 (unix 1.7e9 s), as a `GlueWCS` dataset: sit-and-stare where it moves less than a pixel along
+    step from 2023-11-14 (unix 1.7e9 s), as a `DKISTWCS` dataset: sit-and-stare where it moves less than a pixel along
     the slit.
     """
     wcs = SimpleNamespace(
@@ -168,7 +169,7 @@ def slit_raster(step):
             1.7e9 + 10 * z,
         ),
     )
-    data = Data(label="raster", coords=GlueWCS(wcs, _glue_order(wcs, (25, 10, 3)), []))
+    data = Data(label="raster", coords=DKISTWCS(wcs, _glue_order(wcs, (25, 10, 3)), []))
     data.add_component(np.zeros((3, 10, 25)), "data")
     return data
 
@@ -273,7 +274,7 @@ def test_a_linked_dkist_raster_s_point_moves_to_the_step_at_the_place(qtbot, mon
 def repeated_raster(axes):
     """
     A raster of 3 steps of 0.5" along a slit of 6 pixels of 0.5", at 5 wavelengths, in Stokes I, Q, U and V, repeated
-    twice 30 s apart, of numpy ``axes`` named 'stokes', 'repeat', 'step', 'slit' and 'wave', as a `GlueWCS` dataset of
+    twice 30 s apart, of numpy ``axes`` named 'stokes', 'repeat', 'step', 'slit' and 'wave', as a `DKISTWCS` dataset of
     values numbering its pixels, its pointing and time along its steps and repeats, as dkist's gWCS ravels a ViSP
     raster's repeats or Cryo-NIRSP's measurements with its steps; and its values.
     """
@@ -313,7 +314,7 @@ def repeated_raster(axes):
         pixel_to_world_values=world,
     )
     shape = [sizes[axis] for axis in axes]
-    data = Data(label="raster", coords=GlueWCS(wcs, _glue_order(wcs, shape[::-1]), []))
+    data = Data(label="raster", coords=DKISTWCS(wcs, _glue_order(wcs, shape[::-1]), []))
     values = np.arange(np.prod(shape), dtype=float).reshape(shape)
     data.add_component(values, "data")
     return data, values
@@ -631,7 +632,7 @@ def test_a_dkist_dataset_s_coordinates_evaluate_on_one_thread_at_a_time(monkeypa
     for name in ("pixel_to_world_values", "world_to_pixel_values"):
         monkeypatch.setattr(wcs, name, alone(getattr(wcs, name)))
     # glue-qt's profile worker beside the GUI thread: dkist's VaryingCelestialTransform sets one model's parameters at
-    # each raster step, then evaluates it, so one thread's map took another's step's pointing, and GlueWCS kept it
+    # each raster step, then evaluates it, so one thread's map took another's step's pointing, and DKISTWCS kept it
     threads = [
         threading.Thread(target=coords.pixel_to_world_values, args=(2, 5, 12)),
         threading.Thread(target=coords.world_to_pixel_values, args=world),
@@ -671,7 +672,7 @@ def test_dkist_datasets_of_different_dimensions_link_pixel_to_pixel(tmp_path):
     # its Stokes I map at one wavelength: the raster's steps and slit, of their longitude, latitude and time
     stokes_i = _data(dkist.load_dataset(path)[0, :, 400], "VISP BKEWK map")
     dc = DataCollection([visp, stokes_i])
-    # glue's autolinker raised AttributeError: 'GlueWCS' object has no attribute 'has_celestial'
+    # glue's autolinker raised AttributeError: 'DKISTWCS' object has no attribute 'has_celestial'
     [[link]] = find_possible_links(dc).values()
     assert isinstance(link, WCSLink)
     dc.add_link(link)
@@ -904,7 +905,7 @@ def viewed(app):
 
 @small_visp_dated_2044
 def test_a_session_restores_dkist_datasets_and_their_image_and_profile_viewers(app, qtbot, monkeypatch, tmp_path):
-    # D102: glue saved no `GlueWCS`, of a gWCS, and restored a `DKISTData` as a Data, of glue's color limits
+    # D102: glue saved no `DKISTWCS`, of a gWCS, and restored a `DKISTData` as a Data, of glue's color limits
     from dkist.io.dask.loaders import AstropyFITSLoader
 
     from gwcs import WCS as GWCS
@@ -928,7 +929,7 @@ def test_a_session_restores_dkist_datasets_and_their_image_and_profile_viewers(a
     monkeypatch.chdir(tmp_path / "glue")  # glue's own folder, not the session's, which dkist read the files from as NaN
     app.save_session(str(path), absolute_paths=False)  # as the dialog starts with
     for _ in range(2):  # and from a restored session
-        assert "GlueWCS" not in path.read_text()  # the coordinates read from the ASDF file again, not saved
+        assert "DKISTWCS" not in path.read_text()  # the coordinates read from the ASDF file again, not saved
         for serializer in (GlueSerializer, GlueUnSerializer):  # as a fresh glue, of no gWCS saver
             monkeypatch.delitem(serializer.dispatch._data, GWCS, raising=False)
         with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):  # its ASDF file read again
@@ -1186,7 +1187,7 @@ def observed(label, sizes, along, world, inverse, by):
         world_to_pixel_values=lambda *values: tuple(inverse(dict(zip(kinds, values)))[axis] for axis in axes[::-1]),
     )
     shape = [sizes[axis] for axis in axes]
-    data = DKISTData(label=label, coords=GlueWCS(wcs, _glue_order(wcs, shape[::-1]), axes[::-1]))
+    data = DKISTData(label=label, coords=DKISTWCS(wcs, _glue_order(wcs, shape[::-1]), axes[::-1]))
     data.add_component(np.arange(np.prod(shape), dtype=float).reshape(shape), "data")
     frames = dict(zip(axes, np.indices(shape[:-2])))
     seconds = world({axis: frames.get(axis, 0) for axis in axes})["time"]
@@ -1797,7 +1798,7 @@ def vbi_tile(label, north=0, later=0):
 def stitched(app, qtbot, tile):
     """The image 'Mosaic…' on ``tile`` adds, once its thread ends."""
     from glue_solar.sources import moments
-    from glue_solar.sources.iris import mosaic_dkist
+    from glue_solar.sources.dkist_actions import mosaic_dkist
 
     count = len(app.data_collection)
     mosaic_dkist(tile, app.data_collection)
@@ -2274,7 +2275,7 @@ def download(app, qtbot, monkeypatch, data, typed, transfer=None):
     from dkist.io import DKISTFileManager
 
     from glue_solar.sources import moments
-    from glue_solar.sources.iris import download_dkist
+    from glue_solar.sources.dkist_actions import download_dkist
 
     # of dkist's helper's arguments, as dkist.net.helpers holds it, unmocked
     transfer = transfer or create_autospec(dkist.net.helpers._orchestrate_transfer_task)
@@ -2383,9 +2384,9 @@ def drawn(viewer, x, y):
 def test_downloaded_frames_fill_in_an_open_viewer_as_their_files_arrive_and_a_session_restores_them(
     app, qtbot, monkeypatch, tmp_path
 ):
-    from glue_solar.sources import iris
+    from glue_solar.sources import dkist_actions
 
-    monkeypatch.setattr(iris, "DOWNLOAD_POLL", 400)
+    monkeypatch.setattr(dkist_actions, "DOWNLOAD_POLL", 400)
     shutil.copy(small_visp(), tmp_path)
     with pytest.warns(UserWarning, match="0 of 3 files"):
         data = load_data(str(tmp_path / "test_visp.asdf"))
@@ -2430,9 +2431,9 @@ def test_downloaded_frames_fill_in_an_open_viewer_as_their_files_arrive_and_a_se
 
 @small_visp_dated_2044
 def test_a_mosaic_s_tiles_keep_one_color_limits_as_a_download_s_files_arrive(app, qtbot, monkeypatch, tmp_path):
-    from glue_solar.sources import iris
+    from glue_solar.sources import dkist_actions
 
-    monkeypatch.setattr(iris, "DOWNLOAD_POLL", 20)
+    monkeypatch.setattr(dkist_actions, "DOWNLOAD_POLL", 20)
     shutil.copy(small_visp(), tmp_path)
     shutil.copytree(small_visp().parent, tmp_path / "there")
     with pytest.warns(UserWarning, match="0 of 3 files"):
@@ -2564,6 +2565,73 @@ def test_download_these_frames_says_why_it_has_no_file_to_send(app, qtbot, monke
     app.data_collection.remove(tiles[0])
     with pytest.raises(ValueError, match=re.escape(f"of VISP qVXjk in glue is in {tmp_path / 'there'} or on its way")):
         download(app, qtbot, monkeypatch, tiles[1], {})
+
+
+@small_visp_dated_2044
+def test_dkist_files_another_transfer_brings_once_the_dataset_is_open_give_its_color_limits(
+    app, monkeypatch, tmp_path
+):
+    from glue_solar.sources import dkist
+
+    shutil.copy(small_visp(), tmp_path)
+    with pytest.warns(UserWarning, match="0 of 3 files"):
+        data = load_data(str(tmp_path / "test_visp.asdf"))
+    # two of its files arrive, as by a Globus transfer an earlier glue started, which no watch of this glue follows
+    for name in ("0.fits", "1.fits"):
+        shutil.copy(small_visp().parent / name, tmp_path)
+    app.data_collection.append(data)
+    layer = app.new_data_viewer(ImageViewer, data=data).layers[0].state
+    cid = data.main_components[0]
+    values = np.asarray(data[cid])[:2]
+    assert (layer.v_min, layer.v_max) == (values.min(), values.max())  # where they stayed glue's 0 to 1, of no value
+    # the last is not looked for within `LOOK_EVERY` of that look, as a dataset may miss tens of thousands
+    shutil.copy(small_visp().parent / "2.fits", tmp_path)
+    layer.percentile = 99
+    assert list(data._present) == [True, True, False]
+    monkeypatch.setattr(dkist, "LOOK_EVERY", 0)  # as 5 s later
+    layer.percentile = 100
+    values = np.asarray(data[cid])
+    assert (layer.v_min, layer.v_max) == (values.min(), values.max())
+    # and 'Download these frames…' is offered no more
+    app._layer_widget.ui.layerTree.set_selected_layers([data])
+    assert not app._layer_widget._actions["Download these frames…"].isVisible()
+
+
+@small_visp_dated_2044
+def test_download_these_frames_leaves_out_the_files_another_transfer_brought_once_the_dataset_was_open(
+    app, qtbot, monkeypatch, tmp_path
+):
+    from glue_solar.sources import dkist
+
+    shutil.copy(small_visp(), tmp_path)
+    with pytest.warns(UserWarning, match="0 of 3 files"):
+        data = load_data(str(tmp_path / "test_visp.asdf"))
+    for name in ("0.fits", "1.fits"):
+        shutil.copy(small_visp().parent / name, tmp_path)
+    app.data_collection.append(data)
+    opened, transfer = download(app, qtbot, monkeypatch, data, {})
+    assert opened["summary"] == "1 file to download, 2044-03-15T08:23:14 (2 more already there)"
+    assert [path.name for path in transfer.call_args.args[0]] == ["2.fits"]
+    # the one this download is writing is left to its watch, not found part-written as the color limits are taken
+    (tmp_path / "2.fits").write_bytes((small_visp().parent / "2.fits").read_bytes()[:2880])
+    monkeypatch.setattr(dkist, "LOOK_EVERY", 0)  # as 5 s later
+    data.compute_statistic("maximum", data.main_components[0], random_subset=10_000)
+    assert list(data._present) == [True, True, False]
+
+
+def test_a_dkist_dataset_s_noise_level_is_taken_again_once_another_transfer_brings_its_files(monkeypatch, tmp_path):
+    from glue_solar.sources import dkist
+
+    monkeypatch.setattr(dkist, "LOOK_EVERY", 0)  # each look at once, not 5 s after the last
+    with pytest.warns(UserWarning, match="0 of 80 files"):
+        data = load_data(str(asdf_alone(tmp_path, "large_visp")))  # of Stokes parameter, step, wavelength and slit
+    assert data._noise == {1: 0, 2: 0, 3: 0}  # of no value
+    values = np.random.default_rng(0).normal(0, 1, data.shape) * np.array([10, 1, 1.5, 2])[:, None, None, None]
+    for name, frame in zip(data._dataset.files.fileuri_array.ravel(), values.reshape(-1, 1, *data.shape[2:])):
+        fits.PrimaryHDU(frame).writeto(tmp_path / name)
+    # of 4 of its 20 steps, as of files present from the start
+    noise = {k: pytest.approx(min(mad_std(values[k, 2::5, end]) for end in (0, -1))) for k in (1, 2, 3)}
+    assert data._noise == noise
 
 
 @small_visp_dated_2044

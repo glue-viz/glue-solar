@@ -16,6 +16,7 @@ from glue.core.component import DateTimeComponent
 from glue.core.edit_subset_mode import OrMode
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.hub import HubListener
+from glue.core.link_helpers import LinkSame
 from glue.core.link_manager import LinkManager
 from glue.core.message import NumericalDataChangedMessage, SettingsChangeMessage, SubsetUpdateMessage
 from glue.core.roi import PolygonalROI, RectangularROI, XRangeROI, YRangeROI
@@ -664,6 +665,17 @@ def test_the_quicklook_panels_status_lines_are_short(bare_app, irispy_test_files
     assert bare_app.statusBar().currentMessage() == ""
 
 
+def test_the_frame_time_reads_one_exposure_a_frame(bare_app, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    [sji_viewer] = quicklook(bare_app, [raster, sji])["sji"]
+    read, nanmin = [], np.nanmin
+    monkeypatch.setattr(np, "nanmin", lambda values: read.append(values.size) or nanmin(values))
+    sji_viewer.toolbar.tools["solar:frame_time"]._refresh()
+    # not one a pixel, which took 37 ms a slider step on a 4096 x 4096 frame
+    assert read == [1]
+    assert " · exp " in readout(sji_viewer)
+
+
 def test_the_time_sync_reads_plainly(bare_app, qtbot, irispy_test_files):
     """
     The Coordinate and View menus, the frame time, the Point window and the light curves' exposure subset say which
@@ -772,10 +784,17 @@ def test_quicklook_fits_a_spectrum_computed_on_a_thread(bare_app, qtbot, monkeyp
     assert (spectrum.y_min, spectrum.y_max) == (np.nanmin(values), np.nanmax(values))
 
 
-def test_the_spectrum_panel_never_profiles_the_whole_cube(bare_app, qtbot, monkeypatch, scans):
-    # glue would compute the mean spectrum of the whole cube for a layer that is only hidden again
-    whole = []
-    compute = Data.compute_statistic
+def cube_on(app, data):
+    """A cube 'other' of no instrument on the pixels of ``data``, linked, so that its spectrum panel can profile it."""
+    other = Data(label="other", flux=np.ones(data.shape))
+    app.data_collection.append(other)
+    app.data_collection.add_link([LinkSame(*ids) for ids in zip(data.pixel_component_ids, other.pixel_component_ids)])
+    return other
+
+
+def whole_profiles(monkeypatch):
+    """A list that grows by a dataset's label at each profile glue computes of the whole of it, not of a subset."""
+    whole, compute = [], Data.compute_statistic
 
     def counted(self, *args, **kwargs):
         if kwargs.get("axis") is not None and kwargs.get("subset_state") is None:
@@ -783,6 +802,12 @@ def test_the_spectrum_panel_never_profiles_the_whole_cube(bare_app, qtbot, monke
         return compute(self, *args, **kwargs)
 
     monkeypatch.setattr(Data, "compute_statistic", counted)
+    return whole
+
+
+def test_the_spectrum_panel_never_profiles_the_whole_cube(bare_app, qtbot, monkeypatch, scans):
+    # glue would compute the mean spectrum of the whole cube for a layer that is only hidden again
+    whole = whole_profiles(monkeypatch)
     scan, _ = scans
     viewers = quicklook(bare_app, [scan])
     select_point(viewers["map"], 1, 30)
@@ -790,11 +815,16 @@ def test_the_spectrum_panel_never_profiles_the_whole_cube(bare_app, qtbot, monke
     assert whole == []
     [cube] = [layer for layer in viewers["spectrum"].state.layers if layer.layer is scan]
     assert not cube.visible
-    # a raster added again later shows as glue adds it
+    # what is added later is asked about, as in any Profile viewer: a cube of another instrument is then hidden, and
+    # the raster added again shows as glue adds it
+    asked = []
+    monkeypatch.setattr(ProfileViewer, "warn", lambda self, title, *args, **kwargs: asked.append(title) or True)
+    viewers["spectrum"].add_data(cube_on(bare_app, scan))
+    assert (asked, whole) == (["Add large data set?"], [])
     viewers["spectrum"].remove_data(scan)
     viewers["spectrum"].add_data(scan)
-    [cube] = [layer for layer in viewers["spectrum"].state.layers if layer.layer is scan]
-    assert cube.visible
+    visible = {layer.layer.label: layer.visible for layer in viewers["spectrum"].state.layers}
+    assert (visible["other"], visible[scan.label], len(asked)) == (False, True, 2)
 
 
 def test_the_spectrum_panel_saves_profiles_naming_no_layer_it_hides(bare_app, monkeypatch, tmp_path, irispy_test_files):
@@ -5093,6 +5123,24 @@ def test_other_windows_open_once_ticked_below_rows_that_keep_the_strip_in_sight(
     assert len(bare_app.viewers[-1]) == count + 2  # made once
 
 
+def test_a_window_ticked_leaves_the_regions_shown_on_the_panels_open(bare_app, qtbot, irispy_test_files):
+    c2, _, mg = windows_of(irispy_test_files, "sit-and-stare")
+    viewers = quicklook(bare_app, [c2, mg], window=["C II 1336", "Mg II k 2796"])
+    draw_region(bare_app, viewers["map"], RectangularROI(80.3, 100.6, 10.3, 19.8))
+    point, region = bare_app.data_collection.subset_groups
+
+    def shows(group):  # the titles of the panels with a layer of the group shown
+        layers = [(viewer.state.title, layer) for viewer in _viewers(viewers) for layer in viewer.state.layers]
+        return [title for title, layer in layers if getattr(layer.layer, "group", None) is group and layer.visible]
+
+    main = shows(region)
+    assert len(main) == 4  # the map, the spectrogram, the wavelength panel and the spectrum
+    with_windows(qtbot, viewers)
+    # the point alone on C II 1336's panels, as on a quicklook's as it opens
+    assert shows(region) == main
+    assert shows(point) == [*main, "C II 1336 λ–time", "C II 1336 spectrum"]
+
+
 @pytest.mark.parametrize("kind", ["scan", "sit-and-stare", "stack"])
 def test_each_window_of_the_file_joins_the_quicklook(bare_app, qtbot, irispy_test_files, kind):
     rasters = windows_of(irispy_test_files, kind)
@@ -5347,6 +5395,19 @@ def test_a_switch_keeps_the_point_the_time_master_and_the_colors(bare_app, qtbot
     assert point_window(bare_app).parent().geometry() == point_window(first).parent().geometry()
 
 
+def test_a_switch_keeps_a_dataset_dragged_onto_a_panel(bare_app, qtbot, irispy_test_files):
+    # as its reference data, which the panel opened again could not take: the switch stopped with the old panels closed
+    c2, _, mg = windows_of(irispy_test_files, "sit-and-stare")
+    sji, other = slit_jaws(irispy_test_files)
+    viewers = with_windows(qtbot, quicklook(bare_app, [c2, mg, sji], window=["C II 1336", "Mg II k 2796"]))
+    bare_app.data_collection.append(other)
+    viewers["sji"][0].add_data(other)
+    viewers["sji"][0].state.reference_data = other
+    state = switch(qtbot, viewers["windows"][0]["spectrum"])["sji"][0].state
+    assert state.reference_data is other
+    assert [layer.layer for layer in state.layers if isinstance(layer.layer, Data)] == [sji, other]
+
+
 def test_a_click_after_the_point_is_deleted_moves_the_panels(bare_app, qtbot, irispy_test_files):
     # deleted in glue-qt's data collection, the point still owned the panels, and those of a window ticked then, which
     # then followed no later point
@@ -5378,6 +5439,17 @@ def test_a_switch_after_the_point_is_deleted_gives_a_new_point(bare_app, qtbot, 
     assert bare_app.session.edit_subset_mode.edit_subset == [group]
     assert (group.label, group.subset_state.reference_data) == ("Point", si4)
     assert point_window(bare_app).rowCount() > 0
+
+
+def test_a_second_click_before_the_switch_runs_is_dropped(bare_app, qtbot, irispy_test_files):
+    c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
+    viewers = with_windows(qtbot, quicklook(bare_app, [c2, si4, mg], window=THREE))
+    panel = viewers["windows"][1]["spectrum"]  # Si IV 1403
+    panel.toolbar.actions["solar:main_window"].trigger()  # the switch waits for Qt, so a second click finds the panel
+    with qtbot.captureExceptions() as errors:
+        switched = switch(qtbot, panel)
+    assert not errors
+    assert switched["map"].state.reference_data is si4
 
 
 def test_a_switch_after_the_panels_list_is_closed_keeps_the_axes(bare_app, qtbot, irispy_test_files):
@@ -6005,6 +6077,32 @@ def test_a_blink_keeps_per_frame_limits(bare_app, qtbot, irispy_test_files):
     blink.trigger()
 
 
+def test_a_blink_leaves_hidden_the_layers_the_user_hid(bare_app):
+    a, b = (Data(label=label, flux=np.zeros((5, 12, 16))) for label in "ab")
+    bare_app.data_collection.extend([a, b])
+    viewer = image(bare_app, a, 2, 1)
+    viewer.add_data(b)
+    bare_app.data_collection.new_subset_group("s", a.pixel_component_ids[2] > 3)
+    state, tool = viewer.state, viewer.toolbar.tools["solar:coordinate"]
+
+    def ticked():
+        return [layer.layer.label for layer in state.layers if layer.visible]
+
+    assert ticked() == ["a", "b", "s", "s"]
+    for layer in state.layers[2:]:
+        layer.visible = False  # the subset's layer of each dataset, as unticked in the layer list
+    menu_action(viewer, "Set blink partner here").trigger()
+    show(viewer, b, (0, 0, 0))
+    tool._blink.setInterval(60_000)  # no tick of its own between the flips by hand, however slow the machine
+    blink = menu_action(viewer, "Blink")
+    blink.trigger()
+    assert (state.reference_data, ticked()) == (a, ["a"])
+    tool._flip()
+    assert (state.reference_data, ticked()) == (b, ["b"])
+    blink.trigger()  # the stop shows the dataset the last flip hid, and no more
+    assert ticked() == ["a", "b"]
+
+
 def test_what_moves_on_a_blink(bare_app, qtbot, irispy_test_files):
     viewers, (_, si4, mg) = blink_windows(bare_app, qtbot, irispy_test_files)
     raster_map = viewers["map"]
@@ -6114,7 +6212,7 @@ def test_blink_two_slit_jaw_channels_in_playback(bare_app, qtbot, irispy_test_fi
     # each channel keeps its own stretch and color limits
     assert styles() == before
     # a collapse over the frames stays, and a partner without times, such as a ratio of the channels, keeps its frame
-    tool.partner = (sji, (AggregateSlice(slice(0, 4), 2, np.nansum), 0, 0))
+    tool.partner = (sji, (AggregateSlice(slice(0, 4), 2, np.nansum), 0, 0), *tool.partner[2:])  # and its layers
     tool._flip()
     assert isinstance(state.slices[0], AggregateSlice)
     ratio = Data(ratio=np.ones(sji.shape), coords=sji.coords, label="ratio")

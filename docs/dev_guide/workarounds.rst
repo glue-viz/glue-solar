@@ -83,7 +83,7 @@ glue-core
 - **Lazy data's sampled statistics**: raw-code counts (D33) and random samples of derived attributes
   (``LazyData.compute_statistic``, ``loaders/lazy.py``). Always on. Retired by glue sampling dask arrays at random,
   not at chunk corners (upstream list).
-- **DKIST datasets' coordinates in glue's order** (``GlueWCS``, ``sources/dkist.py``, #371, #373, #375, #378, #389,
+- **DKIST datasets' coordinates in glue's order** (``DKISTWCS``, ``sources/dkist.py``, #371, #373, #375, #378, #389,
   D102): a gWCS's world axes reordered to one per pixel axis as glue maps them, those of no pixel axis first,
   longitude and latitude wrapped to ±180°; IRIS data reach a raster through ``link_hpc``'s links to its step and slit
   pixel (``_SlitAt``, a slit table per repeat or measurement at the raster frame nearest the IRIS frame's time) and
@@ -158,8 +158,9 @@ glue-core
   ``_RESTORING``, #234). Always on. Retired by glue's LoadLog restoring one file's logs in one load (upstream list).
 - **A dataset's style saved with its preferred colormap** (``maps._Style``, #189). Always on. Retired by glue-core
   saving and restoring ``preferred_cmap`` (upstream list).
-- **A Profile viewer adds a quicklook spectrum panel's raster**, and any cube of ``large_data_size`` values or more not
-  from the IRIS reader, with its data layer hidden, a status-bar note and the range fitted once to the first computed
+- **A Profile viewer adds a quicklook spectrum panel's raster**, a dataset a session or a change of main window adds
+  back to a quicklook's Profile panel, and any cube of ``large_data_size`` values or more not from the IRIS reader, with
+  its data layer hidden, a status-bar note and the range fitted once to the first computed
   subset profile (``hidden_cube_profile``, ``_FitOnceComputed``, #95, #233, S13, SST4). Switch: the viewer's
   ``large_data_size`` and the data's ``_role``; the quicklook's ``_solar_hidden``. Retired by glue's
   ``_reset_y_limits`` using cached profiles only (R14) and ``compute_statistic`` without the float64 copy (R21), or
@@ -289,7 +290,7 @@ astropy, WCSLIB, echo and mpl-scatter-density
 - **An Image view along a raveled DKIST axis** (a raster's steps with repeats, a Cryo-NIRSP step's measurements)
   never drew: off either end dkist's ``Ravel`` gives a NaN time, on which WCSAxes raises for a range all NaN
   (``formatter_locator.py:159``); taken at the nearest end, of that end's time and no longitude or latitude
-  (``GlueWCS.pixel_to_world_values``, #379, #385, D103). Always on (DKIST datasets with a ``Ravel``). Retired by a
+  (``DKISTWCS.pixel_to_world_values``, #379, #385, D103). Always on (DKIST datasets with a ``Ravel``). Retired by a
   WCSAxes fix for an all-NaN world range (report candidate).
 - ``_TabularWCS.has_celestial = False`` **against wcslib's SIGSEGV in glue's autolinker** (#227); astropy then gives
   the angles as quantities, which ``tools._sky`` puts in a SkyCoord by physical type for paths, profiles and Slope
@@ -318,13 +319,13 @@ dkist
   for the NaN x and y. Retired by dkist #765 (on dkist main since 2026-10-14, after 1.18.1), retiring ``_off_frames``
   with the release that ships it; dkist's ``sanitize_index`` handling a NaN index (x86-64 casts it to the least
   int64, ARM to 0; report candidate) retires the NaN x and y.
-- **dkist's inverse given raveled 1-D values** (``GlueWCS.world_to_pixel_values``, #378): its ``Unravel`` inverse,
+- **dkist's inverse given raveled 1-D values** (``DKISTWCS.world_to_pixel_values``, #378): its ``Unravel`` inverse,
   which a Cryo-NIRSP context image of repeated measurements uses, raises TypeError on arrays of more than one
   dimension, on 1.18.1 and main alike. Always on (DKIST datasets). Retired by ``Unravel.evaluate`` taking N-d input
   (report candidate).
 - **A point or image of DKIST data at a time outside another DKIST dataset's frames** raised NotImplementedError
   (dkist's inverse there is ``Const1D & Const1D``, of no inverse) and, for a raveled dataset, ValueError (``Unravel``
-  calling ``int()`` on a NaN time); ``GlueWCS.world_to_pixel_values`` gives NaN pixels there by ``_off_frames``,
+  calling ``int()`` on a NaN time); ``DKISTWCS.world_to_pixel_values`` gives NaN pixels there by ``_off_frames``,
   except while the WCS link tests its transforms (``STRICT_INVERSE``), where it also refuses a NaN world value, so
   data of other times stay unlinked (#379, #385, D103). Switch: dkist raising NotImplementedError or ValueError.
   Retired by dkist #765 for the NotImplementedError half, the link test then refusing a NaN pixel in its place;
@@ -334,13 +335,13 @@ dkist
   to 4096 files kept open (``_open_files``: half the open-file soft limit, raised toward its hard limit), closed as
   their dataset leaves glue or its window closes, and once read by a profile still computing after that; 8 threads, a
   lock per file, a missing file NaN; dask's reads where a dataset is cut within its files' frames or dkist gives no
-  HDU of its files; ``GlueWCS.pixel_to_world_values`` keeps its last 64 distinct inputs of up to 10,000 values per
+  HDU of its files; ``DKISTWCS.pixel_to_world_values`` keeps its last 64 distinct inputs of up to 10,000 values per
   dataset, as WCSAxes asks the same at each draw. Always on (DKIST datasets). Retired by dkist's dask array passing
   each view to its loaders' ``hdu.section`` (dkist #226) and ``VaryingCelestialTransform`` evaluating all raster steps
   at once (dkist #246, #256).
 - **dkist's** ``VaryingCelestialTransform`` **sets the parameters of its one celestial model at each pointing index,
   then evaluates it**, so glue-qt's profile worker beside the GUI thread gave the map another step's pointing
-  (143.6" off on AIOMGG); a lock around dkist's forward and inverse and ``_off_frames`` (``GlueWCS._lock``, #385,
+  (143.6" off on AIOMGG); a lock around dkist's forward and inverse and ``_off_frames`` (``DKISTWCS._lock``, #385,
   D103). Always on (DKIST datasets). Retired by dkist evaluating it without changing its shared model (report
   candidate).
 - **dkist's private** ``_striped_external_array.target`` **read**, the HDU each file's array is in, as the loader
@@ -357,7 +358,7 @@ dkist
   sending the FITS files alone (draft ``dkist-fits-only.md`` in the session archive).
 - **'Download these frames…' follows its transfer by the files in the folder**, a file whole once its size and mtime
   are unchanged over one 5 s look, read as missing until then (``_ARRIVING`` in ``_section``, ``_watch_download``,
-  ``sources/iris.py``, #396, D110), as neither ``FileManager.download(wait=False)`` nor
+  ``sources/dkist_actions.py``, #396, D110), as neither ``FileManager.download(wait=False)`` nor
   ``_orchestrate_transfer_task`` returns a Globus task to follow. Always on (a DKIST download). Retired by dkist
   returning the Globus task ID of a transfer that does not wait (dkist #516).
 

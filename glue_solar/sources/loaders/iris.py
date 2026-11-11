@@ -180,7 +180,7 @@ def _off_frames(wcs, values):
         at = times == time
         try:
             found = wcs.world_to_pixel_values(*(value[at] for value in values))
-        except (NotImplementedError, ValueError):  # and a raveled DKIST time's Unravel (`GlueWCS`)
+        except (NotImplementedError, ValueError):  # and a raveled DKIST time's Unravel (`DKISTWCS`)
             continue
         for pixel, value in zip(pixels, found, strict=True):
             pixel[at] = value
@@ -954,7 +954,7 @@ def link_hpc(data_collection, others=()):
     """
     from glue_solar.quicklook import _role, _times, nearest, observation_key  # which imports this module
     from glue_solar.sources.dkist import (  # which imports this module
-        GlueWCS,
+        DKISTWCS,
         _frame_axis,
         _frame_times,
         _held_axes,
@@ -1050,7 +1050,7 @@ def link_hpc(data_collection, others=()):
     # its time that of its frame nearest in time, and each of its frames a slit-jaw image's time that of the nearest
     # frame, as dkist's gWCS gives no position at a time off its frames; a frame is a step and measurement of a
     # Cryo-NIRSP context image of repeated measurements, whose time varies along both
-    for dataset in [data for data in data_collection if data in placed and isinstance(data.coords, GlueWCS)]:
+    for dataset in [data for data in data_collection if data in placed and isinstance(data.coords, DKISTWCS)]:
         found = _frame_times(dataset)
         if found is None:
             continue
@@ -1058,7 +1058,7 @@ def link_hpc(data_collection, others=()):
         frames, wcs = dataset.pixel_component_ids[axes[0]], dataset.coords
         time_ids = [dataset.pixel_component_ids[axis] for axis in axes]
         # its time, where glue gives an axis its time rather than a raster's longitude, and a second axis's index
-        # (`GlueWCS`)
+        # (`DKISTWCS`)
         given = [wcs.world_axis_physical_types[wcs.world_n_dim - 1 - axis] for axis in axes]
         timed = given[0] == "time"
         stamps = [dataset.world_component_ids[axis] for axis, kind in zip(axes, given) if kind in ("time", None)]
@@ -1298,8 +1298,8 @@ def _extract(load, archives, stop, report):
             return load, n, None
         try:
             extract_archive(archive)
-        except (OSError, tarfile.TarError) as error:
-            return load, n, f"Extraction failed: {error}"
+        except (OSError, tarfile.TarError, EOFError) as error:  # an archive cut short raises EOFError
+            return load, n, f"Extracting {archive.name} failed: {error}"
         report(load, 100 * (n + 1) // len(archives))
     return load, len(archives), None
 
@@ -1421,7 +1421,7 @@ class QtIRISImporter(QtWidgets.QDialog):
             return
         directory = os.path.normpath(os.path.expanduser(directory))  # one spelling for a typed ~ or trailing slash
         if not Path(directory).is_dir():  # a saved or recent folder since removed or unmounted
-            self.progress.setFormat(f"No such folder: {directory}")
+            self.status.setText(f"No such folder: {directory}")
             return
         self.directory.setText(str(directory))
         QSettings(*_SETTINGS).setValue(_LAST_DIR, str(directory))
@@ -1433,20 +1433,20 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     def _rescan(self, note=None):
         """
-        List the folder's observations from Start to End in the background, as the latest recent search; ``note`` then
-        replaces the progress text.
+        List the folder's observations from Start to End in the background, as the latest recent search; ``note`` is
+        then the message under the progress bar.
         """
         search = self._search()
         try:
             start, end = _window_time(search[1]), _window_time(search[2], end=True)
         except ValueError as error:
-            self.progress.setFormat(f"Start and End take UTC times, such as 2014-03-29T14:00 or 2014-03: {error}")
+            self.status.setText(f"Start and End take UTC times, such as 2014-03-29T14:00 or 2014-03: {error}")
             self._busy(False)  # after an archive is unpacked
             return
         self._recent = [search, *(kept for kept in self._recent if kept != search)][:_RECENT_SEARCHES]
         QSettings(*_SETTINGS).setValue(_RECENT, json.dumps(self._recent))
         self._list_recent()
-        self.progress.setFormat("Scanning the folder: %p%")
+        self.status.setText("Scanning the folder")
         self._start(partial(self._scanned, note), _scan, search[0], self.recursive.isChecked(), start, end)
 
     def _search_edited(self):
@@ -1499,11 +1499,10 @@ class QtIRISImporter(QtWidgets.QDialog):
         self.observations = observations
         self.populate()
         if self.progress.value() < 100:  # Stop broke the scan off before it read every file
-            self.progress.setFormat("Scan stopped at %p% of the files: observations may be missing or incomplete")
-            return
-        if skipped and not note:
+            note = f"Scan stopped at {self.progress.value()}% of the files: observations may be missing or incomplete"
+        elif skipped and not note:
             note = f"Skipped {len(skipped)} raster file(s) that are not Level 2"
-        self.progress.setFormat(note or "%p%")
+        self.status.setText(note or "")
 
     def populate(self):
         self.obs_tree.clear()
@@ -1611,7 +1610,7 @@ class QtIRISImporter(QtWidgets.QDialog):
 
     def finalize(self, picks):
         """Load ``picks``, as `selected` gives them, or unpack the archives among them."""
-        self.progress.setFormat("%p%")
+        self.status.clear()
         archives = [name for _, kind, name in picks if kind == "archive"]
         if archives:  # unpack, rescan and stay open so the user can pick from what was inside
             self._start(self._extracted, _extract, archives)
@@ -1671,8 +1670,8 @@ class QtIRISImporter(QtWidgets.QDialog):
         if load != self._load:
             return
         self._busy(False)
-        if error:
-            self.progress.setFormat(error)
+        if error or not loaded:  # nothing ticked, or stopped before an entry was read: the list and its ticks stay
+            self.status.setText(error or "Nothing was loaded")
             return
         self.loaded = loaded
         self.datasets = [data for *_, datasets in loaded for data in datasets]

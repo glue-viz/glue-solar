@@ -10,6 +10,7 @@ import hashlib
 import inspect
 import os
 import threading
+import time
 import warnings
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
@@ -51,10 +52,12 @@ __all__ = ["dkist_data", "is_dkist_asdf"]
 
 # Color limits sample values of up to this many whole frames whose files are present
 SAMPLE_FRAMES = 16
+# How often at most, in s, a dataset with files missing looks for them again (`DKISTData._look`)
+LOOK_EVERY = 5
 # The header columns of a DKIST frame's quality, by FITS keyword, and their units (`_frame_quality`, D110); glue's Profile
 # viewer shows the first present: the seeing, else the light level, as the AO lock is shaded (`_FrameCurves`)
 QUALITY = {"ATMOS_R0": "m", "LIGHTLVL": "adu", "AO_LOCK": "", "XPOSURE": "ms", "ELEV_ANG": "deg"}
-# Set while glue-solar's WCS link tests its transforms (`glue_patches.wcs_link_init`): `GlueWCS`'s inverse raises outside
+# Set while glue-solar's WCS link tests its transforms (`glue_patches.wcs_link_init`): `DKISTWCS`'s inverse raises outside
 # a dataset's times there, as dkist's does, rather than giving NaN (D103)
 STRICT_INVERSE = contextvars.ContextVar("strict_inverse", default=False)
 
@@ -111,7 +114,7 @@ def _wrapped(wcs, world):
 
 def _glue_order(wcs, shape):
     """
-    The world axes of ``wcs``, a DKIST dataset's gWCS of pixel axes of lengths ``shape``, as `GlueWCS` orders them:
+    The world axes of ``wcs``, a DKIST dataset's gWCS of pixel axes of lengths ``shape``, as `DKISTWCS` orders them:
     those of no pixel axis of their own, then that of each pixel axis, None where it has none. Longitude and latitude
     go to the two pixel axes the pointing moves most along, those along which time does not change first, so an
     imager's frames keep their time; a slit raster's step only if the pointing moves a pixel along the slit or more,
@@ -147,7 +150,7 @@ def _glue_order(wcs, shape):
     return [*extra, *(order.get(p) for p in range(len(shape)))]
 
 
-class GlueWCS(BaseLowLevelWCS, HighLevelWCSMixin):
+class DKISTWCS(BaseLowLevelWCS, HighLevelWCSMixin):
     """
     A DKIST dataset's gWCS, ``wcs``, as glue reads it (D102): glue gives array axis i world axis ``world_n_dim - 1 -
     i`` (glue's ``CoordinateComponent``, Image viewer and its state), assuming one world axis per pixel axis, so the
@@ -421,6 +424,7 @@ class DKISTData(Data):
     _mosaic = ()  # the datasets, this one among them, whose frames the sample takes
     _samples = None  # {size: values}, shared by them
     _present = None  # whether each frame's file is present, over the frame axes
+    _looked = -np.inf  # when its mosaic's missing files were last looked for (`_look`), as `time.monotonic` gives
     _frames = None  # each frame's DATE-AVG and XPOSURE in seconds, over the frame axes
     _quality = None  # each frame's header columns of `QUALITY`, by keyword, over the frame axes
     _files = None  # its values' files (`_Files`), None where dask reads them
@@ -476,8 +480,34 @@ class DKISTData(Data):
             **kwargs,
         )
 
+    def _look(self):
+        """
+        Mark present the FITS files of its mosaic that arrived since they were last looked for, as a Globus transfer
+        this glue did not start delivers them, and forget the sample and the noise levels taken without them; those a
+        download of this glue is writing (`_ARRIVING`) are left to its watch. A file is present once it exists, as when
+        its dataset loads: one still being written reads as NaN until whole (`_section`). Only the files still missing
+        are looked for, and at most every `LOOK_EVERY` s, as glue asks for a layer's limits twice at each change of
+        theirs: 0.1 s for 20,000 missing files, and nothing once all are there.
+        """
+        now = time.monotonic()
+        if now - self._looked < LOOK_EVERY:
+            return
+        for data in self._mosaic:
+            data._looked = now
+            if data._present.all():
+                continue
+            files = data._dataset.files
+            names = np.asarray(files.fileuri_array).reshape(data._present.shape)
+            for index in map(tuple, np.argwhere(~data._present)):
+                path = Path(files.basepath) / names[index]
+                if str(path) not in _ARRIVING and path.exists():
+                    data._present[index] = True
+                    data._samples.clear()  # its mosaic's tiles' too
+                    data.__dict__.pop("_noise_cached", None)
+
     def _sample(self, size):
         """At least ``size`` values of the frames, as `DKISTData` samples them."""
+        self._look()
         if size not in self._samples:
             frames = [(data, tuple(frame)) for data in self._mosaic for frame in np.argwhere(data._present)]
             picks = np.unique(np.linspace(0, len(frames) - 1, SAMPLE_FRAMES).round().astype(int)) if frames else []
@@ -494,8 +524,14 @@ class DKISTData(Data):
             self._samples[size] = np.concatenate(values)
         return self._samples[size]
 
-    @cached_property
+    @property
     def _noise(self):
+        """Its noise levels (`_noise_cached`), taken again once more of its files are there (`_look`)."""
+        self._look()
+        return self._noise_cached
+
+    @cached_property
+    def _noise_cached(self):
         """
         The noise level of Stokes Q, U and V, by index, by an SST cube's rule (`~glue_solar.sources.sst._Cube._noise`,
         D107): the standard deviation of each at the quieter end of its wavelengths, as an artifact or a line at one end
@@ -709,7 +745,7 @@ class _SlitPlace:
     """
     The helioprojective longitude, or latitude with ``kind`` 1, (arcsec) of a DKIST raster at its ``step`` and
     ``slit`` pixel, ``starts`` and ``pixels`` as `_SlitAt` takes them (`link_hpc`, D102): where glue gives it none, as
-    a sit-and-stare raster's step axis has its time (`GlueWCS`), so that IRIS data are placed on it. Saved in sessions.
+    a sit-and-stare raster's step axis has its time (`DKISTWCS`), so that IRIS data are placed on it. Saved in sessions.
     """
 
     __name__ = "slit_place"  # glue's name of a link function, as its own link helpers set it
@@ -773,7 +809,7 @@ def _data(dataset, label):
         str(headers[f"DPNAME{p + 1}"][0]) if f"DPNAME{p + 1}" in headers.colnames else f"pixel {p}"
         for p in range(wcs.pixel_n_dim)
     ]
-    data = DKISTData(label=label, coords=GlueWCS(wcs, _glue_order(wcs, dataset.data.shape[::-1]), names))
+    data = DKISTData(label=label, coords=DKISTWCS(wcs, _glue_order(wcs, dataset.data.shape[::-1]), names))
     data.add_component(DaskComponent(dataset.data, units=str(dataset.unit or "")), "data")
     inventory = dataset.meta["inventory"]
     data._observed = inventory["instrumentName"], inventory.get("observingProgramExecutionId")
@@ -863,7 +899,7 @@ def _held_axes(data):
     physical types; none for other data.
     """
     wcs = getattr(data, "coords", None)
-    if not isinstance(wcs, GlueWCS):
+    if not isinstance(wcs, DKISTWCS):
         return set()
     names = wcs._names
     held = {p for p, name in enumerate(names) if "measurement" in name or "repeat" in name}
@@ -940,7 +976,7 @@ def _mosaic_image(tiles, at):
     sliced = [HighLevelWCSWrapper(SlicedLowLevelWCS(tile.coords, view)) for tile in tiles]
     wcs, shape = find_optimal_celestial_wcs(list(zip(images, sliced)), negative_lon_cdelt="auto")
     # each tile's coordinates there as a FITS WCS fitted at 3 by 3 pixels, in the mosaic's frame, the first tile's:
-    # reproject would evaluate the tile's gWCS at every pixel, holding `GlueWCS`'s lock against the viewers, and
+    # reproject would evaluate the tile's gWCS at every pixel, holding `DKISTWCS`'s lock against the viewers, and
     # transform it from its own frame, of its dataset's mean time: 55 s for LOQEPP's 9 tiles, 27 s so
     # ponytail: the observer's move between the tiles' times left out, at most 0.5 pixel on LOQEPP and 1.6 on CARJML's
     # 4 minutes, less than the Sun turns meanwhile; fit each tile in its own frame if it matters
@@ -992,7 +1028,7 @@ def _mosaic_links(image, tiles, at):
         wcs, (ny, nx) = tile.coords, tile.shape[-2:]
         world = wcs.pixel_to_world_values((nx - 1) / 2, (ny - 1) / 2, *at[::-1])
         for axis in range(tile.ndim - 2):
-            k = wcs.world_n_dim - 1 - axis  # glue's world axis of array axis ``axis`` (`GlueWCS`)
+            k = wcs.world_n_dim - 1 - axis  # glue's world axis of array axis ``axis`` (`DKISTWCS`)
             if wcs.world_axis_physical_types[k] == "time":
                 links.append(ComponentLink(pixels, tile.world_component_ids[axis], using=_At(world[k])))
                 links.append(ComponentLink(pixels, tile.pixel_component_ids[axis], using=_At(at[axis])))
@@ -1007,7 +1043,7 @@ def dkist_data(path):
 
     The values stay in the dataset's FITS files, read as they are viewed; dkist reads a frame whose file is missing as
     NaN, and a warning gives how many are present. The coordinates are the dataset's gWCS, with one world axis per
-    array axis, as glue shows them (`GlueWCS`).
+    array axis, as glue shows them (`DKISTWCS`).
 
     Returns
     -------

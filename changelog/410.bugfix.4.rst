@@ -1,0 +1,1 @@
+Fixed a blink ticking again the layers unticked in the viewer's layer list at each flip and as it stops, a traceback from a second click on "Show this window's panels" before the first took effect, and the frame time's exposure being read once per pixel of the frame, which slowed each slider step on a large frame.

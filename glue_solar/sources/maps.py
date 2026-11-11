@@ -81,10 +81,12 @@ def _parse_sunpy_map(data, label):
 @data_factory("sunpy Map", is_fits)
 def read_sunpy_map(sunpy_map_file):
     """
-    For ``glue`` to read in parsed sunpy map.
+    For ``glue`` to read in parsed sunpy map, or one for each image HDU of a file that holds several.
     """
     import sunpy.map
 
-    sunpy_map_data = _parse_sunpy_map(sunpy.map.Map(sunpy_map_file), "sunpy-map")
-    return sunpy_map_data
+    maps = sunpy.map.Map(sunpy_map_file)
+    if isinstance(maps, list):
+        return [_parse_sunpy_map(each, "sunpy-map") for each in maps]
+    return _parse_sunpy_map(maps, "sunpy-map")
 

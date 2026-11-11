@@ -12,7 +12,6 @@ from qtpy import QtWidgets
 
 import astropy.units as u
 from astropy import constants
-from astropy.io import fits
 
 from glue_solar.conftest import find_irispy_test_file, int16_copy
 from glue_solar.quicklook import _wavelengths, quicklook
@@ -167,12 +166,7 @@ def test_a_symmetric_line_gives_zero_a_redshift_a_positive_map_and_a_saturated_s
 
 
 def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatch, stack_paths):
-    """
-    A lazy stack of 3860258481's three scans, the second's Si IV 1403 a third of a sample redder, gives one dataset
-    whose maps at each scan are the scan's alone.
-    """
-    with fits.open(stack_paths[1], mode="update") as hdulist:
-        hdulist[5].header["CRVAL1"] += hdulist[5].header["CDELT1"] / 3
+    """A lazy stack of 3860258481's three scans gives one dataset whose maps at each scan are the scan's alone."""
     [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
     collection = app.data_collection
     collection.append(stack)
