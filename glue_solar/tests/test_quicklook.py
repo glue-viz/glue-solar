@@ -665,6 +665,17 @@ def test_the_quicklook_panels_status_lines_are_short(bare_app, irispy_test_files
     assert bare_app.statusBar().currentMessage() == ""
 
 
+def test_the_frame_time_reads_one_exposure_a_frame(bare_app, monkeypatch, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    [sji_viewer] = quicklook(bare_app, [raster, sji])["sji"]
+    read, nanmin = [], np.nanmin
+    monkeypatch.setattr(np, "nanmin", lambda values: read.append(values.size) or nanmin(values))
+    sji_viewer.toolbar.tools["solar:frame_time"]._refresh()
+    # not one a pixel, which took 37 ms a slider step on a 4096 x 4096 frame
+    assert read == [1]
+    assert " · exp " in readout(sji_viewer)
+
+
 def test_the_time_sync_reads_plainly(bare_app, qtbot, irispy_test_files):
     """
     The Coordinate and View menus, the frame time, the Point window and the light curves' exposure subset say which
@@ -5430,6 +5441,17 @@ def test_a_switch_after_the_point_is_deleted_gives_a_new_point(bare_app, qtbot, 
     assert point_window(bare_app).rowCount() > 0
 
 
+def test_a_second_click_before_the_switch_runs_is_dropped(bare_app, qtbot, irispy_test_files):
+    c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
+    viewers = with_windows(qtbot, quicklook(bare_app, [c2, si4, mg], window=THREE))
+    panel = viewers["windows"][1]["spectrum"]  # Si IV 1403
+    panel.toolbar.actions["solar:main_window"].trigger()  # the switch waits for Qt, so a second click finds the panel
+    with qtbot.captureExceptions() as errors:
+        switched = switch(qtbot, panel)
+    assert not errors
+    assert switched["map"].state.reference_data is si4
+
+
 def test_a_switch_after_the_panels_list_is_closed_keeps_the_axes(bare_app, qtbot, irispy_test_files):
     c2, si4, mg = windows_of(irispy_test_files, "sit-and-stare")
     viewers = with_windows(qtbot, quicklook(bare_app, [c2, mg], window=["C II 1336", "Mg II k 2796"]))
@@ -6055,6 +6077,32 @@ def test_a_blink_keeps_per_frame_limits(bare_app, qtbot, irispy_test_files):
     blink.trigger()
 
 
+def test_a_blink_leaves_hidden_the_layers_the_user_hid(bare_app):
+    a, b = (Data(label=label, flux=np.zeros((5, 12, 16))) for label in "ab")
+    bare_app.data_collection.extend([a, b])
+    viewer = image(bare_app, a, 2, 1)
+    viewer.add_data(b)
+    bare_app.data_collection.new_subset_group("s", a.pixel_component_ids[2] > 3)
+    state, tool = viewer.state, viewer.toolbar.tools["solar:coordinate"]
+
+    def ticked():
+        return [layer.layer.label for layer in state.layers if layer.visible]
+
+    assert ticked() == ["a", "b", "s", "s"]
+    for layer in state.layers[2:]:
+        layer.visible = False  # the subset's layer of each dataset, as unticked in the layer list
+    menu_action(viewer, "Set blink partner here").trigger()
+    show(viewer, b, (0, 0, 0))
+    tool._blink.setInterval(60_000)  # no tick of its own between the flips by hand, however slow the machine
+    blink = menu_action(viewer, "Blink")
+    blink.trigger()
+    assert (state.reference_data, ticked()) == (a, ["a"])
+    tool._flip()
+    assert (state.reference_data, ticked()) == (b, ["b"])
+    blink.trigger()  # the stop shows the dataset the last flip hid, and no more
+    assert ticked() == ["a", "b"]
+
+
 def test_what_moves_on_a_blink(bare_app, qtbot, irispy_test_files):
     viewers, (_, si4, mg) = blink_windows(bare_app, qtbot, irispy_test_files)
     raster_map = viewers["map"]
@@ -6164,7 +6212,7 @@ def test_blink_two_slit_jaw_channels_in_playback(bare_app, qtbot, irispy_test_fi
     # each channel keeps its own stretch and color limits
     assert styles() == before
     # a collapse over the frames stays, and a partner without times, such as a ratio of the channels, keeps its frame
-    tool.partner = (sji, (AggregateSlice(slice(0, 4), 2, np.nansum), 0, 0))
+    tool.partner = (sji, (AggregateSlice(slice(0, 4), 2, np.nansum), 0, 0), *tool.partner[2:])  # and its layers
     tool._flip()
     assert isinstance(state.slices[0], AggregateSlice)
     ratio = Data(ratio=np.ones(sji.shape), coords=sji.coords, label="ratio")
