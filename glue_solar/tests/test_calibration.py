@@ -173,7 +173,7 @@ def test_a_calibrated_session_is_kept_and_restores_the_radiance(app, qtbot, monk
 def test_a_stacks_radiance_is_each_scans_own(app, stack_paths):
     """
     The action's ``<label> radiance`` of a lazy stack of 3860258481's three scans is, at each scan, that of the scan
-    loaded alone within 0.2%: its factor a spectrum a scan, at the scan's own wavelengths, the stack's first date.
+    loaded alone within 0.2%: its factor one spectrum, at the wavelengths its scans share and the stack's first date.
     """
     [stack] = raster_data(stack_paths, ["Mg II k 2796"], stack=True)
     app.data_collection.append(stack)
@@ -182,8 +182,7 @@ def test_a_stacks_radiance_is_each_scans_own(app, stack_paths):
     tree._actions[RADIANCE].trigger()
     cid = stack.main_components[0]
     radiance, factor = stack.id[f"{cid.label} radiance"], stack.id[f"{cid.label} radiance per DN / s"]
-    assert not any(stack.get_component(factor).data.strides[1:-1])  # a spectrum a scan held
-    assert len({tuple(spectrum) for spectrum in stack[factor][:, 0, 0]}) == 1  # the scans share their wavelengths
+    assert not any(stack.get_component(factor).data.strides[:-1])  # one spectrum held
     for k, path in enumerate(stack_paths):
         [scan] = raster_data([path], ["Mg II k 2796"])
         alone = calibration.radiometric_calibration(scan)

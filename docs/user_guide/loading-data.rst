@@ -55,7 +55,8 @@ To narrow the list:
 
 **Stacking scans.** Tick "Stack sequential raster scans" to load each window's scans as one cube,
 indexed by scan, raster step, slit pixel and wavelength, without resampling. The scan slider picks a
-scan, and each scan keeps its own coordinates and times.
+scan, and each scan keeps its own coordinates and times. Scans that differ in shape or wavelengths
+are not stacked: glue says so and loads nothing.
 
 What a dataset holds
 --------------------

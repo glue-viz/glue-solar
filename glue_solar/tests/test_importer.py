@@ -1011,6 +1011,20 @@ def test_real_rasters_stack_without_resampling_and_keep_scan_times(irispy_test_f
         _raster_collection_data({"C II 1336": [sequence[0], sequence[1][:-1]]}, stack=True)
 
 
+def test_scans_whose_wavelengths_differ_are_refused_as_a_stack_naming_the_first(stack_paths):
+    """
+    3860258481's three scans, the second's Si IV 1403 a third of a sample redder, are not stacked, as an analysis
+    takes one wavelength axis for every scan of a stack; they load scan by scan, and their other windows stack.
+    """
+    with fits.open(stack_paths[1], mode="update") as hdulist:
+        hdulist[5].header["CRVAL1"] += hdulist[5].header["CDELT1"] / 3
+    why = "^All raster scans must have the same wavelengths to be stacked: scan 1's differ from scan 0's$"
+    with pytest.raises(ValueError, match=why):
+        raster_data(stack_paths, ["Si IV 1403"], stack=True)
+    assert [data.ndim for data in raster_data(stack_paths, ["Si IV 1403"])] == [3] * 3
+    assert raster_data(stack_paths, ["C II 1336"], stack=True)[0].ndim == 4
+
+
 class _CountedWCS(BaseWCSWrapper):
     """A WCS that counts how often its world axis units and physical types are read, and its conversions to world."""
 

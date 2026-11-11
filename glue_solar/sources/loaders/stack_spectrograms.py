@@ -18,10 +18,17 @@ def stack_times(cube_sequence):
 def stack_wcs(wcses):
     """
     The WCS of a stack of scans of WCSes ``wcses``: scan 0's with a leading ``Scan`` axis of scan numbers, through which
-    each scan's pixels take their own scan's coordinates (`_PerScanWCS`).
+    each scan's pixels take their own scan's coordinates (`_PerScanWCS`); raises for a scan whose wavelengths differ
+    from scan 0's, which the analyses take for every scan.
     """
     from ndcube.wcs.wrappers import CompoundLowLevelWCS
 
+    # their FITS keywords, CRPIX1, CRVAL1 and CDELT1, exactly: the files of an observation share them to the last digit
+    grids = [(wcs.wcs.crpix[0], wcs.wcs.crval[0], wcs.wcs.cdelt[0]) for wcs in wcses]
+    if differs := [k for k, grid in enumerate(grids) if grid != grids[0]]:
+        raise ValueError(
+            f"All raster scans must have the same wavelengths to be stacked: scan {differs[0]}'s differ from scan 0's"
+        )
     # A sliced 2D FITS WCS handles the multidimensional pixel arrays Glue uses;
     # astropy's standalone 1D FITS WCS interprets them as coordinate tables.
     scan_wcs = WCS(naxis=2)
