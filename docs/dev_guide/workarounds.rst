@@ -73,6 +73,10 @@ glue-core
   candidate).
 - **Profile display units restored after** ``x_att`` (``ProfileViewerState._update_priority``, #197). Switch
   ``needs_profile_restore_workaround()``. Retired by glue ranking the display units after ``x_att`` (upstream list).
+- **Profile x limits kept where the x world axis is all NaN** (``ProfileViewerState._reset_x_limits``): the longitude
+  glue takes first along a raster file with no data (LM-SAL/irispy#301), whose NaN limits matplotlib refuses, so that
+  its quicklook did not open. Switch ``needs_profile_nan_limits_workaround()``. Retired by glue leaving non-finite
+  limits unset (report candidate).
 - **The IRIS fitter's** ``set_constraint`` **replacing a parameter's entry**, so a value or bound cleared in Settings
   clears (#259). Always on. Retired by glue-core's ``BaseFitter1D.set_constraint`` taking None as a clear (report
   candidate).
@@ -385,3 +389,11 @@ Features and decisions with no upstream route; listed so the overrides are known
   ``fits.open`` of the headers and irispy's own read would inflate it twice (``_raster_windows_data``,
   ``_window_scaling(opened=)``, #345, #352; irispy #275's open-file seam). Switch: gzipped raster files, ``LAZY`` on.
   Kept (UPSTREAM_REVIEW others row 43: a later header of a gzip stream needs the stream inflated up to it).
+- **A stack's int16 scans after its first read up to 100 files at a time** (``_BATCH``), in one
+  ``read_spectrograph_lvl2`` of HDU lists glue-solar opens: each scan's data is its file's own memory map, its steps
+  flipped for a V34 file as irispy flips them, and its FITS WCS, exposure times and times are the read's. Files are
+  read together only while each is later (DATE_OBS) and flipped as the one before, as irispy sorts a read by DATE_OBS
+  and flips it as its first file (``_batches``, ``_read_batch``). Switch: stacked loads and restores of plain int16
+  raster files, ``LAZY`` on. Kept: LM-SAL/irispy#360 builds each window's gWCS per read, so reads of a file each take
+  about 5 times as long; ``test_a_stack_read_in_batches_is_as_read_a_file_at_a_time`` catches a change of irispy's
+  flip or order rule.
