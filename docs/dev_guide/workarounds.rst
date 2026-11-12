@@ -4,11 +4,14 @@
 Workaround register
 ===================
 
-glue-solar patches or overrides glue-core, glue-qt, echo, astropy, WCSLIB, dkist and mpl-scatter-density where IRIS,
-SST or DKIST data hit a fault, or need what those packages lack. Each entry names what is patched (with its PR),
-the switch that turns it on, and the upstream change that retires it. A switch is a ``needs_*`` probe in
-``glue_solar/glue_patches.py`` that finds the fault at import; "always on" means no probe is safe. A PR that adds or
-retires a patch edits this page in the same change. ``UPSTREAM_REVIEW.md`` on the ``plan`` branch re-verifies each
+glue-solar patches or overrides glue-core, glue-qt, echo, astropy, WCSLIB, matplotlib, dkist, irispy and
+mpl-scatter-density where IRIS, SST or DKIST data hit a fault, or need what those packages lack. Each entry names what
+is patched (with its PR), the switch that turns it on, and the upstream change that retires it. A switch is a
+``needs_*`` probe in ``glue_solar/glue_patches.py`` that finds the fault at import; "always on" means no probe is safe.
+A probe switches only the fix of the fault it tests: where a patch also carries other behaviour, the patch is installed
+always and the probe switches that part alone. A PR that adds or retires a patch edits this page in the same change,
+and ``test_the_register_and_glue_patches_name_the_same_probes`` fails while a probe has no entry here, or an entry
+names a probe that is gone. ``UPSTREAM_REVIEW.md`` on the ``plan`` branch re-verifies each
 entry against the latest releases and mains, and names its fork branch, draft or report.
 
 Routes: a *fork branch* is a branch on the user's fork with the fix, no PR yet; a *report candidate* is an issue to
@@ -26,7 +29,10 @@ glue-core
 - **Date epoch** in ``datetime64_to_mpl`` and ``mpl_to_datetime64`` (#128). Switch ``needs_date_epoch_workaround()``.
   Retired by glue #2599.
 - **An empty** ``AggregateSlice`` **range** drawn as its first sample (#132). Switch
-  ``needs_empty_collapse_workaround()``. Retired by a glue fix, not yet reported.
+  ``needs_empty_collapse_workaround()``, which gives glue-core's image buffer a range of no samples. Retired by
+  glue-core's buffer taking such a range, which the probe sees, or by glue-qt's ``ProfileTools._on_collapse`` no longer
+  making one, the natural place for the fix, which the probe does not see: the patch is then removed by hand (report
+  candidate).
 - ``_GlueWCS.has_celestial = False`` (#66). Always on. Retired by glue #2595.
 - **Pixel point off a linked dataset**, or whose fixed axes reach no pixel axis of it (the SST quicklook's scan and
   Stokes), placed at its own slices (``PixelSubsetState._to_linked_pixel_coords``, #76, #85, #246). Switch
@@ -34,9 +40,11 @@ glue-core
   check accepting a subset of the fixed axes (report candidate).
 - **A Pixel click or drag off the image, or in a viewer of no data, skipped**, after glue's own button check, and a
   click on another tile of a DKIST mosaic's imager panel moving the point to that tile's pixel
-  (``PixelSelectionTool._select_pixel``, ``QuicklookImageViewer.tile_at``, #331, #366, #392, D109). Switch
-  ``needs_pixel_off_image_workaround()``. Retired by glue's Pixel tool ignoring positions off the image and presses in
-  an empty viewer (report candidate); the tile click then needs its own hook.
+  (``PixelSelectionTool._select_pixel``, ``QuicklookImageViewer.tile_at``, #331, #366, #392, D109). Installed always,
+  for the tile click and the viewer of no data; switch ``needs_pixel_off_image_workaround()`` for the skip off the
+  image alone, which is left to glue where the probe is false. Retired by glue's Pixel tool ignoring positions off the
+  image, for the skip, and presses in an empty viewer, which no probe tests (report candidate); the tile click is a
+  glue-solar feature.
 - **FITS export of lazy data and of uint8 components in a subset** (``export_fits``, #96). Switch
   ``needs_fits_export_dask_workaround()``. Retired by glue's exporter writing dask arrays and uint8 subsets (report
   candidate).
@@ -46,19 +54,29 @@ glue-core
   Switch ``needs_reference_crosshair_workaround()``. Retired by the upstream list.
 - **Per-frame limits skipped while a viewer has no reference data** as its data are removed, where glue raises
   TypeError and stops the removal partway (``ImageLayerState._update_slice_subset``, #364). Switch
-  ``needs_slice_subset_workaround()``. Retired by ``_update_slice_subset`` returning while
-  ``numpy_slice_aggregation_transpose`` is None, or glue removing a removed layer's ``slices`` callback (report
-  candidate).
+  ``needs_slice_subset_workaround()``, which calls glue's ``_update_slice_subset`` with no reference data. Retired by
+  ``_update_slice_subset`` returning while ``numpy_slice_aggregation_transpose`` is None, which the probe sees, or by
+  glue removing a removed layer's ``slices`` callback, which it does not see: the patch then stays on, doing nothing,
+  until removed by hand (report candidate).
 - **Axis labels set on the WCSAxes coordinate of glue's world axis**, ``world_n_dim - 1 - axis``, without placing
   ticks (``ImageViewer.update_x_axislabel``, ``update_y_axislabel``, #90, #371, D102). Switch
-  ``needs_axis_label_workaround()``. Retired by glue's ``_set_wcs`` label fix (fork branch ``perf-g1a-wcs-labels``).
-- **Redo of a subset change puts back the subset states its first run made** (``ApplySubsetState.do``, #182). Switch
-  ``needs_redo_workaround()``. Retired by glue's ``ApplySubsetState`` keeping its states (upstream list).
+  ``needs_axis_label_workaround()``, which sees a label update that places ticks. The fork branch
+  ``perf-g1a-wcs-labels`` has glue's ``_set_wcs`` set each label once where it set it twice, through the same
+  ``set_xlabel`` and ``set_ylabel``: half the cost, the probe still true, and the patch stays on with its world axis
+  and its labels of a restored viewer. Retired by glue's label updates labelling that WCSAxes coordinate, which places
+  no ticks (report candidate). One labelling the coordinate of ``ndim - 1 - axis`` also turns the probe false: the
+  world axis of data of more world axes than pixel axes, as DKIST's, must then be installed apart from the probe, as
+  the Redo patch's record is.
+- **Redo of a subset change puts back the subset states its first run made** (``ApplySubsetState.do``,
+  ``apply_subset_state``, #182). Installed always, as each run records the subsets it changed, which Undo reads (next
+  entry); switch ``needs_redo_workaround()`` for the put-back alone. Retired by glue's ``ApplySubsetState`` keeping its
+  states (upstream list).
 - **Undo of a subset change, and the Redo put-back, under** ``Coordinator.restoring``: the Pixel points glue puts
   back are neither followed nor linked again, the shown tab's point stays followed, and Undo deletes only the groups
   the command made, keeping subsets made since (``ApplySubsetState.undo``, ``undo_subset_state``, #368, #377, D39,
-  D52, D97). Always on (the kept subsets only while ``needs_redo_workaround()``). glue-solar feature; for the kept
-  subsets, glue's ``ApplySubsetState.undo`` deleting only what its ``do`` made (report candidate).
+  D52, D97). Always on, the kept subsets by what ``apply_subset_state`` records at each run, whatever its probe says.
+  glue-solar feature; for the kept subsets, glue's ``ApplySubsetState.undo`` deleting only what its ``do`` made (report
+  candidate).
 - ``u.Quantity`` **saver and loader for sessions** (``save_quantity``, #186, D13). Switch: only while glue has no
   Quantity saver. Retired by the upstream list.
 - ``LinkSameWithUnits`` **saved by its two components** (#205). Switch ``needs_link_restore_workaround()``. Retired
@@ -96,9 +114,11 @@ glue-core
 - **glue's WCS link by APE 14 alone** where glue's needs an astropy WCS or either side has no ``has_celestial``: the
   physical types both share, through the pixel axes along which only those vary, tried as a round trip from either
   side's middle, first and last pixel, with as many values as each takes (``wcs_link_init``, #373, #378, #379, #385,
-  D102, D103). Switch ``needs_wcs_link_workaround()``. Retired by glue's general case by ``axis_correlation_matrix``
-  for APE 14 WCSes and ``get_cids_and_functions`` trying each side with its own axis count (fork branch
-  ``ape14-wcs-link``, 67f47e4, overlapping glue #2595), and glue testing pixel 0 only (report candidate).
+  D102, D103). Switch ``needs_wcs_link_workaround()``, which sees glue's AttributeError alone. Retired by the two
+  commits of the fork branch ``ape14-wcs-link`` together: 67f47e4 (overlapping glue #2595) gives glue's general case
+  by ``axis_correlation_matrix`` for APE 14 WCSes, which turns the probe false, and 5ce2543 the round trip from
+  either side's middle, first and last pixel with its own axis count, refusing NaN pixels where glue tried pixel 0
+  only. A glue with the first and not the second also turns the probe false, and loses the round trip.
 - **A DKIST mosaic's tiles suggested linked to its center tile only**, and other data to that tile, where glue
   suggests every pair (5778 for 108 tiles); the first tile left becomes the center once it is removed, saved in
   sessions (``sources/dkist.py``'s ``wcs_autolink`` in place of 'Astronomy WCS', ``_Recenter``, #373, #378, D102).
@@ -170,6 +190,28 @@ glue-core
   Always on. Retired by glue's ``ProfileLayerArtist._update_profile`` recomputing on ``v_min`` and ``v_max`` only
   while ``normalize`` is on, or glue-qt's ``_calculate_profile`` drawing a cached profile without the worker (fork
   branches ``perf-g7``, ``perf-q1``, ``perf-q2``).
+- **Per-frame limits left to the reference data's layers**: as an Image viewer's reference data change, the layers of
+  every other dataset take their whole cube's limits again, before glue sets the new sliders
+  (``PerFrameLimitsTool._whole_cube_again``, ``tools.py``, #102), as glue takes a per-frame layer's limits at the
+  reference data's slice indices, an IndexError for data of another shape. Always on (Image viewers). Retired by glue
+  taking a per-frame layer's limits at its own data's slice (report candidate).
+- **A broadcast component saved as its values before the broadcast**, as a frame's time or exposure time over its
+  pixels (``_BroadcastComponent``, ``_BroadcastTimes``, whose ``__gluestate__`` and ``__setgluestate__`` take the
+  place of glue's ``Component`` saver and loader, ``sources/loaders/iris.py``, #309): glue writes the broadcast in
+  full, as large as the data's values or more. Always on (those components). Retired by glue's ``Component`` saver
+  writing a broadcast array as its values and shape (report candidate).
+- **A Profile viewer told that its x unit's conversion changed**, as 'Set rest wavelength…' sets or clears the rest
+  wavelength its km / s is from: ``VelocityTool._rest_changed`` calls glue's private
+  ``ProfileViewerState._update_x_display_unit_choices`` and, where km / s goes, sets the private ``_previous_x_att``
+  to None and calls ``_reset_x_limits``, as glue cannot convert the x range from km / s then (``lines.py``, #187).
+  Always on (a Profile viewer, at a ``meta`` update of its reference data). Retired by a public way to tell a Profile
+  viewer's state that its x unit's conversion changed (report candidate).
+- **glue's 'Save Python script to reproduce plot' listed once, before glue-solar's Save entries**: ``setup`` imports
+  ``glue.plugins.tools.python_export``, which registers ``save:python`` as glue's plugin does, and puts it in the
+  Image and Profile viewers' ``subtools['save']`` ahead of its own entries where glue's plugin has not yet
+  (``__init__.py``, #222), as glue loads plugins in their entry points' order and its own adds the entry after
+  glue-solar's where it loads later. Always on. Retired by glue listing ``save:python`` before other plugins load
+  (report candidate).
 
 glue-qt
 -------
@@ -259,9 +301,36 @@ glue-qt
 - **glue-qt's Slice Extraction left off Image viewers**: its ``pv_slicer`` plugin ``setup`` made a no-op and the tool
   filtered from ``ImageViewer.tools``, so Path diagram is the one path tool (``setup``, D90). Always on. Kept by
   decision (D90).
+- **A viewer's mouse mode, such as Pixel, turned back on after each plain toolbar button or menu entry of
+  glue-solar's** (``tools._keep_mouse_mode``, the mode the viewer's Coordinate tool remembers, #92), as glue-qt's
+  toolbar ends the active mode before it runs any tool that is not a mode. Always on. Retired by glue-qt's toolbar
+  leaving the active mouse mode on as a plain tool runs (report candidate).
+- **A tool menu's entries treated as buttons are**: each subtool and its menu action written into the toolbar's
+  ``tools`` and ``actions``, the entry shown while its tool is ``enabled``, check-marked from ``checked``, and its key
+  a ``QShortcut`` of the toolbar, as glue-qt's own, on the entry, acts only while the menu's button has the keyboard
+  (``tools._ToolMenu``, #156, #222). Always on (``CoordinateTool``, ``ModesTool``, ``ViewTool``). Retired by glue-qt
+  #72 for the entries shown while ``enabled``; for the rest by glue-qt's toolbar listing subtools in ``tools`` and
+  ``actions``, with check marks and keys of the toolbar's (report candidate).
+- **A wavelength band kept as its slider moves**: ``BandTool`` adds a validator to an Image viewer state's ``slices``
+  that makes the index of each wavelength axis not shown an ``AggregateSlice`` mean over 5, 9 or 15 pixels about it
+  again (``tools.BandTool._band``, #169), as glue-qt's slider sets a plain index at any move. Per viewer: while a band
+  is on. Retired by glue-qt's slice slider moving an ``AggregateSlice``'s center and keeping its range (upstream list).
+- **The right-click entries shown or hidden for the selection again as a glue-solar data action returns, and as its
+  worker ends** (``glue_patches.refresh_layer_actions``, called by ``layer_action``'s wrapper and ``moments._start``,
+  #255): glue-qt's ``LayerAction.update_enabled`` runs as the selection changes only, so an action that changes its
+  own guard, as 'IRIS: radiometric calibration', stayed offered. Always on. Retired by glue-qt updating its layer
+  actions after one runs (report candidate).
+- **A Profile viewer's Fit and Collapse range read from glue-qt's private** ``_profile_tools.rng_mode`` of its
+  ``profile-analysis`` tool: the range 'Lines in this range…' lists, and the one 'IRIS: line maps…' starts from
+  (``lines.LinesInRangeTool.activate``, ``moments._profile_range``, #180, #332). Always on. Retired by glue-qt giving
+  the range a public name (report candidate).
+- **glue-solar's right-click entries listed by data kind**: ``layer_action.members``, glue-qt's registry list, sorted
+  in place by ``_DATA_ACTIONS`` at import, other packages' entries first and as they were (``__init__.py``, #223), as
+  glue-qt lists layer actions as they register, in import order. Always on. Retired by glue-qt's layer actions taking
+  an order (report candidate).
 
-astropy, WCSLIB, echo and mpl-scatter-density
---------------------------------------------------
+astropy, WCSLIB, echo, matplotlib and mpl-scatter-density
+---------------------------------------------------------
 
 - ``_GlueWCS`` ``WCS_LOCK`` (#60). Always on (not safely probeable). Retired by astropy #19174's fix, once 8 unlocked
   threads give 0 wrong -TAB values: it corrupts silently, without crashing, 1187 to 1267 of 2400 calls on 8.0.2
@@ -309,6 +378,16 @@ astropy, WCSLIB, echo and mpl-scatter-density
 - **mpl-scatter-density's 0.5 s hold after a canvas resize, ended before each saved frame**: ``SaveSequenceTool``
   calls ``on_release()`` on each ``BaseImageArtist`` in the viewer's axes (#270). Always on. Retired by
   mpl-scatter-density ignoring the hold while matplotlib saves (``canvas._is_saving``; report candidate).
+- **No figure manager on the canvas while 'Save frames or movie…' saves**: ``SaveSequenceTool`` sets
+  ``canvas.manager`` to None for the run and puts it back at its end (``tools.py``, #145), as matplotlib's
+  ``FFMpegWriter`` evens out an odd frame size, and sets the size again at each frame, with
+  ``set_size_inches(forward=True)``, which resizes the canvas through its manager, and glue then zooms to the new size.
+  Per run. Retired by matplotlib's movie writers sizing the figure without resizing its window (report candidate).
+- **An IRIS dataset's pixel-to-world values kept by their exact inputs**: the last 128 distinct inputs of up to 4,096
+  values each, per dataset and pointing offset, each caller given its own copy (``_GlueWCS.pixel_to_world_values``,
+  ``_MEMO_ENTRIES``, ``_MEMO_SAMPLES``, ``sources/loaders/iris.py``, #90), as WCSAxes converts the same pixels about
+  twice in each draw and all of them again at every redraw; ``DKISTWCS`` keeps its own (under dkist). Always on.
+  Retired by WCSAxes keeping its own conversions through each tick placement (upstream list).
 
 dkist
 -----
@@ -361,6 +440,18 @@ dkist
   ``sources/dkist_actions.py``, #396, D110), as neither ``FileManager.download(wait=False)`` nor
   ``_orchestrate_transfer_task`` returns a Globus task to follow. Always on (a DKIST download). Retired by dkist
   returning the Globus task ID of a transfer that does not wait (dkist #516).
+
+irispy
+------
+
+- **irispy's private** ``irispy.utils.bursts._SI_IV`` **read**, the Si IV rest wavelength its burst search measures
+  velocities from, to cut a raster window to the wavelength pixels the search takes (``bursts._crop``,
+  ``sources/bursts.py``, #172). Always on ('IRIS: detect UV bursts…'). Retired by irispy giving the wavelength a public
+  name (report candidate).
+- **irispy's private** ``irispy.utils.mg_features._REST_WAVELENGTH`` **read**, the Mg II k and h rest wavelengths its
+  features are measured from, to cut a raster window to the wavelength pixels irispy takes, and to check and apply a
+  rest wavelength set on the window (``mg_features._crop``, ``_rest``, ``sources/mg_features.py``, #153, #237). Always
+  on ('IRIS: Mg II features…'). Retired by irispy giving the wavelengths a public name (report candidate).
 
 glue-solar's own
 ----------------

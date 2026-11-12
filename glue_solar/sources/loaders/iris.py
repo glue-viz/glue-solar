@@ -77,7 +77,7 @@ WCS_LOCK = threading.RLock()
 # WCSAxes converts the same pixels about twice in each draw, and all of them again at every redraw; one
 # raster's three quicklook panels ask about 60 different questions. Bounded by entries, and by samples per
 # input and output array: at most about 25 MB per dataset. Always on; it can go once WCSAxes memoizes its
-# own conversions in each tick placement (wp0-perf-astropy-irispy).
+# own conversions in each tick placement (the Workaround register, docs/dev_guide/workarounds.rst).
 _MEMO_ENTRIES = 128
 _MEMO_SAMPLES = 4096
 

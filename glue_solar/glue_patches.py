@@ -328,19 +328,21 @@ def _select_pixel(self, mode):
     glue's Pixel click or drag, skipped off the image, as Follow/lock skips it: in a panel's margin glue makes a point
     outside the data, which no viewer can draw (an IndexError in ``PixelSubsetState._to_linked_pixel_coords``); on
     another tile of the DKIST mosaic a pair quicklook's context imager panel draws, the point of that tile's pixel
-    there (`~glue_solar.quicklook.QuicklookImageViewer.tile_at`, D109).
+    there (`~glue_solar.quicklook.QuicklookImageViewer.tile_at`, D109). Installed whatever the probe says, for the
+    tile click and the empty viewer; the probe switches the skip off the image alone, which is then left to glue.
     """
     # glue's own first check, as it is called on every mouse move, in an empty viewer too, where a press has no image
     if not self._pressed or self.viewer.state.reference_data is None:
         return
     state, x, y = self.viewer.state, self._event_xdata, self._event_ydata
-    if None in (x, y) or all(
+    off = None not in (x, y) and not all(
         0 <= round(at) < state.reference_data.shape[att.axis] for at, att in ((x, state.x_att), (y, state.y_att))
-    ):
-        _original_select_pixel(self, mode)
-    elif (tile := getattr(self.viewer, "tile_at", lambda *_: None)(x, y)) is not None:
+    )
+    if off and (tile := getattr(self.viewer, "tile_at", lambda *_: None)(x, y)) is not None:
         point = PixelSubsetState(*tile)
         self.viewer._session.command_stack.do(ApplySubsetState(data_collection=self.viewer._data, subset_state=point))
+    elif not (off and _skip_off_image):
+        _original_select_pixel(self, mode)
 
 
 def needs_pixel_off_image_workaround(method=_original_select_pixel):
@@ -353,8 +355,8 @@ def needs_pixel_off_image_workaround(method=_original_select_pixel):
     return bool(done)
 
 
-if _needs(needs_pixel_off_image_workaround):
-    PixelSelectionTool._select_pixel = _select_pixel
+_skip_off_image = _needs(needs_pixel_off_image_workaround)
+PixelSelectionTool._select_pixel = _select_pixel
 
 
 _original_apply_subset_state = ApplySubsetState.do
@@ -364,10 +366,11 @@ def apply_subset_state(self, session):
     """
     glue-core's ``ApplySubsetState.do``, whose Redo puts back the subset states its first run made: glue-core 1.27.0
     applies the state again, from the viewers of then, so a Redo after the quicklook's frame moved gave another exposure
-    (#182). A Redo whose subsets Undo deleted, as a new subset group's, stays glue's.
+    (#182). A Redo whose subsets Undo deleted, as a new subset group's, stays glue's. Installed whatever the probe says,
+    as `undo_subset_state` needs what each run made; the probe switches the put-back alone.
     """
     made = getattr(self, "_solar_made", None)
-    if made is None or any(subset not in subset.data.subsets for subset in made):
+    if not _put_back_on_redo or made is None or any(subset not in subset.data.subsets for subset in made):
         _original_apply_subset_state(self, session)
         subsets = [subset for data in self.data_collection for subset in data.subsets]
         self._solar_made = {s: s.subset_state for s in subsets if s.subset_state is not self.old_states.get(s)}
@@ -394,8 +397,8 @@ def needs_redo_workaround(do=_original_apply_subset_state):
     return first.subset_state is not made
 
 
-if _needs(needs_redo_workaround):
-    ApplySubsetState.do = apply_subset_state
+_put_back_on_redo = _needs(needs_redo_workaround)
+ApplySubsetState.do = apply_subset_state
 
 
 _original_undo_subset_state = ApplySubsetState.undo

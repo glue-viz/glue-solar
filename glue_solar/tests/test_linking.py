@@ -17,6 +17,7 @@ from glue.plugins.tools.path_slicer.path_sliced_data_links import PathRelativeLi
 from glue.plugins.wcs_autolinking import wcs_autolinking
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
 from glue.viewers.image import pixel_selection_subset_state
+from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
 from glue.viewers.image.pixel_selection_subset_state import PixelSubsetState
 from glue_qt.app import GlueApplication
 from glue_qt.dialogs.link_editor.state import LinkEditorState
@@ -963,6 +964,31 @@ def test_a_pixel_click_off_the_image_leaves_the_point(app):
         mouse(viewer, "motion_notify_event", x, y)
     [subset] = data.subsets
     assert subset.subset_state.slices == [slice(2, 3), slice(1, 2)]
+
+
+def test_a_pixel_click_on_another_tile_moves_the_point_on_a_glue_that_makes_no_point_off_the_image(app, monkeypatch):
+    # the click on another tile of a DKIST mosaic is in the patch that skips a click off the image: it went with that
+    # patch on a glue whose own Pixel tool skips one, as did the check for a viewer of no data
+    assert PixelSelectionTool._select_pixel is glue_patches._select_pixel  # whatever the probe says
+    assert glue_patches._skip_off_image == glue_patches.needs_pixel_off_image_workaround()
+    monkeypatch.setattr(glue_patches, "_skip_off_image", False)  # as the probe gives it on such a glue
+    data, tile = Data(x=np.zeros((3, 4)), label="image"), Data(x=np.zeros((3, 4)), label="tile")
+    app.data_collection.extend([data, tile])
+    viewer = app.new_data_viewer(ImageViewer, data=data)
+    state = viewer.state
+    state.x_min, state.x_max, state.y_min, state.y_max = -1, 7, -1, 3
+    placed = []
+    # a quicklook's mosaic panel gives the tile drawn at a pixel off its own image, and the point's slices there
+    viewer.tile_at = lambda x, y: placed.append((round(x), round(y))) or (tile, [slice(1, 2), slice(0, 1)])
+    select_point(viewer, 5, 1)
+    assert placed == [(5, 1)]
+    [subset] = tile.subsets
+    assert (subset.subset_state.reference_data, subset.subset_state.slices) == (tile, [slice(1, 2), slice(0, 1)])
+    select_point(viewer, 2, 1)  # on the image: glue's own point, of the panel's data
+    assert placed == [(5, 1)]
+    assert (subset.subset_state.reference_data, subset.subset_state.slices) == (data, [slice(1, 2), slice(2, 3)])
+    empty = app.new_data_viewer(ImageViewer)
+    select_point(empty, 0.5, 0.5)  # still quiet
 
 
 def test_a_mouse_press_or_move_with_pixel_on_in_an_empty_image_viewer_is_quiet(app):
