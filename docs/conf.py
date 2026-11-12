@@ -44,7 +44,6 @@ extensions = [
     "sphinx.ext.inheritance_diagram",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
-    "sphinx.ext.doctest",
     "sphinx.ext.mathjax",
     "sphinx_automodapi.automodapi",
     "sphinx_automodapi.smart_resolver",
