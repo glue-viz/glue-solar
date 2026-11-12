@@ -1,0 +1,1 @@
+Removed code nothing ran (the session patch listing a session's sunpy colormaps, ``load_entry``'s raster branch and ``stack`` argument, an unreachable check in ``browse_iris``), and DKIST and IRIS data now share one session record, one open-file-limit helper and one lookup of the axes a coordinate varies along.

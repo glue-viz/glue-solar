@@ -5,7 +5,7 @@ from functools import partialmethod
 
 import glue.config
 import qtpy
-from glue.config import fit_plugin, menubar_plugin, session_patch, stretches, unit_converter
+from glue.config import fit_plugin, menubar_plugin, stretches, unit_converter
 from glue.core import Data
 from glue.core.state import GlueSerializer
 from glue.logger import logger
@@ -72,17 +72,6 @@ _DATA_ACTIONS = (
     iris.shift_pointing_iris,
 )
 layer_action.members.sort(key=lambda item: _DATA_ACTIONS.index(item.callback) if item.callback in _DATA_ACTIONS else -1)
-
-
-@session_patch()
-def _add_session_colormaps(session):
-    """
-    List the sunpy colormaps a session names before glue restores them: glue saves a colormap's own name, which is its
-    sunpy key only for rhessi, std_gamma_2 and the SUIT maps, and restores it by that name (`maps._add_colormap`).
-    """
-    for record in session.values():
-        if isinstance(record, dict) and isinstance(record.get("cmap"), str):
-            _add_colormap(record["cmap"])
 
 
 def _last_session():

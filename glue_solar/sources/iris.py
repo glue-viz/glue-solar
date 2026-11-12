@@ -121,7 +121,7 @@ def browse_iris(session, data_collection):
         return
     dialog = QtIRISImporter(directory, parent=app, shown=_shown)
     try:
-        if dialog.exec() != QtWidgets.QDialog.Accepted or not dialog.datasets:
+        if dialog.exec() != QtWidgets.QDialog.Accepted:  # accepted only once it has loaded something
             return
         # not app.add_datasets: its autolinker would ask about WCS links in a dialog before the quicklook
         # opens (with glue-viz/glue#2595), and keep_hpc_linked links IRIS datasets

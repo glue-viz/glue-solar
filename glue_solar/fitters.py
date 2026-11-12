@@ -285,16 +285,6 @@ class GaussianConstantFitter(AstropyFitter1D):
             if setting["tie"] is None
         }
 
-    def set_constraint(self, parameter_name, value=None, fixed=None, limits=None):
-        # glue's, of the parameter's component, replaced as Settings replaces it
-        [setting] = [
-            setting
-            for index, (_, settings) in enumerate(self.components)
-            for name, setting in settings.items()
-            if _name(name, index, self.components) == parameter_name
-        ]
-        setting.update(value=value, fixed=bool(fixed), limits=limits)
-
     def model_cls(self, **starts):  # glue's hook, given each parameter's start
         model = functools.reduce(operator.add, [leaf.copy() for leaf, _ in self.components])
         for index, (leaf, settings) in enumerate(self.components):

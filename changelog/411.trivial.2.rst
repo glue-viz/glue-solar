@@ -1,0 +1,1 @@
+The test that checks the names the macOS app's start-up check imports from glue-solar now runs in CI, where it was always skipped. Removed configuration that nothing used: ``.flake8``, tox's ``oldestdeps`` factor, and ``pytest-doctestplus`` with its settings.

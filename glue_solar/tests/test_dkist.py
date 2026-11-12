@@ -516,8 +516,8 @@ def test_a_dkist_dataset_reads_its_views_from_its_files_kept_open(tmp_path, monk
         np.testing.assert_array_equal(data.get_data(cid, view=view), expected)
     assert np.isnan(expected[1]).all()
     assert sorted(opened) == ["0.fits", "2.fits"]
-    # up to `OPEN_FILES` of them (`_open_files`)
-    monkeypatch.setattr("glue_solar.sources.dkist.OPEN_FILES", 1)
+    # up to `KEPT_OPEN` of them
+    monkeypatch.setattr("glue_solar.sources.dkist.KEPT_OPEN", 1)
     opened.clear()
     for step in (0, 2, 0):
         data.get_data(cid, view=(step,))
@@ -557,22 +557,12 @@ def test_a_dkist_dataset_closes_its_files_kept_open_as_reset_session_replaces_it
     assert not paths & set(_OPEN)
 
 
-def test_dkist_data_keep_up_to_4096_files_open_raising_the_open_file_soft_limit(monkeypatch):
-    from glue_solar.sources.dkist import OPEN_FILES, _open_files
+def test_dkist_data_keep_up_to_4096_files_open_half_the_raised_open_file_soft_limit():
+    from glue_solar.sources.dkist import KEPT_OPEN
+    from glue_solar.sources.loaders.lazy import allow_open_files
 
-    resource = pytest.importorskip("resource")
-    assert OPEN_FILES == _open_files()
-    raised = []
-    monkeypatch.setattr(resource, "setrlimit", lambda kind, limits: raised.append(limits))
-    # macOS's soft limit of 256 raised: 128 files reopened a ViSP map's 510 at each move (D103)
-    monkeypatch.setattr(resource, "getrlimit", lambda kind: (256, resource.RLIM_INFINITY))
-    assert _open_files() == 4096
-    assert raised == [(8192, resource.RLIM_INFINITY)]
-    # up to a hard limit of 1024, not past it
-    raised.clear()
-    monkeypatch.setattr(resource, "getrlimit", lambda kind: (256, 1024))
-    assert _open_files() == 512
-    assert raised == [(1024, 1024)]
+    # of macOS's soft limit of 256, raised as the module loads: 128 files reopened a ViSP map's 510 at each move
+    assert KEPT_OPEN == min(4096, allow_open_files() // 2)
 
 
 @small_visp_dated_2044

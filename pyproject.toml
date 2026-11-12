@@ -60,7 +60,6 @@ density = [
 tests = [
   "pytest",
   "pytest-qt",
-  "pytest-doctestplus",
   "pytest-cov",
   "pytest-xdist",
   "pytest-remotedata",

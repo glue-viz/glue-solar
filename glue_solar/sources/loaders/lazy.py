@@ -2,6 +2,7 @@
 IRIS data held as the file's raw 16-bit integers, scaled only where glue reads them, with the missing-data codes as NaN.
 """
 
+import contextlib
 from uuid import uuid4
 
 import dask.array as da
@@ -23,20 +24,28 @@ OPEN_FILES = 10240
 
 def allow_open_files():
     """
-    Raise this process's soft limit on open files to `OPEN_FILES` (never above the hard limit, never lower).
+    Raise this process's soft limit on open files toward `OPEN_FILES` (never above the hard limit, never lower), and
+    return the limit it leaves, `OPEN_FILES` where there is none.
 
     Each memory-mapped raster file stays open, once per read of its windows (a ``raster_data`` call, or the windows
     of an observation ticked in the browser): the 99 scans of 3602506433 pass the 256 files macOS gives GUI
-    applications by their third read.
+    applications by their third read. DKIST data keep their FITS files open too (`~glue_solar.sources.dkist`).
     """
     try:
         import resource
-    except ImportError:  # Windows has no such limit
-        return
+    except ImportError:  # Windows, whose C runtime allows 8192
+        return 8192
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-    wanted = OPEN_FILES if hard == resource.RLIM_INFINITY else min(OPEN_FILES, hard)
-    if soft != resource.RLIM_INFINITY and soft < wanted:
-        resource.setrlimit(resource.RLIMIT_NOFILE, (wanted, hard))
+    if soft == resource.RLIM_INFINITY:
+        return OPEN_FILES
+    for wanted in (OPEN_FILES, 8192, 4096, 2048):
+        wanted = wanted if hard == resource.RLIM_INFINITY else min(wanted, hard)
+        if wanted <= soft:
+            break
+        with contextlib.suppress(ValueError, OSError):  # refused above macOS's kern.maxfilesperproc: the next one down
+            resource.setrlimit(resource.RLIMIT_NOFILE, (wanted, hard))
+            return wanted
+    return soft
 
 
 def fill_mask(values):
@@ -192,6 +201,36 @@ class RawStack:
         return values.reshape(shape)
 
 
+def logged_state(data, context, loaded=()):
+    """
+    glue's record of ``data`` for a session (its ``_save_data_5``) without its coordinates, which its load log reads
+    again from its files, as the metadata of keys ``loaded``; with the log and the dataset's place in it.
+    """
+    log, meta = data._load_log, {}
+    for key, value in data.meta.items():
+        if key not in loaded:
+            try:
+                context.do(value)
+            except GlueSerializeError:  # left out, as glue leaves it out
+                continue
+            meta[key] = value
+    return {
+        "components": [(context.id(cid), context.id(data.get_component(cid))) for cid in data._components],
+        "subsets": [context.id(subset) for subset in data.subsets],
+        "label": data.label,
+        "style": context.do(data.style),
+        "_key_joins": [
+            [context.id(key), [context.id(cid) for cid in cids], [context.id(cid) for cid in other]]
+            for key, (cids, other) in data._key_joins.items()
+        ],
+        "uuid": data.uuid,
+        "primary_owner": [context.id(cid) for cid in data.components if cid.parent is data],
+        "meta": context.do(meta),
+        "log": context.id(log),
+        "log_item": log.data.index(data),
+    }
+
+
 class LazyData(Data):
     """
     A glue dataset whose `RawComponent` answers glue's sampled statistics, the color limits of an Image layer, its
@@ -226,33 +265,10 @@ class LazyData(Data):
     # metadata its files give, which its load log reads again, so that it restores with them, irispy's metadata class
     # and this class: only the pointing offset and the metadata added since are saved
     def __gluestate__(self, context):
-        log = getattr(self, "_load_log", None)
-        if context.include_data or log is None:
+        if context.include_data or getattr(self, "_load_log", None) is None:
             return _save_data_5(self, context)
-        meta = {}
-        for key, value in self.meta.items():
-            if key not in self._loaded_meta:
-                try:
-                    context.do(value)
-                except GlueSerializeError:  # left out, as glue leaves it out
-                    continue
-                meta[key] = value
-        return {
-            "components": [(context.id(cid), context.id(self.get_component(cid))) for cid in self._components],
-            "subsets": [context.id(subset) for subset in self.subsets],
-            "label": self.label,
-            "style": context.do(self.style),
-            "_key_joins": [
-                [context.id(key), [context.id(cid) for cid in cids], [context.id(cid) for cid in other]]
-                for key, (cids, other) in self._key_joins.items()
-            ],
-            "uuid": self.uuid,
-            "primary_owner": [context.id(cid) for cid in self.components if cid.parent is self],
-            "meta": context.do(meta),
-            "log": context.id(log),
-            "log_item": log.data.index(self),
-            "pointing_offset": list(self.coords.pointing_offset),
-        }
+        record = logged_state(self, context, self._loaded_meta)
+        return {**record, "pointing_offset": list(self.coords.pointing_offset)}
 
     @classmethod
     def __setgluestate__(cls, rec, context):

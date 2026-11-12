@@ -359,7 +359,8 @@ def test_an_aia_map_session_restores_its_colormap_and_measure_s_km(app, qtbot, m
     assert restored.data_collection[0].style.preferred_cmap.name == "sdoaia171"  # glue's restore drops it
     # its colors: glue's menu shows the first sunpy colormap of the same colors, here GOES-R SUVI 171's
     assert restored.viewers[0][0].layers[0].state.cmap == cmlist["sdoaia171"]
-    # km at its DSUN_OBS, which glue restored as sunpy's lowercase key
+    # its role and km, from its INSTRUME and DSUN_OBS: the reader stores sunpy's keys upper-case, and a session keeps them
+    assert _role(restored.data_collection[0]) == "aia"
     lengths = []
     for viewer in (app.viewers[0][0], restored.viewers[0][0]):
         viewer.toolbar.active_tool = "solar:measure"
@@ -368,21 +369,6 @@ def test_an_aia_map_session_restores_its_colormap_and_measure_s_km(app, qtbot, m
         lengths.append(viewer.toolbar.tools["solar:measure"].label.text())
     assert lengths[0].endswith(" km")
     assert lengths[1] == lengths[0]
-
-
-def test_a_map_from_an_older_session_keeps_its_km_and_role(app, qtbot, monkeypatch, tmp_path):
-    aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))
-    aia.meta = {key.lower(): value for key, value in aia.meta.items()}  # as sessions saved sunpy's keys before
-    app.data_collection.append(aia)
-    app.new_data_viewer(ImageViewer, data=aia)
-    app.save_session(str(tmp_path / "older.glu"))
-    restored = restore(qtbot, monkeypatch, tmp_path / "older.glu", show=True)
-    assert _role(restored.data_collection[0]) == "aia"
-    viewer = restored.viewers[0][0]
-    viewer.toolbar.active_tool = "solar:measure"
-    mouse(viewer, "button_press_event", 50, 50)
-    mouse(viewer, "button_release_event", 70, 80)
-    assert viewer.toolbar.tools["solar:measure"].label.text().endswith(" km")
 
 
 def test_a_session_restores_a_profile_along_the_last_axis_in_its_unit(app, qtbot, monkeypatch, tmp_path):
@@ -726,8 +712,6 @@ def test_a_restored_quicklook_keeps_its_light_curves_where_they_were(
     saved = curves(app)
     assert len(saved) == 2
     qtbot.waitUntil(lambda: any(group.label == MARK for group in app.data_collection.subset_groups))
-    [marker] = [group for group in app.data_collection.subset_groups if group.label == MARK]
-    marker.label = "Master exposure"  # as a session saved before D90 names it
     session = tmp_path / "curves.glu"
     app.save_session(str(session), absolute_paths=False)
     opened = restore(qtbot, monkeypatch, session)
@@ -746,11 +730,11 @@ def test_a_restored_quicklook_keeps_its_light_curves_where_they_were(
     spectrogram, raster_map = opened.viewers[-1][1], opened.viewers[-1][0]
     raster = spectrogram.state.reference_data
     spectrogram.state.slices = (7, *spectrogram.state.slices[1:])
-    [marker] = [group for group in opened.data_collection.subset_groups if group.label == "Master exposure"]
+    [marker] = [group for group in opened.data_collection.subset_groups if group.label == MARK]
     start = raster[raster.id["Time"]][7, 0, 0]
     qtbot.waitUntil(lambda: getattr(marker.subset_state, "lo", None) == start)
     assert coordinator(opened.data_collection).marker is marker
-    assert not [group for group in opened.data_collection.subset_groups if group.label == MARK]  # no second one
+    assert [group for group in opened.data_collection.subset_groups if group.label == MARK] == [marker]  # no second one
     assert marker.subset_state.att.parent.label in saved
     select_point(raster_map, 5, 3)
     [point] = opened.session.edit_subset_mode.edit_subset

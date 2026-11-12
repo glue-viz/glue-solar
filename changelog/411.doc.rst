@@ -1,0 +1,1 @@
+The workaround register lists fourteen overrides it lacked (toolbar menus, mouse modes, per-frame limits, broadcast components, the IRIS coordinate memo, irispy's private names and others), says which upstream fixes four probes cannot see, and a test now fails when a probe and the register disagree.

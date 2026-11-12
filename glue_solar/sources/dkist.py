@@ -27,7 +27,7 @@ from glue.core.data import Data
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.hub import HubListener
 from glue.core.message import ApplicationClosedMessage, DataCollectionDeleteMessage
-from glue.core.state import GlueSerializeError, _load_data_5, _save_data_5
+from glue.core.state import _load_data_5, _save_data_5
 from glue.plugins.wcs_autolinking import wcs_autolinking
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
 from glue.utils.array import compute_statistic, unbroadcast
@@ -46,7 +46,8 @@ from astropy.wcs.wcsapi import (
     SlicedLowLevelWCS,
 )
 
-from glue_solar.sources.loaders.iris import _HPC, _add_exposure, _add_time, _off_frames, _ScanAt
+from glue_solar.sources.loaders.iris import _HPC, _add_exposure, _add_time, _axes_of, _off_frames, _ScanAt
+from glue_solar.sources.loaders.lazy import allow_open_files, logged_state
 
 __all__ = ["dkist_data", "is_dkist_asdf"]
 
@@ -62,30 +63,10 @@ QUALITY = {"ATMOS_R0": "m", "LIGHTLVL": "adu", "AO_LOCK": "", "XPOSURE": "ms", "
 STRICT_INVERSE = contextvars.ContextVar("strict_inverse", default=False)
 
 
-def _open_files():
-    """
-    How many FITS files DKIST data keep open: up to 4096, half the process's open-file soft limit, which this raises
-    toward its hard limit, as macOS's is 256 (user, 2026-10-23: 128 files reopened a ViSP map's 510 at each move).
-    """
-    try:
-        import resource
-    except ImportError:  # Windows, whose C runtime allows 8192
-        return 4096
-    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-    for wanted in (8192, 4096, 2048):
-        wanted = wanted if hard == resource.RLIM_INFINITY else min(wanted, hard)
-        if wanted <= soft:
-            break
-        with contextlib.suppress(ValueError, OSError):  # above macOS's kern.maxfilesperproc
-            resource.setrlimit(resource.RLIMIT_NOFILE, (wanted, hard))
-            soft = wanted
-            break
-    return min(4096, soft // 2)
-
-
-# DKIST data's FITS files kept open, the least recently read first, at most `OPEN_FILES`; and the threads that read
-# them, as astropy's RICE decoding releases the GIL (`_Files`, D103)
-OPEN_FILES, _OPEN, _OPEN_LOCK = _open_files(), OrderedDict(), threading.Lock()
+# DKIST data's FITS files kept open, the least recently read first, at most `KEPT_OPEN`: up to 4096, half the process's
+# open-file soft limit, raised first, as half of macOS's 256 reopened a ViSP map's 510 files at each move; and the
+# threads that read them, as astropy's RICE decoding releases the GIL (`_Files`, D103)
+KEPT_OPEN, _OPEN, _OPEN_LOCK = min(4096, allow_open_files() // 2), OrderedDict(), threading.Lock()
 _READERS = ThreadPoolExecutor(8)
 atexit.register(lambda: [file.close() for file in list(_OPEN.values())])  # as glue quits, not left to the collector
 # FITS files a download is writing, read as missing until they are whole: Globus may write them in place, and a file
@@ -291,7 +272,7 @@ class DKISTWCS(BaseLowLevelWCS, HighLevelWCSMixin):
 
 class _Open:
     """
-    A FITS file of DKIST data, open while among the `OPEN_FILES` last read (`_section`), and its lock: an astropy file
+    A FITS file of DKIST data, open while among the `KEPT_OPEN` last read (`_section`), and its lock: an astropy file
     is not safe across threads, and glue-qt's profile worker reads beside the viewers (D103).
     """
 
@@ -328,7 +309,7 @@ def _section(path, target, key, files):
         else:  # its dataset gone from glue, for a profile still computing: closed once read (`_close`)
             file = _Open(path)
             file.kept = False
-        closed = [_OPEN.popitem(last=False)[1] for _ in range(len(_OPEN) - OPEN_FILES)]
+        closed = [_OPEN.popitem(last=False)[1] for _ in range(len(_OPEN) - KEPT_OPEN)]
     _shut(closed)
     try:
         return file.read(target, key)
@@ -571,31 +552,11 @@ class DKISTData(Data):
     # restores as this class with the coordinates, frames, sample and center tile of the dataset its load log reads
     # again from the ASDF file, as `LazyData` does for IRIS data (D102)
     def __gluestate__(self, context):
-        log, meta = getattr(self, "_load_log", None), {}
+        log = getattr(self, "_load_log", None)
         if log is None:  # made by `dkist_data` in glue's terminal, not opened: glue's own error, as `LazyData` gives
             return _save_data_5(self, context)
-        for key, value in self.meta.items():
-            try:
-                context.do(value)
-            except GlueSerializeError:  # left out, as glue leaves it out
-                continue
-            meta[key] = value
-        return {
-            "components": [(context.id(cid), context.id(self.get_component(cid))) for cid in self._components],
-            "subsets": [context.id(subset) for subset in self.subsets],
-            "label": self.label,
-            "style": context.do(self.style),
-            "_key_joins": [
-                [context.id(key), [context.id(cid) for cid in cids], [context.id(cid) for cid in other]]
-                for key, (cids, other) in self._key_joins.items()
-            ],
-            "uuid": self.uuid,
-            "primary_owner": [context.id(cid) for cid in self.components if cid.parent is self],
-            "meta": context.do(meta),
-            "log": context.id(log),
-            "log_item": log.data.index(self),
-            "center": log.data.index(self._center),  # the first tile left once the center tile is removed (`_Recenter`)
-        }
+        # its center, the first tile left once the center tile is removed (`_Recenter`)
+        return {**logged_state(self, context), "center": log.data.index(self._center)}
 
     @classmethod
     def __setgluestate__(cls, rec, context):
@@ -612,7 +573,7 @@ class DKISTData(Data):
         data._quality = source._quality
         data._observed = source._observed
         data._dataset = source._dataset
-        data._center = log.data[rec["center"]] if "center" in rec else source._center  # #374's sessions saved none
+        data._center = log.data[rec["center"]]
         log.data[rec["log_item"]] = data  # for a session saved from this one
         for tile in log.data:  # its mosaic's tiles, restored or not, link to it if it is the center (`wcs_autolink`)
             if tile._center is source:
@@ -626,13 +587,9 @@ def _frame_times(data):
     The array axes of ``data``, a DKIST dataset, along which its time varies, in order, and its times along them as
     `numpy.datetime64`, at the middle of its other axes; None where it has none.
     """
-    wcs = data.coords
-    if "time" not in wcs.world_axis_physical_types:
+    wcs, axes = data.coords, sorted(_time_axes(data))
+    if not axes:
         return None
-    axes = np.flatnonzero(np.asarray(wcs.axis_correlation_matrix)[wcs.world_axis_physical_types.index("time")])
-    if not len(axes):
-        return None
-    axes = sorted(int(data.ndim - 1 - p) for p in axes)
     grid = np.indices([data.shape[axis] for axis in axes])
     pixel = [grid[axes.index(a)] if a in axes else n // 2 for a, n in enumerate(data.shape)]
     [time] = [world for world in wcs.pixel_to_world(*pixel[::-1]) if isinstance(world, Time)]
@@ -651,8 +608,7 @@ def _slit(data, step, at=None):
     types = list(wcs.world_axis_physical_types)
     if not set(_HPC) <= set(types):
         return None
-    matrix = np.asarray(wcs.axis_correlation_matrix)[[types.index(kind) for kind in _HPC]]
-    axes = {data.ndim - 1 - p for p in np.flatnonzero(matrix.any(axis=0))} - {step, *at}
+    axes = _axes_of(data, *_HPC) - {step, *at}
     if len(axes) != 1:
         return None
     [slit] = axes
@@ -738,7 +694,7 @@ class _SlitAt:
 
     @classmethod
     def __setgluestate__(cls, rec, context):
-        return cls(rec["starts"], rec["pixels"], rec["slit"], rec["steps"], rec.get("repeats"))  # none saved before
+        return cls(rec["starts"], rec["pixels"], rec["slit"], rec["steps"], rec["repeats"])
 
 
 class _SlitPlace:
@@ -901,11 +857,8 @@ def _held_axes(data):
     wcs = getattr(data, "coords", None)
     if not isinstance(wcs, DKISTWCS):
         return set()
-    names = wcs._names
-    held = {p for p, name in enumerate(names) if "measurement" in name or "repeat" in name}
-    stokes = [k for k, kind in enumerate(wcs.world_axis_physical_types) if kind == "phys.polarization.stokes"]
-    held.update(np.flatnonzero(np.asarray(wcs.axis_correlation_matrix)[stokes].any(axis=0)))
-    return {data.ndim - 1 - int(p) for p in held}
+    named = {data.ndim - 1 - p for p, name in enumerate(wcs._names) if "measurement" in name or "repeat" in name}
+    return named | _axes_of(data, "phys.polarization.stokes")
 
 
 def _held_names(data):
@@ -923,12 +876,7 @@ def _frame_axis(data):
 
 def _time_axes(data):
     """The array axes of ``data``, a DKIST dataset, along which its time varies."""
-    wcs = data.coords
-    types = list(wcs.world_axis_physical_types)
-    if "time" not in types:
-        return set()
-    time = np.asarray(wcs.axis_correlation_matrix)[types.index("time")]
-    return {data.ndim - 1 - int(p) for p in np.flatnonzero(time)}
+    return _axes_of(data, "time")
 
 
 # The context imager observed with each spectrograph (D105)

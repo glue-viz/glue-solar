@@ -110,7 +110,7 @@ from glue_solar.quicklook import (
 )
 from glue_solar.sources.dkist import DKISTData, _frame_axis, _held_axes, _slit, _SlitPlace, _time_axes
 from glue_solar.sources.iris import _write_ecsv
-from glue_solar.sources.loaders.iris import _HPC, _GlueWCS
+from glue_solar.sources.loaders.iris import _HPC, _axes_of, _GlueWCS
 from glue_solar.sources.loaders.stack_spectrograms import _PerScanWCS
 from glue_solar.sources.moments import _accepted, _start
 
@@ -1014,12 +1014,9 @@ def _footprint(data, when):
         offsets = abs(data._frames[0] - when)
         index = np.unravel_index(np.argmin(offsets), offsets.shape)
         timed = offsets[index] <= _half_cadence(data._frames[0].ravel())
-    types = list(data.coords.world_axis_physical_types)
-    if not set(_HPC) <= set(types):
+    if not set(_HPC) <= set(data.coords.world_axis_physical_types):
         return None
-    matrix = np.asarray(data.coords.axis_correlation_matrix)[[types.index(kind) for kind in _HPC]]
-    moves = {data.ndim - 1 - int(p) for p in np.flatnonzero(matrix.any(axis=0))}
-    step = _frame_axis(data)
+    moves, step = _axes_of(data, *_HPC), _frame_axis(data)
     table = _slit(data, step, {axis: int(index[axis]) for axis in _held_axes(data) & moves})
     if table is not None:
         slit, starts, pixels = table
@@ -1158,12 +1155,11 @@ def _observer_distance(data):
     """
     The observer's distance from the Sun of ``data``, in m: its ``DSUN_OBS``, else Earth's at its ``DATE-OBS``, as
     SSTRED files have no ``DSUN_OBS``, or ``STARTOBS``, the only time IRIS analyses' maps keep (D46); None without any.
-    Lower-case keys too, as a sunpy map restored from a session saved before its keys were stored upper-case has them.
     """
     meta = data.meta
-    if distance := meta.get("DSUN_OBS") or meta.get("dsun_obs"):
+    if distance := meta.get("DSUN_OBS"):
         return distance
-    date = meta.get("DATE-OBS") or meta.get("date-obs") or meta.get("STARTOBS")
+    date = meta.get("DATE-OBS") or meta.get("STARTOBS")
     return get_earth(date).radius.to_value(u.m) if date else None
 
 
@@ -1670,17 +1666,13 @@ def _on_sky(data, lon, lat, when):
     The two pixel components of ``data`` along which only its helioprojective angles vary, each with the positions of
     ``lon, lat`` along it at the frame or scan nearest ``when``; None unless there are two.
     """
-    types = list(getattr(data.coords, "world_axis_physical_types", None) or ())
-    if not set(_HPC) <= set(types):
+    found = _hpc(data)
+    if found is None or len(found[1]) != 2:
         return None
-    wcs, sky = data.coords, [types.index(kind) for kind in _HPC]
-    matrix = np.asarray(wcs.axis_correlation_matrix)[:, ::-1]  # numpy's axis order
-    on_sky, other = matrix[sky].any(axis=0), np.delete(matrix, sky, axis=0).any(axis=0)
-    axes = np.flatnonzero(on_sky & ~other)
-    if axes.size != 2:
-        return None
+    wcs, (sky, axes) = data.coords, found
     index, time = [0] * data.ndim, _time_component(data)
-    for axis in np.flatnonzero(on_sky & other) if time is not None and when is not None else ():
+    # the axes its angles vary along with another coordinate, such as a slit-jaw image's frames
+    for axis in _axes_of(data, *_HPC) - set(axes) if time is not None and when is not None else ():
         along = [0] * data.ndim
         along[axis] = slice(None)
         [index[axis]], _ = nearest([when], data[time, tuple(along)])
@@ -1688,7 +1680,7 @@ def _on_sky(data, lon, lat, when):
     for axis, angle in zip(sky, (lon, lat), strict=True):
         world[axis] = angle.to_value(wcs.world_axis_units[axis])
     pixel = wcs.world_to_pixel_values(*np.broadcast_arrays(*world))[::-1]
-    return [(data.pixel_component_ids[axis], np.asarray(pixel[axis], float)) for axis in axes]
+    return [(data.pixel_component_ids[axis], np.asarray(pixel[axis], float)) for axis in sorted(axes)]
 
 
 def _reused(viewer):

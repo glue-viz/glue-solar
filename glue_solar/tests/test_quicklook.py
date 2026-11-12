@@ -4433,8 +4433,8 @@ def test_redo_of_a_slit_jaw_click_puts_back_its_raster_pixel(bare_app, qtbot, ir
 
     from glue_solar import glue_patches
 
-    installed = ApplySubsetState.do is glue_patches.apply_subset_state
-    assert installed == glue_patches.needs_redo_workaround()  # probes glue's own method
+    assert ApplySubsetState.do is glue_patches.apply_subset_state  # whatever the probe says, as Undo needs it
+    assert glue_patches._put_back_on_redo == glue_patches.needs_redo_workaround()  # probes glue's own method
     assert not glue_patches.needs_redo_workaround(glue_patches.apply_subset_state)
 
     raster, sji = sit_and_stare(irispy_test_files)
@@ -4490,6 +4490,25 @@ def test_redo_of_a_slit_jaw_click_puts_back_its_raster_pixel(bare_app, qtbot, ir
     qtbot.wait(20)
     assert sliders(bare_app, viewers)["point"][1][1] == index[1]
     assert sji_viewer.state.slices[0] == frame
+
+
+def test_undo_keeps_the_subsets_made_since_on_a_glue_whose_redo_needs_no_fix(app, monkeypatch):
+    # Undo keeps them by what each command's run made, which the Redo patch records: it went with that patch on a glue
+    # whose own Redo is right, where Undo again deleted every subset made since, as a later quicklook's point
+    from glue.core.command import ApplySubsetState
+
+    from glue_solar import glue_patches
+
+    monkeypatch.setattr(glue_patches, "_put_back_on_redo", False)  # as the probe gives it on such a glue
+    data = Data(x=np.zeros(2), label="data")
+    collection, stack = app.data_collection, app.session.command_stack
+    collection.append(data)
+    stack.do(ApplySubsetState(data_collection=collection, subset_state=SubsetState()))  # of the Point
+    collection.new_subset_group(label="made since")
+    stack.undo()
+    assert [subset.label for subset in data.subsets] == ["Point", "made since"]
+    # and Redo is then glue's own
+    assert glue_patches.needs_redo_workaround(glue_patches.apply_subset_state) == glue_patches.needs_redo_workaround()
 
 
 def arcsec_read_out(viewer, x, y):
