@@ -1,0 +1,1 @@
+Loading IRIS data lazily no longer fails where the system refuses the open-file limit it asks for, as macOS does above ``kern.maxfilesperproc``: it asks for less, as DKIST data's files already did.

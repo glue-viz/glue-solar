@@ -1,0 +1,1 @@
+The Redo and Pixel click patches of glue are now installed whatever their probes find, each probe switching only the fix it tests, so Undo still keeps the subsets made since a click, and a click on another tile of a DKIST mosaic still moves the point, once a glue release fixes Redo or the Pixel tool.
