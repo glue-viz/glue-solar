@@ -67,6 +67,16 @@ _AXIS_NAMES = {
 _HPC = ("custom:pos.helioprojective.lon", "custom:pos.helioprojective.lat")
 
 
+def _axes_of(data, *kinds):
+    """The array axes of ``data`` along which its world axes of physical types ``kinds`` vary; none without them."""
+    types = getattr(data.coords, "world_axis_physical_types", None) or ()
+    world = [k for k, kind in enumerate(types) if kind in kinds]
+    if not world:
+        return set()
+    varies = np.asarray(data.coords.axis_correlation_matrix)[world].any(axis=0)
+    return {data.ndim - 1 - int(p) for p in np.flatnonzero(varies)}  # APE 14 orders pixel axes opposite to numpy
+
+
 # wcslib is not thread-safe (astropy/astropy#19174), and Glue computes profiles and histograms in
 # worker threads while WCSAxes draws on the GUI thread, all through the same raster WCS. Re-entrant
 # because a _GlueWCS can wrap another; one lock for all, because derived datasets share a WCS.
@@ -371,7 +381,7 @@ class _GlueWCS(BaseWCSWrapper):
     def __setgluestate__(cls, rec, context):
         wcs = cls(_wcs_from_state(rec["wcs"]))
         wcs.pointing_offset = tuple(rec["pointing_offset"])
-        wcs.follows = tuple(rec.get("follows", ()))  # none in a session saved before derived data followed
+        wcs.follows = tuple(rec["follows"])
         return wcs
 
 
@@ -1230,13 +1240,8 @@ def _keep_restored_links(session):
             record["_type"] = f"{__name__}.{_LinkedCollection.__name__}"
 
 
-def load_entry(observation, kind, name, stack=False):
-    """
-    The datasets of one entry of the observation browser: one per scan of a raster window (one stack with ``stack``),
-    else one.
-    """
-    if kind == "raster":
-        return raster_data(observation.rasters, [name], stack=stack)
+def load_entry(observation, kind, name):
+    """The dataset of one entry of the observation browser but a raster window, read with its files' others (`_load`)."""
     if kind == "sst":
         from glue_solar.sources.sst import sst_data  # which imports this module
 

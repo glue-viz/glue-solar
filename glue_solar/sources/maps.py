@@ -30,14 +30,11 @@ class _GenericMap(ABC):
 
 
 def _add_colormap(name):
-    """
-    List sunpy's colormap ``name``, its key or its own name (which glue saves and maps give), if sunpy has one, in
-    glue's colormap menus.
-    """
-    ctable = cmlist.get(name) or next((cmap for cmap in cmlist.values() if cmap.name == name), None)
-    if ctable is not None and all(ctable is not cmap for _, cmap in colormaps.members):
+    """List sunpy's colormap of key ``name`` in glue's colormap menus, under its own name, which glue saves."""
+    ctable = cmlist[name]
+    if all(ctable is not cmap for _, cmap in colormaps.members):
         colormaps.add(ctable.name, ctable)
-    if ctable is not None and ctable.name not in matplotlib.colormaps:
+    if ctable.name not in matplotlib.colormaps:
         # glue restores a session's colormap from matplotlib's, where sunpy lists most under their key only
         matplotlib.colormaps.register(ctable, name=ctable.name)
 
@@ -72,7 +69,6 @@ def _parse_sunpy_map(data, label):
     # FITS-case keys: a session restores sunpy's MetaDict as a dict of its lowercase keys, where Measure's DSUN_OBS and
     # the INSTRUME of `_role` were missed (#370)
     result.meta = {key.upper(): value for key, value in scan_map.meta.items()}
-    _add_colormap(scan_map.cmap.name)  # for the colormap menu of its Image layers
     result.style = _Style(color="#FDB813", preferred_cmap=scan_map.cmap)
 
     return result

@@ -70,7 +70,7 @@ from glue_solar.sources.dkist import (
     _SlitPlace,
     _time_axes,
 )
-from glue_solar.sources.loaders.iris import _HPC, keep_hpc_linked
+from glue_solar.sources.loaders.iris import _HPC, _axes_of, keep_hpc_linked
 from glue_solar.sources.loaders.scan import _observation
 
 __all__ = [
@@ -86,8 +86,7 @@ __all__ = [
 # The window the quicklook shows when the browser did not pick one
 DEFAULT_WINDOW = "Mg II k 2796"
 PERCENTILE = 99.5
-# The subset group of the exposure that leads the time, on the light curves (`Coordinator._mark`); sessions from before
-# D90 name it 'Master exposure'
+# The subset group of the exposure that leads the time, on the light curves (`Coordinator._mark`)
 MARK = "Current exposure"
 
 
@@ -302,15 +301,7 @@ def coordinator(data_collection):
 
 def _spectral_axes(data):
     """The array axes of ``data`` along which the wavelength varies."""
-    wcs = data.coords
-    types = getattr(wcs, "world_axis_physical_types", None) or ()
-    matrix = getattr(wcs, "axis_correlation_matrix", None)
-    return {
-        data.ndim - 1 - pixel  # APE 14 orders pixel axes opposite to numpy
-        for world, kind in enumerate(types)
-        if kind == "em.wl"
-        for pixel in np.nonzero(matrix[world])[0]
-    }
+    return _axes_of(data, "em.wl")
 
 
 def _pixel_tool_on(viewer):
@@ -919,9 +910,7 @@ class Coordinator(HubListener):
         sliders', along the axes but its steps and slit along which its pointing moves too, such as Cryo-NIRSP's
         measurements, kept (D105).
         """
-        types = list(raster.coords.world_axis_physical_types)
-        moves = np.asarray(raster.coords.axis_correlation_matrix)[[types.index(kind) for kind in _HPC]].any(axis=0)
-        at = {axis: self._index(raster, axis) for axis in _held_axes(raster) if moves[raster.ndim - 1 - axis]}
+        at = {axis: self._index(raster, axis) for axis in _held_axes(raster) & _axes_of(raster, *_HPC)}
         key = (raster, tuple(sorted(at.items())))
         if key not in self._slits:
             self._slits[key] = _slit(raster, _time_axis(raster), at)
@@ -1151,7 +1140,7 @@ class Coordinator(HubListener):
         end = time + np.timedelta64(int(np.nan_to_num((seconds or 0) * 1e9)), "ns")
         state = RangeSubsetState(time, end, x)
         if self.marker is None:
-            self.marker = next((group for group in groups if group.label in (MARK, "Master exposure")), None)
+            self.marker = next((group for group in groups if group.label == MARK), None)
         if self.marker is None:
             self.marker = _new_group(app.session, self.data_collection, label=MARK, subset_state=state)
         # off every other viewer before it moves, also those opened since, which glue gives every subset: they would
@@ -1587,7 +1576,7 @@ class QuicklookImageViewer(ImageViewer):
     def __gluestate__(self, context):
         """glue's record of the panel; its quicklook's first Image panel's holds the quicklook's recipe (`_recipe`)."""
         rec, tab = super().__gluestate__(context), self.parent().mdiArea()
-        if not hasattr(tab, "_solar_quicklook"):  # a panel of a session saved before D83, saved as a plain viewer
+        if not hasattr(tab, "_solar_quicklook"):  # opened by a script outside a quicklook: saved as a plain viewer
             return rec
         # none once its data are removed, until glue-qt deletes the closed panels (`glue_patches.application_gluestate`)
         panels = _viewers(tab._solar_quicklook[-1])
@@ -1599,11 +1588,10 @@ def _role(data):
     """
     'raster', 'sji', 'aia', 'sst' or None, from the INSTRUME keyword: AIA cutouts and Hinode/SOT cubes load as slit-jaw
     cubes and follow the time as they do, without their quicklook panel, raster point or overlays; SST CRISP and
-    CHROMIS cubes step through time by scan, and have a quicklook of their own (`_cube_table`). A lower-case key too, as
-    a sunpy map restored from a session saved before its keys were stored upper-case has it.
+    CHROMIS cubes step through time by scan, and have a quicklook of their own (`_cube_table`).
     """
     meta = getattr(data, "meta", None) or {}
-    instrument = str(meta.get("INSTRUME") or meta.get("instrume") or "")
+    instrument = str(meta.get("INSTRUME") or "")
     if instrument.startswith(("AIA", "SOT")):
         return "aia"
     return {"SPEC": "raster", "SJI": "sji", "CRISP": "sst", "CHROMIS": "sst"}.get(instrument)
@@ -2082,8 +2070,7 @@ def _cube_table(app, cube):
     else:
         t, s, w, y, x = _cube_axes(cube)
         name, core = cube.label.replace("&", "and"), cube.shape[w] // 2
-        types = list(cube.coords.world_axis_physical_types)
-        if "time" in types and np.asarray(cube.coords.axis_correlation_matrix)[types.index("time"), cube.ndim - 1 - x]:
+        if x in _axes_of(cube, "time"):
             aspect = "auto"  # a slit raster's, as IRIS's maps (D103): AIOMGG's steps are 16 slit pixels wide
     start = [0] * cube.ndim
     start[w], start[y], start[x] = core, cube.shape[y] // 2, cube.shape[x] // 2

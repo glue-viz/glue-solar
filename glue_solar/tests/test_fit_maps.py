@@ -179,7 +179,7 @@ def test_a_fit_in_km_s_converts_to_the_same_fit_in_angstrom(background):
         leaves = background.copy(), models.Gaussian1D(), models.Gaussian1D()
         fitter = GaussianConstantFitter(components=[_component(leaf) for leaf in leaves])
         limits = (np.array([1402.7, 1402.85]) * u.AA).to_value(unit, doppler)
-        fitter.set_constraint("mean_1", limits=tuple(limits))
+        fitter.components[1][1]["mean"]["limits"] = tuple(limits)
         model, _ = fitter.build_and_fit((wavelengths * u.AA).to_value(unit, doppler), spectrum)
         converted.append(fit_maps._in_angstrom(model, *fit_maps._to_angstrom(unit, REST)))
     angstrom, km_s = converted

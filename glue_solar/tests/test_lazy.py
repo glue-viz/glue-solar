@@ -224,8 +224,25 @@ def test_open_file_limit_is_raised_never_lowered(monkeypatch, soft, hard, raised
     calls = []
     monkeypatch.setattr(resource, "getrlimit", lambda kind: (soft, hard))
     monkeypatch.setattr(resource, "setrlimit", lambda kind, limits: calls.append(limits))
-    allow_open_files()
+    assert allow_open_files() == (raised or soft)
     assert calls == ([] if raised is None else [(raised, hard)])
+
+
+def test_open_file_limit_refused_is_asked_for_lower(monkeypatch):
+    import resource
+
+    def refuse(kind, limits):  # as macOS does above its kern.maxfilesperproc
+        calls.append(limits[0])
+        if limits[0] > allowed:
+            raise ValueError("not allowed to raise maximum limit")
+
+    calls, allowed = [], 5000
+    monkeypatch.setattr(resource, "getrlimit", lambda kind: (256, resource.RLIM_INFINITY))
+    monkeypatch.setattr(resource, "setrlimit", refuse)
+    assert allow_open_files() == 4096
+    assert calls == [10240, 8192, 4096]
+    allowed = 0  # every raise refused: the limit stays as it was, and the load goes on
+    assert allow_open_files() == 256
 
 
 def lazy_and_eager(monkeypatch, load):

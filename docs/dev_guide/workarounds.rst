@@ -91,9 +91,6 @@ glue-core
   candidate).
 - **Profile display units restored after** ``x_att`` (``ProfileViewerState._update_priority``, #197). Switch
   ``needs_profile_restore_workaround()``. Retired by glue ranking the display units after ``x_att`` (upstream list).
-- **The IRIS fitter's** ``set_constraint`` **replacing a parameter's entry**, so a value or bound cleared in Settings
-  clears (#259). Always on. Retired by glue-core's ``BaseFitter1D.set_constraint`` taking None as a clear (report
-  candidate).
 - **A line's width keeps its positive lower bound when Settings gives an upper bound alone**, where glue-core's
   ``_get_model_fitter`` sets ``(None, upper)`` and drops the floor; glue's own Gaussian fitter loses astropy's
   ``stddev`` floor the same way (``GaussianConstantFitter.fit``, #367). Always on. Retired by ``_get_model_fitter``
@@ -171,9 +168,9 @@ glue-core
 - **An SSTRED Stokes cube's unnamed Stokes axis named 'Stokes'** where its y axis is named (``sst_data``, #356), as
   glue's ``axis_label`` checks ``world_axis_names[axis]`` but returns ``world_axis_names[world_n_dim - 1 - axis]``.
   Always on. Retired by ``axis_label`` checking the name it returns (report candidate, upstream list).
-- **Sunpy colormaps a session names listed before glue restores them**, and registered in matplotlib under their own
-  names (``_add_session_colormaps``, ``maps._add_colormap``, #98, #129). Always on. Retired by glue restoring sunpy
-  colormaps by name (upstream list).
+- **Sunpy colormaps registered in matplotlib under their own names**, as glue saves a colormap's name and restores
+  it from matplotlib's, where sunpy lists most under their key alone (``maps._add_colormap``, for each as the plugin
+  loads, #98, #129). Always on. Retired by glue restoring sunpy colormaps by name (upstream list).
 - **Raster windows of one restore read together** (``_read_logged_windows_together``, ``raster_files_data``'s
   ``_RESTORING``, #234). Always on. Retired by glue's LoadLog restoring one file's logs in one load (upstream list).
 - **A dataset's style saved with its preferred colormap** (``maps._Style``, #189). Always on. Retired by glue-core
@@ -411,8 +408,8 @@ dkist
   ``Unravel`` giving NaN for a NaN index (report candidate).
 - **DKIST values read by glue-solar, not dkist's dask array** (``DKISTData.get_data``, ``_Files``, ``_section``,
   ``_Open``, #383, #385, D103): only the tiles of each file a view touches decompressed (astropy's ``section``), up
-  to 4096 files kept open (``_open_files``: half the open-file soft limit, raised toward its hard limit), closed as
-  their dataset leaves glue or its window closes, and once read by a profile still computing after that; 8 threads, a
+  to 4096 files kept open (``KEPT_OPEN``: half the open-file soft limit, raised by ``lazy.allow_open_files``), closed
+  as their dataset leaves glue or its window closes, and once read by a profile still computing after that; 8 threads, a
   lock per file, a missing file NaN; dask's reads where a dataset is cut within its files' frames or dkist gives no
   HDU of its files; ``DKISTWCS.pixel_to_world_values`` keeps its last 64 distinct inputs of up to 10,000 values per
   dataset, as WCSAxes asks the same at each draw. Always on (DKIST datasets). Retired by dkist's dask array passing

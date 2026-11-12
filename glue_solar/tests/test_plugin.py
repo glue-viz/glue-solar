@@ -21,7 +21,6 @@ from glue.config import (
     fit_plugin,
     layer_action,
     menubar_plugin,
-    session_patch,
     startup_action,
     viewer_tool,
 )
@@ -1685,10 +1684,17 @@ def test_colormap_icons_are_drawn_once(qtbot, monkeypatch):
 
 
 def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_path):
+    import matplotlib
+
     from sunpy.visualization.colormaps import cmlist
 
+    # glue restores a colormap from matplotlib's by its name. rhessi's name is its sunpy key, under which sunpy lists
+    # it there; the HMI magnetogram's, as most are, is not: the plugin's setup lists each under its own name too
+    names = "rhessi", cmlist["hmimag"].name
+    matplotlib.colormaps.unregister(names[1])
     monkeypatch.setattr(colormaps, "_members", [])
     monkeypatch.setattr(colormaps, "_loaded", False)
+    glue_solar.setup()
     app = GlueApplication()
     qtbot.addWidget(app)
     image = Data(label="image", flux=np.arange(20.0).reshape(4, 5))
@@ -1696,10 +1702,7 @@ def test_a_session_restores_a_sunpy_colormap_it_names(qtbot, monkeypatch, tmp_pa
     app.new_data_viewer(ImageViewer, data=image)
     app.save_session(str(tmp_path / "cmap.glu"))
     session = (tmp_path / "cmap.glu").read_text()
-    # glue restores a colormap by its name, here one not listed yet: the session patch lists every sunpy one
-    assert any(patch.function is glue_solar._add_session_colormaps for patch in session_patch)
-    # rhessi's name is its sunpy key; the HMI magnetogram's, as most are, is not
-    for name in ("rhessi", cmlist["hmimag"].name):
+    for name in names:
         (tmp_path / "cmap.glu").write_text(session.replace('"cmap": "gray"', f'"cmap": "{name}"'))
         restored = GlueApplication.restore_session(str(tmp_path / "cmap.glu"))
         qtbot.addWidget(restored)
@@ -2611,7 +2614,7 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(app, qtbot, monkeypatch, 
     model, _ = GaussianConstantFitter().build_and_fit(x, 50 - y)
     assert model.parameters == pytest.approx([47, -40, 1355.62, 0.04])  # absorption
     fitter = GaussianConstantFitter()
-    fitter.set_constraint("stddev_1", limits=(None, 0.1))  # an upper bound alone, as Settings sets it
+    fitter.components[1][1]["stddev"]["limits"] = (None, 0.1)  # an upper bound alone, as Settings sets it
     assert fitter.build_and_fit(x, y)[0].bounds["stddev_1"] == (models.Gaussian1D.stddev.bounds[0], 0.1)  # positive
 
     # a Lorentzian on a linear background, composed in Settings, reaches the next fit
@@ -2630,7 +2633,7 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(app, qtbot, monkeypatch, 
     fitter = iris_fitter(models.Linear1D(), models.Lorentz1D())
     model, _ = fitter.build_and_fit(x, y)
     assert model.parameters == pytest.approx([0.5, 3 - 0.5 * 1355, 40, 1355.62, 0.06])  # the intercept at 0 Å
-    fitter.set_constraint("slope_0", value=0.25, fixed=True)  # it starts flat
+    fitter.components[0][1]["slope"].update(value=0.25, fixed=True)  # it starts flat
     assert fitter.build_and_fit(x, y)[0].slope_0.value == 0.25
     # a Lorentzian starts from the width a Gaussian's standard deviation is from
     starts = GaussianConstantFitter().parameter_guesses(x, y, None)
@@ -2978,7 +2981,7 @@ def test_a_chain_of_ties_fits_from_its_root():
     centers, amplitudes = (1334.53, 1335.66, 1335.71), (20, 40, 10)
     y = 5 + sum(a * np.exp(-0.5 * ((x - c) / 0.03) ** 2) for a, c in zip(amplitudes, centers, strict=True))
     fitter = iris_fitter(models.Const1D(), *(models.Gaussian1D() for _ in centers))
-    fitter.set_constraint("mean_1", value=1334.53)
+    fitter.components[1][1]["mean"]["value"] = 1334.53
     for line, separation, ratio in ((2, 1.13, 2), (3, 0.05, 0.25)):
         settings = fitter.components[line][1]
         settings["mean"]["tie"], settings["amplitude"]["tie"] = (line - 1, separation), (line - 1, ratio)
@@ -3059,12 +3062,10 @@ def test_gaussian_on_a_constant_says_when_the_range_holds_too_few_samples():
     with pytest.raises(ValueError, match=f"{message} parameter, and has 3: widen the range"):
         GaussianConstantFitter().build_and_fit(x, y)
     fitter = GaussianConstantFitter()
-    fitter.set_constraint("amplitude_0", value=1, fixed=True)
+    fitter.components[0][1]["amplitude"].update(value=1, fixed=True)
     model, _ = fitter.build_and_fit(x, y)  # three free parameters, which three samples fit
     assert np.abs(model.parameters) == pytest.approx([1, 4, 1, 0.5])
-    fitter.set_constraint("mean_1", fixed=True)  # with no estimate, at its start from the data, the peak's sample
+    fitter.components[1][1]["mean"]["fixed"] = True  # with no estimate, at its start from the data, the peak's sample
     assert np.abs(fitter.build_and_fit(x, y)[0].parameters) == pytest.approx([1, 4, 1, 0.5])
-    fitter.set_constraint("amplitude_0", value=None, fixed=False, limits=None)  # as Settings sends a row cleared
-    assert fitter.constraints["amplitude_0"] == {"value": None, "fixed": False, "limits": None}
     with pytest.raises(ValueError, match="needs a peak in the range for each line without a start, 1, and finds 0"):
         GaussianConstantFitter().build_and_fit(np.arange(5.0), np.ones(5))
