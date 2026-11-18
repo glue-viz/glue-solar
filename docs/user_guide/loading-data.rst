@@ -282,8 +282,9 @@ Linking
 -------
 
 The browser, a quicklook and the analyses link the helioprojective coordinates of the IRIS data they
-load or make, so a region drawn on one selects the same place on the Sun in the others. AIA cutouts,
-SOT cubes, maps, SST cubes and files opened with "File → Open Data Set" link only on request: choose
+load or make, and of the aligned AIA cutouts and SOT cubes of the same observation, so a region drawn
+on one selects the same place on the Sun in the others. Maps, SST cubes, AIA cutouts and SOT cubes of
+another observation, and files opened with "File → Open Data Set" link only on request: choose
 "Link helioprojective coordinates" in the "Plugins" menu once they are loaded, and again after
 loading more. With no IRIS data loaded, they link to the
 first of them, so SST cubes link to each other.

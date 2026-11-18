@@ -1592,7 +1592,8 @@ def test_an_aia_cutout_follows_the_time_master_and_can_be_it(bare_app, qtbot, ir
     aia = slit_jaw(raster_time(raster, (0,)) + np.arange(150) * np.timedelta64(24, "s"), raster, "1700")  # an hour
     aia.meta["INSTRUME"] = "AIA_3"
     viewers = quicklook(bare_app, [raster, sji, aia])
-    assert viewers["sji"][0].state.reference_data is sji  # the cutout gets no panel
+    assert viewers["sji"] == [viewers["sji"][0]]  # the cutout's panel waits in the Panels list
+    assert viewers["sji"][0].state.reference_data is sji
     aia_viewer = bare_app.new_data_viewer(ImageViewer, data=aia)
     matched = []
     for step in (20, 1, 100):  # the cutout ends before step 100
@@ -1607,24 +1608,45 @@ def test_an_aia_cutout_follows_the_time_master_and_can_be_it(bare_app, qtbot, ir
         assert leads() in readout(aia_viewer)
 
 
-def test_an_observation_s_aia_cutout_keeps_its_time_sync_until_and_once_linked(
+def test_an_observation_s_aia_cutout_is_linked_as_it_loads_and_a_panel_once_ticked(
     bare_app, qtbot, tmp_path, irispy_test_files
 ):
-    # D72: a quicklook links neither an observation's AIA cutouts and SOT cubes nor a stack's scans to them, until
-    # 'Link helioprojective coordinates'; they follow its time master either way, by observation, not by links
+    # D115: a quicklook links its observation's AIA cutouts and SOT cubes as it opens, and lists a panel for each,
+    # unticked; ticked, the panel follows the time, shows the raster's point and takes a click as a slit-jaw image's.
+    # A cutout of another observation waits for 'Link helioprojective coordinates' (D72)
     stack, _ = drifting_stack(tmp_path, irispy_test_files)
     path = find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000"))
-    sji, aia = image_data(path), image_data(path)
-    aia.meta["INSTRUME"] = "AIA_3"  # read as an aligned cutout is, with the slit-jaw image's frames
-    viewers = quicklook(bare_app, [stack, sji, aia])
-    aia_viewer = bare_app.new_data_viewer(ImageViewer, data=aia)
+    sji, aia, other = image_data(path), image_data(path), image_data(path)
+    for cube in (aia, other):  # read as an aligned cutout is, with the slit-jaw image's frames
+        cube.meta.update(INSTRUME="AIA_3", TDESC1="1600")
+    other.meta["STARTOBS"] = "2021-09-06T00:18:33.640"
     collection = bare_app.data_collection
-    for linked in ({stack, sji}, {stack, sji, aia}):
-        assert linked_data(collection) == linked
-        for scan, step in ((1, 4), (0, 0)):
-            viewers["spectrogram"].state.slices = (scan, step, *viewers["spectrogram"].state.slices[2:])
-            assert check_follower(bare_app, qtbot, raster_time(stack, (scan, step)), aia, aia_viewer)
-        link_iris(bare_app.session, collection)
+    collection.append(other)
+    viewers = quicklook(bare_app, [stack, sji, aia])
+    assert linked_data(collection) == {stack, sji, aia}
+    panels = panels_list(bare_app)
+    assert entries(panels)[-1] == ("AIA", False, [("AIA 1600", False)])
+    assert viewers["windows"] == []  # no panel, and none of its 0.3 s, until ticked
+    tick(panels, "AIA 1600")
+    qtbot.waitUntil(lambda: viewers["windows"] != [])
+    panel = viewers["windows"][0]["sji"]
+    assert (panel.state.reference_data, panel.state.title) == (aia, "AIA 1600")
+    for scan, step in ((0, 0), (1, 4)):
+        viewers["spectrogram"].state.slices = (scan, step, *viewers["spectrogram"].state.slices[2:])
+        assert check_follower(bare_app, qtbot, raster_time(stack, (scan, step)), aia, panel)
+    # the raster's point where the slit-jaw panel has it, their frames being the same, and a click beside it moves it
+    coord = coordinator(collection)
+    qtbot.waitUntil(lambda: coord.point_on(panel) is not None)
+    assert coord.point_on(panel) == pytest.approx(coord.point_on(viewers["sji"][0]))
+    x, y = np.round(coord.point_on(panel)) + (0, 3)
+    index = sji_to_raster(aia, panel.state.slices[0], x, y, stack)
+    assert index is not None
+    assert index != tuple(s.start for s in coord.point.slices[:3])
+    select_point(panel, x, y)
+    qtbot.waitUntil(lambda: tuple(s.start for s in coord.point.slices[:3]) == index)
+    assert coord.point.reference_data is stack
+    link_iris(bare_app.session, collection)  # the other observation's cutout, on request
+    assert linked_data(collection) == {stack, sji, aia, other}
 
 
 def test_a_stack_master_moves_the_slit_jaw_image_by_scan_and_step(bare_app, qtbot, scans):
@@ -5715,6 +5737,24 @@ def test_a_slit_jaw_only_quicklook_turns_its_panels_on_and_off(bare_app, qtbot, 
     tick(panels, "SJI 2796")
     qtbot.waitUntil(lambda: not panels._timer.isActive())
     assert viewers["sji"][0].viewer_size[0] == width
+
+
+def test_a_slit_jaw_only_quicklook_lists_its_sot_cubes_each_by_a_name_of_its_own(bare_app, qtbot, irispy_test_files):
+    # D115, with no raster and so no point: two SOT cubes of one band, as an observation's SOTFG files give, each a
+    # panel once ticked
+    cubes = [image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000"))) for _ in range(2)]
+    for cube in cubes:  # read as SOT cubes are, with the slit-jaw image's frames
+        cube.meta.update(INSTRUME="SOT/WB", TDESC1="G band 4305")
+    viewers = quicklook(bare_app, [*slit_jaws(irispy_test_files)[:1], *cubes])
+    panels = panels_list(bare_app)
+    assert entries(panels) == [
+        ("SJI 1400", True),
+        ("SOT", False, [("SOT G band 4305", False), ("SOT G band 4305 (2)", False)]),
+    ]
+    tick(panels, "SOT G band 4305 (2)")
+    qtbot.waitUntil(lambda: viewers["windows"] != [])
+    assert viewers["windows"][0]["sji"].state.reference_data is cubes[1]
+    assert not viewers["windows"][0]["sji"].parent().isHidden()
     assert None not in coordinator(bare_app.data_collection)._owners  # no point's
 
 

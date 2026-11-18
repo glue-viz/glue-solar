@@ -846,16 +846,17 @@ def test_browse_iris_links_what_it_loads(app, qtbot, tmp_path, irispy_test_files
     assert on_gui
     assert all(on_gui)  # glue's hub has no locks: the datasets are added on the GUI thread
     assert len(dc) > 5  # the map, two SJIs, the SOT cube and every raster window
-    # longitude and latitude of each IRIS dataset to the first, and the quicklook's exposure and slit pixels of each
-    # other raster window to the one it shows; not the SOT cube's, through loading and the quicklook (D72)
+    # longitude and latitude of each IRIS dataset, and of the observation's SOT cube, to the first (D115), and the
+    # quicklook's exposure and slit pixels of each other raster window to the one it shows; not the map's (D72)
     windows = 2 * (sum(_role(data) == "raster" for data in dc) - 1)
     hpc = [link for link in dc.external_links if {cid.label for cid in (*link.cids1, *link.cids2)} <= set(HPC)]
-    assert (len(hpc), len(dc.external_links) - len(hpc)) == (2 * (len(dc) - 3), windows)
+    assert (len(hpc), len(dc.external_links) - len(hpc)) == (2 * (len(dc) - 2), windows)
     [cube] = [data for data in dc if data.meta.get("INSTRUME") == "SOT"]
-    assert cube not in linked_data(dc)
+    assert linked_data(dc) == set(dc) - {dc[0]}
+    assert cube in linked_data(dc)
     assert app.tab_count == 2  # its quicklook
     dc.append(image_data(find_irispy_test_file(irispy_test_files, SJI.replace("1400", "1330"))))  # loaded later
-    link_iris(app.session, dc)  # and the map and SOT cube, on request
+    link_iris(app.session, dc)  # and the map, on request
     assert len(dc.external_links) == 2 * (len(dc) - 1) + windows
 
 
