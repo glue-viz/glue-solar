@@ -161,9 +161,16 @@ def _cube(data, values, rows, wavelengths, unit, saturated, sigma=None, shift=0)
     return SpectrogramCube(values, view, uncertainty, unit, mask=mask, meta={"saturated": saturated})
 
 
-def _slab_rows(data, crop, factor=1):
-    """The ``rows`` of each slab of ``data`` at ``crop``: raster steps of one scan, about `SLAB` / ``factor`` samples."""
+def _slab_rows(data, crop, factor=1, scans=False):
+    """
+    The ``rows`` of each slab of ``data`` at ``crop``: raster steps of one scan, about `SLAB` / ``factor`` samples; with
+    ``scans``, the whole scans of a stack that fit in one slab together, each still at its own coordinates.
+    """
     steps = max(1, SLAB // (data.shape[-2] * (crop.stop - crop.start) * factor))
+    together = steps // data.shape[-3] if scans and data.ndim == 4 else 0
+    if together > 1:
+        scans = range(0, data.shape[0], together)
+        return [(slice(scan, min(scan + together, data.shape[0])), slice(None), slice(None)) for scan in scans]
     # each scan of a stack, as its own WCS and exposure times give it
     starts = itertools.product(np.ndindex(data.shape[:-3]), range(0, data.shape[-3], steps))
     return [(*scan, slice(start, start + steps), slice(None)) for scan, start in starts]

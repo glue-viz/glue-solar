@@ -1,7 +1,7 @@
 """
 'Fit every spectrum' on a Profile viewer's Fit tab, on int16 copies of irispy's test scans: the button, the viewer's
 own last IRIS fit handed to the window's fit, in Angstrom from a length or km / s, the dataset and links it adds, a
-stack scan by scan, Cancel and the refusals. dask's synchronous scheduler stands in for its processes, which take
+stack's scans together, Cancel and the refusals. dask's synchronous scheduler stands in for its processes, which take
 seconds to start.
 """
 
@@ -416,7 +416,7 @@ def test_c_ii_built_in_settings_fits_one_spectrum_then_the_window(app, qtbot, mo
     np.testing.assert_allclose((maps["mean_2"] - maps["mean_0"])[fits], 1.1756)
 
 
-def test_a_stack_is_fitted_scan_by_scan(app, qtbot, monkeypatch, stack_paths, calls):
+def test_a_stack_s_scans_are_fitted_together_a_chunk_a_task(app, qtbot, monkeypatch, stack_paths, calls):
     [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
     collection = app.data_collection
     collection.append(stack)
@@ -461,9 +461,19 @@ def test_a_stack_is_fitted_scan_by_scan(app, qtbot, monkeypatch, stack_paths, ca
     maps = run(app, qtbot, tools)
     assert wcs_calls
     assert {name for name, locked in wcs_calls if not locked} <= {"serialized_classes"}  # astropy's False, no wcslib
-    assert entered == [False] * 3
+    assert entered == [False]
     assert maps.shape == stack.shape[:-1]
-    assert [call["data"].shape[:2] for call in calls] == [stack.shape[1:3]] * 3  # each scan alone
+    # the three scans in one call, which has the chunks to keep the processes busy that a small scan's has not, and
+    # dask given a chunk a task, where its six a task leave most of them idle
+    [call] = calls
+    assert (call["data"].shape[:3], call["fitting_axes"]) == (stack.shape[:3], 3)
+    assert call["scheduler"].keywords["chunksize"] == 1
+    crop = slice(0, call["data"].shape[3])
+    assert moments._slab_rows(stack, crop, scans=True) == [(slice(0, 3), slice(None), slice(None))]
+    steps = stack.shape[1]
+    monkeypatch.setattr(moments, "SLAB", steps * stack.shape[2] * crop.stop)  # a scan a slab: each alone again
+    alone = [(scan, slice(0, steps), slice(None)) for scan in range(3)]
+    assert moments._slab_rows(stack, crop, scans=True) == moments._slab_rows(stack, crop) == alone
     [pool] = {call["scheduler"].keywords["pool"] for call in calls}  # one for the run
     with pytest.raises(RuntimeError, match="after shutdown"):
         pool.submit(int)
