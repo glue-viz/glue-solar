@@ -97,6 +97,10 @@ Image viewer
      - Draw the raster's slit positions on the slit-jaw images, and the step at the synced time on the
        maps.
      -
+   * - View → "IRIS field of view"
+     - On an AIA cutout or SOT cube of an IRIS observation, draw a box around the raster's field and
+       one around the slit-jaw image's.
+     -
    * - View → "DKIST footprints…"
      - Draw the outline of each loaded DKIST dataset ticked, and a spectrograph raster's slit at the
        image's time, on a helioprojective image (see :ref:`glue_solar_users_guide_loading_dkist_datasets`).

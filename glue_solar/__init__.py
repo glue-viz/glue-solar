@@ -180,6 +180,7 @@ def setup():
             tools.PhysicalAspectTool,
             tools.ColorBarTool,
             tools.RasterOverlaysTool,
+            tools.FieldOfViewTool,
             tools.DKISTFootprintsTool,
         ],
     }

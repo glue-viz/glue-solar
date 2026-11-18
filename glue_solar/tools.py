@@ -943,14 +943,15 @@ class RasterOverlaysTool(Tool):
     tool_id = "solar:raster_overlays"
     action_text = "Raster overlays"
     tool_tip = "Show or hide each raster step's slit on the slit-jaw images and the step at the synced time on maps"
+    shown = "overlays"  # the coordinator's observations that show them
 
     @property
     def checked(self):
         """Whether the overlays of the viewer's observation show, as the View menu entry's check mark says."""
-        return observation_key(self.viewer.state.reference_data) in coordinator(self.viewer._data).overlays
+        return observation_key(self.viewer.state.reference_data) in getattr(coordinator(self.viewer._data), self.shown)
 
     def activate(self):
-        coordinator(self.viewer._data).toggle_overlays(observation_key(self.viewer.state.reference_data))
+        coordinator(self.viewer._data).toggle_overlays(observation_key(self.viewer.state.reference_data), self.shown)
         _keep_mouse_mode(self.viewer)
 
     def offered(self):
@@ -958,6 +959,27 @@ class RasterOverlaysTool(Tool):
         key = observation_key(self.viewer.state.reference_data)
         rasters = (data for data in self.viewer._data if _role(data) == "raster")
         return key is not None and any(observation_key(data) == key for data in rasters)
+
+
+@viewer_tool
+class FieldOfViewTool(RasterOverlaysTool):
+    """
+    Show or hide, on the AIA cutouts and SOT cubes of the viewer's observation, a box around its raster's field and one
+    around its slit-jaw image's (`~glue_solar.quicklook.Coordinator.field_on`, D116): plain matplotlib lines, which
+    sessions leave out.
+    """
+
+    tool_id = "solar:field_of_view"
+    action_text = "IRIS field of view"
+    tool_tip = "Show or hide boxes around the raster's and the slit-jaw image's fields on this observation's AIA and SOT images"
+    shown = "fields"
+
+    def offered(self):
+        """Whether the viewer shows an AIA cutout or SOT cube of an observation with a raster or slit-jaw image loaded."""
+        data = self.viewer.state.reference_data
+        key = observation_key(data)
+        iris = (each for each in self.viewer._data if _role(each) in ("raster", "sji"))
+        return key is not None and _role(data) == "aia" and any(observation_key(each) == key for each in iris)
 
 
 def _shown_time(state):
@@ -1050,6 +1072,7 @@ def _on_view(state, lon, lat):
 
 # The artists of a DKIST dataset's footprint (`_footprint`): the styles of its outline, its raster's steps and its slit
 # at the viewer's time, edged in black to show over the steps, and its label's
+_EDGED = [withStroke(linewidth=2.5, foreground="k")]  # a white line's black edge
 _FOOTPRINT = {"gid": "solar:dkist_footprint", "zorder": 97}
 _FOOTPRINT_STYLES = (
     {"lw": 1},
@@ -2761,6 +2784,10 @@ class CoordinateTool(_ToolMenu):
         self._step = viewer.axes.add_line(
             Line2D([], [], gid="solar:step", color="white", lw=0.8, ls="--", zorder=99, visible=False)
         )
+        # the IRIS field-of-view boxes on an AIA or SOT image, edged in black to show on bright and dark images alike
+        self._field = viewer.axes.add_line(
+            Line2D([], [], gid="solar:field", color="white", lw=1, zorder=98, visible=False, path_effects=_EDGED)
+        )
         self.coordinator.add_listener(self._synced)
         for prop in _WATCHED:
             viewer.state.add_callback(prop, self._draw)
@@ -2862,14 +2889,20 @@ class CoordinateTool(_ToolMenu):
         viewer, coordinator = self.viewer, self.coordinator
         state = viewer.state
         line, point = coordinator.slit_on(viewer), coordinator.point_on(viewer)
-        footprint, step = coordinator.footprint_on(viewer), coordinator.step_on(viewer)
+        footprint, step, field = coordinator.footprint_on(viewer), coordinator.step_on(viewer), coordinator.field_on(viewer)
         if state.reference_data is None or (point is not None and not coordinator.on_frame(viewer, point)):
             point = None
         if state.x_att is not None and state.x_att.axis != len(state.slices) - 1:  # a frame shown transposed
-            line, point, footprint = (None if xy is None else xy[::-1] for xy in (line, point, footprint))
+            line, point, footprint, field = (None if xy is None else xy[::-1] for xy in (line, point, footprint, field))
         marker = None if point is None else ([point[0]], [point[1]])
         step = None if step is None else _across(state, state.reference_data.ndim - 3, [step])
-        drawn = ((self._slit, line), (self._marker, marker), (self._footprint, footprint), (self._step, step))
+        drawn = (
+            (self._slit, line),
+            (self._marker, marker),
+            (self._footprint, footprint),
+            (self._step, step),
+            (self._field, field),
+        )
         if any([_place(artist, xy) for artist, xy in drawn]):  # each sync calls this: redraw only for a move
             viewer.figure.canvas.draw_idle()
 
