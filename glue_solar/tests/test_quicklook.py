@@ -1649,6 +1649,43 @@ def test_an_observation_s_aia_cutout_is_linked_as_it_loads_and_a_panel_once_tick
     assert linked_data(collection) == {stack, sji, aia, other}
 
 
+def test_iris_field_of_view_boxes_the_raster_and_the_slit_jaw_image_on_an_aia_panel(
+    bare_app, qtbot, tmp_path, irispy_test_files
+):
+    # D116: on an AIA cutout of the observation, here one with the slit-jaw image's own frames, so that the slit-jaw
+    # image's box is the cutout's edge; off at first, and apart from 'Raster overlays'
+    path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
+    [raster] = raster_data([path], ["Si IV 1403"])
+    _, sji = sit_and_stare(irispy_test_files)
+    aia = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    aia.meta.update(INSTRUME="AIA_3", TDESC1="1600")
+    viewers = quicklook(bare_app, [raster, sji, aia])
+    tick(panels_list(bare_app), "AIA 1600")
+    qtbot.waitUntil(lambda: viewers["windows"] != [])
+    panel = viewers["windows"][0]["sji"]
+    tool, coord = panel.toolbar.tools["solar:field_of_view"], coordinator(bare_app.data_collection)
+    [boxes] = [line for line in panel.axes.lines if line.get_gid() == "solar:field"]
+    assert (tool.offered(), tool.checked, boxes.get_visible()) == (True, False, False)
+    assert not viewers["sji"][0].toolbar.tools["solar:field_of_view"].offered()  # on AIA and SOT images only
+    assert not viewers["map"].toolbar.tools["solar:field_of_view"].offered()
+    tool.activate()
+    qtbot.waitUntil(boxes.get_visible)
+    assert tool.checked
+    assert not panel.toolbar.tools["solar:raster_overlays"].checked
+    frame, (steps, rows), (height, width) = panel.state.slices[0], raster.shape[:2], aia.shape[1:]
+    x, y = boxes.get_data()
+    corners = [(0, -0.5), (steps - 1, -0.5), (steps - 1, rows - 0.5), (0, rows - 0.5), (0, -0.5)]
+    expected = np.array([raster_point_on_sji(raster, aia, step, slit, frame) for step, slit in corners])
+    np.testing.assert_allclose(np.c_[x[:5], y[:5]], expected, atol=1e-6)  # the raster's field
+    assert np.ptp(x[:5]) > 10  # a box, the raster 0.3 arcsec a step
+    np.testing.assert_allclose(x[6:11], [-0.5, width - 0.5, width - 0.5, -0.5, -0.5], atol=1e-6)  # the slit-jaw image's
+    np.testing.assert_allclose(y[6:11], [-0.5, -0.5, height - 0.5, height - 0.5, -0.5], atol=1e-6)
+    assert np.isnan([x[5], x[11]]).all()
+    tool.activate()
+    qtbot.waitUntil(lambda: not boxes.get_visible())
+    assert coord.fields == set()
+
+
 def test_a_stack_master_moves_the_slit_jaw_image_by_scan_and_step(bare_app, qtbot, scans):
     _, stack = scans
     start = stack[stack.id["Time"]][0, 0, 0, 0]

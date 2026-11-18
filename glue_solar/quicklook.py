@@ -369,6 +369,8 @@ class Coordinator(HubListener):
         self._slits = {}  # (DKIST raster, its indices the slit moves along) -> its slit table (`_slit_table`)
         self.overlays = set()  # the observation keys whose raster overlays show (`footprint_on`, `step_on`)
         self._footprint = (None, None)  # footprint_on's last (raster, scan, slit-jaw) and answer
+        self.fields = set()  # the observation keys whose field-of-view boxes show on AIA and SOT images (`field_on`)
+        self._field = (None, None)  # field_on's last (cube, frame, raster, scan, slit-jaw) and answer
         self._before = {}  # point group -> its last state other than a slit-jaw point (see _to_raster)
         # a slit-jaw image clicked, the point its click set or left, and the viewer and frame clicked (see _to_raster)
         self._kept = (None, None, None, None)
@@ -420,7 +422,7 @@ class Coordinator(HubListener):
                 group.subset_state = SubsetState()
         if names(self._kept) or names(self._outside):
             self._kept, self._outside = (None, None, None, None), (None, None)
-        self._placed = self._footprint = self._tiles = (None, None)
+        self._placed = self._footprint = self._field = self._tiles = (None, None)
         if self.overlays:  # a removed raster's slits go, which no frame step would redraw (D40)
             self._timer.start()
             QTimer.singleShot(0, lambda: self._unsynced_overlays(self.overlays))  # once glue's viewers let it go
@@ -578,10 +580,13 @@ class Coordinator(HubListener):
             self.masters[key] = data
             self._timer.start()
 
-    def toggle_overlays(self, key):
-        """Show or hide the raster overlays of observation ``key`` (`footprint_on`, `step_on`)."""
+    def toggle_overlays(self, key, shown="overlays"):
+        """
+        Show or hide the raster overlays of observation ``key`` (`footprint_on`, `step_on`), or with ``shown``
+        ``'fields'`` its field-of-view boxes (`field_on`).
+        """
         if key is not None:
-            self.overlays ^= {key}
+            getattr(self, shown).symmetric_difference_update({key})
             self._timer.start()  # the sync redraws them
             self._unsynced_overlays({key})
 
@@ -615,7 +620,7 @@ class Coordinator(HubListener):
 
     def place_again(self):
         """Place the point and the raster overlays again, as after a pointing changed ('IRIS: shift pointing…')."""
-        self._placed = self._footprint = (None, None)
+        self._placed = self._footprint = self._field = (None, None)
         self._timer.start()  # the sync redraws them
         self._unsynced_overlays(self.overlays)
 
@@ -1259,6 +1264,39 @@ class Coordinator(HubListener):
             xy = tuple(np.hstack([v.reshape(steps, 2), gaps]).ravel() for v in (x, y))
             self._footprint = ((raster, scan, sji), xy)
         return self._footprint[1]
+
+    def field_on(self, viewer):
+        """
+        With 'IRIS field of view' on for the observation of ``viewer``'s AIA cutout or SOT cube (D116): the box around
+        its raster's field, from its first step's slit to its last's, a stack's at its timing scan, and the box around
+        its slit-jaw image's frame nearest in time to the frame shown, both placed with that frame's pointing, as x and
+        y pixels, each box ended by NaN; else None.
+        """
+        cube, frame = viewer.state.reference_data, _sji_frame(viewer.state)
+        key = observation_key(cube) if cube is not None else None
+        if key not in self.fields or _role(cube) != "aia" or frame is None or not _placeable(cube):
+            return None
+        loaded = [data for data in self.data_collection if observation_key(data) == key]
+        raster = next((data for data in loaded if _role(data) == "raster" and _timed(data)), None)
+        sji = next((data for data in loaded if _role(data) == "sji" and _placeable(data)), None)
+        scan = self._timing(raster)[0] if raster is not None and raster.ndim == 4 else None
+        if self._field[0] != (cube, frame, raster, scan, sji):
+            boxes, when = [], _times(cube, None)[frame]
+            if raster is not None:
+                steps, rows = raster.shape[-3:-1]
+                corners = ([0, steps - 1, steps - 1, 0, 0], [-0.5, -0.5, rows - 0.5, rows - 0.5, -0.5], np.zeros(5))
+                boxes.append(_lon_lat(raster, (*(() if scan is None else (np.full(5, scan),)), *map(np.array, corners))))
+            if sji is not None and not np.isnat(when):
+                rows, columns = sji.shape[1:]
+                [nearby], _ = nearest([when], _times(sji, None))
+                corners = ([-0.5, -0.5, rows - 0.5, rows - 0.5, -0.5], [-0.5, columns - 0.5, columns - 0.5, -0.5, -0.5])
+                boxes.append(_lon_lat(sji, (np.full(5, nearby), *map(np.array, corners))))
+            xy = None
+            if boxes:
+                x, y = _frame_pixels(cube, [frame, 0, 0], *(np.concatenate([box[k] for box in boxes]) for k in (0, 1)))
+                xy = tuple(np.hstack([np.reshape(v, (-1, 5)), np.full((len(boxes), 1), np.nan)]).ravel() for v in (x, y))
+            self._field = ((cube, frame, raster, scan, sji), xy)
+        return self._field[1]
 
     def step_on(self, viewer):
         """

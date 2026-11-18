@@ -174,6 +174,11 @@ slit-jaw image's: it follows the time and can lead it, marks the point, draws th
 and a click on it moves the point to the raster pixel there. These cubes are linked to the
 observation's other data as it loads, so a region carries over.
 
+"IRIS field of view" in the View menu of an AIA or SOT image draws two boxes on the observation's AIA
+and SOT images: one around the raster's field, from its first step's slit to its last's, and one
+around the slit-jaw image's field at the frame nearest the image's time. Choose it again to hide
+them.
+
 An AIA pixel is 0.6 arcsec, wider than a dense raster's step, so a click there is coarser than one on
 a slit-jaw image. An SOT cube often has no frame near the time: its panel is then grayed and says
 "NO MATCH", and what it shows was taken minutes away, the Sun having turned since.
