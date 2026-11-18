@@ -524,7 +524,7 @@ class Coordinator(HubListener):
         """Let the point group ``group`` drive only the viewers it owns, ``viewers`` too, and those follow only it."""
         self._owners.setdefault(group, set()).update(viewers)
         on = getattr(group.subset_state, "reference_data", None)
-        if _role(on) != "sji" and _dkist(on) != "imager":  # a restored point, set before this heard of it (_to_raster)
+        if not _image_cube(on) and _dkist(on) != "imager":  # a restored point, set before this heard of it (_to_raster)
             self._before.setdefault(group, group.subset_state)
 
     def follow(self, group):
@@ -666,7 +666,7 @@ class Coordinator(HubListener):
         subset = message.subset
         state = subset.subset_state
         on = getattr(state, "reference_data", None)
-        if _role(on) != "sji" and _dkist(on) != "imager":  # a click on a slit-jaw image or DKIST context image aside
+        if not _image_cube(on) and _dkist(on) != "imager":  # a click on a slit-jaw image or DKIST context image aside
             self._before[getattr(subset, "group", None)] = state
         if getattr(subset, "group", None) is self.group and not isinstance(state, PixelSubsetState):
             self._timer.start()  # another selection replaced the point: readouts follow
@@ -837,7 +837,7 @@ class Coordinator(HubListener):
         if _dkist(sji) == "imager" and clicked == {sji.ndim - 2, sji.ndim - 1}:
             self._to_dkist_raster(state, owners)
             return
-        if _role(sji) != "sji" or clicked != {1, 2} or not _placeable(sji):
+        if not _image_cube(sji) or clicked != {1, 2} or not _placeable(sji):
             return
         rasters = [viewer.state.reference_data for viewer in self._viewers if viewer in owners]
         key = observation_key(sji)
@@ -1210,7 +1210,7 @@ class Coordinator(HubListener):
                 x, y = _frame_pixels(sji, at, *_lon_lat(raster, pixel))
                 self._placed = (key, (float(x), float(y)))
             return self._placed[1]
-        if point is None or sji is None or _role(sji) != "sji" or _role(point.reference_data) != "raster":
+        if point is None or sji is None or not _image_cube(sji) or _role(point.reference_data) != "raster":
             return None
         frame = _sji_frame(viewer.state)
         if observation_key(sji) != observation_key(point.reference_data) or frame is None or not _placeable(sji):
@@ -1232,7 +1232,7 @@ class Coordinator(HubListener):
         """
         sji = viewer.state.reference_data
         key = observation_key(sji) if sji is not None else None
-        if key not in self.overlays or _role(sji) != "sji" or _sji_frame(viewer.state) is None or not _placeable(sji):
+        if key not in self.overlays or not _image_cube(sji) or _sji_frame(viewer.state) is None or not _placeable(sji):
             return None
         raster = self._master(key)
         if _role(raster) != "raster":
@@ -1565,7 +1565,7 @@ class QuicklookImageViewer(ImageViewer):
         state = self.state
         data = state.reference_data
         on_map = _role(data) == "raster" and _shown(state) == {data.ndim - 3, data.ndim - 2}
-        on_frame = _role(data) == "sji" and _sji_frame(state) is not None and _placeable(data)
+        on_frame = _image_cube(data) and _sji_frame(state) is not None and _placeable(data)
         if not (on_map or on_frame):
             return super().apply_roi(roi, override_mode=override_mode)
         self.redraw()  # as glue's own does, which clears the drawn region
@@ -1598,6 +1598,14 @@ def _role(data):
 
 
 _IRIS_ROLES = ("raster", "sji", "aia")  # an IRIS observation's own data, whose point `_link_points` leaves alone
+
+
+def _image_cube(data):
+    """
+    Whether ``data`` is an image cube of an IRIS observation, placed frame by frame: a slit-jaw image, or an aligned AIA
+    cutout or Hinode/SOT cube, which a quicklook of its observation takes as it takes a slit-jaw image (D115).
+    """
+    return _role(data) in ("sji", "aia")
 
 
 def _dkist(data):
@@ -2003,9 +2011,18 @@ def _iris_table(app, datasets, window, main):
             panels.append(_Panel("spectrum", other, f"{name} spectrum", window=name))
     for sji in sjis:
         panels.append(_Panel("sji", sji, _sji_title(sji), sji.ndim - 1, sji.ndim - 2, (0,) * sji.ndim, "equal"))
+    labels = {}
+    # the observation's AIA cutouts and SOT cubes: a panel each as a slit-jaw image's, made once ticked (D115)
+    for cube in [data for data in datasets if _role(data) == "aia" and _placeable(data)]:
+        kind = str(cube.meta["INSTRUME"])[:3]  # AIA or SOT
+        name = f"{kind} {_sji_title(cube)}"
+        name = name if name not in labels else f"{name} ({sum(each.startswith(name) for each in labels) + 1})"
+        labels[name] = kind
+        panels.append(_Panel("sji", cube, name, cube.ndim - 1, cube.ndim - 2, (0,) * cube.ndim, "equal", name))
     return {
         "panels": panels,
         "point": point,
+        "labels": labels,
         "viewers": {"sji": [], "windows": []},
         "notes": [f"{data.label} is loaded too: drag it onto a slit-jaw viewer to see it." for data in offered],
     }
@@ -2130,6 +2147,7 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
         # the dataset's label, which the user can change too
         nth = sum(row.role == panel.role and row.data is panel.data for row, _ in made)
         viewer._solar_key = panel.role, panel.data, nth
+        viewer._solar_window = panel.window  # for `_recipe`
         made.append((panel, viewer))
         viewer.window_closed.connect(partial(setattr, viewer, "_closed", True))  # glue-qt's close box does not mark it
         viewer.toolbar.setIconSize(QSize(16, 16))  # glue-qt's are 25 px: more of the narrow panels' tools in sight (P8)
@@ -2173,7 +2191,7 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
 
     def open_window(name):
         """Make the panels of window ``name`` with the point, the spectrum's fit and the lines; by their rows."""
-        state, new = group.subset_state, {}
+        state, new = getattr(group, "subset_state", None), {}
         for row in [panel for panel in table["panels"] if panel.window == name]:
             at = row.at
             if at is not None and isinstance(state, PixelSubsetState) and _same_file(state.reference_data, row.data):
@@ -2181,14 +2199,16 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
                 at = tuple(index if s.start is None else s.start for s, index in zip(state.slices, at))
             new[row] = make(row._replace(at=at))
         images = [viewer for row, viewer in new.items() if row.x is not None]
-        coord.own(group, images)
-        # among the new panels only: those open keep the regions the user drew since
-        own = [viewer for panel, viewer in made if _same_file(panel.data, point.reference_data)]
-        _show_point(app, group, own, new.values())
-        spectrum = next(viewer for row, viewer in new.items() if row.x is None)
-        _fit_spectrum(spectrum, group)
-        if images:
-            _SpectralLines(coord, group, images, spectrum, tab)
+        if group is not None:  # a slit-jaw-only quicklook has no point (D78)
+            coord.own(group, images)
+            # among the new panels only: those open keep the regions the user drew since
+            own = [viewer for panel, viewer in made if _same_file(panel.data, point.reference_data)]
+            _show_point(app, group, own, new.values())
+        spectrum = next((viewer for row, viewer in new.items() if row.x is None), None)  # none of an AIA or SOT cube
+        if spectrum is not None:
+            _fit_spectrum(spectrum, group)
+            if images:
+                _SpectralLines(coord, group, images, spectrum, tab)
         return new
 
     kept = coord.point  # another tab's, which the new panels' sliders would move otherwise (`Coordinator._move_point`)
@@ -2243,9 +2263,12 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
         if images:
             _SpectralLines(coord, group, images, next(viewer for panel, viewer in panels if panel.x is None), tab)
     entries = _viewers({**viewers, "windows": []})  # each main panel and each slit-jaw image, with no point too (D66)
+    labelled = {}  # the AIA cutouts under one label and the SOT cubes under another
     for name in dict.fromkeys(panel.window for panel in table["panels"] if panel.window is not None):
         rows = [panel for panel in table["panels"] if panel.window == name]
-        entries.append((name, list(open_window(name).values()) if name in shown else rows))
+        label = table.get("labels", {}).get(name, name)
+        labelled.setdefault(label, []).extend(open_window(name).values() if name in shown else rows)
+    entries.extend(labelled.items())
     sub = _add_window(tab, _Panels(entries, group, partial(_arrange, tab, viewers), open_window), "Panels")
     # a click on a box leaves the panel active, with its tool: glue-qt resets both for the window Qt focuses
     for widget in (sub, sub.widget(), sub.widget().viewport()):
@@ -2363,7 +2386,11 @@ def _recipe(app, tab, context=None):
         "datasets": [name(data) for data in datasets if data in collection],
         "window": window,
         "main": main,
-        "shown": [_window(data)[0] for data in shows if _role(data) == "raster"],  # the other windows made
+        "shown": [  # the other windows made, and the AIA and SOT panels
+            _window(data)[0] if _role(data) == "raster" else vars(panel).get("_solar_window")
+            for panel, data in zip(_viewers(viewers), shows)
+            if _role(data) in ("raster", "aia")
+        ],
         "point": name(point if point in collection.subset_groups else None),
         "master": name(master if master in collection else None),
         "cuts": [name(group) for group in cuts if group in collection.subset_groups],
@@ -2522,7 +2549,7 @@ def _turn(viewer, on, group):
                 layer.update()
         if isinstance(viewer, ImageViewer):
             data = viewer.state.reference_data
-            master = _role(data) == "sji" or _dkist(data) == "imager"  # as IRIS's slit-jaw images (D105)
+            master = _image_cube(data) or _dkist(data) == "imager"  # as IRIS's slit-jaw images (D105)
             master = master and coord.masters.get(observation_key(data)) is data
             frame = coord.following(data) if master else None  # the raster's time, while it leads
             if frame is not None:
@@ -3263,7 +3290,7 @@ class _PointWindow(QTableWidget):
             return ["", "", "", "", "", sync]
         if not all(0 <= index < n for index, n in zip(pixel, data.shape)):
             return ["outside SJI FOV", "", "", "", "", sync]
-        if _role(data) == "sji":
+        if _image_cube(data):
             names = ("frame", "y", "x")
         elif _role(data) == "sst":  # a cube of intensities has no Stokes axis
             names = ("scan", "Stokes", "λ", "y", "x") if data.ndim == 5 else ("scan", "λ", "y", "x")

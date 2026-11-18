@@ -975,11 +975,16 @@ def link_hpc(data_collection, others=()):
     from glue_solar.sources.sst import _LockedTabularWCS, _TabularWCS  # which imports this module
 
     linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in data_collection.links}
-    # read through irispy, but not an AIA cutout or SOT cube, which are linked on request as other data are (D72)
-    iris = {data for data in data_collection if isinstance(data.coords, _GlueWCS) and _role(data) != "aia"}
+    # read through irispy; an AIA cutout or SOT cube only beside a raster or slit-jaw image of its observation (D115),
+    # one of another being linked on request as other data are (D72)
+    read = [data for data in data_collection if isinstance(data.coords, _GlueWCS)]
+    iris = {data for data in read if _role(data) != "aia"}
+    keys = {observation_key(data) for data in iris if _role(data) in ("raster", "sji")} - {None}
+    iris |= {data for data in read if observation_key(data) in keys}
     anchors, links, cubes, placed = {}, [], set(), set(iris)
-    # IRIS datasets first, so that the first of them is the one every dataset links to, whatever the load order
-    for data in sorted(data_collection, key=lambda data: data not in iris):
+    # IRIS datasets first, AIA cutouts and SOT cubes last of them, so that the first is the one every dataset links to,
+    # whatever the load order
+    for data in sorted(data_collection, key=lambda data: (data not in iris, _role(data) == "aia")):
         asked = data in iris or data in others
         # glue's world components are in numpy order, the reverse of the WCS world axes
         physical_types = getattr(data.coords, "world_axis_physical_types", None) or ()

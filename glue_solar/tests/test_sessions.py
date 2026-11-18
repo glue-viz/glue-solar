@@ -33,6 +33,7 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QDialog, QFileDialog, QInputDialog, QMessageBox
 
 import astropy.units as u
+from astropy.io import fits
 from astropy.wcs import WCS
 
 import sunpy.data.test
@@ -57,7 +58,7 @@ from glue_solar.sources.loaders.iris import (
 from glue_solar.sources.loaders.lazy import LazyData
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments, subtract_mean_spectrum
-from glue_solar.tests.helpers import angles, load_selected, mouse, restore, scanned, select_point, shift
+from glue_solar.tests.helpers import angles, linked_data, load_selected, mouse, restore, scanned, select_point, shift
 from glue_solar.tests.test_bursts import SI_IV
 from glue_solar.tests.test_cube_quicklook import spectral_cube
 from glue_solar.tests.test_importer import _row, counted_reads
@@ -593,6 +594,30 @@ def test_a_restored_quicklook_has_its_panels_off_and_their_axes(app, qtbot, monk
     assert entries(panels_list(restored)) == entries(panels)
     again = restored.viewers[-1][0].layers[0].state  # the map's
     assert (again.cmap.name, again.stretch, again.v_min, again.v_max) == ("viridis", "sqrt", 5.0, look.v_max)
+
+
+def test_a_restored_quicklook_has_the_aia_panels_ticked(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
+    # D115: an observation's AIA cutouts, read from their files, linked again and listed; the one ticked a panel again
+    files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
+    cutouts = [tmp_path / f"aia_l2_20210905_001833_3620258102_{band}.fits" for band in (1600, 1700)]
+    for band, path in zip((1600, 1700), cutouts):  # the slit-jaw image's frames as an aligned cutout's file
+        with fits.open(files[1]) as hdulist:
+            hdulist[0].header.update(INSTRUME="AIA_3", TDESC1=str(band), TWAVE1=float(band))
+            hdulist.writeto(path)
+    datasets = [*raster_data(files[:1], ["Si IV 1403"]), image_data(files[1]), *(image_data(str(p)) for p in cutouts)]
+    viewers = quicklook(app, datasets)
+    panels = panels_list(app)
+    tick(panels, "AIA 1700")
+    qtbot.waitUntil(lambda: viewers["windows"] != [])
+    app.save_session(str(tmp_path / "aia.glu"), absolute_paths=False)
+    restored = restore(qtbot, monkeypatch, tmp_path / "aia.glu")
+    assert entries(panels)[-1] == ("AIA", False, [("AIA 1600", False), ("AIA 1700", True)])
+    assert entries(panels_list(restored)) == entries(panels)
+    titles = [[viewer.state.title for viewer in each.viewers[-1]] for each in (restored, app)]
+    assert titles[0] == titles[1]
+    assert "AIA 1700" in titles[0]
+    assert "AIA 1600" not in titles[0]
+    assert len(linked_data(restored.data_collection)) == len(datasets)
 
 
 @pytest.mark.filterwarnings("ignore::astropy.wcs.FITSFixedWarning")  # wcslib's notes as the cube's file is read again

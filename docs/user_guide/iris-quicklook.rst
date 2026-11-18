@@ -165,6 +165,19 @@ the main window. The point, the time and each kept panel's settings stay.
 
 Untick a panel in the Panels list to hide it: it does no work until ticked again, when it catches up.
 
+AIA and SOT cubes
+-----------------
+
+The observation's aligned AIA cutouts and Hinode/SOT cubes, loaded with it, join the Panels list
+unticked, under "AIA" and "SOT". Tick one to add its panel in a row below. It is a panel as a
+slit-jaw image's: it follows the time and can lead it, marks the point, draws the raster overlays,
+and a click on it moves the point to the raster pixel there. These cubes are linked to the
+observation's other data as it loads, so a region carries over.
+
+An AIA pixel is 0.6 arcsec, wider than a dense raster's step, so a click there is coarser than one on
+a slit-jaw image. An SOT cube often has no frame near the time: its panel is then grayed and says
+"NO MATCH", and what it shows was taken minutes away, the Sun having turned since.
+
 Blinking
 --------
 

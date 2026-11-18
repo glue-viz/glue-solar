@@ -58,14 +58,15 @@ def test_scripting_recipe(qtbot, irispy_test_files):
     assert index[0] == np.argmin(np.abs(raster["Time"][:, 0, 0] - sji["Time"][frame, 0, 0]))
     assert abs(raster_point_on_sji(raster, sji, *index, frame)[1] - y) <= 0.5
 
-    # link_hpc links the IRIS data, and an AIA cutout only where others names it
-    aia = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
-    aia.meta["INSTRUME"] = "AIA_3"  # read as an aligned cutout is
-    data_collection.append(aia)
+    # link_hpc links the IRIS data and their observation's AIA cutout, and another's only where others names it
+    aia, other = (image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000"))) for _ in range(2))
+    aia.meta["INSTRUME"] = other.meta["INSTRUME"] = "AIA_3"  # read as an aligned cutout is
+    other.meta["STARTOBS"] = "2021-09-06T00:18:33.640"
+    data_collection.extend([aia, other])
     data_collection.add_link(link_hpc(data_collection))
-    assert linked_data(data_collection) == {raster, sji}
-    data_collection.add_link(link_hpc(data_collection, others=[aia]))
     assert linked_data(data_collection) == {raster, sji, aia}
+    data_collection.add_link(link_hpc(data_collection, others=[other]))
+    assert linked_data(data_collection) == {raster, sji, aia, other}
 
 
 def test_browser_stacks_scans_into_4d_data_with_per_pixel_time(qtbot, irispy_test_files):
