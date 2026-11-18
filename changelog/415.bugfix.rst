@@ -1,0 +1,1 @@
+'Fit every spectrum' keeps its processes busy: each takes one chunk of fits at a time, and the scans of a stack that fit in one slab are fitted in one call, which made the fit of 24 four-step scans 3.6 times and of 8 scans of 32 steps 1.6 times faster on 8 processes, with the same maps.
