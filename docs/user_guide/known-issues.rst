@@ -39,6 +39,9 @@ Viewers
   again before moving the point.
 - **Regions from other viewers:** draw regions on a quicklook's panels. One drawn on a raster in
   another Image viewer is slow to show on a slit-jaw image.
+- **Regions at a raster's edges:** on a slit-jaw image, a region drawn on an IRIS raster ends at the
+  centers of the raster's first and last steps, half a step short of the raster's edges, most
+  visibly on rasters of few steps. Clicks reach the whole raster.
 - **Navigate and Collapse:** keep the Profile viewer's "x unit" at ``Angstrom``, the data's own.
 - **Collapse:** drag over two samples or more, as the last is left out. The collapsed map lasts until
   a slider moves; for a band that follows the slider, use "Wavelength band…".

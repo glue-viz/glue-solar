@@ -208,8 +208,9 @@ def sji_to_raster(sji, frame, x, y, raster):
     Returns
     -------
     tuple of int, or None
-        ``(step, slit)``, a stack's ``(scan, step, slit)``, or None outside the raster: past its first or last step
-        or either end of its slit, or for a sit-and-stare more than half a cadence from its exposures.
+        ``(step, slit)``, a stack's ``(scan, step, slit)``, or None outside the raster: more than half a step past
+        its first or last step or half a pixel past either end of its slit, or for a sit-and-stare more than half a
+        cadence from its exposures.
     """
     lon, lat = _lon_lat(sji, (frame, y, x))
     when = _times(sji, None)[frame]
@@ -224,19 +225,22 @@ def sji_to_raster(sji, frame, x, y, raster):
         along = np.array([lons[1] - lons[0], lats[1] - lats[0]]) / (rows - 1)  # one slit pixel
         slit = np.dot([lon - lons[0], lat - lats[0]], along) / np.dot(along, along)
     else:
-        types = list(raster.coords.world_axis_physical_types)
-        world = list(raster.coords.pixel_to_world_values(*[0] * raster.ndim))  # any wavelength, and scan 0
-        world[types.index("custom:pos.helioprojective.lon")] = lon
-        world[types.index("custom:pos.helioprojective.lat")] = lat
-        *_, step, slit, _ = raster.coords.world_to_pixel_values(*world)[::-1]  # NaN off the raster
-        if raster.ndim == 4 and 0 <= np.round(step) < steps:  # again in the scan's own pointing; Scan is last
-            [world[-1]], _ = nearest([when], _times(raster, int(np.round(step))))
-            *_, step, slit, _ = raster.coords.world_to_pixel_values(*world)[::-1]
+        # from each step's slit as a line, as a DKIST raster's (`_SlitAt`), NaN past half a step beyond a first or last
+        # step: WCSLIB's -TAB inverse has no pixel past their centers, which a stack's later scans drift across
+        def place(scan):
+            _, starts, pixels = _slit(raster, raster.ndim - 3, {0: scan} if raster.ndim == 4 else None)
+            return (_SlitAt(starts, pixels, along)(lon, lat) for along in (False, True))
+
+        scan = 0
+        step, slit = place(scan)
+        if raster.ndim == 4 and 0 <= np.round(step) < steps:  # again in the scan's own pointing
+            [scan], _ = nearest([when], _times(raster, int(np.round(step))))
+            step, slit = place(scan)
     step, slit = np.round(step), np.round(slit)
     if not (0 <= step < steps and 0 <= slit < rows):
         return None
     index = (int(step), int(slit))
-    return index if raster.ndim == 3 else (int(world[-1]), *index)
+    return index if raster.ndim == 3 else (int(scan), *index)
 
 
 def _time_axis(data):

@@ -2643,6 +2643,33 @@ def test_sji_to_raster_on_a_scanning_raster_and_a_stack(tmp_path, irispy_test_fi
     assert sji_to_raster(sji, 0, x, y, raster) == (0, 9)
 
 
+@pytest.mark.remote_data
+def test_a_click_on_a_first_or_last_step_s_slit_reaches_it(irispy_data):
+    """
+    3620107423's 29 scans of a 4-step raster and its SJI 1400, a frame at steps 0 and 2 of each scan: the exposure taken
+    with a frame, placed on it, comes back, at a first step too, whose scans drift past scan 0's; and a place up to half
+    a step past a first or last step is that step's. WCSLIB's -TAB inverse has no pixel past an edge step's center.
+    """
+    [stack] = raster_data(irispy_data("iris_l2_20250613_123658_3620107423_raster.tar.gz"), ["C II 1336"], stack=True)
+    sji = image_data(irispy_data("iris_l2_20250613_123658_3620107423_SJI_1400_t000.fits.gz"))
+    times = stack[stack.id["Time"], (slice(None), slice(None), 0, 0)]
+    frames, row, taken, lost = sji[sji.id["Time"], (slice(None), 0, 0)], 194, {}, []
+    for frame, time in enumerate(frames):
+        scan, step = (int(i) for i in np.unravel_index(np.argmin(np.abs(times - time)), times.shape))
+        taken[scan, step] = frame
+        x, y = raster_point_on_sji(stack, sji, step, row, frame, scan)
+        if sji_to_raster(sji, frame, x, y, stack) != (scan, step, row):
+            lost.append((scan, step))
+    assert {step for _, step in taken} == {0, 2}
+    assert lost == []
+    # past the first step in the frame taken at it, past the last in the frame at step 2, nearest its scan's step 3
+    for scan in (0, 28):
+        for end, inner, frame in ((0, 1, taken[scan, 0]), (3, 2, taken[scan, 2])):
+            at, beside = (np.array(raster_point_on_sji(stack, sji, step, row, frame, scan)) for step in (end, inner))
+            for steps_past, index in ((0.25, (scan, end, row)), (0.45, (scan, end, row)), (0.55, None)):
+                assert sji_to_raster(sji, frame, *(at + steps_past * (at - beside)), stack) == index
+
+
 def draw_region(app, viewer, roi):
     """Draw ``roi`` on ``viewer``, which makes a new subset, and return the region's subset state."""
     viewer.apply_roi(roi)

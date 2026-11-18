@@ -368,6 +368,12 @@ astropy, WCSLIB, echo, matplotlib and mpl-scatter-density
   from its tables (report candidate).
 - **The SST cube's own inverse**, ``_TabularWCS.world_to_pixel_values``, falling back to wcslib's (``sst.py``, #227,
   D67). Always on (SST cubes). Kept by decision (D67; ``wp0-wcslib-tab-inverse``).
+- **A slit-jaw click finds a scanning raster's step and slit row from each step's slit as a line** (``sji_to_raster``,
+  by ``_SlitAt`` as a DKIST raster's), not from the raster's world-to-pixel: WCSLIB's -TAB inverse does not
+  extrapolate a 2-D table (``tab.c``: "Extrapolation for M > 1 is TBD"), so it has no pixel past the center of a first
+  or last step, which the later scans of a stack drift across. Always on. glue's links still invert the table, so a
+  region or a linked layer ends at those centers. Retired by WCSLIB extrapolating a 2-D table by half a cell (report
+  candidate).
 - **The mouse-over readout places WCSAxes ticks before formatting** (``_readout``, ``tools.py``, #90). Always on.
   Retired by WCSAxes ``format_coord`` without a tick placement (report candidate).
 - **A colormap matched to its own combo entry** (echo's ``_find_combo_data``, #194). Switch
