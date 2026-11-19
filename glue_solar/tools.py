@@ -1857,15 +1857,15 @@ class SlopeTool(PathMode):
             return
         path, app = self.viewer.state.reference_data, self.viewer.session.application
         row = [np.datetime_as_string(t, unit="ms") for t in motion[:2]] + list(motion[2:])
-        table = getattr(path, "slopes", None)
-        new = table not in app.data_collection
+        label = f"{path.label} slopes"  # by which a restored session's table is found again
+        table = next((data for data in app.data_collection if data.label == label), None)
+        new = table is None
         if not new:
             row = [np.append(table[name], value) for name, value in zip(_SLOPES, row, strict=True)]
-        rows = Data(label=f"{path.label} slopes" if new else table.label)
+        rows = Data(label=label)
         for name, values in zip(_SLOPES, row, strict=True):  # in this order, where Data(**columns) sorts them
             rows.add_component(np.atleast_1d(values), name)
         if new:
-            path.slopes = rows
             app.data_collection.append(rows)
             app.new_data_viewer(TableViewer, data=rows)
             self.viewer.toolbar.active_tool = self  # glue-qt ends it as the new viewer takes the focus

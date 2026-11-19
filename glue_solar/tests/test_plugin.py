@@ -1337,8 +1337,7 @@ def test_slope_recovers_an_injected_features_speed_and_acceleration(app):
     for frame in frames[::6]:
         _click(tool, ridge[frame], frame)
     _key(diagram, "enter")
-    table = path.slopes
-    assert table.label == "cube [slice 1] slopes"
+    table = app.data_collection["cube [slice 1] slopes"]
     assert (table["t0 (UTC)"][0], table["t1 (UTC)"][0]) == ("2013-09-02T16:39:35.000", "2013-09-02T16:50:23.000")
     assert table["d0 (km)"][0] == pytest.approx(20 * km)  # from the path's first sample, at pixel 0
     assert table["speed (km / s)"][0] == pytest.approx(50, rel=0.01)
@@ -1365,6 +1364,41 @@ def test_slope_recovers_an_injected_features_speed_and_acceleration(app):
     _click(tool, 10, 3)
     _key(diagram, "escape")
     assert (tool.label.text(), tool.roi().to_polygon()) == ("", ([], []))
+
+
+def test_a_slope_after_a_session_restore_adds_a_row_to_the_restored_table(app, qtbot, monkeypatch, tmp_path):
+    # a slit-jaw-like cube of 0.1663" pixels seen from 1 AU, 3 frames 12 s apart
+    wcs = WCS(naxis=3)
+    wcs.wcs.ctype = "HPLN-TAN", "HPLT-TAN", ""
+    wcs.wcs.cunit = "arcsec", "arcsec", ""
+    wcs.wcs.cdelt = 0.1663, 0.1663, 1
+    wcs.wcs.crpix, wcs.wcs.crval = (8, 6, 1), (400, -300, 0)
+    cube = Data(label="cube", flux=np.random.default_rng(0).random((3, 12, 16)), coords=wcs)
+    times = np.datetime64("2013-09-02T16:39:35") + np.arange(3) * np.timedelta64(12, "s")
+    cube.add_component(np.broadcast_to(times[:, None, None], cube.shape), "Time")
+    cube.meta["DSUN_OBS"] = 1.496e11
+    app.data_collection.append(cube)
+    viewer = app.new_data_viewer(ImageViewer, data=cube)
+    _draw_path(viewer, [0.3, 15.3], [4.6, 4.6])  # along x
+
+    def add_slope(diagram):
+        """Press Enter on a track from the first frame to the last of ``diagram``."""
+        tool = diagram.toolbar.tools["solar:slope"]
+        diagram.toolbar.active_tool = tool.tool_id
+        _click(tool, 2, 0)
+        _click(tool, 9, 2)
+        _key(diagram, "enter")
+
+    add_slope(viewer.toolbar.tools["solar:path"]._slice_viewer)
+    app.save_session(str(tmp_path / "slopes.glu"))
+    restored = restore(qtbot, monkeypatch, tmp_path / "slopes.glu")
+    viewers = [shown for tab in restored.viewers for shown in tab]
+    [diagram] = [shown for shown in viewers if isinstance(getattr(shown.state, "reference_data", None), PathData)]
+    add_slope(diagram)
+    [table] = [data for data in restored.data_collection if " slopes" in data.label]
+    assert table.shape == (2,)
+    [shown] = [shown for shown in viewers if isinstance(shown, TableViewer)]
+    assert shown.model.rowCount() == 2
 
 
 def _modes_entry(viewer, text):
@@ -1625,7 +1659,8 @@ def test_a_path_on_an_sst_cube_has_its_sky_coordinates(app, monkeypatch, tmp_pat
     _click(tool, 0, 0)
     _click(tool, 5, 2)
     _key(diagram, "enter")
-    assert path.slopes["speed (km / s)"][0] == pytest.approx(table["distance_km"][5].to_value(u.km) / 120)
+    slopes = app.data_collection[f"{path.label} slopes"]
+    assert slopes["speed (km / s)"][0] == pytest.approx(table["distance_km"][5].to_value(u.km) / 120)
 
 
 @pytest.mark.remote_data
