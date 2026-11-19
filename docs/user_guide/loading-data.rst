@@ -256,7 +256,9 @@ a Stokes parameter not yet shown takes up to 3 s, its later moves about 0.5 s.
   starts in the background, of the FITS files alone, not the ASDF file, browse movie and quality
   report dkist's ``download`` adds. Their frames fill in as the files arrive, glue's status bar
   counting them, and the color limits are taken again; once all are there, the Error Console says
-  how many of the dataset's files are still missing, if any. It needs Globus Connect Personal set
+  how many of the dataset's files are still missing, if any. If no file arrives or grows for ten
+  minutes, as when the transfer failed, the Error Console says so and "Download these frames…"
+  offers those left again. It needs Globus Connect Personal set
   up and running, and a Globus login, which dkist asks for in the web browser the first time.
 - A session keeps them, their viewers and links, and reads their coordinates again from the ASDF
   files (see :ref:`Sessions <glue_solar_users_guide_saving_sessions>`).

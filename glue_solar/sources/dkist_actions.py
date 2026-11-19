@@ -4,6 +4,7 @@ not in `glue_solar.sources.dkist`, which the quicklook imports, as they import t
 """
 
 import os
+import warnings
 from functools import partial
 from pathlib import Path
 
@@ -260,6 +261,8 @@ def frame_quality_dkist(data, data_collection):
 
 # How often, in ms, 'Download these frames…' looks for its files (`_watch_download`)
 DOWNLOAD_POLL = 5000
+# How many looks in a row finding no file arrived or grown end its watch, as of a transfer that failed: ten minutes
+DOWNLOAD_STALLED = 120
 
 
 def _check_download(data):
@@ -372,10 +375,12 @@ def _watch_download(data_collection, label, pending):
     at two looks is whole, as Globus may write it in place; until then it reads as missing (`_ARRIVING`). Each whole
     file is marked present (``_present``), and its frame drawn, the color limits of its dataset, a mosaic's tiles all,
     taken again from the frames present, in every viewer; once all are, glue's Error Console says how many of the
-    dataset's files are still missing, if any.
+    dataset's files are still missing, if any. After `DOWNLOAD_STALLED` looks in a row at which no file arrived or
+    grew, as of a transfer that failed, the watch ends, the Error Console saying so, and those left read as they are,
+    for 'Download these frames…' to offer them again.
     """
     # ponytail: a transfer stalled one look mid-file reads as whole; Globus's task status if that happens
-    app, total, seen = _application(data_collection), len(pending), {}
+    app, total, seen, idle = _application(data_collection), len(pending), {}, 0
     if app is None:  # its window closed while the transfer started: its files read as they are, as a session's (D110)
         return
     datasets, folder = next(iter(pending.values()))[0]._mosaic, Path(next(iter(pending))).parent
@@ -384,7 +389,8 @@ def _watch_download(data_collection, label, pending):
     timer.destroyed.connect(lambda *_: _ARRIVING.difference_update(pending))
 
     def look():
-        arrived = set()
+        nonlocal idle
+        arrived, before = set(), dict(seen)
         for path, (tile, index) in list(pending.items()):
             try:
                 stat = os.stat(path)
@@ -396,6 +402,15 @@ def _watch_download(data_collection, label, pending):
                 arrived.add(tile)
                 del pending[path]
             seen[path] = stat.st_size, stat.st_mtime_ns
+        idle = 0 if arrived or seen != before else idle + 1
+        if idle >= DOWNLOAD_STALLED:
+            timer.stop()
+            _ARRIVING.difference_update(pending)
+            warnings.warn(
+                f"{label}: {len(pending)} of {total} files have not arrived and no more are arriving: the Globus "
+                "transfer may have failed. 'Download these frames…' offers them again.",
+                stacklevel=2,
+            )
         if not arrived:
             return
         for tile in arrived:

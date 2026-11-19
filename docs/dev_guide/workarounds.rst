@@ -448,8 +448,10 @@ dkist
 - **'Download these frames…' follows its transfer by the files in the folder**, a file whole once its size and mtime
   are unchanged over one 5 s look, read as missing until then (``_ARRIVING`` in ``_section``, ``_watch_download``,
   ``sources/dkist_actions.py``, #396, D110), as neither ``FileManager.download(wait=False)`` nor
-  ``_orchestrate_transfer_task`` returns a Globus task to follow. Always on (a DKIST download). Retired by dkist
-  returning the Globus task ID of a transfer that does not wait (dkist #516).
+  ``_orchestrate_transfer_task`` returns a Globus task to follow. A transfer that failed is known by its files alone:
+  after ten minutes of looks at which none arrived or grew (``DOWNLOAD_STALLED``) the watch ends and those left are
+  offered again. Always on (a DKIST download). Retired by dkist returning the Globus task ID of a transfer that does
+  not wait (dkist #516).
 
 irispy
 ------

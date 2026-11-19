@@ -2557,6 +2557,34 @@ def test_download_these_frames_leaves_out_the_files_already_on_their_way(app, qt
 
 
 @small_visp_dated_2044
+def test_download_these_frames_offers_again_the_files_of_a_transfer_that_stopped(app, qtbot, monkeypatch, tmp_path):
+    from glue_solar.sources import dkist_actions
+    from glue_solar.sources.dkist import _ARRIVING
+
+    monkeypatch.setattr(dkist_actions, "DOWNLOAD_POLL", 50)
+    monkeypatch.setattr(dkist_actions, "DOWNLOAD_STALLED", 4)
+    shutil.copy(small_visp(), tmp_path)
+    with pytest.warns(UserWarning, match="0 of 3 files"):
+        data = load_data(str(tmp_path / "test_visp.asdf"))
+    app.data_collection.append(data)
+    download(app, qtbot, monkeypatch, data, {})
+    paths = {str(tmp_path / f"{step}.fits") for step in range(3)}
+    # a file growing for more looks than that is on its way still
+    whole = (small_visp().parent / "0.fits").read_bytes()
+    for written in range(1, 41):
+        (tmp_path / "0.fits").write_bytes(whole[: 100 * written])
+        qtbot.wait(10)
+    assert paths <= _ARRIVING
+    # the transfer fails, its part-written file removed: no file arrives or grows
+    (tmp_path / "0.fits").unlink()
+    with pytest.warns(UserWarning, match="VISP qVXjk: 3 of 3 files have not arrived"):
+        qtbot.waitUntil(lambda: not paths & _ARRIVING)
+    opened, transfer = download(app, qtbot, monkeypatch, data, {})
+    assert opened["summary"].startswith("3 files to download")
+    assert [path.name for path in transfer.call_args.args[0]] == ["0.fits", "1.fits", "2.fits"]
+
+
+@small_visp_dated_2044
 def test_download_these_frames_says_why_it_has_no_file_to_send(app, qtbot, monkeypatch, tmp_path):
     shutil.copy(small_visp(), tmp_path)
     shutil.copytree(small_visp().parent, tmp_path / "there")
