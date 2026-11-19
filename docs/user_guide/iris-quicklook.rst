@@ -208,7 +208,9 @@ open glue's `profile tools <http://docs.glueviz.org/en/stable/gui_guide/spectrum
 - **Collapse.** Drag a wavelength range of two samples or more, pick a function such as Mean, and
   press "Collapse": the maps show the band until a slider moves. For a band that follows the slider,
   choose "Wavelength band…" in the map's View menu.
-- **Fit.** Fit a line in a dragged range (below).
+- **Fit.** Fit a line in a dragged range: see :ref:`Building the model
+  <glue_solar_users_guide_iris_fit_settings>` for the model, the Mg II peaks and a rest wavelength
+  measured on a line.
 
 Keep the "x unit" at ``Angstrom``, the data's own, for Navigate and Collapse.
 
@@ -218,55 +220,6 @@ Keep the "x unit" at ``Angstrom``, the data's own, for Navigate and Collapse.
 the x unit lists ``km / s``: (λ / rest - 1) c, so Mg II k 2796.352 Å is at 0 km / s. "Velocity axis"
 adds a top axis in km / s while the x unit is a length. Both follow "Set rest wavelength…". A
 window without one, such as ``2832``, has neither.
-
-**Rest wavelength from a measured line.** Level 2 wavelengths can be off by 5 to 10 km / s, and the
-FUV and NUV drift apart. Measure the offset on a line nearly at rest: O I 1355.5977 Å for the FUV
-windows (C II, Si IV, O I), or Ni I 2799.474 Å in the Mg II k 2796 window for the NUV.
-
-1. Tick the window's own layer, hidden at first, in glue's "Plot Layers" list: at the function "Mean", as the
-   panel opens, it is the whole raster's mean spectrum.
-2. On the "Fit" tab, pick "Gaussian + constant" and drag over the line: about 1355.4 to
-   1355.8 Å for O I, or 2799.3 to 2799.65 Å for Ni I. Press "Fit".
-3. Add the offset, the fitted center less the line's rest wavelength, to the rest wavelength of a
-   line on the same detector, and set that with "Set rest wavelength…" on its window.
-
-On OBSID 3824262996, O I fits at 1355.6172 Å (+4.30 km / s), so Si IV 1402.77 Å becomes
-1402.789 Å. A saturated sample is only a lower bound, so the fit leaves a sample out where all the
-pixels it combines are saturated (for a Point, where it is), says how many, and notes the wavelengths
-whose mean includes saturated pixels, biased low (see :ref:`Missing and saturated samples
-<glue_solar_users_guide_iris_saturation>`).
-
-.. _glue_solar_users_guide_iris_fit_settings:
-
-**Building the model.** "Settings" on the "Fit" tab lists the components of "Gaussian + constant",
-at first a constant background and a Gaussian. Pick a Gaussian, a Lorentzian, or a constant,
-linear or polynomial background (with its degree) and press "Add"; "Remove" drops one. Each parameter
-has a start (blank: from the data), "Fixed", and a lower and an upper bound, either alone. A line's
-parameter can be "Tied to" the same parameter of a line above it: an amplitude or a width is that
-line's times the ratio (blank: the same), a center is that line's plus the separation, in the x unit;
-a tie to a tied line follows it, its separations adding up and its ratios multiplying. For C II
-1334.53 Å and its 1335.66 and 1335.71 Å blend:
-
-1. Add two Gaussians and give ``mean_1`` the start 1334.53.
-2. Tie ``mean_2`` to ``mean_1`` by 1.1305, and ``mean_3`` to ``mean_1`` by 1.1756.
-3. Give each amplitude the lower bound 0, press "OK", drag over 1334.1 to 1336.2 Å and press "Fit".
-
-The fit is drawn over the spectrum in a darker shade of its color, with each line on the background
-dashed; "Clear" removes them. A line without a start begins at one of the most prominent peaks
-(emission peaks only where each such line's amplitude has a lower bound of 0 or more, absorption
-where an upper bound of 0 or less), and each line at its peak among the samples nearer its center
-than any other line's, so give a blend's lines starts or ties. The fit can be made with the x unit
-in Å or ``km / s``, the starts, bounds and separations then in it. "Fit every spectrum" then fits
-the model to every spectrum of the window (see :ref:`Line fit maps
-<glue_solar_users_guide_iris_line_fit_maps>`).
-
-**Saving a model.** "Save…" in Settings writes the components and every start, "Fixed", bound and
-tie to a file, and "Open…" reads one back. Its values are in the x unit it was made in.
-
-**Mg II.** Mg II k and h are each double-peaked. Drag the Fit range over one line's core, about
-±40 km / s, and press "Mg II two peaks" in Settings: two Gaussians on a constant, one for each emission
-peak (k2v and k2r, or h2v and h2r), each starting at its peak. Fit the other line in its own range.
-For the peaks' and line centers' positions without a fit, use "IRIS: Mg II features…".
 
 **Mean spectrum.** "IRIS: subtract mean spectrum", in a raster window's right-click menu, adds
 ``<window> mean spectrum`` and ``<window> minus mean spectrum``. Set the "attribute" of "Point" in the
