@@ -164,7 +164,7 @@ def _last_fit(data, model):
 def _fit_maps(data, model, crop, unit, per_second, rest, progress):
     """
     ``model`` fitted from irispy's ``starts_from_model`` to every spectrum of ``data`` at ``crop``, in ``unit``, a slab
-    of steps at a time (`~glue_solar.sources.moments._slab_rows`), on dask's processes, and irispy's ``maps_from_fit``
+    of steps, or of a stack's whole scans, at a time (`~glue_solar.sources.moments._slab_rows`), on dask's processes, and irispy's ``maps_from_fit``
     of it about ``rest``, without the residual cube: a dataset of its maps, with ``<name> error`` where irispy gives one,
     or None once ``progress`` is canceled; on any thread.
     """
@@ -177,13 +177,15 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
 
     cid = data.main_components[0]
     wavelengths = _wavelengths(data)[0][crop]
-    # processes, as the fits on threads hold the GIL, slower than on one; one pool a run, as one takes 1.4 s to start
+    # processes, as the fits on threads hold the GIL, slower than on one; one pool a run, as one takes 1.4 s to start;
+    # a chunk a task, as dask's default of six a task leaves all but a sixth of a call's chunks' processes idle
     pool = ProcessPoolExecutor(mp_context=dask.multiprocessing.get_context())
-    scheduler = partial(dask.multiprocessing.get, callbacks=[progress.callbacks], pool=pool)
+    scheduler = partial(dask.multiprocessing.get, callbacks=[progress.callbacks], pool=pool, chunksize=1)
     maps = {}
     try:
-        # a slab at a time, as the moments: a whole scan's starts, fits and maps took 4 GB on a Si IV window
-        for rows in _slab_rows(data, crop):
+        # a slab at a time, as the moments: a whole scan's starts, fits and maps took 4 GB on a Si IV window; a stack's
+        # scans together where a slab holds several, as a call of one small scan has too few chunks for the processes
+        for rows in _slab_rows(data, crop, scans=True):
             if per_second:
                 values, _, saturated = _read(data, rows, crop)
             else:
@@ -199,7 +201,7 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
                 fitter=fitter,
                 data=spectra,
                 data_unit=unit,
-                fitting_axes=2,
+                fitting_axes=values.ndim - 1,
                 world=(wavelengths * u.AA,),
                 # irispy's errors and quality, its bounds active included; all of it, a C II window took 6.5 GB
                 fit_info=("param_cov", "success", "active_mask"),
@@ -261,7 +263,7 @@ def _fit_every_spectrum(tools, *_):
     _check_running(data)
     model, crop, unit, per_second, rest = _last_fit(data, model)
     data_collection = tools.viewer.session.data_collection
-    progress = _Progress(len(_slab_rows(data, crop)))
+    progress = _Progress(len(_slab_rows(data, crop, scans=True)))
     text = f"Fitting every spectrum of {data.label}…"
     dialog = QtWidgets.QProgressDialog(text, "Cancel", 0, 0, _application(data_collection))
     dialog.canceled.connect(progress.cancel)
