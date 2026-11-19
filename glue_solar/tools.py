@@ -43,7 +43,7 @@ from glue.plugins.tools.path_slicer.path_sliced_data_links import (
     link_path_sliced_to_parent,
 )
 from glue.utils import as_variable_name, unbroadcast
-from glue.viewers.common.tool import SimpleToolMenu, Tool
+from glue.viewers.common.tool import CheckableTool, SimpleToolMenu, Tool
 from glue.viewers.image.composite_array import CompositeArray
 from glue.viewers.image.layer_artist import ImageLayerArtist
 from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
@@ -143,8 +143,9 @@ def _throttle_slice_sliders(viewer):
 
 def _keep_mouse_mode(viewer):
     """
-    Switch the viewer's mouse mode, such as Pixel, back on: glue-qt ends it before running any plain
-    toolbar button or menu entry. The mode is the one the viewer's Coordinate tool remembers.
+    Switch the viewer's mouse mode, such as Pixel, back on: glue-qt's toolbar ends it before running any plain button
+    or entry of its own menus, as Save's; `_ToolMenu` runs its entries itself. The mode is the one the viewer's
+    Coordinate tool remembers.
     """
     mode = viewer.toolbar.tools["solar:coordinate"].mode
     if mode is not None:
@@ -191,13 +192,14 @@ def _hovered(state, x, y):
     )
 
 
-def _world_position(axes, x, y, keep=None, rest=None):
+def _world_position(axes, x, y, keep=None, data=None):
     """
     WCSAxes' world readout at ``x, y``, arcsec to 0.01" and Å to 0.001 Å where WCSAxes gives its ticks' precision (D31);
-    ``keep``, a coordinate of ``axes``, leaves the other angles out, and ``rest`` (Å) adds the Doppler velocity (#264).
+    ``keep``, a coordinate of ``axes``, leaves the other angles out, and ``data`` adds the Doppler velocity from its
+    rest wavelength (#264).
     """
     world = axes.coords[0].transform.transform(np.array([[x, y]]))[0]
-    wavelength = axes.coords["em.wl"] if rest is not None and "em.wl" in axes.coords else None  # by physical type
+    wavelength = axes.coords["em.wl"] if data is not None and "em.wl" in axes.coords else None  # by physical type
     texts, velocity = [], ""
     for coord in axes.coords:
         if coord.coord_index is None:  # not on these axes
@@ -205,7 +207,7 @@ def _world_position(axes, x, y, keep=None, rest=None):
         if coord.coord_type in ("longitude", "latitude") and keep not in (None, coord):
             continue
         value = world[coord.coord_index] * coord.coord_unit
-        if coord is wavelength:
+        if coord is wavelength and (rest := rest_wavelength(data)) is not None:  # looked up only where it shows
             velocity = f" · {value.to_value(KM_S, u.doppler_optical(rest * u.AA)):z.1f} {KM_S}"
         if coord.get_format_unit() == u.arcsec:
             angle = Angle(value) if coord.coord_wrap is None else Angle(value).wrap_at(coord.coord_wrap)
@@ -392,7 +394,6 @@ class FrameTimeTool(Tool, HubListener):
 
     def activate(self):
         self.label.setHidden(not self.label.isHidden())
-        _keep_mouse_mode(self.viewer)
 
     def close(self):
         self._forget()
@@ -421,7 +422,7 @@ class FrameTimeTool(Tool, HubListener):
             keep = None
             if 0 in shown and _sit_and_stare_raster(data):  # the coordinate beside the exposures, as for the ticks
                 keep = axes.coords[_beside_exposures(data, max(shown))]
-            text = _world_position(axes, x, y, keep, rest_wavelength(data))
+            text = _world_position(axes, x, y, keep, data)
         pixel = _hovered(state, x, y)
         if pixel is None:
             return text
@@ -565,7 +566,6 @@ class CursorReadoutTool(Tool):
         self.shown = not self.shown
         if not self.shown:
             self.viewer.set_status("")
-        _keep_mouse_mode(self.viewer)
 
     def close(self):
         self.viewer.axes.figure.canvas.mpl_disconnect(self._motion)
@@ -611,7 +611,6 @@ class HideAxesTool(Tool):
 
     def activate(self):
         self.viewer.state.show_axes = not self.viewer.state.show_axes
-        _keep_mouse_mode(self.viewer)
 
     def close(self):
         self.viewer.state.remove_callback("show_axes", self._show)
@@ -655,7 +654,6 @@ class PerFrameLimitsTool(Tool):
         per_frame = any(layer.stretch_global for layer in layers)
         for layer in layers:
             layer.stretch_global = not per_frame
-        _keep_mouse_mode(self.viewer)
 
     def close(self):
         self.viewer.state.remove_callback("reference_data", self._whole_cube_again)
@@ -668,12 +666,17 @@ class PerFrameLimitsTool(Tool):
                 layer.stretch_global = True
 
 
+def _band_mean(values, axis=None):
+    """numpy's ``nanmean`` under a name of `BandTool`'s own, which a session keeps: a slice with it is a band."""
+    return np.nanmean(values, axis=axis)
+
+
 @viewer_tool
 class BandTool(Tool):
     """
     The map as glue's own ``AggregateSlice`` mean over 5, 9 or 15 wavelength pixels about the slider's (#169), made
     again by a ``slices`` validator, as glue-qt 0.4.2 makes it one wavelength at any slider move
-    (``wp0-qt-aggregate-slice``).
+    (``wp0-qt-aggregate-slice``); the width is that of the band the viewer shows, as a session restores it.
     """
 
     icon = _icon("solar_wavelength_band")
@@ -687,6 +690,7 @@ class BandTool(Tool):
         super().__init__(viewer)
         self.width = 1
         viewer.state.add_callback("slices", self._band, validator=True)
+        self._band(viewer.state.slices or ())  # a session's band, in a viewer glue restores with its state
         for prop in _SLIDER_REBUILDS:
             viewer.state.add_callback(prop, self._enable)
         self._enable()
@@ -706,7 +710,6 @@ class BandTool(Tool):
             state = self.viewer.state
             axes = self._axes(state.slices)  # the validator makes the band about the slider's index
             state.slices = tuple(int(getattr(s, "center", s)) if i in axes else s for i, s in enumerate(state.slices))
-        _keep_mouse_mode(self.viewer)
 
     def close(self):
         self.viewer.state.remove_callback("slices", self._band)
@@ -725,6 +728,9 @@ class BandTool(Tool):
         return set() if data is None or len(slices) != data.ndim else _spectral_axes(data) - _shown(state)
 
     def _band(self, slices):
+        for index in slices:
+            if getattr(index, "function", None) is _band_mean:  # a session keeps the band, not the tool's width
+                self.width = 2 * (index.slice.stop - index.center) - 1
         half = self.width // 2
         if not half:
             return slices
@@ -733,7 +739,7 @@ class BandTool(Tool):
             index = slices[axis]
             if not isinstance(index, AggregateSlice):  # a Collapse stays until a slider moves, as in glue-qt
                 band = slice(max(index - half, 0), index + half + 1)  # glue cuts the stop at the end of the axis
-                slices[axis] = AggregateSlice(band, index, np.nanmean)
+                slices[axis] = AggregateSlice(band, index, _band_mean)
         return tuple(slices)
 
 
@@ -820,7 +826,6 @@ class PhysicalAspectTool(Tool):
                 with delay_callback(state, "x_min", "x_max", "y_min", "y_max"):  # the image fills the axes again
                     state.x_min, state.x_max = max(state.x_min, -0.5), min(state.x_max, nx - 0.5)
                     state.y_min, state.y_max = max(state.y_min, -0.5), min(state.y_max, ny - 0.5)
-        _keep_mouse_mode(self.viewer)
 
     def close(self):
         state = self.viewer.state
@@ -930,7 +935,6 @@ class ColorBarTool(Tool):
         axes.resizer.margins = [left, right + (_BAR_ROOM if shown else -_BAR_ROOM), bottom, top]
         canvas = self.viewer.figure.canvas  # glue places the axes and fits their aspect at a resize
         canvas.callbacks.process("resize_event", ResizeEvent("resize_event", canvas))
-        _keep_mouse_mode(self.viewer)
 
 
 @viewer_tool
@@ -952,7 +956,6 @@ class RasterOverlaysTool(Tool):
 
     def activate(self):
         coordinator(self.viewer._data).toggle_overlays(observation_key(self.viewer.state.reference_data), self.shown)
-        _keep_mouse_mode(self.viewer)
 
     def offered(self):
         """Whether a raster of the viewer's observation is loaded, which the View menu checks as it opens."""
@@ -1138,7 +1141,6 @@ class DKISTFootprintsTool(Tool, HubListener):
         if _accepted(dialog, form):
             self.shown = [data for group, tick in zip(groups, ticks) if tick.isChecked() for data in group]
             self._draw()
-        _keep_mouse_mode(self.viewer)
 
     def close(self):
         for prop in _WATCHED:
@@ -1856,15 +1858,15 @@ class SlopeTool(PathMode):
             return
         path, app = self.viewer.state.reference_data, self.viewer.session.application
         row = [np.datetime_as_string(t, unit="ms") for t in motion[:2]] + list(motion[2:])
-        table = getattr(path, "slopes", None)
-        new = table not in app.data_collection
+        label = f"{path.label} slopes"  # by which a restored session's table is found again
+        table = next((data for data in app.data_collection if data.label == label), None)
+        new = table is None
         if not new:
             row = [np.append(table[name], value) for name, value in zip(_SLOPES, row, strict=True)]
-        rows = Data(label=f"{path.label} slopes" if new else table.label)
+        rows = Data(label=label)
         for name, values in zip(_SLOPES, row, strict=True):  # in this order, where Data(**columns) sorts them
             rows.add_component(np.atleast_1d(values), name)
         if new:
-            path.slopes = rows
             app.data_collection.append(rows)
             app.new_data_viewer(TableViewer, data=rows)
             self.viewer.toolbar.active_tool = self  # glue-qt ends it as the new viewer takes the focus
@@ -1985,8 +1987,9 @@ class _CoordinateEntry(Tool):
         self.menu = menu
 
     def activate(self):
+        mode = self.viewer.toolbar.active_tool
         self.run(self.menu.coordinator)
-        _keep_mouse_mode(self.viewer)
+        self.viewer.toolbar.active_tool = mode  # glue-qt ends it as a viewer the entry opens takes the focus
 
     def offered(self):
         """Whether the entry can act on the viewer as it is now, which the menu checks as it opens."""
@@ -2653,7 +2656,7 @@ def _wavelength_key(delta, session):
     """
     viewer, sync, _ = _pressed(session)
     app = session.application
-    group = getattr(app, "_solar_points", {}).get(app.current_tab)
+    group = getattr(getattr(app.current_tab, "_solar_quicklook", None), "group", None)
     for each in dict.fromkeys([viewer, *(other for other in sync._owners.get(group, ()) if not _wing(other))]):
         data = each.state.reference_data
         if isinstance(each, ImageViewer) and data is not None:
@@ -2693,7 +2696,8 @@ class _ToolMenu(SimpleToolMenu):
     """
     glue's tool menu, its tools also in the toolbar's ``tools`` and ``actions`` as a button's are (#222): an entry shows
     while ``enabled``, as glue-qt 0.4.2 does for buttons only (glue-viz/glue-qt#72, draft), from ``offered`` as the menu
-    opens, with a check mark from ``checked`` and its key while the toolbar has the keyboard.
+    opens, with a check mark from ``checked`` and its key while the toolbar has the keyboard; a plain entry runs its
+    tool itself, where glue-qt's toolbar would first end the mouse mode, and an unfinished path with it.
     """
 
     def __init__(self, viewer, subtools=None):
@@ -2705,6 +2709,9 @@ class _ToolMenu(SimpleToolMenu):
         menu = toolbar.widgetForAction(toolbar.actions[self.tool_id]).menu()
         for tool, action in zip(self.subtools, menu.actions(), strict=True):
             toolbar.tools[tool.tool_id], toolbar.actions[tool.tool_id] = tool, action
+            if not isinstance(tool, CheckableTool):  # not through glue-qt's toolbar, so the mouse mode stays
+                action.triggered.disconnect()
+                action.triggered.connect(lambda _checked, tool=tool: tool.activate())
 
             def show(enabled, action=action):
                 action.setVisible(enabled)
@@ -2961,6 +2968,6 @@ class ViewTool(_ToolMenu):
     icon = "glue_settings"
     tool_id = "solar:view"
     tool_tip = (
-        "View: frame time, axes, color limits, wavelength band, aspect, zoom, color bar, raster overlays, DKIST "
-        "footprints and cursor readout"
+        "View: frame time, axes, color limits, wavelength band, aspect, color bar, raster overlays, IRIS field of "
+        "view, DKIST footprints and cursor readout"
     )

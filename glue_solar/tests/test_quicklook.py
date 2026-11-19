@@ -1686,6 +1686,37 @@ def test_iris_field_of_view_boxes_the_raster_and_the_slit_jaw_image_on_an_aia_pa
     assert coord.fields == set()
 
 
+def test_iris_field_of_view_follows_a_shifted_pointing_and_a_removed_raster(
+    bare_app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
+    # with 'Raster overlays' off and the raster in no viewer, as File → Open Data Set leaves it: no time sync draws the
+    # boxes again
+    path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
+    [raster] = raster_data([path], ["Si IV 1403"])
+    _, sji = sit_and_stare(irispy_test_files)
+    aia = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    aia.meta.update(INSTRUME="AIA_3", TDESC1="1600")
+    collection = bare_app.data_collection
+    collection.extend([raster, sji, aia])
+    viewer = bare_app.new_data_viewer(ImageViewer, data=aia)
+    [boxes] = [line for line in viewer.axes.lines if line.get_gid() == "solar:field"]
+    viewer.toolbar.tools["solar:field_of_view"].activate()
+
+    def corner():  # the first of the raster's box, as the first test's
+        return raster_point_on_sji(raster, aia, 0, -0.5, viewer.state.slices[0])
+
+    x, y = boxes.get_data()
+    assert len(x) == 12  # the raster's box and the slit-jaw image's
+    assert (x[0], y[0]) == pytest.approx(corner(), abs=1e-6)
+    shift(monkeypatch, raster, collection, (10, -5))
+    assert abs(corner()[0] - x[0]) > 5  # in the cutout's pixels
+    x, y = boxes.get_data()
+    assert (x[0], y[0]) == pytest.approx(corner(), abs=1e-6)
+    collection.remove(raster)
+    qtbot.wait(20)
+    assert len(boxes.get_xdata()) == 6  # the slit-jaw image's box alone
+
+
 def test_a_stack_master_moves_the_slit_jaw_image_by_scan_and_step(bare_app, qtbot, scans):
     _, stack = scans
     start = stack[stack.id["Time"]][0, 0, 0, 0]
@@ -2691,8 +2722,8 @@ def test_a_click_on_a_first_or_last_step_s_slit_reaches_it(irispy_data):
     sji = image_data(irispy_data("iris_l2_20250613_123658_3620107423_SJI_1400_t000.fits.gz"))
     times = stack[stack.id["Time"], (slice(None), slice(None), 0, 0)]
     frames, row, taken, lost = sji[sji.id["Time"], (slice(None), 0, 0)], 194, {}, []
-    for frame, time in enumerate(frames):
-        scan, step = (int(i) for i in np.unravel_index(np.argmin(np.abs(times - time)), times.shape))
+    for frame, when in enumerate(frames):
+        scan, step = (int(i) for i in np.unravel_index(np.argmin(np.abs(times - when)), times.shape))
         taken[scan, step] = frame
         x, y = raster_point_on_sji(stack, sji, step, row, frame, scan)
         if sji_to_raster(sji, frame, x, y, stack) != (scan, step, row):
@@ -4375,6 +4406,25 @@ def test_what_a_slit_jaw_click_moves_on_a_scanning_raster(bare_app, qtbot, tmp_p
     assert "outside raster FOV" in readout(sji_viewer)
 
 
+def test_a_slit_jaw_click_moves_the_point_with_the_raster_panels_turned_off(
+    bare_app, qtbot, tmp_path, irispy_test_files
+):
+    path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
+    [raster] = raster_data([path], ["Si IV 1403"])
+    _, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    panels = panels_list(bare_app)
+
+    def event(action):
+        return applied(bare_app, qtbot, viewers, panels, action)
+
+    assert event(lambda: tick(panels, *(viewers[role].state.title for role in RASTER_PANELS), on=False)) == {}
+    (x, y), (step, slit) = clicked(sji_viewer, raster, 30, 25)
+    # the raster's point there all the same, though no panel on shows the raster; those off keep their sliders
+    assert event(lambda: select_point(sji_viewer, x, y)) == {"point": (raster.label, (step, slit, None))}
+
+
 def test_what_a_slit_jaw_click_moves_on_a_stack(bare_app, qtbot, tmp_path, irispy_test_files):
     path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
     [stack] = raster_data([path, path], ["Si IV 1403"], stack=True)
@@ -5415,11 +5465,11 @@ def test_time_moves_a_point_on_another_window(bare_app, qtbot, monkeypatch, iris
 def switch(qtbot, panel):
     """Choose 'Show this window's panels' on a quicklook's spectrum ``panel``; the quicklook's viewers then."""
     tab = panel.parent().mdiArea()
-    viewers = tab._solar_quicklook[-1]
+    viewers = tab._solar_quicklook.viewers
     panel.toolbar.actions["solar:main_window"].trigger()
-    qtbot.waitUntil(lambda: tab._solar_quicklook[-1] is not viewers)
+    qtbot.waitUntil(lambda: tab._solar_quicklook.viewers is not viewers)
     qtbot.wait(20)  # glue-qt deletes the viewers closed
-    return tab._solar_quicklook[-1]
+    return tab._solar_quicklook.viewers
 
 
 def colors(app):

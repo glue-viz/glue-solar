@@ -288,6 +288,11 @@ glue-qt
   the same turn, where glue-qt lists them and glue cannot restore such an Image viewer (``GlueApplication.__gluestate__``,
   ``glue_patches.application_gluestate``, #364). Always on. Retired by glue-qt's ``GlueApplication.viewers`` or
   ``__gluestate__`` leaving closed viewers out (report candidate).
+- **A write to glue's console log from another thread made on the GUI thread** (``GlueLogger.write``,
+  ``glue_patches.logger_write``): the log is ``sys.stderr`` and edits its QTextEdit on the thread that writes, as
+  irispy's warnings do while the observation browser reads files on a worker thread, which Qt allows on the GUI
+  thread only. Always on. Retired by glue-qt's ``GlueLogger.write`` handing a write off the GUI thread to it (report
+  candidate).
 - **The Slope table's Table viewers reset after new rows** (``SlopeTool``, ``tools.py``, #175). Always on. Retired by
   glue-qt's Table viewer showing and sorting rows added to its dataset (report candidate).
 - **A Table viewer of data with a time searches each value as the text the table shows**
@@ -298,16 +303,18 @@ glue-qt
 - **glue-qt's Slice Extraction left off Image viewers**: its ``pv_slicer`` plugin ``setup`` made a no-op and the tool
   filtered from ``ImageViewer.tools``, so Path diagram is the one path tool (``setup``, D90). Always on. Kept by
   decision (D90).
-- **A viewer's mouse mode, such as Pixel, turned back on after each plain toolbar button or menu entry of
-  glue-solar's** (``tools._keep_mouse_mode``, the mode the viewer's Coordinate tool remembers, #92), as glue-qt's
-  toolbar ends the active mode before it runs any tool that is not a mode. Always on. Retired by glue-qt's toolbar
-  leaving the active mouse mode on as a plain tool runs (report candidate).
+- **A viewer's mouse mode, such as Pixel, turned back on after 'Save frames or movie…'**, an entry of glue-qt's Save
+  menu (``tools._keep_mouse_mode``, the mode the viewer's Coordinate tool remembers, #92), as glue-qt's toolbar ends
+  the active mode before it runs any tool that is not a mode. Always on. Retired by glue-qt's toolbar leaving the
+  active mouse mode on as a plain tool runs (report candidate).
 - **A tool menu's entries treated as buttons are**: each subtool and its menu action written into the toolbar's
   ``tools`` and ``actions``, the entry shown while its tool is ``enabled``, check-marked from ``checked``, and its key
-  a ``QShortcut`` of the toolbar, as glue-qt's own, on the entry, acts only while the menu's button has the keyboard
-  (``tools._ToolMenu``, #156, #222). Always on (``CoordinateTool``, ``ModesTool``, ``ViewTool``). Retired by glue-qt
-  #72 for the entries shown while ``enabled``; for the rest by glue-qt's toolbar listing subtools in ``tools`` and
-  ``actions``, with check marks and keys of the toolbar's (report candidate).
+  a ``QShortcut`` of the toolbar, as glue-qt's own, on the entry, acts only while the menu's button has the keyboard;
+  and a plain entry's action connected to its tool in place of glue-qt's toolbar, which ends the active mouse mode
+  first, and an unfinished path with it (``tools._ToolMenu``, #156, #222). Always on (``CoordinateTool``,
+  ``ModesTool``, ``ViewTool``). Retired by glue-qt #72 for the entries shown while ``enabled``; for the rest by
+  glue-qt's toolbar listing subtools in ``tools`` and ``actions``, with check marks and keys of the toolbar's, and
+  leaving the active mouse mode on as a plain tool runs (report candidate).
 - **A wavelength band kept as its slider moves**: ``BandTool`` adds a validator to an Image viewer state's ``slices``
   that makes the index of each wavelength axis not shown an ``AggregateSlice`` mean over 5, 9 or 15 pixels about it
   again (``tools.BandTool._band``, #169), as glue-qt's slider sets a plain index at any move. Per viewer: while a band
@@ -331,7 +338,11 @@ astropy, WCSLIB, echo, matplotlib and mpl-scatter-density
 
 - ``_GlueWCS`` ``WCS_LOCK`` (#60). Always on (not safely probeable). Retired by astropy #19174's fix, once 8 unlocked
   threads give 0 wrong -TAB values: it corrupts silently, without crashing, 1187 to 1267 of 2400 calls on 8.0.2
-  (comment drafted, ``updrafts/reports/astropy-19174-comment.md`` in the session archive).
+  (comment drafted, ``updrafts/reports/astropy-19174-comment.md`` in the session archive). The lock also guards the
+  one celestial model a slit-jaw image's gWCS sets and then evaluates at each frame (dkist's
+  ``VaryingCelestialTransform``, as in the dkist entry below), which irispy's slit-jaw burst search, on a worker, is
+  given a deep copy of (``sji_bursts``). Retiring it needs that model safe across threads too, not astropy's -TAB fix
+  alone.
 - ``_LockedWCS``: each plain WCS beneath a ``_GlueWCS`` becomes one in place at construction (``_lock_wcslib``: a
   raster's, a stack's scans' and scan axis's, a rebinned or restored window's, AIA and SOT cubes'), so the analyses
   hold ``WCS_LOCK`` per wcslib call, never across irispy's calls; each plain WCS ``link_hpc`` links on request, or a
@@ -441,8 +452,10 @@ dkist
 - **'Download these frames…' follows its transfer by the files in the folder**, a file whole once its size and mtime
   are unchanged over one 5 s look, read as missing until then (``_ARRIVING`` in ``_section``, ``_watch_download``,
   ``sources/dkist_actions.py``, #396, D110), as neither ``FileManager.download(wait=False)`` nor
-  ``_orchestrate_transfer_task`` returns a Globus task to follow. Always on (a DKIST download). Retired by dkist
-  returning the Globus task ID of a transfer that does not wait (dkist #516).
+  ``_orchestrate_transfer_task`` returns a Globus task to follow. A transfer that failed is known by its files alone:
+  after ten minutes of looks at which none arrived or grew (``DOWNLOAD_STALLED``) the watch ends and those left are
+  offered again. Always on (a DKIST download). Retired by dkist returning the Globus task ID of a transfer that does
+  not wait (dkist #516).
 
 irispy
 ------

@@ -97,6 +97,32 @@ jobs:
           cache-key: pooch-${{ github.sha }}
           cache-restore-keys: pooch-
 
+  devdeps:
+    # glue and glue-qt from their main branches and the nightly wheels of numpy and astropy, weekly and on a manual
+    # run: no job needs it, so a change upstream shows here without holding up a pull request or a release
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@e25a8c5d18e2499bdc4381670917b73e3107dca1  # v3.1.1
+    permissions:
+      id-token: write
+    with:
+      submodules: false
+      coverage: codecov-oidc
+      toxdeps: tox-pypi-filter
+      posargs: -n auto
+      libraries: |
+        apt:
+          - '^libxcb.*-dev'
+          - libegl-dev
+          - libglu1-mesa-dev
+          - libx11-xcb-dev
+          - libxcb-xinerama0
+          - libxi-dev
+          - libxkbcommon-dev
+          - libxkbcommon-x11-dev
+          - libxrender-dev
+      envs: |
+        - linux: py314-devdeps
+
   docs:
     needs: [core]
     uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@e25a8c5d18e2499bdc4381670917b73e3107dca1  # v3.1.1

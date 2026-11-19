@@ -633,7 +633,7 @@ def test_a_restored_quicklook_of_a_cube_renamed_since_has_its_panels_off_and_the
     look.cmap, look.v_max = colormaps["viridis"], 123.0
     cube.label = "renamed"
     app.save_session(str(tmp_path / "renamed.glu"))
-    again = restore(qtbot, monkeypatch, tmp_path / "renamed.glu").tab(1)._solar_quicklook[-1]
+    again = restore(qtbot, monkeypatch, tmp_path / "renamed.glu").tab(1)._solar_quicklook.viewers
     look = again["map"].layers[0].state
     assert (look.cmap.name, look.v_max) == ("viridis", 123.0)
     assert [_off(viewer) for viewer in again["spectra"]] == [False, True]  # Stokes I's and Q's
@@ -658,7 +658,7 @@ def test_a_restored_quicklook_keeps_a_dataset_dragged_onto_a_panel(
     panel.state.reference_data = other
     app.save_session(str(tmp_path / "dragged.glu"), absolute_paths=False)
     restored = restore(qtbot, monkeypatch, tmp_path / "dragged.glu")
-    [again] = restored.tab(1)._solar_quicklook[-1]["sji"]
+    [again] = restored.tab(1)._solar_quicklook.viewers["sji"]
     assert shown_on(again) == shown_on(panel)
     assert shown_on(again)[0] == other.label
 
@@ -675,7 +675,7 @@ def test_a_restored_quicklook_neither_asks_about_nor_profiles_a_cube_hidden_on_i
     assert (asked, whole) == (["Add large data set?"], [])
     app.save_session(str(tmp_path / "hidden.glu"), absolute_paths=False)
     restored = restore(qtbot, monkeypatch, tmp_path / "hidden.glu")
-    again = restored.tab(1)._solar_quicklook[-1]["spectrum"]
+    again = restored.tab(1)._solar_quicklook.viewers["spectrum"]
     assert shown_on(again) == shown_on(panel)
     assert ("other", "other", False) in shown_on(again)[1]
     assert (asked, whole) == (["Add large data set?"], [])
@@ -781,7 +781,7 @@ def test_a_restored_sst_quicklook_keeps_its_second_map_point_and_panels_off(app,
     qtbot.waitUntil(lambda: viewers["slit"].state.slices[0] == viewers["wing"].state.slices[0] == 2)  # synced
     app.save_session(str(tmp_path / "sst.glu"))
     restored = restore(qtbot, monkeypatch, tmp_path / "sst.glu")
-    again = restored.tab(1)._solar_quicklook[-1]
+    again = restored.tab(1)._solar_quicklook.viewers
 
     def panels(viewers):  # each panel's title, whether it is off, and an Image panel's slices
         return [(v.state.title, _off(v), tuple(getattr(v.state, "slices", ()))) for v in _viewers(viewers)]
@@ -985,6 +985,26 @@ def test_two_quicklooks_restore_twice_from_their_files(app, qtbot, monkeypatch, 
                 qtbot.waitUntil(lambda: responses(opened, tab)[0] == responses(app, tab)[0])
                 for got, expected in zip(responses(opened, tab)[1], responses(app, tab)[1], strict=True):
                     np.testing.assert_allclose(got, expected, rtol=1e-12)
+
+
+# glue averages the band over the NaN fill too, which numpy warns about
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
+def test_a_restored_wavelength_band_is_on_and_follows_its_slider(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(app, [raster, sji])
+    app.tab_widget.setCurrentIndex(0)  # and an Image viewer, which glue restores with its state, before its tools
+    plain = app.new_data_viewer(ImageViewer, data=raster)
+    plain.state.x_att = raster.pixel_component_ids[0]
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *args: ("5", True))
+    for viewer in (viewers["map"], plain):
+        viewer.toolbar.tools["solar:band"].activate()  # a band of five wavelengths
+    app.save_session(str(tmp_path / "band.glu"), absolute_paths=False)
+    restored = restore(qtbot, monkeypatch, tmp_path / "band.glu")
+    for viewer in (restored.viewers[-1][0], restored.viewers[0][0]):
+        assert viewer.toolbar.tools["solar:band"].checked  # as the View menu's check mark says
+        slide(viewer, 2, 10)
+        band = viewer.state.slices[2]
+        assert (band.slice, band.center) == (slice(8, 13), 10)
 
 
 def plugin_action(app, label):

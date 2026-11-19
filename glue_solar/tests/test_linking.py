@@ -359,6 +359,28 @@ def test_a_map_linked_by_hand_to_another_iris_dataset_is_not_linked_on_request(q
     assert type(aia.coords) is WCS
 
 
+def test_a_link_made_on_request_and_removed_by_hand_stays_removed(qtbot, sns):
+    # the links there are say what was linked on request: a map whose links are removed in glue's Link Data dialog is
+    # not linked again by the next quicklook or analysis, nor once the IRIS dataset it was linked through is removed
+    sji, raster = sns
+    lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)
+    aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia")
+    dc = DataCollection([sji, raster, aia])
+    link_iris(None, dc)
+    assert linked_data(dc) == {sji, raster, aia}
+    state = LinkEditorState(dc)
+    state.data1, state.data2 = sji, aia
+    while state.visible_links:  # the dialog's 'Remove link' on each of the map's, then its OK
+        state.remove_link()
+    state.update_links_in_collection()
+    assert linked_data(dc) == {sji, raster}
+    keep_hpc_linked(dc)  # as every quicklook and analysis calls it
+    assert linked_data(dc) == {sji, raster}
+    dc.remove(sji)
+    qtbot.wait(10)
+    assert not dc.external_links  # the raster alone
+
+
 def test_a_sot_cube_loaded_first_is_linked_on_request_to_the_raster(sns, irispy_test_files):
     # D72: a Hinode/SOT cube's longitude and latitude, each frame at its own pointing, as IRIS data read them, linked
     # only on request, and to the IRIS raster loaded after it, never the raster to it

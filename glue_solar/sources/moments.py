@@ -99,29 +99,31 @@ def _window(data, ends, lines, continuum=None):
     return slice(min(taken), max(taken) + 1), _unit(data)
 
 
-def _unit(data):
-    """The unit of the values of ``data`` that irispy is given (`_read`)."""
+def _unit(data, rate=None):
+    """The unit of the values of ``data`` that irispy is given, per second with ``rate``, as `_read` takes it."""
     from irispy.utils.constants import DN_UNIT  # with the first use rather than at glue's launch
 
     cid = data.main_components[0]
     with u.add_enabled_units(DN_UNIT.values()):  # astropy's registry, global: on the calling thread
         unit = u.Unit(data.get_component(cid).units)
-    if data.find_component_id(f"{cid.label} DN / s") is not None:
-        unit = unit / u.s
-    return unit
+    if rate is None:
+        rate = data.find_component_id(f"{cid.label} DN / s") is not None
+    return unit / u.s if rate else unit
 
 
-def _read(data, rows, wavelengths):
+def _read(data, rows, wavelengths, rate=None):
     """
     The values of ``data`` at ``rows``, the scan of a stack, raster steps and slit pixels, and ``wavelengths`` that
     irispy is given, each step's exposure time in s, and which are saturated, as the window's mask marks them from the
     DN (`at_ceiling`, D85):
-    of a window with the loader's ``<label> DN / s``, its DN over each step's exposure time (D4), from the DN read here,
-    in float64, else its scaled float32 and None; NaN where missing, on any thread.
+    with ``rate``, None for whether the window has the loader's ``<label> DN / s``, its DN over each step's exposure
+    time (D4), from the DN read here, in float64, else its scaled float32 and None; NaN where missing, on any thread.
     """
     cid = data.main_components[0]
     values = data[cid, (*rows, wavelengths)]  # scaled float32 of these steps and wavelengths only
-    if data.find_component_id(f"{cid.label} DN / s") is None:
+    if rate is None:
+        rate = data.find_component_id(f"{cid.label} DN / s") is not None
+    if not rate:
         return values, None, at_ceiling(values)
     # glue's derived component reads them again
     seconds = data["Exposure time", (*rows[:-1], slice(0, 1), slice(0, 1))].astype(np.float32)

@@ -334,6 +334,26 @@ def test_import_refuses_qt_5_before_anything_registers():
     assert re.search(r"glue-solar needs Qt 6 \(PyQt6\), not PyQt5 .* set QT_API=pyqt6", result.stderr)
 
 
+_RENAMED_IMPORT = """
+import glue.core.state
+
+del glue.core.state._save_component  # a private name glue-solar imports, as in a glue that renames it
+try:
+    import glue_solar
+except ImportError:
+    print("raised")
+"""
+
+
+def test_import_logs_an_error_where_glue_lacks_a_name_it_imports():
+    # in a process of its own, as glue_solar is imported here
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)}
+    result = subprocess.run([sys.executable, "-c", _RENAMED_IMPORT], env=env, capture_output=True, text=True)
+    assert result.stdout == "raised\n", result.stderr[-2000:]
+    # glue logs a plugin that fails to load only at info level, which it does not show
+    assert re.search(r"glue-solar could not be imported: ImportError\(.*_save_component", result.stderr)
+
+
 _PLUGIN_LOAD = """
 import sys
 
@@ -707,6 +727,25 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(app, qtbot, monkey
     assert not toolbar.actions["solar:frame_time"].isEnabled()
     QTest.keyClick(toolbar, Qt.Key_L)
     assert toolbar.active_tool is pixel
+
+
+def test_a_menu_entry_leaves_an_unfinished_path_and_its_mouse_modes_hint(app):
+    cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5))
+    app.data_collection.append(cube)
+    viewer = app.new_data_viewer(ImageViewer, data=cube)
+    toolbar = viewer.toolbar
+    toolbar.active_tool = "solar:path"
+    path = toolbar.active_tool
+    for x, y in ((1, 1), (3, 2)):  # two vertices, and no Enter yet
+        mouse(viewer, "button_press_event", x, y)
+        mouse(viewer, "button_release_event", x, y)
+    drawn = np.array(path.roi().to_polygon())
+    assert drawn.shape == (2, 2)
+    for tool_id in ("solar:hide_axes", "solar:clear_point"):  # an entry of the View menu, and of the Coordinate menu
+        toolbar.actions[tool_id].trigger()
+        assert toolbar.active_tool is path
+        np.testing.assert_array_equal(path.roi().to_polygon(), drawn)
+        assert viewer.statusBar().currentMessage() == path.status_tip
 
 
 def margins(viewer):
@@ -1318,8 +1357,7 @@ def test_slope_recovers_an_injected_features_speed_and_acceleration(app):
     for frame in frames[::6]:
         _click(tool, ridge[frame], frame)
     _key(diagram, "enter")
-    table = path.slopes
-    assert table.label == "cube [slice 1] slopes"
+    table = app.data_collection["cube [slice 1] slopes"]
     assert (table["t0 (UTC)"][0], table["t1 (UTC)"][0]) == ("2013-09-02T16:39:35.000", "2013-09-02T16:50:23.000")
     assert table["d0 (km)"][0] == pytest.approx(20 * km)  # from the path's first sample, at pixel 0
     assert table["speed (km / s)"][0] == pytest.approx(50, rel=0.01)
@@ -1346,6 +1384,41 @@ def test_slope_recovers_an_injected_features_speed_and_acceleration(app):
     _click(tool, 10, 3)
     _key(diagram, "escape")
     assert (tool.label.text(), tool.roi().to_polygon()) == ("", ([], []))
+
+
+def test_a_slope_after_a_session_restore_adds_a_row_to_the_restored_table(app, qtbot, monkeypatch, tmp_path):
+    # a slit-jaw-like cube of 0.1663" pixels seen from 1 AU, 3 frames 12 s apart
+    wcs = WCS(naxis=3)
+    wcs.wcs.ctype = "HPLN-TAN", "HPLT-TAN", ""
+    wcs.wcs.cunit = "arcsec", "arcsec", ""
+    wcs.wcs.cdelt = 0.1663, 0.1663, 1
+    wcs.wcs.crpix, wcs.wcs.crval = (8, 6, 1), (400, -300, 0)
+    cube = Data(label="cube", flux=np.random.default_rng(0).random((3, 12, 16)), coords=wcs)
+    times = np.datetime64("2013-09-02T16:39:35") + np.arange(3) * np.timedelta64(12, "s")
+    cube.add_component(np.broadcast_to(times[:, None, None], cube.shape), "Time")
+    cube.meta["DSUN_OBS"] = 1.496e11
+    app.data_collection.append(cube)
+    viewer = app.new_data_viewer(ImageViewer, data=cube)
+    _draw_path(viewer, [0.3, 15.3], [4.6, 4.6])  # along x
+
+    def add_slope(diagram):
+        """Press Enter on a track from the first frame to the last of ``diagram``."""
+        tool = diagram.toolbar.tools["solar:slope"]
+        diagram.toolbar.active_tool = tool.tool_id
+        _click(tool, 2, 0)
+        _click(tool, 9, 2)
+        _key(diagram, "enter")
+
+    add_slope(viewer.toolbar.tools["solar:path"]._slice_viewer)
+    app.save_session(str(tmp_path / "slopes.glu"))
+    restored = restore(qtbot, monkeypatch, tmp_path / "slopes.glu")
+    viewers = [shown for tab in restored.viewers for shown in tab]
+    [diagram] = [shown for shown in viewers if isinstance(getattr(shown.state, "reference_data", None), PathData)]
+    add_slope(diagram)
+    [table] = [data for data in restored.data_collection if " slopes" in data.label]
+    assert table.shape == (2,)
+    [shown] = [shown for shown in viewers if isinstance(shown, TableViewer)]
+    assert shown.model.rowCount() == 2
 
 
 def _modes_entry(viewer, text):
@@ -1606,7 +1679,8 @@ def test_a_path_on_an_sst_cube_has_its_sky_coordinates(app, monkeypatch, tmp_pat
     _click(tool, 0, 0)
     _click(tool, 5, 2)
     _key(diagram, "enter")
-    assert path.slopes["speed (km / s)"][0] == pytest.approx(table["distance_km"][5].to_value(u.km) / 120)
+    slopes = app.data_collection[f"{path.label} slopes"]
+    assert slopes["speed (km / s)"][0] == pytest.approx(table["distance_km"][5].to_value(u.km) / 120)
 
 
 @pytest.mark.remote_data
@@ -2428,10 +2502,14 @@ def test_readout_gives_the_velocity_axis_value_from_the_rest_wavelength(app, mon
     assert check(20) == velocities[1]
     show(si, 2, 0)  # wavelength against exposure
     check(20)
-    show(si, 0, 1)  # the map: no wavelength shown, so no velocity
+    show(si, 0, 1)  # the map: no wavelength shown, so no velocity, nor its rest wavelength looked up at each move
+    asked, rest_wavelength = [], glue_solar.tools.rest_wavelength
+    monkeypatch.setattr(glue_solar.tools, "rest_wavelength", lambda data: asked.append(data) or rest_wavelength(data))
     assert "km / s" not in image.axes.format_coord(10, 5)
+    assert asked == []
     show(none, 2, 1)  # 2832 has no line, so no rest wavelength
     text = image.axes.format_coord(5, 5)
+    assert asked == [none]
     assert " Å " in text
     assert "km / s" not in text
     assert "nan" not in text

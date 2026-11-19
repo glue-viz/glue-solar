@@ -21,8 +21,7 @@ from glue_solar.glue_patches import _application
 from glue_solar.lines import DopplerConverter, rest_wavelength
 from glue_solar.quicklook import _wavelengths
 from glue_solar.sources.loaders.iris import _RUNNING
-from glue_solar.sources.loaders.lazy import at_ceiling
-from glue_solar.sources.moments import _check, _cube, _dataset, _read, _slab_rows, _start, _window
+from glue_solar.sources.moments import _check, _cube, _dataset, _read, _slab_rows, _start, _unit, _window
 
 
 class _Canceled(Exception):
@@ -153,12 +152,10 @@ def _last_fit(data, model):
     if rest is None:
         raise ValueError(f"{data.label} has no rest wavelength: set one with 'Set rest wavelength…'.")
     low, high = np.multiply(meta["x_range"], scale) + shift
-    crop, unit = _window(data, (low, high), f"the range of the last IRIS fit, {low:.3f} to {high:.3f} Å")
+    crop, _ = _window(data, (low, high), f"the range of the last IRIS fit, {low:.3f} to {high:.3f} Å")
     per_second = meta["attribute"] == rate
-    if not per_second and data.find_component_id(rate) is not None:  # `_window`'s unit is that of DN / s
-        unit = unit * u.s
     # shortcut: the y unit is the attribute's own, glue's only choice for IRIS data; convert as x where it has others
-    return model, crop, unit, per_second, rest
+    return model, crop, _unit(data, per_second), per_second, rest
 
 
 def _fit_maps(data, model, crop, unit, per_second, rest, progress):
@@ -175,7 +172,6 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
 
     from glue_solar.fitters import _jacobian
 
-    cid = data.main_components[0]
     wavelengths = _wavelengths(data)[0][crop]
     # processes, as the fits on threads hold the GIL, slower than on one; one pool a run, as one takes 1.4 s to start;
     # a chunk a task, as dask's default of six a task leaves all but a sixth of a call's chunks' processes idle
@@ -186,11 +182,7 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
         # a slab at a time, as the moments: a whole scan's starts, fits and maps took 4 GB on a Si IV window; a stack's
         # scans together where a slab holds several, as a call of one small scan has too few chunks for the processes
         for rows in _slab_rows(data, crop, scans=True):
-            if per_second:
-                values, _, saturated = _read(data, rows, crop)
-            else:
-                values = data[cid, (*rows, crop)]
-                saturated = at_ceiling(values)
+            values, _, saturated = _read(data, rows, crop, per_second)
             cube = _cube(data, values, rows, crop, unit, saturated)
             # masked samples, missing or saturated, a lower bound only (D87), left out as NaN by filter_non_finite
             spectra = np.where(cube.mask, np.nan, values)

@@ -985,7 +985,7 @@ def test_a_session_restores_a_dkist_raster_s_quicklook(qtbot, monkeypatch, tmp_p
     viewers = quicklook(app, [data])
     app.save_session(str(tmp_path / "quicklook.glu"))
     restored = restore(qtbot, monkeypatch, tmp_path / "quicklook.glu")
-    again = restored.tab(1)._solar_quicklook[-1]
+    again = restored.tab(1)._solar_quicklook.viewers
     assert [[viewer.state.title for viewer in row] for row in again["rows"]] == [
         ["VISP qVXjk map", "VISP qVXjk virtual slit"],
         ["VISP qVXjk spectrum"],
@@ -1464,6 +1464,23 @@ def test_a_click_on_a_sit_and_stare_raster_s_context_image_takes_the_step_neares
     assert "outside raster FOV" not in readout(panel)
 
 
+def test_a_click_on_a_context_image_moves_the_point_with_the_raster_s_panels_turned_off(qtbot, monkeypatch):
+    from glue_solar.quicklook import coordinator
+    from glue_solar.tests.helpers import select_point
+    from glue_solar.tests.test_quicklook import applied, panels_list, tick
+
+    app = bare_app_for(qtbot, monkeypatch)
+    raster, imager = visp_like(step=0.01), vbi_like("VBI MOSAIC (1, 1)", frames=8)  # as the test above
+    app.data_collection.extend([raster, imager])
+    viewers = quicklook(app, [raster])
+    panel, panels = viewers["imager"], panels_list(app)
+    off = [viewers[role].state.title for role in ("map", "slit", "wavelength") if role in viewers]
+    applied(app, qtbot, viewers, panels, lambda: tick(panels, *off, on=False))
+    slide(panel, 0, 2)
+    select_point(panel, 8, 8)
+    assert [s.start for s in coordinator(app.data_collection).point.slices] == [0, 2, 2, None]
+
+
 def test_go_to_utc_and_blink_move_a_context_image_along_its_steps(qtbot, monkeypatch):
     from glue_solar.tests.test_quicklook import menu_action, type_in_dialog
 
@@ -1646,7 +1663,7 @@ def test_a_session_restores_a_dkist_raster_s_quicklook_with_its_context_imager(q
         restored = restore(qtbot, monkeypatch, tmp_path / "pair.glu")
     # its context imager's panel, with every tile of its mosaic, where the restored tiles were their sources, and
     # leading the time, where they were observed apart
-    panel, collection = restored.tab(1)._solar_quicklook[-1]["imager"], restored.data_collection
+    panel, collection = restored.tab(1)._solar_quicklook.viewers["imager"], restored.data_collection
     shown = [layer.state.layer for layer in panel.layers if layer.enabled and layer.state.layer in collection]
     assert [tile.label for tile in shown] == [layer.layer.label for layer in viewers["imager"].state.layers]
     assert len(shown) == 9
@@ -2537,6 +2554,34 @@ def test_download_these_frames_leaves_out_the_files_already_on_their_way(app, qt
     opened, transfer = download(app, qtbot, monkeypatch, data, {})
     assert opened["summary"] == "1 file to download, 2044-03-15T08:23:14"
     assert [path.name for path in transfer.call_args.args[0]] == ["2.fits"]
+
+
+@small_visp_dated_2044
+def test_download_these_frames_offers_again_the_files_of_a_transfer_that_stopped(app, qtbot, monkeypatch, tmp_path):
+    from glue_solar.sources import dkist_actions
+    from glue_solar.sources.dkist import _ARRIVING
+
+    monkeypatch.setattr(dkist_actions, "DOWNLOAD_POLL", 50)
+    monkeypatch.setattr(dkist_actions, "DOWNLOAD_STALLED", 4)
+    shutil.copy(small_visp(), tmp_path)
+    with pytest.warns(UserWarning, match="0 of 3 files"):
+        data = load_data(str(tmp_path / "test_visp.asdf"))
+    app.data_collection.append(data)
+    download(app, qtbot, monkeypatch, data, {})
+    paths = {str(tmp_path / f"{step}.fits") for step in range(3)}
+    # a file growing for more looks than that is on its way still
+    whole = (small_visp().parent / "0.fits").read_bytes()
+    for written in range(1, 41):
+        (tmp_path / "0.fits").write_bytes(whole[: 100 * written])
+        qtbot.wait(10)
+    assert paths <= _ARRIVING
+    # the transfer fails, its part-written file removed: no file arrives or grows
+    (tmp_path / "0.fits").unlink()
+    with pytest.warns(UserWarning, match="VISP qVXjk: 3 of 3 files have not arrived"):
+        qtbot.waitUntil(lambda: not paths & _ARRIVING)
+    opened, transfer = download(app, qtbot, monkeypatch, data, {})
+    assert opened["summary"].startswith("3 files to download")
+    assert [path.name for path in transfer.call_args.args[0]] == ["0.fits", "1.fits", "2.fits"]
 
 
 @small_visp_dated_2044

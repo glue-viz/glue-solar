@@ -3,6 +3,8 @@
 a 1400 Å slit-jaw image, as a map of their labels and a table of them, two new datasets.
 """
 
+import copy
+
 import numpy as np
 from glue.core.component import Component
 from glue.core.data import Data
@@ -17,7 +19,7 @@ from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
 from glue_solar.glue_patches import layer_action
 from glue_solar.quicklook import _role, _wavelengths
-from glue_solar.sources.loaders.iris import _add_time, _GlueWCS, _irispy_meta
+from glue_solar.sources.loaders.iris import WCS_LOCK, _add_time, _GlueWCS, _irispy_meta
 from glue_solar.sources.moments import _accepted, _check, _dataset, _form, _start
 
 __all__ = ["bursts_iris", "si_iv_bursts", "sji_bursts"]
@@ -213,7 +215,9 @@ def sji_bursts(data, sigma_factor=SIGMA_FACTOR, min_pixels=MIN_PIXELS):
     # ponytail: one irispy call on every frame, about 6 times the image's float32 at its peak (1.6 GB for the 400
     # frames of 4000255147's SJI 1400); slabs of frames, their labels offset, if larger images need less
     unit = DN_UNIT.get(data.meta["TDESC1"], u.DN)  # the passband's, as irispy reads it
-    cube = SJICube(values, data.coords._wcs, unit=unit, mask=np.isnan(values), meta=data.meta)
+    with WCS_LOCK:  # irispy evaluates it on this thread without the lock: a copy of its own, not the GUI thread's
+        wcs = copy.deepcopy(data.coords._wcs)
+    cube = SJICube(values, wcs, unit=unit, mask=np.isnan(values), meta=data.meta)
     labels, events = find_bright_image_events(cube, sigma_factor=sigma_factor, min_pixels=min_pixels)
     parameters = {"bursts_sigma_factor": sigma_factor, "bursts_min_pixels": min_pixels}
     bursts = Data(label=f"{data.label} bursts", coords=_GlueWCS(data.coords._wcs))

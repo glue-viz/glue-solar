@@ -1,0 +1,1 @@
+Choosing an entry of the View or Coordinate menu no longer erases an unfinished path or the mouse mode's hint, and a slope measured after a session restore joins the diagram's restored table of slopes.
