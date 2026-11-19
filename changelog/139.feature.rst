@@ -1,1 +1,1 @@
-While "IRIS: line moments…" runs, glue's status bar says "Computing line moments of <window>…".
+While "IRIS: line maps…" runs, glue's status bar says "Computing line maps of <window>…".
