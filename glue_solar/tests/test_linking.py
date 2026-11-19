@@ -163,7 +163,7 @@ def test_inverse_workaround_installs_only_where_glue_needs_it():
 
 @pytest.mark.parametrize("needed", [True, False])
 def test_the_link_patches_hold_the_wcs_lock(monkeypatch, needed):
-    # SST1: glue's profile workers reach the WCS of each linked dataset through these, one restored unlocked too; glue's
+    # glue's profile workers reach the WCS of each linked dataset through these, one restored unlocked too; glue's
     # own, once fixed, still hold it
     patched = (
         (coordinate_helpers, "world2pixel_single_axis"),
@@ -654,7 +654,7 @@ def test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair(app, sns):
 
 def test_data_outside_the_iris_observations_link_only_on_request(app, sns):
     # data load, the analyses and a quicklook link IRIS data only, as each quicklook panel would otherwise invert
-    # the other data's WCS (SST3); 'Link helioprojective coordinates' links the others too, their WCS locked
+    # the other data's WCS; 'Link helioprojective coordinates' links the others too, their WCS locked
     sji, raster = sns
     dc = app.data_collection
     lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)
@@ -670,7 +670,7 @@ def test_data_outside_the_iris_observations_link_only_on_request(app, sns):
 
 
 def test_profile_workers_reach_a_linked_map_s_wcs_holding_the_lock(app, qtbot, monkeypatch, sns):
-    # SST1: wcslib is not thread-safe, and a quicklook's spectrum panels compute a region drawn on other linked data
+    # wcslib is not thread-safe, and a quicklook's spectrum panels compute a region drawn on other linked data
     # over the raster on glue-qt's worker threads, as the GUI thread draws that data: each call holds WCS_LOCK
     sji, raster = sns
     # on the worker thread, as glue-qt computes the profiles of data of over 1e7 values, such as a whole raster

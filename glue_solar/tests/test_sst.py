@@ -166,7 +166,7 @@ def _mapped(values):
 
 
 def test_file_open_gives_the_cube_alone_memory_mapped(tmp_path):
-    # SST12: not glue's 33 datasets, the WCSDVARR image and empty ones for the WCS-TAB and VAR-EXT tables; a cube of
+    # not glue's 33 datasets, the WCSDVARR image and empty ones for the WCS-TAB and VAR-EXT tables; a cube of
     # intensities without its Stokes axis of length 1, the VAR-EXT tables as metadata
     path = tmp_path / "nb_6563_scans=0-2_im.fits"
     write_sst_cube(path)
@@ -189,7 +189,7 @@ def test_file_open_gives_the_cube_alone_memory_mapped(tmp_path):
     stokes = sst_data(tmp_path / "stokes.fits")
     assert stokes.shape == (3, 4, 5, 12, 16)
     assert stokes.meta["VAR-EXT"]["DATE-AVG"].shape == (3, 1, 5, 1, 1)
-    assert data.meta["SPECSYS"] == "TOPOCENT"  # SST2: astropy needs one beside OBSGEO
+    assert data.meta["SPECSYS"] == "TOPOCENT"  # astropy needs one beside OBSGEO
     assert describe.role(data) == "sst"
     assert describe.timed(data)  # in the time sync of the SST cubes whose scans lie within a cadence of its own
 
@@ -298,7 +298,7 @@ def _views(monkeypatch):
 
 
 def test_color_limits_sample_evenly_spaced_planes_rows_and_columns(monkeypatch, tmp_path):
-    # SST10: glue's 10,000 random values each lie on another page of the file
+    # glue's 10,000 random values each lie on another page of the file
     write_sst_cube(tmp_path / "cube.fits", (2, 1, 23, 49, 97))
     cube, values = sst_data(tmp_path / "cube.fits"), fits.getdata(tmp_path / "cube.fits")
 
@@ -417,7 +417,7 @@ def test_reads_of_the_file_ask_for_every_page_they_read_first(monkeypatch, tmp_p
 
 @pytest.mark.parametrize("stokes", [1, 4])
 def test_a_dense_view_reads_each_plane_s_band_and_a_sparse_one_the_map_s_pages(monkeypatch, tmp_path, stokes):
-    # GLUE_SPEED.md 2026-10-31: the full virtual slit of a 13 GB cube took 2.2-3.1 s cold over USB through the map's
+    # the full virtual slit of a 13 GB cube took 2.2-3.1 s cold over USB through the map's
     # pages, hinted or not, where reading each tuning plane's band took 0.47 s
     path, banded, hinted = tmp_path / "cube.fits", [], []
     # rows of 6.4 KB, a page or two on either page size, so every row's pages run together as a real cube's 7 KB rows do
@@ -456,7 +456,7 @@ def test_the_time_axis_is_named_scan_time(tmp_path):
 
 
 def test_an_image_viewer_shows_a_cube_without_specsys(app, qtbot, tmp_path):
-    # SST2: astropy refuses an empty SPECSYS beside the observatory's place, and no viewer took the cube
+    # astropy refuses an empty SPECSYS beside the observatory's place, and no viewer took the cube
     path = tmp_path / "cube.fits"
     write_sst_cube(path, drift=(5.0, -3.0))
     data = app.load_data(str(path))  # File → Open Data Set
@@ -490,7 +490,7 @@ def test_glue_s_autolinker_leaves_the_table_s_celestial_axes_whole(tmp_path):
 
 
 def test_a_session_and_the_last_session_restore_a_cube_and_its_viewer(qtbot, monkeypatch, tmp_path):
-    # SST5: glue rebuilt the coordinates from their header alone, without their table ('HDUList is required')
+    # glue rebuilt the coordinates from their header alone, without their table ('HDUList is required')
     monkeypatch.setattr(glue.config, "CFG_DIR", str(tmp_path / ".glue"))  # glue's settings folder, not the user's
     path = tmp_path / "cube.fits"
     write_sst_cube(path, drift=(5.0, -3.0), roll=10.0, prefilters=[range(2), range(2, 5)], core=1)
@@ -890,7 +890,7 @@ def test_q_u_and_v_show_scaled_with_their_noise_level(sst_app, qtbot, tmp_path):
 
 
 def test_a_profile_viewer_adds_a_large_cube_hidden(sst_app, monkeypatch, tmp_path, sns):
-    # SST4: glue profiles a cube added to a Profile viewer on the main thread first, reading the whole file (30 s on obs
+    # glue profiles a cube added to a Profile viewer on the main thread first, reading the whole file (30 s on obs
     # 492 Ca II 8542); one of glue's large-data size or more, here any, that the IRIS reader did not read comes hidden
     cube, values = stokes_cube(tmp_path / "cube.fits")
     _, raster = sns

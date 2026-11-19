@@ -186,7 +186,7 @@ class _Cube(Data):
     An SST cube's dataset, whose sampled statistics of a component held in the file, the color limits of an Image
     layer, its style editor and a Histogram's range, are those of evenly spaced rows and columns of 16 planes, as many
     values as glue samples: glue's 10,000 random values each lie on another page of the file, 0.7 GB read cold and
-    0.04 s warm per statistic (SST10), where these lie on a few hundred. Plane k, from 0 to 15, is at the k-th of 16
+    0.04 s warm per statistic, where these lie on a few hundred. Plane k, from 0 to 15, is at the k-th of 16
     evenly spaced tunings, Stokes parameter k modulo their number and the (7k mod 16)-th of 16 evenly spaced scans, so
     every part of the line counts whatever the number of scans; a cube of 16 planes or fewer gives them all. A
     session keeps the class, and reads the ``VAR-EXT`` tables of ``meta`` from the file again.
@@ -283,8 +283,8 @@ class _Cube(Data):
         ``values[view]`` read as one plain read of the rows' band per plane, through astropy's ``section`` of the file,
         where the view is dense: each index along an axis of its own and the bands no more than twice the pages the
         map's read would touch. Faulting a memory-mapped file's pages one at a time, hinted or not, took 2.2 to 3.1 s
-        cold for the full virtual slit of a 13 GB cube over USB where reading each plane's band took 0.47 s
-        (GLUE_SPEED.md, 2026-10-31). None for a sparse view, which the hints serve, or a cube of no file.
+        cold for the full virtual slit of a 13 GB cube over USB where reading each plane's band took 0.47 s.
+        None for a sparse view, which the hints serve, or a cube of no file.
         """
         log = getattr(self, "_load_log", None)
         axes = [k - index.ndim for index in small for k, n in enumerate(index.shape) if n > 1]
