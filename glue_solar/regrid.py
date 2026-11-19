@@ -21,6 +21,7 @@ from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper, SlicedLowLevelWCS
 
 from glue_solar import describe
 from glue_solar.glue_patches import _application, layer_action
+from glue_solar.sources import analysis
 from glue_solar.sources.loaders.iris import (
     _SJI_POINTING,
     MISSING_VALUES,
@@ -34,7 +35,6 @@ from glue_solar.sources.loaders.iris import (
     keep_hpc_linked,
 )
 from glue_solar.sources.loaders.lazy import RawComponent, RawStack
-from glue_solar.sources.moments import SLAB, _accepted, _form, _start
 
 __all__ = ["north_up", "north_up_iris", "rebin", "rebin_iris", "regrid_iris", "regrid_on_time"]
 
@@ -326,7 +326,9 @@ def rebin(data, bins):
     # slabs of whole bins along the first axis, or a stack's raster steps, a bin of scans at a time
     axis, cid = data.ndim - 3, data.main_components[0]
     end = covered[axis].stop
-    rows = bins[axis] * max(1, SLAB // (math.prod(bins[: axis + 1]) * math.prod(p.stop for p in covered[axis + 1 :])))
+    rows = bins[axis] * max(
+        1, analysis.SLAB // (math.prod(bins[: axis + 1]) * math.prod(p.stop for p in covered[axis + 1 :]))
+    )
     groups = [(slice(scan, scan + bins[0]),) for scan in range(0, covered[0].stop, bins[0])] if axis else [()]
     values = []
     for group in groups:
@@ -366,7 +368,7 @@ def _ask(data):
     The pixels per bin typed for each axis of ``data``, at first 2 along its last two axes but wavelength, the map or
     image, and 1 along the others; or None for Cancel.
     """
-    dialog, form = _form(f"Rebin {data.label}")
+    dialog, form = analysis.form(f"Rebin {data.label}")
     image = sorted(set(range(data.ndim)) - describe.spectral_axes(data))[-2:]
     boxes = []
     for axis, (cid, length) in enumerate(zip(data.world_component_ids, data.shape)):
@@ -374,7 +376,7 @@ def _ask(data):
         box.setValue(2 if axis in image else 1)
         form.addRow(f"{cid.label} ({length} pixels):", box)
         boxes.append(box)
-    return tuple(box.value() for box in boxes) if _accepted(dialog, form) else None
+    return tuple(box.value() for box in boxes) if analysis.accepted(dialog, form) else None
 
 
 @layer_action(
@@ -386,8 +388,8 @@ def _ask(data):
 )
 @messagebox_on_error("Could not rebin")
 def rebin_iris(data, data_collection):
-    """Add ``data`` binned by the pixels typed for each axis (`rebin`), in the background (`_start`)."""
+    """Add ``data`` binned by the pixels typed for each axis (`rebin`), in the background (`analysis.start`)."""
     _check(data)  # before asking
     bins = _ask(data)
     if bins is not None:
-        _start(data_collection, f"Rebinning {data.label}…", "Could not rebin", rebin, data, bins)
+        analysis.start(data_collection, f"Rebinning {data.label}…", "Could not rebin", rebin, data, bins)

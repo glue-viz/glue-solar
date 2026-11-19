@@ -28,7 +28,7 @@ from astropy.modeling import models
 
 from glue_solar import describe
 from glue_solar.fitters import GaussianConstantFitter, _component
-from glue_solar.sources import fit_maps, moments
+from glue_solar.sources import analysis, fit_maps
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import WCS_LOCK, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.tests.helpers import add_component, click, fit_settings
@@ -469,11 +469,11 @@ def test_a_stack_s_scans_are_fitted_together_a_chunk_a_task(app, qtbot, monkeypa
     assert (call["data"].shape[:3], call["fitting_axes"]) == (stack.shape[:3], 3)
     assert call["scheduler"].keywords["chunksize"] == 1
     crop = slice(0, call["data"].shape[3])
-    assert moments._slab_rows(stack, crop, scans=True) == [(slice(0, 3), slice(None), slice(None))]
+    assert analysis.slab_rows(stack, crop, scans=True) == [(slice(0, 3), slice(None), slice(None))]
     steps = stack.shape[1]
-    monkeypatch.setattr(moments, "SLAB", steps * stack.shape[2] * crop.stop)  # a scan a slab: each alone again
+    monkeypatch.setattr(analysis, "SLAB", steps * stack.shape[2] * crop.stop)  # a scan a slab: each alone again
     alone = [(scan, slice(0, steps), slice(None)) for scan in range(3)]
-    assert moments._slab_rows(stack, crop, scans=True) == moments._slab_rows(stack, crop) == alone
+    assert analysis.slab_rows(stack, crop, scans=True) == analysis.slab_rows(stack, crop) == alone
     [pool] = {call["scheduler"].keywords["pool"] for call in calls}  # one for the run
     with pytest.raises(RuntimeError, match="after shutdown"):
         pool.submit(int)
@@ -496,7 +496,7 @@ def test_a_window_is_fitted_slab_by_slab(app, qtbot, monkeypatch, scan_path, cal
     progresses, fit_maps_ = [], fit_maps._fit_maps
     monkeypatch.setattr(fit_maps, "_fit_maps", lambda *args: progresses.append(args[-1]) or fit_maps_(*args))
     _, slit, samples = calls[0]["data"].shape
-    monkeypatch.setattr(moments, "SLAB", 3 * slit * samples)  # steps 0-2, 3-5 and 6-7
+    monkeypatch.setattr(analysis, "SLAB", 3 * slit * samples)  # steps 0-2, 3-5 and 6-7
     slabs = run(app, qtbot, tools)
     assert [call["data"].shape[0] for call in calls[1:]] == [3, 3, 2]
     assert len({call["scheduler"].keywords["pool"] for call in calls[1:]}) == 1  # one for the run

@@ -16,7 +16,7 @@ from astropy import constants
 from glue_solar import describe
 from glue_solar.conftest import find_irispy_test_file, int16_copy
 from glue_solar.quicklook import quicklook
-from glue_solar.sources import doppler
+from glue_solar.sources import analysis
 from glue_solar.sources.doppler import doppler_image
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
@@ -207,7 +207,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
         answer(monkeypatch, rest)
         action.trigger()
     # and an error on the thread
-    monkeypatch.setattr(doppler, "_read", Mock(side_effect=RuntimeError("unreadable")))
+    monkeypatch.setattr(analysis, "read", Mock(side_effect=RuntimeError("unreadable")))
     answer(monkeypatch, "1402.77")
     action.trigger()
     qtbot.waitUntil(lambda: len(shown) == 6 and not iris._RUNNING)

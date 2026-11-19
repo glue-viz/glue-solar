@@ -26,6 +26,7 @@ from glue_solar import describe
 from glue_solar.glue_patches import _application, export_fits, layer_action
 from glue_solar.quicklook import _pick_sjis, _pick_windows, coordinator, quicklook
 from glue_solar.regrid import _NorthUp
+from glue_solar.sources import analysis
 from glue_solar.sources.bursts import _shift_events
 from glue_solar.sources.dkist import DKISTData
 from glue_solar.sources.loaders.iris import (
@@ -37,7 +38,6 @@ from glue_solar.sources.loaders.iris import (
     last_directory,
 )
 from glue_solar.sources.loaders.scan import _is_supported_file, _primary_header, strip_pooch
-from glue_solar.sources.moments import _accepted
 
 __all__ = [
     "browse_iris",
@@ -197,7 +197,7 @@ def _ask_offset(data, chosen):
         box.setValue(value)
         form.addRow(label, box)
         boxes.append(box)
-    return tuple(box.value() for box in boxes) if _accepted(dialog, form) else None
+    return tuple(box.value() for box in boxes) if analysis.accepted(dialog, form) else None
 
 
 def _source(data, data_collection):

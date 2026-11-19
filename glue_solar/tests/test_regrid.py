@@ -16,7 +16,7 @@ from scipy.interpolate import make_interp_spline
 
 from astropy.io import fits
 
-from glue_solar import describe, regrid
+from glue_solar import describe
 from glue_solar.conftest import (
     OBS_A,
     SCAN,
@@ -29,6 +29,7 @@ from glue_solar.conftest import (
 )
 from glue_solar.quicklook import quicklook
 from glue_solar.regrid import north_up, north_up_iris, rebin, regrid_on_time
+from glue_solar.sources import analysis
 from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import _SJI_POINTING, image_data, keep_hpc_linked, link_hpc, raster_data
@@ -416,7 +417,7 @@ def test_rebin_takes_each_bins_mean_of_its_values_and_keeps_the_finite_mean(
     bin left out, and a step of 0 s; 2 frames by 3 by 3 pixels of 3620258102's SJI 1400; or 2 scans by 3 steps by 4
     wavelengths of a stack of 3860258481's scans, its first again last; a bin's rows a slab.
     """
-    monkeypatch.setattr(regrid, "SLAB", 1)
+    monkeypatch.setattr(analysis, "SLAB", 1)
     if kind == "raster":
         path = int16_raster_copy(find_irispy_test_file(irispy_test_files, SCAN), tmp_path / SCAN)
         [data] = raster_data([zero_exposure(path, 4)], ["Si IV 1403"])

@@ -20,8 +20,8 @@ from astropy import constants
 from glue_solar import describe
 from glue_solar.glue_patches import _application
 from glue_solar.lines import DopplerConverter, rest_wavelength
+from glue_solar.sources import analysis
 from glue_solar.sources.loaders.iris import _RUNNING
-from glue_solar.sources.moments import _check, _cube, _dataset, _read, _slab_rows, _start, _unit, _window
 
 
 class _Canceled(Exception):
@@ -118,7 +118,7 @@ def _viewer_fit(tools):
             "first."
         )
     data, model = max(fits, key=lambda fit: fit[1].meta["fitted"])
-    _check(data)
+    analysis.check(data)
     return data, model
 
 
@@ -152,16 +152,16 @@ def _last_fit(data, model):
     if rest is None:
         raise ValueError(f"{data.label} has no rest wavelength: set one with 'Set rest wavelength…'.")
     low, high = np.multiply(meta["x_range"], scale) + shift
-    crop, _ = _window(data, (low, high), f"the range of the last IRIS fit, {low:.3f} to {high:.3f} Å")
+    crop, _ = analysis.window(data, (low, high), f"the range of the last IRIS fit, {low:.3f} to {high:.3f} Å")
     per_second = meta["attribute"] == rate
     # shortcut: the y unit is the attribute's own, glue's only choice for IRIS data; convert as x where it has others
-    return model, crop, _unit(data, per_second), per_second, rest
+    return model, crop, analysis.unit(data, per_second), per_second, rest
 
 
 def _fit_maps(data, model, crop, unit, per_second, rest, progress):
     """
     ``model`` fitted from irispy's ``starts_from_model`` to every spectrum of ``data`` at ``crop``, in ``unit``, a slab
-    of steps, or of a stack's whole scans, at a time (`~glue_solar.sources.moments._slab_rows`), on dask's processes, and irispy's ``maps_from_fit``
+    of steps, or of a stack's whole scans, at a time (`~glue_solar.sources.analysis.slab_rows`), on dask's processes, and irispy's ``maps_from_fit``
     of it about ``rest``, without the residual cube: a dataset of its maps, with ``<name> error`` where irispy gives one,
     or None once ``progress`` is canceled; on any thread.
     """
@@ -181,9 +181,9 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
     try:
         # a slab at a time, as the moments: a whole scan's starts, fits and maps took 4 GB on a Si IV window; a stack's
         # scans together where a slab holds several, as a call of one small scan has too few chunks for the processes
-        for rows in _slab_rows(data, crop, scans=True):
-            values, _, saturated = _read(data, rows, crop, per_second)
-            cube = _cube(data, values, rows, crop, unit, saturated)
+        for rows in analysis.slab_rows(data, crop, scans=True):
+            values, _, saturated = analysis.read(data, rows, crop, per_second)
+            cube = analysis.cube(data, values, rows, crop, unit, saturated)
             # masked samples, missing or saturated, a lower bound only (D87), left out as NaN by filter_non_finite
             spectra = np.where(cube.mask, np.nan, values)
             fitter = TRFLSQFitter(calc_uncertainties=True)
@@ -217,7 +217,7 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
         progress.ended = True
     if progress.canceled:
         return None
-    fit = _dataset(data, f"{data.label} fit {rest}")
+    fit = analysis.dataset(data, f"{data.label} fit {rest}")
     fit.meta.update(fit_rest_wavelength=rest, fit_range=(float(wavelengths[0]), float(wavelengths[-1])))
     # each line's maps first, as glue shows a dataset's first, then irispy's quality, then the parameters
     for name in sorted(maps, key=lambda name: name in model.param_names):
@@ -248,14 +248,14 @@ def _check_running(data):
 @messagebox_on_error("Could not fit the line maps")
 def _fit_every_spectrum(tools, *_):
     """
-    Add `_fit_maps` of the last IRIS fit on ``tools`` (`_viewer_fit`), fitted in the background (`_start`) while a
-    progress dialog shows the tasks done, its Cancel stopping the run.
+    Add `_fit_maps` of the last IRIS fit on ``tools`` (`_viewer_fit`), fitted in the background (`analysis.start`) while
+    a progress dialog shows the tasks done, its Cancel stopping the run.
     """
     data, model = _viewer_fit(tools)
     _check_running(data)
     model, crop, unit, per_second, rest = _last_fit(data, model)
     data_collection = tools.viewer.session.data_collection
-    progress = _Progress(len(_slab_rows(data, crop, scans=True)))
+    progress = _Progress(len(analysis.slab_rows(data, crop, scans=True)))
     text = f"Fitting every spectrum of {data.label}…"
     dialog = QtWidgets.QProgressDialog(text, "Cancel", 0, 0, _application(data_collection))
     dialog.canceled.connect(progress.cancel)
@@ -264,7 +264,9 @@ def _fit_every_spectrum(tools, *_):
     timer.start()
     dialog.show()  # at once
     title = "Could not fit the line maps"
-    _start(data_collection, text, title, _fit_maps, data, model, crop, unit, per_second, rest, progress, view=True)
+    analysis.start(
+        data_collection, text, title, _fit_maps, data, model, crop, unit, per_second, rest, progress, view=True
+    )
 
 
 def _refresh(tools):

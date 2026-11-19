@@ -19,8 +19,8 @@ from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
 from glue_solar import describe
 from glue_solar.glue_patches import layer_action
+from glue_solar.sources import analysis
 from glue_solar.sources.loaders.iris import WCS_LOCK, _add_time, _GlueWCS, _irispy_meta
-from glue_solar.sources.moments import _accepted, _check, _dataset, _form, _start
 
 __all__ = ["bursts_iris", "si_iv_bursts", "sji_bursts"]
 
@@ -42,7 +42,7 @@ def _is_sji(data):
         return True
     if describe.role(data) != "raster":
         raise ValueError(f"{data.label} is not an IRIS raster window or slit-jaw image.")
-    _check(data)
+    analysis.check(data)
     return False
 
 
@@ -134,7 +134,7 @@ def _si_iv_bursts(data, crop, threshold, velocity_range, median_factor):
         events["label"] += count
         events["raster"] = k
         tables.append(events)
-    maps = _dataset(data, f"{data.label} bursts")
+    maps = analysis.dataset(data, f"{data.label} bursts")
     maps.meta.update(
         bursts_threshold=float(tables[0].meta["threshold"].value),  # every scan's, at a stack's first date
         bursts_velocity_range=velocity_range,
@@ -232,7 +232,7 @@ def sji_bursts(data, sigma_factor=SIGMA_FACTOR, min_pixels=MIN_PIXELS):
 
 def _ask(data, sji):
     """irispy's parameters typed for ``data``, a slit-jaw image's if ``sji``, by name; or None for Cancel."""
-    dialog, form = _form(f"IRIS: UV bursts in {data.label}")
+    dialog, form = analysis.form(f"IRIS: UV bursts in {data.label}")
     if sji:
         sigma = QtWidgets.QDoubleSpinBox(objectName="sigma_factor", decimals=1, maximum=1000)
         sigma.setValue(SIGMA_FACTOR)
@@ -240,7 +240,9 @@ def _ask(data, sji):
         pixels = QtWidgets.QSpinBox(objectName="min_pixels", minimum=1, maximum=10**6)
         pixels.setValue(MIN_PIXELS)
         form.addRow("Fewest pixels of a burst:", pixels)
-        return {"sigma_factor": sigma.value(), "min_pixels": pixels.value()} if _accepted(dialog, form) else None
+        return (
+            {"sigma_factor": sigma.value(), "min_pixels": pixels.value()} if analysis.accepted(dialog, form) else None
+        )
     threshold = QtWidgets.QLineEdit(objectName="threshold", placeholderText="irispy's, from the effective area")
     form.addRow("Threshold [DN / s, summed by 2]:", threshold)
     velocity = QtWidgets.QDoubleSpinBox(objectName="velocity_range", decimals=1, maximum=1000, suffix=" km / s")
@@ -250,7 +252,7 @@ def _ask(data, sji):
     median = QtWidgets.QDoubleSpinBox(objectName="median_factor", decimals=1, maximum=1000, specialValueText="off")
     median.setValue(MEDIAN_FACTOR)
     form.addRow("Particle-hit test, times the median:", median)
-    if not _accepted(dialog, form):
+    if not analysis.accepted(dialog, form):
         return None
     text = threshold.text().strip()
     try:
@@ -275,14 +277,19 @@ def _found(datasets):
 )
 @messagebox_on_error("Could not detect UV bursts")
 def bursts_iris(data, data_collection):
-    """Add the `si_iv_bursts` or `sji_bursts` of ``data`` for the values typed (`_ask`), in the background (`_start`)."""
+    """
+    Add the `si_iv_bursts` or `sji_bursts` of ``data`` for the values typed (`_ask`), in the background
+    (`analysis.start`).
+    """
     sji = _check_bursts(data)  # before asking
     parameters = _ask(data, sji)
     if parameters is None:
         return
     text, title = f"Detecting UV bursts in {data.label}…", "Could not detect UV bursts"
     if sji:
-        _start(data_collection, text, title, sji_bursts, data, *parameters.values(), said=_found, view=True)
+        analysis.start(data_collection, text, title, sji_bursts, data, *parameters.values(), said=_found, view=True)
     else:
         crop = _crop(data, parameters["velocity_range"])
-        _start(data_collection, text, title, _si_iv_bursts, data, crop, *parameters.values(), said=_found, view=True)
+        analysis.start(
+            data_collection, text, title, _si_iv_bursts, data, crop, *parameters.values(), said=_found, view=True
+        )

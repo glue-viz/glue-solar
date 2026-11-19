@@ -96,11 +96,11 @@ from glue_solar.quicklook import (
     _world_text,
     coordinator,
 )
+from glue_solar.sources import analysis
 from glue_solar.sources.dkist import DKISTData, _frame_axis, _held_axes, _slit, _SlitPlace, _time_axes
 from glue_solar.sources.iris import _write_ecsv
 from glue_solar.sources.loaders.iris import _HPC, _axes_of, _GlueWCS
 from glue_solar.sources.loaders.stack_spectrograms import _PerScanWCS
-from glue_solar.sources.moments import _accepted, _start
 
 _WATCHED = ("reference_data", "x_att", "y_att", "slices")
 # glue sets both axis labels whenever it resets the WCSAxes, which also drops their tick settings
@@ -1136,7 +1136,7 @@ class DKISTFootprintsTool(Tool, HubListener):
         for tick, group in zip(ticks, groups):
             tick.setChecked(not self.shown or group[0] in self.shown)  # all at first
             form.addRow(tick)
-        if _accepted(dialog, form):
+        if analysis.accepted(dialog, form):
             self.shown = [data for group, tick in zip(groups, ticks) if tick.isChecked() for data in group]
             self._draw()
 
@@ -1741,7 +1741,7 @@ def _reuse_path(viewer):
     ticks = [QtWidgets.QCheckBox(data.label) for data, _ in offered]
     for tick in ticks:
         form.addRow(tick)
-    if not _accepted(dialog, form):
+    if not analysis.accepted(dialog, form):
         return
     ticked = [placed for placed, tick in zip(offered, ticks, strict=True) if tick.isChecked()]
     for diagram in _diagrams(collection, ticked):
@@ -2201,7 +2201,7 @@ def _ask_range(viewer, title, slider, *rows):
     form.addRow(f"First and last index (0–{last}), or ±N around {current}:", line)
     for row in rows:
         form.addRow(*row)
-    if not _accepted(dialog, form):
+    if not analysis.accepted(dialog, form):
         return None
     text = line.text()
     try:
@@ -2347,7 +2347,9 @@ class SaveSequenceTool(Tool):
             timer.stop()
             if writer is not None:
                 text = f"Saving {os.path.basename(writer.outfile)}…"
-                _start(viewer._data, text, "Could not save the frames or movie", writer.finish, add=lambda _: None)
+                analysis.start(
+                    viewer._data, text, "Could not save the frames or movie", writer.finish, add=lambda _: None
+                )
             progress.deleteLater()
             for widget in held:
                 widget.setEnabled(True)

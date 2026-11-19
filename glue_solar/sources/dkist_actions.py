@@ -22,6 +22,7 @@ from astropy.coordinates import StokesCoord
 from glue_solar import describe
 from glue_solar.glue_patches import _application, layer_action
 from glue_solar.quicklook import PERCENTILE, coordinator
+from glue_solar.sources import analysis
 from glue_solar.sources.dkist import (
     _ARRIVING,
     _frame_axis,
@@ -34,7 +35,6 @@ from glue_solar.sources.dkist import (
     _transfer,
 )
 from glue_solar.sources.loaders.iris import keep_hpc_linked
-from glue_solar.sources.moments import _accepted, _form, _start, _view
 
 __all__ = ["download_dkist", "frame_quality_dkist", "mosaic_dkist"]
 
@@ -68,7 +68,7 @@ def _add_mosaic(data_collection, tiles, at, image):
     data_collection.append(image)
     data_collection.add_link(_mosaic_links(image, tiles, at))
     keep_hpc_linked(data_collection, others=[*tiles, image])
-    viewer = _view(data_collection, image)
+    viewer = analysis.view(data_collection, image)
     if viewer is not None:  # its window open still
         viewer.state.layers[0].percentile = PERCENTILE
 
@@ -92,7 +92,7 @@ def mosaic_dkist(data, data_collection):
     at = _slice_shown(tiles, data_collection)
     text = f"Reprojecting the tiles of {data.label.rsplit(' (', 1)[0]}…"
     add = partial(_add_mosaic, data_collection, tiles, at)
-    _start(data_collection, text, "Could not make the mosaic", _mosaic_image, tiles, at, add=add)
+    analysis.start(data_collection, text, "Could not make the mosaic", _mosaic_image, tiles, at, add=add)
 
 
 def _check_frames(data):
@@ -330,7 +330,7 @@ def _ask_download(tiles, at):
     are missing and their size (`_download_summary`) as they change; None for Cancel.
     """
     data = tiles[0]
-    dialog, form = _form(f"Download frames of {data.label.rsplit(' (', 1)[0]}")
+    dialog, form = analysis.form(f"Download frames of {data.label.rsplit(' (', 1)[0]}")
     frame, wcs, boxes, summary = _frame_axis(data), data.coords, {}, QtWidgets.QLabel(objectName="summary")
 
     def index():
@@ -366,7 +366,7 @@ def _ask_download(tiles, at):
     form.addRow("Into:", QtWidgets.QLabel(str(data._dataset.files.basepath)))
     form.addRow(summary)
     update()
-    return index() if _accepted(dialog, form) else None
+    return index() if analysis.accepted(dialog, form) else None
 
 
 def _watch_download(data_collection, label, pending):
@@ -475,4 +475,4 @@ def download_dkist(data, data_collection):
 
     add = partial(_watch_download, data_collection, label)
     text = f"{label}: starting the Globus transfer of {len(pending)} files…"
-    _start(data_collection, text, "Could not start the download", send, add=add)
+    analysis.start(data_collection, text, "Could not start the download", send, add=add)
