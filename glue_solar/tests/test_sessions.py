@@ -467,7 +467,10 @@ def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_mo
     assert not any(record["_type"].endswith("_GlueWCS") for record in records.values())
     meta = [records[data.label]["meta"]["contents"] for data in dialog.datasets]
     assert meta == [{"st__rest_wavelength": 2796.35}, {}, {}, {}]
-    (tmp_path / "first").rename(tmp_path / "moved")
+    try:
+        (tmp_path / "first").rename(tmp_path / "moved")
+    except PermissionError:  # Windows moves no folder whose files are in use, as the datasets' are: a copy in its place
+        shutil.copytree(tmp_path / "first", tmp_path / "moved")
     restored = restore(qtbot, monkeypatch, tmp_path / "moved" / "session.glu")
     for data, expected in zip(restored.data_collection, dialog.datasets, strict=True):
         assert data.label == expected.label
@@ -749,7 +752,11 @@ def test_two_restored_quicklooks_are_laid_out_as_they_were(app, qtbot, monkeypat
 
     for tab in (1, 2):  # the first laid out only as it is shown
         expected = layout(app, tab)
-        qtbot.waitUntil(lambda: layout(restored, tab) == expected)
+
+        def as_saved(tab=tab, expected=expected):  # an assertion, so that a wait that ends shows what differs
+            assert layout(restored, tab) == expected
+
+        qtbot.waitUntil(as_saved)
 
 
 def test_a_restored_quicklook_marks_its_master_exposure_again(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
