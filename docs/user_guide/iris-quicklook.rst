@@ -285,12 +285,40 @@ A saved session opens each quicklook again: for what it keeps, see :ref:`Saving 
 Other spectral cubes
 --------------------
 
+.. _glue_solar_users_guide_sst_quicklook:
+
+The quicklook of an SST cube (see :ref:`glue_solar_users_guide_loading_sst_cubes`) opens from the
+browser, or with "Quicklook…" in the cube's right-click menu, in a tab named after its line, such
+as "SST Ca II 8542". Its panels are in three rows:
+
+- the map at the line core, the tuning nearest the cube's line; a second map at the first tuning,
+  the blue wing; and the virtual slit, wavelength against y at the point's x;
+- the spectra at the point of Stokes I, Q, U and V;
+- wavelength against scan at the point, and the light curve at the point, against "Scan Time", the
+  scans' time in s since the cube's ``DATEREF``, which also names the scan slider.
+
+Both maps open zoomed to the field, without a mosaic's NaN border. The second map opens with
+"Per-frame limits" on, as the whole cube's limits wash the brighter wing out.
+
+The point, clicks and keys work as in the IRIS quicklook, and the scan and Stokes sliders of either
+map move the other panels. Cubes with overlapping scan times, such as the CRISP and CHROMIS cubes of
+one morning, share one time. Once linked (see :ref:`Linking <glue_solar_users_guide_iris_linking>`),
+a point on one cube moves the points of the other cubes that share its time to the same place on
+the Sun, each at its own scan and tuning, while Coordinate → Point → "Link points across cubes" is
+on, as it is at first; IRIS data's points stay. Another such cube's quicklook opens with its point
+at that place, or at its map's center if the place is off the cube.
+
+Q, U and V show scaled with their noise level, their standard deviation at the continuum: their
+maps' limits are ±5 times it for Q and U and ±10 times for V, and their spectra span at least as
+much, with the noise level shaded about 0. View → "Per-frame limits" gives each frame its own limits
+instead; on the second map it changes I's only.
+
 A cube of another instrument, such as a FITS file glue's own reader opens, has a quicklook when it
 has one wavelength axis and two axes of position, besides any time and Stokes axes. Choose
-"Quicklook…" in its right-click menu. Its panels are those of the SST quicklook (see
-:ref:`glue_solar_users_guide_loading_sst_cubes`) without the second map. A DKIST spectrograph
-raster's has no wavelength against time or light curve, its time running along its steps, and shows
-its context imager too, if loaded (see :ref:`glue_solar_users_guide_loading_dkist_datasets`).
+"Quicklook…" in its right-click menu. Its panels are those of the SST quicklook without the second
+map. A DKIST spectrograph raster's has no wavelength against time or light curve, its time running
+along its steps, and shows its context imager too, if loaded (see
+:ref:`glue_solar_users_guide_loading_dkist_datasets`).
 
 For CRISPEX users
 -----------------
