@@ -67,13 +67,11 @@ def red_blue_asymmetry(data, rest, wavelengths=WAVELENGTHS, velocities=VELOCITIE
     its wavelengths within ``wavelengths`` of ``rest``, as one dataset on the window's scans, raster steps and slit
     pixels, each scan's as that scan alone gives them, at its own coordinates.
 
-    irispy is given the window's ``<label> DN / s`` where it has one, else its values, NaN, -Inf and negative samples
-    left out. For each pixel it interpolates the profile about its peak every ``step`` and divides the mean red wing,
-    from ``velocities[0]`` to ``velocities[1]`` above the peak, less the mean blue wing, as far below it, by the peak.
-    Its components are irispy's: ``red_blue_asymmetry``, NaN where it is not computed, and ``quality``, an
-    `~irispy.utils.red_blue.RBAQualityFlag` code, 0 where it is; a pixel with a saturated sample taken, as the window's
-    mask marks the Level 2 ceiling, 16182 DN, is flagged saturated. ``meta`` holds the observation's ``OBSID`` and
-    ``STARTOBS``, ``red_blue_rest``, ``red_blue_wavelengths``, ``red_blue_velocities`` and ``red_blue_step``.
+    How it is computed is in :ref:`Line maps <glue_solar_users_guide_iris_line_moments>`. Its components are irispy's:
+    ``red_blue_asymmetry``, NaN where it is not computed, and ``quality``, an `~irispy.utils.red_blue.RBAQualityFlag`
+    code, 0 where it is; a pixel with a saturated sample taken is flagged saturated. ``meta`` holds the observation's
+    ``OBSID`` and ``STARTOBS``, ``red_blue_rest``, ``red_blue_wavelengths``, ``red_blue_velocities`` and
+    ``red_blue_step``.
 
     Parameters
     ----------

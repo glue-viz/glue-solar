@@ -1739,27 +1739,10 @@ def quicklook(app, datasets, window=None, main=None):
     """
     Open the IRIS quicklook of one observation in a new tab.
 
-    A raster (or a stack of scans) opens as a map, a spectrogram and a wavelength panel (wavelength
-    against step, exposure or scan), each slit-jaw channel in its own viewer, and a spectrum panel
-    showing the mean spectrum of the point. The point starts at the center of the map, in a new
-    subset group 'Point' that is the edit subset while the tab is shown, with the Pixel tool active
-    on the map. A read-only 'Point' window below the panels gives the point's pixel, position, time,
-    exposure, value and time sync in each dataset they show, and the 'Panels' list beside it turns each
-    panel on and off. The Image panels open without axes, which 'Hide axes' shows on all. Lines on the
-    spectrogram, the wavelength panel and the spectrum panel mark the point, the map's wavelength and
-    the time master's time, and a zoom on the spectrum panel is the wavelength panel's too. Clicks and keys wait
-    until it is open.
-
-    Of an SST CRISP or CHROMIS cube, or a cube of neither instrument with one wavelength axis and two spatial axes,
-    alone in ``datasets``, it opens that cube's quicklook instead, one cube to a tab, whose panels follow the point,
-    and an SST cube's the time, as the IRIS quicklook's do. A ViSP or Cryo-NIRSP spectrograph dataset's shows the
-    context imager observed with it too, if loaded, as the slit-jaw images.
-
-    Each other window named in ``window`` gets an unticked box in the Panels list, which adds the spectrum of the point
-    and, on a sit-and-stare raster or a stack, its own wavelength panel (λ–time or λ–scan), to a row below once ticked.
-    Its scan, step or exposure, and slit pixels are linked to the shown window's with
-    `~glue.core.link_helpers.LinkSame`, so the point is the same pixel in every window. Its spectrum panel's 'Show
-    this window's panels' makes it the main window.
+    A lone SST cube in ``datasets``, or other cube of one wavelength axis and two spatial axes, opens that cube's
+    quicklook instead. The pixels of each other window named in ``window`` are linked to the main window's, wavelength
+    aside, with `~glue.core.link_helpers.LinkSame`. Clicks and keys wait until it is open. See
+    :ref:`Quicklook <glue_solar_users_guide_iris_quicklook>` for the panels.
 
     Parameters
     ----------

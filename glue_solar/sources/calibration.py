@@ -57,12 +57,9 @@ def remove_dust(data):
     coordinates, at its pointing offset, which it follows, with its ``Time``, ``Exposure time``, ``<label> DN / s``
     and ``meta``, ``meta['dust_removed']`` added, which data made from it keep.
 
-    irispy's ``remove_dust`` is given the scaled values, NaN and saturated ones masked, with each frame's exposure time
-    and slit position. It takes the dust from the IRIS pipeline's bad-pixel table of the channel, placed in each
-    frame by its slit position, and the pixels about it, and puts in the median of those pixels over the 2 frames on
-    either side, scaled by the exposure times, else of the 5 by 5 pixels about it; dust it cannot replace is NaN, and
-    saturated samples keep their value unless they neighbour dust, which irispy replaces like any neighbour. The values
-    are float32, as the loader's.
+    irispy's ``remove_dust`` replaces the dust as :ref:`Removing dust <glue_solar_users_guide_iris_calibration>`
+    describes; dust it cannot replace is NaN, and saturated samples keep their value unless they neighbour dust. The
+    values are float32, as the loader's.
 
     Raises
     ------

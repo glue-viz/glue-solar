@@ -111,11 +111,9 @@ def _check(tool):
 @viewer_tool
 class LineTool(Tool):
     """
-    Label the main lines (`lines_of`) on a Profile viewer whose x axis is the wavelength of its data: a thin
-    marker at each line within the plotted range and its name at the top, in the axis's display unit, less the main
-    lines unticked in 'Lines in this range…' (``hidden``) and with the lines ticked there (``labeled``). Lines too
-    close to tell apart at the plotted range share one label; a label that would overlap another goes below it. The
-    button, checked while they show, switches them off and on; they start on.
+    The 'Main lines' button of a Profile viewer plotted against wavelength: it marks and names the main lines
+    (`lines_of`) in the plotted range, less those in ``hidden`` and with those in ``labeled``, which 'Lines in this
+    range…' fills (see :ref:`Viewer tools <glue_solar_users_guide_viewer_tools_and_windows>`).
     """
 
     icon = "glue_spectrum"
@@ -220,10 +218,9 @@ _REGIONS = {"Quiet Sun": "quiet_sun", "Active region": "active_region", "Flare":
 @viewer_tool
 class LinesInRangeTool(Tool):
     """
-    List the lines of irispy's catalog within a Profile viewer's Fit and Collapse range, else its plotted range,
-    strongest first in a region type's model at coronal or photospheric abundances, lines it predicts no strength for
-    after, or on DKIST data and SST cubes the ground-based lines (`lines_of`), each ticked while
-    `LineTool` shows it: a tick labels a line beside the main lines, an untick hides one, a main line too.
+    The 'Lines in this range…' button of a Profile viewer: it lists the lines within the Fit and Collapse range, else
+    the plotted range, each ticked while `LineTool` labels it (see
+    :ref:`Viewer tools <glue_solar_users_guide_viewer_tools_and_windows>`).
     """
 
     #: :meta hide-value:
@@ -369,11 +366,9 @@ class DopplerConverter(SimpleAstropyUnitConverter):
 @viewer_tool
 class VelocityTool(Tool, HubListener):
     """
-    A top axis of the Doppler velocity, as the x unit 'km / s' gives it (`DopplerConverter`), on a Profile viewer
-    whose x axis is the wavelength of data with a `rest_wavelength`, in a length unit. It follows the x range and unit
-    and glue's x label and tick sizes. 'Set rest wavelength…' moves it and, in every Profile viewer of the data,
-    offers 'km / s' or not and redraws the profiles in it. The button, checked while it is on and grayed without a rest
-    wavelength, switches the axis off and on; it starts off. It also gives glue's axes their units.
+    The 'Velocity axis' button of a Profile viewer: a top axis of the Doppler velocity (`DopplerConverter`) from the
+    `rest_wavelength` of its data, while its x axis is their wavelength in a length unit; it also gives glue's axes
+    their units (see :ref:`Viewer tools <glue_solar_users_guide_viewer_tools_and_windows>`).
     """
 
     #: :meta hide-value:
