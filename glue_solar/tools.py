@@ -2967,6 +2967,6 @@ class ViewTool(_ToolMenu):
     icon = "glue_settings"
     tool_id = "solar:view"
     tool_tip = (
-        "View: frame time, axes, color limits, wavelength band, aspect, zoom, color bar, raster overlays, DKIST "
-        "footprints and cursor readout"
+        "View: frame time, axes, color limits, wavelength band, aspect, color bar, raster overlays, IRIS field of "
+        "view, DKIST footprints and cursor readout"
     )
