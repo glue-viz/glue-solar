@@ -60,7 +60,7 @@ Point window gives the point in the raster and in the tile under it.
          point's crosshair
 
 9. Choose "File → Export Session". It refers to the ASDF and FITS files, but holds the mosaic's
-   values, 632 MB: remove the mosaic first for a session under 1 MB, which glue-solar also keeps as
+   values, 0.66 GB: remove the mosaic first for a session under 1 MB, which glue-solar also keeps as
    the last session as glue quits. "File → Open Session" opens the quicklook again with its point
    and VBI panel.
 

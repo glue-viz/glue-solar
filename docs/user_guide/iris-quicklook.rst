@@ -223,7 +223,8 @@ window without one, such as ``2832``, has neither.
 FUV and NUV drift apart. Measure the offset on a line nearly at rest: O I 1355.5977 Å for the FUV
 windows (C II, Si IV, O I), or Ni I 2799.474 Å in the Mg II k 2796 window for the NUV.
 
-1. Set the panel's function to "Mean" for the whole raster's signal.
+1. Tick the window's own layer, hidden at first, in glue's "Plot Layers" list: at the function "Mean", as the
+   panel opens, it is the whole raster's mean spectrum.
 2. On the "Fit" tab, pick "Gaussian + constant" and drag over the line: about 1355.4 to
    1355.8 Å for O I, or 2799.3 to 2799.65 Å for Ni I. Press "Fit".
 3. Add the offset, the fitted center less the line's rest wavelength, to the rest wavelength of a

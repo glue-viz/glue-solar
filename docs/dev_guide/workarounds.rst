@@ -247,7 +247,7 @@ glue-qt
   glue-qt's data collection leaving the edit subset alone when a dataset is selected (upstream list).
 - **The edit subset kept through a data-tree rebuild** (``quicklook._Application.__setgluestate__``, ``_new_group``,
   the light curves), where glue-qt's rebuild empties it. Always on. Retired by glue-qt keeping the edit subset through
-  a tree rebuild (two parts, about 10 lines; UPSTREAM_REVIEW glue-qt row 46).
+  a tree rebuild (two parts, about 10 lines).
 - **Quicklook panels marked** ``_closed`` **as their window's close box closes them** (``window_closed`` connected in
   ``quicklook._fill``'s ``add``, #360), as glue-qt's ``closeEvent`` leaves ``_closed`` unset. Always on (quicklook
   panels). Retired by glue-qt's ``closeEvent`` setting ``_closed`` (report candidate).
@@ -333,7 +333,7 @@ astropy, WCSLIB, echo, matplotlib and mpl-scatter-density
 
 - ``_GlueWCS`` ``WCS_LOCK`` (#60). Always on (not safely probeable). Retired by astropy #19174's fix, once 8 unlocked
   threads give 0 wrong -TAB values: it corrupts silently, without crashing, 1187 to 1267 of 2400 calls on 8.0.2
-  (comment drafted, ``updrafts/reports/astropy-19174-comment.md`` in the session archive). The lock also guards the
+  (comment drafted). The lock also guards the
   one celestial model a slit-jaw image's gWCS sets and then evaluates at each frame (dkist's
   ``VaryingCelestialTransform``, as in the dkist entry below), which irispy's slit-jaw burst search, on a worker, is
   given a deep copy of (``sji_bursts``). Retiring it needs that model safe across threads too, not astropy's -TAB fix
@@ -428,16 +428,16 @@ dkist
   Always on (DKIST datasets). Retired by dkist evaluating it without changing its shared model (report candidate).
 - **dkist's private** ``_striped_external_array.target`` **read**, the HDU each file's array is in, as the loader
   sets up a dataset's ``_Files`` (``sources/dkist.py``). Always on (DKIST datasets). Retired by ``target`` proxied on
-  ``DKISTFileManager`` (1 line; UPSTREAM_REVIEW dkist row 8).
+  ``DKISTFileManager`` (1 line).
 - **The ASDF path made absolute before** ``dkist.load_dataset`` (``sources/dkist.py``), as a relative
   ``files.basepath`` breaks dkist's reads from another working directory. Always on. Retired by dkist resolving
-  ``files.basepath`` (1 line, on dkist #366; UPSTREAM_REVIEW dkist row 10).
+  ``files.basepath`` (1 line, on dkist #366).
 - **'Download these frames…' sends a DKIST dataset's chosen FITS files alone** through dkist's private
   ``_orchestrate_transfer_task``, their list built as ``FileManager.download`` builds it from the refreshed inventory,
   since ``FileManager.download`` adds the ASDF file, browse movie and quality report to every transfer (``_transfer``,
   ``sources/dkist.py``, #396). Always on (a DKIST download); the fallback, ``FileManager.download`` of each
   sliced dataset, on ImportError, AttributeError or arguments that no longer bind. Retired by ``FileManager.download``
-  sending the FITS files alone (draft ``dkist-fits-only.md`` in the session archive).
+  sending the FITS files alone (drafted).
 - **'Download these frames…' follows its transfer by the files in the folder**, a file whole once its size and mtime
   are unchanged over one 5 s look, read as missing until then (``_ARRIVING`` in ``_section``, ``_watch_download``,
   ``sources/dkist_actions.py``, #396), as neither ``FileManager.download(wait=False)`` nor
@@ -481,4 +481,4 @@ Features and decisions with no upstream route; listed so the overrides are known
 - **A gzipped raster file opened once in memory** for its window headers and irispy's read, where a plain
   ``fits.open`` of the headers and irispy's own read would inflate it twice (``_raster_windows_data``,
   ``_window_scaling(opened=)``, #345, #352; irispy #275's open-file seam). Switch: gzipped raster files, ``LAZY`` on.
-  Kept (UPSTREAM_REVIEW others row 43: a later header of a gzip stream needs the stream inflated up to it).
+  Kept: a later header of a gzip stream needs the stream inflated up to it.
