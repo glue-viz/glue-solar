@@ -446,11 +446,12 @@ def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_mo
     records = json.loads((tmp_path / "first" / "session.glu").read_text())
     logs = [(record["path"], dict(*record["kwargs"])) for record in records.values() if "LoadLog" in record["_type"]]
     files = [f"{stem}_raster_t000_r0000{r}.fits" for r in range(2)]
-    raster = f"data/{MD5}{stem}_raster/{files[0]}"
+    # glue writes each path with the system's separator
+    raster = os.path.join("data", f"{MD5}{stem}_raster", files[0])
     assert sorted(logs, key=str) == sorted(
         [
-            (f"data/{MD5}{stem}_SJI_1400_t000.fits.gz", {}),
-            (f"data/{MD5}{stem}_SDO/{stem.replace('iris', 'aia')}_171.fits", {}),
+            (os.path.join("data", f"{MD5}{stem}_SJI_1400_t000.fits.gz"), {}),
+            (os.path.join("data", f"{MD5}{stem}_SDO", f"{stem.replace('iris', 'aia')}_171.fits"), {}),
             (raster, {"files": files, "windows": ["C II 1336"], "stack": True}),
             (raster, {"files": files, "windows": ["Mg II k 2796"], "stack": True}),
         ],
