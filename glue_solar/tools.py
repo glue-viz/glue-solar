@@ -668,12 +668,17 @@ class PerFrameLimitsTool(Tool):
                 layer.stretch_global = True
 
 
+def _band_mean(values, axis=None):
+    """numpy's ``nanmean`` under a name of `BandTool`'s own, which a session keeps: a slice with it is a band."""
+    return np.nanmean(values, axis=axis)
+
+
 @viewer_tool
 class BandTool(Tool):
     """
     The map as glue's own ``AggregateSlice`` mean over 5, 9 or 15 wavelength pixels about the slider's (#169), made
     again by a ``slices`` validator, as glue-qt 0.4.2 makes it one wavelength at any slider move
-    (``wp0-qt-aggregate-slice``).
+    (``wp0-qt-aggregate-slice``); the width is that of the band the viewer shows, as a session restores it.
     """
 
     icon = _icon("solar_wavelength_band")
@@ -687,6 +692,7 @@ class BandTool(Tool):
         super().__init__(viewer)
         self.width = 1
         viewer.state.add_callback("slices", self._band, validator=True)
+        self._band(viewer.state.slices or ())  # a session's band, in a viewer glue restores with its state
         for prop in _SLIDER_REBUILDS:
             viewer.state.add_callback(prop, self._enable)
         self._enable()
@@ -725,6 +731,9 @@ class BandTool(Tool):
         return set() if data is None or len(slices) != data.ndim else _spectral_axes(data) - _shown(state)
 
     def _band(self, slices):
+        for index in slices:
+            if getattr(index, "function", None) is _band_mean:  # a session keeps the band, not the tool's width
+                self.width = 2 * (index.slice.stop - index.center) - 1
         half = self.width // 2
         if not half:
             return slices
@@ -733,7 +742,7 @@ class BandTool(Tool):
             index = slices[axis]
             if not isinstance(index, AggregateSlice):  # a Collapse stays until a slider moves, as in glue-qt
                 band = slice(max(index - half, 0), index + half + 1)  # glue cuts the stop at the end of the axis
-                slices[axis] = AggregateSlice(band, index, np.nanmean)
+                slices[axis] = AggregateSlice(band, index, _band_mean)
         return tuple(slices)
 
 

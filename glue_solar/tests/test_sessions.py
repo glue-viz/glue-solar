@@ -987,6 +987,26 @@ def test_two_quicklooks_restore_twice_from_their_files(app, qtbot, monkeypatch, 
                     np.testing.assert_allclose(got, expected, rtol=1e-12)
 
 
+# glue averages the band over the NaN fill too, which numpy warns about
+@pytest.mark.filterwarnings("ignore:Mean of empty slice:RuntimeWarning")
+def test_a_restored_wavelength_band_is_on_and_follows_its_slider(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
+    raster, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(app, [raster, sji])
+    app.tab_widget.setCurrentIndex(0)  # and an Image viewer, which glue restores with its state, before its tools
+    plain = app.new_data_viewer(ImageViewer, data=raster)
+    plain.state.x_att = raster.pixel_component_ids[0]
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *args: ("5", True))
+    for viewer in (viewers["map"], plain):
+        viewer.toolbar.tools["solar:band"].activate()  # a band of five wavelengths
+    app.save_session(str(tmp_path / "band.glu"), absolute_paths=False)
+    restored = restore(qtbot, monkeypatch, tmp_path / "band.glu")
+    for viewer in (restored.viewers[-1][0], restored.viewers[0][0]):
+        assert viewer.toolbar.tools["solar:band"].checked  # as the View menu's check mark says
+        slide(viewer, 2, 10)
+        band = viewer.state.slices[2]
+        assert (band.slice, band.center) == (slice(8, 13), 10)
+
+
 def plugin_action(app, label):
     """The entry ``label`` of ``app``'s Plugins menu."""
     return next(action for action in app._actions["plugins"] if action.text() == label)
