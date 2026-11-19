@@ -1,3 +1,8 @@
+"""
+pytest's setup of glue-solar's tests: glue's settings kept apart, an error in a draw failing its test, and the files
+made to test with.
+"""
+
 import os
 import sys
 import tarfile

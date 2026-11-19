@@ -1,9 +1,9 @@
 """
-Gated fixes for glue-core and glue-qt bugs that IRIS data hits.
+Fixes for the faults of glue-core, glue-qt and the libraries under them that IRIS, SST and DKIST data hit.
 
-Each fix installs, or acts, only when its probe finds the bug (a `needs_*` probe that raises counts as finding it:
-`_needs`), and names its PR, whose entry in the dev guide's Workaround register (`docs/dev_guide/workarounds.rst`)
-names the switch and the upstream change that retires it.
+A fix with a probe installs, or acts, only when its probe finds the fault (a `needs_*` probe that raises counts as
+finding it: `_needs`); one without is always on. Each names its PR, whose entry in the dev guide's Workaround register
+(`docs/dev_guide/workarounds.rst`) names the switch and the upstream change that retires it.
 """
 
 import builtins
@@ -885,7 +885,7 @@ if _needs(needs_link_editor_workaround):
     PathRelativeLink._backward.__signature__ = inspect.signature(lambda k_to: None)
 
 
-# glue 1.28.0 links datasets whose world axes differ through has_celestial and wcs.lng, attributes of an astropy WCS
+# glue links datasets whose world axes differ through has_celestial and wcs.lng, attributes of an astropy WCS
 # only, taking world axis i to be pixel axis world_n_dim - 1 - i, so its autolinker raised AttributeError as DKIST
 # datasets of different dimensions loaded
 _original_wcs_link_init = WCSLink.__init__

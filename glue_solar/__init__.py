@@ -1,3 +1,8 @@
+"""
+glue-solar, a plugin of glue for solar data: `setup`, which glue calls as it loads its plugins, registers the readers,
+viewer tools, data actions and fixes of the modules here, and keeps the last session as glue quits.
+"""
+
 import os
 import tempfile
 from copy import deepcopy

@@ -1,3 +1,9 @@
+"""
+IRIS Level 2 rasters and slit-jaw images as glue datasets: their coordinates in arcsec and Å behind one lock
+(`_GlueWCS`, `WCS_LOCK`), the readers (`raster_data`, `image_data`), the links of datasets by their helioprojective
+coordinates (`link_hpc`) and the observation browser (`QtIRISImporter`).
+"""
+
 import base64
 import inspect
 import io
@@ -43,6 +49,8 @@ from ..maps import _Style
 from .lazy import LazyData, RawComponent, RawStack, allow_open_files, fill_mask, iris_mask
 from .scan import _gzipped, _observation, _primary_header, extract_archive, scan_directory, strip_pooch
 from .stack_spectrograms import MISSING_VALUES, _PerScanWCS, stack_times, stack_wcs
+
+__all__ = ["LAZY", "QtIRISImporter", "image_data", "link_hpc", "raster_data"]
 
 # Load data stored as int16, as Level 2 files store it, lazily: the raw integers stay in the file (in memory for a
 # .fits.gz file) and are scaled where glue reads them. False loads everything in memory through irispy, as before

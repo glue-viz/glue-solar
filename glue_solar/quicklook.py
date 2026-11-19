@@ -1,6 +1,6 @@
 """
-The IRIS quicklook: a preset of glue viewers for one observation, kept on one selected point; and the SST quicklook, of
-one CRISP or CHROMIS cube.
+The IRIS quicklook: a preset of glue viewers for one observation, kept on one selected point; the SST quicklook, of one
+CRISP or CHROMIS cube; and the DKIST quicklook, of a spectrograph's dataset and its context imager's.
 """
 
 import sys
