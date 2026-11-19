@@ -1,1 +1,0 @@
-"Color bar" in the Image viewer's View menu shows the reference data's color bar, drawn with glue's own normalization, so it follows the limits, stretch, colormap, contrast and bias, and appears in saved plots.

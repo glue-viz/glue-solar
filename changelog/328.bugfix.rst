@@ -1,1 +1,0 @@
-'Fit every spectrum' takes about a third of the memory in glue on a raster window, and flags parameters fitted at a bound (quality 3) again.

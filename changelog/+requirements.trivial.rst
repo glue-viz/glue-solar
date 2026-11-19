@@ -1,0 +1,1 @@
+glue-solar requires Python 3.13 or later, Qt 6 through PyQt6 6.12.1 or later, glue-core 1.28.0 and glue-qt 0.4.2 or later, and its other dependencies at the releases it is tested with. irispy is installed from a commit of its git main branch, and the ``density`` extra adds fiasco for the O IV density preset.

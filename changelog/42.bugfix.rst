@@ -1,1 +1,0 @@
-The ``IRIS Level 2 FITS`` reader works with current irispy again: raster files load one dataset per window and scan.

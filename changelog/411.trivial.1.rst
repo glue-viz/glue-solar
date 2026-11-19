@@ -1,1 +1,0 @@
-The Redo and Pixel click patches of glue are now installed whatever their probes find, each probe switching only the fix it tests.

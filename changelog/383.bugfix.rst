@@ -1,1 +1,0 @@
-A DKIST map draws in under 1.5 s and its sliders move in a tenth of a second, where each took 8 s, and a session restores in a fifth of the time.

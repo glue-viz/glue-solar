@@ -1,1 +1,0 @@
-The macOS app no longer warns that sunpy.map lacks reproject.

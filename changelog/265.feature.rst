@@ -1,1 +1,0 @@
-Saving frames or a movie no longer blocks glue, and shows its progress in a dialog.

@@ -1,1 +1,0 @@
-``GaussianConstantFitter.set_constraint`` is removed: set a parameter's start, fix or bounds in the Fit tab's Settings, or in ``fitter.components`` from a script.

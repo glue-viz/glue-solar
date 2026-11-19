@@ -1,1 +1,0 @@
-A quicklook opens faster: its spectrum panel no longer computes the mean spectrum of the whole raster, which it never showed.

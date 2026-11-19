@@ -1,1 +1,0 @@
-A line of the 'Gaussian + constant' fitter without a start begins at a peak of the sign its amplitude's bounds give, so 'Mg II two peaks' starts at both emission peaks.

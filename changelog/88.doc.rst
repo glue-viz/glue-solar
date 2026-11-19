@@ -1,1 +1,0 @@
-The guides now describe the viewer tools and windows, browsing and stacking observations, mask overlays, and Profile recipes for IRIS data.

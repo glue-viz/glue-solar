@@ -1,1 +1,0 @@
-A quicklook panel scrolled out of sight is drawn once it comes into sight rather than on every step and move of the point, which makes a step of a many-window quicklook faster.

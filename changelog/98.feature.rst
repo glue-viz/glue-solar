@@ -1,1 +1,0 @@
-glue starts about half a second sooner with glue-solar installed, and browsing a folder of gzipped IRIS files reads only their primary headers.

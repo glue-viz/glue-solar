@@ -1,1 +1,0 @@
-An SST cube's dense reads, such as a tall virtual slit panel's, are several times faster from a slow disk.

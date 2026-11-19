@@ -1,1 +1,0 @@
-Image viewers offer Path diagram as their one path tool, in place of glue's Slice Extraction, and path diagrams sample the nearest pixel.

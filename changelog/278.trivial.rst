@@ -1,1 +1,0 @@
-The macOS app's bundle id is io.gluesolutions.glue-solar, beside glue's own app.

@@ -1,0 +1,1 @@
+"Path diagram" (L), in place of glue's "Slice Extraction", extracts the data along a drawn or typed path into new datasets, on other datasets too, with a crosshair that follows the path on the image; "Slope" gives a track's speed; paths save in sessions and as ECSV.

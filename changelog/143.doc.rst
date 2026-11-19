@@ -1,1 +1,0 @@
-The Analyses guide says what each line map means, including that the width is a standard deviation and that Mg II and C II are optically thick.

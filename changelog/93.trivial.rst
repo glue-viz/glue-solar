@@ -1,1 +1,0 @@
-Tests now fail on an error raised in a viewer, an idle draw or a mouse click instead of passing with a printed traceback or a message box, and the developer guide has a manual checklist for the quicklook.

@@ -1,1 +1,0 @@
-glue-solar's dependencies are each at least their latest release, as it is tested only with those.

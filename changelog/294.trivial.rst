@@ -1,1 +1,0 @@
-The loaders and analysis modules are about 290 lines shorter, and a raster file that fails to load is named sooner.

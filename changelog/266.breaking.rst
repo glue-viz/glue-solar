@@ -1,1 +1,0 @@
-glue-solar requires PyQt6 6.11 or later.

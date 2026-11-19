@@ -1,1 +1,0 @@
-"IRIS field of view", a new entry in the View menu of an IRIS observation's AIA cutouts and Hinode/SOT cubes, draws a box around the raster's field and one around the slit-jaw image's field on those images; it is off by default and not saved in sessions.

@@ -1,1 +1,0 @@
-The saving and scripting guides are rewritten, a Known issues page is added, and the user guide is nine short task pages.

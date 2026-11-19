@@ -1,1 +1,0 @@
-The mouse-over readout looks up the rest wavelength only where a wavelength axis is shown, and the View menu's tooltip names its entries.

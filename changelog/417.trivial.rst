@@ -1,1 +1,0 @@
-The helpers that say what a dataset is moved from the quicklook to a module of their own, ``glue_solar.describe``, and what the analysis actions share moved from the line moments to ``glue_solar.sources.analysis``; a test keeps the imports of a private name from another module from growing.

@@ -1,1 +1,0 @@
-The Profile viewer's IRIS fitter builds its model in the Fit tab's Settings: add or remove Gaussian and Lorentzian lines and constant, linear or polynomial backgrounds, set each parameter's start, fixed value and bounds, and tie lines by a separation or a ratio; 'Fit every spectrum' fits the window with it.

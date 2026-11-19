@@ -1,1 +1,0 @@
-glue-solar no longer imports spectral-cube when it loads, which took 0.3–0.45 s of every launch where spectral-cube is installed.

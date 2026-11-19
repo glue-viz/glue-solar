@@ -1,1 +1,0 @@
-The IRIS reader no longer competes with the ``sunpy Map`` reader for every FITS file.

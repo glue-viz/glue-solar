@@ -1,1 +1,0 @@
-A restored quicklook session keeps its time master and point, and Pixel drags drive its panels again.

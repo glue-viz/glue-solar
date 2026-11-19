@@ -1,1 +1,0 @@
-The IRIS user guide is split into three pages: loading IRIS data, the quicklook, and viewer tools and windows; the loading page keeps its address.

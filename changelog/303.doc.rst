@@ -1,1 +1,0 @@
-The quicklook, viewer tools and Profile guides are rewritten as three short task pages, with a getting started page and a screenshot.

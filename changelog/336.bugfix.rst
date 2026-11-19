@@ -1,1 +1,0 @@
-glue-solar follows irispy main: slit-jaw images are in their passband's DN, and dust removal calls irispy's remove_dust.

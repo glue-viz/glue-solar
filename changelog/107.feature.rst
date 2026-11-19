@@ -1,1 +1,0 @@
-Sunpy maps link to IRIS data on request: "Link helioprojective coordinates" pairs a map's helioprojective longitude and latitude, in degrees, with IRIS's arcsec, while glue's own WCS autolinking keeps linking maps to each other.

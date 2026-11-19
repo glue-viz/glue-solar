@@ -1,1 +1,0 @@
-Add remote-data tests that use real IRIS files from LM-SAL/irispy-data, run with ``--remote-data=any`` or the ``online`` tox environment.

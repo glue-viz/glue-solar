@@ -1,1 +1,0 @@
-The user guide lists every key glue-solar's viewers and tools take, and Plugins → "glue-solar user guide and issues" opens the guide and the issue tracker.

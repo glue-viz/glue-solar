@@ -1,1 +1,0 @@
-Pressing the Frame time or Cursor readout button no longer switches off the active mouse mode, such as Pixel.

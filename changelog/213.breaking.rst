@@ -1,1 +1,0 @@
-Line moments take a velocity range in km / s around the line center (``velocity_range``, default -107 to 107 km / s) instead of wings in Angstrom.

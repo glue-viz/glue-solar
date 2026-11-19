@@ -1,1 +1,0 @@
-The observation browser scans its folder in the background; Stop lists what it found so far, and Esc or closing drops the scan.

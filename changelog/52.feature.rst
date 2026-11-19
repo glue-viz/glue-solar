@@ -1,1 +1,0 @@
-IRIS slit-jaw images and aligned AIA cutouts get a ``Time`` component with the UTC time of each frame. Image viewers gain "Frame time", which shows the displayed frame's acquisition time in the status bar, and "Cursor readout", which shows the position and value under the mouse.

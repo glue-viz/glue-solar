@@ -1,1 +1,0 @@
-Negative-step (``STEPS_AV < -0.01``) IRIS rasters now load with the right mask and per-step metadata (exposure time, exposure FOV center, auxiliary times, observer radial velocity and orbital phase).

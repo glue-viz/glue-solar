@@ -1,1 +1,0 @@
-Glue no longer crashes when a Profile or Histogram viewer computes from a large IRIS raster in the background while an Image viewer draws it.

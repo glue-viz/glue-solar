@@ -1,1 +1,0 @@
-Links of helioprojective coordinates anchor on IRIS data, whatever was loaded first.

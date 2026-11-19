@@ -1,1 +1,0 @@
-The Image viewer's View menu has "Physical aspect", which shows the image in its proportions on the sky, an arcsecond as long along x as along y, such as a raster map's steps several times as wide as its slit pixels.

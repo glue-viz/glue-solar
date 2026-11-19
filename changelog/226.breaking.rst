@@ -1,1 +1,0 @@
-The observation browser, a quicklook and the analyses now link IRIS data only; sunpy maps, SST cubes and other FITS data are linked to IRIS data only on request, with 'Link helioprojective coordinates', so an IRIS quicklook beside a linked SST cube no longer crashes.

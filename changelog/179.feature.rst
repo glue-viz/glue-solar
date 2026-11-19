@@ -1,1 +1,0 @@
-The line maps dialog pre-fills the rest wavelength from the window's main line or a "Set rest wavelength…" override, never from TWAVE.

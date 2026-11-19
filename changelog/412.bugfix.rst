@@ -1,1 +1,0 @@
-A Pixel click on a slit-jaw image now moves the quicklook's point for a place up to half a step past a scanning raster's first or last step, and on an edge step's own slit in the later scans of a stack, where it said "outside raster FOV".

@@ -1,1 +1,0 @@
-A restored session shows a wavelength band's check mark in the View menu and keeps the band as its slider moves; the band was dropped at the first move.

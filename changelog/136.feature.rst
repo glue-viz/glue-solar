@@ -1,1 +1,0 @@
-"IRIS: line maps…" in a raster window's right-click menu adds irispy's intensity, centroid, width and velocity maps of a line, its moments, from a typed line center and velocity range, as one linked dataset computed in the background.

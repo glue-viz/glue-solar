@@ -1,1 +1,0 @@
-Every IRIS raster, stack, slit-jaw image and AIA cutout has a ``<window> DN / s`` derived component: the data over its exposure time, NaN where the exposure time is not positive.

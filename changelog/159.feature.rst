@@ -1,1 +1,0 @@
-"Save frames or movie…" can draw each frame's UTC time on the saved frames.

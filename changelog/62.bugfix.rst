@@ -1,1 +1,0 @@
-The IRIS observation browser now lists a deconvolved slit-jaw file as its own entry, such as ``SJI_2796 (deconvolved)``, instead of letting it replace the plain slit-jaw file of the same band, and loads it with ``SJI 2796 deconvolved`` in its label.

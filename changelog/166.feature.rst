@@ -1,1 +1,0 @@
-"Loop…" can play every Nth frame, bounce between its ends, and loop ±N frames around the current one.

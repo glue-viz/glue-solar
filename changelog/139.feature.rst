@@ -1,1 +1,0 @@
-While "IRIS: line maps…" runs, glue's status bar says "Computing line maps of <window>…".

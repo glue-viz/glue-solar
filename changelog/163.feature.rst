@@ -1,1 +1,0 @@
-The line ratio dialog offers irispy's O IV 1399.8/1401.2 density diagnostic as a preset when the new ``density`` extra (fiasco) is installed.

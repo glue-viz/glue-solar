@@ -1,1 +1,0 @@
-'Stack sequential raster scans' and ``raster_data(stack=True)`` now refuse scans whose wavelengths differ, naming the first that does.

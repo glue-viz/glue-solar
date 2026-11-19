@@ -1,1 +1,0 @@
-Every sunpy colormap is in glue's colormap menu, and its icon is drawn once, so the menus build quickly.

@@ -1,1 +1,0 @@
-A spectral cube of another instrument, with one wavelength axis and two spatial axes, opens a quicklook chosen from its axes with 'Quicklook…' in its right-click menu.
