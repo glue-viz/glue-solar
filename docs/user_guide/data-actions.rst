@@ -13,12 +13,11 @@ viewer, so drag the others onto one.
 Regridding on time
 ------------------
 
-glue's axes are index axes, so a sit-and-stare raster's exposures, a stack's scans and the frames of
-a slit-jaw image, AIA cutout or SOT cube show evenly spaced, whatever their cadence and gaps. To see
-them in time, choose "IRIS: regrid on time". It adds
-``<label> regridded``, resampled at the median time step: each pixel holds the exposure, frame or
-scan nearest its time within 0.75 steps, and a pixel in a gap is NaN. An Image viewer labels its
-axis with the step, such as "Time (2.89 s per pixel)".
+A sit-and-stare raster's exposures, a stack's scans and the frames of a slit-jaw image, AIA cutout
+or SOT cube show evenly spaced, whatever their cadence and gaps. To see them in time, choose "IRIS:
+regrid on time". It adds ``<label> regridded``, resampled at the median time step. Each pixel holds
+the exposure, frame or scan nearest its time within 0.75 steps, and a pixel in a gap is NaN. An
+Image viewer labels its axis with the step, such as "Time (2.89 s per pixel)".
 
 A scanning raster's steps are places on the Sun, not times: stack its scans in the observation
 browser and regrid the stack, scan by scan. "Quicklook…" shows the original; for a quicklook of the
@@ -35,8 +34,8 @@ Rebinning
 
 To trade resolution for signal, choose "IRIS: rebin…" on a raster window, stack, slit-jaw image or
 AIA cutout and type the pixels in a bin along each axis, 2 by 2 in space at first. It adds
-``<label> rebinned <bins>``, such as ``… rebinned 2x2x1``: each pixel is the mean of its bin, by
-ndcube's ``NDCube.rebin``, missing samples left out, and pixels past the last whole bin are dropped.
+``<label> rebinned <bins>``, such as ``… rebinned 2x2x1``. Each pixel is the mean of its bin, missing
+samples left out, and pixels past the last whole bin are dropped.
 ``Time`` and ``Exposure time`` are the bin's means. A rebinned window's line moments are those of
 each bin's mean, without error maps.
 
@@ -48,7 +47,7 @@ Shifting the pointing
 IRIS pointing can be off by an arcsecond or two between a slit-jaw image and its raster, or against
 AIA. Choose "IRIS: shift pointing…" and type Δx and Δy in arcsec, added to the helioprojective
 longitude and latitude; 0, 0 removes the offset. A raster window shifts with the other windows of its
-file. Every viewer, readout and link follows, and so do the data made from it; chosen on those, it
+file. Every viewer, readout and link follows, and so do the data made from it. Chosen on those, it
 shifts the dataset they were made from. Only IRIS data shift: shift them against a map. Draw a
 quicklook's region again after shifting its dataset.
 
@@ -67,34 +66,32 @@ North up
 --------
 
 A rolled observation (``SAT_ROT``) shows solar north at its roll angle. "IRIS: north up", on a slit-jaw
-image, AIA cutout or SOT cube, adds ``<label> north up``, a grid with latitude up, fixed on the sky,
-and opens an Image viewer of the image on it. glue resamples each frame onto the grid as it
-draws, from the nearest sample. The image moves across the grid as IRIS follows
-the solar rotation. The time sync and the point leave the viewer alone, and "Per-frame limits" and
-"Color bar" act on the hidden grid: set the image's limits in its layer's options. "IRIS: shift
-pointing…" shifts the image, not the grid.
+image, AIA cutout or SOT cube, adds ``<label> north up``, a grid with latitude up, fixed on the sky.
+It opens an Image viewer of the image on that grid. Each frame is drawn on the grid from its nearest
+sample. The image moves across the grid as IRIS follows the solar rotation. The time sync and the
+point leave the viewer alone. "Per-frame limits" and "Color bar" act on the hidden grid: set the
+image's limits in its layer's options. "IRIS: shift pointing…" shifts the image, not the grid.
 
 .. _glue_solar_users_guide_iris_calibration:
 
 Removing dust
 -------------
 
-"IRIS: remove dust" runs irispy's ``remove_dust``, after SolarSoft's
-``iris_dustbuster``: each dust pixel of the IRIS pipeline's bad-pixel table, placed in each frame by
-the slit's position, and those next to it take the median of that pixel over the two frames on
-either side, scaled by their exposure times, or else of the 5 by 5 pixels about it. It adds
-``<label> dust removed``, held in memory. A rebinned or regridded image is refused: irispy places
-the table in the pixels of the file.
+"IRIS: remove dust" runs irispy's dust removal. The dust pixels are those of the IRIS pipeline's
+bad-pixel table, placed in each frame by the slit's position, and those next to them. Each takes the
+median of that pixel over the two frames on either side, scaled by their exposure times, or else of
+the 5 by 5 pixels about it. It adds ``<label> dust removed``, held in memory. A rebinned or regridded
+image is refused: the table is placed in the pixels of the file.
 
 Radiometric calibration
 -----------------------
 
 "IRIS: radiometric calibration", on a raster window or stack, rebinned or not, adds two attributes
-to it: ``<window> radiance``, in erg / (Angstrom s sr cm2), and ``<window> radiance per DN / s``, the
-factor its ``<window> DN / s`` is multiplied by. The factor is irispy's ``radiometric_calibration``,
-from the effective area of irispy's latest response at the window's ``DATE_OBS``. Unlike SolarSoft's
-``iris_calib``, it is per Angstrom, and it is NaN at wavelengths the response does not cover. irispy
-has no calibration of slit-jaw images.
+to it. ``<window> radiance`` is in erg / (Angstrom s sr cm2). ``<window> radiance per DN / s`` is the
+factor its ``<window> DN / s`` is multiplied by. The factor is irispy's radiometric calibration,
+from the effective area of its latest response at the window's ``DATE_OBS``. Unlike SolarSoft's
+calibration, it is per Angstrom. It is NaN at wavelengths the response does not cover. A slit-jaw
+image cannot be calibrated.
 
 In glue's terminal
 ------------------
