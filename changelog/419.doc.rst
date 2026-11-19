@@ -1,0 +1,1 @@
+The README, the guides, the changelog entries and the docstrings of the API reference were checked against the code and trimmed.
