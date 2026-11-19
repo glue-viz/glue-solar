@@ -297,6 +297,24 @@ def test_a_stack_and_its_restore_keep_the_order_of_its_rasters(tmp_path, irispy_
         assert list(data.meta["raster files"]) == [scan.name for scan in scans]
 
 
+def test_rasters_on_two_drives_stack_and_restore_by_the_whole_path_of_the_second(
+    monkeypatch, tmp_path, irispy_test_files
+):
+    # Windows has no path from one drive to another, where a stack names its files from the first's folder: its load
+    # raised Windows' ValueError
+    scans = sorted(path for path in irispy_test_files if "3860258481_raster" in path.name)[:2]
+    files = []
+    for drive, scan in zip("cd", scans):
+        (tmp_path / drive).mkdir()
+        files.append(shutil.copy(scan, tmp_path / drive))
+    other_drive(monkeypatch, tmp_path / "d")
+    [stack] = raster_data(files, ["C II 1336"], stack=True)
+    assert stack._load_log.kwargs["files"] == [scans[0].name, files[1]]
+    for [data] in twice(DataCollection([stack])):
+        assert list(data.meta["raster files"]) == [scan.name for scan in scans]
+        np.testing.assert_array_equal(data[data.main_components[0]], stack[stack.main_components[0]])
+
+
 def test_a_failed_restore_keeps_no_raster_windows(monkeypatch, tmp_path, irispy_test_files):
     files = sorted(path for path in irispy_test_files if "3860258481_raster" in path.name)
     moved = tmp_path / files[0].name
