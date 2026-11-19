@@ -14,10 +14,10 @@ Browsing observations
    :alt: The observation browser listing the IRIS observations found in a folder
 
 1. Choose "Browse observations…" in the "Plugins" menu.
-2. Type a folder in "Folder" and press Return, or pick one with "Change…": a
-   ``level2/yyyy/mm/dd/<obs>/`` tree, a download folder or a pooch cache. The browser lists each
-   observation in it and its subfolders, one row per OBSID and start time, with its description,
-   pointing (``XCEN``, ``YCEN``), roll (``SAT_ROT``) and number of files.
+2. Pick a folder in the dialog that opens: a ``level2/yyyy/mm/dd/<obs>/`` tree, a download folder or
+   a pooch cache. The browser lists each observation in it and its subfolders, one row per OBSID and
+   start time, with its description, pointing (``XCEN``, ``YCEN``), roll (``SAT_ROT``) and number of
+   files. For another folder, type it in "Folder" and press Return, or pick it with "Change…".
 3. Expand an observation and tick what to load, or tick the observation for all of it:
 
    - a raster window, such as ``Mg II k 2796 — 8 raster file(s)``, with every scan;
@@ -35,10 +35,9 @@ With "Open quicklook" ticked, each observation opens in a quicklook (see :ref:`Q
 window in "Main window", which shows once two or more windows are ticked, Mg II k 2796 unless
 changed. Unticked, the first slit-jaw image or AIA cutout opens in an Image viewer.
 
-"Stop" ends a search or a load with what has been read in full; :kbd:`Esc` drops it. The browser's
-messages show under the progress bar. If an entry fails to load, or an archive to unpack, the
-message names the file and the error. The browser stays open then, and when nothing was loaded,
-with nothing ticked or stopped before the first entry was read.
+"Stop" ends a search or a load with what has been read in full; :kbd:`Esc` drops it. If an entry
+fails to load, or an archive to unpack, a message under the progress bar names the file and the
+error, and the browser stays open.
 
 To narrow the list:
 
@@ -75,15 +74,16 @@ attributes, ``<window>`` being its window or channel, such as ``Si IV 1403``:
 - ``<window> mask``, 1 where the data are missing or, in a raster window or slit-jaw image,
   saturated (see `Missing and saturated samples`_).
 
-SOT cubes are in the unit of their ``BUNIT``, such as DN or G. AIA cutouts and SOT cubes get no
-quicklook panel, but an Image viewer of one follows its observation's time. Each dataset opens in
-sunpy's colormap of its channel, and an Image viewer's colormap menu lists every sunpy colormap.
+SOT cubes are in the unit of their ``BUNIT``, such as DN or G. In a quicklook, AIA cutouts and SOT
+cubes join the Panels list unticked (see :ref:`Quicklook <glue_solar_users_guide_iris_quicklook>`).
+Each dataset opens in sunpy's colormap of its channel, and an Image viewer's colormap menu lists
+every sunpy colormap.
 
 irispy reverses the step axis of a raster with a negative step (``STEPS_AV`` below -0.01), so
 ``Time`` runs backwards along it.
 
-Data are read from their files as they are viewed. Don't overwrite, move or unplug a file while it
-is loaded: glue can crash.
+Data are read from their files as they are viewed: leave a loaded file in place (see :ref:`Known
+issues <glue_solar_users_guide_known_issues>`).
 
 Opening files
 -------------
@@ -129,9 +129,8 @@ tab named after its line, such as "SST Ca II 8542". Its panels are in three rows
 - wavelength against scan at the point, and the light curve at the point, against "Scan Time", the
   scans' time in s since the cube's ``DATEREF``, which also names the scan slider.
 
-Both maps open zoomed to the field, without a mosaic's NaN border, and stay on it as panels turn on
-or off until you pan or zoom. The second map opens with "Per-frame limits" on, as the whole cube's
-limits wash the brighter wing out.
+Both maps open zoomed to the field, without a mosaic's NaN border. The second map opens with
+"Per-frame limits" on, as the whole cube's limits wash the brighter wing out.
 
 The point, clicks and keys work as in the IRIS quicklook, and the scan and Stokes sliders of either
 map move the other panels. Cubes with overlapping scan times, such as the CRISP and CHROMIS cubes of
@@ -145,14 +144,13 @@ Q, U and V show scaled with their noise level: their maps' limits are ±5 times 
 ±10 times for V, whose signal is the stronger, and their spectra span at least as much, with the
 noise level shaded about 0. The noise level is the parameter's standard deviation at the continuum,
 the first or last tuning, whichever is farther from the line core, estimated from the median
-absolute deviation of a sample of rows and columns from up to 16 scans. View → "Per-frame limits"
-gives each frame its own limits instead; on the second map it changes I's only.
+absolute deviation of a sample. View → "Per-frame limits" gives each frame its own limits instead;
+on the second map it changes I's only.
 
 For a spectrum in a Profile viewer, draw a region on the cube: a cube's own profile reads the whole
-file, so glue-solar adds the cube hidden. Open maps before SST cubes, and cubes without Stokes before
-those with: glue's autolinker otherwise reports an error, although the data load. The IRIS–SST
-Level 3 files made for CRISPEX (``iris_l3_…_im.fits``) open with glue's "FITS file" reader, without
-these coordinates.
+file, so glue-solar adds the cube hidden. For the order to open maps and SST cubes in, see
+:ref:`Known issues <glue_solar_users_guide_known_issues>`. The IRIS–SST Level 3 files made for
+CRISPEX (``iris_l3_…_im.fits``) open with glue's "FITS file" reader, without these coordinates.
 
 .. _glue_solar_users_guide_loading_dkist_datasets:
 
@@ -163,8 +161,7 @@ Open a DKIST Level 1 dataset's ASDF file (``…_metadata.asdf``, as ``dkist`` do
 "File → Open Data Set". It loads as one dataset, labeled by instrument and dataset ID, such as
 ``VISP BKPLX``, and a VBI or DL-NIRSP mosaic as one dataset per tile, such as ``VBI YCDRFH (1, 1)``.
 The values stay in the FITS files next to the ASDF file: a view reads only the parts of the files it
-shows. The first read of each file opens it, about 5 ms as astropy reads its headers: a ViSP map at
-a Stokes parameter not yet shown takes up to 3 s, its later moves about 0.5 s.
+shows.
 
 - Each axis has one world coordinate, as glue shows them: a slit raster's step axis has its
   longitude, or its time if the pointing moves less than a pixel along the slit (sit-and-stare).
@@ -188,8 +185,7 @@ a Stokes parameter not yet shown takes up to 3 s, its later moves about 0.5 s.
   virtual slit and spectra. The map is drawn as IRIS's, the steps across and the slit up, and the
   virtual slit is wavelength against the slit. A raster's repeats, or Cryo-NIRSP's measurements
   at each step, have a slider, as Stokes does. Of a full-Stokes dataset, Q, U and V show scaled
-  with their noise level, as an SST cube's, at the quieter end of the wavelengths, sampled from 4
-  frames.
+  with their noise level, as an SST cube's, at the quieter end of the wavelengths.
 - A Profile viewer's "Main lines" mark the lines ground-based telescopes observe, such as Ca II
   854.2 nm, Fe XIII 1074.7 nm and He I 1083.0 nm, at NIST's wavelengths in air or vacuum as the
   dataset's ``WAVEREF`` says, DKIST's being in air; "Lines in this range…" lists them, and they
@@ -220,24 +216,21 @@ a Stokes parameter not yet shown takes up to 3 s, its later moves about 0.5 s.
   of a raster of one step, doesn't reach it. A point on the
   raster reaches IRIS data at its place, in the frame nearest its step's time, and IRIS images
   draw over the raster's map.
-- "Mosaic…" on a tile of a VBI or DL-NIRSP mosaic adds its tiles stitched into one image by
-  reproject, at the frame, or Stokes parameter, repeat and wavelength, of the first Image viewer of
-  a tile, and opens it in an Image viewer at 99.5 % limits, labeled by that wavelength, Stokes
-  parameter and time,
+- "Mosaic…" on a tile of a VBI or DL-NIRSP mosaic adds its tiles stitched into one image, at the
+  frame, or Stokes parameter, repeat and wavelength, of the first Image viewer of a tile, and opens
+  it in an Image viewer at 99.5 % limits, labeled by that wavelength, Stokes parameter and time,
   the tiles' mean, which its metadata hold too, such as ``VBI LOQEPP mosaic 2024-04-24T20:43:45``.
   Its grid is north up at the tiles' finest pixel, their mean where they overlap and NaN where none
-  is, and only that frame of each tile is read: LOQEPP's 9 tiles take about 30 s. A session saves
-  its values, 0.66 GB for LOQEPP's. It links to the tiles by position and their time there, and to
-  IRIS data as "Link helioprojective coordinates" does: a point on it reaches a tile's pixel at that
-  frame or repeat, on DL-NIRSP at every wavelength and Stokes parameter.
+  is. A session saves its values, 0.66 GB for LOQEPP's. It links to the tiles by position and their
+  time there, and to IRIS data as "Link helioprojective coordinates" does: a point on it reaches a
+  tile's pixel at that frame or repeat, on DL-NIRSP at every wavelength and Stokes parameter.
 - "DKIST footprints…" in the View menu of an Image viewer of a helioprojective image, such as an IRIS
   slit-jaw image, an AIA map, an SST cube or another DKIST dataset's frame, draws the outline of each
   loaded DKIST dataset ticked, labeled, and a spectrograph raster's slit at the image's time, unless
   more than half its cadence from it (a step's on ViSP, a measurement's on Cryo-NIRSP), its other
   steps faint. They come from the ASDF file alone, so a dataset loaded without its FITS files shows
-  what overlaps before you download them, and are placed by value, as
-  "Link helioprojective coordinates" places data. They follow the image's frame; untick a dataset to
-  clear its outline.
+  what overlaps before you download them. They follow the image's frame; untick a dataset to clear
+  its outline.
 - "Frame quality…" on a dataset, or a tile of a mosaic, adds ``<label> frame quality``, a row per
   FITS file from the ASDF file's headers, no FITS file read: the seeing ``ATMOS_R0`` (m), AO lock
   ``AO_LOCK`` (1 while locked), exposure ``XPOSURE`` (ms), light level ``LIGHTLVL`` (adu),
@@ -252,9 +245,9 @@ a Stokes parameter not yet shown takes up to 3 s, its later moves about 0.5 s.
   tiles on a tile, into the ASDF file's folder: those at the Stokes parameter, repeat and
   measurement of its first Image viewer, or all of them where ticked, over the steps or frames
   typed, all at first. Its dialog says how many files are missing, not counting those already on
-  their way, their size, from the dataset's mean file size, and their times; the transfer then
-  starts in the background, of the FITS files alone, not the ASDF file, browse movie and quality
-  report dkist's ``download`` adds. Their frames fill in as the files arrive, glue's status bar
+  their way, their approximate size and their times; the transfer then starts in the background,
+  of the FITS files alone, not the ASDF file, browse movie and quality report dkist's ``download``
+  adds. Their frames fill in as the files arrive, glue's status bar
   counting them, and the color limits are taken again; once all are there, the Error Console says
   how many of the dataset's files are still missing, if any. If no file arrives or grows for ten
   minutes, as when the transfer failed, the Error Console says so and "Download these frames…"
@@ -297,8 +290,6 @@ first of them, so SST cubes link to each other.
   frame shown.
 - A region on a linked SST cube selects the IRIS pixels, and another SST cube's, in the cube's scan
   nearest each frame's or scan's time; it selects nothing on a map, which has no time.
-- Draw regions on a quicklook's panels: glue's own selection, from a raster in another Image viewer,
-  is slow to show on a slit-jaw image.
 
 The links don't allow for the Sun's rotation between a map and the IRIS data. Correct the IRIS
 pointing with :ref:`"IRIS: shift pointing…" <glue_solar_users_guide_iris_pointing>`.

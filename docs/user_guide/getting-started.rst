@@ -7,9 +7,9 @@ Getting started
 Open an IRIS observation in a quicklook and take a first look at it.
 
 1. Start glue with ``glue`` and choose "Browse observations…" in the "Plugins" menu.
-2. In "Folder", give the folder that holds your IRIS Level 2 files or their downloaded archives. The
-   browser lists each observation it finds, one row per OBSID and start time. For a packed archive,
-   tick its "Extract …" entry and press "Load selected" first.
+2. In the folder dialog that opens, pick the folder that holds your IRIS Level 2 files or their
+   downloaded archives. The browser lists each observation it finds, one row per OBSID and start
+   time. For a packed archive, tick its "Extract …" entry and press "Load selected" first.
 3. Tick an observation, or expand it and tick the raster windows and slit-jaw channels you want, and
    press "Load selected". With "Open quicklook" ticked, as it is at first, the observation opens in a
    quicklook in a new tab.

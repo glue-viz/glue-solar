@@ -25,8 +25,7 @@ Loading
   autolinker reports an error, although the data load.
 - **Mosaics of many tiles:** linking a DL-NIRSP mosaic's 108 tiles takes about a minute, linking
   its "Mosaic…" image to them about 20 s, and each draw of them all in one Image viewer about 40 s,
-  of a VBI mosaic's 9, as in a ViSP quicklook, about 1.5 s: glue looks for every link again as links
-  are added, and computes each layer over the whole view.
+  of a VBI mosaic's 9, as in a ViSP quicklook, about 1.5 s.
 
 Viewers
 -------

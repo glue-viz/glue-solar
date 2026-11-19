@@ -6,7 +6,7 @@ Scripting
 
 glue's "Terminal" button, in the toolbar, opens an IPython shell inside glue. It holds
 ``data_collection`` (also ``dc``), ``application``, ``session`` and ``hub``. What you add to
-``data_collection`` there shows in every viewer.
+``data_collection`` there shows in glue's data collection.
 
 Loading data
 ------------
@@ -25,8 +25,8 @@ Pass ``stack=True`` to ``raster_data`` to stack the scans of each window.
 
 ``find_observation_files`` finds the files of the observations below a folder that run between a
 start and an end, the same time for the observation running then, and ``pattern`` picks among their
-names. ``scan_directory`` takes the same arguments and gives the observations, as the browser lists
-them::
+names. ``scan_directory`` takes ``start``, ``end`` and ``pattern`` by keyword and gives the
+observations, as the browser lists them::
 
     from glue_solar.sources.loaders.scan import find_observation_files
 

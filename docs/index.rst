@@ -4,7 +4,7 @@
 glue-solar documentation
 ========================
 
-``glue-solar`` is a project to provide solar physics specific functionality to `glue <https://glueviz.org>`__, to facilitate multi-instrument interactive visualization.
+``glue-solar`` provides solar physics functionality to `glue <https://glueviz.org>`__, for multi-instrument interactive visualization.
 
 Installing and running
 ----------------------
@@ -12,30 +12,19 @@ Installing and running
 Requirements
 ^^^^^^^^^^^^
 
-For the requirements of ``glue``, please refer to their official documentation on `installing and running glue <http://docs.glueviz.org/en/stable/installation/installation.html>`__.
+For the requirements of ``glue``, see its documentation on `installing and running glue <http://docs.glueviz.org/en/stable/installation/installation.html>`__.
 
 Installing glue-solar
 ^^^^^^^^^^^^^^^^^^^^^
 
-In order to use ``glue`` with the ``glue-solar`` plugin, you will need to have both packages installed on your computer.
-For the time being before an official release, the only way to install ``glue-solar`` is to download with GitHub, where the repository for the package is hosted.
-
-This assumes that you already have ``pip`` and a Python virtual environment created and active.
-
-To download the entire glue-solar repository locally, first make sure you have Git installed locally, then to clone over HTTPS::
+Until its first release, ``glue-solar`` installs only from its repository on GitHub.
+With Git, ``pip`` and an active Python virtual environment::
 
     $ git clone https://github.com/glue-viz/glue-solar.git
-
-After that, change directory (cd) to glue-solar::
-
     $ cd glue-solar
-
-Finally, do the following while at the root (highest level) of the glue-solar directory::
-
     $ pip install -e .
 
-This installs PyQt6: glue-solar needs Qt 6, and says so as glue starts under Qt 5.
-Where PyQt5 is installed too, set ``QT_API=pyqt6`` before starting glue, as qtpy takes PyQt5 first.
+This installs glue and PyQt6: glue-solar needs Qt 6, and says so as glue starts under Qt 5.
 
 The O IV density preset of the line ratio diagnostic needs fiasco, in the ``density`` extra::
 
@@ -46,21 +35,18 @@ fiasco downloads and builds the CHIANTI atomic database, a few GB, on its first 
 Starting up Glue
 ^^^^^^^^^^^^^^^^
 
-Once both ``glue`` and ``glue-solar`` have been properly installed, to start the application via the command line::
+Start glue from a terminal::
 
     $ glue
 
-This will launch the ``glue`` graphical user interface (GUI) from your terminal.
-
-On Windows operating systems, installation creates an executable ``glue.exe`` file within the Python script directory (e.g., ``C:\Python312\Scripts``).
-Windows users can create a desktop shortcut for this file upon installation
+On Windows, installation creates ``glue.exe`` in the Python script directory (e.g., ``C:\Python313\Scripts``), for which you can create a desktop shortcut.
 
 On a Mac, glue-solar can also be built into an app, ``Glue Solar.app``, which opens from the Finder, the Dock or Launchpad: see :ref:`glue_solar_dev_docs_macos_app`.
 
 User Interface Guide
 ^^^^^^^^^^^^^^^^^^^^
 
-For a walk through of the user interface of ``glue``, please refer to the `getting started section of the glue documentation. <http://docs.glueviz.org/en/stable/getting_started/index.html>`__
+For a walk through of glue's user interface, see the `getting started section of the glue documentation <http://docs.glueviz.org/en/stable/getting_started/index.html>`__.
 
 .. toctree::
    :maxdepth: 2
