@@ -10,7 +10,7 @@ def test_the_names_the_app_check_takes_from_glue_solar_exist(request):
     smoke = request.config.rootpath / "packaging" / "macos" / "smoke.py"
     if not smoke.exists():
         pytest.skip("the package is installed without its checkout")
-    for node in ast.walk(ast.parse(smoke.read_text())):
+    for node in ast.walk(ast.parse(smoke.read_text(encoding="utf-8"))):
         if isinstance(node, ast.ImportFrom) and node.module.startswith("glue_solar"):
             module = importlib.import_module(node.module)
             for alias in node.names:
