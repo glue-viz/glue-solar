@@ -18,8 +18,7 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
    It does not load science arrays while browsing.
 2. ``iris.py`` asks ``irispy.io.read_files`` to decode raster files, a file at a time, and
    ``irispy.io.sji.read_sji_lvl2`` SJI and aligned AIA and Hinode/SOT files, then converts the
-   returned cubes into :class:`glue.core.data.Data` objects. irispy decompresses a ``.fits.gz``
-   slit-jaw or AIA file once, into memory.
+   returned cubes into :class:`glue.core.data.Data` objects.
 3. ``lazy.py`` holds data stored as int16, as Level 2 files store it, without scaling it
    in memory. ``RawComponent``, a glue ``DaskComponent``, keeps the raw integers (a
    memory map, or an array for a ``.fits.gz`` file) and scales only what a view selects,
@@ -41,23 +40,21 @@ The implementation under ``glue_solar/sources/loaders`` has five responsibilitie
 normalization, units, and each input cube's WCS and exposure times. The Glue adapter keeps
 those and changes only missing data: the IRIS fill values -200 and -199 become NaN, in aligned
 AIA cutouts too, while Hinode/SOT cubes keep every value, NaN where missing. Each dataset's
-``<window> mask`` component is 1 where the data are NaN or, in raster windows and slit-jaw images,
-at the Level 2 ceiling, 16182 DN, which irispy's scaled reads keep at its value and mask as
-saturated. It is ``uint8``, since Glue would store a boolean component as ``int64``, and for int16
-data a glue derived component of the data (``lazy.fill_mask`` or ``lazy.iris_mask``). Raster times
-are a separate ``Time`` component.
+``<window> mask`` component (:ref:`glue_solar_users_guide_iris_saturation`) is ``uint8``, since
+Glue would store a boolean component as ``int64``, and for int16 data a glue derived component of
+the data (``lazy.fill_mask`` or ``lazy.iris_mask``).
 
 Data stored as int16 load through irispy's memory map (``memmap=True``), which gives the raw
 integers, fill included, of raster windows, flipped as irispy flips negative-step rasters, and of
 slit-jaw and AIA files; each window's or file's BSCALE and BZERO come from its own header. irispy
-holds the raw integers of a ``.fits.gz`` file in memory, decompressed once: each raster file is
-opened once, just before irispy reads it, for its window headers and irispy's read. Files of any
-other type load in memory through irispy's usual reader, promoted to float32 only where fill becomes
-NaN (a cutout without fill keeps its
-integers). Setting ``glue_solar.sources.loaders.iris.LAZY = False`` before
-loading reads everything that way, as glue-solar did before lazy loading, for example to compare
-the two or for files on a drive that may disconnect. Lazy loading raises the process's soft limit
-on open files (``lazy.allow_open_files``), as every memory-mapped file stays open.
+holds the raw integers of a ``.fits.gz`` file in memory, decompressed once: each gzipped raster
+file is opened once, just before irispy reads it, for its window headers and irispy's read. Files
+of any other type load in memory through irispy's usual reader, promoted to float32 only where fill
+becomes NaN (a cutout without fill keeps its integers). Setting
+``glue_solar.sources.loaders.iris.LAZY = False`` before loading reads everything that way, for
+example to compare the two or for files on a drive that may disconnect. Lazy loading raises the
+process's soft limit on open files (``lazy.allow_open_files``), as every memory-mapped file stays
+open.
 
 Extending a loader
 ------------------

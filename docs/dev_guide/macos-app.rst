@@ -35,15 +35,14 @@ checkout as a package, not editable::
     micromamba run -n glue-solar-app pip install --no-deps .
 
 Install glue-solar again after each change to the checkout. The app holds no PyQt5, PySide or tkinter. It holds
-fiasco, which glue-solar's ``density`` extra adds, so the line ratio diagnostic offers its O IV preset; as outside the
-app, fiasco downloads and builds the CHIANTI database in ``~/.fiasco`` on its first use (see
-:ref:`glue_solar_users_guide_iris_line_ratio`). It holds the environment's ffmpeg, which ``start_glue_solar.py``
-puts first on the ``PATH``, so that movies save as MP4 in an app opened from the Finder, which gives it no shell
-``PATH``. Of matplotlib's backends it holds QtAgg and those that Save takes PNG, PDF, SVG, EPS and PS from: Save
-still lists PGF, which needs LaTeX and fails with "No module named". The spec leaves out botocore, pyarrow, bokeh and
-distributed, which conda-forge's dask and astropy bring for cloud storage, Parquet, dashboards and clusters, none of
-which glue-solar uses; ``dask-core`` and ``astropy-base`` would not keep them out, as the reproject and spectral-cube
-that sunpy and pvextractor need depend on the full packages.
+fiasco, which glue-solar's ``density`` extra adds, so the line ratio diagnostic offers its O IV preset, but not the
+CHIANTI database (see :ref:`glue_solar_users_guide_iris_line_ratio`). It holds the environment's ffmpeg, which
+``start_glue_solar.py`` puts first on the ``PATH``, so that movies save as MP4 in an app opened from the Finder,
+which gives it no shell ``PATH``. Of matplotlib's backends it holds QtAgg and those that Save takes PNG, PDF, SVG,
+EPS and PS from: Save still lists PGF, which needs LaTeX and fails with "No module named". The spec leaves out
+botocore, pyarrow, bokeh and distributed, which conda-forge's dask and astropy bring for cloud storage, Parquet,
+dashboards and clusters, none of which glue-solar uses; ``dask-core`` and ``astropy-base`` would not keep them out,
+as the reproject and spectral-cube that sunpy and pvextractor need depend on the full packages.
 
 Building
 --------
@@ -60,11 +59,8 @@ Checking the app
 ----------------
 
 ``smoke.py`` checks a built app without showing it: run with ``GLUE_SOLAR_APP_CHECK`` naming it, the app runs it in
-place of glue (glue's own ``-x`` fails in glue-qt 0.4.2). It starts glue, checks glue-solar's menu entries and glue's
-IPython terminal, that fiasco, the O IV preset's, is bundled, that sunpy.map finds its extra dependencies and
-that matplotlib runs the bundled ffmpeg and saves a two-frame MP4 through it, opens the quicklook of the files it is
-given, adds irispy's radiometric calibration of the raster, which needs irispy's response files, saves and restores
-the session, which needs asdf's schemas, and exits 1 at the first failure::
+place of glue (glue's own ``-x`` fails in glue-qt 0.4.2). It starts glue on the files it is given, checks what the
+spec and hooks bundle, in the steps its docstring lists, and exits 1 at the first failure::
 
     T=$(micromamba run -n glue-solar-app python -c "import irispy.data.test as t; print(t.ROOTDIR)")/sns
     env HOME="$(mktemp -d)" QT_QPA_PLATFORM=offscreen GLUE_SOLAR_APP_CHECK=packaging/macos/smoke.py \

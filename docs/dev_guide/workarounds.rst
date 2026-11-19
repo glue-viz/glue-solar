@@ -7,16 +7,16 @@ Workaround register
 glue-solar patches or overrides glue-core, glue-qt, echo, astropy, WCSLIB, matplotlib, dkist, irispy and
 mpl-scatter-density where IRIS, SST or DKIST data hit a fault, or need what those packages lack. Each entry names what
 is patched (with its PR), the switch that turns it on, and the upstream change that retires it. A switch is a
-``needs_*`` probe in ``glue_solar/glue_patches.py`` that finds the fault at import; "always on" means no probe is safe.
-A probe switches only the fix of the fault it tests: where a patch also carries other behaviour, the patch is installed
-always and the probe switches that part alone. A PR that adds or retires a patch edits this page in the same change,
-and ``test_the_register_and_glue_patches_name_the_same_probes`` fails while a probe has no entry here, or an entry
-names a probe that is gone. ``UPSTREAM_REVIEW.md`` on the ``plan`` branch re-verifies each
-entry against the latest releases and mains, and names its fork branch, draft or report.
+``needs_*`` probe in ``glue_solar/glue_patches.py`` that finds the fault, at import unless its entry says when;
+"always on" means the patch has none. A probe switches only the fix of the fault it tests: where a patch also carries
+other behaviour, the patch is installed always and the probe switches that part alone. A PR that adds or retires a
+patch edits this page in the same change, and ``test_the_register_and_glue_patches_name_the_same_probes`` fails while a
+probe has no entry here, or an entry names a probe that is gone. ``UPSTREAM_REVIEW.md`` on the ``plan`` branch
+re-verifies each entry against the latest releases and mains, and names its fork branch, draft or report.
 
 Routes: a *fork branch* is a branch on the user's fork with the fix, no PR yet; a *report candidate* is an issue to
-open; the *upstream list* is the list of fixes to propose upstream, in ``UPSTREAM_REVIEW.md`` on the ``plan`` branch;
-*glue-solar feature* and *kept by decision* stay.
+open; the *upstream list* is the list of fixes to propose upstream, in the same file; *glue-solar feature* and
+*kept by decision* stay.
 
 Rules for new code: raw-WCS readers hold ``WCS_LOCK`` or use a deep copy, and never fake an all-ones
 ``axis_correlation_matrix``.
@@ -61,12 +61,11 @@ glue-core
 - **Axis labels set on the WCSAxes coordinate of glue's world axis**, ``world_n_dim - 1 - axis``, without placing
   ticks (``ImageViewer.update_x_axislabel``, ``update_y_axislabel``, #90, #371). Switch
   ``needs_axis_label_workaround()``, which sees a label update that places ticks. The fork branch
-  ``perf-g1a-wcs-labels`` has glue's ``_set_wcs`` set each label once where it set it twice, through the same
-  ``set_xlabel`` and ``set_ylabel``: half the cost, the probe still true, and the patch stays on with its world axis
-  and its labels of a restored viewer. Retired by glue's label updates labelling that WCSAxes coordinate, which places
-  no ticks (report candidate). One labelling the coordinate of ``ndim - 1 - axis`` also turns the probe false: the
-  world axis of data of more world axes than pixel axes, as DKIST's, must then be installed apart from the probe, as
-  the Redo patch's record is.
+  ``perf-g1a-wcs-labels`` halves the cost through the same ``set_xlabel`` and ``set_ylabel``: the probe stays true and
+  the patch on. Retired by glue's label updates labelling that WCSAxes coordinate, which places no ticks (report
+  candidate). One labelling the coordinate of ``ndim - 1 - axis`` also turns the probe false: the world axis of data of
+  more world axes than pixel axes, as DKIST's, must then be installed apart from the probe, as the Redo patch's record
+  is.
 - **Redo of a subset change puts back the subset states its first run made** (``ApplySubsetState.do``,
   ``apply_subset_state``, #182). Installed always, as each run records the subsets it changed, which Undo reads (next
   entry); switch ``needs_redo_workaround()`` for the put-back alone. Retired by glue's ``ApplySubsetState`` keeping its
@@ -74,8 +73,8 @@ glue-core
 - **Undo of a subset change, and the Redo put-back, under** ``Coordinator.restoring``: the Pixel points glue puts
   back are neither followed nor linked again, the shown tab's point stays followed, and Undo deletes only the groups
   the command made, keeping subsets made since (``ApplySubsetState.undo``, ``undo_subset_state``, #368, #377). Always
-  on, the kept subsets by what ``apply_subset_state`` records at each run, whatever its probe says. glue-solar feature;
-  for the kept subsets, glue's ``ApplySubsetState.undo`` deleting only what its ``do`` made (report candidate).
+  on, the kept subsets by the record of the entry above. glue-solar feature; for the kept subsets, glue's
+  ``ApplySubsetState.undo`` deleting only what its ``do`` made (report candidate).
 - ``u.Quantity`` **saver and loader for sessions** (``save_quantity``, #186). Switch: only while glue has no
   Quantity saver. Retired by the upstream list.
 - ``LinkSameWithUnits`` **saved by its two components** (#205). Switch ``needs_link_restore_workaround()``. Retired
@@ -95,8 +94,8 @@ glue-core
   ``stddev`` floor the same way (``GaussianConstantFitter.fit``, #367). Always on. Retired by ``_get_model_fitter``
   leaving a None limit to the model's own bound (report candidate).
 - **Lazy data's sampled statistics**: raw-code counts and random samples of derived attributes
-  (``LazyData.compute_statistic``, ``loaders/lazy.py``). Always on. Retired by glue sampling dask arrays at random,
-  not at chunk corners (upstream list).
+  (``LazyData.compute_statistic``, ``sources/loaders/lazy.py``). Always on. Retired by glue sampling dask arrays at
+  random, not at chunk corners (upstream list).
 - **DKIST datasets' coordinates in glue's order** (``DKISTWCS``, ``sources/dkist.py``, #371, #373, #375, #378, #389): a
   gWCS's world axes reordered to one per pixel axis as glue maps them, those of no pixel axis first, longitude and
   latitude wrapped to ±180°; IRIS data reach a raster through ``link_hpc``'s links to its step and slit pixel
@@ -104,17 +103,17 @@ glue-core
   pixels to the angle glue gives none of its axes (``_SlitPlace``); the inverse is evaluated at finite world values
   only. Always on (DKIST datasets). Retired by glue mapping world axes to pixel axes by ``axis_correlation_matrix`` (a
   comment on glue #2574, drafted).
-- **DKIST datasets' sampled statistics**: 10,000 values at random from up to 16 evenly spaced whole frames whose files
-  are present, one sample for a VBI mosaic's tiles (``DKISTData.compute_statistic``, #371). Always on. Retired
-  by glue sampling dask arrays at random (upstream list).
+- **DKIST datasets' sampled statistics**: as many values as glue samples, at random from up to 16 evenly spaced whole
+  frames whose files are present, one sample for a VBI mosaic's tiles (``DKISTData.compute_statistic``, #371). Always
+  on. Retired by glue sampling dask arrays at random (upstream list).
 - **glue's WCS link by APE 14 alone** where glue's needs an astropy WCS or either side has no ``has_celestial``: the
   physical types both share, through the pixel axes along which only those vary, tried as a round trip from either
   side's middle, first and last pixel, with as many values as each takes (``wcs_link_init``, #373, #378, #379, #385).
   Switch ``needs_wcs_link_workaround()``, which sees glue's AttributeError alone. Retired by the two commits of the fork
   branch ``ape14-wcs-link`` together: 67f47e4 (overlapping glue #2595) gives glue's general case by
-  ``axis_correlation_matrix`` for APE 14 WCSes, which turns the probe false, and 5ce2543 the round trip from either
-  side's middle, first and last pixel with its own axis count, refusing NaN pixels where glue tried pixel 0 only. A glue
-  with the first and not the second also turns the probe false, and loses the round trip.
+  ``axis_correlation_matrix`` for APE 14 WCSes, which turns the probe false, and 5ce2543 this round trip, refusing NaN
+  pixels where glue tried pixel 0 only. A glue with the first and not the second also turns the probe false, and loses
+  the round trip.
 - **A DKIST mosaic's tiles suggested linked to its center tile only**, and other data to that tile, where glue
   suggests every pair (5778 for 108 tiles); the first tile left becomes the center once it is removed, saved in
   sessions (``sources/dkist.py``'s ``wcs_autolink`` in place of 'Astronomy WCS', ``_Recenter``, #373, #378).
@@ -135,19 +134,17 @@ glue-core
 - **A DKIST frame quality's Time added after its header columns** (``_frame_quality``, #395): glue's Profile
   viewer gives a layer its data's first numeric component, a datetime too. Always on. Retired by glue's Profile
   layers leaving datetime components out of their attributes (report candidate).
-- **SST cubes' color-limit sample**: 16 planes of 25 evenly spaced rows and columns, plane k at the k-th of 16 even
-  tunings, Stokes k modulo their number and the (7k mod 16)-th of 16 even scans; all planes of a cube of 16 or fewer
-  (``_Cube.compute_statistic``, #230, #248). Always on. Retired by glue sampling cheaply (upstream list).
+- **SST cubes' color-limit sample**: evenly spaced rows and columns of 16 planes, spread over the tunings, Stokes
+  parameters and scans (``_Cube.compute_statistic``, ``_Cube._sample``, #230, #248). Always on. Retired by glue
+  sampling cheaply (upstream list).
 - **An SST cube's reads hinted to the kernel before glue makes them**: MADV_WILLNEED on the memory-mapped file's pages
-  for index-array views and slice subsets, up to 100,000 rows or values in 128 KB calls, nothing where mmap has no
-  madvise (``_Cube.get_data``, ``_Cube._hint``, #362); and a dense view, each index along an axis of its own and the
-  bands no more than twice the pages the map's read would touch, read as one plain read of the rows' band per plane
-  through astropy's ``section`` of the file, as faulting the pages took 2.2 to 3.1 s cold for a full virtual slit
-  over USB where the bands took 0.47 s (``_Cube._band``, GLUE_SPEED.md 2026-10-31). Always on (Linux and macOS).
-  Retired by glue's ``compute_fixed_resolution_buffer`` and ``Data.get_data`` reading memory maps cheaply cold
-  (report candidate).
+  for index-array views and slice subsets, nothing where mmap has no madvise (``_Cube.get_data``, ``_Cube._hint``,
+  #362); and a dense view read as one plain read of the rows' band per plane through astropy's ``section`` of the
+  file, as faulting the pages took 2.2 to 3.1 s cold for a full virtual slit over USB where the bands took 0.47 s
+  (``_Cube._band``). Always on (Linux and macOS). Retired by glue's ``compute_fixed_resolution_buffer`` and
+  ``Data.get_data`` reading memory maps cheaply cold (report candidate).
 - ``_TabularWCS.__gluestate__`` **and** ``__setgluestate__`` in place of glue's ``_save_wcs`` and ``_load_wcs``, which
-  raise 'HDUList is required to retrieve -TAB coordinates' (``sst.py``, #227, SST5). Always on (SST cubes). Retired
+  raise 'HDUList is required to retrieve -TAB coordinates' (``sources/sst.py``, #227). Always on (SST cubes). Retired
   by glue saving a -TAB WCS with its tables (report candidate).
 - **Axis labels glue-solar sets in viewer state after glue's own resets**: a Profile x label with its display unit
   (in km / s 'Velocity from <rest> Å'), a quicklook Image panel's world labels with their units, a path diagram's
@@ -176,11 +173,10 @@ glue-core
   saving and restoring ``preferred_cmap`` (upstream list).
 - **A Profile viewer adds a quicklook spectrum panel's raster**, a dataset a session or a change of main window adds
   back to a quicklook's Profile panel, and any cube of ``large_data_size`` values or more not from the IRIS reader, with
-  its data layer hidden, a status-bar note and the range fitted once to the first computed
-  subset profile (``hidden_cube_profile``, ``_FitOnceComputed``, #95, #233, S13, SST4). Switch: the viewer's
-  ``large_data_size`` and the data's ``describe.role``; the quicklook's ``_solar_hidden``. Retired by glue's
-  ``_reset_y_limits`` using cached profiles only and ``compute_statistic`` without the float64 copy, or
-  glue-qt adding large data hidden (upstream list).
+  its data layer hidden, a status-bar note and the range fitted once to the first computed subset profile
+  (``hidden_cube_profile``, ``_FitOnceComputed``, #95, #233). Switch: the viewer's ``large_data_size`` and the data's
+  ``describe.role``; the quicklook's ``_solar_hidden``. Retired by glue's ``_reset_y_limits`` using cached profiles
+  only and ``compute_statistic`` without the float64 copy, or glue-qt adding large data hidden (upstream list).
 - **A quicklook spectrum or curve panel's profile limits set on the GUI thread after each move of its subset**, so
   glue's ``update_limits`` finds them unchanged and does not queue the worker again (``_Refit._limits``, #363).
   Always on. Retired by glue's ``ProfileLayerArtist._update_profile`` recomputing on ``v_min`` and ``v_max`` only
@@ -218,7 +214,7 @@ glue-qt
   playing after glue-qt's own close. Retired by glue-qt stopping play timers on close (report candidate).
 - **Loop… replaces a slice slider's** ``_browse_slice``, which the play timer calls through ``_play_slice``, and
   reverses the private ``_play_speed`` for Bounce; the step buttons keep glue-qt's (``tools._loop``, ``_LoopEntry``,
-  #115). Per slider, after Loop…, until glue-qt rebuilds the slider. Retired by glue-qt slider playback taking a
+  #115, #166). Per slider, after Loop…, until glue-qt rebuilds the slider. Retired by glue-qt slider playback taking a
   range, step and bounce (kept by decision; upstream list).
 - **Quicklook panels out of sight draw once in sight**: ``_arrange`` sets each panel canvas's ``_draw_idle`` to
   ``_draw_in_sight``, leaving the draw due while the panel has no visible region (``quicklook.py``, #235, #254).
@@ -342,15 +338,14 @@ astropy, WCSLIB, echo, matplotlib and mpl-scatter-density
   ``VaryingCelestialTransform``, as in the dkist entry below), which irispy's slit-jaw burst search, on a worker, is
   given a deep copy of (``sji_bursts``). Retiring it needs that model safe across threads too, not astropy's -TAB fix
   alone.
-- ``_LockedWCS``: each plain WCS beneath a ``_GlueWCS`` becomes one in place at construction (``_lock_wcslib``: a
-  raster's, a stack's scans' and scan axis's, a rebinned or restored window's, AIA and SOT cubes'), so the analyses
-  hold ``WCS_LOCK`` per wcslib call, never across irispy's calls; each plain WCS ``link_hpc`` links on request, or a
-  restored session holds linked (``_LinkedCollection``, #358), becomes a ``_HeldWCS``, its transforms, copies and
-  struct properties holding ``WCS_LOCK``; an SST cube's ``_LockedTabularWCS`` holds the cube's own ``RLock`` instead
-  (#240); lock-only wrappers of glue's ``world2pixel_single_axis`` and ``PixelSubsetState._to_linked_pixel_coords``
-  (``_hold_wcs_lock``) run glue's function, or the probe-gated fix, inside ``WCS_LOCK`` (#232);
-  ``WCSAxes.reset_wcs`` holds the WCS's ``_held()`` lock; a cube's lock comes after ``WCS_LOCK`` (#226, #251).
-  Names pinned by ``test_the_link_patches_hold_the_wcs_lock`` and
+- ``_LockedWCS``: each plain WCS beneath a ``_GlueWCS`` becomes one in place at construction (``_lock_wcslib``), so
+  the analyses hold ``WCS_LOCK`` per wcslib call, never across irispy's calls; each plain WCS ``link_hpc`` links on
+  request, or a restored session holds linked (``_LinkedCollection``, #358), becomes one too, its transforms, copies
+  and struct properties (``_HeldWCS``) holding ``WCS_LOCK``; an SST cube's ``_LockedTabularWCS`` holds the cube's own
+  ``RLock`` instead (#240); lock-only wrappers of glue's ``world2pixel_single_axis`` and
+  ``PixelSubsetState._to_linked_pixel_coords`` (``_hold_wcs_lock``) run glue's function, or the probe-gated fix, inside
+  ``WCS_LOCK`` (#232); ``WCSAxes.reset_wcs`` holds the WCS's ``_held()`` lock; a cube's lock comes after ``WCS_LOCK``
+  (#226, #251). Names pinned by ``test_the_link_patches_hold_the_wcs_lock`` and
   ``test_the_analyses_hold_the_wcs_lock_in_each_wcslib_call_not_across_irispy``. Always on. Retired by astropy
   #19174's fix with the ``_GlueWCS`` lock; for the SST cube's lock, also WCSLIB's -TAB transforms no longer writing
   the shared tabprm's scratch fields (``tabx2s``), which astropy #19819 does not change.
@@ -371,13 +366,13 @@ astropy, WCSLIB, echo, matplotlib and mpl-scatter-density
 - ``_TabularWCS.has_celestial = False`` **against wcslib's SIGSEGV in glue's autolinker** (#227); astropy then gives
   the angles as quantities, which ``tools._sky`` puts in a SkyCoord by physical type for paths, profiles and Slope
   (#359). Always on. Retired by WCSLIB cutting a -TAB table's celestial axes safely (report candidate).
-- **SPECSYS 'TOPOCENT' on ground-based files without one** (``sst.py``, #227, SST2). Switch: files with no SPECSYS.
+- **SPECSYS 'TOPOCENT' on ground-based files without one** (``sources/sst.py``, #227). Switch: files with no SPECSYS.
   Retired by astropy treating a missing SPECSYS as no spectral observer (report candidate).
 - ``_TabularWCS.axis_correlation_matrix`` **from the tables**, where astropy's says each -TAB world axis depends on
-  its own pixel axis only (``sst.py``, #227). Always on (SST cubes). Retired by astropy computing a -TAB WCS's matrix
-  from its tables (report candidate).
-- **The SST cube's own inverse**, ``_TabularWCS.world_to_pixel_values``, falling back to wcslib's (``sst.py``, #227).
-  Always on (SST cubes). Kept by decision.
+  its own pixel axis only (``sources/sst.py``, #227). Always on (SST cubes). Retired by astropy computing a -TAB WCS's
+  matrix from its tables (report candidate).
+- **The SST cube's own inverse**, ``_TabularWCS.world_to_pixel_values``, falling back to wcslib's (``sources/sst.py``,
+  #227). Always on (SST cubes). Kept by decision.
 - **A slit-jaw click finds a scanning raster's step and slit row from each step's slit as a line** (``sji_to_raster``,
   by ``_SlitAt`` as a DKIST raster's), not from the raster's world-to-pixel: WCSLIB's -TAB inverse does not
   extrapolate a 2-D table (``tab.c``: "Extrapolation for M > 1 is TBD"), so it has no pixel past the center of a first
