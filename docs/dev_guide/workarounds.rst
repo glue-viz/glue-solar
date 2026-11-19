@@ -38,13 +38,11 @@ glue-core
   Stokes), placed at its own slices (``PixelSubsetState._to_linked_pixel_coords``, #76, #85, #246). Switch
   ``needs_pixel_point_workaround()`` (either probe). Retired by the upstream list for the NaN, and glue's round-trip
   check accepting a subset of the fixed axes (report candidate).
-- **A Pixel click or drag off the image, or in a viewer of no data, skipped**, after glue's own button check, and a
-  click on another tile of a DKIST mosaic's imager panel moving the point to that tile's pixel
-  (``PixelSelectionTool._select_pixel``, ``QuicklookImageViewer.tile_at``, #331, #366, #392). Installed always,
-  for the tile click and the viewer of no data; switch ``needs_pixel_off_image_workaround()`` for the skip off the
-  image alone, which is left to glue where the probe is false. Retired by glue's Pixel tool ignoring positions off the
-  image, for the skip, and presses in an empty viewer, which no probe tests (report candidate); the tile click is a
-  glue-solar feature.
+- **A Pixel click or drag off the image, or in a viewer of no data, skipped**, and a click on another tile of a DKIST
+  mosaic moving the point to it (``PixelSelectionTool._select_pixel``, ``QuicklookImageViewer.tile_at``, #331, #366,
+  #392). Installed always, for the tile click and the viewer of no data; switch ``needs_pixel_off_image_workaround()``
+  for the skip off the image alone. Retired by glue's Pixel tool ignoring positions off the image, for the skip, and
+  presses in an empty viewer, which no probe tests (report candidate); the tile click is a glue-solar feature.
 - **FITS export of lazy data and of uint8 components in a subset** (``export_fits``, #96). Switch
   ``needs_fits_export_dask_workaround()``. Retired by glue's exporter writing dask arrays and uint8 subsets (report
   candidate).
@@ -52,29 +50,23 @@ glue-core
   ``needs_crosshair_workaround()``. Retired by the upstream list.
 - **A linked layer's Pixel crosshair placed from the reference data** (``ImageSubsetLayerArtist._update_data``, #107).
   Switch ``needs_reference_crosshair_workaround()``. Retired by the upstream list.
-- **Per-frame limits skipped while a viewer has no reference data** as its data are removed, where glue raises
-  TypeError and stops the removal partway (``ImageLayerState._update_slice_subset``, #364). Switch
-  ``needs_slice_subset_workaround()``, which calls glue's ``_update_slice_subset`` with no reference data. Retired by
+- **Per-frame limits skipped while a viewer has no reference data**, where glue raises TypeError as its data are removed
+  (``ImageLayerState._update_slice_subset``, #364). Switch ``needs_slice_subset_workaround()``. Retired by
   ``_update_slice_subset`` returning while ``numpy_slice_aggregation_transpose`` is None, which the probe sees, or by
-  glue removing a removed layer's ``slices`` callback, which it does not see: the patch then stays on, doing nothing,
-  until removed by hand (report candidate).
-- **Axis labels set on the WCSAxes coordinate of glue's world axis**, ``world_n_dim - 1 - axis``, without placing
-  ticks (``ImageViewer.update_x_axislabel``, ``update_y_axislabel``, #90, #371). Switch
-  ``needs_axis_label_workaround()``, which sees a label update that places ticks. The fork branch
-  ``perf-g1a-wcs-labels`` halves the cost through the same ``set_xlabel`` and ``set_ylabel``: the probe stays true and
-  the patch on. Retired by glue's label updates labelling that WCSAxes coordinate, which places no ticks (report
-  candidate). One labelling the coordinate of ``ndim - 1 - axis`` also turns the probe false: the world axis of data of
-  more world axes than pixel axes, as DKIST's, must then be installed apart from the probe, as the Redo patch's record
-  is.
-- **Redo of a subset change puts back the subset states its first run made** (``ApplySubsetState.do``,
-  ``apply_subset_state``, #182). Installed always, as each run records the subsets it changed, which Undo reads (next
-  entry); switch ``needs_redo_workaround()`` for the put-back alone. Retired by glue's ``ApplySubsetState`` keeping its
-  states (upstream list).
-- **Undo of a subset change, and the Redo put-back, under** ``Coordinator.restoring``: the Pixel points glue puts
-  back are neither followed nor linked again, the shown tab's point stays followed, and Undo deletes only the groups
-  the command made, keeping subsets made since (``ApplySubsetState.undo``, ``undo_subset_state``, #368, #377). Always
-  on, the kept subsets by the record of the entry above. glue-solar feature; for the kept subsets, glue's
-  ``ApplySubsetState.undo`` deleting only what its ``do`` made (report candidate).
+  glue removing a removed layer's ``slices`` callback, which it does not see: the patch is then removed by hand (report
+  candidate).
+- **Axis labels set on the WCSAxes coordinate of glue's world axis**, ``world_n_dim - 1 - axis``, without placing ticks
+  (``ImageViewer.update_x_axislabel``, ``update_y_axislabel``, #90, #371). Switch ``needs_axis_label_workaround()``,
+  which the fork branch ``perf-g1a-wcs-labels`` leaves true. Retired by glue's label updates labelling that WCSAxes
+  coordinate, which places no ticks (report candidate). One labelling the coordinate of ``ndim - 1 - axis`` also turns
+  the probe false: the world axis of data of more world axes than pixel axes, as DKIST's, must then be installed apart
+  from the probe, as the Redo patch's record is.
+- **Redo of a subset change puts back the subset states its first run made, and Undo deletes only the groups the command
+  made**, both under ``Coordinator.restoring`` (``ApplySubsetState.do`` and ``undo``, ``apply_subset_state``,
+  ``undo_subset_state``, #182, #368, #377). Installed always, as Undo reads what each run records; switch
+  ``needs_redo_workaround()`` for the Redo put-back alone. Retired by glue's ``ApplySubsetState`` keeping its states
+  (upstream list) and its ``undo`` deleting only what its ``do`` made (report candidate); ``restoring``, under which no
+  point follows one put back, is a glue-solar feature.
 - ``u.Quantity`` **saver and loader for sessions** (``save_quantity``, #186). Switch: only while glue has no
   Quantity saver. Retired by the upstream list.
 - ``LinkSameWithUnits`` **saved by its two components** (#205). Switch ``needs_link_restore_workaround()``. Retired
@@ -93,27 +85,21 @@ glue-core
   ``_get_model_fitter`` sets ``(None, upper)`` and drops the floor; glue's own Gaussian fitter loses astropy's
   ``stddev`` floor the same way (``GaussianConstantFitter.fit``, #367). Always on. Retired by ``_get_model_fitter``
   leaving a None limit to the model's own bound (report candidate).
-- **Lazy data's sampled statistics**: raw-code counts and random samples of derived attributes
-  (``LazyData.compute_statistic``, ``sources/loaders/lazy.py``). Always on. Retired by glue sampling dask arrays at
-  random, not at chunk corners (upstream list).
-- **DKIST datasets' coordinates in glue's order** (``DKISTWCS``, ``sources/dkist.py``, #371, #373, #375, #378, #389): a
-  gWCS's world axes reordered to one per pixel axis as glue maps them, those of no pixel axis first, longitude and
-  latitude wrapped to ±180°; IRIS data reach a raster through ``link_hpc``'s links to its step and slit pixel
-  (``_SlitAt``, a slit table per repeat or measurement at the raster frame nearest the IRIS frame's time) and from its
-  pixels to the angle glue gives none of its axes (``_SlitPlace``); the inverse is evaluated at finite world values
-  only. Always on (DKIST datasets). Retired by glue mapping world axes to pixel axes by ``axis_correlation_matrix`` (a
-  comment on glue #2574, drafted).
-- **DKIST datasets' sampled statistics**: as many values as glue samples, at random from up to 16 evenly spaced whole
-  frames whose files are present, one sample for a VBI mosaic's tiles (``DKISTData.compute_statistic``, #371). Always
-  on. Retired by glue sampling dask arrays at random (upstream list).
-- **glue's WCS link by APE 14 alone** where glue's needs an astropy WCS or either side has no ``has_celestial``: the
-  physical types both share, through the pixel axes along which only those vary, tried as a round trip from either
-  side's middle, first and last pixel, with as many values as each takes (``wcs_link_init``, #373, #378, #379, #385).
-  Switch ``needs_wcs_link_workaround()``, which sees glue's AttributeError alone. Retired by the two commits of the fork
-  branch ``ape14-wcs-link`` together: 67f47e4 (overlapping glue #2595) gives glue's general case by
-  ``axis_correlation_matrix`` for APE 14 WCSes, which turns the probe false, and 5ce2543 this round trip, refusing NaN
-  pixels where glue tried pixel 0 only. A glue with the first and not the second also turns the probe false, and loses
-  the round trip.
+- **Sampled statistics, the color limits among them, from glue-solar's own samples**: the raw-code counts of IRIS lazy
+  data (``LazyData.compute_statistic``, ``sources/loaders/lazy.py``), whole frames of a DKIST dataset whose files are
+  present (``DKISTData.compute_statistic``, #371) and evenly spaced rows and columns of 16 planes of an SST cube
+  (``_Cube.compute_statistic``, ``_Cube._sample``, #230, #248). Always on. Retired by glue sampling dask arrays at
+  random, not at chunk corners, and, for the SST cube, sampling cheaply (upstream list).
+- **DKIST datasets' coordinates in glue's order**: a gWCS's world axes reordered to one per pixel axis as glue maps
+  them, and IRIS data linked to a raster's step and slit pixel (``DKISTWCS``, ``_glue_order``, ``sources/dkist.py``;
+  ``_SlitAt`` and ``_SlitPlace`` in ``link_hpc``'s links; #371, #373, #375, #378, #389). Always on (DKIST datasets).
+  Retired by glue mapping world axes to pixel axes by ``axis_correlation_matrix`` (a comment on glue #2574, drafted).
+- **glue's WCS link by APE 14 alone** where glue's needs an astropy WCS or either side has no ``has_celestial``, tested
+  by a round trip from either side (``wcs_link_init``, #373, #378, #379, #385). Switch ``needs_wcs_link_workaround()``,
+  which sees glue's AttributeError alone. Retired by the two commits of the fork branch ``ape14-wcs-link`` together:
+  67f47e4 (overlapping glue #2595) gives glue's general case by ``axis_correlation_matrix`` for APE 14 WCSes, which
+  turns the probe false, and 5ce2543 the round trip. A glue with the first and not the second also turns the probe
+  false, and loses the round trip.
 - **A DKIST mosaic's tiles suggested linked to its center tile only**, and other data to that tile, where glue
   suggests every pair (5778 for 108 tiles); the first tile left becomes the center once it is removed, saved in
   sessions (``sources/dkist.py``'s ``wcs_autolink`` in place of 'Astronomy WCS', ``_Recenter``, #373, #378).
@@ -134,33 +120,24 @@ glue-core
 - **A DKIST frame quality's Time added after its header columns** (``_frame_quality``, #395): glue's Profile
   viewer gives a layer its data's first numeric component, a datetime too. Always on. Retired by glue's Profile
   layers leaving datetime components out of their attributes (report candidate).
-- **SST cubes' color-limit sample**: evenly spaced rows and columns of 16 planes, spread over the tunings, Stokes
-  parameters and scans (``_Cube.compute_statistic``, ``_Cube._sample``, #230, #248). Always on. Retired by glue
-  sampling cheaply (upstream list).
-- **An SST cube's reads hinted to the kernel before glue makes them**: MADV_WILLNEED on the memory-mapped file's pages
-  for index-array views and slice subsets, nothing where mmap has no madvise (``_Cube.get_data``, ``_Cube._hint``,
-  #362); and a dense view read as one plain read of the rows' band per plane through astropy's ``section`` of the
-  file, as faulting the pages took 2.2 to 3.1 s cold for a full virtual slit over USB where the bands took 0.47 s
-  (``_Cube._band``). Always on (Linux and macOS). Retired by glue's ``compute_fixed_resolution_buffer`` and
-  ``Data.get_data`` reading memory maps cheaply cold (report candidate).
+- **An SST cube's reads hinted to the kernel before glue makes them** (MADV_WILLNEED), **and a dense view read as one
+  plain read of the rows' band per plane** (``_Cube.get_data``, ``_Cube._hint``, ``_Cube._band``, #362). Always on
+  (Linux and macOS). Retired by glue's ``compute_fixed_resolution_buffer`` and ``Data.get_data`` reading memory maps
+  cheaply cold (report candidate).
 - ``_TabularWCS.__gluestate__`` **and** ``__setgluestate__`` in place of glue's ``_save_wcs`` and ``_load_wcs``, which
   raise 'HDUList is required to retrieve -TAB coordinates' (``sources/sst.py``, #227). Always on (SST cubes). Retired
   by glue saving a -TAB WCS with its tables (report candidate).
-- **Axis labels glue-solar sets in viewer state after glue's own resets**: a Profile x label with its display unit
-  (in km / s 'Velocity from <rest> Å'), a quicklook Image panel's world labels with their units, a path diagram's
-  labels on any Image viewer, the light curves' 'Value' as their units, the Profile y label from the y display unit
-  (``VelocityTool._label_x``, ``FrameTimeTool._label_exposures``, ``_diagram_label``, ``_point_curves``,
-  ``VelocityTool._unit_y``, #339, #367). Always on. Retired by glue's viewers labelling axes with their units
-  (report candidate); for 'World N', glue's ``axis_label`` returning the name it checks.
-- **Path diagram overrides of core's path slicer and their session savers** (``PathTool``, ``PathData``, #151,
-  #191): each sample at the nearest pixel where core truncates, coordinates without the helioprojective angles
-  of a moving pointing (``_DiagramCoordinates``), a plain ``DaskComponent`` read through ``vindex`` (#356), diagrams
-  closed with ``close(warn=False)`` (``_close_slice_viewers``, #243), the crosshair rounded and clamped
-  (``PathCrosshairTool._on_move``, #262), and the path ROI's ``_background_cache`` cleared (``_finish_roi``). Always
-  on. Retired by core's path slicer fixes (upstream list; report candidates for ``_close_slice_viewers`` calling
-  ``close(warn=False)``, ``drive_parent_slice`` rounding and clamping, ``PathSlicedCoordinates`` leaving out world
-  axes on the sliced pixel axes, index arrays through ``vindex``, and ``MplPathROI.finalize_selection`` resetting
-  its background).
+- **Axis labels glue-solar sets in viewer state after glue's own resets**, with their units: a Profile's x and y, a
+  quicklook Image panel's, a path diagram's and the light curves' (``VelocityTool._label_x``, ``VelocityTool._unit_y``,
+  ``FrameTimeTool._label_exposures``, ``_diagram_label``, ``_point_curves``, #339, #367). Always on. Retired by glue's
+  viewers labelling axes with their units (report candidate); for 'World N', glue's ``axis_label`` returning the name it
+  checks.
+- **Path diagram overrides of core's path slicer and their session savers** (``PathTool``, ``PathData``,
+  ``_DiagramCoordinates``, ``_close_slice_viewers``, ``PathCrosshairTool._on_move``, ``_finish_roi``, #151, #191, #243,
+  #262, #356). Always on. Retired by core's path slicer fixes (upstream list; report candidates for
+  ``_close_slice_viewers`` calling ``close(warn=False)``, ``drive_parent_slice`` rounding and clamping,
+  ``PathSlicedCoordinates`` leaving out world axes on the sliced pixel axes, index arrays through ``vindex``, and
+  ``MplPathROI.finalize_selection`` resetting its background).
 - **An SSTRED Stokes cube's unnamed Stokes axis named 'Stokes'** where its y axis is named (``sst_data``, #356), as
   glue's ``axis_label`` checks ``world_axis_names[axis]`` but returns ``world_axis_names[world_n_dim - 1 - axis]``.
   Always on. Retired by ``axis_label`` checking the name it returns (report candidate, upstream list).
@@ -171,39 +148,31 @@ glue-core
   ``_RESTORING``, #234). Always on. Retired by glue's LoadLog restoring one file's logs in one load (upstream list).
 - **A dataset's style saved with its preferred colormap** (``maps._Style``, #189). Always on. Retired by glue-core
   saving and restoring ``preferred_cmap`` (upstream list).
-- **A Profile viewer adds a quicklook spectrum panel's raster**, a dataset a session or a change of main window adds
-  back to a quicklook's Profile panel, and any cube of ``large_data_size`` values or more not from the IRIS reader, with
-  its data layer hidden, a status-bar note and the range fitted once to the first computed subset profile
-  (``hidden_cube_profile``, ``_FitOnceComputed``, #95, #233). Switch: the viewer's ``large_data_size`` and the data's
-  ``describe.role``; the quicklook's ``_solar_hidden``. Retired by glue's ``_reset_y_limits`` using cached profiles
-  only and ``compute_statistic`` without the float64 copy, or glue-qt adding large data hidden (upstream list).
+- **A Profile viewer adds a quicklook Profile panel's dataset, and any cube of** ``large_data_size`` **values or more
+  not from the IRIS reader, with its data layer hidden** (``hidden_cube_profile``, ``_FitOnceComputed``, #95, #233).
+  Switch: the viewer's ``large_data_size`` and the data's ``describe.role``; the quicklook's ``_solar_hidden``. Retired
+  by glue's ``_reset_y_limits`` using cached profiles only and ``compute_statistic`` without the float64 copy, or
+  glue-qt adding large data hidden (upstream list).
 - **A quicklook spectrum or curve panel's profile limits set on the GUI thread after each move of its subset**, so
   glue's ``update_limits`` finds them unchanged and does not queue the worker again (``_Refit._limits``, #363).
   Always on. Retired by glue's ``ProfileLayerArtist._update_profile`` recomputing on ``v_min`` and ``v_max`` only
   while ``normalize`` is on, or glue-qt's ``_calculate_profile`` drawing a cached profile without the worker (fork
   branches ``perf-g7``, ``perf-q1``, ``perf-q2``).
-- **Per-frame limits left to the reference data's layers**: as an Image viewer's reference data change, the layers of
-  every other dataset take their whole cube's limits again, before glue sets the new sliders
+- **Per-frame limits left to the reference data's layers** as an Image viewer's reference data change
   (``PerFrameLimitsTool._whole_cube_again``, ``tools.py``, #102), as glue takes a per-frame layer's limits at the
   reference data's slice indices, an IndexError for data of another shape. Always on (Image viewers). Retired by glue
   taking a per-frame layer's limits at its own data's slice (report candidate).
-- **A broadcast component saved as its values before the broadcast**, as a frame's time or exposure time over its
-  pixels (``_BroadcastComponent``, ``_BroadcastTimes``, whose ``__gluestate__`` and ``__setgluestate__`` take the
-  place of glue's ``Component`` saver and loader, ``sources/loaders/iris.py``, #309): glue writes the broadcast in
-  full, as large as the data's values or more. Always on (those components). Retired by glue's ``Component`` saver
-  writing a broadcast array as its values and shape (report candidate).
+- **A broadcast component saved as its values before the broadcast**, where glue writes the broadcast in full
+  (``_BroadcastComponent``, ``_BroadcastTimes``, ``sources/loaders/iris.py``, #309). Always on (those components).
+  Retired by glue's ``Component`` saver writing a broadcast array as its values and shape (report candidate).
 - **A Profile viewer told that its x unit's conversion changed**, as 'Set rest wavelength…' sets or clears the rest
-  wavelength its km / s is from: ``VelocityTool._rest_changed`` calls glue's private
-  ``ProfileViewerState._update_x_display_unit_choices`` and, where km / s goes, sets the private ``_previous_x_att``
-  to None and calls ``_reset_x_limits``, as glue cannot convert the x range from km / s then (``lines.py``, #187).
-  Always on (a Profile viewer, at a ``meta`` update of its reference data). Retired by a public way to tell a Profile
-  viewer's state that its x unit's conversion changed (report candidate).
+  wavelength its km / s is from, through glue's private ``ProfileViewerState._update_x_display_unit_choices``,
+  ``_previous_x_att`` and ``_reset_x_limits`` (``VelocityTool._rest_changed``, ``lines.py``, #187). Always on. Retired
+  by a public way to tell a Profile viewer's state that its x unit's conversion changed (report candidate).
 - **glue's 'Save Python script to reproduce plot' listed once, before glue-solar's Save entries**: ``setup`` imports
-  ``glue.plugins.tools.python_export``, which registers ``save:python`` as glue's plugin does, and puts it in the
-  Image and Profile viewers' ``subtools['save']`` ahead of its own entries where glue's plugin has not yet
-  (``__init__.py``, #222), as glue loads plugins in their entry points' order and its own adds the entry after
-  glue-solar's where it loads later. Always on. Retired by glue listing ``save:python`` before other plugins load
-  (report candidate).
+  ``glue.plugins.tools.python_export`` and puts ``save:python`` in the Image and Profile viewers' ``subtools['save']``
+  ahead of its own entries (``__init__.py``, #222), as glue's plugin adds it after them where it loads later. Always on.
+  Retired by glue listing ``save:python`` before other plugins load (report candidate).
 
 glue-qt
 -------
@@ -233,15 +202,16 @@ glue-qt
   matplotlib's key bindings (report candidate).
 - **Toolbar menu tooltips on the button and its entries** (``BasicToolbar.add_tool``, #222). Per button: no tooltip,
   or menu tooltips hidden. Retired by a glue-qt fix (report candidate).
-- **One fitter per Profile viewer and fitter class** for Fit Settings and fits (``glue_patches._get_fitter``,
-  ``_on_settings``, ``_fit``, #287). Switch: while ``ProfileTools`` has no ``_get_fitter`` (``_on_settings`` also
-  while ``needs_fitter_settings_workaround()``). Retired by glue-qt's ``ProfileTools._get_fitter`` (fork branch
-  ``fitter-settings``).
-- ``ProfileTools._fit`` **replaced, for the IRIS fitter, by its own loop over the layers**: each layer's saturated
-  samples left out, the model given the layer's rest wavelength, attribute, x unit, function, range and
-  saturated counts for ``summarize`` and 'Fit every spectrum' (``fitters._fit``, #291, #313); with glue-qt's own
-  ``_get_fitter`` it fits with the fitter glue-qt passes. Always on. Retired by glue-qt passing the layer to a
-  fitter's ``fit`` and ``summarize`` (upstream list).
+- **One fitter per Profile viewer and fitter class for Fit Settings and fits, and Settings opening a fitter's own**
+  ``settings_widget``, the IRIS fitter's component list (``glue_patches._get_fitter``, ``_on_settings``, ``_fit``,
+  ``fitters._Settings``, #287, #314). Switch: while ``ProfileTools`` has no ``_get_fitter``; ``_on_settings`` also while
+  ``needs_fitter_settings_workaround()``. Retired by glue-qt's ``ProfileTools._get_fitter`` (fork branch
+  ``fitter-settings``) and its ``_on_settings`` using ``fitter.settings_widget`` (fork branch
+  ``fitter-settings-widget``, dba71453).
+- ``ProfileTools._fit`` **replaced, for the IRIS fitter, by its own loop over the layers**, which leaves out each
+  layer's saturated samples and gives the model what ``summarize`` and 'Fit every spectrum' take of the layer
+  (``fitters._fit``, #291, #313); with glue-qt's own ``_get_fitter`` it fits with the fitter glue-qt passes. Always on.
+  Retired by glue-qt passing the layer to a fitter's ``fit`` and ``summarize`` (upstream list).
 - **A quicklook panel makes its Point the edit subset** at a Pixel or Follow/lock press or move while a dataset is
   selected (``QuicklookImageViewer._edit_point``, ``FollowLockTool._follow``, #288, #361). Always on. Retired by
   glue-qt's data collection leaving the edit subset alone when a dataset is selected (upstream list).
@@ -253,10 +223,6 @@ glue-qt
   panels). Retired by glue-qt's ``closeEvent`` setting ``_closed`` (report candidate).
 - **Analysis result viewers open with glue-qt's default mouse mode off** (``analysis.view``, #300). Always on. Retired
   by glue-qt's data collection leaving the edit subset alone (upstream list).
-- **Settings on the Fit tab opens a fitter's own** ``settings_widget``, the IRIS fitter's component list
-  (``glue_patches._on_settings``, ``fitters._Settings``, #314). Switch ``needs_fitter_settings_workaround()``,
-  or while ``ProfileTools`` has no ``_get_fitter``. Retired by glue-qt's ``_on_settings`` using
-  ``fitter.settings_widget`` (fork branch ``fitter-settings-widget``, dba71453).
 - **The Fit tab keeps every artist a fitter's** ``plot`` **returns**, so Clear removes each IRIS line's dashed curve
   (``glue_patches._plot_fit``, #314). Switch ``needs_fit_artists_workaround()``. Retired by glue-qt's ``_plot_fit``
   keeping every artist (fork branch ``fit-artists``, d6655bc5).
@@ -270,19 +236,18 @@ glue-qt
 - **Layer actions hidden where** ``applies(data)`` **refuses with a ValueError**, shown when the check raises anything
   else (``UserAction._can_trigger``, #223, #257). Switch ``needs_layer_action_applies_workaround()``. Retired by
   glue-qt's layer actions taking ``applies`` (fork branch ``layer-action-applies``).
-- **glue-qt's slice sliders**: the sliders a rebuild replaces hidden, as glue-qt only closes them and Qt's queued show
-  put one back over an Image viewer's options; each new slider showing the values and unit of glue's world axis
-  ``world_n_dim - 1 - axis``, where glue-qt reads ``ndim - 1 - axis`` (``sync_sliders_from_state``, #380).
-  Switch ``needs_slider_world_workaround()``, asked at the first call as the probe needs Qt's application, for the
-  world values (of data of more world axes than array axes); the hide of replaced sliders is always on. Retired by
-  glue-qt's ``MultiSliceWidgetHelper`` hiding replaced sliders and reading glue's world axis (report candidate).
+- **glue-qt's slice sliders**: the sliders a rebuild replaces hidden, and each new slider showing the values and unit of
+  glue's world axis ``world_n_dim - 1 - axis``, where glue-qt reads ``ndim - 1 - axis`` (``sync_sliders_from_state``,
+  #380). Switch ``needs_slider_world_workaround()``, asked at the first call, for the world values; the hide of replaced
+  sliders is always on. Retired by glue-qt's ``MultiSliceWidgetHelper`` hiding replaced sliders and reading glue's world
+  axis (report candidate).
 - ``GlueApplication.__init__`` **wrapped to put glue-solar's icon**, the macOS app's, on the application and its
   window after glue's own; quicklook panels' and strip windows' title bars get it too (``__init__.py``,
   ``quicklook._fill``). Always on. Retired by a glue-qt hook for the application icon (report candidate).
 - **Viewers closed but not yet deleted left out of a saved session**, as when a script removes their data and saves in
-  the same turn, where glue-qt lists them and glue cannot restore such an Image viewer (``GlueApplication.__gluestate__``,
-  ``glue_patches.application_gluestate``, #364). Always on. Retired by glue-qt's ``GlueApplication.viewers`` or
-  ``__gluestate__`` leaving closed viewers out (report candidate).
+  the same turn, where glue-qt lists them and glue cannot restore such an Image viewer
+  (``GlueApplication.__gluestate__``, ``glue_patches.application_gluestate``, #364). Always on. Retired by glue-qt's
+  ``GlueApplication.viewers`` or ``__gluestate__`` leaving closed viewers out (report candidate).
 - **A write to glue's console log from another thread made on the GUI thread** (``GlueLogger.write``,
   ``glue_patches.logger_write``): the log is ``sys.stderr`` and edits its QTextEdit on the thread that writes, as
   irispy's warnings do while the observation browser reads files on a worker thread, which Qt allows on the GUI
@@ -298,22 +263,15 @@ glue-qt
 - **glue-qt's Slice Extraction left off Image viewers**: its ``pv_slicer`` plugin ``setup`` made a no-op and the tool
   filtered from ``ImageViewer.tools``, so Path diagram is the one path tool (``setup``). Always on. Kept by
   decision.
-- **A viewer's mouse mode, such as Pixel, turned back on after 'Save frames or movie…'**, an entry of glue-qt's Save
-  menu (``tools._keep_mouse_mode``, the mode the viewer's Coordinate tool remembers, #92), as glue-qt's toolbar ends
-  the active mode before it runs any tool that is not a mode. Always on. Retired by glue-qt's toolbar leaving the
-  active mouse mode on as a plain tool runs (report candidate).
-- **A tool menu's entries treated as buttons are**: each subtool and its menu action written into the toolbar's
-  ``tools`` and ``actions``, the entry shown while its tool is ``enabled``, check-marked from ``checked``, and its key
-  a ``QShortcut`` of the toolbar, as glue-qt's own, on the entry, acts only while the menu's button has the keyboard;
-  and a plain entry's action connected to its tool in place of glue-qt's toolbar, which ends the active mouse mode
-  first, and an unfinished path with it (``tools._ToolMenu``, #156, #222). Always on (``CoordinateTool``,
-  ``ModesTool``, ``ViewTool``). Retired by glue-qt #72 for the entries shown while ``enabled``; for the rest by
-  glue-qt's toolbar listing subtools in ``tools`` and ``actions``, with check marks and keys of the toolbar's, and
-  leaving the active mouse mode on as a plain tool runs (report candidate).
-- **A wavelength band kept as its slider moves**: ``BandTool`` adds a validator to an Image viewer state's ``slices``
-  that makes the index of each wavelength axis not shown an ``AggregateSlice`` mean over 5, 9 or 15 pixels about it
-  again (``tools.BandTool._band``, #169), as glue-qt's slider sets a plain index at any move. Per viewer: while a band
-  is on. Retired by glue-qt's slice slider moving an ``AggregateSlice``'s center and keeping its range (upstream list).
+- **A tool menu's entries treated as buttons are**, shown while ``enabled``, check-marked and keyed, **and the viewer's
+  mouse mode, such as Pixel, left on as a plain entry runs, or turned back on after 'Save frames or movie…'** of
+  glue-qt's Save menu (``tools._ToolMenu``, ``tools._keep_mouse_mode``, #92, #156, #222). Always on (``CoordinateTool``,
+  ``ModesTool``, ``ViewTool``; the Save entry). Retired by glue-qt #72 for the entries shown while ``enabled``; for the
+  rest by glue-qt's toolbar listing subtools in ``tools`` and ``actions``, with check marks and keys of the toolbar's,
+  and leaving the active mouse mode on as a plain tool runs (report candidate).
+- **A wavelength band kept as its slider moves**, by a validator of an Image viewer state's ``slices``
+  (``tools.BandTool._band``, #169), as glue-qt's slider sets a plain index at any move. Per viewer: while a band is on.
+  Retired by glue-qt's slice slider moving an ``AggregateSlice``'s center and keeping its range (upstream list).
 - **The right-click entries shown or hidden for the selection again as a glue-solar data action returns, and as its
   worker ends** (``glue_patches.refresh_layer_actions``, called by ``layer_action``'s wrapper and ``analysis.start``,
   #255): glue-qt's ``LayerAction.update_enabled`` runs as the selection changes only, so an action that changes its
@@ -331,24 +289,20 @@ glue-qt
 astropy, WCSLIB, echo, matplotlib and mpl-scatter-density
 ---------------------------------------------------------
 
-- ``_GlueWCS`` ``WCS_LOCK`` (#60). Always on (not safely probeable). Retired by astropy #19174's fix, once 8 unlocked
-  threads give 0 wrong -TAB values: it corrupts silently, without crashing, 1187 to 1267 of 2400 calls on 8.0.2
-  (comment drafted). The lock also guards the
-  one celestial model a slit-jaw image's gWCS sets and then evaluates at each frame (dkist's
-  ``VaryingCelestialTransform``, as in the dkist entry below), which irispy's slit-jaw burst search, on a worker, is
-  given a deep copy of (``sji_bursts``). Retiring it needs that model safe across threads too, not astropy's -TAB fix
-  alone.
-- ``_LockedWCS``: each plain WCS beneath a ``_GlueWCS`` becomes one in place at construction (``_lock_wcslib``), so
-  the analyses hold ``WCS_LOCK`` per wcslib call, never across irispy's calls; each plain WCS ``link_hpc`` links on
-  request, or a restored session holds linked (``_LinkedCollection``, #358), becomes one too, its transforms, copies
-  and struct properties (``_HeldWCS``) holding ``WCS_LOCK``; an SST cube's ``_LockedTabularWCS`` holds the cube's own
-  ``RLock`` instead (#240); lock-only wrappers of glue's ``world2pixel_single_axis`` and
-  ``PixelSubsetState._to_linked_pixel_coords`` (``_hold_wcs_lock``) run glue's function, or the probe-gated fix, inside
-  ``WCS_LOCK`` (#232); ``WCSAxes.reset_wcs`` holds the WCS's ``_held()`` lock; a cube's lock comes after ``WCS_LOCK``
-  (#226, #251). Names pinned by ``test_the_link_patches_hold_the_wcs_lock`` and
-  ``test_the_analyses_hold_the_wcs_lock_in_each_wcslib_call_not_across_irispy``. Always on. Retired by astropy
-  #19174's fix with the ``_GlueWCS`` lock; for the SST cube's lock, also WCSLIB's -TAB transforms no longer writing
-  the shared tabprm's scratch fields (``tabx2s``), which astropy #19819 does not change.
+- ``_GlueWCS`` ``WCS_LOCK`` (#60), which also guards the one celestial model a slit-jaw image's gWCS sets and then
+  evaluates at each frame (the dkist entry below; ``sji_bursts`` gives irispy a deep copy). Always on (not safely
+  probeable). Retired by astropy #19174's fix, once 8 unlocked threads give 0 wrong -TAB values, where 8.0.2 gives 1187
+  to 1267 in 2400 calls without crashing (comment drafted), together with dkist's ``VaryingCelestialTransform`` safe
+  across threads.
+- ``_LockedWCS``: each plain WCS beneath a ``_GlueWCS``, and each that ``link_hpc`` links or a restored session holds
+  linked, made to hold ``WCS_LOCK`` in its transforms, copies and struct properties (``_lock_wcslib``, ``_HeldWCS``,
+  ``_LinkedCollection``, #358); an SST cube's ``_LockedTabularWCS`` holds the cube's own ``RLock`` instead, taken after
+  ``WCS_LOCK`` (#240); glue's ``world2pixel_single_axis`` and ``PixelSubsetState._to_linked_pixel_coords``, or their
+  probe-gated fixes, run inside ``WCS_LOCK`` (``_hold_wcs_lock``, #232), and ``WCSAxes.reset_wcs`` inside the WCS's
+  ``_held()`` lock (#226, #251). Names pinned by ``test_the_link_patches_hold_the_wcs_lock`` and
+  ``test_the_analyses_hold_the_wcs_lock_in_each_wcslib_call_not_across_irispy``. Always on. Retired by astropy #19174's
+  fix with the ``_GlueWCS`` lock; for the SST cube's lock, also WCSLIB's -TAB transforms no longer writing the shared
+  tabprm's scratch fields (``tabx2s``), which astropy #19819 does not change.
 - **'Fit every spectrum' asks** ``parallel_fit_dask`` **for** ``("param_cov", "success", "active_mask")`` **only** and
   makes each ``FitInfoSubset`` a plain dict, as all of the fit info took a C II window's main process to 5.9 GB
   (``fit_maps._fit_maps``, #314, #328). Always on. Retired by astropy's ``FitInfoSubset.__getattr__`` raising
@@ -359,10 +313,10 @@ astropy, WCSLIB, echo, matplotlib and mpl-scatter-density
   always on. Retired by astropy's ``_wrap_deriv`` including a tied parameter's part (report candidate) and
   ``fitter_to_model_params_array`` setting each tie before the next.
 - **An Image view along a raveled DKIST axis** (a raster's steps with repeats, a Cryo-NIRSP step's measurements)
-  never drew: off either end dkist's ``Ravel`` gives a NaN time, on which WCSAxes raises for a range all NaN
-  (``formatter_locator.py:159``); taken at the nearest end, of that end's time and no longitude or latitude
-  (``DKISTWCS.pixel_to_world_values``, #379, #385). Always on (DKIST datasets with a ``Ravel``). Retired by a
-  WCSAxes fix for an all-NaN world range (report candidate).
+  **drawn**: off either end dkist's ``Ravel`` gives a NaN time, on which WCSAxes raises for a range all NaN
+  (``formatter_locator.py:159``), so a pixel past an end is given that end's time (``DKISTWCS.pixel_to_world_values``,
+  #379, #385). Always on (DKIST datasets with a ``Ravel``). Retired by a WCSAxes fix for an all-NaN world range (report
+  candidate).
 - ``_TabularWCS.has_celestial = False`` **against wcslib's SIGSEGV in glue's autolinker** (#227); astropy then gives
   the angles as quantities, which ``tools._sky`` puts in a SkyCoord by physical type for paths, profiles and Slope
   (#359). Always on. Retired by WCSLIB cutting a -TAB table's celestial axes safely (report candidate).
@@ -374,11 +328,10 @@ astropy, WCSLIB, echo, matplotlib and mpl-scatter-density
 - **The SST cube's own inverse**, ``_TabularWCS.world_to_pixel_values``, falling back to wcslib's (``sources/sst.py``,
   #227). Always on (SST cubes). Kept by decision.
 - **A slit-jaw click finds a scanning raster's step and slit row from each step's slit as a line** (``sji_to_raster``,
-  by ``_SlitAt`` as a DKIST raster's), not from the raster's world-to-pixel: WCSLIB's -TAB inverse does not
-  extrapolate a 2-D table (``tab.c``: "Extrapolation for M > 1 is TBD"), so it has no pixel past the center of a first
-  or last step, which the later scans of a stack drift across. Always on. glue's links still invert the table, so a
-  region or a linked layer ends at those centers. Retired by WCSLIB extrapolating a 2-D table by half a cell (report
-  candidate).
+  by ``_SlitAt`` as a DKIST raster's), not from the raster's world-to-pixel: WCSLIB's -TAB inverse does not extrapolate
+  a 2-D table (``tab.c``: "Extrapolation for M > 1 is TBD"), so it has no pixel past the center of a first or last step.
+  Always on. glue's links still invert the table, so a region or a linked layer ends at those centers. Retired by WCSLIB
+  extrapolating a 2-D table by half a cell (report candidate).
 - **The mouse-over readout places WCSAxes ticks before formatting** (``_readout``, ``tools.py``, #90). Always on.
   Retired by WCSAxes ``format_coord`` without a tick placement (report candidate).
 - **A colormap matched to its own combo entry** (echo's ``_find_combo_data``, #194). Switch
@@ -386,42 +339,34 @@ astropy, WCSLIB, echo, matplotlib and mpl-scatter-density
 - **mpl-scatter-density's 0.5 s hold after a canvas resize, ended before each saved frame**: ``SaveSequenceTool``
   calls ``on_release()`` on each ``BaseImageArtist`` in the viewer's axes (#270). Always on. Retired by
   mpl-scatter-density ignoring the hold while matplotlib saves (``canvas._is_saving``; report candidate).
-- **No figure manager on the canvas while 'Save frames or movie…' saves**: ``SaveSequenceTool`` sets
-  ``canvas.manager`` to None for the run and puts it back at its end (``tools.py``, #145), as matplotlib's
-  ``FFMpegWriter`` evens out an odd frame size, and sets the size again at each frame, with
-  ``set_size_inches(forward=True)``, which resizes the canvas through its manager, and glue then zooms to the new size.
-  Per run. Retired by matplotlib's movie writers sizing the figure without resizing its window (report candidate).
-- **An IRIS dataset's pixel-to-world values kept by their exact inputs**: the last 128 distinct inputs of up to 4,096
-  values each, per dataset and pointing offset, each caller given its own copy (``_GlueWCS.pixel_to_world_values``,
+- **No figure manager on the canvas while 'Save frames or movie…' saves** (``SaveSequenceTool``, ``tools.py``, #145), as
+  matplotlib's ``FFMpegWriter`` evens out an odd frame size with ``set_size_inches(forward=True)``, which resizes the
+  canvas through its manager, and glue then zooms to the new size. Per run. Retired by matplotlib's movie writers sizing
+  the figure without resizing its window (report candidate).
+- **An IRIS dataset's pixel-to-world values kept by their exact inputs** (``_GlueWCS.pixel_to_world_values``,
   ``_MEMO_ENTRIES``, ``_MEMO_SAMPLES``, ``sources/loaders/iris.py``, #90), as WCSAxes converts the same pixels about
-  twice in each draw and all of them again at every redraw; ``DKISTWCS`` keeps its own (under dkist). Always on.
-  Retired by WCSAxes keeping its own conversions through each tick placement (upstream list).
+  twice in each draw and all of them again at every redraw; ``DKISTWCS`` keeps its own (under dkist). Always on. Retired
+  by WCSAxes keeping its own conversions through each tick placement (upstream list).
 
 dkist
 -----
 
-- **A world-to-pixel through a slit-jaw image's gWCS at a time off its frames gives NaN pixels on ARM too**: dkist
-  casts the NaN frame index to an int, on x86-64 the least int64, off its table, which it leaves NaN, and on ARM 0,
-  frame 0's x and y with a NaN frame; each pixel inverted with a NaN frame is made NaN
-  (``_GlueWCS.world_to_pixel_values``, ``_frames``, #342, #353). Always on. Retired by dkist's ``sanitize_index``
-  handling a NaN index (report candidate).
-- **dkist's inverse given raveled 1-D values** (``DKISTWCS.world_to_pixel_values``, #378): its ``Unravel`` inverse,
-  which a Cryo-NIRSP context image of repeated measurements uses, raises TypeError on arrays of more than one
-  dimension. Always on (DKIST datasets). Retired by ``Unravel.evaluate`` taking N-d input (report candidate).
-- **A point or image of DKIST data at a time outside a raveled DKIST dataset's frames** raised ValueError
-  (``Unravel`` calling ``int()`` on a NaN time); ``DKISTWCS.world_to_pixel_values`` gives NaN pixels there by
-  ``_off_frames``, as dkist gives for a dataset not raveled, except while the WCS link tests its transforms
-  (``STRICT_INVERSE``), where it also refuses a NaN world value, so data of other times stay unlinked (#379, #385).
-  Switch: dkist raising ValueError. Retired by ``Unravel`` giving NaN for a NaN index (report candidate).
-- **DKIST values read by glue-solar, not dkist's dask array** (``DKISTData.get_data``, ``_Files``, ``_section``,
-  ``_Open``, #383, #385): only the tiles of each file a view touches decompressed (astropy's ``section``), up
-  to 4096 files kept open (``KEPT_OPEN``: half the open-file soft limit, raised by ``lazy.allow_open_files``), closed
-  as their dataset leaves glue or its window closes, and once read by a profile still computing after that; 8 threads, a
-  lock per file, a missing file NaN; dask's reads where a dataset is cut within its files' frames or dkist gives no
-  HDU of its files; ``DKISTWCS.pixel_to_world_values`` keeps its last 64 distinct inputs of up to 10,000 values per
-  dataset, as WCSAxes asks the same at each draw. Always on (DKIST datasets). Retired by dkist's dask array passing
-  each view to its loaders' ``hdu.section`` (dkist #226) and ``VaryingCelestialTransform`` evaluating all raster steps
-  at once (dkist #246, #256).
+- **A world-to-pixel through a slit-jaw image's gWCS at a time off its frames gives NaN pixels on ARM too**: dkist casts
+  the NaN frame index to an int, on x86-64 the least int64, off its table, which it leaves NaN, and on ARM 0, frame 0's
+  x and y (``_GlueWCS.world_to_pixel_values``, ``_frames``, #342, #353). Always on. Retired by dkist's
+  ``sanitize_index`` handling a NaN index (report candidate).
+- **dkist's** ``Unravel`` **inverse, of a raveled dataset, given 1-D values, and NaN pixels at a time off the dataset's
+  frames** (``DKISTWCS.world_to_pixel_values``, ``_off_frames``, #378, #379, #385): it raises TypeError on arrays of
+  more than one dimension, and ValueError, calling ``int()`` on a NaN time. Always on (DKIST datasets) for the 1-D
+  values; switch for the NaN pixels: dkist raising ValueError, outside the WCS link's test of its transforms
+  (``STRICT_INVERSE``), which leaves data of other times unlinked. Retired by ``Unravel.evaluate`` taking N-d input, and
+  ``Unravel`` giving NaN for a NaN index (report candidates).
+- **DKIST values read by glue-solar, not dkist's dask array**, which decompresses each file whole
+  (``DKISTData.get_data``, ``_Files``, ``_section``, ``_Open``, ``KEPT_OPEN``, #383, #385), the open-file limit raised
+  by ``lazy.allow_open_files``; dask's reads where a dataset is cut within its files' frames or dkist gives no HDU of
+  its files; ``DKISTWCS.pixel_to_world_values`` keeps its last inputs, as the IRIS memo above. Always on (DKIST
+  datasets). Retired by dkist's dask array passing each view to its loaders' ``hdu.section`` (dkist #226) and
+  ``VaryingCelestialTransform`` evaluating all raster steps at once (dkist #246, #256).
 - **dkist's** ``VaryingCelestialTransform`` **sets the parameters of its one celestial model at each pointing index,
   then evaluates it**, so glue-qt's profile worker beside the GUI thread gave the map another step's pointing
   (143.6" off on AIOMGG); a lock around dkist's forward and inverse and ``_off_frames`` (``DKISTWCS._lock``, #385).
@@ -433,30 +378,24 @@ dkist
   ``files.basepath`` breaks dkist's reads from another working directory. Always on. Retired by dkist resolving
   ``files.basepath`` (1 line, on dkist #366).
 - **'Download these frames…' sends a DKIST dataset's chosen FITS files alone** through dkist's private
-  ``_orchestrate_transfer_task``, their list built as ``FileManager.download`` builds it from the refreshed inventory,
-  since ``FileManager.download`` adds the ASDF file, browse movie and quality report to every transfer (``_transfer``,
-  ``sources/dkist.py``, #396). Always on (a DKIST download); the fallback, ``FileManager.download`` of each
-  sliced dataset, on ImportError, AttributeError or arguments that no longer bind. Retired by ``FileManager.download``
+  ``_orchestrate_transfer_task``, since ``FileManager.download`` adds the ASDF file, browse movie and quality report to
+  every transfer (``_transfer``, ``sources/dkist.py``, #396). Always on (a DKIST download); ``FileManager.download`` of
+  each sliced dataset where the private name is gone or its arguments changed. Retired by ``FileManager.download``
   sending the FITS files alone (drafted).
-- **'Download these frames…' follows its transfer by the files in the folder**, a file whole once its size and mtime
-  are unchanged over one 5 s look, read as missing until then (``_ARRIVING`` in ``_section``, ``_watch_download``,
-  ``sources/dkist_actions.py``, #396), as neither ``FileManager.download(wait=False)`` nor
-  ``_orchestrate_transfer_task`` returns a Globus task to follow. A transfer that failed is known by its files alone:
-  after ten minutes of looks at which none arrived or grew (``DOWNLOAD_STALLED``) the watch ends and those left are
-  offered again. Always on (a DKIST download). Retired by dkist returning the Globus task ID of a transfer that does
-  not wait (dkist #516).
+- **'Download these frames…' follows its transfer by the files in the folder** (``_watch_download``,
+  ``DOWNLOAD_STALLED``, ``sources/dkist_actions.py``; ``_ARRIVING`` in ``_section``; #396), as neither
+  ``FileManager.download(wait=False)`` nor ``_orchestrate_transfer_task`` returns a Globus task to follow. Always on (a
+  DKIST download). Retired by dkist returning the Globus task ID of a transfer that does not wait (dkist #516).
 
 irispy
 ------
 
-- **irispy's private** ``irispy.utils.bursts._SI_IV`` **read**, the Si IV rest wavelength its burst search measures
-  velocities from, to cut a raster window to the wavelength pixels the search takes (``bursts._crop``,
-  ``sources/bursts.py``, #172). Always on ('IRIS: detect UV bursts…'). Retired by irispy giving the wavelength a public
-  name (report candidate).
-- **irispy's private** ``irispy.utils.mg_features._REST_WAVELENGTH`` **read**, the Mg II k and h rest wavelengths its
-  features are measured from, to cut a raster window to the wavelength pixels irispy takes, and to check and apply a
-  rest wavelength set on the window (``mg_features._crop``, ``_rest``, ``sources/mg_features.py``, #153, #237). Always
-  on ('IRIS: Mg II features…'). Retired by irispy giving the wavelengths a public name (report candidate).
+- **irispy's private** ``irispy.utils.bursts._SI_IV`` **and** ``irispy.utils.mg_features._REST_WAVELENGTH`` **read**,
+  the rest wavelengths its burst search and Mg II features measure from, to cut a raster window to the wavelength pixels
+  irispy takes and, for Mg II, to check and apply a rest wavelength set on the window (``bursts._crop``,
+  ``sources/bursts.py``, #172; ``mg_features._crop``, ``_rest``, ``sources/mg_features.py``, #153, #237). Always on
+  ('IRIS: detect UV bursts…', 'IRIS: Mg II features…'). Retired by irispy giving the wavelengths public names (report
+  candidate).
 
 glue-solar's own
 ----------------
@@ -467,18 +406,10 @@ Features and decisions with no upstream route; listed so the overrides are known
   scaling its ratio by the arcsec ratio while on and by 1 while off, and refits the limits through glue's private
   ``_axes_aspect_ratio`` and ``_adjust_limits_aspect`` (``PhysicalAspectTool``, #103). Always on. glue-solar feature
   (an upstream candidate in UPSTREAM_REVIEW).
-- **A quicklook saved as a recipe on its first panel's record** and rebuilt by ``_reopen`` (``quicklook._recipe``,
-  ``_reopen_quicklooks`` session patch, #301). Always on. glue-solar feature.
 - ``GlueApplication.closeEvent`` **wrapped to keep the last session on quit**, telling a replaced window by glue-qt's
   private ``_new_application`` (``__init__.py``, #206, #297). Always on. glue-solar feature.
-- **glue's unit converter default set to** ``lines.DopplerConverter`` (``__init__.py``). Always on. glue-solar
-  feature.
 - **Quicklook Image panels leave each mouse mode's hint** (its ``status_tip``) out of their status line, where a
   narrow panel's frame time clipped it (``QuicklookImageViewer.set_status``). Always on. Kept by decision.
 - **A sit-and-stare raster's slit axis rolled past 45° labeled as its longitude**, in viewer state and on that
   WCSAxes coordinate, which glue labels by spine with the exposure axis' label (``FrameTimeTool._label_exposures``,
   ``_beside_exposures``, #359). Switch: sit-and-stare rasters rolled past 45°. glue-solar feature.
-- **A gzipped raster file opened once in memory** for its window headers and irispy's read, where a plain
-  ``fits.open`` of the headers and irispy's own read would inflate it twice (``_raster_windows_data``,
-  ``_window_scaling(opened=)``, #345, #352; irispy #275's open-file seam). Switch: gzipped raster files, ``LAZY`` on.
-  Kept: a later header of a gzip stream needs the stream inflated up to it.
