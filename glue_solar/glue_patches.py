@@ -2,8 +2,8 @@
 Fixes for the faults of glue-core, glue-qt and the libraries under them that IRIS, SST and DKIST data hit.
 
 A fix with a probe installs, or acts, only when its probe finds the fault (a `needs_*` probe that raises counts as
-finding it: `_needs`); one without is always on. Each names its PR, whose entry in the dev guide's Workaround register
-(`docs/dev_guide/workarounds.rst`) names the switch and the upstream change that retires it.
+finding it: `_needs`); one without is always on. Each names its PR; the workaround register, ``WORKAROUNDS.rst`` on
+the repository's ``plan`` branch, names its switch and the upstream change that retires it.
 """
 
 import builtins

@@ -4,7 +4,6 @@ import inspect
 import re
 import sys
 
-import pytest
 from glue_qt.app.application import GlueLogger
 from glue_qt.utils.threading import Worker
 from qtpy import QtWidgets
@@ -36,15 +35,6 @@ def test_no_probe_raises_on_the_installed_versions(qapp):
         except Exception as error:  # noqa: BLE001 - each probe's, named below
             raised[name] = error
     assert not raised
-
-
-def test_the_register_and_glue_patches_name_the_same_probes(request):
-    # docs/dev_guide/workarounds.rst: each probe is the switch of an entry, and no entry names a probe that is gone
-    register = request.config.rootpath / "docs" / "dev_guide" / "workarounds.rst"
-    if not register.exists():
-        pytest.skip("the package is installed without its docs")
-    probes = re.findall(r"^def (needs_\w+)\(", inspect.getsource(glue_patches), re.MULTILINE)
-    assert set(re.findall(r"\bneeds_\w+", register.read_text())) == set(probes)
 
 
 def test_a_write_to_glue_qt_s_log_off_the_gui_thread_is_made_on_it(qtbot, monkeypatch):

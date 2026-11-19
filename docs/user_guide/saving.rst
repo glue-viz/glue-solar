@@ -19,10 +19,10 @@ with their values: export a copy of each (see `Exporting derived data`_).
 
 A session keeps the datasets' coordinates, pointing shifts, colormaps, metadata and links, and the
 viewers' slices, colormaps and Profile axes. Each quicklook opens again with its point, the dataset
-leading the time, panel settings, the datasets dragged onto its panels and panels turned off. A quicklook's raster
-overlays, panels moved by hand, a blink and
-the viewers' mouse modes are not saved, and glue opens each Image viewer zoomed to fit its reference dataset, such as a
-VBI mosaic's center tile. A light curve, row or column at the point opens where it was, no longer following the point.
+leading the time, panel settings, the datasets dragged onto its panels and panels turned off. A
+quicklook's raster overlays, panels moved by hand, a blink and the viewers' mouse modes are not
+saved. Each Image viewer opens zoomed to fit its reference dataset, such as a VBI mosaic's center
+tile. A light curve, row or column at the point opens where it was, but does not follow the point.
 For sessions that fail to save or open, see :ref:`Known issues
 <glue_solar_users_guide_known_issues>`.
 
@@ -33,7 +33,7 @@ As glue quits with data loaded, glue-solar keeps the session, with absolute path
 ``~/.glue/glue-solar-last-session.glu``. "Restore last session" in the "Plugins" menu opens it
 as File → Open Session does.
 
-A session over 1 MB, such as one holding line maps, or one glue cannot save, is not kept: a message
+A session over 1 MB, such as one holding line maps, or one glue cannot save, is not kept. A message
 says why as glue quits, and the session kept before stays.
 
 .. _glue_solar_users_guide_iris_save_frames:
@@ -86,7 +86,7 @@ name: ``Si IV 1403`` gives ``Si_IV_1403``.
 
 The table's meta hold the function and the observation's ``OBSID`` and ``STARTOBS``. A shorter
 profile is padded with empty values. Hidden layers are left out, and the status bar names them.
-``astropy.table.Table.read`` reads the table back, ``<label>_time`` as an astropy ``Time``.
+astropy reads the table back, with ``<label>_time`` as times.
 
 .. _glue_solar_users_guide_exporting_derived_data:
 

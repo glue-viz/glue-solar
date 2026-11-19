@@ -21,8 +21,8 @@ Opening a quicklook
   windows and press "Load selected". "Open quicklook" is ticked at first.
 - For data already loaded, choose "Quicklook…" in the right-click menu of a raster window, slit-jaw
   image or spectral cube in the data collection.
-- From a terminal, run ``glue --startup=iris_quicklook raster.fits sji.fits``. Files given this way
-  load one by one, so the quicklook shows the first scan; to stack scans, use the browser.
+- From a terminal, run ``glue --startup=iris_quicklook raster.fits sji.fits``. The quicklook shows
+  the first scan of files given this way; to stack scans, use the browser.
 - In glue's Terminal, call ``glue_solar.quicklook.quicklook(application, datasets)``, with
   ``window="Si IV 1403"`` to choose the window.
 
@@ -106,9 +106,9 @@ frames. An Image viewer of an aligned AIA cutout or SOT cube of the observation 
 and can lead it.
 
 The "Frame time" line under each panel gives the time of day of the frame shown, such as
-``17:19:13`` (its tooltip gives the date and milliseconds), and "leads time" or the offset Δt from
-the leading dataset's time. A dataset with nothing within half its time step of that time keeps its
-frame, is grayed and says "NO MATCH".
+``17:19:13``; its tooltip gives the date and milliseconds. It also says "leads time", or gives the
+offset Δt from the leading dataset's time. A dataset with nothing within half its time step of that
+time keeps its frame, is grayed and says "NO MATCH".
 
 - **Go to a time.** "Go to UTC…" in the Coordinate menu moves the dataset that leads the time to its
   frame nearest a typed time, such as ``2013-09-02T17:00:00``.
@@ -136,18 +136,19 @@ Light curves, rows and columns
 
 The Coordinate menu's "Point" submenu plots the data through the point. Each plot follows the point.
 
-- **"Light curves at the point"**, on any Image viewer of IRIS, AIA or SOT data: the value at the
-  point against time, for each window with exposures or scans (over the wavelength or band its map
-  shows when chosen, else its line core) and each slit-jaw channel the quicklook shows, in one Scatter
-  viewer. Each curve is a new dataset, ``<label> light curve <wavelength>``, a band's written as
-  ``2796.17–2796.37``, or of a slit-jaw image ``<label> light curve``, which "ECSV (with Time)"
-  exports (see :ref:`Exporting derived data <glue_solar_users_guide_exporting_derived_data>`).
+- **"Light curves at the point"**, on any Image viewer of IRIS, AIA or SOT data, plots the value at
+  the point against time in one Scatter viewer. It has a curve for each window with exposures or
+  scans, and one for each slit-jaw channel the quicklook shows. A window's curve is over the
+  wavelength or band its map shows when the entry is chosen, else its line core. Each curve is a new
+  dataset: ``<label> light curve <wavelength>``, a band's written as ``2796.17–2796.37``, or
+  ``<label> light curve`` for a slit-jaw image. "ECSV (with Time)" exports it (see :ref:`Exporting
+  derived data <glue_solar_users_guide_exporting_derived_data>`).
 - **"Row at the point"** and **"Column at the point"**, on any raster map: the map's row along x, or
   its column along the slit, through the point.
 
 A Scatter viewer with time on its x axis, such as those light curves, highlights the exposure of the
-dataset that leads the time as the subset "Current exposure", and only there: on any other viewer its
-layer is removed at the next step.
+dataset that leads the time, as the subset "Current exposure". The subset shows only there: any
+other viewer drops its layer at the next step.
 
 Comparing windows
 -----------------
@@ -173,13 +174,13 @@ and a click on it moves the point to the raster pixel there. These cubes are lin
 observation's other data as it loads, so a region carries over.
 
 "IRIS field of view" in the View menu of an AIA or SOT image draws two boxes on the observation's AIA
-and SOT images: one around the raster's field, from its first step's slit to its last's, and one
-around the slit-jaw image's field at the frame nearest the image's time. Choose it again to hide
-them.
+and SOT images. One is around the raster's field, from its first step's slit to its last's. The
+other is around the slit-jaw image's field at the frame nearest the image's time. Choose it again to
+hide them.
 
 An AIA pixel is 0.6 arcsec, wider than a dense raster's step, so a click there is coarser than one on
-a slit-jaw image. An SOT cube often has no frame near the time: its panel is then grayed and says
-"NO MATCH", and what it shows was taken minutes away, the Sun having turned since.
+a slit-jaw image. An SOT cube often has no frame near the time. Its panel is then grayed and says
+"NO MATCH": what it shows was taken minutes away, and the Sun has turned since.
 
 Blinking
 --------
@@ -241,14 +242,14 @@ Other spectral cubes
 .. _glue_solar_users_guide_sst_quicklook:
 
 The quicklook of an SST cube (see :ref:`glue_solar_users_guide_loading_sst_cubes`) opens from the
-browser, or with "Quicklook…" in the cube's right-click menu, in a tab named after its line, such
+browser, or with "Quicklook…" in the cube's right-click menu. Its tab is named after its line, such
 as "SST Ca II 8542". Its panels are in three rows:
 
 - the map at the line core, the tuning nearest the cube's line; a second map at the first tuning,
   the blue wing; and the virtual slit, wavelength against y at the point's x;
 - the spectra at the point of Stokes I, Q, U and V;
-- wavelength against scan at the point, and the light curve at the point, against "Scan Time", the
-  scans' time in s since the cube's ``DATEREF``, which also names the scan slider.
+- wavelength against scan at the point, and the light curve at the point. The curve is against
+  "Scan Time", the scans' time in s since the cube's ``DATEREF``, which also names the scan slider.
 
 Both maps open zoomed to the field, without a mosaic's NaN border. The second map opens with
 "Per-frame limits" on, as the whole cube's limits wash the brighter wing out.
@@ -257,20 +258,20 @@ The point, clicks and keys work as in the IRIS quicklook, and the scan and Stoke
 map move the other panels. Cubes with overlapping scan times, such as the CRISP and CHROMIS cubes of
 one morning, share one time. Once linked (see :ref:`Linking <glue_solar_users_guide_iris_linking>`),
 a point on one cube moves the points of the other cubes that share its time to the same place on
-the Sun, each at its own scan and tuning, while Coordinate → Point → "Link points across cubes" is
-on, as it is at first; IRIS data's points stay. Another such cube's quicklook opens with its point
-at that place, or at its map's center if the place is off the cube.
+the Sun, each at its own scan and tuning. It does so while Coordinate → Point → "Link points across
+cubes" is on, as it is at first. IRIS data's points stay. Another such cube's quicklook opens with
+its point at that place, or at its map's center if the place is off the cube.
 
-Q, U and V show scaled with their noise level, their standard deviation at the continuum: their
-maps' limits are ±5 times it for Q and U and ±10 times for V, and their spectra span at least as
-much, with the noise level shaded about 0. View → "Per-frame limits" gives each frame its own limits
-instead; on the second map it changes I's only.
+Q, U and V are scaled by their noise level, their standard deviation at the continuum. Their maps'
+limits are ±5 times it for Q and U and ±10 times for V. Their spectra span at least as much, with
+the noise level shaded about 0. View → "Per-frame limits" gives each frame its own limits instead;
+on the second map it changes I's only.
 
 A cube of another instrument, such as a FITS file glue's own reader opens, has a quicklook when it
 has one wavelength axis and two axes of position, besides any time and Stokes axes. Choose
 "Quicklook…" in its right-click menu. Its panels are those of the SST quicklook without the second
-map. A DKIST spectrograph raster's has no wavelength against time or light curve, its time running
-along its steps, and shows its context imager too, if loaded (see
+map. A DKIST spectrograph raster's quicklook has no wavelength against time and no light curve, as
+its time runs along its steps. It shows the raster's context imager too, if loaded (see
 :ref:`glue_solar_users_guide_loading_dkist_datasets`).
 
 For CRISPEX users
