@@ -22,6 +22,7 @@ from glue_solar.tests.test_quicklook import (
     changes,
     drawn,
     entries,
+    menu_action,
     panels_list,
     point_window,
     rows,
@@ -106,6 +107,19 @@ def test_a_spectral_cube_opens_its_map_virtual_slit_and_spectrum(cube_app, qtbot
     settle(qtbot, window)
     assert point_line(viewers["slit"]) == 9
     assert rows(window)[0][1] == "λ 5, y 9, x 3"
+
+
+def test_clear_point_empties_the_point_window_and_hides_the_point_line(cube_app, qtbot, tmp_path):
+    # a cube of neither instrument has no time sync to tell the readouts that the point went
+    cube, _ = spectral_cube(tmp_path / "cube.fits", (7, 12, 16))
+    viewers = quicklook(cube_app, [cube])
+    window = point_window(cube_app)
+    select_point(viewers["map"], 3, 7)
+    settle(qtbot, window)
+    assert (rows(window)[0][1], point_line(viewers["slit"])) == ("λ 3, y 7, x 3", 7)
+    menu_action(viewers["map"], "Clear point").trigger()
+    settle(qtbot, window)
+    assert (rows(window), drawn(viewers["slit"], "point")) == ([["cube", "", "", "", "", "", ""]], None)
 
 
 def test_a_time_and_stokes_axes_add_their_panels(cube_app, qtbot, tmp_path):

@@ -964,6 +964,9 @@ class Coordinator(HubListener):
             self._sync(key)
         point = self.point
         if point is None:
+            if None in followed:  # a cube of neither instrument, whose readouts no time sync tells that the point went
+                for listener in list(self._listeners):
+                    listener(None, None, None)
             return
         for viewer in list(self._viewers):
             self._apply_point(viewer)
