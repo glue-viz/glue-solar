@@ -2482,10 +2482,14 @@ def test_readout_gives_the_velocity_axis_value_from_the_rest_wavelength(app, mon
     assert check(20) == velocities[1]
     show(si, 2, 0)  # wavelength against exposure
     check(20)
-    show(si, 0, 1)  # the map: no wavelength shown, so no velocity
+    show(si, 0, 1)  # the map: no wavelength shown, so no velocity, nor its rest wavelength looked up at each move
+    asked, rest_wavelength = [], glue_solar.tools.rest_wavelength
+    monkeypatch.setattr(glue_solar.tools, "rest_wavelength", lambda data: asked.append(data) or rest_wavelength(data))
     assert "km / s" not in image.axes.format_coord(10, 5)
+    assert asked == []
     show(none, 2, 1)  # 2832 has no line, so no rest wavelength
     text = image.axes.format_coord(5, 5)
+    assert asked == [none]
     assert " Å " in text
     assert "km / s" not in text
     assert "nan" not in text

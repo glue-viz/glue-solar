@@ -192,13 +192,14 @@ def _hovered(state, x, y):
     )
 
 
-def _world_position(axes, x, y, keep=None, rest=None):
+def _world_position(axes, x, y, keep=None, data=None):
     """
     WCSAxes' world readout at ``x, y``, arcsec to 0.01" and Å to 0.001 Å where WCSAxes gives its ticks' precision (D31);
-    ``keep``, a coordinate of ``axes``, leaves the other angles out, and ``rest`` (Å) adds the Doppler velocity (#264).
+    ``keep``, a coordinate of ``axes``, leaves the other angles out, and ``data`` adds the Doppler velocity from its
+    rest wavelength (#264).
     """
     world = axes.coords[0].transform.transform(np.array([[x, y]]))[0]
-    wavelength = axes.coords["em.wl"] if rest is not None and "em.wl" in axes.coords else None  # by physical type
+    wavelength = axes.coords["em.wl"] if data is not None and "em.wl" in axes.coords else None  # by physical type
     texts, velocity = [], ""
     for coord in axes.coords:
         if coord.coord_index is None:  # not on these axes
@@ -206,7 +207,7 @@ def _world_position(axes, x, y, keep=None, rest=None):
         if coord.coord_type in ("longitude", "latitude") and keep not in (None, coord):
             continue
         value = world[coord.coord_index] * coord.coord_unit
-        if coord is wavelength:
+        if coord is wavelength and (rest := rest_wavelength(data)) is not None:  # looked up only where it shows
             velocity = f" · {value.to_value(KM_S, u.doppler_optical(rest * u.AA)):z.1f} {KM_S}"
         if coord.get_format_unit() == u.arcsec:
             angle = Angle(value) if coord.coord_wrap is None else Angle(value).wrap_at(coord.coord_wrap)
@@ -421,7 +422,7 @@ class FrameTimeTool(Tool, HubListener):
             keep = None
             if 0 in shown and _sit_and_stare_raster(data):  # the coordinate beside the exposures, as for the ticks
                 keep = axes.coords[_beside_exposures(data, max(shown))]
-            text = _world_position(axes, x, y, keep, rest_wavelength(data))
+            text = _world_position(axes, x, y, keep, data)
         pixel = _hovered(state, x, y)
         if pixel is None:
             return text
