@@ -2722,8 +2722,8 @@ def test_a_click_on_a_first_or_last_step_s_slit_reaches_it(irispy_data):
     sji = image_data(irispy_data("iris_l2_20250613_123658_3620107423_SJI_1400_t000.fits.gz"))
     times = stack[stack.id["Time"], (slice(None), slice(None), 0, 0)]
     frames, row, taken, lost = sji[sji.id["Time"], (slice(None), 0, 0)], 194, {}, []
-    for frame, time in enumerate(frames):
-        scan, step = (int(i) for i in np.unravel_index(np.argmin(np.abs(times - time)), times.shape))
+    for frame, when in enumerate(frames):
+        scan, step = (int(i) for i in np.unravel_index(np.argmin(np.abs(times - when)), times.shape))
         taken[scan, step] = frame
         x, y = raster_point_on_sji(stack, sji, step, row, frame, scan)
         if sji_to_raster(sji, frame, x, y, stack) != (scan, step, row):
