@@ -91,7 +91,7 @@ from glue_solar.sources.loaders.iris import WCS_LOCK, _HeldWCS, _LockedWCS
 def _needs(probe):
     """
     ``probe()``, or True where it raises, as on a glue change it did not foresee: the patch installs rather than the
-    import failing, which glue logs at info level only, without glue-solar (D82), and a warning names the probe and
+    import failing, which glue logs at info level only, without glue-solar, and a warning names the probe and
     its error.
     """
     try:
@@ -107,7 +107,7 @@ _original_world2pixel_single_axis = coordinate_helpers.world2pixel_single_axis
 def world2pixel_single_axis(wcs, *world, pixel_axis=None):
     """
     glue-core's ``world2pixel_single_axis``, also keeping the world axes that share a pixel axis with those of
-    ``pixel_axis``: glue-core 1.27.0 inverted each slit-jaw frame, whose pointing moves with time, at exposure 0 (#71,
+    ``pixel_axis``: glue-core inverted each slit-jaw frame, whose pointing moves with time, at exposure 0 (#71,
     glue-viz/glue#2598). Installed holding `WCS_LOCK` (`_hold_wcs_lock`).
     """
     if pixel_axis is None:
@@ -182,7 +182,7 @@ class _Sections:
 def export_fits(filename, data, components=None, data_header=None, extensions=()):
     """
     glue-core's "FITS (1 component/HDU)" exporter, writing each component a section at a time, as astropy writes dask
-    to a file, so that a lazy window is never in memory whole (a subset's mask is): glue-core 1.27.0 masks a subset in
+    to a file, so that a lazy window is never in memory whole (a subset's mask is): glue-core masks a subset in
     place, which a dask array refuses; a subset's unsigned components, such as the mask, go unmasked (#96). Also for
     `glue_solar.sources.iris.export_iris_fits`, with ``data_header`` for the WCS header and ``extensions`` appended.
     """
@@ -209,7 +209,7 @@ def export_fits(filename, data, components=None, data_header=None, extensions=()
                 blank = np.iinfo(values.dtype).min
                 values = da.where(mask, values, values.dtype.type(blank))
         if isinstance(data, Data):
-            # a copy: glue-core 1.27.0 updates and returns the header given, so a BLANK would reach later HDUs
+            # a copy: glue-core updates and returns the header given, so a BLANK would reach later HDUs
             header = gridded_fits.make_component_header(data.get_component(cid), data_header.copy())
         else:
             header = fits.Header()
@@ -248,7 +248,7 @@ def _to_linked_pixel_coords(self, data):
     """
     glue-core's ``PixelSubsetState._to_linked_pixel_coords``: a point off ``data``, at a NaN pixel, is incompatible
     rather than a ValueError (#76, #85), and one is placed where the axes its fixed axes reach reach back to fixed axes
-    only, at least one, not to exactly those, as the SST quicklook's scan and Stokes reach no IRIS axis (#246, D73).
+    only, at least one, not to exactly those, as the SST quicklook's scan and Stokes reach no IRIS axis (#246).
     Installed holding `WCS_LOCK` (`_hold_wcs_lock`).
     """
     dimensions = [axis for axis, s in enumerate(self.slices) if s.start is not None]
@@ -298,7 +298,7 @@ def needs_pixel_point_workaround(method=_original_to_linked_pixel_coords):
 def _hold_wcs_lock():
     """
     Install glue's ``world2pixel_single_axis`` and ``PixelSubsetState._to_linked_pixel_coords``, or their fixes here,
-    holding `WCS_LOCK` whatever the probes say: glue's profile workers call them beside the GUI thread (#232, D73,
+    holding `WCS_LOCK` whatever the probes say: glue's profile workers call them beside the GUI thread (#232,
     astropy/astropy#19174). A point to or on a WCS ``link_hpc`` has not locked takes none, so no unlinked map or SST
     cube waits for IRIS data's threads.
     """
@@ -332,7 +332,7 @@ def _select_pixel(self, mode):
     glue's Pixel click or drag, skipped off the image, as Follow/lock skips it: in a panel's margin glue makes a point
     outside the data, which no viewer can draw (an IndexError in ``PixelSubsetState._to_linked_pixel_coords``); on
     another tile of the DKIST mosaic a pair quicklook's context imager panel draws, the point of that tile's pixel
-    there (`~glue_solar.quicklook.QuicklookImageViewer.tile_at`, D109). Installed whatever the probe says, for the
+    there (`~glue_solar.quicklook.QuicklookImageViewer.tile_at`). Installed whatever the probe says, for the
     tile click and the empty viewer; the probe switches the skip off the image alone, which is then left to glue.
     """
     # glue's own first check, as it is called on every mouse move, in an empty viewer too, where a press has no image
@@ -368,7 +368,7 @@ _original_apply_subset_state = ApplySubsetState.do
 
 def apply_subset_state(self, session):
     """
-    glue-core's ``ApplySubsetState.do``, whose Redo puts back the subset states its first run made: glue-core 1.27.0
+    glue-core's ``ApplySubsetState.do``, whose Redo puts back the subset states its first run made: glue-core
     applies the state again, from the viewers of then, so a Redo after the quicklook's frame moved gave another exposure
     (#182). A Redo whose subsets Undo deleted, as a new subset group's, stays glue's. Installed whatever the probe says,
     as `undo_subset_state` needs what each run made; the probe switches the put-back alone.
@@ -417,7 +417,7 @@ def _putting_back(command):
 def undo_subset_state(self, session):
     """
     glue-core's ``ApplySubsetState.undo``, which puts back each subset's state in turn: a quicklook's point put back is
-    not a click, which other points would follow (D97). It deletes only the groups the command made: glue deletes every
+    not a click, which other points would follow. It deletes only the groups the command made: glue deletes every
     subset made since, as a later quicklook's point, cut or exposure mark, whose group then stays dead.
     """
     made = getattr(self, "_solar_made", None)  # set by `apply_subset_state`
@@ -441,7 +441,7 @@ _original_update_visual_attributes = ImageSubsetLayerArtist._update_visual_attri
 def _update_visual_attributes(self, redraw=True):
     """
     glue-core's ``ImageSubsetLayerArtist._update_visual_attributes``, keeping hidden the Pixel crosshair of a point
-    with no position on a displayed axis, as a raster point in wavelength, which glue-core 1.27.0 shows at (0, 0) (#87).
+    with no position on a displayed axis, as a raster point in wavelength, which glue-core shows at (0, 0) (#87).
     """
     if not self.enabled:
         return
@@ -489,7 +489,7 @@ _original_update_data = ImageSubsetLayerArtist._update_data
 def _update_data(self):
     """
     glue-core's ``ImageSubsetLayerArtist._update_data``, placing a Pixel crosshair where the point lies in the reference
-    data: glue-core 1.27.0 places it from the layer's own dataset, elsewhere for a linked sunpy map, and raises
+    data: glue-core places it from the layer's own dataset, elsewhere for a linked sunpy map, and raises
     IndexError over a slit-jaw image (#107).
     """
     viewer, point = self._viewer_state, self.state.layer.subset_state
@@ -537,7 +537,7 @@ def image_layer_init(self, *args, **kwargs):
     """
     glue-core's ``ImageLayerArtist.__init__``, giving the image its state's bad color, as a session restores it: glue-core
     1.28.0 gives it only as the state's ``cmap_bad`` changes, so restored IRIS and DKIST layers drew NaN opaque again
-    (`glue_solar.sources.iris.iris_image_layer`, D103).
+    (`glue_solar.sources.iris.iris_image_layer`).
     """
     _original_image_layer_init(self, *args, **kwargs)
     if self.state.cmap_bad is not None:
@@ -602,7 +602,7 @@ def _set_axislabel(viewer, axis):
     index = "xy".index(axis)
     # glue's own mapping, as in its update_x_ticklabel, but not waiting for its _wcs_set: a restored viewer
     # sets its labels only once, on the axes of its first reset, before glue sets that flag; to the world axis glue
-    # gives the axis, world_n_dim - 1 - axis, which a DKIST dataset's world axes of no axis of their own precede (D102)
+    # gives the axis, world_n_dim - 1 - axis, which a DKIST dataset's world axes of no axis of their own precede
     world = getattr(getattr(data, "coords", None), "world_n_dim", getattr(data, "ndim", 0))
     if data is not None and att is not None and world - 1 - att.axis in viewer.axes.coords:
         index = world - 1 - att.axis
@@ -618,7 +618,7 @@ def _set_axislabel(viewer, axis):
 def update_x_axislabel(self, *event):
     """
     glue-qt's ``ImageViewer.update_x_axislabel``, labeling the WCSAxes coordinate glue maps the x axis to: WCSAxes'
-    ``set_xlabel``, which glue-core 1.27.0 calls, places every tick to find it, four extra placements a slit-jaw frame
+    ``set_xlabel``, which glue-core calls, places every tick to find it, four extra placements a slit-jaw frame
     step (#90). Past a 45° roll, where WCSAxes puts latitude on the bottom spine, each coordinate keeps its own name.
     """
     if not hasattr(self.axes, "coords"):  # not WCSAxes
@@ -669,7 +669,7 @@ _original_sync_sliders = MultiSliceWidgetHelper.sync_sliders_from_state
 def sync_sliders_from_state(self, *args):
     """
     glue-qt's ``MultiSliceWidgetHelper.sync_sliders_from_state``, hiding the sliders it replaces, and each new slider
-    showing the values and unit of the world axis glue gives its axis, ``world_n_dim - 1 - axis`` (D103). glue-qt 0.4.2
+    showing the values and unit of the world axis glue gives its axis, ``world_n_dim - 1 - axis``. glue-qt 0.4.2
     closes a replaced slider, which Qt shows again if its layout had not shown it yet, so a quicklook panel whose x and y
     both change kept a stray slider over its options; and it reads ``ndim - 1 - axis``, another axis's where world axes
     outnumber array axes, so a ViSP map's Stokes and Wavelength sliders showed arcsec. The world axis is given only
@@ -699,7 +699,7 @@ def sync_sliders_from_state(self, *args):
 def needs_slider_world_workaround(sync=_original_sync_sliders):
     """
     Whether ``sync`` gives a slider the unit of array axis ``ndim - 1 - axis`` where glue's world axis is
-    ``world_n_dim - 1 - axis``: a 3-D Data of four world axes, a ViSP map's, shows its wavelength in degrees (D103).
+    ``world_n_dim - 1 - axis``: a 3-D Data of four world axes, a ViSP map's, shows its wavelength in degrees.
     """
     wcs = WCS(naxis=3)
     wcs.wcs.ctype, wcs.wcs.cunit = ["HPLN-TAN", "HPLT-TAN", "WAVE"], ["arcsec", "arcsec", "Angstrom"]
@@ -728,7 +728,7 @@ def _sliders_need_workaround():
 MultiSliceWidgetHelper.sync_sliders_from_state = sync_sliders_from_state
 
 
-# glue-core #2599: glue 1.27.0 counts dates in days from 0001-01-01, matplotlib's epoch before 3.3, so a Scatter or
+# glue-core #2599: glue counts dates in days from 0001-01-01, matplotlib's epoch before 3.3, so a Scatter or
 # Histogram of 2021 times ticks in year 3990 (#128). The modules that import the conversions by name, glue.utils first.
 _DATE_MODULES = (glue.utils, glue.utils.matplotlib, scatter_viewer, scatter_layer_artist, matplotlib_viewer,
                  histogram_viewer, histogram_state)
@@ -759,7 +759,7 @@ if _needs(needs_date_epoch_workaround):
                 setattr(module, name, function)
 
 
-# A Profile Collapse range inside one sample gives glue-qt's `AggregateSlice` an empty range, which glue 1.27.0's image
+# A Profile Collapse range inside one sample gives glue-qt's `AggregateSlice` an empty range, which glue's image
 # refuses to draw ("Number of steps in bounds should be >=1") in every redraw (#132). Report candidate for glue.
 _original_aggregate_init = AggregateSlice.__init__
 
@@ -786,8 +786,8 @@ if _needs(needs_empty_collapse_workaround):
     AggregateSlice.__init__ = aggregate_slice_init
 
 
-# glue 1.27.0 saves an astropy Quantity, as irispy's exposure times, as the ndarray it subclasses, which numpy.save
-# refuses, so no session with an IRIS raster saved (#186, D13)
+# glue saves an astropy Quantity, as irispy's exposure times, as the ndarray it subclasses, which numpy.save
+# refuses, so no session with an IRIS raster saved (#186)
 def save_quantity(quantity, context):
     """
     A session's record of ``quantity``: its values, as nested lists, and its unit as glue saves one, which raises
@@ -806,7 +806,7 @@ if u.Quantity not in GlueSerializer.dispatch:
     loader(u.Quantity)(load_quantity)
 
 
-# glue 1.27.0 saves a `LinkSameWithUnits`, as `link_hpc` gives a sunpy map, with its conversions, methods of the link
+# glue saves a `LinkSameWithUnits`, as `link_hpc` gives a sunpy map, with its conversions, methods of the link
 # itself, so no session holding one opened ("Circular Reference detected", #205)
 def save_link_with_units(self, context):
     """A session's record of a `LinkSameWithUnits`: its two components, from which it makes its conversions again."""
@@ -835,7 +835,7 @@ if _needs(needs_link_restore_workaround):
     LinkSameWithUnits.__setgluestate__ = classmethod(load_link_with_units)
 
 
-# glue 1.27.0 names both ends of a `LinkSameWithUnits` ``values`` and of a `PathRelativeLink` ``k``, and its link editor
+# glue names both ends of a `LinkSameWithUnits` ``values`` and of a `PathRelativeLink` ``k``, and its link editor
 # keeps one choice per name, so Link Data raised ValueError; its OK remakes a `LinkSameWithUnits` from ``cids1`` and
 # ``cids2``, and a `PathRelativeLink` as a `ComponentLink` named from its conversions, ``self`` too (#245)
 _original_link_with_units_init = LinkSameWithUnits.__init__
@@ -887,7 +887,7 @@ if _needs(needs_link_editor_workaround):
 
 # glue 1.28.0 links datasets whose world axes differ through has_celestial and wcs.lng, attributes of an astropy WCS
 # only, taking world axis i to be pixel axis world_n_dim - 1 - i, so its autolinker raised AttributeError as DKIST
-# datasets of different dimensions loaded (D102)
+# datasets of different dimensions loaded
 _original_wcs_link_init = WCSLink.__init__
 
 
@@ -941,7 +941,7 @@ def wcs_link_init(self, data1=None, data2=None, cids1=None, cids2=None):
     # their times share one's first or last time at least, where pixel 0's time can be outside the other's (a VBI
     # mosaic's tiles start seconds apart) and the middle's too (a VBI burst in part of a longer ViSP map); dkist's
     # inverse raising outside its times, as it did before `DKISTWCS` gave NaN there, so data of other times stay
-    # unlinked (D103)
+    # unlinked
     def passes(there, back, data, kept):
         sizes = [data.shape[data.ndim - 1 - p] for p in kept]
         for pixel in ([n // 2 for n in sizes], [0] * len(sizes), [n - 1 for n in sizes]):
@@ -987,7 +987,7 @@ if _needs(needs_wcs_link_workaround):
     WCSLink.__init__ = wcs_link_init
 
 
-# glue 1.27.0 gives a time linked from another dataset, as the first light curve's ``Time`` on the others, no kind: it
+# glue gives a time linked from another dataset, as the first light curve's ``Time`` on the others, no kind: it
 # reads whether a derived component is numeric, never a datetime, so no Scatter plot showed linked times (#208)
 _original_datetime = DerivedComponent.datetime
 
@@ -1049,7 +1049,7 @@ _original_update_priority = ProfileViewerState._update_priority
 def _update_priority(self, name):
     """
     glue-core's ``ProfileViewerState._update_priority``, restoring the display units between ``x_att`` and the limits:
-    glue-core 1.27.0 restores them with ``x_att``, so a session with a raster's spectrum did not open (#197).
+    glue-core restores them with ``x_att``, so a session with a raster's spectrum did not open (#197).
     """
     if name.endswith("_display_unit"):
         return 0.5
@@ -1212,7 +1212,7 @@ _original_on_settings = ProfileTools._on_settings
 def _on_settings(self):
     """
     glue-qt's Settings, of `_get_fitter`'s fitter, in its own ``settings_widget`` where it has one, as the IRIS fitter's
-    component list (D86; glue-qt fork branch ``fitter-settings-widget``).
+    component list (glue-qt fork branch ``fitter-settings-widget``).
     """
     fitter = _get_fitter(self, self.fit_function)
     getattr(fitter, "settings_widget", FitSettingsWidget)(fitter).exec_()
@@ -1236,7 +1236,7 @@ _original_fit = ProfileTools._fit
 def _fit(self, fitter, xlim=None):
     """
     glue-qt 0.4.2 makes a new fitter for Settings and for each fit, so no fit has what Settings set; both use
-    `_get_fitter`'s. Retired by glue-qt's ``ProfileTools._get_fitter`` (``wp0-qt-fitter-settings``).
+    `_get_fitter`'s. Retired by glue-qt's ``ProfileTools._get_fitter``.
     """
     return _original_fit(self, _get_fitter(self, type(fitter)), xlim)
 
@@ -1252,7 +1252,7 @@ _original_plot_fit = ProfileTools._plot_fit
 def _plot_fit(self, fitter, fit_result, x, y, normalize):
     """
     glue-qt's ``_plot_fit``, keeping every artist a fitter's ``plot`` returns, as glue's docstring asks, not only the
-    first, so that Clear removes each line's curve of the IRIS fit (D86; glue-qt fork branch ``fit-artists``).
+    first, so that Clear removes each line's curve of the IRIS fit (glue-qt fork branch ``fit-artists``).
     """
     self._clear_fit()
     for layer in fit_result:
@@ -1414,8 +1414,8 @@ def refresh_layer_actions(data_collection):
 
 def _takes(check, *args, **kwargs):
     """
-    Whether ``check``, the guard an entry's run calls too (D61), takes these arguments, raising no ValueError: also
-    true for any other error, so that running the entry shows it in the entry's own error box (D72 223-5).
+    Whether ``check``, the guard an entry's run calls too, takes these arguments, raising no ValueError: also
+    true for any other error, so that running the entry shows it in the entry's own error box.
     """
     try:
         check(*args, **kwargs)

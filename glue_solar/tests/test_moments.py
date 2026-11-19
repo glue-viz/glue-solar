@@ -108,7 +108,7 @@ def test_the_action_adds_one_linked_dataset_in_a_viewer(
         "moments_center": 1402.77,
         "moments_velocity_range": (-107.0, 107.0),
     }
-    [[viewer]] = app.viewers  # glue's Image viewer of its first map (D83)
+    [[viewer]] = app.viewers  # glue's Image viewer of its first map
     assert viewer.state.layers[0].attribute is maps.main_components[0]
     assert viewer.state.x_att is maps.pixel_component_ids[0]  # the steps, as on a quicklook's map
     # on the raster's steps and slit pixels, its helioprojective coordinates linked with the others'
@@ -147,7 +147,7 @@ def test_the_typed_velocity_range_and_a_blank_or_canceled_center(app, qtbot, mon
 def test_the_maps_ticked_are_their_functions_at_their_defaults(app, qtbot, monkeypatch, scan_path):
     """
     Every map ticked adds the line moments, the Doppler image and the red-blue asymmetry, in turn, each its function's
-    at its defaults (D83); the line moments' velocity range, continuum and error maps grayed out without them, and none
+    at its defaults; the line moments' velocity range, continuum and error maps grayed out without them, and none
     ticked adds nothing.
     """
     [raster] = raster_data([scan_path], ["Si IV 1403"])
@@ -566,7 +566,7 @@ def test_minus_infinity_is_missing(monkeypatch, scan_path):
 @pytest.mark.parametrize("continuum", ["", "1401.5-1402, 1403.5-1404"])
 def test_saturated_pixels_within_the_velocity_range_are_nan_and_counted(app, qtbot, monkeypatch, scan_path, continuum):
     """
-    A pixel with a sample at the Level 2 ceiling, raw 32760, which the loader reads as 16182 DN and masks (D85), within
+    A pixel with a sample at the Level 2 ceiling, raw 32760, which the loader reads as 16182 DN and masks, within
     the velocity range is NaN in every map, any background subtracted, and the status bar says how many; one outside
     it, here in a continuum window, is not.
     """

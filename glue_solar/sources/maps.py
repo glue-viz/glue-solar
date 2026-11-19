@@ -41,7 +41,7 @@ def _add_colormap(name):
 
 class _Style(VisualAttributes):
     """
-    glue's style of a dataset, which a session saves with its preferred colormap: glue-core 1.27.0 writes that colormap
+    glue's style of a dataset, which a session saves with its preferred colormap: glue-core writes that colormap
     as it is, which fails the save, and restores a style without one.
     """
 

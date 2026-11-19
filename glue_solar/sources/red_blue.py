@@ -72,7 +72,7 @@ def red_blue_asymmetry(data, rest, wavelengths=WAVELENGTHS, velocities=VELOCITIE
     every ``step`` and divides the mean red wing, from ``velocities[0]`` to ``velocities[1]`` above the peak, less the
     mean blue wing, as far below it, by the peak. Its components are irispy's: ``red_blue_asymmetry``, NaN where it is not
     computed, and ``quality``, an `~irispy.utils.red_blue.RBAQualityFlag` code, 0 where it is; a pixel with a
-    saturated sample taken, as the window's mask marks the Level 2 ceiling, 16182 DN (D85), is flagged saturated.
+    saturated sample taken, as the window's mask marks the Level 2 ceiling, 16182 DN, is flagged saturated.
     ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``, ``red_blue_rest``, ``red_blue_wavelengths``,
     ``red_blue_velocities`` and ``red_blue_step``.
 

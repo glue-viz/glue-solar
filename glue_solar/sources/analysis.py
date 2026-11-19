@@ -94,9 +94,9 @@ def read(data, rows, wavelengths, rate=None):
     """
     The values of ``data`` at ``rows``, the scan of a stack, raster steps and slit pixels, and ``wavelengths`` that
     irispy is given, each step's exposure time in s, and which are saturated, as the window's mask marks them from the
-    DN (`at_ceiling`, D85):
+    DN (`at_ceiling`):
     with ``rate``, None for whether the window has the loader's ``<label> DN / s``, its DN over each step's exposure
-    time (D4), from the DN read here, in float64, else its scaled float32 and None; NaN where missing, on any thread.
+    time, from the DN read here, in float64, else its scaled float32 and None; NaN where missing, on any thread.
     """
     cid = data.main_components[0]
     values = data[cid, (*rows, wavelengths)]  # scaled float32 of these steps and wavelengths only
@@ -188,9 +188,9 @@ def view(data_collection, result):
     """
     Open each map of ``result``, a dataset or a list, in a glue Image viewer in the current tab, at its first component
     and with its subsets, of the quicklooks' Points the followed one alone, longitude along x as on a quicklook's map;
-    a table, such as the burst events, opens none (D83). Its pixels are linked to those of the dataset it is made from: through the
-    helioprojective links alone, glue inverts the WCS for the Point, 5 exposures off and 0.2 s more a step on
-    4000255147's sit-and-stare. Return the last viewer opened, or None.
+    a table, such as the burst events, opens none. Its pixels are linked to those of the dataset it is made from:
+    through the helioprojective links alone, glue inverts the WCS for the Point, 5 exposures off and 0.2 s more a step
+    on 4000255147's sit-and-stare. Return the last viewer opened, or None.
     """
     app, viewer = _application(data_collection), None
     if app is None:  # its window closed meanwhile
@@ -208,7 +208,7 @@ def view(data_collection, result):
         # glue-qt's default mouse mode empties the edit subset, the Point, at a click with no tool on (#244)
         viewer.toolbar._default_mouse_mode.deactivate()
         viewer.toolbar._default_mouse_mode = None
-        for group in coord._owners:  # the followed Point alone, as on the quicklook's panels (D19)
+        for group in coord._owners:  # the followed Point alone, as on the quicklook's panels
             if group is not coord.group:
                 _show(viewer, group, False)
         state = viewer.state
@@ -262,7 +262,7 @@ def start(data_collection, text, title, function, *args, said=None, add=None, vi
     worker.result.connect(partial(_add, data_collection, said, add, view))
     # glue-qt's decorator, as its GLUE_TESTING bypass is in it alone
     worker.error.connect(messagebox_on_error(title)(reraise))
-    if status is not None:  # until the dataset is added or the error shown (D46)
+    if status is not None:  # until the dataset is added or the error shown
         status.showMessage(text)
         worker.finished.connect(partial(clear, data_collection, text))
     _RUNNING.add(worker)

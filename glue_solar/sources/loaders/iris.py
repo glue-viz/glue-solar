@@ -198,7 +198,7 @@ class _GlueWCS(BaseWCSWrapper):
     def __init__(self, wcs):
         super().__init__(wcs)
         # each wcslib call holds WCS_LOCK for itself, so irispy's analyses on a worker hold it for no longer than a
-        # call: around a whole slab it kept the GUI thread's calls waiting about 1.4 s each (D46, D73)
+        # call: around a whole slab it kept the GUI thread's calls waiting about 1.4 s each
         _lock_wcslib(wcs)
         self._memo = OrderedDict()  # pixel_to_world_values by its exact inputs, least recently used first
         # glue converts on worker threads too. The memo has its own lock, held only to read or add an entry:
@@ -369,7 +369,7 @@ def _lookup_table(wcs, header):
     The lookup table of ``wcs``, an irispy raster's FITS-TAB WCS of FITS ``header``, as a FITS file: astropy reads the
     table of a WCS but cannot write it.
     """
-    # ponytail: irispy's layout (irispy.io.spectrograph._create_tabular_wcs): one table, an identity PC matrix, and an
+    # shortcut: irispy's layout (irispy.io.spectrograph._create_tabular_wcs): one table, an identity PC matrix, and an
     # index vector, where an axis has one, linear from its first pixel to its last, since astropy gives a table's
     # coordinates but not its index vectors; the session tests fail if irispy's layout changes.
     (table,) = wcs.wcs.tab
@@ -474,7 +474,7 @@ class _BroadcastComponent(Component):
     """
 
     def __gluestate__(self, context):
-        if hasattr(self, "_load_log") and not context.include_data:  # read again from its file, as glue's (D25)
+        if hasattr(self, "_load_log") and not context.include_data:  # read again from its file, as glue's
             return _save_component(self, context)
         return {"values": context.do(unbroadcast(self.data)), "shape": list(self.shape), "units": self.units}
 
@@ -522,7 +522,7 @@ def _dataset(wcs, meta, unit, values, label, *, name, color=None, cmap=None, mis
     data.coords = _GlueWCS(wcs)
     data.meta = meta
     data.style = _Style(color=color, preferred_cmap=cmap)
-    # saturated samples masked too where irispy's scaled reads mask them: raster windows and slit-jaw images (D85)
+    # saturated samples masked too where irispy's scaled reads mask them: raster windows and slit-jaw images
     mask = iris_mask if str(meta.get("INSTRUME")) in ("SPEC", "SJI", "IRIS") else fill_mask
     if scaling is not None:
         cid = data.add_component(RawComponent(values, *scaling, missing, units=str(unit)), name)
@@ -590,7 +590,7 @@ def _observation_label(meta):
 
 def _label(name, meta, part=""):
     """
-    The label of a dataset of the window or channel ``name`` (D90): ``name``, its observation's start to the minute,
+    The label of a dataset of the window or channel ``name``: ``name``, its observation's start to the minute,
     which tells two observations apart, and ``part``: 'Si IV 1403 2013-09-02 18:29 scan 0'.
     """
     return " ".join(filter(None, (name, str(meta.get("STARTOBS", ""))[:16].replace("T", " "), part)))
@@ -697,7 +697,7 @@ def _image_cube_data(cube, path, scaling=None):
     wave, label = int(cube.meta["TWAVE1"]), _label(desc, cube.meta, scan)
     cmap = f"irissji{wave}" if desc.startswith("SJI") else f"sdoaia{wave}"
     # irispy's FITS WCS header of each frame, in a tuple, which sessions save, rather than an array of objects
-    # ponytail: a session restores each header as a dict, not irispy's MetaDict, so irispy's fits_wcs of one frame of a
+    # shortcut: a session restores each header as a dict, not irispy's MetaDict, so irispy's fits_wcs of one frame of a
     # cube rebuilt from restored meta fails (glue-solar never does); a glue loader(MetaDict) if that is ever needed.
     cube.meta["frame_wcs_headers"] = tuple(cube.meta["frame_wcs_headers"])
     if instrument.startswith("SOT"):  # float32 in its own unit, NaN where missing: negative fields are data
@@ -714,7 +714,7 @@ def _image_cube_data(cube, path, scaling=None):
 
 def _irispy_meta(data, scan=()):
     """
-    irispy's metadata of ``data``, a raster window, or of its ``scan`` of a stack, with its own exposure times (D59), as
+    irispy's metadata of ``data``, a raster window, or of its ``scan`` of a stack, with its own exposure times, as
     its analyses read it: made again from the dict a session restores, a rebinned or regridded window's, whose exposure
     times are its source's, or a stack's, scan 0's, whose ``DATE_OBS`` only picks irispy's response.
     """
@@ -851,7 +851,7 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None,
     `LAZY` off.
     """
     # a gzipped file is opened once in memory, just before irispy reads it, for its window headers and irispy's read
-    # (irispy #275, D97), as astropy inflates the whole stream to reach a later window's header
+    # (irispy #275), as astropy inflates the whole stream to reach a later window's header
     gzipped, scalings = set(), []
     for path in files if lazy and LAZY else ():  # with LAZY off, irispy's read alone
         with _naming(path):
@@ -931,9 +931,9 @@ class _ScanAt:
 def link_hpc(data_collection, others=()):
     """
     The links, for the caller to add, of the helioprojective longitude and latitude of every IRIS dataset and of
-    those of ``others`` to the first IRIS dataset's, else, with no IRIS data, to the first of ``others`` (D97), by
+    those of ``others`` to the first IRIS dataset's, else, with no IRIS data, to the first of ``others``, by
     physical type, in arcsec (`LinkSame`) or converted (`LinkSameWithUnits`), and of each stack's scan and each SST
-    cube's time to the frames of the others, and of each SST cube's time to the other SST cubes' scans (`_ScanAt`, D97),
+    cube's time to the frames of the others, and of each SST cube's time to the other SST cubes' scans (`_ScanAt`),
     skipping pairs linked already; see the loading guide's Linking. Each links to the first, not to every other: glue
     rediscovers every link at each change, 0.3 s for the 70 links of 36 datasets but 4 s for every pair's 1260. The
     plain WCS of each other dataset linked, which IRIS data's profile workers then call, goes behind `WCS_LOCK` in place
@@ -954,8 +954,8 @@ def link_hpc(data_collection, others=()):
     from glue_solar.sources.sst import _LockedTabularWCS, _TabularWCS  # which imports this module
 
     linked = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in data_collection.links}
-    # read through irispy; an AIA cutout or SOT cube only beside a raster or slit-jaw image of its observation (D115),
-    # one of another being linked on request as other data are (D72)
+    # read through irispy; an AIA cutout or SOT cube only beside a raster or slit-jaw image of its observation,
+    # one of another being linked on request as other data are
     read = [data for data in data_collection if isinstance(data.coords, _GlueWCS)]
     iris = {data for data in read if describe.role(data) != "aia"}
     keys = {describe.observation_key(data) for data in iris if describe.role(data) in ("raster", "sji")} - {None}
@@ -969,20 +969,20 @@ def link_hpc(data_collection, others=()):
         physical_types = getattr(data.coords, "world_axis_physical_types", None) or ()
         for physical_type, cid in zip(physical_types[::-1], data.world_component_ids):
             if physical_type and physical_type.startswith("custom:pos.helioprojective."):
-                # the first IRIS dataset, sorted first, else the first dataset asked for (D97)
+                # the first IRIS dataset, sorted first, else the first dataset asked for
                 anchor = anchors.setdefault(physical_type, cid) if asked else anchors.get(physical_type, cid)
                 pair = frozenset((anchor, cid))
                 if not (asked or pair in linked):
                     continue
-                if anchor is not cid and pair not in linked:  # an asked anchor is placed and locked too (D97)
-                    # LinkSame only between two datasets in arcsec, such as IRIS pairs (D37), not a sunpy map's degrees
+                if anchor is not cid and pair not in linked:  # an asked anchor is placed and locked too
+                    # LinkSame only between two datasets in arcsec, such as IRIS pairs, not a sunpy map's degrees
                     same = isinstance(data.coords, _GlueWCS) and isinstance(anchor.parent.coords, _GlueWCS)
                     links.append((LinkSame if same else LinkSameWithUnits)(anchor, cid))
                 placed.add(data)
                 if describe.role(data) == "sst":
                     cubes.add(data)
                 # linked now or before, as a session restores it
-                # ponytail: only a plain astropy WCS, as glue's FITS reader and sunpy maps give, or an SST cube's, not
+                # shortcut: only a plain astropy WCS, as glue's FITS reader and sunpy maps give, or an SST cube's, not
                 # a wrapper of one
                 if type(data.coords) is WCS:
                     data.coords.__class__ = _LockedWCS
@@ -991,7 +991,7 @@ def link_hpc(data_collection, others=()):
     # a stack's scans and an SST cube's times reach only data whose longitude and latitude are linked
     datasets = [data for data in data_collection if data in placed and isinstance(data.coords, _GlueWCS)]
     scans = {data: cid for data in datasets for cid in data.world_component_ids if cid.label == "Scan"}
-    # ponytail: a link per stack and other dataset, not a star: 104 for 8 stacks and 13 slit-jaw images add 0.03 s to
+    # shortcut: a link per stack and other dataset, not a star: 104 for 8 stacks and 13 slit-jaw images add 0.03 s to
     # glue's link rediscovery at each change; fewer if that grows
     for stack, scan in scans.items():
         if stack.find_component_id("Time") is None:  # a stack's maps, such as its line moments
@@ -1014,7 +1014,7 @@ def link_hpc(data_collection, others=()):
         seconds, scan = cube.world_component_ids[0], cube.pixel_component_ids[0]  # its time since DATEREF, and scan
         scans = describe.times(cube, None)  # at its line core
         nearest_offset = None
-        # another cube's scans give its time, which glue's x and y of it take, its pointing moving by scan (D97)
+        # another cube's scans give its time, which glue's x and y of it take, its pointing moving by scan
         for other in cubes - {cube}:
             if frozenset((seconds, other.pixel_component_ids[0])) not in linked:
                 when = (describe.times(other, None) - np.datetime64(cube.meta["DATEREF"])) / np.timedelta64(1, "s")
@@ -1041,7 +1041,7 @@ def link_hpc(data_collection, others=()):
                 first = data[time, (0,) * data.ndim] * u.Unit(data.coords.world_axis_units[kinds.index("time")])
                 values = (first + (scans - when[0]) / np.timedelta64(1, "s") * u.s).to_value(first.unit)
                 links.append(ComponentLink([scan], time, using=_ScanAt(values)))
-    # a DKIST dataset's longitude and latitude vary with its time too (D102): each IRIS frame, exposure or step gives
+    # a DKIST dataset's longitude and latitude vary with its time too: each IRIS frame, exposure or step gives
     # its time that of its frame nearest in time, and each of its frames a slit-jaw image's time that of the nearest
     # frame, as dkist's gWCS gives no position at a time off its frames; a frame is a step and measurement of a
     # Cryo-NIRSP context image of repeated measurements, whose time varies along both
@@ -1065,7 +1065,7 @@ def link_hpc(data_collection, others=()):
         if len(axes) == 1 and datasets and len(hpc) == 2 and wcs.world_n_dim > wcs.pixel_n_dim:
             raster = _slit(dataset, axes[0])
         # a scanning raster with repeats or measurements, its time along both, by a slit table per repeat or measurement
-        # at each IRIS frame's nearest in time (below), where glue placed a point by its time alone (D102)
+        # at each IRIS frame's nearest in time (below), where glue placed a point by its time alone
         step, held = _frame_axis(dataset), sorted(set(axes) & _held_axes(dataset))
         repeated = None
         if len(axes) == 2 and datasets and len(held) == 1 and given[axes.index(step)] in _HPC:
@@ -1152,7 +1152,7 @@ def _linked_to_iris(data_collection, removed=None):
     The datasets of ``data_collection`` other than IRIS data, AIA cutouts and SOT cubes among them, whose
     helioprojective longitude or latitude a link pairs with the first IRIS dataset's, as `link_hpc` links them on
     request; not one linked by hand, in glue's Link Data dialog, to another IRIS dataset. With no IRIS data, those a
-    link pairs with another such dataset's (D97). ``removed`` is the dataset glue has just taken out of the collection
+    link pairs with another such dataset's. ``removed`` is the dataset glue has just taken out of the collection
     and whose links it is yet to drop, counted as its first.
     """
     from glue_solar import describe  # which imports this module
@@ -1194,7 +1194,7 @@ def keep_hpc_linked(data_collection, others=()):
     """
     _relinker(data_collection)
     requested = {*_linked_to_iris(data_collection), *others}
-    # and data made from them (`_GlueWCS.follows`), such as a rebinned AIA cutout, linked as its source is (D101)
+    # and data made from them (`_GlueWCS.follows`), such as a rebinned AIA cutout, linked as its source is
     uuids = {data.uuid for data in requested}
     requested.update(data for data in data_collection if uuids.intersection(getattr(data.coords, "follows", ())))
     links = link_hpc(data_collection, requested)
@@ -1567,7 +1567,7 @@ class QtIRISImporter(QtWidgets.QDialog):
     def _list_main(self):
         """
         List the ticked raster windows in Main window, showing the one last chosen there while ticked, else
-        `describe.DEFAULT_WINDOW`, else the first; shown only for two or more, where it is a choice (D90).
+        `describe.DEFAULT_WINDOW`, else the first; shown only for two or more, where it is a choice.
         """
         from glue_solar import describe  # which imports this module
 

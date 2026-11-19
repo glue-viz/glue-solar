@@ -84,7 +84,7 @@ def _last_session():
     return os.path.join(glue.config.CFG_DIR, "glue-solar-last-session.glu")
 
 
-@messagebox_on_error("Could not keep this session for 'Restore last session'")  # the app has no terminal (206-7)
+@messagebox_on_error("Could not keep this session for 'Restore last session'")  # the app has no terminal
 def _save_last_session(app):
     """
     Keep the session of ``app``, a shown glue application with data, as the last session, as glue's Export Session
@@ -96,7 +96,7 @@ def _save_last_session(app):
     held = sum(  # the values glue would save, not their files: less than the session, measured before encoding
         unbroadcast(component.data).nbytes  # a broadcast component saves its values before the broadcast
         for data in app.data_collection
-        if isinstance(data, Data)  # a path diagram (`tools.PathData`) saves its path, and has no components (D75)
+        if isinstance(data, Data)  # a path diagram (`tools.PathData`) saves its path, and has no components
         for component in map(data.get_component, data.main_components)
         if not hasattr(component, "_load_log")
     )
@@ -119,7 +119,7 @@ _glue_init = None  # glue-qt's ``GlueApplication.__init__``, once `setup` wraps 
 def _init(self, *args, **kwargs):
     """
     glue-qt's ``GlueApplication.__init__``, then glue-solar's icon, the macOS app's, on the application and its
-    window, where glue-qt puts glue's after loading plugins (D90, P8); glue-qt puts the one before back as it closes.
+    window, where glue-qt puts glue's after loading plugins; glue-qt puts the one before back as it closes.
     """
     _glue_init(self, *args, **kwargs)
     icon = QtGui.QIcon(os.path.join(os.path.dirname(__file__), "icons", "glue_solar.png"))
@@ -131,7 +131,7 @@ def _close_event(self, event):
     """
     glue-qt's ``GlueApplication.closeEvent``, keeping the session first, while its viewers are open, on quit only: the
     window another session replaces (Open Session, Reset Session, 'Restore last session') has glue-qt's
-    ``_new_application``, and keeping it would swap sessions at each restore (206-3).
+    ``_new_application``, and keeping it would swap sessions at each restore.
     """
     if not hasattr(self, "_new_application"):
         try:
@@ -194,7 +194,7 @@ def setup():
         menus[tools.ViewTool].append(tools.CursorReadoutTool)
     # Right after glue's Home, Pan and Zoom, so that a narrow viewer moves glue's region tools, Pixel, Contrast/Bias and
     # the Profile viewer button behind the toolbar's » button first; without glue-qt's Slice Extraction ("slice"), as
-    # Path diagram replaces it (D90): glue loads its plugin before or after this one, in its entry points' order, so
+    # Path diagram replaces it: glue loads its plugin before or after this one, in its entry points' order, so
     # the plugin's setup does nothing once this one ran, and the tool it added already goes
     from glue_qt.plugins.tools import pv_slicer as pv_slicer_plugin
 

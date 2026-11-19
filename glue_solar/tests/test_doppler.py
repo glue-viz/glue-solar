@@ -93,7 +93,7 @@ def test_the_action_adds_one_linked_dataset_in_a_viewer_with_the_quicklooks_poin
         "doppler_velocities": (10, 20, 30, 40, 50),
         "doppler_sign": "red - blue",
     }
-    # glue's Image viewer of its first map in the quicklook's tab, the point's crosshair at its step and slit (D83)
+    # glue's Image viewer of its first map in the quicklook's tab, the point's crosshair at its step and slit
     [viewer] = [viewer for viewer in app.viewers[-1] if viewer.state.reference_data is maps]
     assert viewer.state.layers[0].attribute is maps.main_components[0]
     assert crosshair(viewer) == (raster.shape[0] // 2, raster.shape[1] // 2)
@@ -113,7 +113,7 @@ def test_the_action_adds_one_linked_dataset_in_a_viewer_with_the_quicklooks_poin
     linked = {cid for link in collection.links for cid in (link.get_to_id(), *link.get_from_ids())}
     assert set(maps.world_component_ids) <= linked
     pairs = {frozenset((link.get_to_id(), *link.get_from_ids())) for link in collection.links}
-    assert all(frozenset(pair) in pairs for pair in zip(raster.pixel_component_ids, maps.pixel_component_ids))  # D83
+    assert all(frozenset(pair) in pairs for pair in zip(raster.pixel_component_ids, maps.pixel_component_ids))
     assert_numpys(maps, raster, 1402.77)
     assert np.isnan(maps["red - blue 10 km / s"]).sum() == 32  # where either sample interpolated is missing
 

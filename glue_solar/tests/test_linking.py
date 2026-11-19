@@ -126,7 +126,7 @@ def test_link_editor_wcs_link_works_or_refuses_cleanly(sns, irispy_test_files):
     assert [sji[cid][3, 20, 10] for cid in sji_2796.pixel_component_ids[1:]] == pytest.approx([20, 10], abs=0.01)
     try:
         WCSLink(sji, raster)
-    except IncompatibleWCS:  # glue-core 1.27.0: SJI and raster share only lon/lat, which link_hpc links
+    except IncompatibleWCS:  # glue-core: SJI and raster share only lon/lat, which link_hpc links
         pass
 
 
@@ -164,7 +164,7 @@ def test_inverse_workaround_installs_only_where_glue_needs_it():
 @pytest.mark.parametrize("needed", [True, False])
 def test_the_link_patches_hold_the_wcs_lock(monkeypatch, needed):
     # SST1: glue's profile workers reach the WCS of each linked dataset through these, one restored unlocked too; glue's
-    # own, once fixed, still hold it (D73)
+    # own, once fixed, still hold it
     patched = (
         (coordinate_helpers, "world2pixel_single_axis"),
         (component_link, "world2pixel_single_axis"),  # which imports it by name
@@ -200,7 +200,7 @@ def test_the_link_patches_hold_the_wcs_lock(monkeypatch, needed):
     monkeypatch.setattr(glue_patches, "_original_reset_wcs", lambda *args: held.append(WCS_LOCK._is_owned()))
     glue_patches.reset_wcs(None, wcs=_LockedWCS(naxis=2))
     glue_patches.reset_wcs(None, wcs=WCS(naxis=2))  # an unlinked one waits for no profile worker
-    assert held == [True, True, True, True, False, False, True, False]  # nor a point to or on an unlinked one (227-9)
+    assert held == [True, True, True, True, False, False, True, False]  # nor a point to or on an unlinked one
     # and each transform, copy and property reading wcslib's struct of a linked dataset's WCS (a lock on the transforms
     # alone still crashed), as glue's autolinker reads has_celestial of every dataset's WCS as data load: wcsset again
     for name in LOCKED_TRANSFORMS:
@@ -213,7 +213,7 @@ def test_the_link_patches_hold_the_wcs_lock(monkeypatch, needed):
 
 
 def test_world_links_into_the_sji_use_each_exposure_time(sns):
-    # glue-core 1.27.0 inverts every frame at exposure 0: x = 22.4 and 35.4 px at frames 30 and 61
+    # glue-core inverts every frame at exposure 0: x = 22.4 and 35.4 px at frames 30 and 61
     sji, _ = sns
     frames = np.arange(sji.shape[0], dtype=float)
     lon, lat, time = sji.coords.pixel_to_world_values(10.0, 10.0, frames)
@@ -283,11 +283,11 @@ def test_link_hpc_links_every_iris_dataset_to_the_first(qtbot, sns, irispy_test_
     aia = _parse_sunpy_map(sunpy.map.Map(sunpy.data.test.get_test_filepath("aia_171_level1.fits")), "aia")
     assert set(aia.coords.world_axis_units) == {"deg"}
     dc = DataCollection([sji, raster, aia, other])
-    assert len(link_hpc(dc)) == 4  # the map only when named (226-3)
+    assert len(link_hpc(dc)) == 4  # the map only when named
     links = link_hpc(dc, others=[aia])
     assert len(links) == 6
     assert {link.cids1[0] for link in links} == {_cid(sji, label) for label in HPC}
-    # the map's degrees to arcsec; IRIS data keep LinkSame, which glue-core 1.27.0 restores from a session and
+    # the map's degrees to arcsec; IRIS data keep LinkSame, which glue-core restores from a session and
     # LinkSameWithUnits not
     assert {type(link) for link in links if link.cids2[0].parent is aia} == {LinkSameWithUnits}
     assert {type(link) for link in links if link.cids2[0].parent is not aia} == {LinkSame}
@@ -302,7 +302,7 @@ def test_link_hpc_links_every_iris_dataset_to_the_first(qtbot, sns, irispy_test_
 
 @pytest.mark.parametrize("opened", [False, True])
 def test_a_restored_session_keeps_the_data_linked_on_request_linked(qtbot, tmp_path, irispy_test_files, sns, opened):
-    # D73: a session saves the links 'Link helioprojective coordinates' made, not that they were asked for: once
+    # a session saves the links 'Link helioprojective coordinates' made, not that they were asked for: once
     # the IRIS dataset they went through was removed, a restored SST cube, SOT cube or map was left unlinked, quicklook
     # opened first or not
     from glue_solar.tests.test_sst import write_sst_cube  # which imports this module
@@ -332,7 +332,7 @@ def test_a_restored_session_keeps_the_data_linked_on_request_linked(qtbot, tmp_p
 
 
 def test_a_restored_session_keeps_sst_cubes_linked_without_iris_data(qtbot, tmp_path):
-    # D97: with no IRIS data, cubes linked on request link to each other again once the one they were linked through
+    # with no IRIS data, cubes linked on request link to each other again once the one they were linked through
     # is removed, in a restored session as in a live one
     from glue_solar.tests.test_sst import write_sst_cube  # which imports this module
 
@@ -347,7 +347,7 @@ def test_a_restored_session_keeps_sst_cubes_linked_without_iris_data(qtbot, tmp_
 
 
 def test_a_map_linked_by_hand_to_another_iris_dataset_is_not_linked_on_request(qtbot, sns):
-    # D73: only a link to the IRIS dataset `link_hpc` links to is taken as one made on request, not one made in glue's
+    # only a link to the IRIS dataset `link_hpc` links to is taken as one made on request, not one made in glue's
     # Link Data dialog to another
     sji, raster = sns
     lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)
@@ -382,13 +382,13 @@ def test_a_link_made_on_request_and_removed_by_hand_stays_removed(qtbot, sns):
 
 
 def test_a_sot_cube_loaded_first_is_linked_on_request_to_the_raster(sns, irispy_test_files):
-    # D72: a Hinode/SOT cube's longitude and latitude, each frame at its own pointing, as IRIS data read them, linked
+    # a Hinode/SOT cube's longitude and latitude, each frame at its own pointing, as IRIS data read them, linked
     # only on request, and to the IRIS raster loaded after it, never the raster to it
     _, raster = sns
     [path] = [path for path in irispy_test_files if "_Gband4305_FG_" in path.name]
     sot = image_data(path)
     sots = DataCollection([image_data(path), image_data(path)])
-    # with no IRIS dataset, one SOT cube to the other on request (D97, reversing 212-3)
+    # with no IRIS dataset, one SOT cube to the other on request
     assert [type(link) for link in link_hpc(sots, others=sots)] == [LinkSame, LinkSame]
     dc = DataCollection([sot, raster])
     assert link_hpc(dc) == []
@@ -403,7 +403,7 @@ def test_a_sot_cube_loaded_first_is_linked_on_request_to_the_raster(sns, irispy_
 
 
 def test_a_sot_cube_is_linked_on_request_to_a_map_in_degrees_loaded_first(irispy_test_files):
-    # D37, D97: with no IRIS data, the map, in degrees, is the anchor, and the cube's arcsec are converted to its
+    # with no IRIS data, the map, in degrees, is the anchor, and the cube's arcsec are converted to its
     [path] = [path for path in irispy_test_files if "_Gband4305_FG_" in path.name]
     sot = image_data(path)
     lon, lat, _ = sot.coords.pixel_to_world_values(36, 39, 0)
@@ -416,7 +416,7 @@ def test_a_sot_cube_is_linked_on_request_to_a_map_in_degrees_loaded_first(irispy
 
 
 def test_copies_of_data_linked_on_request_are_linked_as_it_is(app, qtbot, monkeypatch, sns, irispy_test_files):
-    # D101: a rebinned or regridded copy of a SOT cube linked on request is linked too, of one never linked not
+    # a rebinned or regridded copy of a SOT cube linked on request is linked too, of one never linked not
     [path] = [path for path in irispy_test_files if "_Gband4305_FG_" in path.name]
     sot, other = image_data(path), image_data(path)
     collection, tree = app.data_collection, app._layer_widget
@@ -622,7 +622,7 @@ def test_a_raster_map_region_reaches_a_sunpy_map_whose_longitudes_run_from_0_to_
 
 
 def test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair(app, sns):
-    # glue-core 1.27.0 places each layer's Pixel crosshair at the point's pixel in the layer's own dataset: a map
+    # glue-core places each layer's Pixel crosshair at the point's pixel in the layer's own dataset: a map
     # linked to the raster added a second crosshair on the raster map, and raised IndexError over a slit-jaw image
     import inspect
 
@@ -653,7 +653,7 @@ def test_a_sunpy_map_over_quicklook_panels_leaves_one_crosshair(app, sns):
 
 
 def test_data_outside_the_iris_observations_link_only_on_request(app, sns):
-    # D64: data load, the analyses and a quicklook link IRIS data only, as each quicklook panel would otherwise invert
+    # data load, the analyses and a quicklook link IRIS data only, as each quicklook panel would otherwise invert
     # the other data's WCS (SST3); 'Link helioprojective coordinates' links the others too, their WCS locked
     sji, raster = sns
     dc = app.data_collection
@@ -814,7 +814,7 @@ def test_the_link_editor_keeps_a_stack_s_scans(tmp_path, irispy_test_files):
 
 
 def test_the_link_editor_opens_on_a_linked_sunpy_map(sns):
-    # glue-core 1.27.0 names both ends of the map's LinkSameWithUnits 'values', so Link Data and Link Suggestions
+    # glue-core names both ends of the map's LinkSameWithUnits 'values', so Link Data and Link Suggestions
     # raised ValueError and never opened; the dialog lists each with the SJI's component and the map's, and OK, which
     # makes every link again from its components, keeps them
     sji, _ = sns
@@ -868,8 +868,8 @@ def test_browse_iris_links_what_it_loads(app, qtbot, tmp_path, irispy_test_files
     assert on_gui
     assert all(on_gui)  # glue's hub has no locks: the datasets are added on the GUI thread
     assert len(dc) > 5  # the map, two SJIs, the SOT cube and every raster window
-    # longitude and latitude of each IRIS dataset, and of the observation's SOT cube, to the first (D115), and the
-    # quicklook's exposure and slit pixels of each other raster window to the one it shows; not the map's (D72)
+    # longitude and latitude of each IRIS dataset, and of the observation's SOT cube, to the first, and the
+    # quicklook's exposure and slit pixels of each other raster window to the one it shows; not the map's
     windows = 2 * (sum(describe.role(data) == "raster" for data in dc) - 1)
     hpc = [link for link in dc.external_links if {cid.label for cid in (*link.cids1, *link.cids2)} <= set(HPC)]
     assert (len(hpc), len(dc.external_links) - len(hpc)) == (2 * (len(dc) - 2), windows)
@@ -914,7 +914,7 @@ def test_the_link_graph_is_the_same_with_the_autolinker_run_first_or_last(app, q
             continue  # each dataset's own pixel-world conversions
         cids = [*link.get_from_ids(), link.get_to_id()]
         assert time not in cids
-        # only glue's WCS links, from pixel to pixel, reach pixel components (D8)
+        # only glue's WCS links, from pixel to pixel, reach pixel components
         assert len({isinstance(cid, PixelComponentID) for cid in cids}) == 1
     if order[0] != "autolinker":
         return  # the rest does not depend on the order
@@ -1068,7 +1068,7 @@ def test_pixel_point_workaround_installs_only_where_glue_needs_it(sns, tmp_path,
     with pytest.raises(IncompatibleAttribute):
         point.to_array(raster, raster.main_components[0])
     # a raster point's wavelength, which reaches no axis of a stack, leaves it the pixel the point gives without it; a
-    # slit row, whose stack pixel depends on its free exposure too, and a wavelength alone stay incompatible (D73)
+    # slit row, whose stack pixel depends on its free exposure too, and a wavelength alone stay incompatible
     stack, _ = drifting_stack(tmp_path, irispy_test_files)
     dc.append(stack)
     dc.add_link(link_hpc(dc))

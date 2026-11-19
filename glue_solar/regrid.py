@@ -146,7 +146,7 @@ def regrid_on_time(data):
         name=data.main_components[0].label,
         color=data.style.color,
         cmap=data.style.preferred_cmap,
-        missing=MISSING_VALUES if scaling else (),  # in memory, NaN where missing already: SOT's -200 is data (D12)
+        missing=MISSING_VALUES if scaling else (),  # in memory, NaN where missing already: SOT's -200 is data
         scaling=scaling,
     )
     regridded.coords.follow(data)
@@ -272,7 +272,7 @@ def north_up_iris(data, data_collection):
 
 def _check(data):
     """Raise why ``data`` is not an IRIS dataset, which can be rebinned."""
-    # not a slit-jaw image's bursts' labels, which keep its meta, Time and coordinates (D61)
+    # not a slit-jaw image's bursts' labels, which keep its meta, Time and coordinates
     if not describe.timed(data) or not isinstance(data.coords, _GlueWCS) or "bursts_sigma_factor" in data.meta:
         raise ValueError(f"{data.label} is not an IRIS raster window, slit-jaw image, AIA cutout or SOT cube.")
 

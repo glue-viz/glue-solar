@@ -73,7 +73,7 @@ def test_the_action_adds_irispys_maps_as_one_linked_dataset_in_a_viewer(
         "red_blue_velocities": (30.0, 55.0),
         "red_blue_step": 5.0,
     }
-    [[viewer]] = app.viewers  # glue's Image viewer of its first map (D83)
+    [[viewer]] = app.viewers  # glue's Image viewer of its first map
     assert viewer.state.layers[0].attribute is maps.main_components[0]
     # on the raster's steps and slit pixels, its helioprojective coordinates linked with the others'
     assert maps.coords.world_axis_units == ("arcsec", "arcsec")

@@ -355,7 +355,7 @@ def test_an_aia_map_session_restores_its_colormap_and_measure_s_km(app, qtbot, m
     aia = read_sunpy_map(sunpy.data.test.get_test_filepath("aia_171_level1.fits"))
     app.data_collection.append(aia)
     app.new_data_viewer(ImageViewer, data=aia)
-    app.save_session(str(tmp_path / "aia.glu"))  # glue-core 1.27.0 alone fails on the map's colormap
+    app.save_session(str(tmp_path / "aia.glu"))  # glue-core alone fails on the map's colormap
     restored = restore(qtbot, monkeypatch, tmp_path / "aia.glu", show=True)
     assert restored.data_collection[0].style.preferred_cmap.name == "sdoaia171"  # glue's restore drops it
     # its colors: glue's menu shows the first sunpy colormap of the same colors, here GOES-R SUVI 171's
@@ -390,7 +390,7 @@ def test_a_session_restores_a_profile_along_the_last_axis_in_its_unit(app, qtbot
         state.x_min, state.x_max = limits
         saved.append((state.x_att.label, state.x_display_unit, state.x_min, state.x_max))
     app.save_session(str(tmp_path / "profile.glu"))
-    restored = restore(qtbot, monkeypatch, tmp_path / "profile.glu", show=True)  # glue-core 1.27.0 alone raises
+    restored = restore(qtbot, monkeypatch, tmp_path / "profile.glu", show=True)  # glue-core alone raises
     states = [viewer.state for viewer in restored.viewers[0]]
     assert [(s.x_att.label, s.x_display_unit, s.x_min, s.x_max) for s in states] == saved
 
@@ -575,7 +575,7 @@ def test_a_restored_quicklook_has_its_panels_off_and_their_axes(app, qtbot, monk
     panels = panels_list(app)
     tick(panels, "C II 1336", "SJI 1400", on=False)
     qtbot.waitUntil(lambda: not panels._timer.isActive())
-    viewers["spectrogram"].toolbar.actions["solar:hide_axes"].trigger()  # the axes of every image panel on (D83)
+    viewers["spectrogram"].toolbar.actions["solar:hide_axes"].trigger()  # the axes of every image panel on
     look = viewers["map"].layers[0].state
     look.cmap, look.stretch, look.v_min = colormaps["viridis"], "sqrt", 5.0
     for viewer, title in ((viewers["map"], "my map"), (viewers["sji"][0], "my SJI")):  # one on, one off
@@ -597,7 +597,7 @@ def test_a_restored_quicklook_has_its_panels_off_and_their_axes(app, qtbot, monk
 
 
 def test_a_restored_quicklook_has_the_aia_panels_ticked(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
-    # D115: an observation's AIA cutouts, read from their files, linked again and listed; the one ticked a panel again
+    # an observation's AIA cutouts, read from their files, linked again and listed; the one ticked a panel again
     files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
     cutouts = [tmp_path / f"aia_l2_20210905_001833_3620258102_{band}.fits" for band in (1600, 1700)]
     for band, path in zip((1600, 1700), cutouts):  # the slit-jaw image's frames as an aligned cutout's file
@@ -873,7 +873,7 @@ def test_a_restored_quicklook_keeps_its_regions_outlines(app, qtbot, monkeypatch
     restored = restore(qtbot, monkeypatch, tmp_path / "regions.glu")
     raster, sji = (restored.data_collection[data.label] for data in (raster, sji))
     _, on_map, on_frame = restored.data_collection.subset_groups
-    # each by its outline (D39): the map's in each slit-jaw frame without inverting the raster's coordinates, the slit-jaw
+    # each by its outline: the map's in each slit-jaw frame without inverting the raster's coordinates, the slit-jaw
     # image's on the raster at all
     pixels = roi_to_subset_state(roi, x_att=raster.pixel_component_ids[0], y_att=raster.pixel_component_ids[1])
     check_outline(monkeypatch, raster, sji, on_map.subset_state, pixels)

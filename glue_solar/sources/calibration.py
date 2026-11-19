@@ -86,7 +86,7 @@ def remove_dust(data):
         with WCS_LOCK:
             wcs = SlicedLowLevelWCS(data.coords._wcs, (*rows, slice(None), slice(None)))
         # saturated samples masked, as irispy's reads mask them, so never a replacement; kept at their value unless next
-        # to dust, which irispy replaces like any neighbour (D85)
+        # to dust, which irispy replaces like any neighbour
         saturated = at_ceiling(slab)
         cube = SJICube(slab, wcs, mask=np.isnan(slab) | saturated, meta=meta)
         for name in ("slit x position", "slit y position"):  # where the table goes in each frame, as irispy's reads

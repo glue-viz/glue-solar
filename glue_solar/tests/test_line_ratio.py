@@ -102,7 +102,7 @@ def test_the_action_adds_irispys_map_of_two_moments_maps_as_one_linked_dataset_i
         ("ratio", ""),
         ("log n_e", ""),
     ]
-    [[viewer]] = app.viewers  # glue's Image viewer of its first map (D83)
+    [[viewer]] = app.viewers  # glue's Image viewer of its first map
     assert viewer.state.layers[0].attribute is result.main_components[0]
     # on the maps' raster steps and slit pixels, their helioprojective coordinates linked with the others'
     assert result.coords is lines[0].coords
@@ -117,7 +117,7 @@ def test_the_action_adds_irispys_map_of_two_moments_maps_as_one_linked_dataset_i
 
 
 def test_the_line_moments_of_a_stack_give_irispys_map_of_each_scan(app, monkeypatch, stack_paths, table):
-    """Maps of (scan, step, slit), as every analysis gives a stack's (D59)."""
+    """Maps of (scan, step, slit), as every analysis gives a stack's."""
     [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
     lines = [line_moments(stack, center) for center in (1399.77, 1401.16)]
     app.data_collection.extend([stack, *lines])
@@ -295,7 +295,7 @@ def test_the_o_iv_preset_adds_irispys_density_diagnostic_of_two_moments_maps(
         ("ratio", ""),
         ("log n_e", ""),
     ]
-    [[viewer]] = app.viewers  # glue's Image viewer of its first map (D83)
+    [[viewer]] = app.viewers  # glue's Image viewer of its first map
     assert viewer.state.layers[0].attribute is result.main_components[0]
     assert result.coords is lines[0].coords
     assert link_hpc(collection) == []

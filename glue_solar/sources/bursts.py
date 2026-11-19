@@ -114,7 +114,7 @@ def _si_iv_bursts(data, crop, threshold, velocity_range, median_factor):
         rows = (*scan, slice(None), slice(None), crop)
         values = data[data.main_components[0], rows]  # scaled float32 DN, NaN where missing
         times = data[data.id["Time"], (*scan, slice(None), 0, 0)]
-        # a time for a regridded gap's NaT (D37), which irispy's gwcs cannot convert; its NaN values give no burst
+        # a time for a regridded gap's NaT, which irispy's gwcs cannot convert; its NaN values give no burst
         times = Time(np.where(np.isnat(times), np.nanmin(data[data.id["Time"], (..., 0, 0)]), times), scale="utc")
         meta = _irispy_meta(data, scan)
         cube = SpectrogramCube(
@@ -212,7 +212,7 @@ def sji_bursts(data, sigma_factor=SIGMA_FACTOR, min_pixels=MIN_PIXELS):
     if not _is_sji(data):
         raise ValueError(f"{data.label} is not an IRIS slit-jaw image.")
     values = data[data.main_components[0], (slice(None),)]  # scaled float32, NaN where missing, read with a view
-    # ponytail: one irispy call on every frame, about 6 times the image's float32 at its peak (1.6 GB for the 400
+    # shortcut: one irispy call on every frame, about 6 times the image's float32 at its peak (1.6 GB for the 400
     # frames of 4000255147's SJI 1400); slabs of frames, their labels offset, if larger images need less
     unit = DN_UNIT.get(data.meta["TDESC1"], u.DN)  # the passband's, as irispy reads it
     with WCS_LOCK:  # irispy evaluates it on this thread without the lock: a copy of its own, not the GUI thread's

@@ -1,10 +1,10 @@
 """
-The main lines, a Profile viewer button that labels them, the rest wavelength of a spectral window (D11) and the
+The main lines, a Profile viewer button that labels them, the rest wavelength of a spectral window and the
 Doppler velocity from it, as a Profile x unit and top axis.
 
-The main lines are the documented IRIS lines of irispy's line catalog, at its vacuum wavelengths in Angstrom (D44), and
+The main lines are the documented IRIS lines of irispy's line catalog, at its vacuum wavelengths in Angstrom, and
 on DKIST data and SST cubes the lines ground-based telescopes observe, in air or vacuum as their wavelengths are
-(`GROUND_LINES`, `lines_of`, D107).
+(`GROUND_LINES`, `lines_of`).
 """
 
 import os
@@ -58,7 +58,7 @@ def main_lines():
 # The lines ground-based telescopes observe, those of DKIST's ViSP, Cryo-NIRSP, DL-NIRSP and VBI and of SST's CRISP
 # and CHROMIS, as (name, air and vacuum wavelengths in Angstrom): NIST ASD's observed wavelengths, else its Ritz ones,
 # in air up to 2 µm, and in vacuum from its wavenumbers above 1 µm
-# (D107; https://physics.nist.gov/PhysRefData/ASD/lines_form.html, 2026-10-28)
+# (https://physics.nist.gov/PhysRefData/ASD/lines_form.html, 2026-10-28)
 GROUND_LINES = (
     ("Ca II K", 3933.66, 3934.77),
     ("Ca II H", 3968.47, 3969.59),
@@ -89,7 +89,7 @@ def lines_of(data):
     """
     The main lines of ``data``, as (name, wavelength in Angstrom): the ground-based lines (`GROUND_LINES`) in air or
     vacuum as its ``meta['WAVEREF']``, 'Air' or 'Vacuum', says, as DKIST's headers give it, or in air on an SST cube,
-    as SSTRED's wavelengths are (D107), else IRIS's (`main_lines`).
+    as SSTRED's wavelengths are, else IRIS's (`main_lines`).
     """
     sst = "air" if describe.role(data) == "sst" else ""
     column = {"air": 1, "vacuum": 2}.get(str(data.meta.get("WAVEREF", sst)).lower())
@@ -117,7 +117,7 @@ class LineTool(Tool):
     """
     Label the main lines (`lines_of`) on a Profile viewer whose x axis is the wavelength of its data: a thin
     marker at each line within the plotted range and its name at the top, in the axis's display unit, less the main
-    lines unticked in 'Lines in this range…' (`hidden`) and with the lines ticked there (`labeled`) (D98). Lines too
+    lines unticked in 'Lines in this range…' (`hidden`) and with the lines ticked there (`labeled`). Lines too
     close to tell apart at the plotted range share one label; a label that would overlap another goes below it. The
     button, checked while they show, switches them off and on; they start on.
     """
@@ -187,7 +187,7 @@ class LineTool(Tool):
                         color="0.35")
             self.artists.append(axes.add_artist(text))
             box = text.get_window_extent()
-            # below the lowest label it would overlap, such as Mg II k's and the triplet's on a narrow panel (P8)
+            # below the lowest label it would overlap, such as Mg II k's and the triplet's on a narrow panel
             below = [other.y0 for other in boxes if other.x0 < box.x1 and box.x0 < other.x1]
             if below:
                 text.set_y(axes.transAxes.inverted().transform((0, min(below) - 2))[1])
@@ -209,7 +209,7 @@ def _is_wavelength(data, cid):
     """
     Whether ``cid`` is glue's world attribute along the one wavelength axis of ``data``, a length: glue gives axis i
     world axis ``world_n_dim - 1 - i``, another one in a gWCS of more world axes than pixel axes, such as dkist's own,
-    whose unit then raised in glue's x_att callback (D102).
+    whose unit then raised in glue's x_att callback.
     """
     axes = describe.spectral_axes(data)
     if len(axes) != 1 or cid is not data.world_component_ids[min(axes)]:
@@ -226,8 +226,8 @@ class LinesInRangeTool(Tool):
     """
     List the lines of irispy's catalog within a Profile viewer's Fit and Collapse range, else its plotted range,
     strongest first in a region type's model at coronal or photospheric abundances, lines it predicts no strength for
-    after (D44, D97), or on DKIST data and SST cubes the ground-based lines (`lines_of`, D107), each ticked while
-    `LineTool` shows it: a tick labels a line beside the main lines, an untick hides one, a main line too (D98).
+    after, or on DKIST data and SST cubes the ground-based lines (`lines_of`), each ticked while
+    `LineTool` shows it: a tick labels a line beside the main lines, an untick hides one, a main line too.
     """
 
     #: :meta hide-value:
@@ -241,7 +241,7 @@ class LinesInRangeTool(Tool):
     def activate(self):
         from irispy.utils.lines import get_lines
 
-        if self.dialog is not None:  # one list per viewer, of the range it was asked for last (D98)
+        if self.dialog is not None:  # one list per viewer, of the range it was asked for last
             self.dialog.close()
             self.dialog.deleteLater()  # else each press keeps a hidden dialog under the viewer
             self.dialog = None  # not the deleted one, if this press raises
@@ -314,11 +314,11 @@ def _within(data):
 
 def rest_wavelength(data):
     """
-    The rest wavelength of the line in ``data``, in Angstrom, or None (D11): ``meta['rest_wavelength']`` where set,
+    The rest wavelength of the line in ``data``, in Angstrom, or None: ``meta['rest_wavelength']`` where set,
     else the one main line within its wavelengths (`lines_of`) or, of several, the one of the window's own ion (C I
     1355.85 is nearer 1356 than O I 1355.60) nearest the wavelength its window is named for, such as 2796 in Mg II k
     2796, or a DKIST dataset's ``WAVEBAND`` and ``LINEWAV``, such as He I 1083.0 nm in 'He I (1083.0 nm)', or an SST
-    cube's line core (D107), if within 1 Å; never the window's TWAVE, which is not the line's.
+    cube's line core, if within 1 Å; never the window's TWAVE, which is not the line's.
     """
     if data.meta.get("rest_wavelength") is not None:
         return float(data.meta["rest_wavelength"])
@@ -427,7 +427,7 @@ class VelocityTool(Tool, HubListener):
     def _label_x(self, *_):
         """
         glue's x label with its display unit, which glue leaves out, such as 'Wavelength [Angstrom]', and in km / s
-        the top axis's, such as 'Velocity from 2796.352 Å [km / s]' (D90).
+        the top axis's, such as 'Velocity from 2796.352 Å [km / s]'.
         """
         state = self.viewer.state
         if state.x_att is not None and state.x_display_unit:
@@ -438,7 +438,7 @@ class VelocityTool(Tool, HubListener):
 
     def _unit_y(self, *_):
         """
-        The layers' one unit as the y display unit, so glue labels the axis 'Data values [DN / s]' (D90), as their data or
+        The layers' one unit as the y display unit, so glue labels the axis 'Data values [DN / s]', as their data or
         attributes change and while it is glue's 'Native units'; glue offers the units of its Data layers only.
         """
         if self.viewer is None:  # closed by an earlier callback of the same change, glue's layer-artist sync

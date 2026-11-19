@@ -407,7 +407,7 @@ def expected_start(data):
 
 
 def check_panels(app, viewers, data, rows):
-    """Each raster panel shows ``rows[role] = (x, y)`` at the point, as the plan's panel table says."""
+    """Each raster panel shows ``rows[role] = (x, y)`` at the point."""
     [group] = app.session.edit_subset_mode.edit_subset
     point = group.subset_state
     assert group.label == "Point"
@@ -437,7 +437,7 @@ def check_panels(app, viewers, data, rows):
     assert spectrum.x_display_unit == data.coords.world_axis_units[0]  # no display-unit override
     assert spectrum.y_min <= 0 <= spectrum.y_max
     assert [0, 0] in [list(line.get_ydata()) for line in viewers["spectrum"].axes.lines]
-    assert data.label not in app.statusBar().currentMessage()  # no note of the spectrum panel's data (D90)
+    assert data.label not in app.statusBar().currentMessage()  # no note of the spectrum panel's data
     assert set(app.viewers[-1]) == {*[viewers[role] for role in rows], viewers["spectrum"], *viewers["sji"]}
 
 
@@ -509,10 +509,10 @@ def check_exposure_axis(viewer, axis, label, exposures):
 
 def test_a_sit_and_stare_exposure_axis(bare_app, monkeypatch, irispy_test_files):
     raster, _ = sit_and_stare(irispy_test_files)
-    bare_app.resize(1800, 1100)  # rows over about 330 pixels: below, the label along y runs off the panel (D83)
+    bare_app.resize(1800, 1100)  # rows over about 330 pixels: below, the label along y runs off the panel
     bare_app.show()  # the quicklook's own panel sizes
     viewers = quicklook(bare_app, [raster])
-    viewers["map"].toolbar.actions["solar:hide_axes"].trigger()  # the panels open without axes (D71): every one's shown
+    viewers["map"].toolbar.actions["solar:hide_axes"].trigger()  # the panels open without axes: every one's shown
     times = raster[raster.id["Time"]][:, 0, 0]
     first, last = (np.datetime_as_string(t, unit="s") for t in (times[0], times[-1]))
     label = f"{EXPOSURES}\n{first} – {last[11:]} UTC"  # one day
@@ -582,7 +582,7 @@ def test_a_slit_step_relabels_the_exposure_axis_without_placing_its_ticks(bare_a
         wavelength.state.slices = (wavelength.state.slices[0], 5 + typed, wavelength.state.slices[2])
         assert wavelength.axes.coords is not coords  # glue reset the axes and their labels
         # glue's '' and world labels, and the exposure label again, go on their coordinates, which places
-        # no tick until the draw (glue-core 1.27.0 alone: 6 set_xlabel and set_ylabel and 28 tick updates)
+        # no tick until the draw (glue-core alone: 6 set_xlabel and set_ylabel and 28 tick updates)
         assert calls == {}
         assert wavelength.state.y_axislabel == edit.text() == label
         assert list(drawn_ticks(wavelength, "l")) == [label]
@@ -593,7 +593,7 @@ def test_a_slit_step_relabels_the_exposure_axis_without_placing_its_ticks(bare_a
 
 
 def test_a_rolled_sit_and_stare_slit_gives_the_angle_along_it(bare_app, tmp_path, irispy_test_files):
-    # D30: on a slit rolled 90°, the readout and the slit axis give the longitude, which changes along it, by its own
+    # on a slit rolled 90°, the readout and the slit axis give the longitude, which changes along it, by its own
     # name; glue maps the axis to the latitude, which does not
     path = tmp_path / SNS.format("raster_t000_r00000")
     with fits.open(find_irispy_test_file(irispy_test_files, path.name)) as hdulist:
@@ -602,7 +602,7 @@ def test_a_rolled_sit_and_stare_slit_gives_the_angle_along_it(bare_app, tmp_path
         hdulist.writeto(path)
     [raster] = raster_data([path], ["Si IV 1403"])
     raster_map = quicklook(bare_app, [raster])["map"]  # exposures along x
-    raster_map.toolbar.actions["solar:hide_axes"].trigger()  # the panels open without axes (D71)
+    raster_map.toolbar.actions["solar:hide_axes"].trigger()  # the panels open without axes
     label = "Helioprojective Longitude [arcsec]"
     _, _, lon = raster.coords.pixel_to_world_values(0, [0, 39], 2)
 
@@ -625,7 +625,7 @@ def test_a_rolled_sit_and_stare_slit_gives_the_angle_along_it(bare_app, tmp_path
 
 def test_the_quicklook_axes_give_their_units(bare_app, qtbot, irispy_test_files):
     """
-    The quicklook's axes give their units (D90): the spectrum panel's wavelength, in its display unit too, and values,
+    The quicklook's axes give their units: the spectrum panel's wavelength, in its display unit too, and values,
     an Image panel's world coordinates once its axes show, and the light curves' values against Time.
     """
     raster, sji = sit_and_stare(irispy_test_files)
@@ -635,7 +635,7 @@ def test_the_quicklook_axes_give_their_units(bare_app, qtbot, irispy_test_files)
     assert (spectrum.x_axislabel, spectrum.y_axislabel) == ("Wavelength [Angstrom]", f"Data values [{unit}]")
     spectrum.x_display_unit = "nm"
     assert spectrum.x_axislabel == "Wavelength [nm]"
-    viewers["map"].toolbar.actions["solar:hide_axes"].trigger()  # the panels open without axes (D71)
+    viewers["map"].toolbar.actions["solar:hide_axes"].trigger()  # the panels open without axes
     assert viewers["sji"][0].state.x_axislabel == "Helioprojective Longitude [arcsec]"
     menu_action(viewers["map"], POINT_CURVES).trigger()
     plot = bare_app.viewers[-1][-1]
@@ -647,7 +647,7 @@ def test_the_quicklook_axes_give_their_units(bare_app, qtbot, irispy_test_files)
 def test_the_quicklook_panels_status_lines_are_short(bare_app, irispy_test_files):
     """
     A quicklook panel's status line has no mouse-mode hint, which its frame time clipped, and gives the frame's time of
-    day; the quicklook leaves no note of its spectrum panel in the status bar (D90).
+    day; the quicklook leaves no note of its spectrum panel in the status bar.
     """
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
@@ -680,7 +680,7 @@ def test_the_frame_time_reads_one_exposure_a_frame(bare_app, monkeypatch, irispy
 def test_the_time_sync_reads_plainly(bare_app, qtbot, irispy_test_files):
     """
     The Coordinate and View menus, the frame time, the Point window and the light curves' exposure subset say which
-    dataset leads the time, in plain words, not 'time master' (D90).
+    dataset leads the time, in plain words, not 'time master'.
     """
     raster, sji = sit_and_stare(irispy_test_files)
     viewers = quicklook(bare_app, [raster, sji])
@@ -728,7 +728,7 @@ def test_no_crosshair_where_the_point_has_no_position(bare_app, irispy_test_file
     [group] = bare_app.session.edit_subset_mode.edit_subset
     exposure, slit, _ = (s.start for s in group.subset_state.slices)
     assert crosshair(viewers["map"]) == (exposure, slit)
-    # the point is free in wavelength: glue-core 1.27.0 alone draws these at (0, 0)
+    # the point is free in wavelength: glue-core alone draws these at (0, 0)
     panels = [viewers[role] for role in ("spectrogram", "wavelength")]
     assert [crosshair(viewer) for viewer in panels] == [None, None]
     viewers["wavelength"].state.slices = (exposure, 5, viewers["wavelength"].state.slices[2])  # moves the point
@@ -745,7 +745,7 @@ def test_quicklook_of_a_raster_and_of_a_stack(bare_app, scans):
     viewers = quicklook(bare_app, [scan])
     check_panels(bare_app, viewers, scan, {"map": (0, 1), "spectrogram": (2, 1), "wavelength": (2, 0)})
     assert viewers["wavelength"].state.title == "C II 1336 λ–step"
-    # a scanning raster's steps are places on the Sun: glue's own label, with its unit (D90)
+    # a scanning raster's steps are places on the Sun: glue's own label, with its unit
     assert viewers["map"].state.x_axislabel == f"{scan.world_component_ids[0].label} [arcsec]"
     viewers = quicklook(bare_app, [scan, stack])  # a stack of the window is shown rather than one scan
     check_panels(bare_app, viewers, stack, {"map": (1, 2), "spectrogram": (3, 2), "wavelength": (3, 0)})
@@ -996,7 +996,7 @@ def test_each_quicklook_edits_its_own_point(bare_app, scans):
 @pytest.mark.parametrize("hovered", [False, True], ids=["Pixel", "Follow/lock"])
 def test_a_pixel_click_moves_the_point_with_a_dataset_selected(bare_app, qtbot, scans, hovered):
     # glue-qt's data collection empties the edit subset as a dataset is selected there, as for an analysis, and a
-    # Pixel click made a new subset (D82), as did the mouse moving in Follow/lock, which then followed it
+    # Pixel click made a new subset, as did the mouse moving in Follow/lock, which then followed it
     scan, _ = scans
     viewers = quicklook(bare_app, [scan])
     collection, mode = bare_app.data_collection, bare_app.session.edit_subset_mode
@@ -1612,9 +1612,9 @@ def test_an_aia_cutout_follows_the_time_master_and_can_be_it(bare_app, qtbot, ir
 def test_an_observation_s_aia_cutout_is_linked_as_it_loads_and_a_panel_once_ticked(
     bare_app, qtbot, tmp_path, irispy_test_files
 ):
-    # D115: a quicklook links its observation's AIA cutouts and SOT cubes as it opens, and lists a panel for each,
+    # a quicklook links its observation's AIA cutouts and SOT cubes as it opens, and lists a panel for each,
     # unticked; ticked, the panel follows the time, shows the raster's point and takes a click as a slit-jaw image's.
-    # A cutout of another observation waits for 'Link helioprojective coordinates' (D72)
+    # A cutout of another observation waits for 'Link helioprojective coordinates'
     stack, _ = drifting_stack(tmp_path, irispy_test_files)
     path = find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000"))
     sji, aia, other = image_data(path), image_data(path), image_data(path)
@@ -1653,7 +1653,7 @@ def test_an_observation_s_aia_cutout_is_linked_as_it_loads_and_a_panel_once_tick
 def test_iris_field_of_view_boxes_the_raster_and_the_slit_jaw_image_on_an_aia_panel(
     bare_app, qtbot, tmp_path, irispy_test_files
 ):
-    # D116: on an AIA cutout of the observation, here one with the slit-jaw image's own frames, so that the slit-jaw
+    # on an AIA cutout of the observation, here one with the slit-jaw image's own frames, so that the slit-jaw
     # image's box is the cutout's edge; off at first, and apart from 'Raster overlays'
     path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
     [raster] = raster_data([path], ["Si IV 1403"])
@@ -2459,7 +2459,7 @@ def test_raster_overlays_on_a_sit_and_stare_slit_jaw_image(bare_app, qtbot, monk
 
 def test_raster_overlays_on_a_slit_jaw_viewer_with_its_raster_in_none(bare_app, qtbot, monkeypatch, irispy_test_files):
     # the raster loaded, as File → Open Data Set leaves it, but in no viewer: its slits drawn, also where a shift of the
-    # slit-jaw image's pointing moves them, and hidden again (D40)
+    # slit-jaw image's pointing moves them, and hidden again
     raster, sji = sit_and_stare(irispy_test_files)
     collection = bare_app.data_collection
     collection.extend([raster, sji])
@@ -3060,7 +3060,7 @@ def test_the_three_entry_points_open_the_same_quicklook(qtbot, monkeypatch, tmp_
             browse(qtbot, app, monkeypatch, folder, [0], only=("Mg II k", "SJI"))
         else:
             # glue loads command-line files with add_datasets, whose autolinker has nothing to suggest for
-            # IRIS data on glue-core 1.27.0 (with glue-viz/glue#2595 it asks, before any startup action)
+            # IRIS data on glue-core (with glue-viz/glue#2595 it asks, before any startup action)
             app.data_collection.extend([data for p in sorted(folder.iterdir()) for data in as_list(load_data(str(p)))])
             if path == "action":  # 'Quicklook…' on the slit-jaw image
                 quicklook_cube(app.data_collection[0], app.data_collection)
@@ -4352,7 +4352,7 @@ def test_what_moves_on_a_negative_step_raster(bare_app, qtbot, irispy_data):
         "point": (label, (40, 400, None)),
         "spectrogram": (40, None, None),
     }
-    # the steps are places on the Sun, not a sit-and-stare's exposures: glue's own labels, with their unit (D90), the
+    # the steps are places on the Sun, not a sit-and-stare's exposures: glue's own labels, with their unit, the
     # scanning titles
     longitude = f"{scan.world_component_ids[0].label} [arcsec]"
     assert viewers["map"].state.x_axislabel == viewers["wavelength"].state.y_axislabel == longitude
@@ -4369,7 +4369,7 @@ def clicked(viewer, raster, step, slit):
     return (x, y), describe.sji_to_raster(sji, frame, x, y, raster)
 
 
-@pytest.mark.parametrize("arcsec", [0.3, -0.3])  # per step: a scanning raster, and one of negative step (D10)
+@pytest.mark.parametrize("arcsec", [0.3, -0.3])  # per step: a scanning raster, and one of negative step
 def test_what_a_slit_jaw_click_moves_on_a_scanning_raster(bare_app, qtbot, tmp_path, irispy_test_files, arcsec):
     path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=arcsec)
     [raster] = raster_data([path], ["Si IV 1403"])
@@ -4497,9 +4497,9 @@ def test_what_a_slit_jaw_click_moves_on_a_sit_and_stare(bare_app, qtbot, irispy_
 
 def test_the_first_click_on_any_panel_moves_the_point(bare_app, qtbot, irispy_test_files):
     # glue-qt turns a viewer's mouse mode off as another window becomes active, and a click with none empties the edit
-    # subset: each panel takes the Pixel tool as its window becomes active, so a click there moves the point (D75)
+    # subset: each panel takes the Pixel tool as its window becomes active, so a click there moves the point
     raster, sji = sit_and_stare(irispy_test_files)
-    bare_app.resize(1800, 1100)  # rows taller than 280 pixels, in which a click can land on the next exposure (D83)
+    bare_app.resize(1800, 1100)  # rows taller than 280 pixels, in which a click can land on the next exposure
     bare_app.show()
     qtbot.waitUntil(bare_app.isActiveWindow)  # for a click to make its window the active one
     viewers = quicklook(bare_app, [raster, sji])
@@ -5235,7 +5235,7 @@ def windows_of(irispy_test_files, kind):
 
 
 def with_windows(qtbot, viewers, *names):
-    """A quicklook's ``viewers`` once its other windows ``names``, or every one, are ticked in its Panels list (D83)."""
+    """A quicklook's ``viewers`` once its other windows ``names``, or every one, are ticked in its Panels list."""
     [panels] = viewers["map"].parent().mdiArea().findChildren(glue_solar.quicklook._Panels)
     root = panels.invisibleRootItem()
     for item in [root.child(i) for i in range(root.childCount())]:
@@ -5252,7 +5252,7 @@ def test_other_windows_open_once_ticked_below_rows_that_keep_the_strip_in_sight(
     bare_app.show()
     viewers = quicklook(bare_app, [c2, si4, mg, sji], window=THREE)
     panels, tab = panels_list(bare_app), bare_app.tab()
-    # D83: the other windows unticked and not made, and the rows shrunk to keep the Point window and the list in sight
+    # the other windows unticked and not made, and the rows shrunk to keep the Point window and the list in sight
     assert viewers["windows"] == []
     assert entries(panels)[-2:] == [
         ("C II 1336", False, [("C II 1336 λ–time", False), ("C II 1336 spectrum", False)]),
@@ -5662,7 +5662,7 @@ def test_path_diagrams_close_unasked_with_their_panels(bare_app, qtbot, monkeypa
     assert all(diagram._closed for diagram in diagrams)
 
 
-# The Panels list (D66): a box per panel, and per other window for all its panels
+# The Panels list: a box per panel, and per other window for all its panels
 
 
 def panels_list(app):
@@ -5819,7 +5819,7 @@ def slit_jaws(irispy_test_files):
 
 
 def test_a_slit_jaw_only_quicklook_turns_its_panels_on_and_off(bare_app, qtbot, irispy_test_files):
-    # D66's list, though without a raster there is no point and no Point window
+    # the Panels list, though without a raster there is no point and no Point window
     viewers = quicklook(bare_app, slit_jaws(irispy_test_files))
     panels = panels_list(bare_app)
     assert entries(panels) == [("SJI 1400", True), ("SJI 2796", True)]
@@ -5834,7 +5834,7 @@ def test_a_slit_jaw_only_quicklook_turns_its_panels_on_and_off(bare_app, qtbot, 
 
 
 def test_a_slit_jaw_only_quicklook_lists_its_sot_cubes_each_by_a_name_of_its_own(bare_app, qtbot, irispy_test_files):
-    # D115, with no raster and so no point: two SOT cubes of one band, as an observation's SOTFG files give, each a
+    # with no raster and so no point: two SOT cubes of one band, as an observation's SOTFG files give, each a
     # panel once ticked
     cubes = [image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000"))) for _ in range(2)]
     for cube in cubes:  # read as SOT cubes are, with the slit-jaw image's frames
@@ -5862,7 +5862,7 @@ def test_a_panel_closed_by_hand_without_the_panels_list_leaves_the_session(
         viewers["sji"][1].parent().close()  # its window's close box
     bare_app.save_session(str(tmp_path / "session.glu"))
     restored = restore(qtbot, monkeypatch, tmp_path / "session.glu")
-    assert [viewer.state.title for viewer in restored.viewers[-1]] == ["SJI 1400", "SJI 2796"]  # made again (D83)
+    assert [viewer.state.title for viewer in restored.viewers[-1]] == ["SJI 1400", "SJI 2796"]  # made again
 
 
 def test_a_session_opens_with_a_quicklook_whose_data_were_removed(
@@ -5949,8 +5949,8 @@ def test_hide_axes_on_a_panel_is_every_image_panels(bare_app, qtbot, monkeypatch
         """Press 'Hide axes' in the View menu of ``viewer``; `changes` once the Panels list has applied it."""
         return applied(bare_app, qtbot, viewers, panels, viewer.toolbar.actions["solar:hide_axes"].trigger)
 
-    # D71: every Image panel without axes, as 'Hide axes' leaves it, its draws skipping WCSAxes' ticks; the spectrum
-    # panels' plain Matplotlib axes kept; no Axes entry in the Panels list (D83)
+    # every Image panel without axes, as 'Hide axes' leaves it, its draws skipping WCSAxes' ticks; the spectrum
+    # panels' plain Matplotlib axes kept; no Axes entry in the Panels list
     assert entries(panels)[0] == ("Mg II k 2796 slit vs time", True)
     assert axes() == [(False, False, False)] * 6
     assert all(viewer.axes.axison for viewer in every if isinstance(viewer, ProfileViewer))
@@ -6117,7 +6117,7 @@ def test_the_browser_shows_each_ticked_window(qtbot, monkeypatch, tmp_path, iris
         "Mg II k 2796 spectrum",
     ]
     offered = [("C II 1336 λ–time", False), ("C II 1336 spectrum", False)]
-    assert entries(panels_list(app))[-1] == ("C II 1336", False, offered)  # made once ticked (D83)
+    assert entries(panels_list(app))[-1] == ("C II 1336", False, offered)  # made once ticked
 
 
 def test_each_band_opens_with_its_stretch(bare_app, qtbot, irispy_test_files):
@@ -6125,7 +6125,7 @@ def test_each_band_opens_with_its_stretch(bare_app, qtbot, irispy_test_files):
     sjis = [image_data(find_irispy_test_file(irispy_test_files, SNS.format(f"SJI_{band}_t000")))
             for band in (1330, 1400, 2796, 2832)]
     viewers = with_windows(qtbot, quicklook(bare_app, [*rasters, *sjis], window=THREE))
-    # D43: log in the FUV, sqrt about Mg II k and h, linear for slit-jaw 2832; glue's controls change them
+    # log in the FUV, sqrt about Mg II k and h, linear for slit-jaw 2832; glue's controls change them
     stretches = {role: viewers[role].state.layers[0].stretch for role in ("map", "spectrogram", "wavelength")}
     assert stretches == dict.fromkeys(stretches, "sqrt")  # Mg II k 2796
     assert [panels["wavelength"].state.layers[0].stretch for panels in viewers["windows"]] == ["log", "log"]
@@ -6141,7 +6141,7 @@ def test_the_spectrum_panel_labels_the_main_lines(bare_app, scans):
 
 def test_the_panels_have_small_toolbar_icons(bare_app, scans):
     viewers = quicklook(bare_app, [scans[1]])  # a stack, with its λ–scan panel
-    assert {panel.toolbar.iconSize().width() for panel in _viewers(viewers)} == {16}  # glue-qt's are 25 px (P8)
+    assert {panel.toolbar.iconSize().width() for panel in _viewers(viewers)} == {16}  # glue-qt's are 25 px
 
 
 def test_the_point_window_fits_its_columns(bare_app, qtbot, scans):
@@ -6149,7 +6149,7 @@ def test_the_point_window_fits_its_columns(bare_app, qtbot, scans):
     quicklook(bare_app, [scans[0]])
     window = point_window(bare_app)
     settle(qtbot, window)
-    # its label as wide as it is, not the width left (P8)
+    # its label as wide as it is, not the width left
     assert window.columnWidth(0) == window.sizeHintForColumn(0) < window.viewport().width() // 3
     window.item(0, 0).setText(f"{scans[0].label} " * 10)  # a label too wide for the window
     window.parentWidget().resize(900, window.parentWidget().height())
@@ -6159,7 +6159,7 @@ def test_the_point_window_fits_its_columns(bare_app, qtbot, scans):
     assert window.horizontalHeader().length() <= window.viewport().width()  # no scrolling
 
 
-# Blink (D41): one viewer alternating two positions, each a dataset and its slider position
+# Blink: one viewer alternating two positions, each a dataset and its slider position
 
 
 def show(viewer, data, slices):
@@ -6239,7 +6239,7 @@ def test_blink_alternates_two_windows_exactly(bare_app, qtbot, irispy_test_files
 
 
 def test_a_blink_keeps_per_frame_limits(bare_app, qtbot, irispy_test_files):
-    # D41: the window left takes its whole cube's limits, as glue would take them at the other's slices, and its
+    # the window left takes its whole cube's limits, as glue would take them at the other's slices, and its
     # per-frame limits again as it comes back
     viewers, (_, si4, mg) = blink_windows(bare_app, qtbot, irispy_test_files)
     raster_map = viewers["map"]
@@ -6339,7 +6339,7 @@ def test_blink_in_time(bare_app, qtbot, irispy_test_files):
     qtbot.wait(20)
     tool = sji_viewer.toolbar.tools["solar:coordinate"]
     tool._blink.setInterval(60_000)  # no tick of its own between the flips by hand, however slow the machine
-    # two frames of the time master: its frame alone, the raster staying at frame 40's time (D41)
+    # two frames of the time master: its frame alone, the raster staying at frame 40's time
     assert changes(bare_app, qtbot, viewers, menu_action(sji_viewer, "Blink").trigger) == {"sji0": (10, None, None)}
     assert changes(bare_app, qtbot, viewers, tool._flip) == {"sji0": (40, None, None)}
     assert changes(bare_app, qtbot, viewers, tool._flip) == {"sji0": (10, None, None)}

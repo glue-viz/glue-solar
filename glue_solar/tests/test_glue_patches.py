@@ -1,4 +1,4 @@
-"""glue_patches' probes: one that raises, as on a glue change it did not foresee, installs its patch (D82)."""
+"""glue_patches' probes: one that raises, as on a glue change it did not foresee, installs its patch."""
 
 import inspect
 import re
