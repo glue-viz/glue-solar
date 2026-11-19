@@ -4406,6 +4406,25 @@ def test_what_a_slit_jaw_click_moves_on_a_scanning_raster(bare_app, qtbot, tmp_p
     assert "outside raster FOV" in readout(sji_viewer)
 
 
+def test_a_slit_jaw_click_moves_the_point_with_the_raster_panels_turned_off(
+    bare_app, qtbot, tmp_path, irispy_test_files
+):
+    path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
+    [raster] = raster_data([path], ["Si IV 1403"])
+    _, sji = sit_and_stare(irispy_test_files)
+    viewers = quicklook(bare_app, [raster, sji])
+    [sji_viewer] = viewers["sji"]
+    panels = panels_list(bare_app)
+
+    def event(action):
+        return applied(bare_app, qtbot, viewers, panels, action)
+
+    assert event(lambda: tick(panels, *(viewers[role].state.title for role in RASTER_PANELS), on=False)) == {}
+    (x, y), (step, slit) = clicked(sji_viewer, raster, 30, 25)
+    # the raster's point there all the same, though no panel on shows the raster; those off keep their sliders
+    assert event(lambda: select_point(sji_viewer, x, y)) == {"point": (raster.label, (step, slit, None))}
+
+
 def test_what_a_slit_jaw_click_moves_on_a_stack(bare_app, qtbot, tmp_path, irispy_test_files):
     path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
     [stack] = raster_data([path, path], ["Si IV 1403"], stack=True)
@@ -5446,11 +5465,11 @@ def test_time_moves_a_point_on_another_window(bare_app, qtbot, monkeypatch, iris
 def switch(qtbot, panel):
     """Choose 'Show this window's panels' on a quicklook's spectrum ``panel``; the quicklook's viewers then."""
     tab = panel.parent().mdiArea()
-    viewers = tab._solar_quicklook[-1]
+    viewers = tab._solar_quicklook.viewers
     panel.toolbar.actions["solar:main_window"].trigger()
-    qtbot.waitUntil(lambda: tab._solar_quicklook[-1] is not viewers)
+    qtbot.waitUntil(lambda: tab._solar_quicklook.viewers is not viewers)
     qtbot.wait(20)  # glue-qt deletes the viewers closed
-    return tab._solar_quicklook[-1]
+    return tab._solar_quicklook.viewers
 
 
 def colors(app):

@@ -4,7 +4,6 @@ one CRISP or CHROMIS cube.
 """
 
 import sys
-import weakref
 from contextlib import contextmanager, suppress
 from functools import partial
 from itertools import pairwise
@@ -842,14 +841,14 @@ class Coordinator(HubListener):
         the raster the point stays (`outside_raster`), and under a raster master the frame clicked stays while the point
         is the click's, Undo and Redo too (#182, #193).
         """
-        sji, owners = state.reference_data, self._owners.get(self.group, ())
+        sji = state.reference_data
         clicked = {axis for axis, s in enumerate(state.slices) if s.start is not None}
         if _dkist(sji) == "imager" and clicked == {sji.ndim - 2, sji.ndim - 1}:
-            self._to_dkist_raster(state, owners)
+            self._to_dkist_raster(state)
             return
         if not _image_cube(sji) or clicked != {1, 2} or not _placeable(sji):
             return
-        rasters = [viewer.state.reference_data for viewer in self._viewers if viewer in owners]
+        rasters = self._shown_in_quicklook()
         key = observation_key(sji)
         raster = next((data for data in rasters if _role(data) == "raster" and observation_key(data) == key), None)
         viewers = [viewer for viewer in self._viewers_of(sji) if _sji_frame(viewer.state) is not None]
@@ -866,7 +865,7 @@ class Coordinator(HubListener):
         self._kept = (sji, self.point, viewer, _sji_frame(viewer.state))
         self._outside = (viewer if index is None else None, self.group.subset_state)
 
-    def _to_dkist_raster(self, state, owners):
+    def _to_dkist_raster(self, state):
         """
         As `_to_raster`, a click on a quicklook's DKIST context image (D105): the point of its raster at the step whose
         slit passes nearest the place clicked, or on a sit-and-stare raster the step nearest the frame's time within half
@@ -874,7 +873,7 @@ class Coordinator(HubListener):
         sliders.
         """
         imager = state.reference_data
-        rasters = [viewer.state.reference_data for viewer in self._viewers if viewer in owners]
+        rasters = self._shown_in_quicklook()
         key = observation_key(imager)
         raster = next((data for data in rasters if _dkist(data) == "raster" and observation_key(data) == key), None)
         frame = {imager.ndim - 2, imager.ndim - 1}
@@ -913,6 +912,15 @@ class Coordinator(HubListener):
                 self.group.subset_state = self._before.get(self.group, SubsetState())
         self._kept = (shown, self.point, viewer, clicked)
         self._outside = (None if inside else viewer, self.group.subset_state)
+
+    def _shown_in_quicklook(self):
+        """
+        The datasets the panels of the followed point's quicklook show, from its record (`_Quicklook`), found by a panel
+        the point drives: those of the panels turned off too, which it does not drive.
+        """
+        tab = next((viewer.parent().mdiArea() for viewer in self._owners.get(self.group, ())), None)
+        record = getattr(tab, "_solar_quicklook", None)
+        return [] if record is None else [viewer.state.reference_data for viewer in _viewers(record.viewers)]
 
     def _slit_table(self, raster):
         """
@@ -1625,7 +1633,7 @@ class QuicklookImageViewer(ImageViewer):
         if not hasattr(tab, "_solar_quicklook"):  # opened by a script outside a quicklook: saved as a plain viewer
             return rec
         # none once its data are removed, until glue-qt deletes the closed panels (`glue_patches.application_gluestate`)
-        panels = _viewers(tab._solar_quicklook[-1])
+        panels = _viewers(tab._solar_quicklook.viewers)
         first = next((p for p in panels if isinstance(p, ImageViewer) and not p._closed), None)
         return {**rec, "quicklook": _recipe(self.session.application, tab, context)} if self is first else rec
 
@@ -1880,6 +1888,19 @@ class _Panel(NamedTuple):
     aspect: str = None
     window: str = None
     cut: tuple = None
+
+
+class _Quicklook(NamedTuple):
+    """
+    A quicklook's record, its tab's ``_solar_quicklook`` (`_fill`): the ``datasets``, ``window`` and ``main`` it was
+    opened with (`_recipe`), its ``viewers`` as `quicklook` returns them, and its point ``group``, None without a point.
+    """
+
+    datasets: list
+    window: object
+    main: str
+    viewers: dict
+    group: object
 
 
 def _raster_panels(raster, window, roles=("map", "spectrogram", "wavelength"), other=False):
@@ -2285,7 +2306,7 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
         coord.own(group, [viewer for panel, viewer in made if panel.x is not None])
         if new and followed is not None:
             coord._link_points(followed, [group])  # it starts at the followed point's place, if on its cube
-        _edit_in_tab(app, tab, group)
+        _edit_in_tab(app, group)
         _show_point(app, group, [viewer for panel, viewer in made if _same_file(panel.data, point.reference_data)])
         for spectrum in [viewer for panel, viewer in made if panel.x is None]:
             _fit_spectrum(spectrum, group)
@@ -2337,7 +2358,7 @@ def _fill(app, tab, datasets, window=None, main=None, group=None, shown=()):
                 _zoom(viewer, *np.array(field[::-1], dtype=float), 0.5)
         if "imager" in viewers:
             _tiles_limits(viewers["imager"])
-    tab._solar_quicklook = (datasets, window, main, viewers)  # for `_recipe`
+    tab._solar_quicklook = _Quicklook(datasets, window, main, viewers, group)
     return viewers
 
 
@@ -2390,11 +2411,11 @@ def _switch(viewer):
     coord, raster = coordinator(app.data_collection), viewer.state.reference_data
     master = coord._master(observation_key(raster))
     index, _ = coord._timing(master)
-    recipe, point = _recipe(app, tab), app._solar_points[tab].subset_state
+    recipe, point = _recipe(app, tab), tab._solar_quicklook.group.subset_state
     recipe.update(main=_window(raster)[0], panels=[[*panel[:2], False, panel[3]] for panel in recipe["panels"]])
     lists = tab.findChildren(_Panels)  # none once the user closed its window: the map's axes then
-    axes = lists[-1].axes if lists else tab._solar_quicklook[-1]["map"].state.show_axes
-    for panel in _viewers(tab._solar_quicklook[-1]):
+    axes = lists[-1].axes if lists else tab._solar_quicklook.viewers["map"].state.show_axes
+    for panel in _viewers(tab._solar_quicklook.viewers):
         panel.close(warn=False)
     for widget in tab.findChildren((_PointWindow, _Panels)):
         widget.parentWidget().close()
@@ -2403,7 +2424,7 @@ def _switch(viewer):
     _reopen(app, tab, recipe)
     if isinstance(point, PixelSubsetState) and _same_file(point.reference_data, raster):  # wavelength is last
         point = PixelSubsetState(raster, [*point.slices[:-1], slice(None)])
-    app._solar_points[tab].subset_state = point  # a new group if the user deleted it
+    tab._solar_quicklook.group.subset_state = point  # a new group if the user deleted it
     tab.findChildren(_Panels)[-1].show_axes(axes)  # the new list's
     now = coord._master(observation_key(raster))
     if _same_file(now, master):  # the same, or another window of its file
@@ -2413,10 +2434,10 @@ def _switch(viewer):
 def _recipe(app, tab, context=None):
     """What `_reopen` opens the quicklook of ``tab`` again from (D83), objects named by glue's ``context`` if any."""
     name = getattr(context, "id", lambda value: value)
-    datasets, window, main, viewers = tab._solar_quicklook
+    datasets, window, main, viewers, point = tab._solar_quicklook
     shows = [panel.state.reference_data for panel in _viewers(viewers)]  # with the panels closed by hand, made again
     panels = [panel for panel in _viewers(viewers) if not panel._closed]
-    point, collection = getattr(app, "_solar_points", {}).get(tab), app.data_collection
+    collection = app.data_collection
     master = coordinator(collection).masters.get(observation_key(shows[0]))
     # a cube's spectra's and light curve's cuts, the closed panels' too, whose layers glue empties
     cuts = [vars(panel).get("_solar_group") for panel in _viewers(viewers)]  # getattr raises on one Qt deleted
@@ -2531,24 +2552,23 @@ class _ArrangeShown(QObject):
     def eventFilter(self, tab, event):
         if event.type() == QEvent.Type.Resize:
             tab.removeEventFilter(self)
-            QTimer(self, singleShot=True, interval=0, timeout=partial(_arrange, tab, tab._solar_quicklook[-1])).start()
+            arrange = partial(_arrange, tab, tab._solar_quicklook.viewers)
+            QTimer(self, singleShot=True, interval=0, timeout=arrange).start()
         return False
 
 
-def _edit_in_tab(app, tab, group):
-    """Make ``group`` the edit subset now and whenever its tab is shown again."""
-    points = getattr(app, "_solar_points", None)
-    if points is None:
-        points = app._solar_points = weakref.WeakKeyDictionary()
+def _edit_in_tab(app, group):
+    """Make ``group`` the edit subset now, and a quicklook's point (`_Quicklook`) whenever its tab is shown again."""
+    if not getattr(app, "_solar_follows", False):
+        app._solar_follows = True  # connected once an application
 
         def follow(index):
-            group = points.get(app.tab_widget.widget(index))
+            group = getattr(getattr(app.tab_widget.widget(index), "_solar_quicklook", None), "group", None)
             if group is not None and group in app.data_collection.subset_groups:
                 app.session.edit_subset_mode.edit_subset = [group]
                 coordinator(app.data_collection).follow(group)
 
         app.tab_widget.currentChanged.connect(follow)
-    points[tab] = group
     app.session.edit_subset_mode.edit_subset = [group]
     coordinator(app.data_collection).follow(group)
 
@@ -2919,8 +2939,8 @@ def _curve_sources(app):
     pixel = _curve_pixel(coord.group, raster) if _role(raster) == "raster" else None
     if pixel is None:
         raise ValueError("Select a point on a raster first.")
-    points = getattr(app, "_solar_points", {})
-    tab = next((viewers for i, viewers in enumerate(app.viewers) if points.get(app.tab(i)) is coord.group), None)
+    points = [getattr(getattr(app.tab(i), "_solar_quicklook", None), "group", None) for i in range(app.tab_count)]
+    tab = next((viewers for viewers, point in zip(app.viewers, points) if point is coord.group), None)
     if tab is None:
         shown = {raster, *(data for data in collection if _role(data) == "sji")}
     else:

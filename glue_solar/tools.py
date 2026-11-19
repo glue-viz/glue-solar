@@ -2653,7 +2653,7 @@ def _wavelength_key(delta, session):
     """
     viewer, sync, _ = _pressed(session)
     app = session.application
-    group = getattr(app, "_solar_points", {}).get(app.current_tab)
+    group = getattr(getattr(app.current_tab, "_solar_quicklook", None), "group", None)
     for each in dict.fromkeys([viewer, *(other for other in sync._owners.get(group, ()) if not _wing(other))]):
         data = each.state.reference_data
         if isinstance(each, ImageViewer) and data is not None:

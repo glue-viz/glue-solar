@@ -633,7 +633,7 @@ def test_a_restored_quicklook_of_a_cube_renamed_since_has_its_panels_off_and_the
     look.cmap, look.v_max = colormaps["viridis"], 123.0
     cube.label = "renamed"
     app.save_session(str(tmp_path / "renamed.glu"))
-    again = restore(qtbot, monkeypatch, tmp_path / "renamed.glu").tab(1)._solar_quicklook[-1]
+    again = restore(qtbot, monkeypatch, tmp_path / "renamed.glu").tab(1)._solar_quicklook.viewers
     look = again["map"].layers[0].state
     assert (look.cmap.name, look.v_max) == ("viridis", 123.0)
     assert [_off(viewer) for viewer in again["spectra"]] == [False, True]  # Stokes I's and Q's
@@ -658,7 +658,7 @@ def test_a_restored_quicklook_keeps_a_dataset_dragged_onto_a_panel(
     panel.state.reference_data = other
     app.save_session(str(tmp_path / "dragged.glu"), absolute_paths=False)
     restored = restore(qtbot, monkeypatch, tmp_path / "dragged.glu")
-    [again] = restored.tab(1)._solar_quicklook[-1]["sji"]
+    [again] = restored.tab(1)._solar_quicklook.viewers["sji"]
     assert shown_on(again) == shown_on(panel)
     assert shown_on(again)[0] == other.label
 
@@ -675,7 +675,7 @@ def test_a_restored_quicklook_neither_asks_about_nor_profiles_a_cube_hidden_on_i
     assert (asked, whole) == (["Add large data set?"], [])
     app.save_session(str(tmp_path / "hidden.glu"), absolute_paths=False)
     restored = restore(qtbot, monkeypatch, tmp_path / "hidden.glu")
-    again = restored.tab(1)._solar_quicklook[-1]["spectrum"]
+    again = restored.tab(1)._solar_quicklook.viewers["spectrum"]
     assert shown_on(again) == shown_on(panel)
     assert ("other", "other", False) in shown_on(again)[1]
     assert (asked, whole) == (["Add large data set?"], [])
@@ -781,7 +781,7 @@ def test_a_restored_sst_quicklook_keeps_its_second_map_point_and_panels_off(app,
     qtbot.waitUntil(lambda: viewers["slit"].state.slices[0] == viewers["wing"].state.slices[0] == 2)  # synced
     app.save_session(str(tmp_path / "sst.glu"))
     restored = restore(qtbot, monkeypatch, tmp_path / "sst.glu")
-    again = restored.tab(1)._solar_quicklook[-1]
+    again = restored.tab(1)._solar_quicklook.viewers
 
     def panels(viewers):  # each panel's title, whether it is off, and an Image panel's slices
         return [(v.state.title, _off(v), tuple(getattr(v.state, "slices", ()))) for v in _viewers(viewers)]
