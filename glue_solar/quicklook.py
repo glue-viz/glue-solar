@@ -530,7 +530,7 @@ class Coordinator(HubListener):
         """Let the point group ``group`` drive only the viewers it owns, ``viewers`` too, and those follow only it."""
         self._owners.setdefault(group, set()).update(viewers)
         on = getattr(group.subset_state, "reference_data", None)
-        if not _image_cube(on) and _dkist(on) != "imager":  # a restored point, set before this heard of it (_to_raster)
+        if not _is_context_image(on):  # a restored point, set before this heard of it (_to_raster)
             self._before.setdefault(group, group.subset_state)
 
     def follow(self, group):
@@ -675,7 +675,7 @@ class Coordinator(HubListener):
         subset = message.subset
         state = subset.subset_state
         on = getattr(state, "reference_data", None)
-        if not _image_cube(on) and _dkist(on) != "imager":  # a click on a slit-jaw image or DKIST context image aside
+        if not _is_context_image(on):  # a click on a slit-jaw image or DKIST context image aside
             self._before[getattr(subset, "group", None)] = state
         if getattr(subset, "group", None) is self.group and not isinstance(state, PixelSubsetState):
             self._timer.start()  # another selection replaced the point: readouts follow
@@ -696,7 +696,7 @@ class Coordinator(HubListener):
         # an Undo or Redo back to a slit-jaw click's point: under a raster master, its viewer back to the frame clicked
         sji, clicked, viewer, frame = self._kept
         master = self._master(observation_key(state.reference_data))
-        if state is clicked and viewer.state.reference_data is sji and "raster" in (_role(master), _dkist(master)):
+        if state is clicked and viewer.state.reference_data is sji and _is_raster(master):
             with self._writing():
                 self._set_slices(viewer, {_time_axis(sji) or 0: frame})
         if self._drag:
@@ -1004,10 +1004,10 @@ class Coordinator(HubListener):
             return chosen
         point = self.point
         on = getattr(point, "reference_data", None)
-        if on in datasets and (_role(on) in ("raster", "sst") or _dkist(on) == "raster"):
+        if on in datasets and (_is_raster(on) or _role(on) == "sst"):
             return on
         # else a raster of the followed point's viewers, as after Clear point, not one of a hidden tab
-        rasters = [data for data in datasets if "raster" in (_role(data), _dkist(data))]
+        rasters = [data for data in datasets if _is_raster(data)]
         rasters += [data for data in datasets if _role(data) == "sst"]
         followed = {viewer.state.reference_data for viewer in self._viewers if self._follows(viewer)}
         return next((data for data in rasters if data in followed), next(iter(rasters), None))
@@ -1079,7 +1079,7 @@ class Coordinator(HubListener):
         slit-jaw image clicked while the point is the click's and a raster the master.
         """
         kept, clicked, *_ = self._kept
-        raster = "raster" in (_role(master), _dkist(master))
+        raster = _is_raster(master)
         if data is kept and raster and getattr(self.group, "subset_state", None) is clicked:
             return None  # a slit-jaw master rules, and once the point moves the image clicked follows it
         follower_step = self._timing(data)[1]
@@ -1672,6 +1672,19 @@ def _dkist(data):
     return "raster" if _spectral_axes(data) else "imager"
 
 
+def _is_raster(data):
+    """Whether ``data`` is a raster of either instrument: IRIS's (`_role`) or a DKIST spectrograph's (`_dkist`)."""
+    return _role(data) == "raster" or _dkist(data) == "raster"
+
+
+def _is_context_image(data):
+    """
+    Whether ``data`` is an image of either instrument placed frame by frame: IRIS's (`_image_cube`) or a DKIST context
+    imager's (`_dkist`).
+    """
+    return _image_cube(data) or _dkist(data) == "imager"
+
+
 def _hpc(data):
     """
     The world axes of the helioprojective longitude and latitude of ``data``, in WCS order, and its pixel axes along
@@ -1941,7 +1954,7 @@ def hidden_cube_profile(viewer, data):
     """
     if getattr(viewer, "_solar_hidden", None) is not data:
         large = isinstance(viewer, ProfileViewer) and isinstance(data, Data) and viewer.large_data_size is not None
-        if not large or data.size < viewer.large_data_size or _role(data) in ("raster", "sji", "aia"):
+        if not large or data.size < viewer.large_data_size or _role(data) in _IRIS_ROLES:
             return None
         # the application's, which glue-qt's toolbar does not clear on a change of tool, as it does the viewer's
         (viewer.session.application or viewer).statusBar().showMessage(
@@ -2615,7 +2628,7 @@ def _turn(viewer, on, group):
                 layer.update()
         if isinstance(viewer, ImageViewer):
             data = viewer.state.reference_data
-            master = _image_cube(data) or _dkist(data) == "imager"  # as IRIS's slit-jaw images (D105)
+            master = _is_context_image(data)  # a DKIST context image as IRIS's slit-jaw images (D105)
             master = master and coord.masters.get(observation_key(data)) is data
             frame = coord.following(data) if master else None  # the raster's time, while it leads
             if frame is not None:
